@@ -1,0 +1,23 @@
+
+# System Files
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs and Temporary Files
+*.log
+tmp/
+temp/
+
+# Potentially Sensitive Data
+transscripts/
+
+# Sensitive/Private Data (User Request)
+# Add any specific keys or private folders here
