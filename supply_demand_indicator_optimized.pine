@@ -2,7 +2,7 @@
 // © ameer_1996112
 
 //@version=6
-strategy("Liquidity S&D Multi-TF Strategy (5m/30m) + Williams Fractals",
+strategy("Liquidity S&D 5m Strategy + Williams Fractals",
      overlay = true,
      max_bars_back = 5000,
      initial_capital = 10000000,
@@ -16,7 +16,6 @@ strategy("Liquidity S&D Multi-TF Strategy (5m/30m) + Williams Fractals",
      margin_short = 1)
 
 // === USER INPUTS ===
-tf_mode              = input.string("5", "Strategy Timeframe", options = ["5", "30"], tooltip = "Choose '5' for 5min rules, '30' for 30min rules (must match chart timeframe)")
 use_auto_pip_size    = input.bool(true, "Auto Detect Pip Size", tooltip = "Automatically detect pip size based on symbol. Disable to use manual pip size.")
 manual_pip_size      = input.float(0.0001, "Manual Pip Size", step = 0.0001, tooltip = "Only used if Auto Detect is disabled. 0.0001 for most pairs, 0.01 for JPY pairs, 0.1 for XAUUSD")
 
@@ -132,8 +131,7 @@ manual_zone_id_input = input.string("", "Manual Zone ID", group = "Strategy Sett
 // === 2025 NEW INPUTS ===
 max_trades_per_day = input.int(1, "Max Trades Per Day", minval = 1, maxval = 2, group = "Strategy Settings", tooltip = "Maximum number of trades per day. Second trade uses 0.5R risk if max=2")
 use_break_even     = input.bool(false, "Use Break-Even Mode", group = "Strategy Settings", tooltip = "Move SL to entry after TP1 hits")
-enable_flip_entry  = input.bool(true, "Enable Flip Entry", group = "Strategy Settings", tooltip = "Allow flip entries on 30m candle boundaries")
-flip_wick_threshold_pct = input.float(30.0, "Flip Entry Wick Threshold (% of zone)", minval = 10, maxval = 100, step = 5, group = "Strategy Settings", tooltip = "Minimum wick size (% of zone) to allow flip entry")
+
 enable_timing_filters = input.bool(true, "Enable Timing Filters", group = "Strategy Settings", tooltip = "Block entries before higher timeframe candles")
 use_time_window     = input.bool(true, "Use Time Window", group = "Strategy Settings")
 // Default to Asia/Jerusalem for Israel time
@@ -251,20 +249,13 @@ get_double_tp_ratio(base_ratio) =>
 
 // === 2025 TP LOOKUP DICTIONARIES ===
 get_tp_ratio(symbol_type, sl_pips) =>
-    // For 5-minute mode: ALWAYS use RD_FOREX rules (ignore use_fixed_rr)
-    if tf_mode == "5"
-        // Use exact RD_FOREX 5-minute rules - never override with fixed RR
-        base_ratio = get_rd_forex_tp_ratio(sl_pips)
-        // Apply double TP mode if enabled
-        if enable_double_tp
-            get_double_tp_ratio(base_ratio)
-        else
-            base_ratio
-    else if use_fixed_rr
-        // Fixed RR only applies to non-5-minute modes
-        fixed_rr_value
+    // Always use RD_FOREX 5-minute rules
+    base_ratio = get_rd_forex_tp_ratio(sl_pips)
+    // Apply double TP mode if enabled
+    if enable_double_tp
+        get_double_tp_ratio(base_ratio)
     else
-        2.0  // Default RR for other modes
+        base_ratio
 
 // === SETUP SCORING FUNCTIONS ===
 // Score each setup based on multiple confluences (0-100 scale)
@@ -474,11 +465,6 @@ is_in_session() =>
         h >= start_hour and h < end_hour
 
 // === TIMING FILTER FUNCTIONS (Moved from below) ===
-get_time_to_next_30m() =>
-    current_minute = minute(time, "Etc/GMT+5")
-    minutes_past_30 = current_minute % 30
-    30 - minutes_past_30
-
 get_time_to_next_1h() =>
     current_minute = minute(time, "Etc/GMT+5")
     60 - current_minute
@@ -488,14 +474,6 @@ get_time_to_next_15m() =>
     minutes_past_15 = current_minute % 15
     15 - minutes_past_15
 
-is_in_flip_window() =>
-    if not enable_flip_entry
-        false
-    else
-        time_to_1h = get_time_to_next_1h()
-        // Allow flip entries in the last 5 minutes of the hour (preparing for new 1H candle)
-        time_to_1h <= 5
-
 is_blocked_by_timing() =>
     if not enable_timing_filters
         false
@@ -503,24 +481,7 @@ is_blocked_by_timing() =>
         curr_min = minute(time, time_window_tz)
         // ONLY block the candle starting at :55 (the one closing on the hour)
         is_last_5m_of_hour = (curr_min == 55)
-        
-        if is_in_flip_window() // This refers to minute 0 (the Flip)
-            false
-        else
-            is_last_5m_of_hour
-
-get_next_flip_time_str() =>
-    current_hour = hour(time, time_window_tz)
-    current_minute = minute(time, time_window_tz)
-    int minutes_past_15 = current_minute % 15
-    int next_minute = current_minute + (15 - minutes_past_15)
-    int next_hour = current_hour
-    if next_minute >= 60
-        next_minute := next_minute - 60
-        next_hour := (current_hour + 1) % 24
-    string hour_str = next_hour < 10 ? "0" + str.tostring(next_hour) : str.tostring(next_hour)
-    string min_str = next_minute < 10 ? "0" + str.tostring(next_minute) : str.tostring(next_minute)
-    hour_str + ":" + min_str
+        is_last_5m_of_hour
 
 // === STRICT A+ SCORING HELPERS ===
 
@@ -603,11 +564,20 @@ calculate_setup_score(bool isDemand, Zone z, float sl_pips) =>
         if (isDemand and is_uptrend) or (not isDemand and is_downtrend)
             score += 15
             
-        // 2. Liquidity Quality (+15): 2+ candles
-        if z.liquidityCandleCount >= 2
-            score += 15
+        // 2. Liquidity Quality (+15): Tiered scoring
+        // Base: +5 for valid liquidity with at least 1 candle gap
+        // Bonus: +5 for 2+ candle gap (stronger structure)
+        // Bonus: +5 if liquidity was swept (confirms trap)
+        int liqQualScore = 0
+        if z.liquidityValid
+            liqQualScore += 5  // Base: Valid liquidity exists
+            if z.liquidityCandleCount >= 2
+                liqQualScore += 5  // Bonus: Stronger structure
+            if z.liquiditySwept
+                liqQualScore += 5  // Bonus: Confirmed sweep
+        score += liqQualScore
             
-        // 3. Liquidity BOS (+10): Target swept
+        // 3. Liquidity BOS (+10): Target swept (separate from Liq Qual)
         if z.targetSwept
             score += 10
             
@@ -645,9 +615,15 @@ explain_setup_score(bool isDemand, Zone z) =>
     bool trend = (isDemand and is_uptrend) or (not isDemand and is_downtrend)
     s := s + "Trend: " + (trend ? "+15" : "0") + "\n"
     
-    // 2. Liquidity (+15)
-    bool liqQ = z.liquidityCandleCount >= 2
-    s := s + "Liq Qual: " + (liqQ ? "+15" : "0") + "\n"
+    // 2. Liquidity Quality (+15 tiered: +5 valid, +5 structure, +5 swept)
+    int liqQ = 0
+    if z.liquidityValid
+        liqQ += 5
+        if z.liquidityCandleCount >= 2
+            liqQ += 5
+        if z.liquiditySwept
+            liqQ += 5
+    s := s + "Liq Qual: +" + str.tostring(liqQ) + "\n"
     
     // 3. BOS (+10)
     s := s + "Liq BOS: " + (z.targetSwept ? "+10" : "0") + "\n"
@@ -1568,6 +1544,7 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
             z.liqLowPrice := bestLowPrice
             z.liqLowBar := bestLowBar
             z.liquidityBarIndex := bestLowBar
+            z.liquidityCandleCount := candleGap  // For scoring compatibility
             
             z.liqSource := "SEQ_SCAN"
             
@@ -1589,8 +1566,97 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
     Zone z = array.get(supplyZones, zoneArrayIndex)
     
     // Skip if zone not eligible
-    if na(z.createdBarIndex) or bar_index <= z.createdBarIndex or z.isHistorical
+    if na(z.createdBarIndex) or bar_index <= z.createdBarIndex
         true  // Return dummy value
+    else
+        float maxDistPrice = liq_max_distance_pips * pip_size
+        float minDistPrice = 2.0 * pip_size  // Minimum 2 pips from zone
+        
+        // === PASS 1: Inducement (Absolute Highest Pivot High) ===
+        // Scan ALL bars forward from zone creation to find the highest valid pivot
+        float bestHighPrice = 0.0
+        int bestHighBar = na
+        
+        int windowStart = z.createdBarIndex + 1
+        int windowEnd = bar_index - 1
+        
+        if windowEnd >= windowStart
+            for scanBar = windowStart to windowEnd
+                int off = bar_index - scanBar
+                if off >= 1 // Need high[off-1] for pivot check
+                    float candleHigh = high[off]
+                    
+                    // Basic Filters
+                    if candleHigh >= z.bottom // Must be below zone
+                        continue
+                        
+                    float dist = z.bottom - candleHigh
+                    if (maxDistPrice > 0 and dist > maxDistPrice) or dist < minDistPrice
+                        continue
+                        
+                    // STRICT PIVOT CHECK (A-Shape): High > Prev and High > Next
+                    bool isPivot = high[off] > high[off+1] and high[off] > high[off-1]
+                    
+                    if isPivot
+                        // Track ABSOLUTE highest pivot (highest price)
+                        if candleHigh > bestHighPrice
+                            bestHighPrice := candleHigh
+                            bestHighBar := scanBar
+                            
+        // === PASS 2: Target (Absolute Structural Low) ===
+        // Scan strictly BACKWARD from bestHighBar - 1 to zone creation
+        // Find the Lowest Low in this sequence
+        float bestLowPrice = 1.0e10
+        int bestLowBar = na
+        
+        if not na(bestHighBar)
+            int targetScanEnd = bestHighBar - 1
+            int targetScanStart = z.createdBarIndex
+            
+            if targetScanEnd >= targetScanStart
+                for scanBar = targetScanStart to targetScanEnd
+                    int off = bar_index - scanBar
+                    float l = low[off]
+                    if l < bestLowPrice
+                        bestLowPrice := l
+                        bestLowBar := scanBar
+                        
+        // === VALIDATION ===
+        bool found = not na(bestHighBar) and not na(bestLowBar)
+        // Target Low must be < Inducement High (Structure Low -> Inducement High)
+        bool validStructure = found and (bestLowPrice < bestHighPrice)
+        
+        // Check minimum 1 candle between target and inducement (adjacent allowed)
+        int candleGap = bestHighBar - bestLowBar
+        bool validGap = candleGap >= 1
+        
+        if validStructure and validGap
+            // Store Sequential Values
+            z.structureSweepLevel := bestLowPrice   // Target
+            z.liquidityPrice := bestHighPrice       // Inducement
+            z.liquidityValid := true
+            z.inactiveReason := na
+            
+            z.liqHighPrice := bestHighPrice
+            z.liqHighBar := bestHighBar
+            z.liqLowPrice := bestLowPrice
+            z.liqLowBar := bestLowBar
+            z.liquidityBarIndex := bestHighBar
+            z.liquidityCandleCount := candleGap
+            
+            z.liqSource := "SEQ_SCAN"
+            
+            // Sweep Check (Live)
+            if low < z.structureSweepLevel
+                z.targetSwept := true
+        else
+            z.liquidityValid := false
+            z.inactiveReason := "WAITING_STRUCT"
+            z.structureSweepLevel := na
+            z.liquidityPrice := na
+            z.liqHighPrice := na
+            z.liqLowPrice := na
+        true
 
 // Check inducement and target sweeps for demand zone
 f_check_demand_sweeps(int zoneArrayIndex) =>
@@ -1859,10 +1925,10 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int zoneUZID) =>
         
         if isAccuracy
             if isDemand
-                // Demand Accuracy: ALWAYS use CLOSE as top, LOW as bottom
-                // This is where institutions bought - the demand zone starts from LOW
-                // Top is the CLOSE (where the selling pressure ended)
-                zTop := effClose
+                // Demand Accuracy: ALWAYS use OPEN as top, LOW as bottom (User Request)
+                // This covers the specific institutional buy range (Open to Low)
+                // For Green candle: Lower Wick. For Red candle: Entire Body + Lower Wick.
+                zTop := effOpen
                 zBottom := effLow
             else
                 // Supply Accuracy: ALWAYS use HIGH of supply candle as top
@@ -2443,7 +2509,7 @@ deactivateOverlappingDemandZones(refLow, refHigh) =>
 
 
 // --- 1. DEMAND ZONE DETECTION (recent bars) ---
-if barstate.isconfirmed and bar_index > 10
+if barstate.isconfirmed and bar_index >= 3
     if is_bullish(0) and is_bullish(1) and is_bullish(2) and is_bearish(3)
         baseBarIdx = bar_index - 3
         if not is_base_bar_used(baseBarIdx, used_demand_base_times)
@@ -2461,9 +2527,9 @@ if barstate.isconfirmed and bar_index > 10
             createZone(1, true, false, demand_zone_counter)
 
 // Initial historical scan (once)
-if barstate.isconfirmed and not initial_scan_done and bar_index > 50
+if barstate.isconfirmed and not initial_scan_done and bar_index >= 50
     initial_scan_done := true
-    max_scan = math.min(100, bar_index)
+    max_scan = math.min(200, bar_index - 10)
 
     for i = 2 to max_scan
         baseBarIdxDemand = bar_index - i
@@ -2471,11 +2537,11 @@ if barstate.isconfirmed and not initial_scan_done and bar_index > 50
             if not is_base_bar_used(baseBarIdxDemand, used_demand_base_times)
                 demand_zone_counter += 1
                 createZone(i, true, true, demand_zone_counter)
-        else if is_bearish(i) and is_bullish(i - 1) and is_bullish(i - 2)
+        else if i >= 2 and is_bearish(i) and is_bullish(i - 1) and is_bullish(i - 2)
             if not is_base_bar_used(baseBarIdxDemand, used_demand_base_times)
                 demand_zone_counter += 1
                 createZone(i, true, true, demand_zone_counter)
-        else if is_bearish(i) and is_bullish(i - 1)
+        else if i >= 1 and is_bearish(i) and is_bullish(i - 1)
             if not is_base_bar_used(baseBarIdxDemand, used_demand_base_times)
                 demand_zone_counter += 1
                 createZone(i, true, true, demand_zone_counter)
@@ -2485,17 +2551,17 @@ if barstate.isconfirmed and not initial_scan_done and bar_index > 50
             if not is_base_bar_used(baseBarIdxSupply, used_supply_base_times)
                 supply_zone_counter += 1
                 createZone(i, false, true, supply_zone_counter)
-        else if is_bullish(i) and is_bearish(i - 1) and is_bearish(i - 2)
+        else if i >= 2 and is_bullish(i) and is_bearish(i - 1) and is_bearish(i - 2)
             if not is_base_bar_used(baseBarIdxSupply, used_supply_base_times)
                 supply_zone_counter += 1
                 createZone(i, false, true, supply_zone_counter)
-        else if is_bullish(i) and is_bearish(i - 1)
+        else if i >= 1 and is_bullish(i) and is_bearish(i - 1)
             if not is_base_bar_used(baseBarIdxSupply, used_supply_base_times)
                 supply_zone_counter += 1
                 createZone(i, false, true, supply_zone_counter)
 
 // --- 2. SUPPLY ZONE DETECTION (recent bars) ---
-if barstate.isconfirmed and bar_index > 10
+if barstate.isconfirmed and bar_index >= 3
     if is_bearish(0) and is_bearish(1) and is_bearish(2) and is_bullish(3)
         baseBarIdx = bar_index - 3
         if not is_base_bar_used(baseBarIdx, used_supply_base_times)
@@ -2831,7 +2897,7 @@ isValidEntry(isDemand, idx) =>
         // Score Validation (Strict A+ Model)
         float est_sl_pips = (z.top - z.bottom) / pip_size
         int setup_score = calculate_setup_score(isDemand, z, est_sl_pips)
-        if tf_mode == "5" and setup_score < 65
+        if setup_score < 65
             canEnter := false
             reason := "Score Low (" + str.tostring(setup_score) + ")"
 
@@ -2961,22 +3027,22 @@ if array.size(demandZones) > 0 and barstate.isconfirmed
                 bool breakdown = close < z.bottom
                 
                 if is_future_bar
-                    if premature_touch
+                    if premature_touch or breakdown
                         z.mitigated := true
                         z.mitigationTime := time
-                        z.inactiveReason := "Premature touch (No Sweep)"
+                        z.inactiveReason := premature_touch ? "Premature touch (No Sweep)" : "Zone Breakdown"
                         z.active := false
+                        // DELETE zone visuals completely (cleaner chart)
                         if not na(z.boxId)
-                            box.set_bgcolor(z.boxId, color.new(color.gray, 85))
-                            box.set_border_color(z.boxId, color.gray)
-                    else if breakdown
-                        z.mitigated := true
-                        z.mitigationTime := time
-                        z.inactiveReason := "Zone Breakdown"
-                        z.active := false
-                        if not na(z.boxId)
-                            box.set_bgcolor(z.boxId, color.new(color.gray, 85))
-                            box.set_border_color(z.boxId, color.gray)
+                            box.delete(z.boxId)
+                        if not na(z.idLabel)
+                            label.delete(z.idLabel)
+                        if not na(z.connectorLine)
+                            line.delete(z.connectorLine)
+                        if not na(z.inducementHLine)
+                            line.delete(z.inducementHLine)
+                        if not na(z.targetHLine)
+                            line.delete(z.targetHLine)
 
 // === TRACK LIQUIDITY AND ZONE STATUS (SUPPLY) ===
 // CRITICAL: Only validate liquidity sweeps for LIVE zones (not historical backfill)
@@ -3055,22 +3121,22 @@ if array.size(supplyZones) > 0 and barstate.isconfirmed
                 bool breakdown = close > z.top
                 
                 if is_future_bar
-                    if premature_touch
+                    if premature_touch or breakdown
                         z.mitigated := true
                         z.mitigationTime := time
-                        z.inactiveReason := "Premature touch (No Sweep)"
+                        z.inactiveReason := premature_touch ? "Premature touch (No Sweep)" : "Zone Breakdown"
                         z.active := false
+                        // DELETE zone visuals completely (cleaner chart)
                         if not na(z.boxId)
-                            box.set_bgcolor(z.boxId, color.new(color.gray, 85))
-                            box.set_border_color(z.boxId, color.gray)
-                    else if breakdown
-                        z.mitigated := true
-                        z.mitigationTime := time
-                        z.inactiveReason := "Zone Breakdown"
-                        z.active := false
-                        if not na(z.boxId)
-                            box.set_bgcolor(z.boxId, color.new(color.gray, 85))
-                            box.set_border_color(z.boxId, color.gray)
+                            box.delete(z.boxId)
+                        if not na(z.idLabel)
+                            label.delete(z.idLabel)
+                        if not na(z.connectorLine)
+                            line.delete(z.connectorLine)
+                        if not na(z.inducementHLine)
+                            line.delete(z.inducementHLine)
+                        if not na(z.targetHLine)
+                            line.delete(z.targetHLine)
 
 
 // === ZONE INVALIDATION (DEMAND) ===
@@ -3202,573 +3268,10 @@ if show_zones and show_supply_zones and array.size(supplyZones) > 0 and barstate
 // Zone IDs are created with labels when zones are created - see createDemandZone() and createSupplyZone()
 // Labels are positioned at the left edge (creation bar) and remain anchored there
 
-// === FLIP ENTRY DETECTION (30M CANDLE BOUNDARY) ===
-var int last_30m_time = na
-
-// Check if new 30m candle just opened (performance optimized)
-// Only fetch 30m time when flip entry is enabled and no trade is open
-var int thirty_min_time = na
-if enable_flip_entry and strategy.position_size == 0
-    thirty_min_time := request.security(syminfo.tickerid, "30", time, lookahead = barmerge.lookahead_off)
-else
-    thirty_min_time := na
-is_new_30m_candle = na(last_30m_time) or (thirty_min_time != last_30m_time)
-
-if is_new_30m_candle
-    last_30m_time := thirty_min_time
-
-// Flip entry logic for demand zones - RESTORED TO ORIGINAL STRUCTURE
-if enable_flip_entry and tf_mode == "5" and array.size(demandZones) > 0 and allow_long_trades and is_new_30m_candle and strategy.position_size == 0
-    current_close = close
-    current_open = open
-    current_low = low
-    current_high = high
-    is_bullish_candle = current_close > current_open
-    
-    for i = 0 to array.size(demandZones) - 1
-        Zone z = array.get(demandZones, i)
-        
-        // Use base validation WITHOUT timing filter (flip entries are ALLOWED during timing windows)
-        [base_can_enter_demand, base_reason_demand, _z] = validate_entry_conditions(true, i)
-        
-        if base_can_enter_demand
-            // Flip Entry specific checks
-            float zoneSize = z.top - z.bottom
-            
-            // Check if wick goes into zone (current candle approach)
-            bool wick_into_zone = current_low <= z.top and current_low >= z.bottom
-            float wick_size = current_close - current_low
-            float wick_percent_of_zone = zoneSize > 0 ? (wick_size / zoneSize * 100) : 0
-            
-            // Strong flip in entry direction (bullish)
-            bool strong_flip = is_bullish_candle and (current_close - current_open) > (current_high - current_low) * 0.6
-            
-            // Wick fully formed (bottom wick for longs)
-            bool wick_fully_formed = current_low < current_open and current_low < current_close
-            
-            // Check if wick size meets threshold
-            bool wick_threshold_met = wick_percent_of_zone >= flip_wick_threshold_pct
-            
-            // PRIMED FLIP: Zone was primed on previous candle, now we have bullish close
-            bool primed_flip = z.primed and z.primedBar == bar_index - 1 and is_bullish_candle
-            
-            // Flip-specific gate: Either standard flip OR primed flip
-            bool can_flip_enter = enable_flip_entry and (primed_flip or (wick_into_zone and strong_flip and wick_fully_formed and (wick_threshold_met or true)))
-            
-            if can_flip_enter and barstate.isconfirmed
-                bool in_date_range = not enable_date_filter or (time >= start_date and time <= end_date)
-                if not in_date_range
-                    continue
-                
-                // Flip entry: use PREVIOUS candle's close as entry price
-                entry_price = close[1]
-                
-                // SL = deepest wick of the priming candle (stored in primedWickLevel)
-                // Fallback to previous candle's low if primedWickLevel not set
-                stop_loss_price = not na(z.primedWickLevel) ? z.primedWickLevel : low[1]
-                
-                // Optional buffer: only apply if user explicitly sets it > 0
-                if stop_loss_buffer_pips > 0
-                    stop_loss_price := stop_loss_price - (stop_loss_buffer_pips * pip_size)
-                
-                // --- SAFETY CLAMP (LONG) ---
-                // Ensure SL is strictly below Entry (min 2 pips gap) to prevent position sizing errors
-                float minGap_long = math.max(syminfo.mintick * 2, pip_size * 2.0)  // At least 2 pips
-                if stop_loss_price >= entry_price - minGap_long
-                    stop_loss_price := entry_price - minGap_long
-                
-                // For LONG FLIP: SL is BELOW entry, so pip_distance = Entry - SL (must be positive)
-                float pip_distance = entry_price - stop_loss_price
-                
-                // Validate: pip_distance must be positive for longs (SL below entry)
-                if pip_distance <= 0
-                    continue  // Invalid SL, skip this trade
-                
-                // SL pips = pip_distance / pip_size (always positive)
-                float sl_pips = pip_distance / pip_size
-                
-                // Calculate setup score for flip entry
-                setup_score = calculate_setup_score(true, z, sl_pips)
-                setup_rating = get_score_rating(setup_score)
-                
-                // Only take trades that meet minimum score requirement
-                if setup_score < min_score_for_trade
-                    continue
-                
-                // Calculate TP using Updated Rules
-                float take_profit_price = na
-                
-                // Reset BE variables
-                trade_be_trigger_rr := na
-                trade_be_sl_pips := na
-                trade_be_moved := false
-                
-                if use_take_profit and sl_pips > 0
-                    [tp_r, be_trig, be_sl, move_be] = get_updated_sl_tp_rules(sl_pips)
-                    
-                    // Override with fixed RR - ONLY for non-5-minute modes
-                    if use_fixed_rr and tf_mode != "5"
-                        tp_r := fixed_rr_value
-                        move_be := false
-                        
-                    // Apply double TP
-                    if enable_double_tp
-                        tp_r := tp_r * 2.0
-                        
-                    if not na(tp_r)
-                        take_profit_price := entry_price + (pip_distance * tp_r)
-                        
-                    // Store BE settings - ALWAYS for 5-minute mode, otherwise check use_fixed_rr
-                    if move_be and (tf_mode == "5" or not use_fixed_rr)
-                        trade_be_trigger_rr := be_trig
-                        trade_be_sl_pips := be_sl
-                
-                // --- TP DISTANCE VALIDATION ---
-                // Ensure TP is at least min_tp_distance_pips from entry to prevent zero-profit trades
-                float tp_distance_pips = na
-                if not na(take_profit_price) and not na(entry_price)
-                    tp_distance_pips := math.abs(take_profit_price - entry_price) / pip_size
-                    if tp_distance_pips < min_tp_distance_pips
-                        // Skip trade if TP is too close to entry
-                        // Warning labels removed for clean chart
-                        // if show_entry_labels and debug_full
-                        //     label.new(x = bar_index, y = high, text = "⚠️ TP Too Close\n" + str.tostring(tp_distance_pips, "#.#") + " pips < " + str.tostring(min_tp_distance_pips, "#") + " min",
-                        //               style = label.style_label_down, color = color.new(color.orange, 0),
-                        //               textcolor = color.white, size = size.small)
-                        continue  // Skip this trade
-                
-                // Check for USDJPY rate failure for JPY pairs (before position sizing)
-                if str.contains(syminfo.ticker, "JPY") and not str.contains(syminfo.ticker, "USDJPY")
-                    // Fetch USDJPY rate using helper
-                    [usdjpy_rate_check, usdjpy_success_check, usdjpy_err_check] = fetch_usdjpy_rate()
-                    if not usdjpy_success_check
-                        // Show warning label and skip trade
-                        // Warning labels removed for clean chart
-                        // if show_entry_labels
-                        //     label.new(x = bar_index, y = high, text = "⚠️ USDJPY Rate Fetch Failed\nTrade Skipped",
-                        //               style = label.style_label_down, color = color.new(color.orange, 0),
-                        //               textcolor = color.white, size = size.normal)
-                        continue  // Skip this trade
-                
-                // Position sizing with enhanced validation
-                balance  = account_size_usd
-                risk_pct = risk_per_trade_pct
-                
-                // Apply 0.5R adjustment for second trade of the day
-                if current_day_trades == 1 and max_trades_per_day == 2
-                    risk_pct := risk_pct * 0.5
-                
-                // Enhanced position sizing validation
-                [pos_is_valid, pos_qty_units, pos_qty_lots, pos_error_msg, pos_validation_details, pos_sl_fixed] = validate_position_size(entry_price, stop_loss_price, balance, risk_pct, false)
-                
-                // Use the corrected SL from validation
-                stop_loss_price := pos_sl_fixed
-                
-                // Store position sizing details for debug table
-                last_pos_size_entry := entry_price
-                last_pos_size_sl := stop_loss_price
-                last_pos_size_balance := balance
-                last_pos_size_risk_pct := risk_pct
-                last_pos_size_sl_pips := sl_pips
-                last_pos_size_valid := pos_is_valid
-                last_pos_size_error := pos_error_msg
-                last_pos_size_dry_run := dry_run_mode
-                
-                if pos_is_valid
-                    last_pos_size_units := pos_qty_units
-                    last_pos_size_lots := pos_qty_lots
-                    
-                    // Get USDJPY rate for tracking
-                    if str.contains(syminfo.ticker, "JPY")
-                        [usdjpy_track_rate_result, usdjpy_track_success_result, usdjpy_track_err_result] = fetch_usdjpy_rate()
-                        if usdjpy_track_success_result
-                            last_pos_size_usdjpy_rate := usdjpy_track_rate_result
-                        else
-                            last_pos_size_usdjpy_rate := na
-                else
-                    last_pos_size_units := na
-                    last_pos_size_lots := na
-                    last_pos_size_usdjpy_rate := na
-                    
-                    // Show warning label for validation failure
-                    // Warning labels removed for clean chart
-                    // if show_entry_labels
-                    //     label.new(x = bar_index, y = high, text = "⚠️ Position Size Invalid\n" + pos_error_msg,
-                    //               style = label.style_label_down, color = color.new(color.red, 0),
-                    //               textcolor = color.white, size = size.normal)
-
-                // 🔥 ENTRY EXECUTION - ALL actions happen together
-                if pos_is_valid and pos_qty_units > 0 and not na(pos_qty_units)
-                    // FINAL GUARD: Re-validate entry permission using base validation (no timing block for flip)
-                    [isEntryPermitted, entryPermitReason, _zFlip] = validate_entry_conditions(true, i)
-                    
-                    // Diagnostic labels silenced - Zone Inspector tracks this data
-                    // if debug_enabled and show_entry_labels
-                    //     string debugMsg = "FLIP CHECK D-" + str.tostring(z.id) + "\nisEntryPermitted: " + str.tostring(isEntryPermitted) + "\nReason: " + entryPermitReason
-                    //     label.new(x = bar_index, y = high + (high - low) * 0.5, text = debugMsg,
-                    //               style = label.style_label_down, color = isEntryPermitted ? color.green : color.red,
-                    //               textcolor = color.white, size = size.small)
-                    
-                    if not isEntryPermitted
-                        continue  // Skip this entry if not permitted
-                    
-                    // Set entry sync flag BEFORE marking zone as used (for Zone Inspector)
-                    entryTriggeredThisBar := true
-                    triggeredZoneId := z.id
-                    
-                    // Dry run mode: show what would be executed without actually executing
-                    if dry_run_mode
-                        // Dry run labels removed for clean chart
-                        // if show_entry_labels
-                        //     label.new(x = bar_index, y = entry_price, text = "🔵 DRY RUN: Long Flip\nQty: " + str.tostring(pos_qty_units) + " units\nSL: " + str.tostring(stop_loss_price, "#.####"),
-                        //               style = label.style_label_up, color = color.new(color.blue, 0),
-                        //               textcolor = color.white, size = size.normal)
-                        
-                        if not na(stop_loss_price)
-                            sl_pips_display = not na(sl_pips) ? str.tostring(sl_pips, "#.##") + " pips" : "N/A"
-                            // label.new(x = bar_index, y = stop_loss_price,
-                            //           text = "DRY RUN SL: " + str.tostring(stop_loss_price, "#.####") + "\n(" + sl_pips_display + ")",
-                            //           style = label.style_label_left, color = color.new(color.orange, 0),
-                            //           textcolor = color.white, size = size.normal)
-                    else
-                        // 1. EXECUTE THE ENTRY (using close[1] as entry)
-                        string typeTag = z.isAccuracy ? "⭐ACC" : "[NRM]"
-                        // Pass empty comment if entry labels are shown (to avoid duplicate [NRM] display)
-                        string entryComment = show_entry_labels ? "" : typeTag
-                        strategy.entry("Long Flip", strategy.long, qty = pos_qty_units, comment = entryComment)
-                    
-                    // 2. ATTACH EXIT ORDERS
-                    if not na(take_profit_price) and take_profit_price > 0
-                        strategy.exit("Long Flip Exit", "Long Flip", stop = stop_loss_price, limit = take_profit_price)
-                    else
-                        strategy.exit("Long Flip Exit", "Long Flip", stop = stop_loss_price)
-                    
-                    // Zone and trade tracking (skip incrementing trade count in dry run)
-                    if not dry_run_mode
-                        // 3. SET ACTIVE ENTRY ID
-                        active_entry_id := "Long Flip"
-                    
-                        // 4. INCREMENT TRADE COUNT
-                        current_day_trades += 1
-                    
-                    // 5. MARK ZONE AS USED (even in dry run to avoid duplicate signals)
-                    z.lastEntryBar := bar_index
-                    z.active := false
-                    last_global_long_entry_bar := bar_index
-                    
-                    // 6. DEACTIVATE ZONES
-                    // Deactivate overlapping demand zones
-                    deactivateOverlappingDemandZones(z.top, z.bottom)
-                    
-                    // 7. VISUALS
-                    if show_entry_labels
-                        string label_text = "🔵 LONG FLIP\nScore: " + str.tostring(setup_score, "#.##") + "\n(" + setup_rating + ")"
-                        if show_score_labels
-                            label_text += "\nSL: " + str.tostring(sl_pips, "#.1") + " pips"
-                        
-                        label.new(x = bar_index, y = low - (pip_size * 5), text = label_text,
-                                  style = label.style_label_up, color = color.new(color.blue, 0),
-                                  textcolor = color.white, size = size.normal)
-                    
-                    // 8. TRACK TRADE (even in dry run for display purposes)
-                    trade_entry_price := entry_price
-                    trade_original_sl := stop_loss_price
-                    trade_current_sl := stop_loss_price
-                    labels_created := false
-                    tp1_hit := false
-                    trade_tp1_price := na
-                    if not na(stop_loss_price)
-                        trade_original_sl_pips := (entry_price - stop_loss_price) / pip_size
-                    if not na(take_profit_price) and take_profit_price > entry_price
-                        trade_tp1_price := take_profit_price
-                    
-                    // 8. SHOW LABELS (inside entry block) - only if not dry run (dry run labels shown above)
-                    if not dry_run_mode and show_entry_labels and not debug_mode
-                        // Simple clean label - no scores or details
-                        entry_text = "🟢 LONG"
-                        float y_long = low - (atr14 * long_label_offset_atr) - (syminfo.mintick * long_label_offset_ticks)
-                        label.new(x = bar_index, y = y_long, text = entry_text,
-                                  style = label.style_label_up, color = color.new(color.green, 0),
-                                  textcolor = color.white, size = size.small)
-                        
-                        // SL/TP labels removed for clean chart - strategy arrows are sufficient
-                        // if not na(stop_loss_price)
-                        //     sl_pips_display = not na(sl_pips) ? str.tostring(sl_pips, "#.##") + " pips" : "N/A"
-                        //     label.new(x = bar_index, y = stop_loss_price,
-                        //               text = "SL: " + str.tostring(stop_loss_price, "#.####") + "\n(" + sl_pips_display + ")",
-                        //               style = label.style_label_left, color = color.new(color.red, 0),
-                        //               textcolor = color.white, size = size.normal)
-                        
-                        // if not na(take_profit_price)
-                        //     tp_rr_display = not na(sl_pips) and sl_pips > 0 ? str.tostring((take_profit_price - entry_price) / (entry_price - stop_loss_price), "#.##") + " RR" : "N/A"
-                        //     label.new(x = bar_index, y = take_profit_price,
-                        //               text = "TP: " + str.tostring(take_profit_price, "#.####") + "\n(" + tp_rr_display + ")",
-                        //               style = label.style_label_left, color = color.new(color.green, 0),
-                        //               textcolor = color.white, size = size.normal)
-                        
-                        labels_created := true
-                
-                break
-
-// Flip entry logic for supply zones (SHORT) - NEW
-if enable_flip_entry and tf_mode == "5" and array.size(supplyZones) > 0 and allow_short_trades and is_new_30m_candle and strategy.position_size == 0
-    current_close = close
-    current_open = open
-    current_low = low
-    current_high = high
-    is_bearish_candle = current_close < current_open
-    
-    for i = 0 to array.size(supplyZones) - 1
-        Zone z = array.get(supplyZones, i)
-        
-        // Use base validation WITHOUT timing filter (flip entries are ALLOWED during timing windows)
-        [base_can_enter_supply, base_reason_supply, _z] = validate_entry_conditions(false, i)
-        
-        if base_can_enter_supply
-            // Flip Entry specific checks
-            float zoneSize = z.top - z.bottom
-            
-            // Check if wick goes into zone (current candle approach)
-            bool wick_into_zone = current_high >= z.bottom and current_high <= z.top
-            float wick_size = current_high - current_close
-            float wick_percent_of_zone = zoneSize > 0 ? (wick_size / zoneSize * 100) : 0
-            
-            // Strong flip in entry direction (bearish)
-            bool strong_flip = is_bearish_candle and (current_open - current_close) > (current_high - current_low) * 0.6
-            
-            // Wick fully formed (top wick for shorts)
-            bool wick_fully_formed = current_high > current_open and current_high > current_close
-            
-            // Check if wick size meets threshold
-            bool wick_threshold_met = wick_percent_of_zone >= flip_wick_threshold_pct
-            
-            // PRIMED FLIP: Zone was primed on previous candle, now we have bearish close
-            bool primed_flip = z.primed and z.primedBar == bar_index - 1 and is_bearish_candle
-            
-            // Flip-specific gate: Either standard flip OR primed flip
-            bool can_flip_enter = enable_flip_entry and (primed_flip or (wick_into_zone and strong_flip and wick_fully_formed and (wick_threshold_met or true)))
-            
-            if can_flip_enter and barstate.isconfirmed
-                bool in_date_range = not enable_date_filter or (time >= start_date and time <= end_date)
-                if not in_date_range
-                    continue
-                
-                // Flip entry: use PREVIOUS candle's close as entry price
-                entry_price = close[1]
-                
-                // SL = deepest wick of the priming candle (stored in primedWickLevel)
-                // Fallback to previous candle's high if primedWickLevel not set
-                stop_loss_price = not na(z.primedWickLevel) ? z.primedWickLevel : high[1]
-                
-                // Optional buffer: only apply if user explicitly sets it > 0
-                if stop_loss_buffer_pips > 0
-                    stop_loss_price := stop_loss_price + (stop_loss_buffer_pips * pip_size)
-                
-                // --- SAFETY CLAMP (SHORT) ---
-                // Ensure SL is strictly above Entry (min 2 pips gap) to prevent position sizing errors
-                float minGap_short = math.max(syminfo.mintick * 2, pip_size * 2.0)  // At least 2 pips
-                if stop_loss_price <= entry_price + minGap_short
-                    stop_loss_price := entry_price + minGap_short
-                
-                // For SHORT FLIP: SL is ABOVE entry, so pip_distance = SL - Entry (must be positive)
-                float pip_distance = stop_loss_price - entry_price
-                
-                // Validate: pip_distance must be positive for shorts (SL above entry)
-                if pip_distance <= 0
-                    continue  // Invalid SL, skip this trade
-                
-                // SL pips = pip_distance / pip_size (always positive)
-                float sl_pips = pip_distance / pip_size
-                
-                // Calculate setup score for flip entry
-                setup_score = calculate_setup_score(false, z, sl_pips)
-                setup_rating = get_score_rating(setup_score)
-                
-                // Only take trades that meet minimum score requirement
-                if setup_score < min_score_for_trade
-                    continue
-                
-                // Calculate TP using Updated Rules
-                float take_profit_price = na
-                
-                // Reset BE variables
-                trade_be_trigger_rr := na
-                trade_be_sl_pips := na
-                trade_be_moved := false
-                
-                if use_take_profit and sl_pips > 0
-                    [tp_r, be_trig, be_sl, move_be] = get_updated_sl_tp_rules(sl_pips)
-                    
-                    // Override with fixed RR - ONLY for non-5-minute modes
-                    if use_fixed_rr and tf_mode != "5"
-                        tp_r := fixed_rr_value
-                        move_be := false
-                        
-                    // Apply double TP
-                    if enable_double_tp
-                        tp_r := tp_r * 2.0
-                        
-                    if not na(tp_r)
-                        take_profit_price := entry_price - (pip_distance * tp_r)
-                        
-                    // Store BE settings - ALWAYS for 5-minute mode, otherwise check use_fixed_rr
-                    if move_be and (tf_mode == "5" or not use_fixed_rr)
-                        trade_be_trigger_rr := be_trig
-                        trade_be_sl_pips := be_sl
-                
-                // --- TP DISTANCE VALIDATION ---
-                // Ensure TP is at least min_tp_distance_pips from entry to prevent zero-profit trades
-                float tp_distance_pips = na
-                if not na(take_profit_price) and not na(entry_price)
-                    tp_distance_pips := math.abs(take_profit_price - entry_price) / pip_size
-                    if tp_distance_pips < min_tp_distance_pips
-                        // Skip trade if TP is too close to entry
-                        // Warning labels removed for clean chart
-                        // if show_entry_labels and debug_full
-                        //     label.new(x = bar_index, y = low, text = "⚠️ TP Too Close\n" + str.tostring(tp_distance_pips, "#.#") + " pips < " + str.tostring(min_tp_distance_pips, "#") + " min",
-                        //               style = label.style_label_up, color = color.new(color.orange, 0),
-                        //               textcolor = color.white, size = size.small)
-                        continue  // Skip this trade
-                
-                // Check for USDJPY rate failure for JPY pairs (before position sizing)
-                if str.contains(syminfo.ticker, "JPY") and not str.contains(syminfo.ticker, "USDJPY")
-                    // Fetch USDJPY rate using helper
-                    [usdjpy_rate_check, usdjpy_success_check, usdjpy_err_check] = fetch_usdjpy_rate()
-                    if not usdjpy_success_check
-                        // Show warning label and skip trade
-                        if show_entry_labels
-                            label.new(x = bar_index, y = low, text = "⚠️ USDJPY Rate Fetch Failed\nTrade Skipped",
-                                      style = label.style_label_up, color = color.new(color.orange, 0),
-                                      textcolor = color.white, size = size.normal)
-                        continue  // Skip this trade
-                
-                // Position sizing with enhanced validation
-                balance  = account_size_usd
-                risk_pct = risk_per_trade_pct
-                
-                // Apply 0.5R adjustment for second trade of the day
-                if current_day_trades == 1 and max_trades_per_day == 2
-                    risk_pct := risk_pct * 0.5
-                
-                // Enhanced position sizing validation
-                [pos_is_valid, pos_qty_units, pos_qty_lots, pos_error_msg, pos_validation_details, pos_sl_fixed] = validate_position_size(entry_price, stop_loss_price, balance, risk_pct, false)
-                
-                // Use the corrected SL from validation
-                stop_loss_price := pos_sl_fixed
-                
-                // Store position sizing details for debug table
-                last_pos_size_entry := entry_price
-                last_pos_size_sl := stop_loss_price
-                last_pos_size_balance := balance
-                last_pos_size_risk_pct := risk_pct
-                last_pos_size_sl_pips := sl_pips
-                last_pos_size_valid := pos_is_valid
-                last_pos_size_error := pos_error_msg
-                last_pos_size_dry_run := dry_run_mode
-                
-                if pos_is_valid
-                    last_pos_size_units := pos_qty_units
-                    last_pos_size_lots := pos_qty_lots
-                    
-                    // Get USDJPY rate for tracking
-                    if str.contains(syminfo.ticker, "JPY")
-                        [usdjpy_track_rate_result, usdjpy_track_success_result, usdjpy_track_err_result] = fetch_usdjpy_rate()
-                        if usdjpy_track_success_result
-                            last_pos_size_usdjpy_rate := usdjpy_track_rate_result
-                        else
-                            last_pos_size_usdjpy_rate := na
-                else
-                    last_pos_size_units := na
-                    last_pos_size_lots := na
-                    last_pos_size_usdjpy_rate := na
-                    
-                    // Show warning label for validation failure
-                    if show_entry_labels
-                        label.new(x = bar_index, y = low, text = "⚠️ Position Size Invalid\n" + pos_error_msg,
-                                  style = label.style_label_up, color = color.new(color.red, 0),
-                                  textcolor = color.white, size = size.normal)
-
-                // 🔥 ENTRY EXECUTION - ALL actions happen together
-                if pos_is_valid and pos_qty_units > 0 and not na(pos_qty_units)
-                    // FINAL GUARD: Re-validate entry permission using base validation (no timing block for flip)
-                    [isEntryPermitted, entryPermitReason, _zFlip] = validate_entry_conditions(false, i)
-                    
-                    // Diagnostic labels silenced - Zone Inspector tracks this data
-                    // if debug_enabled and show_entry_labels
-                    //     string debugMsg = "FLIP CHECK S-" + str.tostring(z.id) + "\nisEntryPermitted: " + str.tostring(isEntryPermitted) + "\nReason: " + entryPermitReason
-                    //     label.new(x = bar_index, y = low - (high - low) * 0.5, text = debugMsg,
-                    //               style = label.style_label_up, color = isEntryPermitted ? color.green : color.red,
-                    //               textcolor = color.white, size = size.small)
-                    
-                    if not isEntryPermitted
-                        continue  // Skip this entry if not permitted
-                    
-                    // Set entry sync flag BEFORE marking zone as used (for Zone Inspector)
-                    entryTriggeredThisBar := true
-                    triggeredZoneId := z.id
-                    
-                    // Dry run mode: show what would be executed without actually executing
-                    if dry_run_mode
-                        // Dry run labels removed for clean chart
-                        // if show_entry_labels
-                        //     label.new(x = bar_index, y = entry_price, text = "🔴 DRY RUN: Short Flip\nQty: " + str.tostring(pos_qty_units) + " units\nSL: " + str.tostring(stop_loss_price, "#.####"),
-                        //               style = label.style_label_down, color = color.new(color.red, 0),
-                        //               textcolor = color.white, size = size.normal)
-                        
-                        if not na(stop_loss_price)
-                            sl_pips_display = not na(sl_pips) ? str.tostring(sl_pips, "#.##") + " pips" : "N/A"
-                            // label.new(x = bar_index, y = stop_loss_price,
-                            //           text = "DRY RUN SL: " + str.tostring(stop_loss_price, "#.####") + "\n(" + sl_pips_display + ")",
-                            //           style = label.style_label_left, color = color.new(color.orange, 0),
-                            //           textcolor = color.white, size = size.normal)
-                    else
-                        // 1. EXECUTE THE ENTRY (using close[1] as entry)
-                        string typeTag = z.isAccuracy ? "⭐ACC" : "[NRM]"
-                        // Pass empty comment if entry labels are shown (to avoid duplicate [NRM] display)
-                        string entryComment = show_entry_labels ? "" : typeTag
-                        strategy.entry("Short Flip", strategy.short, qty = pos_qty_units, comment = entryComment)
-                    
-                    // 2. ATTACH EXIT ORDERS
-                    if not na(take_profit_price) and take_profit_price > 0
-                        strategy.exit("Short Flip Exit", "Short Flip", stop = stop_loss_price, limit = take_profit_price)
-                    else
-                        strategy.exit("Short Flip Exit", "Short Flip", stop = stop_loss_price)
-                    
-                    // Zone and trade tracking (skip incrementing trade count in dry run)
-                    if not dry_run_mode
-                        // 3. SET ACTIVE ENTRY ID
-                        active_entry_id := "Short Flip"
-                    
-                        // 4. INCREMENT TRADE COUNT
-                        current_day_trades += 1
-                    
-                    // 5. MARK ZONE AS USED (even in dry run to avoid duplicate signals)
-                    z.lastEntryBar := bar_index
-                    z.active := false
-                    last_global_short_entry_bar := bar_index
-                    
-                    // 6. DEACTIVATE ZONES
-                    // Deactivate overlapping supply zones
-                    deactivateOverlappingSupplyZones(z.top, z.bottom)
-                    
-                    // 7. VISUALS
-                    if show_entry_labels
-                        // Simple clean label - no scores or details
-                        string label_text = "🔴 SHORT"
-                        label.new(x = bar_index, y = high + (pip_size * 5), text = label_text,
-                                  style = label.style_label_down, color = color.new(color.red, 0),
-                                  textcolor = color.white, size = size.small)
-                
-                break
-
-
-
-            
-
 // === PRIMED ENTRY EXECUTION (5-MINUTE DELAY) ===
 // Check if any demand zone was primed on the PREVIOUS bar and execute entry now
-// CRITICAL: The confirmation candle MUST touch the zone OR be a flip scenario
-if tf_mode == "5" and barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades and strategy.position_size == 0
+// CRITICAL: The confirmation candle MUST touch the zone
+if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades and strategy.position_size == 0
     for i = 0 to array.size(demandZones) - 1
         Zone z = array.get(demandZones, i)
         // Check if zone was primed on the previous bar (5-minute delay)
@@ -3836,14 +3339,12 @@ if tf_mode == "5" and barstate.isconfirmed and array.size(demandZones) > 0 and a
                 
                 if use_take_profit and sl_pips > 0
                     [tp_r, be_trig, be_sl, move_be] = get_updated_sl_tp_rules(sl_pips)
-                    if use_fixed_rr and tf_mode != "5"
-                        tp_r := fixed_rr_value
-                        move_be := false
+
                     if enable_double_tp
                         tp_r := tp_r * 2.0
                     if not na(tp_r)
                         take_profit_price := entry_price + (pip_distance * tp_r)
-                    if move_be and (tf_mode == "5" or not use_fixed_rr)
+                    if move_be
                         trade_be_trigger_rr := be_trig
                         trade_be_sl_pips := be_sl
                 
@@ -3907,7 +3408,7 @@ if tf_mode == "5" and barstate.isconfirmed and array.size(demandZones) > 0 and a
 
 // === LONG ENTRY DETECTION (PRIMING PHASE) ===
 // Instead of entering immediately, PRIME the zone for entry on the next candle
-if tf_mode == "5" and barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
+if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
     current_close = close
     current_open  = open
     current_low   = low
@@ -3983,9 +3484,7 @@ if tf_mode == "5" and barstate.isconfirmed and array.size(demandZones) > 0 and a
                     [tp_r, be_trig, be_sl, move_be] = get_updated_sl_tp_rules(sl_pips)
                     
                     // Override with fixed RR - ONLY for non-5-minute modes
-                    if use_fixed_rr and tf_mode != "5"
-                        tp_r := fixed_rr_value
-                        move_be := false
+
                         
                     if enable_double_tp
                         tp_r := tp_r * 2.0
@@ -3994,7 +3493,7 @@ if tf_mode == "5" and barstate.isconfirmed and array.size(demandZones) > 0 and a
                         take_profit_price := entry_price + (pip_distance * tp_r)
                         
                     // Store BE settings - ALWAYS for 5-minute mode, otherwise check use_fixed_rr
-                    if move_be and (tf_mode == "5" or not use_fixed_rr)
+                    if move_be
                         trade_be_trigger_rr := be_trig
                         trade_be_sl_pips := be_sl
                 
@@ -4096,7 +3595,7 @@ if tf_mode == "5" and barstate.isconfirmed and array.size(demandZones) > 0 and a
 // === PRIMED SHORT ENTRY EXECUTION (5-MINUTE DELAY) ===
 // Check if any supply zone was primed on the PREVIOUS bar and execute entry now
 // CRITICAL: The confirmation candle MUST touch the zone OR be a flip scenario
-if tf_mode == "5" and barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades and strategy.position_size == 0
+if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades and strategy.position_size == 0
     for i = 0 to array.size(supplyZones) - 1
         Zone z = array.get(supplyZones, i)
         // Check if zone was primed on the previous bar (5-minute delay)
@@ -4160,14 +3659,12 @@ if tf_mode == "5" and barstate.isconfirmed and array.size(supplyZones) > 0 and a
                 
                 if use_take_profit and sl_pips > 0
                     [tp_r, be_trig, be_sl, move_be] = get_updated_sl_tp_rules(sl_pips)
-                    if use_fixed_rr and tf_mode != "5"
-                        tp_r := fixed_rr_value
-                        move_be := false
+
                     if enable_double_tp
                         tp_r := tp_r * 2.0
                     if not na(tp_r)
                         take_profit_price := entry_price - (pip_distance * tp_r)
-                    if move_be and (tf_mode == "5" or not use_fixed_rr)
+                    if move_be
                         trade_be_trigger_rr := be_trig
                         trade_be_sl_pips := be_sl
                 
@@ -4231,7 +3728,7 @@ if tf_mode == "5" and barstate.isconfirmed and array.size(supplyZones) > 0 and a
 
 // === SHORT ENTRY DETECTION (PRIMING PHASE) ===
 // Instead of entering immediately, PRIME the zone for entry on the next candle
-if tf_mode == "5" and barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
+if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
     current_close = close
     current_open  = open
     current_high  = high
@@ -4307,9 +3804,7 @@ if tf_mode == "5" and barstate.isconfirmed and array.size(supplyZones) > 0 and a
                     [tp_r, be_trig, be_sl, move_be] = get_updated_sl_tp_rules(sl_pips)
                     
                     // Override with fixed RR - ONLY for non-5-minute modes
-                    if use_fixed_rr and tf_mode != "5"
-                        tp_r := fixed_rr_value
-                        move_be := false
+
                         
                     if enable_double_tp
                         tp_r := tp_r * 2.0
@@ -4318,7 +3813,7 @@ if tf_mode == "5" and barstate.isconfirmed and array.size(supplyZones) > 0 and a
                         take_profit_price := entry_price - (pip_distance * tp_r)
                         
                     // Store BE settings - ALWAYS for 5-minute mode, otherwise check use_fixed_rr
-                    if move_be and (tf_mode == "5" or not use_fixed_rr)
+                    if move_be
                         trade_be_trigger_rr := be_trig
                         trade_be_sl_pips := be_sl
                 
@@ -4926,15 +4421,9 @@ if debug_full and isRecentBarForDebug() and barstate.isconfirmed
         // Check entry allowed (timing filters)
         bool entryAllowed = true
         if enable_timing_filters
-            time_to_30m = get_time_to_next_30m()
             time_to_1h = get_time_to_next_1h()
-            // Note: red news check would go here if implemented
-            entryAllowed := (time_to_30m >= 5) and (time_to_1h >= 10)
-        
-        // Check flip entry available
-        bool flipAvailable = false
-        if enable_flip_entry and is_new_30m_candle
-            flipAvailable := true
+            // Entry blocked in last 10 minutes of hour
+            entryAllowed := time_to_1h >= 10
         
         // Header row (row 0) - spans both columns visually
         table.cell(debugTable, 0, 0, "🔍 DEBUG PANEL", text_color = color.white, bgcolor = color.rgb(45, 50, 55), text_size = size.small, text_halign = text.align_left)
@@ -4989,12 +4478,6 @@ if debug_full and isRecentBarForDebug() and barstate.isconfirmed
         entryStr = entryAllowed ? "Yes" : "No"
         entryColor = entryAllowed ? color.new(color.green, 0) : color.new(color.red, 0)
         table.cell(debugTable, 1, 8, entryStr, text_color = entryColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 9: Flip Entry Available
-        table.cell(debugTable, 0, 9, "Flip Entry", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        flipStr = flipAvailable ? "Yes" : "No"
-        flipColor = flipAvailable ? color.orange : color.rgb(200, 200, 200)
-        table.cell(debugTable, 1, 9, flipStr, text_color = flipColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
 
 // === ZONE INSPECTOR TABLE ===
 var table zoneInspector = na
