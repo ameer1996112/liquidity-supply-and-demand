@@ -131,7 +131,6 @@ manual_zone_id_input = input.string("", "Manual Zone ID", group = "Strategy Sett
 // === 2025 NEW INPUTS ===
 max_trades_per_day = input.int(1, "Max Trades Per Day", minval = 1, maxval = 2, group = "Strategy Settings", tooltip = "Maximum number of trades per day. Second trade uses 0.5R risk if max=2")
 use_break_even     = input.bool(false, "Use Break-Even Mode", group = "Strategy Settings", tooltip = "Move SL to entry after TP1 hits")
-
 enable_timing_filters = input.bool(true, "Enable Timing Filters", group = "Strategy Settings", tooltip = "Block entries before higher timeframe candles")
 use_time_window     = input.bool(true, "Use Time Window", group = "Strategy Settings")
 // Default to Asia/Jerusalem for Israel time
@@ -249,7 +248,7 @@ get_double_tp_ratio(base_ratio) =>
 
 // === 2025 TP LOOKUP DICTIONARIES ===
 get_tp_ratio(symbol_type, sl_pips) =>
-    // Always use RD_FOREX 5-minute rules
+    // ALWAYS use RD_FOREX 5-minute rules
     base_ratio = get_rd_forex_tp_ratio(sl_pips)
     // Apply double TP mode if enabled
     if enable_double_tp
@@ -464,7 +463,7 @@ is_in_session() =>
         h = hour(time, time_window_tz)
         h >= start_hour and h < end_hour
 
-// === TIMING FILTER FUNCTIONS (Moved from below) ===
+// === TIMING FILTER FUNCTIONS ===
 get_time_to_next_1h() =>
     current_minute = minute(time, "Etc/GMT+5")
     60 - current_minute
@@ -479,9 +478,11 @@ is_blocked_by_timing() =>
         false
     else
         curr_min = minute(time, time_window_tz)
-        // ONLY block the candle starting at :55 (the one closing on the hour)
+        // Block the candle starting at :55 (the one closing on the hour)
         is_last_5m_of_hour = (curr_min == 55)
-        is_last_5m_of_hour
+        // Standard 15-minute boundaries
+        at_boundary = (curr_min % 15) == 0 and curr_min != 0 
+        is_last_5m_of_hour or at_boundary
 
 // === STRICT A+ SCORING HELPERS ===
 
@@ -564,20 +565,11 @@ calculate_setup_score(bool isDemand, Zone z, float sl_pips) =>
         if (isDemand and is_uptrend) or (not isDemand and is_downtrend)
             score += 15
             
-        // 2. Liquidity Quality (+15): Tiered scoring
-        // Base: +5 for valid liquidity with at least 1 candle gap
-        // Bonus: +5 for 2+ candle gap (stronger structure)
-        // Bonus: +5 if liquidity was swept (confirms trap)
-        int liqQualScore = 0
-        if z.liquidityValid
-            liqQualScore += 5  // Base: Valid liquidity exists
-            if z.liquidityCandleCount >= 2
-                liqQualScore += 5  // Bonus: Stronger structure
-            if z.liquiditySwept
-                liqQualScore += 5  // Bonus: Confirmed sweep
-        score += liqQualScore
+        // 2. Liquidity Quality (+15): 2+ candles
+        if z.liquidityCandleCount >= 2
+            score += 15
             
-        // 3. Liquidity BOS (+10): Target swept (separate from Liq Qual)
+        // 3. Liquidity BOS (+10): Target swept
         if z.targetSwept
             score += 10
             
@@ -615,15 +607,9 @@ explain_setup_score(bool isDemand, Zone z) =>
     bool trend = (isDemand and is_uptrend) or (not isDemand and is_downtrend)
     s := s + "Trend: " + (trend ? "+15" : "0") + "\n"
     
-    // 2. Liquidity Quality (+15 tiered: +5 valid, +5 structure, +5 swept)
-    int liqQ = 0
-    if z.liquidityValid
-        liqQ += 5
-        if z.liquidityCandleCount >= 2
-            liqQ += 5
-        if z.liquiditySwept
-            liqQ += 5
-    s := s + "Liq Qual: +" + str.tostring(liqQ) + "\n"
+    // 2. Liquidity (+15)
+    bool liqQ = z.liquidityCandleCount >= 2
+    s := s + "Liq Qual: " + (liqQ ? "+15" : "0") + "\n"
     
     // 3. BOS (+10)
     s := s + "Liq BOS: " + (z.targetSwept ? "+10" : "0") + "\n"
@@ -1466,16 +1452,16 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
     Zone z = array.get(demandZones, zoneArrayIndex)
     
     // Skip if zone not eligible
-    if na(z.createdBarIndex) or bar_index <= z.createdBarIndex
-        true  // Return dummy value
+    if na(z.createdBarIndex) or bar_index <= z.createdBarIndex or z.isHistorical
+        true  // Return dummy value for Pine Script function requirement
     else
         float maxDistPrice = liq_max_distance_pips * pip_size
         float minDistPrice = 2.0 * pip_size  // Minimum 2 pips from zone
         
-        // === PASS 1: Inducement (Absolute Deepest Pivot Low) ===
-        // Scan ALL bars forward from zone creation to find the deepest valid pivot
-        float bestLowPrice = 1.0e10
-        int bestLowBar = na
+        // === STEP A: Find ABSOLUTE LOWEST Inducement LOW ===
+        // Scan forward from zone creation to current bar
+        float inducementLowPrice = 1.0e10
+        int inducementBar = na
         
         int windowStart = z.createdBarIndex + 1
         int windowEnd = bar_index - 1
@@ -1483,82 +1469,95 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
         if windowEnd >= windowStart
             for scanBar = windowStart to windowEnd
                 int off = bar_index - scanBar
-                if off >= 1 // Need low[off-1] for pivot check if seeking pivot
+                if off >= 0 and off <= bar_index
                     float candleLow = low[off]
                     
-                    // Basic Filters
-                    if candleLow <= z.top // Must be above zone
+                    // Must be ABOVE zone top (liquidity sits above demand zone)
+                    if candleLow <= z.top
                         continue
-                        
-                    float dist = candleLow - z.top
-                    if (maxDistPrice > 0 and dist > maxDistPrice) or dist < minDistPrice
-                        continue
-                        
-                    // STRICT PIVOT CHECK (V-Shape): Low < Prev and Low < Next
-                    // We need history. `low[off]` is current. `low[off+1]` is left. `low[off-1]` is right.
-                    // safe check for array bounds? Pine handles history fine usually.
-                    bool isPivot = low[off] < low[off+1] and low[off] < low[off-1]
                     
-                    if isPivot
-                        // Track ABSOLUTE deepest pivot (lowest price)
-                        if candleLow < bestLowPrice
-                            bestLowPrice := candleLow
-                            bestLowBar := scanBar
-                            
-        // === PASS 2: Target (Absolute Structural High) ===
-        // Scan strictly BACKWARD from bestLowBar - 1 to zone creation
-        // Find the Highest High in this sequence
-        float bestHighPrice = 0.0
-        int bestHighBar = na
+                    // Distance checks
+                    float distFromZone = candleLow - z.top
+                    if maxDistPrice > 0 and distFromZone > maxDistPrice
+                        continue
+                    if distFromZone < minDistPrice
+                        continue
+                    
+                    // Track ABSOLUTE LOWEST (no pivot requirement)
+                    if candleLow < inducementLowPrice
+                        inducementLowPrice := candleLow
+                        inducementBar := scanBar
         
-        if not na(bestLowBar)
-            int targetScanEnd = bestLowBar - 1
-            int targetScanStart = z.createdBarIndex
+        // === STEP B: Found Inducement - Now scan BACKWARD from inducement to zone creation ===
+        if inducementLowPrice < 1.0e10 and not na(inducementBar)
+            // === STEP C: Find ABSOLUTE HIGHEST Target HIGH in backward window ===
+            float targetHighPrice = 0.0
+            int targetBar = na
             
-            if targetScanEnd >= targetScanStart
-                for scanBar = targetScanStart to targetScanEnd
+            int backwardStart = z.createdBarIndex
+            int backwardEnd = inducementBar - 1  // Must be BEFORE inducement
+            
+            // Performance optimization: limit backward scan to max 200 bars
+            int maxBackwardScan = 200
+            if (backwardEnd - backwardStart) > maxBackwardScan
+                backwardStart := backwardEnd - maxBackwardScan
+            
+            if backwardEnd >= backwardStart
+                for scanBar = backwardStart to backwardEnd
                     int off = bar_index - scanBar
-                    float h = high[off]
-                    if h > bestHighPrice
-                        bestHighPrice := h
-                        bestHighBar := scanBar
+                    if off >= 0 and off <= bar_index
+                        float candleHigh = high[off]
                         
-        // === VALIDATION ===
-        bool found = not na(bestLowBar) and not na(bestHighBar)
-        // Target High must be > Inducement Low (Structure High -> Inducement Low)
-        bool validStructure = found and (bestHighPrice > bestLowPrice)
-        
-        // Check minimum 1 candle between target and inducement (adjacent allowed)
-        int candleGap = bestLowBar - bestHighBar
-        bool validGap = candleGap >= 1
-        
-        if validStructure and validGap
-            // Store Sequential Values
-            z.structureSweepLevel := bestHighPrice  // Target
-            z.liquidityPrice := bestLowPrice        // Inducement
-            z.liquidityValid := true
-            z.inactiveReason := na
+                        // Track ABSOLUTE HIGHEST (no pivot requirement)
+                        if candleHigh > targetHighPrice
+                            targetHighPrice := candleHigh
+                            targetBar := scanBar
             
-            z.liqHighPrice := bestHighPrice
-            z.liqHighBar := bestHighBar
-            z.liqLowPrice := bestLowPrice
-            z.liqLowBar := bestLowBar
-            z.liquidityBarIndex := bestLowBar
-            z.liquidityCandleCount := candleGap  // For scoring compatibility
+            // === MANDATORY SEQUENTIAL VALUES ===
+            bool validSequence = targetHighPrice > inducementLowPrice and not na(targetBar) and targetBar < inducementBar
             
-            z.liqSource := "SEQ_SCAN"
+            // Check minimum 2 candles between target and inducement
+            int candleGap = inducementBar - targetBar
+            bool validGap = candleGap >= 2
             
-            // Sweep Check (Live)
-            if high > z.structureSweepLevel
-                z.targetSwept := true
+            if validSequence and validGap
+                // Set sequential values as requested
+                z.structureSweepLevel := targetHighPrice  // Target Price
+                z.liquidityPrice := inducementLowPrice    // Inducement Price
+                z.liquidityValid := true
+                z.inactiveReason := na
+                
+                // Store all values for consistency
+                z.liqHighPrice := targetHighPrice
+                z.liqHighBar := targetBar
+                z.liqLowPrice := inducementLowPrice
+                z.liqLowBar := inducementBar
+                z.liquidityBarIndex := inducementBar
+                z.structureSweepLevelBar := targetBar
+                z.legCandleCount := candleGap
+                z.liquidityCandleCount := candleGap
+                z.liqSource := "ABSOLUTE_SEQUENTIAL"
+                
+                // Reset targetSwept if new target identified
+                if z.targetSwept and (z.liqHighPrice != targetHighPrice or z.liqHighBar != targetBar)
+                    z.targetSwept := false
+            else
+                // Invalid sequence or insufficient gap
+                z.liquidityValid := false
+                z.inactiveReason := not validSequence ? "INVALID_SEQUENCE" : "INSUFFICIENT_GAP"
+                z.structureSweepLevel := na
+                z.liquidityPrice := na
+                z.liqHighPrice := na
+                z.liqLowPrice := na
         else
+            // No inducement found
             z.liquidityValid := false
-            z.inactiveReason := "WAITING_STRUCT"
+            z.inactiveReason := "WAITING_LIQ"
             z.structureSweepLevel := na
             z.liquidityPrice := na
             z.liqHighPrice := na
             z.liqLowPrice := na
-        true
+        true  // Return dummy value
 
 // Supply Liquidity: Find Highest Inducement HIGH first, then Lowest LOW before it (Target)
 // Modifies zone fields directly via array reference
@@ -1566,16 +1565,16 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
     Zone z = array.get(supplyZones, zoneArrayIndex)
     
     // Skip if zone not eligible
-    if na(z.createdBarIndex) or bar_index <= z.createdBarIndex
+    if na(z.createdBarIndex) or bar_index <= z.createdBarIndex or z.isHistorical
         true  // Return dummy value
     else
         float maxDistPrice = liq_max_distance_pips * pip_size
         float minDistPrice = 2.0 * pip_size  // Minimum 2 pips from zone
         
-        // === PASS 1: Inducement (Absolute Highest Pivot High) ===
-        // Scan ALL bars forward from zone creation to find the highest valid pivot
-        float bestHighPrice = 0.0
-        int bestHighBar = na
+        // === STEP A: Find ABSOLUTE HIGHEST Inducement HIGH ===
+        // Scan forward from zone creation to current bar
+        float inducementHighPrice = 0.0
+        int inducementBar = na
         
         int windowStart = z.createdBarIndex + 1
         int windowEnd = bar_index - 1
@@ -1583,80 +1582,95 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
         if windowEnd >= windowStart
             for scanBar = windowStart to windowEnd
                 int off = bar_index - scanBar
-                if off >= 1 // Need high[off-1] for pivot check
+                if off >= 0 and off <= bar_index
                     float candleHigh = high[off]
                     
-                    // Basic Filters
-                    if candleHigh >= z.bottom // Must be below zone
+                    // Must be BELOW zone bottom (liquidity sits below supply zone)
+                    if candleHigh >= z.bottom
                         continue
-                        
-                    float dist = z.bottom - candleHigh
-                    if (maxDistPrice > 0 and dist > maxDistPrice) or dist < minDistPrice
-                        continue
-                        
-                    // STRICT PIVOT CHECK (A-Shape): High > Prev and High > Next
-                    bool isPivot = high[off] > high[off+1] and high[off] > high[off-1]
                     
-                    if isPivot
-                        // Track ABSOLUTE highest pivot (highest price)
-                        if candleHigh > bestHighPrice
-                            bestHighPrice := candleHigh
-                            bestHighBar := scanBar
-                            
-        // === PASS 2: Target (Absolute Structural Low) ===
-        // Scan strictly BACKWARD from bestHighBar - 1 to zone creation
-        // Find the Lowest Low in this sequence
-        float bestLowPrice = 1.0e10
-        int bestLowBar = na
+                    // Distance checks
+                    float distFromZone = z.bottom - candleHigh
+                    if maxDistPrice > 0 and distFromZone > maxDistPrice
+                        continue
+                    if distFromZone < minDistPrice
+                        continue
+                    
+                    // Track ABSOLUTE HIGHEST (no pivot requirement)
+                    if candleHigh > inducementHighPrice
+                        inducementHighPrice := candleHigh
+                        inducementBar := scanBar
         
-        if not na(bestHighBar)
-            int targetScanEnd = bestHighBar - 1
-            int targetScanStart = z.createdBarIndex
+        // === STEP B: Found Inducement - Now scan BACKWARD from inducement to zone creation ===
+        if inducementHighPrice > 0 and not na(inducementBar)
+            // === STEP C: Find ABSOLUTE LOWEST Target LOW in backward window ===
+            float targetLowPrice = 1.0e10
+            int targetBar = na
             
-            if targetScanEnd >= targetScanStart
-                for scanBar = targetScanStart to targetScanEnd
+            int backwardStart = z.createdBarIndex
+            int backwardEnd = inducementBar - 1  // Must be BEFORE inducement
+            
+            // Performance optimization: limit backward scan to max 200 bars
+            int maxBackwardScan = 200
+            if (backwardEnd - backwardStart) > maxBackwardScan
+                backwardStart := backwardEnd - maxBackwardScan
+            
+            if backwardEnd >= backwardStart
+                for scanBar = backwardStart to backwardEnd
                     int off = bar_index - scanBar
-                    float l = low[off]
-                    if l < bestLowPrice
-                        bestLowPrice := l
-                        bestLowBar := scanBar
+                    if off >= 0 and off <= bar_index
+                        float candleLow = low[off]
                         
-        // === VALIDATION ===
-        bool found = not na(bestHighBar) and not na(bestLowBar)
-        // Target Low must be < Inducement High (Structure Low -> Inducement High)
-        bool validStructure = found and (bestLowPrice < bestHighPrice)
-        
-        // Check minimum 1 candle between target and inducement (adjacent allowed)
-        int candleGap = bestHighBar - bestLowBar
-        bool validGap = candleGap >= 1
-        
-        if validStructure and validGap
-            // Store Sequential Values
-            z.structureSweepLevel := bestLowPrice   // Target
-            z.liquidityPrice := bestHighPrice       // Inducement
-            z.liquidityValid := true
-            z.inactiveReason := na
+                        // Track ABSOLUTE LOWEST (no pivot requirement)
+                        if candleLow < targetLowPrice
+                            targetLowPrice := candleLow
+                            targetBar := scanBar
             
-            z.liqHighPrice := bestHighPrice
-            z.liqHighBar := bestHighBar
-            z.liqLowPrice := bestLowPrice
-            z.liqLowBar := bestLowBar
-            z.liquidityBarIndex := bestHighBar
-            z.liquidityCandleCount := candleGap
+            // === MANDATORY SEQUENTIAL VALUES ===
+            bool validSequence = targetLowPrice < inducementHighPrice and not na(targetBar) and targetBar < inducementBar
             
-            z.liqSource := "SEQ_SCAN"
+            // Check minimum 2 candles between target and inducement
+            int candleGap = inducementBar - targetBar
+            bool validGap = candleGap >= 2
             
-            // Sweep Check (Live)
-            if low < z.structureSweepLevel
-                z.targetSwept := true
+            if validSequence and validGap
+                // Set sequential values as requested
+                z.structureSweepLevel := targetLowPrice   // Target Price
+                z.liquidityPrice := inducementHighPrice   // Inducement Price
+                z.liquidityValid := true
+                z.inactiveReason := na
+                
+                // Store all values for consistency
+                z.liqLowPrice := targetLowPrice
+                z.liqLowBar := targetBar
+                z.liqHighPrice := inducementHighPrice
+                z.liqHighBar := inducementBar
+                z.liquidityBarIndex := inducementBar
+                z.structureSweepLevelBar := targetBar
+                z.legCandleCount := candleGap
+                z.liquidityCandleCount := candleGap
+                z.liqSource := "ABSOLUTE_SEQUENTIAL"
+                
+                // Reset targetSwept if new target identified
+                if z.targetSwept and (z.liqLowPrice != targetLowPrice or z.liqLowBar != targetBar)
+                    z.targetSwept := false
+            else
+                // Invalid sequence or insufficient gap
+                z.liquidityValid := false
+                z.inactiveReason := not validSequence ? "INVALID_SEQUENCE" : "INSUFFICIENT_GAP"
+                z.structureSweepLevel := na
+                z.liquidityPrice := na
+                z.liqLowPrice := na
+                z.liqHighPrice := na
         else
+            // No inducement found
             z.liquidityValid := false
-            z.inactiveReason := "WAITING_STRUCT"
+            z.inactiveReason := "WAITING_LIQ"
             z.structureSweepLevel := na
             z.liquidityPrice := na
-            z.liqHighPrice := na
             z.liqLowPrice := na
-        true
+            z.liqHighPrice := na
+        true  // Return dummy value
 
 // Check inducement and target sweeps for demand zone
 f_check_demand_sweeps(int zoneArrayIndex) =>
@@ -1925,10 +1939,10 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int zoneUZID) =>
         
         if isAccuracy
             if isDemand
-                // Demand Accuracy: ALWAYS use OPEN as top, LOW as bottom (User Request)
-                // This covers the specific institutional buy range (Open to Low)
-                // For Green candle: Lower Wick. For Red candle: Entire Body + Lower Wick.
-                zTop := effOpen
+                // Demand Accuracy: ALWAYS use CLOSE as top, LOW as bottom
+                // This is where institutions bought - the demand zone starts from LOW
+                // Top is the CLOSE (where the selling pressure ended)
+                zTop := effClose
                 zBottom := effLow
             else
                 // Supply Accuracy: ALWAYS use HIGH of supply candle as top
@@ -2006,24 +2020,22 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int zoneUZID) =>
         
         // Initialize Inducement and Target levels at zone creation
         // These provide initial values for Zone Inspector display
-        // For Demand: BOTH Inducement and Target come from the PREVIOUS GREEN candle
-        // For Supply: BOTH Inducement and Target come from the PREVIOUS RED candle
         if isDemand
-            // Demand: Inducement = LOW of previous GREEN candle, Target = HIGH of previous GREEN candle
-            z.liqLowPrice := low[baseIdx + 1]           // Inducement (previous GREEN candle low)
-            z.liqLowBar := bar_index - (baseIdx + 1)    // Bar index of previous candle
-            z.liqHighPrice := high[baseIdx + 1]         // Target (previous GREEN candle high)
-            z.liqHighBar := bar_index - (baseIdx + 1)   // Bar index of previous candle
-            z.liquidityPrice := low[baseIdx + 1]        // Primary liquidity price
-            z.liquidityBarIndex := bar_index - (baseIdx + 1)  // Primary liquidity bar
+            // Demand: Inducement = LOW of demand candle, Target = HIGH of previous candle
+            z.liqLowPrice := baseLow                    // Inducement (where institutions bought)
+            z.liqLowBar := baseBarIdx                   // Bar index of inducement
+            z.liqHighPrice := high[baseIdx + 1]         // Target (previous candle high)
+            z.liqHighBar := bar_index - (baseIdx + 1)   // Bar index of target
+            z.liquidityPrice := baseLow                 // Primary liquidity price
+            z.liquidityBarIndex := baseBarIdx           // Primary liquidity bar
         else
-            // Supply: Inducement = HIGH of previous RED candle, Target = LOW of previous RED candle
-            z.liqHighPrice := high[baseIdx + 1]         // Inducement (previous RED candle high)
-            z.liqHighBar := bar_index - (baseIdx + 1)   // Bar index of previous candle
-            z.liqLowPrice := low[baseIdx + 1]           // Target (previous RED candle low)
-            z.liqLowBar := bar_index - (baseIdx + 1)    // Bar index of previous candle
-            z.liquidityPrice := high[baseIdx + 1]       // Primary liquidity price
-            z.liquidityBarIndex := bar_index - (baseIdx + 1)  // Primary liquidity bar
+            // Supply: Inducement = HIGH of supply candle, Target = LOW of previous candle
+            z.liqHighPrice := baseHigh                  // Inducement (where institutions sold)
+            z.liqHighBar := baseBarIdx                  // Bar index of inducement
+            z.liqLowPrice := low[baseIdx + 1]           // Target (previous candle low)
+            z.liqLowBar := bar_index - (baseIdx + 1)    // Bar index of target
+            z.liquidityPrice := baseHigh                // Primary liquidity price
+            z.liquidityBarIndex := baseBarIdx           // Primary liquidity bar
         
         // Add to array and register in DB
         if isDemand
@@ -2509,7 +2521,7 @@ deactivateOverlappingDemandZones(refLow, refHigh) =>
 
 
 // --- 1. DEMAND ZONE DETECTION (recent bars) ---
-if barstate.isconfirmed and bar_index >= 3
+if barstate.isconfirmed and bar_index > 10
     if is_bullish(0) and is_bullish(1) and is_bullish(2) and is_bearish(3)
         baseBarIdx = bar_index - 3
         if not is_base_bar_used(baseBarIdx, used_demand_base_times)
@@ -2527,9 +2539,9 @@ if barstate.isconfirmed and bar_index >= 3
             createZone(1, true, false, demand_zone_counter)
 
 // Initial historical scan (once)
-if barstate.isconfirmed and not initial_scan_done and bar_index >= 50
+if barstate.isconfirmed and not initial_scan_done and bar_index > 50
     initial_scan_done := true
-    max_scan = math.min(200, bar_index - 10)
+    max_scan = math.min(100, bar_index)
 
     for i = 2 to max_scan
         baseBarIdxDemand = bar_index - i
@@ -2537,11 +2549,11 @@ if barstate.isconfirmed and not initial_scan_done and bar_index >= 50
             if not is_base_bar_used(baseBarIdxDemand, used_demand_base_times)
                 demand_zone_counter += 1
                 createZone(i, true, true, demand_zone_counter)
-        else if i >= 2 and is_bearish(i) and is_bullish(i - 1) and is_bullish(i - 2)
+        else if is_bearish(i) and is_bullish(i - 1) and is_bullish(i - 2)
             if not is_base_bar_used(baseBarIdxDemand, used_demand_base_times)
                 demand_zone_counter += 1
                 createZone(i, true, true, demand_zone_counter)
-        else if i >= 1 and is_bearish(i) and is_bullish(i - 1)
+        else if is_bearish(i) and is_bullish(i - 1)
             if not is_base_bar_used(baseBarIdxDemand, used_demand_base_times)
                 demand_zone_counter += 1
                 createZone(i, true, true, demand_zone_counter)
@@ -2551,17 +2563,17 @@ if barstate.isconfirmed and not initial_scan_done and bar_index >= 50
             if not is_base_bar_used(baseBarIdxSupply, used_supply_base_times)
                 supply_zone_counter += 1
                 createZone(i, false, true, supply_zone_counter)
-        else if i >= 2 and is_bullish(i) and is_bearish(i - 1) and is_bearish(i - 2)
+        else if is_bullish(i) and is_bearish(i - 1) and is_bearish(i - 2)
             if not is_base_bar_used(baseBarIdxSupply, used_supply_base_times)
                 supply_zone_counter += 1
                 createZone(i, false, true, supply_zone_counter)
-        else if i >= 1 and is_bullish(i) and is_bearish(i - 1)
+        else if is_bullish(i) and is_bearish(i - 1)
             if not is_base_bar_used(baseBarIdxSupply, used_supply_base_times)
                 supply_zone_counter += 1
                 createZone(i, false, true, supply_zone_counter)
 
 // --- 2. SUPPLY ZONE DETECTION (recent bars) ---
-if barstate.isconfirmed and bar_index >= 3
+if barstate.isconfirmed and bar_index > 10
     if is_bearish(0) and is_bearish(1) and is_bearish(2) and is_bullish(3)
         baseBarIdx = bar_index - 3
         if not is_base_bar_used(baseBarIdx, used_supply_base_times)
@@ -3013,36 +3025,31 @@ if array.size(demandZones) > 0 and barstate.isconfirmed
                 z.leftZone := true
                 z.leftWithBearish := current_close < current_open
 
-            // === STRICT MITIGATION CHECK (DEMAND) ===
-            // 1. Premature Mitigation: Touched BEFORE liquidity sweep
-            // 2. Breakdown: Close below zone bottom (invalidation)
+            // === LENIENT MITIGATION CHECK (DEMAND) ===
+            // Zone is only invalidated if:
+            // 1) Price CLOSES inside the zone, OR
+            // 2) Price wicks THROUGH the entire zone (breach - low goes below zone bottom)
+            // Simple touch/wick INTO zone is allowed - zone stays live for entry
             if not z.mitigated
                 bool is_future_bar = not na(z.createdBarIndex) and bar_index > z.createdBarIndex
                 
-                // Premature Touch: Price touches zone top BEFORE liquidity is swept
-                // Exception: If this exact bar is sweeping liquidity right now, allow it
-                bool premature_touch = low <= z.top and not z.liquiditySwept and not z.targetSwept
+                // Close inside zone (bearish invalidation)
+                bool closes_inside = close <= z.top and close >= z.bottom
                 
-                // Breakdown: Price closes below the zone
-                bool breakdown = close < z.bottom
+                // Breach - price wicks through entire zone (wick below zone bottom)
+                bool breaches_zone = low < z.bottom
                 
-                if is_future_bar
-                    if premature_touch or breakdown
-                        z.mitigated := true
-                        z.mitigationTime := time
-                        z.inactiveReason := premature_touch ? "Premature touch (No Sweep)" : "Zone Breakdown"
-                        z.active := false
-                        // DELETE zone visuals completely (cleaner chart)
-                        if not na(z.boxId)
-                            box.delete(z.boxId)
-                        if not na(z.idLabel)
-                            label.delete(z.idLabel)
-                        if not na(z.connectorLine)
-                            line.delete(z.connectorLine)
-                        if not na(z.inducementHLine)
-                            line.delete(z.inducementHLine)
-                        if not na(z.targetHLine)
-                            line.delete(z.targetHLine)
+                // SIMULTANEOUS SWEEP: If current bar sweeps target, allow entry
+                bool current_bar_sweeping = not na(z.structureSweepLevel) and high > z.structureSweepLevel
+                
+                // Only mitigate if liquidty NOT yet swept AND (close inside OR breach) AND not sweeping
+                if is_future_bar and not z.liquiditySwept and (closes_inside or breaches_zone) and not current_bar_sweeping
+                    z.mitigated := true
+                    z.mitigationTime := time
+                    z.inactiveReason := closes_inside ? "Close inside zone" : "Price breached zone"
+                    if not na(z.boxId)
+                        box.set_bgcolor(z.boxId, color.new(color.gray, 85))
+                        box.set_border_color(z.boxId, color.gray)
 
 // === TRACK LIQUIDITY AND ZONE STATUS (SUPPLY) ===
 // CRITICAL: Only validate liquidity sweeps for LIVE zones (not historical backfill)
@@ -3107,36 +3114,31 @@ if array.size(supplyZones) > 0 and barstate.isconfirmed
 
 
             
-            // === STRICT MITIGATION CHECK (SUPPLY) ===
-            // 1. Premature Mitigation: Touched BEFORE liquidity sweep
-            // 2. Breakdown: Close above zone top (invalidation)
+            // === LENIENT MITIGATION CHECK (SUPPLY) ===
+            // Zone is only invalidated if:
+            // 1) Price CLOSES inside the zone, OR
+            // 2) Price wicks THROUGH the entire zone (breach - high goes above zone top)
+            // Simple touch/wick INTO zone is allowed - zone stays live for entry
             if not z.mitigated
                 bool is_future_bar = not na(z.createdBarIndex) and bar_index > z.createdBarIndex
                 
-                // Premature Touch: Price touches zone bottom BEFORE liquidity is swept
-                // Exception: If this exact bar is sweeping liquidity right now, allow it
-                bool premature_touch = high >= z.bottom and not z.liquiditySwept and not z.targetSwept
+                // Close inside zone (bullish invalidation)
+                bool closes_inside = close >= z.bottom and close <= z.top
                 
-                // Breakdown: Price closes above the zone
-                bool breakdown = close > z.top
+                // Breach - price wicks through entire zone (wick above zone top)
+                bool breaches_zone = high > z.top
                 
-                if is_future_bar
-                    if premature_touch or breakdown
-                        z.mitigated := true
-                        z.mitigationTime := time
-                        z.inactiveReason := premature_touch ? "Premature touch (No Sweep)" : "Zone Breakdown"
-                        z.active := false
-                        // DELETE zone visuals completely (cleaner chart)
-                        if not na(z.boxId)
-                            box.delete(z.boxId)
-                        if not na(z.idLabel)
-                            label.delete(z.idLabel)
-                        if not na(z.connectorLine)
-                            line.delete(z.connectorLine)
-                        if not na(z.inducementHLine)
-                            line.delete(z.inducementHLine)
-                        if not na(z.targetHLine)
-                            line.delete(z.targetHLine)
+                // SIMULTANEOUS SWEEP: If current bar sweeps target, allow entry
+                bool current_bar_sweeping = not na(z.structureSweepLevel) and low < z.structureSweepLevel
+                
+                // Only mitigate if liquidty NOT yet swept AND (close inside OR breach) AND not sweeping
+                if is_future_bar and not z.liquiditySwept and (closes_inside or breaches_zone) and not current_bar_sweeping
+                    z.mitigated := true
+                    z.mitigationTime := time
+                    z.inactiveReason := closes_inside ? "Close inside zone" : "Price breached zone"
+                    if not na(z.boxId)
+                        box.set_bgcolor(z.boxId, color.new(color.gray, 85))
+                        box.set_border_color(z.boxId, color.gray)
 
 
 // === ZONE INVALIDATION (DEMAND) ===
@@ -3270,7 +3272,7 @@ if show_zones and show_supply_zones and array.size(supplyZones) > 0 and barstate
 
 // === PRIMED ENTRY EXECUTION (5-MINUTE DELAY) ===
 // Check if any demand zone was primed on the PREVIOUS bar and execute entry now
-// CRITICAL: The confirmation candle MUST touch the zone
+// CRITICAL: The confirmation candle MUST touch the zone OR be a flip scenario
 if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades and strategy.position_size == 0
     for i = 0 to array.size(demandZones) - 1
         Zone z = array.get(demandZones, i)
@@ -4422,7 +4424,7 @@ if debug_full and isRecentBarForDebug() and barstate.isconfirmed
         bool entryAllowed = true
         if enable_timing_filters
             time_to_1h = get_time_to_next_1h()
-            // Entry blocked in last 10 minutes of hour
+            // Note: red news check would go here if implemented
             entryAllowed := time_to_1h >= 10
         
         // Header row (row 0) - spans both columns visually
@@ -4478,6 +4480,8 @@ if debug_full and isRecentBarForDebug() and barstate.isconfirmed
         entryStr = entryAllowed ? "Yes" : "No"
         entryColor = entryAllowed ? color.new(color.green, 0) : color.new(color.red, 0)
         table.cell(debugTable, 1, 8, entryStr, text_color = entryColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
+        
+
 
 // === ZONE INSPECTOR TABLE ===
 var table zoneInspector = na
@@ -4926,46 +4930,12 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug() and barstate.is
             displayLiqLow := inspectorZone.liqLowPrice
             displayLiqLowBar := inspectorZone.liqLowBar
             displayLiqSource := na(inspectorZone.liqSource) ? "N/A" : inspectorZone.liqSource
-            
-            // FALLBACK: If stored values are na, derive from zone boundaries
-            // Demand: Inducement = bottom (Low), Target = top (Close)
-            // Supply: Inducement = top (High), Target = bottom (Close)
-            if isInspectorDemand
-                if na(displayLiqLow)
-                    displayLiqLow := inspectorZone.bottom      // Use zone bottom as Inducement
-                    displayLiqLowBar := inspectorZone.createdBarIndex
-                if na(displayLiqHigh)
-                    displayLiqHigh := inspectorZone.top        // Use zone top as Target
-                    displayLiqHighBar := inspectorZone.createdBarIndex
-            else
-                if na(displayLiqHigh)
-                    displayLiqHigh := inspectorZone.top        // Use zone top as Inducement
-                    displayLiqHighBar := inspectorZone.createdBarIndex
-                if na(displayLiqLow)
-                    displayLiqLow := inspectorZone.bottom      // Use zone bottom as Target
-                    displayLiqLowBar := inspectorZone.createdBarIndex
         else if foundInDB and not na(dbEntry)
             displayLiqHigh := dbEntry.liqHighPrice
             displayLiqHighBar := dbEntry.liqHighBar
             displayLiqLow := dbEntry.liqLowPrice
             displayLiqLowBar := dbEntry.liqLowBar
             displayLiqSource := na(dbEntry.liqSource) ? "N/A" : dbEntry.liqSource
-            
-            // FALLBACK for DB entries too
-            if isInspectorDemand
-                if na(displayLiqLow)
-                    displayLiqLow := dbEntry.bottom
-                    displayLiqLowBar := dbEntry.createdBar
-                if na(displayLiqHigh)
-                    displayLiqHigh := dbEntry.top
-                    displayLiqHighBar := dbEntry.createdBar
-            else
-                if na(displayLiqHigh)
-                    displayLiqHigh := dbEntry.top
-                    displayLiqHighBar := dbEntry.createdBar
-                if na(displayLiqLow)
-                    displayLiqLow := dbEntry.bottom
-                    displayLiqLowBar := dbEntry.createdBar
         
         // Inducement Row (closest to zone)
         string inducementLabel = isInspectorDemand ? "Inducement (Low)" : "Inducement (High)"
