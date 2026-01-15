@@ -1077,6 +1077,41 @@ getMinLowBetween(int startBarAbs, int endBarAbs) =>
                 minL := low[i]
     minL
 
+// === PRECISE TARGET FINDERS (Return Bar Index, Not Price) ===
+// Find the Bar Index of the Highest High between two bars (Inclusive)
+// startBarAbs and endBarAbs are absolute bar indices
+// Returns the bar_index of the candle with the highest high in that range
+getBarOfMaxHigh(int startBarAbs, int endBarAbs) =>
+    float maxH = -1.0e10
+    int bestBar = startBarAbs
+    // Ensure valid range
+    if not na(startBarAbs) and not na(endBarAbs) and endBarAbs >= startBarAbs
+        int offStart = bar_index - endBarAbs
+        int offEnd   = bar_index - startBarAbs
+        if offStart >= 0 and offEnd >= 0
+            for i = offStart to offEnd
+                if high[i] >= maxH
+                    maxH := high[i]
+                    bestBar := bar_index - i
+    bestBar
+
+// Find the Bar Index of the Lowest Low between two bars (Inclusive)
+// startBarAbs and endBarAbs are absolute bar indices
+// Returns the bar_index of the candle with the lowest low in that range
+getBarOfMinLow(int startBarAbs, int endBarAbs) =>
+    float minL = 1.0e10
+    int bestBar = startBarAbs
+    // Ensure valid range
+    if not na(startBarAbs) and not na(endBarAbs) and endBarAbs >= startBarAbs
+        int offStart = bar_index - endBarAbs
+        int offEnd   = bar_index - startBarAbs
+        if offStart >= 0 and offEnd >= 0
+            for i = offStart to offEnd
+                if low[i] <= minL
+                    minL := low[i]
+                    bestBar := bar_index - i
+    bestBar
+
 // Counts opposite candles INSIDE the liquidity range
 // isDemand: true = count bearish (close < open), false = count bullish (close > open)
 // NOTE: rangeLow and rangeHigh parameters are kept for API compatibility but NOT used
@@ -1227,10 +1262,21 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
 
                     // Pivot must be AFTER zone creation
                     if pBar > z.createdBarIndex
-                        // VALIDATION: Inducement must be ABOVE zone top (sits above demand zone)
-                        if pLow > z.top
+                        // VALIDATION: Check pivot location based on model selected
+                        bool isValidLocation = false
+                        float distFromZone = 0.0
+
+                        if use_inducement_linking
+                            // MODEL B (Inducement): Inducement must be ABOVE zone top
+                            isValidLocation := pLow > z.top
+                            distFromZone := pLow - z.top
+                        else
+                            // MODEL A (Standard): Inducement must be BELOW zone bottom
+                            isValidLocation := pLow < z.bottom
+                            distFromZone := z.bottom - pLow
+
+                        if isValidLocation
                             // Check distance constraints if set
-                            float distFromZone = pLow - z.top
                             float maxDistPrice = liq_max_distance_pips * pip_size
                             bool distOK = na(maxDistPrice) or maxDistPrice <= 0 or distFromZone <= maxDistPrice
 
@@ -1247,9 +1293,17 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
             z.liqLowPrice := bestLiqPrice
             z.liqLowBar := bestLiqBar
 
-            // Target is the highest point between zone creation and inducement
-            z.liqHighPrice := getMaxHighBetween(z.createdBarIndex, bestLiqBar)
-            z.liqHighBar := z.createdBarIndex  // Approximation
+            // === PRECISE HIGH DEFINITION ===
+            // The High is the Highest Point BEFORE the Inducement Low (from its LEFT)
+            // Range: [Zone Creation ... Inducement Low]
+            // This defines the peak that preceded the retracement
+            // IMPORTANT: Only recalculate target if not already swept (preserve locked targets)
+            if not z.targetSwept
+                z.liqHighBar := getBarOfMaxHigh(z.createdBarIndex, bestLiqBar)
+
+                // Get the price at that exact bar
+                int highOffset = bar_index - z.liqHighBar
+                z.liqHighPrice := highOffset >= 0 ? high[highOffset] : na
 
             z.liquidityValid := true
             z.inactiveReason := na
@@ -1261,9 +1315,13 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
 
             // Store time values for multi-TF alignment
             int indOff = bar_index - bestLiqBar
-            int tgtOff = bar_index - z.createdBarIndex
+            int tgtOff = bar_index - z.liqHighBar
             z.liqLowTime := indOff >= 0 and indOff <= bar_index ? time[indOff] : na
             z.liqHighTime := tgtOff >= 0 and tgtOff <= bar_index ? time[tgtOff] : na
+
+            // === CRITICAL FIX: SAVE DATA TO DATABASE ===
+            // Without this, data is lost when zone is pruned from live arrays!
+            db_updateZoneLiquidity(z)
         else
             // No valid pivot found yet
             z.liquidityValid := false
@@ -1298,12 +1356,24 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
 
                     // Pivot must be AFTER zone creation
                     if pBar > z.createdBarIndex
-                        // VALIDATION: Inducement must be BELOW zone bottom (sits below supply zone)
-                        if pHigh < z.bottom
+                        // VALIDATION: Check pivot location based on model selected
+                        bool isValidLocation = false
+                        float distFromZone = 0.0
+
+                        if use_inducement_linking
+                            // MODEL B (Inducement): Inducement must be BELOW zone bottom
+                            isValidLocation := pHigh < z.bottom
+                            distFromZone := z.bottom - pHigh
+                        else
+                            // MODEL A (Standard): Inducement must be ABOVE zone top
+                            isValidLocation := pHigh > z.top
+                            distFromZone := pHigh - z.top
+
+                        if isValidLocation
                             // Check distance constraints if set
-                            float distFromZone = z.bottom - pHigh
+                            float distFromZoneCheck = distFromZone
                             float maxDistPrice = liq_max_distance_pips * pip_size
-                            bool distOK = na(maxDistPrice) or maxDistPrice <= 0 or distFromZone <= maxDistPrice
+                            bool distOK = na(maxDistPrice) or maxDistPrice <= 0 or distFromZoneCheck <= maxDistPrice
 
                             if distOK
                                 // We want the HIGHEST valid pivot (closest to zone = inducement)
@@ -1318,9 +1388,17 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
             z.liqHighPrice := bestLiqPrice
             z.liqHighBar := bestLiqBar
 
-            // Target is the lowest point between zone creation and inducement
-            z.liqLowPrice := getMinLowBetween(z.createdBarIndex, bestLiqBar)
-            z.liqLowBar := z.createdBarIndex  // Approximation
+            // === PRECISE LOW DEFINITION ===
+            // The Low is the Lowest Point BEFORE the Inducement High (from its LEFT)
+            // Range: [Zone Creation ... Inducement High]
+            // This defines the valley that preceded the retracement
+            // IMPORTANT: Only recalculate target if not already swept (preserve locked targets)
+            if not z.targetSwept
+                z.liqLowBar := getBarOfMinLow(z.createdBarIndex, bestLiqBar)
+
+                // Get the price at that exact bar
+                int lowOffset = bar_index - z.liqLowBar
+                z.liqLowPrice := lowOffset >= 0 ? low[lowOffset] : na
 
             z.liquidityValid := true
             z.inactiveReason := na
@@ -1332,9 +1410,13 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
 
             // Store time values for multi-TF alignment
             int indOff = bar_index - bestLiqBar
-            int tgtOff = bar_index - z.createdBarIndex
+            int tgtOff = bar_index - z.liqLowBar
             z.liqHighTime := indOff >= 0 and indOff <= bar_index ? time[indOff] : na
             z.liqLowTime := tgtOff >= 0 and tgtOff <= bar_index ? time[tgtOff] : na
+
+            // === CRITICAL FIX: SAVE DATA TO DATABASE ===
+            // Without this, data is lost when zone is pruned from live arrays!
+            db_updateZoneLiquidity(z)
         else
             // No valid pivot found yet
             z.liquidityValid := false
