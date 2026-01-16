@@ -1237,6 +1237,7 @@ is_makuchaku_pvt_high(idx) =>
 
 // NEW: Simple 3-Candle Pivot Scan for Demand Liquidity
 // Finds the lowest valid pivot that sits above the zone (Inducement liquidity)
+// FIXED: Now enforces absolute maximum high for Target (not just pivot highs)
 f_scan_demand_liquidity(int zoneArrayIndex) =>
     Zone z = array.get(demandZones, zoneArrayIndex)
 
@@ -1244,7 +1245,7 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
     if na(z.createdBarIndex) or bar_index <= z.createdBarIndex or z.isHistorical
         true
     else
-        // Simplified 3-candle pivot scan: Look for the LOWEST valid pivot above the zone
+        // === STEP A: INDUCEMENT SCAN (LOWEST valid pivot low above zone) ===
         float bestLiqPrice = 1.0e10  // Start high, look for lowest valid pivot
         int bestLiqBar = na
 
@@ -1285,39 +1286,80 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
                                 if pLow < bestLiqPrice
                                     bestLiqPrice := pLow
                                     bestLiqBar := pBar
+                                // Continue scanning - DO NOT BREAK
 
-        // If we found a valid pivot, configure the zone
+        // If we found a valid inducement pivot, configure the zone
         if not na(bestLiqBar) and bestLiqPrice < 1.0e10
+            // === CHECK IF INDUCEMENT (LIQ LOW) CHANGED ===
+            // If the inducement price has changed, reset the inducement sweep flag
+            bool inductionChanged = na(z.liqLowPrice) or z.liqLowPrice != bestLiqPrice or na(z.liqLowBar) or z.liqLowBar != bestLiqBar
+
             z.liquidityPrice := bestLiqPrice
             z.liquidityBarIndex := bestLiqBar
             z.liqLowPrice := bestLiqPrice
             z.liqLowBar := bestLiqBar
 
-            // === PRECISE HIGH DEFINITION ===
-            // The High is the Highest Point BEFORE the Inducement Low (from its LEFT)
-            // Range: [Zone Creation ... Inducement Low]
-            // This defines the peak that preceded the retracement
-            // IMPORTANT: Only recalculate target if not already swept (preserve locked targets)
-            if not z.targetSwept
-                z.liqHighBar := getBarOfMaxHigh(z.createdBarIndex, bestLiqBar)
+            // Reset inducement sweep if it changed (force re-validation)
+            if inductionChanged
+                z.liquiditySwept := false
+                z.liquiditySweptBarIndex := na
 
-                // Get the price at that exact bar
-                int highOffset = bar_index - z.liqHighBar
-                z.liqHighPrice := highOffset >= 0 ? high[highOffset] : na
+            // === STEP B: STRICT TARGET SCAN (ABSOLUTE HIGHEST price BEFORE inducement) ===
+            // CRITICAL FIX: Find the ABSOLUTE HIGHEST high in the strict range:
+            // [Zone Creation Bar ... Inducement Bar - 1]
+            // This is NOT limited to 3-candle pivots - we need the true maximum!
+            // NOTE: Target scan ALWAYS runs (not gated by targetSwept) to ensure proper data storage
 
+            // Define the strict search range: must end STRICTLY BEFORE inducement bar
+            int rangeStart = z.createdBarIndex
+            int rangeEnd = bestLiqBar - 1  // STRICTLY before inducement
+
+            // Initialize target values
+            float bestTargetPrice = na
+            int bestTargetBar = na
+
+            // Validate range exists and is logical
+            if rangeEnd >= rangeStart and rangeEnd <= bar_index and rangeStart >= 0
+                // Use getBarOfMaxHigh to find the ABSOLUTE maximum high in the range
+                // This includes ALL candles, not just 3-candle pivots
+                // Returns the bar_index of the candle with highest high in [rangeStart, rangeEnd]
+                bestTargetBar := getBarOfMaxHigh(rangeStart, rangeEnd)
+
+                // If target bar found, retrieve the high price at that bar
+                if not na(bestTargetBar) and bestTargetBar >= rangeStart and bestTargetBar <= rangeEnd
+                    int targetOffset = bar_index - bestTargetBar
+                    if targetOffset >= 0 and targetOffset < 5000  // Safety bounds
+                        bestTargetPrice := high[targetOffset]
+
+            // === CHECK IF TARGET (LIQ HIGH) CHANGED ===
+            // If the target price has changed, reset the target sweep flag
+            bool targetChanged = na(z.liqHighPrice) or z.liqHighPrice != bestTargetPrice or na(z.liqHighBar) or z.liqHighBar != bestTargetBar
+
+            // Assign target values (even if na, this ensures explicit storage)
+            z.liqHighBar := bestTargetBar
+            z.liqHighPrice := bestTargetPrice
+
+            // Reset target sweep if it changed (force re-validation)
+            if targetChanged
+                z.targetSwept := false
+                z.targetSweptBarIndex := na
+
+            // Mark zone as liquidity valid
             z.liquidityValid := true
             z.inactiveReason := na
             z.liquidityCandleCount := 3  // 3-candle pivot by definition
             z.legCandleCount := 3
             z.liqSource := "MAKUCHAKU_PIVOT"
+
+            // Set structure sweep level (the target that must be swept)
             z.structureSweepLevel := z.liqHighPrice
             z.structureSweepLevelBar := z.liqHighBar
 
-            // Store time values for multi-TF alignment
+            // Store time values for multi-TF alignment (used for replay/multi-TF consistency)
             int indOff = bar_index - bestLiqBar
-            int tgtOff = bar_index - z.liqHighBar
+            int tgtOff = na(z.liqHighBar) ? na : (bar_index - z.liqHighBar)
             z.liqLowTime := indOff >= 0 and indOff <= bar_index ? time[indOff] : na
-            z.liqHighTime := tgtOff >= 0 and tgtOff <= bar_index ? time[tgtOff] : na
+            z.liqHighTime := not na(tgtOff) and tgtOff >= 0 and tgtOff <= bar_index ? time[tgtOff] : na
 
             // === CRITICAL FIX: SAVE DATA TO DATABASE ===
             // Without this, data is lost when zone is pruned from live arrays!
@@ -1331,6 +1373,7 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
 
 // NEW: Simple 3-Candle Pivot Scan for Supply Liquidity
 // Finds the highest valid pivot that sits below the zone (Inducement liquidity)
+// FIXED: Now enforces absolute minimum low for Target (not just pivot lows)
 f_scan_supply_liquidity(int zoneArrayIndex) =>
     Zone z = array.get(supplyZones, zoneArrayIndex)
 
@@ -1338,7 +1381,7 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
     if na(z.createdBarIndex) or bar_index <= z.createdBarIndex or z.isHistorical
         true
     else
-        // Simplified 3-candle pivot scan: Look for the HIGHEST valid pivot below the zone
+        // === STEP A: INDUCEMENT SCAN (HIGHEST valid pivot high below zone) ===
         float bestLiqPrice = 0.0  // Start low, look for highest valid pivot
         int bestLiqBar = na
 
@@ -1380,39 +1423,80 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
                                 if pHigh > bestLiqPrice
                                     bestLiqPrice := pHigh
                                     bestLiqBar := pBar
+                                // Continue scanning - DO NOT BREAK
 
-        // If we found a valid pivot, configure the zone
+        // If we found a valid inducement pivot, configure the zone
         if not na(bestLiqBar) and bestLiqPrice > 0.0
+            // === CHECK IF INDUCEMENT (LIQ HIGH) CHANGED ===
+            // If the inducement price has changed, reset the inducement sweep flag
+            bool inductionChanged = na(z.liqHighPrice) or z.liqHighPrice != bestLiqPrice or na(z.liqHighBar) or z.liqHighBar != bestLiqBar
+
             z.liquidityPrice := bestLiqPrice
             z.liquidityBarIndex := bestLiqBar
             z.liqHighPrice := bestLiqPrice
             z.liqHighBar := bestLiqBar
 
-            // === PRECISE LOW DEFINITION ===
-            // The Low is the Lowest Point BEFORE the Inducement High (from its LEFT)
-            // Range: [Zone Creation ... Inducement High]
-            // This defines the valley that preceded the retracement
-            // IMPORTANT: Only recalculate target if not already swept (preserve locked targets)
-            if not z.targetSwept
-                z.liqLowBar := getBarOfMinLow(z.createdBarIndex, bestLiqBar)
+            // Reset inducement sweep if it changed (force re-validation)
+            if inductionChanged
+                z.liquiditySwept := false
+                z.liquiditySweptBarIndex := na
 
-                // Get the price at that exact bar
-                int lowOffset = bar_index - z.liqLowBar
-                z.liqLowPrice := lowOffset >= 0 ? low[lowOffset] : na
+            // === STEP B: STRICT TARGET SCAN (ABSOLUTE LOWEST price BEFORE inducement) ===
+            // CRITICAL FIX: Find the ABSOLUTE LOWEST low in the strict range:
+            // [Zone Creation Bar ... Inducement Bar - 1]
+            // This is NOT limited to 3-candle pivots - we need the true minimum!
+            // NOTE: Target scan ALWAYS runs (not gated by targetSwept) to ensure proper data storage
 
+            // Define the strict search range: must end STRICTLY BEFORE inducement bar
+            int rangeStart = z.createdBarIndex
+            int rangeEnd = bestLiqBar - 1  // STRICTLY before inducement
+
+            // Initialize target values
+            float bestTargetPrice = na
+            int bestTargetBar = na
+
+            // Validate range exists and is logical
+            if rangeEnd >= rangeStart and rangeEnd <= bar_index and rangeStart >= 0
+                // Use getBarOfMinLow to find the ABSOLUTE minimum low in the range
+                // This includes ALL candles, not just 3-candle pivots
+                // Returns the bar_index of the candle with lowest low in [rangeStart, rangeEnd]
+                bestTargetBar := getBarOfMinLow(rangeStart, rangeEnd)
+
+                // If target bar found, retrieve the low price at that bar
+                if not na(bestTargetBar) and bestTargetBar >= rangeStart and bestTargetBar <= rangeEnd
+                    int targetOffset = bar_index - bestTargetBar
+                    if targetOffset >= 0 and targetOffset < 5000  // Safety bounds
+                        bestTargetPrice := low[targetOffset]
+
+            // === CHECK IF TARGET (LIQ LOW) CHANGED ===
+            // If the target price has changed, reset the target sweep flag
+            bool targetChanged = na(z.liqLowPrice) or z.liqLowPrice != bestTargetPrice or na(z.liqLowBar) or z.liqLowBar != bestTargetBar
+
+            // Assign target values (even if na, this ensures explicit storage)
+            z.liqLowBar := bestTargetBar
+            z.liqLowPrice := bestTargetPrice
+
+            // Reset target sweep if it changed (force re-validation)
+            if targetChanged
+                z.targetSwept := false
+                z.targetSweptBarIndex := na
+
+            // Mark zone as liquidity valid
             z.liquidityValid := true
             z.inactiveReason := na
             z.liquidityCandleCount := 3  // 3-candle pivot by definition
             z.legCandleCount := 3
             z.liqSource := "MAKUCHAKU_PIVOT"
+
+            // Set structure sweep level (the target that must be swept)
             z.structureSweepLevel := z.liqLowPrice
             z.structureSweepLevelBar := z.liqLowBar
 
-            // Store time values for multi-TF alignment
+            // Store time values for multi-TF alignment (used for replay/multi-TF consistency)
             int indOff = bar_index - bestLiqBar
-            int tgtOff = bar_index - z.liqLowBar
+            int tgtOff = na(z.liqLowBar) ? na : (bar_index - z.liqLowBar)
             z.liqHighTime := indOff >= 0 and indOff <= bar_index ? time[indOff] : na
-            z.liqLowTime := tgtOff >= 0 and tgtOff <= bar_index ? time[tgtOff] : na
+            z.liqLowTime := not na(tgtOff) and tgtOff >= 0 and tgtOff <= bar_index ? time[tgtOff] : na
 
             // === CRITICAL FIX: SAVE DATA TO DATABASE ===
             // Without this, data is lost when zone is pruned from live arrays!
@@ -1425,10 +1509,14 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
         true
 
 // Check inducement and target sweeps for demand zone
+// Target Sweep detection requires liquidityValid (proper pivot scan completed)
+// This ensures the Target High is correctly calculated before checking for sweep
 f_check_demand_sweeps(int zoneArrayIndex) =>
     Zone z = array.get(demandZones, zoneArrayIndex)
+    bool needsPersist = false
     
-    // Inducement sweep check
+    // === INDUCEMENT SWEEP CHECK ===
+    // Inducement Low for Demand: price drops to/below liqLowPrice
     if not na(z.liqLowPrice) and not z.liquiditySwept
         float sweepTolerance = pip_size * 0.5
         float sweepLevel = z.liqLowPrice + sweepTolerance
@@ -1437,43 +1525,38 @@ f_check_demand_sweeps(int zoneArrayIndex) =>
             z.liquiditySwept := true
             z.liquiditySweptBarIndex := bar_index
             z.causedSweep := true
-            
-            // Sweep notifications silenced - Zone Inspector tracks this data
-            // if debug_full and show_entry_labels
-            //     label.new(x = bar_index, y = low, 
-            //              text = "🔴 IND SWEPT\nD-" + str.tostring(z.id), 
-            //              style = label.style_label_up, 
-            //              color = color.new(color.purple, 0),
-            //              textcolor = color.white, 
-            //              size = size.tiny)
-     
-    // Target sweep check - ONLY allow if inducement already swept
-    if not na(z.liqHighPrice) and not na(z.liqHighBar) and not z.targetSwept
-        // Allow same-bar sweeps (removed bar_index check)
-        if z.liquiditySwept and not na(z.liquiditySweptBarIndex)
-            float targetSweepTolerance = pip_size * 0.5
-            float targetSweepLevel = z.liqHighPrice - targetSweepTolerance
-            
-            if high >= targetSweepLevel
-                z.targetSwept := true
-                z.targetSweptBarIndex := bar_index
+            needsPersist := true
+    
+    // === TARGET SWEEP CHECK ===
+    // Target High for Demand: price rises to/above liqHighPrice
+    // CRITICAL: Only check AFTER liquidityValid is true (proper pivot scan completed)
+    // This ensures liqHighPrice is correctly set before we check for sweep
+    if z.liquidityValid and not na(z.liqHighPrice) and not na(z.liqHighBar) and not z.targetSwept
+        float targetSweepTolerance = pip_size * 0.5
+        float targetSweepLevel = z.liqHighPrice - targetSweepTolerance
+        
+        if high >= targetSweepLevel
+            z.targetSwept := true
+            z.targetSweptBarIndex := bar_index
+            // Only set causedSweep if not already set by inducement
+            if not z.causedSweep
                 z.causedSweep := true
-            
-            // Sweep notifications silenced - Zone Inspector tracks this data
-            // if debug_full and show_entry_labels
-            //     label.new(x = bar_index, y = high, 
-            //              text = "🟢 TARGET SWEPT\nD-" + str.tostring(z.id), 
-            //              style = label.style_label_down, 
-            //              color = color.new(color.green, 0),
-            //              textcolor = color.white, 
-            //              size = size.tiny)
+            needsPersist := true
+    
+    // === PERSIST CHANGES ONCE ===
+    if needsPersist
+        array.set(demandZones, zoneArrayIndex, z)
     true  // Return dummy value
 
 // Check inducement and target sweeps for supply zone
+// Target Sweep detection requires liquidityValid (proper pivot scan completed)
+// This ensures the Target Low is correctly calculated before checking for sweep
 f_check_supply_sweeps(int zoneArrayIndex) =>
     Zone z = array.get(supplyZones, zoneArrayIndex)
+    bool needsPersist = false
     
-    // Inducement sweep check
+    // === INDUCEMENT SWEEP CHECK ===
+    // Inducement High for Supply: price rises to/above liqHighPrice
     if not na(z.liqHighPrice) and not z.liquiditySwept
         float sweepTolerance = pip_size * 0.5
         float sweepLevel = z.liqHighPrice - sweepTolerance
@@ -1482,36 +1565,27 @@ f_check_supply_sweeps(int zoneArrayIndex) =>
             z.liquiditySwept := true
             z.liquiditySweptBarIndex := bar_index
             z.causedSweep := true
-            
-            // Sweep notifications silenced - Zone Inspector tracks this data
-            // if debug_full and show_entry_labels
-            //     label.new(x = bar_index, y = high, 
-            //              text = "🔴 IND SWEPT\nS-" + str.tostring(z.id), 
-            //              style = label.style_label_down, 
-            //              color = color.new(color.purple, 0),
-            //              textcolor = color.white, 
-            //              size = size.tiny)
+            needsPersist := true
     
-    // Target sweep check - ONLY allow if inducement already swept
-    if not na(z.liqLowPrice) and not na(z.liqLowBar) and not z.targetSwept
-        // Allow same-bar sweeps (removed bar_index check)
-        if z.liquiditySwept and not na(z.liquiditySweptBarIndex)
-            float targetSweepTolerance = pip_size * 0.5
-            float targetSweepLevel = z.liqLowPrice + targetSweepTolerance
-            
-            if low <= targetSweepLevel
-                z.targetSwept := true
-                z.targetSweptBarIndex := bar_index
+    // === TARGET SWEEP CHECK ===
+    // Target Low for Supply: price drops to/below liqLowPrice
+    // CRITICAL: Only check AFTER liquidityValid is true (proper pivot scan completed)
+    // This ensures liqLowPrice is correctly set before we check for sweep
+    if z.liquidityValid and not na(z.liqLowPrice) and not na(z.liqLowBar) and not z.targetSwept
+        float targetSweepTolerance = pip_size * 0.5
+        float targetSweepLevel = z.liqLowPrice + targetSweepTolerance
+        
+        if low <= targetSweepLevel
+            z.targetSwept := true
+            z.targetSweptBarIndex := bar_index
+            // Only set causedSweep if not already set by inducement
+            if not z.causedSweep
                 z.causedSweep := true
-            
-            // Sweep notifications silenced - Zone Inspector tracks this data
-            // if debug_full and show_entry_labels
-            //     label.new(x = bar_index, y = low, 
-            //              text = "🟢 TARGET SWEPT\nS-" + str.tostring(z.id), 
-            //              style = label.style_label_up, 
-            //              color = color.new(color.green, 0),
-            //              textcolor = color.white, 
-            //              size = size.tiny)
+            needsPersist := true
+    
+    // === PERSIST CHANGES ONCE ===
+    if needsPersist
+        array.set(supplyZones, zoneArrayIndex, z)
     true  // Return dummy value
 
 // === OPTIMIZED ZONE REMOVAL HELPER ===
@@ -1703,26 +1777,11 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int zoneUZID) =>
         z.startTime := time[baseIdx]
         z.idLabel := idLbl
         z.isAccuracy := isAccuracy  // Tag zone type for trade tracking
-        
-        // Initialize Inducement and Target levels at zone creation
-        // These provide initial values for Zone Inspector display
-        if isDemand
-            // Demand: Inducement = LOW of demand candle, Target = HIGH of previous candle
-            z.liqLowPrice := baseLow                    // Inducement (where institutions bought)
-            z.liqLowBar := baseBarIdx                   // Bar index of inducement
-            z.liqHighPrice := high[baseIdx + 1]         // Target (previous candle high)
-            z.liqHighBar := bar_index - (baseIdx + 1)   // Bar index of target
-            z.liquidityPrice := baseLow                 // Primary liquidity price
-            z.liquidityBarIndex := baseBarIdx           // Primary liquidity bar
-        else
-            // Supply: Inducement = HIGH of supply candle, Target = LOW of previous candle
-            z.liqHighPrice := baseHigh                  // Inducement (where institutions sold)
-            z.liqHighBar := baseBarIdx                  // Bar index of inducement
-            z.liqLowPrice := low[baseIdx + 1]           // Target (previous candle low)
-            z.liqLowBar := bar_index - (baseIdx + 1)    // Bar index of target
-            z.liquidityPrice := baseHigh                // Primary liquidity price
-            z.liquidityBarIndex := baseBarIdx           // Primary liquidity bar
-        
+
+        // DO NOT initialize liquidity levels at zone creation.
+        // Wait for f_scan_demand_liquidity() or f_scan_supply_liquidity() to find real 3-candle pivots.
+        // This ensures the Inspector only shows liquidity that actually exists on the chart.
+
         // Add to array and register in DB
         if isDemand
             array.unshift(demandZones, z)
@@ -1858,11 +1917,13 @@ validate_entry_conditions(bool isDemand, int idx) =>
             else if na(z.liquiditySweptBarIndex) or bar_index < z.liquiditySweptBarIndex
                 canEnter := false
                 reason := isDemand ? "Demand entry before liquidity sweep bar" : "Supply entry before liquidity sweep bar"
-            // STRICT ORDERING GATE: Target sweep must occur AFTER or SAME TIME as inducement sweep
-            // Changed <= to < to allow same-bar sweeps (Index == Index is now OK)
-            else if na(z.targetSweptBarIndex) or z.targetSweptBarIndex < z.liquiditySweptBarIndex
+            // DOUBLE SWEEP GATE: Both Target and Inducement must be swept
+            // NOTE: Target can be swept BEFORE Inducement in the "Double Sweep" model
+            // (The rally that creates the Inducement Low often sweeps the Target High first)
+            // Only require that both bar indices are set (both sweeps occurred)
+            else if na(z.targetSweptBarIndex)
                 canEnter := false
-                reason := "Target sweep must occur AFTER inducement sweep"
+                reason := "Target sweep bar index not set"
             else
                 // Check liquidity distance from zone boundary (using helper function)
                 // For Supply: liqHighPrice to zone top
@@ -2412,50 +2473,58 @@ clearDemandLiquidityVisual(idx) =>
 updateDemandLiquidityVisual(idx) =>
     if idx >= 0 and idx < array.size(demandZones)
         Zone z = array.get(demandZones, idx)
-        
-        if na(z.liquidityPrice) or na(z.liquidityBarIndex) or na(z.createdBarIndex) or not show_liquidity_connectors
-            clearDemandLiquidityVisual(idx)
-            true
-        else
-            float mid = (z.top + z.bottom) / 2.0
 
-            // === ZONE-TO-LIQUIDITY CONNECTOR LINE (DEMAND) ===
-            // Neutral gray color - differentiate swept vs pending by style/width
-            // Demand connector: solid style
-            // Not swept: width 1, dotted | Swept: width 2, solid
+        // === ALWAYS draw inducement/target horizontal lines if they're set, regardless of liquidityPrice ===
+        // These are pivot-based levels, independent of the original liquidity connector
+        if show_liquidity_connectors
+            // === HORIZONTAL LINE FOR INDUCEMENT (dashed orange, at liqLowPrice) ===
+            if not na(z.inducementHLine)
+                line.delete(z.inducementHLine)
+
+            if not na(z.liqLowPrice) and not na(z.liqLowBar)
+                color indColor = z.liquiditySwept ? color.new(color.orange, 0) : color.new(color.orange, 50)
+                int lineEnd = bar_index + 20
+                z.inducementHLine := line.new(x1 = z.liqLowBar, y1 = z.liqLowPrice,
+                                               x2 = lineEnd, y2 = z.liqLowPrice,
+                                               xloc = xloc.bar_index, extend = extend.none,
+                                               color = indColor, style = line.style_dashed, width = 1)
+
+            // === HORIZONTAL LINE FOR TARGET (solid lime, at liqHighPrice) ===
+            if not na(z.targetHLine)
+                line.delete(z.targetHLine)
+
+            if not na(z.liqHighPrice) and not na(z.liqHighBar)
+                color tgtColor = z.targetSwept ? color.new(color.lime, 0) : color.new(color.lime, 50)
+                int lineEnd = bar_index + 20
+                z.targetHLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice,
+                                           x2 = lineEnd, y2 = z.liqHighPrice,
+                                           xloc = xloc.bar_index, extend = extend.none,
+                                           color = tgtColor, style = line.style_solid, width = 1)
+        else
+            // Clear horizontal lines if toggle is disabled
+            if not na(z.inducementHLine)
+                line.delete(z.inducementHLine)
+                z.inducementHLine := na
+            if not na(z.targetHLine)
+                line.delete(z.targetHLine)
+                z.targetHLine := na
+
+        // === ZONE-TO-LIQUIDITY CONNECTOR LINE (only if original liquidity price set) ===
+        if na(z.liquidityPrice) or na(z.liquidityBarIndex) or na(z.createdBarIndex) or not show_liquidity_connectors
             if not na(z.connectorLine)
                 line.delete(z.connectorLine)
-            
+                z.connectorLine := na
+        else
+            float mid = (z.top + z.bottom) / 2.0
+            if not na(z.connectorLine)
+                line.delete(z.connectorLine)
+
             lineStyle = z.liquiditySwept ? line.style_solid : line.style_dotted
             lineWidth = z.liquiditySwept ? 2 : 1
             z.connectorLine := line.new(x1 = z.createdBarIndex, y1 = mid, x2 = z.liquidityBarIndex, y2 = z.liquidityPrice,
                                   xloc = xloc.bar_index, extend = extend.none,
                                   color = liq_line_color, style = lineStyle, width = lineWidth)
-            
-            // === HORIZONTAL LINE FOR INDUCEMENT (dashed orange, at liqLowPrice) ===
-            if not na(z.inducementHLine)
-                line.delete(z.inducementHLine)
-            
-            if not na(z.liqLowPrice) and not na(z.liqLowBar)
-                color indColor = z.liquiditySwept ? color.new(color.orange, 0) : color.new(color.orange, 50)
-                int lineEnd = bar_index + 20
-                z.inducementHLine := line.new(x1 = z.liqLowBar, y1 = z.liqLowPrice, 
-                                               x2 = lineEnd, y2 = z.liqLowPrice,
-                                               xloc = xloc.bar_index, extend = extend.none,
-                                               color = indColor, style = line.style_dashed, width = 1)
-            
-            // === HORIZONTAL LINE FOR TARGET (solid lime, at liqHighPrice) ===
-            if not na(z.targetHLine)
-                line.delete(z.targetHLine)
-            
-            if not na(z.liqHighPrice) and not na(z.liqHighBar)
-                color tgtColor = z.targetSwept ? color.new(color.lime, 0) : color.new(color.lime, 50)
-                int lineEnd = bar_index + 20
-                z.targetHLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice, 
-                                           x2 = lineEnd, y2 = z.liqHighPrice,
-                                           xloc = xloc.bar_index, extend = extend.none,
-                                           color = tgtColor, style = line.style_solid, width = 1)
-            true
+        true
 
 
 clearSupplyLiquidityVisual(idx) =>
@@ -2477,29 +2546,68 @@ clearSupplyLiquidityVisual(idx) =>
 updateSupplyLiquidityVisual(idx) =>
     if idx >= 0 and idx < array.size(supplyZones)
         Zone z = array.get(supplyZones, idx)
-        
-        // For Supply: draw connectors to both liqHigh (Inducement) and liqLow (Target)
+
+        // === ALWAYS draw inducement/target horizontal lines if they're set, regardless of liqHighPrice status ===
+        // These are pivot-based levels, independent of the original liquidity connector
+        if show_liquidity_connectors
+            // === HORIZONTAL LINE FOR INDUCEMENT (dashed orange, at liqHighPrice) ===
+            if not na(z.inducementHLine)
+                line.delete(z.inducementHLine)
+
+            if not na(z.liqHighPrice) and not na(z.liqHighBar)
+                color indColor = z.liquiditySwept ? color.new(color.orange, 0) : color.new(color.orange, 50)
+                int lineEnd = bar_index + 20
+                z.inducementHLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice,
+                                               x2 = lineEnd, y2 = z.liqHighPrice,
+                                               xloc = xloc.bar_index, extend = extend.none,
+                                               color = indColor, style = line.style_dashed, width = 1)
+
+            // === HORIZONTAL LINE FOR TARGET (solid lime, at liqLowPrice) ===
+            if not na(z.targetHLine)
+                line.delete(z.targetHLine)
+
+            if not na(z.liqLowPrice) and not na(z.liqLowBar)
+                color tgtColor = z.targetSwept ? color.new(color.lime, 0) : color.new(color.lime, 50)
+                int lineEnd = bar_index + 20
+                z.targetHLine := line.new(x1 = z.liqLowBar, y1 = z.liqLowPrice,
+                                           x2 = lineEnd, y2 = z.liqLowPrice,
+                                           xloc = xloc.bar_index, extend = extend.none,
+                                           color = tgtColor, style = line.style_solid, width = 1)
+        else
+            // Clear horizontal lines if toggle is disabled
+            if not na(z.inducementHLine)
+                line.delete(z.inducementHLine)
+                z.inducementHLine := na
+            if not na(z.targetHLine)
+                line.delete(z.targetHLine)
+                z.targetHLine := na
+
+        // === CONNECTOR LINES (only if liqHighPrice set) ===
         if na(z.liqHighPrice) or na(z.liqHighBar) or na(z.createdBarIndex) or not show_liquidity_connectors
-            clearSupplyLiquidityVisual(idx)
-            true
+            if not na(z.connectorLine)
+                line.delete(z.connectorLine)
+                z.connectorLine := na
+            if not na(z.targetLine)
+                line.delete(z.targetLine)
+                z.targetLine := na
         else
             float zBottom = z.bottom
 
             // === LINE 1: Zone to Inducement HIGH (gray, dashed) ===
             if not na(z.connectorLine)
                 line.delete(z.connectorLine)
-            
+
             indStyle = z.liquiditySwept ? line.style_dashed : line.style_dotted
             indWidth = z.liquiditySwept ? 2 : 1
             z.connectorLine := line.new(x1 = z.createdBarIndex, y1 = zBottom, x2 = z.liqHighBar, y2 = z.liqHighPrice,
                                   xloc = xloc.bar_index, extend = extend.none,
                                   color = liq_line_color, style = indStyle, width = indWidth)
-            
+
             // === LINE 2: Inducement HIGH to Target LOW (gray, solid) ===
             if not na(z.liqLowPrice) and not na(z.liqLowBar)
                 if not na(z.targetLine)
                     line.delete(z.targetLine)
-                
+
                 // Gray solid line for Target - distinct from Inducement dotted line
                 targetColor = color.new(color.gray, 25)
                 targetStyle = line.style_solid
@@ -2507,31 +2615,7 @@ updateSupplyLiquidityVisual(idx) =>
                 z.targetLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice, x2 = z.liqLowBar, y2 = z.liqLowPrice,
                                       xloc = xloc.bar_index, extend = extend.none,
                                       color = targetColor, style = targetStyle, width = targetWidth)
-            
-            // === HORIZONTAL LINE FOR INDUCEMENT (dashed orange, at liqHighPrice) ===
-            if not na(z.inducementHLine)
-                line.delete(z.inducementHLine)
-            
-            if not na(z.liqHighPrice) and not na(z.liqHighBar)
-                color indColor = z.liquiditySwept ? color.new(color.orange, 0) : color.new(color.orange, 50)
-                int lineEnd = bar_index + 20
-                z.inducementHLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice, 
-                                               x2 = lineEnd, y2 = z.liqHighPrice,
-                                               xloc = xloc.bar_index, extend = extend.none,
-                                               color = indColor, style = line.style_dashed, width = 1)
-            
-            // === HORIZONTAL LINE FOR TARGET (solid lime, at liqLowPrice) ===
-            if not na(z.targetHLine)
-                line.delete(z.targetHLine)
-            
-            if not na(z.liqLowPrice) and not na(z.liqLowBar)
-                color tgtColor = z.targetSwept ? color.new(color.lime, 0) : color.new(color.lime, 50)
-                int lineEnd = bar_index + 20
-                z.targetHLine := line.new(x1 = z.liqLowBar, y1 = z.liqLowPrice, 
-                                           x2 = lineEnd, y2 = z.liqLowPrice,
-                                           xloc = xloc.bar_index, extend = extend.none,
-                                           color = tgtColor, style = line.style_solid, width = 1)
-            true
+        true
 
 
 // === LIQUIDITY VALIDATION: SINGLE SOURCE OF TRUTH ===
@@ -2731,7 +2815,20 @@ if array.size(demandZones) > 0 and barstate.isconfirmed
                     clearDemandLiquidityVisual(i)
             
             // === DEMAND LIQUIDITY SELECTION (Throttled for Performance) ===
-            // Skip heavy scanning if liquidity already found and not swept
+            // SANITY CHECK: If liquidity is stored but its bar is in the future (Replay issue), invalidate it to force re-scan
+            bool isFutureLiqDemand = z.liquidityValid and not na(z.liquidityBarIndex) and z.liquidityBarIndex > bar_index
+
+            // If ghost data detected, WIPE IT immediately before scanning
+            if isFutureLiqDemand
+                z.liquidityValid := false
+                z.liquidityPrice := na
+                z.liquidityBarIndex := na
+                z.liqLowPrice := na
+                z.liqHighPrice := na
+                z.structureSweepLevel := na
+                z.inactiveReason := "Ghost Data Cleared"
+
+            // Scan if invalid, cleared, or not swept
             if not (z.liquidityValid and not z.liquiditySwept)
                 f_scan_demand_liquidity(i)
             
@@ -2825,7 +2922,20 @@ if array.size(supplyZones) > 0 and barstate.isconfirmed
                     clearSupplyLiquidityVisual(i)
 
             // === SUPPLY LIQUIDITY SELECTION (Throttled for Performance) ===
-            // Skip heavy scanning if liquidity already found and not swept
+            // SANITY CHECK: If liquidity is stored but its bar is in the future (Replay issue), invalidate it to force re-scan
+            bool isFutureLiqSupply = z.liquidityValid and not na(z.liquidityBarIndex) and z.liquidityBarIndex > bar_index
+
+            // If ghost data detected, WIPE IT immediately before scanning
+            if isFutureLiqSupply
+                z.liquidityValid := false
+                z.liquidityPrice := na
+                z.liquidityBarIndex := na
+                z.liqLowPrice := na
+                z.liqHighPrice := na
+                z.structureSweepLevel := na
+                z.inactiveReason := "Ghost Data Cleared"
+
+            // Scan if invalid, cleared, or not swept
             if not (z.liquidityValid and not z.liquiditySwept)
                 f_scan_supply_liquidity(i)
             
