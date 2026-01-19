@@ -544,9 +544,13 @@ def format_jerusalem_time(utc_ts_str):
         return str(utc_ts_str)[:16]
 
 
-@app.route('/webhook', methods=['POST'])
+@app.route('/webhook', methods=['POST', 'GET'])
 def webhook():
     """Receive TradingView alerts."""
+    if request.method == 'GET':
+        return jsonify({"status": "online", "message": "Webhook endpoint is active. Send POST requests here."}), 200
+
+
     try:
         data = request.get_json(force=True)
         logger.info(f"Webhook received: {data}")
