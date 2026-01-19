@@ -240,6 +240,14 @@ min_entry_grade     = input.string("C", "Min Entry Grade", options=["A+", "A", "
 enable_grade_filter = input.bool(false, "Enable Grade Filter", group="Proprietary Scoring")
 show_grade_on_zone  = input.bool(true, "Show Grade on Zone Label", group="Proprietary Scoring")
 
+// === FVG CONFLUENCE ===
+use_fvg_confirmation = input.bool(false, "Require FVG Confirmation", group = "Strategy Settings", tooltip = "Only create zones if the leaving move creates a Fair Value Gap (Imbalance).")
+
+// === DAILY RISK MANAGEMENT ===
+max_daily_loss_pct    = input.float(2.0, "Max Daily Loss (%)", minval = 0.1, group = "Risk Management", tooltip = "Stop trading if daily loss exceeds this percentage.")
+max_daily_profit_pct  = input.float(5.0, "Max Daily Profit (%)", minval = 0.1, group = "Risk Management", tooltip = "Stop trading if daily profit exceeds this percentage.")
+reset_daily_pnl       = input.bool(true, "Reset PnL Daily", group = "Risk Management", tooltip = "Reset PnL counters at the start of each day.")
+
 // === PERFORMANCE TABLE OPTIONS ===
 show_performance_table = input.bool(true, "Show Performance Table", group = "Display Options", tooltip = "Show aggregated performance statistics (zones, liquidity, timing blocks, RR, etc.)")
 
@@ -1812,157 +1820,187 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
         float baseOpen = open[baseIdx]
         float baseClose = close[baseIdx]
         
-        // Determine if it's an "Accuracy" zone:
-        // Rule: Compare Zone Candle (baseIdx) to Reaction Candle (baseIdx - 1)
-        // The reaction candle is the one that started the move AFTER the zone candle
+        // === FVG / IMBALANCE CHECK ===
+        // If FVG Confluence is enabled, only create zone if displacement left an FVG/Imbalance
+        // Imbalance is between the BASE candle and the 2nd candle after it (Candle C)
+        // Base = baseIdx
+        // Reaction/Explosion = baseIdx - 1
+        // Follow-through/Validation = baseIdx - 2
+        bool hasFVG = false
+        // Ensure we have enough history (need candle at baseIdx - 2)
+        if use_fvg_confirmation and (baseIdx - 2) >= 0
+            if isDemand
+                // Demand FVG: Low of (baseIdx - 2) > High of (baseIdx)
+                // Gap exists above the zone candle
+                if low[baseIdx - 2] > high[baseIdx]
+                    hasFVG := true
+            else
+                // Supply FVG: High of (baseIdx - 2) < Low of (baseIdx)
+                // Gap exists below the zone candle
+                if high[baseIdx - 2] < low[baseIdx]
+                    hasFVG := true
+            
+            // If FVG required but not present, ABORT zone creation
+            if not hasFVG
+                // Return dummy void result (Pine Script functions are weird with void returns)
+                // We'll just set zTop/zBottom to na and exit logic block if we could
+                // But since we are in a function, we can't 'return' easily in middle
+                // We will wrap the rest of the logic in a check
+                na
+        
+        // Proceed only if FVG check passed (or disabled)
+        bool proceed_creation = not use_fvg_confirmation or hasFVG
+        
+        // Define variable first
         bool isAccuracy = false
 
-        // Define the Reaction candle (The candle that started the move)
-        // Since baseIdx is the offset from current bar, the candle "after" it in time is at (baseIdx - 1)
-        int reactionIdx = baseIdx - 1
-
-        // Only check for accuracy zones if enabled (disabled for XAUUSD, NAS100, etc.)
-        if should_use_accuracy_zones and reactionIdx >= 0
-            if isDemand
-                // DEMAND ACCURACY RULE:
-                // If the Zone Candle (Red) goes HIGHER than the Reaction Candle (Green)
-                // We use the Body (Open) as the Top.
-                // Condition: Zone High > Reaction High
-                if high[baseIdx] > high[reactionIdx]
-                    isAccuracy := true
-            else
-                // SUPPLY ACCURACY RULE:
-                // If the Zone Candle (Green) goes LOWER than the Reaction Candle (Red)
-                // We use the Body (Open) as the Bottom.
-                // Condition: Zone Low < Reaction Low
-                if low[baseIdx] < low[reactionIdx]
-                    isAccuracy := true
-
+        if proceed_creation
+            // Determine if it's an "Accuracy" zone:
+            // Rule: Compare Zone Candle (baseIdx) to Reaction Candle (baseIdx - 1)
+            // The reaction candle is the one that started the move AFTER the zone candle
+    
+            // Define the Reaction candle (The candle that started the move)
+            // Since baseIdx is the offset from current bar, the candle "after" it in time is at (baseIdx - 1)
+            int reactionIdx = baseIdx - 1
+    
+            // Only check for accuracy zones if enabled (disabled for XAUUSD, NAS100, etc.)
+            if should_use_accuracy_zones and reactionIdx >= 0
+                if isDemand
+                    // DEMAND ACCURACY RULE:
+                    // If the Zone Candle (Red) goes HIGHER than the Reaction Candle (Green)
+                    // We use the Body (Open) as the Top.
+                    // Condition: Zone High > Reaction High
+                    if high[baseIdx] > high[reactionIdx]
+                        isAccuracy := true
+                else
+                    // SUPPLY ACCURACY RULE:
+                    // If the Zone Candle (Green) goes LOWER than the Reaction Candle (Red)
+                    // We use the Body (Open) as the Bottom.
+                    // Condition: Zone Low < Reaction Low
+                    if low[baseIdx] < low[reactionIdx]
+                        isAccuracy := true
+    
         float zTop = na
         float zBottom = na
 
-        if isAccuracy
-            if isDemand
-                // Demand Accuracy: Ignore Top Wick
-                // Top = OPEN (Body Top)
-                // Bottom = LOW (Extreme)
-                zTop := baseOpen
-                zBottom := baseLow
+        // Only calculate coordinates if proceeding
+        if proceed_creation
+            if isAccuracy
+                if isDemand
+                    // Demand Accuracy: Ignore Top Wick
+                    // Top = OPEN (Body Top)
+                    // Bottom = LOW (Extreme)
+                    zTop := baseOpen
+                    zBottom := baseLow
+                else
+                    // Supply Accuracy: Ignore Bottom Wick
+                    // Top = HIGH (Extreme)
+                    // Bottom = OPEN (Body Bottom)
+                    zTop := baseHigh
+                    zBottom := baseOpen
             else
-                // Supply Accuracy: Ignore Bottom Wick
-                // Top = HIGH (Extreme)
-                // Bottom = OPEN (Body Bottom)
+                // Normal zones: Full candle range
                 zTop := baseHigh
-                zBottom := baseOpen
-        else
-            // Normal zones: Full candle range
-            zTop := baseHigh
-            zBottom := baseLow
+                zBottom := baseLow
         
-        // Cap zone size to avoid overly large zones
-        max_zone_size = 50.0 * pip_size
-        if (zTop - zBottom) > max_zone_size
-            // Keep current range even if large - no adjustment needed
-            true  // No-op, just for syntax
+            // Cap zone size to avoid overly large zones
+            max_zone_size = 50.0 * pip_size
+            if (zTop - zBottom) > max_zone_size
+                // Keep current range even if large - no adjustment needed
+                true  // No-op, just for syntax
 
-        // Create Visual Box with thicker border and distinct color for Accuracy zones
-        int zoneBorderWidth = isAccuracy ? 2 : 1  // Slightly thicker border for accuracy zones
+        // Initialize zone creation variables to defaults to ensure scope validity
+        int zoneBorderWidth = 1
         color zoneBgColor = na
         color zoneBorderColorFinal = na
-        if isAccuracy
-            // Accuracy zones: Blue for demand, Purple for supply - more visible
-            if isDemand
-                zoneBgColor := col_acc_demand_bg
-                zoneBorderColorFinal := col_acc_demand_border
-            else
-                zoneBgColor := col_acc_supply_bg
-                zoneBorderColorFinal := col_acc_supply_border
-        else
-            // Normal zones: subtle colors
-            zoneBgColor := isDemand ? col_demand_bg : col_supply_bg
-            zoneBorderColorFinal := isDemand ? col_demand_border : col_supply_border
-
-        box b = box.new(left = baseBarIdx, top = zTop, right = baseBarIdx + extend_bars, bottom = zBottom,
-             border_color = zoneBorderColorFinal,
-             border_width = zoneBorderWidth,
-             bgcolor = zoneBgColor,
-             xloc = xloc.bar_index)
-
-        // Create ID Label with solid background for visibility
-        string accTag = isAccuracy ? "⭐ ACC " : ""
-
-        // DEBUG: Add comparison info to label if debug active
-        if show_debug_labels and isAccuracy
-            string debugInfo = ""
-            if isDemand
-                float zoneHigh = high[baseIdx]
-                float reactionHigh = high[baseIdx - 1]
-                debugInfo := " [Z:" + str.tostring(zoneHigh, format.mintick) + " > R:" + str.tostring(reactionHigh, format.mintick) + "]"
-            else
-                float zoneLow = low[baseIdx]
-                float reactionLow = low[baseIdx - 1]
-                debugInfo := " [Z:" + str.tostring(zoneLow, format.mintick) + " < R:" + str.tostring(reactionLow, format.mintick) + "]"
-
-            accTag := accTag + debugInfo
-
-        string id_text = " " + accTag + (isDemand ? "D-" : "S-") + str.tostring(zoneUZID) + " "
-        float mid = (zTop + zBottom) / 2.0
-        // Label colors match zone colors - accuracy zones use blue/purple
-        color lbl_bg_color = na
-        if isAccuracy
-            lbl_bg_color := isDemand ? color.new(#2196F3, 0) : color.new(#AB47BC, 0)  // Blue for demand ACC, Purple for supply ACC
-        else
-            lbl_bg_color := isDemand ? color.new(#26a69a, 0) : color.new(#ef5350, 0)  // Teal for demand, Coral for supply
-        label idLbl = label.new(x = baseBarIdx, y = mid, text = id_text,
-             style = label.style_label_left, textcolor = color.white, color = lbl_bg_color,
-             size = size.tiny,  // Forced tiny size for clean chart
-             textalign = text.align_center, xloc = xloc.bar_index)
-
-        // Create Zone Object
-        Zone z = Zone.new()
-        z.id := zoneUZID
-        z.boxId := b
-        z.top := zTop
-        z.bottom := zBottom
-        z.active := true
-        z.createdBarIndex := baseBarIdx
-        z.isHistorical := isHistorical
-        z.startTime := time[baseIdx]
-        z.idLabel := idLbl
-        z.idLabel := idLbl
-        z.isAccuracy := isAccuracy  // Tag zone type for trade tracking
-
-        // === SCORING SYSTEM INTEGRATION ===
-        // Calculate Score (0-100)
-        // Note: Liquidity flags (hasLiquidity, isLiquiditySweep) are False at creation.
-        // They will be updated later by scan functions. Score will need update then too?
-        // Current implementation calculates initial score. 
-        // Ideally we should update score when liquidity is found. 
-        // For now, calculate base score.
-        z.score := calculate_zone_score(isDemand, zTop, zBottom, baseIdx, legCandles, false, false, candlesInBase, isAccuracy)
-        z.grade := get_grade_from_score(z.score)
         
-        // Update Label with Grade if enabled
-        if show_grade_on_zone
-            // Recreate label text with grade
-            gradeStr = "[" + z.grade + "] "
-            label.set_text(idLbl, gradeStr + id_text)
-             
-             // Color coding for grade? Optional. Keeping zone color for now.
+        // Only proceed with object creation if coordinates are valid (FVG check passed)
+        if not na(zTop) and not na(zBottom)
+            // Create Visual Box with thicker border and distinct color for Accuracy zones
+            zoneBorderWidth := isAccuracy ? 2 : 1  // Slightly thicker border for accuracy zones
+            
+            if isAccuracy
+                // Accuracy zones: Blue for demand, Purple for supply - more visible
+                if isDemand
+                    zoneBgColor := col_acc_demand_bg
+                    zoneBorderColorFinal := col_acc_demand_border
+                else
+                    zoneBgColor := col_acc_supply_bg
+                    zoneBorderColorFinal := col_acc_supply_border
+            else
+                // Normal zones: subtle colors
+                zoneBgColor := isDemand ? col_demand_bg : col_supply_bg
+                zoneBorderColorFinal := isDemand ? col_demand_border : col_supply_border
 
-        // DO NOT initialize liquidity levels at zone creation.
-        // Wait for f_scan_demand_liquidity() or f_scan_supply_liquidity() to find real 3-candle pivots.
-        // This ensures the Inspector only shows liquidity that actually exists on the chart.
+            box b = box.new(left = baseBarIdx, top = zTop, right = baseBarIdx + extend_bars, bottom = zBottom,
+                 border_color = zoneBorderColorFinal,
+                 border_width = zoneBorderWidth,
+                 bgcolor = zoneBgColor,
+                 xloc = xloc.bar_index)
 
-        // Add to array and register in DB
-        if isDemand
-            array.unshift(demandZones, z)
-            db_upsertZone(z, "DEMAND")
-            trimZoneArrays(true)
-        else
-            array.unshift(supplyZones, z)
-            db_upsertZone(z, "SUPPLY")
-            trimZoneArrays(false)
+            // Create ID Label with solid background for visibility
+            string accTag = isAccuracy ? "⭐ ACC " : ""
+
+            // DEBUG: Add comparison info to label if debug active
+            if show_debug_labels and isAccuracy
+                string debugInfo = ""
+                if isDemand
+                    float zoneHigh = high[baseIdx]
+                    float reactionHigh = high[baseIdx - 1]
+                    debugInfo := " [Z:" + str.tostring(zoneHigh, format.mintick) + " > R:" + str.tostring(reactionHigh, format.mintick) + "]"
+                else
+                    float zoneLow = low[baseIdx]
+                    float reactionLow = low[baseIdx - 1]
+                    debugInfo := " [Z:" + str.tostring(zoneLow, format.mintick) + " < R:" + str.tostring(reactionLow, format.mintick) + "]"
+
+                accTag := accTag + debugInfo
+
+            string id_text = " " + accTag + (isDemand ? "D-" : "S-") + str.tostring(zoneUZID) + " "
+            float mid = (zTop + zBottom) / 2.0
+            // Label colors match zone colors - accuracy zones use blue/purple
+            color lbl_bg_color = na
+            if isAccuracy
+                lbl_bg_color := isDemand ? color.new(#2196F3, 0) : color.new(#AB47BC, 0)  // Blue for demand ACC, Purple for supply ACC
+            else
+                lbl_bg_color := isDemand ? color.new(#26a69a, 0) : color.new(#ef5350, 0)  // Teal for demand, Coral for supply
+            label idLbl = label.new(x = baseBarIdx, y = mid, text = id_text,
+                 style = label.style_label_left, textcolor = color.white, color = lbl_bg_color,
+                 size = size.tiny,  // Forced tiny size for clean chart
+                 textalign = text.align_center, xloc = xloc.bar_index)
+
+            // Create Zone Object
+            Zone z = Zone.new()
+            z.id := zoneUZID
+            z.boxId := b
+            z.top := zTop
+            z.bottom := zBottom
+            z.active := true
+            z.createdBarIndex := baseBarIdx
+            z.isHistorical := isHistorical
+            z.startTime := time[baseIdx]
+            z.idLabel := idLbl
+            z.isAccuracy := isAccuracy  // Tag zone type for trade tracking
+
+            // === SCORING SYSTEM INTEGRATION ===
+            // Calculate Score (0-100)
+            z.score := calculate_zone_score(isDemand, zTop, zBottom, baseIdx, legCandles, false, false, candlesInBase, isAccuracy)
+            z.grade := get_grade_from_score(z.score)
+            
+            // Update Label with Grade if enabled
+            if show_grade_on_zone
+                // Recreate label text with grade
+                string gradeStr = "[" + z.grade + "] "
+                label.set_text(idLbl, gradeStr + id_text)
+                 
+            // Add to array and register in DB
+            if isDemand
+                array.unshift(demandZones, z)
+                db_upsertZone(z, "DEMAND")
+                trimZoneArrays(true)
+            else
+                array.unshift(supplyZones, z)
+                db_upsertZone(z, "SUPPLY")
+                trimZoneArrays(false)
 
 // Unified Zone Removal
 remove_zone_all_arrays(bool isDemand, int idx) =>
@@ -2377,6 +2415,34 @@ if barstate.isconfirmed[1] or barstate.isfirst
 var int current_day_trades = 0
 var int last_trade_day = na
 
+// === DAILY PNL TRACKING ===
+var float daily_pnl = 0.0
+var float daily_start_equity = 0.0
+var int last_pnl_day = na
+
+// Reset daily PnL at start of day
+current_day_ts = time("D")
+if (reset_daily_pnl and current_day_ts != last_pnl_day)
+    daily_pnl := 0.0
+    daily_start_equity := strategy.equity
+    last_pnl_day := current_day_ts
+
+// Update PnL from closed trades
+if strategy.closedtrades > 0
+    daily_pnl := strategy.equity - daily_start_equity
+
+// Check Daily Limits
+is_daily_loss_limit_hit() =>
+    loss_limit = daily_start_equity * (max_daily_loss_pct / 100.0)
+    daily_pnl < -loss_limit
+
+is_daily_profit_limit_hit() =>
+    profit_limit = daily_start_equity * (max_daily_profit_pct / 100.0)
+    daily_pnl > profit_limit
+
+// Update trades_allowed_today to include PnL limits
+trades_allowed_today() =>
+    current_day_trades < max_trades_per_day and not is_daily_loss_limit_hit() and not is_daily_profit_limit_hit()
 
 
 is_late_friday() =>
@@ -2409,8 +2475,9 @@ if na(last_trade_day) or current_day_start != last_trade_day
     last_trade_day := current_day_start
 
 // Helper to check if trades allowed
-trades_allowed_today() =>
-    current_day_trades < max_trades_per_day
+// Helper logic already replaced above
+// trades_allowed_today() =>
+//     current_day_trades < max_trades_per_day
 
 // === DEBUG TABLE COLOR CODING FUNCTIONS ===
 getZoneStateColor(state) =>
