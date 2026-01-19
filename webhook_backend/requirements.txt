@@ -1,0 +1,15 @@
+# TradingView -> Discord Alert Server (Webhook Edition)
+# Python dependencies
+
+# Web framework for webhook endpoint
+flask>=2.3.0
+
+# HTTP requests to Discord webhook
+requests>=2.28.0
+
+
+# Environment variables
+python-dotenv>=1.0.0
+
+# Timezone support
+pytz>=2023.3

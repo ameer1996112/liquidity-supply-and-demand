@@ -1,0 +1,200 @@
+// =============================================================================
+// PINE SCRIPT WEBHOOK PAYLOAD CONFIGURATION
+// =============================================================================
+// Add this code to your existing Pine Script strategy to send webhook alerts
+// to the Python Discord-MT5 bridge.
+//
+// SETUP INSTRUCTIONS:
+// 1. Add this code to your Pine Script strategy
+// 2. In TradingView, go to the strategy settings
+// 3. Set the Webhook URL to: http://YOUR_SERVER_IP:5000/webhook
+// 4. The alert message will be automatically populated from strategy.entry()
+//
+// NOTE: Replace YOUR_SERVER_IP with your actual server IP or domain
+// For testing locally, use: http://localhost:5000/webhook
+// For production, use ngrok or a cloud server with public IP
+// =============================================================================
+
+//@version=6
+
+// =============================================================================
+// WEBHOOK PAYLOAD BUILDER FUNCTION
+// =============================================================================
+// Creates a JSON payload string for the webhook
+//
+// Parameters:
+//   _symbol: Trading symbol (e.g., "GBPJPY")
+//   _side: Trade direction ("buy" or "sell")
+//   _entry: Entry price
+//   _sl: Stop loss price
+//   _tp: Take profit price
+//   _size: Position size in LOTS (not units!)
+//
+// Returns: JSON string ready for webhook alert_message
+
+build_webhook_payload(_symbol, _side, _entry, _sl, _tp, _size) =>
+    // Build JSON payload - ensure all values are strings
+    '{"symbol":"' + _symbol +
+    '","side":"' + _side +
+    '","entry":' + str.tostring(_entry, format.mintick) +
+    '","sl":' + str.tostring(_sl, format.mintick) +
+    '","tp":' + str.tostring(_tp, format.mintick) +
+    '","size":' + str.tostring(_size, "#.##") + '}'
+
+
+// =============================================================================
+// INTEGRATION WITH YOUR EXISTING STRATEGY
+// =============================================================================
+// Here's how to integrate the webhook with your strategy.entry() calls.
+//
+// IMPORTANT: You need to calculate position size in LOTS, not units!
+//
+// For Forex: 1 lot = 100,000 units
+// For Gold (XAUUSD): 1 lot = 100 oz
+// For Indices: Varies by broker
+//
+// =============================================================================
+
+// Example: Convert units to lots for position sizing
+// Assuming your existing code calculates pos_qty_units (position size in units)
+
+// For standard forex pairs:
+// pos_qty_lots = pos_qty_units / 100000.0
+
+// For XAUUSD (Gold):
+// pos_qty_lots = pos_qty_units / 100.0
+
+// Universal conversion function
+units_to_lots(_units) =>
+    float lot_size = 100000.0  // Default forex
+    ticker = syminfo.ticker
+
+    if str.contains(ticker, "XAU") or str.contains(ticker, "GOLD")
+        lot_size := 100.0
+    else if str.contains(ticker, "XAG") or str.contains(ticker, "SILVER")
+        lot_size := 5000.0
+    else if str.contains(ticker, "BTC") or str.contains(ticker, "ETH")
+        lot_size := 1.0
+
+    _units / lot_size
+
+
+// =============================================================================
+// EXAMPLE: LONG ENTRY WITH WEBHOOK
+// =============================================================================
+// Replace your existing strategy.entry() call with this pattern:
+//
+// BEFORE (without webhook):
+//   strategy.entry("Long", strategy.long, qty = pos_qty_units)
+//
+// AFTER (with webhook):
+
+// Assuming you have these variables from your existing strategy:
+// - entry_price: Your calculated entry price
+// - stop_loss_price: Your calculated stop loss
+// - take_profit_price: Your calculated take profit
+// - pos_qty_units: Your position size in units
+
+// Convert units to lots
+// pos_qty_lots = units_to_lots(pos_qty_units)
+
+// Build the webhook payload
+// json_payload_long = build_webhook_payload(
+//     syminfo.ticker,           // Symbol
+//     "buy",                    // Side
+//     entry_price,              // Entry price
+//     stop_loss_price,          // Stop loss
+//     take_profit_price,        // Take profit
+//     pos_qty_lots              // Size in lots
+// )
+
+// Execute strategy entry with webhook alert
+// strategy.entry("Long", strategy.long, qty = pos_qty_units,
+//                alert_message = json_payload_long)
+
+
+// =============================================================================
+// EXAMPLE: SHORT ENTRY WITH WEBHOOK
+// =============================================================================
+
+// json_payload_short = build_webhook_payload(
+//     syminfo.ticker,           // Symbol
+//     "sell",                   // Side
+//     entry_price,              // Entry price
+//     stop_loss_price,          // Stop loss
+//     take_profit_price,        // Take profit
+//     pos_qty_lots              // Size in lots
+// )
+
+// strategy.entry("Short", strategy.short, qty = pos_qty_units,
+//                alert_message = json_payload_short)
+
+
+// =============================================================================
+// COMPLETE INTEGRATION EXAMPLE
+// =============================================================================
+// Here's a complete example showing how to modify your entry logic:
+
+/*
+// In your LONG ENTRY DETECTION section, replace strategy.entry with:
+
+if pos_is_valid and pos_qty_units > 0 and not na(pos_qty_units)
+    // Convert units to lots for webhook
+    float pos_qty_lots = units_to_lots(pos_qty_units)
+
+    // Build webhook payload
+    string json_payload = build_webhook_payload(
+        syminfo.ticker,
+        "buy",
+        entry_price,
+        stop_loss_price,
+        take_profit_price,
+        pos_qty_lots
+    )
+
+    if dry_run_mode
+        // In dry run, just log the payload
+        log.info("Dry run payload: " + json_payload)
+    else
+        // Execute with webhook alert
+        strategy.entry("Long", strategy.long, qty = pos_qty_units,
+                       alert_message = json_payload)
+
+    // ... rest of your entry logic
+*/
+
+
+// =============================================================================
+// SAMPLE JSON OUTPUT
+// =============================================================================
+// The webhook payload will look like this:
+//
+// {
+//     "symbol": "GBPJPY",
+//     "side": "buy",
+//     "entry": 159.200,
+//     "sl": 159.000,
+//     "tp": 159.500,
+//     "size": 0.1
+// }
+//
+// This is exactly what the Python Discord bot expects!
+
+
+// =============================================================================
+// TRADINGVIEW ALERT SETUP
+// =============================================================================
+//
+// 1. After adding the strategy to your chart, click the "..." menu
+// 2. Select "Add Alert..."
+// 3. Configure:
+//    - Condition: Your strategy name
+//    - Options: Check "Order fills only" for actual trades
+//    - Alert actions: Enable "Webhook URL"
+//    - Webhook URL: http://YOUR_SERVER:5000/webhook
+//    - Message: Leave empty (it uses alert_message from strategy.entry)
+//
+// 4. Click "Create"
+//
+// Now whenever your strategy triggers an entry, TradingView will send
+// the JSON payload to your Python bot!

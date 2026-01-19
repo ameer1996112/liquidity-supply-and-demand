@@ -1,0 +1,14 @@
+# Nixpacks configuration for Railway
+# Build from the webhook_backend subdirectory
+
+[phases.setup]
+nixPkgs = ["python311"]
+
+[phases.install]
+cmds = ["cd webhook_backend && pip install -r requirements.txt"]
+
+[phases.build]
+cmds = []
+
+[start]
+cmd = "cd webhook_backend && python trading_bot.py"

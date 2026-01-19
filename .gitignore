@@ -21,3 +21,10 @@ transscripts/
 
 # Sensitive/Private Data (User Request)
 # Add any specific keys or private folders here
+.env
+webhook_backend/.env
+
+# Python
+venv/
+__pycache__/
+*.pyc
