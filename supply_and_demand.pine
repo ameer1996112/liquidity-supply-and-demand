@@ -421,6 +421,29 @@ type Zone
     label infoLabel
     label idLabel
 
+// === AI FEATURE ENGINEERING ===
+// Calculate indicators globally for training data collection
+float feature_rsi = ta.rsi(close, 14)
+float feature_ema200 = ta.ema(close, 200)
+int feature_trend = close > feature_ema200 ? 1 : 0
+// Removed Volume (tick volume irrelevant for Forex structure) - added placeholder
+int feature_hour = hour(time)
+
+// Session ID for AI: 0=Asian, 1=London, 2=NY, 3=Off-hours
+// Using UTC times: Asian=0-7, London=7-12, NY=12-21, Off=21-24
+f_get_session_id() =>
+    int h = hour(time, "UTC")
+    if h >= 0 and h < 7
+        0  // Asian
+    else if h >= 7 and h < 12
+        1  // London
+    else if h >= 12 and h < 21
+        2  // NY
+    else
+        3  // Off-hours
+
+int feature_session = f_get_session_id()
+
 // === ZONE ARRAYS ===
 // === GLOBAL ARRAYS ===
 var Zone[] demandZones = array.new<Zone>()
@@ -3665,7 +3688,16 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     int dummy_var = 0  // Dummy statement to prevent empty block error
                 else
                     string typeTag = z.isAccuracy ? "⭐ACC" : "[NRM]"
-                    string entryComment = show_entry_labels ? "" : typeTag
+                    // AI Data Packet V2: Score, Freshness, Session, ZoneType, ATR_Ratio, isAccuracy, Trend, RSI
+                    // Removed LegCandles (always 3) and LiqSwept (always 1 at entry)
+                    int f_fresh = bar_index - z.createdBarIndex
+                    float zone_range = z.top - z.bottom
+                    float f_atr_ratio = atr14 > 0 ? zone_range / atr14 : 0.0
+                    int f_zone_type = 0  // 0 = Demand
+                    int f_is_accuracy = z.isAccuracy ? 1 : 0
+                    string ai_features = "F:" + str.tostring(z.score, "#") + "," + str.tostring(f_fresh) + "," + str.tostring(feature_session) + "," + str.tostring(f_zone_type) + "," + str.tostring(f_atr_ratio, "#.##") + "," + str.tostring(f_is_accuracy) + "," + str.tostring(feature_trend) + "," + str.tostring(feature_rsi, "#.##")
+                    string entryComment = (show_entry_labels ? "" : typeTag) + " | " + ai_features
+                    
                     // Include webhook alert_message for TradingView webhook integration
                     if enable_webhook_alerts
                         strategy.entry("Long", strategy.long, qty = pos_qty_units, comment = entryComment, alert_message = webhook_payload)
@@ -3958,7 +3990,16 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     int dummy_var = 0  // Dummy statement to prevent empty block error
                 else
                     string typeTag = z.isAccuracy ? "⭐ACC" : "[NRM]"
-                    string entryComment = show_entry_labels ? "" : typeTag
+                    // AI Data Packet V2: Score, Freshness, Session, ZoneType, ATR_Ratio, isAccuracy, Trend, RSI
+                    // Removed LegCandles (always 3) and LiqSwept (always 1 at entry)
+                    int f_fresh = bar_index - z.createdBarIndex
+                    float zone_range = z.top - z.bottom
+                    float f_atr_ratio = atr14 > 0 ? zone_range / atr14 : 0.0
+                    int f_zone_type = 1  // 1 = Supply
+                    int f_is_accuracy = z.isAccuracy ? 1 : 0
+                    string ai_features = "F:" + str.tostring(z.score, "#") + "," + str.tostring(f_fresh) + "," + str.tostring(feature_session) + "," + str.tostring(f_zone_type) + "," + str.tostring(f_atr_ratio, "#.##") + "," + str.tostring(f_is_accuracy) + "," + str.tostring(feature_trend) + "," + str.tostring(feature_rsi, "#.##")
+                    string entryComment = (show_entry_labels ? "" : typeTag) + " | " + ai_features
+
                     // Include webhook alert_message for TradingView webhook integration
                     if enable_webhook_alerts
                         strategy.entry("Short", strategy.short, qty = pos_qty_units, comment = entryComment, alert_message = webhook_payload_short)

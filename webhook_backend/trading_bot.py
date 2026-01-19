@@ -25,6 +25,7 @@ from flask import Flask, request, jsonify, render_template_string
 from dotenv import load_dotenv
 import requests
 import pytz
+import pickle
 from news_filter import NewsFilter
 
 # Load environment variables
@@ -55,6 +56,22 @@ NEWS_FILTER_ENABLED = os.getenv('NEWS_FILTER_ENABLED', 'true').lower() == 'true'
 NEWS_PRE_MINUTES = int(os.getenv('NEWS_PRE_MINUTES', '30'))
 NEWS_POST_MINUTES = int(os.getenv('NEWS_POST_MINUTES', '30'))
 news_filter = NewsFilter(block_minutes_before=NEWS_PRE_MINUTES, block_minutes_after=NEWS_POST_MINUTES)
+
+# AI Model Filter
+AI_FILTER_ENABLED = os.getenv('AI_FILTER_ENABLED', 'false').lower() == 'true'
+AI_MIN_WIN_PROBABILITY = float(os.getenv('AI_MIN_WIN_PROBABILITY', '0.5'))
+MODEL_PATH = Path(__file__).parent / 'model.pkl'
+
+# Load AI model if enabled and exists
+ai_model = None
+if AI_FILTER_ENABLED and MODEL_PATH.exists():
+    try:
+        with open(MODEL_PATH, 'rb') as f:
+            ai_model = pickle.load(f)
+        logging.info(f"AI Model loaded from {MODEL_PATH}")
+    except Exception as e:
+        logging.warning(f"Failed to load AI model: {e}")
+        ai_model = None
 
 # Position Sizing
 DEFAULT_ACCOUNT_BALANCE = float(os.getenv('ACCOUNT_BALANCE', '10000'))
@@ -517,15 +534,56 @@ def should_forward_alert(data: dict) -> tuple[bool, str]:
         except:
             pass  # Invalid session format, skip filter
 
-    return True, "OK"
-
-
     # Check News Filter
     if NEWS_FILTER_ENABLED:
         if news_filter.is_news_imminent(data.get('symbol', '')):
             return False, "High Impact News Imminent"
 
+    # Check AI Model Filter
+    if AI_FILTER_ENABLED and ai_model is not None:
+        win_prob = predict_win_probability(data)
+        if win_prob is not None and win_prob < AI_MIN_WIN_PROBABILITY:
+            return False, f"AI Win Probability {win_prob:.1%} below {AI_MIN_WIN_PROBABILITY:.1%}"
+
     return True, "OK"
+
+
+def predict_win_probability(data: dict) -> Optional[float]:
+    """
+    Predict win probability using the trained AI model.
+    Extracts features from webhook data and returns probability.
+    """
+    if ai_model is None:
+        return None
+    
+    try:
+        # Extract features from webhook data
+        # The webhook should contain these fields (sent from Pine Script)
+        features = []
+        
+        # Try to get AI features from the data
+        # V2 format: Score, Freshness, Session, ZoneType, ATR_Ratio, isAccuracy, Trend, RSI
+        score = float(data.get('score', data.get('zone_score', 50)))
+        freshness = int(data.get('freshness', 10))
+        session = int(data.get('session', 1))
+        zone_type = 0 if data.get('side', '').lower() == 'buy' else 1
+        atr_ratio = float(data.get('atr_ratio', 0.5))
+        is_accuracy = int(data.get('is_accuracy', 0))
+        trend = int(data.get('trend', 1))
+        rsi = float(data.get('rsi', 50))
+        
+        features = [[score, freshness, session, zone_type, atr_ratio, is_accuracy, trend, rsi]]
+        
+        # Get probability prediction
+        proba = ai_model.predict_proba(features)
+        win_prob = proba[0][1]  # Probability of class 1 (win)
+        
+        logger.info(f"AI Prediction: Win Probability = {win_prob:.2%}")
+        return win_prob
+        
+    except Exception as e:
+        logger.warning(f"AI prediction failed: {e}")
+        return None
 
 
 # =============================================================================
