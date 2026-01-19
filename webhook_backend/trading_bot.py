@@ -25,6 +25,7 @@ from flask import Flask, request, jsonify, render_template_string
 from dotenv import load_dotenv
 import requests
 import pytz
+from news_filter import NewsFilter
 
 # Load environment variables
 env_path = Path(__file__).parent / '.env'
@@ -48,6 +49,12 @@ WEBHOOK_PORT = int(os.getenv('PORT', os.getenv('WEBHOOK_PORT', '3000')))
 # Alert Filtering
 MIN_RR_RATIO = float(os.getenv('MIN_RR_RATIO', '1.0'))  # Minimum R:R to forward
 TRADING_SESSIONS = os.getenv('TRADING_SESSIONS', '')  # e.g., "08:00-17:00" (UTC)
+
+# News Filter
+NEWS_FILTER_ENABLED = os.getenv('NEWS_FILTER_ENABLED', 'true').lower() == 'true'
+NEWS_PRE_MINUTES = int(os.getenv('NEWS_PRE_MINUTES', '30'))
+NEWS_POST_MINUTES = int(os.getenv('NEWS_POST_MINUTES', '30'))
+news_filter = NewsFilter(block_minutes_before=NEWS_PRE_MINUTES, block_minutes_after=NEWS_POST_MINUTES)
 
 # Position Sizing
 DEFAULT_ACCOUNT_BALANCE = float(os.getenv('ACCOUNT_BALANCE', '10000'))
@@ -509,6 +516,14 @@ def should_forward_alert(data: dict) -> tuple[bool, str]:
                 return False, f"Outside trading session {TRADING_SESSIONS} UTC"
         except:
             pass  # Invalid session format, skip filter
+
+    return True, "OK"
+
+
+    # Check News Filter
+    if NEWS_FILTER_ENABLED:
+        if news_filter.is_news_imminent(data.get('symbol', '')):
+            return False, "High Impact News Imminent"
 
     return True, "OK"
 
