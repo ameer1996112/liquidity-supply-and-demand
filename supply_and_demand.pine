@@ -2257,6 +2257,9 @@ is_outside_trading_hours() =>
         // Example: start=7, end=22 means allow 07:00-21:59, block 22:00-06:59
         israelHour < trading_start_hour or israelHour >= trading_end_hour
 
+// === AI FILTER STATISTICS ===
+var int stat_ai_filtered_total = 0  // Count of trades blocked by AI filter
+
 // Unified Entry Validation
 validate_entry_conditions(bool isDemand, int idx) =>
     bool canEnter = true
@@ -2459,9 +2462,6 @@ var int stat_grade_B_total = 0
 var int stat_grade_B_wins  = 0
 var int stat_grade_C_total = 0
 var int stat_grade_C_wins  = 0
-
-// AI Filter Stats
-var int stat_ai_filtered_total = 0  // Count of trades blocked by AI filter
 
 // Track whether current trade originated from an accuracy zone (Already declared above)
 var string trade_entry_grade      = "C"  // Track grade of current trade
