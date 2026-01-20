@@ -2408,7 +2408,6 @@ validate_entry_conditions(bool isDemand, int idx) =>
             if ai_score < ai_quality_threshold
                 canEnter := false
                 reason := "AI Quality: " + str.tostring(ai_score, "#.0") + " < " + str.tostring(ai_quality_threshold) + " (low probability)"
-                stat_ai_filtered_total += 1  // Track filtered count
 
     [canEnter, reason, z]
 
@@ -3197,6 +3196,10 @@ isLiquidityValidForEntry(isDemand, idx) =>
 
 isValidEntry(isDemand, idx) =>
     [canEnter, reason, z] = validate_entry_conditions(isDemand, idx)
+
+    // Track AI filter statistics
+    if not canEnter and str.contains(reason, "AI Quality")
+        stat_ai_filtered_total += 1
 
     // Note: Timing filter is now checked INSIDE validate_entry_conditions 
     // to prioritize the "Blocked by Timing" reason string.
