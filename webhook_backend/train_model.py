@@ -11,7 +11,7 @@ from imblearn.over_sampling import SMOTE
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def train_model(csv_path='trades_XAUUSD_1_1_2024_19_1_2026.csv', model_path='model.pkl'):
+def train_model(csv_path='trade_XAUUSD_4_1_2023_19_1_2026.csv', model_path='model.pkl'):
     logging.info(f"Loading data from {csv_path}...")
     
     try:
@@ -45,11 +45,14 @@ def train_model(csv_path='trades_XAUUSD_1_1_2024_19_1_2026.csv', model_path='mod
         return
 
     # Extract features using regex or split
-    # V2 format: "... | F:Score,Freshness,Session,ZoneType,ATR_Ratio,isAccuracy,Trend,RSI"
+    # V3 format: "F:Score,Freshness,Session,ZoneType,ATR_Ratio,isAccuracy,Trend,RSI,HTF_Trend,RVOL" (10 features)
+    # V2 format: "... | F:Score,Freshness,Session,ZoneType,ATR_Ratio,isAccuracy,Trend,RSI" (8 features)
     # V1 format: "... | F:Score,LegCandles,Freshness,LiqSwept,Trend,RSI" (6 features)
     feature_data = []
     
-    # New V2 headers (8 features)
+    # New V3 headers (10 features)
+    headers_v3 = ['Score', 'Freshness', 'Session', 'ZoneType', 'ATR_Ratio', 'isAccuracy', 'Trend', 'RSI', 'HTF_Trend', 'RVOL']
+    # V2 headers (8 features)
     headers_v2 = ['Score', 'Freshness', 'Session', 'ZoneType', 'ATR_Ratio', 'isAccuracy', 'Trend', 'RSI']
     # Old V1 headers (6 features)
     headers_v1 = ['Score', 'LegCandles', 'Freshness', 'LiqSwept', 'Trend', 'RSI']
@@ -67,25 +70,15 @@ def train_model(csv_path='trades_XAUUSD_1_1_2024_19_1_2026.csv', model_path='mod
                 vars = clean_part.split(',')
                 
                 # Detect version based on feature count
-                if len(vars) == 8:
-                    # V2 format
+                feature_count = len(vars)
+                
+                if feature_count in [6, 8, 10]:
                     if detected_version is None:
-                        detected_version = 'v2'
-                        logging.info("Detected V2 feature format (8 features)")
-                    features = [float(v) for v in vars]
-                    
-                    # Target: Profit > 0 = 1 (Win), else 0 (Loss)
-                    profit = float(str(row.get(profit_col, '0')).replace(',' ,'').replace('$', '').replace(' ', ''))
-                    target = 1 if profit > 0 else 0
-                    
-                    features.append(target)
-                    feature_data.append(features)
-                    valid_count += 1
-                elif len(vars) == 6:
-                    # V1 format (legacy)
-                    if detected_version is None:
-                        detected_version = 'v1'
-                        logging.info("Detected V1 feature format (6 features)")
+                        if feature_count == 10: detected_version = 'v3'
+                        elif feature_count == 8: detected_version = 'v2'
+                        else: detected_version = 'v1'
+                        logging.info(f"Detected {detected_version.upper()} feature format ({feature_count} features)")
+
                     features = [float(v) for v in vars]
                     
                     # Target: Profit > 0 = 1 (Win), else 0 (Loss)
@@ -99,7 +92,9 @@ def train_model(csv_path='trades_XAUUSD_1_1_2024_19_1_2026.csv', model_path='mod
                 pass # Skip malformed rows
     
     # Use appropriate headers based on detected version
-    headers = headers_v2 if detected_version == 'v2' else headers_v1
+    if detected_version == 'v3': headers = headers_v3
+    elif detected_version == 'v2': headers = headers_v2
+    else: headers = headers_v1
 
     logging.info(f"Found {valid_count} valid training samples out of {len(df)} total rows.")
     

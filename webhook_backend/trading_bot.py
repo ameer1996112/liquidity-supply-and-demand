@@ -73,6 +73,10 @@ if AI_FILTER_ENABLED and MODEL_PATH.exists():
         logging.warning(f"Failed to load AI model: {e}")
         ai_model = None
 
+# Swap Hours Filter
+SWAP_HOURS_ENABLED = os.getenv('SWAP_HOURS_ENABLED', 'true').lower() == 'true'
+SWAP_HOURS_UTC = os.getenv('SWAP_HOURS_UTC', '21:50-22:10')  # Default: 10 min before/after 22:00 UTC
+
 # Position Sizing
 DEFAULT_ACCOUNT_BALANCE = float(os.getenv('ACCOUNT_BALANCE', '10000'))
 DEFAULT_RISK_PERCENT = float(os.getenv('RISK_PERCENT', '1.0'))
@@ -534,6 +538,22 @@ def should_forward_alert(data: dict) -> tuple[bool, str]:
         except:
             pass  # Invalid session format, skip filter
 
+    # Check Swap Hours Filter
+    if SWAP_HOURS_ENABLED:
+        try:
+            start_str, end_str = SWAP_HOURS_UTC.split('-')
+            start_hour, start_min = map(int, start_str.split(':'))
+            end_hour, end_min = map(int, end_str.split(':'))
+
+            now = datetime.utcnow()
+            swap_start = now.replace(hour=start_hour, minute=start_min, second=0, microsecond=0)
+            swap_end = now.replace(hour=end_hour, minute=end_min, second=0, microsecond=0)
+
+            if swap_start <= now <= swap_end:
+                return False, f"Swap hours ({SWAP_HOURS_UTC} UTC) - spreads widen"
+        except:
+            pass  # Invalid swap hours format, skip filter
+
     # Check News Filter
     if NEWS_FILTER_ENABLED:
         if news_filter.is_news_imminent(data.get('symbol', '')):
@@ -562,7 +582,7 @@ def predict_win_probability(data: dict) -> Optional[float]:
         features = []
         
         # Try to get AI features from the data
-        # V2 format: Score, Freshness, Session, ZoneType, ATR_Ratio, isAccuracy, Trend, RSI
+        # V3 format: Score, Freshness, Session, ZoneType, ATR_Ratio, isAccuracy, Trend, RSI, HTF_Trend, RVOL
         score = float(data.get('score', data.get('zone_score', 50)))
         freshness = int(data.get('freshness', 10))
         session = int(data.get('session', 1))
@@ -571,8 +591,18 @@ def predict_win_probability(data: dict) -> Optional[float]:
         is_accuracy = int(data.get('is_accuracy', 0))
         trend = int(data.get('trend', 1))
         rsi = float(data.get('rsi', 50))
+        htf_trend = int(data.get('htf_trend', 1)) # V3
+        rvol = float(data.get('rvol', 1.0))       # V3
         
-        features = [[score, freshness, session, zone_type, atr_ratio, is_accuracy, trend, rsi]]
+        # Check model feature count to ensure compatibility
+        expected_features = ai_model.n_features_in_
+        
+        if expected_features == 10:
+            features = [[score, freshness, session, zone_type, atr_ratio, is_accuracy, trend, rsi, htf_trend, rvol]]
+        elif expected_features == 8:
+            features = [[score, freshness, session, zone_type, atr_ratio, is_accuracy, trend, rsi]]
+        else:
+             features = [[score, 3, freshness, 1, trend, rsi]] # V1 fallback (6 features)
         
         # Get probability prediction
         proba = ai_model.predict_proba(features)

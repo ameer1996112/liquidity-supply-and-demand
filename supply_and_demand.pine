@@ -219,6 +219,9 @@ max_bars_held = input.int(36, "Max Bars to Hold", minval=1, group="Strategy Sett
 
 // === TIME FILTERS (Arger FX / Combined Strategy Rules) ===
 filter_dead_zone = input.bool(true, "Filter Dead Zone (xx:50-xx:00)", group = "Strategy Settings", tooltip = "Block entries in the last 10 minutes of each hour (xx:50 - xx:00) to avoid volatility spikes at HTF candle closes.")
+filter_trading_hours = input.bool(true, "Filter Trading Hours (07:00-22:00)", group = "Strategy Settings", tooltip = "Only allow trades between 07:00-22:00 Israel time. Avoids swap hour (00:00), low-liquidity Asian session, and late-night volatility.")
+trading_start_hour = input.int(7, "Trading Start Hour", minval = 0, maxval = 23, group = "Strategy Settings", tooltip = "Hour to start trading (Israel time, default: 07:00)")
+trading_end_hour = input.int(22, "Trading End Hour", minval = 0, maxval = 23, group = "Strategy Settings", tooltip = "Hour to stop trading (Israel time, default: 22:00)")
 require_htf_flip = input.bool(true, "Require HTF Context for Flip Entry", group = "Strategy Settings", tooltip = "When enabled, Flip entries are only valid near the open of a new 30m/1H candle (first 10 minutes of each half hour).")
 
 // === DOUBLE TP MODE ===
@@ -443,6 +446,18 @@ f_get_session_id() =>
         3  // Off-hours
 
 int feature_session = f_get_session_id()
+
+// === V3 FEATURES: HTF Trend & RVOL ===
+// 1. HTF Trend (1 Hour EMA 200)
+// Get 60m data. If we are on > 60m chart, specific logic applies, but assuming < 60m execution:
+float htf_ema200 = request.security(syminfo.tickerid, "60", ta.ema(close, 200))
+float htf_close = request.security(syminfo.tickerid, "60", close)
+int feature_htf_trend = htf_close > htf_ema200 ? 1 : 0
+
+// 2. Relative Volume (RVOL)
+// Volume relative to 20-period average volume
+float vol_avg = ta.sma(volume, 20)
+float feature_rvol = vol_avg > 0 ? volume / vol_avg : 0.0
 
 // === ZONE ARRAYS ===
 // === GLOBAL ARRAYS ===
@@ -2111,6 +2126,22 @@ is_time_dead_zone() =>
         // Dead zone: minutes 50-59 (last 10 minutes of each hour)
         currentMinute >= 50
 
+// === TRADING HOURS FILTER (Israel Time) ===
+// Block entries outside of 07:00-22:00 Israel time (GMT+2/GMT+3 depending on DST)
+// This avoids:
+// - Swap hour (around 00:00)
+// - Low-liquidity Asian session hours (late night/early morning)
+// - Late-night volatility spikes
+is_outside_trading_hours() =>
+    if not filter_trading_hours
+        false  // Filter disabled, allow all entries
+    else
+        // Israel timezone: Use "Asia/Jerusalem" which handles DST automatically
+        int israelHour = hour(time, "Asia/Jerusalem")
+        // Block if hour is before start or at/after end
+        // Example: start=7, end=22 means allow 07:00-21:59, block 22:00-06:59
+        israelHour < trading_start_hour or israelHour >= trading_end_hour
+
 // Unified Entry Validation
 validate_entry_conditions(bool isDemand, int idx) =>
     bool canEnter = true
@@ -2141,6 +2172,13 @@ validate_entry_conditions(bool isDemand, int idx) =>
     if canEnter and is_time_dead_zone()
         canEnter := false
         reason := "Dead Zone: Blocked at " + str.tostring(minute(time)) + "m (avoid xx:50-xx:00)"
+
+    // === TRADING HOURS FILTER (Israel Time) ===
+    // Block entries outside allowed trading window (default: 07:00-22:00)
+    if canEnter and is_outside_trading_hours()
+        canEnter := false
+        int israelHour = hour(time, "Asia/Jerusalem")
+        reason := "Outside Trading Hours: " + str.tostring(israelHour) + ":00 (allowed: " + str.tostring(trading_start_hour) + ":00-" + str.tostring(trading_end_hour) + ":00)"
 
     if canEnter
         // Zone must have caused sweep & not be historical
@@ -3688,14 +3726,14 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     int dummy_var = 0  // Dummy statement to prevent empty block error
                 else
                     string typeTag = z.isAccuracy ? "⭐ACC" : "[NRM]"
-                    // AI Data Packet V2: Score, Freshness, Session, ZoneType, ATR_Ratio, isAccuracy, Trend, RSI
-                    // Removed LegCandles (always 3) and LiqSwept (always 1 at entry)
+                    // AI Data Packet V3: Score, Freshness, Session, ZoneType, ATR_Ratio, isAccuracy, Trend, RSI, HTF_Trend, RVOL
+                    // Added V3: HTF_Trend (1H), RVOL
                     int f_fresh = bar_index - z.createdBarIndex
                     float zone_range = z.top - z.bottom
                     float f_atr_ratio = atr14 > 0 ? zone_range / atr14 : 0.0
                     int f_zone_type = 0  // 0 = Demand
                     int f_is_accuracy = z.isAccuracy ? 1 : 0
-                    string ai_features = "F:" + str.tostring(z.score, "#") + "," + str.tostring(f_fresh) + "," + str.tostring(feature_session) + "," + str.tostring(f_zone_type) + "," + str.tostring(f_atr_ratio, "#.##") + "," + str.tostring(f_is_accuracy) + "," + str.tostring(feature_trend) + "," + str.tostring(feature_rsi, "#.##")
+                    string ai_features = "F:" + str.tostring(z.score, "#") + "," + str.tostring(f_fresh) + "," + str.tostring(feature_session) + "," + str.tostring(f_zone_type) + "," + str.tostring(f_atr_ratio, "#.##") + "," + str.tostring(f_is_accuracy) + "," + str.tostring(feature_trend) + "," + str.tostring(feature_rsi, "#.##") + "," + str.tostring(feature_htf_trend) + "," + str.tostring(feature_rvol, "#.##")
                     string entryComment = (show_entry_labels ? "" : typeTag) + " | " + ai_features
                     
                     // Include webhook alert_message for TradingView webhook integration
@@ -3990,14 +4028,14 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     int dummy_var = 0  // Dummy statement to prevent empty block error
                 else
                     string typeTag = z.isAccuracy ? "⭐ACC" : "[NRM]"
-                    // AI Data Packet V2: Score, Freshness, Session, ZoneType, ATR_Ratio, isAccuracy, Trend, RSI
-                    // Removed LegCandles (always 3) and LiqSwept (always 1 at entry)
+                    // AI Data Packet V3: Score, Freshness, Session, ZoneType, ATR_Ratio, isAccuracy, Trend, RSI, HTF_Trend, RVOL
+                    // Added V3: HTF_Trend (1H), RVOL
                     int f_fresh = bar_index - z.createdBarIndex
                     float zone_range = z.top - z.bottom
                     float f_atr_ratio = atr14 > 0 ? zone_range / atr14 : 0.0
                     int f_zone_type = 1  // 1 = Supply
                     int f_is_accuracy = z.isAccuracy ? 1 : 0
-                    string ai_features = "F:" + str.tostring(z.score, "#") + "," + str.tostring(f_fresh) + "," + str.tostring(feature_session) + "," + str.tostring(f_zone_type) + "," + str.tostring(f_atr_ratio, "#.##") + "," + str.tostring(f_is_accuracy) + "," + str.tostring(feature_trend) + "," + str.tostring(feature_rsi, "#.##")
+                    string ai_features = "F:" + str.tostring(z.score, "#") + "," + str.tostring(f_fresh) + "," + str.tostring(feature_session) + "," + str.tostring(f_zone_type) + "," + str.tostring(f_atr_ratio, "#.##") + "," + str.tostring(f_is_accuracy) + "," + str.tostring(feature_trend) + "," + str.tostring(feature_rsi, "#.##") + "," + str.tostring(feature_htf_trend) + "," + str.tostring(feature_rvol, "#.##")
                     string entryComment = (show_entry_labels ? "" : typeTag) + " | " + ai_features
 
                     // Include webhook alert_message for TradingView webhook integration
