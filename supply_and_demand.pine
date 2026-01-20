@@ -481,6 +481,7 @@ type Zone
     float primedRefHigh    // High of the priming candle (for BOC reference)
     float primedRefLow     // Low of the priming candle (for BOC reference)
     bool  wasTouched       // True when zone has been touched by wick (persists until entry/mitigation)
+    int   touchCount       // Number of times zone has been touched (for first-touch-only rule and V5 AI)
     bool  isAccuracy      // Zone type: true = Accuracy zone, false = Normal zone
     float score           // Zone Quality Score (0-100)
     string grade          // Zone Grade (A+, A, B, C)
@@ -2168,6 +2169,7 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
             z.isHistorical := isHistorical
             z.startTime := time[baseIdx]
             z.idLabel := idLbl
+            z.touchCount := 0  // Initialize touch count for V5 AI tracking
             z.isAccuracy := isAccuracy  // Tag zone type for trade tracking
 
             // === SCORING SYSTEM INTEGRATION ===
