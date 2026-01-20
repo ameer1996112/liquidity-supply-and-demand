@@ -2257,9 +2257,6 @@ is_outside_trading_hours() =>
         // Example: start=7, end=22 means allow 07:00-21:59, block 22:00-06:59
         israelHour < trading_start_hour or israelHour >= trading_end_hour
 
-// === AI FILTER STATISTICS ===
-var int stat_ai_filtered_total = 0  // Count of trades blocked by AI filter
-
 // Unified Entry Validation
 validate_entry_conditions(bool isDemand, int idx) =>
     bool canEnter = true
@@ -2550,10 +2547,10 @@ draw_performance_table(tbl) =>
             string b_wr_str = str.tostring(safe_percent(stat_grade_B_wins, stat_grade_B_total), "#.0") + "% (" + str.tostring(stat_grade_B_total) + ")"
             table.cell(result, 1, 7, b_wr_str, text_color = color.white, bgcolor = color.rgb(25, 25, 25), text_halign = text.align_left, text_size = size.small)
 
-            // === 8. AI FILTER STATS ===
-            table.cell(result, 0, 8, "AI Filtered", text_color = color.rgb(180, 180, 180), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_right, text_size = size.small)
-            string ai_filter_str = str.tostring(stat_ai_filtered_total) + " blocked"
-            color ai_color = stat_ai_filtered_total > 0 ? color.rgb(255, 180, 80) : color.rgb(150, 150, 150)
+            // === 8. AI FILTER STATUS ===
+            table.cell(result, 0, 8, "AI Filter", text_color = color.rgb(180, 180, 180), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_right, text_size = size.small)
+            string ai_filter_str = enable_ai_quality_filter ? ("ON (≥" + str.tostring(ai_quality_threshold) + ")") : "OFF"
+            color ai_color = enable_ai_quality_filter ? color.rgb(0, 200, 100) : color.rgb(150, 150, 150)
             table.cell(result, 1, 8, ai_filter_str, text_color = ai_color, bgcolor = color.rgb(25, 25, 25), text_halign = text.align_left, text_size = size.small)
 
     result
@@ -3196,10 +3193,6 @@ isLiquidityValidForEntry(isDemand, idx) =>
 
 isValidEntry(isDemand, idx) =>
     [canEnter, reason, z] = validate_entry_conditions(isDemand, idx)
-
-    // Track AI filter statistics
-    if not canEnter and str.contains(reason, "AI Quality")
-        stat_ai_filtered_total += 1
 
     // Note: Timing filter is now checked INSIDE validate_entry_conditions 
     // to prioritize the "Blocked by Timing" reason string.
