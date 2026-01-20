@@ -3668,13 +3668,13 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
             bool is_flip = require_htf_flip ? (basic_flip and is_htf_candle_open()) : basic_flip
 
             // (b) DIRECTIONAL CLOSE: Bullish close (no zone touch required - already primed)
-            // Requires: close > open OR Hammer
+            // Requires: close > open OR Bullish Hammer (Strict: Must be Green)
             float candleRange = high - low
             float bodySize = math.abs(close - open)
             float lowerWick = math.min(open, close) - low
             bool isHammer = candleRange > 0 ? (lowerWick >= candleRange * 0.6 and bodySize <= candleRange * 0.3) : false
 
-            bool is_dir_close = (close > open) or isHammer
+            bool is_dir_close = (close > open) or (isHammer and close > open)
 
             // (c) BREAK OF CANDLE: Gap or Break High relative to PRIMED CANDLE + Bullish Close
             // Definition: (open > primedRefClose OR high > primedRefHigh) AND close > open
@@ -3971,13 +3971,13 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
             bool is_flip = require_htf_flip ? (basic_flip and is_htf_candle_open()) : basic_flip
 
             // (b) DIRECTIONAL CLOSE: Bearish close (no zone touch required - already primed)
-            // Requires: close < open OR Inverted Hammer
+            // Requires: close < open OR Bearish Inverted Hammer (Strict: Must be Red)
             float candleRange = high - low
             float bodySize = math.abs(close - open)
             float upperWick = high - math.max(open, close)
             bool isInvertedHammer = candleRange > 0 ? (upperWick >= candleRange * 0.6 and bodySize <= candleRange * 0.3) : false
 
-            bool is_dir_close = (close < open) or isInvertedHammer
+            bool is_dir_close = (close < open) or (isInvertedHammer and close < open)
 
             // (c) BREAK OF CANDLE: Gap or Break Low relative to PRIMED CANDLE + Bearish Close
             // Definition: (open < primedRefClose OR low < primedRefLow) AND close < open
