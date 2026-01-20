@@ -3898,7 +3898,7 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
             if can_enter
                 // Check if zone is touched (wick into zone)
                 float touchTolerance = 0.0
-                bool currentTouch = low <= (z.top + touchTolerance) and low >= (z.bottom - touchTolerance)
+                bool currentTouch = low <= (z.top + touchTolerance)  // Wick reaches or passes through zone
 
                 if currentTouch
                     // FIRST-TOUCH-ONLY RULE: Block retrace entries (zones already touched)
@@ -4222,7 +4222,7 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
             if can_enter
                 // Check if zone is touched (wick into zone)
                 float touchTolerance = 0.0
-                bool currentTouch = high >= (z.bottom - touchTolerance) and high <= (z.top + touchTolerance)
+                bool currentTouch = high >= (z.bottom - touchTolerance)  // Wick reaches or passes through zone
 
                 if currentTouch
                     // FIRST-TOUCH-ONLY RULE: Block retrace entries (zones already touched)
