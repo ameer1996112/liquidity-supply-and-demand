@@ -361,15 +361,77 @@ get_rd_forex_tp_ratio(sl_pips) =>
 get_double_tp_ratio(base_ratio) =>
     base_ratio * 2.0
 
+// === GOLD TP RULES (XAUUSD) ===
+// Specific rules provided by user:
+// - SL <= 50 pips: Min RR 1:4.5
+// - SL 50-100 pips: Min RR 1:3, BE at 1:2.75
+// - SL 100-150 pips: Close full at 1:2.5, BE at 1:2
+// - SL 150-200 pips: Close full at 1:2, BE at 1:1.75
+// - SL > 200 pips: Close full at 1:1.5
+get_gold_tp_rules(sl_pips) =>
+    float tp_ratio = 1.5
+    float be_trigger_rr = na
+    float be_sl_pips_min = na
+    bool move_to_be = false
+
+    if sl_pips <= 50.0
+        tp_ratio := 4.5
+        be_trigger_rr := 4.0   // Move to BE generally
+        be_sl_pips_min := 5.0  // Min 5 pips profit
+        move_to_be := true
+    else if sl_pips <= 100.0
+        tp_ratio := 3.0
+        be_trigger_rr := 2.75
+        be_sl_pips_min := 0.0  // Move to Entry
+        move_to_be := true
+    else if sl_pips <= 150.0
+        tp_ratio := 2.5
+        be_trigger_rr := 2.0
+        be_sl_pips_min := 0.0  // Move to Entry
+        move_to_be := true
+    else if sl_pips <= 200.0
+        tp_ratio := 2.0
+        be_trigger_rr := 1.75
+        be_sl_pips_min := 0.0  // Move to Entry
+        move_to_be := true
+    else
+        tp_ratio := 1.5
+        be_trigger_rr := na
+        be_sl_pips_min := na
+        move_to_be := false
+
+    [tp_ratio, be_trigger_rr, be_sl_pips_min, move_to_be]
+
 // === 2025 TP LOOKUP DICTIONARIES ===
 get_tp_ratio(symbol_type, sl_pips) =>
-    // For 5-minute mode: ALWAYS use RD_FOREX rules
-    base_ratio = get_rd_forex_tp_ratio(sl_pips)
-    // Apply double TP mode if enabled
-    if enable_double_tp
-        get_double_tp_ratio(base_ratio)
+    // Determine strict mode based on symbol
+    bool is_gold_symbol = str.contains(syminfo.ticker, "XAU") or str.contains(syminfo.ticker, "GOLD")
+    
+    // Default variables
+    float base_ratio = 2.0
+    float be_trig = na
+    float be_sl = na
+    bool move_be = false
+    
+    if is_gold_symbol
+        [g_tp, g_bet, g_bes, g_mbe] = get_gold_tp_rules(sl_pips)
+        base_ratio := g_tp
+        be_trig := g_bet
+        be_sl := g_bes
+        move_be := g_mbe
     else
-        base_ratio
+        // Uses RD_FOREX rules for all other pairs (5m optimized)
+        [f_tp, f_bet, f_bes, f_mbe] = get_updated_sl_tp_rules(sl_pips)
+        base_ratio := f_tp
+        be_trig := f_bet
+        be_sl := f_bes
+        move_be := f_mbe
+
+    // Apply double TP mode if enabled (only affects TP ratio, not BE rules)
+    if enable_double_tp
+        base_ratio := get_double_tp_ratio(base_ratio)
+        
+    [base_ratio, be_trig, be_sl, move_be]
 
 // === DATA STRUCTURES (Moved to Top) ===
 type Zone
@@ -652,111 +714,81 @@ build_webhook_payload(_symbol, _side, _entry, _sl, _tp, _size_lots, _zone_id, _z
     payload := payload + '}'
     payload
 
-// === AI QUALITY SCORE CALCULATOR ===
-// Approximates backend Random Forest model using weighted feature scoring
-// Returns 0-100 score where 60+ indicates high probability (60% win rate)
-// Based on V3 feature importance from trained model
+// === AI QUALITY SCORE CALCULATOR (V4 MODEL) ===
+// Approximates backend Random Forest model using weighted feature scoring (V4 Weights)
+// Top Predictors: RVOL (20%), Session (12%), isAccuracy (11%), Trend (9%), ADX (8%)
+// Returns 0-100 score where 60+ indicates high probability
 calculate_ai_quality_score(Zone z, bool isDemand) =>
     float quality_score = 0.0
     
-    // Feature 1: Session (19.08% importance - highest)
-    // London (2) and NY (3) sessions are strongest
-    int current_session = feature_session
-    if current_session == 2 or current_session == 3  // London/NY
-        quality_score += 20.0
-    else if current_session == 1  // Asian
-        quality_score += 5.0
-    else  // Sydney or other
-        quality_score += 8.0
-    
-    // Feature 2: HTF Trend Alignment (18.29% importance)
-    // Check if HTF trend aligns with trade direction
-    bool htf_aligned = isDemand ? (feature_htf_trend > 0) : (feature_htf_trend < 0)
-    if htf_aligned
-        quality_score += 18.0
-    else
-        quality_score += 2.0  // Penalty for counter-trend
-    
-    // Feature 3: RVOL - Relative Volume (14.65% importance)
-    // Higher volume = stronger move = better quality
+    // 1. RVOL (20%) - Volume Strength
     float current_rvol = feature_rvol
-    if current_rvol >= 1.5
+    if current_rvol >= 2.0
+        quality_score += 20.0
+    else if current_rvol >= 1.5
         quality_score += 15.0
-    else if current_rvol >= 1.2
-        quality_score += 11.0
     else if current_rvol >= 1.0
-        quality_score += 7.0
+        quality_score += 10.0
     else
-        quality_score += 3.0
-    
-    // Feature 4: RSI (13.11% importance)
-    // Want RSI in favorable range for direction
-    float current_rsi = feature_rsi
-    if isDemand
-        // For longs, prefer RSI 30-50 (oversold to neutral)
-        if current_rsi >= 30 and current_rsi <= 50
-            quality_score += 13.0
-        else if current_rsi <= 60
-            quality_score += 8.0
-        else
-            quality_score += 3.0
-    else
-        // For shorts, prefer RSI 50-70 (overbought)
-        if current_rsi >= 50 and current_rsi <= 70
-            quality_score += 13.0
-        else if current_rsi >= 40
-            quality_score += 8.0
-        else
-            quality_score += 3.0
-    
-    // Feature 5: Freshness - Zone Age (12.45% importance)
-    // Fresh zones perform better
-    int zone_age = bar_index - z.createdBarIndex
-    if zone_age <= 5
-        quality_score += 12.0
-    else if zone_age <= 10
-        quality_score += 9.0
-    else if zone_age <= 20
         quality_score += 5.0
-    else
-        quality_score += 1.0
-    
-    // Feature 6: ATR Ratio (8.71% importance)
-    // Zone size relative to ATR
-    float zone_size = z.top - z.bottom
-    float current_atr = atr14
-    float atr_ratio = current_atr > 0 ? zone_size / current_atr : 0.5
-    if atr_ratio >= 0.7 and atr_ratio <= 1.5
-        quality_score += 9.0  // Ideal range
-    else if atr_ratio >= 0.5 and atr_ratio <= 2.0
+
+    // 2. Session (12%) - Time of Day
+    int current_session = feature_session
+    if current_session == 2 or current_session == 3  // London (2) or NY (3)
+        quality_score += 12.0
+    else if current_session == 1 // Asian
         quality_score += 5.0
     else
         quality_score += 2.0
-    
-    // Feature 7: Zone Score (5.55% importance)
-    // Proprietary zone quality score
-    if z.score >= 80
-        quality_score += 6.0
-    else if z.score >= 70
-        quality_score += 4.0
-    else if z.score >= 60
-        quality_score += 3.0
-    else
-        quality_score += 1.0
-    
-    // Feature 8: Main Trend Alignment (4.96% importance)
-    // Check if main timeframe trend aligns
-    if feature_trend == (isDemand ? 1 : -1)
+
+    // 3. isAccuracy (11%) - Algo Tag
+    if z.isAccuracy
+        quality_score += 11.0
+
+    // 4. Trend (9%) - Market Structure
+    bool trend_aligned = isDemand ? (feature_trend > 0) : (feature_trend < 0)
+    if trend_aligned
+        quality_score += 9.0
+
+    // 5. ADX (8%) - Trend Strength (New V4 Feature)
+    if feature_adx >= 25.0
+        quality_score += 8.0
+    else if feature_adx >= 20.0
         quality_score += 5.0
+
+    // 6. Freshness (8%) - First Touch
+    if (z.touchCount < 1) // Fresh
+        quality_score += 8.0
     else
-        quality_score += 1.0
-    
-    // Feature 9: Zone Type (3.20% importance - minimal)
-    // Demand vs Supply - minor factor
-    quality_score += 3.0
-    
-    // Feature 10: isAccuracy (0.00% importance - no impact in model)
-    // Not used in scoring
+        quality_score += 2.0
+
+    // 7. HTF Trend (7%)
+    bool htf_aligned = isDemand ? (feature_htf_trend > 0) : (feature_htf_trend < 0)
+    if htf_aligned
+        quality_score += 7.0
+
+    // 8. RSI (7%) - Momentum
+    // Demand: RSI not overbought (>70 bad). Supply: RSI not oversold (<30 bad).
+    if isDemand
+        if feature_rsi < 70
+            quality_score += 7.0
+    else
+        if feature_rsi > 30
+            quality_score += 7.0
+
+    // 9. ATR Ratio (7%) - Zone Tightness
+    float f_atr_ratio = (z.top - z.bottom) / atr14
+    if f_atr_ratio < 1.0
+        quality_score += 7.0
+    else if f_atr_ratio < 2.0
+        quality_score += 4.0
+    // 10. Zone Base Score (11%) - Quality of imbalance
+    if z.score >= 8
+        quality_score += 11.0
+    else if z.score >= 5
+        quality_score += 6.0
+    else
+        quality_score += 2.0
     
     quality_score
 
@@ -3647,6 +3679,11 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                 bool currentTouch = low <= (z.top + touchTolerance) and low >= (z.bottom - touchTolerance)
 
                 if currentTouch
+                    // FIRST-TOUCH-ONLY RULE: Block retrace entries (zones already touched)
+                    if z.touchCount > 0
+                        z.inactiveReason := "BLOCKED - Retrace entry (touchCount=" + str.tostring(z.touchCount) + ")"
+                        continue  // Skip to next zone
+                    
                     // PRIME the zone - store reference candle data for Break of Candle model
                     z.primed := true
                     z.primedBar := bar_index
@@ -3869,7 +3906,7 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     float f_atr_ratio = atr14 > 0 ? zone_range / atr14 : 0.0
                     int f_zone_type = 0  // 0 = Demand
                     int f_is_accuracy = z.isAccuracy ? 1 : 0
-                    string ai_features = "F:" + str.tostring(z.score, "#") + "," + str.tostring(f_fresh) + "," + str.tostring(feature_session) + "," + str.tostring(f_zone_type) + "," + str.tostring(f_atr_ratio, "#.##") + "," + str.tostring(f_is_accuracy) + "," + str.tostring(feature_trend) + "," + str.tostring(feature_rsi, "#.##") + "," + str.tostring(feature_htf_trend) + "," + str.tostring(feature_rvol, "#.##") + "," + str.tostring(feature_adx, "#.##")
+                    string ai_features = "F:" + str.tostring(z.score, "#") + "," + str.tostring(f_fresh) + "," + str.tostring(feature_session) + "," + str.tostring(f_zone_type) + "," + str.tostring(f_atr_ratio, "#.##") + "," + str.tostring(f_is_accuracy) + "," + str.tostring(feature_trend) + "," + str.tostring(feature_rsi, "#.##") + "," + str.tostring(feature_htf_trend) + "," + str.tostring(feature_rvol, "#.##") + "," + str.tostring(feature_adx, "#.##") + "," + str.tostring(z.touchCount)
                     string entryComment = (show_entry_labels ? "" : typeTag) + " | " + ai_features
                     
                     // Include webhook alert_message for TradingView webhook integration
@@ -3950,6 +3987,11 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                 bool currentTouch = high >= (z.bottom - touchTolerance) and high <= (z.top + touchTolerance)
 
                 if currentTouch
+                    // FIRST-TOUCH-ONLY RULE: Block retrace entries (zones already touched)
+                    if z.touchCount > 0
+                        z.inactiveReason := "BLOCKED - Retrace entry (touchCount=" + str.tostring(z.touchCount) + ")"
+                        continue  // Skip to next zone
+                    
                     // PRIME the zone - store reference candle data for Break of Candle model
                     z.primed := true
                     z.primedBar := bar_index
@@ -4172,7 +4214,7 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     float f_atr_ratio = atr14 > 0 ? zone_range / atr14 : 0.0
                     int f_zone_type = 1  // 1 = Supply
                     int f_is_accuracy = z.isAccuracy ? 1 : 0
-                    string ai_features = "F:" + str.tostring(z.score, "#") + "," + str.tostring(f_fresh) + "," + str.tostring(feature_session) + "," + str.tostring(f_zone_type) + "," + str.tostring(f_atr_ratio, "#.##") + "," + str.tostring(f_is_accuracy) + "," + str.tostring(feature_trend) + "," + str.tostring(feature_rsi, "#.##") + "," + str.tostring(feature_htf_trend) + "," + str.tostring(feature_rvol, "#.##") + "," + str.tostring(feature_adx, "#.##")
+                    string ai_features = "F:" + str.tostring(z.score, "#") + "," + str.tostring(f_fresh) + "," + str.tostring(feature_session) + "," + str.tostring(f_zone_type) + "," + str.tostring(f_atr_ratio, "#.##") + "," + str.tostring(f_is_accuracy) + "," + str.tostring(feature_trend) + "," + str.tostring(feature_rsi, "#.##") + "," + str.tostring(feature_htf_trend) + "," + str.tostring(feature_rvol, "#.##") + "," + str.tostring(feature_adx, "#.##") + "," + str.tostring(z.touchCount)
                     string entryComment = (show_entry_labels ? "" : typeTag) + " | " + ai_features
 
                     // Include webhook alert_message for TradingView webhook integration

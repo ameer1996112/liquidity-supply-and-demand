@@ -594,11 +594,14 @@ def predict_win_probability(data: dict) -> Optional[float]:
         htf_trend = int(data.get('htf_trend', 1)) # V3
         rvol = float(data.get('rvol', 1.0))       # V3
         adx = float(data.get('adx', 25.0))        # V4
+        touch_count = int(data.get('touch_count', 0))  # V5
         
         # Check model feature count to ensure compatibility
         expected_features = ai_model.n_features_in_
         
-        if expected_features == 11:
+        if expected_features == 12:
+            features = [[score, freshness, session, zone_type, atr_ratio, is_accuracy, trend, rsi, htf_trend, rvol, adx, touch_count]]
+        elif expected_features == 11:
             features = [[score, freshness, session, zone_type, atr_ratio, is_accuracy, trend, rsi, htf_trend, rvol, adx]]
         elif expected_features == 10:
             features = [[score, freshness, session, zone_type, atr_ratio, is_accuracy, trend, rsi, htf_trend, rvol]]
