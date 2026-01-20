@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 import pickle
 import logging
+import glob
+import os
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report
@@ -11,14 +13,30 @@ from imblearn.over_sampling import SMOTE
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def train_model(csv_path='trade_XAUUSD_4_1_2023_19_1_2026.csv', model_path='model.pkl'):
-    logging.info(f"Loading data from {csv_path}...")
+def train_model(csv_pattern='trade*.csv', model_path='model.pkl'):
+    logging.info(f"Searching for data files matching: {csv_pattern}...")
     
-    try:
-        df = pd.read_csv(csv_path)
-    except FileNotFoundError:
-        logging.error(f"File {csv_path} not found. Please export 'List of Trades' from TradingView and save it as '{csv_path}'.")
+    files = glob.glob(csv_pattern)
+    if not files:
+        logging.error(f"No files found matching '{csv_pattern}'. Please export 'List of Trades' from TradingView (e.g., 'trades_XAUUSD.csv').")
         return
+    
+    logging.info(f"Found {len(files)} files: {[os.path.basename(f) for f in files]}")
+    
+    dfs = []
+    for f in files:
+        try:
+            curr_df = pd.read_csv(f)
+            dfs.append(curr_df)
+        except Exception as e:
+            logging.error(f"Failed to read {f}: {e}")
+            
+    if not dfs:
+        logging.error("No valid CSV files loaded.")
+        return
+
+    df = pd.concat(dfs, ignore_index=True)
+    logging.info(f"Combined {len(df)} total rows.")
 
     # 1. Cleaning & Feature Extraction
     logging.info("Preprocessing data...")
@@ -50,6 +68,8 @@ def train_model(csv_path='trade_XAUUSD_4_1_2023_19_1_2026.csv', model_path='mode
     # V1 format: "... | F:Score,LegCandles,Freshness,LiqSwept,Trend,RSI" (6 features)
     feature_data = []
     
+    # V4 headers (11 features including ADX)
+    headers_v4 = ['Score', 'Freshness', 'Session', 'ZoneType', 'ATR_Ratio', 'isAccuracy', 'Trend', 'RSI', 'HTF_Trend', 'RVOL', 'ADX']
     # New V3 headers (10 features)
     headers_v3 = ['Score', 'Freshness', 'Session', 'ZoneType', 'ATR_Ratio', 'isAccuracy', 'Trend', 'RSI', 'HTF_Trend', 'RVOL']
     # V2 headers (8 features)
@@ -57,8 +77,7 @@ def train_model(csv_path='trade_XAUUSD_4_1_2023_19_1_2026.csv', model_path='mode
     # Old V1 headers (6 features)
     headers_v1 = ['Score', 'LegCandles', 'Freshness', 'LiqSwept', 'Trend', 'RSI']
     
-    valid_count = 0
-    detected_version = None
+    all_parsed_rows = []
     
     for index, row in df.iterrows():
         comment = str(row.get(target_col, ''))
@@ -69,16 +88,9 @@ def train_model(csv_path='trade_XAUUSD_4_1_2023_19_1_2026.csv', model_path='mode
                 # Split variables by comma
                 vars = clean_part.split(',')
                 
-                # Detect version based on feature count
                 feature_count = len(vars)
                 
-                if feature_count in [6, 8, 10]:
-                    if detected_version is None:
-                        if feature_count == 10: detected_version = 'v3'
-                        elif feature_count == 8: detected_version = 'v2'
-                        else: detected_version = 'v1'
-                        logging.info(f"Detected {detected_version.upper()} feature format ({feature_count} features)")
-
+                if feature_count in [6, 8, 10, 11]:
                     features = [float(v) for v in vars]
                     
                     # Target: Profit > 0 = 1 (Win), else 0 (Loss)
@@ -86,18 +98,40 @@ def train_model(csv_path='trade_XAUUSD_4_1_2023_19_1_2026.csv', model_path='mode
                     target = 1 if profit > 0 else 0
                     
                     features.append(target)
-                    feature_data.append(features)
-                    valid_count += 1
+                    all_parsed_rows.append((feature_count, features))
             except Exception as e:
                 pass # Skip malformed rows
-    
-    # Use appropriate headers based on detected version
-    if detected_version == 'v3': headers = headers_v3
-    elif detected_version == 'v2': headers = headers_v2
-    else: headers = headers_v1
 
-    logging.info(f"Found {valid_count} valid training samples out of {len(df)} total rows.")
+    if not all_parsed_rows:
+        logging.error("No valid training samples found.")
+        return
+
+    # Determine best version (highest feature count)
+    versions_found = {row[0] for row in all_parsed_rows}
+    # Prioritize V4 if available
+    best_version = max(versions_found)
+    logging.info(f"Versions found in data: {versions_found}. Selected training version: {best_version} features.")
+
+    # Filter data to match best version
+    feature_data = [row[1] for row in all_parsed_rows if row[0] == best_version]
+    valid_count = len(feature_data)
+
+    # Set headers based on best version
+    if best_version == 11:
+        headers = headers_v4
+        detected_version = 'v4'
+    elif best_version == 10: 
+        headers = headers_v3
+        detected_version = 'v3'
+    elif best_version == 8: 
+        headers = headers_v2
+        detected_version = 'v2'
+    else: 
+        headers = headers_v1
+        detected_version = 'v1'
     
+    logging.info(f"training with {valid_count} samples ({detected_version.upper()}).")
+
     if valid_count < 10:
         logging.error("Not enough data to train. Need at least 10 samples.")
         return

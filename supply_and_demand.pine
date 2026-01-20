@@ -436,6 +436,8 @@ type Zone
 float feature_rsi = ta.rsi(close, 14)
 float feature_ema200 = ta.ema(close, 200)
 int feature_trend = close > feature_ema200 ? 1 : 0
+// Added ADX Volatility Strength
+[diplus, diminus, feature_adx] = ta.dmi(14, 14)
 // Removed Volume (tick volume irrelevant for Forex structure) - added placeholder
 int feature_hour = hour(time)
 
@@ -618,7 +620,7 @@ units_to_lots(_units) =>
 
 // Builds JSON payload for webhook alert to Discord-MT5 bridge
 // Returns: JSON string with trade details + Zone Inspector data
-build_webhook_payload(_symbol, _side, _entry, _sl, _tp, _size_lots, _zone_id, _zone_type, _zone_top, _zone_bottom, _rr_ratio, _sl_pips, _entry_model, _liq_swept, _target_swept, _caused_sweep, _is_accuracy) =>
+build_webhook_payload(_symbol, _side, _entry, _sl, _tp, _size_lots, _zone_id, _zone_type, _zone_top, _zone_bottom, _rr_ratio, _sl_pips, _entry_model, _liq_swept, _target_swept, _caused_sweep, _is_accuracy, _adx) =>
     string payload = '{"symbol":"' + _symbol + '"'
     payload := payload + ',"side":"' + _side + '"'
     payload := payload + ',"entry":' + str.tostring(_entry, format.mintick)
@@ -644,6 +646,8 @@ build_webhook_payload(_symbol, _side, _entry, _sl, _tp, _size_lots, _zone_id, _z
     payload := payload + ',"target_swept":' + (_target_swept ? "true" : "false")
     payload := payload + ',"caused_sweep":' + (_caused_sweep ? "true" : "false")
     payload := payload + ',"is_accuracy":' + (_is_accuracy ? "true" : "false")
+    // New ADX field for live AI filtering
+    payload := payload + ',"adx":' + str.tostring(_adx, "#.##")
     
     payload := payload + '}'
     payload
@@ -3850,7 +3854,8 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     z.liquiditySwept,   // liq_swept
                     z.targetSwept,      // target_swept
                     z.causedSweep,      // caused_sweep
-                    z.isAccuracy        // is_accuracy
+                    z.isAccuracy,       // is_accuracy
+                    feature_adx         // adx
                 ) : ""
 
                 if dry_run_mode
@@ -3864,7 +3869,7 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     float f_atr_ratio = atr14 > 0 ? zone_range / atr14 : 0.0
                     int f_zone_type = 0  // 0 = Demand
                     int f_is_accuracy = z.isAccuracy ? 1 : 0
-                    string ai_features = "F:" + str.tostring(z.score, "#") + "," + str.tostring(f_fresh) + "," + str.tostring(feature_session) + "," + str.tostring(f_zone_type) + "," + str.tostring(f_atr_ratio, "#.##") + "," + str.tostring(f_is_accuracy) + "," + str.tostring(feature_trend) + "," + str.tostring(feature_rsi, "#.##") + "," + str.tostring(feature_htf_trend) + "," + str.tostring(feature_rvol, "#.##")
+                    string ai_features = "F:" + str.tostring(z.score, "#") + "," + str.tostring(f_fresh) + "," + str.tostring(feature_session) + "," + str.tostring(f_zone_type) + "," + str.tostring(f_atr_ratio, "#.##") + "," + str.tostring(f_is_accuracy) + "," + str.tostring(feature_trend) + "," + str.tostring(feature_rsi, "#.##") + "," + str.tostring(feature_htf_trend) + "," + str.tostring(feature_rvol, "#.##") + "," + str.tostring(feature_adx, "#.##")
                     string entryComment = (show_entry_labels ? "" : typeTag) + " | " + ai_features
                     
                     // Include webhook alert_message for TradingView webhook integration
@@ -4152,7 +4157,8 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     z.liquiditySwept,   // liq_swept
                     z.targetSwept,      // target_swept
                     z.causedSweep,      // caused_sweep
-                    z.isAccuracy        // is_accuracy
+                    z.isAccuracy,       // is_accuracy
+                    feature_adx         // adx
                 ) : ""
 
                 if dry_run_mode
@@ -4166,7 +4172,7 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     float f_atr_ratio = atr14 > 0 ? zone_range / atr14 : 0.0
                     int f_zone_type = 1  // 1 = Supply
                     int f_is_accuracy = z.isAccuracy ? 1 : 0
-                    string ai_features = "F:" + str.tostring(z.score, "#") + "," + str.tostring(f_fresh) + "," + str.tostring(feature_session) + "," + str.tostring(f_zone_type) + "," + str.tostring(f_atr_ratio, "#.##") + "," + str.tostring(f_is_accuracy) + "," + str.tostring(feature_trend) + "," + str.tostring(feature_rsi, "#.##") + "," + str.tostring(feature_htf_trend) + "," + str.tostring(feature_rvol, "#.##")
+                    string ai_features = "F:" + str.tostring(z.score, "#") + "," + str.tostring(f_fresh) + "," + str.tostring(feature_session) + "," + str.tostring(f_zone_type) + "," + str.tostring(f_atr_ratio, "#.##") + "," + str.tostring(f_is_accuracy) + "," + str.tostring(feature_trend) + "," + str.tostring(feature_rsi, "#.##") + "," + str.tostring(feature_htf_trend) + "," + str.tostring(feature_rvol, "#.##") + "," + str.tostring(feature_adx, "#.##")
                     string entryComment = (show_entry_labels ? "" : typeTag) + " | " + ai_features
 
                     // Include webhook alert_message for TradingView webhook integration
