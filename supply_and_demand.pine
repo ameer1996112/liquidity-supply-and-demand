@@ -720,7 +720,7 @@ calculate_ai_quality_score(Zone z, bool isDemand) =>
     // Feature 6: ATR Ratio (8.71% importance)
     // Zone size relative to ATR
     float zone_size = z.top - z.bottom
-    float current_atr = ta.atr(14)
+    float current_atr = atr14
     float atr_ratio = current_atr > 0 ? zone_size / current_atr : 0.5
     if atr_ratio >= 0.7 and atr_ratio <= 1.5
         quality_score += 9.0  // Ideal range
