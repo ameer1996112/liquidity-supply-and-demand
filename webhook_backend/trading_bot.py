@@ -595,11 +595,23 @@ def predict_win_probability(data: dict) -> Optional[float]:
         rvol = float(data.get('rvol', 1.0))       # V3
         adx = float(data.get('adx', 25.0))        # V4
         touch_count = int(data.get('touch_count', 0))  # V5
+        base_quality = float(data.get('base_quality', 50.0))  # V6
+        departure_strength = float(data.get('departure_strength', 50.0))  # V6
+        liquidity_distance = float(data.get('liquidity_distance', 50.0))  # V7.1
+        liquidity_spread = float(data.get('liquidity_spread', 50.0))  # V7.1
+        return_strength = float(data.get('return_strength', 50.0))  # V7
         
         # Check model feature count to ensure compatibility
         expected_features = ai_model.n_features_in_
         
-        if expected_features == 12:
+        if expected_features == 17:
+            features = [[score, freshness, session, zone_type, atr_ratio, is_accuracy, trend, rsi, htf_trend, rvol, adx, touch_count, base_quality, departure_strength, liquidity_distance, liquidity_spread, return_strength]]
+        elif expected_features == 16:
+            # Old V7 model with liquidity_quality - use distance as fallback
+            features = [[score, freshness, session, zone_type, atr_ratio, is_accuracy, trend, rsi, htf_trend, rvol, adx, touch_count, base_quality, departure_strength, liquidity_distance, return_strength]]
+        elif expected_features == 14:
+            features = [[score, freshness, session, zone_type, atr_ratio, is_accuracy, trend, rsi, htf_trend, rvol, adx, touch_count, base_quality, departure_strength]]
+        elif expected_features == 12:
             features = [[score, freshness, session, zone_type, atr_ratio, is_accuracy, trend, rsi, htf_trend, rvol, adx, touch_count]]
         elif expected_features == 11:
             features = [[score, freshness, session, zone_type, atr_ratio, is_accuracy, trend, rsi, htf_trend, rvol, adx]]

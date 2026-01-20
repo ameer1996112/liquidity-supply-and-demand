@@ -249,6 +249,9 @@ enable_ai_quality_filter = input.bool(true, "Enable AI Quality Filter", group = 
 ai_quality_threshold = input.int(60, "Min Quality Score", minval = 0, maxval = 100, group = "AI Filter", tooltip = "Minimum quality score to enter trade (60 ≈ 60% win probability). Backend uses 60.")
 show_ai_score_on_label = input.bool(false, "Show AI Score on Labels", group = "AI Filter", tooltip = "Display calculated quality score on entry labels for debugging")
 
+// === V6/V7 ADVANCED FEATURES (PERFORMANCE HEAVY) ===
+enable_v6_v7_features = input.bool(false, "Enable V6/V7 Features (SLOW)", group = "AI Filter", tooltip = "Calculate Base Quality, Departure Strength, Liquidity Quality, Return Strength. WARNING: Makes script 10x slower. Only enable for training data export.")
+
 
 // === FVG CONFLUENCE ===
 use_fvg_confirmation = input.bool(false, "Require FVG Confirmation", group = "Strategy Settings", tooltip = "Only create zones if the leaving move creates a Fair Value Gap (Imbalance).")
@@ -482,6 +485,11 @@ type Zone
     float primedRefLow     // Low of the priming candle (for BOC reference)
     bool  wasTouched       // True when zone has been touched by wick (persists until entry/mitigation)
     int   touchCount       // Number of times zone has been touched (for first-touch-only rule and V5 AI)
+    float baseQuality      // V6: Quality of base construction (0-100, fewer indecisive candles = higher)
+    float departureStrength // V6: Strength of price departure from zone (0-100, bigger candles + volume = higher)
+    float liquidityDistance // V7.1: Distance from zone to liquidity in pips (0-100, closer = higher score)
+    float liquiditySpread   // V7.1: Spread between inducement and target in pips (0-100, wider = higher)
+    float returnStrength    // V7: Strength of return to zone after sweep (0-100, faster + bigger = higher)
     bool  isAccuracy      // Zone type: true = Accuracy zone, false = Normal zone
     float score           // Zone Quality Score (0-100)
     string grade          // Zone Grade (A+, A, B, C)
@@ -792,6 +800,206 @@ calculate_ai_quality_score(Zone z, bool isDemand) =>
         quality_score += 2.0
     
     quality_score
+
+// === V6 AI FEATURES: BASE QUALITY & DEPARTURE STRENGTH ===
+// Measures zone formation quality and departure conviction
+
+// Calculate Base Quality: How many indecisive candles are in the base (0-100 score)
+// Indecisive = small body relative to range (dojis, pin bars, etc.)
+// Higher score = cleaner base with decisive candles
+// OPTIMIZED: Only analyzes up to 5 most recent base candles for performance
+calculate_base_quality(int base_start_idx, int base_end_idx) =>
+    if base_start_idx < 0 or base_end_idx < 0 or base_start_idx < base_end_idx
+        50.0  // Default if invalid indices
+    else
+        // PERFORMANCE: Limit to max 5 candles instead of entire base
+        int total_candles = base_start_idx - base_end_idx + 1
+        int candles_to_check = math.min(total_candles, 5)
+        int indecisive_count = 0
+        
+        // SAFETY: Ensure we don't exceed Pine Script's 10000 bar limit
+        int max_lookback = 10000
+        
+        // Count indecisive candles in base (last 5 only for speed)
+        int start = base_start_idx
+        int end_limit = start - candles_to_check + 1
+        for i = end_limit to start
+            int offset = bar_index - i
+            // Skip if offset exceeds max lookback
+            if offset >= 0 and offset < max_lookback
+                float candle_high = high[offset]
+                float candle_low = low[offset]
+                float candle_open = open[offset]
+                float candle_close = close[offset]
+                
+                float candle_range = candle_high - candle_low
+                float body_size = math.abs(candle_close - candle_open)
+                float body_percent = candle_range > 0 ? body_size / candle_range : 0.5
+                
+                // Indecisive if body is less than 30% of total range
+                if body_percent < 0.30
+                    indecisive_count += 1
+        
+        // Score: 100 = perfect (no indecisive), 0 = terrible (all indecisive)
+        float quality = candles_to_check > 0 ? 100.0 * (1.0 - (indecisive_count / candles_to_check)) : 50.0
+        quality
+
+// Calculate Departure Strength: How aggressively price left the zone (0-100 score)
+// Analyzes first 3 candles after base formation
+// Higher score = bigger bodies + higher volume
+calculate_departure_strength(int base_end_idx, bool isDemand) =>
+    if base_end_idx < 3
+        50.0  // Not enough history
+    else
+        int departure_candles = math.min(3, base_end_idx)  // Analyze up to 3 candles
+        float total_body_percent = 0.0
+        float total_rvol = 0.0
+        int valid_candles = 0
+        
+        // SAFETY: Ensure we don't exceed Pine Script's 10000 bar limit
+        int max_lookback = 10000
+        
+        // Analyze candles immediately after base
+        for i = 1 to departure_candles
+            int candle_idx = base_end_idx - i
+            // Skip if candle_idx exceeds max lookback
+            if candle_idx >= 0 and candle_idx < max_lookback
+                float candle_high = high[candle_idx]
+                float candle_low = low[candle_idx]
+                float candle_open = open[candle_idx]
+                float candle_close = close[candle_idx]
+                float candle_volume = volume[candle_idx]
+                
+                float candle_range = candle_high - candle_low
+                float body_size = math.abs(candle_close - candle_open)
+                float body_percent = candle_range > 0 ? body_size / candle_range : 0.0
+                
+                // Check if candle is in correct direction
+                bool correct_direction = isDemand ? (candle_close > candle_open) : (candle_close < candle_open)
+                
+                if correct_direction
+                    total_body_percent += body_percent
+                    
+                    // Relative volume for this candle
+                    float vol_avg_at_candle = ta.sma(volume, 20)[candle_idx]
+                    float candle_rvol = vol_avg_at_candle > 0 ? candle_volume / vol_avg_at_candle : 1.0
+                    total_rvol += candle_rvol
+                    
+                    valid_candles += 1
+        
+        // Calculate strength: 50% from body size, 50% from volume
+        float avg_body_percent = valid_candles > 0 ? total_body_percent / valid_candles : 0.0
+        float avg_rvol = valid_candles > 0 ? total_rvol / valid_candles : 1.0
+        
+        // Normalize: body_percent (0-1) * 50 + rvol (typically 0-3, cap at 3) / 3 * 50
+        float body_score = avg_body_percent * 50.0
+        float rvol_score = math.min(avg_rvol / 3.0, 1.0) * 50.0
+        
+        float departure_strength = body_score + rvol_score
+        departure_strength
+
+// === V7.1 AI FEATURES: LIQUIDITY DISTANCE & SPREAD (IMPROVED) ===
+// Replaces LiquidityQuality (was constant at 15, 0% importance)
+
+// Calculate Liquidity Distance: How far liquidity sits from zone boundary (in pips)
+// Hypothesis: Closer liquidity = Tighter setup = Higher win rate
+// Expected importance: 10-15% (top 5 predictor)
+calculate_liquidity_distance(float zone_boundary, float liq_price, bool isDemand) =>
+    if na(zone_boundary) or na(liq_price)
+        50.0  // Default if invalid
+    else
+        // For Demand: Distance from zone TOP to inducement LOW (above zone)
+        // For Supply: Distance from zone BOTTOM to inducement HIGH (below zone)
+        float distance_pips = math.abs(liq_price - zone_boundary) / pip_size
+        
+        // Normalize to 0-100 scale (0 = perfect contact, 100 = very far)
+        // Invert so higher score = closer liquidity (better setup)
+        // Cap at 50 pips distance = 0 score
+        float score = distance_pips >= 50.0 ? 0.0 : (1.0 - (distance_pips / 50.0)) * 100.0
+        score
+
+// Calculate Liquidity Spread: Distance between inducement and target (in pips)
+// Hypothesis: Wider spread = More conviction = Higher win rate
+// Expected importance: 5-8% (moderate predictor)
+calculate_liquidity_spread(float target_price, float inducement_price) =>
+    if na(target_price) or na(inducement_price)
+        50.0  // Default if invalid
+    else
+        // Distance between target and inducement
+        float spread_pips = math.abs(target_price - inducement_price) / pip_size
+        
+        // Normalize to 0-100 scale
+        // Wider spread = higher score (more conviction)
+        // Cap at 100 pips spread = 100 score
+        float score = math.min(spread_pips, 100.0)
+        score
+
+// Calculate Return Strength: How aggressively price returned after sweep (0-100 score)
+// Analyzes bars between liquidity sweep and zone prime
+// Faster return + bigger candles = higher conviction
+calculate_return_strength(int sweep_bar_idx, int prime_bar_idx, bool isDemand) =>
+    if na(sweep_bar_idx) or na(prime_bar_idx) or sweep_bar_idx >= prime_bar_idx
+        50.0  // Default if no valid sweep or instant prime
+    else
+        int bars_after_sweep = prime_bar_idx - sweep_bar_idx
+        
+        // If primed immediately (1 bar), that's maximum conviction
+        if bars_after_sweep == 1
+            100.0
+        
+        // Analyze up to 5 bars of return journey
+        int candles_to_analyze = math.min(bars_after_sweep, 5)
+        float total_body_percent = 0.0
+        float total_rvol = 0.0
+        int valid_candles = 0
+        
+        // SAFETY: Ensure we don't exceed Pine Script's 10000 bar limit
+        int max_lookback = 10000
+        
+        // Loop through bars between sweep and prime
+        for i = 1 to candles_to_analyze
+            int offset = prime_bar_idx - i
+            int hist_offset = bar_index - offset
+            // Skip if offset exceeds max lookback
+            if offset >= 0 and hist_offset >= 0 and hist_offset < max_lookback
+                float candle_high = high[hist_offset]
+                float candle_low = low[hist_offset]
+                float candle_open = open[hist_offset]
+                float candle_close = close[hist_offset]
+                float candle_volume = volume[hist_offset]
+                
+                float candle_range = candle_high - candle_low
+                float body_size = math.abs(candle_close - candle_open)
+                float body_percent = candle_range > 0 ? body_size / candle_range : 0.0
+                
+                // Check if candle is moving toward zone
+                // For demand: bullish candles move toward zone (up)
+                // For supply: bearish candles move toward zone (down)
+                bool toward_zone = isDemand ? (candle_close > candle_open) : (candle_close < candle_open)
+                
+                if toward_zone
+                    total_body_percent += body_percent
+                    
+                    // Relative volume
+                    float vol_avg_at_candle = ta.sma(volume, 20)[hist_offset]
+                    float candle_rvol = vol_avg_at_candle > 0 ? candle_volume / vol_avg_at_candle : 1.0
+                    total_rvol += candle_rvol
+                    
+                    valid_candles += 1
+        
+        // Calculate strength: 50% from body size, 50% from volume
+        float avg_body_percent = valid_candles > 0 ? total_body_percent / valid_candles : 0.0
+        float avg_rvol = valid_candles > 0 ? total_rvol / valid_candles : 1.0
+        
+        // Normalize scores
+        float body_score = avg_body_percent * 50.0
+        float rvol_score = math.min(avg_rvol / 3.0, 1.0) * 50.0
+        
+        // Bonus for fast return (fewer bars = higher conviction)
+        float speed_bonus = bars_after_sweep <= 3 ? 20.0 : (bars_after_sweep <= 5 ? 10.0 : 0.0)
+        
+        float return_strength = math.min(body_score + rvol_score + speed_bonus, 100.0)
+        return_strength
 
 // === OPTIMIZED VALUE CACHING ===
 // Cache frequently accessed bar values and conditions at the start of each bar to reduce redundant access
@@ -2176,6 +2384,18 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
             // Calculate Score (0-100)
             z.score := calculate_zone_score(isDemand, zTop, zBottom, baseIdx, legCandles, false, false, candlesInBase, isAccuracy)
             z.grade := get_grade_from_score(z.score)
+            
+            // === V6 AI FEATURES (CONDITIONAL - Only if enabled) ===
+            if enable_v6_v7_features
+                // Calculate Base Quality (simplified - max 3 candles)
+                z.baseQuality := calculate_base_quality(baseBarIdx, baseIdx)
+                
+                // Calculate Departure Strength (simplified - max 3 candles)
+                z.departureStrength := calculate_departure_strength(baseIdx, isDemand)
+            else
+                // Default values when disabled (neutral 50)
+                z.baseQuality := 50.0
+                z.departureStrength := 50.0
             
             // Update Label with Grade if enabled
             if show_grade_on_zone
@@ -3694,6 +3914,22 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     z.primedRefHigh := high
                     z.primedRefLow := low
                     z.inactiveReason := "PRIMED - waiting for bullish close"
+                    
+                    // === V7.1 AI FEATURES (CONDITIONAL - Only if enabled) ===
+                    if enable_v6_v7_features
+                        // Calculate Liquidity Distance (zone top to inducement low)
+                        z.liquidityDistance := calculate_liquidity_distance(z.top, z.liqLowPrice, true)
+                        
+                        // Calculate Liquidity Spread (inducement to target distance)
+                        z.liquiditySpread := calculate_liquidity_spread(z.liqHighPrice, z.liqLowPrice)
+                        
+                        // Calculate Return Strength (sweep to prime journey - max 5 bars)
+                        z.returnStrength := calculate_return_strength(z.liquiditySweptBarIndex, bar_index, true)
+                    else
+                        // Default values when disabled (neutral 50)
+                        z.liquidityDistance := 50.0
+                        z.liquiditySpread := 50.0
+                        z.returnStrength := 50.0
 
         // === STEP 2: ENTER ON BULLISH CLOSE (if zone is primed) ===
         if z.active and z.primed
@@ -3908,7 +4144,7 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     float f_atr_ratio = atr14 > 0 ? zone_range / atr14 : 0.0
                     int f_zone_type = 0  // 0 = Demand
                     int f_is_accuracy = z.isAccuracy ? 1 : 0
-                    string ai_features = "F:" + str.tostring(z.score, "#") + "," + str.tostring(f_fresh) + "," + str.tostring(feature_session) + "," + str.tostring(f_zone_type) + "," + str.tostring(f_atr_ratio, "#.##") + "," + str.tostring(f_is_accuracy) + "," + str.tostring(feature_trend) + "," + str.tostring(feature_rsi, "#.##") + "," + str.tostring(feature_htf_trend) + "," + str.tostring(feature_rvol, "#.##") + "," + str.tostring(feature_adx, "#.##") + "," + str.tostring(z.touchCount)
+                    string ai_features = "F:" + str.tostring(z.score, "#") + "," + str.tostring(f_fresh) + "," + str.tostring(feature_session) + "," + str.tostring(f_zone_type) + "," + str.tostring(f_atr_ratio, "#.##") + "," + str.tostring(f_is_accuracy) + "," + str.tostring(feature_trend) + "," + str.tostring(feature_rsi, "#.##") + "," + str.tostring(feature_htf_trend) + "," + str.tostring(feature_rvol, "#.##") + "," + str.tostring(feature_adx, "#.##") + "," + str.tostring(z.touchCount) + "," + str.tostring(z.baseQuality, "#.##") + "," + str.tostring(z.departureStrength, "#.##") + "," + str.tostring(z.liquidityDistance, "#.##") + "," + str.tostring(z.liquiditySpread, "#.##") + "," + str.tostring(z.returnStrength, "#.##")
                     string entryComment = (show_entry_labels ? "" : typeTag) + " | " + ai_features
                     
                     // Include webhook alert_message for TradingView webhook integration
@@ -4002,6 +4238,22 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     z.primedRefHigh := high
                     z.primedRefLow := low
                     z.inactiveReason := "PRIMED - waiting for bearish close"
+                    
+                    // === V7.1 AI FEATURES (CONDITIONAL - Only if enabled) ===
+                    if enable_v6_v7_features
+                        // Calculate Liquidity Distance (zone bottom to inducement high)
+                        z.liquidityDistance := calculate_liquidity_distance(z.bottom, z.liqHighPrice, false)
+                        
+                        // Calculate Liquidity Spread (inducement to target distance)
+                        z.liquiditySpread := calculate_liquidity_spread(z.liqLowPrice, z.liqHighPrice)
+                        
+                        // Calculate Return Strength (sweep to prime journey - max 5 bars)
+                        z.returnStrength := calculate_return_strength(z.liquiditySweptBarIndex, bar_index, false)
+                    else
+                        // Default values when disabled (neutral 50)
+                        z.liquidityDistance := 50.0
+                        z.liquiditySpread := 50.0
+                        z.returnStrength := 50.0
 
         // === STEP 2: ENTER ON BEARISH CLOSE (if zone is primed) ===
         if z.active and z.primed
@@ -4216,7 +4468,7 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     float f_atr_ratio = atr14 > 0 ? zone_range / atr14 : 0.0
                     int f_zone_type = 1  // 1 = Supply
                     int f_is_accuracy = z.isAccuracy ? 1 : 0
-                    string ai_features = "F:" + str.tostring(z.score, "#") + "," + str.tostring(f_fresh) + "," + str.tostring(feature_session) + "," + str.tostring(f_zone_type) + "," + str.tostring(f_atr_ratio, "#.##") + "," + str.tostring(f_is_accuracy) + "," + str.tostring(feature_trend) + "," + str.tostring(feature_rsi, "#.##") + "," + str.tostring(feature_htf_trend) + "," + str.tostring(feature_rvol, "#.##") + "," + str.tostring(feature_adx, "#.##") + "," + str.tostring(z.touchCount)
+                    string ai_features = "F:" + str.tostring(z.score, "#") + "," + str.tostring(f_fresh) + "," + str.tostring(feature_session) + "," + str.tostring(f_zone_type) + "," + str.tostring(f_atr_ratio, "#.##") + "," + str.tostring(f_is_accuracy) + "," + str.tostring(feature_trend) + "," + str.tostring(feature_rsi, "#.##") + "," + str.tostring(feature_htf_trend) + "," + str.tostring(feature_rvol, "#.##") + "," + str.tostring(feature_adx, "#.##") + "," + str.tostring(z.touchCount) + "," + str.tostring(z.baseQuality, "#.##") + "," + str.tostring(z.departureStrength, "#.##") + "," + str.tostring(z.liquidityDistance, "#.##") + "," + str.tostring(z.liquiditySpread, "#.##") + "," + str.tostring(z.returnStrength, "#.##")
                     string entryComment = (show_entry_labels ? "" : typeTag) + " | " + ai_features
 
                     // Include webhook alert_message for TradingView webhook integration

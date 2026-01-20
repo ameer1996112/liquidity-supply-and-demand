@@ -68,6 +68,12 @@ def train_model(csv_pattern='trade*.csv', model_path='model.pkl'):
     # V1 format: "... | F:Score,LegCandles,Freshness,LiqSwept,Trend,RSI" (6 features)
     feature_data = []
     
+    # V7.1 headers (17 features - LiquidityQuality split into Distance + Spread)
+    headers_v7_1 = ['Score', 'Freshness', 'Session', 'ZoneType', 'ATR_Ratio', 'isAccuracy', 'Trend', 'RSI', 'HTF_Trend', 'RVOL', 'ADX', 'TouchCount', 'BaseQuality', 'DepartureStrength', 'LiquidityDistance', 'LiquiditySpread', 'ReturnStrength']
+    # V7 headers (16 features including Liquidity Quality and Return Strength)
+    headers_v7 = ['Score', 'Freshness', 'Session', 'ZoneType', 'ATR_Ratio', 'isAccuracy', 'Trend', 'RSI', 'HTF_Trend', 'RVOL', 'ADX', 'TouchCount', 'BaseQuality', 'DepartureStrength', 'LiquidityQuality', 'ReturnStrength']
+    # V6 headers (14 features including Base Quality and Departure Strength)
+    headers_v6 = ['Score', 'Freshness', 'Session', 'ZoneType', 'ATR_Ratio', 'isAccuracy', 'Trend', 'RSI', 'HTF_Trend', 'RVOL', 'ADX', 'TouchCount', 'BaseQuality', 'DepartureStrength']
     # V5 headers (12 features including TouchCount)
     headers_v5 = ['Score', 'Freshness', 'Session', 'ZoneType', 'ATR_Ratio', 'isAccuracy', 'Trend', 'RSI', 'HTF_Trend', 'RVOL', 'ADX', 'TouchCount']
     # V4 headers (11 features including ADX)
@@ -92,7 +98,7 @@ def train_model(csv_pattern='trade*.csv', model_path='model.pkl'):
                 
                 feature_count = len(vars)
                 
-                if feature_count in [6, 8, 10, 11, 12]:
+                if feature_count in [6, 8, 10, 11, 12, 14, 16, 17]:
                     features = [float(v) for v in vars]
                     
                     # Target: Profit > 0 = 1 (Win), else 0 (Loss)
@@ -110,7 +116,7 @@ def train_model(csv_pattern='trade*.csv', model_path='model.pkl'):
 
     # Determine best version (highest feature count)
     versions_found = {row[0] for row in all_parsed_rows}
-    # Prioritize V5 if available
+    # Prioritize V7.1 if available
     best_version = max(versions_found)
     logging.info(f"Versions found in data: {versions_found}. Selected training version: {best_version} features.")
 
@@ -119,7 +125,16 @@ def train_model(csv_pattern='trade*.csv', model_path='model.pkl'):
     valid_count = len(feature_data)
 
     # Set headers based on best version
-    if best_version == 12:
+    if best_version == 17:
+        headers = headers_v7_1
+        detected_version = 'v7.1'
+    elif best_version == 16:
+        headers = headers_v7
+        detected_version = 'v7'
+    elif best_version == 14:
+        headers = headers_v6
+        detected_version = 'v6'
+    elif best_version == 12:
         headers = headers_v5
         detected_version = 'v5'
     elif best_version == 11:
