@@ -716,6 +716,10 @@ def webhook():
             
             # Find all potential start indices for a JSON object
             start_indices = [i for i, char in enumerate(raw_data) if char == '{']
+            if not start_indices:
+                 logger.error(f"Fatal: No '{{' found in payload: {raw_data}")
+                 return jsonify({"status": "error", "message": "No JSON start found"}), 400
+
             end_index = raw_data.rfind('}') + 1
             
             parse_success = False
@@ -725,15 +729,18 @@ def webhook():
                 
                 try:
                     candidate = raw_data[start:end_index]
-                    data = json.loads(candidate)
+                    data = json.loads(candidate, strict=False)
                     logger.info(f"Robust JSON parse successful at index {start}")
                     parse_success = True
                     break
-                except Exception:
+                except Exception as loop_e:
+                    # Log failure for first few attempts to help debug
+                    if start == start_indices[0]: 
+                         logger.warning(f"Parse attempt failed at detection index {start}: {loop_e}")
                     continue
             
             if not parse_success:
-                logger.error(f"Fatal: No valid JSON found in payload. Raw start: {raw_data[:50]}...")
+                logger.error(f"Fatal: No valid JSON found. Scanned {len(start_indices)} candidates. Raw start: {raw_data[:100]}...")
                 return jsonify({"status": "error", "message": "Invalid JSON payload"}), 400
 
         logger.info(f"Webhook received: {data}")
