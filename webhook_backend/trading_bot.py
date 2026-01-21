@@ -731,22 +731,30 @@ def webhook():
                 try:
                     candidate = raw_data[start:end_index]
                     
-                    # Sanitize TradingView placeholders ({{...}}) that break JSON if unquoted
-                    # Replaces {{...}} with null. 
-                    candidate_sanitized = re.sub(r'\{\{.*?\}\}', 'null', candidate)
+                    # 1. Sanitize Smart Quotes (common copy-paste issue)
+                    candidate_sanitized = candidate.replace('“', '"').replace('”', '"')
                     
+                    # 2. Sanitize TradingView placeholders {{...}} -> null
+                    # Use DOTALL to match placeholders even if they span lines
+                    candidate_sanitized = re.sub(r'\{\{.*?\}\}', 'null', candidate_sanitized, flags=re.DOTALL)
+                    
+                    # 3. Sanitize trailing commas (common JSON error)
+                    # matches ,} or ,] and removes the comma
+                    candidate_sanitized = re.sub(r',\s*([}\]])', r'\1', candidate_sanitized)
+
                     data = json.loads(candidate_sanitized, strict=False)
                     logger.info(f"Robust JSON parse successful at index {start}")
                     parse_success = True
                     break
                 except Exception as loop_e:
                     # Log failure for first few attempts to help debug
-                    if start == start_indices[0]: 
-                         logger.warning(f"Parse attempt failed at detection index {start}: {loop_e}")
+                    if start == start_indices[0] or start == 17: # Debug index 17 specifically based on logs
+                         logger.warning(f"Parse failed at idx {start}: {loop_e}")
+                         logger.warning(f"Sanitized substring (first 100): {candidate_sanitized[:100]}...")
                     continue
             
             if not parse_success:
-                logger.error(f"Fatal: No valid JSON found. Raw start: {raw_data[:100]}...")
+                logger.error(f"Fatal: No valid JSON found after scanning. Raw start: {raw_data[:100]}...")
                 return jsonify({"status": "error", "message": "Invalid JSON payload"}), 400
 
         logger.info(f"Webhook received: {data}")
