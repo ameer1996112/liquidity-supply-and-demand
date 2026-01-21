@@ -61,7 +61,11 @@ news_filter = NewsFilter(block_minutes_before=NEWS_PRE_MINUTES, block_minutes_af
 # AI Model Filter
 AI_FILTER_ENABLED = os.getenv('AI_FILTER_ENABLED', 'false').lower() == 'true'
 AI_MIN_WIN_PROBABILITY = float(os.getenv('AI_MIN_WIN_PROBABILITY', '0.5'))
-MODEL_PATH = Path(__file__).parent / 'model.pkl'
+UNIVERSAL_MODEL_PATH = Path(__file__).parent / 'model_universal.pkl'
+DEFAULT_MODEL_PATH = Path(__file__).parent / 'model.pkl'
+
+# Prioritize Universal Model
+MODEL_PATH = UNIVERSAL_MODEL_PATH if UNIVERSAL_MODEL_PATH.exists() else DEFAULT_MODEL_PATH
 
 # Load AI model if enabled and exists
 ai_model = None

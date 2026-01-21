@@ -2,7 +2,8 @@
 // © ameer_1996112
 
 //@version=6
-strategy("Liquidity S&D Multi-TF Strategy (5m/30m) + Williams Fractals",
+strategy("Institutional Liquidity Protocol [Pro]",
+     shorttitle = "S&D Algo [Pro]",
      overlay = true,
      max_bars_back = 5000,
      initial_capital = 10000000,
@@ -13,7 +14,10 @@ strategy("Liquidity S&D Multi-TF Strategy (5m/30m) + Williams Fractals",
      process_orders_on_close = true,
      calc_on_every_tick = false,
      margin_long = 1,
-     margin_short = 1)
+     margin_short = 1,
+     slippage = 3,
+     commission_type = strategy.commission.percent,
+     commission_value = 0)
 
 // === USER INPUTS ===
 
@@ -26,7 +30,7 @@ get_auto_pip_size() =>
     if str.contains(ticker, "JPY")
         0.01  // JPY pairs (USDJPY, GBPJPY, EURJPY, etc.)
     else if str.contains(ticker, "XAU") or str.contains(ticker, "GOLD")
-        0.1   // Gold
+        0.01   // Gold (User preference: 10c = 10 pips, 1$ = 100 pips)
     else if str.contains(ticker, "XAG") or str.contains(ticker, "SILVER")
         0.01  // Silver
     else if str.contains(ticker, "BTC") or str.contains(ticker, "ETH")
@@ -212,6 +216,20 @@ debug_last_bars       = input.int(200, "Debug: Show Last N Bars", minval = 0, gr
 showZoneInspector     = input.bool(true, "Enable Zone Inspector Panel", group = "Display Options", tooltip = "Show the Zone Inspector panel with detailed zone information (Debug Level must be Basic or Full).")
 manual_zone_id_input = input.string("", "Manual Zone ID", group = "Strategy Settings", tooltip = "Enter zone label (e.g., S-8648, D-9183) or just numeric ID to inspect. Leave empty to disable inspector.")
 
+// === GOLD PIP SCALING FACTOR ===
+// Since we changed Gold pip size from 0.1 to 0.01 (to match user perception),
+// we must scale all pip-based inputs by 10x for Gold so they maintain their original "value" in USD.
+// Example: Buffer 1.0 input -> was 1.0 * 0.1 = $0.10. Now 1.0 * 0.01 = $0.01 (too small).
+//          Scaled Buffer -> 1.0 * 10 = 10.0. 10.0 * 0.01 = $0.10 (Correct).
+float pip_scale_factor = (str.contains(syminfo.ticker, "XAU") or str.contains(syminfo.ticker, "GOLD")) and pip_size <= 0.011 ? 10.0 : 1.0
+
+// Apply scaling to effective values
+float effective_sl_buffer = stop_loss_buffer_pips * pip_scale_factor
+float effective_min_tp_dist = min_tp_distance_pips * pip_scale_factor
+float effective_liq_entry_max_dist = liq_entry_max_dist * pip_scale_factor
+float effective_liq_max_dist = liq_max_distance_pips * pip_scale_factor
+float effective_tp_pips = take_profit_pips * pip_scale_factor
+
 // === 2025 NEW INPUTS ===
 max_trades_per_day = input.int(1, "Max Trades Per Day", minval = 1, maxval = 2, group = "Strategy Settings", tooltip = "Maximum number of trades per day. Second trade uses 0.5R risk if max=2")
 use_break_even     = input.bool(false, "Use Break-Even Mode", group = "Strategy Settings", tooltip = "Move SL to entry after TP1 hits")
@@ -250,7 +268,10 @@ ai_quality_threshold = input.int(60, "Min Quality Score", minval = 0, maxval = 1
 show_ai_score_on_label = input.bool(false, "Show AI Score on Labels", group = "AI Filter", tooltip = "Display calculated quality score on entry labels for debugging")
 
 // === V6/V7 ADVANCED FEATURES (PERFORMANCE HEAVY) ===
-enable_v6_v7_features = input.bool(false, "Enable V6/V7 Features (SLOW)", group = "AI Filter", tooltip = "Calculate Base Quality, Departure Strength, Liquidity Quality, Return Strength. WARNING: Makes script 10x slower. Only enable for training data export.")
+enable_v6_v7_features = input.bool(true, "Enable V6/V7 Features (SLOW)", group = "AI Filter", tooltip = "Calculate Base Quality, Departure Strength, Liquidity Quality, Return Strength. WARNING: Makes script 10x slower. Only enable for training data export.")
+
+// === COMPRESSION / RETURN STRENGTH FILTER (V7) ===
+min_return_strength = input.int(0, "Min Return Strength (Compression Filter)", minval = 0, maxval = 100, group = "AI Filter", tooltip = "Filter out trades where price returns to zone slowly (Compression). 0 = Disabled. 30 = Block very slow returns. 70 = Only sharp V-shape returns.")
 
 
 // === FVG CONFLUENCE ===
@@ -262,7 +283,7 @@ max_daily_profit_pct  = input.float(5.0, "Max Daily Profit (%)", minval = 0.1, g
 reset_daily_pnl       = input.bool(true, "Reset PnL Daily", group = "Risk Management", tooltip = "Reset PnL counters at the start of each day.")
 
 // === PERFORMANCE TABLE OPTIONS ===
-show_performance_table = input.bool(true, "Show Performance Table", group = "Display Options", tooltip = "Show aggregated performance statistics (zones, liquidity, timing blocks, RR, etc.)")
+show_performance_table = input.bool(false, "Show Performance Table", group = "Display Options", tooltip = "Show aggregated performance statistics (zones, liquidity, timing blocks, RR, etc.)")
 
 // === BACKTEST DATE RANGE ===
 enable_date_filter = input.bool(true, "Enable Date Range Filter", group = "Backtest Settings", tooltip = "Only execute trades within the specified date range")
@@ -1851,7 +1872,7 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
 
                         if isValidLocation
                             // Check distance constraints if set
-                            float maxDistPrice = liq_max_distance_pips * pip_size
+                            float maxDistPrice = effective_liq_max_dist * pip_size
                             bool distOK = na(maxDistPrice) or maxDistPrice <= 0 or distFromZone <= maxDistPrice
 
                             if distOK
@@ -1988,7 +2009,7 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
                         if isValidLocation
                             // Check distance constraints if set
                             float distFromZoneCheck = distFromZone
-                            float maxDistPrice = liq_max_distance_pips * pip_size
+                            float maxDistPrice = effective_liq_max_dist * pip_size
                             bool distOK = na(maxDistPrice) or maxDistPrice <= 0 or distFromZoneCheck <= maxDistPrice
 
                             if distOK
@@ -2496,11 +2517,11 @@ getLiquidityDistance(Zone z, bool isSupply) =>
 // Check if liquidity distance is within limit
 // Returns true if within limit or if limit is 0 (no limit)
 checkLiquidityDistance(Zone z, bool isSupply) =>
-    if liq_entry_max_dist == 0.0
+    if effective_liq_entry_max_dist == 0.0
         true  // No limit when set to 0
     else
         float dist = getLiquidityDistance(z, isSupply)
-        na(dist) or dist <= liq_entry_max_dist
+        na(dist) or dist <= effective_liq_entry_max_dist
 
 
 
@@ -2609,11 +2630,12 @@ validate_entry_conditions(bool isDemand, int idx) =>
                 // Check liquidity distance from zone boundary (using helper function)
                 // For Supply: liqHighPrice to zone top
                 // For Demand: liqLowPrice to zone bottom
-                // Skip check if liq_entry_max_dist is 0 (no limit)
-                if liq_entry_max_dist > 0.0 and not checkLiquidityDistance(z, not isDemand)
-                    float liqDist = getLiquidityDistance(z, not isDemand)
+                // Skip check if effective_liq_entry_max_dist is 0 (no limit)
+                if effective_liq_entry_max_dist > 0.0 and not checkLiquidityDistance(z, not isDemand)
+                    float liqDist = not na(z.liquidityDistance) ? z.liquidityDistance : 999.0
+                    // Only reject if strictly worse (allow small tolerance)
                     canEnter := false
-                    reason := "Liq distance too far (" + str.tostring(liqDist, "#.#") + " pips > " + str.tostring(liq_entry_max_dist, "#.#") + ")"
+                    reason := "Liq distance too far (" + str.tostring(liqDist, "#.#") + " pips > " + str.tostring(effective_liq_entry_max_dist, "#.#") + ")"
         else if canEnter and not require_liquidity_sweep
             if not z.liquidityValid
                 // Liquidity not strictly required, but we still report it for transparency
@@ -2789,8 +2811,13 @@ draw_performance_table(tbl) =>
             color profit_color = net_profit >= 0 ? color.rgb(0, 200, 100) : color.rgb(255, 80, 80)
             
             // === HEADER ===
+            
+            // Get date of the first closed trade to show data range
+            int first_trade_time = strategy.closedtrades > 0 ? strategy.closedtrades.entry_time(0) : na
+            string date_str = not na(first_trade_time) ? str.format("{0,date,short}", first_trade_time) : "N/A"
+            
             table.cell(result, 0, 0, "📊 RESULTS", text_color = color.white, bgcolor = color.rgb(40, 40, 40), text_size = size.small, text_halign = text.align_left)
-            table.cell(result, 1, 0, "", bgcolor = color.rgb(40, 40, 40))
+            table.cell(result, 1, 0, "Since " + date_str, text_color = color.gray, bgcolor = color.rgb(40, 40, 40), text_size = size.small, text_halign = text.align_right)
             
             // === 1. NET PROFIT ===
             table.cell(result, 0, 1, "Net Profit", text_color = color.rgb(180, 180, 180), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_right, text_size = size.small)
@@ -3491,6 +3518,12 @@ isValidEntry(isDemand, idx) =>
             canEnter := false
             reason := "Grade too low (" + z.grade + " < " + min_entry_grade + ")"
 
+    // RETURN STRENGTH / COMPRESSION FILTER
+    if canEnter and min_return_strength > 0
+        if z.returnStrength < min_return_strength
+            canEnter := false
+            reason := "Return too slow (" + str.tostring(z.returnStrength, "#") + " < " + str.tostring(min_return_strength) + ")"
+
 
 
     if canEnter
@@ -4027,7 +4060,7 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                 deepest_wick := current_low  // Fallback to current low
 
             // SL Calculation: Use deepest wick (even if below zone) minus buffer
-            stop_loss_price = deepest_wick - (stop_loss_buffer_pips * pip_size)
+            stop_loss_price = deepest_wick - (effective_sl_buffer * pip_size)
             
             // --- SAFETY CLAMP (LONG) ---
             // Ensure SL is strictly below Entry (min 2 pips gap) to prevent position sizing errors
@@ -4071,7 +4104,7 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
             float tp_distance_pips = na
             if not na(take_profit_price) and not na(entry_price)
                 tp_distance_pips := math.abs(take_profit_price - entry_price) / pip_size
-                if tp_distance_pips < min_tp_distance_pips
+                if tp_distance_pips < effective_min_tp_dist
                     // Skip trade if TP is too close to entry
                     // Warning labels removed for clean chart
                     // if show_entry_labels and debug_full
@@ -4362,7 +4395,7 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                 highest_wick := current_high  // Fallback to current high
 
             // SL Calculation: Use highest wick (even if above zone) plus buffer
-            stop_loss_price = highest_wick + (stop_loss_buffer_pips * pip_size)
+            stop_loss_price = highest_wick + (effective_sl_buffer * pip_size)
 
             // --- SAFETY CLAMP (SHORT) ---
             // Ensure SL is strictly above Entry (min 2 pips gap) to prevent position sizing errors
@@ -4406,7 +4439,7 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
             float tp_distance_pips = na
             if not na(take_profit_price) and not na(entry_price)
                 tp_distance_pips := math.abs(take_profit_price - entry_price) / pip_size
-                if tp_distance_pips < min_tp_distance_pips
+                if tp_distance_pips < effective_min_tp_dist
                     // Skip trade if TP is too close to entry
                     // Warning labels removed for clean chart
                     // if show_entry_labels and debug_full
@@ -5382,7 +5415,7 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug() and barstate.is
                 liqDistCalc := math.abs(inspectorZone.bottom - inspectorZone.liqHighPrice) / pip_size
             liqDistInspector := not na(liqDistCalc) ? str.tostring(liqDistCalc, "#.#") + " pips" : "N/A"
             // Only mark as exceeding if limit is not 0 (0 = no limit)
-            liqDistExceedsMax := liq_entry_max_dist > 0.0 and not na(liqDistCalc) and liqDistCalc > liq_entry_max_dist
+            liqDistExceedsMax := effective_liq_entry_max_dist > 0.0 and not na(liqDistCalc) and liqDistCalc > effective_liq_entry_max_dist
             
             // Zone Caused Sweep
             zoneCausedSweepInspector := inspectorZone.causedSweep ? "Yes" : "No"

@@ -13,7 +13,7 @@ from imblearn.over_sampling import SMOTE
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def train_model(csv_pattern='trade*.csv', model_path='model.pkl'):
+def train_model(csv_pattern='trades_*.csv', model_path='model_universal.pkl'):
     logging.info(f"Searching for data files matching: {csv_pattern}...")
     
     files = glob.glob(csv_pattern)
