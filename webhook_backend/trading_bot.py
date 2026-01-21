@@ -705,7 +705,27 @@ def webhook():
 
 
     try:
-        data = request.get_json(force=True)
+        data = None
+        try:
+            # First try standard parsing
+            data = request.get_json(force=True)
+        except Exception as e:
+            # Fallback: Extract JSON from mixed content (e.g. headers in body)
+            logger.warning(f"Standard JSON parse failed, attempting dirty parse: {e}")
+            raw_data = request.data.decode('utf-8')
+            try:
+                start = raw_data.find('{')
+                end = raw_data.rfind('}') + 1
+                if start != -1 and end != -1:
+                    json_str = raw_data[start:end]
+                    data = json.loads(json_str)
+                    logger.info("Dirty JSON parse successful.")
+                else:
+                    raise ValueError("No JSON object found in body")
+            except Exception as parse_error:
+                logger.error(f"Fatal JSON decode error: {parse_error}")
+                return jsonify({"status": "error", "message": "Invalid JSON payload"}), 400
+
         logger.info(f"Webhook received: {data}")
 
         # Validate

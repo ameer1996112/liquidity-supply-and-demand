@@ -277,6 +277,27 @@ min_return_strength = input.int(0, "Min Return Strength (Compression Filter)", m
 // === FVG CONFLUENCE ===
 use_fvg_confirmation = input.bool(false, "Require FVG Confirmation", group = "Strategy Settings", tooltip = "Only create zones if the leaving move creates a Fair Value Gap (Imbalance).")
 
+// === WEBHOOK PLOT VARIABLES (GLOBAL) ===
+var float plot_id               = na
+var float plot_type             = na  // 1=Demand, -1=Supply
+var float plot_entry_model      = na  // 1=Flip, 2=DirClose, 3=BoC
+var float plot_score            = na
+var float plot_freshness        = na
+var float plot_session          = na
+var float plot_atr_ratio        = na
+var float plot_is_accuracy      = na
+var float plot_trend            = na
+var float plot_rsi              = na
+var float plot_htf_trend        = na
+var float plot_rvol             = na
+var float plot_adx              = na
+var float plot_touch_count      = na
+var float plot_base_quality     = na
+var float plot_departure_strength = na
+var float plot_liquidity_distance = na
+var float plot_liquidity_spread = na
+var float plot_return_strength  = na
+
 // === DAILY RISK MANAGEMENT ===
 max_daily_loss_pct    = input.float(2.0, "Max Daily Loss (%)", minval = 0.1, group = "Risk Management", tooltip = "Stop trading if daily loss exceeds this percentage.")
 max_daily_profit_pct  = input.float(5.0, "Max Daily Profit (%)", minval = 0.1, group = "Risk Management", tooltip = "Stop trading if daily profit exceeds this percentage.")
@@ -3551,9 +3572,9 @@ isValidEntry(isDemand, idx) =>
             canEnter := false
             reason := isDemand ? "Waiting for Bullish Close or Hammer" : "Waiting for Bearish Close or Inv. Hammer"
 
-    // Only one entry per bar & no existing position
     if canEnter
-        int lastEntryBar = isDemand ? last_global_long_entry_bar : last_global_short_entry_bar
+
+        lastEntryBar = isDemand ? last_global_long_entry_bar : last_global_short_entry_bar
         bool noEntryThisBar = na(lastEntryBar) or bar_index > lastEntryBar
         if not noEntryThisBar
             canEnter := false
@@ -4173,6 +4194,28 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                 
                 // Execute immediately
                 entryTriggeredThisBar := true
+                
+                // Populate global plot variables for Webhook
+                plot_id               := z.id
+                plot_type             := 1 // Demand
+                plot_entry_model      := 2 // Directional Close
+                plot_score            := z.score
+                plot_freshness        := z.touchCount <= 1 ? 1 : 0
+                plot_session          := feature_session
+                plot_atr_ratio        := (z.top - z.bottom) / atr14
+                plot_is_accuracy      := z.isAccuracy ? 1 : 0
+                plot_trend            := feature_trend
+                plot_rsi              := feature_rsi
+                plot_htf_trend        := feature_htf_trend
+                plot_rvol             := feature_rvol
+                plot_adx              := feature_adx
+                plot_touch_count      := z.touchCount
+                plot_base_quality     := z.baseQuality
+                plot_departure_strength := z.departureStrength
+                plot_liquidity_distance := z.liquidityDistance
+                plot_liquidity_spread := z.liquiditySpread
+                plot_return_strength  := z.returnStrength
+
                 triggeredZoneId := z.id
                 
                 // Build webhook payload for Discord-MT5 bridge with Zone Inspector data
@@ -4508,6 +4551,28 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                 
                 // Execute immediately
                 entryTriggeredThisBar := true
+                
+                // Populate global plot variables for Webhook
+                plot_id               := z.id
+                plot_type             := -1 // Supply
+                plot_entry_model      := 2 // Directional Close
+                plot_score            := z.score
+                plot_freshness        := z.touchCount <= 1 ? 1 : 0
+                plot_session          := feature_session
+                plot_atr_ratio        := (z.top - z.bottom) / atr14
+                plot_is_accuracy      := z.isAccuracy ? 1 : 0
+                plot_trend            := feature_trend
+                plot_rsi              := feature_rsi
+                plot_htf_trend        := feature_htf_trend
+                plot_rvol             := feature_rvol
+                plot_adx              := feature_adx
+                plot_touch_count      := z.touchCount
+                plot_base_quality     := z.baseQuality
+                plot_departure_strength := z.departureStrength
+                plot_liquidity_distance := z.liquidityDistance
+                plot_liquidity_spread := z.liquiditySpread
+                plot_return_strength  := z.returnStrength
+
                 triggeredZoneId := z.id
 
                 // Build webhook payload for Discord-MT5 bridge with Zone Inspector data
@@ -5924,3 +5989,44 @@ performanceTable := draw_performance_table(performanceTable)
 plot(strategy.position_size != 0 ? trade_tp1_price : na, "Trade TP Level", color = color.new(color.lime, 50), style = plot.style_linebr, linewidth = 2)
 plot(strategy.position_size != 0 ? trade_current_sl : na, "Trade SL Level", color = color.new(color.red, 50), style = plot.style_linebr, linewidth = 2)
 plot(strategy.position_size != 0 ? trade_entry_price : na, "Trade Entry", color = color.new(color.blue, 50), style = plot.style_linebr, linewidth = 1)
+
+// === WEBHOOK EXPORTS (Features for AI) ===
+// These must be plotted in EXACT order to match {{plot_0}}, {{plot_1}}, etc.
+// 0: Zone ID
+plot(plot_id, "W0: Zone ID", display = display.none)
+// 1: Zone Type
+plot(plot_type, "W1: Zone Type", display = display.none)
+// 2: Entry Model
+plot(plot_entry_model, "W2: Entry Model", display = display.none)
+// 3: Score (0-100)
+plot(plot_score, "W3: Score", display = display.none)
+// 4: Freshness (0 or 1)
+plot(plot_freshness, "W4: Freshness", display = display.none)
+// 5: Session (1=Asia, 2=London, 3=NY)
+plot(plot_session, "W5: Session", display = display.none)
+// 6: ATR Ratio
+plot(plot_atr_ratio, "W6: ATR Ratio", display = display.none)
+// 7: Is Accuracy (0 or 1)
+plot(plot_is_accuracy, "W7: Is Accuracy", display = display.none)
+// 8: Trend (0 or 1)
+plot(plot_trend, "W8: Trend", display = display.none)
+// 9: RSI
+plot(plot_rsi, "W9: RSI", display = display.none)
+// 10: HTF Trend (0 or 1)
+plot(plot_htf_trend, "W10: HTF Trend", display = display.none)
+// 11: RVOL
+plot(plot_rvol, "W11: RVOL", display = display.none)
+// 12: ADX
+plot(plot_adx, "W12: ADX", display = display.none)
+// 13: Touch Count
+plot(plot_touch_count, "W13: Touch Count", display = display.none)
+// 14: Base Quality
+plot(plot_base_quality, "W14: Base Quality", display = display.none)
+// 15: Departure Strength
+plot(plot_departure_strength, "W15: Departure Strength", display = display.none)
+// 16: Liquidity Distance
+plot(plot_liquidity_distance, "W16: Liquidity Dist", display = display.none)
+// 17: Liquidity Spread
+plot(plot_liquidity_spread, "W17: Liquidity Spread", display = display.none)
+// 18: Return Strength (V7.1 Feature)
+plot(plot_return_strength, "W18: Return Strength", display = display.none)
