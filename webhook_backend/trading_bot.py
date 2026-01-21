@@ -769,8 +769,8 @@ def webhook():
         # Validate
         required = ['symbol', 'side', 'entry', 'sl', 'tp', 'size']
         missing = [f for f in required if f not in data]
-        if f not in data: # Check only for missing KEYS, not values
-                 return jsonify({"status": "error", "message": f"Missing keys: {missing}"}), 400
+        if missing:
+            return jsonify({"status": "error", "message": f"Missing fields: {missing}"}), 400
 
         # DETECT TEST MODE (Unresolved Placeholders)
         # If side is "null" (string) or entry is None (null in JSON), it's a test.
