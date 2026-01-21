@@ -4016,7 +4016,8 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
             trade_be_moved := false
             
             if use_take_profit and sl_pips > 0
-                [tp_r, be_trig, be_sl, move_be] = get_updated_sl_tp_rules(sl_pips)
+                // Use symbol-aware TP rules (Gold vs Forex)
+                [tp_r, be_trig, be_sl, move_be] = get_tp_ratio(syminfo.ticker, sl_pips)
                 
                 // Override with fixed RR - ONLY for non-5-minute modes
 
@@ -4340,7 +4341,8 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
             trade_be_moved := false
 
             if use_take_profit and sl_pips > 0
-                [tp_r, be_trig, be_sl, move_be] = get_updated_sl_tp_rules(sl_pips)
+                // Use symbol-aware TP rules (Gold vs Forex)
+                [tp_r, be_trig, be_sl, move_be] = get_tp_ratio(syminfo.ticker, sl_pips)
 
                 // Override with fixed RR - ONLY for non-5-minute modes
 

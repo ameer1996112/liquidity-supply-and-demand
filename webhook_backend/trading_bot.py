@@ -27,6 +27,7 @@ import requests
 import pytz
 import pickle
 from news_filter import NewsFilter
+from paper_trader import get_paper_trader
 
 # Load environment variables
 env_path = Path(__file__).parent / '.env'
@@ -76,6 +77,16 @@ if AI_FILTER_ENABLED and MODEL_PATH.exists():
 # Swap Hours Filter
 SWAP_HOURS_ENABLED = os.getenv('SWAP_HOURS_ENABLED', 'true').lower() == 'true'
 SWAP_HOURS_UTC = os.getenv('SWAP_HOURS_UTC', '21:50-22:10')  # Default: 10 min before/after 22:00 UTC
+
+# Paper Trading Mode
+PAPER_TRADING_ENABLED = os.getenv('PAPER_TRADING_ENABLED', 'false').lower() == 'true'
+PAPER_AUTO_EXECUTE = os.getenv('PAPER_AUTO_EXECUTE', 'true').lower() == 'true'
+PAPER_SYMBOLS = [s.strip() for s in os.getenv('PAPER_SYMBOLS', '').split(',') if s.strip()]
+PAPER_MAX_POSITIONS = int(os.getenv('PAPER_MAX_POSITIONS', '10'))
+PAPER_ACCOUNT_BALANCE = float(os.getenv('PAPER_ACCOUNT_BALANCE', '10000'))
+
+# Initialize paper trader if enabled
+paper_trader = get_paper_trader(DB_PATH) if PAPER_TRADING_ENABLED else None
 
 # Position Sizing
 DEFAULT_ACCOUNT_BALANCE = float(os.getenv('ACCOUNT_BALANCE', '10000'))
@@ -129,7 +140,11 @@ def init_db():
             liq_swept INTEGER DEFAULT 0,
             target_swept INTEGER DEFAULT 0,
             caused_sweep INTEGER DEFAULT 0,
-            is_accuracy INTEGER DEFAULT 0
+            is_accuracy INTEGER DEFAULT 0,
+            mode TEXT DEFAULT 'manual',
+            simulated_pnl REAL,
+            close_price REAL,
+            close_time TIMESTAMP
         )
     ''')
 
@@ -144,6 +159,10 @@ def init_db():
         ('target_swept', 'INTEGER DEFAULT 0'),
         ('caused_sweep', 'INTEGER DEFAULT 0'),
         ('is_accuracy', 'INTEGER DEFAULT 0'),
+        ('mode', "TEXT DEFAULT 'manual'"),
+        ('simulated_pnl', 'REAL'),
+        ('close_price', 'REAL'),
+        ('close_time', 'TIMESTAMP'),
     ]
     for col_name, col_type in new_columns:
         try:
@@ -156,7 +175,7 @@ def init_db():
     logger.info(f"Database initialized at {DB_PATH}")
 
 
-def save_alert(data: dict) -> int:
+def save_alert(data: dict, mode: str = 'manual') -> int:
     """Save alert to database, return alert ID."""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -172,8 +191,8 @@ def save_alert(data: dict) -> int:
     cursor.execute('''
         INSERT INTO alerts (symbol, side, entry, sl, tp, size, rr_ratio, zone_id,
                            zone_type, zone_top, zone_bottom, zone_size_pips, entry_model,
-                           liq_swept, target_swept, caused_sweep, is_accuracy)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                           liq_swept, target_swept, caused_sweep, is_accuracy, mode, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         data['symbol'],
         data['side'],
@@ -192,6 +211,8 @@ def save_alert(data: dict) -> int:
         1 if data.get('target_swept') else 0,
         1 if data.get('caused_sweep') else 0,
         1 if data.get('is_accuracy') else 0,
+        mode,
+        'open' if mode == 'paper' else 'pending'
     ))
 
     alert_id = cursor.lastrowid
@@ -291,7 +312,7 @@ def get_statistics() -> dict:
 # NOTIFICATIONS
 # =============================================================================
 
-def send_discord(data: dict, alert_id: int) -> bool:
+def send_discord(data: dict, alert_id: int, mode: str = 'manual') -> bool:
     """Send alert to Discord."""
     if not DISCORD_WEBHOOK_URL:
         return False
@@ -299,7 +320,14 @@ def send_discord(data: dict, alert_id: int) -> bool:
     try:
         side = data['side'].upper()
         emoji = "📈" if side == "BUY" else "📉"
-        color = 0x00FF00 if side == "BUY" else 0xFF0000
+        
+        # Color: Blue for paper, Green for buy, Red for sell
+        if mode == 'paper':
+            color = 0x3498DB  # Blue
+            mode_prefix = "🔵 PAPER | "
+        else:
+            color = 0x00FF00 if side == "BUY" else 0xFF0000
+            mode_prefix = ""
 
         entry = float(data['entry'])
         sl = float(data['sl'])
@@ -324,8 +352,8 @@ def send_discord(data: dict, alert_id: int) -> bool:
         position_info = calculate_position_size(sl_pips, symbol)
 
         embed = {
-            "title": f"{emoji} New {side} Signal - #{alert_id}",
-            "description": f"**Execute manually** | Reply with outcome later",
+            "title": f"{mode_prefix}{emoji} New {side} Signal - #{alert_id}",
+            "description": f"**{'Auto-executed (paper)' if mode == 'paper' else 'Execute manually'}** | Reply with outcome later",
             "color": color,
             "timestamp": datetime.utcnow().isoformat(),
             "fields": [
@@ -688,8 +716,19 @@ def webhook():
         # Check filters
         should_forward, reason = should_forward_alert(data)
 
+        # Determine mode (paper or manual)
+        mode = 'manual'
+        symbol = data['symbol'].upper()
+        
+        if PAPER_TRADING_ENABLED and PAPER_AUTO_EXECUTE:
+            # Check if symbol should be paper traded
+            if not PAPER_SYMBOLS or symbol in PAPER_SYMBOLS:
+                # Check max positions limit
+                if paper_trader and len(paper_trader.get_open_positions()) < PAPER_MAX_POSITIONS:
+                    mode = 'paper'
+        
         # Save to database
-        alert_id = save_alert(data)
+        alert_id = save_alert(data, mode=mode)
 
         if not should_forward:
             logger.info(f"Alert #{alert_id} filtered: {reason}")
@@ -697,16 +736,42 @@ def webhook():
             return jsonify({
                 "status": "filtered",
                 "alert_id": alert_id,
-                "reason": reason
+                "reason": reason,
+                "mode": mode
             }), 200
 
-        # Send notifications
-        discord_sent = send_discord(data, alert_id)
+        # If paper trading mode, open virtual position
+        if mode == 'paper' and paper_trader:
+            entry = float(data['entry'])
+            sl = float(data['sl'])
+            tp = float(data['tp'])
+            size = float(data['size'])
+            
+            # Calculate R:R
+            risk = abs(entry - sl)
+            reward = abs(tp - entry)
+            rr_ratio = reward / risk if risk > 0 else 0
+            
+            paper_trader.open_position(
+                alert_id,
+                symbol,
+                data['side'].lower(),
+                entry,
+                sl,
+                tp,
+                size,
+                rr_ratio
+            )
+            logger.info(f"🔵 Paper position #{alert_id} opened automatically")
+
+        # Send notifications (always send, even for paper trades)
+        discord_sent = send_discord(data, alert_id, mode=mode)
         telegram_sent = send_telegram(data, alert_id)
 
         return jsonify({
             "status": "success",
             "alert_id": alert_id,
+            "mode": mode,
             "discord": discord_sent,
             "telegram": telegram_sent
         }), 200
