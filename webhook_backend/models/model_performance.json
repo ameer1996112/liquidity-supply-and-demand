@@ -1,0 +1,100 @@
+{
+  "accuracy": 0.8260869565217391,
+  "auc": 0.8841911764705882,
+  "confusion_matrix": [
+    [
+      40,
+      11
+    ],
+    [
+      9,
+      55
+    ]
+  ],
+  "feature_importance": [
+    {
+      "feature": "sl_pips",
+      "importance": 0.2423938653990695
+    },
+    {
+      "feature": "liquidity_distance",
+      "importance": 0.2396844737621795
+    },
+    {
+      "feature": "trade_score_numeric",
+      "importance": 0.09567324801484775
+    },
+    {
+      "feature": "potential_rr",
+      "importance": 0.09494713190787739
+    },
+    {
+      "feature": "session_london",
+      "importance": 0.03415956186060106
+    },
+    {
+      "feature": "session_newyork",
+      "importance": 0.032103549836345585
+    },
+    {
+      "feature": "zone_supply",
+      "importance": 0.03175722896000531
+    },
+    {
+      "feature": "pair_gbpcad",
+      "importance": 0.031210221233054315
+    },
+    {
+      "feature": "entry_default",
+      "importance": 0.031026353910728055
+    },
+    {
+      "feature": "session_tokyo",
+      "importance": 0.030549623328565114
+    },
+    {
+      "feature": "close_bullish",
+      "importance": 0.026535355164224717
+    },
+    {
+      "feature": "pair_gbpjpy",
+      "importance": 0.021366682216054377
+    },
+    {
+      "feature": "session_sydney",
+      "importance": 0.019344830418839692
+    },
+    {
+      "feature": "entry_boc",
+      "importance": 0.019331256672446916
+    },
+    {
+      "feature": "pair_xauusd",
+      "importance": 0.018772911259449562
+    },
+    {
+      "feature": "entry_flip",
+      "importance": 0.011180984613058548
+    },
+    {
+      "feature": "pair_chfjpy",
+      "importance": 0.0072893762122599225
+    },
+    {
+      "feature": "pair_usdjpy",
+      "importance": 0.007244229140524813
+    },
+    {
+      "feature": "pair_nas100",
+      "importance": 0.005429116089867928
+    },
+    {
+      "feature": "rsi",
+      "importance": 0.0
+    },
+    {
+      "feature": "news_event",
+      "importance": 0.0
+    }
+  ]
+}

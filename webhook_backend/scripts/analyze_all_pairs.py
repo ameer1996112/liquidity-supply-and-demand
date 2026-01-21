@@ -35,7 +35,7 @@ def parse_rplus(value):
 
 def load_pair_data(pair_name):
     """Load all CSV files for a given pair."""
-    pair_dir = Path(pair_name)
+    pair_dir = Path('backtest_data/notion_exports') / pair_name
     if not pair_dir.exists():
         print(f"⚠️  Skipping {pair_name} - folder not found")
         return None

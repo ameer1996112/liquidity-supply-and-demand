@@ -32,7 +32,7 @@ def parse_rplus(value):
 
 def load_pair_data(pair_name):
     """Load all CSV files for a given pair."""
-    pair_dir = Path(pair_name)
+    pair_dir = Path('backtest_data/notion_exports') / pair_name
     if not pair_dir.exists():
         return None
     
@@ -165,11 +165,11 @@ def create_training_dataset():
     print()
     
     # Save training data
-    data_dir = Path('data')
-    data_dir.mkdir(exist_ok=True)
+    data_dir = Path('backtest_data/processed')
+    data_dir.mkdir(parents=True, exist_ok=True)
     
     training_data.to_csv(data_dir / 'training_enhanced.csv', index=False)
-    print(f"💾 Saved to data/training_enhanced.csv")
+    print(f"💾 Saved to backtest_data/processed/training_enhanced.csv")
     
     # Save feature metadata
     feature_metadata = {
@@ -183,7 +183,7 @@ def create_training_dataset():
     with open(data_dir / 'features_metadata.json', 'w') as f:
         json.dump(feature_metadata, f, indent=2)
     
-    print(f"💾 Saved metadata to data/features_metadata.json")
+    print(f"💾 Saved metadata to backtest_data/processed/features_metadata.json")
     print()
     print("="*60)
     print("✅ READY FOR AI MODEL TRAINING")
