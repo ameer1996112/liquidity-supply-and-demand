@@ -23,16 +23,28 @@ from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score
 
 def load_training_data():
-    """Load the enhanced training dataset."""
-    data_path = Path('backtest_data/processed/training_enhanced.csv')
+    """Load the ultimate training dataset."""
+    # Try ultimate dataset first, fallback to enhanced
+    ultimate_path = Path('backtest_data/processed/training_ultimate.csv')
+    enhanced_path = Path('backtest_data/processed/training_enhanced.csv')
     
-    if not data_path.exists():
+    if ultimate_path.exists():
+        df = pd.read_csv(ultimate_path)
+        print(f"✅ Loaded ULTIMATE dataset: {len(df)} training samples")
+        print(f"   - Notion trades: {len(df[df['source'] == 'notion'])}")
+        print(f"   - TradingView trades: {len(df[df['source'] == 'tradingview'])}")
+    elif enhanced_path.exists():
+        df = pd.read_csv(enhanced_path)
+        print(f"✅ Loaded enhanced dataset: {len(df)} training samples")
+    else:
         raise FileNotFoundError(
-            "Training data not found. Run 'python scripts/prepare_enhanced_training.py' first."
+            "Training data not found. Run 'python scripts/combine_all_data.py' first."
         )
     
-    df = pd.read_csv(data_path)
-    print(f"✅ Loaded {len(df)} training samples")
+    # Drop source column if exists (not a feature)
+    if 'source' in df.columns:
+        df = df.drop('source', axis=1)
+    
     return df
 
 def train_model(X_train, y_train, X_test, y_test):
@@ -108,7 +120,7 @@ def save_model(model, performance_metrics):
     models_dir.mkdir(exist_ok=True)
     
     # Save model
-    model_path = models_dir / 'model_enhanced.pkl'
+    model_path = models_dir / 'model_ultimate.pkl'
     with open(model_path, 'wb') as f:
         pickle.dump(model, f)
     
