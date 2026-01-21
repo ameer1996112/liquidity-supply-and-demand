@@ -544,10 +544,17 @@ def calculate_position_size(sl_pips: float, symbol: str,
 def should_forward_alert(data: dict) -> tuple[bool, str]:
     """Check if alert should be forwarded based on filters."""
 
+    # Check if manual test (placeholders detected)
+    if data.get('entry') is None or data.get('sl') is None or data.get('tp') is None:
+        return True, "TEST MODE (Unresolved Placeholders)"
+
     # Check R:R ratio
-    entry = float(data['entry'])
-    sl = float(data['sl'])
-    tp = float(data['tp'])
+    try:
+        entry = float(data['entry'])
+        sl = float(data['sl'])
+        tp = float(data['tp'])
+    except (ValueError, TypeError):
+         return True, "TEST MODE (Invalid Data Types)"
     risk = abs(entry - sl)
     reward = abs(tp - entry)
     rr_ratio = reward / risk if risk > 0 else 0
