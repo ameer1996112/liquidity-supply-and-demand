@@ -774,9 +774,18 @@ def webhook():
 
         # DETECT TEST MODE (Unresolved Placeholders)
         # If side is "null" (string) or entry is None (null in JSON), it's a test.
-        if data.get('side') == 'null' or data.get('entry') is None:
-            logger.info("🧪 TEST DETECTED: Placeholder values found. Webhook is working correctly!")
-            return jsonify({"status": "success", "message": "Test Alert Received via Robust Parser"}), 200
+        is_test_mode = data.get('side') == 'null' or data.get('entry') is None
+        
+        if is_test_mode:
+            logger.info("🧪 TEST MODE: Sanitizing placeholder values for dashboard storage")
+            # Set safe defaults so test alerts can be saved to DB
+            data['side'] = data.get('side') if data.get('side') not in ['null', None] else 'buy'
+            data['entry'] = data.get('entry') if data.get('entry') is not None else 0.0
+            data['sl'] = data.get('sl') if data.get('sl') is not None else 0.0
+            data['tp'] = data.get('tp') if data.get('tp') is not None else 0.0
+            data['size'] = data.get('size') if data.get('size') is not None else 0.0
+            data['symbol'] = data.get('symbol', 'TEST')
+            data['_test_mode'] = True  # Flag for later use
 
         if data['side'].lower() not in ['buy', 'sell']:
             return jsonify({"status": "error", "message": "Invalid side"}), 400
