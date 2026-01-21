@@ -769,8 +769,14 @@ def webhook():
         # Validate
         required = ['symbol', 'side', 'entry', 'sl', 'tp', 'size']
         missing = [f for f in required if f not in data]
-        if missing:
-            return jsonify({"status": "error", "message": f"Missing: {missing}"}), 400
+        if f not in data: # Check only for missing KEYS, not values
+                 return jsonify({"status": "error", "message": f"Missing keys: {missing}"}), 400
+
+        # DETECT TEST MODE (Unresolved Placeholders)
+        # If side is "null" (string) or entry is None (null in JSON), it's a test.
+        if data.get('side') == 'null' or data.get('entry') is None:
+            logger.info("🧪 TEST DETECTED: Placeholder values found. Webhook is working correctly!")
+            return jsonify({"status": "success", "message": "Test Alert Received via Robust Parser"}), 200
 
         if data['side'].lower() not in ['buy', 'sell']:
             return jsonify({"status": "error", "message": "Invalid side"}), 400
