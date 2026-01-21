@@ -711,19 +711,29 @@ def webhook():
             data = request.get_json(force=True)
         except Exception as e:
             # Fallback: Extract JSON from mixed content (e.g. headers in body)
-            logger.warning(f"Standard JSON parse failed, attempting dirty parse: {e}")
+            logger.warning(f"Standard JSON parse failed, attempting robust parse: {e}")
             raw_data = request.data.decode('utf-8')
-            try:
-                start = raw_data.find('{')
-                end = raw_data.rfind('}') + 1
-                if start != -1 and end != -1:
-                    json_str = raw_data[start:end]
-                    data = json.loads(json_str)
-                    logger.info("Dirty JSON parse successful.")
-                else:
-                    raise ValueError("No JSON object found in body")
-            except Exception as parse_error:
-                logger.error(f"Fatal JSON decode error: {parse_error}")
+            
+            # Find all potential start indices for a JSON object
+            start_indices = [i for i, char in enumerate(raw_data) if char == '{']
+            end_index = raw_data.rfind('}') + 1
+            
+            parse_success = False
+            for start in start_indices:
+                if start >= end_index:
+                    break
+                
+                try:
+                    candidate = raw_data[start:end_index]
+                    data = json.loads(candidate)
+                    logger.info(f"Robust JSON parse successful at index {start}")
+                    parse_success = True
+                    break
+                except Exception:
+                    continue
+            
+            if not parse_success:
+                logger.error(f"Fatal: No valid JSON found in payload. Raw start: {raw_data[:50]}...")
                 return jsonify({"status": "error", "message": "Invalid JSON payload"}), 400
 
         logger.info(f"Webhook received: {data}")

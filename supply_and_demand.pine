@@ -309,7 +309,7 @@ show_performance_table = input.bool(false, "Show Performance Table", group = "Di
 // === BACKTEST DATE RANGE ===
 enable_date_filter = input.bool(true, "Enable Date Range Filter", group = "Backtest Settings", tooltip = "Only execute trades within the specified date range")
 start_date         = input.time(timestamp("01 Jan 2023 00:00 +0000"), "Start Date", group = "Backtest Settings")
-end_date           = input.time(timestamp("31 Dec 2030 23:59 +0000"), "End Date", group = "Backtest Settings")
+end_date           = input.time(timestamp("19 Jan 2026 23:59 +0000"), "End Date", group = "Backtest Settings")
 min_bar_index_for_entries = input.int(100, "Minimum Bar Index for Entries", minval = 0, group = "Backtest Settings", tooltip = "Only allow entries on zones created after this bar index. Prevents backfill issues by ignoring historical zones.")
 
 // === DEBUG MODE DERIVED FLAGS & BAR RANGE CACHE ===
