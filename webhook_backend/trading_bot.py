@@ -869,6 +869,8 @@ def health():
         "discord": bool(DISCORD_WEBHOOK_URL),
         "telegram": bool(TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID),
         "database": DB_PATH.exists(),
+        "ai_model_loaded": ai_model is not None,
+        "ai_model_type": "universal" if 'universal' in str(MODEL_PATH) else "standard",
         "timestamp": datetime.utcnow().isoformat()
     })
 
@@ -1039,6 +1041,12 @@ def main():
     logger.info(f"Dashboard: http://localhost:{WEBHOOK_PORT}/")
     logger.info(f"Webhook: http://localhost:{WEBHOOK_PORT}/webhook")
     logger.info(f"Stats API: http://localhost:{WEBHOOK_PORT}/stats")
+    
+    if ai_model:
+        logger.info(f"🧠 AI Model: LOADED ({'Universal' if 'universal' in str(MODEL_PATH) else 'Standard'})")
+    else:
+        logger.warning("⚠️ AI Model: NOT LOADED (Check MODEL_PATH)")
+
     logger.info("")
     logger.info("Press Ctrl+C to stop.")
 
