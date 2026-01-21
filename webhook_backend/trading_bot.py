@@ -90,6 +90,9 @@ PAPER_SYMBOLS = [s.strip() for s in os.getenv('PAPER_SYMBOLS', '').split(',') if
 PAPER_MAX_POSITIONS = int(os.getenv('PAPER_MAX_POSITIONS', '10'))
 PAPER_ACCOUNT_BALANCE = float(os.getenv('PAPER_ACCOUNT_BALANCE', '10000'))
 
+# Database (must be defined before paper_trader)
+DB_PATH = Path(__file__).parent / 'trades.db'
+
 # Initialize paper trader if enabled
 paper_trader = get_paper_trader(DB_PATH) if PAPER_TRADING_ENABLED else None
 
