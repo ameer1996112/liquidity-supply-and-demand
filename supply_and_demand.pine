@@ -194,7 +194,7 @@ show_pos_sizing_table  = input.bool(true, "Show Position Sizing Table (Debug)", 
 
 // Risk Management
 use_stop_loss         = input.bool(true, "Use Stop Loss", group = "Strategy Settings")
-stop_loss_buffer_pips = input.float(0, "Stop Loss Buffer (Pips)", minval = 0, step = 0.1, group = "Strategy Settings", tooltip = "Small buffer below the deepest wick. Set to 0 to place SL exactly at the wick low.")
+stop_loss_buffer_pips = input.float(1.0, "Stop Loss Buffer (Pips)", minval = 0, step = 0.1, group = "Strategy Settings", tooltip = "Small buffer below the deepest wick. Set to 0 to place SL exactly at the wick low.")
 use_take_profit       = input.bool(true, "Use Take Profit", group = "Strategy Settings")
 take_profit_pips      = input.float(40, "Take Profit (Pips)", minval = 1, group = "Strategy Settings")
 risk_reward_ratio     = input.float(2.0, "Risk:Reward Ratio", minval = 0.5, step = 0.1, group = "Strategy Settings", tooltip = "If set, Take Profit will be calculated based on Stop Loss")
@@ -485,6 +485,8 @@ type Zone
     float primedRefLow     // Low of the priming candle (for BOC reference)
     bool  wasTouched       // True when zone has been touched by wick (persists until entry/mitigation)
     int   touchCount       // Number of times zone has been touched (for first-touch-only rule and V5 AI)
+    int   lastTouchBar     // Bar index of the last touch (to track continuous engagements)
+    bool  touchedPreSweep  // True if zone was touched BEFORE liquidity was swept (Permanently invalidates zone)
     float baseQuality      // V6: Quality of base construction (0-100, fewer indecisive candles = higher)
     float departureStrength // V6: Strength of price departure from zone (0-100, bigger candles + volume = higher)
     float liquidityDistance // V7.1: Distance from zone to liquidity in pips (0-100, closer = higher score)
@@ -689,36 +691,44 @@ units_to_lots(_units) =>
         lot_size := 1.0        // Crypto: 1 unit per lot
     _units / lot_size
 
+// Helper to ensure valid JSON number format (dot decimal, no thousands separator)
+to_json_num(float val, string fmt) =>
+    string s = str.tostring(val, fmt)
+    // Remove potential thousands separators (if any) and ensure dot decimal
+    // Note: Simple replace comma to dot works for "1234,56" -> "1234.56"
+    // Using simple format like "#.###" usually avoids thousands separators
+    str.replace(s, ",", ".")
+
 // Builds JSON payload for webhook alert to Discord-MT5 bridge
 // Returns: JSON string with trade details + Zone Inspector data
 build_webhook_payload(_symbol, _side, _entry, _sl, _tp, _size_lots, _zone_id, _zone_type, _zone_top, _zone_bottom, _rr_ratio, _sl_pips, _entry_model, _liq_swept, _target_swept, _caused_sweep, _is_accuracy, _adx) =>
     string payload = '{"symbol":"' + _symbol + '"'
     payload := payload + ',"side":"' + _side + '"'
-    payload := payload + ',"entry":' + str.tostring(_entry, format.mintick)
-    payload := payload + ',"sl":' + str.tostring(_sl, format.mintick)
-    payload := payload + ',"tp":' + str.tostring(_tp, format.mintick)
-    payload := payload + ',"size":' + str.tostring(_size_lots, "#.##")
+    payload := payload + ',"entry":' + to_json_num(_entry, "#.##########")
+    payload := payload + ',"sl":' + to_json_num(_sl, "#.##########")
+    payload := payload + ',"tp":' + to_json_num(_tp, "#.##########")
+    payload := payload + ',"size":' + to_json_num(_size_lots, "#.##")
     
     // Zone Inspector Data
     if webhook_include_zone_id and not na(_zone_id)
-        payload := payload + ',"zone_id":' + str.tostring(_zone_id)
+        payload := payload + ',"zone_id":' + to_json_num(_zone_id, "#")
     payload := payload + ',"zone_type":"' + _zone_type + '"'
     if not na(_zone_top) and not na(_zone_bottom)
-        payload := payload + ',"zone_top":' + str.tostring(_zone_top, format.mintick)
-        payload := payload + ',"zone_bottom":' + str.tostring(_zone_bottom, format.mintick)
+        payload := payload + ',"zone_top":' + to_json_num(_zone_top, "#.##########")
+        payload := payload + ',"zone_bottom":' + to_json_num(_zone_bottom, "#.##########")
         float zone_size_pips = (_zone_top - _zone_bottom) / pip_size
-        payload := payload + ',"zone_size_pips":' + str.tostring(zone_size_pips, "#.#")
+        payload := payload + ',"zone_size_pips":' + to_json_num(zone_size_pips, "#.#")
     if not na(_rr_ratio)
-        payload := payload + ',"rr_ratio":' + str.tostring(_rr_ratio, "#.##")
+        payload := payload + ',"rr_ratio":' + to_json_num(_rr_ratio, "#.##")
     if not na(_sl_pips)
-        payload := payload + ',"sl_pips":' + str.tostring(_sl_pips, "#.#")
+        payload := payload + ',"sl_pips":' + to_json_num(_sl_pips, "#.#")
     payload := payload + ',"entry_model":"' + _entry_model + '"'
     payload := payload + ',"liq_swept":' + (_liq_swept ? "true" : "false")
     payload := payload + ',"target_swept":' + (_target_swept ? "true" : "false")
     payload := payload + ',"caused_sweep":' + (_caused_sweep ? "true" : "false")
     payload := payload + ',"is_accuracy":' + (_is_accuracy ? "true" : "false")
     // New ADX field for live AI filtering
-    payload := payload + ',"adx":' + str.tostring(_adx, "#.##")
+    payload := payload + ',"adx":' + to_json_num(_adx, "#.##")
     
     payload := payload + '}'
     payload
@@ -766,7 +776,8 @@ calculate_ai_quality_score(Zone z, bool isDemand) =>
         quality_score += 5.0
 
     // 6. Freshness (8%) - First Touch
-    if (z.touchCount < 1) // Fresh
+    // Note: touchCount is now incremented BEFORE checks, so 1 means "Fresh/First Touch"
+    if (z.touchCount <= 1) 
         quality_score += 8.0
     else
         quality_score += 2.0
@@ -799,7 +810,13 @@ calculate_ai_quality_score(Zone z, bool isDemand) =>
     else
         quality_score += 2.0
     
-    quality_score
+    string breakdown = "RVOL:" + str.tostring(current_rvol, "#.1") + 
+      " Sess:" + str.tostring(current_session) + 
+      " Trend:" + (trend_aligned ? "YES" : "NO") + 
+      " Fresh:" + (z.touchCount <= 1 ? "YES" : "NO") +
+      " Score:" + str.tostring(z.score, "#.0")
+      
+    [quality_score, breakdown]
 
 // === V6 AI FEATURES: BASE QUALITY & DEPARTURE STRENGTH ===
 // Measures zone formation quality and departure conviction
@@ -2554,8 +2571,13 @@ validate_entry_conditions(bool isDemand, int idx) =>
         reason := "Outside Trading Hours: " + str.tostring(israelHour) + ":00 (allowed: " + str.tostring(trading_start_hour) + ":00-" + str.tostring(trading_end_hour) + ":00)"
 
     if canEnter
+        // Zone must not have been touched BEFORE sweep
+        if z.touchedPreSweep
+            canEnter := false
+            reason := "Start Freshness Failed (Touched Pre-Sweep)"
+            
         // Zone must have caused sweep & not be historical
-        if not z.causedSweep
+        if canEnter and not z.causedSweep
             canEnter := false
             reason := isDemand ? "Waiting for Inducement Sweep (Demand)" : "Waiting for Inducement Sweep (Supply)"
         if canEnter and z.isHistorical
@@ -2659,10 +2681,10 @@ validate_entry_conditions(bool isDemand, int idx) =>
         // Apply AI-based quality scoring to filter low-probability setups
         // This mirrors the backend Random Forest model (60% win rate threshold)
         if canEnter and enable_ai_quality_filter
-            float ai_score = calculate_ai_quality_score(z, isDemand)
+            [ai_score, ai_breakdown] = calculate_ai_quality_score(z, isDemand)
             if ai_score < ai_quality_threshold
                 canEnter := false
-                reason := "AI Quality: " + str.tostring(ai_score, "#.0") + " < " + str.tostring(ai_quality_threshold) + " (low probability)"
+                reason := "AI Quality: " + str.tostring(ai_score, "#.0") + " < " + str.tostring(ai_quality_threshold) + " [" + ai_breakdown + "]"
 
     [canEnter, reason, z]
 
@@ -3621,6 +3643,7 @@ if array.size(demandZones) > 0 and barstate.isconfirmed
                 // STRICT MITIGATION: Kill zone on ANY touch if liquidity NOT yet swept AND not simultaneously sweeping
                 if is_future_bar and not z.liquiditySwept and (closes_inside or breaches_zone or wicks_into_zone) and not current_bar_sweeping
                     z.mitigated := true
+                    z.touchedPreSweep := true
                     z.mitigationTime := time
                     z.inactiveReason := closes_inside ? "Close inside zone" : (breaches_zone ? "Price breached zone" : "Zone touched before setup (Fresh)")
                     if not na(z.boxId)
@@ -3884,6 +3907,19 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
 
         // === STEP 1: PRIME ZONE (when touched with valid setup) ===
         if z.active and not z.primed
+            // === TRACK TOUCHES INDEPENDENTLY OF VALIDITY ===
+            // Ensure first touch is recorded even if entry is blocked (e.g. Dead Zone)
+            float touchTolerance = 0.0
+            bool currentTouch = low <= (z.top + touchTolerance)
+            
+            if currentTouch
+                bool isContinuous = not na(z.lastTouchBar) and (bar_index - z.lastTouchBar) <= 1
+                if not isContinuous
+                    z.touchCount := z.touchCount + 1
+                
+                z.lastTouchBar := bar_index
+                z.wasTouched := true
+                
             // Unified demand entry validation (shared with flip entries)
             [can_enter, entryReason] = isValidDemandEntry(i)
 
@@ -3896,13 +3932,10 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     stat_entries_blocked_by_liquidity += 1
 
             if can_enter
-                // Check if zone is touched (wick into zone)
-                float touchTolerance = 0.0
-                bool currentTouch = low <= (z.top + touchTolerance)  // Wick reaches or passes through zone
-
                 if currentTouch
                     // FIRST-TOUCH-ONLY RULE: Block retrace entries (zones already touched)
-                    if z.touchCount > 0
+                    // If touchCount > 1, it means we touched previously (since we just incremented it to 1 now)
+                    if z.touchCount > 1
                         z.inactiveReason := "BLOCKED - Retrace entry (touchCount=" + str.tostring(z.touchCount) + ")"
                         continue  // Skip to next zone
                     
@@ -3977,9 +4010,9 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                 continue
 
             // === SPREAD ADJUSTMENT FOR ENTRY ===
-            // Manually add 2.0 pips to simulate buying at the Ask price
-            float spread_adjustment = 2.0 * pip_size 
-            entry_price = current_close + spread_adjustment
+            // removed as per user request
+            // float spread_adjustment = 2.0 * pip_size 
+            entry_price = current_close // + spread_adjustment
 
             // Find deepest wick from bars that INTERACTED with zone (even if breached below)
             float deepest_wick = na
@@ -4209,6 +4242,19 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
 
         // === STEP 1: PRIME ZONE (when touched with valid setup) ===
         if z.active and not z.primed
+            // === TRACK TOUCHES INDEPENDENTLY OF VALIDITY ===
+            // Ensure first touch is recorded even if entry is blocked (e.g. Dead Zone)
+            float touchTolerance = 0.0
+            bool currentTouch = high >= (z.bottom - touchTolerance)
+            
+            if currentTouch
+                bool isContinuous = not na(z.lastTouchBar) and (bar_index - z.lastTouchBar) <= 1
+                if not isContinuous
+                    z.touchCount := z.touchCount + 1
+                
+                z.lastTouchBar := bar_index
+                z.wasTouched := true
+
             // Unified supply entry validation (shared with flip entries)
             [can_enter, entryReason] = isValidSupplyEntry(i)
 
@@ -4221,13 +4267,10 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     stat_entries_blocked_by_liquidity += 1
 
             if can_enter
-                // Check if zone is touched (wick into zone)
-                float touchTolerance = 0.0
-                bool currentTouch = high >= (z.bottom - touchTolerance)  // Wick reaches or passes through zone
-
                 if currentTouch
                     // FIRST-TOUCH-ONLY RULE: Block retrace entries (zones already touched)
-                    if z.touchCount > 0
+                    // If touchCount > 1, it means we touched previously (since we just incremented it to 1 now)
+                    if z.touchCount > 1
                         z.inactiveReason := "BLOCKED - Retrace entry (touchCount=" + str.tostring(z.touchCount) + ")"
                         continue  // Skip to next zone
                     
@@ -4302,9 +4345,9 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                 continue
 
             // === SPREAD ADJUSTMENT FOR ENTRY ===
-            // Manually subtract 2.0 pips to simulate selling at the Bid price
-            float spread_adjustment = 2.0 * pip_size 
-            entry_price = current_close - spread_adjustment
+            // removed as per user request
+            // float spread_adjustment = 2.0 * pip_size 
+            entry_price = current_close // - spread_adjustment
 
             // Find highest wick from bars that INTERACTED with zone (even if breached above)
             float highest_wick = na
@@ -5516,9 +5559,19 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug() and barstate.is
         table.cell(zoneInspector, 1, 18, displayEntryAllowed, text_color = displayEntryColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
         
         // Row 18: Rejection Reason (was row 17) - shifted to row 19
+        // Parse AI Breakdown from Reason if present (bracketed content) to show as tooltip
+        string inspectorReasonText = rejectionReasonInspector
+        string inspectorTooltip = ""
+        if str.contains(rejectionReasonInspector, "[")
+            string[] parts = str.split(rejectionReasonInspector, "[")
+            if array.size(parts) > 1
+                inspectorReasonText := array.get(parts, 0)
+                string rawBreakdown = array.get(parts, 1)
+                inspectorTooltip := str.replace(rawBreakdown, "]", "")
+
         table.cell(zoneInspector, 0, 19, "Reason", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
         reasonColor = rejectionReasonInspector == "None" ? color.new(color.green, 0) : (rejectionReasonInspector != "N/A" ? color.new(color.orange, 0) : color.rgb(200, 200, 200))
-        table.cell(zoneInspector, 1, 19, rejectionReasonInspector, text_color = reasonColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        table.cell(zoneInspector, 1, 19, inspectorReasonText, tooltip = inspectorTooltip, text_color = reasonColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
         
         // === DEBUG ROWS: CONDITIONAL on zone NOT found ===
         // Rows 17-19 only shown when zone lookup failed (foundInPool == "NOT_FOUND")
