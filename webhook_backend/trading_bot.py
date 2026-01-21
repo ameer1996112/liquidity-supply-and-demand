@@ -719,7 +719,7 @@ def webhook():
             data = request.get_json(force=True)
         except Exception as e:
             # Fallback: Extract JSON from mixed content (e.g. headers in body)
-            logger.warning(f"Standard JSON parse failed, attempting robust parse: {e}")
+            logger.debug(f"Standard JSON parse failed, attempting robust parse: {e}")
             raw_data = request.data.decode('utf-8')
             
             # Find all potential start indices for a JSON object

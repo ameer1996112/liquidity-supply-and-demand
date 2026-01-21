@@ -1,0 +1,36 @@
+{
+  "features": [
+    "pair_xauusd",
+    "pair_gbpjpy",
+    "pair_usdjpy",
+    "pair_gbpcad",
+    "pair_chfjpy",
+    "pair_nas100",
+    "entry_default",
+    "entry_flip",
+    "entry_boc",
+    "trade_score_numeric",
+    "session_london",
+    "session_newyork",
+    "session_tokyo",
+    "session_sydney",
+    "rsi",
+    "news_event",
+    "zone_supply",
+    "liquidity_distance",
+    "sl_pips",
+    "potential_rr",
+    "close_bullish"
+  ],
+  "target": "win",
+  "total_samples": 572,
+  "win_rate": 0.5524475524475524,
+  "pairs_included": [
+    "XAUUSD",
+    "GBPJPY",
+    "USDJPY",
+    "GBPCAD",
+    "CHFJPY",
+    "NAS100"
+  ]
+}
