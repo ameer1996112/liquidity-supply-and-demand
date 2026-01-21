@@ -63,7 +63,7 @@ news_filter = NewsFilter(block_minutes_before=NEWS_PRE_MINUTES, block_minutes_af
 AI_FILTER_ENABLED = os.getenv('AI_FILTER_ENABLED', 'false').lower() == 'true'
 AI_MIN_WIN_PROBABILITY = float(os.getenv('AI_MIN_WIN_PROBABILITY', '0.5'))
 UNIVERSAL_MODEL_PATH = Path(__file__).parent / 'model_universal.pkl'
-DEFAULT_MODEL_PATH = Path(__file__).parent / 'model.pkl'
+DEFAULT_MODEL_PATH = Path(__file__).parent / 'models' / 'model_ultimate.pkl'
 
 # Prioritize Universal Model
 MODEL_PATH = UNIVERSAL_MODEL_PATH if UNIVERSAL_MODEL_PATH.exists() else DEFAULT_MODEL_PATH
