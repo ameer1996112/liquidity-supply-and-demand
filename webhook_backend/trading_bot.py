@@ -16,6 +16,7 @@ Version: 4.0.0
 import json
 import logging
 import os
+import re
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -729,7 +730,12 @@ def webhook():
                 
                 try:
                     candidate = raw_data[start:end_index]
-                    data = json.loads(candidate, strict=False)
+                    
+                    # Sanitize TradingView placeholders ({{...}}) that break JSON if unquoted
+                    # Replaces {{...}} with null. 
+                    candidate_sanitized = re.sub(r'\{\{.*?\}\}', 'null', candidate)
+                    
+                    data = json.loads(candidate_sanitized, strict=False)
                     logger.info(f"Robust JSON parse successful at index {start}")
                     parse_success = True
                     break
@@ -740,7 +746,7 @@ def webhook():
                     continue
             
             if not parse_success:
-                logger.error(f"Fatal: No valid JSON found. Scanned {len(start_indices)} candidates. Raw start: {raw_data[:100]}...")
+                logger.error(f"Fatal: No valid JSON found. Raw start: {raw_data[:100]}...")
                 return jsonify({"status": "error", "message": "Invalid JSON payload"}), 400
 
         logger.info(f"Webhook received: {data}")
