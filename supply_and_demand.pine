@@ -744,36 +744,77 @@ to_json_num(float val, string fmt) =>
     str.replace(s, ",", ".")
 
 // Builds JSON payload for webhook alert to Discord-MT5 bridge
-// Returns: JSON string with trade details + Zone Inspector data
-build_webhook_payload(_symbol, _side, _entry, _sl, _tp, _size_lots, _zone_id, _zone_type, _zone_top, _zone_bottom, _rr_ratio, _sl_pips, _entry_model, _liq_swept, _target_swept, _caused_sweep, _is_accuracy, _adx) =>
+// Returns: JSON string with trade details + Zone Inspector data + AI Features
+build_webhook_payload(
+     _symbol, _side, _entry, _sl, _tp, _size_lots, _zone_id, _zone_type,
+     _zone_top, _zone_bottom, _rr_ratio, _sl_pips, _entry_model,
+     _liq_swept, _target_swept, _caused_sweep, _is_accuracy,
+     // AI Features (NEW)
+     _score, _freshness, _session, _atr_ratio, _trend, _rsi,
+     _htf_trend, _rvol, _adx, _touch_count, _base_quality,
+     _departure_strength, _liq_distance, _liq_spread, _return_strength) =>
+
     string payload = '{"symbol":"' + _symbol + '"'
     payload := payload + ',"side":"' + _side + '"'
     payload := payload + ',"entry":' + to_json_num(_entry, "#.##########")
     payload := payload + ',"sl":' + to_json_num(_sl, "#.##########")
     payload := payload + ',"tp":' + to_json_num(_tp, "#.##########")
     payload := payload + ',"size":' + to_json_num(_size_lots, "#.##")
-    
+
     // Zone Inspector Data
     if webhook_include_zone_id and not na(_zone_id)
         payload := payload + ',"zone_id":' + to_json_num(_zone_id, "#")
     payload := payload + ',"zone_type":"' + _zone_type + '"'
+
     if not na(_zone_top) and not na(_zone_bottom)
         payload := payload + ',"zone_top":' + to_json_num(_zone_top, "#.##########")
         payload := payload + ',"zone_bottom":' + to_json_num(_zone_bottom, "#.##########")
         float zone_size_pips = (_zone_top - _zone_bottom) / pip_size
         payload := payload + ',"zone_size_pips":' + to_json_num(zone_size_pips, "#.#")
+
     if not na(_rr_ratio)
         payload := payload + ',"rr_ratio":' + to_json_num(_rr_ratio, "#.##")
     if not na(_sl_pips)
         payload := payload + ',"sl_pips":' + to_json_num(_sl_pips, "#.#")
+
     payload := payload + ',"entry_model":"' + _entry_model + '"'
     payload := payload + ',"liq_swept":' + (_liq_swept ? "true" : "false")
     payload := payload + ',"target_swept":' + (_target_swept ? "true" : "false")
     payload := payload + ',"caused_sweep":' + (_caused_sweep ? "true" : "false")
     payload := payload + ',"is_accuracy":' + (_is_accuracy ? "true" : "false")
-    // New ADX field for live AI filtering
+
+    // === AI FEATURES (NEW) ===
+    payload := payload + ',"score":' + to_json_num(_score, "#.#")
+    payload := payload + ',"freshness":' + str.tostring(_freshness, "#")
+    payload := payload + ',"session":' + str.tostring(_session, "#")
+    payload := payload + ',"atr_ratio":' + to_json_num(_atr_ratio, "#.####")
+    payload := payload + ',"trend":' + str.tostring(_trend, "#")
+    payload := payload + ',"rsi":' + to_json_num(_rsi, "#.##")
+    payload := payload + ',"htf_trend":' + str.tostring(_htf_trend, "#")
+    payload := payload + ',"rvol":' + to_json_num(_rvol, "#.##")
     payload := payload + ',"adx":' + to_json_num(_adx, "#.##")
-    
+    payload := payload + ',"touch_count":' + str.tostring(_touch_count, "#")
+    payload := payload + ',"base_quality":' + to_json_num(_base_quality, "#.##")
+    payload := payload + ',"departure_strength":' + to_json_num(_departure_strength, "#.##")
+    payload := payload + ',"liquidity_distance":' + to_json_num(_liq_distance, "#.##")
+    payload := payload + ',"liquidity_spread":' + to_json_num(_liq_spread, "#.##")
+    payload := payload + ',"return_strength":' + to_json_num(_return_strength, "#.##")
+
+    payload := payload + '}'
+    payload
+
+// Builds EXIT webhook payload
+// Returns: JSON string with exit telemetry
+build_exit_webhook_payload(_zone_id, _outcome, _bars_held, _close_price, _pnl_r, _exit_type, _mae_pips) =>
+    string payload = '{"event_type":"exit"'
+    payload := payload + ',"zone_id":' + str.tostring(_zone_id, "#")
+    payload := payload + ',"outcome":"' + _outcome + '"'
+    payload := payload + ',"bars_held":' + str.tostring(_bars_held, "#")
+    payload := payload + ',"close_price":' + to_json_num(_close_price, "#.##########")
+    payload := payload + ',"pnl_r":' + to_json_num(_pnl_r, "#.##")
+    payload := payload + ',"exit_type":"' + _exit_type + '"'
+    payload := payload + ',"mae_pips":' + to_json_num(_mae_pips, "#.#")
+    payload := payload + ',"close_time":"' + str.format("{0,date,yyyy-MM-dd HH:mm:ss}", timenow) + '"'
     payload := payload + '}'
     payload
 
@@ -2746,6 +2787,32 @@ var float trade_be_trigger_rr      = na  // RR level when to move SL to BE
 var float trade_be_sl_pips         = na  // Minimum SL in pips when moving to BE
 var bool  trade_be_moved           = false  // Track if BE move has been executed
 
+// === EXIT TELEMETRY TRACKING ===
+var int   trade_entry_bar_index = na      // Bar index when trade was entered
+var float trade_worst_price     = na      // Worst price during trade (for MAE)
+var int   trade_zone_id         = na      // Zone ID that triggered entry
+var float trade_zone_score      = na      // Zone score at entry
+var int   trade_zone_freshness  = na      // Zone freshness (touch count) at entry
+var int   trade_session         = na      // Session at entry
+var float trade_atr_ratio       = na      // ATR ratio at entry
+var int   trade_trend           = na      // Trend at entry
+var float trade_rsi             = na      // RSI at entry
+var int   trade_htf_trend       = na      // HTF trend at entry
+var float trade_rvol            = na      // RVOL at entry
+var float trade_adx             = na      // ADX at entry
+var int   trade_touch_count     = na      // Touch count at entry
+var float trade_base_quality    = na      // Base quality at entry
+var float trade_departure_str   = na      // Departure strength at entry
+var float trade_liq_distance    = na      // Liquidity distance at entry
+var float trade_liq_spread      = na      // Liquidity spread at entry
+var float trade_return_str      = na      // Return strength at entry
+var bool  trade_liq_swept       = false   // Liquidity swept at entry
+var bool  trade_target_swept    = false   // Target swept at entry
+var bool  trade_caused_sweep    = false   // Caused sweep at entry
+var bool  trade_is_accuracy     = false   // Is accuracy zone
+var string trade_entry_model    = na      // Entry model used
+var string trade_zone_type      = na      // Zone type (demand/supply)
+
 // Track whether current trade originated from an accuracy zone
 var bool  trade_is_accuracy_zone = false
 
@@ -4220,10 +4287,12 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
 
                 triggeredZoneId := z.id
                 
-                // Build webhook payload for Discord-MT5 bridge with Zone Inspector data
+                // Build webhook payload for Discord-MT5 bridge with ALL AI features
                 float webhook_lots = units_to_lots(pos_qty_units)
                 float webhook_tp = na(take_profit_price) ? entry_price + (math.abs(entry_price - stop_loss_price) * 2) : take_profit_price
                 float webhook_rr = math.abs(webhook_tp - entry_price) / math.abs(entry_price - stop_loss_price)
+                float zone_atr_ratio = (z.top - z.bottom) / atr14
+
                 string webhook_payload = enable_webhook_alerts ? build_webhook_payload(
                     syminfo.ticker,
                     "buy",
@@ -4231,18 +4300,33 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     stop_loss_price,
                     webhook_tp,
                     webhook_lots,
-                    z.id,
-                    "demand",           // zone_type
-                    z.top,              // zone_top
-                    z.bottom,           // zone_bottom
-                    webhook_rr,         // rr_ratio
-                    sl_pips,            // sl_pips
-                    chosenModel,        // entry_model
-                    z.liquiditySwept,   // liq_swept
-                    z.targetSwept,      // target_swept
-                    z.causedSweep,      // caused_sweep
-                    z.isAccuracy,       // is_accuracy
-                    feature_adx         // adx
+                    z.id,                    // zone_id
+                    "demand",                // zone_type
+                    z.top,                   // zone_top
+                    z.bottom,                // zone_bottom
+                    webhook_rr,              // rr_ratio
+                    sl_pips,                 // sl_pips
+                    chosenModel,             // entry_model
+                    z.liquiditySwept,        // liq_swept
+                    z.targetSwept,           // target_swept
+                    z.causedSweep,           // caused_sweep
+                    z.isAccuracy,            // is_accuracy
+                    // === AI FEATURES (NEW) ===
+                    z.score,                 // score
+                    z.touchCount,            // freshness
+                    feature_session,         // session
+                    zone_atr_ratio,          // atr_ratio
+                    feature_trend,           // trend
+                    feature_rsi,             // rsi
+                    feature_htf_trend,       // htf_trend
+                    feature_rvol,            // rvol
+                    feature_adx,             // adx
+                    z.touchCount,            // touch_count
+                    z.baseQuality,           // base_quality
+                    z.departureStrength,     // departure_strength
+                    z.liquidityDistance,     // liquidity_distance
+                    z.liquiditySpread,       // liquidity_spread
+                    z.returnStrength         // return_strength
                 ) : ""
 
                 if dry_run_mode
@@ -4271,13 +4355,40 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     strategy.exit("Long Exit", "Long", stop = stop_loss_price)
 
                 if not dry_run_mode
+                    // Capture entry state
                     active_entry_id := "Long"
                     trade_entry_price := entry_price
                     trade_original_sl := stop_loss_price
-                    trade_entry_grade := z.grade  // Store grade for stats
+                    trade_entry_grade := z.grade
                     trade_current_sl := stop_loss_price
                     trade_tp1_price := take_profit_price
                     current_day_trades += 1
+
+                    // === EXIT TELEMETRY: Capture entry context ===
+                    trade_entry_bar_index := bar_index
+                    trade_worst_price := close  // Initialize with current price
+                    trade_zone_id := z.id
+                    trade_zone_score := z.score
+                    trade_zone_freshness := z.touchCount
+                    trade_session := feature_session
+                    trade_atr_ratio := zone_atr_ratio
+                    trade_trend := feature_trend
+                    trade_rsi := feature_rsi
+                    trade_htf_trend := feature_htf_trend
+                    trade_rvol := feature_rvol
+                    trade_adx := feature_adx
+                    trade_touch_count := z.touchCount
+                    trade_base_quality := z.baseQuality
+                    trade_departure_str := z.departureStrength
+                    trade_liq_distance := z.liquidityDistance
+                    trade_liq_spread := z.liquiditySpread
+                    trade_return_str := z.returnStrength
+                    trade_liq_swept := z.liquiditySwept
+                    trade_target_swept := z.targetSwept
+                    trade_caused_sweep := z.causedSweep
+                    trade_is_accuracy := z.isAccuracy
+                    trade_entry_model := chosenModel
+                    trade_zone_type := "demand"
 
                 z.lastEntryBar := bar_index
                 z.active := false
@@ -4577,10 +4688,12 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
 
                 triggeredZoneId := z.id
 
-                // Build webhook payload for Discord-MT5 bridge with Zone Inspector data
+                // Build webhook payload for Discord-MT5 bridge with ALL AI features
                 float webhook_lots_short = units_to_lots(pos_qty_units)
                 float webhook_tp_short = na(take_profit_price) ? entry_price - (math.abs(stop_loss_price - entry_price) * 2) : take_profit_price
                 float webhook_rr_short = math.abs(entry_price - webhook_tp_short) / math.abs(stop_loss_price - entry_price)
+                float zone_atr_ratio_short = (z.top - z.bottom) / atr14
+
                 string webhook_payload_short = enable_webhook_alerts ? build_webhook_payload(
                     syminfo.ticker,
                     "sell",
@@ -4588,18 +4701,33 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     stop_loss_price,
                     webhook_tp_short,
                     webhook_lots_short,
-                    z.id,
-                    "supply",           // zone_type
-                    z.top,              // zone_top
-                    z.bottom,           // zone_bottom
-                    webhook_rr_short,   // rr_ratio
-                    sl_pips,            // sl_pips
-                    chosenModel,        // entry_model
-                    z.liquiditySwept,   // liq_swept
-                    z.targetSwept,      // target_swept
-                    z.causedSweep,      // caused_sweep
-                    z.isAccuracy,       // is_accuracy
-                    feature_adx         // adx
+                    z.id,                    // zone_id
+                    "supply",                // zone_type
+                    z.top,                   // zone_top
+                    z.bottom,                // zone_bottom
+                    webhook_rr_short,        // rr_ratio
+                    sl_pips,                 // sl_pips
+                    chosenModel,             // entry_model
+                    z.liquiditySwept,        // liq_swept
+                    z.targetSwept,           // target_swept
+                    z.causedSweep,           // caused_sweep
+                    z.isAccuracy,            // is_accuracy
+                    // === AI FEATURES (NEW) ===
+                    z.score,                 // score
+                    z.touchCount,            // freshness
+                    feature_session,         // session
+                    zone_atr_ratio_short,    // atr_ratio
+                    feature_trend,           // trend
+                    feature_rsi,             // rsi
+                    feature_htf_trend,       // htf_trend
+                    feature_rvol,            // rvol
+                    feature_adx,             // adx
+                    z.touchCount,            // touch_count
+                    z.baseQuality,           // base_quality
+                    z.departureStrength,     // departure_strength
+                    z.liquidityDistance,     // liquidity_distance
+                    z.liquiditySpread,       // liquidity_spread
+                    z.returnStrength         // return_strength
                 ) : ""
 
                 if dry_run_mode
@@ -4628,13 +4756,40 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     strategy.exit("Short Exit", "Short", stop = stop_loss_price)
 
                 if not dry_run_mode
+                    // Capture entry state
                     active_entry_id := "Short"
                     trade_entry_price := entry_price
                     trade_original_sl := stop_loss_price
-                    trade_entry_grade := z.grade  // Store grade for stats
+                    trade_entry_grade := z.grade
                     trade_current_sl := stop_loss_price
                     trade_tp1_price := take_profit_price
                     current_day_trades += 1
+
+                    // === EXIT TELEMETRY: Capture entry context (SAME AS LONG) ===
+                    trade_entry_bar_index := bar_index
+                    trade_worst_price := close  // Initialize with current price
+                    trade_zone_id := z.id
+                    trade_zone_score := z.score
+                    trade_zone_freshness := z.touchCount
+                    trade_session := feature_session
+                    trade_atr_ratio := zone_atr_ratio_short
+                    trade_trend := feature_trend
+                    trade_rsi := feature_rsi
+                    trade_htf_trend := feature_htf_trend
+                    trade_rvol := feature_rvol
+                    trade_adx := feature_adx
+                    trade_touch_count := z.touchCount
+                    trade_base_quality := z.baseQuality
+                    trade_departure_str := z.departureStrength
+                    trade_liq_distance := z.liquidityDistance
+                    trade_liq_spread := z.liquiditySpread
+                    trade_return_str := z.returnStrength
+                    trade_liq_swept := z.liquiditySwept
+                    trade_target_swept := z.targetSwept
+                    trade_caused_sweep := z.causedSweep
+                    trade_is_accuracy := z.isAccuracy
+                    trade_entry_model := chosenModel
+                    trade_zone_type := "supply"  // SUPPLY for shorts
 
                 z.lastEntryBar := bar_index
                 z.active := false
@@ -4923,6 +5078,17 @@ if strategy.opentrades > 0
         trade_be_sl_pips       := na
         trade_be_moved         := false
 
+// === UPDATE MAE (Maximum Adverse Excursion) WHILE TRADE IS OPEN ===
+if strategy.position_size != 0 and not na(trade_entry_bar_index)
+    if strategy.position_size > 0
+        // Long position: MAE is the lowest low since entry
+        if na(trade_worst_price) or low < trade_worst_price
+            trade_worst_price := low
+    else
+        // Short position: MAE is the highest high since entry
+        if na(trade_worst_price) or high > trade_worst_price
+            trade_worst_price := high
+
 // === EVENT-BASED TRADE CLOSURE DETECTION ===
 // Detect trade closure reliably using engine state comparison
 bool trade_just_closed = strategy.closedtrades > strategy.closedtrades[1]
@@ -4930,11 +5096,58 @@ bool trade_just_closed = strategy.closedtrades > strategy.closedtrades[1]
 if trade_just_closed
     // Get the index of the most recently closed trade
     int last_trade_idx = strategy.closedtrades - 1
-    
+
     // Read the result and the comment "Tag" directly from the engine
     bool was_win = strategy.closedtrades.profit(last_trade_idx) > 0
     string entry_comment = strategy.closedtrades.entry_comment(last_trade_idx)
-    
+    string exit_comment = strategy.closedtrades.exit_comment(last_trade_idx)
+
+    // === CALCULATE EXIT TELEMETRY ===
+    int bars_held = not na(trade_entry_bar_index) ? (bar_index - trade_entry_bar_index) : 0
+
+    // Calculate MAE in pips
+    float mae_pips = 0.0
+    if not na(trade_worst_price) and not na(trade_entry_price)
+        if strategy.position_size[1] > 0  // Was long
+            mae_pips := (trade_entry_price - trade_worst_price) / pip_size
+        else  // Was short
+            mae_pips := (trade_worst_price - trade_entry_price) / pip_size
+
+    // Determine exit type from exit comment
+    string exit_type = "unknown"
+    if str.contains(exit_comment, "TP") or str.contains(exit_comment, "limit")
+        exit_type := "tp_hit"
+    else if str.contains(exit_comment, "SL") or str.contains(exit_comment, "stop")
+        exit_type := "sl_hit"
+    else if str.contains(exit_comment, "Time") or str.contains(exit_comment, "Bars")
+        exit_type := "time_stop"
+    else if str.contains(exit_comment, "Break-Even") or str.contains(exit_comment, "BE")
+        exit_type := "break_even"
+    else if str.contains(exit_comment, "Close")
+        exit_type := "manual_close"
+
+    // Calculate P&L in R (risk units)
+    float lastProfit = strategy.closedtrades.profit(last_trade_idx)
+    float lastEntry = strategy.closedtrades.entry_price(last_trade_idx)
+    float riskPips = trade_original_sl_pips
+    float pnl_r = (not na(riskPips) and riskPips != 0 and not na(lastEntry)) ? lastProfit / (riskPips * pip_size * 100) : 0.0
+
+    // === SEND EXIT WEBHOOK ===
+    if enable_webhook_alerts and not na(trade_zone_id)
+        string exit_payload = build_exit_webhook_payload(
+            trade_zone_id,              // zone_id
+            was_win ? "win" : "loss",   // outcome
+            bars_held,                  // bars_held
+            close,                      // close_price
+            pnl_r,                      // pnl_r
+            exit_type,                  // exit_type
+            mae_pips                    // mae_pips
+        )
+
+        // Send exit alert (TradingView will POST to webhook)
+        alert(exit_payload, alert.freq_once_per_bar)
+
+    // === UPDATE STATISTICS ===
     // Check the tag and increment correct bucket
     if str.contains(entry_comment, "[ACC]")
         stat_trades_accuracy_total += 1
@@ -4967,36 +5180,35 @@ if trade_just_closed
     // Reset Grade Tracker
     trade_entry_grade := "C"
 
-    // RR tracking by symbol bucket (use last closed trade profit for RR approximation)
-    float lastProfit = strategy.closedtrades.profit(last_trade_idx)
-    float lastEntry = strategy.closedtrades.entry_price(last_trade_idx)
-    float riskPips = trade_original_sl_pips
-    float rr = (not na(riskPips) and riskPips != 0 and not na(lastEntry)) ? lastProfit / (riskPips * pip_size * 100) : 0.0
-    
+    // RR tracking by symbol bucket (pnl_r already calculated above)
     bucket = get_symbol_bucket()
     if bucket == "XAU"
-        stat_rr_sum_xau += rr
+        stat_rr_sum_xau += pnl_r
         stat_rr_count_xau += 1
     else if bucket == "JPY"
-        stat_rr_sum_jpy += rr
+        stat_rr_sum_jpy += pnl_r
         stat_rr_count_jpy += 1
     else
-        stat_rr_sum_other += rr
+        stat_rr_sum_other += pnl_r
         stat_rr_count_other += 1
 
-    // Reset tracking variables after trade closes
-    trade_entry_price      := na
-    trade_original_sl      := na
+    // === RESET TRACKING VARIABLES ===
+    trade_entry_price := na
+    trade_original_sl := na
     trade_original_sl_pips := na
-    trade_current_sl       := na
-    labels_created         := false
-    tp1_hit                := false
-    trade_tp1_price        := na
-    active_entry_id        := na
-    // Reset BE tracking
-    trade_be_trigger_rr      := na
-    trade_be_sl_pips         := na
+    trade_current_sl := na
+    labels_created := false
+    tp1_hit := false
+    trade_tp1_price := na
+    active_entry_id := na
+    trade_be_trigger_rr := na
+    trade_be_sl_pips := na
     trade_be_moved := false
+
+    // Reset exit telemetry vars
+    trade_entry_bar_index := na
+    trade_worst_price := na
+    trade_zone_id := na
 
 // === LIQUIDITY LINES CONTROL ===
 // Arrays to track liquidity lines and their active status

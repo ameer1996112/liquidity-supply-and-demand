@@ -184,7 +184,7 @@ def init_db():
 
 
 def save_alert(data: dict, mode: str = 'manual') -> int:
-    """Save alert to database, return alert ID."""
+    """Save alert to database with AI features, return alert ID."""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
@@ -197,10 +197,15 @@ def save_alert(data: dict, mode: str = 'manual') -> int:
     rr_ratio = reward / risk if risk > 0 else 0
 
     cursor.execute('''
-        INSERT INTO alerts (symbol, side, entry, sl, tp, size, rr_ratio, zone_id,
-                           zone_type, zone_top, zone_bottom, zone_size_pips, entry_model,
-                           liq_swept, target_swept, caused_sweep, is_accuracy, mode, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO alerts (
+            symbol, side, entry, sl, tp, size, rr_ratio, zone_id,
+            zone_type, zone_top, zone_bottom, zone_size_pips, entry_model,
+            liq_swept, target_swept, caused_sweep, is_accuracy, mode, status,
+            score, freshness, session, atr_ratio, trend, rsi,
+            htf_trend, rvol, adx, touch_count, base_quality,
+            departure_strength, liquidity_distance, liquidity_spread, return_strength
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         data['symbol'],
         data['side'],
@@ -220,7 +225,23 @@ def save_alert(data: dict, mode: str = 'manual') -> int:
         1 if data.get('caused_sweep') else 0,
         1 if data.get('is_accuracy') else 0,
         mode,
-        'open' if mode == 'paper' else 'pending'
+        'open' if mode == 'paper' else 'pending',
+        # AI features
+        data.get('score'),
+        data.get('freshness'),
+        data.get('session'),
+        data.get('atr_ratio'),
+        data.get('trend'),
+        data.get('rsi'),
+        data.get('htf_trend'),
+        data.get('rvol'),
+        data.get('adx'),
+        data.get('touch_count'),
+        data.get('base_quality'),
+        data.get('departure_strength'),
+        data.get('liquidity_distance'),
+        data.get('liquidity_spread'),
+        data.get('return_strength'),
     ))
 
     alert_id = cursor.lastrowid
@@ -858,6 +879,70 @@ def webhook():
 
     except Exception as e:
         logger.error(f"Webhook error: {e}", exc_info=True)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/webhook/exit', methods=['POST'])
+def webhook_exit():
+    """Receive trade exit events from TradingView."""
+    try:
+        data = request.get_json(force=True)
+        logger.info(f"Exit webhook received: {data}")
+
+        # Validate event type
+        if data.get('event_type') != 'exit':
+            return jsonify({"status": "error", "message": "Invalid event type"}), 400
+
+        # Required fields
+        required = ['zone_id', 'outcome', 'bars_held', 'close_price', 'exit_type', 'mae_pips']
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({"status": "error", "message": f"Missing fields: {missing}"}), 400
+
+        # Find the open trade by zone_id
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            UPDATE alerts
+            SET outcome = ?,
+                close_price = ?,
+                close_time = ?,
+                pnl = ?,
+                exit_type = ?,
+                mae_pips = ?,
+                bars_held = ?,
+                status = 'closed',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE zone_id = ? AND status IN ('open', 'pending', 'taken')
+        """, (
+            data['outcome'],
+            data['close_price'],
+            data['close_time'],
+            data.get('pnl_r', 0),  # P&L in R units
+            data['exit_type'],
+            data['mae_pips'],
+            data['bars_held'],
+            data['zone_id']
+        ))
+
+        rows_updated = cursor.rowcount
+        conn.commit()
+        conn.close()
+
+        if rows_updated == 0:
+            logger.warning(f"No open trade found for zone_id {data['zone_id']}")
+            return jsonify({"status": "warning", "message": "No matching open trade found"}), 200
+
+        logger.info(f"✅ Exit recorded for zone #{data['zone_id']}: {data['outcome']} | MAE: {data['mae_pips']:.1f} pips | Bars: {data['bars_held']}")
+        return jsonify({
+            "status": "success",
+            "zone_id": data['zone_id'],
+            "outcome": data['outcome']
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Exit webhook error: {e}", exc_info=True)
         return jsonify({"status": "error", "message": str(e)}), 500
 
 

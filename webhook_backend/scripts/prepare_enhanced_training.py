@@ -1,195 +1,258 @@
 #!/usr/bin/env python3
 """
-Enhanced AI Training Data Generator
-====================================
-Combines all profitable pairs' backtest data into a single training set.
-Adds engineered features and prepares data for model retraining.
+Enhanced Training Data Preparation
+===================================
+Calculates derived features from raw telemetry:
+- Time-to-Target Ratio (TTR)
+- Drawdown-Liquidity Alignment (DLA)
+- Liquidity Invalidation Rate (LIR)
 
 Usage:
     python prepare_enhanced_training.py
-
-Output:
-    - data/training_enhanced.csv
-    - data/features_metadata.json
 """
 
 import pandas as pd
 import numpy as np
 from pathlib import Path
+import sqlite3
 import json
 
-# Profitable pairs to include
-PROFITABLE_PAIRS = ['XAUUSD', 'GBPJPY', 'USDJPY', 'GBPCAD', 'CHFJPY', 'NAS100']
+DB_PATH = Path(__file__).parent.parent / 'trades.db'
 
-def parse_rplus(value):
-    """Convert '3%' or '-1%' to float."""
-    if pd.isna(value):
-        return 0.0
-    try:
-        return float(str(value).replace('%', ''))
-    except:
-        return 0.0
 
-def load_pair_data(pair_name):
-    """Load all CSV files for a given pair."""
-    pair_dir = Path('backtest_data/notion_exports') / pair_name
-    if not pair_dir.exists():
-        return None
+def calculate_time_to_target_ratio(df):
+    """Calculate Time-to-Target Ratio (TTR)"""
+    print("📊 Calculating Time-to-Target Ratio (TTR)...")
     
-    csv_files = list(pair_dir.glob('*.csv'))
-    if not csv_files:
-        return None
+    wins = df[df['outcome'] == 'win'].copy()
     
-    dfs = []
-    for csv_file in csv_files:
-        try:
-            df = pd.read_csv(csv_file, encoding='utf-8-sig')
-            dfs.append(df)
-        except Exception as e:
-            print(f"⚠️  Error reading {csv_file}: {e}")
+    if len(wins) == 0:
+        df['time_to_target_ratio'] = np.nan
+        return df
     
-    if not dfs:
-        return None
+    wins['tp_pips'] = abs(wins['tp'] - wins['entry'])
+    wins['zone_size_pips'] = wins.get('zone_size_pips', 20)
+    wins['atr_pips'] = np.where(
+        wins['atr_ratio'] > 0,
+        wins['zone_size_pips'] / wins['atr_ratio'],
+        20
+    )
     
-    combined = pd.concat(dfs, ignore_index=True)
-    combined['pair'] = pair_name
-    return combined
-
-def engineer_features(df):
-    """Add engineered features for AI training."""
+    wins['expected_bars'] = (wins['tp_pips'] / wins['atr_pips'].clip(lower=1)) * 14
+    wins['actual_bars'] = wins['bars_held'].clip(lower=1)
+    wins['ttr_raw'] = wins['expected_bars'] / wins['actual_bars']
+    wins['time_to_target_ratio'] = (wins['ttr_raw'] * 50).clip(0, 100)
     
-    # 1. Parse R returns and create binary target
-    df['r_return'] = df['+ R (%)'].apply(parse_rplus)
-    df['win'] = (df['r_return'] > 0).astype(int)
+    df['time_to_target_ratio'] = df.index.map(wins['time_to_target_ratio'])
+    df.loc[df['outcome'] != 'win', 'time_to_target_ratio'] = np.nan
     
-    # 2. Entry Type one-hot encoding
-    df['entry_default'] = (df['Entry Type'] == 'Default').astype(int)
-    df['entry_flip'] = (df['Entry Type'] == 'Flip').astype(int)
-    df['entry_boc'] = (df['Entry Type'] == 'BOC').astype(int)
-    
-    # 3. Trade Score mapping (A+=5, A=4, B+=3, B=2, C+=1)
-    score_map = {'A+': 5, 'A': 4, 'B+': 3, 'B': 2, 'C+': 1}
-    df['trade_score_numeric'] = df['Trade Score'].map(score_map).fillna(2)
-    
-    # 4. Session encoding (most common sessions)
-    df['session_london'] = df['Session'].fillna('').str.contains('London').astype(int)
-    df['session_newyork'] = df['Session'].fillna('').str.contains('New York').astype(int)
-    df['session_tokyo'] = df['Session'].fillna('').str.contains('Tokyo').astype(int)
-    df['session_sydney'] = df['Session'].fillna('').str.contains('Sydney').astype(int)
-    
-    # 5. Numeric features
-    df['liquidity_distance'] = pd.to_numeric(df.get('Liquidity Distance', 0), errors='coerce').fillna(0)
-    df['sl_pips'] = pd.to_numeric(df.get('SL Pips', 0), errors='coerce').fillna(0)
-    df['rsi'] = pd.to_numeric(df.get('RSI', 50), errors='coerce').fillna(50)
-    
-    # 6. Zone type (Demand=0, Supply=1)
-    df['zone_supply'] = (df.get('Zone Type', '') == 'Supply').astype(int)
-    
-    # 7. News flag
-    df['news_event'] = (df.get('News', 'No') == 'Yes').astype(int)
-    
-    # 8. Pair encoding (one-hot)
-    for pair in PROFITABLE_PAIRS:
-        df[f'pair_{pair.lower()}'] = (df['pair'] == pair).astype(int)
-    
-    # 9. Potential R (risk-reward)
-    df['potential_rr'] = pd.to_numeric(
-        df.get('Potential R', '2%').astype(str).str.replace('%', ''), 
-        errors='coerce'
-    ).fillna(2.0)
-    
-    # 10. Candle close direction
-    df['close_bullish'] = (df.get('Candle Close', '') == 'Bullish').astype(int)
-    
+    print(f"  ✅ Calculated TTR for {len(wins)} winning trades")
     return df
 
-def create_training_dataset():
-    """Generate enhanced training dataset."""
-    print("="*60)
-    print("🧠 CREATING ENHANCED AI TRAINING DATA")
-    print("="*60)
-    print()
+
+def calculate_drawdown_liquidity_alignment(df):
+    """Calculate Drawdown-Liquidity Alignment (DLA)"""
+    print("📊 Calculating Drawdown-Liquidity Alignment (DLA)...")
     
-    all_data = []
+    valid = df[
+        df['mae_pips'].notna() &
+        df['liquidity_distance'].notna() &
+        (df['liquidity_distance'] > 0)
+    ].copy()
     
-    for pair in PROFITABLE_PAIRS:
-        print(f"📦 Loading {pair}...")
-        df = load_pair_data(pair)
-        
-        if df is None:
-            print(f"  ⚠️  Skipped (no data)")
-            continue
-        
-        print(f"  ✅ {len(df)} trades")
-        all_data.append(df)
+    if len(valid) == 0:
+        df['drawdown_liq_alignment'] = np.nan
+        return df
     
-    # Combine all pairs
-    combined = pd.concat(all_data, ignore_index=True)
-    print()
-    print(f"📊 Total trades combined: {len(combined)}")
+    valid['mae_liq_ratio'] = valid['mae_pips'] / valid['liquidity_distance']
     
-    # Engineer features
-    print("🔧 Engineering features...")
-    enhanced = engineer_features(combined)
+    def score_alignment(ratio):
+        if pd.isna(ratio):
+            return np.nan
+        if 0.8 <= ratio <= 1.2:
+            return 100
+        elif 0.5 <= ratio <= 1.5:
+            return 70
+        elif 0.3 <= ratio <= 2.0:
+            return 40
+        else:
+            return 10
     
-    # Select feature columns for training
-    feature_cols = [
-        # Pair identification
-        'pair_xauusd', 'pair_gbpjpy', 'pair_usdjpy', 
-        'pair_gbpcad', 'pair_chfjpy', 'pair_nas100',
-        
-        # Entry characteristics
-        'entry_default', 'entry_flip', 'entry_boc',
-        'trade_score_numeric',
-        
-        # Market conditions
-        'session_london', 'session_newyork', 'session_tokyo', 'session_sydney',
-        'rsi', 'news_event',
-        
-        # Zone properties
-        'zone_supply', 'liquidity_distance', 'sl_pips', 'potential_rr',
-        
-        # Price action
-        'close_bullish',
-        
-        # Target
-        'win'
+    valid['drawdown_liq_alignment'] = valid['mae_liq_ratio'].apply(score_alignment)
+    df['drawdown_liq_alignment'] = df.index.map(valid['drawdown_liq_alignment'])
+    
+    print(f"  ✅ Calculated DLA for {len(valid)} trades")
+    return df
+
+
+def calculate_liquidity_invalidation_rate(df):
+    """Calculate Liquidity Invalidation Rate (LIR)"""
+    print("📊 Calculating Liquidity Invalidation Rate (LIR)...")
+    
+    df['lir_base'] = np.where(
+        df['liq_swept'] & df['target_swept'],
+        100,
+        np.where(
+            df['liq_swept'] | df['target_swept'],
+            70,
+            30
+        )
+    )
+    
+    df['liq_spread_clean'] = df['liquidity_spread'].fillna(100)
+    df['spread_penalty'] = (df['liq_spread_clean'] / 100) * 30
+    df['liq_invalidation_rate'] = (df['lir_base'] - df['spread_penalty']).clip(0, 100)
+    df.drop(['lir_base', 'liq_spread_clean', 'spread_penalty'], axis=1, inplace=True)
+    
+    print(f"  ✅ Calculated LIR for {len(df)} trades")
+    return df
+
+
+def calculate_liquidity_confidence_score(df):
+    """Calculate Master Liquidity Confidence Score"""
+    print("📊 Calculating Master Liquidity Confidence Score...")
+    
+    score = 50.0
+    
+    df['dist_score'] = np.where(
+        df['liquidity_distance'] <= 50, 20,
+        np.where(df['liquidity_distance'] <= 100, 10,
+        np.where(df['liquidity_distance'] <= 200, 5, 0))
+    )
+    
+    df['sweep_score'] = np.where(
+        df['liq_swept'] & df['target_swept'], 20,
+        np.where(df['liq_swept'] | df['target_swept'], 10, -10)
+    )
+    
+    df['spread_score'] = np.where(
+        df['liquidity_spread'] <= 50, 10,
+        np.where(df['liquidity_spread'] <= 150, 5, -10)
+    )
+    
+    df['fresh_score'] = np.where(
+        df['freshness'] <= 1, 10,
+        np.where(df['freshness'] <= 2, 5, -10)
+    )
+    
+    df['liq_confidence_score'] = (
+        score +
+        df['dist_score'] +
+        df['sweep_score'] +
+        df['spread_score'] +
+        df['fresh_score']
+    ).clip(0, 100)
+    
+    df.drop(['dist_score', 'sweep_score', 'spread_score', 'fresh_score'], axis=1, inplace=True)
+    
+    print(f"  ✅ Mean Confidence: {df['liq_confidence_score'].mean():.1f}")
+    return df
+
+
+def load_trades_from_database():
+    """Load all trades from database"""
+    print("\n📦 Loading trades from database...")
+    
+    conn = sqlite3.connect(DB_PATH)
+    df = pd.read_sql_query("""
+        SELECT * FROM alerts
+        WHERE status IN ('closed', 'taken')
+        AND outcome IS NOT NULL
+    """, conn)
+    conn.close()
+    
+    print(f"  ✅ Loaded {len(df)} closed trades")
+    return df
+
+
+def save_computed_features_to_db(df):
+    """Save computed features back to database"""
+    print("\n💾 Saving computed features to database...")
+    
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    update_count = 0
+    for idx, row in df.iterrows():
+        cursor.execute("""
+            UPDATE alerts
+            SET time_to_target_ratio = ?,
+                drawdown_liq_alignment = ?,
+                liq_invalidation_rate = ?,
+                liq_confidence_score = ?
+            WHERE id = ?
+        """, (
+            row.get('time_to_target_ratio'),
+            row.get('drawdown_liq_alignment'),
+            row.get('liq_invalidation_rate'),
+            row.get('liq_confidence_score'),
+            row['id']
+        ))
+        update_count += 1
+    
+    conn.commit()
+    conn.close()
+    
+    print(f"  ✅ Updated {update_count} records")
+
+
+def export_training_data(df, output_path):
+    """Export processed training data to CSV"""
+    print(f"\n📤 Exporting to {output_path}...")
+    
+    df['win'] = (df['outcome'] == 'win').astype(int)
+    
+    training_cols = [
+        'win', 'score', 'freshness', 'session', 'atr_ratio', 'trend', 'rsi',
+        'htf_trend', 'rvol', 'adx', 'touch_count', 'base_quality',
+        'departure_strength', 'liquidity_distance', 'liquidity_spread',
+        'return_strength', 'time_to_target_ratio', 'drawdown_liq_alignment',
+        'liq_invalidation_rate', 'liq_confidence_score',
+        'symbol', 'entry_model', 'zone_type', 'outcome'
     ]
     
-    # Filter to only rows with complete data
-    training_data = enhanced[feature_cols].dropna()
+    available_cols = [c for c in training_cols if c in df.columns]
+    export_df = df[available_cols].copy()
     
-    print(f"✅ Training samples: {len(training_data)}")
-    print(f"✅ Features: {len(feature_cols) - 1} (+ 1 target)")
-    print(f"✅ Win rate: {training_data['win'].mean() * 100:.1f}%")
-    print()
+    critical_features = ['score', 'freshness', 'session', 'rsi', 'rvol', 'adx']
+    export_df = export_df.dropna(subset=critical_features)
     
-    # Save training data
-    data_dir = Path('backtest_data/processed')
-    data_dir.mkdir(parents=True, exist_ok=True)
+    export_df.to_csv(output_path, index=False)
+    print(f"  ✅ Exported {len(export_df)} training samples")
     
-    training_data.to_csv(data_dir / 'training_enhanced.csv', index=False)
-    print(f"💾 Saved to backtest_data/processed/training_enhanced.csv")
+    return export_df
+
+
+def main():
+    """Main execution"""
+    print("=" * 60)
+    print("🚀 ENHANCED TRAINING DATA PREPARATION")
+    print("=" * 60)
     
-    # Save feature metadata
-    feature_metadata = {
-        'features': feature_cols[:-1],  # Exclude target
-        'target': 'win',
-        'total_samples': len(training_data),
-        'win_rate': float(training_data['win'].mean()),
-        'pairs_included': PROFITABLE_PAIRS
-    }
+    df = load_trades_from_database()
     
-    with open(data_dir / 'features_metadata.json', 'w') as f:
-        json.dump(feature_metadata, f, indent=2)
+    if len(df) == 0:
+        print("\n❌ No trades found in database. Run some trades first!")
+        return
     
-    print(f"💾 Saved metadata to backtest_data/processed/features_metadata.json")
-    print()
-    print("="*60)
-    print("✅ READY FOR AI MODEL TRAINING")
-    print("="*60)
+    df = calculate_time_to_target_ratio(df)
+    df = calculate_drawdown_liquidity_alignment(df)
+    df = calculate_liquidity_invalidation_rate(df)
+    df = calculate_liquidity_confidence_score(df)
     
-    return training_data
+    save_computed_features_to_db(df)
+    
+    output_dir = Path(__file__).parent.parent / 'backtest_data' / 'processed'
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / 'training_with_derived_features.csv'
+    
+    export_df = export_training_data(df, output_path)
+    
+    print("\n" + "=" * 60)
+    print("✅ FEATURE ENGINEERING COMPLETE")
+    print("=" * 60)
+    print(f"\nReady for model training with {len(export_df)} samples\n")
+
 
 if __name__ == '__main__':
-    create_training_dataset()
+    main()

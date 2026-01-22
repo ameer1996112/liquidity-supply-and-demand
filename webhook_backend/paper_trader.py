@@ -114,7 +114,33 @@ class PaperTrader:
                 return ('win', tp)
         
         return None
-    
+
+    def update_mae(self, alert_id: int, current_price: float):
+        """
+        Update Maximum Adverse Excursion for open position.
+        Should be called on every price tick/update.
+
+        Args:
+            alert_id: Alert/position ID
+            current_price: Current market price
+        """
+        if alert_id not in self.positions:
+            return
+
+        pos = self.positions[alert_id]
+        side = pos['side']
+
+        # Track worst price
+        if 'worst_price' not in pos:
+            pos['worst_price'] = current_price
+        else:
+            if side == 'buy':
+                # Long: worst price is lowest
+                pos['worst_price'] = min(pos['worst_price'], current_price)
+            else:
+                # Short: worst price is highest
+                pos['worst_price'] = max(pos['worst_price'], current_price)
+
     def close_position(self, alert_id: int, close_price: float, 
                       outcome: str, notes: str = '') -> Optional[float]:
         """
