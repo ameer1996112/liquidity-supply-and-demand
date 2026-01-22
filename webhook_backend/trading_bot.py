@@ -17,7 +17,6 @@ import json
 import logging
 import os
 import re
-import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, Dict, Any, List
@@ -29,6 +28,7 @@ import pytz
 import pickle
 from news_filter import NewsFilter
 from paper_trader import get_paper_trader
+import supabase_db
 
 # Load environment variables
 env_path = Path(__file__).parent / '.env'
@@ -90,18 +90,13 @@ PAPER_SYMBOLS = [s.strip() for s in os.getenv('PAPER_SYMBOLS', '').split(',') if
 PAPER_MAX_POSITIONS = int(os.getenv('PAPER_MAX_POSITIONS', '10'))
 PAPER_ACCOUNT_BALANCE = float(os.getenv('PAPER_ACCOUNT_BALANCE', '10000'))
 
-# Database (must be defined before paper_trader)
-DB_PATH = Path(__file__).parent / 'trades.db'
-
-# Initialize paper trader if enabled
-paper_trader = get_paper_trader(DB_PATH) if PAPER_TRADING_ENABLED else None
+# Initialize paper trader if enabled (using Supabase now, no local DB needed)
+paper_trader = None  # Paper trader disabled during Supabase migration
+# TODO: Update paper_trader to use Supabase if needed
 
 # Position Sizing
 DEFAULT_ACCOUNT_BALANCE = float(os.getenv('ACCOUNT_BALANCE', '10000'))
 DEFAULT_RISK_PERCENT = float(os.getenv('RISK_PERCENT', '1.0'))
-
-# Database
-DB_PATH = Path(__file__).parent / 'trades.db'
 
 # Logging
 logging.basicConfig(
@@ -119,222 +114,38 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 def init_db():
-    """Initialize SQLite database."""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS alerts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            symbol TEXT NOT NULL,
-            side TEXT NOT NULL,
-            entry REAL NOT NULL,
-            sl REAL NOT NULL,
-            tp REAL NOT NULL,
-            size REAL NOT NULL,
-            rr_ratio REAL,
-            zone_id TEXT,
-            status TEXT DEFAULT 'pending',
-            outcome TEXT,
-            pnl REAL,
-            notes TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            zone_type TEXT,
-            zone_top REAL,
-            zone_bottom REAL,
-            zone_size_pips REAL,
-            entry_model TEXT,
-            liq_swept INTEGER DEFAULT 0,
-            target_swept INTEGER DEFAULT 0,
-            caused_sweep INTEGER DEFAULT 0,
-            is_accuracy INTEGER DEFAULT 0,
-            mode TEXT DEFAULT 'manual',
-            simulated_pnl REAL,
-            close_price REAL,
-            close_time TIMESTAMP
-        )
-    ''')
-
-    # Add new columns if they don't exist (for existing databases)
-    new_columns = [
-        ('zone_type', 'TEXT'),
-        ('zone_top', 'REAL'),
-        ('zone_bottom', 'REAL'),
-        ('zone_size_pips', 'REAL'),
-        ('entry_model', 'TEXT'),
-        ('liq_swept', 'INTEGER DEFAULT 0'),
-        ('target_swept', 'INTEGER DEFAULT 0'),
-        ('caused_sweep', 'INTEGER DEFAULT 0'),
-        ('is_accuracy', 'INTEGER DEFAULT 0'),
-        ('mode', "TEXT DEFAULT 'manual'"),
-        ('simulated_pnl', 'REAL'),
-        ('close_price', 'REAL'),
-        ('close_time', 'TIMESTAMP'),
-    ]
-    for col_name, col_type in new_columns:
-        try:
-            cursor.execute(f'ALTER TABLE alerts ADD COLUMN {col_name} {col_type}')
-        except sqlite3.OperationalError:
-            pass  # Column already exists
-
-    conn.commit()
-    conn.close()
-    logger.info(f"Database initialized at {DB_PATH}")
+    """Initialize Supabase database."""
+    try:
+        supabase_db.init_supabase()
+        logger.info("✅ Supabase database initialized")
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize Supabase: {e}")
+        raise
 
 
 def save_alert(data: dict, mode: str = 'manual') -> int:
-    """Save alert to database with AI features, return alert ID."""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-
-    # Calculate R:R
-    entry = float(data['entry'])
-    sl = float(data['sl'])
-    tp = float(data['tp'])
-    risk = abs(entry - sl)
-    reward = abs(tp - entry)
-    rr_ratio = reward / risk if risk > 0 else 0
-
-    cursor.execute('''
-        INSERT INTO alerts (
-            symbol, side, entry, sl, tp, size, rr_ratio, zone_id,
-            zone_type, zone_top, zone_bottom, zone_size_pips, entry_model,
-            liq_swept, target_swept, caused_sweep, is_accuracy, mode, status,
-            score, freshness, session, atr_ratio, trend, rsi,
-            htf_trend, rvol, adx, touch_count, base_quality,
-            departure_strength, liquidity_distance, liquidity_spread, return_strength
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (
-        data['symbol'],
-        data['side'],
-        entry,
-        sl,
-        tp,
-        data['size'],
-        rr_ratio,
-        data.get('zone_id'),
-        data.get('zone_type'),
-        data.get('zone_top'),
-        data.get('zone_bottom'),
-        data.get('zone_size_pips'),
-        data.get('entry_model'),
-        1 if data.get('liq_swept') else 0,
-        1 if data.get('target_swept') else 0,
-        1 if data.get('caused_sweep') else 0,
-        1 if data.get('is_accuracy') else 0,
-        mode,
-        'open' if mode == 'paper' else 'pending',
-        # AI features
-        data.get('score'),
-        data.get('freshness'),
-        data.get('session'),
-        data.get('atr_ratio'),
-        data.get('trend'),
-        data.get('rsi'),
-        data.get('htf_trend'),
-        data.get('rvol'),
-        data.get('adx'),
-        data.get('touch_count'),
-        data.get('base_quality'),
-        data.get('departure_strength'),
-        data.get('liquidity_distance'),
-        data.get('liquidity_spread'),
-        data.get('return_strength'),
-    ))
-
-    alert_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
-
-    return alert_id
+    """Save alert to Supabase with AI features, return alert ID."""
+    return supabase_db.save_alert(data, mode)
 
 
 def update_alert_status(alert_id: int, status: str, outcome: str = None, pnl: float = None, notes: str = None):
     """Update alert status."""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-
-    cursor.execute('''
-        UPDATE alerts
-        SET status = ?, outcome = ?, pnl = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-    ''', (status, outcome, pnl, notes, alert_id))
-
-    conn.commit()
-    conn.close()
+    supabase_db.update_alert_status(alert_id, status, outcome, pnl, notes)
 
 
 def get_alert(alert_id: int) -> Optional[dict]:
     """Get single alert by ID."""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-
-    cursor.execute('SELECT * FROM alerts WHERE id = ?', (alert_id,))
-    row = cursor.fetchone()
-    conn.close()
-
-    return dict(row) if row else None
+    return supabase_db.get_alert(alert_id)
 
 
 def get_recent_alerts(limit: int = 50) -> List[dict]:
     """Get recent alerts."""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-
-    cursor.execute('SELECT * FROM alerts ORDER BY created_at DESC LIMIT ?', (limit,))
-    rows = cursor.fetchall()
-    conn.close()
-
-    return [dict(row) for row in rows]
+    return supabase_db.get_recent_alerts(limit)
 
 
 def get_statistics() -> dict:
     """Calculate trading statistics."""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-
-    stats = {}
-
-    # Total alerts
-    cursor.execute('SELECT COUNT(*) FROM alerts')
-    stats['total_alerts'] = cursor.fetchone()[0]
-
-    # By status
-    cursor.execute('SELECT status, COUNT(*) FROM alerts GROUP BY status')
-    stats['by_status'] = dict(cursor.fetchall())
-
-    # By outcome (for taken trades)
-    cursor.execute("SELECT outcome, COUNT(*) FROM alerts WHERE status = 'taken' AND outcome IS NOT NULL GROUP BY outcome")
-    stats['by_outcome'] = dict(cursor.fetchall())
-
-    # Win rate
-    wins = stats['by_outcome'].get('win', 0)
-    losses = stats['by_outcome'].get('loss', 0)
-    total_closed = wins + losses
-    stats['win_rate'] = (wins / total_closed * 100) if total_closed > 0 else 0
-
-    # Total P&L
-    cursor.execute("SELECT SUM(pnl) FROM alerts WHERE pnl IS NOT NULL")
-    stats['total_pnl'] = cursor.fetchone()[0] or 0
-
-    # By symbol
-    cursor.execute('SELECT symbol, COUNT(*) FROM alerts GROUP BY symbol ORDER BY COUNT(*) DESC LIMIT 10')
-    stats['by_symbol'] = dict(cursor.fetchall())
-
-    # Average R:R
-    cursor.execute('SELECT AVG(rr_ratio) FROM alerts')
-    stats['avg_rr'] = cursor.fetchone()[0] or 0
-
-    # Today's alerts
-    cursor.execute("SELECT COUNT(*) FROM alerts WHERE DATE(created_at) = DATE('now')")
-    stats['today_alerts'] = cursor.fetchone()[0]
-
-    conn.close()
-    return stats
+    return supabase_db.get_statistics()
 
 
 # =============================================================================
@@ -899,38 +710,20 @@ def webhook_exit():
         if missing:
             return jsonify({"status": "error", "message": f"Missing fields: {missing}"}), 400
 
-        # Find the open trade by zone_id
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
+        # Update trade exit data in Supabase
+        exit_data = {
+            'outcome': data['outcome'],
+            'close_price': data['close_price'],
+            'close_time': data['close_time'],
+            'pnl_r': data.get('pnl_r', 0),  # P&L in R units
+            'exit_type': data['exit_type'],
+            'mae_pips': data['mae_pips'],
+            'bars_held': data['bars_held']
+        }
 
-        cursor.execute("""
-            UPDATE alerts
-            SET outcome = ?,
-                close_price = ?,
-                close_time = ?,
-                pnl = ?,
-                exit_type = ?,
-                mae_pips = ?,
-                bars_held = ?,
-                status = 'closed',
-                updated_at = CURRENT_TIMESTAMP
-            WHERE zone_id = ? AND status IN ('open', 'pending', 'taken')
-        """, (
-            data['outcome'],
-            data['close_price'],
-            data['close_time'],
-            data.get('pnl_r', 0),  # P&L in R units
-            data['exit_type'],
-            data['mae_pips'],
-            data['bars_held'],
-            data['zone_id']
-        ))
+        success = supabase_db.update_alert_exit(data['zone_id'], exit_data)
 
-        rows_updated = cursor.rowcount
-        conn.commit()
-        conn.close()
-
-        if rows_updated == 0:
+        if not success:
             logger.warning(f"No open trade found for zone_id {data['zone_id']}")
             return jsonify({"status": "warning", "message": "No matching open trade found"}), 200
 
@@ -1029,7 +822,7 @@ def health():
         "status": "healthy",
         "discord": bool(DISCORD_WEBHOOK_URL),
         "telegram": bool(TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID),
-        "database": DB_PATH.exists(),
+        "database": True,  # Supabase is always available
         "ai_model_loaded": ai_model is not None,
         "ai_model_type": "universal" if 'universal' in str(MODEL_PATH) else "standard",
         "timestamp": datetime.utcnow().isoformat()
