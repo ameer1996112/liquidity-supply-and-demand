@@ -1,0 +1,62 @@
+=================================================================
+QUICK FIX - Copy & Paste These 2 Changes
+=================================================================
+
+FIX #1: REPLACE _controlLine function (Lines 5221-5242)
+-----------------------------------------------------------------
+
+// Extend lines forward while not crossed; when swept, recolor and stop extending
+// PERFORMANCE FIX: Skip inactive lines early, limit lookback
+_controlLine(_lines, _activeFlags, __high, __low) =>
+    sz = array.size(_lines)
+    if sz > 0
+        // OPTIMIZATION: Only process last 50 lines maximum
+        int startIdx = math.max(0, sz - 50)
+        for i = startIdx to sz - 1
+            // EARLY EXIT: Skip if already inactive
+            bool isActive = i < array.size(_activeFlags) ? array.get(_activeFlags, i) : false
+            if not isActive
+                continue
+            lineRef  = array.get(_lines, i)
+            float y1 = line.get_y1(lineRef)
+            float y2 = line.get_y2(lineRef)
+            float lvlLow = math.min(y1, y2)
+            float lvlHigh = math.max(y1, y2)
+            float tolerance = pip_size * 0.1
+            bool isCrossed = (__high >= lvlLow - tolerance and __low <= lvlLow + tolerance) or (__high >= lvlHigh - tolerance and __low <= lvlHigh + tolerance)
+            if isCrossed
+                line.set_color(lineRef, color.new(color.purple, 0))
+                if i < array.size(_activeFlags)
+                    array.set(_activeFlags, i, false)
+            else if bar_index >= line.get_x1(lineRef)
+                line.set_x2(lineRef, bar_index + 1)
+
+
+FIX #2: REPLACE lines 5272-5274
+-----------------------------------------------------------------
+
+// CRITICAL FIX: Only run on CONFIRMED bars
+if plotLiq and barstate.isconfirmed
+    _controlLine(_lowLiqLines, _lowLiqActive, high, low)
+    _controlLine(_highLiqLines, _highLiqActive, high, low)
+
+
+=================================================================
+OPTIONAL: REDUCE pvtMax (Line 160) - Faster execution
+=================================================================
+
+pvtMax = input.int(5, "Max Liquidity Lines", minval = 1, maxval = 20, group = "Liquidity")
+
+
+=================================================================
+OPTIONAL: Temporarily disable strict filters for more trades
+=================================================================
+
+Add this near line 100:
+
+require_liquidity_sweep = input.bool(false, "Require Liquidity Sweep", group = "Liquidity", tooltip = "Set FALSE for more trades while testing")
+
+
+=================================================================
+DONE! Save and refresh TradingView.
+=================================================================

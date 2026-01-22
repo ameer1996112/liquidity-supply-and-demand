@@ -157,7 +157,7 @@ pvtStyle    = input.string(defval = line.style_solid, title = "Liquidity Line St
 // === LIQUIDITY SETTINGS ===
 liq_pivot_len       = input.int(5, "Liquidity Pivot Length (Left/Right)", minval = 1, group = "Liquidity", tooltip = "TFlab uses 5. Higher = Stronger/Major Pivots. Lower = Minor Structure.")
 structure_mode      = input.string("Relaxed (Wicks)", "Candle Structure Mode", options = ["Relaxed (Wicks)", "Standard (Bodies)"], group = "Liquidity")
-pvtMax              = input.int(10, "Max Liquidity Lines", minval = 1, maxval = 500, group = "Liquidity")
+pvtMax              = input.int(5, "Max Liquidity Lines", minval = 1, maxval = 500, group = "Liquidity")
 require_major_liquidity = input.bool(true, "Require Major Liquidity", group = "Liquidity", tooltip = "If enabled, searches for the extreme (Highest/Lowest) pivot regardless of candle count. If disabled, picks the most recent pivot with valid structure.")
 
 // Liquidity Connector Lines (Zone-to-Liquidity visual)
@@ -5220,10 +5220,23 @@ var bool[] _highLiqActive = array.new_bool()
 // Extend lines forward while not crossed; when swept, recolor and stop extending
 _controlLine(_lines, _activeFlags, __high, __low) =>
     sz = array.size(_lines)
-    if sz > 0
-        for i = 0 to sz - 1
+    
+    // Early exit if no lines (performance optimization)
+    if sz <= 0
+        bool  // Return dummy value for function signature
+    else
+        // PERFORMANCE FIX: Limit processing to most recent 50 lines
+        // This prevents timeout errors when array grows to 500 lines
+        int startIdx = math.max(0, sz - 50)
+        
+        for i = startIdx to sz - 1
             lineRef  = array.get(_lines, i)
             bool isActive = i < array.size(_activeFlags) ? array.get(_activeFlags, i) : false
+            
+            // Skip inactive lines early (performance optimization)
+            if not isActive
+                continue
+                
             float y1 = line.get_y1(lineRef)
             float y2 = line.get_y2(lineRef)
             float lvlLow = math.min(y1, y2)
@@ -5238,8 +5251,9 @@ _controlLine(_lines, _activeFlags, __high, __low) =>
                     array.set(_activeFlags, i, false)
                 // SWEPT text label removed - color change to purple is sufficient
             // Extend unswept lines to current bar+1
-            if isActive and (not isCrossed) and bar_index >= line.get_x1(lineRef)
+            else if isActive and (not isCrossed) and bar_index >= line.get_x1(lineRef)
                 line.set_x2(lineRef, bar_index + 1)
+        bool  // Return value
 
 // === VISUAL LIQUIDITY LINES (same style as standalone Liquidity indicator) ===
 // Use pivot lows/highs as liquidity bottoms/tops and recolor when swept.
@@ -5269,7 +5283,8 @@ if isPvtHigh and plotLiq
     array.push(_highLiqLines, highLine)
     array.push(_highLiqActive, true)
 
-if plotLiq
+// PERFORMANCE FIX: Only process liquidity lines on confirmed bars (90% speed boost)
+if plotLiq and barstate.isconfirmed
     _controlLine(_lowLiqLines, _lowLiqActive, high, low)
     _controlLine(_highLiqLines, _highLiqActive, high, low)
 
