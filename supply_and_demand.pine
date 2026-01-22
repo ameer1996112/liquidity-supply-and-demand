@@ -170,7 +170,8 @@ liq_fallback_lookback = input.int(300, "Liquidity Fallback Lookback (bars)", min
 // Max candles to count for liquidity cluster
 liq_candle_count_max = input.int(10, "Max Liquidity Candle Count", minval = 1, maxval = 50, group = "Liquidity", tooltip = "Maximum consecutive opposite candles to count at the liquidity level")
 liq_link_lookback_bars = input.int(400, "Liquidity link lookback (bars)", minval = 50, group = "Liquidity", tooltip = "Only consider liquidity pivots whose bar is within this many bars of the current bar")
-liq_max_distance_pips  = input.float(60.0, "Max liq distance from zone (pips)", minval = 5.0, group = "Liquidity", tooltip = "Maximum price distance (in pips) from zone boundary to consider a liquidity candidate")
+liq_max_distance_pips_forex = input.float(10.0, "Max liq distance - Forex (pips)", minval = 5.0, group = "Liquidity", tooltip = "Maximum price distance (in pips) from zone boundary for FOREX pairs")
+liq_max_distance_pips_gold  = input.float(300.0, "Max liq distance - Gold (pips)", minval = 5.0, group = "Liquidity", tooltip = "Maximum price distance (in pips) from zone boundary for XAUUSD/GOLD")
 liq_side_tol_ticks     = input.int(2, "Liq side tolerance (ticks)", minval = 0, group = "Liquidity", tooltip = "Allow liquidity candidates within this many ticks of zone boundary to pass side-of-zone check")
 use_inducement_linking = input.bool(true, "Use Inducement Liquidity Linking", group = "Liquidity", tooltip = "If ON, Demand links to Lows ABOVE zone (inducement). If OFF, Demand links to Lows BELOW zone (standard). Vice versa for Supply.")
 
@@ -227,7 +228,8 @@ float pip_scale_factor = (str.contains(syminfo.ticker, "XAU") or str.contains(sy
 float effective_sl_buffer = stop_loss_buffer_pips * pip_scale_factor
 float effective_min_tp_dist = min_tp_distance_pips * pip_scale_factor
 float effective_liq_entry_max_dist = liq_entry_max_dist * pip_scale_factor
-float effective_liq_max_dist = liq_max_distance_pips * pip_scale_factor
+// Symbol-specific liquidity distance (no scaling needed - already specified per market)
+float effective_liq_max_dist = is_gold ? liq_max_distance_pips_gold : liq_max_distance_pips_forex
 float effective_tp_pips = take_profit_pips * pip_scale_factor
 
 // === 2025 NEW INPUTS ===
