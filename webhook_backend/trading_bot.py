@@ -599,6 +599,11 @@ def webhook():
                 logger.error(f"Fatal: No valid JSON found after scanning. Raw start: {raw_data[:100]}...")
                 return jsonify({"status": "error", "message": "Invalid JSON payload"}), 400
 
+        # Check if data is None (happens when get_json returns None without exception)
+        if data is None:
+            logger.error("Fatal: JSON parsing returned None. Check content-type and payload.")
+            return jsonify({"status": "error", "message": "Invalid or empty JSON payload"}), 400
+
         logger.info(f"Webhook received: {data}")
 
         # Validate
