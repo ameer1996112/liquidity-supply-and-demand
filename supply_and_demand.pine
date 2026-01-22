@@ -5223,7 +5223,7 @@ _controlLine(_lines, _activeFlags, __high, __low) =>
     
     // Early exit if no lines (performance optimization)
     if sz <= 0
-        bool  // Return dummy value for function signature
+        true  // Return dummy value for function signature
     else
         // PERFORMANCE FIX: Limit processing to most recent 50 lines
         // This prevents timeout errors when array grows to 500 lines
@@ -5253,7 +5253,7 @@ _controlLine(_lines, _activeFlags, __high, __low) =>
             // Extend unswept lines to current bar+1
             else if isActive and (not isCrossed) and bar_index >= line.get_x1(lineRef)
                 line.set_x2(lineRef, bar_index + 1)
-        bool  // Return value
+        true  // Return value
 
 // === VISUAL LIQUIDITY LINES (same style as standalone Liquidity indicator) ===
 // Use pivot lows/highs as liquidity bottoms/tops and recolor when swept.
