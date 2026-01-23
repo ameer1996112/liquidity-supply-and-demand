@@ -21,7 +21,7 @@ def backtest_ai_filter(csv_path='trade_XAUUSD_4_1_2023_19_1_2026.csv', model_pat
         logging.error(f"Model file not found: {model_path}")
         return
 
-    logging.info(f"Load Data: {csv_path}")
+    logging.info(f"Load Data: {csv_path}") 
     logging.info(f"Load Model: {model_path}")
     logging.info(f"Threshold: {threshold}")
 
