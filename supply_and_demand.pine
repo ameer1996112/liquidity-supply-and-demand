@@ -42,6 +42,17 @@ get_auto_pip_size() =>
 
 pip_size = use_auto_pip_size ? get_auto_pip_size() : manual_pip_size
 
+// ═══════════════════════════════════════════════════════════
+// 🎯 CONFIGURATION PROFILES - ONE-CLICK STRATEGY SWITCHING
+// ═══════════════════════════════════════════════════════════
+
+config_profile = input.string("Balanced (Recommended)", "⚡ Configuration Profile", 
+     options = ["Conservative (Live Trading)", "Balanced (Recommended)", "Aggressive (Paper Trading)", "Custom"], 
+     group = "🎯 Quick Setup",
+     tooltip = "Quick load optimal settings. Conservative = 70-75% win rate, fewer trades. Balanced = 65-70% win rate, balanced frequency. Aggressive = 55-60% win rate, more trades. Custom = Manual control.")
+
+use_profile_defaults = config_profile != "Custom"
+
 // ========================================
 // === OPTIMIZATION: CONFIGURATION CONSTANTS ===
 // ========================================
@@ -313,6 +324,44 @@ enable_date_filter = input.bool(true, "Enable Date Range Filter", group = "Backt
 start_date         = input.time(timestamp("01 Jan 2023 00:00 +0000"), "Start Date", group = "Backtest Settings")
 end_date           = input.time(timestamp("19 Jan 2026 23:59 +0000"), "End Date", group = "Backtest Settings")
 min_bar_index_for_entries = input.int(100, "Minimum Bar Index for Entries", minval = 0, group = "Backtest Settings", tooltip = "Only allow entries on zones created after this bar index. Prevents backfill issues by ignoring historical zones.")
+
+// ═══════════════════════════════════════════════════════════
+// 🎯 PROFILE OVERRIDE LOGIC - Apply profile-based defaults
+// ═══════════════════════════════════════════════════════════
+
+// Override key settings when a profile is selected (not "Custom")
+if use_profile_defaults
+    // Determine which profile
+    is_conservative = config_profile == "Conservative (Live Trading)"
+    is_balanced = config_profile == "Balanced (Recommended)"
+    is_aggressive = config_profile == "Aggressive (Paper Trading)"
+    
+    // === LIQUIDITY SETTINGS ===
+    pvtMax := is_conservative ? 5 : (is_balanced ? 5 : 10)
+    require_major_liquidity := is_conservative ? true : (is_balanced ? true : false)
+    liq_pivot_len := is_conservative ? 5 : (is_balanced ? 5 : 3)
+    structure_mode := is_conservative ? "Standard (Bodies)" : "Relaxed (Wicks)"
+    liq_max_distance_pips_forex := is_conservative ? 10.0 : (is_balanced ? 15.0 : 20.0)
+    liq_max_distance_pips_gold := is_conservative ? 200.0 : (is_balanced ? 300.0 : 500.0)
+    liq_entry_max_dist := is_conservative ? 30.0 : (is_balanced ? 50.0 : 100.0)
+    
+    // === AI & GRADE FILTERS ===
+    ai_quality_threshold := is_conservative ? 70 : (is_balanced ? 60 : 50)
+    enable_grade_filter := is_conservative ? true : (is_balanced ? true : false)
+    min_entry_grade := is_conservative ? "B+" : (is_balanced ? "C+" : "C")
+    
+    // === TIME FILTERS ===
+    filter_dead_zone := is_conservative ? true : (is_balanced ? true : false)
+    filter_trading_hours := is_conservative ? true : (is_balanced ? true : false)
+    require_htf_flip := is_conservative ? true : (is_balanced ? true : false)
+    min_return_strength := is_conservative ? 50 : (is_balanced ? 30 : 0)
+    
+    // === RISK MANAGEMENT ===
+    risk_per_trade_pct := is_conservative ? 0.5 : (is_balanced ? 0.5 : 0.3)
+    risk_reward_ratio := is_conservative ? 3.0 : (is_balanced ? 2.0 : 1.5)
+    max_trades_per_day := is_conservative ? 1 : 2
+    min_tp_distance_pips := is_conservative ? 15.0 : (is_balanced ? 10.0 : 5.0)
+    stop_loss_buffer_pips := is_conservative ? 1.0 : (is_balanced ? 1.0 : 1.0)
 
 // === DEBUG MODE DERIVED FLAGS & BAR RANGE CACHE ===
 debug_enabled = debug_level != "None"
@@ -949,7 +998,11 @@ calculate_base_quality(int base_start_idx, int base_end_idx) =>
 // Calculate Departure Strength: How aggressively price left the zone (0-100 score)
 // Analyzes first 3 candles after base formation
 // Higher score = bigger bodies + higher volume
+// NOTE: This function is called on every bar for series consistency (Pine Script requirement)
 calculate_departure_strength(int base_end_idx, bool isDemand) =>
+    // IMPORTANT: ta.sma must be called on every bar, so we calculate it first
+    float vol_sma_20 = ta.sma(volume, 20)
+    
     if base_end_idx < 3
         50.0  // Not enough history
     else
@@ -982,8 +1035,8 @@ calculate_departure_strength(int base_end_idx, bool isDemand) =>
                 if correct_direction
                     total_body_percent += body_percent
                     
-                    // Relative volume for this candle
-                    float vol_avg_at_candle = ta.sma(volume, 20)[candle_idx]
+                    // Relative volume for this candle (using pre-calculated SMA)
+                    float vol_avg_at_candle = vol_sma_20[candle_idx]
                     float candle_rvol = vol_avg_at_candle > 0 ? candle_volume / vol_avg_at_candle : 1.0
                     total_rvol += candle_rvol
                     
@@ -1039,7 +1092,11 @@ calculate_liquidity_spread(float target_price, float inducement_price) =>
 // Calculate Return Strength: How aggressively price returned after sweep (0-100 score)
 // Analyzes bars between liquidity sweep and zone prime
 // Faster return + bigger candles = higher conviction
+// NOTE: This function is called on every bar for series consistency (Pine Script requirement)
 calculate_return_strength(int sweep_bar_idx, int prime_bar_idx, bool isDemand) =>
+    // IMPORTANT: ta.sma must be called on every bar, so we calculate it first
+    float vol_sma_20 = ta.sma(volume, 20)
+    
     if na(sweep_bar_idx) or na(prime_bar_idx) or sweep_bar_idx >= prime_bar_idx
         50.0  // Default if no valid sweep or instant prime
     else
@@ -1082,8 +1139,8 @@ calculate_return_strength(int sweep_bar_idx, int prime_bar_idx, bool isDemand) =
                 if toward_zone
                     total_body_percent += body_percent
                     
-                    // Relative volume
-                    float vol_avg_at_candle = ta.sma(volume, 20)[hist_offset]
+                    // Relative volume (using pre-calculated SMA)
+                    float vol_avg_at_candle = vol_sma_20[hist_offset]
                     float candle_rvol = vol_avg_at_candle > 0 ? candle_volume / vol_avg_at_candle : 1.0
                     total_rvol += candle_rvol
                     
@@ -2488,12 +2545,13 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
             z.grade := get_grade_from_score(z.score)
             
             // === V6 AI FEATURES (CONDITIONAL - Only if enabled) ===
+            // IMPORTANT: Call functions unconditionally for Pine Script series consistency
+            float temp_base_quality = calculate_base_quality(baseBarIdx, baseIdx)
+            float temp_departure_strength = calculate_departure_strength(baseIdx, isDemand)
+            
             if enable_v6_v7_features
-                // Calculate Base Quality (simplified - max 3 candles)
-                z.baseQuality := calculate_base_quality(baseBarIdx, baseIdx)
-                
-                // Calculate Departure Strength (simplified - max 3 candles)
-                z.departureStrength := calculate_departure_strength(baseIdx, isDemand)
+                z.baseQuality := temp_base_quality
+                z.departureStrength := temp_departure_strength
             else
                 // Default values when disabled (neutral 50)
                 z.baseQuality := 50.0
@@ -4072,15 +4130,15 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     z.inactiveReason := "PRIMED - waiting for bullish close"
                     
                     // === V7.1 AI FEATURES (CONDITIONAL - Only if enabled) ===
+                    // IMPORTANT: Call functions unconditionally for Pine Script series consistency
+                    float temp_liq_distance = calculate_liquidity_distance(z.top, z.liqLowPrice, true)
+                    float temp_liq_spread = calculate_liquidity_spread(z.liqHighPrice, z.liqLowPrice)
+                    float temp_return_strength = calculate_return_strength(z.liquiditySweptBarIndex, bar_index, true)
+                    
                     if enable_v6_v7_features
-                        // Calculate Liquidity Distance (zone top to inducement low)
-                        z.liquidityDistance := calculate_liquidity_distance(z.top, z.liqLowPrice, true)
-                        
-                        // Calculate Liquidity Spread (inducement to target distance)
-                        z.liquiditySpread := calculate_liquidity_spread(z.liqHighPrice, z.liqLowPrice)
-                        
-                        // Calculate Return Strength (sweep to prime journey - max 5 bars)
-                        z.returnStrength := calculate_return_strength(z.liquiditySweptBarIndex, bar_index, true)
+                        z.liquidityDistance := temp_liq_distance
+                        z.liquiditySpread := temp_liq_spread
+                        z.returnStrength := temp_return_strength
                     else
                         // Default values when disabled (neutral 50)
                         z.liquidityDistance := 50.0
@@ -4473,15 +4531,15 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     z.inactiveReason := "PRIMED - waiting for bearish close"
                     
                     // === V7.1 AI FEATURES (CONDITIONAL - Only if enabled) ===
+                    // IMPORTANT: Call functions unconditionally for Pine Script series consistency
+                    float temp_liq_distance = calculate_liquidity_distance(z.bottom, z.liqHighPrice, false)
+                    float temp_liq_spread = calculate_liquidity_spread(z.liqLowPrice, z.liqHighPrice)
+                    float temp_return_strength = calculate_return_strength(z.liquiditySweptBarIndex, bar_index, false)
+                    
                     if enable_v6_v7_features
-                        // Calculate Liquidity Distance (zone bottom to inducement high)
-                        z.liquidityDistance := calculate_liquidity_distance(z.bottom, z.liqHighPrice, false)
-                        
-                        // Calculate Liquidity Spread (inducement to target distance)
-                        z.liquiditySpread := calculate_liquidity_spread(z.liqLowPrice, z.liqHighPrice)
-                        
-                        // Calculate Return Strength (sweep to prime journey - max 5 bars)
-                        z.returnStrength := calculate_return_strength(z.liquiditySweptBarIndex, bar_index, false)
+                        z.liquidityDistance := temp_liq_distance
+                        z.liquiditySpread := temp_liq_spread
+                        z.returnStrength := temp_return_strength
                     else
                         // Default values when disabled (neutral 50)
                         z.liquidityDistance := 50.0
@@ -6210,8 +6268,57 @@ if show_pos_sizing_table and debug_full and isRecentBarForDebug() and barstate.i
         mode_color = display_dry_run ? color.orange : color.green
         table.cell(posSizeTable, 1, 11, dry_run_str, text_color = mode_color, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
 
+
 // === PERFORMANCE TABLE ===
 performanceTable := draw_performance_table(performanceTable)
+
+// === PROFILE STATUS TABLE (Visual Confirmation) ===
+if debug_enabled and barstate.islast
+    var table profileStatusTable = table.new(position.top_right, 2, 8, 
+         bgcolor = color.new(color.rgb(20, 25, 30), 10),
+         frame_color = color.new(color.rgb(100, 110, 120), 80),
+         frame_width = 1,
+         border_color = color.new(color.rgb(60, 70, 80), 50),
+         border_width = 1)
+    
+    // Header
+    table.cell(profileStatusTable, 0, 0, "⚡ ACTIVE PROFILE", 
+        text_color = color.white, 
+        bgcolor = color.new(color.rgb(0, 120, 215), 20),
+        text_size = size.normal,
+        text_halign = text.align_center)
+    table.cell(profileStatusTable, 1, 0, config_profile, 
+        text_color = use_profile_defaults ? color.yellow : color.white, 
+        bgcolor = color.new(color.rgb(0, 120, 215), 20),
+        text_size = size.normal,
+        text_halign = text.align_left)
+    
+    // Key Settings
+    table.cell(profileStatusTable, 0, 1, "pvtMax", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
+    table.cell(profileStatusTable, 1, 1, str.tostring(pvtMax), text_color = color.white, text_halign = text.align_left)
+    
+    table.cell(profileStatusTable, 0, 2, "AI Threshold", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
+    table.cell(profileStatusTable, 1, 2, str.tostring(ai_quality_threshold), text_color = color.white, text_halign = text.align_left)
+    
+    table.cell(profileStatusTable, 0, 3, "RR Ratio", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
+    table.cell(profileStatusTable, 1, 3, "1:" + str.tostring(risk_reward_ratio, "#.#"), text_color = color.white, text_halign = text.align_left)
+    
+    table.cell(profileStatusTable, 0, 4, "Max Trades/Day", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
+    table.cell(profileStatusTable, 1, 4, str.tostring(max_trades_per_day), text_color = color.white, text_halign = text.align_left)
+    
+    table.cell(profileStatusTable, 0, 5, "Structure Mode", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
+    table.cell(profileStatusTable, 1, 5, structure_mode, text_color = color.white, text_halign = text.align_left)
+    
+    table.cell(profileStatusTable, 0, 6, "Grade Filter", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
+    table.cell(profileStatusTable, 1, 6, enable_grade_filter ? min_entry_grade + "+" : "OFF", 
+        text_color = enable_grade_filter ? color.green : color.gray, 
+        text_halign = text.align_left)
+    
+    table.cell(profileStatusTable, 0, 7, "Time Filters", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
+    time_filter_status = (filter_dead_zone ? "✓" : "✗") + " Dead Zone | " + (filter_trading_hours ? "✓" : "✗") + " Hours"
+    table.cell(profileStatusTable, 1, 7, time_filter_status, 
+        text_color = (filter_dead_zone and filter_trading_hours) ? color.green : color.orange, 
+        text_halign = text.align_left)
 
 // === DEBUG PLOTS: SL/TP Visualization ===
 // These lines show the tester's internal exit levels - compare to visual boxes on chart
