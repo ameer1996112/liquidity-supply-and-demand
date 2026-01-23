@@ -546,21 +546,39 @@ def webhook():
     if request.method == 'GET':
         return jsonify({"status": "online", "message": "Webhook endpoint is active. Send POST requests here."}), 200
 
+    # === ENHANCED DEBUG LOGGING ===
+    logger.info("=" * 60)
+    logger.info("📥 WEBHOOK REQUEST RECEIVED")
+    logger.info(f"Content-Type: {request.content_type}")
+    logger.info(f"Content-Length: {request.content_length}")
+    logger.info(f"Method: {request.method}")
+    
+    # Log raw data
+    raw_data = request.data.decode('utf-8', errors='replace')
+    logger.info(f"Raw Body Length: {len(raw_data)} bytes")
+    logger.info(f"Raw Body (first 500 chars): {raw_data[:500]}")
+    
+    # Log headers (sanitize sensitive info)
+    logger.info("Headers:")
+    for key, value in request.headers:
+        if key.lower() not in ['authorization', 'cookie']:
+            logger.info(f"  {key}: {value}")
+    logger.info("=" * 60)
 
     try:
         data = None
         try:
             # First try standard parsing
             data = request.get_json(force=True)
+            logger.info("✅ Standard JSON parsing succeeded")
         except Exception as e:
             # Fallback: Extract JSON from mixed content (e.g. headers in body)
-            logger.debug(f"Standard JSON parse failed, attempting robust parse: {e}")
-            raw_data = request.data.decode('utf-8')
+            logger.warning(f"⚠️ Standard JSON parse failed, attempting robust parse: {e}")
             
             # Find all potential start indices for a JSON object
             start_indices = [i for i, char in enumerate(raw_data) if char == '{']
             if not start_indices:
-                 logger.error(f"Fatal: No '{{' found in payload: {raw_data}")
+                 logger.error(f"❌ Fatal: No '{{' found in payload: {raw_data}")
                  return jsonify({"status": "error", "message": "No JSON start found"}), 400
 
             end_index = raw_data.rfind('}') + 1
