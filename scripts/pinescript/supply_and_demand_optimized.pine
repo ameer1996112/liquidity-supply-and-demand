@@ -45,13 +45,18 @@ strategy("Institutional Liquidity Protocol [Pro]",
 
 // === USER INPUTS ===
 
-use_auto_pip_size    = input.bool(true, "Auto Detect Pip Size", tooltip = "Automatically detect pip size based on symbol. Disable to use manual pip size.")
-manual_pip_size      = input.float(0.0001, "Manual Pip Size", step = 0.0001, tooltip = "Only used if Auto Detect is disabled. 0.0001 for most pairs, 0.01 for JPY pairs, 0.1 for XAUUSD")
-
-// Auto-detect pip size based on symbol
+// Auto-detect pip size based on symbol (always enabled for simplicity)
 get_auto_pip_size() =>
     ticker = syminfo.ticker
-    if str.contains(ticker, "JPY")
+    // INDICES: Use 1.0 to represent 1 POINT (not tick size)
+    // NAS100: 1 pip = 1.0 point, tick = 0.25
+    if str.contains(ticker, "NAS") or str.contains(ticker, "US100") or str.contains(ticker, "NDX")
+        1.0  // NAS100: 1 pip = 1 point
+    else if str.contains(ticker, "SPX") or str.contains(ticker, "US500") or str.contains(ticker, "SPY")
+        1.0  // S&P 500: 1 pip = 1 point
+    else if str.contains(ticker, "US30") or str.contains(ticker, "DJI")
+        1.0  // Dow Jones: 1 pip = 1 point
+    else if str.contains(ticker, "JPY")
         0.01  // JPY pairs (USDJPY, GBPJPY, EURJPY, etc.)
     else if str.contains(ticker, "XAU") or str.contains(ticker, "GOLD")
         0.01   // Gold (User preference: 10c = 10 pips, 1$ = 100 pips)
@@ -64,13 +69,21 @@ get_auto_pip_size() =>
     else
         0.0001  // Standard forex pairs (4-5 decimal places)
 
-pip_size = use_auto_pip_size ? get_auto_pip_size() : manual_pip_size
+pip_size = get_auto_pip_size()
 
 
-config_profile = input.string("Balanced (Recommended)", "⚡ Configuration Profile", 
-     options = ["Conservative (Live Trading)", "Balanced (Recommended)", "Aggressive (Paper Trading)", "Custom"], 
+// ══════════════════════════════════════════════════════════
+// === QUICK SETUP PROFILE (Choose your trading style) ===
+// ══════════════════════════════════════════════════════════
+// Conservative = 70-75% win rate, fewer trades, strict filters
+// Balanced     = 65-70% win rate, moderate trades (RECOMMENDED)
+// Aggressive   = 55-60% win rate, more trades, relaxed filters
+// Custom       = Manual control of all parameters
+
+config_profile = input.string("Balanced (Recommended)", "⚡ Configuration Profile",
+     options = ["Conservative (Live Trading)", "Balanced (Recommended)", "Aggressive (Paper Trading)", "Custom"],
      group = "🎯 Quick Setup",
-     tooltip = "Quick load optimal settings. Conservative = 70-75% win rate, fewer trades. Balanced = 65-70% win rate, balanced frequency. Aggressive = 55-60% win rate, more trades. Custom = Manual control.")
+     tooltip = "Quick load optimal settings or use Custom for manual control")
 
 use_profile_defaults = config_profile != "Custom"
 
@@ -160,156 +173,150 @@ if is_jpy_pair and (na(usdjpy_cache_bar) or bar_index != usdjpy_cache_bar)
 // Global ATR for label positioning (avoids calling ta.atr inside local scopes)
 atr14 = ta.atr(14)
 
-// Zone Display Options
-show_zones           = input.bool(true, "Show Zones", tooltip = "Enable/disable zone display")
-zone_display_mode    = input.string("Both", "Zone Display Mode", options = ["Both", "Demand Only", "Supply Only"], tooltip = "Choose which zones to display")
-show_demand_zones    = zone_display_mode == "Both" or zone_display_mode == "Demand Only"
-show_supply_zones    = zone_display_mode == "Both" or zone_display_mode == "Supply Only"
+// Global volume SMA for strength calculations (avoids calling ta.sma inside functions - fixes Pine Script warnings)
+vol_sma_20 = ta.sma(volume, 20)
 
-show_entries         = input.bool(true, "Show Entries/Exits on Chart")
-show_entry_labels    = input.bool(true, "Show Entry Labels", group = "Display Options", tooltip = "Show entry/exit labels on chart. Disabled when Zone Inspector is active.")
-long_label_offset_atr = input.float(0.60, "Long label vertical offset (ATR)", minval=0.0, step=0.05, group = "Display Options", tooltip = "How far below the candle to place LONG labels (in ATR units)")
-long_label_offset_ticks = input.int(0, "Long label extra offset (ticks)", minval=0, group = "Display Options", tooltip = "Additional offset in ticks for fine-tuning label position")
-max_zones            = input.int(20, "Max Zones on Chart", minval = 1, maxval = 50)
-extend_bars          = input.int(50, "Zone Extend Bars Right", minval = 5, maxval = 200)
-invalidate_on_wick   = input.bool(true, "Invalidate zone on wick breach", tooltip = "When enabled, zones are invalidated if a wick breaches the zone boundary (low < zone bottom for demand, high > zone top for supply)")
-min_body_perc        = input.float(50, "Min Body % of Candle (Strong Move)", minval = 10, maxval = 100)
+// ══════════════════════════════════════════════════════════
+// === ZONE & LIQUIDITY SETTINGS ===
+// ══════════════════════════════════════════════════════════
+// These settings control how zones and liquidity levels are detected
 
-// === FRACTALS INPUT ===
-fractalsPeriod = input.int(2, "Fractals Period (Williams)", minval = 2, group = "Williams Fractals")
+// Zone Detection
+invalidate_on_wick   = input.bool(true, "Invalidate on Wick Touch", group = "🟩 Zone Settings", tooltip = "ON: Zone becomes invalid if ANY wick penetrates it. OFF: Only body closes invalidate zones.")
+max_zones            = input.int(20, "Max Zones Displayed", minval = 1, maxval = 50, group = "🟩 Zone Settings", tooltip = "Maximum number of zones to show on chart. More = cluttered but complete history.")
+min_body_perc        = input.float(50.0, "Min Body %", minval = 0, maxval = 100, group = "🟩 Zone Settings", tooltip = "Minimum candle body percentage for strong impulse detection. 50% = body must be at least half of candle range.")
 
-plotLiq    = input.bool(defval = true, title = "Plot Liquidity", group = "Liquidity")
-useOneCandleLiquidity = input.bool(true, "Enable 1-Candle Liquidity", group = "Liquidity", tooltip = "Allow 1-candle swings in addition to 2-candle swings for liquidity detection. When enabled, zones with 1 opposite candle will have Liq Exists = Yes. When disabled, requires 2+ candles.")
-pvtTopColor = input.color(defval = color.red, title = "Liquidity Top Color", group = "Liquidity")
-pvtBtmColor = input.color(defval = color.green, title = "Liquidity Bottom Color", group = "Liquidity")
-pvtStyle    = input.string(defval = line.style_solid, title = "Liquidity Line Style",
-                           options = [line.style_solid, line.style_dotted, line.style_dashed, line.style_arrow_left, line.style_arrow_right, line.style_arrow_both],
-                           group = "Liquidity")
+// Liquidity Detection (CRITICAL PARAMETERS)
+liq_pivot_len       = input.int(5, "Pivot Strength", minval = 1, group = "🔍 Liquidity Detection", tooltip = "How many candles on each side to confirm a swing high/low. Higher = Fewer but stronger pivots. Lower = More pivots but weaker.")
+structure_mode      = input.string("Relaxed (Wicks)", "Structure Detection", options = ["Relaxed (Wicks)", "Standard (Bodies)"], group = "🔍 Liquidity Detection", tooltip = "Relaxed: Uses wicks for structure breaks (more sensitive). Standard: Uses candle bodies (more conservative).")
+pvtMax              = input.int(5, "Max Liquidity Lines", minval = 1, maxval = 500, group = "🔍 Liquidity Detection", tooltip = "Maximum number of liquidity levels to track. More = slower but finds more setups.")
+require_major_liquidity = input.bool(true, "Require Strong Pivots", group = "🔍 Liquidity Detection", tooltip = "ON: Only use significant swing highs/lows (higher quality). OFF: Include minor pivots (more trades but lower quality).")
+useOneCandleLiquidity = input.bool(true, "Allow 1-Candle Swings", group = "🔍 Liquidity Detection", tooltip = "ON: Detect liquidity even from single-candle reversals. OFF: Require multi-candle swings.")
 
-// === LIQUIDITY SETTINGS ===
-liq_pivot_len       = input.int(5, "Liquidity Pivot Length (Left/Right)", minval = 1, group = "Liquidity", tooltip = "TFlab uses 5. Higher = Stronger/Major Pivots. Lower = Minor Structure.")
-structure_mode      = input.string("Relaxed (Wicks)", "Candle Structure Mode", options = ["Relaxed (Wicks)", "Standard (Bodies)"], group = "Liquidity")
-pvtMax              = input.int(5, "Max Liquidity Lines", minval = 1, maxval = 500, group = "Liquidity")
-require_major_liquidity = input.bool(true, "Require Major Liquidity", group = "Liquidity", tooltip = "If enabled, searches for the extreme (Highest/Lowest) pivot regardless of candle count. If disabled, picks the most recent pivot with valid structure.")
+// Symbol-Specific Liquidity Distance (IMPORTANT FOR EACH PAIR)
+liq_max_distance_pips_forex = input.float(10.0, "Max Distance - Forex (pips)", minval = 5.0, group = "🔍 Liquidity Detection", tooltip = "How far can liquidity be from zone for Forex pairs. 10 pips = tight, 20+ = loose.")
+liq_max_distance_pips_gold  = input.float(300.0, "Max Distance - Gold (pips)", minval = 5.0, group = "🔍 Liquidity Detection", tooltip = "How far can liquidity be from zone for Gold. 300 pips = $3 in Gold terms.")
+liq_max_distance_pips_index = input.float(5000.0, "Max Distance - Indices (pips)", minval = 100.0, group = "🔍 Liquidity Detection", tooltip = "How far can liquidity be from zone for Indices like NAS100.")
 
-// Liquidity Connector Lines (Zone-to-Liquidity visual)
-show_liquidity_connectors = input.bool(true, "Show Liquidity Connector Lines", group = "Liquidity", tooltip = "Toggle the lines connecting zones to their liquidity levels")
-// Single neutral gray for clean visuals - differentiate by style/width, not color
+// Hardcoded settings (optimal defaults)
+fractalsPeriod = 2  // Williams Fractals period
+plotLiq    = true  // Always plot liquidity
+pvtTopColor = color.red  // Visual colors
+pvtBtmColor = color.green
+pvtStyle    = line.style_solid
+show_liquidity_connectors = true
 liq_line_color = color.new(color.gray, 35)
+liq_fallback_lookback = 300
+liq_candle_count_max = 10
+liq_link_lookback_bars = 400
+liq_side_tol_ticks     = 2
+use_inducement_linking = true
 
-// Fallback liquidity lookback (used when pivot-based selection fails)
-liq_fallback_lookback = input.int(300, "Liquidity Fallback Lookback (bars)", minval = 50, maxval = 1000, group = "Liquidity", tooltip = "When pivot-based liquidity selection fails, uses ta.lowest/ta.highest over this many bars")
-// Max candles to count for liquidity cluster
-liq_candle_count_max = input.int(10, "Max Liquidity Candle Count", minval = 1, maxval = 50, group = "Liquidity", tooltip = "Maximum consecutive opposite candles to count at the liquidity level")
-liq_link_lookback_bars = input.int(400, "Liquidity link lookback (bars)", minval = 50, group = "Liquidity", tooltip = "Only consider liquidity pivots whose bar is within this many bars of the current bar")
-liq_max_distance_pips_forex = input.float(10.0, "Max liq distance - Forex (pips)", minval = 5.0, group = "Liquidity", tooltip = "Maximum price distance (in pips) from zone boundary for FOREX pairs")
-liq_max_distance_pips_gold  = input.float(300.0, "Max liq distance - Gold (pips)", minval = 5.0, group = "Liquidity", tooltip = "Maximum price distance (in pips) from zone boundary for XAUUSD/GOLD")
-liq_side_tol_ticks     = input.int(2, "Liq side tolerance (ticks)", minval = 0, group = "Liquidity", tooltip = "Allow liquidity candidates within this many ticks of zone boundary to pass side-of-zone check")
-use_inducement_linking = input.bool(true, "Use Inducement Liquidity Linking", group = "Liquidity", tooltip = "If ON, Demand links to Lows ABOVE zone (inducement). If OFF, Demand links to Lows BELOW zone (standard). Vice versa for Supply.")
-
-// Debug toggle for extra liquidity rows (candidate lists, window bars, etc.)
-debug_liq_extra = input.bool(false, "Debug: Liquidity (extra rows)", group = "Debug", tooltip = "Show additional debug rows for liquidity analysis. Does NOT affect the dedicated Liq Low/High/Source/Band rows which are always visible.")
+// Display Options (visual only)
+show_zones           = true
+show_demand_zones    = true
+show_supply_zones    = true
+show_entry_labels    = true
+long_label_offset_atr = 0.60
+long_label_offset_ticks = 0
+extend_bars          = 50
 
 
-// === STRATEGY INPUTS ===
+// ══════════════════════════════════════════════════════════
+// === CORE STRATEGY SETTINGS (Backtesting Parameters) ===
+// ══════════════════════════════════════════════════════════
+
 // Trade Direction
-trade_direction       = input.string("Both", "Trade Direction", options = ["Both", "Long Only", "Short Only"], group = "Strategy Settings", tooltip = "Choose which trade directions to allow")
+trade_direction       = input.string("Both", "Trade Direction", options = ["Both", "Long Only", "Short Only"], group = "💰 Risk Management", tooltip = "Which direction to trade. Both = Long and Short. Long Only = Only buy. Short Only = Only sell.")
 allow_long_trades     = trade_direction == "Both" or trade_direction == "Long Only"
-allow_short_trades    = trade_direction == "Both" or trade_direction == "Short Only"  // (short logic not implemented yet)
+allow_short_trades    = trade_direction == "Both" or trade_direction == "Short Only"
 
-// ... (existing code) ...
+// Position Sizing & Risk Management
+account_size_usd      = input.float(10000, "Account Size ($)", minval = 100, step = 100, group = "💰 Risk Management", tooltip = "Your trading account balance in USD. Used to calculate position size.")
+risk_per_trade_pct    = input.float(0.5, "Risk Per Trade (%)", minval = 0.1, maxval = 10, step = 0.1, group = "💰 Risk Management", tooltip = "Percentage of account to risk per trade. 0.5% = $50 risk on $10,000 account.")
+stop_loss_buffer_pips = input.float(1.0, "SL Buffer (Pips)", minval = 0, step = 0.1, group = "💰 Risk Management", tooltip = "Extra pips added below/above the zone wick for stop loss. Protects against wick hunts.")
+use_custom_rr         = input.bool(false, "☐ Override: Use Fixed RR", group = "💰 Risk Management", tooltip = "OFF (default): Uses smart SL-based rules (tight SL = higher RR). ON: Uses your custom ratio below for all trades.")
+risk_reward_ratio     = input.float(2.0, "   └─ Custom R:R Ratio", minval = 0.5, step = 0.1, group = "💰 Risk Management", tooltip = "Your custom Risk:Reward ratio. Only used when 'Override: Use Fixed RR' is checked.")
+liq_entry_max_dist = input.float(50.0, "Max Zone-to-Liq Distance (Pips)", minval = 0.0, step = 1.0, group = "💰 Risk Management", tooltip = "Block trades if zone is too far from liquidity. 50 pips = zone must be within 50 pips of swept liquidity.")
+min_tp_distance_pips = input.float(5.0, "Min TP Distance (Pips)", minval = 1.0, step = 1.0, group = "💰 Risk Management", tooltip = "Minimum take profit distance. Prevents tiny TP that would be eaten by spread. 5 pips = TP must be at least 5 pips away.")
 
+// Advanced Settings (normally leave as defaults)
+use_stop_loss         = true  // Always use SL
+use_take_profit       = true  // Always use TP
+require_liquidity_sweep = true  // Always require liquidity sweep
+min_position_size_units = 1000  // Min position size
+max_position_size_lots = 10.0  // Max position size
+dry_run_mode          = false  // Dry run disabled by default
 
-
-// Position Sizing
-account_size_usd      = input.float(10000, "Account Size (USD)", minval = 100, step = 100, group = "Strategy Settings", tooltip = "Your account size in USD")
-risk_per_trade_pct    = input.float(0.5, "Risk Per Trade (%)", minval = 0.1, maxval = 10, step = 0.1, group = "Strategy Settings", tooltip = "Percentage of account to risk per trade (e.g., 1.0 = 1%)")
-dry_run_mode          = input.bool(false, "Dry Run Mode", group = "Strategy Settings", tooltip = "Show what trades would be taken without executing. All signals and labels will be shown, but no actual trades will be placed.")
-min_position_size_units = input.int(1000, "Minimum Position Size (Units)", minval = 1, group = "Strategy Settings", tooltip = "Minimum position size in units. Trades below this will be rejected.")
-max_position_size_lots = input.float(10.0, "Maximum Position Size (Lots)", minval = 0.01, step = 0.01, group = "Strategy Settings", tooltip = "Maximum position size in lots (10 lots = 1,000,000 units). Trades above this will be rejected.")
-show_pos_sizing_table  = input.bool(true, "Show Position Sizing Table (Debug)", group = "Display Options", tooltip = "Show detailed position sizing information in debug table when Debug Level is Full")
-
-// Risk Management
-use_stop_loss         = input.bool(true, "Use Stop Loss", group = "Strategy Settings")
-stop_loss_buffer_pips = input.float(1.0, "Stop Loss Buffer (Pips)", minval = 0, step = 0.1, group = "Strategy Settings", tooltip = "Small buffer below the deepest wick. Set to 0 to place SL exactly at the wick low.")
-use_take_profit       = input.bool(true, "Use Take Profit", group = "Strategy Settings")
-take_profit_pips      = input.float(40, "Take Profit (Pips)", minval = 1, group = "Strategy Settings")
-risk_reward_ratio     = input.float(2.0, "Risk:Reward Ratio", minval = 0.5, step = 0.1, group = "Strategy Settings", tooltip = "If set, Take Profit will be calculated based on Stop Loss")
-require_liquidity_sweep = input.bool(true, "Require Liquidity Sweep", group = "Strategy Settings", tooltip = "Require liquidity above zone to exist and be swept before entry. Disable to allow entries even without liquidity (for testing)")
-liq_entry_max_dist = input.float(50.0, "Max Liquidity Distance (Pips)", minval = 0.0, step = 1.0, group = "Strategy Settings", tooltip = "Maximum distance in pips from liquidity (high/low) to zone edge. Set to 0 for no limit.")
-min_tp_distance_pips = input.float(5.0, "Minimum TP Distance (Pips)", minval = 1.0, step = 1.0, group = "Strategy Settings", tooltip = "Minimum distance in pips from entry to take profit. Trades with TP closer than this will be blocked to prevent zero-profit trades.")
-debug_mode            = input.bool(false, "Legacy Debug Toggle", group = "Strategy Settings", tooltip = "Legacy toggle. For new setups prefer Debug Level in Display Options.")
-debug_entry_labels    = input.bool(false, "Debug Entry Signals", group = "Strategy Settings", tooltip = "Draw a label whenever the live entry condition actually triggers (Debug Level = Full only).")
-show_zone_debug_labels = input.bool(false, "Show Zone Debug Labels", group = "Strategy Settings", tooltip = "Show debug labels on zones when price wicks into them (Debug Level = Full only).")
-show_debug_labels      = input.bool(false, "Show Detailed ACC Debug", group = "Strategy Settings", tooltip = "Show detailed debug info on Accuracy labels")
-
-zone_label_size       = input.string("Tiny", "Zone Label Size", options = ["Tiny"], group = "Display Options", tooltip = "Size of zone ID labels - forced tiny for clean chart")
-debug_level           = input.string("None", "Debug Level", options = ["None", "Basic", "Full"], group = "Display Options", tooltip = "Controls how much debug output is shown: None, Basic (Zone Inspector only), Full (all debug tables & labels).")
-debug_last_bars       = input.int(200, "Debug: Show Last N Bars", minval = 0, group = "Display Options", tooltip = "Limit debug drawings/calculations to the most recent N bars. 0 = no limit.")
-showZoneInspector     = input.bool(true, "Enable Zone Inspector Panel", group = "Display Options", tooltip = "Show the Zone Inspector panel with detailed zone information (Debug Level must be Basic or Full).")
-manual_zone_id_input = input.string("", "Manual Zone ID", group = "Strategy Settings", tooltip = "Enter zone label (e.g., S-8648, D-9183) or just numeric ID to inspect. Leave empty to disable inspector.")
+// Debug & Display (visual only - no impact on backtest results)
+debug_mode            = false
+debug_entry_labels    = false
+show_zone_debug_labels = false
+show_debug_labels      = false
+zone_label_size       = "Tiny"
+debug_level           = input.string("None", "Debug Level", options = ["None", "Basic", "Full"], group = "📊 Display", tooltip = "None = Clean chart. Basic = Key info. Full = All debug data.")
+debug_last_bars       = 200
+showZoneInspector     = input.bool(true, "Zone Inspector Panel", group = "📊 Display", tooltip = "ON: Show detailed zone info panel on chart.")
+manual_zone_id_input = ""  // Manual zone ID (leave empty)
+show_pos_sizing_table  = input.bool(true, "Position Size Table", group = "📊 Display", tooltip = "ON: Show position sizing calculations on chart.")
+take_profit_pips = input.float(0.0, "Fixed TP Override (Pips)", minval = 0, group = "📊 Display", tooltip = "Set fixed TP in pips. 0 = Use RR-based TP calculation instead.")
+debug_liq_extra = input.bool(false, "Debug: Liquidity Info", group = "📊 Display", tooltip = "ON: Show extra liquidity linking debug information.")
 
 // === GOLD PIP SCALING FACTOR ===
 // Since we changed Gold pip size from 0.1 to 0.01 (to match user perception),
 // we must scale all pip-based inputs by 10x for Gold so they maintain their original "value" in USD.
 // Example: Buffer 1.0 input -> was 1.0 * 0.1 = $0.10. Now 1.0 * 0.01 = $0.01 (too small).
 //          Scaled Buffer -> 1.0 * 10 = 10.0. 10.0 * 0.01 = $0.10 (Correct).
-float pip_scale_factor = (str.contains(syminfo.ticker, "XAU") or str.contains(syminfo.ticker, "GOLD")) and pip_size <= 0.011 ? 10.0 : 1.0
+// IMPORTANT: Indices (NAS100, SPX, etc.) use native tick size and do NOT need scaling.
+float pip_scale_factor = is_gold and pip_size <= 0.011 ? 10.0 : 1.0
 
 // Apply scaling to effective values
 float effective_sl_buffer = stop_loss_buffer_pips * pip_scale_factor
 float effective_min_tp_dist = min_tp_distance_pips * pip_scale_factor
 float effective_liq_entry_max_dist = liq_entry_max_dist * pip_scale_factor
 // Symbol-specific liquidity distance (no scaling needed - already specified per market)
-float effective_liq_max_dist = is_gold ? liq_max_distance_pips_gold : liq_max_distance_pips_forex
+float effective_liq_max_dist = is_index ? liq_max_distance_pips_index : (is_gold ? liq_max_distance_pips_gold : liq_max_distance_pips_forex)
 float effective_tp_pips = take_profit_pips * pip_scale_factor
 
-// === 2025 NEW INPUTS ===
-max_trades_per_day = input.int(1, "Max Trades Per Day", minval = 1, maxval = 2, group = "Strategy Settings", tooltip = "Maximum number of trades per day. Second trade uses 0.5R risk if max=2")
-use_break_even     = input.bool(false, "Use Break-Even Mode", group = "Strategy Settings", tooltip = "Move SL to entry after TP1 hits")
-max_bars_held = input.int(36, "Max Bars to Hold", minval=1, group="Strategy Settings", tooltip="Close trade if held longer than this many candles (e.g., 36 bars = 3 hours on M5).")
+// ══════════════════════════════════════════════════════════
+// === TRADE FILTERS & ENTRY RULES ===
+// ══════════════════════════════════════════════════════════
 
-// === TIME FILTERS (Arger FX / Combined Strategy Rules) ===
-filter_dead_zone = input.bool(true, "Filter Dead Zone (xx:50-xx:00)", group = "Strategy Settings", tooltip = "Block entries in the last 10 minutes of each hour (xx:50 - xx:00) to avoid volatility spikes at HTF candle closes.")
-filter_trading_hours = input.bool(true, "Filter Trading Hours (07:00-22:00)", group = "Strategy Settings", tooltip = "Only allow trades between 07:00-22:00 Israel time. Avoids swap hour (00:00), low-liquidity Asian session, and late-night volatility.")
-trading_start_hour = input.int(7, "Trading Start Hour", minval = 0, maxval = 23, group = "Strategy Settings", tooltip = "Hour to start trading (Israel time, default: 07:00)")
-trading_end_hour = input.int(22, "Trading End Hour", minval = 0, maxval = 23, group = "Strategy Settings", tooltip = "Hour to stop trading (Israel time, default: 22:00)")
-require_htf_flip = input.bool(true, "Require HTF Context for Flip Entry", group = "Strategy Settings", tooltip = "When enabled, Flip entries are only valid near the open of a new 30m/1H candle (first 10 minutes of each half hour).")
+// Daily Trade Limits
+enable_trade_limit = input.bool(true, "Limit Daily Trades", group = "💰 Risk Management", tooltip = "ON: Stop trading after X trades per day. Prevents overtrading.")
+max_trades_per_day = input.int(2, "   └─ Max Trades/Day", minval = 1, maxval = 10, group = "💰 Risk Management", tooltip = "Maximum trades allowed per day. 2 = After 2 trades, no more entries until next day.")
 
-// === DOUBLE TP MODE ===
-enable_double_tp = input.bool(false, "Enable Double TP Mode", group = "Strategy Settings", tooltip = "Double the TP targets: 1:2 becomes 1:4, 1:3 becomes 1:6, etc. (RD_FOREX advanced rule)")
+// Time Filters
+filter_dead_zone = input.bool(true, "Block Dead Zone (xx:50-xx:00)", group = "⏰ Time Filters", tooltip = "ON: No entries in last 10 minutes of each hour. These periods have erratic price action.")
+filter_trading_hours = input.bool(true, "Trading Hours Only", group = "⏰ Time Filters", tooltip = "ON: Only trade during active market hours. OFF: Trade 24/7.")
+trading_start_hour = input.int(7, "   └─ Start Hour (UTC)", minval = 0, maxval = 23, group = "⏰ Time Filters", tooltip = "Hour to start trading (0-23). 7 = 7:00 AM UTC.")
+trading_end_hour = input.int(22, "   └─ End Hour (UTC)", minval = 0, maxval = 23, group = "⏰ Time Filters", tooltip = "Hour to stop trading (0-23). 22 = 10:00 PM UTC.")
+require_htf_flip = input.bool(true, "HTF Flip Context", group = "⏰ Time Filters", tooltip = "ON: Flip entries only valid near 30m/1H candle opens for better timing.")
 
-// === WEBHOOK INTEGRATION (Discord-MT5 Bridge) ===
-enable_webhook_alerts = input.bool(true, "Enable Webhook Alerts", group = "Webhook Integration", tooltip = "Send trade signals to Discord bot via webhook for MT5 execution. Requires external Python bot running.")
-webhook_include_zone_id = input.bool(true, "Include Zone ID in Webhook", group = "Webhook Integration", tooltip = "Include the zone ID in webhook payload for tracking purposes.")
+// AI & Quality Filters
+enable_ai_quality_filter = input.bool(true, "AI Quality Filter", group = "🤖 Quality Filters", tooltip = "ON: Block low-quality setups using AI scoring. Improves win rate.")
+ai_quality_threshold = input.int(60, "   └─ Min Score (0-100)", minval = 0, maxval = 100, group = "🤖 Quality Filters", tooltip = "Minimum quality score to take trade. 60 = ~60% expected win rate. Higher = fewer but better trades.")
+enable_grade_filter = input.bool(false, "Grade Filter", group = "🤖 Quality Filters", tooltip = "ON: Filter by zone grade (A+, A, B+, etc). OFF: Use score filter instead.")
+min_entry_grade     = input.string("C", "   └─ Min Grade", options=["A+", "A", "B+", "B", "C+", "C"], group="🤖 Quality Filters", tooltip="Minimum zone grade required. A+ = Best quality, C = Lowest.")
+min_return_strength = input.int(0, "Return Speed Filter", minval = 0, maxval = 100, group = "🤖 Quality Filters", tooltip = "How fast price returned after sweep. 0 = OFF. 30 = Block slow returns. 70 = Only sharp V-reversals.")
 
-// === ACCURACY ZONES ===
-enable_accuracy_zones = input.bool(true, "Enable Accuracy Zones", group = "Strategy Settings", tooltip = "Enable accuracy zone detection. Disable for symbols like XAUUSD and NAS100 that don't support accuracy zones.")
+// Advanced Features
+use_break_even     = input.bool(false, "Break-Even Mode", group = "⚙️ Advanced", tooltip = "ON: Move SL to entry price after hitting partial profit target. Protects gains.")
+max_bars_held = input.int(36, "Time-Based Exit (Bars)", minval=1, group="⚙️ Advanced", tooltip="Close trade after X bars regardless of P/L. 36 bars on M5 = 3 hours max hold time.")
+enable_double_tp = input.bool(false, "Double TP Mode", group = "⚙️ Advanced", tooltip = "ON: Double all TP targets. Example: 1:2 becomes 1:4. For trending markets.")
+use_fvg_confirmation = input.bool(false, "Require FVG (Imbalance)", group = "⚙️ Advanced", tooltip = "ON: Only create zones that have a Fair Value Gap. Reduces zones but improves quality.")
+enable_accuracy_zones = input.bool(true, "Accuracy Zones", group = "⚙️ Advanced", tooltip = "ON: Detect high-precision zones. Auto-disabled for Gold/Indices.")
 should_use_accuracy_zones = enable_accuracy_zones and not (is_gold or is_index)
 
-// === SETUP FILTERS ===
-ema_trend_length = input.int(200, "Trend EMA Length", group = "Trend Filter")
+// Webhook Integration (for live trading)
+enable_webhook_alerts = true  // Always enabled
+webhook_include_zone_id = true  // Always include zone ID
 
-
-// === PROPRIETARY SCORING ===
-min_entry_grade     = input.string("C", "Min Entry Grade", options=["A+", "A", "B+", "B", "C+", "C"], group="Proprietary Scoring", tooltip="Minimum grade required to enter a trade")
-enable_grade_filter = input.bool(false, "Enable Grade Filter", group="Proprietary Scoring")
-show_grade_on_zone  = input.bool(true, "Show Grade on Zone Label", group="Proprietary Scoring")
-
-// === AI QUALITY FILTER ===
-enable_ai_quality_filter = input.bool(true, "Enable AI Quality Filter", group = "AI Filter", tooltip = "Mirrors backend AI filter for accurate backtests. Filters trades based on V3 feature scoring.")
-ai_quality_threshold = input.int(60, "Min Quality Score", minval = 0, maxval = 100, group = "AI Filter", tooltip = "Minimum quality score to enter trade (60 ≈ 60% win probability). Backend uses 60.")
-show_ai_score_on_label = input.bool(false, "Show AI Score on Labels", group = "AI Filter", tooltip = "Display calculated quality score on entry labels for debugging")
-
-// === V6/V7 ADVANCED FEATURES (PERFORMANCE HEAVY) ===
-enable_v6_v7_features = input.bool(true, "Enable V6/V7 Features (SLOW)", group = "AI Filter", tooltip = "Calculate Base Quality, Departure Strength, Liquidity Quality, Return Strength. WARNING: Makes script 10x slower. Only enable for training data export.")
-
-// === COMPRESSION / RETURN STRENGTH FILTER (V7) ===
-min_return_strength = input.int(0, "Min Return Strength (Compression Filter)", minval = 0, maxval = 100, group = "AI Filter", tooltip = "Filter out trades where price returns to zone slowly (Compression). 0 = Disabled. 30 = Block very slow returns. 70 = Only sharp V-shape returns.")
-
-
-// === FVG CONFLUENCE ===
-use_fvg_confirmation = input.bool(false, "Require FVG Confirmation", group = "Strategy Settings", tooltip = "Only create zones if the leaving move creates a Fair Value Gap (Imbalance).")
+// Display Options (visual only)
+show_grade_on_zone  = input.bool(true, "Show Grade on Zones", group="📊 Display", tooltip="ON: Display zone grade (A+, B, etc) on the zone label.")
+show_ai_score_on_label = input.bool(false, "Show AI Score on Labels", group = "📊 Display", tooltip = "ON: Display numeric AI score on entry labels.")
+enable_v6_v7_features = input.bool(true, "Advanced AI Features", group = "📊 Display", tooltip = "ON: Calculate V6/V7 AI features. WARNING: Makes script 10x slower but improves quality scoring.")
+ema_trend_length = 200  // Trend EMA (hardcoded)
 
 // === WEBHOOK PLOT VARIABLES (GLOBAL) ===
 var float plot_id               = na
@@ -332,19 +339,23 @@ var float plot_liquidity_distance = na
 var float plot_liquidity_spread = na
 var float plot_return_strength  = na
 
-// === DAILY RISK MANAGEMENT ===
-max_daily_loss_pct    = input.float(2.0, "Max Daily Loss (%)", minval = 0.1, group = "Risk Management", tooltip = "Stop trading if daily loss exceeds this percentage.")
-max_daily_profit_pct  = input.float(5.0, "Max Daily Profit (%)", minval = 0.1, group = "Risk Management", tooltip = "Stop trading if daily profit exceeds this percentage.")
-reset_daily_pnl       = input.bool(true, "Reset PnL Daily", group = "Risk Management", tooltip = "Reset PnL counters at the start of each day.")
+// ══════════════════════════════════════════════════════════
+// === RISK MANAGEMENT & BACKTEST SETTINGS ===
+// ══════════════════════════════════════════════════════════
 
-// === PERFORMANCE TABLE OPTIONS ===
-show_performance_table = input.bool(false, "Show Performance Table", group = "Display Options", tooltip = "Show aggregated performance statistics (zones, liquidity, timing blocks, RR, etc.)")
+// Daily Risk Limits
+max_daily_loss_pct    = input.float(2.0, "Daily Loss Limit (%)", minval = 0.1, group = "💰 Risk Management", tooltip = "Stop trading after losing X% of account in a day. 2% = If you lose $200 on $10,000, stop for the day.")
+max_daily_profit_pct  = input.float(5.0, "Daily Profit Target (%)", minval = 0.1, group = "💰 Risk Management", tooltip = "Option to stop after reaching daily profit target. 5% = Stop after making $500 on $10,000.")
+reset_daily_pnl       = true  // Always reset PnL daily
 
-// === BACKTEST DATE RANGE ===
-enable_date_filter = input.bool(true, "Enable Date Range Filter", group = "Backtest Settings", tooltip = "Only execute trades within the specified date range")
-start_date         = input.time(timestamp("01 Jan 2023 00:00 +0000"), "Start Date", group = "Backtest Settings")
-end_date           = input.time(timestamp("19 Jan 2026 23:59 +0000"), "End Date", group = "Backtest Settings")
-min_bar_index_for_entries = input.int(100, "Minimum Bar Index for Entries", minval = 0, group = "Backtest Settings", tooltip = "Only allow entries on zones created after this bar index. Prevents backfill issues by ignoring historical zones.")
+// Backtest Date Range
+enable_date_filter = input.bool(true, "Date Range Filter", group = "📅 Backtest", tooltip = "ON: Only backtest within specified date range.")
+start_date         = input.time(timestamp("01 Jan 2023 00:00 +0000"), "   └─ Start Date", group = "📅 Backtest", tooltip = "Backtest start date.")
+end_date           = input.time(timestamp("19 Jan 2026 23:59 +0000"), "   └─ End Date", group = "📅 Backtest", tooltip = "Backtest end date.")
+min_bar_index_for_entries = input.int(100, "Skip First N Bars", minval = 0, group = "📅 Backtest", tooltip = "Skip first N bars to avoid backfill issues. 100 = Wait for 100 bars of data before taking trades.")
+
+// Display Tables (visual only)
+show_performance_table = input.bool(false, "Performance Table", group = "📊 Display", tooltip = "ON: Show performance statistics table on chart.")
 
 
 // Override key settings when a profile is selected (not "Custom")
@@ -452,19 +463,19 @@ col_acc_supply_border = #BA68C8  // Bright purple border
 // Improved tolerance (1 pip for JPY pairs)
 float tol = pip_size * 1.0
 
-// === UPDATED SL/TP RULES (FROM USER IMAGE) ===
+// === JPY PAIRS SL/TP RULES ===
 // Returns: [tp_ratio, be_trigger_rr, be_sl_pips_min, move_to_be]
-// Rules:
+// Rules for JPY pairs (USDJPY, EURJPY, GBPJPY, etc.):
 // - SL <= 3 pips: Min RR 1:4.5. Move SL to 1:1 (min 2 pips) when 1:4 hits.
 // - SL 3.1-7 pips: Min RR 1:3. Move SL to BE when 1:2 hits.
 // - SL 7.1-11 pips: Close full at 1:2.5. Move SL to BE at 1:1.2.
-// - SL > 11 pips: Close full at 1:2.
-get_updated_sl_tp_rules(sl_pips) =>
+// - SL 11.1+ pips: Close full at 1:2.
+get_jpy_tp_rules(sl_pips) =>
     float tp_ratio = 2.0
     float be_trigger_rr = na
     float be_sl_pips_min = na
     bool move_to_be = false
-    
+
     if sl_pips <= 3.0
         tp_ratio := 4.5
         be_trigger_rr := 4.0
@@ -485,11 +496,21 @@ get_updated_sl_tp_rules(sl_pips) =>
         be_trigger_rr := na
         be_sl_pips_min := na
         move_to_be := false
-        
+
     [tp_ratio, be_trigger_rr, be_sl_pips_min, move_to_be]
 
+// === GENERIC FOREX TP RULES (Non-JPY pairs) ===
+// Now uses the same SL-based rules as JPY pairs (unified Forex rules)
+get_forex_tp_rules(sl_pips) =>
+    // Use JPY rules for all Forex pairs (SL-based dynamic RR)
+    get_jpy_tp_rules(sl_pips)
+
+// Backward compatibility wrapper
+get_updated_sl_tp_rules(sl_pips) =>
+    get_jpy_tp_rules(sl_pips)
+
 get_rd_forex_tp_ratio(sl_pips) =>
-    [tp, _, _, _] = get_updated_sl_tp_rules(sl_pips)
+    [tp, _, _, _] = get_jpy_tp_rules(sl_pips)
     tp
 
 // === DOUBLE TP MODE (OPTIONAL) ===
@@ -538,26 +559,47 @@ get_gold_tp_rules(sl_pips) =>
 
     [tp_ratio, be_trigger_rr, be_sl_pips_min, move_to_be]
 
+// === INDEX TP RULES (NAS100, SPX, etc.) ===
+// Fixed 1:4 ratio for all index trades regardless of SL size
+get_index_tp_rules(sl_pips) =>
+    float tp_ratio = 4.0           // Fixed 1:4 for all indices
+    float be_trigger_rr = na       // No break-even management for indices
+    float be_sl_pips_min = na
+    bool move_to_be = false
+    
+    [tp_ratio, be_trigger_rr, be_sl_pips_min, move_to_be]
+
 // === 2025 TP LOOKUP DICTIONARIES ===
 get_tp_ratio(symbol_type, sl_pips) =>
-    // Determine strict mode based on symbol
-    bool is_gold_symbol = str.contains(syminfo.ticker, "XAU") or str.contains(syminfo.ticker, "GOLD")
-    
     // Default variables
     float base_ratio = 2.0
     float be_trig = na
     float be_sl = na
     bool move_be = false
-    
-    if is_gold_symbol
+
+    // CHECK: If custom RR override is enabled, use fixed ratio for everything except indices
+    if use_custom_rr and not is_index
+        base_ratio := risk_reward_ratio
+        be_trig := na
+        be_sl := na
+        move_be := false
+    // 1. Check for Indices first (NAS100, SPX, etc.) - Fixed 1:4
+    else if is_index
+        [i_tp, i_bet, i_bes, i_mbe] = get_index_tp_rules(sl_pips)
+        base_ratio := i_tp
+        be_trig := i_bet
+        be_sl := i_bes
+        move_be := i_mbe
+    // 2. Check for Gold - Variable TP based on SL size
+    else if is_gold
         [g_tp, g_bet, g_bes, g_mbe] = get_gold_tp_rules(sl_pips)
         base_ratio := g_tp
         be_trig := g_bet
         be_sl := g_bes
         move_be := g_mbe
+    // 3. All Forex pairs (JPY and non-JPY) - Use SL-based rules
     else
-        // Uses RD_FOREX rules for all other pairs (5m optimized)
-        [f_tp, f_bet, f_bes, f_mbe] = get_updated_sl_tp_rules(sl_pips)
+        [f_tp, f_bet, f_bes, f_mbe] = get_forex_tp_rules(sl_pips)
         base_ratio := f_tp
         be_trig := f_bet
         be_sl := f_bes
@@ -566,7 +608,7 @@ get_tp_ratio(symbol_type, sl_pips) =>
     // Apply double TP mode if enabled (only affects TP ratio, not BE rules)
     if enable_double_tp
         base_ratio := get_double_tp_ratio(base_ratio)
-        
+
     [base_ratio, be_trig, be_sl, move_be]
 
 // === DATA STRUCTURES (Moved to Top) ===
@@ -1040,9 +1082,8 @@ calculate_base_quality(int base_start_idx, int base_end_idx) =>
 // Higher score = bigger bodies + higher volume
 // NOTE: This function is called on every bar for series consistency (Pine Script requirement)
 calculate_departure_strength(int base_end_idx, bool isDemand) =>
-    // IMPORTANT: ta.sma must be called on every bar, so we calculate it first
-    float vol_sma_20 = ta.sma(volume, 20)
-    
+    // Uses global vol_sma_20 (calculated on every bar for Pine Script series consistency)
+
     if base_end_idx < 3
         50.0  // Not enough history
     else
@@ -1134,9 +1175,8 @@ calculate_liquidity_spread(float target_price, float inducement_price) =>
 // Faster return + bigger candles = higher conviction
 // NOTE: This function is called on every bar for series consistency (Pine Script requirement)
 calculate_return_strength(int sweep_bar_idx, int prime_bar_idx, bool isDemand) =>
-    // IMPORTANT: ta.sma must be called on every bar, so we calculate it first
-    float vol_sma_20 = ta.sma(volume, 20)
-    
+    // Uses global vol_sma_20 (calculated on every bar for Pine Script series consistency)
+
     if na(sweep_bar_idx) or na(prime_bar_idx) or sweep_bar_idx >= prime_bar_idx
         50.0  // Default if no valid sweep or instant prime
     else
@@ -1611,6 +1651,9 @@ validate_position_size(entry_price, stop_loss_price, balance, risk_pct, is_short
             else if str.contains(syminfo.ticker, "BTC") or str.contains(syminfo.ticker, "ETH")
                 contract_size := 1.0
                 effective_min_units := 1  // Crypto: minimum 1 unit
+            else if is_index  // Indices: NAS100, SPX, etc.
+                contract_size := 1.0
+                effective_min_units := 1  // Index: minimum 1 contract
             
             qty_lots := qty_units / contract_size
             
@@ -2792,7 +2835,8 @@ validate_entry_conditions(bool isDemand, int idx) =>
                 // For Supply: liqHighPrice to zone top
                 // For Demand: liqLowPrice to zone bottom
                 // Skip check if effective_liq_entry_max_dist is 0 (no limit)
-                if effective_liq_entry_max_dist > 0.0 and not checkLiquidityDistance(z, not isDemand)
+                // SKIP FOR INDICES: NAS100 liquidity works differently, distance check not applicable
+                if not is_index and effective_liq_entry_max_dist > 0.0 and not checkLiquidityDistance(z, not isDemand)
                     float liqDist = not na(z.liquidityDistance) ? z.liquidityDistance : 999.0
                     // Only reject if strictly worse (allow small tolerance)
                     canEnter := false
@@ -3128,7 +3172,9 @@ is_daily_profit_limit_hit() =>
 
 // Update trades_allowed_today to include PnL limits
 trades_allowed_today() =>
-    current_day_trades < max_trades_per_day and not is_daily_loss_limit_hit() and not is_daily_profit_limit_hit()
+    // Check trade limit only if enabled
+    trade_limit_ok = enable_trade_limit ? current_day_trades < max_trades_per_day : true
+    trade_limit_ok and not is_daily_loss_limit_hit() and not is_daily_profit_limit_hit()
 
 
 is_late_friday() =>
@@ -3280,7 +3326,6 @@ deactivateOverlappingDemandZones(refLow, refHigh) =>
 // isHistorical = true  -> created during initial backfill scan
 // isHistorical = false -> created in live processing (recent bars)
 
-
 // --- 1. DEMAND ZONE DETECTION (recent bars) ---
 // Pattern: BULLISH candle(s) followed by BEARISH candle
 if barstate.isconfirmed and bar_index > 10
@@ -3300,40 +3345,6 @@ if barstate.isconfirmed and bar_index > 10
             global_zone_id_counter += 1
             createZone(1, true, false, 1, 1, global_zone_id_counter)
 
-// Initial historical scan (once)
-if barstate.isconfirmed and not initial_scan_done and bar_index > 50
-    initial_scan_done := true
-    max_scan = math.min(100, bar_index)
-
-    for i = 2 to max_scan
-        baseBarIdxDemand = bar_index - i
-        if i >= 3 and is_bearish(i) and is_bullish(i - 1) and is_bullish(i - 2) and is_bullish(i - 3)
-            if not is_base_bar_used(baseBarIdxDemand, used_demand_base_times)
-                global_zone_id_counter += 1
-                createZone(i, true, true, 1, 3, global_zone_id_counter)
-        else if is_bearish(i) and is_bullish(i - 1) and is_bullish(i - 2)
-            if not is_base_bar_used(baseBarIdxDemand, used_demand_base_times)
-                global_zone_id_counter += 1
-                createZone(i, true, true, 1, 2, global_zone_id_counter)
-        else if is_bearish(i) and is_bullish(i - 1)
-            if not is_base_bar_used(baseBarIdxDemand, used_demand_base_times)
-                global_zone_id_counter += 1
-                createZone(i, true, true, 1, 1, global_zone_id_counter)
-
-        baseBarIdxSupply = bar_index - i
-        if i >= 3 and is_bullish(i) and is_bearish(i - 1) and is_bearish(i - 2) and is_bearish(i - 3)
-            if not is_base_bar_used(baseBarIdxSupply, used_supply_base_times)
-                global_zone_id_counter += 1
-                createZone(i, false, true, 1, 3, global_zone_id_counter)
-        else if is_bullish(i) and is_bearish(i - 1) and is_bearish(i - 2)
-            if not is_base_bar_used(baseBarIdxSupply, used_supply_base_times)
-                global_zone_id_counter += 1
-                createZone(i, false, true, 1, 2, global_zone_id_counter)
-        else if is_bullish(i) and is_bearish(i - 1)
-            if not is_base_bar_used(baseBarIdxSupply, used_supply_base_times)
-                global_zone_id_counter += 1
-                createZone(i, false, true, 1, 1, global_zone_id_counter)
-
 // --- 2. SUPPLY ZONE DETECTION (recent bars) ---
 if barstate.isconfirmed and bar_index > 10
     if is_bearish(0) and is_bearish(1) and is_bearish(2) and is_bullish(3)
@@ -3351,6 +3362,38 @@ if barstate.isconfirmed and bar_index > 10
         if not is_base_bar_used(baseBarIdx, used_supply_base_times)
             global_zone_id_counter += 1
             createZone(1, false, false, 1, 1, global_zone_id_counter)
+
+// --- 3. HISTORICAL ZONE SCAN (once) ---
+if barstate.isconfirmed and not initial_scan_done and bar_index > 50
+    initial_scan_done := true
+    max_scan = math.min(100, bar_index)
+    for i = 2 to max_scan
+        baseBarIdxDemand = bar_index - i
+        if i >= 3 and is_bearish(i) and is_bullish(i - 1) and is_bullish(i - 2) and is_bullish(i - 3)
+            if not is_base_bar_used(baseBarIdxDemand, used_demand_base_times)
+                global_zone_id_counter += 1
+                createZone(i, true, true, 1, 3, global_zone_id_counter)
+        else if is_bearish(i) and is_bullish(i - 1) and is_bullish(i - 2)
+            if not is_base_bar_used(baseBarIdxDemand, used_demand_base_times)
+                global_zone_id_counter += 1
+                createZone(i, true, true, 1, 2, global_zone_id_counter)
+        else if is_bearish(i) and is_bullish(i - 1)
+            if not is_base_bar_used(baseBarIdxDemand, used_demand_base_times)
+                global_zone_id_counter += 1
+                createZone(i, true, true, 1, 1, global_zone_id_counter)
+        baseBarIdxSupply = bar_index - i
+        if i >= 3 and is_bullish(i) and is_bearish(i - 1) and is_bearish(i - 2) and is_bearish(i - 3)
+            if not is_base_bar_used(baseBarIdxSupply, used_supply_base_times)
+                global_zone_id_counter += 1
+                createZone(i, false, true, 1, 3, global_zone_id_counter)
+        else if is_bullish(i) and is_bearish(i - 1) and is_bearish(i - 2)
+            if not is_base_bar_used(baseBarIdxSupply, used_supply_base_times)
+                global_zone_id_counter += 1
+                createZone(i, false, true, 1, 2, global_zone_id_counter)
+        else if is_bullish(i) and is_bearish(i - 1)
+            if not is_base_bar_used(baseBarIdxSupply, used_supply_base_times)
+                global_zone_id_counter += 1
+                createZone(i, false, true, 1, 1, global_zone_id_counter)
 
 // === LIQUIDITY VALIDATION FUNCTIONS ===
 // Validate liquidity: must break previous structure by at least a few pips
@@ -6303,7 +6346,7 @@ if show_pos_sizing_table and debug_full and isRecentBarForDebug() and barstate.i
 performanceTable := draw_performance_table(performanceTable)
 
 // === PROFILE STATUS TABLE (Visual Confirmation) ===
-if debug_enabled and barstate.islast
+if debug_enabled and barstate.islastconfirmedhistory
     var table profileStatusTable = table.new(position.top_right, 2, 8, 
          bgcolor = color.new(color.rgb(20, 25, 30), 10),
          frame_color = color.new(color.rgb(100, 110, 120), 80),

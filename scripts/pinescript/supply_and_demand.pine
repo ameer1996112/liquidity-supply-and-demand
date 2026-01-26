@@ -27,7 +27,15 @@ manual_pip_size      = input.float(0.0001, "Manual Pip Size", step = 0.0001, too
 // Auto-detect pip size based on symbol
 get_auto_pip_size() =>
     ticker = syminfo.ticker
-    if str.contains(ticker, "JPY")
+    // INDICES: Use 1.0 to represent 1 POINT (not tick size)
+    // NAS100: 1 pip = 1.0 point, tick = 0.25
+    if str.contains(ticker, "NAS") or str.contains(ticker, "US100") or str.contains(ticker, "NDX")
+        1.0  // NAS100: 1 pip = 1 point
+    else if str.contains(ticker, "SPX") or str.contains(ticker, "US500") or str.contains(ticker, "SPY")
+        1.0  // S&P 500: 1 pip = 1 point
+    else if str.contains(ticker, "US30") or str.contains(ticker, "DJI")
+        1.0  // Dow Jones: 1 pip = 1 point
+    else if str.contains(ticker, "JPY")
         0.01  // JPY pairs (USDJPY, GBPJPY, EURJPY, etc.)
     else if str.contains(ticker, "XAU") or str.contains(ticker, "GOLD")
         0.01   // Gold (User preference: 10c = 10 pips, 1$ = 100 pips)
@@ -234,7 +242,8 @@ manual_zone_id_input = input.string("", "Manual Zone ID", group = "Strategy Sett
 // we must scale all pip-based inputs by 10x for Gold so they maintain their original "value" in USD.
 // Example: Buffer 1.0 input -> was 1.0 * 0.1 = $0.10. Now 1.0 * 0.01 = $0.01 (too small).
 //          Scaled Buffer -> 1.0 * 10 = 10.0. 10.0 * 0.01 = $0.10 (Correct).
-float pip_scale_factor = (str.contains(syminfo.ticker, "XAU") or str.contains(syminfo.ticker, "GOLD")) and pip_size <= 0.011 ? 10.0 : 1.0
+// IMPORTANT: Indices (NAS100, SPX, etc.) use native tick size and do NOT need scaling.
+float pip_scale_factor = is_gold and pip_size <= 0.011 ? 10.0 : 1.0
 
 // Apply scaling to effective values
 float effective_sl_buffer = stop_loss_buffer_pips * pip_scale_factor
