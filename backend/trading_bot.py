@@ -626,7 +626,35 @@ def webhook():
 
         logger.info(f"Webhook received: {data}")
 
-        # Validate
+        if data.get('event_type') == 'exit':
+            logger.info(f"Routing to exit logic: {data}")
+            # Validate required fields for exit
+            required_exit = ['zone_id', 'outcome', 'bars_held', 'close_price', 'exit_type', 'mae_pips']
+            missing_exit = [f for f in required_exit if f not in data]
+            if missing_exit:
+                return jsonify({"status": "error", "message": f"Missing exit fields: {missing_exit}"}), 400
+            
+            # Update trade exit data in Supabase
+            exit_data = {
+                'outcome': data['outcome'],
+                'close_price': data['close_price'],
+                'close_time': data.get('close_time'),
+                'pnl_r': data.get('pnl_r', 0),
+                'exit_type': data['exit_type'],
+                'mae_pips': data['mae_pips'],
+                'bars_held': data['bars_held']
+            }
+            
+            success = supabase_db.update_alert_exit(data['zone_id'], exit_data)
+            
+            if not success:
+               logger.warning(f"No open trade found for zone_id {data['zone_id']}")
+               return jsonify({"status": "warning", "message": "No matching open trade found"}), 200
+               
+            logger.info(f"✅ Exit recorded for zone #{data['zone_id']}: {data['outcome']} | MAE: {data['mae_pips']:.1f} pips")
+            return jsonify({"status": "success", "zone_id": data['zone_id'], "outcome": data['outcome']}), 200
+
+        # Validate Entry Fields
         required = ['symbol', 'side', 'entry', 'sl', 'tp', 'size']
         missing = [f for f in required if f not in data]
         if missing:

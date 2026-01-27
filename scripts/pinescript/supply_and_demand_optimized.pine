@@ -306,7 +306,7 @@ zone_label_size       = "Tiny"
 debug_level           = input.string("None", "Debug Level", options = ["None", "Basic", "Full"], group = "📊 Display", tooltip = "None = Clean chart. Basic = Key info. Full = All debug data.")
 debug_last_bars       = 200
 showZoneInspector     = input.bool(true, "Zone Inspector Panel", group = "📊 Display", tooltip = "ON: Show detailed zone info panel on chart.")
-manual_zone_id_input = ""  // Manual zone ID (leave empty)
+manual_zone_id_input = input.string("", "   └─ Manual Zone ID", group = "📊 Display", tooltip = "Enter Zone ID (e.g. '123' or 'D-123') to inspect. Leave empty to inspect hovered zone.")
 show_pos_sizing_table  = input.bool(true, "Position Size Table", group = "📊 Display", tooltip = "ON: Show position sizing calculations on chart.")
 take_profit_pips = input.float(0.0, "Fixed TP Override (Pips)", minval = 0, group = "📊 Display", tooltip = "Set fixed TP in pips. 0 = Use RR-based TP calculation instead.")
 debug_liq_extra = input.bool(false, "Debug: Liquidity Info", group = "📊 Display", tooltip = "ON: Show extra liquidity linking debug information.")
@@ -1522,12 +1522,12 @@ calc_pos_size_units_v2(entry, stop, balance, risk_pct, is_short) =>
     float effective_distance = math.max(sl_distance, min_distance)
 
     // Build debug info string with currency info
-    string debug_info = "Entry: " + str.tostring(entry, format.mintick) +
-                        "\nSL: " + str.tostring(stop, format.mintick) +
-                        "\nSL Dist: " + str.tostring(effective_distance, format.mintick) +
-                        "\nPoint Val: " + str.tostring(point_value, "#.########") +
-                        "\nSymbol Curr: " + syminfo.currency +
-                        "\nRisk: $" + str.tostring(risk_usd, "#.##")
+    string debug_info = "Entry: " + str.tostring(entry, format.mintick)
+    debug_info := debug_info + "\nSL: " + str.tostring(stop, format.mintick)
+    debug_info := debug_info + "\nSL Dist: " + str.tostring(effective_distance, format.mintick)
+    debug_info := debug_info + "\nPoint Val: " + str.tostring(point_value, "#.########")
+    debug_info := debug_info + "\nSymbol Curr: " + syminfo.currency
+    debug_info := debug_info + "\nRisk: $" + str.tostring(risk_usd, "#.##")
 
     // Validate inputs
     if effective_distance <= 0 or point_value <= 0 or na(point_value)
@@ -1547,9 +1547,8 @@ calc_pos_size_units_v2(entry, stop, balance, risk_pct, is_short) =>
         // Calculate expected risk for verification
         float expected_risk = effective_distance * point_value * position_units
 
-        debug_info := debug_info +
-                      "\nQty: " + str.tostring(position_units, "#") + " units" +
-                      "\nExp Risk: $" + str.tostring(expected_risk, "#.##")
+        debug_info := debug_info + "\nQty: " + str.tostring(position_units, "#") + " units"
+        debug_info := debug_info + "\nExp Risk: $" + str.tostring(expected_risk, "#.##")
 
         [position_units, debug_info]
 
@@ -2113,12 +2112,13 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
                         float distFromZone = 0.0
 
                         if use_inducement_linking
-                            // MODEL B (Inducement): Inducement must be ABOVE zone top
-                            isValidLocation := pLow > z.top
+                            // MODEL B (Inducement): Inducement must be STRICTLY ABOVE zone top (with margin)
+                            // Added mintick margin to prevent "touching" pivots being counted
+                            isValidLocation := pLow > (z.top + syminfo.mintick)
                             distFromZone := pLow - z.top
                         else
-                            // MODEL A (Standard): Inducement must be BELOW zone bottom
-                            isValidLocation := pLow < z.bottom
+                            // MODEL A (Standard): Inducement must be STRICTLY BELOW zone bottom (with margin)
+                            isValidLocation := pLow < (z.bottom - syminfo.mintick)
                             distFromZone := z.bottom - pLow
 
                         if isValidLocation
@@ -2145,7 +2145,11 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
             z.liqLowBar := bestLiqBar
 
             // Reset inducement sweep if it changed (force re-validation)
-            if inductionChanged
+            // EXCEPTION: If the new inducement is the exact bar that caused the previous sweep,
+            // retain the swept status to prevent "infinite liquidity chaining" signal loss.
+            bool isSweepBar = not na(z.liquiditySweptBarIndex) and bestLiqBar == z.liquiditySweptBarIndex
+            
+            if inductionChanged and not isSweepBar
                 z.liquiditySwept := false
                 z.liquiditySweptBarIndex := na
 
@@ -2249,12 +2253,13 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
                         float distFromZone = 0.0
 
                         if use_inducement_linking
-                            // MODEL B (Inducement): Inducement must be BELOW zone bottom
-                            isValidLocation := pHigh < z.bottom
+                            // MODEL B (Inducement): Inducement must be STRICTLY BELOW zone bottom (with margin)
+                            // Added mintick margin to prevent "touching" pivots being counted
+                            isValidLocation := pHigh < (z.bottom - syminfo.mintick)
                             distFromZone := z.bottom - pHigh
                         else
-                            // MODEL A (Standard): Inducement must be ABOVE zone top
-                            isValidLocation := pHigh > z.top
+                            // MODEL A (Standard): Inducement must be STRICTLY ABOVE zone top (with margin)
+                            isValidLocation := pHigh > (z.top + syminfo.mintick)
                             distFromZone := pHigh - z.top
 
                         if isValidLocation
@@ -2282,7 +2287,11 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
             z.liqHighBar := bestLiqBar
 
             // Reset inducement sweep if it changed (force re-validation)
-            if inductionChanged
+            // EXCEPTION: If the new inducement is the exact bar that caused the previous sweep,
+            // retain the swept status to prevent "infinite liquidity chaining" signal loss.
+            bool isSweepBar = not na(z.liquiditySweptBarIndex) and bestLiqBar == z.liquiditySweptBarIndex
+
+            if inductionChanged and not isSweepBar
                 z.liquiditySwept := false
                 z.liquiditySweptBarIndex := na
 
@@ -3947,8 +3956,8 @@ if array.size(demandZones) > 0 and barstate.isconfirmed
                 // Wick INTO zone (touch) - STRICT RULE: Kill zone before setup is ready
                 bool wicks_into_zone = low <= z.top and low >= z.bottom
 
-                // SIMULTANEOUS SWEEP: If current bar sweeps target, allow entry (exception to strict rule)
-                bool current_bar_sweeping = not na(z.structureSweepLevel) and high > z.structureSweepLevel
+                // SIMULTANEOUS SWEEP: If current bar sweeps target OR inducement, allow entry (exception to strict rule)
+                bool current_bar_sweeping = (not na(z.structureSweepLevel) and high > z.structureSweepLevel) or (not na(z.liquidityPrice) and low <= z.liquidityPrice)
 
                 // STRICT MITIGATION: Kill zone on ANY touch if liquidity NOT yet swept AND not simultaneously sweeping
                 if is_future_bar and not z.liquiditySwept and (closes_inside or breaches_zone or wicks_into_zone) and not current_bar_sweeping
@@ -4055,8 +4064,8 @@ if array.size(supplyZones) > 0 and barstate.isconfirmed
                 // Wick INTO zone (touch) - STRICT RULE: Kill zone before setup is ready
                 bool wicks_into_zone = high >= z.bottom and high <= z.top
 
-                // SIMULTANEOUS SWEEP: If current bar sweeps target, allow entry (exception to strict rule)
-                bool current_bar_sweeping = not na(z.structureSweepLevel) and low < z.structureSweepLevel
+                // SIMULTANEOUS SWEEP: If current bar sweeps target OR inducement, allow entry (exception to strict rule)
+                bool current_bar_sweeping = (not na(z.structureSweepLevel) and low < z.structureSweepLevel) or (not na(z.liquidityPrice) and high >= z.liquidityPrice)
 
                 // STRICT MITIGATION: Kill zone on ANY touch if liquidity NOT yet swept AND not simultaneously sweeping
                 if is_future_bar and not z.liquiditySwept and (closes_inside or breaches_zone or wicks_into_zone) and not current_bar_sweeping
@@ -5918,10 +5927,17 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug() and barstate.is
             // Not Closed In (same for both)
             notClosedIn := (close < zoneInspectorLow or close > zoneInspectorHigh) ? "Yes" : "No"
             
-            // === DIRECTIONAL LOGIC: Wick In Zone (using persistent wasTouched) ===
-            // Check if zone was ever touched (persists until entry/mitigation)
+            // === DIRECTIONAL LOGIC: Wick In Zone (Active vs Historical) ===
             bool zoneTouched = not na(inspectorZone) and inspectorZone.wasTouched
-            wickInZone := zoneTouched ? "Yes (Touched)" : "No"
+            
+            // Re-calculate ACTIVE touch to match validation logic strictly
+            bool isActiveTouch = false
+            if isInspectorDemand
+                isActiveTouch := (low <= zoneInspectorHigh and low >= zoneInspectorLow) or (low[1] <= zoneInspectorHigh and low[1] >= zoneInspectorLow)
+            else
+                isActiveTouch := (high >= zoneInspectorLow and high <= zoneInspectorHigh) or (high[1] >= zoneInspectorLow and high[1] <= zoneInspectorHigh)
+            
+            wickInZone := isActiveTouch ? "Yes (Active)" : (zoneTouched ? "Yes (Historical)" : "No")
             
             // === UNIFIED ENTRY VALIDATION (using if/else for tuple return) ===
             bool entryAllowedInspectorBool = false
@@ -6419,15 +6435,26 @@ if debug_enabled and barstate.islastconfirmedhistory
          border_width = 1)
     
     // Header
+    string profileDisplayStr = config_profile
+    if use_profile_defaults
+        // If using a preset, indicate that settings are locked/overridden
+        profileDisplayStr := str.replace_all(config_profile, " (Recommended)", "")
+        profileDisplayStr := str.replace_all(profileDisplayStr, " (Live Trading)", "")
+        profileDisplayStr := str.replace_all(profileDisplayStr, " (Paper Trading)", "")
+        profileDisplayStr := profileDisplayStr + "\n(Inputs Locked)" 
+    else
+        // If Custom, indicate that user inputs are active
+        profileDisplayStr := "Custom\n(User Inputs)"
+
     table.cell(profileStatusTable, 0, 0, "⚡ ACTIVE PROFILE", 
         text_color = color.white, 
         bgcolor = color.new(color.rgb(0, 120, 215), 20),
         text_size = size.normal,
         text_halign = text.align_center)
-    table.cell(profileStatusTable, 1, 0, config_profile, 
-        text_color = use_profile_defaults ? color.yellow : color.white, 
+    table.cell(profileStatusTable, 1, 0, profileDisplayStr, 
+        text_color = use_profile_defaults ? color.yellow : color.green, 
         bgcolor = color.new(color.rgb(0, 120, 215), 20),
-        text_size = size.normal,
+        text_size = size.small, // Smaller text to fit 2 lines
         text_halign = text.align_left)
     
     // Key Settings
