@@ -340,7 +340,7 @@ filter_dead_zone = input.bool(true, "Block Dead Zone (xx:50-xx:00)", group = "�
 filter_trading_hours = input.bool(true, "Trading Hours Only", group = "⏰ Time Filters", tooltip = "ON: Only trade during active market hours. OFF: Trade 24/7.")
 trading_start_hour = input.int(7, "   └─ Start Hour (UTC)", minval = 0, maxval = 23, group = "⏰ Time Filters", tooltip = "Hour to start trading (0-23). 7 = 7:00 AM UTC.")
 trading_end_hour = input.int(22, "   └─ End Hour (UTC)", minval = 0, maxval = 23, group = "⏰ Time Filters", tooltip = "Hour to stop trading (0-23). 22 = 10:00 PM UTC.")
-require_htf_flip = input.bool(true, "HTF Flip Context", group = "⏰ Time Filters", tooltip = "ON: Flip entries only valid near 30m/1H candle opens for better timing.")
+require_htf_flip = input.bool(true, "HTF Flip Only", group = "⏰ Time Filters", tooltip = "ON: Flip entries only on xx:00/xx:30 (30m/1H candle opens). OFF: All quarter hours (xx:00, xx:15, xx:30, xx:45) for testing.")
 
 // AI & Quality Filters
 enable_ai_quality_filter = input.bool(true, "AI Quality Filter", group = "🤖 Quality Filters", tooltip = "ON: Block low-quality setups using AI scoring. Improves win rate.")
@@ -4286,28 +4286,27 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
             // 2. ENTRY MODEL SELECTION (Priority: Flip > Directional Close > Break of Candle)
             string chosenModel = "NONE"
 
-            // (a) FLIP: Bearish to Bullish reversal (Engulfing-like behavior)
+            // (a) FLIP: Bearish to Bullish reversal on HTF candle opens
             // Definition: Previous candle was bearish, current is bullish (close > open)
-            // HTF-Aware: When require_htf_flip is ON, only valid near 30m/1H candle opens
+            // Video Rule: "Only at the open of a new 30m or 1H candle"
+            // Toggle: require_htf_flip ON = xx:00/xx:30 only, OFF = all quarter hours
             bool basic_flip = close > open and close[1] < open[1]
-            bool is_flip = require_htf_flip ? (basic_flip and is_htf_candle_open()) : basic_flip
+            bool is_htf_open = require_htf_flip ? ((minute(time) == 0) or (minute(time) == 30)) : (minute(time) % 15 == 0)
+            bool is_flip = basic_flip and is_htf_open
 
-            // (b) DIRECTIONAL CLOSE: Bullish close (no zone touch required - already primed)
-            // Requires: close > open OR Bullish Hammer (Strict: Must be Green)
-            float candleRange = high - low
-            float bodySize = math.abs(close - open)
-            float lowerWick = math.min(open, close) - low
-            bool isHammer = candleRange > 0 ? (lowerWick >= candleRange * 0.6 and bodySize <= candleRange * 0.3) : false
+            // (b) DIRECTIONAL CLOSE: Bullish close OUTSIDE the zone
+            // Video Rule: "Candle must not close inside the zone"
+            bool is_bullish_close_strict = close > open
+            bool is_outside_zone = close > z.top
+            bool is_dir_close = is_bullish_close_strict and is_outside_zone
 
-            bool is_dir_close = (close > open) or (isHammer and close > open)
-
-            // (c) BREAK OF CANDLE: Gap or Break High relative to PRIMED CANDLE + Bullish Close
-            // Definition: (open > primedRefClose OR high > primedRefHigh) AND close > open
-            // AND is NOT a flip pattern (flip = reversal, break = continuation)
-            bool hasValidPrimedRef = not na(z.primedRefClose) and not na(z.primedRefHigh)
+            // (c) BREAK OF CANDLE: Breaks the High (Wick) of Primed Candle
+            // Video Rule: "Occurs when price breaks the wick of the previous candle"
+            // We verify that High broke the primed High + Bullish Close
+            bool hasValidPrimedRef = not na(z.primedRefHigh)
             bool is_break = false
             if hasValidPrimedRef and not is_flip
-                is_break := (open > z.primedRefClose or high > z.primedRefHigh) and close > open
+                is_break := (high > z.primedRefHigh) and (close > open)
 
             if is_flip
                 chosenModel := "FLIP"
@@ -4592,7 +4591,7 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                 if show_entry_labels
                     float raw_sl_dist = math.abs(entry_price - stop_loss_price) / pip_size
                     float sl_dist_disp = is_index ? raw_sl_dist * 100 : raw_sl_dist
-                    string label_text = "🟢 LONG"
+                    string label_text = "🟢 LONG [" + chosenModel + "]"
                     label_text := label_text + "\nE: " + str.tostring(entry_price, format.mintick)
                     label_text := label_text + "\nSL: " + str.tostring(stop_loss_price, format.mintick) + " (" + str.tostring(sl_dist_disp, "#.#") + " pips)"
                     
@@ -4685,28 +4684,23 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
             // 2. ENTRY MODEL SELECTION (Priority: Flip > Directional Close > Break of Candle)
             string chosenModel = "NONE"
 
-            // (a) FLIP: Bullish to Bearish reversal
-            // Definition: Previous candle was bullish, current is bearish (close < open)
-            // HTF-Aware: When require_htf_flip is ON, only valid near 30m/1H candle opens
+            // (a) FLIP: Bullish to Bearish reversal on HTF candle opens
+            // Video Rule: "Only at the open of a new 30m or 1H candle"
+            // Toggle: require_htf_flip ON = xx:00/xx:30 only, OFF = all quarter hours
             bool basic_flip = close < open and close[1] > open[1]
-            bool is_flip = require_htf_flip ? (basic_flip and is_htf_candle_open()) : basic_flip
+            bool is_htf_open = require_htf_flip ? ((minute(time) == 0) or (minute(time) == 30)) : (minute(time) % 15 == 0)
+            bool is_flip = basic_flip and is_htf_open
 
-            // (b) DIRECTIONAL CLOSE: Bearish close (no zone touch required - already primed)
-            // Requires: close < open OR Bearish Inverted Hammer (Strict: Must be Red)
-            float candleRange = high - low
-            float bodySize = math.abs(close - open)
-            float upperWick = high - math.max(open, close)
-            bool isInvertedHammer = candleRange > 0 ? (upperWick >= candleRange * 0.6 and bodySize <= candleRange * 0.3) : false
-
-            bool is_dir_close = (close < open) or (isInvertedHammer and close < open)
-
-            // (c) BREAK OF CANDLE: Gap or Break Low relative to PRIMED CANDLE + Bearish Close
-            // Definition: (open < primedRefClose OR low < primedRefLow) AND close < open
-            // AND is NOT a flip pattern (flip = reversal, break = continuation)
-            bool hasValidPrimedRef = not na(z.primedRefClose) and not na(z.primedRefLow)
+            // (b) DIRECTIONAL CLOSE: Bearish close OUTSIDE the zone (below bottom)
+            bool is_bearish_close_strict = close < open
+            bool is_outside_zone = close < z.bottom
+            bool is_dir_close = is_bearish_close_strict and is_outside_zone
+            // (c) BREAK OF CANDLE: Breaks the Low (Wick) of Primed Candle
+            // Video Rule: "Occurs when price breaks the wick of the previous candle"
+            bool hasValidPrimedRef = not na(z.primedRefLow)
             bool is_break = false
             if hasValidPrimedRef and not is_flip
-                is_break := (open < z.primedRefClose or low < z.primedRefLow) and close < open
+                is_break := (low < z.primedRefLow) and (close < open)
 
             if is_flip
                 chosenModel := "FLIP"
@@ -4992,7 +4986,7 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     float raw_sl_dist = math.abs(stop_loss_price - entry_price) / pip_size
                     float sl_dist_disp = is_index ? raw_sl_dist * 100 : raw_sl_dist
                     string typeTag = z.isAccuracy ? "⭐ACC" : "[NRM]"
-                    string label_text = "🔴 SHORT " + typeTag
+                    string label_text = "🔴 SHORT " + typeTag + " [" + chosenModel + "]"
                     label_text := label_text + "\nE: " + str.tostring(entry_price, format.mintick)
                     label_text := label_text + "\nSL: " + str.tostring(stop_loss_price, format.mintick) + " (" + str.tostring(sl_dist_disp, "#.#") + " pips)"
                     
