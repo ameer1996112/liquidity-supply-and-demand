@@ -170,6 +170,55 @@ if is_jpy_pair and (na(usdjpy_cache_bar) or bar_index != usdjpy_cache_bar)
     usdjpy_rate_cache := na(rate) or rate <= 0 ? USDJPY_FALLBACK : rate
     usdjpy_cache_bar := bar_index
 
+// ========================================
+// === OPTIMIZATION: CURRENCY RATE CACHE (CROSS PAIRS) ===
+// ========================================
+// Cache major rates to convert Quote Currency -> USD for accurate risk calculation
+// e.g. for GBPCAD, we need USDCAD rate to value the risk correcty.
+
+var float rate_usdcad = na
+var float rate_usdchf = na
+var float rate_gbpusd = na
+var float rate_audusd = na
+var float rate_nzdusd = na
+var float rate_eurusd = na
+var int currency_cache_bar = na
+
+if bar_index != currency_cache_bar
+    // Fetch rates once per bar
+    rate_usdcad := request.security("USDCAD", timeframe.period, close, lookahead = barmerge.lookahead_off)
+    rate_usdchf := request.security("USDCHF", timeframe.period, close, lookahead = barmerge.lookahead_off)
+    rate_gbpusd := request.security("GBPUSD", timeframe.period, close, lookahead = barmerge.lookahead_off)
+    rate_audusd := request.security("AUDUSD", timeframe.period, close, lookahead = barmerge.lookahead_off)
+    rate_nzdusd := request.security("NZDUSD", timeframe.period, close, lookahead = barmerge.lookahead_off)
+    rate_eurusd := request.security("EURUSD", timeframe.period, close, lookahead = barmerge.lookahead_off)
+    currency_cache_bar := bar_index
+
+// Helper: Get conversion rate from Quote Currency to USD
+// Returns: How many USD is 1 unit of Quote Currency worth?
+get_quote_to_usd_rate(string quote_curr) =>
+    float rate = 1.0
+    if quote_curr == "USD"
+        rate := 1.0
+    else if quote_curr == "CAD"
+        rate := 1.0 / (na(rate_usdcad) ? 1.40 : rate_usdcad) // Fallback 1.40
+    else if quote_curr == "CHF"
+        rate := 1.0 / (na(rate_usdchf) ? 0.90 : rate_usdchf) // Fallback 0.90
+    else if quote_curr == "JPY"
+        rate := 1.0 / (na(usdjpy_rate_cache) ? 150.0 : usdjpy_rate_cache) // Fallback 150
+    else if quote_curr == "GBP"
+        rate := na(rate_gbpusd) ? 1.30 : rate_gbpusd      // Fallback 1.30
+    else if quote_curr == "AUD"
+        rate := na(rate_audusd) ? 0.65 : rate_audusd      // Fallback 0.65
+    else if quote_curr == "NZD"
+        rate := na(rate_nzdusd) ? 0.60 : rate_nzdusd      // Fallback 0.60
+    else if quote_curr == "EUR"
+        rate := na(rate_eurusd) ? 1.05 : rate_eurusd      // Fallback 1.05
+    else
+        // Unknown currency (e.g. MXN, ZAR) - Default to 1.0 (imperfect but better than 0)
+        rate := 1.0 
+    rate
+
 // Global ATR for label positioning (avoids calling ta.atr inside local scopes)
 atr14 = ta.atr(14)
 
@@ -1492,11 +1541,15 @@ calc_pos_size_units(entry, stop, balance, risk_pct, is_short) =>
             // For JPY pairs: (risk_usd * usdjpy_rate) / effective_distance
             position_units := (risk_usd * usdjpy_rate) / effective_distance
         
-        // Case 3: USD Base pairs (USDCAD, USDCHF) or other cross pairs
-        // For these, we need to convert quote currency to USD
-        // Approximate using entry price
+        // Case 3: Proper Cross-Pair Handling (Universal)
         else
-            position_units := risk_usd / effective_distance
+            // Convert Quote Currency Value to USD
+            // e.g. for GBPCAD (Quote CAD), we need value of 1 CAD in USD
+            float quote_usd_rate = get_quote_to_usd_rate(syminfo.currency)
+            
+            // position_units = Risk_USD / (Stop Distance * Value_of_1_Unit_in_USD)
+            // Value_of_1_Unit_in_USD = 1.0 * quote_usd_rate
+            position_units := risk_usd / (effective_distance * quote_usd_rate)
         
         // Round to whole units
         position_units := math.round(position_units)
