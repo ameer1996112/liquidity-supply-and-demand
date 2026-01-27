@@ -338,8 +338,8 @@ max_trades_per_day = input.int(2, "   └─ Max Trades/Day", minval = 1, maxval
 // Time Filters
 filter_dead_zone = input.bool(true, "Block Dead Zone (xx:50-xx:00)", group = "⏰ Time Filters", tooltip = "ON: No entries in last 10 minutes of each hour. These periods have erratic price action.")
 filter_trading_hours = input.bool(true, "Trading Hours Only", group = "⏰ Time Filters", tooltip = "ON: Only trade during active market hours. OFF: Trade 24/7.")
-trading_start_hour = input.int(7, "   └─ Start Hour (UTC)", minval = 0, maxval = 23, group = "⏰ Time Filters", tooltip = "Hour to start trading (0-23). 7 = 7:00 AM UTC.")
-trading_end_hour = input.int(22, "   └─ End Hour (UTC)", minval = 0, maxval = 23, group = "⏰ Time Filters", tooltip = "Hour to stop trading (0-23). 22 = 10:00 PM UTC.")
+trading_start_hour = input.int(7, "   └─ Start Hour (Israel)", minval = 0, maxval = 23, group = "⏰ Time Filters", tooltip = "Hour to start trading (0-23). 7 = 7:00 AM Israel Time.")
+trading_end_hour = input.int(22, "   └─ End Hour (Israel)", minval = 0, maxval = 23, group = "⏰ Time Filters", tooltip = "Hour to stop trading (0-23). 22 = 10:00 PM Israel Time.")
 require_htf_flip = input.bool(true, "HTF Flip Only", group = "⏰ Time Filters", tooltip = "ON: Flip entries only on xx:00/xx:30 (30m/1H candle opens). OFF: All quarter hours (xx:00, xx:15, xx:30, xx:45) for testing.")
 
 // AI & Quality Filters
