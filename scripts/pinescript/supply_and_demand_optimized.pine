@@ -4483,6 +4483,7 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     // Include webhook alert_message for TradingView webhook integration
                     if enable_webhook_alerts
                         strategy.entry("Long", strategy.long, qty = pos_qty_units, comment = entryComment, alert_message = webhook_payload)
+                        alert(webhook_payload, alert.freq_once_per_bar)
                     else
                         strategy.entry("Long", strategy.long, qty = pos_qty_units, comment = entryComment)
 
@@ -4880,6 +4881,7 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     // Include webhook alert_message for TradingView webhook integration
                     if enable_webhook_alerts
                         strategy.entry("Short", strategy.short, qty = pos_qty_units, comment = entryComment, alert_message = webhook_payload_short)
+                        alert(webhook_payload_short, alert.freq_once_per_bar)
                     else
                         strategy.entry("Short", strategy.short, qty = pos_qty_units, comment = entryComment)
 
