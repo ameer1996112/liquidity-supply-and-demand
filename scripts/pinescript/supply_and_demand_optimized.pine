@@ -868,11 +868,13 @@ units_to_lots(_units) =>
 
 // Helper to ensure valid JSON number format (dot decimal, no thousands separator)
 to_json_num(float val, string fmt) =>
-    string s = str.tostring(val, fmt)
-    // Remove potential thousands separators (if any) and ensure dot decimal
-    // Note: Simple replace comma to dot works for "1234,56" -> "1234.56"
-    // Using simple format like "#.###" usually avoids thousands separators
-    str.replace(s, ",", ".")
+    if na(val)
+        "null"
+    else
+        string s = str.tostring(val, fmt)
+        // Remove potential thousands separators (if any) and ensure dot decimal
+        start_idx = 0 
+        str.replace(s, ",", ".")
 
 // Builds JSON payload for webhook alert to Discord-MT5 bridge
 // Returns: JSON string with trade details + Zone Inspector data + AI Features

@@ -90,9 +90,8 @@ PAPER_SYMBOLS = [s.strip() for s in os.getenv('PAPER_SYMBOLS', '').split(',') if
 PAPER_MAX_POSITIONS = int(os.getenv('PAPER_MAX_POSITIONS', '10'))
 PAPER_ACCOUNT_BALANCE = float(os.getenv('PAPER_ACCOUNT_BALANCE', '10000'))
 
-# Initialize paper trader if enabled (using Supabase now, no local DB needed)
-paper_trader = None  # Paper trader disabled during Supabase migration
-# TODO: Update paper_trader to use Supabase if needed
+# Initialize paper trader if enabled
+paper_trader = get_paper_trader('trades.db') if PAPER_TRADING_ENABLED else None
 
 # Position Sizing
 DEFAULT_ACCOUNT_BALANCE = float(os.getenv('ACCOUNT_BALANCE', '10000'))
@@ -479,7 +478,10 @@ def predict_win_probability(data: dict) -> Optional[float]:
         # Check model feature count to ensure compatibility
         expected_features = ai_model.n_features_in_
         
-        if expected_features == 17:
+        if expected_features == 22:
+             # V8/Ultimate Model (17 features + 5 placeholders)
+             features = [[score, freshness, session, zone_type, atr_ratio, is_accuracy, trend, rsi, htf_trend, rvol, adx, touch_count, base_quality, departure_strength, liquidity_distance, liquidity_spread, return_strength, 0, 0, 0, 0, 0]]
+        elif expected_features == 17:
             features = [[score, freshness, session, zone_type, atr_ratio, is_accuracy, trend, rsi, htf_trend, rvol, adx, touch_count, base_quality, departure_strength, liquidity_distance, liquidity_spread, return_strength]]
         elif expected_features == 16:
             # Old V7 model with liquidity_quality - use distance as fallback
