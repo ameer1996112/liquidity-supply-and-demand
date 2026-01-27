@@ -563,9 +563,9 @@ get_gold_tp_rules(sl_pips) =>
 // Fixed 1:4 ratio for all index trades regardless of SL size
 get_index_tp_rules(sl_pips) =>
     float tp_ratio = 4.0           // Fixed 1:4 for all indices
-    float be_trigger_rr = na       // No break-even management for indices
-    float be_sl_pips_min = na
-    bool move_to_be = false
+    float be_trigger_rr = 2.0      // Move to BE at 1:2
+    float be_sl_pips_min = 2.0     // Lock in 2 points (200 pips)
+    bool move_to_be = true
     
     [tp_ratio, be_trigger_rr, be_sl_pips_min, move_to_be]
 
@@ -4537,7 +4537,8 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
 
                 // --- DETAILED ENTRY LABEL ---
                 if show_entry_labels
-                    float sl_dist_disp = math.abs(entry_price - stop_loss_price) / pip_size
+                    float raw_sl_dist = math.abs(entry_price - stop_loss_price) / pip_size
+                    float sl_dist_disp = is_index ? raw_sl_dist * 100 : raw_sl_dist
                     string label_text = "🟢 LONG"
                     label_text := label_text + "\nE: " + str.tostring(entry_price, format.mintick)
                     label_text := label_text + "\nSL: " + str.tostring(stop_loss_price, format.mintick) + " (" + str.tostring(sl_dist_disp, "#.#") + " pips)"
@@ -4935,7 +4936,8 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
 
                 // --- DETAILED ENTRY LABEL ---
                 if show_entry_labels
-                    float sl_dist_disp = math.abs(stop_loss_price - entry_price) / pip_size
+                    float raw_sl_dist = math.abs(stop_loss_price - entry_price) / pip_size
+                    float sl_dist_disp = is_index ? raw_sl_dist * 100 : raw_sl_dist
                     string typeTag = z.isAccuracy ? "⭐ACC" : "[NRM]"
                     string label_text = "🔴 SHORT " + typeTag
                     label_text := label_text + "\nE: " + str.tostring(entry_price, format.mintick)
