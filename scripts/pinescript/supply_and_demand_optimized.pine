@@ -1486,79 +1486,77 @@ calc_pos_size(entry, stop, balance, risk_pct) =>
 // =============================
 // CALCULATE POSITION SIZE IN UNITS (TradingView-compatible)
 // =============================
-// This function calculates position size in UNITS
-// For USD Quote pairs (XAUUSD, EURUSD): 1 unit moving $1 = $1 P/L, so units = risk / price_distance
-// For JPY pairs: Need to convert using USDJPY rate
-// For USD Base pairs (USDCAD): Use pip-based calculation
+// ROBUST FORMULA using syminfo.pointvalue:
+// qty = risk_usd / (sl_distance * syminfo.pointvalue)
+//
+// syminfo.pointvalue = P&L of a 1-point move for 1 unit of the instrument
+// This handles Forex, Indices, Crypto, and Commodities automatically
+//
+// CURRENCY CONVERSION NOTE:
+// - syminfo.pointvalue is expressed in the QUOTE currency of the symbol
+// - For EURUSD: pointvalue = 0.0001 USD (since quote is USD)
+// - For USDJPY: pointvalue = 0.01 JPY (since quote is JPY)
+// - TradingView automatically converts to strategy currency if "currency" is set in strategy()
+// - RECOMMENDATION: Set strategy currency to "Default" (currency.NONE) or "USD" (currency.USD)
+//   to ensure consistent results. If mismatched, losses may vary from expected $50.
+//
 // @param entry: Entry price
 // @param stop: Stop loss price
 // @param balance: Account balance in USD
 // @param risk_pct: Risk percentage per trade
 // @param is_short: true for short, false for long
-// @returns: Position size in UNITS (not lots)
-calc_pos_size_units(entry, stop, balance, risk_pct, is_short) =>
+// @returns: [position_units, debug_info] - Position size in UNITS and debug string
+calc_pos_size_units_v2(entry, stop, balance, risk_pct, is_short) =>
     // Step 1: Calculate risk amount in USD
     float risk_usd = balance * (risk_pct / 100)
-    
+
     // Step 2: Calculate price distance (absolute)
-    float price_distance = math.abs(entry - stop)
-    
-    // CRITICAL SAFETY CLAMP: Enforce minimum 2 pip distance to prevent massive position sizes
-    // Without this, a 0.1 pip SL would cause position_units = 50 / 0.01 = 5000 units (on Forex)
-    // or on Gold: position_units = 50 / 0.10 = 500 oz = 5 lots (way too big for tight SL)
+    float sl_distance = math.abs(entry - stop)
+
+    // Step 3: Get point value from TradingView
+    // syminfo.pointvalue = value of 1 point move per 1 unit in QUOTE currency
+    float point_value = syminfo.pointvalue
+
+    // Step 4: Safety checks
     float min_distance = 2.0 * pip_size  // Minimum 2 pips
-    float effective_distance = math.max(price_distance, min_distance)
-    
-    // Validate distance is positive
-    if effective_distance <= 0
-        0.0
+    float effective_distance = math.max(sl_distance, min_distance)
+
+    // Build debug info string with currency info
+    string debug_info = "Entry: " + str.tostring(entry, format.mintick) +
+                        "\nSL: " + str.tostring(stop, format.mintick) +
+                        "\nSL Dist: " + str.tostring(effective_distance, format.mintick) +
+                        "\nPoint Val: " + str.tostring(point_value, "#.########") +
+                        "\nSymbol Curr: " + syminfo.currency +
+                        "\nRisk: $" + str.tostring(risk_usd, "#.##")
+
+    // Validate inputs
+    if effective_distance <= 0 or point_value <= 0 or na(point_value)
+        debug_info := debug_info + "\n⚠️ Invalid: dist=" + str.tostring(effective_distance) + " pv=" + str.tostring(point_value)
+        [1.0, debug_info]  // Return minimum 1 unit
     else
-        float position_units = na
-        ticker = syminfo.ticker
+        // ROBUST FORMULA: qty = risk_usd / (sl_distance * point_value)
+        float position_units = risk_usd / (effective_distance * point_value)
 
-        // Detect symbol type (use local variables with different names to avoid shadowing)
-        bool local_is_gold = str.contains(ticker, "XAU") or str.contains(ticker, "GOLD")
-        bool local_is_silver = str.contains(ticker, "XAG") or str.contains(ticker, "SILVER")
-        bool local_is_crypto = str.contains(ticker, "BTC") or str.contains(ticker, "ETH")
-        bool local_is_jpy_pair = str.contains(ticker, "JPY")
-        bool local_is_usd_base = str.startswith(ticker, "USD") and not str.endswith(ticker, "USD")
-        // USD Quote pairs: Contains USD but doesn't start with USD (like EURUSD, GBPUSD)
-        // Also includes Gold/Silver/Crypto which are quoted in USD
-        bool local_is_usd_quote = (str.contains(ticker, "USD") and not local_is_usd_base) or local_is_gold or local_is_silver or local_is_crypto
-        
-        // Case 1: USD Quote pairs (XAUUSD, EURUSD, GBPUSD, AUDUSD, BTCUSD, etc.)
-        // For these pairs: 1 unit moving $1 = $1 profit/loss
-        // Formula: units = risk_usd / effective_distance
-        // Example XAUUSD: $50 risk / $4.56 distance = 10.96 ≈ 11 units
-        if local_is_usd_quote and not local_is_jpy_pair
-            position_units := risk_usd / effective_distance
-
-        // Case 2: JPY pairs (USDJPY, GBPJPY, EURJPY) - OPTIMIZED
-        // Need to convert using USDJPY rate
-        else if local_is_jpy_pair
-            float usdjpy_rate = get_cached_usdjpy_rate()
-
-            // For JPY pairs: (risk_usd * usdjpy_rate) / effective_distance
-            position_units := (risk_usd * usdjpy_rate) / effective_distance
-        
-        // Case 3: Proper Cross-Pair Handling (Universal)
-        else
-            // Convert Quote Currency Value to USD
-            // e.g. for GBPCAD (Quote CAD), we need value of 1 CAD in USD
-            float quote_usd_rate = get_quote_to_usd_rate(syminfo.currency)
-            
-            // position_units = Risk_USD / (Stop Distance * Value_of_1_Unit_in_USD)
-            // Value_of_1_Unit_in_USD = 1.0 * quote_usd_rate
-            position_units := risk_usd / (effective_distance * quote_usd_rate)
-        
         // Round to whole units
         position_units := math.round(position_units)
-        
+
         // Validate - minimum 1 unit
         if na(position_units) or position_units <= 0
             position_units := 1.0
-        
-        position_units
+
+        // Calculate expected risk for verification
+        float expected_risk = effective_distance * point_value * position_units
+
+        debug_info := debug_info +
+                      "\nQty: " + str.tostring(position_units, "#") + " units" +
+                      "\nExp Risk: $" + str.tostring(expected_risk, "#.##")
+
+        [position_units, debug_info]
+
+// Legacy wrapper for backward compatibility (calls new V2 function)
+calc_pos_size_units(entry, stop, balance, risk_pct, is_short) =>
+    [units, debug] = calc_pos_size_units_v2(entry, stop, balance, risk_pct, is_short)
+    units
 
 // =============================
 // TRADE EXECUTION VALIDATION
@@ -1634,32 +1632,33 @@ fetch_usdjpy_rate() =>
 // @param balance: Account balance in USD
 // @param risk_pct: Risk percentage per trade
 // @param is_short: true for short trades, false for long trades
-// @returns: [is_valid, qty_units, qty_lots, error_message, validation_details, sl_fixed]
+// @returns: [is_valid, qty_units, qty_lots, error_message, validation_details, sl_fixed, debug_info]
 validate_position_size(entry_price, stop_loss_price, balance, risk_pct, is_short) =>
     bool is_valid = true
     int qty_units = na
     float qty_lots = na
     string error_msg = ""
     string validation_details = ""
+    string debug_info = ""  // NEW: Debug info from position sizing
     float sl_fixed = stop_loss_price  // Local copy - function arguments are immutable in Pine Script
-    
+
     // Step 1: Validate entry price
     if na(entry_price) or entry_price <= 0
         is_valid := false
         error_msg := "Invalid entry price"
         validation_details := "Entry price: " + (na(entry_price) ? "NA" : str.tostring(entry_price))
-    
+
     // Step 2: Validate stop loss price
     if is_valid and (na(sl_fixed) or sl_fixed <= 0)
         is_valid := false
         error_msg := "Invalid stop loss price"
         validation_details := "Stop loss: " + (na(sl_fixed) ? "NA" : str.tostring(sl_fixed))
-    
+
     // Step 3: Validate and AUTO-CORRECT price relationship (defensive layer)
     // Instead of rejecting, we auto-fix SL to ensure minimum gap
     // Minimum 2.0 pips gap to prevent "zero profit" trades in the strategy tester
     float minGap = math.max(syminfo.mintick * 2, pip_size * 2.0)  // At least 2 pips
-    
+
     if is_valid
         if is_short
             // For shorts: SL must be ABOVE entry
@@ -1669,34 +1668,28 @@ validate_position_size(entry_price, stop_loss_price, balance, risk_pct, is_short
             // For longs: SL must be BELOW entry
             if sl_fixed >= entry_price - minGap
                 sl_fixed := entry_price - minGap  // Auto-correct
-    
-    // Step 4: Validate USDJPY rate for JPY pairs
-    if is_valid and str.contains(syminfo.ticker, "JPY")
-        [val_usdjpy_rate_result, val_usdjpy_success_result, val_usdjpy_error_result] = fetch_usdjpy_rate()
-        if not val_usdjpy_success_result
-            is_valid := false
-            error_msg := val_usdjpy_error_result
-            validation_details := "USDJPY rate unavailable for JPY pairs"
-    
-    // Step 5: Calculate position size
+
+    // Step 4: Calculate position size using ROBUST FORMULA (V2)
     float qty_units_raw = na
     if is_valid
-        qty_units_raw := calc_pos_size_units(entry_price, sl_fixed, balance, risk_pct, is_short)
-        
+        [calc_units, calc_debug] = calc_pos_size_units_v2(entry_price, sl_fixed, balance, risk_pct, is_short)
+        qty_units_raw := calc_units
+        debug_info := calc_debug  // Capture debug info
+
         if na(qty_units_raw) or qty_units_raw <= 0
             is_valid := false
             error_msg := "Position size calculation failed"
             validation_details := "Calculated units: " + (na(qty_units_raw) ? "NA" : str.tostring(qty_units_raw))
-        
+
         // Convert to integer
         if is_valid
             qty_units := int(math.round(qty_units_raw))
-            
+
             // Determine contract size for units-to-lots conversion
             // Gold: 100 oz/lot, Silver: 5000 oz/lot, Crypto: 1 unit/lot, Forex: 100,000 units/lot
             float contract_size = FOREX_LOT_SIZE
             int effective_min_units = min_position_size_units
-            
+
             if str.contains(syminfo.ticker, "XAU") or str.contains(syminfo.ticker, "GOLD")
                 contract_size := 100.0
                 effective_min_units := 1  // Gold: minimum 1 oz (0.01 lots)
@@ -1709,28 +1702,28 @@ validate_position_size(entry_price, stop_loss_price, balance, risk_pct, is_short
             else if is_index  // Indices: NAS100, SPX, etc.
                 contract_size := 1.0
                 effective_min_units := 1  // Index: minimum 1 contract
-            
+
             qty_lots := qty_units / contract_size
-            
-            // Step 6: Minimum position size check (using asset-appropriate minimum)
+
+            // Step 5: Minimum position size check (using asset-appropriate minimum)
             if qty_units < effective_min_units
                 is_valid := false
                 error_msg := "Position size below minimum"
                 validation_details := "Units: " + str.tostring(qty_units) + " (min: " + str.tostring(effective_min_units) + ")"
-            
-            // Step 7: Maximum position size check
+
+            // Step 6: Maximum position size check
             if is_valid and qty_lots > max_position_size_lots
                 is_valid := false
                 error_msg := "Position size exceeds maximum"
                 validation_details := "Lots: " + str.tostring(qty_lots, "#.####") + " (max: " + str.tostring(max_position_size_lots) + ")"
-            
-            // Step 8: Final validation - ensure qty_units is positive and not na
+
+            // Step 7: Final validation - ensure qty_units is positive and not na
             if is_valid and (na(qty_units) or qty_units <= 0)
                 is_valid := false
                 error_msg := "Invalid quantity units"
                 validation_details := "Final units: " + (na(qty_units) ? "NA" : str.tostring(qty_units))
-    
-    [is_valid, qty_units, qty_lots, error_msg, validation_details, sl_fixed]
+
+    [is_valid, qty_units, qty_lots, error_msg, validation_details, sl_fixed, debug_info]
 
 // Helper: Check if bar index is already used as zone base
 is_base_bar_used(barIdx, baseArray) =>
@@ -4408,12 +4401,12 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
             
             if current_day_trades == 1 and max_trades_per_day == 2
                 risk_pct := risk_pct * 0.5
-            
-            [pos_is_valid, pos_qty_units, pos_qty_lots, pos_error_msg, pos_validation_details, pos_sl_fixed] = validate_position_size(entry_price, stop_loss_price, balance, risk_pct, false)
-            
+
+            [pos_is_valid, pos_qty_units, pos_qty_lots, pos_error_msg, pos_validation_details, pos_sl_fixed, pos_debug_info] = validate_position_size(entry_price, stop_loss_price, balance, risk_pct, false)
+
             // Use the corrected SL from validation
             stop_loss_price := pos_sl_fixed
-            
+
             last_pos_size_entry := entry_price
             last_pos_size_sl := stop_loss_price
             last_pos_size_balance := balance
@@ -4422,7 +4415,7 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
             last_pos_size_valid := pos_is_valid
             last_pos_size_error := pos_error_msg
             last_pos_size_dry_run := dry_run_mode
-            
+
             if pos_is_valid
                 last_pos_size_units := pos_qty_units
                 last_pos_size_lots := pos_qty_lots
@@ -4444,6 +4437,15 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
             // === IMMEDIATE LONG ENTRY EXECUTION ===
             // Entry will execute immediately on this bar (no delay)
             if pos_is_valid and pos_qty_units > 0 and not na(pos_qty_units)
+                // === DEBUG LABEL: Position Sizing Math (LONG) ===
+                // Shows SL Distance, Point Value, Calculated Qty, Expected Risk
+                label.new(x = bar_index, y = low - (atr14 * 1.5),
+                          text = "📊 POS SIZE DEBUG (LONG)\n" + pos_debug_info,
+                          style = label.style_label_up,
+                          color = color.new(color.blue, 20),
+                          textcolor = color.white,
+                          size = size.small)
+
                 // FINAL GUARD: Re-validate entry permission (same as Zone Inspector)
                 [isEntryPermitted, entryPermitReason] = isValidDemandEntry(i)
                 
@@ -4803,11 +4805,11 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
             if current_day_trades == 1 and max_trades_per_day == 2
                 risk_pct := risk_pct * 0.5
 
-            [pos_is_valid, pos_qty_units, pos_qty_lots, pos_error_msg, pos_validation_details, pos_sl_fixed] = validate_position_size(entry_price, stop_loss_price, balance, risk_pct, true)
-            
+            [pos_is_valid, pos_qty_units, pos_qty_lots, pos_error_msg, pos_validation_details, pos_sl_fixed, pos_debug_info] = validate_position_size(entry_price, stop_loss_price, balance, risk_pct, true)
+
             // Use the corrected SL from validation
             stop_loss_price := pos_sl_fixed
-            
+
             last_pos_size_entry := entry_price
             last_pos_size_sl := stop_loss_price
             last_pos_size_balance := balance
@@ -4816,7 +4818,7 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
             last_pos_size_valid := pos_is_valid
             last_pos_size_error := pos_error_msg
             last_pos_size_dry_run := dry_run_mode
-            
+
             if pos_is_valid
                 last_pos_size_units := pos_qty_units
                 last_pos_size_lots := pos_qty_lots
@@ -4838,6 +4840,15 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
             // === IMMEDIATE SHORT ENTRY EXECUTION ===
             // Entry will execute immediately on this bar (no delay)
             if pos_is_valid and pos_qty_units > 0 and not na(pos_qty_units)
+                // === DEBUG LABEL: Position Sizing Math (SHORT) ===
+                // Shows SL Distance, Point Value, Calculated Qty, Expected Risk
+                label.new(x = bar_index, y = high + (atr14 * 1.5),
+                          text = "📊 POS SIZE DEBUG (SHORT)\n" + pos_debug_info,
+                          style = label.style_label_down,
+                          color = color.new(color.purple, 20),
+                          textcolor = color.white,
+                          size = size.small)
+
                 // FINAL GUARD: Re-validate entry permission (same as Zone Inspector)
                 [isEntryPermitted, entryPermitReason] = isValidSupplyEntry(i)
                 
