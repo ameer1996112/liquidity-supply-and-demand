@@ -1133,7 +1133,10 @@ calculate_ai_quality_score(Zone z, bool isDemand) =>
 // Higher score = cleaner base with decisive candles
 // OPTIMIZED: Only analyzes up to 5 most recent base candles for performance
 calculate_base_quality(int base_start_idx, int base_end_idx) =>
-    if base_start_idx < 0 or base_end_idx < 0 or base_start_idx < base_end_idx
+    // NA guard for unconditional calling pattern
+    if na(base_start_idx) or na(base_end_idx)
+        float(na)
+    else if base_start_idx < 0 or base_end_idx < 0 or base_start_idx < base_end_idx
         50.0  // Default if invalid indices
     else
         // PERFORMANCE: Limit to max 5 candles instead of entire base
@@ -1173,9 +1176,10 @@ calculate_base_quality(int base_start_idx, int base_end_idx) =>
 // Higher score = bigger bodies + higher volume
 // NOTE: This function is called on every bar for series consistency (Pine Script requirement)
 calculate_departure_strength(int base_end_idx, bool isDemand) =>
-    // Uses global vol_sma_20 (calculated on every bar for Pine Script series consistency)
-
-    if base_end_idx < 3
+    // NA guard for unconditional calling pattern
+    if na(base_end_idx) or base_end_idx < 0
+        float(na)
+    else if base_end_idx < 3
         50.0  // Not enough history
     else
         int departure_candles = math.min(3, base_end_idx)  // Analyze up to 3 candles
@@ -1266,9 +1270,10 @@ calculate_liquidity_spread(float target_price, float inducement_price) =>
 // Faster return + bigger candles = higher conviction
 // NOTE: This function is called on every bar for series consistency (Pine Script requirement)
 calculate_return_strength(int sweep_bar_idx, int prime_bar_idx, bool isDemand) =>
-    // Uses global vol_sma_20 (calculated on every bar for Pine Script series consistency)
-
-    if na(sweep_bar_idx) or na(prime_bar_idx) or sweep_bar_idx >= prime_bar_idx
+    // NA guard for unconditional calling pattern
+    if na(sweep_bar_idx) or sweep_bar_idx < 0
+        float(na)
+    else if na(prime_bar_idx) or sweep_bar_idx >= prime_bar_idx
         50.0  // Default if no valid sweep or instant prime
     else
         int bars_after_sweep = prime_bar_idx - sweep_bar_idx
@@ -2528,229 +2533,235 @@ trimZoneArrays(bool isDemand) =>
                 label.delete(z.idLabel)
 
 // === MAIN ZONE CREATION FUNCTION ===
-createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int legCandles, int zoneUZID) =>
-    // Determine Base Candle (relative to current bar)
-    // baseIdx is offset (e.g. 1 means bar_index - 1)
-    baseBarIdx = bar_index - baseIdx
-    
-    // Check if base bar time is already used
-    int baseTime = time[baseIdx]
-    bool alreadyUsed = false
-    if isDemand
-        if array.includes(used_demand_base_times, baseTime)
-            alreadyUsed := true
-        else
-            array.push(used_demand_base_times, baseTime)
-            trimBaseTimeArrays()
+// Wrapper for unconditional calling pattern (Pine Script series consistency)
+// doCreate: if false, function is a no-op (no side effects)
+createZone(bool doCreate, int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int legCandles, int zoneUZID) =>
+    // NA/doCreate guard for unconditional calling pattern
+    if not doCreate or na(baseIdx) or baseIdx < 0 or na(zoneUZID)
+        na  // No-op: no array push, no drawings, no db writes
     else
-        if array.includes(used_supply_base_times, baseTime)
-            alreadyUsed := true
+        // Determine Base Candle (relative to current bar)
+        // baseIdx is offset (e.g. 1 means bar_index - 1)
+        baseBarIdx = bar_index - baseIdx
+    
+        // Check if base bar time is already used
+        int baseTime = time[baseIdx]
+        bool alreadyUsed = false
+        if isDemand
+            if array.includes(used_demand_base_times, baseTime)
+                alreadyUsed := true
+            else
+                array.push(used_demand_base_times, baseTime)
+                trimBaseTimeArrays()
         else
-            array.push(used_supply_base_times, baseTime)
-            trimBaseTimeArrays()
-            
-    if not alreadyUsed
-        // Calculate Zone Coordinates
-        float baseHigh = high[baseIdx]
-        float baseLow  = low[baseIdx]
-        float baseOpen = open[baseIdx]
-        float baseClose = close[baseIdx]
-        
-        // === FVG / IMBALANCE CHECK ===
-        // If FVG Confluence is enabled, only create zone if displacement left an FVG/Imbalance
-        // Imbalance is between the BASE candle and the 2nd candle after it (Candle C)
-        // Base = baseIdx
-        // Reaction/Explosion = baseIdx - 1
-        // Follow-through/Validation = baseIdx - 2
-        bool hasFVG = false
-        // Ensure we have enough history (need candle at baseIdx - 2)
-        if use_fvg_confirmation and (baseIdx - 2) >= 0
-            if isDemand
-                // Demand FVG: Low of (baseIdx - 2) > High of (baseIdx)
-                // Gap exists above the zone candle
-                if low[baseIdx - 2] > high[baseIdx]
-                    hasFVG := true
+            if array.includes(used_supply_base_times, baseTime)
+                alreadyUsed := true
             else
-                // Supply FVG: High of (baseIdx - 2) < Low of (baseIdx)
-                // Gap exists below the zone candle
-                if high[baseIdx - 2] < low[baseIdx]
-                    hasFVG := true
+                array.push(used_supply_base_times, baseTime)
+                trimBaseTimeArrays()
             
-            // If FVG required but not present, ABORT zone creation
-            if not hasFVG
-                // Return dummy void result (Pine Script functions are weird with void returns)
-                // We'll just set zTop/zBottom to na and exit logic block if we could
-                // But since we are in a function, we can't 'return' easily in middle
-                // We will wrap the rest of the logic in a check
-                na
+        if not alreadyUsed
+            // Calculate Zone Coordinates
+            float baseHigh = high[baseIdx]
+            float baseLow  = low[baseIdx]
+            float baseOpen = open[baseIdx]
+            float baseClose = close[baseIdx]
         
-        // Proceed only if FVG check passed (or disabled)
-        bool proceed_creation = not use_fvg_confirmation or hasFVG
+            // === FVG / IMBALANCE CHECK ===
+            // If FVG Confluence is enabled, only create zone if displacement left an FVG/Imbalance
+            // Imbalance is between the BASE candle and the 2nd candle after it (Candle C)
+            // Base = baseIdx
+            // Reaction/Explosion = baseIdx - 1
+            // Follow-through/Validation = baseIdx - 2
+            bool hasFVG = false
+            // Ensure we have enough history (need candle at baseIdx - 2)
+            if use_fvg_confirmation and (baseIdx - 2) >= 0
+                if isDemand
+                    // Demand FVG: Low of (baseIdx - 2) > High of (baseIdx)
+                    // Gap exists above the zone candle
+                    if low[baseIdx - 2] > high[baseIdx]
+                        hasFVG := true
+                else
+                    // Supply FVG: High of (baseIdx - 2) < Low of (baseIdx)
+                    // Gap exists below the zone candle
+                    if high[baseIdx - 2] < low[baseIdx]
+                        hasFVG := true
+            
+                // If FVG required but not present, ABORT zone creation
+                if not hasFVG
+                    // Return dummy void result (Pine Script functions are weird with void returns)
+                    // We'll just set zTop/zBottom to na and exit logic block if we could
+                    // But since we are in a function, we can't 'return' easily in middle
+                    // We will wrap the rest of the logic in a check
+                    na
         
-        // Define variable first
-        bool isAccuracy = false
+            // Proceed only if FVG check passed (or disabled)
+            bool proceed_creation = not use_fvg_confirmation or hasFVG
+        
+            // Define variable first
+            bool isAccuracy = false
 
-        if proceed_creation
-            // Determine if it's an "Accuracy" zone:
-            // Rule: Compare Zone Candle (baseIdx) to Reaction Candle (baseIdx - 1)
-            // The reaction candle is the one that started the move AFTER the zone candle
+            if proceed_creation
+                // Determine if it's an "Accuracy" zone:
+                // Rule: Compare Zone Candle (baseIdx) to Reaction Candle (baseIdx - 1)
+                // The reaction candle is the one that started the move AFTER the zone candle
     
-            // Define the Reaction candle (The candle that started the move)
-            // Since baseIdx is the offset from current bar, the candle "after" it in time is at (baseIdx - 1)
-            int reactionIdx = baseIdx - 1
+                // Define the Reaction candle (The candle that started the move)
+                // Since baseIdx is the offset from current bar, the candle "after" it in time is at (baseIdx - 1)
+                int reactionIdx = baseIdx - 1
     
-            // Only check for accuracy zones if enabled (disabled for XAUUSD, NAS100, etc.)
-            if should_use_accuracy_zones and reactionIdx >= 0
-                if isDemand
-                    // DEMAND ACCURACY RULE:
-                    // If the Zone Candle (Red) goes HIGHER than the Reaction Candle (Green)
-                    // We use the Body (Open) as the Top.
-                    // Condition: Zone High > Reaction High
-                    if high[baseIdx] > high[reactionIdx]
-                        isAccuracy := true
-                else
-                    // SUPPLY ACCURACY RULE:
-                    // If the Zone Candle (Green) goes LOWER than the Reaction Candle (Red)
-                    // We use the Body (Open) as the Bottom.
-                    // Condition: Zone Low < Reaction Low
-                    if low[baseIdx] < low[reactionIdx]
-                        isAccuracy := true
+                // Only check for accuracy zones if enabled (disabled for XAUUSD, NAS100, etc.)
+                if should_use_accuracy_zones and reactionIdx >= 0
+                    if isDemand
+                        // DEMAND ACCURACY RULE:
+                        // If the Zone Candle (Red) goes HIGHER than the Reaction Candle (Green)
+                        // We use the Body (Open) as the Top.
+                        // Condition: Zone High > Reaction High
+                        if high[baseIdx] > high[reactionIdx]
+                            isAccuracy := true
+                    else
+                        // SUPPLY ACCURACY RULE:
+                        // If the Zone Candle (Green) goes LOWER than the Reaction Candle (Red)
+                        // We use the Body (Open) as the Bottom.
+                        // Condition: Zone Low < Reaction Low
+                        if low[baseIdx] < low[reactionIdx]
+                            isAccuracy := true
     
-        float zTop = na
-        float zBottom = na
+            float zTop = na
+            float zBottom = na
 
-        // Only calculate coordinates if proceeding
-        if proceed_creation
-            if isAccuracy
-                if isDemand
-                    // Demand Accuracy: Ignore Top Wick
-                    // Top = OPEN (Body Top)
-                    // Bottom = LOW (Extreme)
-                    zTop := baseOpen
-                    zBottom := baseLow
+            // Only calculate coordinates if proceeding
+            if proceed_creation
+                if isAccuracy
+                    if isDemand
+                        // Demand Accuracy: Ignore Top Wick
+                        // Top = OPEN (Body Top)
+                        // Bottom = LOW (Extreme)
+                        zTop := baseOpen
+                        zBottom := baseLow
+                    else
+                        // Supply Accuracy: Ignore Bottom Wick
+                        // Top = HIGH (Extreme)
+                        // Bottom = OPEN (Body Bottom)
+                        zTop := baseHigh
+                        zBottom := baseOpen
                 else
-                    // Supply Accuracy: Ignore Bottom Wick
-                    // Top = HIGH (Extreme)
-                    // Bottom = OPEN (Body Bottom)
+                    // Normal zones: Full candle range
                     zTop := baseHigh
-                    zBottom := baseOpen
-            else
-                // Normal zones: Full candle range
-                zTop := baseHigh
-                zBottom := baseLow
+                    zBottom := baseLow
         
-            // Cap zone size to avoid overly large zones
-            max_zone_size = 50.0 * pip_size
-            if (zTop - zBottom) > max_zone_size
-                // Keep current range even if large - no adjustment needed
-                true  // No-op, just for syntax
+                // Cap zone size to avoid overly large zones
+                max_zone_size = 50.0 * pip_size
+                if (zTop - zBottom) > max_zone_size
+                    // Keep current range even if large - no adjustment needed
+                    true  // No-op, just for syntax
 
-        // Initialize zone creation variables to defaults to ensure scope validity
-        int zoneBorderWidth = 1
-        color zoneBgColor = na
-        color zoneBorderColorFinal = na
+            // Initialize zone creation variables to defaults to ensure scope validity
+            int zoneBorderWidth = 1
+            color zoneBgColor = na
+            color zoneBorderColorFinal = na
         
-        // Only proceed with object creation if coordinates are valid (FVG check passed)
-        if not na(zTop) and not na(zBottom)
-            // Create Visual Box with thicker border and distinct color for Accuracy zones
-            zoneBorderWidth := isAccuracy ? 2 : 1  // Slightly thicker border for accuracy zones
+            // Only proceed with object creation if coordinates are valid (FVG check passed)
+            if not na(zTop) and not na(zBottom)
+                // Create Visual Box with thicker border and distinct color for Accuracy zones
+                zoneBorderWidth := isAccuracy ? 2 : 1  // Slightly thicker border for accuracy zones
             
-            if isAccuracy
-                // Accuracy zones: Blue for demand, Purple for supply - more visible
-                if isDemand
-                    zoneBgColor := col_acc_demand_bg
-                    zoneBorderColorFinal := col_acc_demand_border
+                if isAccuracy
+                    // Accuracy zones: Blue for demand, Purple for supply - more visible
+                    if isDemand
+                        zoneBgColor := col_acc_demand_bg
+                        zoneBorderColorFinal := col_acc_demand_border
+                    else
+                        zoneBgColor := col_acc_supply_bg
+                        zoneBorderColorFinal := col_acc_supply_border
                 else
-                    zoneBgColor := col_acc_supply_bg
-                    zoneBorderColorFinal := col_acc_supply_border
-            else
-                // Normal zones: subtle colors
-                zoneBgColor := isDemand ? col_demand_bg : col_supply_bg
-                zoneBorderColorFinal := isDemand ? col_demand_border : col_supply_border
+                    // Normal zones: subtle colors
+                    zoneBgColor := isDemand ? col_demand_bg : col_supply_bg
+                    zoneBorderColorFinal := isDemand ? col_demand_border : col_supply_border
 
-            box b = box.new(left = baseBarIdx, top = zTop, right = baseBarIdx + extend_bars, bottom = zBottom,
-                 border_color = zoneBorderColorFinal,
-                 border_width = zoneBorderWidth,
-                 bgcolor = zoneBgColor,
-                 xloc = xloc.bar_index)
+                box b = box.new(left = baseBarIdx, top = zTop, right = baseBarIdx + extend_bars, bottom = zBottom,
+                     border_color = zoneBorderColorFinal,
+                     border_width = zoneBorderWidth,
+                     bgcolor = zoneBgColor,
+                     xloc = xloc.bar_index)
 
-            // Create ID Label with solid background for visibility
-            string accTag = isAccuracy ? "⭐ ACC " : ""
+                // Create ID Label with solid background for visibility
+                string accTag = isAccuracy ? "⭐ ACC " : ""
 
-            // DEBUG: Add comparison info to label if debug active
-            if show_debug_labels and isAccuracy
-                string debugInfo = ""
-                if isDemand
-                    float zoneHigh = high[baseIdx]
-                    float reactionHigh = high[baseIdx - 1]
-                    debugInfo := " [Z:" + str.tostring(zoneHigh, format.mintick) + " > R:" + str.tostring(reactionHigh, format.mintick) + "]"
+                // DEBUG: Add comparison info to label if debug active
+                if show_debug_labels and isAccuracy
+                    string debugInfo = ""
+                    if isDemand
+                        float zoneHigh = high[baseIdx]
+                        float reactionHigh = high[baseIdx - 1]
+                        debugInfo := " [Z:" + str.tostring(zoneHigh, format.mintick) + " > R:" + str.tostring(reactionHigh, format.mintick) + "]"
+                    else
+                        float zoneLow = low[baseIdx]
+                        float reactionLow = low[baseIdx - 1]
+                        debugInfo := " [Z:" + str.tostring(zoneLow, format.mintick) + " < R:" + str.tostring(reactionLow, format.mintick) + "]"
+
+                    accTag := accTag + debugInfo
+
+                string id_text = " " + accTag + (isDemand ? "D-" : "S-") + str.tostring(zoneUZID) + " "
+                float mid = (zTop + zBottom) / 2.0
+                // Label colors match zone colors - accuracy zones use blue/purple
+                color lbl_bg_color = na
+                if isAccuracy
+                    lbl_bg_color := isDemand ? color.new(#2196F3, 0) : color.new(#AB47BC, 0)  // Blue for demand ACC, Purple for supply ACC
                 else
-                    float zoneLow = low[baseIdx]
-                    float reactionLow = low[baseIdx - 1]
-                    debugInfo := " [Z:" + str.tostring(zoneLow, format.mintick) + " < R:" + str.tostring(reactionLow, format.mintick) + "]"
+                    lbl_bg_color := isDemand ? color.new(#26a69a, 0) : color.new(#ef5350, 0)  // Teal for demand, Coral for supply
+                label idLbl = label.new(x = baseBarIdx, y = mid, text = id_text,
+                     style = label.style_label_left, textcolor = color.white, color = lbl_bg_color,
+                     size = size.tiny,  // Forced tiny size for clean chart
+                     textalign = text.align_center, xloc = xloc.bar_index)
 
-                accTag := accTag + debugInfo
+                // Create Zone Object
+                Zone z = Zone.new()
+                z.id := zoneUZID
+                z.boxId := b
+                z.top := zTop
+                z.bottom := zBottom
+                z.active := true
+                z.createdBarIndex := baseBarIdx
+                z.isHistorical := isHistorical
+                z.startTime := time[baseIdx]
+                z.idLabel := idLbl
+                z.touchCount := 0  // Initialize touch count for V5 AI tracking
+                z.isAccuracy := isAccuracy  // Tag zone type for trade tracking
 
-            string id_text = " " + accTag + (isDemand ? "D-" : "S-") + str.tostring(zoneUZID) + " "
-            float mid = (zTop + zBottom) / 2.0
-            // Label colors match zone colors - accuracy zones use blue/purple
-            color lbl_bg_color = na
-            if isAccuracy
-                lbl_bg_color := isDemand ? color.new(#2196F3, 0) : color.new(#AB47BC, 0)  // Blue for demand ACC, Purple for supply ACC
-            else
-                lbl_bg_color := isDemand ? color.new(#26a69a, 0) : color.new(#ef5350, 0)  // Teal for demand, Coral for supply
-            label idLbl = label.new(x = baseBarIdx, y = mid, text = id_text,
-                 style = label.style_label_left, textcolor = color.white, color = lbl_bg_color,
-                 size = size.tiny,  // Forced tiny size for clean chart
-                 textalign = text.align_center, xloc = xloc.bar_index)
-
-            // Create Zone Object
-            Zone z = Zone.new()
-            z.id := zoneUZID
-            z.boxId := b
-            z.top := zTop
-            z.bottom := zBottom
-            z.active := true
-            z.createdBarIndex := baseBarIdx
-            z.isHistorical := isHistorical
-            z.startTime := time[baseIdx]
-            z.idLabel := idLbl
-            z.touchCount := 0  // Initialize touch count for V5 AI tracking
-            z.isAccuracy := isAccuracy  // Tag zone type for trade tracking
-
-            // === SCORING SYSTEM INTEGRATION ===
-            // Calculate Score (0-100)
-            z.score := calculate_zone_score(isDemand, zTop, zBottom, baseIdx, legCandles, false, false, candlesInBase, isAccuracy)
-            z.grade := get_grade_from_score(z.score)
+                // === SCORING SYSTEM INTEGRATION ===
+                // Calculate Score (0-100)
+                z.score := calculate_zone_score(isDemand, zTop, zBottom, baseIdx, legCandles, false, false, candlesInBase, isAccuracy)
+                z.grade := get_grade_from_score(z.score)
             
-            // === V6 AI FEATURES (CONDITIONAL - Only if enabled) ===
-            // IMPORTANT: Call functions unconditionally for Pine Script series consistency
-            float temp_base_quality = calculate_base_quality(baseBarIdx, baseIdx)
-            float temp_departure_strength = calculate_departure_strength(baseIdx, isDemand)
+                // === V6 AI FEATURES (CONDITIONAL - Only if enabled) ===
+                // IMPORTANT: Call functions unconditionally for Pine Script series consistency
+                float temp_base_quality = calculate_base_quality(baseBarIdx, baseIdx)
+                float temp_departure_strength = calculate_departure_strength(baseIdx, isDemand)
             
-            if enable_v6_v7_features
-                z.baseQuality := temp_base_quality
-                z.departureStrength := temp_departure_strength
-            else
-                // Default values when disabled (neutral 50)
-                z.baseQuality := 50.0
-                z.departureStrength := 50.0
+                if enable_v6_v7_features
+                    z.baseQuality := temp_base_quality
+                    z.departureStrength := temp_departure_strength
+                else
+                    // Default values when disabled (neutral 50)
+                    z.baseQuality := 50.0
+                    z.departureStrength := 50.0
             
-            // Update Label with Grade if enabled
-            if show_grade_on_zone
-                // Recreate label text with grade
-                string gradeStr = "[" + z.grade + "] "
-                label.set_text(idLbl, gradeStr + id_text)
+                // Update Label with Grade if enabled
+                if show_grade_on_zone
+                    // Recreate label text with grade
+                    string gradeStr = "[" + z.grade + "] "
+                    label.set_text(idLbl, gradeStr + id_text)
                  
-            // Add to array and register in DB
-            if isDemand
-                array.unshift(demandZones, z)
-                db_upsertZone(z, "DEMAND")
-                trimZoneArrays(true)
-            else
-                array.unshift(supplyZones, z)
-                db_upsertZone(z, "SUPPLY")
-                trimZoneArrays(false)
+                // Add to array and register in DB
+                if isDemand
+                    array.unshift(demandZones, z)
+                    db_upsertZone(z, "DEMAND")
+                    trimZoneArrays(true)
+                else
+                    array.unshift(supplyZones, z)
+                    db_upsertZone(z, "SUPPLY")
+                    trimZoneArrays(false)
 
 // Unified Zone Removal
 remove_zone_all_arrays(bool isDemand, int idx) =>
@@ -3424,78 +3435,162 @@ deactivateOverlappingDemandZones(refLow, refHigh) =>
             if overlaps
                 deactivateDemandZone(k)
 
+// === UNCONDITIONAL FUNCTION CALLS FOR SERIES CONSISTENCY ===
+// These dummy calls ensure calculation functions run every bar
+// to maintain Pine Script series consistency (removes warnings)
+float _dummy_base_quality = calculate_base_quality(na, na)
+float _dummy_departure = calculate_departure_strength(na, true)
+float _dummy_return = calculate_return_strength(na, na, true)
+
 // === DEMAND ZONE CREATION ===
 // isHistorical = true  -> created during initial backfill scan
 // isHistorical = false -> created in live processing (recent bars)
 
 // --- 1. DEMAND ZONE DETECTION (recent bars) ---
 // Pattern: BULLISH candle(s) followed by BEARISH candle
+// 2-phase pattern: compute candidates conditionally, call createZone unconditionally
+bool doCreate_demand_3leg = false
+bool doCreate_demand_2leg = false
+bool doCreate_demand_1leg = false
+int zid_demand_3leg = na
+int zid_demand_2leg = na
+int zid_demand_1leg = na
+
 if barstate.isconfirmed and bar_index > 10
     if is_bullish(0) and is_bullish(1) and is_bullish(2) and is_bearish(3)
         baseBarIdx = bar_index - 3
         if not is_base_bar_used(baseBarIdx, used_demand_base_times)
             global_zone_id_counter += 1
-            createZone(3, true, false, 1, 3, global_zone_id_counter)
+            zid_demand_3leg := global_zone_id_counter
+            doCreate_demand_3leg := true
     else if is_bullish(0) and is_bullish(1) and is_bearish(2)
         baseBarIdx = bar_index - 2
         if not is_base_bar_used(baseBarIdx, used_demand_base_times)
             global_zone_id_counter += 1
-            createZone(2, true, false, 1, 2, global_zone_id_counter)
+            zid_demand_2leg := global_zone_id_counter
+            doCreate_demand_2leg := true
     else if is_bullish(0) and is_bearish(1)
         baseBarIdx = bar_index - 1
         if not is_base_bar_used(baseBarIdx, used_demand_base_times)
             global_zone_id_counter += 1
-            createZone(1, true, false, 1, 1, global_zone_id_counter)
+            zid_demand_1leg := global_zone_id_counter
+            doCreate_demand_1leg := true
+
+// UNCONDITIONAL createZone calls (runs every bar for Pine Script series consistency)
+createZone(doCreate_demand_3leg, 3, true, false, 1, 3, zid_demand_3leg)
+createZone(doCreate_demand_2leg, 2, true, false, 1, 2, zid_demand_2leg)
+createZone(doCreate_demand_1leg, 1, true, false, 1, 1, zid_demand_1leg)
 
 // --- 2. SUPPLY ZONE DETECTION (recent bars) ---
+// 2-phase pattern: compute candidates conditionally, call createZone unconditionally
+bool doCreate_supply_3leg = false
+bool doCreate_supply_2leg = false
+bool doCreate_supply_1leg = false
+int zid_supply_3leg = na
+int zid_supply_2leg = na
+int zid_supply_1leg = na
+
 if barstate.isconfirmed and bar_index > 10
     if is_bearish(0) and is_bearish(1) and is_bearish(2) and is_bullish(3)
         baseBarIdx = bar_index - 3
         if not is_base_bar_used(baseBarIdx, used_supply_base_times)
             global_zone_id_counter += 1
-            createZone(3, false, false, 1, 3, global_zone_id_counter)
+            zid_supply_3leg := global_zone_id_counter
+            doCreate_supply_3leg := true
     else if is_bearish(0) and is_bearish(1) and is_bullish(2)
         baseBarIdx = bar_index - 2
         if not is_base_bar_used(baseBarIdx, used_supply_base_times)
             global_zone_id_counter += 1
-            createZone(2, false, false, 1, 2, global_zone_id_counter)
+            zid_supply_2leg := global_zone_id_counter
+            doCreate_supply_2leg := true
     else if is_bearish(0) and is_bullish(1)
         baseBarIdx = bar_index - 1
         if not is_base_bar_used(baseBarIdx, used_supply_base_times)
             global_zone_id_counter += 1
-            createZone(1, false, false, 1, 1, global_zone_id_counter)
+            zid_supply_1leg := global_zone_id_counter
+            doCreate_supply_1leg := true
+
+// UNCONDITIONAL createZone calls (runs every bar for Pine Script series consistency)
+createZone(doCreate_supply_3leg, 3, false, false, 1, 3, zid_supply_3leg)
+createZone(doCreate_supply_2leg, 2, false, false, 1, 2, zid_supply_2leg)
+createZone(doCreate_supply_1leg, 1, false, false, 1, 1, zid_supply_1leg)
 
 // --- 3. HISTORICAL ZONE SCAN (once) ---
+// 2-phase pattern: collect zone params in arrays, then call createZone unconditionally
+// Arrays to store historical zone creation parameters (max 100 zones per type)
+var array<int> hist_demand_baseIdx = array.new_int(0)
+var array<int> hist_demand_legCandles = array.new_int(0)
+var array<int> hist_demand_zid = array.new_int(0)
+var array<int> hist_supply_baseIdx = array.new_int(0)
+var array<int> hist_supply_legCandles = array.new_int(0)
+var array<int> hist_supply_zid = array.new_int(0)
+var bool hist_scan_pending = false
+
 if barstate.isconfirmed and not initial_scan_done and bar_index > 50
     initial_scan_done := true
+    hist_scan_pending := true
     max_scan = math.min(100, bar_index)
     for i = 2 to max_scan
         baseBarIdxDemand = bar_index - i
         if i >= 3 and is_bearish(i) and is_bullish(i - 1) and is_bullish(i - 2) and is_bullish(i - 3)
             if not is_base_bar_used(baseBarIdxDemand, used_demand_base_times)
                 global_zone_id_counter += 1
-                createZone(i, true, true, 1, 3, global_zone_id_counter)
+                array.push(hist_demand_baseIdx, i)
+                array.push(hist_demand_legCandles, 3)
+                array.push(hist_demand_zid, global_zone_id_counter)
         else if is_bearish(i) and is_bullish(i - 1) and is_bullish(i - 2)
             if not is_base_bar_used(baseBarIdxDemand, used_demand_base_times)
                 global_zone_id_counter += 1
-                createZone(i, true, true, 1, 2, global_zone_id_counter)
+                array.push(hist_demand_baseIdx, i)
+                array.push(hist_demand_legCandles, 2)
+                array.push(hist_demand_zid, global_zone_id_counter)
         else if is_bearish(i) and is_bullish(i - 1)
             if not is_base_bar_used(baseBarIdxDemand, used_demand_base_times)
                 global_zone_id_counter += 1
-                createZone(i, true, true, 1, 1, global_zone_id_counter)
+                array.push(hist_demand_baseIdx, i)
+                array.push(hist_demand_legCandles, 1)
+                array.push(hist_demand_zid, global_zone_id_counter)
         baseBarIdxSupply = bar_index - i
         if i >= 3 and is_bullish(i) and is_bearish(i - 1) and is_bearish(i - 2) and is_bearish(i - 3)
             if not is_base_bar_used(baseBarIdxSupply, used_supply_base_times)
                 global_zone_id_counter += 1
-                createZone(i, false, true, 1, 3, global_zone_id_counter)
+                array.push(hist_supply_baseIdx, i)
+                array.push(hist_supply_legCandles, 3)
+                array.push(hist_supply_zid, global_zone_id_counter)
         else if is_bullish(i) and is_bearish(i - 1) and is_bearish(i - 2)
             if not is_base_bar_used(baseBarIdxSupply, used_supply_base_times)
                 global_zone_id_counter += 1
-                createZone(i, false, true, 1, 2, global_zone_id_counter)
+                array.push(hist_supply_baseIdx, i)
+                array.push(hist_supply_legCandles, 2)
+                array.push(hist_supply_zid, global_zone_id_counter)
         else if is_bullish(i) and is_bearish(i - 1)
             if not is_base_bar_used(baseBarIdxSupply, used_supply_base_times)
                 global_zone_id_counter += 1
-                createZone(i, false, true, 1, 1, global_zone_id_counter)
+                array.push(hist_supply_baseIdx, i)
+                array.push(hist_supply_legCandles, 1)
+                array.push(hist_supply_zid, global_zone_id_counter)
+
+// UNCONDITIONAL historical zone creation (runs every bar, processes pending zones)
+// Process up to 10 zones per bar to avoid timeout, clear arrays when done
+int hist_demand_count = array.size(hist_demand_baseIdx)
+int hist_supply_count = array.size(hist_supply_baseIdx)
+int hist_process_limit = 10
+
+// Process demand historical zones
+for j = 0 to hist_process_limit - 1
+    bool doCreate_hist_demand = j < hist_demand_count
+    int bidx_d = doCreate_hist_demand ? array.shift(hist_demand_baseIdx) : 0
+    int legs_d = doCreate_hist_demand ? array.shift(hist_demand_legCandles) : 1
+    int zid_d = doCreate_hist_demand ? array.shift(hist_demand_zid) : na
+    createZone(doCreate_hist_demand, bidx_d, true, true, 1, legs_d, zid_d)
+
+// Process supply historical zones
+for j = 0 to hist_process_limit - 1
+    bool doCreate_hist_supply = j < hist_supply_count
+    int bidx_s = doCreate_hist_supply ? array.shift(hist_supply_baseIdx) : 0
+    int legs_s = doCreate_hist_supply ? array.shift(hist_supply_legCandles) : 1
+    int zid_s = doCreate_hist_supply ? array.shift(hist_supply_zid) : na
+    createZone(doCreate_hist_supply, bidx_s, false, true, 1, legs_s, zid_s)
 
 // === LIQUIDITY VALIDATION FUNCTIONS ===
 // Validate liquidity: must break previous structure by at least a few pips
