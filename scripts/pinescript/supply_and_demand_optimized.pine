@@ -1135,8 +1135,8 @@ calculate_base_quality(int base_start_idx, int base_end_idx) =>
 calculate_departure_strength(int base_end_idx, bool isDemand) =>
     // Uses global vol_sma_20 (calculated on every bar for Pine Script series consistency)
 
-    if base_end_idx < 3
-        50.0  // Not enough history
+    if na(base_end_idx) or base_end_idx < 0 or base_end_idx < 3
+        50.0  // Not enough history or invalid input
     else
         int departure_candles = math.min(3, base_end_idx)  // Analyze up to 3 candles
         float total_body_percent = 0.0
@@ -1290,6 +1290,13 @@ calculate_return_strength(int sweep_bar_idx, int prime_bar_idx, bool isDemand) =
         
         float return_strength = math.min(body_score + rvol_score + speed_bonus, 100.0)
         return_strength
+
+// === GLOBAL WARM-UP CALLS FOR SERIES CONSISTENCY ===
+// Pine Script requires functions that access series data with variable indices to be called every bar.
+// These "warm-up" calls ensure the series buffers are properly maintained.
+// The return values are discarded - they just ensure the function code path runs every bar.
+float _warmup_departure = calculate_departure_strength(1, true)
+float _warmup_return = calculate_return_strength(0, bar_index, true)
 
 // === OPTIMIZED VALUE CACHING ===
 // Cache frequently accessed bar values and conditions at the start of each bar to reduce redundant access
@@ -2487,61 +2494,71 @@ trimZoneArrays(bool isDemand) =>
             if not na(z.idLabel)
                 label.delete(z.idLabel)
 
-// === MAIN ZONE CREATION FUNCTION ===
-createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int legCandles, int zoneUZID) =>
+// === MAIN ZONE CREATION FUNCTION (Implementation) ===
+// NOTE: doCreate controls whether zone is actually created. Series access always happens for consistency.
+createZone_impl(bool doCreate, int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int legCandles, int zoneUZID) =>
+    // Use safe defaults for series access when doCreate is false
+    int safeBaseIdx = doCreate and not na(baseIdx) ? baseIdx : 1
+    
     // Determine Base Candle (relative to current bar)
     // baseIdx is offset (e.g. 1 means bar_index - 1)
-    baseBarIdx = bar_index - baseIdx
+    baseBarIdx = bar_index - safeBaseIdx
     
-    // Check if base bar time is already used
-    int baseTime = time[baseIdx]
+    // === SERIES ACCESS (Always runs for Pine consistency) ===
+    // Use safeBaseIdx for all series access to ensure consistent evaluation every bar
+    float baseHigh = high[safeBaseIdx]
+    float baseLow  = low[safeBaseIdx]
+    float baseOpen = open[safeBaseIdx]
+    float baseClose = close[safeBaseIdx]
+    int baseStartTime = time[safeBaseIdx]
+    
+    // Check if base bar time is already used (side effects only when doCreate)
     bool alreadyUsed = false
-    if isDemand
-        if array.includes(used_demand_base_times, baseTime)
-            alreadyUsed := true
+    
+    if doCreate
+        if isDemand
+            if array.includes(used_demand_base_times, baseStartTime)
+                alreadyUsed := true
+            else
+                array.push(used_demand_base_times, baseStartTime)
+                trimBaseTimeArrays()
         else
-            array.push(used_demand_base_times, baseTime)
-            trimBaseTimeArrays()
-    else
-        if array.includes(used_supply_base_times, baseTime)
-            alreadyUsed := true
-        else
-            array.push(used_supply_base_times, baseTime)
-            trimBaseTimeArrays()
-            
-    if not alreadyUsed
-        // Calculate Zone Coordinates
-        float baseHigh = high[baseIdx]
-        float baseLow  = low[baseIdx]
-        float baseOpen = open[baseIdx]
-        float baseClose = close[baseIdx]
-        
+            if array.includes(used_supply_base_times, baseStartTime)
+                alreadyUsed := true
+            else
+                array.push(used_supply_base_times, baseStartTime)
+                trimBaseTimeArrays()
+    
+    // FVG check series access (use safe indices)
+    int fvgIdx = math.max(safeBaseIdx - 2, 0)
+    float fvgLow = low[fvgIdx]
+    float fvgHigh = high[fvgIdx]
+    
+    // Reaction candle series access
+    int reactionIdx = math.max(safeBaseIdx - 1, 0)
+    float reactionHigh = high[reactionIdx]
+    float reactionLow = low[reactionIdx]
+    
+    // === HOIST AI FUNCTION CALLS (Series Consistency) ===
+    // These must be called every bar, even when doCreate is false
+    // Call for both demand and supply to ensure series access runs every bar for both paths
+    float temp_base_quality = calculate_base_quality(bar_index - safeBaseIdx, safeBaseIdx)
+    float temp_departure_demand = calculate_departure_strength(safeBaseIdx, true)
+    float temp_departure_supply = calculate_departure_strength(safeBaseIdx, false)
+    
+    if doCreate and not alreadyUsed
         // === FVG / IMBALANCE CHECK ===
         // If FVG Confluence is enabled, only create zone if displacement left an FVG/Imbalance
-        // Imbalance is between the BASE candle and the 2nd candle after it (Candle C)
-        // Base = baseIdx
-        // Reaction/Explosion = baseIdx - 1
-        // Follow-through/Validation = baseIdx - 2
         bool hasFVG = false
-        // Ensure we have enough history (need candle at baseIdx - 2)
         if use_fvg_confirmation and (baseIdx - 2) >= 0
             if isDemand
-                // Demand FVG: Low of (baseIdx - 2) > High of (baseIdx)
-                // Gap exists above the zone candle
-                if low[baseIdx - 2] > high[baseIdx]
+                if fvgLow > baseHigh
                     hasFVG := true
             else
-                // Supply FVG: High of (baseIdx - 2) < Low of (baseIdx)
-                // Gap exists below the zone candle
-                if high[baseIdx - 2] < low[baseIdx]
+                if fvgHigh < baseLow
                     hasFVG := true
             
-            // If FVG required but not present, ABORT zone creation
             if not hasFVG
-                // Return dummy void result (Pine Script functions are weird with void returns)
-                // We'll just set zTop/zBottom to na and exit logic block if we could
-                // But since we are in a function, we can't 'return' easily in middle
-                // We will wrap the rest of the logic in a check
                 na
         
         // Proceed only if FVG check passed (or disabled)
@@ -2551,29 +2568,13 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
         bool isAccuracy = false
 
         if proceed_creation
-            // Determine if it's an "Accuracy" zone:
-            // Rule: Compare Zone Candle (baseIdx) to Reaction Candle (baseIdx - 1)
-            // The reaction candle is the one that started the move AFTER the zone candle
-    
-            // Define the Reaction candle (The candle that started the move)
-            // Since baseIdx is the offset from current bar, the candle "after" it in time is at (baseIdx - 1)
-            int reactionIdx = baseIdx - 1
-    
-            // Only check for accuracy zones if enabled (disabled for XAUUSD, NAS100, etc.)
+            // Determine if it's an "Accuracy" zone
             if should_use_accuracy_zones and reactionIdx >= 0
                 if isDemand
-                    // DEMAND ACCURACY RULE:
-                    // If the Zone Candle (Red) goes HIGHER than the Reaction Candle (Green)
-                    // We use the Body (Open) as the Top.
-                    // Condition: Zone High > Reaction High
-                    if high[baseIdx] > high[reactionIdx]
+                    if baseHigh > reactionHigh
                         isAccuracy := true
                 else
-                    // SUPPLY ACCURACY RULE:
-                    // If the Zone Candle (Green) goes LOWER than the Reaction Candle (Red)
-                    // We use the Body (Open) as the Bottom.
-                    // Condition: Zone Low < Reaction Low
-                    if low[baseIdx] < low[reactionIdx]
+                    if baseLow < reactionLow
                         isAccuracy := true
     
         float zTop = na
@@ -2641,13 +2642,9 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
             if show_debug_labels and isAccuracy
                 string debugInfo = ""
                 if isDemand
-                    float zoneHigh = high[baseIdx]
-                    float reactionHigh = high[baseIdx - 1]
-                    debugInfo := " [Z:" + str.tostring(zoneHigh, format.mintick) + " > R:" + str.tostring(reactionHigh, format.mintick) + "]"
+                    debugInfo := " [Z:" + str.tostring(baseHigh, format.mintick) + " > R:" + str.tostring(reactionHigh, format.mintick) + "]"
                 else
-                    float zoneLow = low[baseIdx]
-                    float reactionLow = low[baseIdx - 1]
-                    debugInfo := " [Z:" + str.tostring(zoneLow, format.mintick) + " < R:" + str.tostring(reactionLow, format.mintick) + "]"
+                    debugInfo := " [Z:" + str.tostring(baseLow, format.mintick) + " < R:" + str.tostring(reactionLow, format.mintick) + "]"
 
                 accTag := accTag + debugInfo
 
@@ -2673,7 +2670,7 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
             z.active := true
             z.createdBarIndex := baseBarIdx
             z.isHistorical := isHistorical
-            z.startTime := time[baseIdx]
+            z.startTime := baseStartTime
             z.idLabel := idLbl
             z.touchCount := 0  // Initialize touch count for V5 AI tracking
             z.isAccuracy := isAccuracy  // Tag zone type for trade tracking
@@ -2684,13 +2681,11 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
             z.grade := get_grade_from_score(z.score)
             
             // === V6 AI FEATURES (CONDITIONAL - Only if enabled) ===
-            // IMPORTANT: Call functions unconditionally for Pine Script series consistency
-            float temp_base_quality = calculate_base_quality(baseBarIdx, baseIdx)
-            float temp_departure_strength = calculate_departure_strength(baseIdx, isDemand)
-            
+            // NOTE: calculate_base_quality and calculate_departure_strength are called
+            // outside this block (hoisted for series consistency). Use pre-computed values.
             if enable_v6_v7_features
                 z.baseQuality := temp_base_quality
-                z.departureStrength := temp_departure_strength
+                z.departureStrength := isDemand ? temp_departure_demand : temp_departure_supply
             else
                 // Default values when disabled (neutral 50)
                 z.baseQuality := 50.0
@@ -2711,6 +2706,15 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                 array.unshift(supplyZones, z)
                 db_upsertZone(z, "SUPPLY")
                 trimZoneArrays(false)
+
+// === MAIN ZONE CREATION FUNCTION (Wrapper - Always Called) ===
+// Calls createZone_impl unconditionally for series consistency. doCreate controls actual zone creation.
+createZone(bool doCreate, int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int legCandles, int zoneUZID) =>
+    createZone_impl(doCreate, baseIdx, isDemand, isHistorical, candlesInBase, legCandles, zoneUZID)
+
+// === GLOBAL WARM-UP CALL FOR createZone (Series Consistency) ===
+// This ensures the function's series access code runs every bar, even when historical scan doesn't execute
+createZone(false, 1, true, false, 1, 1, 0)
 
 // Unified Zone Removal
 remove_zone_all_arrays(bool isDemand, int idx) =>
@@ -3075,7 +3079,8 @@ draw_performance_table(tbl) =>
     if show_performance_table and barstate.islastconfirmedhistory
         if na(result)
             // Compact 9-row table with professional dark theme
-            result := table.new(position.top_right, 2, 9, 
+            // Docked in bottom-right corner to avoid overlap with profile status panel
+            result := table.new(position.bottom_right, 2, 9, 
                  bgcolor = color.new(color.rgb(30, 35, 40), 5), 
                  border_width = 1, border_color = color.new(color.white, 70), 
                  frame_width = 1, frame_color = color.new(color.white, 70))
@@ -3385,40 +3390,80 @@ deactivateOverlappingDemandZones(refLow, refHigh) =>
 
 // --- 1. DEMAND ZONE DETECTION (recent bars) ---
 // Pattern: BULLISH candle(s) followed by BEARISH candle
+bool doCreate_demand_3 = false
+bool doCreate_demand_2 = false
+bool doCreate_demand_1 = false
+int baseIdx_demand_3 = na
+int baseIdx_demand_2 = na
+int baseIdx_demand_1 = na
+int zoneUZID_demand_3 = na
+int zoneUZID_demand_2 = na
+int zoneUZID_demand_1 = na
+
 if barstate.isconfirmed and bar_index > 10
     if is_bullish(0) and is_bullish(1) and is_bullish(2) and is_bearish(3)
         baseBarIdx = bar_index - 3
         if not is_base_bar_used(baseBarIdx, used_demand_base_times)
             global_zone_id_counter += 1
-            createZone(3, true, false, 1, 3, global_zone_id_counter)
+            doCreate_demand_3 := true
+            baseIdx_demand_3 := 3
+            zoneUZID_demand_3 := global_zone_id_counter
     else if is_bullish(0) and is_bullish(1) and is_bearish(2)
         baseBarIdx = bar_index - 2
         if not is_base_bar_used(baseBarIdx, used_demand_base_times)
             global_zone_id_counter += 1
-            createZone(2, true, false, 1, 2, global_zone_id_counter)
+            doCreate_demand_2 := true
+            baseIdx_demand_2 := 2
+            zoneUZID_demand_2 := global_zone_id_counter
     else if is_bullish(0) and is_bearish(1)
         baseBarIdx = bar_index - 1
         if not is_base_bar_used(baseBarIdx, used_demand_base_times)
             global_zone_id_counter += 1
-            createZone(1, true, false, 1, 1, global_zone_id_counter)
+            doCreate_demand_1 := true
+            baseIdx_demand_1 := 1
+            zoneUZID_demand_1 := global_zone_id_counter
+
+createZone(doCreate_demand_3, baseIdx_demand_3, true, false, 1, 3, zoneUZID_demand_3)
+createZone(doCreate_demand_2, baseIdx_demand_2, true, false, 1, 2, zoneUZID_demand_2)
+createZone(doCreate_demand_1, baseIdx_demand_1, true, false, 1, 1, zoneUZID_demand_1)
 
 // --- 2. SUPPLY ZONE DETECTION (recent bars) ---
+bool doCreate_supply_3 = false
+bool doCreate_supply_2 = false
+bool doCreate_supply_1 = false
+int baseIdx_supply_3 = na
+int baseIdx_supply_2 = na
+int baseIdx_supply_1 = na
+int zoneUZID_supply_3 = na
+int zoneUZID_supply_2 = na
+int zoneUZID_supply_1 = na
+
 if barstate.isconfirmed and bar_index > 10
     if is_bearish(0) and is_bearish(1) and is_bearish(2) and is_bullish(3)
         baseBarIdx = bar_index - 3
         if not is_base_bar_used(baseBarIdx, used_supply_base_times)
             global_zone_id_counter += 1
-            createZone(3, false, false, 1, 3, global_zone_id_counter)
+            doCreate_supply_3 := true
+            baseIdx_supply_3 := 3
+            zoneUZID_supply_3 := global_zone_id_counter
     else if is_bearish(0) and is_bearish(1) and is_bullish(2)
         baseBarIdx = bar_index - 2
         if not is_base_bar_used(baseBarIdx, used_supply_base_times)
             global_zone_id_counter += 1
-            createZone(2, false, false, 1, 2, global_zone_id_counter)
+            doCreate_supply_2 := true
+            baseIdx_supply_2 := 2
+            zoneUZID_supply_2 := global_zone_id_counter
     else if is_bearish(0) and is_bullish(1)
         baseBarIdx = bar_index - 1
         if not is_base_bar_used(baseBarIdx, used_supply_base_times)
             global_zone_id_counter += 1
-            createZone(1, false, false, 1, 1, global_zone_id_counter)
+            doCreate_supply_1 := true
+            baseIdx_supply_1 := 1
+            zoneUZID_supply_1 := global_zone_id_counter
+
+createZone(doCreate_supply_3, baseIdx_supply_3, false, false, 1, 3, zoneUZID_supply_3)
+createZone(doCreate_supply_2, baseIdx_supply_2, false, false, 1, 2, zoneUZID_supply_2)
+createZone(doCreate_supply_1, baseIdx_supply_1, false, false, 1, 1, zoneUZID_supply_1)
 
 // --- 3. HISTORICAL ZONE SCAN (once) ---
 if barstate.isconfirmed and not initial_scan_done and bar_index > 50
@@ -3426,31 +3471,57 @@ if barstate.isconfirmed and not initial_scan_done and bar_index > 50
     max_scan = math.min(100, bar_index)
     for i = 2 to max_scan
         baseBarIdxDemand = bar_index - i
+        bool doCreate_hist_demand_3 = false
+        bool doCreate_hist_demand_2 = false
+        bool doCreate_hist_demand_1 = false
+        int zoneUZID_hist_demand_3 = na
+        int zoneUZID_hist_demand_2 = na
+        int zoneUZID_hist_demand_1 = na
         if i >= 3 and is_bearish(i) and is_bullish(i - 1) and is_bullish(i - 2) and is_bullish(i - 3)
             if not is_base_bar_used(baseBarIdxDemand, used_demand_base_times)
                 global_zone_id_counter += 1
-                createZone(i, true, true, 1, 3, global_zone_id_counter)
+                doCreate_hist_demand_3 := true
+                zoneUZID_hist_demand_3 := global_zone_id_counter
         else if is_bearish(i) and is_bullish(i - 1) and is_bullish(i - 2)
             if not is_base_bar_used(baseBarIdxDemand, used_demand_base_times)
                 global_zone_id_counter += 1
-                createZone(i, true, true, 1, 2, global_zone_id_counter)
+                doCreate_hist_demand_2 := true
+                zoneUZID_hist_demand_2 := global_zone_id_counter
         else if is_bearish(i) and is_bullish(i - 1)
             if not is_base_bar_used(baseBarIdxDemand, used_demand_base_times)
                 global_zone_id_counter += 1
-                createZone(i, true, true, 1, 1, global_zone_id_counter)
+                doCreate_hist_demand_1 := true
+                zoneUZID_hist_demand_1 := global_zone_id_counter
         baseBarIdxSupply = bar_index - i
+        bool doCreate_hist_supply_3 = false
+        bool doCreate_hist_supply_2 = false
+        bool doCreate_hist_supply_1 = false
+        int zoneUZID_hist_supply_3 = na
+        int zoneUZID_hist_supply_2 = na
+        int zoneUZID_hist_supply_1 = na
         if i >= 3 and is_bullish(i) and is_bearish(i - 1) and is_bearish(i - 2) and is_bearish(i - 3)
             if not is_base_bar_used(baseBarIdxSupply, used_supply_base_times)
                 global_zone_id_counter += 1
-                createZone(i, false, true, 1, 3, global_zone_id_counter)
+                doCreate_hist_supply_3 := true
+                zoneUZID_hist_supply_3 := global_zone_id_counter
         else if is_bullish(i) and is_bearish(i - 1) and is_bearish(i - 2)
             if not is_base_bar_used(baseBarIdxSupply, used_supply_base_times)
                 global_zone_id_counter += 1
-                createZone(i, false, true, 1, 2, global_zone_id_counter)
+                doCreate_hist_supply_2 := true
+                zoneUZID_hist_supply_2 := global_zone_id_counter
         else if is_bullish(i) and is_bearish(i - 1)
             if not is_base_bar_used(baseBarIdxSupply, used_supply_base_times)
                 global_zone_id_counter += 1
-                createZone(i, false, true, 1, 1, global_zone_id_counter)
+                doCreate_hist_supply_1 := true
+                zoneUZID_hist_supply_1 := global_zone_id_counter
+        
+        // Call createZone unconditionally on every loop iteration
+        createZone(doCreate_hist_demand_3, i, true, true, 1, 3, zoneUZID_hist_demand_3)
+        createZone(doCreate_hist_demand_2, i, true, true, 1, 2, zoneUZID_hist_demand_2)
+        createZone(doCreate_hist_demand_1, i, true, true, 1, 1, zoneUZID_hist_demand_1)
+        createZone(doCreate_hist_supply_3, i, false, true, 1, 3, zoneUZID_hist_supply_3)
+        createZone(doCreate_hist_supply_2, i, false, true, 1, 2, zoneUZID_hist_supply_2)
+        createZone(doCreate_hist_supply_1, i, false, true, 1, 1, zoneUZID_hist_supply_1)
 
 // === LIQUIDITY VALIDATION FUNCTIONS ===
 // Validate liquidity: must break previous structure by at least a few pips
@@ -4223,6 +4294,12 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
 
     for i = 0 to array.size(demandZones) - 1
         Zone z = array.get(demandZones, i)
+        
+        // === HOIST AI CALLS FOR SERIES CONSISTENCY ===
+        // These calls must run on every loop iteration regardless of zone state
+        float temp_liq_distance_d = calculate_liquidity_distance(z.top, z.liqLowPrice, true)
+        float temp_liq_spread_d = calculate_liquidity_spread(z.liqHighPrice, z.liqLowPrice)
+        float temp_return_strength_d = calculate_return_strength(nz(z.liquiditySweptBarIndex, 0), bar_index, true)
 
         // === STEP 1: PRIME ZONE (when touched with valid setup) ===
         if z.active and not z.primed
@@ -4250,6 +4327,11 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                 if str.contains(entryReason, "liquidity") or str.contains(entryReason, "Liq ")
                     stat_entries_blocked_by_liquidity += 1
 
+            // === V7.1 AI FEATURES - Use pre-computed values ===
+            float temp_liq_distance = temp_liq_distance_d
+            float temp_liq_spread = temp_liq_spread_d
+            float temp_return_strength = temp_return_strength_d
+            
             if can_enter
                 if currentTouch
                     // FIRST-TOUCH-ONLY RULE: Block retrace entries (zones already touched)
@@ -4266,12 +4348,6 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     z.primedRefHigh := high
                     z.primedRefLow := low
                     z.inactiveReason := "PRIMED - waiting for bullish close"
-                    
-                    // === V7.1 AI FEATURES (CONDITIONAL - Only if enabled) ===
-                    // IMPORTANT: Call functions unconditionally for Pine Script series consistency
-                    float temp_liq_distance = calculate_liquidity_distance(z.top, z.liqLowPrice, true)
-                    float temp_liq_spread = calculate_liquidity_spread(z.liqHighPrice, z.liqLowPrice)
-                    float temp_return_strength = calculate_return_strength(z.liquiditySweptBarIndex, bar_index, true)
                     
                     if enable_v6_v7_features
                         z.liquidityDistance := temp_liq_distance
@@ -4630,6 +4706,12 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
 
     for i = 0 to array.size(supplyZones) - 1
         Zone z = array.get(supplyZones, i)
+        
+        // === HOIST AI CALLS FOR SERIES CONSISTENCY ===
+        // These calls must run on every loop iteration regardless of zone state
+        float temp_liq_distance_s = calculate_liquidity_distance(z.bottom, z.liqHighPrice, false)
+        float temp_liq_spread_s = calculate_liquidity_spread(z.liqLowPrice, z.liqHighPrice)
+        float temp_return_strength_s = calculate_return_strength(nz(z.liquiditySweptBarIndex, 0), bar_index, false)
 
         // === STEP 1: PRIME ZONE (when touched with valid setup) ===
         if z.active and not z.primed
@@ -4657,6 +4739,11 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                 if str.contains(entryReason, "liquidity") or str.contains(entryReason, "Liq ")
                     stat_entries_blocked_by_liquidity += 1
 
+            // === V7.1 AI FEATURES - Use pre-computed values ===
+            float temp_liq_distance = temp_liq_distance_s
+            float temp_liq_spread = temp_liq_spread_s
+            float temp_return_strength = temp_return_strength_s
+            
             if can_enter
                 if currentTouch
                     // FIRST-TOUCH-ONLY RULE: Block retrace entries (zones already touched)
@@ -4673,12 +4760,6 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     z.primedRefHigh := high
                     z.primedRefLow := low
                     z.inactiveReason := "PRIMED - waiting for bearish close"
-                    
-                    // === V7.1 AI FEATURES (CONDITIONAL - Only if enabled) ===
-                    // IMPORTANT: Call functions unconditionally for Pine Script series consistency
-                    float temp_liq_distance = calculate_liquidity_distance(z.bottom, z.liqHighPrice, false)
-                    float temp_liq_spread = calculate_liquidity_spread(z.liqLowPrice, z.liqHighPrice)
-                    float temp_return_strength = calculate_return_strength(z.liquiditySweptBarIndex, bar_index, false)
                     
                     if enable_v6_v7_features
                         z.liquidityDistance := temp_liq_distance
@@ -5492,997 +5573,22 @@ if plotLiq and barstate.isconfirmed
     _controlLine(_lowLiqLines, _lowLiqActive, high, low)
     _controlLine(_highLiqLines, _highLiqActive, high, low)
 
-// === DEBUG TABLE ===
-var table debugTable = na
+// === DEBUG TABLE (REMOVED FOR TOKEN OPTIMIZATION) ===
+// Debug panel removed to reduce compiled tokens. Does not affect trading logic.
+// To restore: see original file supply_and_demand_optimized.pine
 
-// Full debug level: show global debug panel, but only on the most recent N bars and confirmed bars
-// to avoid heavy calculations on deep history and improve performance.
-if debug_full and isRecentBarForDebug() and barstate.isconfirmed
-    if na(debugTable)
-        debugTable := table.new(position.top_left, 2, 10, 
-                                 bgcolor = color.new(color.rgb(30, 35, 40), 5), 
-                                 border_width = 1, 
-                                 border_color = color.new(color.white, 70), 
-                                 frame_width = 1, 
-                                 frame_color = color.new(color.white, 70))
-    
-    if not na(debugTable) and barstate.isconfirmed
-        // Find closest active zone
-        float closestDemandDist = na
-        int closestDemandIdx = na
-        float closestSupplyDist = na
-        int closestSupplyIdx = na
-        float currentPrice = close
-        
-        // Find closest demand zone
-        if array.size(demandZones) > 0
-            for i = 0 to array.size(demandZones) - 1
-                Zone z = array.get(demandZones, i)
-                if z.active
-                    dist = math.abs(currentPrice - z.top)
-                    if na(closestDemandDist) or dist < closestDemandDist
-                        closestDemandDist := dist
-                        closestDemandIdx := i
-        
-        // Find closest supply zone
-        if array.size(supplyZones) > 0
-            for i = 0 to array.size(supplyZones) - 1
-                Zone z = array.get(supplyZones, i)
-                if z.active
-                    dist = math.abs(currentPrice - z.bottom)
-                    if na(closestSupplyDist) or dist < closestSupplyDist
-                        closestSupplyDist := dist
-                        closestSupplyIdx := i
-        
-        // Determine closest zone overall
-        string closestType = "None"
-        int closestIdx = na
-        float closestDist = na
-        bool isClosestDemand = false
-        
-        if not na(closestDemandDist) and not na(closestSupplyDist)
-            if closestDemandDist < closestSupplyDist
-                closestType := "Demand"
-                closestIdx := closestDemandIdx
-                closestDist := closestDemandDist
-                isClosestDemand := true
-            else
-                closestType := "Supply"
-                closestIdx := closestSupplyIdx
-                closestDist := closestSupplyDist
-                isClosestDemand := false
-        else if not na(closestDemandDist)
-            closestType := "Demand"
-            closestIdx := closestDemandIdx
-            closestDist := closestDemandDist
-            isClosestDemand := true
-        else if not na(closestSupplyDist)
-            closestType := "Supply"
-            closestIdx := closestSupplyIdx
-            closestDist := closestSupplyDist
-            isClosestDemand := false
-        
-        // Get zone details if found
-        string zoneState = "N/A"
-        string accuracyStatus = "N/A"
-        string liqValidStatus = "N/A"
-        bool isAccuracy = false
-        bool liqValid = false
-        bool liqExists = false
-        float zoneEntryPrice = na
-        float zoneLow = na
-        float zoneHigh = na
-        bool leftZone = false
-        
-        if not na(closestIdx)
-            if isClosestDemand
-                Zone z = array.get(demandZones, closestIdx)
-                zoneHigh := z.top
-                zoneLow := z.bottom
-                zoneEntryPrice := zoneHigh
-                leftZone := z.leftZone
-                zoneState := leftZone ? "Tapped" : "Untapped"
-                
-                // Accuracy zone (not stored in UDT)
-                accuracyStatus := "N/A"
-                
-                // Liquidity validation
-                liqValid := z.liquidityValid
-                liqExists := not na(z.liquidityPrice) or not na(z.liqLowPrice) or not na(z.liqHighPrice)
-                // Show reason if invalid, otherwise show Yes with candleCount/N/A
-                if not na(z.inactiveReason)
-                    liqValidStatus := "No: " + z.inactiveReason
-                else if liqValid
-                    liqValidStatus := "Yes (Cnt=" + str.tostring(z.liquidityCandleCount) + ")"
-                else if liqExists
-                    liqValidStatus := "No: ?"
-                else
-                    liqValidStatus := "N/A"
-            else
-                Zone z = array.get(supplyZones, closestIdx)
-                zoneHigh := z.top
-                zoneLow := z.bottom
-                zoneEntryPrice := zoneLow
-                leftZone := z.leftZone
-                zoneState := leftZone ? "Tapped" : "Untapped"
-                
-                // Accuracy zone
-                accuracyStatus := "N/A"
-                
-                // Liquidity validation
-                liqValid := z.liquidityValid
-                liqExists := not na(z.liquidityPrice) or not na(z.liqLowPrice) or not na(z.liqHighPrice)
-                // Show reason if invalid, otherwise show Yes with candleCount/N/A
-                if not na(z.inactiveReason)
-                    liqValidStatus := "No: " + z.inactiveReason
-                else if liqValid
-                    liqValidStatus := "Yes (Cnt=" + str.tostring(z.liquidityCandleCount) + ")"
-                else if liqExists
-                    liqValidStatus := "No: ?"
-                else
-                    liqValidStatus := "N/A"
-                
-                // Debug Liquidity Linking
-                if debug_liq_extra
-                    // Row 5: Liquidity Details
-                    table.cell(debugTable, 0, 5, "Liq Debug", text_color = color.yellow, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-                    
-                    string debugStr = "N/A"
-                    if liqExists
-                        int liqBar = z.liquidityBarIndex
-                        int endBar = z.liquiditySwept ? z.liquiditySweptBarIndex : bar_index
-                        int count = z.liquidityCandleCount
-                        float lPrice = z.liquidityPrice
-                        
-                        // Re-calculate range for display
-                        float rLow = na
-                        float rHigh = na
-                        if isClosestDemand
-                            rLow := lPrice
-                            rHigh := getMaxHighBetween(liqBar, endBar)
-                        else
-                            rHigh := lPrice
-                            rLow := getMinLowBetween(liqBar, endBar)
-                        
-                        debugStr := str.format("P:{0} B:{1} E:{2} C:{3}\nR:{4}-{5}", str.tostring(lPrice, format.mintick), str.tostring(liqBar), str.tostring(endBar), str.tostring(count), str.tostring(rLow, format.mintick), str.tostring(rHigh, format.mintick))
-                    else
-                        debugStr := "No Candidate"
-                    
-                    table.cell(debugTable, 1, 5, debugStr, text_color = color.yellow, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
-        
-
-        
-        // Header row (row 0) - spans both columns visually
-        table.cell(debugTable, 0, 0, "🔍 DEBUG PANEL", text_color = color.white, bgcolor = color.rgb(45, 50, 55), text_size = size.small, text_halign = text.align_left)
-        table.cell(debugTable, 1, 0, "", bgcolor = color.rgb(45, 50, 55))
-        
-        // Row 1: Closest Zone Type
-        table.cell(debugTable, 0, 1, "Zone Type", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        typeColor = closestType == "Demand" ? color.green : (closestType == "Supply" ? color.red : color.rgb(200, 200, 200))
-        table.cell(debugTable, 1, 1, closestType, text_color = typeColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 2: Zone UZID (permanent unique ID)
-        int closestZoneUZID = na
-        if not na(closestIdx)
-            if isClosestDemand
-                Zone z = array.get(demandZones, closestIdx)
-                closestZoneUZID := z.id
-            else
-                Zone z = array.get(supplyZones, closestIdx)
-                closestZoneUZID := z.id
-        table.cell(debugTable, 0, 2, "Zone UZID", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        uzidStr = not na(closestZoneUZID) ? str.tostring(closestZoneUZID) : "N/A"
-        table.cell(debugTable, 1, 2, uzidStr, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 3: Zone Range
-        table.cell(debugTable, 0, 3, "Zone Range", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        zoneRangeStr = (not na(zoneLow) and not na(zoneHigh)) ? str.format("{0} → {1}", str.tostring(zoneLow, format.mintick), str.tostring(zoneHigh, format.mintick)) : "N/A"
-        table.cell(debugTable, 1, 3, zoneRangeStr, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 4: Distance to Price
-        table.cell(debugTable, 0, 4, "Distance", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        distPips = not na(closestDist) ? str.tostring(math.round(closestDist / pip_size * 10) / 10, "#.#") + " pips" : "N/A"
-        table.cell(debugTable, 1, 4, distPips, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 5: Zone State
-        table.cell(debugTable, 0, 5, "Zone State", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        stateColor = getZoneStateColor(zoneState)
-        table.cell(debugTable, 1, 5, zoneState, text_color = stateColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 6: Accuracy Zone
-        table.cell(debugTable, 0, 6, "Accuracy Zone", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        accColor = getAccuracyColor(accuracyStatus)
-        accDisplay = accuracyStatus == "Accuracy Adjusted" ? "Yes" : "No"
-        table.cell(debugTable, 1, 6, accDisplay, text_color = accColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 7: Liquidity Valid
-        table.cell(debugTable, 0, 7, "Liquidity Valid", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        liqColor = getLiquidityColor(liqValidStatus)
-        table.cell(debugTable, 1, 7, liqValidStatus, text_color = liqColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
+// === ZONE INSPECTOR TABLE (REMOVED FOR TOKEN OPTIMIZATION) ===
+// Zone inspector removed to reduce compiled tokens (~600 lines, ~80 table.cell calls).
+// Does not affect trading logic. To restore: see original file supply_and_demand_optimized.pine
 
 
-// === ZONE INSPECTOR TABLE ===
-var table zoneInspector = na
-
-// Show Zone Inspector only when debug is enabled (Basic or Full), and only on
-// the most recent N bars and confirmed bars according to the debug_last_bars filter for performance.
-if showZoneInspector and debug_enabled and isRecentBarForDebug() and barstate.isconfirmed
-    if na(zoneInspector)
-        zoneInspector := table.new(position.bottom_right, 2, 50, bgcolor = color.new(color.rgb(30, 35, 40), 5), border_width = 1, border_color = color.new(color.white, 70), frame_width = 1, frame_color = color.new(color.white, 70))
-    
-    if not na(zoneInspector) and barstate.isconfirmed
-        // Get additional zone details for inspector
-        string zoneInspectorType = "None"
-        int zoneInspectorIdx = na
-        float zoneInspectorLow = na
-        float zoneInspectorHigh = na
-        float zoneInspectorSizePips = na
-        int barsSinceCreation = na
-        string liqRequired = "N/A"
-        string liqExistsInspector = "N/A"
-        string liqCandlesCountInspector = "N/A"
-        string liqSweptInspector = "N/A"
-        string targetSweptInspector = "N/A"
-        string sweepBarIdx = "N/A"
-        string wickInZone = "N/A"
-        string notClosedIn = "N/A"
-        string bullishBearishClose = "N/A"
-        string zoneUsedInspector = "N/A"
-        string zoneCausedSweepInspector = "N/A"
-        string entryAllowedInspector = "N/A"
-        string rejectionReasonInspector = "N/A"
-        string liqDistInspector = "N/A"
-        bool liqDistExceedsMax = false
-        
-        // === DEBUG VARIABLES FOR ZONE LOOKUP ===
-        string manualParsedIdStr = "N/A"
-        string foundInPool = "NOT_FOUND"
-        string notFoundReason = "N/A"
-        string zoneStatus = "N/A"          // LIVE / INACTIVE
-        string zoneInactiveReason = "N/A"  // max_pruned / removed / etc.
-        
-        // === MANUAL ZONE ID LOOKUP (Enhanced with zoneDB Search) ===
-        // Parse string input to extract type hint (S/D) and numeric ID
-        string manualInputClean = str.trim(manual_zone_id_input)
-        string manualTypeHint = "Any"
-        int manualZoneId = na
-        
-        if str.length(manualInputClean) > 0
-            string working = manualInputClean
-            string firstChar = str.upper(str.substring(working, 0, 1))
-            
-            // Check for D- or S- prefix
-            if firstChar == "D" or firstChar == "S"
-                manualTypeHint := firstChar == "D" ? "Demand" : "Supply"
-                dashPos = str.pos(working, "-")
-                if dashPos >= 0
-                    working := str.substring(working, dashPos + 1, str.length(working))
-                else
-                    working := str.substring(working, 1, str.length(working))
-            
-            // Remove any spaces and parse number
-            working := str.replace_all(working, " ", "")
-            float parsedVal = str.tonumber(working)
-            if not na(parsedVal)
-                manualZoneId := int(math.round(parsedVal))
-                manualParsedIdStr := str.tostring(manualZoneId)
-            else
-                notFoundReason := "invalid_input"
-        
-        int inspectIndex = na
-        string inspectType = "None"
-        ZoneDBEntry dbEntry = na
-        bool foundInDB = false
-        
-        // STEP 1: Determine Target Zone ID (Default to latest active if empty)
-        int targetId = na
-        if str.length(manualInputClean) == 0
-            // Default: Try Demand[0] then Supply[0]
-            if array.size(demandZones) > 0
-                targetId := array.get(demandZones, 0).id
-            else if array.size(supplyZones) > 0
-                targetId := array.get(supplyZones, 0).id
-        else
-            targetId := manualZoneId
-            
-        // STEP 2: Search zoneDB FIRST (single source of truth)
-        if not na(targetId)
-            int dbIdx = db_findIndexByUZID(targetId)
-            if not na(dbIdx)
-                dbEntry := array.get(zoneDB, dbIdx)
-                foundInDB := true
-                inspectType := dbEntry.zoneType == "DEMAND" ? "Demand" : "Supply"
-                foundInPool := "ZONEDB_ONLY"  // Default: found in DB only
-                zoneStatus := dbEntry.active ? "LIVE" : "INACTIVE"
-                zoneInactiveReason := dbEntry.active ? "N/A" : dbEntry.inactiveReason
-                notFoundReason := "N/A"
-                
-                // STEP 3: ALWAYS try to find in live arrays (even if inactive in DB)
-                // This allows showing live liquidity/sweep data if zone still exists in arrays
-                if dbEntry.zoneType == "DEMAND"
-                    inspectIndex := findDemandZoneIndexByUZID(targetId)
-                    if not na(inspectIndex)
-                        foundInPool := "DEMAND_LIVE"
-                else
-                    inspectIndex := findSupplyZoneIndexByUZID(targetId)
-                    if not na(inspectIndex)
-                        foundInPool := "SUPPLY_LIVE"
-            else
-                // Not in DB - try live arrays as fallback
-                int demandIdxManual = na
-                int supplyIdxManual = na
-                
-                // Optimized fallback search
-                demandIdxManual := findDemandZoneIndexByUZID(targetId)
-                if not na(demandIdxManual)
-                    inspectIndex := demandIdxManual
-                    inspectType := "Demand"
-                    foundInPool := "DEMAND_LIVE"
-                    zoneStatus := "LIVE"
-                    notFoundReason := "N/A"
-                else
-                    supplyIdxManual := findSupplyZoneIndexByUZID(targetId)
-                    if not na(supplyIdxManual)
-                        inspectIndex := supplyIdxManual
-                        inspectType := "Supply"
-                        foundInPool := "SUPPLY_LIVE"
-                        zoneStatus := "LIVE"
-                        notFoundReason := "N/A"
-                    else
-                        foundInPool := "NOT_FOUND"
-                        notFoundReason := "not_in_db_or_arrays"
-                
-
-        
-        zoneInspectorIdx := inspectIndex
-        zoneInspectorType := inspectType
-        bool isInspectorDemand = inspectType == "Demand"
-        
-        // Get UZID for display (store for Zone ID row)
-        int zoneInspectorUZID = na
-        bool inspectorZoneActive = false
-        Zone inspectorZone = na
-
-        // If we have a live index, get the Zone from array
-        if not na(zoneInspectorIdx) and zoneInspectorType != "None"
-            if isInspectorDemand
-                if zoneInspectorIdx < array.size(demandZones)
-                    inspectorZone := array.get(demandZones, zoneInspectorIdx)
-            else
-                if zoneInspectorIdx < array.size(supplyZones)
-                    inspectorZone := array.get(supplyZones, zoneInspectorIdx)
-            
-            if not na(inspectorZone)
-                zoneInspectorUZID := inspectorZone.id
-                inspectorZoneActive := inspectorZone.active
-        else if foundInDB and not na(dbEntry)
-            // Zone is in DB but not in live arrays - use DB data for display
-            zoneInspectorUZID := dbEntry.uzid
-            inspectorZoneActive := false  // Not in live arrays = effectively inactive
-        
-        bool allowInactiveInspector = true
-
-        // Populate inspector fields if zone found in live arrays
-        // === CONSOLIDATED: Common fields calculated once, directional logic uses ternary ===
-        if not na(inspectorZone) and (inspectorZoneActive or allowInactiveInspector)
-            // === COMMON FIELDS (same for demand and supply) ===
-            zoneInspectorHigh := inspectorZone.top
-            zoneInspectorLow := inspectorZone.bottom
-            
-            // Zone Size in pips
-            if not na(zoneInspectorLow) and not na(zoneInspectorHigh)
-                zoneInspectorSizePips := (zoneInspectorHigh - zoneInspectorLow) / pip_size
-            
-            // Bars Since Creation
-            if not na(inspectorZone.createdBarIndex)
-                barsSinceCreation := bar_index - inspectorZone.createdBarIndex
-            
-            // Liquidity Required
-            liqRequired := require_liquidity_sweep ? "Yes" : "No"
-            
-            // Liquidity Analysis (common calculation)
-            int oppCntInspector = inspectorZone.liquidityCandleCount
-            int minCandles = useOneCandleLiquidity ? 1 : 2
-            bool liqExistsBool = oppCntInspector >= minCandles
-            
-            // Liquidity Analysis string - simplified to Valid/Invalid only
-            // Detailed info is shown in the dedicated Liq Low/High/Source/Band rows below
-            liqExistsInspector := liqExistsBool ? "✓ Valid" : "✗ Invalid"
-            
-            // Liquidity Swept & Sweep Bar (Check current bar high/low for real-time feedback)
-            float sweepTol = pip_size * 0.5
-            bool currentBarIndSweep = isInspectorDemand ? (low <= inspectorZone.liqLowPrice + sweepTol) : (high >= inspectorZone.liqHighPrice - sweepTol)
-            bool currentBarTgtSweep = isInspectorDemand ? (high >= inspectorZone.liqHighPrice - sweepTol) : (low <= inspectorZone.liqLowPrice + sweepTol)
-
-            liqSweptInspector := (inspectorZone.liquiditySwept or currentBarIndSweep) ? "Yes" : "No"
-            sweepBarIdx := not na(inspectorZone.liquiditySweptBarIndex) ? str.tostring(inspectorZone.liquiditySweptBarIndex) : (currentBarIndSweep ? str.tostring(bar_index) : "N/A")
-            
-            // Target Swept (Target HIGH for Demand, Target LOW for Supply)
-            targetSweptInspector := (inspectorZone.targetSwept or currentBarTgtSweep) ? "Yes" : "No"
-            
-            // Liquidity Distance from Zone (in pips)
-            // For Supply: zoneBottom - liqHighPrice (zone bottom is closest to inducement high below)
-            // For Demand: liqLowPrice - zoneTop (inducement low is ABOVE zone)
-            float liqDistCalc = na
-            if zoneInspectorType == "Demand" and not na(inspectorZone.liqLowPrice) and not na(inspectorZone.top)
-                // Demand: liqLowPrice - zoneTop (inducement low is ABOVE zone)
-                liqDistCalc := math.abs(inspectorZone.liqLowPrice - inspectorZone.top) / pip_size
-            else if zoneInspectorType == "Supply" and not na(inspectorZone.liqHighPrice) and not na(inspectorZone.bottom)
-                // Supply: zoneBottom - liqHighPrice (inducement high is BELOW zone)
-                liqDistCalc := math.abs(inspectorZone.bottom - inspectorZone.liqHighPrice) / pip_size
-            liqDistInspector := not na(liqDistCalc) ? str.tostring(liqDistCalc, "#.#") + " pips" : "N/A"
-            // Only mark as exceeding if limit is not 0 (0 = no limit)
-            liqDistExceedsMax := effective_liq_entry_max_dist > 0.0 and not na(liqDistCalc) and liqDistCalc > effective_liq_entry_max_dist
-            
-            // Zone Caused Sweep
-            zoneCausedSweepInspector := inspectorZone.causedSweep ? "Yes" : "No"
-            
-            // Zone Used
-            zoneUsedInspector := not na(inspectorZone.lastEntryBar) ? "Yes" : "No"
-            
-            // Bullish/Bearish Close (same for both)
-            bullishBearishClose := close > open ? "Bullish" : "Bearish"
-            
-            // Not Closed In (same for both)
-            notClosedIn := (close < zoneInspectorLow or close > zoneInspectorHigh) ? "Yes" : "No"
-            
-            // === DIRECTIONAL LOGIC: Wick In Zone (Active vs Historical) ===
-            bool zoneTouched = not na(inspectorZone) and inspectorZone.wasTouched
-            
-            // Re-calculate ACTIVE touch to match validation logic strictly
-            bool isActiveTouch = false
-            if isInspectorDemand
-                isActiveTouch := (low <= zoneInspectorHigh and low >= zoneInspectorLow) or (low[1] <= zoneInspectorHigh and low[1] >= zoneInspectorLow)
-            else
-                isActiveTouch := (high >= zoneInspectorLow and high <= zoneInspectorHigh) or (high[1] >= zoneInspectorLow and high[1] <= zoneInspectorHigh)
-            
-            wickInZone := isActiveTouch ? "Yes (Active)" : (zoneTouched ? "Yes (Historical)" : "No")
-            
-            // === UNIFIED ENTRY VALIDATION (using if/else for tuple return) ===
-            bool entryAllowedInspectorBool = false
-            string validationReason = ""
-            if isInspectorDemand
-                [canEnterDemand, reasonDemand] = isValidDemandEntry(zoneInspectorIdx)
-                entryAllowedInspectorBool := canEnterDemand
-                validationReason := reasonDemand
-            else
-                [canEnterSupply, reasonSupply] = isValidSupplyEntry(zoneInspectorIdx)
-                entryAllowedInspectorBool := canEnterSupply
-                validationReason := reasonSupply
-            
-            // Handle supply shorts disabled case
-            if not isInspectorDemand and not allow_short_trades
-                entryAllowedInspector := "Shorts Disabled"
-                rejectionReasonInspector := "Shorts disabled"
-            else
-                entryAllowedInspector := entryAllowedInspectorBool ? "Yes" : "No"
-                rejectionReasonInspector := entryAllowedInspectorBool ? "None" : (str.length(validationReason) > 0 ? validationReason : "Unknown")
-        else if na(inspectorZone) and foundInDB and not na(dbEntry)
-            // Zone is in DB but not in live arrays - use DB data for basic display
-            zoneInspectorHigh := dbEntry.top
-            zoneInspectorLow := dbEntry.bottom
-            
-            // Zone Size in pips
-            if not na(zoneInspectorLow) and not na(zoneInspectorHigh)
-                zoneInspectorSizePips := (zoneInspectorHigh - zoneInspectorLow) / pip_size
-            
-            // Bars Since Creation
-            if not na(dbEntry.createdBar)
-                barsSinceCreation := bar_index - dbEntry.createdBar
-            
-            // Liquidity Required
-            liqRequired := require_liquidity_sweep ? "Yes" : "No"
-            
-            // Liquidity Exists from DB snapshot
-            int dbOppCnt = dbEntry.liquidityCandleCount
-            int minCandles = useOneCandleLiquidity ? 1 : 2
-            bool liqExistsBool = dbOppCnt >= minCandles
-            liqExistsInspector := (liqExistsBool ? "Yes" : "No") + " (" + str.tostring(dbOppCnt) + ") [DB]"
-            liqCandlesCountInspector := str.tostring(dbOppCnt) + " [DB]"
-            
-            // Liquidity Swept from DB
-            liqSweptInspector := dbEntry.liquiditySwept ? "Yes [DB]" : "No [DB]"
-            
-            // Caused Sweep from DB
-            zoneCausedSweepInspector := dbEntry.causedSweep ? "Yes [DB]" : "No [DB]"
-            
-            // Entry not allowed for inactive zones
-            entryAllowedInspector := "Zone Inactive"
-            rejectionReasonInspector := dbEntry.inactiveReason
-        
-        // Header row (row 0)
-        color typeColor = isInspectorDemand ? color.new(color.green, 20) : color.new(color.red, 20)
-        table.cell(zoneInspector, 0, 0, "Zone #" + str.tostring(zoneInspectorUZID), bgcolor=typeColor, text_color=color.white, text_size = size.small, text_halign = text.align_left)
-        table.cell(zoneInspector, 1, 0, zoneInspectorType, bgcolor=typeColor, text_color=color.white, text_size = size.small, text_halign = text.align_left)
-        
-        // Grade Row [NEW]
-        // Grade Row [NEW]
-        string gradeStr = (not na(inspectorZone) and not na(inspectorZone.grade)) ? inspectorZone.grade : "N/A"
-        float scoreVal = (not na(inspectorZone) and not na(inspectorZone.score)) ? inspectorZone.score : 0.0
-        color gradeColor = scoreVal >= 80 ? color.lime : (scoreVal >= 60 ? color.yellow : color.red)
-        
-        table.cell(zoneInspector, 0, 1, "Grade", text_color = color.rgb(200, 200, 200), bgcolor=color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
-        table.cell(zoneInspector, 1, 1, gradeStr + " (" + str.tostring(scoreVal, "#") + ")", text_color=gradeColor, bgcolor=color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
-        
-        // Row 1: Zone ID (UZID - permanent unique ID) - shifted to row 2
-        table.cell(zoneInspector, 0, 2, "Zone ID", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
-        zoneIdStr = not na(zoneInspectorUZID) ? str.tostring(zoneInspectorUZID) : "N/A"
-        table.cell(zoneInspector, 1, 2, zoneIdStr, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
-        
-        // Row 2: Type - shifted to row 3
-        table.cell(zoneInspector, 0, 3, "Type", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
-        typeColorInspector = zoneInspectorType == "Demand" ? color.green : (zoneInspectorType == "Supply" ? color.red : color.rgb(200, 200, 200))
-        table.cell(zoneInspector, 1, 3, zoneInspectorType, text_color = typeColorInspector, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
-        
-        // Row 3: Range - shifted to row 4
-        table.cell(zoneInspector, 0, 4, "Range", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
-        rangeStrInspector = (not na(zoneInspectorLow) and not na(zoneInspectorHigh)) ? str.format("{0} → {1}", str.tostring(zoneInspectorLow, format.mintick), str.tostring(zoneInspectorHigh, format.mintick)) : "N/A"
-        table.cell(zoneInspector, 1, 4, rangeStrInspector, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
-        
-        // Row 4: Zone Size - shifted to row 5
-        table.cell(zoneInspector, 0, 5, "Zone Size", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
-        sizeStrInspector = not na(zoneInspectorSizePips) ? str.tostring(math.round(zoneInspectorSizePips * 10) / 10, "#.#") + " pips" : "N/A"
-        table.cell(zoneInspector, 1, 5, sizeStrInspector, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
-        
-        // Row 5: Bars Since Creation - shifted to row 6
-        table.cell(zoneInspector, 0, 6, "Bars Since", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
-        barsStrInspector = not na(barsSinceCreation) ? str.tostring(barsSinceCreation) : "N/A"
-        table.cell(zoneInspector, 1, 6, barsStrInspector, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
-        
-        // Row 6: Liquidity Required - shifted to row 7
-        table.cell(zoneInspector, 0, 7, "Liq Required", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
-        liqReqColor = liqRequired == "Yes" ? color.yellow : (liqRequired == "No" ? color.gray : color.rgb(200, 200, 200))
-        table.cell(zoneInspector, 1, 7, liqRequired, text_color = liqReqColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
-        
-        // Row 7: Liquidity Analysis (MERGED: Liq Exists + Liq Candles) - shifted to row 8
-        table.cell(zoneInspector, 0, 8, "Liquidity", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
-        liqExistsColor = str.contains(liqExistsInspector, "✓") ? color.green : (str.contains(liqExistsInspector, "✗") ? color.red : color.rgb(200, 200, 200))
-        table.cell(zoneInspector, 1, 8, liqExistsInspector, text_color = liqExistsColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
-        
-        // Row 8: Liquidity Swept (was row 9) - shifted to row 9
-        table.cell(zoneInspector, 0, 9, "Liq Swept", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
-        liqSweptColor = liqSweptInspector == "Yes" ? color.green : (liqSweptInspector == "No" ? color.red : color.rgb(200, 200, 200))
-        table.cell(zoneInspector, 1, 9, liqSweptInspector, text_color = liqSweptColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
-        
-        // Row 9: Target Swept (NEW ROW - Target HIGH for Demand, Target LOW for Supply) - shifted to row 10
-        table.cell(zoneInspector, 0, 10, "Target Swept", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
-        targetSweptColor = targetSweptInspector == "Yes" ? color.green : (targetSweptInspector == "No" ? color.red : color.rgb(200, 200, 200))
-        table.cell(zoneInspector, 1, 10, targetSweptInspector, text_color = targetSweptColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
-        
-        // Row 10: Liq Distance (NEW ROW - distance from zone boundary to inducement) - shifted to row 11
-        table.cell(zoneInspector, 0, 11, "Liq Distance", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
-        liqDistColor = liqDistExceedsMax ? color.red : (liqDistInspector != "N/A" ? color.green : color.rgb(200, 200, 200))
-        table.cell(zoneInspector, 1, 11, liqDistInspector, text_color = liqDistColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
-        
-        // Row 11: Sweep Bar Index (was row 10) - shifted to row 12
-        table.cell(zoneInspector, 0, 12, "Sweep Bar", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
-        table.cell(zoneInspector, 1, 12, sweepBarIdx, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
-        
-        // Row 12: Zone Caused Sweep (was row 11) - shifted to row 13
-        table.cell(zoneInspector, 0, 13, "Zone Caused Sweep", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
-        zoneCausedSweepColor = zoneCausedSweepInspector == "Yes" ? color.green : (zoneCausedSweepInspector == "No" ? color.red : color.rgb(200, 200, 200))
-        table.cell(zoneInspector, 1, 13, zoneCausedSweepInspector, text_color = zoneCausedSweepColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
-        
-        // Row 13: Wick In Zone (was row 12) - shifted to row 14
-        table.cell(zoneInspector, 0, 14, "Wick In Zone", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
-        wickColor = wickInZone == "Yes" ? color.green : (wickInZone == "No" ? color.red : color.rgb(200, 200, 200))
-        table.cell(zoneInspector, 1, 14, wickInZone, text_color = wickColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
-        
-        // Row 14: Not Closed In (was row 13) - shifted to row 15
-        table.cell(zoneInspector, 0, 15, "Not Closed In", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
-        notClosedColor = notClosedIn == "Yes" ? color.green : (notClosedIn == "No" ? color.red : color.rgb(200, 200, 200))
-        table.cell(zoneInspector, 1, 15, notClosedIn, text_color = notClosedColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
-        
-        // Row 15: Bullish/Bearish Close (was row 14) - shifted to row 16
-        table.cell(zoneInspector, 0, 16, "Close Type", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
-        closeColor = bullishBearishClose == "Bullish" ? color.green : (bullishBearishClose == "Bearish" ? color.red : color.rgb(200, 200, 200))
-        table.cell(zoneInspector, 1, 16, bullishBearishClose, text_color = closeColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
-        
-        // Row 16: Zone Used (was row 15) - shifted to row 17
-        table.cell(zoneInspector, 0, 17, "Zone Used", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
-        usedColor = zoneUsedInspector == "Yes" ? color.red : (zoneUsedInspector == "No" ? color.green : color.rgb(200, 200, 200))
-        table.cell(zoneInspector, 1, 17, zoneUsedInspector, text_color = usedColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
-        
-        // Row 17: Entry Allowed (was row 16) - shifted to row 18
-        // Override display if entry was triggered this bar (to prevent "False No")
-        string displayEntryAllowed = entryAllowedInspector
-        color displayEntryColor = entryAllowedInspector == "Yes" ? color.new(color.green, 0) : (entryAllowedInspector == "No" ? color.new(color.red, 0) : color.rgb(200, 200, 200))
-        
-        if entryTriggeredThisBar and not na(triggeredZoneId) and not na(inspectorZone) and triggeredZoneId == inspectorZone.id
-            displayEntryAllowed := "YES (Executed)"
-            displayEntryColor := color.new(color.green, 0)
-        
-        table.cell(zoneInspector, 0, 18, "Entry Allowed", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
-        table.cell(zoneInspector, 1, 18, displayEntryAllowed, text_color = displayEntryColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
-        
-        // Row 18: Rejection Reason (was row 17) - shifted to row 19
-        // Parse AI Breakdown from Reason if present (bracketed content) to show as tooltip
-        string inspectorReasonText = rejectionReasonInspector
-        string inspectorTooltip = ""
-        if str.contains(rejectionReasonInspector, "[")
-            string[] parts = str.split(rejectionReasonInspector, "[")
-            if array.size(parts) > 1
-                inspectorReasonText := array.get(parts, 0)
-                string rawBreakdown = array.get(parts, 1)
-                inspectorTooltip := str.replace(rawBreakdown, "]", "")
-
-        table.cell(zoneInspector, 0, 19, "Reason", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
-        reasonColor = rejectionReasonInspector == "None" ? color.new(color.green, 0) : (rejectionReasonInspector != "N/A" ? color.new(color.orange, 0) : color.rgb(200, 200, 200))
-        table.cell(zoneInspector, 1, 19, inspectorReasonText, tooltip = inspectorTooltip, text_color = reasonColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
-        
-        // === DEBUG ROWS: CONDITIONAL on zone NOT found ===
-        // Rows 17-19 only shown when zone lookup failed (foundInPool == "NOT_FOUND")
-        bool showDebugLookupRows = foundInPool == "NOT_FOUND" or notFoundReason != "N/A"
-        
-        
-        if not na(inspectorZone)
-            float sl_est_insp = (inspectorZone.top - inspectorZone.bottom) / pip_size
-
-
-        int nextRow = 20
-        
-        if showDebugLookupRows
-            // Row 17: Manual Parsed ID
-            table.cell(zoneInspector, 0, nextRow, "Manual Parsed ID", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = size.small)
-            parsedIdColor = manualParsedIdStr != "N/A" ? color.yellow : color.rgb(150, 150, 150)
-            table.cell(zoneInspector, 1, nextRow, manualParsedIdStr, text_color = parsedIdColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = size.small)
-            nextRow += 1
-            
-            // Row 18: Found In
-            table.cell(zoneInspector, 0, nextRow, "Found In", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = size.small)
-            foundInColor = foundInPool == "DEMAND_LIVE" ? color.green : (foundInPool == "SUPPLY_LIVE" ? color.red : (foundInPool == "ZONEDB_ONLY" ? color.yellow : color.rgb(150, 150, 150)))
-            table.cell(zoneInspector, 1, nextRow, foundInPool, text_color = foundInColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = size.small)
-            nextRow += 1
-            
-            // Row 19: Reason If Not Found
-            table.cell(zoneInspector, 0, nextRow, "Not Found Reason", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = size.small)
-            notFoundColor = notFoundReason == "N/A" or notFoundReason == "empty_input" ? color.rgb(150, 150, 150) : color.orange
-            table.cell(zoneInspector, 1, nextRow, notFoundReason, text_color = notFoundColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = size.small)
-            nextRow += 1
-        
-        // === LIQUIDITY DEBUG ROWS ===
-        // Always show both Liq High and Liq Low values directly
-        // For Demand: Low=Inducement (closest), High=Target (farthest)
-        // For Supply: High=Inducement (closest), Low=Target (farthest)
-        
-        // Get raw values from zone or DB
-        float displayLiqHigh = na
-        int displayLiqHighBar = na
-        float displayLiqLow = na
-        int displayLiqLowBar = na
-        string displayLiqSource = "N/A"
-        
-        if not na(inspectorZone)
-            displayLiqHigh := inspectorZone.liqHighPrice
-            displayLiqHighBar := inspectorZone.liqHighBar
-            displayLiqLow := inspectorZone.liqLowPrice
-            displayLiqLowBar := inspectorZone.liqLowBar
-            displayLiqSource := na(inspectorZone.liqSource) ? "N/A" : inspectorZone.liqSource
-        else if foundInDB and not na(dbEntry)
-            displayLiqHigh := dbEntry.liqHighPrice
-            displayLiqHighBar := dbEntry.liqHighBar
-            displayLiqLow := dbEntry.liqLowPrice
-            displayLiqLowBar := dbEntry.liqLowBar
-            displayLiqSource := na(dbEntry.liqSource) ? "N/A" : dbEntry.liqSource
-        
-        // Inducement Row (closest to zone)
-        string inducementLabel = isInspectorDemand ? "Inducement (Low)" : "Inducement (High)"
-        string inducementStr = "N/A"
-        float inducementPrice = isInspectorDemand ? displayLiqLow : displayLiqHigh
-        int inducementBar = isInspectorDemand ? displayLiqLowBar : displayLiqHighBar
-        if not na(inducementPrice)
-            inducementStr := str.tostring(inducementPrice, format.mintick) + " @ " + str.tostring(inducementBar)
-        table.cell(zoneInspector, 0, nextRow, inducementLabel, text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = size.small)
-        inducementColor = inducementStr != "N/A" ? color.rgb(100, 200, 255) : color.rgb(150, 150, 150)
-        table.cell(zoneInspector, 1, nextRow, inducementStr, text_color = inducementColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = size.small)
-        nextRow += 1
-        
-        // Target Row (farthest from zone - must be swept)
-        string targetLabel = isInspectorDemand ? "Target (High)" : "Target (Low)"
-        string targetStr = "N/A"
-        float targetPrice = isInspectorDemand ? displayLiqHigh : displayLiqLow
-        int targetBar = isInspectorDemand ? displayLiqHighBar : displayLiqLowBar
-        if not na(targetPrice)
-            targetStr := str.tostring(targetPrice, format.mintick) + " @ " + str.tostring(targetBar)
-        table.cell(zoneInspector, 0, nextRow, targetLabel, text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = size.small)
-        targetColor = targetStr != "N/A" ? color.new(color.purple, 0) : color.rgb(150, 150, 150)
-        table.cell(zoneInspector, 1, nextRow, targetStr, text_color = targetColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = size.small)
-        nextRow += 1
-        
-        // Push/Inducement Sequence Row (for Demand zones - shows pushHigh → inducement)
-        if isInspectorDemand and not na(inspectorZone)
-            int pushBar = inspectorZone.pushHighBar
-            float pushPrice = inspectorZone.pushHighPrice
-            float indLowPrice = inspectorZone.liqLowPrice
-            int indBar = inspectorZone.liqLowBar
-            
-            // Push High price@bar → Inducement price@bar with sequence check
-            string pushStr = na(pushBar) or na(pushPrice) ? "N/A" : str.tostring(pushPrice, format.mintick) + "@" + str.tostring(pushBar)
-            string indStr = na(indBar) or na(indLowPrice) ? "N/A" : str.tostring(indLowPrice, format.mintick) + "@" + str.tostring(indBar)
-            bool seqOK = not na(pushBar) and not na(indBar) and indBar > pushBar
-            string seqStatus = seqOK ? " ✓" : (na(pushBar) or na(indBar) ? "" : " ✗")
-            string seqStr = "Push:" + pushStr + " → Ind:" + indStr + seqStatus
-            
-            table.cell(zoneInspector, 0, nextRow, "Push→Ind", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = size.small)
-            seqColor = seqOK ? color.green : (na(pushBar) or na(indBar) ? color.rgb(150, 150, 150) : color.orange)
-            table.cell(zoneInspector, 1, nextRow, seqStr, text_color = seqColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = size.small)
-            nextRow += 1
-        
-        // Liq Swept (simple yes/no)
-        string liqSweptStr = "N/A"
-        bool liqSwept = false
-        if not na(inspectorZone)
-            liqSwept := inspectorZone.liquiditySwept
-            liqSweptStr := liqSwept ? "YES" : "NO"
-        else if foundInDB and not na(dbEntry)
-            liqSwept := dbEntry.liquiditySwept
-            liqSweptStr := liqSwept ? "YES" : "NO"
-        table.cell(zoneInspector, 0, nextRow, "Liq Swept", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = size.small)
-        liqSweptColor := liqSweptStr == "YES" ? color.green : (liqSweptStr == "NO" ? color.orange : color.rgb(150, 150, 150))
-        table.cell(zoneInspector, 1, nextRow, liqSweptStr, text_color = liqSweptColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = size.small)
-        nextRow += 1
-        
-        // Leg Candles (bearish for demand, bullish for supply)
-        int displayLegCount = 0
-        if not na(inspectorZone)
-            displayLegCount := inspectorZone.legCandleCount
-        else if foundInDB and not na(dbEntry)
-            displayLegCount := dbEntry.legCandleCount
-        string legLabel = isInspectorDemand ? "Bearish" : "Bullish"
-        string legCandleStr = na(displayLegCount) or displayLegCount == 0 ? "N/A" : str.tostring(displayLegCount) + " " + legLabel
-        table.cell(zoneInspector, 0, nextRow, "Leg Candles", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = size.small)
-        legCandleColor = displayLegCount > 3 ? color.green : (displayLegCount > 0 ? color.orange : color.rgb(150, 150, 150))
-        table.cell(zoneInspector, 1, nextRow, legCandleStr, text_color = legCandleColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = size.small)
-        nextRow += 1
-        
-        // Primed Status (waiting for next candle entry)
-        bool isPrimed = false
-        if not na(inspectorZone)
-            isPrimed := inspectorZone.primed
-        
-        table.cell(zoneInspector, 0, nextRow, "Primed", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = size.small)
-        string primedStr = isPrimed ? "YES" : "NO"
-        color primedColor = isPrimed ? color.green : color.rgb(150, 150, 150)
-        table.cell(zoneInspector, 1, nextRow, primedStr, text_color = primedColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = size.small)
-        nextRow += 1
-        
-        // Liq Source (selection method)
-        table.cell(zoneInspector, 0, nextRow, "Liq Source", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = size.small)
-        liqSourceColor = displayLiqSource == "ABSOLUTE_SCAN" ? color.green : color.rgb(150, 150, 150)
-        table.cell(zoneInspector, 1, nextRow, displayLiqSource, text_color = liqSourceColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = size.small)
-        nextRow += 1
-        
-        // Zone Status (LIVE / INACTIVE)
-        table.cell(zoneInspector, 0, nextRow, "Zone Status", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = size.small)
-        statusColor = zoneStatus == "LIVE" ? color.green : (zoneStatus == "INACTIVE" ? color.orange : color.rgb(150, 150, 150))
-        table.cell(zoneInspector, 1, nextRow, zoneStatus, text_color = statusColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = size.small)
-        nextRow += 1
-        
-        // Inactive Reason (if applicable)
-        table.cell(zoneInspector, 0, nextRow, "Inactive Reason", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = size.small)
-        inactiveColor = zoneInactiveReason != "N/A" ? color.orange : color.rgb(150, 150, 150)
-        table.cell(zoneInspector, 1, nextRow, zoneInactiveReason, text_color = inactiveColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = size.small)
-        
-        // === DEBUG LABEL: Visualize Target/Inducement position using TIME for multi-TF alignment ===
-        // Only draw on barstate.islastconfirmedhistory and when inspecting a demand zone with valid values
-        if barstate.islastconfirmedhistory and isInspectorDemand and not na(inspectorZone)
-            int targetTime = inspectorZone.liqHighTime
-            int indTime = inspectorZone.liqLowTime
-            if not na(targetTime) and not na(targetPrice) and not na(indTime) and not na(inducementPrice)
-                // Draw label at the Target using xloc.bar_time for accurate multi-TF positioning
-                label.new(
-                    x = targetTime, 
-                    y = targetPrice, 
-                    xloc = xloc.bar_time,
-                    text = "🎯 TARGET\nT:" + str.tostring(targetTime) + "\nB:" + str.tostring(targetBar),
-                    style = label.style_label_down,
-                    color = color.new(color.purple, 20),
-                    textcolor = color.white,
-                    size = size.small)
-                // Also draw a label at inducement for comparison
-                label.new(
-                    x = indTime, 
-                    y = inducementPrice, 
-                    xloc = xloc.bar_time,
-                    text = "📍 IND\nT:" + str.tostring(indTime) + "\nB:" + str.tostring(inducementBar),
-                    style = label.style_label_up,
-                    color = color.new(color.orange, 20),
-                    textcolor = color.white,
-                    size = size.small)
-else
-    // Hide/delete Zone Inspector when flag is disabled
-    if not na(zoneInspector)
-        table.delete(zoneInspector)
-        zoneInspector := na
-
-// === POSITION SIZING TABLE (Enhanced with Validation Details) ===
-var table posSizeTable = na
-
-// Show position sizing table when debug is enabled (Full level) or when show_pos_sizing_table is enabled
-// Only render on confirmed bars for performance optimization
-if show_pos_sizing_table and debug_full and isRecentBarForDebug() and barstate.isconfirmed
-    if na(posSizeTable)
-        posSizeTable := table.new(position.bottom_left, 2, 12, bgcolor = color.new(color.rgb(30, 35, 40), 5), border_width = 1, border_color = color.new(color.white, 70), frame_width = 1, frame_color = color.new(color.white, 70))
-    
-    if not na(posSizeTable) and barstate.isconfirmed
-        // Use last calculated values if available, otherwise show example values
-        bool hasLastValues = not na(last_pos_size_entry) and not na(last_pos_size_sl) and last_pos_size_valid
-        
-        float display_entry = hasLastValues ? last_pos_size_entry : close[1]
-        float display_sl = hasLastValues ? last_pos_size_sl : (close[1] - (11.5 * pip_size))
-        float display_balance = hasLastValues and not na(last_pos_size_balance) ? last_pos_size_balance : account_size_usd
-        float display_risk_pct = hasLastValues and not na(last_pos_size_risk_pct) ? last_pos_size_risk_pct : risk_per_trade_pct
-        int display_units = hasLastValues and not na(last_pos_size_units) ? last_pos_size_units : na
-        float display_lots = hasLastValues and not na(last_pos_size_lots) ? last_pos_size_lots : na
-        float display_sl_pips = hasLastValues and not na(last_pos_size_sl_pips) ? last_pos_size_sl_pips : 11.5
-        float display_usdjpy = hasLastValues and not na(last_pos_size_usdjpy_rate) ? last_pos_size_usdjpy_rate : na
-        bool display_valid = hasLastValues ? last_pos_size_valid : true
-        string display_error = hasLastValues ? last_pos_size_error : ""
-        bool display_dry_run = hasLastValues ? last_pos_size_dry_run : false
-        
-        // Calculate if not using last values
-        if not hasLastValues
-            float example_qty_units_raw = calc_pos_size_units(display_entry, display_sl, display_balance, display_risk_pct, false)
-            display_units := int(math.round(example_qty_units_raw))
-            display_lots := display_units / FOREX_LOT_SIZE
-            
-            // Get USDJPY rate
-            if str.contains(syminfo.ticker, "JPY") and not str.contains(syminfo.ticker, "USDJPY")
-                if str.contains(syminfo.ticker, "VANTAGE")
-                    display_usdjpy := request.security("VANTAGE:USDJPY", timeframe.period, close, lookahead = barmerge.lookahead_off)
-                if na(display_usdjpy)
-                    display_usdjpy := request.security("USDJPY", timeframe.period, close, lookahead = barmerge.lookahead_off)
-                if na(display_usdjpy)
-                    display_usdjpy := USDJPY_FALLBACK  // Fallback
-            else if str.contains(syminfo.ticker, "USDJPY")
-                display_usdjpy := display_entry
-            else
-                display_usdjpy := 1.0
-        
-        // Also fetch USDJPY rate if we have last values but rate is na
-        if hasLastValues and na(display_usdjpy) and str.contains(syminfo.ticker, "JPY")
-            if str.contains(syminfo.ticker, "JPY") and not str.contains(syminfo.ticker, "USDJPY")
-                if str.contains(syminfo.ticker, "VANTAGE")
-                    display_usdjpy := request.security("VANTAGE:USDJPY", timeframe.period, close, lookahead = barmerge.lookahead_off)
-                if na(display_usdjpy)
-                    display_usdjpy := request.security("USDJPY", timeframe.period, close, lookahead = barmerge.lookahead_off)
-                if na(display_usdjpy)
-                    display_usdjpy := USDJPY_FALLBACK  // Fallback
-            else if str.contains(syminfo.ticker, "USDJPY")
-                display_usdjpy := display_entry
-            else
-                display_usdjpy := 1.0
-        
-        // Format display values
-        float risk_usd = display_balance * (display_risk_pct / 100)
-        risk_usd_str = "$" + str.tostring(risk_usd, "#.##")
-        qty_lots_str = not na(display_lots) ? str.tostring(display_lots, "#.####") + " lots" : "N/A"
-        qty_units_str = not na(display_units) ? str.tostring(display_units, "#,###") + " units" : "N/A"
-        sl_pips_str = str.tostring(display_sl_pips, "#.##") + " pips"
-        rate_str = not na(display_usdjpy) and str.contains(syminfo.ticker, "JPY") ? str.tostring(display_usdjpy, "#.####") : (str.contains(syminfo.ticker, "JPY") ? "Failed" : "N/A")
-        valid_str = display_valid ? "✓ Valid" : "✗ Invalid"
-        valid_color = display_valid ? color.green : color.red
-        error_str = display_error != "" ? display_error : "None"
-        dry_run_str = display_dry_run ? "DRY RUN" : "Live"
-        min_max_str = not na(display_units) ? str.tostring(min_position_size_units) + " - " + str.tostring(int(max_position_size_lots * 100000)) + " units" : "N/A"
-        
-        // Header
-        headerText = display_dry_run ? "💰 POSITION SIZING (DRY RUN)" : "💰 POSITION SIZING"
-        table.cell(posSizeTable, 0, 0, headerText, text_color = color.white, bgcolor = color.rgb(45, 50, 55), text_size = size.small, text_halign = text.align_left)
-        table.cell(posSizeTable, 1, 0, "", bgcolor = color.rgb(45, 50, 55))
-        
-        // Row 1: Validation Status
-        table.cell(posSizeTable, 0, 1, "Validation", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        table.cell(posSizeTable, 1, 1, valid_str, text_color = valid_color, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 2: Risk Amount
-        table.cell(posSizeTable, 0, 2, "Risk Amount", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        table.cell(posSizeTable, 1, 2, risk_usd_str, text_color = color.yellow, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 3: Position Size (Lots)
-        table.cell(posSizeTable, 0, 3, "Position Size (Lots)", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        table.cell(posSizeTable, 1, 3, qty_lots_str, text_color = color.green, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 4: Position Size (Units)
-        table.cell(posSizeTable, 0, 4, "Position Size (Units)", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        table.cell(posSizeTable, 1, 4, qty_units_str, text_color = color.green, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 5: Stop Loss (Pips)
-        table.cell(posSizeTable, 0, 5, "Stop Loss", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        table.cell(posSizeTable, 1, 5, sl_pips_str, text_color = color.red, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 6: Entry Price
-        table.cell(posSizeTable, 0, 6, "Entry Price", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        table.cell(posSizeTable, 1, 6, str.tostring(display_entry, format.mintick), text_color = color.blue, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 7: Stop Loss Price
-        table.cell(posSizeTable, 0, 7, "Stop Loss Price", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        table.cell(posSizeTable, 1, 7, str.tostring(display_sl, format.mintick), text_color = color.red, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 8: USDJPY Rate (if applicable)
-        if str.contains(syminfo.ticker, "JPY")
-            rate_label = "USDJPY Rate"
-            rate_color = not na(display_usdjpy) and display_usdjpy > 0 ? color.blue : color.red
-            table.cell(posSizeTable, 0, 8, rate_label, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-            table.cell(posSizeTable, 1, 8, rate_str, text_color = rate_color, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 9: Min/Max Limits
-        table.cell(posSizeTable, 0, 9, "Size Limits", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        table.cell(posSizeTable, 1, 9, min_max_str, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 10: Error Message (if any)
-        if not display_valid and display_error != ""
-            table.cell(posSizeTable, 0, 10, "Error", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-            table.cell(posSizeTable, 1, 10, error_str, text_color = color.red, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 11: Mode
-        table.cell(posSizeTable, 0, 11, "Mode", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        mode_color = display_dry_run ? color.orange : color.green
-        table.cell(posSizeTable, 1, 11, dry_run_str, text_color = mode_color, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-
+// === POSITION SIZING & PROFILE STATUS TABLES (REMOVED FOR TOKEN OPTIMIZATION) ===
+// These debug tables removed to reduce compiled tokens (~40 table.cell calls).
+// Does not affect trading logic. To restore: see original file supply_and_demand_optimized.pine
 
 // === PERFORMANCE TABLE ===
 performanceTable := draw_performance_table(performanceTable)
 
-// === PROFILE STATUS TABLE (Visual Confirmation) ===
-if debug_enabled and barstate.islastconfirmedhistory
-    var table profileStatusTable = table.new(position.top_right, 2, 8, 
-         bgcolor = color.new(color.rgb(20, 25, 30), 10),
-         frame_color = color.new(color.rgb(100, 110, 120), 80),
-         frame_width = 1,
-         border_color = color.new(color.rgb(60, 70, 80), 50),
-         border_width = 1)
-    
-    // Header
-    string profileDisplayStr = config_profile
-    if use_profile_defaults
-        // If using a preset, indicate that settings are locked/overridden
-        profileDisplayStr := str.replace_all(config_profile, " (Recommended)", "")
-        profileDisplayStr := str.replace_all(profileDisplayStr, " (Live Trading)", "")
-        profileDisplayStr := str.replace_all(profileDisplayStr, " (Paper Trading)", "")
-        profileDisplayStr := profileDisplayStr + "\n(Inputs Locked)" 
-    else
-        // If Custom, indicate that user inputs are active
-        profileDisplayStr := "Custom\n(User Inputs)"
-
-    table.cell(profileStatusTable, 0, 0, "⚡ ACTIVE PROFILE", 
-        text_color = color.white, 
-        bgcolor = color.new(color.rgb(0, 120, 215), 20),
-        text_size = size.normal,
-        text_halign = text.align_center)
-    table.cell(profileStatusTable, 1, 0, profileDisplayStr, 
-        text_color = use_profile_defaults ? color.yellow : color.green, 
-        bgcolor = color.new(color.rgb(0, 120, 215), 20),
-        text_size = size.small, // Smaller text to fit 2 lines
-        text_halign = text.align_left)
-    
-    // Key Settings
-    table.cell(profileStatusTable, 0, 1, "pvtMax", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
-    table.cell(profileStatusTable, 1, 1, str.tostring(pvtMax), text_color = color.white, text_halign = text.align_left)
-    
-    table.cell(profileStatusTable, 0, 2, "AI Threshold", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
-    table.cell(profileStatusTable, 1, 2, str.tostring(ai_quality_threshold), text_color = color.white, text_halign = text.align_left)
-    
-    table.cell(profileStatusTable, 0, 3, "RR Ratio", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
-    table.cell(profileStatusTable, 1, 3, "1:" + str.tostring(risk_reward_ratio, "#.#"), text_color = color.white, text_halign = text.align_left)
-    
-    table.cell(profileStatusTable, 0, 4, "Max Trades/Day", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
-    table.cell(profileStatusTable, 1, 4, str.tostring(max_trades_per_day), text_color = color.white, text_halign = text.align_left)
-    
-    table.cell(profileStatusTable, 0, 5, "Structure Mode", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
-    table.cell(profileStatusTable, 1, 5, structure_mode, text_color = color.white, text_halign = text.align_left)
-    
-    table.cell(profileStatusTable, 0, 6, "Grade Filter", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
-    table.cell(profileStatusTable, 1, 6, enable_grade_filter ? min_entry_grade + "+" : "OFF", 
-        text_color = enable_grade_filter ? color.green : color.gray, 
-        text_halign = text.align_left)
-    
-    table.cell(profileStatusTable, 0, 7, "Time Filters", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
-    time_filter_status = (filter_dead_zone ? "✓" : "✗") + " Dead Zone | " + (filter_trading_hours ? "✓" : "✗") + " Hours"
-    table.cell(profileStatusTable, 1, 7, time_filter_status, 
-        text_color = (filter_dead_zone and filter_trading_hours) ? color.green : color.orange, 
-        text_halign = text.align_left)
 
 // === DEBUG PLOTS: SL/TP Visualization ===
 // These lines show the tester's internal exit levels - compare to visual boxes on chart
