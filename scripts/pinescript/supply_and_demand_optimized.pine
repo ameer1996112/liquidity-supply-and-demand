@@ -3055,7 +3055,6 @@ var string trade_zone_type      = na      // Zone type (demand/supply)
 // === WEBHOOK CORRELATION TRACKING ===
 var string trade_key            = na      // Unique key for entry↔exit correlation: "timestamp|symbol|side|zone_id"
 var int    trade_entry_time     = na      // Bar time at entry (time_close)
-var float  trade_original_sl_pips = na    // Original SL in pips (for pnl_r calculation)
 
 // Track whether current trade originated from an accuracy zone
 var bool  trade_is_accuracy_zone = false
@@ -3830,7 +3829,7 @@ isLiquidityValidForEntry(isDemand, idx) =>
 
 
 
-isValidEntry(isDemand, idx) =>
+isValidEntry(isDemand, idx, checkDirection = true) =>
     [canEnter, reason, z] = validate_entry_conditions(isDemand, idx)
 
     // Note: Timing filter is now checked INSIDE validate_entry_conditions 
@@ -3858,7 +3857,7 @@ isValidEntry(isDemand, idx) =>
 
 
 
-    if canEnter
+    if canEnter and checkDirection
         // Directional candle check with hammer/inverted hammer support
         float bodySize = math.abs(close - open)
         float candleRange = high - low
@@ -3902,8 +3901,8 @@ isValidEntry(isDemand, idx) =>
     [canEnter, reason]
 
 // Wrapper functions for backward compatibility
-isValidDemandEntry(idx) => isValidEntry(true, idx)
-isValidSupplyEntry(idx) => isValidEntry(false, idx)
+isValidDemandEntry(idx, checkDirection = true) => isValidEntry(true, idx, checkDirection)
+isValidSupplyEntry(idx, checkDirection = true) => isValidEntry(false, idx, checkDirection)
 
 // === GLOBAL SWING CALCULATIONS ===
 // Calculate these once per bar to avoid "ta.* should be called on each calculation" warnings
@@ -4290,7 +4289,8 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                 z.wasTouched := true
                 
             // Unified demand entry validation (shared with flip entries)
-            [can_enter, entryReason] = isValidDemandEntry(i)
+            // Call with checkDirection=false to allow priming on any touch color
+            [can_enter, entryReason] = isValidDemandEntry(i, false)
 
             // === PERFORMANCE STATS: ENTRY CHECKS (DEMAND) ===
             stat_total_entry_checks += 1
@@ -4712,7 +4712,8 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                 z.wasTouched := true
 
             // Unified supply entry validation (shared with flip entries)
-            [can_enter, entryReason] = isValidSupplyEntry(i)
+            // Call with checkDirection=false to allow priming on any touch color
+            [can_enter, entryReason] = isValidSupplyEntry(i, false)
 
             // === PERFORMANCE STATS: ENTRY CHECKS (SUPPLY) ===
             stat_total_entry_checks += 1
