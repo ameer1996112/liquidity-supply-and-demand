@@ -2493,6 +2493,12 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
     // baseIdx is offset (e.g. 1 means bar_index - 1)
     baseBarIdx = bar_index - baseIdx
     
+    // === CALL FUNCTIONS UNCONDITIONALLY (Pine Script series consistency) ===
+    // These must be called on every execution of createZone to maintain series consistency
+    // Results will only be used if zone is actually created
+    float temp_base_quality = calculate_base_quality(baseBarIdx, baseIdx)
+    float temp_departure_strength = calculate_departure_strength(baseIdx, isDemand)
+    
     // Check if base bar time is already used
     int baseTime = time[baseIdx]
     bool alreadyUsed = false
@@ -2684,10 +2690,7 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
             z.grade := get_grade_from_score(z.score)
             
             // === V6 AI FEATURES (CONDITIONAL - Only if enabled) ===
-            // IMPORTANT: Call functions unconditionally for Pine Script series consistency
-            float temp_base_quality = calculate_base_quality(baseBarIdx, baseIdx)
-            float temp_departure_strength = calculate_departure_strength(baseIdx, isDemand)
-            
+            // Use pre-calculated values (called unconditionally at function start for series consistency)
             if enable_v6_v7_features
                 z.baseQuality := temp_base_quality
                 z.departureStrength := temp_departure_strength
@@ -4224,6 +4227,13 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
     for i = 0 to array.size(demandZones) - 1
         Zone z = array.get(demandZones, i)
 
+        // === CALL FUNCTIONS UNCONDITIONALLY (Pine Script series consistency) ===
+        // These must be called on every iteration to maintain series consistency
+        // Results will only be used if zone is primed
+        float temp_liq_distance = calculate_liquidity_distance(z.top, z.liqLowPrice, true)
+        float temp_liq_spread = calculate_liquidity_spread(z.liqHighPrice, z.liqLowPrice)
+        float temp_return_strength = calculate_return_strength(z.liquiditySweptBarIndex, bar_index, true)
+
         // === STEP 1: PRIME ZONE (when touched with valid setup) ===
         if z.active and not z.primed
             // === TRACK TOUCHES INDEPENDENTLY OF VALIDITY ===
@@ -4268,11 +4278,7 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     z.inactiveReason := "PRIMED - waiting for bullish close"
                     
                     // === V7.1 AI FEATURES (CONDITIONAL - Only if enabled) ===
-                    // IMPORTANT: Call functions unconditionally for Pine Script series consistency
-                    float temp_liq_distance = calculate_liquidity_distance(z.top, z.liqLowPrice, true)
-                    float temp_liq_spread = calculate_liquidity_spread(z.liqHighPrice, z.liqLowPrice)
-                    float temp_return_strength = calculate_return_strength(z.liquiditySweptBarIndex, bar_index, true)
-                    
+                    // Use pre-calculated values (called unconditionally at loop start for series consistency)
                     if enable_v6_v7_features
                         z.liquidityDistance := temp_liq_distance
                         z.liquiditySpread := temp_liq_spread
@@ -4631,6 +4637,13 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
     for i = 0 to array.size(supplyZones) - 1
         Zone z = array.get(supplyZones, i)
 
+        // === CALL FUNCTIONS UNCONDITIONALLY (Pine Script series consistency) ===
+        // These must be called on every iteration to maintain series consistency
+        // Results will only be used if zone is primed
+        float temp_liq_distance = calculate_liquidity_distance(z.bottom, z.liqHighPrice, false)
+        float temp_liq_spread = calculate_liquidity_spread(z.liqLowPrice, z.liqHighPrice)
+        float temp_return_strength = calculate_return_strength(z.liquiditySweptBarIndex, bar_index, false)
+
         // === STEP 1: PRIME ZONE (when touched with valid setup) ===
         if z.active and not z.primed
             // === TRACK TOUCHES INDEPENDENTLY OF VALIDITY ===
@@ -4675,11 +4688,7 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     z.inactiveReason := "PRIMED - waiting for bearish close"
                     
                     // === V7.1 AI FEATURES (CONDITIONAL - Only if enabled) ===
-                    // IMPORTANT: Call functions unconditionally for Pine Script series consistency
-                    float temp_liq_distance = calculate_liquidity_distance(z.bottom, z.liqHighPrice, false)
-                    float temp_liq_spread = calculate_liquidity_spread(z.liqLowPrice, z.liqHighPrice)
-                    float temp_return_strength = calculate_return_strength(z.liquiditySweptBarIndex, bar_index, false)
-                    
+                    // Use pre-calculated values (called unconditionally at loop start for series consistency)
                     if enable_v6_v7_features
                         z.liquidityDistance := temp_liq_distance
                         z.liquiditySpread := temp_liq_spread
