@@ -301,7 +301,7 @@ dry_run_mode          = false  // Dry run disabled by default
 debug_mode            = false
 debug_entry_labels    = false
 show_zone_debug_labels = false
-
+show_debug_labels      = false
 zone_label_size       = "Tiny"
 debug_level           = input.string("None", "Debug Level", options = ["None", "Basic", "Full"], group = "📊 Display", tooltip = "None = Clean chart. Basic = Key info. Full = All debug data.")
 debug_last_bars       = 200
@@ -361,18 +361,6 @@ should_use_accuracy_zones = enable_accuracy_zones and not (is_gold or is_index)
 enable_webhook_alerts = true  // Always enabled
 webhook_include_zone_id = true  // Always include zone ID
 
-// === WEBHOOK TELEMETRY SETTINGS ===
-// These settings control webhook behavior WITHOUT affecting trade logic
-RUN_MODE = input.string("LIVE", "Run Mode", options = ["LIVE", "BACKTEST", "REPLAY"], group = "📡 Webhook", tooltip = "LIVE: Production trading. BACKTEST/REPLAY: Testing mode. Separates data in backend dashboard.")
-RUN_ID = input.string("live-default", "Run ID", group = "📡 Webhook", tooltip = "Unique identifier for this run. Use descriptive names like 'backtest-2026-01-27' or 'live-prod'.")
-SEND_WEBHOOKS_IN_BACKTEST = input.bool(false, "Send Webhooks in Backtest", group = "📡 Webhook", tooltip = "OFF: Don't send webhooks during backtest (keeps DB clean). ON: Send webhooks even in backtest mode (for testing).")
-INCLUDE_LIFECYCLE_TIMES = input.bool(true, "Include Lifecycle Times", group = "📡 Webhook", tooltip = "ON: Include bar_time/entry_time/exit_time in payloads for accurate tracking.")
-
-// Effective run mode: Force BACKTEST if historical (prevents cluttering live dashboard)
-effective_run_mode = barstate.isrealtime ? RUN_MODE : (RUN_MODE == "LIVE" ? "BACKTEST" : RUN_MODE)
-// Calculate whether webhooks should be sent (DOES NOT AFFECT TRADES)
-allow_webhook_send = enable_webhook_alerts and (effective_run_mode == "LIVE" or (effective_run_mode != "LIVE" and SEND_WEBHOOKS_IN_BACKTEST))
-
 // Display Options (visual only)
 show_grade_on_zone  = input.bool(true, "Show Grade on Zones", group="📊 Display", tooltip="ON: Display zone grade (A+, B, etc) on the zone label.")
 show_ai_score_on_label = input.bool(false, "Show AI Score on Labels", group = "📊 Display", tooltip = "ON: Display numeric AI score on entry labels.")
@@ -417,7 +405,6 @@ min_bar_index_for_entries = input.int(100, "Skip First N Bars", minval = 0, grou
 
 // Display Tables (visual only)
 show_performance_table = input.bool(false, "Performance Table", group = "📊 Display", tooltip = "ON: Show performance statistics table on chart.")
-show_debug_labels      = input.bool(false, "Show Debug Labels", group = "📊 Display", tooltip = "ON: Show breakdown of rejected entries (Red/Green/Rejection Reason).")
 
 
 // Override key settings when a profile is selected (not "Custom")
@@ -916,8 +903,8 @@ get_pip(x) =>
     x / pip_size
 
 // === WEBHOOK PAYLOAD HELPERS ===
-// Helper to get lot size based on symbol type
-get_lot_size() =>
+// Converts position size in units to lots based on symbol type
+units_to_lots(_units) =>
     float lot_size = FOREX_LOT_SIZE  // Default forex
     ticker = syminfo.ticker
     if str.contains(ticker, "XAU") or str.contains(ticker, "GOLD")
@@ -926,94 +913,91 @@ get_lot_size() =>
         lot_size := 5000.0     // Silver: 5000 oz per lot
     else if str.contains(ticker, "BTC") or str.contains(ticker, "ETH")
         lot_size := 1.0        // Crypto: 1 unit per lot
-    lot_size
-
-// Converts position size in units to lots based on symbol type
-units_to_lots(_units) =>
-    _units / get_lot_size()
+    _units / lot_size
 
 // Helper to ensure valid JSON number format (dot decimal, no thousands separator)
 to_json_num(float val, string fmt) =>
-    na(val) ? "null" : str.replace(str.tostring(val, fmt), ",", ".")
+    if na(val)
+        "null"
+    else
+        string s = str.tostring(val, fmt)
+        // Remove potential thousands separators (if any) and ensure dot decimal
+        start_idx = 0 
+        str.replace(s, ",", ".")
 
 // Builds JSON payload for webhook alert to Discord-MT5 bridge
-// Returns: JSON string with trade details + Zone Inspector data + AI Features + Telemetry
-// Builds JSON payload for webhook alert 
+// Returns: JSON string with trade details + Zone Inspector data + AI Features
 build_webhook_payload(
      _symbol, _side, _entry, _sl, _tp, _size_lots, _zone_id, _zone_type,
      _zone_top, _zone_bottom, _rr_ratio, _sl_pips, _entry_model,
      _liq_swept, _target_swept, _caused_sweep, _is_accuracy,
+     // AI Features (NEW)
      _score, _freshness, _session, _atr_ratio, _trend, _rsi,
      _htf_trend, _rvol, _adx, _touch_count, _base_quality,
-     _departure_strength, _liq_distance, _liq_spread, _return_strength,
-     _run_mode, _run_id, _trade_key) =>
+     _departure_strength, _liq_distance, _liq_spread, _return_strength) =>
 
-    string payload = '{"event_type":"entry"' + 
-      ',"run_mode":"' + _run_mode + '","run_id":"' + _run_id + '","trade_key":"' + _trade_key + '"'
-    
-    if INCLUDE_LIFECYCLE_TIMES
-        payload += ',"bar_time":"' + str.format("{0,date,yyyy-MM-dd HH:mm:ss}", time_close) + '"' +
-                   ',"server_time":"' + str.format("{0,date,yyyy-MM-dd HH:mm:ss}", timenow) + '"'
-    
-    payload += ',"symbol":"' + _symbol + '","side":"' + _side + '"' +
-               ',"entry":' + to_json_num(_entry, "#.##########") +
-               ',"sl":' + to_json_num(_sl, "#.##########") +
-               ',"tp":' + to_json_num(_tp, "#.##########") +
-               ',"size":' + to_json_num(_size_lots, "#.##")
-    
+    string payload = '{"symbol":"' + _symbol + '"'
+    payload := payload + ',"side":"' + _side + '"'
+    payload := payload + ',"entry":' + to_json_num(_entry, "#.##########")
+    payload := payload + ',"sl":' + to_json_num(_sl, "#.##########")
+    payload := payload + ',"tp":' + to_json_num(_tp, "#.##########")
+    payload := payload + ',"size":' + to_json_num(_size_lots, "#.##")
+
+    // Zone Inspector Data
     if webhook_include_zone_id and not na(_zone_id)
-        payload += ',"zone_id":' + to_json_num(_zone_id, "#")
-    
-    payload += ',"zone_type":"' + _zone_type + '"'
-    if not na(_zone_top) and not na(_zone_bottom)
-        payload += ',"zone_top":' + to_json_num(_zone_top, "#.##########") +
-                   ',"zone_bottom":' + to_json_num(_zone_bottom, "#.##########") +
-                   ',"zone_size_pips":' + to_json_num((_zone_top - _zone_bottom) / pip_size, "#.#")
+        payload := payload + ',"zone_id":' + to_json_num(_zone_id, "#")
+    payload := payload + ',"zone_type":"' + _zone_type + '"'
 
-    payload += ',"rr_ratio":' + to_json_num(_rr_ratio, "#.##") +
-               ',"sl_pips":' + to_json_num(_sl_pips, "#.#") +
-               ',"entry_model":"' + _entry_model + '"' +
-               ',"liq_swept":' + (_liq_swept ? "true" : "false") +
-               ',"target_swept":' + (_target_swept ? "true" : "false") +
-               ',"caused_sweep":' + (_caused_sweep ? "true" : "false") +
-               ',"is_accuracy":' + (_is_accuracy ? "true" : "false") +
-               ',"score":' + to_json_num(_score, "#.#") +
-               ',"freshness":' + str.tostring(_freshness, "#") +
-               ',"session":' + str.tostring(_session, "#") +
-               ',"atr_ratio":' + to_json_num(_atr_ratio, "#.####") +
-               ',"trend":' + str.tostring(_trend, "#") +
-               ',"rsi":' + to_json_num(_rsi, "#.##") +
-               ',"htf_trend":' + str.tostring(_htf_trend, "#") +
-               ',"rvol":' + to_json_num(_rvol, "#.##") +
-               ',"adx":' + to_json_num(_adx, "#.##") +
-               ',"touch_count":' + str.tostring(_touch_count, "#") +
-               ',"base_quality":' + to_json_num(_base_quality, "#.##") +
-               ',"departure_strength":' + to_json_num(_departure_strength, "#.##") +
-               ',"liquidity_distance":' + to_json_num(_liq_distance, "#.##") +
-               ',"liquidity_spread":' + to_json_num(_liq_spread, "#.##") +
-               ',"return_strength":' + to_json_num(_return_strength, "#.##") + '}'
+    if not na(_zone_top) and not na(_zone_bottom)
+        payload := payload + ',"zone_top":' + to_json_num(_zone_top, "#.##########")
+        payload := payload + ',"zone_bottom":' + to_json_num(_zone_bottom, "#.##########")
+        float zone_size_pips = (_zone_top - _zone_bottom) / pip_size
+        payload := payload + ',"zone_size_pips":' + to_json_num(zone_size_pips, "#.#")
+
+    if not na(_rr_ratio)
+        payload := payload + ',"rr_ratio":' + to_json_num(_rr_ratio, "#.##")
+    if not na(_sl_pips)
+        payload := payload + ',"sl_pips":' + to_json_num(_sl_pips, "#.#")
+
+    payload := payload + ',"entry_model":"' + _entry_model + '"'
+    payload := payload + ',"liq_swept":' + (_liq_swept ? "true" : "false")
+    payload := payload + ',"target_swept":' + (_target_swept ? "true" : "false")
+    payload := payload + ',"caused_sweep":' + (_caused_sweep ? "true" : "false")
+    payload := payload + ',"is_accuracy":' + (_is_accuracy ? "true" : "false")
+
+    // === AI FEATURES (NEW) ===
+    payload := payload + ',"score":' + to_json_num(_score, "#.#")
+    payload := payload + ',"freshness":' + str.tostring(_freshness, "#")
+    payload := payload + ',"session":' + str.tostring(_session, "#")
+    payload := payload + ',"atr_ratio":' + to_json_num(_atr_ratio, "#.####")
+    payload := payload + ',"trend":' + str.tostring(_trend, "#")
+    payload := payload + ',"rsi":' + to_json_num(_rsi, "#.##")
+    payload := payload + ',"htf_trend":' + str.tostring(_htf_trend, "#")
+    payload := payload + ',"rvol":' + to_json_num(_rvol, "#.##")
+    payload := payload + ',"adx":' + to_json_num(_adx, "#.##")
+    payload := payload + ',"touch_count":' + str.tostring(_touch_count, "#")
+    payload := payload + ',"base_quality":' + to_json_num(_base_quality, "#.##")
+    payload := payload + ',"departure_strength":' + to_json_num(_departure_strength, "#.##")
+    payload := payload + ',"liquidity_distance":' + to_json_num(_liq_distance, "#.##")
+    payload := payload + ',"liquidity_spread":' + to_json_num(_liq_spread, "#.##")
+    payload := payload + ',"return_strength":' + to_json_num(_return_strength, "#.##")
+
+    payload := payload + '}'
     payload
 
 // Builds EXIT webhook payload
-build_exit_webhook_payload(_zone_id, _outcome, _bars_held, _close_price, _pnl_r, _exit_type, _mae_pips, _pnl_usd, _run_mode, _run_id, _trade_key, _entry_time) =>
-    string payload = '{"event_type":"exit"' + 
-      ',"run_mode":"' + _run_mode + '","run_id":"' + _run_id + '","trade_key":"' + (na(_trade_key) ? "" : _trade_key) + '"'
-    
-    payload += ',"zone_id":' + str.tostring(_zone_id, "#") +
-               ',"outcome":"' + _outcome + '"' +
-               ',"bars_held":' + str.tostring(_bars_held, "#") +
-               ',"close_price":' + to_json_num(_close_price, "#.##########") +
-               ',"pnl_r":' + to_json_num(_pnl_r, "#.##") +
-               ',"pnl_usd":' + to_json_num(_pnl_usd, "#.##") +
-               ',"exit_type":"' + _exit_type + '"' +
-               ',"mae_pips":' + to_json_num(_mae_pips, "#.#")
-    
-    if INCLUDE_LIFECYCLE_TIMES
-        if not na(_entry_time)
-            payload += ',"entry_time":"' + str.format("{0,date,yyyy-MM-dd HH:mm:ss}", _entry_time) + '"'
-        payload += ',"exit_time":"' + str.format("{0,date,yyyy-MM-dd HH:mm:ss}", time_close) + '"'
-    
-    payload += ',"close_time":"' + str.format("{0,date,yyyy-MM-dd HH:mm:ss}", timenow) + '"}'
+// Returns: JSON string with exit telemetry
+build_exit_webhook_payload(_zone_id, _outcome, _bars_held, _close_price, _pnl_r, _exit_type, _mae_pips) =>
+    string payload = '{"event_type":"exit"'
+    payload := payload + ',"zone_id":' + str.tostring(_zone_id, "#")
+    payload := payload + ',"outcome":"' + _outcome + '"'
+    payload := payload + ',"bars_held":' + str.tostring(_bars_held, "#")
+    payload := payload + ',"close_price":' + to_json_num(_close_price, "#.##########")
+    payload := payload + ',"pnl_r":' + to_json_num(_pnl_r, "#.##")
+    payload := payload + ',"exit_type":"' + _exit_type + '"'
+    payload := payload + ',"mae_pips":' + to_json_num(_mae_pips, "#.#")
+    payload := payload + ',"close_time":"' + str.format("{0,date,yyyy-MM-dd HH:mm:ss}", timenow) + '"'
+    payload := payload + '}'
     payload
 
 // === AI QUALITY SCORE CALCULATOR (V4 MODEL) ===
@@ -1103,9 +1087,6 @@ calculate_ai_quality_score(Zone z, bool isDemand) =>
 
 // === V6 AI FEATURES: BASE QUALITY & DEPARTURE STRENGTH ===
 // Measures zone formation quality and departure conviction
-
-
-
 
 // Calculate Base Quality: How many indecisive candles are in the base (0-100 score)
 // Indecisive = small body relative to range (dojis, pin bars, etc.)
@@ -2507,39 +2488,28 @@ trimZoneArrays(bool isDemand) =>
                 label.delete(z.idLabel)
 
 // === MAIN ZONE CREATION FUNCTION ===
-createZone(bool shouldCreate, int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int legCandles, int zoneUZID) =>
-    // Determines Base Candle (relative to current bar)
-    // baseIdx is offset (e.g. 1 means bar_index - 1)
-    int baseBarIdx = bar_index - baseIdx
-
-    // === V6 AI FEATURES: PRE-CALCULATE FOR CONSISTENCY ===
-    // Functions using ta.* or series MUST be called unconditionally
-    float temp_base_quality = calculate_base_quality(baseBarIdx, baseIdx)
-    float temp_departure_strength = calculate_departure_strength(baseIdx, isDemand)
-
-
+createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int legCandles, int zoneUZID) =>
     // Determine Base Candle (relative to current bar)
     // baseIdx is offset (e.g. 1 means bar_index - 1)
-    // baseBarIdx calculated above for hoisting purposes
+    baseBarIdx = bar_index - baseIdx
     
     // Check if base bar time is already used
     int baseTime = time[baseIdx]
     bool alreadyUsed = false
-    if shouldCreate
-        if isDemand
-            if array.includes(used_demand_base_times, baseTime)
-                alreadyUsed := true
-            else
-                array.push(used_demand_base_times, baseTime)
-                trimBaseTimeArrays()
+    if isDemand
+        if array.includes(used_demand_base_times, baseTime)
+            alreadyUsed := true
         else
-            if array.includes(used_supply_base_times, baseTime)
-                alreadyUsed := true
-            else
-                array.push(used_supply_base_times, baseTime)
-                trimBaseTimeArrays()
+            array.push(used_demand_base_times, baseTime)
+            trimBaseTimeArrays()
+    else
+        if array.includes(used_supply_base_times, baseTime)
+            alreadyUsed := true
+        else
+            array.push(used_supply_base_times, baseTime)
+            trimBaseTimeArrays()
             
-    if shouldCreate and not alreadyUsed
+    if not alreadyUsed
         // Calculate Zone Coordinates
         float baseHigh = high[baseIdx]
         float baseLow  = low[baseIdx]
@@ -2714,7 +2684,9 @@ createZone(bool shouldCreate, int baseIdx, bool isDemand, bool isHistorical, int
             z.grade := get_grade_from_score(z.score)
             
             // === V6 AI FEATURES (CONDITIONAL - Only if enabled) ===
-            // Pre-calculated above for consistency
+            // IMPORTANT: Call functions unconditionally for Pine Script series consistency
+            float temp_base_quality = calculate_base_quality(baseBarIdx, baseIdx)
+            float temp_departure_strength = calculate_departure_strength(baseIdx, isDemand)
             
             if enable_v6_v7_features
                 z.baseQuality := temp_base_quality
@@ -2953,14 +2925,13 @@ validate_entry_conditions(bool isDemand, int idx) =>
             // If current bar touches, mark zone as touched (persistent)
             if currentTouch
                 z.wasTouched := true
-                z.lastTouchBar := bar_index
             
-            // ROBUST VALIDATION: Allow entry if touching NOW or touched on PREVIOUS bar
-            // Using lastTouchBar index is safer than hardcoded previous candle check
-            bool recentTouch = not na(z.lastTouchBar) and (bar_index - z.lastTouchBar <= 1)
+            // STRICT VALIDATION: Ignore persistent history.
+            // Require the touch to happen on the current trigger candle OR the setup candle (bar index - 1).
+            bool prevTouch = isDemand ? (low[1] <= z.top + touchTolerance) : (high[1] >= z.bottom - touchTolerance)
             
-            // Entry is valid only if we are touching NOW or just touched recently
-            wickIntoZone := currentTouch or recentTouch
+            // Entry is valid only if we are touching NOW or just touched on the PREVIOUS bar
+            wickIntoZone := currentTouch or prevTouch
             
             // STRICT CHECK: The zone MUST be touched. No exceptions.
             if not wickIntoZone
@@ -3039,10 +3010,6 @@ var bool  trade_caused_sweep    = false   // Caused sweep at entry
 var bool  trade_is_accuracy     = false   // Is accuracy zone
 var string trade_entry_model    = na      // Entry model used
 var string trade_zone_type      = na      // Zone type (demand/supply)
-
-// === WEBHOOK CORRELATION TRACKING ===
-var string trade_key            = na      // Unique key for entry↔exit correlation: "timestamp|symbol|side|zone_id"
-var int    trade_entry_time     = na      // Bar time at entry (time_close)
 
 // Track whether current trade originated from an accuracy zone
 var bool  trade_is_accuracy_zone = false
@@ -3418,113 +3385,72 @@ deactivateOverlappingDemandZones(refLow, refHigh) =>
 
 // --- 1. DEMAND ZONE DETECTION (recent bars) ---
 // Pattern: BULLISH candle(s) followed by BEARISH candle
-bool d_create = false
-int d_baseIdx = 1
-int d_leg = 1
-
 if barstate.isconfirmed and bar_index > 10
     if is_bullish(0) and is_bullish(1) and is_bullish(2) and is_bearish(3)
         baseBarIdx = bar_index - 3
         if not is_base_bar_used(baseBarIdx, used_demand_base_times)
-            d_create := true
-            d_baseIdx := 3
-            d_leg := 3
+            global_zone_id_counter += 1
+            createZone(3, true, false, 1, 3, global_zone_id_counter)
     else if is_bullish(0) and is_bullish(1) and is_bearish(2)
         baseBarIdx = bar_index - 2
         if not is_base_bar_used(baseBarIdx, used_demand_base_times)
-            d_create := true
-            d_baseIdx := 2
-            d_leg := 2
+            global_zone_id_counter += 1
+            createZone(2, true, false, 1, 2, global_zone_id_counter)
     else if is_bullish(0) and is_bearish(1)
         baseBarIdx = bar_index - 1
         if not is_base_bar_used(baseBarIdx, used_demand_base_times)
-            d_create := true
-            d_baseIdx := 1
-            d_leg := 1
-
-if d_create
-    global_zone_id_counter += 1
-
-createZone(d_create, d_baseIdx, true, false, 1, d_leg, global_zone_id_counter)
+            global_zone_id_counter += 1
+            createZone(1, true, false, 1, 1, global_zone_id_counter)
 
 // --- 2. SUPPLY ZONE DETECTION (recent bars) ---
-bool s_create = false
-int s_baseIdx = 1
-int s_leg = 1
-
 if barstate.isconfirmed and bar_index > 10
     if is_bearish(0) and is_bearish(1) and is_bearish(2) and is_bullish(3)
         baseBarIdx = bar_index - 3
         if not is_base_bar_used(baseBarIdx, used_supply_base_times)
-            s_create := true
-            s_baseIdx := 3
-            s_leg := 3
+            global_zone_id_counter += 1
+            createZone(3, false, false, 1, 3, global_zone_id_counter)
     else if is_bearish(0) and is_bearish(1) and is_bullish(2)
         baseBarIdx = bar_index - 2
         if not is_base_bar_used(baseBarIdx, used_supply_base_times)
-            s_create := true
-            s_baseIdx := 2
-            s_leg := 2
+            global_zone_id_counter += 1
+            createZone(2, false, false, 1, 2, global_zone_id_counter)
     else if is_bearish(0) and is_bullish(1)
         baseBarIdx = bar_index - 1
         if not is_base_bar_used(baseBarIdx, used_supply_base_times)
-            s_create := true
-            s_baseIdx := 1
-            s_leg := 1
-
-if s_create
-    global_zone_id_counter += 1
-
-createZone(s_create, s_baseIdx, false, false, 1, s_leg, global_zone_id_counter)
+            global_zone_id_counter += 1
+            createZone(1, false, false, 1, 1, global_zone_id_counter)
 
 // --- 3. HISTORICAL ZONE SCAN (once) ---
 if barstate.isconfirmed and not initial_scan_done and bar_index > 50
     initial_scan_done := true
     max_scan = math.min(100, bar_index)
     for i = 2 to max_scan
-        // REFACTOR: Historical Demand
-        bool h_d_create = false
-        int h_d_leg = 1
         baseBarIdxDemand = bar_index - i
-        
         if i >= 3 and is_bearish(i) and is_bullish(i - 1) and is_bullish(i - 2) and is_bullish(i - 3)
             if not is_base_bar_used(baseBarIdxDemand, used_demand_base_times)
-                h_d_create := true
-                h_d_leg := 3
+                global_zone_id_counter += 1
+                createZone(i, true, true, 1, 3, global_zone_id_counter)
         else if is_bearish(i) and is_bullish(i - 1) and is_bullish(i - 2)
             if not is_base_bar_used(baseBarIdxDemand, used_demand_base_times)
-                h_d_create := true
-                h_d_leg := 2
+                global_zone_id_counter += 1
+                createZone(i, true, true, 1, 2, global_zone_id_counter)
         else if is_bearish(i) and is_bullish(i - 1)
             if not is_base_bar_used(baseBarIdxDemand, used_demand_base_times)
-                h_d_create := true
-                h_d_leg := 1
-        
-        if h_d_create
-            global_zone_id_counter += 1
-        createZone(h_d_create, i, true, true, 1, h_d_leg, global_zone_id_counter)
-
-        // REFACTOR: Historical Supply
-        bool h_s_create = false
-        int h_s_leg = 1
+                global_zone_id_counter += 1
+                createZone(i, true, true, 1, 1, global_zone_id_counter)
         baseBarIdxSupply = bar_index - i
-        
         if i >= 3 and is_bullish(i) and is_bearish(i - 1) and is_bearish(i - 2) and is_bearish(i - 3)
             if not is_base_bar_used(baseBarIdxSupply, used_supply_base_times)
-                h_s_create := true
-                h_s_leg := 3
+                global_zone_id_counter += 1
+                createZone(i, false, true, 1, 3, global_zone_id_counter)
         else if is_bullish(i) and is_bearish(i - 1) and is_bearish(i - 2)
             if not is_base_bar_used(baseBarIdxSupply, used_supply_base_times)
-                h_s_create := true
-                h_s_leg := 2
+                global_zone_id_counter += 1
+                createZone(i, false, true, 1, 2, global_zone_id_counter)
         else if is_bullish(i) and is_bearish(i - 1)
             if not is_base_bar_used(baseBarIdxSupply, used_supply_base_times)
-                h_s_create := true
-                h_s_leg := 1
-        
-        if h_s_create
-            global_zone_id_counter += 1
-        createZone(h_s_create, i, false, true, 1, h_s_leg, global_zone_id_counter)
+                global_zone_id_counter += 1
+                createZone(i, false, true, 1, 1, global_zone_id_counter)
 
 // === LIQUIDITY VALIDATION FUNCTIONS ===
 // Validate liquidity: must break previous structure by at least a few pips
@@ -3858,7 +3784,7 @@ isLiquidityValidForEntry(isDemand, idx) =>
 
 
 
-isValidEntry(isDemand, idx, checkDirection = true) =>
+isValidEntry(isDemand, idx) =>
     [canEnter, reason, z] = validate_entry_conditions(isDemand, idx)
 
     // Note: Timing filter is now checked INSIDE validate_entry_conditions 
@@ -3886,7 +3812,7 @@ isValidEntry(isDemand, idx, checkDirection = true) =>
 
 
 
-    if canEnter and checkDirection
+    if canEnter
         // Directional candle check with hammer/inverted hammer support
         float bodySize = math.abs(close - open)
         float candleRange = high - low
@@ -3910,10 +3836,6 @@ isValidEntry(isDemand, idx, checkDirection = true) =>
         if not correct_direction
             canEnter := false
             reason := isDemand ? "Waiting for Bullish Close or Hammer" : "Waiting for Bearish Close or Inv. Hammer"
-            // VISUAL DEBUG: Label rejected candles to verify data feed values vs visuals
-            if show_debug_labels
-                string rejectText = "⛔ REJ\nReason: " + reason + "\nO: " + str.tostring(open) + "\nC: " + str.tostring(close) + "\nIdx: " + str.tostring(bar_index)
-                label.new(bar_index, high, text = rejectText, color = color.orange, style = label.style_label_down, size = size.tiny, textcolor = color.white)
 
     if canEnter
 
@@ -3930,8 +3852,8 @@ isValidEntry(isDemand, idx, checkDirection = true) =>
     [canEnter, reason]
 
 // Wrapper functions for backward compatibility
-isValidDemandEntry(idx, checkDirection = true) => isValidEntry(true, idx, checkDirection)
-isValidSupplyEntry(idx, checkDirection = true) => isValidEntry(false, idx, checkDirection)
+isValidDemandEntry(idx) => isValidEntry(true, idx)
+isValidSupplyEntry(idx) => isValidEntry(false, idx)
 
 // === GLOBAL SWING CALCULATIONS ===
 // Calculate these once per bar to avoid "ta.* should be called on each calculation" warnings
@@ -4318,8 +4240,7 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                 z.wasTouched := true
                 
             // Unified demand entry validation (shared with flip entries)
-            // Call with checkDirection=false to allow priming on any touch color
-            [can_enter, entryReason] = isValidDemandEntry(i, false)
+            [can_enter, entryReason] = isValidDemandEntry(i)
 
             // === PERFORMANCE STATS: ENTRY CHECKS (DEMAND) ===
             stat_total_entry_checks += 1
@@ -4329,13 +4250,7 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                 if str.contains(entryReason, "liquidity") or str.contains(entryReason, "Liq ")
                     stat_entries_blocked_by_liquidity += 1
 
-
             if can_enter
-                // REFACTOR: Hoist calculate_return_strength out of conditional scopes
-                float temp_liq_dist_d = calculate_liquidity_distance(z.top, z.liqLowPrice, true)
-                float temp_liq_spr_d  = calculate_liquidity_spread(z.liqHighPrice, z.liqLowPrice)
-                float temp_ret_str_d  = calculate_return_strength(z.liquiditySweptBarIndex, bar_index, true)
-
                 if currentTouch
                     // FIRST-TOUCH-ONLY RULE: Block retrace entries (zones already touched)
                     // If touchCount > 1, it means we touched previously (since we just incremented it to 1 now)
@@ -4353,12 +4268,15 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     z.inactiveReason := "PRIMED - waiting for bullish close"
                     
                     // === V7.1 AI FEATURES (CONDITIONAL - Only if enabled) ===
-                    if enable_v6_v7_features
-                        z.liquidityDistance := temp_liq_dist_d
-                        z.liquiditySpread := temp_liq_spr_d
-                        z.returnStrength := temp_ret_str_d
+                    // IMPORTANT: Call functions unconditionally for Pine Script series consistency
+                    float temp_liq_distance = calculate_liquidity_distance(z.top, z.liqLowPrice, true)
+                    float temp_liq_spread = calculate_liquidity_spread(z.liqHighPrice, z.liqLowPrice)
+                    float temp_return_strength = calculate_return_strength(z.liquiditySweptBarIndex, bar_index, true)
                     
-
+                    if enable_v6_v7_features
+                        z.liquidityDistance := temp_liq_distance
+                        z.liquiditySpread := temp_liq_spread
+                        z.returnStrength := temp_return_strength
                     else
                         // Default values when disabled (neutral 50)
                         z.liquidityDistance := 50.0
@@ -4568,15 +4486,12 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                 plot_return_strength  := z.returnStrength
 
                 triggeredZoneId := z.id
-
+                
                 // Build webhook payload for Discord-MT5 bridge with ALL AI features
                 float webhook_lots = units_to_lots(pos_qty_units)
                 float webhook_tp = na(take_profit_price) ? entry_price + (math.abs(entry_price - stop_loss_price) * 2) : take_profit_price
                 float webhook_rr = math.abs(webhook_tp - entry_price) / math.abs(entry_price - stop_loss_price)
                 float zone_atr_ratio = (z.top - z.bottom) / atr14
-
-                // Generate unique trade_key for entry↔exit correlation
-                string entry_trade_key = str.tostring(time_close) + "|" + syminfo.ticker + "|buy|" + str.tostring(z.id)
 
                 string webhook_payload = enable_webhook_alerts ? build_webhook_payload(
                     syminfo.ticker,
@@ -4596,7 +4511,7 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     z.targetSwept,           // target_swept
                     z.causedSweep,           // caused_sweep
                     z.isAccuracy,            // is_accuracy
-                    // === AI FEATURES ===
+                    // === AI FEATURES (NEW) ===
                     z.score,                 // score
                     z.touchCount,            // freshness
                     feature_session,         // session
@@ -4611,11 +4526,7 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     z.departureStrength,     // departure_strength
                     z.liquidityDistance,     // liquidity_distance
                     z.liquiditySpread,       // liquidity_spread
-                    z.returnStrength,        // return_strength
-                    // === TELEMETRY (NEW) ===
-                    effective_run_mode,      // run_mode
-                    RUN_ID,                  // run_id
-                    entry_trade_key          // trade_key
+                    z.returnStrength         // return_strength
                 ) : ""
 
                 if dry_run_mode
@@ -4633,12 +4544,9 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     string entryComment = (show_entry_labels ? "" : typeTag) + " | " + ai_features
                     
                     // Include webhook alert_message for TradingView webhook integration
-                    // Note: strategy.entry ALWAYS executes (trade logic unchanged)
-                    // alert() is gated by allow_webhook_send (telemetry control)
                     if enable_webhook_alerts
                         strategy.entry("Long", strategy.long, qty = pos_qty_units, comment = entryComment, alert_message = webhook_payload)
-                        if allow_webhook_send
-                            alert(webhook_payload, alert.freq_once_per_bar)
+                        alert(webhook_payload, alert.freq_once_per_bar)
                     else
                         strategy.entry("Long", strategy.long, qty = pos_qty_units, comment = entryComment)
 
@@ -4682,11 +4590,6 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     trade_is_accuracy := z.isAccuracy
                     trade_entry_model := chosenModel
                     trade_zone_type := "demand"
-
-                    // === WEBHOOK CORRELATION TRACKING ===
-                    trade_key := entry_trade_key
-                    trade_entry_time := time_close
-                    trade_original_sl_pips := sl_pips
 
                 z.lastEntryBar := bar_index
                 z.active := false
@@ -4744,8 +4647,7 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                 z.wasTouched := true
 
             // Unified supply entry validation (shared with flip entries)
-            // Call with checkDirection=false to allow priming on any touch color
-            [can_enter, entryReason] = isValidSupplyEntry(i, false)
+            [can_enter, entryReason] = isValidSupplyEntry(i)
 
             // === PERFORMANCE STATS: ENTRY CHECKS (SUPPLY) ===
             stat_total_entry_checks += 1
@@ -4755,13 +4657,7 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                 if str.contains(entryReason, "liquidity") or str.contains(entryReason, "Liq ")
                     stat_entries_blocked_by_liquidity += 1
 
-
             if can_enter
-                // REFACTOR: Hoist calculate_return_strength out of conditional scopes
-                float temp_liq_dist_s = calculate_liquidity_distance(z.bottom, z.liqHighPrice, false)
-                float temp_liq_spr_s  = calculate_liquidity_spread(z.liqLowPrice, z.liqHighPrice)
-                float temp_ret_str_s  = calculate_return_strength(z.liquiditySweptBarIndex, bar_index, false)
-
                 if currentTouch
                     // FIRST-TOUCH-ONLY RULE: Block retrace entries (zones already touched)
                     // If touchCount > 1, it means we touched previously (since we just incremented it to 1 now)
@@ -4779,12 +4675,15 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     z.inactiveReason := "PRIMED - waiting for bearish close"
                     
                     // === V7.1 AI FEATURES (CONDITIONAL - Only if enabled) ===
-                    if enable_v6_v7_features
-                        z.liquidityDistance := temp_liq_dist_s
-                        z.liquiditySpread := temp_liq_spr_s
-                        z.returnStrength := temp_ret_str_s
+                    // IMPORTANT: Call functions unconditionally for Pine Script series consistency
+                    float temp_liq_distance = calculate_liquidity_distance(z.bottom, z.liqHighPrice, false)
+                    float temp_liq_spread = calculate_liquidity_spread(z.liqLowPrice, z.liqHighPrice)
+                    float temp_return_strength = calculate_return_strength(z.liquiditySweptBarIndex, bar_index, false)
                     
-
+                    if enable_v6_v7_features
+                        z.liquidityDistance := temp_liq_distance
+                        z.liquiditySpread := temp_liq_spread
+                        z.returnStrength := temp_return_strength
                     else
                         // Default values when disabled (neutral 50)
                         z.liquidityDistance := 50.0
@@ -4997,9 +4896,6 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                 float webhook_rr_short = math.abs(entry_price - webhook_tp_short) / math.abs(stop_loss_price - entry_price)
                 float zone_atr_ratio_short = (z.top - z.bottom) / atr14
 
-                // Generate unique trade_key for entry↔exit correlation
-                string entry_trade_key_short = str.tostring(time_close) + "|" + syminfo.ticker + "|sell|" + str.tostring(z.id)
-
                 string webhook_payload_short = enable_webhook_alerts ? build_webhook_payload(
                     syminfo.ticker,
                     "sell",
@@ -5018,7 +4914,7 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     z.targetSwept,           // target_swept
                     z.causedSweep,           // caused_sweep
                     z.isAccuracy,            // is_accuracy
-                    // === AI FEATURES ===
+                    // === AI FEATURES (NEW) ===
                     z.score,                 // score
                     z.touchCount,            // freshness
                     feature_session,         // session
@@ -5033,11 +4929,7 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     z.departureStrength,     // departure_strength
                     z.liquidityDistance,     // liquidity_distance
                     z.liquiditySpread,       // liquidity_spread
-                    z.returnStrength,        // return_strength
-                    // === TELEMETRY (NEW) ===
-                    effective_run_mode,      // run_mode
-                    RUN_ID,                  // run_id
-                    entry_trade_key_short    // trade_key
+                    z.returnStrength         // return_strength
                 ) : ""
 
                 if dry_run_mode
@@ -5055,12 +4947,9 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     string entryComment = (show_entry_labels ? "" : typeTag) + " | " + ai_features
 
                     // Include webhook alert_message for TradingView webhook integration
-                    // Note: strategy.entry ALWAYS executes (trade logic unchanged)
-                    // alert() is gated by allow_webhook_send (telemetry control)
                     if enable_webhook_alerts
                         strategy.entry("Short", strategy.short, qty = pos_qty_units, comment = entryComment, alert_message = webhook_payload_short)
-                        if allow_webhook_send
-                            alert(webhook_payload_short, alert.freq_once_per_bar)
+                        alert(webhook_payload_short, alert.freq_once_per_bar)
                     else
                         strategy.entry("Short", strategy.short, qty = pos_qty_units, comment = entryComment)
 
@@ -5104,11 +4993,6 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     trade_is_accuracy := z.isAccuracy
                     trade_entry_model := chosenModel
                     trade_zone_type := "supply"  // SUPPLY for shorts
-
-                    // === WEBHOOK CORRELATION TRACKING ===
-                    trade_key := entry_trade_key_short
-                    trade_entry_time := time_close
-                    trade_original_sl_pips := sl_pips
 
                 z.lastEntryBar := bar_index
                 z.active := false
@@ -5450,13 +5334,10 @@ if trade_just_closed
     float lastProfit = strategy.closedtrades.profit(last_trade_idx)
     float lastEntry = strategy.closedtrades.entry_price(last_trade_idx)
     float riskPips = trade_original_sl_pips
-    // Use asset-specific lot size for correct R calculation
-    float current_lot_size = get_lot_size()
-    float pnl_r = (not na(riskPips) and riskPips != 0 and not na(lastEntry)) ? lastProfit / (riskPips * pip_size * current_lot_size) : 0.0
+    float pnl_r = (not na(riskPips) and riskPips != 0 and not na(lastEntry)) ? lastProfit / (riskPips * pip_size * 100) : 0.0
 
     // === SEND EXIT WEBHOOK ===
-    // Gate by allow_webhook_send (respects RUN_MODE + SEND_WEBHOOKS_IN_BACKTEST)
-    if allow_webhook_send and not na(trade_zone_id)
+    if enable_webhook_alerts and not na(trade_zone_id)
         string exit_payload = build_exit_webhook_payload(
             trade_zone_id,              // zone_id
             was_win ? "win" : "loss",   // outcome
@@ -5464,12 +5345,7 @@ if trade_just_closed
             close,                      // close_price
             pnl_r,                      // pnl_r
             exit_type,                  // exit_type
-            mae_pips,                   // mae_pips
-            lastProfit,                 // pnl_usd (actual profit from strategy engine)
-            effective_run_mode,         // run_mode
-            RUN_ID,                     // run_id
-            trade_key,                  // trade_key (for correlation)
-            trade_entry_time            // entry_time
+            mae_pips                    // mae_pips
         )
 
         // Send exit alert (TradingView will POST to webhook)
@@ -5537,11 +5413,6 @@ if trade_just_closed
     trade_entry_bar_index := na
     trade_worst_price := na
     trade_zone_id := na
-
-    // Reset webhook correlation tracking vars
-    trade_key := na
-    trade_entry_time := na
-    trade_original_sl_pips := na
 
 // === LIQUIDITY LINES CONTROL ===
 // Arrays to track liquidity lines and their active status
@@ -6120,30 +5991,98 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug() and barstate.is
             entryAllowedInspector := "Zone Inactive"
             rejectionReasonInspector := dbEntry.inactiveReason
         
-        // Consolidated Header
+        // Header row (row 0)
         color typeColor = isInspectorDemand ? color.new(color.green, 20) : color.new(color.red, 20)
-        string gradeStrVal = (not na(inspectorZone) and not na(inspectorZone.grade)) ? inspectorZone.grade : "N/A"
-        float score_val = (not na(inspectorZone) and not na(inspectorZone.score)) ? inspectorZone.score : 0.0
-        table.cell(zoneInspector, 0, 0, "Zone #" + str.tostring(zoneInspectorUZID), bgcolor=typeColor, text_color=color.white, text_size = size.small)
-        table.cell(zoneInspector, 1, 0, zoneInspectorType + " (" + gradeStrVal + " " + str.tostring(score_val, "#") + ")", bgcolor=typeColor, text_color=color.white, text_size = size.small)
+        table.cell(zoneInspector, 0, 0, "Zone #" + str.tostring(zoneInspectorUZID), bgcolor=typeColor, text_color=color.white, text_size = size.small, text_halign = text.align_left)
+        table.cell(zoneInspector, 1, 0, zoneInspectorType, bgcolor=typeColor, text_color=color.white, text_size = size.small, text_halign = text.align_left)
         
-        // Consolidated Range & Size
-        rangeStrDisp = str.format("{0} → {1}", str.tostring(zoneInspectorLow, format.mintick), str.tostring(zoneInspectorHigh, format.mintick))
-        table.cell(zoneInspector, 0, 1, "Range / Size", text_color = color.rgb(200, 200, 200), text_halign = text.align_right, text_size = size.small)
-        table.cell(zoneInspector, 1, 1, rangeStrDisp + " (" + str.tostring(zoneInspectorSizePips, "#.#") + " pips)", text_color = color.white, text_halign = text.align_left, text_size = size.small)
+        // Grade Row [NEW]
+        // Grade Row [NEW]
+        string gradeStr = (not na(inspectorZone) and not na(inspectorZone.grade)) ? inspectorZone.grade : "N/A"
+        float scoreVal = (not na(inspectorZone) and not na(inspectorZone.score)) ? inspectorZone.score : 0.0
+        color gradeColor = scoreVal >= 80 ? color.lime : (scoreVal >= 60 ? color.yellow : color.red)
         
-        // Consolidated Context
-        table.cell(zoneInspector, 0, 2, "Context", text_color = color.rgb(200, 200, 200), text_halign = text.align_right, text_size = size.small)
-        table.cell(zoneInspector, 1, 2, str.tostring(barsSinceCreation) + " bars since creation", text_color = color.rgb(200, 200, 200), text_halign = text.align_left, text_size = size.small)
+        table.cell(zoneInspector, 0, 1, "Grade", text_color = color.rgb(200, 200, 200), bgcolor=color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        table.cell(zoneInspector, 1, 1, gradeStr + " (" + str.tostring(scoreVal, "#") + ")", text_color=gradeColor, bgcolor=color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
         
-        // Consolidated Liquidity Info
-        table.cell(zoneInspector, 0, 3, "Liquidity", text_color = color.rgb(200, 200, 200), text_halign = text.align_right, text_size = size.small)
-        liqAnalysis = "Ind:" + (str.contains(liqExistsInspector, "✓") ? "✓" : "✗") + " | Swept:" + (liqSweptInspector == "Yes" ? "✓" : "✗") + " | Target:" + (targetSweptInspector == "Yes" ? "✓" : "✗")
-        table.cell(zoneInspector, 1, 3, liqAnalysis + " (Dist:" + liqDistInspector + ")", text_color = color.yellow, text_halign = text.align_left, text_size = size.small)
+        // Row 1: Zone ID (UZID - permanent unique ID) - shifted to row 2
+        table.cell(zoneInspector, 0, 2, "Zone ID", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        zoneIdStr = not na(zoneInspectorUZID) ? str.tostring(zoneInspectorUZID) : "N/A"
+        table.cell(zoneInspector, 1, 2, zoneIdStr, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
         
-        // Consolidated Entry Req
-        table.cell(zoneInspector, 0, 4, "Entry Req", text_color = color.rgb(200, 200, 200), text_halign = text.align_right, text_size = size.small)
-        table.cell(zoneInspector, 1, 4, "Wick:" + wickInZone + " | Close:" + bullishBearishClose, text_color = color.rgb(200, 255, 200), text_halign = text.align_left, text_size = size.small)
+        // Row 2: Type - shifted to row 3
+        table.cell(zoneInspector, 0, 3, "Type", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        typeColorInspector = zoneInspectorType == "Demand" ? color.green : (zoneInspectorType == "Supply" ? color.red : color.rgb(200, 200, 200))
+        table.cell(zoneInspector, 1, 3, zoneInspectorType, text_color = typeColorInspector, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        
+        // Row 3: Range - shifted to row 4
+        table.cell(zoneInspector, 0, 4, "Range", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        rangeStrInspector = (not na(zoneInspectorLow) and not na(zoneInspectorHigh)) ? str.format("{0} → {1}", str.tostring(zoneInspectorLow, format.mintick), str.tostring(zoneInspectorHigh, format.mintick)) : "N/A"
+        table.cell(zoneInspector, 1, 4, rangeStrInspector, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        
+        // Row 4: Zone Size - shifted to row 5
+        table.cell(zoneInspector, 0, 5, "Zone Size", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        sizeStrInspector = not na(zoneInspectorSizePips) ? str.tostring(math.round(zoneInspectorSizePips * 10) / 10, "#.#") + " pips" : "N/A"
+        table.cell(zoneInspector, 1, 5, sizeStrInspector, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        
+        // Row 5: Bars Since Creation - shifted to row 6
+        table.cell(zoneInspector, 0, 6, "Bars Since", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        barsStrInspector = not na(barsSinceCreation) ? str.tostring(barsSinceCreation) : "N/A"
+        table.cell(zoneInspector, 1, 6, barsStrInspector, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        
+        // Row 6: Liquidity Required - shifted to row 7
+        table.cell(zoneInspector, 0, 7, "Liq Required", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        liqReqColor = liqRequired == "Yes" ? color.yellow : (liqRequired == "No" ? color.gray : color.rgb(200, 200, 200))
+        table.cell(zoneInspector, 1, 7, liqRequired, text_color = liqReqColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        
+        // Row 7: Liquidity Analysis (MERGED: Liq Exists + Liq Candles) - shifted to row 8
+        table.cell(zoneInspector, 0, 8, "Liquidity", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        liqExistsColor = str.contains(liqExistsInspector, "✓") ? color.green : (str.contains(liqExistsInspector, "✗") ? color.red : color.rgb(200, 200, 200))
+        table.cell(zoneInspector, 1, 8, liqExistsInspector, text_color = liqExistsColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        
+        // Row 8: Liquidity Swept (was row 9) - shifted to row 9
+        table.cell(zoneInspector, 0, 9, "Liq Swept", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        liqSweptColor = liqSweptInspector == "Yes" ? color.green : (liqSweptInspector == "No" ? color.red : color.rgb(200, 200, 200))
+        table.cell(zoneInspector, 1, 9, liqSweptInspector, text_color = liqSweptColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        
+        // Row 9: Target Swept (NEW ROW - Target HIGH for Demand, Target LOW for Supply) - shifted to row 10
+        table.cell(zoneInspector, 0, 10, "Target Swept", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        targetSweptColor = targetSweptInspector == "Yes" ? color.green : (targetSweptInspector == "No" ? color.red : color.rgb(200, 200, 200))
+        table.cell(zoneInspector, 1, 10, targetSweptInspector, text_color = targetSweptColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        
+        // Row 10: Liq Distance (NEW ROW - distance from zone boundary to inducement) - shifted to row 11
+        table.cell(zoneInspector, 0, 11, "Liq Distance", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        liqDistColor = liqDistExceedsMax ? color.red : (liqDistInspector != "N/A" ? color.green : color.rgb(200, 200, 200))
+        table.cell(zoneInspector, 1, 11, liqDistInspector, text_color = liqDistColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        
+        // Row 11: Sweep Bar Index (was row 10) - shifted to row 12
+        table.cell(zoneInspector, 0, 12, "Sweep Bar", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        table.cell(zoneInspector, 1, 12, sweepBarIdx, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        
+        // Row 12: Zone Caused Sweep (was row 11) - shifted to row 13
+        table.cell(zoneInspector, 0, 13, "Zone Caused Sweep", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        zoneCausedSweepColor = zoneCausedSweepInspector == "Yes" ? color.green : (zoneCausedSweepInspector == "No" ? color.red : color.rgb(200, 200, 200))
+        table.cell(zoneInspector, 1, 13, zoneCausedSweepInspector, text_color = zoneCausedSweepColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        
+        // Row 13: Wick In Zone (was row 12) - shifted to row 14
+        table.cell(zoneInspector, 0, 14, "Wick In Zone", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        wickColor = wickInZone == "Yes" ? color.green : (wickInZone == "No" ? color.red : color.rgb(200, 200, 200))
+        table.cell(zoneInspector, 1, 14, wickInZone, text_color = wickColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        
+        // Row 14: Not Closed In (was row 13) - shifted to row 15
+        table.cell(zoneInspector, 0, 15, "Not Closed In", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        notClosedColor = notClosedIn == "Yes" ? color.green : (notClosedIn == "No" ? color.red : color.rgb(200, 200, 200))
+        table.cell(zoneInspector, 1, 15, notClosedIn, text_color = notClosedColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        
+        // Row 15: Bullish/Bearish Close (was row 14) - shifted to row 16
+        table.cell(zoneInspector, 0, 16, "Close Type", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        closeColor = bullishBearishClose == "Bullish" ? color.green : (bullishBearishClose == "Bearish" ? color.red : color.rgb(200, 200, 200))
+        table.cell(zoneInspector, 1, 16, bullishBearishClose, text_color = closeColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        
+        // Row 16: Zone Used (was row 15) - shifted to row 17
+        table.cell(zoneInspector, 0, 17, "Zone Used", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        usedColor = zoneUsedInspector == "Yes" ? color.red : (zoneUsedInspector == "No" ? color.green : color.rgb(200, 200, 200))
+        table.cell(zoneInspector, 1, 17, zoneUsedInspector, text_color = usedColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
         
         // Row 17: Entry Allowed (was row 16) - shifted to row 18
         // Override display if entry was triggered this bar (to prevent "False No")
@@ -6280,7 +6219,7 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug() and barstate.is
             liqSwept := dbEntry.liquiditySwept
             liqSweptStr := liqSwept ? "YES" : "NO"
         table.cell(zoneInspector, 0, nextRow, "Liq Swept", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = size.small)
-        liqSweptColor = liqSweptStr == "YES" ? color.green : (liqSweptStr == "NO" ? color.orange : color.rgb(150, 150, 150))
+        liqSweptColor := liqSweptStr == "YES" ? color.green : (liqSweptStr == "NO" ? color.orange : color.rgb(150, 150, 150))
         table.cell(zoneInspector, 1, nextRow, liqSweptStr, text_color = liqSweptColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = size.small)
         nextRow += 1
         
