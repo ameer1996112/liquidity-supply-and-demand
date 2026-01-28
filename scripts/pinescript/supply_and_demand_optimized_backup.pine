@@ -301,7 +301,7 @@ dry_run_mode          = false  // Dry run disabled by default
 debug_mode            = false
 debug_entry_labels    = false
 show_zone_debug_labels = false
-
+show_debug_labels      = false
 zone_label_size       = "Tiny"
 debug_level           = input.string("None", "Debug Level", options = ["None", "Basic", "Full"], group = "📊 Display", tooltip = "None = Clean chart. Basic = Key info. Full = All debug data.")
 debug_last_bars       = 200
@@ -361,16 +361,6 @@ should_use_accuracy_zones = enable_accuracy_zones and not (is_gold or is_index)
 enable_webhook_alerts = true  // Always enabled
 webhook_include_zone_id = true  // Always include zone ID
 
-// === WEBHOOK TELEMETRY SETTINGS ===
-// These settings control webhook behavior WITHOUT affecting trade logic
-RUN_MODE = input.string("LIVE", "Run Mode", options = ["LIVE", "BACKTEST", "REPLAY"], group = "📡 Webhook", tooltip = "LIVE: Production trading. BACKTEST/REPLAY: Testing mode. Separates data in backend dashboard.")
-RUN_ID = input.string("live-default", "Run ID", group = "📡 Webhook", tooltip = "Unique identifier for this run. Use descriptive names like 'backtest-2026-01-27' or 'live-prod'.")
-SEND_WEBHOOKS_IN_BACKTEST = input.bool(false, "Send Webhooks in Backtest", group = "📡 Webhook", tooltip = "OFF: Don't send webhooks during backtest (keeps DB clean). ON: Send webhooks even in backtest mode (for testing).")
-INCLUDE_LIFECYCLE_TIMES = input.bool(true, "Include Lifecycle Times", group = "📡 Webhook", tooltip = "ON: Include bar_time/entry_time/exit_time in payloads for accurate tracking.")
-
-// Calculate whether webhooks should be sent (DOES NOT AFFECT TRADES)
-allow_webhook_send = enable_webhook_alerts and (RUN_MODE == "LIVE" or (RUN_MODE != "LIVE" and SEND_WEBHOOKS_IN_BACKTEST))
-
 // Display Options (visual only)
 show_grade_on_zone  = input.bool(true, "Show Grade on Zones", group="📊 Display", tooltip="ON: Display zone grade (A+, B, etc) on the zone label.")
 show_ai_score_on_label = input.bool(false, "Show AI Score on Labels", group = "📊 Display", tooltip = "ON: Display numeric AI score on entry labels.")
@@ -415,7 +405,6 @@ min_bar_index_for_entries = input.int(100, "Skip First N Bars", minval = 0, grou
 
 // Display Tables (visual only)
 show_performance_table = input.bool(false, "Performance Table", group = "📊 Display", tooltip = "ON: Show performance statistics table on chart.")
-show_debug_labels      = input.bool(false, "Show Debug Labels", group = "📊 Display", tooltip = "ON: Show breakdown of rejected entries (Red/Green/Rejection Reason).")
 
 
 // Override key settings when a profile is selected (not "Custom")
@@ -937,31 +926,17 @@ to_json_num(float val, string fmt) =>
         str.replace(s, ",", ".")
 
 // Builds JSON payload for webhook alert to Discord-MT5 bridge
-// Returns: JSON string with trade details + Zone Inspector data + AI Features + Telemetry
+// Returns: JSON string with trade details + Zone Inspector data + AI Features
 build_webhook_payload(
      _symbol, _side, _entry, _sl, _tp, _size_lots, _zone_id, _zone_type,
      _zone_top, _zone_bottom, _rr_ratio, _sl_pips, _entry_model,
      _liq_swept, _target_swept, _caused_sweep, _is_accuracy,
-     // AI Features
+     // AI Features (NEW)
      _score, _freshness, _session, _atr_ratio, _trend, _rsi,
      _htf_trend, _rvol, _adx, _touch_count, _base_quality,
-     _departure_strength, _liq_distance, _liq_spread, _return_strength,
-     // Telemetry (NEW)
-     _run_mode, _run_id, _trade_key) =>
+     _departure_strength, _liq_distance, _liq_spread, _return_strength) =>
 
-    // === EVENT TYPE & TELEMETRY METADATA ===
-    string payload = '{"event_type":"entry"'
-    payload := payload + ',"run_mode":"' + _run_mode + '"'
-    payload := payload + ',"run_id":"' + _run_id + '"'
-    payload := payload + ',"trade_key":"' + _trade_key + '"'
-
-    // Bar time for accurate timestamp tracking
-    if INCLUDE_LIFECYCLE_TIMES
-        payload := payload + ',"bar_time":"' + str.format("{0,date,yyyy-MM-dd HH:mm:ss}", time_close) + '"'
-        payload := payload + ',"server_time":"' + str.format("{0,date,yyyy-MM-dd HH:mm:ss}", timenow) + '"'
-
-    // === CORE TRADE DATA ===
-    payload := payload + ',"symbol":"' + _symbol + '"'
+    string payload = '{"symbol":"' + _symbol + '"'
     payload := payload + ',"side":"' + _side + '"'
     payload := payload + ',"entry":' + to_json_num(_entry, "#.##########")
     payload := payload + ',"sl":' + to_json_num(_sl, "#.##########")
@@ -1011,31 +986,16 @@ build_webhook_payload(
     payload
 
 // Builds EXIT webhook payload
-// Returns: JSON string with exit telemetry + correlation data
-build_exit_webhook_payload(_zone_id, _outcome, _bars_held, _close_price, _pnl_r, _exit_type, _mae_pips, _pnl_usd, _run_mode, _run_id, _trade_key, _entry_time) =>
+// Returns: JSON string with exit telemetry
+build_exit_webhook_payload(_zone_id, _outcome, _bars_held, _close_price, _pnl_r, _exit_type, _mae_pips) =>
     string payload = '{"event_type":"exit"'
-
-    // === TELEMETRY METADATA (for correlation) ===
-    payload := payload + ',"run_mode":"' + _run_mode + '"'
-    payload := payload + ',"run_id":"' + _run_id + '"'
-    payload := payload + ',"trade_key":"' + (na(_trade_key) ? "" : _trade_key) + '"'
-
-    // === EXIT DATA ===
     payload := payload + ',"zone_id":' + str.tostring(_zone_id, "#")
     payload := payload + ',"outcome":"' + _outcome + '"'
     payload := payload + ',"bars_held":' + str.tostring(_bars_held, "#")
     payload := payload + ',"close_price":' + to_json_num(_close_price, "#.##########")
     payload := payload + ',"pnl_r":' + to_json_num(_pnl_r, "#.##")
-    payload := payload + ',"pnl_usd":' + to_json_num(_pnl_usd, "#.##")
     payload := payload + ',"exit_type":"' + _exit_type + '"'
     payload := payload + ',"mae_pips":' + to_json_num(_mae_pips, "#.#")
-
-    // === LIFECYCLE TIMES ===
-    if INCLUDE_LIFECYCLE_TIMES
-        if not na(_entry_time)
-            payload := payload + ',"entry_time":"' + str.format("{0,date,yyyy-MM-dd HH:mm:ss}", _entry_time) + '"'
-        payload := payload + ',"exit_time":"' + str.format("{0,date,yyyy-MM-dd HH:mm:ss}", time_close) + '"'
-
     payload := payload + ',"close_time":"' + str.format("{0,date,yyyy-MM-dd HH:mm:ss}", timenow) + '"'
     payload := payload + '}'
     payload
@@ -2965,14 +2925,13 @@ validate_entry_conditions(bool isDemand, int idx) =>
             // If current bar touches, mark zone as touched (persistent)
             if currentTouch
                 z.wasTouched := true
-                z.lastTouchBar := bar_index
             
-            // ROBUST VALIDATION: Allow entry if touching NOW or touched on PREVIOUS bar
-            // Using lastTouchBar index is safer than hardcoded previous candle check
-            bool recentTouch = not na(z.lastTouchBar) and (bar_index - z.lastTouchBar <= 1)
+            // STRICT VALIDATION: Ignore persistent history.
+            // Require the touch to happen on the current trigger candle OR the setup candle (bar index - 1).
+            bool prevTouch = isDemand ? (low[1] <= z.top + touchTolerance) : (high[1] >= z.bottom - touchTolerance)
             
-            // Entry is valid only if we are touching NOW or just touched recently
-            wickIntoZone := currentTouch or recentTouch
+            // Entry is valid only if we are touching NOW or just touched on the PREVIOUS bar
+            wickIntoZone := currentTouch or prevTouch
             
             // STRICT CHECK: The zone MUST be touched. No exceptions.
             if not wickIntoZone
@@ -3051,11 +3010,6 @@ var bool  trade_caused_sweep    = false   // Caused sweep at entry
 var bool  trade_is_accuracy     = false   // Is accuracy zone
 var string trade_entry_model    = na      // Entry model used
 var string trade_zone_type      = na      // Zone type (demand/supply)
-
-// === WEBHOOK CORRELATION TRACKING ===
-var string trade_key            = na      // Unique key for entry↔exit correlation: "timestamp|symbol|side|zone_id"
-var int    trade_entry_time     = na      // Bar time at entry (time_close)
-var float  trade_original_sl_pips = na    // Original SL in pips (for pnl_r calculation)
 
 // Track whether current trade originated from an accuracy zone
 var bool  trade_is_accuracy_zone = false
@@ -3882,10 +3836,6 @@ isValidEntry(isDemand, idx) =>
         if not correct_direction
             canEnter := false
             reason := isDemand ? "Waiting for Bullish Close or Hammer" : "Waiting for Bearish Close or Inv. Hammer"
-            // VISUAL DEBUG: Label rejected candles to verify data feed values vs visuals
-            if show_debug_labels
-                string rejectText = "⛔ REJ\nReason: " + reason + "\nO: " + str.tostring(open) + "\nC: " + str.tostring(close) + "\nIdx: " + str.tostring(bar_index)
-                label.new(bar_index, high, text = rejectText, color = color.orange, style = label.style_label_down, size = size.tiny, textcolor = color.white)
 
     if canEnter
 
@@ -4536,15 +4486,12 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                 plot_return_strength  := z.returnStrength
 
                 triggeredZoneId := z.id
-
+                
                 // Build webhook payload for Discord-MT5 bridge with ALL AI features
                 float webhook_lots = units_to_lots(pos_qty_units)
                 float webhook_tp = na(take_profit_price) ? entry_price + (math.abs(entry_price - stop_loss_price) * 2) : take_profit_price
                 float webhook_rr = math.abs(webhook_tp - entry_price) / math.abs(entry_price - stop_loss_price)
                 float zone_atr_ratio = (z.top - z.bottom) / atr14
-
-                // Generate unique trade_key for entry↔exit correlation
-                string entry_trade_key = str.tostring(time_close) + "|" + syminfo.ticker + "|buy|" + str.tostring(z.id)
 
                 string webhook_payload = enable_webhook_alerts ? build_webhook_payload(
                     syminfo.ticker,
@@ -4564,7 +4511,7 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     z.targetSwept,           // target_swept
                     z.causedSweep,           // caused_sweep
                     z.isAccuracy,            // is_accuracy
-                    // === AI FEATURES ===
+                    // === AI FEATURES (NEW) ===
                     z.score,                 // score
                     z.touchCount,            // freshness
                     feature_session,         // session
@@ -4579,11 +4526,7 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     z.departureStrength,     // departure_strength
                     z.liquidityDistance,     // liquidity_distance
                     z.liquiditySpread,       // liquidity_spread
-                    z.returnStrength,        // return_strength
-                    // === TELEMETRY (NEW) ===
-                    RUN_MODE,                // run_mode
-                    RUN_ID,                  // run_id
-                    entry_trade_key          // trade_key
+                    z.returnStrength         // return_strength
                 ) : ""
 
                 if dry_run_mode
@@ -4601,12 +4544,9 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     string entryComment = (show_entry_labels ? "" : typeTag) + " | " + ai_features
                     
                     // Include webhook alert_message for TradingView webhook integration
-                    // Note: strategy.entry ALWAYS executes (trade logic unchanged)
-                    // alert() is gated by allow_webhook_send (telemetry control)
                     if enable_webhook_alerts
                         strategy.entry("Long", strategy.long, qty = pos_qty_units, comment = entryComment, alert_message = webhook_payload)
-                        if allow_webhook_send
-                            alert(webhook_payload, alert.freq_once_per_bar)
+                        alert(webhook_payload, alert.freq_once_per_bar)
                     else
                         strategy.entry("Long", strategy.long, qty = pos_qty_units, comment = entryComment)
 
@@ -4650,11 +4590,6 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     trade_is_accuracy := z.isAccuracy
                     trade_entry_model := chosenModel
                     trade_zone_type := "demand"
-
-                    // === WEBHOOK CORRELATION TRACKING ===
-                    trade_key := entry_trade_key
-                    trade_entry_time := time_close
-                    trade_original_sl_pips := sl_pips
 
                 z.lastEntryBar := bar_index
                 z.active := false
@@ -4961,9 +4896,6 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                 float webhook_rr_short = math.abs(entry_price - webhook_tp_short) / math.abs(stop_loss_price - entry_price)
                 float zone_atr_ratio_short = (z.top - z.bottom) / atr14
 
-                // Generate unique trade_key for entry↔exit correlation
-                string entry_trade_key_short = str.tostring(time_close) + "|" + syminfo.ticker + "|sell|" + str.tostring(z.id)
-
                 string webhook_payload_short = enable_webhook_alerts ? build_webhook_payload(
                     syminfo.ticker,
                     "sell",
@@ -4982,7 +4914,7 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     z.targetSwept,           // target_swept
                     z.causedSweep,           // caused_sweep
                     z.isAccuracy,            // is_accuracy
-                    // === AI FEATURES ===
+                    // === AI FEATURES (NEW) ===
                     z.score,                 // score
                     z.touchCount,            // freshness
                     feature_session,         // session
@@ -4997,11 +4929,7 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     z.departureStrength,     // departure_strength
                     z.liquidityDistance,     // liquidity_distance
                     z.liquiditySpread,       // liquidity_spread
-                    z.returnStrength,        // return_strength
-                    // === TELEMETRY (NEW) ===
-                    RUN_MODE,                // run_mode
-                    RUN_ID,                  // run_id
-                    entry_trade_key_short    // trade_key
+                    z.returnStrength         // return_strength
                 ) : ""
 
                 if dry_run_mode
@@ -5019,12 +4947,9 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     string entryComment = (show_entry_labels ? "" : typeTag) + " | " + ai_features
 
                     // Include webhook alert_message for TradingView webhook integration
-                    // Note: strategy.entry ALWAYS executes (trade logic unchanged)
-                    // alert() is gated by allow_webhook_send (telemetry control)
                     if enable_webhook_alerts
                         strategy.entry("Short", strategy.short, qty = pos_qty_units, comment = entryComment, alert_message = webhook_payload_short)
-                        if allow_webhook_send
-                            alert(webhook_payload_short, alert.freq_once_per_bar)
+                        alert(webhook_payload_short, alert.freq_once_per_bar)
                     else
                         strategy.entry("Short", strategy.short, qty = pos_qty_units, comment = entryComment)
 
@@ -5068,11 +4993,6 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     trade_is_accuracy := z.isAccuracy
                     trade_entry_model := chosenModel
                     trade_zone_type := "supply"  // SUPPLY for shorts
-
-                    // === WEBHOOK CORRELATION TRACKING ===
-                    trade_key := entry_trade_key_short
-                    trade_entry_time := time_close
-                    trade_original_sl_pips := sl_pips
 
                 z.lastEntryBar := bar_index
                 z.active := false
@@ -5417,8 +5337,7 @@ if trade_just_closed
     float pnl_r = (not na(riskPips) and riskPips != 0 and not na(lastEntry)) ? lastProfit / (riskPips * pip_size * 100) : 0.0
 
     // === SEND EXIT WEBHOOK ===
-    // Gate by allow_webhook_send (respects RUN_MODE + SEND_WEBHOOKS_IN_BACKTEST)
-    if allow_webhook_send and not na(trade_zone_id)
+    if enable_webhook_alerts and not na(trade_zone_id)
         string exit_payload = build_exit_webhook_payload(
             trade_zone_id,              // zone_id
             was_win ? "win" : "loss",   // outcome
@@ -5426,12 +5345,7 @@ if trade_just_closed
             close,                      // close_price
             pnl_r,                      // pnl_r
             exit_type,                  // exit_type
-            mae_pips,                   // mae_pips
-            lastProfit,                 // pnl_usd (actual profit from strategy engine)
-            RUN_MODE,                   // run_mode
-            RUN_ID,                     // run_id
-            trade_key,                  // trade_key (for correlation)
-            trade_entry_time            // entry_time
+            mae_pips                    // mae_pips
         )
 
         // Send exit alert (TradingView will POST to webhook)
@@ -5499,11 +5413,6 @@ if trade_just_closed
     trade_entry_bar_index := na
     trade_worst_price := na
     trade_zone_id := na
-
-    // Reset webhook correlation tracking vars
-    trade_key := na
-    trade_entry_time := na
-    trade_original_sl_pips := na
 
 // === LIQUIDITY LINES CONTROL ===
 // Arrays to track liquidity lines and their active status

@@ -65,6 +65,12 @@ AI_MIN_WIN_PROBABILITY = float(os.getenv('AI_MIN_WIN_PROBABILITY', '0.5'))
 UNIVERSAL_MODEL_PATH = Path(__file__).parent / 'model_universal.pkl'
 DEFAULT_MODEL_PATH = Path(__file__).parent / 'models' / 'model_ultimate.pkl'
 
+# AI Filter Exclusions (symbols that skip AI filter)
+AI_FILTER_EXCLUDE_SYMBOLS = [s.strip().upper() for s in os.getenv('AI_FILTER_EXCLUDE_SYMBOLS', 'NAS100,US100,NDX,SPX,US500,DJI,US30').split(',') if s.strip()]
+
+# Gold pip divisor (configurable)
+GOLD_PIP_DIVISOR = float(os.getenv('GOLD_PIP_DIVISOR', '0.1'))
+
 # Prioritize Universal Model
 MODEL_PATH = UNIVERSAL_MODEL_PATH if UNIVERSAL_MODEL_PATH.exists() else DEFAULT_MODEL_PATH
 
@@ -122,9 +128,9 @@ def init_db():
         raise
 
 
-def save_alert(data: dict, mode: str = 'manual') -> int:
+def save_alert(data: dict, mode: str = 'manual', filter_reasons: List[str] = None) -> int:
     """Save alert to Supabase with AI features, return alert ID."""
-    return supabase_db.save_alert(data, mode)
+    return supabase_db.save_alert(data, mode, filter_reasons)
 
 
 def update_alert_status(alert_id: int, status: str, outcome: str = None, pnl: float = None, notes: str = None):
@@ -137,29 +143,62 @@ def get_alert(alert_id: int) -> Optional[dict]:
     return supabase_db.get_alert(alert_id)
 
 
-def get_recent_alerts(limit: int = 50) -> List[dict]:
-    """Get recent alerts."""
-    return supabase_db.get_recent_alerts(limit)
+def get_recent_alerts(limit: int = 50, run_mode: str = None, run_id: str = None) -> List[dict]:
+    """Get recent alerts with optional run_mode/run_id filtering."""
+    return supabase_db.get_recent_alerts(limit, run_mode=run_mode, run_id=run_id)
 
 
-def get_statistics() -> dict:
-    """Calculate trading statistics."""
-    return supabase_db.get_statistics()
+def get_statistics(run_mode: str = None, run_id: str = None) -> dict:
+    """Calculate trading statistics with optional filtering."""
+    return supabase_db.get_statistics(run_mode=run_mode, run_id=run_id)
 
 
 # =============================================================================
 # NOTIFICATIONS
 # =============================================================================
 
-def send_discord(data: dict, alert_id: int, mode: str = 'manual') -> bool:
-    """Send alert to Discord."""
+def get_pip_divisor(symbol: str) -> float:
+    """
+    Get the pip/point divisor for a symbol.
+
+    For forex pairs: pip = 0.0001 (or 0.01 for JPY)
+    For gold: configurable via GOLD_PIP_DIVISOR (default 0.1)
+    For indices (NAS100, SPX, etc.): 1.0 (points, not pips)
+    """
+    symbol = symbol.upper()
+
+    # Check for indices first (points, not pips)
+    index_patterns = ['NAS', 'US100', 'NDX', 'SPX', 'US500', 'DJI', 'US30', 'DAX', 'FTSE', 'NIK']
+    if any(pattern in symbol for pattern in index_patterns):
+        return 1.0  # Points for indices
+
+    # JPY pairs
+    if 'JPY' in symbol:
+        return 0.01
+
+    # Gold
+    if 'XAU' in symbol or 'GOLD' in symbol:
+        return GOLD_PIP_DIVISOR
+
+    # Default forex
+    return 0.0001
+
+
+def send_discord(data: dict, alert_id: int, mode: str = 'manual') -> tuple[bool, str]:
+    """
+    Send alert to Discord.
+
+    Returns:
+        tuple: (success: bool, error_message: str or None)
+    """
     if not DISCORD_WEBHOOK_URL:
-        return False
+        logger.warning("Discord webhook URL not configured")
+        return False, "DISCORD_WEBHOOK_URL not configured"
 
     try:
         side = data['side'].upper()
         emoji = "📈" if side == "BUY" else "📉"
-        
+
         # Color: Blue for paper, Green for buy, Red for sell
         if mode == 'paper':
             color = 0x3498DB  # Blue
@@ -175,14 +214,13 @@ def send_discord(data: dict, alert_id: int, mode: str = 'manual') -> bool:
         reward = abs(tp - entry)
         rr_ratio = reward / risk if risk > 0 else 0
 
-        # Calculate pips
+        # Calculate pips/points using unified function
         symbol = data['symbol'].upper()
-        if 'JPY' in symbol:
-            pip_divisor = 0.01
-        elif 'XAU' in symbol or 'GOLD' in symbol:
-            pip_divisor = 0.1
-        else:
-            pip_divisor = 0.0001
+        pip_divisor = get_pip_divisor(symbol)
+
+        # Determine unit label (pips for forex, points for indices)
+        is_index = pip_divisor == 1.0
+        unit_label = "pts" if is_index else "pips"
 
         sl_pips = abs(entry - sl) / pip_divisor
         tp_pips = abs(tp - entry) / pip_divisor
@@ -200,8 +238,8 @@ def send_discord(data: dict, alert_id: int, mode: str = 'manual') -> bool:
                 {"name": "Type", "value": side, "inline": True},
                 {"name": "R:R", "value": f"1:{rr_ratio:.2f}", "inline": True},
                 {"name": "Entry", "value": str(data['entry']), "inline": True},
-                {"name": "Stop Loss", "value": f"{data['sl']} ({sl_pips:.1f} pips)", "inline": True},
-                {"name": "Take Profit", "value": f"{data['tp']} ({tp_pips:.1f} pips)", "inline": True},
+                {"name": "Stop Loss", "value": f"{data['sl']} ({sl_pips:.1f} {unit_label})", "inline": True},
+                {"name": "Take Profit", "value": f"{data['tp']} ({tp_pips:.1f} {unit_label})", "inline": True},
                 {"name": "Suggested Size", "value": f"{position_info['lots']:.2f} lots", "inline": True},
                 {"name": "Risk Amount", "value": f"${position_info['risk_amount']:.2f}", "inline": True},
             ],
@@ -256,14 +294,20 @@ def send_discord(data: dict, alert_id: int, mode: str = 'manual') -> bool:
 
         if response.status_code == 204:
             logger.info(f"Discord alert sent: #{alert_id} {data['symbol']} {side}")
-            return True
+            return True, None
         else:
-            logger.error(f"Discord failed: {response.status_code}")
-            return False
+            error_msg = f"HTTP {response.status_code}: {response.text[:200] if response.text else 'No response body'}"
+            logger.error(f"Discord failed: {error_msg}")
+            return False, error_msg
 
+    except requests.exceptions.Timeout:
+        error_msg = "Request timed out after 10 seconds"
+        logger.error(f"Discord error: {error_msg}")
+        return False, error_msg
     except Exception as e:
-        logger.error(f"Discord error: {e}")
-        return False
+        error_msg = str(e)
+        logger.error(f"Discord error: {error_msg}")
+        return False, error_msg
 
 
 def send_telegram(data: dict, alert_id: int) -> bool:
@@ -375,12 +419,22 @@ def calculate_position_size(sl_pips: float, symbol: str,
 # ALERT FILTERING
 # =============================================================================
 
-def should_forward_alert(data: dict) -> tuple[bool, str]:
-    """Check if alert should be forwarded based on filters."""
+def should_forward_alert(data: dict) -> tuple[bool, List[str], dict]:
+    """
+    Check if alert should be forwarded based on filters.
+
+    Returns:
+        tuple: (should_forward: bool, reasons: list[str], debug_meta: dict)
+        - If should_forward is True, reasons = ["OK"]
+        - If should_forward is False, reasons contains ALL failing filter codes
+        - debug_meta contains additional diagnostic info
+    """
+    reasons = []
+    debug_meta = {}
 
     # Check if manual test (placeholders detected)
     if data.get('entry') is None or data.get('sl') is None or data.get('tp') is None:
-        return True, "TEST MODE (Unresolved Placeholders)"
+        return True, ["TEST_MODE:Unresolved_Placeholders"], {'test_mode': True}
 
     # Check R:R ratio
     try:
@@ -388,13 +442,15 @@ def should_forward_alert(data: dict) -> tuple[bool, str]:
         sl = float(data['sl'])
         tp = float(data['tp'])
     except (ValueError, TypeError):
-         return True, "TEST MODE (Invalid Data Types)"
+        return True, ["TEST_MODE:Invalid_Data_Types"], {'test_mode': True}
+
     risk = abs(entry - sl)
     reward = abs(tp - entry)
     rr_ratio = reward / risk if risk > 0 else 0
+    debug_meta['rr_ratio'] = rr_ratio
 
     if rr_ratio < MIN_RR_RATIO:
-        return False, f"R:R {rr_ratio:.2f} below minimum {MIN_RR_RATIO}"
+        reasons.append(f"RR_BELOW_MIN:{rr_ratio:.2f}<{MIN_RR_RATIO}")
 
     # Check trading session
     if TRADING_SESSIONS:
@@ -408,8 +464,8 @@ def should_forward_alert(data: dict) -> tuple[bool, str]:
             end_time = now.replace(hour=end_hour, minute=end_min, second=0)
 
             if not (start_time <= now <= end_time):
-                return False, f"Outside trading session {TRADING_SESSIONS} UTC"
-        except:
+                reasons.append(f"OUTSIDE_SESSION:{TRADING_SESSIONS}_UTC")
+        except Exception:
             pass  # Invalid session format, skip filter
 
     # Check Swap Hours Filter
@@ -424,22 +480,34 @@ def should_forward_alert(data: dict) -> tuple[bool, str]:
             swap_end = now.replace(hour=end_hour, minute=end_min, second=0, microsecond=0)
 
             if swap_start <= now <= swap_end:
-                return False, f"Swap hours ({SWAP_HOURS_UTC} UTC) - spreads widen"
-        except:
+                reasons.append(f"SWAP_HOURS:{SWAP_HOURS_UTC}_UTC")
+        except Exception:
             pass  # Invalid swap hours format, skip filter
 
     # Check News Filter
     if NEWS_FILTER_ENABLED:
         if news_filter.is_news_imminent(data.get('symbol', '')):
-            return False, "High Impact News Imminent"
+            reasons.append("NEWS_IMMINENT")
 
     # Check AI Model Filter
-    if AI_FILTER_ENABLED and ai_model is not None:
-        win_prob = predict_win_probability(data)
-        if win_prob is not None and win_prob < AI_MIN_WIN_PROBABILITY:
-            return False, f"AI Win Probability {win_prob:.1%} below {AI_MIN_WIN_PROBABILITY:.1%}"
+    symbol = data.get('symbol', '').upper()
+    is_excluded_symbol = any(excl in symbol for excl in AI_FILTER_EXCLUDE_SYMBOLS)
 
-    return True, "OK"
+    if AI_FILTER_ENABLED and ai_model is not None:
+        if is_excluded_symbol:
+            debug_meta['ai_filter_skipped'] = f"Symbol {symbol} in AI_FILTER_EXCLUDE_SYMBOLS"
+            logger.info(f"AI filter skipped for {symbol} (in exclusion list)")
+        else:
+            win_prob = predict_win_probability(data)
+            debug_meta['ai_win_prob'] = win_prob
+            if win_prob is not None and win_prob < AI_MIN_WIN_PROBABILITY:
+                reasons.append(f"AI_WINPROB:{win_prob:.0%}<{AI_MIN_WIN_PROBABILITY:.0%}")
+
+    # Determine final result
+    if reasons:
+        return False, reasons, debug_meta
+    else:
+        return True, ["OK"], debug_meta
 
 
 def predict_win_probability(data: dict) -> Optional[float]:
@@ -639,20 +707,27 @@ def webhook():
                 'outcome': data['outcome'],
                 'close_price': data['close_price'],
                 'close_time': data.get('close_time'),
+                'exit_time': data.get('exit_time'),  # New: explicit exit time
+                'entry_time': data.get('entry_time'),  # New: from Pine
                 'pnl_r': data.get('pnl_r', 0),
+                'pnl_usd': data.get('pnl_usd'),  # New: actual USD P&L from strategy
                 'exit_type': data['exit_type'],
                 'mae_pips': data['mae_pips'],
                 'bars_held': data['bars_held']
             }
-            
-            success = supabase_db.update_alert_exit(data['zone_id'], exit_data)
-            
+
+            # Use trade_key for correlation if available (preferred), fallback to zone_id
+            trade_key = data.get('trade_key', '').strip()
+            success = supabase_db.update_alert_exit(data['zone_id'], exit_data, trade_key=trade_key)
+
             if not success:
-               logger.warning(f"No open trade found for zone_id {data['zone_id']}")
-               return jsonify({"status": "warning", "message": "No matching open trade found"}), 200
-               
-            logger.info(f"✅ Exit recorded for zone #{data['zone_id']}: {data['outcome']} | MAE: {data['mae_pips']:.1f} pips")
-            return jsonify({"status": "success", "zone_id": data['zone_id'], "outcome": data['outcome']}), 200
+                match_method = f"trade_key={trade_key}" if trade_key else f"zone_id={data['zone_id']}"
+                logger.warning(f"No open trade found for {match_method}")
+                return jsonify({"status": "warning", "message": "No matching open trade found", "match_method": match_method}), 200
+
+            pnl_display = f"${data.get('pnl_usd', 0):.2f}" if data.get('pnl_usd') else f"{data.get('pnl_r', 0):.2f}R"
+            logger.info(f"✅ Exit recorded for zone #{data['zone_id']}: {data['outcome']} | P&L: {pnl_display} | MAE: {data['mae_pips']:.1f} pips")
+            return jsonify({"status": "success", "zone_id": data['zone_id'], "outcome": data['outcome'], "pnl_usd": data.get('pnl_usd')}), 200
 
         # Validate Entry Fields
         required = ['symbol', 'side', 'entry', 'sl', 'tp', 'size']
@@ -678,31 +753,35 @@ def webhook():
         if data['side'].lower() not in ['buy', 'sell']:
             return jsonify({"status": "error", "message": "Invalid side"}), 400
 
-        # Check filters
-        should_forward, reason = should_forward_alert(data)
+        # Check filters (returns all failing reasons, not just first)
+        should_forward, filter_reasons, debug_meta = should_forward_alert(data)
 
         # Determine mode (paper or manual)
         mode = 'manual'
         symbol = data['symbol'].upper()
-        
+
         if PAPER_TRADING_ENABLED and PAPER_AUTO_EXECUTE:
             # Check if symbol should be paper traded
             if not PAPER_SYMBOLS or symbol in PAPER_SYMBOLS:
                 # Check max positions limit
                 if paper_trader and len(paper_trader.get_open_positions()) < PAPER_MAX_POSITIONS:
                     mode = 'paper'
-        
-        # Save to database
-        alert_id = save_alert(data, mode=mode)
+
+        # Save to database (include filter_reasons for filtered alerts)
+        alert_id = save_alert(data, mode=mode, filter_reasons=filter_reasons if not should_forward else None)
 
         if not should_forward:
-            logger.info(f"Alert #{alert_id} filtered: {reason}")
-            update_alert_status(alert_id, 'filtered', notes=reason)
+            # Join all reasons with separator for notes field
+            reason_str = "; ".join(filter_reasons)
+            logger.info(f"Alert #{alert_id} filtered: {reason_str}")
+            update_alert_status(alert_id, 'filtered', notes=reason_str)
             return jsonify({
                 "status": "filtered",
                 "alert_id": alert_id,
-                "reason": reason,
-                "mode": mode
+                "reasons": filter_reasons,
+                "reason": reason_str,  # Backward compatible single string
+                "mode": mode,
+                "debug": debug_meta
             }), 200
 
         # If paper trading mode, open virtual position
@@ -730,16 +809,24 @@ def webhook():
             logger.info(f"🔵 Paper position #{alert_id} opened automatically")
 
         # Send notifications (always send, even for paper trades)
-        discord_sent = send_discord(data, alert_id, mode=mode)
+        discord_sent, discord_error = send_discord(data, alert_id, mode=mode)
         telegram_sent = send_telegram(data, alert_id)
 
-        return jsonify({
+        response_data = {
             "status": "success",
             "alert_id": alert_id,
             "mode": mode,
-            "discord": discord_sent,
-            "telegram": telegram_sent
-        }), 200
+            "run_mode": data.get('run_mode', 'LIVE'),
+            "run_id": data.get('run_id', 'live-default'),
+            "discord_sent": discord_sent,
+            "telegram_sent": telegram_sent
+        }
+
+        # Include discord error if present
+        if discord_error:
+            response_data["discord_error"] = discord_error
+
+        return jsonify(response_data), 200
 
     except Exception as e:
         logger.error(f"Webhook error: {e}", exc_info=True)
@@ -767,24 +854,34 @@ def webhook_exit():
         exit_data = {
             'outcome': data['outcome'],
             'close_price': data['close_price'],
-            'close_time': data['close_time'],
+            'close_time': data.get('close_time'),
+            'exit_time': data.get('exit_time'),  # New: explicit exit time from Pine
+            'entry_time': data.get('entry_time'),  # New: from Pine
             'pnl_r': data.get('pnl_r', 0),  # P&L in R units
+            'pnl_usd': data.get('pnl_usd'),  # New: actual USD P&L from strategy
             'exit_type': data['exit_type'],
             'mae_pips': data['mae_pips'],
             'bars_held': data['bars_held']
         }
 
-        success = supabase_db.update_alert_exit(data['zone_id'], exit_data)
+        # Use trade_key for correlation if available (preferred), fallback to zone_id
+        trade_key = data.get('trade_key', '').strip()
+        success = supabase_db.update_alert_exit(data['zone_id'], exit_data, trade_key=trade_key)
 
         if not success:
-            logger.warning(f"No open trade found for zone_id {data['zone_id']}")
-            return jsonify({"status": "warning", "message": "No matching open trade found"}), 200
+            match_method = f"trade_key={trade_key}" if trade_key else f"zone_id={data['zone_id']}"
+            logger.warning(f"No open trade found for {match_method}")
+            return jsonify({"status": "warning", "message": "No matching open trade found", "match_method": match_method}), 200
 
-        logger.info(f"✅ Exit recorded for zone #{data['zone_id']}: {data['outcome']} | MAE: {data['mae_pips']:.1f} pips | Bars: {data['bars_held']}")
+        pnl_display = f"${data.get('pnl_usd', 0):.2f}" if data.get('pnl_usd') else f"{data.get('pnl_r', 0):.2f}R"
+        logger.info(f"✅ Exit recorded for zone #{data['zone_id']}: {data['outcome']} | P&L: {pnl_display} | MAE: {data['mae_pips']:.1f} pips | Bars: {data['bars_held']}")
         return jsonify({
             "status": "success",
             "zone_id": data['zone_id'],
-            "outcome": data['outcome']
+            "outcome": data['outcome'],
+            "pnl_usd": data.get('pnl_usd'),
+            "run_mode": data.get('run_mode', 'LIVE'),
+            "run_id": data.get('run_id', 'live-default')
         }), 200
 
     except Exception as e:
@@ -870,14 +967,34 @@ def position_size():
 
 @app.route('/health', methods=['GET'])
 def health():
-    """Health check."""
+    """Comprehensive health check."""
+    # Check Supabase connectivity
+    supabase_healthy = supabase_db.check_supabase_health()
+
+    # Check paper trader status
+    paper_trader_status = {
+        "enabled": PAPER_TRADING_ENABLED,
+        "auto_execute": PAPER_AUTO_EXECUTE,
+        "open_positions": len(paper_trader.get_open_positions()) if paper_trader else 0,
+        "max_positions": PAPER_MAX_POSITIONS
+    }
+
+    # Determine overall health
+    is_healthy = supabase_healthy
+
     return jsonify({
-        "status": "healthy",
-        "discord": bool(DISCORD_WEBHOOK_URL),
-        "telegram": bool(TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID),
-        "database": True,  # Supabase is always available
+        "status": "healthy" if is_healthy else "degraded",
+        "server": True,
+        "discord_configured": bool(DISCORD_WEBHOOK_URL),
+        "telegram_configured": bool(TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID),
+        "supabase_reachable": supabase_healthy,
+        "paper_trader": paper_trader_status,
         "ai_model_loaded": ai_model is not None,
         "ai_model_type": "universal" if 'universal' in str(MODEL_PATH) else "standard",
+        "ai_filter_enabled": AI_FILTER_ENABLED,
+        "ai_filter_exclude_symbols": AI_FILTER_EXCLUDE_SYMBOLS,
+        "news_filter_enabled": NEWS_FILTER_ENABLED,
+        "min_rr_ratio": MIN_RR_RATIO,
         "timestamp": datetime.utcnow().isoformat()
     })
 
@@ -895,37 +1012,72 @@ DASHBOARD_HTML = '''
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a2e; color: #eee; padding: 20px; }
-        .container { max-width: 1400px; margin: 0 auto; }
-        h1 { color: #00d4ff; margin-bottom: 20px; }
-        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
-        .stat-card { background: #16213e; padding: 20px; border-radius: 10px; text-align: center; }
-        .stat-value { font-size: 2em; font-weight: bold; color: #00d4ff; }
-        .stat-label { color: #888; margin-top: 5px; }
+        .container { max-width: 1600px; margin: 0 auto; }
+        h1 { color: #00d4ff; margin-bottom: 10px; }
+        .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+        .mode-badge { padding: 5px 12px; border-radius: 4px; font-size: 0.85em; font-weight: bold; }
+        .mode-live { background: #00ff88; color: #1a1a2e; }
+        .mode-backtest { background: #ff9900; color: #1a1a2e; }
+        .mode-replay { background: #9966ff; color: #fff; }
+        .mode-selector { display: flex; gap: 10px; align-items: center; }
+        .mode-selector select { padding: 8px 12px; border-radius: 5px; border: 1px solid #2a2a4a; background: #16213e; color: #eee; font-size: 0.9em; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        .stat-card { background: #16213e; padding: 15px; border-radius: 10px; text-align: center; }
+        .stat-value { font-size: 1.8em; font-weight: bold; color: #00d4ff; }
+        .stat-label { color: #888; margin-top: 5px; font-size: 0.85em; }
         .win { color: #00ff88; }
         .loss { color: #ff4444; }
-        table { width: 100%; border-collapse: collapse; background: #16213e; border-radius: 10px; overflow: hidden; font-size: 0.95em; }
-        th, td { padding: 12px 15px; text-align: center; border-bottom: 1px solid #2a2a4a; white-space: nowrap; }
-        th { background: #0f3460; color: #00d4ff; font-weight: 600; text-transform: uppercase; font-size: 0.85em; letter-spacing: 0.5px; }
+        table { width: 100%; border-collapse: collapse; background: #16213e; border-radius: 10px; overflow: hidden; font-size: 0.85em; }
+        th, td { padding: 10px 8px; text-align: center; border-bottom: 1px solid #2a2a4a; white-space: nowrap; }
+        th { background: #0f3460; color: #00d4ff; font-weight: 600; text-transform: uppercase; font-size: 0.75em; letter-spacing: 0.5px; position: sticky; top: 0; }
         td { color: #ddd; }
         tr:hover { background: #1f3a5f; }
-        td:nth-child(3), th:nth-child(3) { text-align: left; font-weight: bold; } /* Symbol left align */
-        .status-taken { color: #00ff88; background: rgba(0, 255, 136, 0.1); padding: 4px 8px; border-radius: 4px; }
-        .status-skipped { color: #888; background: rgba(136, 136, 136, 0.1); padding: 4px 8px; border-radius: 4px; }
-        .status-missed { color: #ff4444; background: rgba(255, 68, 68, 0.1); padding: 4px 8px; border-radius: 4px; }
-        .status-pending { color: #ffaa00; background: rgba(255, 170, 0, 0.1); padding: 4px 8px; border-radius: 4px; }
-        .status-filtered { color: #666; }
+        .symbol-col { text-align: left; font-weight: bold; }
+        .status-active { color: #00d4ff; background: rgba(0, 212, 255, 0.1); padding: 3px 6px; border-radius: 4px; }
+        .status-taken { color: #00ff88; background: rgba(0, 255, 136, 0.1); padding: 3px 6px; border-radius: 4px; }
+        .status-closed { color: #00ff88; background: rgba(0, 255, 136, 0.1); padding: 3px 6px; border-radius: 4px; }
+        .status-skipped { color: #888; background: rgba(136, 136, 136, 0.1); padding: 3px 6px; border-radius: 4px; }
+        .status-missed { color: #ff4444; background: rgba(255, 68, 68, 0.1); padding: 3px 6px; border-radius: 4px; }
+        .status-pending { color: #ffaa00; background: rgba(255, 170, 0, 0.1); padding: 3px 6px; border-radius: 4px; }
+        .status-filtered { color: #666; background: rgba(102, 102, 102, 0.1); padding: 3px 6px; border-radius: 4px; }
         .buy { color: #00ff88; font-weight: bold; }
         .sell { color: #ff4444; font-weight: bold; }
-        .refresh-btn { background: #00d4ff; color: #1a1a2e; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin-bottom: 20px; font-weight: bold; }
+        .outcome-win { color: #00ff88; font-weight: bold; }
+        .outcome-loss { color: #ff4444; font-weight: bold; }
+        .pnl-positive { color: #00ff88; }
+        .pnl-negative { color: #ff4444; }
+        .filter-reason { color: #ff9900; font-size: 0.8em; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+        .refresh-btn { background: #00d4ff; color: #1a1a2e; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 0.9em; }
         .refresh-btn:hover { background: #00b4df; }
-        .actions a { color: #00d4ff; text-decoration: none; margin: 0 5px; font-size: 0.9em; }
+        .actions a { color: #00d4ff; text-decoration: none; margin: 0 3px; font-size: 0.85em; }
         .actions a:hover { text-decoration: underline; }
+        .time-col { font-size: 0.8em; color: #999; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Trading Dashboard</h1>
-        <button class="refresh-btn" onclick="location.reload()">Refresh</button>
+        <div class="header-row">
+            <div>
+                <h1>Trading Dashboard</h1>
+                <span class="mode-badge mode-{{ current_mode|lower }}">{{ current_mode }}</span>
+                {% if current_run_id and current_run_id != 'live-default' %}
+                <span style="color:#888; margin-left:10px;">Run: {{ current_run_id }}</span>
+                {% endif %}
+            </div>
+            <div class="mode-selector">
+                <form method="get" action="/" style="display:flex; gap:10px; align-items:center;">
+                    <select name="mode" onchange="this.form.submit()">
+                        <option value="LIVE" {% if current_mode == 'LIVE' %}selected{% endif %}>LIVE</option>
+                        <option value="BACKTEST" {% if current_mode == 'BACKTEST' %}selected{% endif %}>BACKTEST</option>
+                        <option value="REPLAY" {% if current_mode == 'REPLAY' %}selected{% endif %}>REPLAY</option>
+                        <option value="" {% if not current_mode %}selected{% endif %}>ALL</option>
+                    </select>
+                    <input type="text" name="run_id" placeholder="Run ID (optional)" value="{{ current_run_id or '' }}" style="padding:8px; border-radius:5px; border:1px solid #2a2a4a; background:#16213e; color:#eee; width:150px;">
+                    <button type="submit" class="refresh-btn">Filter</button>
+                </form>
+                <button class="refresh-btn" onclick="location.reload()">Refresh</button>
+            </div>
+        </div>
 
         <div class="stats-grid">
             <div class="stat-card">
@@ -935,6 +1087,18 @@ DASHBOARD_HTML = '''
             <div class="stat-card">
                 <div class="stat-value">{{ stats.today_alerts }}</div>
                 <div class="stat-label">Today</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ stats.active_count }}</div>
+                <div class="stat-label">Active</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ stats.closed_count }}</div>
+                <div class="stat-label">Closed</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color:#ff9900;">{{ stats.filtered_count }}</div>
+                <div class="stat-label">Filtered</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value {% if stats.win_rate >= 50 %}win{% else %}loss{% endif %}">{{ "%.1f"|format(stats.win_rate) }}%</div>
@@ -948,31 +1112,27 @@ DASHBOARD_HTML = '''
                 <div class="stat-value">{{ "%.2f"|format(stats.avg_rr) }}</div>
                 <div class="stat-label">Avg R:R</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-value">{{ stats.by_status.get('taken', 0) }}</div>
-                <div class="stat-label">Trades Taken</div>
-            </div>
         </div>
 
         <h2 style="margin-bottom: 15px;">Recent Alerts</h2>
-        <div style="overflow-x: auto;">
+        <div style="overflow-x: auto; max-height: 600px; overflow-y: auto;">
         <table>
             <thead>
                 <tr>
                     <th>ID</th>
-                    <th>Time</th>
+                    <th>Open Time</th>
+                    <th>Close Time</th>
                     <th>Symbol</th>
                     <th>Side</th>
-                    <th>Zone</th>
-                    <th>Type</th>
                     <th>Entry</th>
                     <th>SL</th>
                     <th>TP</th>
                     <th>R:R</th>
-                    <th>Model</th>
-                    <th>Liq</th>
-                    <th>Target</th>
                     <th>Status</th>
+                    <th>Outcome</th>
+                    <th>P&L ($)</th>
+                    <th>P&L (R)</th>
+                    <th>Filter Reason</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -980,21 +1140,55 @@ DASHBOARD_HTML = '''
                 {% for alert in alerts %}
                 <tr>
                     <td>#{{ alert.id }}</td>
-                    <td>{{ alert.created_at | jerusalem_time }}</td>
-                    <td><strong>{{ alert.symbol }}</strong></td>
+                    <td class="time-col">{{ (alert.entry_time or alert.created_at) | jerusalem_time }}</td>
+                    <td class="time-col">{{ alert.exit_time | jerusalem_time if alert.exit_time else (alert.close_time | jerusalem_time if alert.close_time else '-') }}</td>
+                    <td class="symbol-col"><strong>{{ alert.symbol }}</strong></td>
                     <td class="{{ alert.side }}">{{ alert.side|upper }}</td>
-                    <td>{% if alert.zone_type == 'demand' %}<span style="color:#00ff88">▲ DEM</span>{% elif alert.zone_type == 'supply' %}<span style="color:#ff4444">▼ SUP</span>{% else %}-{% endif %}</td>
-                    <td>{% if alert.is_accuracy %}<span style="color:#ffd700">⭐ ACC</span>{% else %}<span style="color:#888">Normal</span>{% endif %}</td>
                     <td style="color:#00d4ff">{{ alert.entry }}</td>
                     <td style="color:#ff4444">{{ alert.sl }}</td>
                     <td style="color:#00ff88">{{ alert.tp }}</td>
                     <td>1:{{ "%.2f"|format(alert.rr_ratio or 0) }}</td>
-                    <td>{{ alert.entry_model or '-' }}</td>
-                    <td>{% if alert.liq_swept %}<span style="color:#00ff88">✓</span>{% else %}<span style="color:#666">✗</span>{% endif %}</td>
-                    <td>{% if alert.target_swept %}<span style="color:#00ff88">✓</span>{% else %}<span style="color:#666">✗</span>{% endif %}</td>
-                    <td class="status-{{ alert.status }}">{{ alert.status }}</td>
+                    <td><span class="status-{{ alert.status }}">{{ alert.status }}</span></td>
+                    <td>
+                        {% if alert.outcome == 'win' %}
+                        <span class="outcome-win">WIN</span>
+                        {% elif alert.outcome == 'loss' %}
+                        <span class="outcome-loss">LOSS</span>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if alert.pnl_usd is not none %}
+                        <span class="{% if alert.pnl_usd >= 0 %}pnl-positive{% else %}pnl-negative{% endif %}">
+                            ${{ "%.2f"|format(alert.pnl_usd) }}
+                        </span>
+                        {% elif alert.pnl is not none %}
+                        <span class="{% if alert.pnl >= 0 %}pnl-positive{% else %}pnl-negative{% endif %}">
+                            ${{ "%.2f"|format(alert.pnl) }}
+                        </span>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if alert.pnl_r is not none %}
+                        <span class="{% if alert.pnl_r >= 0 %}pnl-positive{% else %}pnl-negative{% endif %}">
+                            {{ "%.2f"|format(alert.pnl_r) }}R
+                        </span>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td class="filter-reason" title="{{ alert.notes or '' }}">
+                        {% if alert.status == 'filtered' %}
+                        {{ alert.notes or '-' }}
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
                     <td class="actions">
-                        {% if alert.status == 'pending' %}
+                        {% if alert.status == 'pending' or alert.status == 'active' %}
                         <a href="/alert/{{ alert.id }}/taken">Taken</a>
                         <a href="/alert/{{ alert.id }}/skipped">Skip</a>
                         {% endif %}
@@ -1011,10 +1205,25 @@ DASHBOARD_HTML = '''
 
 @app.route('/', methods=['GET'])
 def dashboard():
-    """Web dashboard."""
-    stats = get_statistics()
-    alerts = get_recent_alerts(50)
-    return render_template_string(DASHBOARD_HTML, stats=stats, alerts=alerts)
+    """Web dashboard with run_mode/run_id filtering."""
+    # Get filter parameters from query string
+    run_mode = request.args.get('mode', 'LIVE')  # Default to LIVE
+    run_id = request.args.get('run_id', '').strip() or None
+
+    # Handle "ALL" mode (empty string means no filter)
+    if run_mode == '':
+        run_mode = None
+
+    stats = get_statistics(run_mode=run_mode, run_id=run_id)
+    alerts = get_recent_alerts(100, run_mode=run_mode, run_id=run_id)
+
+    return render_template_string(
+        DASHBOARD_HTML,
+        stats=stats,
+        alerts=alerts,
+        current_mode=run_mode or 'ALL',
+        current_run_id=run_id
+    )
 
 
 # =============================================================================
@@ -1024,38 +1233,74 @@ def dashboard():
 def main():
     """Main entry point."""
     logger.info("=" * 60)
-    logger.info("Trading Alert Server v4.0 - Full Featured")
+    logger.info("Trading Alert Server v5.0 - Enhanced Telemetry Edition")
     logger.info("=" * 60)
 
     # Initialize database
     init_db()
 
-    # Check configuration
+    # === NOTIFICATION CHANNELS ===
+    logger.info("")
+    logger.info("📢 NOTIFICATION CHANNELS:")
     if not DISCORD_WEBHOOK_URL and not TELEGRAM_BOT_TOKEN:
-        logger.warning("No notification channels configured!")
-        logger.warning("Add DISCORD_WEBHOOK_URL or TELEGRAM_BOT_TOKEN to .env")
-
+        logger.warning("  ⚠️ No notification channels configured!")
+        logger.warning("  Add DISCORD_WEBHOOK_URL or TELEGRAM_BOT_TOKEN to .env")
     if DISCORD_WEBHOOK_URL:
-        logger.info(f"Discord: Configured")
-    if TELEGRAM_BOT_TOKEN:
-        logger.info(f"Telegram: Configured")
-
-    logger.info(f"Min R:R Filter: {MIN_RR_RATIO}")
-    if TRADING_SESSIONS:
-        logger.info(f"Trading Sessions: {TRADING_SESSIONS} UTC")
-
-    logger.info("")
-    logger.info(f"Dashboard: http://localhost:{WEBHOOK_PORT}/")
-    logger.info(f"Webhook: http://localhost:{WEBHOOK_PORT}/webhook")
-    logger.info(f"Stats API: http://localhost:{WEBHOOK_PORT}/stats")
-    
-    if ai_model:
-        logger.info(f"🧠 AI Model: LOADED ({'Universal' if 'universal' in str(MODEL_PATH) else 'Standard'})")
+        logger.info("  ✅ Discord: Configured")
     else:
-        logger.warning("⚠️ AI Model: NOT LOADED (Check MODEL_PATH)")
+        logger.info("  ❌ Discord: Not configured")
+    if TELEGRAM_BOT_TOKEN:
+        logger.info("  ✅ Telegram: Configured")
+    else:
+        logger.info("  ❌ Telegram: Not configured")
+
+    # === FILTERS ===
+    logger.info("")
+    logger.info("🔍 FILTERS:")
+    logger.info(f"  Min R:R Ratio: {MIN_RR_RATIO}")
+    if TRADING_SESSIONS:
+        logger.info(f"  Trading Sessions: {TRADING_SESSIONS} UTC")
+    else:
+        logger.info("  Trading Sessions: Disabled (24/7)")
+    logger.info(f"  Swap Hours Filter: {'Enabled' if SWAP_HOURS_ENABLED else 'Disabled'} ({SWAP_HOURS_UTC} UTC)")
+    logger.info(f"  News Filter: {'Enabled' if NEWS_FILTER_ENABLED else 'Disabled'}")
+
+    # === AI MODEL ===
+    logger.info("")
+    logger.info("🧠 AI MODEL:")
+    if ai_model:
+        model_type = 'Universal' if 'universal' in str(MODEL_PATH) else 'Standard'
+        logger.info(f"  ✅ Status: LOADED ({model_type})")
+        logger.info(f"  AI Filter: {'Enabled' if AI_FILTER_ENABLED else 'Disabled'}")
+        logger.info(f"  Min Win Probability: {AI_MIN_WIN_PROBABILITY:.0%}")
+        logger.info(f"  Excluded Symbols: {', '.join(AI_FILTER_EXCLUDE_SYMBOLS) if AI_FILTER_EXCLUDE_SYMBOLS else 'None'}")
+    else:
+        logger.warning("  ⚠️ Status: NOT LOADED (Check MODEL_PATH)")
+
+    # === PAPER TRADING ===
+    logger.info("")
+    logger.info("📝 PAPER TRADING:")
+    logger.info(f"  Enabled: {PAPER_TRADING_ENABLED}")
+    if PAPER_TRADING_ENABLED:
+        logger.info(f"  Auto-Execute: {PAPER_AUTO_EXECUTE}")
+        logger.info(f"  Max Positions: {PAPER_MAX_POSITIONS}")
+        logger.info(f"  Symbols: {', '.join(PAPER_SYMBOLS) if PAPER_SYMBOLS else 'All'}")
+        if paper_trader:
+            open_pos = len(paper_trader.get_open_positions())
+            logger.info(f"  Open Positions: {open_pos}")
+
+    # === ENDPOINTS ===
+    logger.info("")
+    logger.info("🌐 ENDPOINTS:")
+    logger.info(f"  Dashboard: http://localhost:{WEBHOOK_PORT}/")
+    logger.info(f"  Webhook: http://localhost:{WEBHOOK_PORT}/webhook")
+    logger.info(f"  Health: http://localhost:{WEBHOOK_PORT}/health")
+    logger.info(f"  Stats API: http://localhost:{WEBHOOK_PORT}/stats")
 
     logger.info("")
-    logger.info("Press Ctrl+C to stop.")
+    logger.info("=" * 60)
+    logger.info("Server starting... Press Ctrl+C to stop.")
+    logger.info("=" * 60)
 
     app.run(host='0.0.0.0', port=WEBHOOK_PORT, debug=False)
 
