@@ -8,6 +8,7 @@ import json
 import logging
 import re
 from typing import Any
+from urllib.parse import parse_qs
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -44,12 +45,28 @@ def get_redis():
 
 
 def validate_webhook_secret(request: Request, secret: str | None) -> None:
-    """Verify webhook secret if configured. Raises HTTPException if invalid."""
+    """Verify webhook secret if configured. Raises HTTPException if invalid.
+    Accepts: X-Webhook-Secret header, Authorization: Bearer <secret>, or ?secret= in query (for TradingView).
+    """
     settings = get_settings()
     if not settings.webhook_secret:
         return
-    provided = secret or request.headers.get("X-Webhook-Secret") or request.headers.get("Authorization", "").replace("Bearer ", "")
-    if provided != settings.webhook_secret:
+    # Query param (TradingView can't send headers)
+    query_secret = None
+    if request.url.query:
+        qs = parse_qs(request.url.query)
+        secrets = qs.get("secret", qs.get("Secret", []))
+        query_secret = secrets[0] if secrets else None
+    provided = (
+        (secret or "").strip()
+        or (request.headers.get("X-Webhook-Secret") or "").strip()
+        or (request.headers.get("Authorization") or "").replace("Bearer ", "").strip()
+        or (request.query_params.get("secret") or "").strip()
+        or (query_secret or "").strip()
+    )
+    expected = (settings.webhook_secret or "").strip().strip('"').strip("'")
+    provided = provided.strip('"').strip("'")
+    if not provided or provided != expected:
         raise HTTPException(status_code=401, detail="Invalid webhook secret")
 
 
