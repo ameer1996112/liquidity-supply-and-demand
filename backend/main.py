@@ -7,11 +7,13 @@ No database, no business logic, no trade execution.
 import json
 import logging
 import re
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import parse_qs
 
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from config import get_settings
 
@@ -109,6 +111,94 @@ def validate_exit_payload(data: dict) -> None:
         raise HTTPException(status_code=400, detail=f"Missing exit fields: {missing}")
 
 
+# -----------------------------------------------------------------------------
+# Pydantic models for webhook payload validation (422 on invalid/missing body)
+# -----------------------------------------------------------------------------
+
+
+class ExitWebhookPayload(BaseModel):
+    """Payload for trade exit events."""
+
+    model_config = {"extra": "allow"}
+
+    event_type: Literal["exit"] = Field(..., description="Must be 'exit'")
+    zone_id: int = Field(..., description="Zone ID to update")
+    outcome: str = Field(..., description="win, loss, breakeven")
+    bars_held: int = Field(..., description="Bars position was held")
+    close_price: float = Field(..., description="Exit price")
+    exit_type: str = Field(..., description="tp, sl, etc.")
+    mae_pips: float = Field(..., description="Max adverse excursion in pips")
+
+
+class EntryWebhookPayload(BaseModel):
+    """Payload for trade entry / signal events."""
+
+    model_config = {"extra": "allow"}
+
+    symbol: str = Field(..., min_length=1, description="Instrument symbol")
+    side: str = Field(..., description="buy or sell")
+    entry: float = Field(..., description="Entry price")
+    sl: float = Field(..., description="Stop loss price")
+    tp: float = Field(..., description="Take profit price")
+    size: float = Field(..., description="Position size")
+    event_type: str | None = Field(None, description="If 'exit', use exit payload instead")
+
+    @model_validator(mode="after")
+    def side_must_be_buy_or_sell(self) -> "EntryWebhookPayload":
+        if str(self.side).lower() not in ("buy", "sell"):
+            raise ValueError("side must be 'buy' or 'sell'")
+        return self
+
+
+def _validate_webhook_payload(data: dict[str, Any]) -> dict[str, Any]:
+    """
+    Validate parsed body as either Entry or Exit payload.
+    Returns the same dict (for Redis); raises RequestValidationError on failure.
+    """
+    if not data or not isinstance(data, dict):
+        raise RequestValidationError(errors=[{"type": "value_error", "loc": ("body",), "msg": "Empty or invalid body"}])
+
+    event_type = data.get("event_type")
+    if event_type == "exit":
+        try:
+            ExitWebhookPayload.model_validate(data)
+        except ValidationError as e:
+            raise RequestValidationError(errors=e.errors()) from e
+    else:
+        try:
+            EntryWebhookPayload.model_validate(data)
+        except ValidationError as e:
+            raise RequestValidationError(errors=e.errors()) from e
+    return data
+
+
+async def get_webhook_payload(
+    request: Request,
+    x_webhook_secret: str | None = Header(None),
+) -> dict[str, Any]:
+    """
+    Dependency: validate secret, read body, log raw body, parse, validate with Pydantic.
+    Returns validated payload dict for Redis. Raises 401/422 as appropriate.
+    """
+    validate_webhook_secret(request, x_webhook_secret)
+
+    raw = await request.body()
+    # Debug: log raw body (truncate if large)
+    raw_preview = raw[:500] if len(raw) > 500 else raw
+    logger.info("Webhook raw body (len=%d, content_type=%s): %s", len(raw), request.headers.get("content-type", ""), raw_preview.decode("utf-8", errors="replace"))
+
+    try:
+        data = parse_body(raw)
+    except HTTPException:
+        raise
+    if data is None:
+        raise RequestValidationError(errors=[{"type": "value_error", "loc": ("body",), "msg": "Body could not be parsed"}])
+    if not isinstance(data, dict):
+        raise RequestValidationError(errors=[{"type": "value_error", "loc": ("body",), "msg": "Body must be a JSON object"}])
+
+    return _validate_webhook_payload(data)
+
+
 QUEUE_NAME = "trading_queue"
 
 
@@ -119,26 +209,13 @@ def health():
 
 
 @app.post("/webhook")
-async def webhook(
-    request: Request,
-    x_webhook_secret: str | None = Header(None),
-):
+async def webhook(payload: dict[str, Any] = Depends(get_webhook_payload)):
     """
     Receive TradingView (or other) webhook.
+    Secret + body validation via get_webhook_payload (422 if body missing/invalid).
     Validate -> Push to Redis -> Return 200. No DB, no execution.
     """
-    validate_webhook_secret(request, x_webhook_secret)
-
-    raw = await request.body()
-    data = parse_body(raw)
-
-    # Exit events: same rule — validate and queue
-    if data.get("event_type") == "exit":
-        validate_exit_payload(data)
-    else:
-        validate_entry_payload(data)
-
-    payload_str = json.dumps(data)
+    payload_str = json.dumps(payload)
     r = get_redis()
     r.rpush(QUEUE_NAME, payload_str)
     logger.info("Queued payload (len=%d)", len(payload_str))
