@@ -129,7 +129,18 @@ async def _run_ai_validation(data: Dict[str, Any]) -> Tuple[bool, Optional[str],
                 reason = f"AI REJECT: {result.reasoning}"
             return False, reason, result_dict
 
-        # APPROVE - check confidence threshold
+        # Fail-open: AI returned APPROVE due to error/timeout (e.g. openai not installed)
+        # Do not apply confidence threshold so the trade is allowed
+        is_fail_open = (
+            "SKIP_CHECK" in (result.reasoning or "")
+            or "fail-open" in (result.reasoning or "").lower()
+            or result.rule_checks.get("error")
+            or result.rule_checks.get("timeout")
+        )
+        if is_fail_open:
+            return True, None, result_dict
+
+        # APPROVE - check confidence threshold (only for real AI decisions)
         settings = get_settings()
         if result.confidence < settings.ai_min_confidence:
             reason = f"AI confidence too low ({result.confidence}% < {settings.ai_min_confidence}%): {result.reasoning}"
