@@ -1,0 +1,267 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © ameer_1996112
+
+//@version=6
+library("SND_Utils", overlay=true)
+
+// ══════════════════════════════════════════════════════════
+// SND_Utils - Helper Library for Supply & Demand Strategy
+// ══════════════════════════════════════════════════════════
+// Contains: Generic math, formatting, and helper functions
+// NO inputs, NO strategy.* calls, NO direct chart data access
+// All series data must be passed as parameters
+
+// === CONSTANTS ===
+// Contract sizes
+const float FOREX_LOT_SIZE = 100000.0
+const float GOLD_LOT_SIZE = 100.0
+const float SILVER_LOT_SIZE = 5000.0
+const float CRYPTO_LOT_SIZE = 1.0
+
+// Default fallback values
+const float USDJPY_FALLBACK = 150.0
+
+// ══════════════════════════════════════════════════════════
+// === PIP SIZE DETECTION ===
+// ══════════════════════════════════════════════════════════
+
+// Auto-detect pip size based on symbol (always enabled for simplicity)
+// @param ticker The symbol ticker string (use syminfo.ticker)
+// @param mintick The minimum tick size (use syminfo.mintick)
+// @returns The pip size for the symbol
+export get_auto_pip_size(string ticker, float mintick) =>
+    // INDICES: Use 1.0 to represent 1 POINT (not tick size)
+    // NAS100: 1 pip = 1.0 point, tick = 0.25
+    if str.contains(ticker, "NAS") or str.contains(ticker, "US100") or str.contains(ticker, "NDX")
+        1.0  // NAS100: 1 pip = 1 point
+    else if str.contains(ticker, "SPX") or str.contains(ticker, "US500") or str.contains(ticker, "SPY")
+        1.0  // S&P 500: 1 pip = 1 point
+    else if str.contains(ticker, "US30") or str.contains(ticker, "DJI")
+        1.0  // Dow Jones: 1 pip = 1 point
+    else if str.contains(ticker, "JPY")
+        0.01  // JPY pairs (USDJPY, GBPJPY, EURJPY, etc.)
+    else if str.contains(ticker, "XAU") or str.contains(ticker, "GOLD")
+        0.01   // Gold (User preference: 10c = 10 pips, 1$ = 100 pips)
+    else if str.contains(ticker, "XAG") or str.contains(ticker, "SILVER")
+        0.01  // Silver
+    else if str.contains(ticker, "BTC") or str.contains(ticker, "ETH")
+        1.0   // Crypto
+    else if mintick >= 0.01
+        0.01  // 2 decimal places (like JPY)
+    else
+        0.0001  // Standard forex pairs (4-5 decimal places)
+
+// Convert price to pips
+// @param x The price value to convert
+// @param pip_size The pip size for the current symbol
+// @returns The value in pips
+export get_pip(float x, float pip_size) =>
+    x / pip_size
+
+// ══════════════════════════════════════════════════════════
+// === CANDLE HELPERS ===
+// ══════════════════════════════════════════════════════════
+
+// Check if candle is bullish
+// @param c_close Close price
+// @param c_open Open price
+// @returns True if bullish (close > open)
+export is_bullish(float c_close, float c_open) =>
+    c_close > c_open
+
+// Check if candle is bearish
+// @param c_close Close price
+// @param c_open Open price
+// @returns True if bearish (close < open)
+export is_bearish(float c_close, float c_open) =>
+    c_close < c_open
+
+// Check if candle is strong bullish (body > 50% of range)
+// @param c_close Close price
+// @param c_open Open price
+// @param c_high High price
+// @param c_low Low price
+// @returns True if strong bullish
+export is_strong_bull(float c_close, float c_open, float c_high, float c_low) =>
+    float range_size = c_high - c_low
+    c_close > c_open and range_size > 0 and (math.abs(c_close - c_open) / range_size > 0.5)
+
+// Check if candle is strong bearish (body > 50% of range)
+// @param c_close Close price
+// @param c_open Open price
+// @param c_high High price
+// @param c_low Low price
+// @returns True if strong bearish
+export is_strong_bear(float c_close, float c_open, float c_high, float c_low) =>
+    float range_size = c_high - c_low
+    c_close < c_open and range_size > 0 and (math.abs(c_close - c_open) / range_size > 0.5)
+
+// ══════════════════════════════════════════════════════════
+// === CURRENCY CONVERSION ===
+// ══════════════════════════════════════════════════════════
+
+// Helper: Get conversion rate from Quote Currency to USD
+// Returns: How many USD is 1 unit of Quote Currency worth?
+// @param quote_curr The quote currency code (e.g., "CAD", "JPY", "GBP")
+// @param rate_usdcad USDCAD rate
+// @param rate_usdchf USDCHF rate
+// @param rate_gbpusd GBPUSD rate
+// @param rate_audusd AUDUSD rate
+// @param rate_nzdusd NZDUSD rate
+// @param rate_eurusd EURUSD rate
+// @param usdjpy_rate USDJPY rate
+// @returns Conversion rate from quote currency to USD
+export get_quote_to_usd_rate(string quote_curr, float rate_usdcad, float rate_usdchf, float rate_gbpusd, float rate_audusd, float rate_nzdusd, float rate_eurusd, float usdjpy_rate) =>
+    float rate = 1.0
+    if quote_curr == "USD"
+        rate := 1.0
+    else if quote_curr == "CAD"
+        rate := 1.0 / (na(rate_usdcad) ? 1.40 : rate_usdcad) // Fallback 1.40
+    else if quote_curr == "CHF"
+        rate := 1.0 / (na(rate_usdchf) ? 0.90 : rate_usdchf) // Fallback 0.90
+    else if quote_curr == "JPY"
+        rate := 1.0 / (na(usdjpy_rate) ? USDJPY_FALLBACK : usdjpy_rate) // Fallback 150
+    else if quote_curr == "GBP"
+        rate := na(rate_gbpusd) ? 1.30 : rate_gbpusd      // Fallback 1.30
+    else if quote_curr == "AUD"
+        rate := na(rate_audusd) ? 0.65 : rate_audusd      // Fallback 0.65
+    else if quote_curr == "NZD"
+        rate := na(rate_nzdusd) ? 0.60 : rate_nzdusd      // Fallback 0.60
+    else if quote_curr == "EUR"
+        rate := na(rate_eurusd) ? 1.05 : rate_eurusd      // Fallback 1.05
+    else
+        // Unknown currency (e.g. MXN, ZAR) - Default to 1.0 (imperfect but better than 0)
+        rate := 1.0
+    rate
+
+// Helper: bucket symbol type for RR stats
+// @param ticker The symbol ticker
+// @returns "XAU", "JPY", or "OTHER"
+export get_symbol_bucket(string ticker) =>
+    if str.contains(ticker, "XAU")
+        "XAU"
+    else if str.contains(ticker, "JPY")
+        "JPY"
+    else
+        "OTHER"
+
+// ══════════════════════════════════════════════════════════
+// === FORMATTING & MATH HELPERS ===
+// ══════════════════════════════════════════════════════════
+
+// Helper to ensure valid JSON number format (dot decimal, no thousands separator)
+// @param val The value to format
+// @param fmt The format string (e.g., "#.##")
+// @returns JSON-compatible number string
+export to_json_num(float val, string fmt) =>
+    if na(val)
+        "null"
+    else
+        string s = str.tostring(val, fmt)
+        // Remove potential thousands separators (if any) and ensure dot decimal
+        str.replace(s, ",", ".")
+
+// Converts position size in units to lots based on symbol type
+// @param units Position size in units
+// @param ticker The symbol ticker
+// @returns Position size in lots
+export units_to_lots(float units, string ticker) =>
+    float lot_size = FOREX_LOT_SIZE  // Default forex
+    if str.contains(ticker, "XAU") or str.contains(ticker, "GOLD")
+        lot_size := GOLD_LOT_SIZE      // Gold: 100 oz per lot
+    else if str.contains(ticker, "XAG") or str.contains(ticker, "SILVER")
+        lot_size := SILVER_LOT_SIZE     // Silver: 5000 oz per lot
+    else if str.contains(ticker, "BTC") or str.contains(ticker, "ETH")
+        lot_size := CRYPTO_LOT_SIZE        // Crypto: 1 unit per lot
+    units / lot_size
+
+// Helper: safe percentage (returns 0.0 instead of na to avoid NaN in tables)
+// @param wins Number of wins
+// @param total Total number
+// @returns Percentage (0.0 if total is 0)
+export safe_percent(int wins, int total) =>
+    total > 0 ? (wins * 100.0) / total : 0.0
+
+// ══════════════════════════════════════════════════════════
+// === WEBHOOK PAYLOAD BUILDERS ===
+// ══════════════════════════════════════════════════════════
+
+// Builds JSON payload for webhook alert to Discord-MT5 bridge
+// Returns: JSON string with trade details + Zone Inspector data + AI Features
+// @param pip_size The pip size for the current symbol
+// @returns JSON string payload
+export build_webhook_payload(
+     string _symbol, string _side, float _entry, float _sl, float _tp, float _size_lots,
+     int _zone_id, string _zone_type, float _zone_top, float _zone_bottom,
+     float _rr_ratio, float _sl_pips, string _entry_model,
+     bool _liq_swept, bool _target_swept, bool _caused_sweep, bool _is_accuracy,
+     float _score, int _freshness, int _session, float _atr_ratio,
+     int _trend, float _rsi, int _htf_trend, float _rvol, float _adx,
+     int _touch_count, float _base_quality, float _departure_strength,
+     float _liq_distance, float _liq_spread, float _return_strength,
+     float pip_size, bool include_zone_id) =>
+
+    string payload = '{"symbol":"' + _symbol + '"'
+    payload := payload + ',"side":"' + _side + '"'
+    payload := payload + ',"entry":' + to_json_num(_entry, "#.##########")
+    payload := payload + ',"sl":' + to_json_num(_sl, "#.##########")
+    payload := payload + ',"tp":' + to_json_num(_tp, "#.##########")
+    payload := payload + ',"size":' + to_json_num(_size_lots, "#.##")
+
+    // Zone Inspector Data
+    if include_zone_id and not na(_zone_id)
+        payload := payload + ',"zone_id":' + to_json_num(float(_zone_id), "#")
+    payload := payload + ',"zone_type":"' + _zone_type + '"'
+
+    if not na(_zone_top) and not na(_zone_bottom)
+        payload := payload + ',"zone_top":' + to_json_num(_zone_top, "#.##########")
+        payload := payload + ',"zone_bottom":' + to_json_num(_zone_bottom, "#.##########")
+        float zone_size_pips = (_zone_top - _zone_bottom) / pip_size
+        payload := payload + ',"zone_size_pips":' + to_json_num(zone_size_pips, "#.#")
+
+    if not na(_rr_ratio)
+        payload := payload + ',"rr_ratio":' + to_json_num(_rr_ratio, "#.##")
+    if not na(_sl_pips)
+        payload := payload + ',"sl_pips":' + to_json_num(_sl_pips, "#.#")
+
+    payload := payload + ',"entry_model":"' + _entry_model + '"'
+    payload := payload + ',"liq_swept":' + (_liq_swept ? "true" : "false")
+    payload := payload + ',"target_swept":' + (_target_swept ? "true" : "false")
+    payload := payload + ',"caused_sweep":' + (_caused_sweep ? "true" : "false")
+    payload := payload + ',"is_accuracy":' + (_is_accuracy ? "true" : "false")
+
+    // === AI FEATURES ===
+    payload := payload + ',"score":' + to_json_num(_score, "#.#")
+    payload := payload + ',"freshness":' + str.tostring(_freshness, "#")
+    payload := payload + ',"session":' + str.tostring(_session, "#")
+    payload := payload + ',"atr_ratio":' + to_json_num(_atr_ratio, "#.####")
+    payload := payload + ',"trend":' + str.tostring(_trend, "#")
+    payload := payload + ',"rsi":' + to_json_num(_rsi, "#.##")
+    payload := payload + ',"htf_trend":' + str.tostring(_htf_trend, "#")
+    payload := payload + ',"rvol":' + to_json_num(_rvol, "#.##")
+    payload := payload + ',"adx":' + to_json_num(_adx, "#.##")
+    payload := payload + ',"touch_count":' + str.tostring(_touch_count, "#")
+    payload := payload + ',"base_quality":' + to_json_num(_base_quality, "#.##")
+    payload := payload + ',"departure_strength":' + to_json_num(_departure_strength, "#.##")
+    payload := payload + ',"liquidity_distance":' + to_json_num(_liq_distance, "#.##")
+    payload := payload + ',"liquidity_spread":' + to_json_num(_liq_spread, "#.##")
+    payload := payload + ',"return_strength":' + to_json_num(_return_strength, "#.##")
+
+    payload := payload + '}'
+    payload
+
+// Builds EXIT webhook payload
+// Returns: JSON string with exit telemetry
+// @returns JSON string payload
+export build_exit_webhook_payload(int _zone_id, string _outcome, int _bars_held, float _close_price, float _pnl_r, string _exit_type, float _mae_pips, int current_time) =>
+    string payload = '{"event_type":"exit"'
+    payload := payload + ',"zone_id":' + str.tostring(_zone_id, "#")
+    payload := payload + ',"outcome":"' + _outcome + '"'
+    payload := payload + ',"bars_held":' + str.tostring(_bars_held, "#")
+    payload := payload + ',"close_price":' + to_json_num(_close_price, "#.##########")
+    payload := payload + ',"pnl_r":' + to_json_num(_pnl_r, "#.##")
+    payload := payload + ',"exit_type":"' + _exit_type + '"'
+    payload := payload + ',"mae_pips":' + to_json_num(_mae_pips, "#.#")
+    payload := payload + ',"close_time":"' + str.format("{0,date,yyyy-MM-dd HH:mm:ss}", current_time) + '"'
+    payload := payload + '}'
+    payload

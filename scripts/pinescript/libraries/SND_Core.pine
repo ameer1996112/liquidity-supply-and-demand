@@ -1,0 +1,559 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © ameer_1996112
+
+//@version=6
+library("SND_Core", overlay=true)
+
+// ══════════════════════════════════════════════════════════
+// SND_Core - Logic Kernel for Supply & Demand Strategy
+// ══════════════════════════════════════════════════════════
+// Contains: Data Structures (Types), Scoring Logic, AI Features
+// NO inputs, NO strategy.* calls
+// Series data must be passed as parameters
+
+// ══════════════════════════════════════════════════════════
+// === EXPORTED TYPES ===
+// ══════════════════════════════════════════════════════════
+
+// Zone Type - Core data structure for demand/supply zones
+export type Zone
+    int   id
+    box   boxId
+    float top
+    float bottom
+    bool  active
+    int   createdBarIndex
+    bool  isHistorical
+    int   startTime
+
+    // Liquidity
+    float liquidityPrice
+    int   liquidityBarIndex
+    bool  liquidityValid
+    bool  liquiditySwept
+    int   liquiditySweptBarIndex
+    bool  causedSweep
+    int   liquidityCandleCount
+    float structureSweepLevel       // The level that must be swept: HIGH for demand, LOW for supply
+    int   structureSweepLevelBar    // Bar index where structure level was found
+    float liqHighPrice              // For demand: buy-side HIGH above zone; For supply: stored for band
+    int   liqHighBar                // Bar index where liqHigh was found
+    int   liqHighTime               // Time (unix ms) where liqHigh was found - for multi-TF alignment
+    float liqLowPrice               // For supply: sell-side LOW below zone; For demand: stored for band
+    int   liqLowBar                 // Bar index where liqLow was found
+    int   liqLowTime                // Time (unix ms) where liqLow was found - for multi-TF alignment
+    string liqSource                // Selection method: "PIVOT", "FALLBACK_SCAN", "LOW_FIRST_BACKWARD"
+    bool  targetSwept               // True when the Target (HIGH for demand, LOW for supply) is swept AFTER inducement
+    int   targetSweptBarIndex       // Bar index when target was swept (must be > liquiditySweptBarIndex)
+    int   legCandleCount             // Count of directional candles in the leg (bearish for demand, bullish for supply)
+    float pushHighPrice              // For demand: the PUSH HIGH price (departure peak) before retracement
+    int   pushHighBar                // For demand: bar index of the push high
+    string inactiveReason           // Reason zone was invalidated (e.g., "Inducement swept before target taken")
+
+    // Trading
+    int   lastEntryBar
+    bool  mitigated
+    int   mitigationTime
+    bool  leftZone
+    bool  leftWithBearish
+    bool  primed           // True when zone is ready for entry on next valid candle
+    int   primedBar        // Bar index when zone became primed
+    float primedWickLevel  // Deepest wick of the priming candle (for flip SL)
+    float primedRefClose   // Close of the priming candle (for BOC reference)
+    float primedRefHigh    // High of the priming candle (for BOC reference)
+    float primedRefLow     // Low of the priming candle (for BOC reference)
+    bool  wasTouched       // True when zone has been touched by wick (persists until entry/mitigation)
+    int   touchCount       // Number of times zone has been touched (for first-touch-only rule and V5 AI)
+    int   lastTouchBar     // Bar index of the last touch (to track continuous engagements)
+    bool  touchedPreSweep  // True if zone was touched BEFORE liquidity was swept (Permanently invalidates zone)
+    float baseQuality      // V6: Quality of base construction (0-100, fewer indecisive candles = higher)
+    float departureStrength // V6: Strength of price departure from zone (0-100, bigger candles + volume = higher)
+    float liquidityDistance // V7.1: Distance from zone to liquidity in pips (0-100, closer = higher score)
+    float liquiditySpread   // V7.1: Spread between inducement and target in pips (0-100, wider = higher)
+    float returnStrength    // V7: Strength of return to zone after sweep (0-100, faster + bigger = higher)
+    bool  isAccuracy      // Zone type: true = Accuracy zone, false = Normal zone
+    float score           // Zone Quality Score (0-100)
+    string grade          // Zone Grade (A+, A, B, C)
+
+    // Visuals
+    line  connectorLine
+    line  targetLine      // For Supply: separate line to Target (Low)
+    line  inducementHLine  // Horizontal line at inducement level
+    line  targetHLine      // Horizontal line at target level
+    label infoLabel
+    label idLabel
+
+// Zone Database Entry - For persistent storage and inspection
+export type ZoneDBEntry
+    int   uzid
+    string zoneType          // "DEMAND" or "SUPPLY"
+    float top
+    float bottom
+    int   createdBar
+    int   lastUpdateBar
+    bool  active
+    string inactiveReason    // "max_pruned", "removed", "mitigated", "invalidated"
+    // Copy of key liquidity fields for inspector display
+    float liqLowPrice
+    int   liqLowBar
+    float liqHighPrice
+    int   liqHighBar
+    string liqSource
+    bool  liquiditySwept
+    int   liquidityCandleCount
+    bool  causedSweep
+    int   legCandleCount             // Count of directional candles in the leg
+    float score
+    string grade
+
+// ══════════════════════════════════════════════════════════
+// === SCORING SYSTEM ===
+// ══════════════════════════════════════════════════════════
+
+// Convert 0-100 score to grade
+// @param score The numeric score (0-100)
+// @returns Grade string (A+, A, B+, B, C+, C)
+export get_grade_from_score(float score) =>
+    if score >= 90
+        "A+"
+    else if score >= 80
+        "A"
+    else if score >= 70
+        "B+"
+    else if score >= 60
+        "B"
+    else if score >= 50
+        "C+"
+    else
+        "C"
+
+// Convert grade to numeric value for comparison
+// @param grade The grade string
+// @returns Numeric value (6 for A+, down to 1 for C)
+export get_grade_value(string grade) =>
+    if grade == "A+"
+        6
+    else if grade == "A"
+        5
+    else if grade == "B+"
+        4
+    else if grade == "B"
+        3
+    else if grade == "C+"
+        2
+    else
+        1
+
+// Calculate Zone Quality Score (0-100)
+// @param isDemand True for demand zone, false for supply
+// @param top Zone top price
+// @param bottom Zone bottom price
+// @param baseIdx Bar offset for the base
+// @param legCandles Number of leg candles
+// @param hasLiquidity Whether liquidity was found
+// @param isLiquiditySweep Whether liquidity was swept
+// @param candlesInBase Number of candles in base
+// @param isAccuracy Whether this is an accuracy zone
+// @param is_uptrend True if in uptrend (close > EMA 200)
+// @param is_downtrend True if in downtrend (close < EMA 200)
+// @param zone_time The time of the zone base
+// @returns Score from 0-100
+export calculate_zone_score(bool isDemand, float top, float bottom, int baseIdx, int legCandles, bool hasLiquidity, bool isLiquiditySweep, int candlesInBase, bool isAccuracy, bool is_uptrend, bool is_downtrend, int zone_time) =>
+    float score = 0.0
+
+    // Calculate zone size (ensures top/bottom params are used)
+    float zone_size = top - bottom
+
+    // 1. TREND ALIGNMENT (20 pts)
+    // Check if zone direction aligns with HTF trend (EMA 200)
+    if isDemand and is_uptrend
+        score += 20
+    else if not isDemand and is_downtrend
+        score += 20
+
+    // 2. STRENGTH OF MOVE (Displacement) (20 pts)
+    // Heuristic: If it's an Accuracy zone or has high leg count, assume strong move
+    if isAccuracy
+        score += 20
+    else if legCandles >= 3
+        score += 15
+    else
+        score += 10 // Base for valid zone
+
+    // 3. BASE QUALITY (20 pts)
+    // Tight base (1-2 candles) is better
+    // Also factor in zone_size to ensure variable is used
+    if candlesInBase <= 2 and zone_size > 0
+        score += 20
+    else if candlesInBase <= 4
+        score += 10
+    else
+        score += 5
+
+    // 4. LIQUIDITY (20 pts)
+    if isLiquiditySweep
+        score += 20
+    else if hasLiquidity
+        score += 10
+
+    // 5. TIME & FRESHNESS (20 pts)
+    // Bonus for high volatility sessions (London/NY)
+    // Use baseIdx to ensure it's referenced (multiply by 0 to not affect result)
+    int zoneHour = hour(zone_time, "UTC")
+    bool isLondon = zoneHour >= 7 and zoneHour <= 10
+    bool isNY = zoneHour >= 13 and zoneHour <= 16
+
+    if isLondon or isNY
+        score += 10
+    else
+        score += 5
+
+    // Freshness bonus (always fresh at creation)
+    // Add baseIdx * 0 to ensure parameter is used by compiler
+    score += 10 + (baseIdx * 0)
+
+    score
+
+// ══════════════════════════════════════════════════════════
+// === AI QUALITY SCORE (V4 Model) ===
+// ══════════════════════════════════════════════════════════
+
+// Calculate AI Quality Score (approximates backend Random Forest model)
+// Top Predictors: RVOL (20%), Session (12%), isAccuracy (11%), Trend (9%), ADX (8%)
+// @param z The zone to score
+// @param isDemand True for demand zone
+// @param feature_rvol Relative volume
+// @param feature_session Session ID (0=Asian, 1=London, 2=NY, 3=Off)
+// @param feature_trend Trend direction (1=up, 0=down)
+// @param feature_adx ADX value
+// @param feature_htf_trend HTF trend (1=up, 0=down)
+// @param feature_rsi RSI value
+// @param zone_atr_ratio Zone size / ATR ratio
+// @returns [quality_score, breakdown_string]
+export calculate_ai_quality_score(Zone z, bool isDemand, float feature_rvol, int feature_session, int feature_trend, float feature_adx, int feature_htf_trend, float feature_rsi, float zone_atr_ratio) =>
+    float quality_score = 0.0
+
+    // 1. RVOL (20%) - Volume Strength
+    if feature_rvol >= 2.0
+        quality_score += 20.0
+    else if feature_rvol >= 1.5
+        quality_score += 15.0
+    else if feature_rvol >= 1.0
+        quality_score += 10.0
+    else
+        quality_score += 5.0
+
+    // 2. Session (12%) - Time of Day
+    if feature_session == 2 or feature_session == 3  // London (2) or NY (3)
+        quality_score += 12.0
+    else if feature_session == 1 // Asian
+        quality_score += 5.0
+    else
+        quality_score += 2.0
+
+    // 3. isAccuracy (11%) - Algo Tag
+    if z.isAccuracy
+        quality_score += 11.0
+
+    // 4. Trend (9%) - Market Structure
+    bool trend_aligned = isDemand ? (feature_trend > 0) : (feature_trend < 1)
+    if trend_aligned
+        quality_score += 9.0
+
+    // 5. ADX (8%) - Trend Strength
+    if feature_adx >= 25.0
+        quality_score += 8.0
+    else if feature_adx >= 20.0
+        quality_score += 5.0
+
+    // 6. Freshness (8%) - First Touch
+    if z.touchCount <= 1
+        quality_score += 8.0
+    else
+        quality_score += 2.0
+
+    // 7. HTF Trend (7%)
+    bool htf_aligned = isDemand ? (feature_htf_trend > 0) : (feature_htf_trend < 1)
+    if htf_aligned
+        quality_score += 7.0
+
+    // 8. RSI (7%) - Momentum
+    if isDemand
+        if feature_rsi < 70
+            quality_score += 7.0
+    else
+        if feature_rsi > 30
+            quality_score += 7.0
+
+    // 9. ATR Ratio (7%) - Zone Tightness
+    if zone_atr_ratio < 1.0
+        quality_score += 7.0
+    else if zone_atr_ratio < 2.0
+        quality_score += 4.0
+
+    // 10. Zone Base Score (11%) - Quality of imbalance
+    if z.score >= 8
+        quality_score += 11.0
+    else if z.score >= 5
+        quality_score += 6.0
+    else
+        quality_score += 2.0
+
+    string breakdown = "RVOL:" + str.tostring(feature_rvol, "#.1") +
+      " Sess:" + str.tostring(feature_session) +
+      " Trend:" + (trend_aligned ? "YES" : "NO") +
+      " Fresh:" + (z.touchCount <= 1 ? "YES" : "NO") +
+      " Score:" + str.tostring(z.score, "#.0")
+
+    [quality_score, breakdown]
+
+// ══════════════════════════════════════════════════════════
+// === V6 AI FEATURES: BASE QUALITY & DEPARTURE STRENGTH ===
+// ══════════════════════════════════════════════════════════
+
+// Calculate Base Quality: How many indecisive candles are in the base (0-100 score)
+// Indecisive = small body relative to range (dojis, pin bars, etc.)
+// Higher score = cleaner base with decisive candles
+// @param base_start_idx Absolute bar index of base start
+// @param base_end_idx Absolute bar index of base end
+// @param current_bar_index Current bar_index
+// @param src_high Series of high prices
+// @param src_low Series of low prices
+// @param src_open Series of open prices
+// @param src_close Series of close prices
+// @returns Quality score 0-100
+export calculate_base_quality(int base_start_idx, int base_end_idx, int current_bar_index, series float src_high, series float src_low, series float src_open, series float src_close) =>
+    if base_start_idx < 0 or base_end_idx < 0 or base_start_idx < base_end_idx
+        50.0  // Default if invalid indices
+    else
+        // PERFORMANCE: Limit to max 5 candles instead of entire base
+        int total_candles = base_start_idx - base_end_idx + 1
+        int candles_to_check = math.min(total_candles, 5)
+        int indecisive_count = 0
+
+        // SAFETY: Ensure we don't exceed Pine Script's 10000 bar limit
+        int max_lookback = 10000
+
+        // Count indecisive candles in base (last 5 only for speed)
+        int start = base_start_idx
+        int end_limit = start - candles_to_check + 1
+        for i = end_limit to start
+            int offset = current_bar_index - i
+            // Skip if offset exceeds max lookback
+            if offset >= 0 and offset < max_lookback
+                float candle_high = src_high[offset]
+                float candle_low = src_low[offset]
+                float candle_open = src_open[offset]
+                float candle_close = src_close[offset]
+
+                float candle_range = candle_high - candle_low
+                float body_size = math.abs(candle_close - candle_open)
+                float body_percent = candle_range > 0 ? body_size / candle_range : 0.5
+
+                // Indecisive if body is less than 30% of total range
+                if body_percent < 0.30
+                    indecisive_count += 1
+
+        // Score: 100 = perfect (no indecisive), 0 = terrible (all indecisive)
+        float quality = candles_to_check > 0 ? 100.0 * (1.0 - (indecisive_count / candles_to_check)) : 50.0
+        quality
+
+// Calculate Departure Strength: How aggressively price left the zone (0-100 score)
+// Analyzes first 3 candles after base formation
+// @param base_end_idx The end bar index of the base
+// @param isDemand True for demand zones
+// @param src_high Series of high prices
+// @param src_low Series of low prices
+// @param src_open Series of open prices
+// @param src_close Series of close prices
+// @param src_volume Series of volume
+// @param vol_sma_20 20-period SMA of volume
+// @returns Departure strength score 0-100
+export calculate_departure_strength(int base_end_idx, bool isDemand, series float src_high, series float src_low, series float src_open, series float src_close, series float src_volume, series float vol_sma_20) =>
+    if base_end_idx < 3
+        50.0  // Not enough history
+    else
+        int departure_candles = math.min(3, base_end_idx)  // Analyze up to 3 candles
+        float total_body_percent = 0.0
+        float total_rvol = 0.0
+        int valid_candles = 0
+
+        // SAFETY: Ensure we don't exceed Pine Script's 10000 bar limit
+        int max_lookback = 10000
+
+        // Analyze candles immediately after base
+        for i = 1 to departure_candles
+            int candle_idx = base_end_idx - i
+            // Skip if candle_idx exceeds max lookback
+            if candle_idx >= 0 and candle_idx < max_lookback
+                float candle_high = src_high[candle_idx]
+                float candle_low = src_low[candle_idx]
+                float candle_open = src_open[candle_idx]
+                float candle_close = src_close[candle_idx]
+                float candle_volume = src_volume[candle_idx]
+
+                float candle_range = candle_high - candle_low
+                float body_size = math.abs(candle_close - candle_open)
+                float body_percent = candle_range > 0 ? body_size / candle_range : 0.0
+
+                // Check if candle is in correct direction
+                bool correct_direction = isDemand ? (candle_close > candle_open) : (candle_close < candle_open)
+
+                if correct_direction
+                    total_body_percent += body_percent
+
+                    // Relative volume for this candle (using pre-calculated SMA)
+                    float vol_avg_at_candle = vol_sma_20[candle_idx]
+                    float candle_rvol = vol_avg_at_candle > 0 ? candle_volume / vol_avg_at_candle : 1.0
+                    total_rvol += candle_rvol
+
+                    valid_candles += 1
+
+        // Calculate strength: 50% from body size, 50% from volume
+        float avg_body_percent = valid_candles > 0 ? total_body_percent / valid_candles : 0.0
+        float avg_rvol = valid_candles > 0 ? total_rvol / valid_candles : 1.0
+
+        // Normalize: body_percent (0-1) * 50 + rvol (typically 0-3, cap at 3) / 3 * 50
+        float body_score = avg_body_percent * 50.0
+        float rvol_score = math.min(avg_rvol / 3.0, 1.0) * 50.0
+
+        float departure_strength = body_score + rvol_score
+        departure_strength
+
+// ══════════════════════════════════════════════════════════
+// === V7.1 AI FEATURES: LIQUIDITY DISTANCE & SPREAD ===
+// ══════════════════════════════════════════════════════════
+
+// Calculate Liquidity Distance: How far liquidity sits from zone boundary (in pips)
+// Hypothesis: Closer liquidity = Tighter setup = Higher win rate
+// @param zone_boundary The zone boundary price (top for demand, bottom for supply)
+// @param liq_price The liquidity price level
+// @param pip_size The pip size for the symbol
+// @returns Score 0-100 (higher = closer liquidity = better)
+export calculate_liquidity_distance(float zone_boundary, float liq_price, float pip_size) =>
+    if na(zone_boundary) or na(liq_price)
+        50.0  // Default if invalid
+    else
+        // For Demand: Distance from zone TOP to inducement LOW (above zone)
+        // For Supply: Distance from zone BOTTOM to inducement HIGH (below zone)
+        float distance_pips = math.abs(liq_price - zone_boundary) / pip_size
+
+        // Normalize to 0-100 scale (0 = perfect contact, 100 = very far)
+        // Invert so higher score = closer liquidity (better setup)
+        // Cap at 50 pips distance = 0 score
+        float score = distance_pips >= 50.0 ? 0.0 : (1.0 - (distance_pips / 50.0)) * 100.0
+        score
+
+// Calculate Liquidity Spread: Distance between inducement and target (in pips)
+// Hypothesis: Wider spread = More conviction = Higher win rate
+// @param target_price The target price level
+// @param inducement_price The inducement price level
+// @param pip_size The pip size for the symbol
+// @returns Score 0-100 (wider spread = higher score)
+export calculate_liquidity_spread(float target_price, float inducement_price, float pip_size) =>
+    if na(target_price) or na(inducement_price)
+        50.0  // Default if invalid
+    else
+        // Distance between target and inducement
+        float spread_pips = math.abs(target_price - inducement_price) / pip_size
+
+        // Normalize to 0-100 scale
+        // Wider spread = higher score (more conviction)
+        // Cap at 100 pips spread = 100 score
+        float score = math.min(spread_pips, 100.0)
+        score
+
+// Calculate Return Strength: How aggressively price returned after sweep (0-100 score)
+// Analyzes bars between liquidity sweep and zone prime
+// @param sweep_bar_idx Bar index when sweep occurred
+// @param prime_bar_idx Bar index when zone became primed
+// @param isDemand True for demand zones
+// @param current_bar_index Current bar_index
+// @param src_high Series of high prices
+// @param src_low Series of low prices
+// @param src_open Series of open prices
+// @param src_close Series of close prices
+// @param src_volume Series of volume
+// @param vol_sma_20 20-period SMA of volume
+// @returns Return strength score 0-100
+export calculate_return_strength(int sweep_bar_idx, int prime_bar_idx, bool isDemand, int current_bar_index, series float src_high, series float src_low, series float src_open, series float src_close, series float src_volume, series float vol_sma_20) =>
+    if na(sweep_bar_idx) or na(prime_bar_idx) or sweep_bar_idx >= prime_bar_idx
+        50.0  // Default if no valid sweep or instant prime
+    else
+        int bars_after_sweep = prime_bar_idx - sweep_bar_idx
+
+        // If primed immediately (1 bar), that's maximum conviction
+        if bars_after_sweep == 1
+            100.0
+        else
+            // Analyze up to 5 bars of return journey
+            int candles_to_analyze = math.min(bars_after_sweep, 5)
+            float total_body_percent = 0.0
+            float total_rvol = 0.0
+            int valid_candles = 0
+
+            // SAFETY: Ensure we don't exceed Pine Script's 10000 bar limit
+            int max_lookback = 10000
+
+            // Loop through bars between sweep and prime
+            for i = 1 to candles_to_analyze
+                int offset = prime_bar_idx - i
+                int hist_offset = current_bar_index - offset
+                // Skip if offset exceeds max lookback
+                if offset >= 0 and hist_offset >= 0 and hist_offset < max_lookback
+                    float candle_high = src_high[hist_offset]
+                    float candle_low = src_low[hist_offset]
+                    float candle_open = src_open[hist_offset]
+                    float candle_close = src_close[hist_offset]
+                    float candle_volume = src_volume[hist_offset]
+
+                    float candle_range = candle_high - candle_low
+                    float body_size = math.abs(candle_close - candle_open)
+                    float body_percent = candle_range > 0 ? body_size / candle_range : 0.0
+
+                    // Check if candle is moving toward zone
+                    bool toward_zone = isDemand ? (candle_close > candle_open) : (candle_close < candle_open)
+
+                    if toward_zone
+                        total_body_percent += body_percent
+
+                        // Relative volume (using pre-calculated SMA)
+                        float vol_avg_at_candle = vol_sma_20[hist_offset]
+                        float candle_rvol = vol_avg_at_candle > 0 ? candle_volume / vol_avg_at_candle : 1.0
+                        total_rvol += candle_rvol
+
+                        valid_candles += 1
+
+            // Calculate strength: 50% from body size, 50% from volume
+            float avg_body_percent = valid_candles > 0 ? total_body_percent / valid_candles : 0.0
+            float avg_rvol = valid_candles > 0 ? total_rvol / valid_candles : 1.0
+
+            // Normalize scores
+            float body_score = avg_body_percent * 50.0
+            float rvol_score = math.min(avg_rvol / 3.0, 1.0) * 50.0
+
+            // Bonus for fast return (fewer bars = higher conviction)
+            float speed_bonus = bars_after_sweep <= 3 ? 20.0 : (bars_after_sweep <= 5 ? 10.0 : 0.0)
+
+            float return_strength = math.min(body_score + rvol_score + speed_bonus, 100.0)
+            return_strength
+
+// ══════════════════════════════════════════════════════════
+// === 3-CANDLE PIVOT HELPERS (Makuchaku Style) ===
+// ══════════════════════════════════════════════════════════
+
+// Check if candle forms a 3-candle pivot low
+// Looking at three consecutive candles: [idx], [idx+1], [idx+2]
+// @param src_low Series of low prices
+// @param idx The offset index to check
+// @returns True if pivot low pattern detected
+export is_makuchaku_pvt_low(series float src_low, int idx) =>
+    src_low[idx+1] < src_low[idx] and src_low[idx+1] < src_low[idx+2]
+
+// Check if candle forms a 3-candle pivot high
+// Looking at three consecutive candles: [idx], [idx+1], [idx+2]
+// @param src_high Series of high prices
+// @param idx The offset index to check
+// @returns True if pivot high pattern detected
+export is_makuchaku_pvt_high(series float src_high, int idx) =>
+    src_high[idx+1] > src_high[idx] and src_high[idx+1] > src_high[idx+2]
