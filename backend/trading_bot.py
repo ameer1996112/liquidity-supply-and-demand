@@ -585,6 +585,29 @@ def predict_win_probability(data: dict) -> Optional[float]:
 
 app = Flask(__name__)
 
+def _format_filter_reason(notes: str) -> str:
+    """Convert stored filter codes (e.g. RR_BELOW_MIN:2.00<2.0) to readable text."""
+    if not notes or not isinstance(notes, str):
+        return "-"
+    s = notes.strip()
+    if not s:
+        return "-"
+    s = re.sub(r"RR_BELOW_MIN:([\d.]+)<([\d.]+)", r"R:R \1 below minimum required (\2)", s)
+    s = re.sub(r"AI_WINPROB:([^;<]+)<([^;<]+)", r"AI win probability \1 below minimum (\2)", s)
+    s = re.sub(r"OUTSIDE_SESSION:([^;]+)", r"Outside trading session (allowed: \1)", s)
+    s = re.sub(r"SWAP_HOURS:([^;]+)", r"Within swap hours (avoid \1)", s)
+    s = re.sub(r"\bNEWS_IMMINENT\b", "News event imminent", s)
+    s = re.sub(r"TEST_MODE:Unresolved_Placeholders", "Test: Unresolved placeholders", s)
+    s = re.sub(r"TEST_MODE:Invalid_Data_Types", "Test: Invalid entry/SL/TP data types", s)
+    s = re.sub(r";\s*", " · ", s)
+    return s.strip()
+
+
+@app.template_filter("format_filter_reason")
+def format_filter_reason(notes):
+    return _format_filter_reason(notes)
+
+
 @app.template_filter('jerusalem_time')
 def format_jerusalem_time(utc_ts_str):
     """Convert UTC timestamp string to Jerusalem time."""
@@ -1180,9 +1203,9 @@ DASHBOARD_HTML = '''
                         -
                         {% endif %}
                     </td>
-                    <td class="filter-reason" title="{{ alert.notes or '' }}">
+                    <td class="filter-reason" title="{{ (alert.notes or '') | format_filter_reason }}">
                         {% if alert.status == 'filtered' %}
-                        {{ alert.notes or '-' }}
+                        {{ (alert.notes or '') | format_filter_reason }}
                         {% else %}
                         -
                         {% endif %}
