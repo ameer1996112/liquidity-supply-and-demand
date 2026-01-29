@@ -1059,29 +1059,85 @@ DASHBOARD_HTML = '''
         <div class="header-row">
             <div>
                 <h1>Trading Dashboard</h1>
+                <span class="mode-badge mode-{{ current_mode|lower }}">{{ current_mode }}</span>
+                {% if current_run_id and current_run_id != 'live-default' %}
+                <span style="color:#888; margin-left:10px;">Run: {{ current_run_id }}</span>
+                {% endif %}
             </div>
-            <button class="refresh-btn" onclick="location.reload()">Refresh</button>
+            <div class="mode-selector">
+                <form method="get" action="/" style="display:flex; gap:10px; align-items:center;">
+                    <select name="mode" onchange="this.form.submit()">
+                        <option value="LIVE" {% if current_mode == 'LIVE' %}selected{% endif %}>LIVE</option>
+                        <option value="BACKTEST" {% if current_mode == 'BACKTEST' %}selected{% endif %}>BACKTEST</option>
+                        <option value="REPLAY" {% if current_mode == 'REPLAY' %}selected{% endif %}>REPLAY</option>
+                        <option value="" {% if not current_mode %}selected{% endif %}>ALL</option>
+                    </select>
+                    <input type="text" name="run_id" placeholder="Run ID (optional)" value="{{ current_run_id or '' }}" style="padding:8px; border-radius:5px; border:1px solid #2a2a4a; background:#16213e; color:#eee; width:150px;">
+                    <button type="submit" class="refresh-btn">Filter</button>
+                </form>
+                <button class="refresh-btn" onclick="location.reload()">Refresh</button>
+            </div>
         </div>
 
-        <!-- LIVE SIGNALS -->
-        <h2 style="margin-top: 0; margin-bottom: 10px;"><span class="mode-badge mode-live">LIVE</span> Webhook / Live Signals</h2>
-        <div class="stats-grid" style="margin-bottom: 15px;">
-            <div class="stat-card"><div class="stat-value">{{ live_stats.total_alerts }}</div><div class="stat-label">Total</div></div>
-            <div class="stat-card"><div class="stat-value">{{ live_stats.today_alerts }}</div><div class="stat-label">Today</div></div>
-            <div class="stat-card"><div class="stat-value">{{ live_stats.active_count }}</div><div class="stat-label">Active</div></div>
-            <div class="stat-card"><div class="stat-value" style="color:#ff9900;">{{ live_stats.filtered_count }}</div><div class="stat-label">Filtered</div></div>
-            <div class="stat-card"><div class="stat-value {% if live_stats.win_rate >= 50 %}win{% else %}loss{% endif %}">{{ "%.1f"|format(live_stats.win_rate) }}%</div><div class="stat-label">Win Rate</div></div>
-            <div class="stat-card"><div class="stat-value {% if live_stats.total_pnl >= 0 %}win{% else %}loss{% endif %}">${{ "%.2f"|format(live_stats.total_pnl) }}</div><div class="stat-label">P&L</div></div>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value">{{ stats.total_alerts }}</div>
+                <div class="stat-label">Total Alerts</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ stats.today_alerts }}</div>
+                <div class="stat-label">Today</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ stats.active_count }}</div>
+                <div class="stat-label">Active</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ stats.closed_count }}</div>
+                <div class="stat-label">Closed</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color:#ff9900;">{{ stats.filtered_count }}</div>
+                <div class="stat-label">Filtered</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value {% if stats.win_rate >= 50 %}win{% else %}loss{% endif %}">{{ "%.1f"|format(stats.win_rate) }}%</div>
+                <div class="stat-label">Win Rate</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value {% if stats.total_pnl >= 0 %}win{% else %}loss{% endif %}">${{ "%.2f"|format(stats.total_pnl) }}</div>
+                <div class="stat-label">Total P&L</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ "%.2f"|format(stats.avg_rr) }}</div>
+                <div class="stat-label">Avg R:R</div>
+            </div>
         </div>
-        <div style="overflow-x: auto; max-height: 400px; overflow-y: auto; margin-bottom: 30px;">
+
+        <h2 style="margin-bottom: 15px;">Recent Alerts</h2>
+        <div style="overflow-x: auto; max-height: 600px; overflow-y: auto;">
         <table>
             <thead>
                 <tr>
-                    <th>ID</th><th>Open Time</th><th>Close Time</th><th>Symbol</th><th>Side</th><th>Entry</th><th>SL</th><th>TP</th><th>R:R</th><th>Status</th><th>Outcome</th><th>P&L ($)</th><th>P&L (R)</th><th>Filter Reason</th><th>Actions</th>
+                    <th>ID</th>
+                    <th>Open Time</th>
+                    <th>Close Time</th>
+                    <th>Symbol</th>
+                    <th>Side</th>
+                    <th>Entry</th>
+                    <th>SL</th>
+                    <th>TP</th>
+                    <th>R:R</th>
+                    <th>Status</th>
+                    <th>Outcome</th>
+                    <th>P&L ($)</th>
+                    <th>P&L (R)</th>
+                    <th>Filter Reason</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
-                {% for alert in live_alerts %}
+                {% for alert in alerts %}
                 <tr>
                     <td>#{{ alert.id }}</td>
                     <td class="time-col">{{ (alert.entry_time or alert.created_at) | jerusalem_time }}</td>
@@ -1093,51 +1149,50 @@ DASHBOARD_HTML = '''
                     <td style="color:#00ff88">{{ alert.tp }}</td>
                     <td>1:{{ "%.2f"|format(alert.rr_ratio or 0) }}</td>
                     <td><span class="status-{{ alert.status }}">{{ alert.status }}</span></td>
-                    <td>{% if alert.outcome == 'win' %}<span class="outcome-win">WIN</span>{% elif alert.outcome == 'loss' %}<span class="outcome-loss">LOSS</span>{% else %}-{% endif %}</td>
-                    <td>{% if alert.pnl_usd is not none %}<span class="{% if alert.pnl_usd >= 0 %}pnl-positive{% else %}pnl-negative{% endif %}">${{ "%.2f"|format(alert.pnl_usd) }}</span>{% elif alert.pnl is not none %}<span class="{% if alert.pnl >= 0 %}pnl-positive{% else %}pnl-negative{% endif %}">${{ "%.2f"|format(alert.pnl) }}</span>{% else %}-{% endif %}</td>
-                    <td>{% if alert.pnl_r is not none %}<span class="{% if alert.pnl_r >= 0 %}pnl-positive{% else %}pnl-negative{% endif %}">{{ "%.2f"|format(alert.pnl_r) }}R</span>{% else %}-{% endif %}</td>
-                    <td class="filter-reason" title="{{ alert.notes or '' }}">{% if alert.status == 'filtered' %}{{ alert.notes or '-' }}{% else %}-{% endif %}</td>
-                    <td class="actions">{% if alert.status == 'pending' or alert.status == 'active' %}<a href="/alert/{{ alert.id }}/taken">Taken</a> <a href="/alert/{{ alert.id }}/skipped">Skip</a>{% endif %}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        </div>
-
-        <!-- BACKTEST SIGNALS -->
-        <h2 style="margin-bottom: 10px;"><span class="mode-badge mode-backtest">BACKTEST</span> Backtest Signals</h2>
-        <div class="stats-grid" style="margin-bottom: 15px;">
-            <div class="stat-card"><div class="stat-value">{{ backtest_stats.total_alerts }}</div><div class="stat-label">Total</div></div>
-            <div class="stat-card"><div class="stat-value">{{ backtest_stats.closed_count }}</div><div class="stat-label">Closed</div></div>
-            <div class="stat-card"><div class="stat-value {% if backtest_stats.win_rate >= 50 %}win{% else %}loss{% endif %}">{{ "%.1f"|format(backtest_stats.win_rate) }}%</div><div class="stat-label">Win Rate</div></div>
-            <div class="stat-card"><div class="stat-value {% if backtest_stats.total_pnl >= 0 %}win{% else %}loss{% endif %}">${{ "%.2f"|format(backtest_stats.total_pnl) }}</div><div class="stat-label">P&L</div></div>
-            <div class="stat-card"><div class="stat-value">{{ "%.2f"|format(backtest_stats.avg_rr) }}</div><div class="stat-label">Avg R:R</div></div>
-        </div>
-        <div style="overflow-x: auto; max-height: 400px; overflow-y: auto;">
-        <table>
-            <thead>
-                <tr>
-                    <th>ID</th><th>Open Time</th><th>Close Time</th><th>Symbol</th><th>Side</th><th>Entry</th><th>SL</th><th>TP</th><th>R:R</th><th>Status</th><th>Outcome</th><th>P&L ($)</th><th>P&L (R)</th><th>Filter Reason</th><th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for alert in backtest_alerts %}
-                <tr>
-                    <td>#{{ alert.id }}</td>
-                    <td class="time-col">{{ (alert.entry_time or alert.created_at) | jerusalem_time }}</td>
-                    <td class="time-col">{{ alert.exit_time | jerusalem_time if alert.exit_time else (alert.close_time | jerusalem_time if alert.close_time else '-') }}</td>
-                    <td class="symbol-col"><strong>{{ alert.symbol }}</strong></td>
-                    <td class="{{ alert.side }}">{{ alert.side|upper }}</td>
-                    <td style="color:#00d4ff">{{ alert.entry }}</td>
-                    <td style="color:#ff4444">{{ alert.sl }}</td>
-                    <td style="color:#00ff88">{{ alert.tp }}</td>
-                    <td>1:{{ "%.2f"|format(alert.rr_ratio or 0) }}</td>
-                    <td><span class="status-{{ alert.status }}">{{ alert.status }}</span></td>
-                    <td>{% if alert.outcome == 'win' %}<span class="outcome-win">WIN</span>{% elif alert.outcome == 'loss' %}<span class="outcome-loss">LOSS</span>{% else %}-{% endif %}</td>
-                    <td>{% if alert.pnl_usd is not none %}<span class="{% if alert.pnl_usd >= 0 %}pnl-positive{% else %}pnl-negative{% endif %}">${{ "%.2f"|format(alert.pnl_usd) }}</span>{% elif alert.pnl is not none %}<span class="{% if alert.pnl >= 0 %}pnl-positive{% else %}pnl-negative{% endif %}">${{ "%.2f"|format(alert.pnl) }}</span>{% else %}-{% endif %}</td>
-                    <td>{% if alert.pnl_r is not none %}<span class="{% if alert.pnl_r >= 0 %}pnl-positive{% else %}pnl-negative{% endif %}">{{ "%.2f"|format(alert.pnl_r) }}R</span>{% else %}-{% endif %}</td>
-                    <td class="filter-reason" title="{{ alert.notes or '' }}">{% if alert.status == 'filtered' %}{{ alert.notes or '-' }}{% else %}-{% endif %}</td>
-                    <td class="actions">{% if alert.status == 'pending' or alert.status == 'active' %}<a href="/alert/{{ alert.id }}/taken">Taken</a> <a href="/alert/{{ alert.id }}/skipped">Skip</a>{% endif %}</td>
+                    <td>
+                        {% if alert.outcome == 'win' %}
+                        <span class="outcome-win">WIN</span>
+                        {% elif alert.outcome == 'loss' %}
+                        <span class="outcome-loss">LOSS</span>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if alert.pnl_usd is not none %}
+                        <span class="{% if alert.pnl_usd >= 0 %}pnl-positive{% else %}pnl-negative{% endif %}">
+                            ${{ "%.2f"|format(alert.pnl_usd) }}
+                        </span>
+                        {% elif alert.pnl is not none %}
+                        <span class="{% if alert.pnl >= 0 %}pnl-positive{% else %}pnl-negative{% endif %}">
+                            ${{ "%.2f"|format(alert.pnl) }}
+                        </span>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if alert.pnl_r is not none %}
+                        <span class="{% if alert.pnl_r >= 0 %}pnl-positive{% else %}pnl-negative{% endif %}">
+                            {{ "%.2f"|format(alert.pnl_r) }}R
+                        </span>
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td class="filter-reason" title="{{ alert.notes or '' }}">
+                        {% if alert.status == 'filtered' %}
+                        {{ alert.notes or '-' }}
+                        {% else %}
+                        -
+                        {% endif %}
+                    </td>
+                    <td class="actions">
+                        {% if alert.status == 'pending' or alert.status == 'active' %}
+                        <a href="/alert/{{ alert.id }}/taken">Taken</a>
+                        <a href="/alert/{{ alert.id }}/skipped">Skip</a>
+                        {% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -1150,18 +1205,21 @@ DASHBOARD_HTML = '''
 
 @app.route('/', methods=['GET'])
 def dashboard():
-    """Web dashboard with separate Live and Backtest tables."""
-    live_stats = get_statistics(run_mode='LIVE')
-    backtest_stats = get_statistics(run_mode='BACKTEST')
-    live_alerts = get_recent_alerts(100, run_mode='LIVE')
-    backtest_alerts = get_recent_alerts(100, run_mode='BACKTEST')
+    """Web dashboard with run_mode/run_id filtering."""
+    run_mode = request.args.get('mode', 'LIVE')
+    run_id = request.args.get('run_id', '').strip() or None
+    if run_mode == '':
+        run_mode = None
+
+    stats = get_statistics(run_mode=run_mode, run_id=run_id)
+    alerts = get_recent_alerts(100, run_mode=run_mode, run_id=run_id)
 
     return render_template_string(
         DASHBOARD_HTML,
-        live_stats=live_stats,
-        backtest_stats=backtest_stats,
-        live_alerts=live_alerts,
-        backtest_alerts=backtest_alerts
+        stats=stats,
+        alerts=alerts,
+        current_mode=run_mode or 'ALL',
+        current_run_id=run_id
     )
 
 
