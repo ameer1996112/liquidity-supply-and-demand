@@ -193,7 +193,7 @@ float lookback_low_10 = ta.lowest(low, LIQ_SWEEP_LOOKBACK)
 float body_size_0 = math.abs(close - open)
 float body_size_1 = math.abs(close[1] - open[1])
 float body_size_2 = math.abs(close[2] - open[2])
-float avg_body_size_3 = Utils.calc_avg_body_size_3(body_size_0, body_size_1, body_size_2)
+float avg_body_size_3 = (body_size_0 + body_size_1 + body_size_2) / 3.0
 
 // Structure level tracking (for market structure break detection)
 // Using 20-bar swing high/low as structural reference
