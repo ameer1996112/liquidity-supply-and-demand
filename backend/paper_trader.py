@@ -2,26 +2,35 @@
 Paper Trading Module - Simulated Position Manager
 
 Tracks virtual positions and simulates SL/TP execution without real broker.
+Supports in-memory mode when db_path is None (no SQLite; used by worker).
 """
 
 import logging
 from datetime import datetime
 from typing import Dict, Optional, Tuple
-import sqlite3
 
 logger = logging.getLogger(__name__)
 
+
+def _use_sqlite(db_path: Optional[str]) -> bool:
+    """True if we should use SQLite (legacy); False for in-memory only."""
+    return bool(db_path and str(db_path).strip())
+
+
 class PaperTrader:
     """Manages simulated paper trading positions"""
-    
-    def __init__(self, db_path: str = 'trades.db'):
+
+    def __init__(self, db_path: Optional[str] = "trades.db"):
         self.db_path = db_path
         self.positions: Dict[int, dict] = {}  # alert_id -> position data
         self._load_open_positions()
-    
+
     def _load_open_positions(self):
-        """Load open paper positions from database on startup"""
+        """Load open paper positions from database on startup (no-op if in-memory)."""
+        if not _use_sqlite(self.db_path):
+            return
         try:
+            import sqlite3
             conn = sqlite3.connect(self.db_path)
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
@@ -210,8 +219,11 @@ class PaperTrader:
     
     def _update_database(self, alert_id: int, close_price: float, 
                         outcome: str, pnl: float, notes: str):
-        """Update database with closed position data"""
+        """Update database with closed position data (no-op if in-memory)."""
+        if not _use_sqlite(self.db_path):
+            return
         try:
+            import sqlite3
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
@@ -238,8 +250,11 @@ class PaperTrader:
         return self.positions.copy()
     
     def get_total_pnl(self) -> float:
-        """Calculate total P&L from all closed paper positions"""
+        """Calculate total P&L from all closed paper positions (0 if in-memory)."""
+        if not _use_sqlite(self.db_path):
+            return 0.0
         try:
+            import sqlite3
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
@@ -258,8 +273,20 @@ class PaperTrader:
             return 0.0
     
     def get_statistics(self) -> dict:
-        """Get paper trading statistics"""
+        """Get paper trading statistics (in-memory stats when no DB)."""
+        if not _use_sqlite(self.db_path):
+            positions = self.get_open_positions()
+            return {
+                "total_trades": 0,
+                "open_positions": len(positions),
+                "closed_trades": 0,
+                "wins": 0,
+                "losses": 0,
+                "win_rate": 0,
+                "total_pnl": 0.0,
+            }
         try:
+            import sqlite3
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
@@ -305,7 +332,7 @@ class PaperTrader:
 # Singleton instance
 _paper_trader_instance = None
 
-def get_paper_trader(db_path: str = 'trades.db') -> PaperTrader:
+def get_paper_trader(db_path: Optional[str] = "trades.db") -> PaperTrader:
     """Get or create the paper trader singleton instance"""
     global _paper_trader_instance
     if _paper_trader_instance is None:

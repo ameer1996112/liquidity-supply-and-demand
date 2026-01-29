@@ -1,0 +1,14 @@
+# Worker (Trade Executor) - blpop -> logic.execute_trade
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY config.py logic.py paper_trader.py supabase_db.py worker.py ./
+# Optional: news_filter if logic uses it later
+COPY news_filter.py ./
+
+EXPOSE 0
+CMD ["python", "-u", "worker.py"]

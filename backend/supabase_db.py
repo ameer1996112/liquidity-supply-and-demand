@@ -290,6 +290,29 @@ def update_alert_status(alert_id: int, status: str, outcome: str = None, pnl: fl
         raise
 
 
+def log_execution_failure(data: dict, error: str) -> None:
+    """
+    Log EXECUTION_FAILED to Supabase: save payload then mark status as execution_failed.
+    Used by worker when logic.execute_trade() raises.
+    """
+    if not supabase:
+        init_supabase()
+
+    # Ensure minimal required fields for save_alert
+    entry_data = dict(data)
+    defaults = {'symbol': 'unknown', 'side': 'buy', 'entry': 0.0, 'sl': 0.0, 'tp': 0.0, 'size': 0.0}
+    for k in ('symbol', 'side', 'entry', 'sl', 'tp', 'size'):
+        if k not in entry_data or entry_data[k] is None:
+            entry_data[k] = defaults.get(k, 0.0)
+
+    try:
+        alert_id = save_alert(entry_data, mode='manual', filter_reasons=None)
+        update_alert_status(alert_id, 'execution_failed', notes=f"EXECUTION_FAILED: {error}")
+        logger.warning(f"EXECUTION_FAILED logged: alert_id={alert_id}, error={error[:200]}")
+    except Exception as e:
+        logger.error(f"❌ Failed to log execution failure to Supabase: {e}")
+
+
 def get_statistics(run_mode: str = None, run_id: str = None) -> Dict[str, Any]:
     """
     Calculate trading statistics

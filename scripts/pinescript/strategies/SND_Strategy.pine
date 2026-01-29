@@ -1,4 +1,5 @@
 // This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// Modularity: Execution lives here (strategy + inputs + alerts). Logic/Math live in libraries/SND_Utils.pine and SND_Core.pine.
 
 // ══════════════════════════════════════════════════════════
 // OPTIMIZED VERSION - Systematic Code Improvements

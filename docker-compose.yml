@@ -1,0 +1,62 @@
+# Microservices: Signal Receiver (API) + Trade Executor (Worker) + Redis
+# Shared network; API only validates and pushes to Redis; Worker executes trades.
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6379:6379'
+    networks:
+      - trading
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.api
+    ports:
+      - '8000:8000'
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET:-}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - trading
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      - PAPER_TRADING_ENABLED=${PAPER_TRADING_ENABLED:-false}
+      - PAPER_AUTO_EXECUTE=${PAPER_AUTO_EXECUTE:-true}
+      - PAPER_SYMBOLS=${PAPER_SYMBOLS:-}
+      - PAPER_MAX_POSITIONS=${PAPER_MAX_POSITIONS:-10}
+      - ACCOUNT_BALANCE=${ACCOUNT_BALANCE:-10000}
+      - RISK_PERCENT=${RISK_PERCENT:-1.0}
+      - MIN_RR_RATIO=${MIN_RR_RATIO:-1.0}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - trading
+    restart: unless-stopped
+
+networks:
+  trading:
+    driver: bridge
