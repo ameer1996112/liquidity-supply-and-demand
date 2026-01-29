@@ -1,7 +1,7 @@
 """
-Trade Executor (Worker).
-Loop: blpop trade_queue -> parse JSON -> logic.execute_trade(data).
-On failure: log EXECUTION_FAILED to Supabase and continue (fault-tolerant).
+Trade Executor (Consumer).
+Loop: blpop trading_queue -> parse JSON -> logic.process_trade(data).
+On failure: log to Supabase as status=FAILED (execution_failed) and continue; worker never crashes.
 """
 
 import json
@@ -25,7 +25,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-QUEUE_NAME = "trade_queue"
+QUEUE_NAME = "trading_queue"
 
 
 def run():
@@ -53,8 +53,9 @@ def run():
             logger.exception("Queue read error: %s", e)
             continue
 
+        # Broad try/except: never let the worker process crash
         try:
-            logic.execute_trade(data)
+            logic.process_trade(data)
         except Exception as e:
             logger.exception("EXECUTION_FAILED: %s", e)
             try:

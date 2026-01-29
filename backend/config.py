@@ -1,6 +1,7 @@
 """
 Centralized configuration using Pydantic BaseSettings.
 Used by API (main.py) and Worker (worker.py).
+Fail-fast: SUPABASE_URL, REDIS_URL, WEBHOOK_SECRET must be set (API needs all three for zero-drop).
 """
 
 from functools import lru_cache
@@ -11,7 +12,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Load from environment (and .env file)."""
+    """Load from environment (and .env file). Required: SUPABASE_URL, REDIS_URL, WEBHOOK_SECRET."""
 
     model_config = SettingsConfigDict(
         env_file=Path(__file__).resolve().parent / ".env",
@@ -21,15 +22,13 @@ class Settings(BaseSettings):
         populate_by_name=True,
     )
 
-    # Supabase (SUPABASE_URL, SUPABASE_KEY or SUPABASE_ANON_KEY)
-    supabase_url: str = ""
+    # Required for API (fail fast if missing)
+    supabase_url: str = Field(..., min_length=1, description="SUPABASE_URL")
+    redis_url: str = Field(..., min_length=1, description="REDIS_URL")
+    webhook_secret: str = Field(..., min_length=1, description="WEBHOOK_SECRET")
+
+    # Supabase key (SUPABASE_ANON_KEY or SUPABASE_KEY)
     supabase_key: str = Field(default="", validation_alias=["SUPABASE_ANON_KEY", "SUPABASE_KEY"])
-
-    # Redis
-    redis_url: str = "redis://localhost:6379/0"
-
-    # Webhook security
-    webhook_secret: str = ""
 
     # Optional: used by worker/logic (not by API)
     discord_webhook_url: str = ""

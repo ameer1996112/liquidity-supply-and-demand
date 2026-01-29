@@ -203,10 +203,10 @@ def should_forward_alert(data: Dict[str, Any]) -> Tuple[bool, List[str], Dict[st
     return True, ["OK"], debug_meta
 
 
-def execute_trade(data: Dict[str, Any]) -> None:
+def process_trade(data: Dict[str, Any]) -> None:
     """
     Execute one trade payload: save to Supabase, filter or notify, optional paper position.
-    Handles both entry and exit events.
+    Handles both entry and exit events. Called by worker only.
     """
     db = _get_supabase_db()
 
@@ -263,3 +263,7 @@ def execute_trade(data: Dict[str, Any]) -> None:
 
     send_discord(data, alert_id, mode=mode)
     send_telegram(data, alert_id)
+
+
+# Backward-compatible alias
+execute_trade = process_trade

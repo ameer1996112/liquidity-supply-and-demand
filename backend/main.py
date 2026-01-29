@@ -22,6 +22,14 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Trading Webhook API", version="1.0.0")
 
+
+@app.on_event("startup")
+def _fail_fast_config():
+    """Fail fast on startup if required env (REDIS_URL, WEBHOOK_SECRET, SUPABASE_URL) is missing."""
+    get_settings()
+    get_redis()
+
+
 # Redis client (lazy init)
 _redis = None
 
@@ -84,7 +92,7 @@ def validate_exit_payload(data: dict) -> None:
         raise HTTPException(status_code=400, detail=f"Missing exit fields: {missing}")
 
 
-QUEUE_NAME = "trade_queue"
+QUEUE_NAME = "trading_queue"
 
 
 @app.get("/health")
