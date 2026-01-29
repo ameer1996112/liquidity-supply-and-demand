@@ -7,7 +7,7 @@ Fail-fast: SUPABASE_URL, REDIS_URL, WEBHOOK_SECRET must be set (API needs all th
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     webhook_secret: str = Field(..., min_length=1, description="WEBHOOK_SECRET")
 
     # Supabase key (SUPABASE_ANON_KEY or SUPABASE_KEY)
-    supabase_key: str = Field(default="", validation_alias=["SUPABASE_ANON_KEY", "SUPABASE_KEY"])
+    supabase_key: str = Field(default="", validation_alias=AliasChoices("SUPABASE_ANON_KEY", "SUPABASE_KEY"))
 
     # Optional: used by worker/logic (not by API)
     discord_webhook_url: str = ""
