@@ -1,7 +1,7 @@
 """
 Centralized configuration using Pydantic BaseSettings.
 Used by API (main.py) and Worker (worker.py).
-Fail-fast: SUPABASE_URL, REDIS_URL, WEBHOOK_SECRET must be set (API needs all three for zero-drop).
+Fail-fast: SUPABASE_URL, REDIS_URL must be set. WEBHOOK_SECRET optional (when set, API validates it).
 """
 
 from functools import lru_cache
@@ -12,7 +12,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Load from environment (and .env file). Required: SUPABASE_URL, REDIS_URL, WEBHOOK_SECRET."""
+    """Load from environment (and .env file). Required: SUPABASE_URL, REDIS_URL. Optional: WEBHOOK_SECRET."""
 
     model_config = SettingsConfigDict(
         env_file=Path(__file__).resolve().parent / ".env",
@@ -22,10 +22,11 @@ class Settings(BaseSettings):
         populate_by_name=True,
     )
 
-    # Required for API (fail fast if missing)
+    # Required (fail fast if missing)
     supabase_url: str = Field(..., min_length=1, description="SUPABASE_URL")
     redis_url: str = Field(..., min_length=1, description="REDIS_URL")
-    webhook_secret: str = Field(..., min_length=1, description="WEBHOOK_SECRET")
+    # Optional: when set, /webhook requests must send this secret (header X-Webhook-Secret or Authorization: Bearer <secret>)
+    webhook_secret: str = Field(default="", description="WEBHOOK_SECRET")
 
     # Supabase key (SUPABASE_ANON_KEY or SUPABASE_KEY)
     supabase_key: str = Field(default="", validation_alias=AliasChoices("SUPABASE_ANON_KEY", "SUPABASE_KEY"))
