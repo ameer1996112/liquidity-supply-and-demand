@@ -56,12 +56,10 @@ pip_size = Utils.get_auto_pip_size(syminfo.ticker, syminfo.mintick)
 
 
 // ══════════════════════════════════════════════════════════
-// === QUICK SETUP PROFILE (Choose your trading style) ===
+// === 🎯 QUICK SETUP (Pro Dashboard – top of settings) ===
 // ══════════════════════════════════════════════════════════
-// Conservative = 70-75% win rate, fewer trades, strict filters
-// Balanced     = 65-70% win rate, moderate trades (RECOMMENDED)
-// Aggressive   = 55-60% win rate, more trades, relaxed filters
-// Custom       = Manual control of all parameters
+// Only Configuration Profile, Risk %, Date Range, Trade Direction here.
+// All other inputs live in "⚙️ Advanced / Manual Tweaks" at the bottom.
 
 config_profile = input.string("Balanced (Recommended)", "⚡ Configuration Profile",
      options = ["Conservative (Live Trading)", "Balanced (Recommended)", "Aggressive (Paper Trading)", "Custom"],
@@ -69,6 +67,7 @@ config_profile = input.string("Balanced (Recommended)", "⚡ Configuration Profi
      tooltip = "Quick load optimal settings or use Custom for manual control")
 
 use_profile_defaults = config_profile != "Custom"
+is_aggressive = config_profile == "Aggressive (Paper Trading)"
 
 // ========================================
 // === OPTIMIZATION: CONFIGURATION CONSTANTS ===
@@ -184,26 +183,27 @@ atr14 = ta.atr(14)
 vol_sma_20 = ta.sma(volume, 20)
 
 // ══════════════════════════════════════════════════════════
-// === ZONE & LIQUIDITY SETTINGS ===
+// === ⚙️ ADVANCED / MANUAL TWEAKS (bottom of settings) ===
 // ══════════════════════════════════════════════════════════
-// These settings control how zones and liquidity levels are detected
+// Zone, Liquidity, Risk, Display, Time Filters, Quality, etc.
+// Profile overrides most of these when not "Custom".
 
 // Zone Detection
-invalidate_on_wick   = input.bool(true, "Invalidate on Wick Touch", group = "🟩 Zone Settings", tooltip = "ON: Zone becomes invalid if ANY wick penetrates it. OFF: Only body closes invalidate zones.")
-max_zones            = input.int(20, "Max Zones Displayed", minval = 1, maxval = 50, group = "🟩 Zone Settings", tooltip = "Maximum number of zones to show on chart. More = cluttered but complete history.")
-min_body_perc        = input.float(50.0, "Min Body %", minval = 0, maxval = 100, group = "🟩 Zone Settings", tooltip = "Minimum candle body percentage for strong impulse detection. 50% = body must be at least half of candle range.")
+invalidate_on_wick   = input.bool(true, "Invalidate on Wick Touch", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Zone becomes invalid if ANY wick penetrates it. OFF: Only body closes invalidate zones.")
+max_zones            = input.int(20, "Max Zones Displayed", minval = 1, maxval = 50, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Maximum number of zones to show on chart. More = cluttered but complete history.")
+min_body_perc        = input.float(50.0, "Min Body %", minval = 0, maxval = 100, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Minimum candle body percentage for strong impulse detection. 50% = body must be at least half of candle range.")
 
 // Liquidity Detection (CRITICAL PARAMETERS)
-liq_pivot_len       = input.int(5, "Pivot Strength", minval = 1, group = "🔍 Liquidity Detection", tooltip = "How many candles on each side to confirm a swing high/low. Higher = Fewer but stronger pivots. Lower = More pivots but weaker.")
-structure_mode      = input.string("Relaxed (Wicks)", "Structure Detection", options = ["Relaxed (Wicks)", "Standard (Bodies)"], group = "🔍 Liquidity Detection", tooltip = "Relaxed: Uses wicks for structure breaks (more sensitive). Standard: Uses candle bodies (more conservative).")
-pvtMax              = input.int(5, "Max Liquidity Lines", minval = 1, maxval = 500, group = "🔍 Liquidity Detection", tooltip = "Maximum number of liquidity levels to track. More = slower but finds more setups.")
-require_major_liquidity = input.bool(true, "Require Strong Pivots", group = "🔍 Liquidity Detection", tooltip = "ON: Only use significant swing highs/lows (higher quality). OFF: Include minor pivots (more trades but lower quality).")
-useOneCandleLiquidity = input.bool(true, "Allow 1-Candle Swings", group = "🔍 Liquidity Detection", tooltip = "ON: Detect liquidity even from single-candle reversals. OFF: Require multi-candle swings.")
+liq_pivot_len       = input.int(5, "Pivot Strength", minval = 1, group = "⚙️ Advanced / Manual Tweaks", tooltip = "How many candles on each side to confirm a swing high/low. Higher = Fewer but stronger pivots. Lower = More pivots but weaker.")
+structure_mode      = input.string("Relaxed (Wicks)", "Structure Detection", options = ["Relaxed (Wicks)", "Standard (Bodies)"], group = "⚙️ Advanced / Manual Tweaks", tooltip = "Relaxed: Uses wicks for structure breaks (more sensitive). Standard: Uses candle bodies (more conservative).")
+pvtMax              = input.int(5, "Max Liquidity Lines", minval = 1, maxval = 500, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Maximum number of liquidity levels to track. More = slower but finds more setups.")
+require_major_liquidity = input.bool(true, "Require Strong Pivots", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Only use significant swing highs/lows (higher quality). OFF: Include minor pivots (more trades but lower quality).")
+useOneCandleLiquidity = input.bool(true, "Allow 1-Candle Swings", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Detect liquidity even from single-candle reversals. OFF: Require multi-candle swings.")
 
 // Symbol-Specific Liquidity Distance (IMPORTANT FOR EACH PAIR)
-liq_max_distance_pips_forex = input.float(10.0, "Max Distance - Forex (pips)", minval = 5.0, group = "🔍 Liquidity Detection", tooltip = "How far can liquidity be from zone for Forex pairs. 10 pips = tight, 20+ = loose.")
-liq_max_distance_pips_gold  = input.float(300.0, "Max Distance - Gold (pips)", minval = 5.0, group = "🔍 Liquidity Detection", tooltip = "How far can liquidity be from zone for Gold. 300 pips = $3 in Gold terms.")
-liq_max_distance_pips_index = input.float(5000.0, "Max Distance - Indices (pips)", minval = 100.0, group = "🔍 Liquidity Detection", tooltip = "How far can liquidity be from zone for Indices like NAS100.")
+liq_max_distance_pips_forex = input.float(10.0, "Max Distance - Forex (pips)", minval = 5.0, group = "⚙️ Advanced / Manual Tweaks", tooltip = "How far can liquidity be from zone for Forex pairs. 10 pips = tight, 20+ = loose.")
+liq_max_distance_pips_gold  = input.float(300.0, "Max Distance - Gold (pips)", minval = 5.0, group = "⚙️ Advanced / Manual Tweaks", tooltip = "How far can liquidity be from zone for Gold. 300 pips = $3 in Gold terms.")
+liq_max_distance_pips_index = input.float(5000.0, "Max Distance - Indices (pips)", minval = 100.0, group = "⚙️ Advanced / Manual Tweaks", tooltip = "How far can liquidity be from zone for Indices like NAS100.")
 
 // Hardcoded settings (optimal defaults)
 fractalsPeriod = 2  // Williams Fractals period
@@ -234,18 +234,18 @@ extend_bars          = 50
 // ══════════════════════════════════════════════════════════
 
 // Trade Direction
-trade_direction       = input.string("Both", "Trade Direction", options = ["Both", "Long Only", "Short Only"], group = "💰 Risk Management", tooltip = "Which direction to trade. Both = Long and Short. Long Only = Only buy. Short Only = Only sell.")
+trade_direction       = input.string("Both", "Trade Direction", options = ["Both", "Long Only", "Short Only"], group = "🎯 Quick Setup", tooltip = "Which direction to trade. Both = Long and Short. Long Only = Only buy. Short Only = Only sell.")
 allow_long_trades     = trade_direction == "Both" or trade_direction == "Long Only"
 allow_short_trades    = trade_direction == "Both" or trade_direction == "Short Only"
 
 // Position Sizing & Risk Management
-account_size_usd      = input.float(10000, "Account Size ($)", minval = 100, step = 100, group = "💰 Risk Management", tooltip = "Your trading account balance in USD. Used to calculate position size.")
-risk_per_trade_pct    = input.float(0.5, "Risk Per Trade (%)", minval = 0.1, maxval = 10, step = 0.1, group = "💰 Risk Management", tooltip = "Percentage of account to risk per trade. 0.5% = $50 risk on $10,000 account.")
-stop_loss_buffer_pips = input.float(1.0, "SL Buffer (Pips)", minval = 0, step = 0.1, group = "💰 Risk Management", tooltip = "Extra pips added below/above the zone wick for stop loss. Protects against wick hunts.")
-use_custom_rr         = input.bool(false, "☐ Override: Use Fixed RR", group = "💰 Risk Management", tooltip = "OFF (default): Uses smart SL-based rules (tight SL = higher RR). ON: Uses your custom ratio below for all trades.")
-risk_reward_ratio     = input.float(2.0, "   └─ Custom R:R Ratio", minval = 0.5, step = 0.1, group = "💰 Risk Management", tooltip = "Your custom Risk:Reward ratio. Only used when 'Override: Use Fixed RR' is checked.")
-liq_entry_max_dist = input.float(50.0, "Max Zone-to-Liq Distance (Pips)", minval = 0.0, step = 1.0, group = "💰 Risk Management", tooltip = "Block trades if zone is too far from liquidity. 50 pips = zone must be within 50 pips of swept liquidity.")
-min_tp_distance_pips = input.float(5.0, "Min TP Distance (Pips)", minval = 1.0, step = 1.0, group = "💰 Risk Management", tooltip = "Minimum take profit distance. Prevents tiny TP that would be eaten by spread. 5 pips = TP must be at least 5 pips away.")
+account_size_usd      = input.float(10000, "Account Size ($)", minval = 100, step = 100, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Your trading account balance in USD. Used to calculate position size.")
+risk_per_trade_pct    = input.float(0.5, "Risk Per Trade (%)", minval = 0.1, maxval = 10, step = 0.1, group = "🎯 Quick Setup", tooltip = "Percentage of account to risk per trade. 0.5% = $50 risk on $10,000 account.")
+stop_loss_buffer_pips = input.float(1.0, "SL Buffer (Pips)", minval = 0, step = 0.1, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Extra pips added below/above the zone wick for stop loss. Protects against wick hunts.")
+use_custom_rr         = input.bool(false, "☐ Override: Use Fixed RR", group = "⚙️ Advanced / Manual Tweaks", tooltip = "OFF (default): Uses smart SL-based rules (tight SL = higher RR). ON: Uses your custom ratio below for all trades.")
+risk_reward_ratio     = input.float(2.0, "   └─ Custom R:R Ratio", minval = 0.5, step = 0.1, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Your custom Risk:Reward ratio. Only used when 'Override: Use Fixed RR' is checked.")
+liq_entry_max_dist = input.float(50.0, "Max Zone-to-Liq Distance (Pips)", minval = 0.0, step = 1.0, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Block trades if zone is too far from liquidity. 50 pips = zone must be within 50 pips of swept liquidity.")
+min_tp_distance_pips = input.float(5.0, "Min TP Distance (Pips)", minval = 1.0, step = 1.0, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Minimum take profit distance. Prevents tiny TP that would be eaten by spread. 5 pips = TP must be at least 5 pips away.")
 
 // Advanced Settings (normally leave as defaults)
 use_stop_loss         = true  // Always use SL
@@ -261,16 +261,16 @@ debug_entry_labels    = false
 show_zone_debug_labels = false
 show_debug_labels      = false
 zone_label_size       = "Tiny"
-debug_level           = input.string("None", "Debug Level", options = ["None", "Basic", "Full"], group = "📊 Display", tooltip = "None = Clean chart. Basic = Key info. Full = All debug data.")
+debug_level           = input.string("None", "Debug Level", options = ["None", "Basic", "Full"], group = "⚙️ Advanced / Manual Tweaks", tooltip = "None = Clean chart. Basic = Key info. Full = All debug data.")
 debug_last_bars       = 200
-showZoneInspector     = input.bool(true, "Zone Inspector Panel", group = "📊 Display", tooltip = "ON: Show detailed zone info panel on chart.")
+showZoneInspector     = input.bool(true, "Zone Inspector Panel", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Show detailed zone info panel on chart.")
 manual_zone_id_input = ""  // Manual zone ID (leave empty)
-show_pos_sizing_table  = input.bool(true, "Position Size Table", group = "📊 Display", tooltip = "ON: Show position sizing calculations on chart.")
-showActiveProfile      = input.bool(true, "Show Active Profile Panel (Top Right)", group = "📊 Display", tooltip = "Show compact 'Active Profile' panel at the top-right when debug is enabled.")
-showResults            = input.bool(true, "Show Results Table (Bottom Right)", group = "📊 Display", tooltip = "Show compact performance statistics table at the bottom-right.")
-showSizing             = input.bool(false, "Show Position Sizing Panel (Bottom Left)", group = "📊 Display", tooltip = "Show position sizing debug table at the bottom-left.")
-take_profit_pips = input.float(0.0, "Fixed TP Override (Pips)", minval = 0, group = "📊 Display", tooltip = "Set fixed TP in pips. 0 = Use RR-based TP calculation instead.")
-debug_liq_extra = input.bool(false, "Debug: Liquidity Info", group = "📊 Display", tooltip = "ON: Show extra liquidity linking debug information.")
+showActiveProfile       = input.bool(true, "Show Active Profile (Bottom Center)", group = "⚙️ Advanced / Manual Tweaks", tooltip = "Show compact 'Active Profile' status bar at bottom-center when debug is enabled.")
+show_performance_table  = input.bool(true, "Performance Table", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Show performance statistics (Results) table on chart.")
+showResults             = input.bool(true, "Show Results Table", group = "⚙️ Advanced / Manual Tweaks", tooltip = "Show compact performance statistics table.")
+table_text_size         = input.string("Small", "Table Text Size", options = ["Tiny", "Small", "Normal"], group = "⚙️ Advanced / Manual Tweaks", tooltip = "Text size for all dashboard tables.")
+take_profit_pips        = input.float(0.0, "Fixed TP Override (Pips)", minval = 0, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Set fixed TP in pips. 0 = Use RR-based TP calculation instead.")
+debug_liq_extra         = input.bool(false, "Debug: Liquidity Info", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Show extra liquidity linking debug information.")
 
 // === GOLD PIP SCALING FACTOR ===
 // Since we changed Gold pip size from 0.1 to 0.01 (to match user perception),
@@ -293,29 +293,29 @@ float effective_tp_pips = take_profit_pips * pip_scale_factor
 // ══════════════════════════════════════════════════════════
 
 // Daily Trade Limits
-enable_trade_limit = input.bool(true, "Limit Daily Trades", group = "💰 Risk Management", tooltip = "ON: Stop trading after X trades per day. Prevents overtrading.")
-max_trades_per_day = input.int(2, "   └─ Max Trades/Day", minval = 1, maxval = 10, group = "💰 Risk Management", tooltip = "Maximum trades allowed per day. 2 = After 2 trades, no more entries until next day.")
+enable_trade_limit = input.bool(true, "Limit Daily Trades", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Stop trading after X trades per day. Prevents overtrading.")
+max_trades_per_day = input.int(2, "   └─ Max Trades/Day", minval = 1, maxval = 10, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Maximum trades allowed per day. 2 = After 2 trades, no more entries until next day.")
 
 // Time Filters
-filter_dead_zone = input.bool(true, "Block Dead Zone (xx:50-xx:00)", group = "⏰ Time Filters", tooltip = "ON: No entries in last 10 minutes of each hour. These periods have erratic price action.")
-filter_trading_hours = input.bool(true, "Trading Hours Only", group = "⏰ Time Filters", tooltip = "ON: Only trade during active market hours. OFF: Trade 24/7.")
-trading_start_hour = input.int(7, "   └─ Start Hour (UTC)", minval = 0, maxval = 23, group = "⏰ Time Filters", tooltip = "Hour to start trading (0-23). 7 = 7:00 AM UTC.")
-trading_end_hour = input.int(22, "   └─ End Hour (UTC)", minval = 0, maxval = 23, group = "⏰ Time Filters", tooltip = "Hour to stop trading (0-23). 22 = 10:00 PM UTC.")
-require_htf_flip = input.bool(true, "HTF Flip Context", group = "⏰ Time Filters", tooltip = "ON: Flip entries only valid near 30m/1H candle opens for better timing.")
+filter_dead_zone = input.bool(true, "Block Dead Zone (xx:50-xx:00)", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: No entries in last 10 minutes of each hour. These periods have erratic price action.")
+filter_trading_hours = input.bool(true, "Trading Hours Only", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Only trade during active market hours. OFF: Trade 24/7.")
+trading_start_hour = input.int(7, "   └─ Start Hour (UTC)", minval = 0, maxval = 23, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Hour to start trading (0-23). 7 = 7:00 AM UTC.")
+trading_end_hour = input.int(22, "   └─ End Hour (UTC)", minval = 0, maxval = 23, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Hour to stop trading (0-23). 22 = 10:00 PM UTC.")
+require_htf_flip = input.bool(true, "HTF Flip Context", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Flip entries only valid near 30m/1H candle opens for better timing.")
 
 // AI & Quality Filters
-enable_ai_quality_filter = input.bool(true, "AI Quality Filter", group = "🤖 Quality Filters", tooltip = "ON: Block low-quality setups using AI scoring. Improves win rate.")
-ai_quality_threshold = input.int(60, "   └─ Min Score (0-100)", minval = 0, maxval = 100, group = "🤖 Quality Filters", tooltip = "Minimum quality score to take trade. 60 = ~60% expected win rate. Higher = fewer but better trades.")
-enable_grade_filter = input.bool(false, "Grade Filter", group = "🤖 Quality Filters", tooltip = "ON: Filter by zone grade (A+, A, B+, etc). OFF: Use score filter instead.")
-min_entry_grade     = input.string("C", "   └─ Min Grade", options=["A+", "A", "B+", "B", "C+", "C"], group="🤖 Quality Filters", tooltip="Minimum zone grade required. A+ = Best quality, C = Lowest.")
-min_return_strength = input.int(0, "Return Speed Filter", minval = 0, maxval = 100, group = "🤖 Quality Filters", tooltip = "How fast price returned after sweep. 0 = OFF. 30 = Block slow returns. 70 = Only sharp V-reversals.")
+enable_ai_quality_filter = input.bool(true, "AI Quality Filter", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Block low-quality setups using AI scoring. Improves win rate.")
+ai_quality_threshold = input.int(60, "   └─ Min Score (0-100)", minval = 0, maxval = 100, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Minimum quality score to take trade. 60 = ~60% expected win rate. Higher = fewer but better trades.")
+enable_grade_filter = input.bool(false, "Grade Filter", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Filter by zone grade (A+, A, B+, etc). OFF: Use score filter instead.")
+min_entry_grade     = input.string("C", "   └─ Min Grade", options=["A+", "A", "B+", "B", "C+", "C"], group = "⚙️ Advanced / Manual Tweaks", tooltip="Minimum zone grade required. A+ = Best quality, C = Lowest.")
+min_return_strength = input.int(0, "Return Speed Filter", minval = 0, maxval = 100, group = "⚙️ Advanced / Manual Tweaks", tooltip = "How fast price returned after sweep. 0 = OFF. 30 = Block slow returns. 70 = Only sharp V-reversals.")
 
 // Advanced Features
-use_break_even     = input.bool(false, "Break-Even Mode", group = "⚙️ Advanced", tooltip = "ON: Move SL to entry price after hitting partial profit target. Protects gains.")
-max_bars_held = input.int(36, "Time-Based Exit (Bars)", minval=1, group="⚙️ Advanced", tooltip="Close trade after X bars regardless of P/L. 36 bars on M5 = 3 hours max hold time.")
-enable_double_tp = input.bool(false, "Double TP Mode", group = "⚙️ Advanced", tooltip = "ON: Double all TP targets. Example: 1:2 becomes 1:4. For trending markets.")
-use_fvg_confirmation = input.bool(false, "Require FVG (Imbalance)", group = "⚙️ Advanced", tooltip = "ON: Only create zones that have a Fair Value Gap. Reduces zones but improves quality.")
-enable_accuracy_zones = input.bool(true, "Accuracy Zones", group = "⚙️ Advanced", tooltip = "ON: Detect high-precision zones. Auto-disabled for Gold/Indices.")
+use_break_even     = input.bool(false, "Break-Even Mode", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Move SL to entry price after hitting partial profit target. Protects gains.")
+max_bars_held = input.int(36, "Time-Based Exit (Bars)", minval=1, group = "⚙️ Advanced / Manual Tweaks", tooltip="Close trade after X bars regardless of P/L. 36 bars on M5 = 3 hours max hold time.")
+enable_double_tp = input.bool(false, "Double TP Mode", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Double all TP targets. Example: 1:2 becomes 1:4. For trending markets.")
+use_fvg_confirmation = input.bool(false, "Require FVG (Imbalance)", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Only create zones that have a Fair Value Gap. Reduces zones but improves quality.")
+enable_accuracy_zones = input.bool(true, "Accuracy Zones", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Detect high-precision zones. Auto-disabled for Gold/Indices.")
 should_use_accuracy_zones = enable_accuracy_zones and not (is_gold or is_index)
 
 // Webhook Integration (for live trading)
@@ -323,9 +323,9 @@ enable_webhook_alerts = true  // Always enabled
 webhook_include_zone_id = true  // Always include zone ID
 
 // Display Options (visual only)
-show_grade_on_zone  = input.bool(true, "Show Grade on Zones", group="📊 Display", tooltip="ON: Display zone grade (A+, B, etc) on the zone label.")
-show_ai_score_on_label = input.bool(false, "Show AI Score on Labels", group = "📊 Display", tooltip = "ON: Display numeric AI score on entry labels.")
-enable_v6_v7_features = input.bool(true, "Advanced AI Features", group = "📊 Display", tooltip = "ON: Calculate V6/V7 AI features. WARNING: Makes script 10x slower but improves quality scoring.")
+show_grade_on_zone  = input.bool(true, "Show Grade on Zones", group = "⚙️ Advanced / Manual Tweaks", tooltip="ON: Display zone grade (A+, B, etc) on the zone label.")
+show_ai_score_on_label = input.bool(false, "Show AI Score on Labels", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Display numeric AI score on entry labels.")
+enable_v6_v7_features = input.bool(true, "Advanced AI Features", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Calculate V6/V7 AI features. WARNING: Makes script 10x slower but improves quality scoring.")
 ema_trend_length = 200  // Trend EMA (hardcoded)
 
 // === WEBHOOK PLOT VARIABLES (GLOBAL) ===
@@ -354,25 +354,23 @@ var float plot_return_strength  = na
 // ══════════════════════════════════════════════════════════
 
 // Daily Risk Limits
-max_daily_loss_pct    = input.float(2.0, "Daily Loss Limit (%)", minval = 0.1, group = "💰 Risk Management", tooltip = "Stop trading after losing X% of account in a day. 2% = If you lose $200 on $10,000, stop for the day.")
-max_daily_profit_pct  = input.float(5.0, "Daily Profit Target (%)", minval = 0.1, group = "💰 Risk Management", tooltip = "Option to stop after reaching daily profit target. 5% = Stop after making $500 on $10,000.")
+max_daily_loss_pct    = input.float(2.0, "Daily Loss Limit (%)", minval = 0.1, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Stop trading after losing X% of account in a day. 2% = If you lose $200 on $10,000, stop for the day.")
+max_daily_profit_pct  = input.float(5.0, "Daily Profit Target (%)", minval = 0.1, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Option to stop after reaching daily profit target. 5% = Stop after making $500 on $10,000.")
 reset_daily_pnl       = true  // Always reset PnL daily
 
 // Backtest Date Range
-enable_date_filter = input.bool(true, "Date Range Filter", group = "📅 Backtest", tooltip = "ON: Only backtest within specified date range.")
-start_date         = input.time(timestamp("01 Jan 2023 00:00 +0000"), "   └─ Start Date", group = "📅 Backtest", tooltip = "Backtest start date.")
-end_date           = input.time(timestamp("19 Jan 2026 23:59 +0000"), "   └─ End Date", group = "📅 Backtest", tooltip = "Backtest end date.")
-min_bar_index_for_entries = input.int(100, "Skip First N Bars", minval = 0, group = "📅 Backtest", tooltip = "Skip first N bars to avoid backfill issues. 100 = Wait for 100 bars of data before taking trades.")
+enable_date_filter = input.bool(true, "Date Range Filter", group = "🎯 Quick Setup", tooltip = "ON: Only backtest within specified date range.")
+start_date         = input.time(timestamp("01 Jan 2023 00:00 +0000"), "   └─ Start Date", group = "🎯 Quick Setup", tooltip = "Backtest start date.")
+end_date           = input.time(timestamp("19 Jan 2026 23:59 +0000"), "   └─ End Date", group = "🎯 Quick Setup", tooltip = "Backtest end date.")
+min_bar_index_for_entries = input.int(100, "Skip First N Bars", minval = 0, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Skip first N bars to avoid backfill issues. 100 = Wait for 100 bars of data before taking trades.")
 
 // Display Tables (visual only)
-show_performance_table = input.bool(false, "Performance Table", group = "📊 Display", tooltip = "ON: Show performance statistics table on chart.")
 
 
 // Override key settings when a profile is selected (not "Custom")
 if use_profile_defaults
     is_conservative = config_profile == "Conservative (Live Trading)"
     is_balanced = config_profile == "Balanced (Recommended)"
-    is_aggressive = config_profile == "Aggressive (Paper Trading)"
 
     // Apply profile-specific settings
     if is_conservative
@@ -385,7 +383,8 @@ if use_profile_defaults
         min_entry_grade := "B+"
         min_return_strength := 50
         risk_per_trade_pct := 0.5
-        risk_reward_ratio := 3.0
+        if not use_custom_rr
+            risk_reward_ratio := 3.0
         max_trades_per_day := 1
         min_tp_distance_pips := 15.0
     else if is_balanced
@@ -398,7 +397,8 @@ if use_profile_defaults
         min_entry_grade := "C+"
         min_return_strength := 30
         risk_per_trade_pct := 0.5
-        risk_reward_ratio := 2.0
+        if not use_custom_rr
+            risk_reward_ratio := 2.0
         max_trades_per_day := 2
         min_tp_distance_pips := 10.0
     else  // Aggressive
@@ -411,7 +411,8 @@ if use_profile_defaults
         min_entry_grade := "C"
         min_return_strength := 0
         risk_per_trade_pct := 0.5
-        risk_reward_ratio := 1.5
+        if not use_custom_rr
+            risk_reward_ratio := 1.5
         max_trades_per_day := 2
         min_tp_distance_pips := 5.0
 
@@ -570,6 +571,80 @@ get_gold_tp_rules(sl_pips) =>
 
     [tp_ratio, be_trigger_rr, be_sl_pips_min, move_to_be]
 
+// === AGGRESSIVE PROFILE: JPY & FOREX SL-BASED RULES ===
+// - SL ≤ 3 pips: min 1:4.5, move SL to 1:1 (min 2 pips) when 1:4 hits
+// - SL 3.1–7: min 1:3, BE when 1:2 hits
+// - SL 7.1–11: min 1:2.5, BE when 1:1.2 hits
+// - SL 11.1+: close full at 1:2
+get_jpy_tp_rules_aggressive(sl_pips) =>
+    float tp_ratio = 2.0
+    float be_trigger_rr = na
+    float be_sl_pips_min = na
+    bool move_to_be = false
+
+    if sl_pips <= 3.0
+        tp_ratio := 4.5
+        be_trigger_rr := 4.0
+        be_sl_pips_min := 2.0
+        move_to_be := true
+    else if sl_pips <= 7.0
+        tp_ratio := 3.0
+        be_trigger_rr := 2.0
+        be_sl_pips_min := 0.0
+        move_to_be := true
+    else if sl_pips <= 11.0
+        tp_ratio := 2.5
+        be_trigger_rr := 1.2
+        be_sl_pips_min := 0.0
+        move_to_be := true
+    else
+        tp_ratio := 2.0
+        be_trigger_rr := na
+        be_sl_pips_min := na
+        move_to_be := false
+
+    [tp_ratio, be_trigger_rr, be_sl_pips_min, move_to_be]
+
+// === AGGRESSIVE PROFILE: GOLD SL-BASED RULES ===
+// - SL ≤ 50: min 1:4.5
+// - SL ≤ 100: min 1:3, BE at 1:2.75
+// - SL 100–150: close full 1:2.5, BE at 1:2
+// - SL 150–200: close full 1:2, BE at 1:1.75
+// - SL 200+: close full 1:1.5
+get_gold_tp_rules_aggressive(sl_pips) =>
+    float tp_ratio = 1.5
+    float be_trigger_rr = na
+    float be_sl_pips_min = na
+    bool move_to_be = false
+
+    if sl_pips <= 50.0
+        tp_ratio := 4.5
+        be_trigger_rr := na
+        be_sl_pips_min := na
+        move_to_be := false
+    else if sl_pips <= 100.0
+        tp_ratio := 3.0
+        be_trigger_rr := 2.75
+        be_sl_pips_min := 0.0
+        move_to_be := true
+    else if sl_pips <= 150.0
+        tp_ratio := 2.5
+        be_trigger_rr := 2.0
+        be_sl_pips_min := 0.0
+        move_to_be := true
+    else if sl_pips <= 200.0
+        tp_ratio := 2.0
+        be_trigger_rr := 1.75
+        be_sl_pips_min := 0.0
+        move_to_be := true
+    else
+        tp_ratio := 1.5
+        be_trigger_rr := na
+        be_sl_pips_min := na
+        move_to_be := false
+
+    [tp_ratio, be_trigger_rr, be_sl_pips_min, move_to_be]
+
 // === INDEX TP RULES (NAS100, SPX, etc.) ===
 // Fixed 1:4 ratio for all index trades regardless of SL size
 get_index_tp_rules(sl_pips) =>
@@ -601,14 +676,34 @@ get_tp_ratio(symbol_type, sl_pips) =>
         be_trig := i_bet
         be_sl := i_bes
         move_be := i_mbe
-    // 2. Check for Gold - Variable TP based on SL size
+    // 2. Aggressive profile: Gold / JPY&Forex SL-based rules; 1:4 for other (e.g. silver, crypto)
+    else if is_aggressive and use_profile_defaults
+        if is_gold
+            [g_tp, g_bet, g_bes, g_mbe] = get_gold_tp_rules_aggressive(sl_pips)
+            base_ratio := g_tp
+            be_trig := g_bet
+            be_sl := g_bes
+            move_be := g_mbe
+        else if is_jpy_pair or (not is_silver and not is_crypto)
+            // JPY and Forex: same aggressive SL-based rules
+            [f_tp, f_bet, f_bes, f_mbe] = get_jpy_tp_rules_aggressive(sl_pips)
+            base_ratio := f_tp
+            be_trig := f_bet
+            be_sl := f_bes
+            move_be := f_mbe
+        else
+            // Other (silver, crypto, etc.): 1:4
+            base_ratio := 4.0
+            be_trig := na
+            be_sl := na
+            move_be := false
+    // 3. Conservative/Balanced/Custom: existing rules
     else if is_gold
         [g_tp, g_bet, g_bes, g_mbe] = get_gold_tp_rules(sl_pips)
         base_ratio := g_tp
         be_trig := g_bet
         be_sl := g_bes
         move_be := g_mbe
-    // 3. All Forex pairs (JPY and non-JPY) - Use SL-based rules
     else
         [f_tp, f_bet, f_bes, f_mbe] = get_forex_tp_rules(sl_pips)
         base_ratio := f_tp
@@ -2438,18 +2533,16 @@ var int stat_grade_C_wins  = 0
 // Track whether current trade originated from an accuracy zone (Already declared above)
 var string trade_entry_grade      = "C"  // Track grade of current trade
 
-// === PERFORMANCE TABLE STATE & RENDERER ===
-// Unique panel: bottom_right
+// === PERFORMANCE TABLE (Top Right - The Scoreboard) ===
 var table performanceTable = na
 
 draw_performance_table(tbl) =>
     table result = tbl
 
-    if show_performance_table and showResults and barstate.islast
+    if show_performance_table and showResults and barstate.islastconfirmedhistory
         if na(result)
-            // Compact 9-row table with professional dark theme
-            // Docked in bottom-right corner (unique position).
-            result := table.new(position.bottom_right, 2, 9, 
+            // 3. Performance Table (Top Right)
+            result := table.new(position.top_right, 2, 9, 
                  bgcolor = color.new(color.rgb(30, 35, 40), 5), 
                  border_width = 1, border_color = color.new(color.white, 70), 
                  frame_width = 1, frame_color = color.new(color.white, 70))
@@ -2478,52 +2571,52 @@ draw_performance_table(tbl) =>
             int first_trade_time = strategy.closedtrades > 0 ? strategy.closedtrades.entry_time(0) : na
             string date_str = not na(first_trade_time) ? str.format("{0,date,short}", first_trade_time) : "N/A"
             
-            table.cell(result, 0, 0, "📊 RESULTS", text_color = color.white, bgcolor = color.rgb(40, 40, 40), text_size = size.small, text_halign = text.align_left)
-            table.cell(result, 1, 0, "Since " + date_str, text_color = color.gray, bgcolor = color.rgb(40, 40, 40), text_size = size.small, text_halign = text.align_right)
+            table.cell(result, 0, 0, "📊 RESULTS", text_color = color.white, bgcolor = color.rgb(40, 40, 40), text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)), text_halign = text.align_left)
+            table.cell(result, 1, 0, "Since " + date_str, text_color = color.gray, bgcolor = color.rgb(40, 40, 40), text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)), text_halign = text.align_right)
             
             // === 1. NET PROFIT ===
-            table.cell(result, 0, 1, "Net Profit", text_color = color.rgb(180, 180, 180), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_right, text_size = size.small)
+            table.cell(result, 0, 1, "Net Profit", text_color = color.rgb(180, 180, 180), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
             string profit_str = (net_profit >= 0 ? "$" : "-$") + str.tostring(math.abs(net_profit), "#,##0.00")
-            table.cell(result, 1, 1, profit_str, text_color = profit_color, bgcolor = color.rgb(25, 25, 25), text_halign = text.align_left, text_size = size.small)
+            table.cell(result, 1, 1, profit_str, text_color = profit_color, bgcolor = color.rgb(25, 25, 25), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
             
             // === 2. TOTAL TRADES ===
-            table.cell(result, 0, 2, "Total Trades", text_color = color.rgb(180, 180, 180), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_right, text_size = size.small)
-            table.cell(result, 1, 2, str.tostring(total_trades), text_color = color.rgb(200, 200, 200), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_left, text_size = size.small)
+            table.cell(result, 0, 2, "Total Trades", text_color = color.rgb(180, 180, 180), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
+            table.cell(result, 1, 2, str.tostring(total_trades), text_color = color.rgb(200, 200, 200), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
             
             // === 3. WIN RATE ===
-            table.cell(result, 0, 3, "Win Rate", text_color = color.rgb(180, 180, 180), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_right, text_size = size.small)
+            table.cell(result, 0, 3, "Win Rate", text_color = color.rgb(180, 180, 180), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
             string wr_str = str.tostring(win_rate, "#.00") + "% (" + str.tostring(win_trades) + "/" + str.tostring(total_closed) + ")"
             color wr_color = win_rate >= 50 ? color.rgb(0, 200, 100) : color.rgb(255, 180, 80)
-            table.cell(result, 1, 3, wr_str, text_color = wr_color, bgcolor = color.rgb(25, 25, 25), text_halign = text.align_left, text_size = size.small)
+            table.cell(result, 1, 3, wr_str, text_color = wr_color, bgcolor = color.rgb(25, 25, 25), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
             
             // === 4. PROFIT FACTOR ===
-            table.cell(result, 0, 4, "Profit Factor", text_color = color.rgb(180, 180, 180), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_right, text_size = size.small)
+            table.cell(result, 0, 4, "Profit Factor", text_color = color.rgb(180, 180, 180), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
             string pf_str = gross_loss > 0 ? str.tostring(profit_factor, "#.00") : (gross_profit > 0 ? "∞" : "N/A")
             color pf_color = profit_factor >= 1.5 ? color.rgb(0, 200, 100) : (profit_factor >= 1.0 ? color.rgb(255, 180, 80) : color.rgb(255, 80, 80))
-            table.cell(result, 1, 4, pf_str, text_color = pf_color, bgcolor = color.rgb(25, 25, 25), text_halign = text.align_left, text_size = size.small)
+            table.cell(result, 1, 4, pf_str, text_color = pf_color, bgcolor = color.rgb(25, 25, 25), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
             
             // === 5. MAX DRAWDOWN ===
-            table.cell(result, 0, 5, "Max Drawdown", text_color = color.rgb(180, 180, 180), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_right, text_size = size.small)
+            table.cell(result, 0, 5, "Max Drawdown", text_color = color.rgb(180, 180, 180), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
             string dd_str = "-$" + str.tostring(math.abs(max_dd), "#,##0.00")
-            table.cell(result, 1, 5, dd_str, text_color = color.rgb(255, 100, 100), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_left, text_size = size.small)
+            table.cell(result, 1, 5, dd_str, text_color = color.rgb(255, 100, 100), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
 
             // === 6. GRADE STATS ===
-            table.cell(result, 0, 6, "A-Grade WR", text_color = color.rgb(180, 180, 180), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_right, text_size = size.small)
+            table.cell(result, 0, 6, "A-Grade WR", text_color = color.rgb(180, 180, 180), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
             string a_wr_str = str.tostring(Utils.safe_percent(stat_grade_A_wins, stat_grade_A_total), "#.0") + "% (" + str.tostring(stat_grade_A_total) + ")"
-            table.cell(result, 1, 6, a_wr_str, text_color = color.white, bgcolor = color.rgb(25, 25, 25), text_halign = text.align_left, text_size = size.small)
+            table.cell(result, 1, 6, a_wr_str, text_color = color.white, bgcolor = color.rgb(25, 25, 25), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
 
-            table.cell(result, 0, 7, "B-Grade WR", text_color = color.rgb(180, 180, 180), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_right, text_size = size.small)
+            table.cell(result, 0, 7, "B-Grade WR", text_color = color.rgb(180, 180, 180), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
             string b_wr_str = str.tostring(Utils.safe_percent(stat_grade_B_wins, stat_grade_B_total), "#.0") + "% (" + str.tostring(stat_grade_B_total) + ")"
-            table.cell(result, 1, 7, b_wr_str, text_color = color.white, bgcolor = color.rgb(25, 25, 25), text_halign = text.align_left, text_size = size.small)
+            table.cell(result, 1, 7, b_wr_str, text_color = color.white, bgcolor = color.rgb(25, 25, 25), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
 
             // === 8. AI FILTER STATUS ===
-            table.cell(result, 0, 8, "AI Filter", text_color = color.rgb(180, 180, 180), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_right, text_size = size.small)
+            table.cell(result, 0, 8, "AI Filter", text_color = color.rgb(180, 180, 180), bgcolor = color.rgb(25, 25, 25), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
             string ai_filter_str = enable_ai_quality_filter ? ("ON (≥" + str.tostring(ai_quality_threshold) + ")") : "OFF"
             color ai_color = enable_ai_quality_filter ? color.rgb(0, 200, 100) : color.rgb(150, 150, 150)
-            table.cell(result, 1, 8, ai_filter_str, text_color = ai_color, bgcolor = color.rgb(25, 25, 25), text_halign = text.align_left, text_size = size.small)
+            table.cell(result, 1, 8, ai_filter_str, text_color = ai_color, bgcolor = color.rgb(25, 25, 25), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
 
     // When disabled, clear existing table so stale data doesn't remain on chart.
-    if (not show_performance_table) and not na(result)
+    if (not show_performance_table or not showResults) and not na(result)
         // Overwrite all cells instead of using table.clear for Pine v6 compatibility
         for r = 0 to 8
             table.cell(result, 0, r, "", bgcolor = color.new(color.black, 100))
@@ -2648,17 +2741,6 @@ if na(last_trade_day) or current_day_start != last_trade_day
 // Helper logic already replaced above
 // trades_allowed_today() =>
 //     current_day_trades < max_trades_per_day
-
-// === DEBUG TABLE COLOR CODING FUNCTIONS ===
-getZoneStateColor(state) =>
-    state == "Untapped" ? color.aqua : color.red
-
-getAccuracyColor(status) =>
-    status == "Accuracy Adjusted" ? color.yellow : color.rgb(200, 200, 200)
-
-getLiquidityColor(status) =>
-    status == "Yes" ? color.green : (status == "No" ? color.red : color.rgb(200, 200, 200))
-
 
 // === Helper: Bull/Bear ===
 // Unified zone finder - consolidates demand/supply zone lookups
@@ -4857,231 +4939,16 @@ if plotLiq and barstate.isconfirmed
     _controlLine(_lowLiqLines, _lowLiqActive, high, low)
     _controlLine(_highLiqLines, _highLiqActive, high, low)
 
-// === DEBUG TABLE ===
-// Separate utility panel (non-primary) anchored on middle-right to avoid overlapping core panels.
-var table debugTable = na
-
-// Render debug panel when debug panels are enabled (debug_level != "None").
-// Use the debug_last_bars window but allow drawing on all confirmed bars inside it.
-if showDebugPanels and isRecentBarForDebug()
-    if na(debugTable)
-        debugTable := table.new(position.middle_right, 2, 10, 
-             bgcolor = color.new(color.rgb(30, 35, 40), 5), 
-             border_width = 1, border_color = color.new(color.white, 70), 
-             frame_width = 1, frame_color = color.new(color.white, 70))
-    
-    if not na(debugTable)
-        // Find closest active zone
-        float closestDemandDist = na
-        int closestDemandIdx = na
-        float closestSupplyDist = na
-        int closestSupplyIdx = na
-        float currentPrice = close
-        
-        // Find closest demand zone
-        if array.size(demandZones) > 0
-            for i = 0 to array.size(demandZones) - 1
-                Core.Zone z = array.get(demandZones, i)
-                if z.active
-                    dist = math.abs(currentPrice - z.top)
-                    if na(closestDemandDist) or dist < closestDemandDist
-                        closestDemandDist := dist
-                        closestDemandIdx := i
-        
-        // Find closest supply zone
-        if array.size(supplyZones) > 0
-            for i = 0 to array.size(supplyZones) - 1
-                Core.Zone z = array.get(supplyZones, i)
-                if z.active
-                    dist = math.abs(currentPrice - z.bottom)
-                    if na(closestSupplyDist) or dist < closestSupplyDist
-                        closestSupplyDist := dist
-                        closestSupplyIdx := i
-        
-        // Determine closest zone overall
-        string closestType = "None"
-        int closestIdx = na
-        float closestDist = na
-        bool isClosestDemand = false
-        
-        if not na(closestDemandDist) and not na(closestSupplyDist)
-            if closestDemandDist < closestSupplyDist
-                closestType := "Demand"
-                closestIdx := closestDemandIdx
-                closestDist := closestDemandDist
-                isClosestDemand := true
-            else
-                closestType := "Supply"
-                closestIdx := closestSupplyIdx
-                closestDist := closestSupplyDist
-                isClosestDemand := false
-        else if not na(closestDemandDist)
-            closestType := "Demand"
-            closestIdx := closestDemandIdx
-            closestDist := closestDemandDist
-            isClosestDemand := true
-        else if not na(closestSupplyDist)
-            closestType := "Supply"
-            closestIdx := closestSupplyIdx
-            closestDist := closestSupplyDist
-            isClosestDemand := false
-        
-        // Get zone details if found
-        string zoneState = "N/A"
-        string accuracyStatus = "N/A"
-        string liqValidStatus = "N/A"
-        bool isAccuracy = false
-        bool liqValid = false
-        bool liqExists = false
-        float zoneEntryPrice = na
-        float zoneLow = na
-        float zoneHigh = na
-        bool leftZone = false
-        
-        if not na(closestIdx)
-            if isClosestDemand
-                Core.Zone z = array.get(demandZones, closestIdx)
-                zoneHigh := z.top
-                zoneLow := z.bottom
-                zoneEntryPrice := zoneHigh
-                leftZone := z.leftZone
-                zoneState := leftZone ? "Tapped" : "Untapped"
-                
-                // Accuracy zone (not stored in UDT)
-                accuracyStatus := "N/A"
-                
-                // Liquidity validation
-                liqValid := z.liquidityValid
-                liqExists := not na(z.liquidityPrice) or not na(z.liqLowPrice) or not na(z.liqHighPrice)
-                // Show reason if invalid, otherwise show Yes with candleCount/N/A
-                if not na(z.inactiveReason)
-                    liqValidStatus := "No: " + z.inactiveReason
-                else if liqValid
-                    liqValidStatus := "Yes (Cnt=" + str.tostring(z.liquidityCandleCount) + ")"
-                else if liqExists
-                    liqValidStatus := "No: ?"
-                else
-                    liqValidStatus := "N/A"
-            else
-                Core.Zone z = array.get(supplyZones, closestIdx)
-                zoneHigh := z.top
-                zoneLow := z.bottom
-                zoneEntryPrice := zoneLow
-                leftZone := z.leftZone
-                zoneState := leftZone ? "Tapped" : "Untapped"
-                
-                // Accuracy zone
-                accuracyStatus := "N/A"
-                
-                // Liquidity validation
-                liqValid := z.liquidityValid
-                liqExists := not na(z.liquidityPrice) or not na(z.liqLowPrice) or not na(z.liqHighPrice)
-                // Show reason if invalid, otherwise show Yes with candleCount/N/A
-                if not na(z.inactiveReason)
-                    liqValidStatus := "No: " + z.inactiveReason
-                else if liqValid
-                    liqValidStatus := "Yes (Cnt=" + str.tostring(z.liquidityCandleCount) + ")"
-                else if liqExists
-                    liqValidStatus := "No: ?"
-                else
-                    liqValidStatus := "N/A"
-                
-                // Debug Liquidity Linking
-                if debug_liq_extra
-                    // Row 5: Liquidity Details
-                    table.cell(debugTable, 0, 5, "Liq Debug", text_color = color.yellow, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-                    
-                    string debugStr = "N/A"
-                    if liqExists
-                        int liqBar = z.liquidityBarIndex
-                        int endBar = z.liquiditySwept ? z.liquiditySweptBarIndex : bar_index
-                        int count = z.liquidityCandleCount
-                        float lPrice = z.liquidityPrice
-                        
-                        // Re-calculate range for display
-                        float rLow = na
-                        float rHigh = na
-                        if isClosestDemand
-                            rLow := lPrice
-                            rHigh := getMaxHighBetween(liqBar, endBar)
-                        else
-                            rHigh := lPrice
-                            rLow := getMinLowBetween(liqBar, endBar)
-                        
-                        debugStr := str.format("P:{0} B:{1} E:{2} C:{3}\nR:{4}-{5}", str.tostring(lPrice, format.mintick), str.tostring(liqBar), str.tostring(endBar), str.tostring(count), str.tostring(rLow, format.mintick), str.tostring(rHigh, format.mintick))
-                    else
-                        debugStr := "No Candidate"
-                    
-                    table.cell(debugTable, 1, 5, debugStr, text_color = color.yellow, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
-        
-
-        
-        // Header row (row 0) - spans both columns visually
-        table.cell(debugTable, 0, 0, "🔍 DEBUG PANEL", text_color = color.white, bgcolor = color.rgb(45, 50, 55), text_size = size.small, text_halign = text.align_left)
-        table.cell(debugTable, 1, 0, "", bgcolor = color.rgb(45, 50, 55))
-        
-        // Row 1: Closest Zone Type
-        table.cell(debugTable, 0, 1, "Zone Type", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        typeColor = closestType == "Demand" ? color.green : (closestType == "Supply" ? color.red : color.rgb(200, 200, 200))
-        table.cell(debugTable, 1, 1, closestType, text_color = typeColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 2: Zone UZID (permanent unique ID)
-        int closestZoneUZID = na
-        if not na(closestIdx)
-            if isClosestDemand
-                Core.Zone z = array.get(demandZones, closestIdx)
-                closestZoneUZID := z.id
-            else
-                Core.Zone z = array.get(supplyZones, closestIdx)
-                closestZoneUZID := z.id
-        table.cell(debugTable, 0, 2, "Zone UZID", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        uzidStr = not na(closestZoneUZID) ? str.tostring(closestZoneUZID) : "N/A"
-        table.cell(debugTable, 1, 2, uzidStr, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 3: Zone Range
-        table.cell(debugTable, 0, 3, "Zone Range", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        zoneRangeStr = (not na(zoneLow) and not na(zoneHigh)) ? str.format("{0} → {1}", str.tostring(zoneLow, format.mintick), str.tostring(zoneHigh, format.mintick)) : "N/A"
-        table.cell(debugTable, 1, 3, zoneRangeStr, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 4: Distance to Price
-        table.cell(debugTable, 0, 4, "Distance", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        distPips = not na(closestDist) ? str.tostring(math.round(closestDist / pip_size * 10) / 10, "#.#") + " pips" : "N/A"
-        table.cell(debugTable, 1, 4, distPips, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 5: Zone State
-        table.cell(debugTable, 0, 5, "Zone State", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        stateColor = getZoneStateColor(zoneState)
-        table.cell(debugTable, 1, 5, zoneState, text_color = stateColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 6: Accuracy Zone
-        table.cell(debugTable, 0, 6, "Accuracy Zone", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        accColor = getAccuracyColor(accuracyStatus)
-        accDisplay = accuracyStatus == "Accuracy Adjusted" ? "Yes" : "No"
-        table.cell(debugTable, 1, 6, accDisplay, text_color = accColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 7: Liquidity Valid
-        table.cell(debugTable, 0, 7, "Liquidity Valid", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        liqColor = getLiquidityColor(liqValidStatus)
-        table.cell(debugTable, 1, 7, liqValidStatus, text_color = liqColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-else
-    // Clear debug table when not in full debug to avoid stale overlay
-    if not na(debugTable)
-        // Debug table is 2x10 – overwrite cells to clear for Pine v6
-        for r = 0 to 9
-            table.cell(debugTable, 0, r, "", bgcolor = color.new(color.black, 100))
-            table.cell(debugTable, 1, r, "", bgcolor = color.new(color.black, 100))
-
-// === ZONE INSPECTOR TABLE ===
+// 2. Zone Inspector (Bottom Right) — lazy init, delete when disabled to avoid leftover artifacts
 var table zoneInspector = na
 
-// Show Zone Inspector only when debug is enabled (Basic or Full), and only on
-// the most recent N bars according to the debug_last_bars filter for performance.
-// Primary panel: top_left (must never overlap others).
 if showZoneInspector and debug_enabled and isRecentBarForDebug()
     if na(zoneInspector)
-        zoneInspector := table.new(position.top_left, 2, 50, bgcolor = color.new(color.rgb(30, 35, 40), 5), border_width = 1, border_color = color.new(color.white, 70), frame_width = 1, frame_color = color.new(color.white, 70))
-    
-    if not na(zoneInspector) and barstate.isconfirmed
+        zoneInspector := table.new(position.bottom_right, 2, 35, 
+             bgcolor = color.new(color.rgb(20, 25, 30), 10), 
+             frame_color = color.new(color.rgb(100, 110, 120), 80), frame_width = 1, 
+             border_color = color.new(color.rgb(60, 70, 80), 50), border_width = 1)
+    if barstate.isconfirmed and not na(zoneInspector)
         // Get additional zone details for inspector
         string zoneInspectorType = "None"
         int zoneInspectorIdx = na
@@ -5356,8 +5223,8 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
         
         // Header row (row 0)
         color typeColor = isInspectorDemand ? color.new(color.green, 20) : color.new(color.red, 20)
-        table.cell(zoneInspector, 0, 0, "Zone #" + str.tostring(zoneInspectorUZID), bgcolor=typeColor, text_color=color.white, text_size = size.small, text_halign = text.align_left)
-        table.cell(zoneInspector, 1, 0, zoneInspectorType, bgcolor=typeColor, text_color=color.white, text_size = size.small, text_halign = text.align_left)
+        table.cell(zoneInspector, 0, 0, "Zone #" + str.tostring(zoneInspectorUZID), bgcolor=typeColor, text_color=color.white, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)), text_halign = text.align_left)
+        table.cell(zoneInspector, 1, 0, zoneInspectorType, bgcolor=typeColor, text_color=color.white, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)), text_halign = text.align_left)
         
         // Grade Row [NEW]
         // Grade Row [NEW]
@@ -5365,87 +5232,87 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
         float scoreVal = (not na(inspectorZone) and not na(inspectorZone.score)) ? inspectorZone.score : 0.0
         color gradeColor = scoreVal >= 80 ? color.lime : (scoreVal >= 60 ? color.yellow : color.red)
         
-        table.cell(zoneInspector, 0, 1, "Grade", text_color = color.rgb(200, 200, 200), bgcolor=color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
-        table.cell(zoneInspector, 1, 1, gradeStr + " (" + str.tostring(scoreVal, "#") + ")", text_color=gradeColor, bgcolor=color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        table.cell(zoneInspector, 0, 1, "Grade", text_color = color.rgb(200, 200, 200), bgcolor=color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
+        table.cell(zoneInspector, 1, 1, gradeStr + " (" + str.tostring(scoreVal, "#") + ")", text_color=gradeColor, bgcolor=color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         
         // Row 1: Zone ID (UZID - permanent unique ID) - shifted to row 2
-        table.cell(zoneInspector, 0, 2, "Zone ID", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        table.cell(zoneInspector, 0, 2, "Zone ID", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         zoneIdStr = not na(zoneInspectorUZID) ? str.tostring(zoneInspectorUZID) : "N/A"
-        table.cell(zoneInspector, 1, 2, zoneIdStr, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        table.cell(zoneInspector, 1, 2, zoneIdStr, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         
         // Row 2: Type - shifted to row 3
-        table.cell(zoneInspector, 0, 3, "Type", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        table.cell(zoneInspector, 0, 3, "Type", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         typeColorInspector = zoneInspectorType == "Demand" ? color.green : (zoneInspectorType == "Supply" ? color.red : color.rgb(200, 200, 200))
-        table.cell(zoneInspector, 1, 3, zoneInspectorType, text_color = typeColorInspector, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        table.cell(zoneInspector, 1, 3, zoneInspectorType, text_color = typeColorInspector, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         
         // Row 3: Range - shifted to row 4
-        table.cell(zoneInspector, 0, 4, "Range", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        table.cell(zoneInspector, 0, 4, "Range", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         rangeStrInspector = (not na(zoneInspectorLow) and not na(zoneInspectorHigh)) ? str.format("{0} → {1}", str.tostring(zoneInspectorLow, format.mintick), str.tostring(zoneInspectorHigh, format.mintick)) : "N/A"
-        table.cell(zoneInspector, 1, 4, rangeStrInspector, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        table.cell(zoneInspector, 1, 4, rangeStrInspector, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         
         // Row 4: Zone Size - shifted to row 5
-        table.cell(zoneInspector, 0, 5, "Zone Size", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        table.cell(zoneInspector, 0, 5, "Zone Size", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         sizeStrInspector = not na(zoneInspectorSizePips) ? str.tostring(math.round(zoneInspectorSizePips * 10) / 10, "#.#") + " pips" : "N/A"
-        table.cell(zoneInspector, 1, 5, sizeStrInspector, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        table.cell(zoneInspector, 1, 5, sizeStrInspector, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         
         // Row 5: Bars Since Creation - shifted to row 6
-        table.cell(zoneInspector, 0, 6, "Bars Since", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        table.cell(zoneInspector, 0, 6, "Bars Since", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         barsStrInspector = not na(barsSinceCreation) ? str.tostring(barsSinceCreation) : "N/A"
-        table.cell(zoneInspector, 1, 6, barsStrInspector, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        table.cell(zoneInspector, 1, 6, barsStrInspector, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         
         // Row 6: Liquidity Required - shifted to row 7
-        table.cell(zoneInspector, 0, 7, "Liq Required", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        table.cell(zoneInspector, 0, 7, "Liq Required", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         liqReqColor = liqRequired == "Yes" ? color.yellow : (liqRequired == "No" ? color.gray : color.rgb(200, 200, 200))
-        table.cell(zoneInspector, 1, 7, liqRequired, text_color = liqReqColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        table.cell(zoneInspector, 1, 7, liqRequired, text_color = liqReqColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         
         // Row 7: Liquidity Analysis (MERGED: Liq Exists + Liq Candles) - shifted to row 8
-        table.cell(zoneInspector, 0, 8, "Liquidity", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        table.cell(zoneInspector, 0, 8, "Liquidity", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         liqExistsColor = str.contains(liqExistsInspector, "✓") ? color.green : (str.contains(liqExistsInspector, "✗") ? color.red : color.rgb(200, 200, 200))
-        table.cell(zoneInspector, 1, 8, liqExistsInspector, text_color = liqExistsColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        table.cell(zoneInspector, 1, 8, liqExistsInspector, text_color = liqExistsColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         
         // Row 8: Liquidity Swept (was row 9) - shifted to row 9
-        table.cell(zoneInspector, 0, 9, "Liq Swept", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        table.cell(zoneInspector, 0, 9, "Liq Swept", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         liqSweptColor = liqSweptInspector == "Yes" ? color.green : (liqSweptInspector == "No" ? color.red : color.rgb(200, 200, 200))
-        table.cell(zoneInspector, 1, 9, liqSweptInspector, text_color = liqSweptColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        table.cell(zoneInspector, 1, 9, liqSweptInspector, text_color = liqSweptColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         
         // Row 9: Target Swept (NEW ROW - Target HIGH for Demand, Target LOW for Supply) - shifted to row 10
-        table.cell(zoneInspector, 0, 10, "Target Swept", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        table.cell(zoneInspector, 0, 10, "Target Swept", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         targetSweptColor = targetSweptInspector == "Yes" ? color.green : (targetSweptInspector == "No" ? color.red : color.rgb(200, 200, 200))
-        table.cell(zoneInspector, 1, 10, targetSweptInspector, text_color = targetSweptColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        table.cell(zoneInspector, 1, 10, targetSweptInspector, text_color = targetSweptColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         
         // Row 10: Liq Distance (NEW ROW - distance from zone boundary to inducement) - shifted to row 11
-        table.cell(zoneInspector, 0, 11, "Liq Distance", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        table.cell(zoneInspector, 0, 11, "Liq Distance", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         liqDistColor = liqDistExceedsMax ? color.red : (liqDistInspector != "N/A" ? color.green : color.rgb(200, 200, 200))
-        table.cell(zoneInspector, 1, 11, liqDistInspector, text_color = liqDistColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        table.cell(zoneInspector, 1, 11, liqDistInspector, text_color = liqDistColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         
         // Row 11: Sweep Bar Index (was row 10) - shifted to row 12
-        table.cell(zoneInspector, 0, 12, "Sweep Bar", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
-        table.cell(zoneInspector, 1, 12, sweepBarIdx, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        table.cell(zoneInspector, 0, 12, "Sweep Bar", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
+        table.cell(zoneInspector, 1, 12, sweepBarIdx, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         
         // Row 12: Zone Caused Sweep (was row 11) - shifted to row 13
-        table.cell(zoneInspector, 0, 13, "Zone Caused Sweep", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        table.cell(zoneInspector, 0, 13, "Zone Caused Sweep", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         zoneCausedSweepColor = zoneCausedSweepInspector == "Yes" ? color.green : (zoneCausedSweepInspector == "No" ? color.red : color.rgb(200, 200, 200))
-        table.cell(zoneInspector, 1, 13, zoneCausedSweepInspector, text_color = zoneCausedSweepColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        table.cell(zoneInspector, 1, 13, zoneCausedSweepInspector, text_color = zoneCausedSweepColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         
         // Row 13: Wick In Zone (was row 12) - shifted to row 14
-        table.cell(zoneInspector, 0, 14, "Wick In Zone", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        table.cell(zoneInspector, 0, 14, "Wick In Zone", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         wickColor = wickInZone == "Yes" ? color.green : (wickInZone == "No" ? color.red : color.rgb(200, 200, 200))
-        table.cell(zoneInspector, 1, 14, wickInZone, text_color = wickColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        table.cell(zoneInspector, 1, 14, wickInZone, text_color = wickColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         
         // Row 14: Not Closed In (was row 13) - shifted to row 15
-        table.cell(zoneInspector, 0, 15, "Not Closed In", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        table.cell(zoneInspector, 0, 15, "Not Closed In", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         notClosedColor = notClosedIn == "Yes" ? color.green : (notClosedIn == "No" ? color.red : color.rgb(200, 200, 200))
-        table.cell(zoneInspector, 1, 15, notClosedIn, text_color = notClosedColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        table.cell(zoneInspector, 1, 15, notClosedIn, text_color = notClosedColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         
         // Row 15: Bullish/Bearish Close (was row 14) - shifted to row 16
-        table.cell(zoneInspector, 0, 16, "Close Type", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        table.cell(zoneInspector, 0, 16, "Close Type", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         closeColor = bullishBearishClose == "Bullish" ? color.green : (bullishBearishClose == "Bearish" ? color.red : color.rgb(200, 200, 200))
-        table.cell(zoneInspector, 1, 16, bullishBearishClose, text_color = closeColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        table.cell(zoneInspector, 1, 16, bullishBearishClose, text_color = closeColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         
         // Row 16: Zone Used (was row 15) - shifted to row 17
-        table.cell(zoneInspector, 0, 17, "Zone Used", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        table.cell(zoneInspector, 0, 17, "Zone Used", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         usedColor = zoneUsedInspector == "Yes" ? color.red : (zoneUsedInspector == "No" ? color.green : color.rgb(200, 200, 200))
-        table.cell(zoneInspector, 1, 17, zoneUsedInspector, text_color = usedColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        table.cell(zoneInspector, 1, 17, zoneUsedInspector, text_color = usedColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         
         // Row 17: Entry Allowed (was row 16) - shifted to row 18
         // Override display if entry was triggered this bar (to prevent "False No")
@@ -5456,8 +5323,8 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
             displayEntryAllowed := "YES (Executed)"
             displayEntryColor := color.new(color.green, 0)
         
-        table.cell(zoneInspector, 0, 18, "Entry Allowed", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
-        table.cell(zoneInspector, 1, 18, displayEntryAllowed, text_color = displayEntryColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        table.cell(zoneInspector, 0, 18, "Entry Allowed", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
+        table.cell(zoneInspector, 1, 18, displayEntryAllowed, text_color = displayEntryColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         
         // Row 18: Rejection Reason (was row 17) - shifted to row 19
         // Parse AI Breakdown from Reason if present (bracketed content) to show as tooltip
@@ -5470,9 +5337,9 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
                 string rawBreakdown = array.get(parts, 1)
                 inspectorTooltip := str.replace(rawBreakdown, "]", "")
 
-        table.cell(zoneInspector, 0, 19, "Reason", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = size.small)
+        table.cell(zoneInspector, 0, 19, "Reason", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         reasonColor = rejectionReasonInspector == "None" ? color.new(color.green, 0) : (rejectionReasonInspector != "N/A" ? color.new(color.orange, 0) : color.rgb(200, 200, 200))
-        table.cell(zoneInspector, 1, 19, inspectorReasonText, tooltip = inspectorTooltip, text_color = reasonColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = size.small)
+        table.cell(zoneInspector, 1, 19, inspectorReasonText, tooltip = inspectorTooltip, text_color = reasonColor, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         
         // === DEBUG ROWS: CONDITIONAL on zone NOT found ===
         // Rows 17-19 only shown when zone lookup failed (foundInPool == "NOT_FOUND")
@@ -5487,21 +5354,21 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
         
         if showDebugLookupRows
             // Row 17: Manual Parsed ID
-            table.cell(zoneInspector, 0, nextRow, "Manual Parsed ID", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = size.small)
+            table.cell(zoneInspector, 0, nextRow, "Manual Parsed ID", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
             parsedIdColor = manualParsedIdStr != "N/A" ? color.yellow : color.rgb(150, 150, 150)
-            table.cell(zoneInspector, 1, nextRow, manualParsedIdStr, text_color = parsedIdColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = size.small)
+            table.cell(zoneInspector, 1, nextRow, manualParsedIdStr, text_color = parsedIdColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
             nextRow += 1
             
             // Row 18: Found In
-            table.cell(zoneInspector, 0, nextRow, "Found In", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = size.small)
+            table.cell(zoneInspector, 0, nextRow, "Found In", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
             foundInColor = foundInPool == "DEMAND_LIVE" ? color.green : (foundInPool == "SUPPLY_LIVE" ? color.red : (foundInPool == "ZONEDB_ONLY" ? color.yellow : color.rgb(150, 150, 150)))
-            table.cell(zoneInspector, 1, nextRow, foundInPool, text_color = foundInColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = size.small)
+            table.cell(zoneInspector, 1, nextRow, foundInPool, text_color = foundInColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
             nextRow += 1
             
             // Row 19: Reason If Not Found
-            table.cell(zoneInspector, 0, nextRow, "Not Found Reason", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = size.small)
+            table.cell(zoneInspector, 0, nextRow, "Not Found Reason", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
             notFoundColor = notFoundReason == "N/A" or notFoundReason == "empty_input" ? color.rgb(150, 150, 150) : color.orange
-            table.cell(zoneInspector, 1, nextRow, notFoundReason, text_color = notFoundColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = size.small)
+            table.cell(zoneInspector, 1, nextRow, notFoundReason, text_color = notFoundColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
             nextRow += 1
         
         // === LIQUIDITY DEBUG ROWS ===
@@ -5536,9 +5403,9 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
         int inducementBar = isInspectorDemand ? displayLiqLowBar : displayLiqHighBar
         if not na(inducementPrice)
             inducementStr := str.tostring(inducementPrice, format.mintick) + " @ " + str.tostring(inducementBar)
-        table.cell(zoneInspector, 0, nextRow, inducementLabel, text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = size.small)
+        table.cell(zoneInspector, 0, nextRow, inducementLabel, text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         inducementColor = inducementStr != "N/A" ? color.rgb(100, 200, 255) : color.rgb(150, 150, 150)
-        table.cell(zoneInspector, 1, nextRow, inducementStr, text_color = inducementColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = size.small)
+        table.cell(zoneInspector, 1, nextRow, inducementStr, text_color = inducementColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         nextRow += 1
         
         // Target Row (farthest from zone - must be swept)
@@ -5548,9 +5415,9 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
         int targetBar = isInspectorDemand ? displayLiqHighBar : displayLiqLowBar
         if not na(targetPrice)
             targetStr := str.tostring(targetPrice, format.mintick) + " @ " + str.tostring(targetBar)
-        table.cell(zoneInspector, 0, nextRow, targetLabel, text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = size.small)
+        table.cell(zoneInspector, 0, nextRow, targetLabel, text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         targetColor = targetStr != "N/A" ? color.new(color.purple, 0) : color.rgb(150, 150, 150)
-        table.cell(zoneInspector, 1, nextRow, targetStr, text_color = targetColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = size.small)
+        table.cell(zoneInspector, 1, nextRow, targetStr, text_color = targetColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         nextRow += 1
         
         // Push/Inducement Sequence Row (for Demand zones - shows pushHigh → inducement)
@@ -5567,9 +5434,9 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
             string seqStatus = seqOK ? " ✓" : (na(pushBar) or na(indBar) ? "" : " ✗")
             string seqStr = "Push:" + pushStr + " → Ind:" + indStr + seqStatus
             
-            table.cell(zoneInspector, 0, nextRow, "Push→Ind", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = size.small)
+            table.cell(zoneInspector, 0, nextRow, "Push→Ind", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
             seqColor = seqOK ? color.green : (na(pushBar) or na(indBar) ? color.rgb(150, 150, 150) : color.orange)
-            table.cell(zoneInspector, 1, nextRow, seqStr, text_color = seqColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = size.small)
+            table.cell(zoneInspector, 1, nextRow, seqStr, text_color = seqColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
             nextRow += 1
         
         // Liq Swept (simple yes/no)
@@ -5581,9 +5448,9 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
         else if foundInDB and not na(dbEntry)
             liqSwept := dbEntry.liquiditySwept
             liqSweptStr := liqSwept ? "YES" : "NO"
-        table.cell(zoneInspector, 0, nextRow, "Liq Swept", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = size.small)
+        table.cell(zoneInspector, 0, nextRow, "Liq Swept", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         liqSweptColor := liqSweptStr == "YES" ? color.green : (liqSweptStr == "NO" ? color.orange : color.rgb(150, 150, 150))
-        table.cell(zoneInspector, 1, nextRow, liqSweptStr, text_color = liqSweptColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = size.small)
+        table.cell(zoneInspector, 1, nextRow, liqSweptStr, text_color = liqSweptColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         nextRow += 1
         
         // Leg Candles (bearish for demand, bullish for supply)
@@ -5594,9 +5461,9 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
             displayLegCount := dbEntry.legCandleCount
         string legLabel = isInspectorDemand ? "Bearish" : "Bullish"
         string legCandleStr = na(displayLegCount) or displayLegCount == 0 ? "N/A" : str.tostring(displayLegCount) + " " + legLabel
-        table.cell(zoneInspector, 0, nextRow, "Leg Candles", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = size.small)
+        table.cell(zoneInspector, 0, nextRow, "Leg Candles", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         legCandleColor = displayLegCount > 3 ? color.green : (displayLegCount > 0 ? color.orange : color.rgb(150, 150, 150))
-        table.cell(zoneInspector, 1, nextRow, legCandleStr, text_color = legCandleColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = size.small)
+        table.cell(zoneInspector, 1, nextRow, legCandleStr, text_color = legCandleColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         nextRow += 1
         
         // Primed Status (waiting for next candle entry)
@@ -5604,28 +5471,28 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
         if not na(inspectorZone)
             isPrimed := inspectorZone.primed
         
-        table.cell(zoneInspector, 0, nextRow, "Primed", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = size.small)
+        table.cell(zoneInspector, 0, nextRow, "Primed", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         string primedStr = isPrimed ? "YES" : "NO"
         color primedColor = isPrimed ? color.green : color.rgb(150, 150, 150)
-        table.cell(zoneInspector, 1, nextRow, primedStr, text_color = primedColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = size.small)
+        table.cell(zoneInspector, 1, nextRow, primedStr, text_color = primedColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         nextRow += 1
         
         // Liq Source (selection method)
-        table.cell(zoneInspector, 0, nextRow, "Liq Source", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = size.small)
+        table.cell(zoneInspector, 0, nextRow, "Liq Source", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         liqSourceColor = displayLiqSource == "ABSOLUTE_SCAN" ? color.green : color.rgb(150, 150, 150)
-        table.cell(zoneInspector, 1, nextRow, displayLiqSource, text_color = liqSourceColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = size.small)
+        table.cell(zoneInspector, 1, nextRow, displayLiqSource, text_color = liqSourceColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         nextRow += 1
         
         // Zone Status (LIVE / INACTIVE)
-        table.cell(zoneInspector, 0, nextRow, "Zone Status", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = size.small)
+        table.cell(zoneInspector, 0, nextRow, "Zone Status", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         statusColor = zoneStatus == "LIVE" ? color.green : (zoneStatus == "INACTIVE" ? color.orange : color.rgb(150, 150, 150))
-        table.cell(zoneInspector, 1, nextRow, zoneStatus, text_color = statusColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = size.small)
+        table.cell(zoneInspector, 1, nextRow, zoneStatus, text_color = statusColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         nextRow += 1
         
         // Inactive Reason (if applicable)
-        table.cell(zoneInspector, 0, nextRow, "Inactive Reason", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = size.small)
+        table.cell(zoneInspector, 0, nextRow, "Inactive Reason", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         inactiveColor = zoneInactiveReason != "N/A" ? color.orange : color.rgb(150, 150, 150)
-        table.cell(zoneInspector, 1, nextRow, zoneInactiveReason, text_color = inactiveColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = size.small)
+        table.cell(zoneInspector, 1, nextRow, zoneInactiveReason, text_color = inactiveColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         
         // === DEBUG LABEL: Visualize Target/Inducement position using TIME for multi-TF alignment ===
         // Only draw on barstate.islastconfirmedhistory and when inspecting a demand zone with valid values
@@ -5654,160 +5521,22 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
                     textcolor = color.white,
                     size = size.small)
 else
-    // Clear Zone Inspector when flag is disabled so old content doesn't remain
     if not na(zoneInspector)
-        // Zone Inspector reserves up to 2 columns x 25 visible rows here; clear a safe range
-        for r = 0 to 24
-            table.cell(zoneInspector, 0, r, "", bgcolor = color.new(color.black, 100))
-            table.cell(zoneInspector, 1, r, "", bgcolor = color.new(color.black, 100))
-
-// === POSITION SIZING TABLE (Enhanced with Validation Details) ===
-// Unique panel: bottom_left
-var table posSizeTable = na
-
-// Show position sizing table when explicitly enabled via showSizing
-// Render on confirmed bars when enabled
-if showSizing and show_pos_sizing_table and barstate.isconfirmed
-    if na(posSizeTable)
-        posSizeTable := table.new(position.bottom_left, 2, 12, bgcolor = color.new(color.rgb(30, 35, 40), 5), border_width = 1, border_color = color.new(color.white, 70), frame_width = 1, frame_color = color.new(color.white, 70))
-    
-    if not na(posSizeTable) and barstate.isconfirmed
-        // Use last calculated values if available, otherwise show example values
-        bool hasLastValues = not na(last_pos_size_entry) and not na(last_pos_size_sl) and last_pos_size_valid
-        
-        float display_entry = hasLastValues ? last_pos_size_entry : close[1]
-        float display_sl = hasLastValues ? last_pos_size_sl : (close[1] - (11.5 * pip_size))
-        float display_balance = hasLastValues and not na(last_pos_size_balance) ? last_pos_size_balance : account_size_usd
-        float display_risk_pct = hasLastValues and not na(last_pos_size_risk_pct) ? last_pos_size_risk_pct : risk_per_trade_pct
-        int display_units = hasLastValues and not na(last_pos_size_units) ? last_pos_size_units : na
-        float display_lots = hasLastValues and not na(last_pos_size_lots) ? last_pos_size_lots : na
-        float display_sl_pips = hasLastValues and not na(last_pos_size_sl_pips) ? last_pos_size_sl_pips : 11.5
-        float display_usdjpy = hasLastValues and not na(last_pos_size_usdjpy_rate) ? last_pos_size_usdjpy_rate : na
-        bool display_valid = hasLastValues ? last_pos_size_valid : true
-        string display_error = hasLastValues ? last_pos_size_error : ""
-        bool display_dry_run = hasLastValues ? last_pos_size_dry_run : false
-        
-        // Calculate if not using last values
-        if not hasLastValues
-            float example_qty_units_raw = calc_pos_size_units(display_entry, display_sl, display_balance, display_risk_pct, false)
-            display_units := int(math.round(example_qty_units_raw))
-            display_lots := display_units / FOREX_LOT_SIZE
-            
-            // Get USDJPY rate
-            if str.contains(syminfo.ticker, "JPY") and not str.contains(syminfo.ticker, "USDJPY")
-                if str.contains(syminfo.ticker, "VANTAGE")
-                    display_usdjpy := request.security("VANTAGE:USDJPY", timeframe.period, close, lookahead = barmerge.lookahead_off)
-                if na(display_usdjpy)
-                    display_usdjpy := request.security("USDJPY", timeframe.period, close, lookahead = barmerge.lookahead_off)
-                if na(display_usdjpy)
-                    display_usdjpy := USDJPY_FALLBACK  // Fallback
-            else if str.contains(syminfo.ticker, "USDJPY")
-                display_usdjpy := display_entry
-            else
-                display_usdjpy := 1.0
-        
-        // Also fetch USDJPY rate if we have last values but rate is na
-        if hasLastValues and na(display_usdjpy) and str.contains(syminfo.ticker, "JPY")
-            if str.contains(syminfo.ticker, "JPY") and not str.contains(syminfo.ticker, "USDJPY")
-                if str.contains(syminfo.ticker, "VANTAGE")
-                    display_usdjpy := request.security("VANTAGE:USDJPY", timeframe.period, close, lookahead = barmerge.lookahead_off)
-                if na(display_usdjpy)
-                    display_usdjpy := request.security("USDJPY", timeframe.period, close, lookahead = barmerge.lookahead_off)
-                if na(display_usdjpy)
-                    display_usdjpy := USDJPY_FALLBACK  // Fallback
-            else if str.contains(syminfo.ticker, "USDJPY")
-                display_usdjpy := display_entry
-            else
-                display_usdjpy := 1.0
-        
-        // Format display values
-        float risk_usd = display_balance * (display_risk_pct / 100)
-        risk_usd_str = "$" + str.tostring(risk_usd, "#.##")
-        qty_lots_str = not na(display_lots) ? str.tostring(display_lots, "#.####") + " lots" : "N/A"
-        qty_units_str = not na(display_units) ? str.tostring(display_units, "#,###") + " units" : "N/A"
-        sl_pips_str = str.tostring(display_sl_pips, "#.##") + " pips"
-        rate_str = not na(display_usdjpy) and str.contains(syminfo.ticker, "JPY") ? str.tostring(display_usdjpy, "#.####") : (str.contains(syminfo.ticker, "JPY") ? "Failed" : "N/A")
-        valid_str = display_valid ? "✓ Valid" : "✗ Invalid"
-        valid_color = display_valid ? color.green : color.red
-        error_str = display_error != "" ? display_error : "None"
-        dry_run_str = display_dry_run ? "DRY RUN" : "Live"
-        min_max_str = not na(display_units) ? str.tostring(min_position_size_units) + " - " + str.tostring(int(max_position_size_lots * 100000)) + " units" : "N/A"
-        
-        // Header
-        headerText = display_dry_run ? "💰 POSITION SIZING (DRY RUN)" : "💰 POSITION SIZING"
-        table.cell(posSizeTable, 0, 0, headerText, text_color = color.white, bgcolor = color.rgb(45, 50, 55), text_size = size.small, text_halign = text.align_left)
-        table.cell(posSizeTable, 1, 0, "", bgcolor = color.rgb(45, 50, 55))
-        
-        // Row 1: Validation Status
-        table.cell(posSizeTable, 0, 1, "Validation", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        table.cell(posSizeTable, 1, 1, valid_str, text_color = valid_color, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 2: Risk Amount
-        table.cell(posSizeTable, 0, 2, "Risk Amount", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        table.cell(posSizeTable, 1, 2, risk_usd_str, text_color = color.yellow, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 3: Position Size (Lots)
-        table.cell(posSizeTable, 0, 3, "Position Size (Lots)", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        table.cell(posSizeTable, 1, 3, qty_lots_str, text_color = color.green, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 4: Position Size (Units)
-        table.cell(posSizeTable, 0, 4, "Position Size (Units)", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        table.cell(posSizeTable, 1, 4, qty_units_str, text_color = color.green, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 5: Stop Loss (Pips)
-        table.cell(posSizeTable, 0, 5, "Stop Loss", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        table.cell(posSizeTable, 1, 5, sl_pips_str, text_color = color.red, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 6: Entry Price
-        table.cell(posSizeTable, 0, 6, "Entry Price", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        table.cell(posSizeTable, 1, 6, str.tostring(display_entry, format.mintick), text_color = color.blue, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 7: Stop Loss Price
-        table.cell(posSizeTable, 0, 7, "Stop Loss Price", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        table.cell(posSizeTable, 1, 7, str.tostring(display_sl, format.mintick), text_color = color.red, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 8: USDJPY Rate (if applicable)
-        if str.contains(syminfo.ticker, "JPY")
-            rate_label = "USDJPY Rate"
-            rate_color = not na(display_usdjpy) and display_usdjpy > 0 ? color.blue : color.red
-            table.cell(posSizeTable, 0, 8, rate_label, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-            table.cell(posSizeTable, 1, 8, rate_str, text_color = rate_color, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 9: Min/Max Limits
-        table.cell(posSizeTable, 0, 9, "Size Limits", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        table.cell(posSizeTable, 1, 9, min_max_str, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 10: Error Message (if any)
-        if not display_valid and display_error != ""
-            table.cell(posSizeTable, 0, 10, "Error", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-            table.cell(posSizeTable, 1, 10, error_str, text_color = color.red, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-        
-        // Row 11: Mode
-        table.cell(posSizeTable, 0, 11, "Mode", text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_right)
-        mode_color = display_dry_run ? color.orange : color.green
-        table.cell(posSizeTable, 1, 11, dry_run_str, text_color = mode_color, bgcolor = color.new(color.rgb(30, 35, 40), 5), text_halign = text.align_left)
-
-// When panel is disabled, clear to avoid stale content.
-if (not showSizing or not show_pos_sizing_table) and not na(posSizeTable)
-    // Position sizing table is 2x12
-    for r = 0 to 11
-        table.cell(posSizeTable, 0, r, "", bgcolor = color.new(color.black, 100))
-        table.cell(posSizeTable, 1, r, "", bgcolor = color.new(color.black, 100))
-
+        table.delete(zoneInspector)
+        zoneInspector := na
 
 // === PERFORMANCE TABLE ===
 performanceTable := draw_performance_table(performanceTable)
 
-// === PROFILE STATUS TABLE (Visual Confirmation) ===
-// Unique panel: top_right
-var table profileStatusTable = table.new(position.top_right, 2, 8, 
-     bgcolor = color.new(color.rgb(20, 25, 30), 10),
-     frame_color = color.new(color.rgb(100, 110, 120), 80),
-     frame_width = 1,
-     border_color = color.new(color.rgb(60, 70, 80), 50),
-     border_width = 1)
+// 1. Profile Status (Bottom Center) — lazy init, delete when disabled to avoid leftover artifacts
+var table profileStatusTable = na
 
 if showDebugPanels and showActiveProfile
+    if na(profileStatusTable)
+        profileStatusTable := table.new(position.bottom_center, 2, 9, 
+             bgcolor = color.new(color.rgb(20, 25, 30), 10), 
+             frame_color = color.new(color.rgb(100, 110, 120), 80), frame_width = 1, 
+             border_color = color.new(color.rgb(60, 70, 80), 50), border_width = 1)
     // Header
     table.cell(profileStatusTable, 0, 0, "⚡ ACTIVE PROFILE", 
         text_color = color.white, 
@@ -5828,30 +5557,47 @@ if showDebugPanels and showActiveProfile
     table.cell(profileStatusTable, 1, 2, str.tostring(ai_quality_threshold), text_color = color.white, text_halign = text.align_left)
     
     table.cell(profileStatusTable, 0, 3, "RR Ratio", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
-    table.cell(profileStatusTable, 1, 3, "1:" + str.tostring(risk_reward_ratio, "#.#"), text_color = color.white, text_halign = text.align_left)
+    string rr_label = use_custom_rr ? "1:" + str.tostring(risk_reward_ratio, "#.#") : (is_aggressive and use_profile_defaults ? "SL-based" : "1:" + str.tostring(risk_reward_ratio, "#.#"))
+    table.cell(profileStatusTable, 1, 3, rr_label, text_color = color.white, text_halign = text.align_left)
     
-    table.cell(profileStatusTable, 0, 4, "Max Trades/Day", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
-    table.cell(profileStatusTable, 1, 4, str.tostring(max_trades_per_day), text_color = color.white, text_halign = text.align_left)
+    // RR Mode: explicit indicator when YOUR rules (Aggressive) vs overridden vs profile/default
+    table.cell(profileStatusTable, 0, 4, "RR Mode", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
+    string rr_mode = ""
+    color rr_mode_color = color.white
+    if use_custom_rr
+        rr_mode := "OVERRIDDEN: Fixed 1:" + str.tostring(risk_reward_ratio, "#.#")
+        rr_mode_color := color.orange
+    else if is_aggressive and use_profile_defaults
+        rr_mode := "✓ YOUR RULES (Aggressive)"
+        rr_mode_color := color.lime
+    else if use_profile_defaults and (config_profile == "Conservative (Live Trading)" or config_profile == "Balanced (Recommended)")
+        rr_mode := "SL-based (Profile)"
+        rr_mode_color := color.white
+    else
+        rr_mode := "SL-based (Default)"
+        rr_mode_color := color.gray
+    table.cell(profileStatusTable, 1, 4, rr_mode, text_color = rr_mode_color, text_halign = text.align_left)
     
-    table.cell(profileStatusTable, 0, 5, "Structure Mode", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
-    table.cell(profileStatusTable, 1, 5, structure_mode, text_color = color.white, text_halign = text.align_left)
+    table.cell(profileStatusTable, 0, 5, "Max Trades/Day", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
+    table.cell(profileStatusTable, 1, 5, str.tostring(max_trades_per_day), text_color = color.white, text_halign = text.align_left)
     
-    table.cell(profileStatusTable, 0, 6, "Grade Filter", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
-    table.cell(profileStatusTable, 1, 6, enable_grade_filter ? min_entry_grade + "+" : "OFF", 
+    table.cell(profileStatusTable, 0, 6, "Structure Mode", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
+    table.cell(profileStatusTable, 1, 6, structure_mode, text_color = color.white, text_halign = text.align_left)
+    
+    table.cell(profileStatusTable, 0, 7, "Grade Filter", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
+    table.cell(profileStatusTable, 1, 7, enable_grade_filter ? min_entry_grade + "+" : "OFF", 
         text_color = enable_grade_filter ? color.green : color.gray, 
         text_halign = text.align_left)
     
-    table.cell(profileStatusTable, 0, 7, "Time Filters", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
+    table.cell(profileStatusTable, 0, 8, "Time Filters", text_color = color.rgb(200, 200, 200), text_halign = text.align_right)
     time_filter_status = (filter_dead_zone ? "✓" : "✗") + " Dead Zone | " + (filter_trading_hours ? "✓" : "✗") + " Hours"
-    table.cell(profileStatusTable, 1, 7, time_filter_status, 
+    table.cell(profileStatusTable, 1, 8, time_filter_status, 
         text_color = (filter_dead_zone and filter_trading_hours) ? color.green : color.orange, 
         text_halign = text.align_left)
 else
-    // Clear when debug is disabled
-    // Profile status table is 2x8
-    for r = 0 to 7
-        table.cell(profileStatusTable, 0, r, "", bgcolor = color.new(color.black, 100))
-        table.cell(profileStatusTable, 1, r, "", bgcolor = color.new(color.black, 100))
+    if not na(profileStatusTable)
+        table.delete(profileStatusTable)
+        profileStatusTable := na
 
 // === DEBUG PLOTS: SL/TP Visualization ===
 // These lines show the tester's internal exit levels - compare to visual boxes on chart
