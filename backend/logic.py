@@ -121,6 +121,17 @@ def send_discord(data: Dict[str, Any], alert_id: int, mode: str = "manual") -> T
         if data.get("zone_type"):
             zone_emoji = "🟢" if data["zone_type"] == "demand" else "🔴"
             fields.append({"name": "Zone Type", "value": f"{zone_emoji} {data['zone_type'].upper()}", "inline": True})
+
+        # AI Guardian analysis (if present)
+        if data.get("ai_decision"):
+            ai_emoji = "🤖✅" if data["ai_decision"] == "APPROVE" else "🤖⚠️"
+            ai_confidence = data.get("ai_confidence", "N/A")
+            fields.append({"name": "AI Guardian", "value": f"{ai_emoji} {data['ai_decision']} ({ai_confidence}%)", "inline": True})
+        if data.get("ai_reasoning"):
+            # Truncate reasoning for Discord embed field limit
+            reasoning = data["ai_reasoning"][:200] + "..." if len(data.get("ai_reasoning", "")) > 200 else data["ai_reasoning"]
+            fields.append({"name": "AI Analysis", "value": reasoning, "inline": False})
+
         embed = {
             "title": f"{mode_prefix}{emoji} New {side} Signal - #{alert_id}",
             "description": f"**{'Auto-executed (paper)' if mode == 'paper' else 'Execute manually'}** | Reply with outcome later",
@@ -158,12 +169,24 @@ def send_telegram(data: Dict[str, Any], alert_id: int) -> bool:
         sl_pips = abs(entry - sl) / pip_divisor
         tp_pips = abs(tp - entry) / pip_divisor
         pos = calculate_position_size(sl_pips, symbol)
+        # Build base text
         text = (
             f"{emoji} <b>NEW {side} SIGNAL #{alert_id}</b>\n\n"
             f"<b>Symbol:</b> {data['symbol']}\n<b>Entry:</b> {data['entry']}\n"
             f"<b>Stop Loss:</b> {data['sl']} ({sl_pips:.1f} pips)\n<b>Take Profit:</b> {data['tp']} ({tp_pips:.1f} pips)\n"
-            f"<b>R:R:</b> 1:{rr_ratio:.2f}\n\n<b>Suggested Size:</b> {pos['lots']:.2f} lots\n<b>Risk:</b> ${pos['risk_amount']:.2f}\n\nExecute manually, then update status."
+            f"<b>R:R:</b> 1:{rr_ratio:.2f}\n\n<b>Suggested Size:</b> {pos['lots']:.2f} lots\n<b>Risk:</b> ${pos['risk_amount']:.2f}"
         )
+
+        # Add AI Guardian analysis if present
+        if data.get("ai_decision"):
+            ai_emoji = "🤖✅" if data["ai_decision"] == "APPROVE" else "🤖⚠️"
+            ai_confidence = data.get("ai_confidence", "N/A")
+            text += f"\n\n<b>AI Guardian:</b> {ai_emoji} {data['ai_decision']} ({ai_confidence}%)"
+        if data.get("ai_reasoning"):
+            reasoning = data["ai_reasoning"][:150] + "..." if len(data.get("ai_reasoning", "")) > 150 else data["ai_reasoning"]
+            text += f"\n<i>{reasoning}</i>"
+
+        text += "\n\nExecute manually, then update status."
         r = requests.post(
             f"https://api.telegram.org/bot{s.telegram_bot_token}/sendMessage",
             json={"chat_id": s.telegram_chat_id, "text": text, "parse_mode": "HTML"},

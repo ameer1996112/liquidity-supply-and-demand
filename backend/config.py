@@ -2,12 +2,20 @@
 Centralized configuration using Pydantic BaseSettings.
 Used by API (main.py) and Worker (worker.py).
 Fail-fast: SUPABASE_URL, REDIS_URL must be set. WEBHOOK_SECRET optional (when set, API validates it).
+
+AI Guardian Settings:
+- AI_FILTER_ENABLED: Master toggle for AI validation layer
+- AI_PROVIDER: "openai" or "anthropic"
+- AI_API_KEY: Secret API key for the chosen provider
+- AI_MIN_CONFIDENCE: Trades below this score (0-100) are dropped
+- AI_TIMEOUT_SECONDS: Max wait time for AI response before allowing passthrough
 """
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -44,6 +52,50 @@ class Settings(BaseSettings):
     risk_percent: float = 1.0
     min_rr_ratio: float = 1.0
     gold_pip_divisor: float = 0.1
+
+    # ══════════════════════════════════════════════════════════
+    # AI GUARDIAN SETTINGS
+    # ══════════════════════════════════════════════════════════
+    # Master toggle: Set to False to disable AI validation (passthrough mode)
+    ai_filter_enabled: bool = Field(
+        default=True,
+        description="Enable AI Guardian validation layer. When False, all trades pass through without AI check."
+    )
+
+    # Provider selection: "openai" or "anthropic"
+    ai_provider: Literal["openai", "anthropic"] = Field(
+        default="anthropic",
+        description="AI provider for trade validation. Options: 'openai' or 'anthropic'"
+    )
+
+    # API Key (loaded from AI_API_KEY or OPENAI_API_KEY or ANTHROPIC_API_KEY)
+    ai_api_key: SecretStr = Field(
+        default=SecretStr(""),
+        validation_alias=AliasChoices("AI_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"),
+        description="API key for the AI provider"
+    )
+
+    # Minimum confidence threshold (0-100). Trades below this are rejected.
+    ai_min_confidence: int = Field(
+        default=75,
+        ge=0,
+        le=100,
+        description="Minimum AI confidence score (0-100) to approve a trade. Lower scores are rejected."
+    )
+
+    # Timeout for AI API calls (seconds). On timeout, trade is allowed (fail-open).
+    ai_timeout_seconds: float = Field(
+        default=5.0,
+        gt=0,
+        le=30,
+        description="Timeout in seconds for AI API calls. On timeout/error, trade passes through (fail-open)."
+    )
+
+    # Model override (optional)
+    ai_model: str = Field(
+        default="",
+        description="Override AI model. Empty = use provider default (gpt-4o-mini for OpenAI, claude-3-haiku for Anthropic)"
+    )
 
 
 @lru_cache

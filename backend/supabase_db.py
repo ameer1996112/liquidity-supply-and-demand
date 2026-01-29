@@ -313,6 +313,77 @@ def log_execution_failure(data: dict, error: str) -> None:
         logger.error(f"❌ Failed to log execution failure to Supabase: {e}")
 
 
+def log_ai_rejection(data: dict, rejection_reason: str, ai_result: dict = None) -> Optional[int]:
+    """
+    Log AI Guardian rejection to Supabase.
+
+    Creates a trading_signals entry with status='ai_rejected' for tracking
+    and analysis of AI filtering decisions.
+
+    AI Guardian Rules Enforced:
+    - THE INDUCEMENT RULE: Liquidity must be swept before entry
+    - THE ARRIVAL RULE: Price must arrive aggressively (not compressed)
+    - THE INVALIDATION RULE: Entry candle must show clear rejection
+
+    Args:
+        data: Original trade payload from TradingView webhook
+        rejection_reason: Human-readable reason for rejection
+        ai_result: Full AI analysis result dict with decision, confidence, reasoning, rule_checks
+
+    Returns:
+        alert_id if logged successfully, None on error
+    """
+    if not supabase:
+        init_supabase()
+
+    # Ensure minimal required fields
+    entry_data = dict(data)
+    defaults = {'symbol': 'unknown', 'side': 'buy', 'entry': 0.0, 'sl': 0.0, 'tp': 0.0, 'size': 0.0}
+    for k in ('symbol', 'side', 'entry', 'sl', 'tp', 'size'):
+        if k not in entry_data or entry_data[k] is None:
+            entry_data[k] = defaults.get(k, 0.0)
+
+    # Build AI-specific filter reasons
+    filter_reasons = ["AI_REJECTED"]
+    if ai_result:
+        filter_reasons.append(f"decision={ai_result.get('decision', 'UNKNOWN')}")
+        filter_reasons.append(f"confidence={ai_result.get('confidence', 0)}%")
+
+        # Add rule check failures
+        rule_checks = ai_result.get('rule_checks', {})
+        for rule, passed in rule_checks.items():
+            if not passed:
+                filter_reasons.append(f"FAILED:{rule}")
+
+    try:
+        # Save alert with ai_rejected status
+        alert_id = save_alert(entry_data, mode='manual', filter_reasons=filter_reasons)
+
+        # Build notes with full AI analysis
+        notes_parts = [f"AI_REJECTION: {rejection_reason}"]
+        if ai_result:
+            notes_parts.append(f"Confidence: {ai_result.get('confidence', 0)}%")
+            notes_parts.append(f"Reasoning: {ai_result.get('reasoning', 'N/A')}")
+            if ai_result.get('rule_checks'):
+                notes_parts.append(f"Rule Checks: {json.dumps(ai_result['rule_checks'])}")
+
+        notes = " | ".join(notes_parts)
+
+        # Update status to ai_rejected
+        update_alert_status(alert_id, 'ai_rejected', notes=notes[:1000])  # Truncate if too long
+
+        logger.info(
+            f"✅ AI rejection logged: alert_id={alert_id}, "
+            f"symbol={data.get('symbol')}, zone_id={data.get('zone_id')}, "
+            f"reason={rejection_reason[:100]}"
+        )
+        return alert_id
+
+    except Exception as e:
+        logger.error(f"❌ Failed to log AI rejection to Supabase: {e}")
+        return None
+
+
 def get_statistics(run_mode: str = None, run_id: str = None) -> Dict[str, Any]:
     """
     Calculate trading statistics

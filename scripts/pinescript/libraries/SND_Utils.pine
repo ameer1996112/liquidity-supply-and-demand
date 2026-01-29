@@ -183,12 +183,77 @@ export safe_percent(int wins, int total) =>
     total > 0 ? (wins * 100.0) / total : 0.0
 
 // ══════════════════════════════════════════════════════════
+// === LIQUIDITY & ARRIVAL ANALYSIS ===
+// ══════════════════════════════════════════════════════════
+
+// Detect if liquidity was swept before tapping the zone
+// Logic: Check if current price move has taken out the highest/lowest point
+// @param current_high Current candle high
+// @param current_low Current candle low
+// @param lookback_high Highest high of the lookback period (e.g., ta.highest(high, 10))
+// @param lookback_low Lowest low of the lookback period (e.g., ta.lowest(low, 10))
+// @param is_demand True for demand zones (check if lows were swept), false for supply (highs swept)
+// @returns True if a liquidity sweep occurred
+export detect_liquidity_sweep(float current_high, float current_low, float lookback_high, float lookback_low, bool is_demand) =>
+    if is_demand
+        // For demand zones: price swept below the lookback low (took out sell-side liquidity)
+        current_low <= lookback_low
+    else
+        // For supply zones: price swept above the lookback high (took out buy-side liquidity)
+        current_high >= lookback_high
+
+// Assess the arrival type (how price arrived at the zone)
+// Logic: Compare average candle body size to ATR
+// @param avg_body_size Average body size of last N candles (e.g., 3)
+// @param atr The Average True Range value (e.g., ta.atr(14))
+// @returns "Aggressive" (fast arrival - good), "Compression" (slow - bad), or "Normal"
+export assess_arrival_type(float avg_body_size, float atr) =>
+    if na(avg_body_size) or na(atr) or atr <= 0
+        "Normal"
+    else
+        float ratio = avg_body_size / atr
+        if ratio > 1.5
+            "Aggressive"  // Fast, impulsive arrival - Good for reversals
+        else if ratio < 0.8
+            "Compression"  // Slow, grinding arrival - Bad, likely to fail
+        else
+            "Normal"  // Average arrival speed
+
+// Calculate average body size for last N candles
+// Note: Must be called from strategy with actual series data
+// @param body1 Body size of current candle (math.abs(close - open))
+// @param body2 Body size of candle[1]
+// @param body3 Body size of candle[2]
+// @returns Average body size
+export calc_avg_body_size_3(float body1, float body2, float body3) =>
+    (body1 + body2 + body3) / 3.0
+
+// Detect market structure break (BOS/CHoCH)
+// Logic: Check if price has broken and closed beyond a key structural level
+// @param current_close Current close price
+// @param structure_level The structural level (previous swing high/low)
+// @param is_demand True for demand (bullish break above), false for supply (bearish break below)
+// @returns True if structure was broken
+export detect_structure_break(float current_close, float structure_level, bool is_demand) =>
+    if na(current_close) or na(structure_level)
+        false
+    else if is_demand
+        // Bullish structure break: close above the structural high
+        current_close > structure_level
+    else
+        // Bearish structure break: close below the structural low
+        current_close < structure_level
+
+// ══════════════════════════════════════════════════════════
 // === WEBHOOK PAYLOAD BUILDERS ===
 // ══════════════════════════════════════════════════════════
 
 // Builds JSON payload for webhook alert to Discord-MT5 bridge
 // Returns: JSON string with trade details + Zone Inspector data + AI Features
 // @param pip_size The pip size for the current symbol
+// @param _liquidity_sweep True if liquidity was swept before zone touch (AI Guardian metric)
+// @param _arrival_type "Aggressive", "Normal", or "Compression" (AI Guardian metric)
+// @param _structure_break True if market structure was broken (AI Guardian metric)
 // @returns JSON string payload
 export build_webhook_payload(
      string _symbol, string _side, float _entry, float _sl, float _tp, float _size_lots,
@@ -199,7 +264,8 @@ export build_webhook_payload(
      int _trend, float _rsi, int _htf_trend, float _rvol, float _adx,
      int _touch_count, float _base_quality, float _departure_strength,
      float _liq_distance, float _liq_spread, float _return_strength,
-     float pip_size, bool include_zone_id) =>
+     float pip_size, bool include_zone_id,
+     bool _liquidity_sweep, string _arrival_type, bool _structure_break) =>
 
     string payload = '{"symbol":"' + _symbol + '"'
     payload := payload + ',"side":"' + _side + '"'
@@ -246,6 +312,11 @@ export build_webhook_payload(
     payload := payload + ',"liquidity_distance":' + to_json_num(_liq_distance, "#.##")
     payload := payload + ',"liquidity_spread":' + to_json_num(_liq_spread, "#.##")
     payload := payload + ',"return_strength":' + to_json_num(_return_strength, "#.##")
+
+    // === AI GUARDIAN METRICS ===
+    payload := payload + ',"liquidity_sweep":' + (_liquidity_sweep ? "true" : "false")
+    payload := payload + ',"arrival_type":"' + _arrival_type + '"'
+    payload := payload + ',"market_structure_break":' + (_structure_break ? "true" : "false")
 
     payload := payload + '}'
     payload
