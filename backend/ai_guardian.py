@@ -332,6 +332,7 @@ class AIGuardian:
         api_key: str,
         model: Optional[str] = None,
         timeout: float = 5.0,
+        base_url: Optional[str] = None,
     ):
         """
         Initialize AI Guardian.
@@ -341,10 +342,12 @@ class AIGuardian:
             api_key: API key for the provider
             model: Model to use (None = provider default)
             timeout: Timeout in seconds for API calls
+            base_url: Base URL for OpenAI-compatible APIs (e.g. Groq). Required for non-OpenAI providers.
         """
         self.provider = provider
         self.api_key = api_key
         self.timeout = timeout
+        self.base_url = base_url
 
         # Set default models
         if model:
@@ -363,7 +366,10 @@ class AIGuardian:
         if self._client is None:
             try:
                 from openai import AsyncOpenAI
-                self._client = AsyncOpenAI(api_key=self.api_key)
+                kwargs = {"api_key": self.api_key}
+                if self.base_url:
+                    kwargs["base_url"] = self.base_url
+                self._client = AsyncOpenAI(**kwargs)
             except ImportError:
                 raise AIGuardianError("openai package not installed. Run: pip install openai")
         return self._client
@@ -591,6 +597,7 @@ def create_ai_guardian_from_settings() -> Optional[AIGuardian]:
         api_key=api_key,
         model=settings.ai_model or None,
         timeout=settings.ai_timeout_seconds,
+        base_url=settings.ai_base_url,
     )
 
 
