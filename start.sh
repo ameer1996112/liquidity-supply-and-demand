@@ -8,6 +8,11 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 export PYTHONPATH="$ROOT_DIR"
 
+# Use virtual environment if it exists (Railway deployment)
+if [ -d "/app/venv" ]; then
+  export PATH="/app/venv/bin:$PATH"
+fi
+
 WORKER_PID=""
 UVICORN_PID=""
 
