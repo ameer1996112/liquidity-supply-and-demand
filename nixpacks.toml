@@ -3,10 +3,10 @@
 # Start command is defined in railway.json (start.sh)
 
 [phases.setup]
-nixPkgs = ["python311"]
+nixPkgs = ["python311", "python311Packages.pip"]
 
 [phases.install]
-cmds = ["pip install -r backend/requirements.txt"]
+cmds = ["python3 -m pip install -r backend/requirements.txt"]
 
 # No build phase needed for Python
 [phases.build]
