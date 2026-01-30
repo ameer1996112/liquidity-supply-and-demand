@@ -7,6 +7,7 @@ import { SignalInspector } from '@/components/SignalInspector';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TradingSignal } from '@/types/trading';
 import { Radio, FlaskConical, RefreshCw } from 'lucide-react';
+import { DebugStatus } from '@/components/DebugStatus';
 import { Button } from '@/components/ui/button';
 import { useRefreshSignals } from '@/hooks/useTradingSignals';
 import { cn } from '@/lib/utils';
@@ -114,7 +115,7 @@ export default function DashboardPage() {
       />
 
       {/* Footer */}
-      <footer className="border-t border-zinc-800/50 py-2 px-4">
+      <footer className="border-t border-zinc-800/50 py-2 px-4 mb-8">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-[10px] text-zinc-600 font-mono">
@@ -133,6 +134,9 @@ export default function DashboardPage() {
           </div>
         </div>
       </footer>
+
+      {/* Debug Status Banner */}
+      <DebugStatus />
     </div>
   );
 }
