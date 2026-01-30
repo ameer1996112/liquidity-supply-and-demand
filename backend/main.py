@@ -6,6 +6,7 @@ No database, no business logic, no trade execution.
 
 import json
 import logging
+import os
 import re
 from typing import Any, Literal
 from urllib.parse import parse_qs
@@ -24,27 +25,37 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Trading Webhook API", version="1.0.0")
+# =============================================================================
+# CORS Configuration - MUST be set up BEFORE routes
+# =============================================================================
+def _build_cors_origins() -> list[str]:
+    """Build list of allowed CORS origins from static list + environment."""
+    origins = [
+        # Production frontend
+        "https://frontend-production-a7cf.up.railway.app",
+        # Local development
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
+    # Add dynamic origin from environment variable
+    frontend_url = os.getenv("FRONTEND_URL", "").strip()
+    if frontend_url and frontend_url not in origins:
+        origins.append(frontend_url)
+        logger.info(f"CORS: Added FRONTEND_URL origin: {frontend_url}")
+    return origins
 
-# =============================================================================
-# CORS Configuration - Allow Frontend to connect
-# =============================================================================
-# Add your frontend URLs here
-ALLOWED_ORIGINS = [
-    # Production frontends
-    "https://frontend-production-a7cf.up.railway.app",
-    "https://grand-learning-production-bc96.up.railway.app",
-    # Local development
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-]
+
+# Create app and IMMEDIATELY add CORS middleware
+app = FastAPI(title="Trading Webhook API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
+    allow_origins=_build_cors_origins(),
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all HTTP methods
-    allow_headers=["*"],  # Allow all headers
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=600,  # Cache preflight for 10 minutes
 )
 
 
