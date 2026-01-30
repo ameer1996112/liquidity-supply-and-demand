@@ -86,7 +86,7 @@ function StatusBadge({ status }: { status: TradingSignal['status'] }) {
     closed: {
       icon: <CheckCircle2 className="w-3 h-3" />,
       label: 'CLOSED',
-      className: 'bg-zinc-500/20 text-zinc-400 border-zinc-500/30',
+      className: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
     },
     executed: {
       icon: <CheckCircle2 className="w-3 h-3" />,

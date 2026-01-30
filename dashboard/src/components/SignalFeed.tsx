@@ -1,403 +1,304 @@
 'use client';
 
+import { useState, useMemo } from 'react';
 import { useTradingSignals } from '@/hooks/useTradingSignals';
-import { TradingSignal, TradingMode, getSymbol, getSide, getScore, getPnl } from '@/types/trading';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
+import { TradingSignal, TradingMode, getNotes } from '@/types/trading';
+import { SignalCard, SignalCardSkeleton } from '@/components/SignalCard';
+import { SignalInspector } from '@/components/SignalInspector';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Skeleton } from '@/components/ui/skeleton';
-import {
-  CheckCircle2,
-  XCircle,
-  AlertCircle,
-  Clock,
-  TrendingUp,
-  TrendingDown,
-  ShieldX,
-  Filter,
-  Radio,
-} from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
-import { formatDistanceToNow } from 'date-fns';
+import {
+  Radio,
+  FileText,
+  AlertCircle,
+  Inbox,
+  Zap,
+} from 'lucide-react';
 
-// Helper function for safe number formatting with null checks
-const formatNumber = (num: number | null | undefined, decimals: number = 2): string =>
-  num !== null && num !== undefined ? num.toFixed(decimals) : '--';
+// ============================================================================
+// UTILITY HELPERS
+// ============================================================================
 
-interface SignalFeedProps {
-  mode?: TradingMode;
-  onSelectSignal?: (signal: TradingSignal) => void;
+/**
+ * Safe float conversion - prevents toFixed crashes on null/undefined values
+ * @param val - The value to convert
+ * @param decimals - Number of decimal places (default: 2)
+ * @returns Formatted string or "--" for null values
+ */
+export function safeFloat(val: number | null | undefined, decimals: number = 2): string {
+  if (val === null || val === undefined || Number.isNaN(val)) {
+    return '--';
+  }
+  return val.toFixed(decimals);
 }
 
-// Status badge component with beautiful styling
-function getStatusBadge(status: TradingSignal['status']) {
-  const normalizedStatus = status?.toLowerCase();
-
-  switch (normalizedStatus) {
-    case 'active':
-      return (
-        <Badge
-          className={cn(
-            'bg-blue-500/20 text-blue-400 border-blue-500/30',
-            'hover:bg-blue-500/30 font-semibold text-[10px] uppercase tracking-wider',
-            'animate-pulse'
-          )}
-        >
-          <Radio className="w-3 h-3 mr-1" />
-          LIVE
-        </Badge>
-      );
-    case 'executed':
-      return (
-        <Badge
-          className={cn(
-            'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
-            'hover:bg-emerald-500/30 font-semibold text-[10px] uppercase tracking-wider'
-          )}
-        >
-          <CheckCircle2 className="w-3 h-3 mr-1" />
-          FILLED
-        </Badge>
-      );
-    case 'ai_rejected':
-      return (
-        <Badge
-          className={cn(
-            'bg-red-500/20 text-red-400 border-red-500/30',
-            'hover:bg-red-500/30 font-semibold text-[10px] uppercase tracking-wider'
-          )}
-        >
-          <ShieldX className="w-3 h-3 mr-1" />
-          AI VETO
-        </Badge>
-      );
-    case 'filtered':
-      return (
-        <Badge
-          className={cn(
-            'bg-zinc-500/20 text-zinc-400 border-zinc-500/30',
-            'hover:bg-zinc-500/30 font-semibold text-[10px] uppercase tracking-wider'
-          )}
-        >
-          <Filter className="w-3 h-3 mr-1" />
-          FILTERED
-        </Badge>
-      );
-    case 'failed':
-      return (
-        <Badge
-          className={cn(
-            'bg-red-500/20 text-red-400 border-red-500/30',
-            'hover:bg-red-500/30 font-semibold text-[10px] uppercase tracking-wider'
-          )}
-        >
-          <XCircle className="w-3 h-3 mr-1" />
-          FAILED
-        </Badge>
-      );
-    case 'pending':
-      return (
-        <Badge
-          className={cn(
-            'bg-amber-500/20 text-amber-400 border-amber-500/30',
-            'hover:bg-amber-500/30 font-semibold text-[10px] uppercase tracking-wider'
-          )}
-        >
-          <Clock className="w-3 h-3 mr-1" />
-          PENDING
-        </Badge>
-      );
-    default:
-      return (
-        <Badge
-          className={cn(
-            'bg-zinc-500/20 text-zinc-500 border-zinc-500/30',
-            'hover:bg-zinc-500/30 font-semibold text-[10px] uppercase tracking-wider'
-          )}
-        >
-          <AlertCircle className="w-3 h-3 mr-1" />
-          {status || 'UNKNOWN'}
-        </Badge>
-      );
-  }
+/**
+ * Truncate text to specified length with ellipsis
+ * @param text - Text to truncate
+ * @param maxLength - Maximum length (default: 40)
+ * @returns Truncated string
+ */
+export function truncateText(text: string | null | undefined, maxLength: number = 40): string {
+  if (!text) return '';
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength).trim() + '...';
 }
 
-// Confidence bar component
-function ConfidenceBar({ value }: { value: number | null | undefined }) {
-  // Handle null/undefined confidence values
-  if (value === null || value === undefined) {
-    return <span className="text-zinc-500 text-xs">--</span>;
-  }
+/**
+ * Get display reason from signal (notes or filter_reason, truncated)
+ * @param signal - Trading signal
+ * @returns Truncated reason string
+ */
+export function getDisplayReason(signal: TradingSignal): string {
+  const notes = getNotes(signal);
+  const reason = notes || signal.filter_reason;
+  return truncateText(reason, 40);
+}
 
-  const getColor = (v: number) => {
-    if (v >= 80) return 'bg-emerald-500';
-    if (v >= 60) return 'bg-amber-500';
-    return 'bg-red-500';
-  };
+// ============================================================================
+// LOADING STATE
+// ============================================================================
 
+function LoadingGrid() {
   return (
-    <div className="flex items-center gap-2">
-      <div className="w-16 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-        <div
-          className={cn('h-full rounded-full transition-all', getColor(value))}
-          style={{ width: `${value}%` }}
-        />
-      </div>
-      <span className="font-mono text-xs text-zinc-400">{value}</span>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {[...Array(6)].map((_, i) => (
+        <SignalCardSkeleton key={i} />
+      ))}
     </div>
   );
 }
 
-// Side badge component
-function SideBadge({ action }: { action: string }) {
-  const isBuy = action?.toLowerCase() === 'buy';
-  return (
-    <Badge
-      variant="outline"
-      className={cn(
-        'font-mono text-[10px] font-bold px-2 py-0.5 border-0',
-        isBuy
-          ? 'bg-emerald-500/20 text-emerald-400'
-          : 'bg-red-500/20 text-red-400'
-      )}
-    >
-      {action?.toUpperCase()}
-    </Badge>
-  );
-}
+// ============================================================================
+// EMPTY STATE
+// ============================================================================
 
-// PnL display component
-function PnLDisplay({ pnl, percentage }: { pnl?: number | null; percentage?: number | null }) {
-  // Handle null/undefined pnl - show placeholder
-  if (pnl === undefined || pnl === null) {
-    return <span className="text-zinc-500 text-xs">--</span>;
-  }
-
-  const isPositive = pnl >= 0;
-
-  return (
-    <div className="flex flex-col items-end">
-      <span
-        className={cn(
-          'font-mono text-xs font-semibold',
-          isPositive ? 'text-emerald-400' : 'text-red-400'
-        )}
-      >
-        {isPositive ? '+' : ''}${formatNumber(pnl, 2)}
-      </span>
-      {percentage !== undefined && percentage !== null && (
-        <span
-          className={cn(
-            'font-mono text-[10px]',
-            isPositive ? 'text-emerald-400/70' : 'text-red-400/70'
-          )}
-        >
-          {isPositive ? '+' : ''}{formatNumber(percentage, 2)}%
-        </span>
-      )}
-    </div>
-  );
-}
-
-// Reason display component for rejected/filtered signals
-function ReasonDisplay({ status, filterReason }: { status: TradingSignal['status']; filterReason?: string | null }) {
-  const normalizedStatus = status?.toLowerCase();
-  const showReason = normalizedStatus === 'ai_rejected' || normalizedStatus === 'filtered';
-
-  if (!showReason || !filterReason) {
-    return <span className="text-zinc-600 text-xs">—</span>;
-  }
-
-  return (
-    <span className="text-xs text-zinc-400 max-w-[200px] truncate block" title={filterReason}>
-      {filterReason}
-    </span>
-  );
-}
-
-// Table row skeleton
-function SignalRowSkeleton() {
-  return (
-    <TableRow className="border-zinc-800/50">
-      <TableCell>
-        <Skeleton className="h-4 w-16 bg-zinc-800" />
-      </TableCell>
-      <TableCell>
-        <Skeleton className="h-4 w-14 bg-zinc-800" />
-      </TableCell>
-      <TableCell>
-        <Skeleton className="h-4 w-10 bg-zinc-800" />
-      </TableCell>
-      <TableCell>
-        <Skeleton className="h-4 w-20 bg-zinc-800" />
-      </TableCell>
-      <TableCell>
-        <Skeleton className="h-5 w-16 bg-zinc-800" />
-      </TableCell>
-      <TableCell>
-        <Skeleton className="h-4 w-24 bg-zinc-800" />
-      </TableCell>
-      <TableCell>
-        <Skeleton className="h-4 w-12 bg-zinc-800" />
-      </TableCell>
-    </TableRow>
-  );
-}
-
-// Empty state component
 function EmptyState({ mode }: { mode?: TradingMode }) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="w-12 h-12 rounded-full bg-zinc-800/50 flex items-center justify-center mb-4">
-        <Clock className="w-6 h-6 text-zinc-500" />
+    <div className="flex flex-col items-center justify-center py-20 text-center">
+      <div className="w-16 h-16 rounded-full bg-zinc-800/50 flex items-center justify-center mb-4">
+        <Inbox className="w-8 h-8 text-zinc-600" />
       </div>
-      <h3 className="font-mono text-sm text-zinc-300 mb-1">No Signals</h3>
-      <p className="text-xs text-zinc-500 max-w-xs">
-        {mode
-          ? `No ${mode.toLowerCase()} signals have been generated yet.`
+      <h3 className="font-mono text-sm text-zinc-400 mb-2">No Signals Found</h3>
+      <p className="text-xs text-zinc-600 max-w-xs">
+        {mode === 'LIVE'
+          ? 'No live trading signals have been generated yet.'
+          : mode === 'PAPER'
+          ? 'No paper trading signals have been generated yet.'
           : 'Waiting for trading signals from the bot...'}
       </p>
     </div>
   );
 }
 
-export function SignalFeed({ mode, onSelectSignal }: SignalFeedProps) {
-  const { data: signals = [], isLoading, error } = useTradingSignals();
+// ============================================================================
+// ERROR STATE
+// ============================================================================
 
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-64 text-red-400">
-        <AlertCircle className="w-5 h-5 mr-2" />
-        <span className="font-mono text-sm">Error loading signals</span>
+function ErrorState() {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 text-center">
+      <div className="w-16 h-16 rounded-full bg-rose-500/10 flex items-center justify-center mb-4">
+        <AlertCircle className="w-8 h-8 text-rose-400" />
       </div>
-    );
-  }
+      <h3 className="font-mono text-sm text-rose-400 mb-2">Connection Error</h3>
+      <p className="text-xs text-zinc-500 max-w-xs">
+        Failed to load trading signals. Check your connection and try again.
+      </p>
+    </div>
+  );
+}
 
-  if (isLoading) {
-    return (
-      <div className="rounded-lg border border-zinc-800/50 bg-zinc-950/50">
-        <Table>
-          <TableHeader>
-            <TableRow className="border-zinc-800/50 hover:bg-transparent">
-              <TableHead className="text-zinc-500 text-xs font-mono uppercase">
-                Time
-              </TableHead>
-              <TableHead className="text-zinc-500 text-xs font-mono uppercase">
-                Asset
-              </TableHead>
-              <TableHead className="text-zinc-500 text-xs font-mono uppercase">
-                Side
-              </TableHead>
-              <TableHead className="text-zinc-500 text-xs font-mono uppercase">
-                Confidence
-              </TableHead>
-              <TableHead className="text-zinc-500 text-xs font-mono uppercase">
-                Status
-              </TableHead>
-              <TableHead className="text-zinc-500 text-xs font-mono uppercase">
-                Reason
-              </TableHead>
-              <TableHead className="text-zinc-500 text-xs font-mono uppercase text-right">
-                PnL
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {[...Array(8)].map((_, i) => (
-              <SignalRowSkeleton key={i} />
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-    );
-  }
+// ============================================================================
+// SIGNAL GRID COMPONENT
+// ============================================================================
 
+interface SignalGridViewProps {
+  signals: TradingSignal[];
+  onSelectSignal?: (signal: TradingSignal) => void;
+  mode?: TradingMode;
+}
+
+function SignalGridView({ signals, onSelectSignal, mode }: SignalGridViewProps) {
   if (signals.length === 0) {
     return <EmptyState mode={mode} />;
   }
 
   return (
-    <div className="rounded-lg border border-zinc-800/50 bg-zinc-950/50 overflow-hidden">
-      <ScrollArea className="h-[calc(100vh-220px)]">
-        <Table>
-          <TableHeader className="sticky top-0 bg-zinc-950/95 backdrop-blur-sm z-10">
-            <TableRow className="border-zinc-800/50 hover:bg-transparent">
-              <TableHead className="text-zinc-500 text-xs font-mono uppercase w-24">
-                Time
-              </TableHead>
-              <TableHead className="text-zinc-500 text-xs font-mono uppercase w-20">
-                Asset
-              </TableHead>
-              <TableHead className="text-zinc-500 text-xs font-mono uppercase w-16">
-                Side
-              </TableHead>
-              <TableHead className="text-zinc-500 text-xs font-mono uppercase w-28">
-                Confidence
-              </TableHead>
-              <TableHead className="text-zinc-500 text-xs font-mono uppercase w-24">
-                Status
-              </TableHead>
-              <TableHead className="text-zinc-500 text-xs font-mono uppercase w-48">
-                Reason
-              </TableHead>
-              <TableHead className="text-zinc-500 text-xs font-mono uppercase text-right w-20">
-                PnL
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {signals.map((signal) => (
-              <TableRow
-                key={signal.id}
-                onClick={() => onSelectSignal?.(signal)}
-                className={cn(
-                  'border-zinc-800/30 cursor-pointer transition-colors',
-                  'hover:bg-zinc-800/20',
-                  signal.status?.toLowerCase() === 'active' && 'bg-blue-500/5'
-                )}
-              >
-                <TableCell className="py-2.5">
-                  <span className="font-mono text-xs text-zinc-400">
-                    {formatDistanceToNow(new Date(signal.created_at), {
-                      addSuffix: true,
-                    })}
-                  </span>
-                </TableCell>
-                <TableCell className="py-2.5">
-                  <span className="font-mono text-sm font-semibold text-zinc-100">
-                    {getSymbol(signal)}
-                  </span>
-                </TableCell>
-                <TableCell className="py-2.5">
-                  <SideBadge action={getSide(signal)} />
-                </TableCell>
-                <TableCell className="py-2.5">
-                  <ConfidenceBar value={getScore(signal)} />
-                </TableCell>
-                <TableCell className="py-2.5">
-                  {getStatusBadge(signal.status)}
-                </TableCell>
-                <TableCell className="py-2.5">
-                  <ReasonDisplay status={signal.status} filterReason={signal.filter_reason} />
-                </TableCell>
-                <TableCell className="py-2.5 text-right">
-                  <PnLDisplay
-                    pnl={getPnl(signal)}
-                    percentage={signal.pnl_percentage}
-                  />
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </ScrollArea>
+    <ScrollArea className="h-[calc(100vh-280px)]">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pr-4">
+        {signals.map((signal) => (
+          <SignalCard
+            key={signal.id}
+            signal={signal}
+            onInspect={onSelectSignal}
+          />
+        ))}
+      </div>
+    </ScrollArea>
+  );
+}
+
+// ============================================================================
+// MAIN SIGNAL FEED COMPONENT
+// ============================================================================
+
+interface SignalFeedProps {
+  defaultMode?: TradingMode;
+  onSelectSignal?: (signal: TradingSignal) => void;
+}
+
+export function SignalFeed({ defaultMode, onSelectSignal }: SignalFeedProps) {
+  const [activeTab, setActiveTab] = useState<'all' | 'LIVE' | 'PAPER'>(defaultMode ?? 'all');
+  const [inspectedSignal, setInspectedSignal] = useState<TradingSignal | null>(null);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+
+  // Fetch all signals
+  const { data: allSignals = [], isLoading, error } = useTradingSignals();
+
+  // Filter signals by mode
+  const filteredSignals = useMemo(() => {
+    if (activeTab === 'all') return allSignals;
+    return allSignals.filter((s) => s.mode === activeTab);
+  }, [allSignals, activeTab]);
+
+  // Count signals per mode
+  const counts = useMemo(() => ({
+    all: allSignals.length,
+    LIVE: allSignals.filter((s) => s.mode === 'LIVE').length,
+    PAPER: allSignals.filter((s) => s.mode === 'PAPER').length,
+  }), [allSignals]);
+
+  // Handle signal inspection
+  const handleInspect = (signal: TradingSignal) => {
+    setInspectedSignal(signal);
+    setInspectorOpen(true);
+    onSelectSignal?.(signal);
+  };
+
+  if (error) {
+    return <ErrorState />;
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Mode Tabs */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
+        <TabsList className="bg-zinc-900/50 border border-zinc-800 p-1">
+          <TabsTrigger
+            value="all"
+            className={cn(
+              'flex items-center gap-1.5 px-4 py-1.5',
+              'text-[11px] font-mono font-semibold uppercase tracking-wider',
+              'data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-100',
+              'data-[state=inactive]:text-zinc-500'
+            )}
+          >
+            <Zap className="w-3.5 h-3.5" />
+            <span>All Signals</span>
+            <span className="ml-1 px-1.5 py-0.5 rounded bg-zinc-800/80 text-[10px]">
+              {counts.all}
+            </span>
+          </TabsTrigger>
+          <TabsTrigger
+            value="LIVE"
+            className={cn(
+              'flex items-center gap-1.5 px-4 py-1.5',
+              'text-[11px] font-mono font-semibold uppercase tracking-wider',
+              'data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-400',
+              'data-[state=inactive]:text-zinc-500'
+            )}
+          >
+            <Radio className="w-3.5 h-3.5" />
+            <span>Live Feed</span>
+            <span className={cn(
+              'ml-1 px-1.5 py-0.5 rounded text-[10px]',
+              activeTab === 'LIVE' ? 'bg-blue-500/30' : 'bg-zinc-800/80'
+            )}>
+              {counts.LIVE}
+            </span>
+          </TabsTrigger>
+          <TabsTrigger
+            value="PAPER"
+            className={cn(
+              'flex items-center gap-1.5 px-4 py-1.5',
+              'text-[11px] font-mono font-semibold uppercase tracking-wider',
+              'data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-400',
+              'data-[state=inactive]:text-zinc-500'
+            )}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>Paper Trading</span>
+            <span className={cn(
+              'ml-1 px-1.5 py-0.5 rounded text-[10px]',
+              activeTab === 'PAPER' ? 'bg-amber-500/30' : 'bg-zinc-800/80'
+            )}>
+              {counts.PAPER}
+            </span>
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Grid Content */}
+        <TabsContent value="all" className="mt-4">
+          {isLoading ? (
+            <LoadingGrid />
+          ) : (
+            <SignalGridView
+              signals={filteredSignals}
+              onSelectSignal={handleInspect}
+            />
+          )}
+        </TabsContent>
+
+        <TabsContent value="LIVE" className="mt-4">
+          {isLoading ? (
+            <LoadingGrid />
+          ) : (
+            <SignalGridView
+              signals={filteredSignals}
+              onSelectSignal={handleInspect}
+              mode="LIVE"
+            />
+          )}
+        </TabsContent>
+
+        <TabsContent value="PAPER" className="mt-4">
+          {isLoading ? (
+            <LoadingGrid />
+          ) : (
+            <SignalGridView
+              signals={filteredSignals}
+              onSelectSignal={handleInspect}
+              mode="PAPER"
+            />
+          )}
+        </TabsContent>
+      </Tabs>
+
+      {/* Signal Count Footer */}
+      {!isLoading && filteredSignals.length > 0 && (
+        <div className="flex items-center justify-between pt-2 border-t border-zinc-800/50">
+          <span className="text-[11px] text-zinc-600 font-mono">
+            Showing {filteredSignals.length} of {allSignals.length} signals
+          </span>
+          {activeTab !== 'all' && (
+            <button
+              onClick={() => setActiveTab('all')}
+              className="text-[11px] text-zinc-500 hover:text-zinc-300 font-mono uppercase tracking-wider transition-colors"
+            >
+              Show All
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Signal Inspector Sheet */}
+      <SignalInspector
+        signal={inspectedSignal}
+        open={inspectorOpen}
+        onOpenChange={setInspectorOpen}
+      />
     </div>
   );
 }
