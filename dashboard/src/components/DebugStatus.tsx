@@ -42,10 +42,13 @@ export function DebugStatus() {
       return;
     }
 
+    // Capture non-null reference for closures
+    const client = supabase;
+
     // 2. Test database connection
     const testConnection = async () => {
       try {
-        const { count, error } = await supabase
+        const { error } = await client
           .from('trading_signals')
           .select('count', { count: 'exact', head: true });
 
@@ -74,35 +77,26 @@ export function DebugStatus() {
     testConnection();
 
     // 3. Subscribe to realtime and monitor status
-    let channel: RealtimeChannel | null = null;
-
-    const setupRealtime = () => {
-      channel = supabase
-        .channel('debug-status-channel')
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'trading_signals' },
-          () => {
-            // We don't need to do anything with the payload
-            // Just monitoring subscription status
-          }
-        )
-        .subscribe((status, err) => {
-          setDebug(prev => ({
-            ...prev,
-            realtimeState: status as RealtimeState,
-            realtimeError: err?.message || null,
-          }));
-        });
-    };
-
-    setupRealtime();
+    const channel = client
+      .channel('debug-status-channel')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'trading_signals' },
+        () => {
+          // Just monitoring subscription status
+        }
+      )
+      .subscribe((status, err) => {
+        setDebug(prev => ({
+          ...prev,
+          realtimeState: status as RealtimeState,
+          realtimeError: err?.message || null,
+        }));
+      });
 
     // Cleanup
     return () => {
-      if (channel) {
-        supabase.removeChannel(channel);
-      }
+      client.removeChannel(channel);
     };
   }, []);
 
