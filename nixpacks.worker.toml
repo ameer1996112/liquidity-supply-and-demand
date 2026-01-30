@@ -1,5 +1,5 @@
-# Nixpacks configuration for Railway - Backend API Service
-# This runs the FastAPI webhook receiver (main.py)
+# Nixpacks configuration for Railway - Worker Service
+# This runs the queue consumer with AI Guardian (worker.py)
 
 [phases.setup]
 aptPkgs = ["python3", "python3-pip", "python3-venv"]
@@ -14,4 +14,4 @@ cmds = [
 cmds = []
 
 [start]
-cmd = "cd backend && /app/venv/bin/python main.py"
+cmd = "cd backend && /app/venv/bin/python worker.py"
