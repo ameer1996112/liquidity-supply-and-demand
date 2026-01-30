@@ -1,14 +1,16 @@
-# Nixpacks configuration for Railway
-# Build from the backend subdirectory
+# Nixpacks configuration for Railway - Backend Service
+# Installs Python dependencies from backend/requirements.txt
+# Start command is defined in railway.json (start.sh)
 
 [phases.setup]
 nixPkgs = ["python311"]
 
 [phases.install]
-cmds = ["cd backend && pip install -r requirements.txt"]
+cmds = ["pip install -r backend/requirements.txt"]
 
+# No build phase needed for Python
 [phases.build]
 cmds = []
 
-[start]
-cmd = "cd backend && python trading_bot.py"
+# Start command is handled by railway.json -> start.sh
+# This is left empty so railway.json takes precedence

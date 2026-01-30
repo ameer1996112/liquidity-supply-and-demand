@@ -1,0 +1,75 @@
+# .dockerignore - Backend Service
+# Excludes frontend and unnecessary files from backend Docker builds
+
+# ===== FRONTEND (Next.js Dashboard) =====
+dashboard/
+dashboard/**
+
+# ===== Git & Version Control =====
+.git/
+.gitignore
+
+# ===== IDE & Editor =====
+.vscode/
+.cursor/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# ===== Python artifacts =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg
+.venv/
+venv/
+ENV/
+
+# ===== Test & Dev files =====
+tests/
+*.test.py
+*_test.py
+test_*.py
+.env.test*
+pytest.ini
+.coverage
+htmlcov/
+
+# ===== Documentation (not needed at runtime) =====
+docs/
+*.md
+!backend/requirements.txt
+
+# ===== Local config =====
+.env
+.env.local
+*.local
+
+# ===== Logs & Data =====
+*.log
+logs/
+backend/logs/
+backend/bot.log
+backend/data/
+backend/backtest_data/
+
+# ===== Claude/Agent files =====
+.claude/
+.agent/
+
+# ===== Scripts (local dev only) =====
+scripts/
+
+# ===== Config files not needed in container =====
+docker-compose.yml
+config/
