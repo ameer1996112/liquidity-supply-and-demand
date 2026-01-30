@@ -175,7 +175,8 @@ function EmptyState({ mode }: { mode?: TradingMode }) {
 }
 
 export function SignalFeed({ mode, onSelectSignal }: SignalFeedProps) {
-  const { data: signals = [], isLoading, error } = useTradingSignals(mode);
+  // DEBUG: Disable mode filtering to see all signals
+  const { data: signals = [], isLoading, error } = useTradingSignals();
 
   if (error) {
     return (
@@ -222,6 +223,18 @@ export function SignalFeed({ mode, onSelectSignal }: SignalFeedProps) {
     );
   }
 
+  // DEBUG: Raw dump mode - bypass all rendering to see raw data
+  if (signals.length > 0) {
+    return (
+      <div className="p-4 bg-zinc-900 text-green-400 font-mono text-xs overflow-auto h-96 border border-green-800">
+        <h3 className="mb-2 text-white font-bold">DEBUG: RAW DATA RECEIVED ({signals.length} items)</h3>
+        <pre>{JSON.stringify(signals, null, 2)}</pre>
+      </div>
+    );
+  }
+  return <div className="text-white">No Signals Loaded (Length: 0)</div>;
+
+  /* ORIGINAL TABLE CODE - COMMENTED OUT FOR DEBUGGING
   if (signals.length === 0) {
     return <EmptyState mode={mode} />;
   }
@@ -313,4 +326,5 @@ export function SignalFeed({ mode, onSelectSignal }: SignalFeedProps) {
       </ScrollArea>
     </div>
   );
+  END ORIGINAL TABLE CODE */
 }
