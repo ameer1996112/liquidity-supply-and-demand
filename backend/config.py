@@ -97,10 +97,10 @@ class Settings(BaseSettings):
         description="Timeout in seconds for AI API calls. On timeout/error, trade passes through (fail-open)."
     )
 
-    # Model override (optional). Default: llama3-70b-8192 for Groq.
+    # Model override (optional). Default: llama-3.3-70b-versatile for Groq.
     ai_model: str = Field(
-        default="llama3-70b-8192",
-        description="AI model to use. Default: llama3-70b-8192 (Groq). Empty = use provider default."
+        default="llama-3.3-70b-versatile",
+        description="AI model to use. Default: llama-3.3-70b-versatile (Groq). Empty = use provider default."
     )
 
 
