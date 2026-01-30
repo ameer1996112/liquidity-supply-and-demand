@@ -27,13 +27,9 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
-# Ensure backend is on path and .env is loaded
-_backend = Path(__file__).resolve().parent
-if str(_backend) not in sys.path:
-    sys.path.insert(0, str(_backend))
-os.chdir(_backend)
-
+# Load .env from backend directory
 from dotenv import load_dotenv
+_backend = Path(__file__).resolve().parent
 load_dotenv(_backend / ".env")
 
 logging.basicConfig(
@@ -68,7 +64,7 @@ def _get_ai_guardian():
     _ai_guardian_initialized = True
 
     try:
-        from ai_guardian import create_ai_guardian_from_settings
+        from backend.ai_guardian import create_ai_guardian_from_settings
         _ai_guardian = create_ai_guardian_from_settings()
         if _ai_guardian:
             logger.info("AI Guardian initialized successfully")
@@ -94,7 +90,7 @@ async def _run_ai_validation(data: Dict[str, Any]) -> Tuple[bool, Optional[str],
         - rejection_reason: Human-readable reason if rejected
         - ai_result_dict: Full AI analysis result for logging
     """
-    from config import get_settings
+    from backend.config import get_settings
 
     guardian = _get_ai_guardian()
 
@@ -103,7 +99,7 @@ async def _run_ai_validation(data: Dict[str, Any]) -> Tuple[bool, Optional[str],
         return True, None, {"decision": "SKIP_CHECK", "reason": "AI Guardian disabled"}
 
     try:
-        from ai_guardian import build_trade_context, AIDecision
+        from backend.ai_guardian import build_trade_context, AIDecision
 
         # Build context from trade data
         context = build_trade_context(data)
@@ -175,10 +171,10 @@ def run():
     4. Execute or reject trade
     5. Log results to Supabase
     """
-    from config import get_settings
+    from backend.config import get_settings
+    from backend import logic
+    from backend import supabase_db
     import redis
-    import logic
-    import supabase_db
 
     s = get_settings()
     r = redis.from_url(s.redis_url, decode_responses=True)

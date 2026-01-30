@@ -366,7 +366,7 @@ class AIGuardian:
         if self._client is None:
             try:
                 from openai import AsyncOpenAI
-                from config import get_settings
+                from backend.config import get_settings
                 settings = get_settings()
                 self._client = AsyncOpenAI(
                     api_key=self.api_key,
@@ -581,7 +581,7 @@ def create_ai_guardian_from_settings() -> Optional[AIGuardian]:
     Returns:
         AIGuardian instance if enabled and configured, None otherwise
     """
-    from config import get_settings
+    from backend.config import get_settings
 
     settings = get_settings()
 

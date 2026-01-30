@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
-from config import get_settings
+from backend.config import get_settings
 
 logging.basicConfig(
     level=logging.INFO,
@@ -29,7 +29,7 @@ _paper_trader = None
 def _get_supabase_db():
     global _supabase_db
     if _supabase_db is None:
-        import supabase_db as m
+        from backend import supabase_db as m
         m.init_supabase()
         _supabase_db = m
     return _supabase_db
@@ -39,7 +39,7 @@ def _get_paper_trader():
     """In-memory only when db_path is None (no SQLite)."""
     global _paper_trader
     if _paper_trader is None:
-        from paper_trader import get_paper_trader
+        from backend.paper_trader import get_paper_trader
         # None = in-memory only (no SQLite)
         _paper_trader = get_paper_trader(None)
     return _paper_trader

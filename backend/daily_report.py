@@ -8,7 +8,7 @@ Usage:
     python daily_report.py
 """
 
-import supabase_db
+from backend import supabase_db
 from datetime import datetime, timedelta
 from collections import defaultdict
 

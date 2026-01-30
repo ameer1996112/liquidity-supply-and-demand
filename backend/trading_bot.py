@@ -26,9 +26,9 @@ from dotenv import load_dotenv
 import requests
 import pytz
 import pickle
-from news_filter import NewsFilter
-from paper_trader import get_paper_trader
-import supabase_db
+from backend.news_filter import NewsFilter
+from backend.paper_trader import get_paper_trader
+from backend import supabase_db
 
 # Load environment variables
 env_path = Path(__file__).parent / '.env'

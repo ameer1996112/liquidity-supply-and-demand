@@ -15,7 +15,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
-from config import get_settings
+from backend.config import get_settings
 
 logging.basicConfig(
     level=logging.INFO,
