@@ -12,6 +12,7 @@ from urllib.parse import parse_qs
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
@@ -24,6 +25,27 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Trading Webhook API", version="1.0.0")
+
+# =============================================================================
+# CORS Configuration - Allow Frontend to connect
+# =============================================================================
+# Add your frontend URLs here
+ALLOWED_ORIGINS = [
+    # Production frontends
+    "https://frontend-production-a7cf.up.railway.app",
+    "https://grand-learning-production-bc96.up.railway.app",
+    # Local development
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all HTTP methods
+    allow_headers=["*"],  # Allow all headers
+)
 
 
 @app.on_event("startup")
