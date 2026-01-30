@@ -1,16 +1,13 @@
 # Nixpacks configuration for Railway - Backend Service
-# Installs Python dependencies from backend/requirements.txt
-# Start command is defined in railway.json (start.sh)
+
+# Use the Python provider which handles pip correctly
+providers = ["python"]
 
 [phases.setup]
-nixPkgs = ["python311Full"]
+aptPkgs = ["python3", "python3-pip"]
 
 [phases.install]
-cmds = ["pip install -r backend/requirements.txt"]
+cmds = ["pip3 install -r backend/requirements.txt"]
 
-# No build phase needed for Python
 [phases.build]
 cmds = []
-
-# Start command is handled by railway.json -> start.sh
-# This is left empty so railway.json takes precedence
