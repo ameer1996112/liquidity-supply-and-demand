@@ -27,6 +27,10 @@ import {
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 
+// Helper function for safe number formatting with null checks
+const formatNumber = (num: number | null | undefined, decimals: number = 2): string =>
+  num !== null && num !== undefined ? num.toFixed(decimals) : '--';
+
 interface SignalFeedProps {
   mode?: TradingMode;
   onSelectSignal?: (signal: TradingSignal) => void;
@@ -126,7 +130,12 @@ function getStatusBadge(status: TradingSignal['status']) {
 }
 
 // Confidence bar component
-function ConfidenceBar({ value }: { value: number }) {
+function ConfidenceBar({ value }: { value: number | null | undefined }) {
+  // Handle null/undefined confidence values
+  if (value === null || value === undefined) {
+    return <span className="text-zinc-500 text-xs">--</span>;
+  }
+
   const getColor = (v: number) => {
     if (v >= 80) return 'bg-emerald-500';
     if (v >= 60) return 'bg-amber-500';
@@ -164,9 +173,10 @@ function SideBadge({ action }: { action: TradingSignal['action'] }) {
 }
 
 // PnL display component
-function PnLDisplay({ pnl, percentage }: { pnl?: number; percentage?: number }) {
-  if (pnl === undefined) {
-    return <span className="text-zinc-500 text-xs">—</span>;
+function PnLDisplay({ pnl, percentage }: { pnl?: number | null; percentage?: number | null }) {
+  // Handle null/undefined pnl - show placeholder
+  if (pnl === undefined || pnl === null) {
+    return <span className="text-zinc-500 text-xs">--</span>;
   }
 
   const isPositive = pnl >= 0;
@@ -179,16 +189,16 @@ function PnLDisplay({ pnl, percentage }: { pnl?: number; percentage?: number }) 
           isPositive ? 'text-emerald-400' : 'text-red-400'
         )}
       >
-        {isPositive ? '+' : ''}${pnl.toFixed(2)}
+        {isPositive ? '+' : ''}${formatNumber(pnl, 2)}
       </span>
-      {percentage !== undefined && (
+      {percentage !== undefined && percentage !== null && (
         <span
           className={cn(
             'font-mono text-[10px]',
             isPositive ? 'text-emerald-400/70' : 'text-red-400/70'
           )}
         >
-          {isPositive ? '+' : ''}{percentage.toFixed(2)}%
+          {isPositive ? '+' : ''}{formatNumber(percentage, 2)}%
         </span>
       )}
     </div>
