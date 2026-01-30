@@ -93,21 +93,30 @@ export async function fetchSignalStats(): Promise<SignalStats> {
   }
 
   const signals: TradingSignal[] = data || [];
-  const executed = signals.filter(s => s.status === 'EXECUTED');
-  const filtered = signals.filter(s => s.status === 'FILTERED');
-  const failed = signals.filter(s => s.status === 'FAILED');
+  // Normalize status comparison to handle both uppercase and lowercase
+  const normalizeStatus = (status: string | undefined) => status?.toLowerCase();
+  const executed = signals.filter(s => normalizeStatus(s.status) === 'executed');
+  const filtered = signals.filter(s =>
+    normalizeStatus(s.status) === 'filtered' || normalizeStatus(s.status) === 'ai_rejected'
+  );
+  const failed = signals.filter(s => normalizeStatus(s.status) === 'failed');
+  const activeSignals = signals.filter(s => normalizeStatus(s.status) === 'active');
   const closed = executed.filter(s => s.closed_at);
   const wins = closed.filter(s => (s.pnl || 0) > 0);
-  const active = executed.filter(s => !s.closed_at);
+  // Active trades are either 'active' status or executed without closed_at
+  const active = [...activeSignals, ...executed.filter(s => !s.closed_at)];
+
+  // Count AI rejected signals separately
+  const aiRejected = signals.filter(s => normalizeStatus(s.status) === 'ai_rejected');
 
   return {
     total_signals_24h: signals.length,
-    executed_count: executed.length,
+    executed_count: executed.length + activeSignals.length,
     filtered_count: filtered.length,
     failed_count: failed.length,
     win_rate: closed.length > 0 ? (wins.length / closed.length) * 100 : 0,
     ai_reject_rate: signals.length > 0
-      ? (filtered.length / signals.length) * 100
+      ? (aiRejected.length / signals.length) * 100
       : 0,
     active_trades: active.length,
     total_pnl_24h: closed.reduce((sum, s) => sum + (s.pnl || 0), 0),

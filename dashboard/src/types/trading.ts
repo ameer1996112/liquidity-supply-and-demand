@@ -1,7 +1,9 @@
 // Trading Signal Types - Strictly typed for Supabase
 
 export type SignalAction = 'BUY' | 'SELL';
-export type SignalStatus = 'EXECUTED' | 'FILTERED' | 'FAILED' | 'PENDING';
+export type SignalStatus =
+  | 'EXECUTED' | 'FILTERED' | 'FAILED' | 'PENDING'  // Legacy uppercase
+  | 'active' | 'ai_rejected' | 'filtered' | 'executed' | 'pending' | 'failed';  // New lowercase
 export type TradingMode = 'LIVE' | 'PAPER';
 
 export interface AIReasoning {

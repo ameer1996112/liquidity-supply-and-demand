@@ -20,6 +20,9 @@ import {
   Clock,
   TrendingUp,
   TrendingDown,
+  ShieldX,
+  Filter,
+  Radio,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
@@ -52,17 +55,30 @@ function ConfidenceBar({ value }: { value: number }) {
 
 // Status icon component
 function StatusIcon({ status }: { status: TradingSignal['status'] }) {
-  switch (status) {
-    case 'EXECUTED':
+  // Normalize status to lowercase for comparison
+  const normalizedStatus = status?.toLowerCase();
+
+  switch (normalizedStatus) {
+    case 'executed':
       return <CheckCircle2 className="w-4 h-4 text-emerald-400" />;
-    case 'FILTERED':
-      return <AlertCircle className="w-4 h-4 text-amber-400" />;
-    case 'FAILED':
+    case 'active':
+      // Blue pulse for live trades
+      return (
+        <Radio className="w-4 h-4 text-blue-400 animate-pulse" />
+      );
+    case 'ai_rejected':
+      // Red shield for AI rejected
+      return <ShieldX className="w-4 h-4 text-red-400" />;
+    case 'filtered':
+      // Gray filter icon
+      return <Filter className="w-4 h-4 text-zinc-400" />;
+    case 'failed':
       return <XCircle className="w-4 h-4 text-red-400" />;
-    case 'PENDING':
+    case 'pending':
       return <Clock className="w-4 h-4 text-blue-400" />;
     default:
-      return null;
+      // Fallback for unknown statuses
+      return <AlertCircle className="w-4 h-4 text-zinc-500" />;
   }
 }
 
@@ -247,9 +263,10 @@ export function SignalFeed({ mode, onSelectSignal }: SignalFeedProps) {
                 className={cn(
                   'border-zinc-800/30 cursor-pointer transition-colors',
                   'hover:bg-zinc-800/20',
-                  signal.status === 'EXECUTED' &&
-                    !signal.closed_at &&
-                    'bg-emerald-500/5'
+                  // Highlight active/live trades
+                  (signal.status === 'active' ||
+                    (signal.status?.toLowerCase() === 'executed' && !signal.closed_at)) &&
+                    'bg-blue-500/5'
                 )}
               >
                 <TableCell className="py-2.5">
@@ -274,7 +291,7 @@ export function SignalFeed({ mode, onSelectSignal }: SignalFeedProps) {
                   <div className="flex items-center gap-1.5">
                     <StatusIcon status={signal.status} />
                     <span className="text-xs text-zinc-500 hidden sm:inline">
-                      {signal.status.toLowerCase()}
+                      {(signal.status || 'unknown').toLowerCase().replace('_', ' ')}
                     </span>
                   </div>
                 </TableCell>
