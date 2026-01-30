@@ -32,6 +32,99 @@ interface SignalFeedProps {
   onSelectSignal?: (signal: TradingSignal) => void;
 }
 
+// Status badge component with beautiful styling
+function getStatusBadge(status: TradingSignal['status']) {
+  const normalizedStatus = status?.toLowerCase();
+
+  switch (normalizedStatus) {
+    case 'active':
+      return (
+        <Badge
+          className={cn(
+            'bg-blue-500/20 text-blue-400 border-blue-500/30',
+            'hover:bg-blue-500/30 font-semibold text-[10px] uppercase tracking-wider',
+            'animate-pulse'
+          )}
+        >
+          <Radio className="w-3 h-3 mr-1" />
+          LIVE
+        </Badge>
+      );
+    case 'executed':
+      return (
+        <Badge
+          className={cn(
+            'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+            'hover:bg-emerald-500/30 font-semibold text-[10px] uppercase tracking-wider'
+          )}
+        >
+          <CheckCircle2 className="w-3 h-3 mr-1" />
+          FILLED
+        </Badge>
+      );
+    case 'ai_rejected':
+      return (
+        <Badge
+          className={cn(
+            'bg-red-500/20 text-red-400 border-red-500/30',
+            'hover:bg-red-500/30 font-semibold text-[10px] uppercase tracking-wider'
+          )}
+        >
+          <ShieldX className="w-3 h-3 mr-1" />
+          AI VETO
+        </Badge>
+      );
+    case 'filtered':
+      return (
+        <Badge
+          className={cn(
+            'bg-zinc-500/20 text-zinc-400 border-zinc-500/30',
+            'hover:bg-zinc-500/30 font-semibold text-[10px] uppercase tracking-wider'
+          )}
+        >
+          <Filter className="w-3 h-3 mr-1" />
+          FILTERED
+        </Badge>
+      );
+    case 'failed':
+      return (
+        <Badge
+          className={cn(
+            'bg-red-500/20 text-red-400 border-red-500/30',
+            'hover:bg-red-500/30 font-semibold text-[10px] uppercase tracking-wider'
+          )}
+        >
+          <XCircle className="w-3 h-3 mr-1" />
+          FAILED
+        </Badge>
+      );
+    case 'pending':
+      return (
+        <Badge
+          className={cn(
+            'bg-amber-500/20 text-amber-400 border-amber-500/30',
+            'hover:bg-amber-500/30 font-semibold text-[10px] uppercase tracking-wider'
+          )}
+        >
+          <Clock className="w-3 h-3 mr-1" />
+          PENDING
+        </Badge>
+      );
+    default:
+      return (
+        <Badge
+          className={cn(
+            'bg-zinc-500/20 text-zinc-500 border-zinc-500/30',
+            'hover:bg-zinc-500/30 font-semibold text-[10px] uppercase tracking-wider'
+          )}
+        >
+          <AlertCircle className="w-3 h-3 mr-1" />
+          {status || 'UNKNOWN'}
+        </Badge>
+      );
+  }
+}
+
 // Confidence bar component
 function ConfidenceBar({ value }: { value: number }) {
   const getColor = (v: number) => {
@@ -51,35 +144,6 @@ function ConfidenceBar({ value }: { value: number }) {
       <span className="font-mono text-xs text-zinc-400">{value}</span>
     </div>
   );
-}
-
-// Status icon component
-function StatusIcon({ status }: { status: TradingSignal['status'] }) {
-  // Normalize status to lowercase for comparison
-  const normalizedStatus = status?.toLowerCase();
-
-  switch (normalizedStatus) {
-    case 'executed':
-      return <CheckCircle2 className="w-4 h-4 text-emerald-400" />;
-    case 'active':
-      // Blue pulse for live trades
-      return (
-        <Radio className="w-4 h-4 text-blue-400 animate-pulse" />
-      );
-    case 'ai_rejected':
-      // Red shield for AI rejected
-      return <ShieldX className="w-4 h-4 text-red-400" />;
-    case 'filtered':
-      // Gray filter icon
-      return <Filter className="w-4 h-4 text-zinc-400" />;
-    case 'failed':
-      return <XCircle className="w-4 h-4 text-red-400" />;
-    case 'pending':
-      return <Clock className="w-4 h-4 text-blue-400" />;
-    default:
-      // Fallback for unknown statuses
-      return <AlertCircle className="w-4 h-4 text-zinc-500" />;
-  }
 }
 
 // Side badge component
@@ -131,6 +195,22 @@ function PnLDisplay({ pnl, percentage }: { pnl?: number; percentage?: number }) 
   );
 }
 
+// Reason display component for rejected/filtered signals
+function ReasonDisplay({ status, filterReason }: { status: TradingSignal['status']; filterReason: string | null }) {
+  const normalizedStatus = status?.toLowerCase();
+  const showReason = normalizedStatus === 'ai_rejected' || normalizedStatus === 'filtered';
+
+  if (!showReason || !filterReason) {
+    return <span className="text-zinc-600 text-xs">—</span>;
+  }
+
+  return (
+    <span className="text-xs text-zinc-400 max-w-[200px] truncate block" title={filterReason}>
+      {filterReason}
+    </span>
+  );
+}
+
 // Table row skeleton
 function SignalRowSkeleton() {
   return (
@@ -148,7 +228,10 @@ function SignalRowSkeleton() {
         <Skeleton className="h-4 w-20 bg-zinc-800" />
       </TableCell>
       <TableCell>
-        <Skeleton className="h-4 w-4 bg-zinc-800" />
+        <Skeleton className="h-5 w-16 bg-zinc-800" />
+      </TableCell>
+      <TableCell>
+        <Skeleton className="h-4 w-24 bg-zinc-800" />
       </TableCell>
       <TableCell>
         <Skeleton className="h-4 w-12 bg-zinc-800" />
@@ -175,7 +258,6 @@ function EmptyState({ mode }: { mode?: TradingMode }) {
 }
 
 export function SignalFeed({ mode, onSelectSignal }: SignalFeedProps) {
-  // DEBUG: Disable mode filtering to see all signals
   const { data: signals = [], isLoading, error } = useTradingSignals();
 
   if (error) {
@@ -208,6 +290,9 @@ export function SignalFeed({ mode, onSelectSignal }: SignalFeedProps) {
               <TableHead className="text-zinc-500 text-xs font-mono uppercase">
                 Status
               </TableHead>
+              <TableHead className="text-zinc-500 text-xs font-mono uppercase">
+                Reason
+              </TableHead>
               <TableHead className="text-zinc-500 text-xs font-mono uppercase text-right">
                 PnL
               </TableHead>
@@ -223,18 +308,6 @@ export function SignalFeed({ mode, onSelectSignal }: SignalFeedProps) {
     );
   }
 
-  // DEBUG: Raw dump mode - bypass all rendering to see raw data
-  if (signals.length > 0) {
-    return (
-      <div className="p-4 bg-zinc-900 text-green-400 font-mono text-xs overflow-auto h-96 border border-green-800">
-        <h3 className="mb-2 text-white font-bold">DEBUG: RAW DATA RECEIVED ({signals.length} items)</h3>
-        <pre>{JSON.stringify(signals, null, 2)}</pre>
-      </div>
-    );
-  }
-  return <div className="text-white">No Signals Loaded (Length: 0)</div>;
-
-  /* ORIGINAL TABLE CODE - COMMENTED OUT FOR DEBUGGING
   if (signals.length === 0) {
     return <EmptyState mode={mode} />;
   }
@@ -257,11 +330,11 @@ export function SignalFeed({ mode, onSelectSignal }: SignalFeedProps) {
               <TableHead className="text-zinc-500 text-xs font-mono uppercase w-28">
                 Confidence
               </TableHead>
-              <TableHead className="text-zinc-500 text-xs font-mono uppercase w-16">
+              <TableHead className="text-zinc-500 text-xs font-mono uppercase w-24">
                 Status
               </TableHead>
-              <TableHead className="text-zinc-500 text-xs font-mono uppercase w-20">
-                R:R
+              <TableHead className="text-zinc-500 text-xs font-mono uppercase w-48">
+                Reason
               </TableHead>
               <TableHead className="text-zinc-500 text-xs font-mono uppercase text-right w-20">
                 PnL
@@ -276,10 +349,7 @@ export function SignalFeed({ mode, onSelectSignal }: SignalFeedProps) {
                 className={cn(
                   'border-zinc-800/30 cursor-pointer transition-colors',
                   'hover:bg-zinc-800/20',
-                  // Highlight active/live trades
-                  (signal.status === 'active' ||
-                    (signal.status?.toLowerCase() === 'executed' && !signal.closed_at)) &&
-                    'bg-blue-500/5'
+                  signal.status?.toLowerCase() === 'active' && 'bg-blue-500/5'
                 )}
               >
                 <TableCell className="py-2.5">
@@ -301,17 +371,10 @@ export function SignalFeed({ mode, onSelectSignal }: SignalFeedProps) {
                   <ConfidenceBar value={signal.ai_confidence} />
                 </TableCell>
                 <TableCell className="py-2.5">
-                  <div className="flex items-center gap-1.5">
-                    <StatusIcon status={signal.status} />
-                    <span className="text-xs text-zinc-500 hidden sm:inline">
-                      {(signal.status || 'unknown').toLowerCase().replace('_', ' ')}
-                    </span>
-                  </div>
+                  {getStatusBadge(signal.status)}
                 </TableCell>
                 <TableCell className="py-2.5">
-                  <span className="font-mono text-xs text-zinc-400">
-                    1:{signal.rr_ratio?.toFixed(1) || '—'}
-                  </span>
+                  <ReasonDisplay status={signal.status} filterReason={signal.filter_reason} />
                 </TableCell>
                 <TableCell className="py-2.5 text-right">
                   <PnLDisplay
@@ -326,5 +389,4 @@ export function SignalFeed({ mode, onSelectSignal }: SignalFeedProps) {
       </ScrollArea>
     </div>
   );
-  END ORIGINAL TABLE CODE */
 }
