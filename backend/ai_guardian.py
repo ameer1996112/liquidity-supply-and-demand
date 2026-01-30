@@ -366,10 +366,12 @@ class AIGuardian:
         if self._client is None:
             try:
                 from openai import AsyncOpenAI
-                kwargs = {"api_key": self.api_key}
-                if self.base_url:
-                    kwargs["base_url"] = self.base_url
-                self._client = AsyncOpenAI(**kwargs)
+                from config import get_settings
+                settings = get_settings()
+                self._client = AsyncOpenAI(
+                    api_key=self.api_key,
+                    base_url=settings.ai_base_url,
+                )
             except ImportError:
                 raise AIGuardianError("openai package not installed. Run: pip install openai")
         return self._client
