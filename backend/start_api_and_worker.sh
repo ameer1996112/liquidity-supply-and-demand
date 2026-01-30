@@ -19,11 +19,11 @@ shutdown() {
 trap shutdown SIGTERM SIGINT
 
 echo "[start_api_and_worker.sh] Starting API (Producer)..."
-uvicorn main:app --host 0.0.0.0 --port "$PORT" &
+python3 -m uvicorn main:app --host 0.0.0.0 --port "$PORT" &
 UVICORN_PID=$!
 
 echo "[start_api_and_worker.sh] Starting Worker (Consumer)..."
-python worker.py &
+python3 worker.py &
 WORKER_PID=$!
 
 wait $UVICORN_PID
