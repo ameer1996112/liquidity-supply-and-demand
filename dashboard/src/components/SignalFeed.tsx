@@ -1,7 +1,7 @@
 'use client';
 
 import { useTradingSignals } from '@/hooks/useTradingSignals';
-import { TradingSignal, TradingMode } from '@/types/trading';
+import { TradingSignal, TradingMode, getSymbol, getSide, getScore, getPnl } from '@/types/trading';
 import {
   Table,
   TableBody,
@@ -156,18 +156,19 @@ function ConfidenceBar({ value }: { value: number | null | undefined }) {
 }
 
 // Side badge component
-function SideBadge({ action }: { action: TradingSignal['action'] }) {
+function SideBadge({ action }: { action: string }) {
+  const isBuy = action?.toLowerCase() === 'buy';
   return (
     <Badge
       variant="outline"
       className={cn(
         'font-mono text-[10px] font-bold px-2 py-0.5 border-0',
-        action === 'BUY'
+        isBuy
           ? 'bg-emerald-500/20 text-emerald-400'
           : 'bg-red-500/20 text-red-400'
       )}
     >
-      {action}
+      {action?.toUpperCase()}
     </Badge>
   );
 }
@@ -206,7 +207,7 @@ function PnLDisplay({ pnl, percentage }: { pnl?: number | null; percentage?: num
 }
 
 // Reason display component for rejected/filtered signals
-function ReasonDisplay({ status, filterReason }: { status: TradingSignal['status']; filterReason: string | null }) {
+function ReasonDisplay({ status, filterReason }: { status: TradingSignal['status']; filterReason?: string | null }) {
   const normalizedStatus = status?.toLowerCase();
   const showReason = normalizedStatus === 'ai_rejected' || normalizedStatus === 'filtered';
 
@@ -371,14 +372,14 @@ export function SignalFeed({ mode, onSelectSignal }: SignalFeedProps) {
                 </TableCell>
                 <TableCell className="py-2.5">
                   <span className="font-mono text-sm font-semibold text-zinc-100">
-                    {signal.ticker}
+                    {getSymbol(signal)}
                   </span>
                 </TableCell>
                 <TableCell className="py-2.5">
-                  <SideBadge action={signal.action} />
+                  <SideBadge action={getSide(signal)} />
                 </TableCell>
                 <TableCell className="py-2.5">
-                  <ConfidenceBar value={signal.ai_confidence} />
+                  <ConfidenceBar value={getScore(signal)} />
                 </TableCell>
                 <TableCell className="py-2.5">
                   {getStatusBadge(signal.status)}
@@ -388,7 +389,7 @@ export function SignalFeed({ mode, onSelectSignal }: SignalFeedProps) {
                 </TableCell>
                 <TableCell className="py-2.5 text-right">
                   <PnLDisplay
-                    pnl={signal.pnl}
+                    pnl={getPnl(signal)}
                     percentage={signal.pnl_percentage}
                   />
                 </TableCell>

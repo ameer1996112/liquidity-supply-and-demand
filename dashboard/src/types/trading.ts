@@ -1,62 +1,93 @@
-// Trading Signal Types - Strictly typed for Supabase
+// Trading Signal Types - Mapped to Supabase `trading_signals` table
+// CRITICAL: These field names must match the database schema exactly
 
-export type SignalAction = 'BUY' | 'SELL';
+export type SignalSide = 'buy' | 'sell' | 'BUY' | 'SELL';
 export type SignalStatus =
-  | 'EXECUTED' | 'FILTERED' | 'FAILED' | 'PENDING'  // Legacy uppercase
-  | 'active' | 'ai_rejected' | 'filtered' | 'executed' | 'pending' | 'failed';  // New lowercase
+  | 'active'      // Live trade
+  | 'closed'      // Trade completed
+  | 'filtered'    // Pre-execution filter
+  | 'ai_rejected' // AI veto
+  | 'executed'    // Legacy: filled
+  | 'pending'     // Awaiting execution
+  | 'failed';     // Execution failed
+
 export type TradingMode = 'LIVE' | 'PAPER';
 
+// AI Reasoning - structured JSON from the AI model
 export interface AIReasoning {
-  zone_id: number;
-  zone_type: 'demand' | 'supply';
-  zone_grade: string;
-  zone_score: number;
-  entry_model: string;
-  liquidity_swept: boolean;
-  target_swept: boolean;
-  caused_sweep: boolean;
-  is_accuracy: boolean;
-  session: number;
-  trend: number;
-  htf_trend: number;
-  rsi: number;
-  rvol: number;
-  adx: number;
-  atr_ratio: number;
-  base_quality: number;
-  departure_strength: number;
-  liquidity_distance: number;
-  liquidity_spread: number;
-  return_strength: number;
-  // AI Guardian metrics
+  zone_id?: number;
+  zone_type?: 'demand' | 'supply';
+  zone_grade?: string;
+  zone_score?: number;
+  entry_model?: string;
+  liquidity_swept?: boolean;
+  target_swept?: boolean;
+  caused_sweep?: boolean;
+  is_accuracy?: boolean;
+  session?: number;
+  trend?: number;
+  htf_trend?: number;
+  rsi?: number;
+  rvol?: number;
+  adx?: number;
+  atr_ratio?: number;
+  base_quality?: number;
+  departure_strength?: number;
+  liquidity_distance?: number;
+  liquidity_spread?: number;
+  return_strength?: number;
   guardian_liq_sweep?: boolean;
   guardian_arrival?: string;
   guardian_structure_break?: boolean;
+  // Allow arbitrary additional fields
+  [key: string]: unknown;
 }
 
+// Main Trading Signal Interface - matches `trading_signals` table
 export interface TradingSignal {
   id: string;
   created_at: string;
-  updated_at: string;
-  ticker: string;
-  action: SignalAction;
-  price: number;
-  stop_loss: number;
-  take_profit: number;
-  position_size: number;
-  ai_confidence: number;
-  ai_reasoning: AIReasoning;
+  updated_at?: string;
+
+  // Asset identification
+  symbol: string;           // e.g., "BTCUSD", "XAUUSD"
+  ticker?: string;          // Legacy alias for symbol
+
+  // Direction
+  side: SignalSide;         // "buy" or "sell"
+  action?: SignalSide;      // Legacy alias for side
+
+  // Entry parameters
+  price?: number;           // Entry price
+  entry?: number;           // Alternative entry field
+  stop_loss?: number;
+  sl?: number;              // Alternative SL field
+  take_profit?: number;
+  tp?: number;              // Alternative TP field
+  position_size?: number;
+
+  // AI Analysis
+  score?: number;           // AI confidence 0-100
+  ai_confidence?: number;   // Legacy alias for score
+  notes?: string | null;    // AI reasoning text
+  ai_reasoning?: AIReasoning | string | null; // Structured or stringified JSON
+  filter_reason?: string | null;   // Why signal was filtered/rejected
+
+  // Status & Outcome
   status: SignalStatus;
-  filter_reason: string | null;
-  mode: TradingMode;
-  // Calculated fields (from backend)
+  mode?: TradingMode;
+
+  // Trade metrics
   rr_ratio?: number;
   sl_pips?: number;
   pnl?: number;
+  pnl_usd?: number;         // Alternative PnL field
   pnl_percentage?: number;
+
+  // Exit information
   closed_at?: string;
   exit_price?: number;
-  exit_type?: 'TP_HIT' | 'SL_HIT' | 'MANUAL' | 'TIME_STOP';
+  exit_type?: 'TP_HIT' | 'SL_HIT' | 'MANUAL' | 'TIME_STOP' | string;
 }
 
 export interface SignalStats {
@@ -74,8 +105,8 @@ export interface SignalStats {
 export interface SignalFilter {
   mode?: TradingMode;
   status?: SignalStatus;
-  ticker?: string;
-  action?: SignalAction;
+  symbol?: string;
+  side?: SignalSide;
   from_date?: string;
   to_date?: string;
   limit?: number;
@@ -88,4 +119,68 @@ export interface RealtimePayload<T> {
   eventType: RealtimeEventType;
   new: T;
   old: T | null;
+}
+
+// Helper type guards and normalizers
+export function normalizeSignal(raw: Partial<TradingSignal>): TradingSignal {
+  return {
+    id: raw.id || '',
+    created_at: raw.created_at || new Date().toISOString(),
+    updated_at: raw.updated_at,
+    symbol: raw.symbol || raw.ticker || 'UNKNOWN',
+    ticker: raw.ticker || raw.symbol,
+    side: raw.side || raw.action || 'buy',
+    action: raw.action || raw.side,
+    price: raw.price ?? raw.entry,
+    entry: raw.entry ?? raw.price,
+    stop_loss: raw.stop_loss ?? raw.sl,
+    sl: raw.sl ?? raw.stop_loss,
+    take_profit: raw.take_profit ?? raw.tp,
+    tp: raw.tp ?? raw.take_profit,
+    position_size: raw.position_size,
+    score: raw.score ?? raw.ai_confidence,
+    ai_confidence: raw.ai_confidence ?? raw.score,
+    notes: raw.notes,
+    ai_reasoning: raw.ai_reasoning,
+    filter_reason: raw.filter_reason,
+    status: raw.status || 'pending',
+    mode: raw.mode,
+    rr_ratio: raw.rr_ratio,
+    sl_pips: raw.sl_pips,
+    pnl: raw.pnl ?? raw.pnl_usd,
+    pnl_usd: raw.pnl_usd ?? raw.pnl,
+    pnl_percentage: raw.pnl_percentage,
+    closed_at: raw.closed_at,
+    exit_price: raw.exit_price,
+    exit_type: raw.exit_type,
+  };
+}
+
+// Get the display ticker (symbol) from a signal
+export function getSymbol(signal: Partial<TradingSignal>): string {
+  return signal.symbol || signal.ticker || 'UNKNOWN';
+}
+
+// Get the direction (buy/sell) from a signal
+export function getSide(signal: Partial<TradingSignal>): 'buy' | 'sell' {
+  const side = signal.side || signal.action || 'buy';
+  return side.toLowerCase() as 'buy' | 'sell';
+}
+
+// Get the AI confidence score from a signal
+export function getScore(signal: Partial<TradingSignal>): number | null {
+  return signal.score ?? signal.ai_confidence ?? null;
+}
+
+// Get the PnL from a signal
+export function getPnl(signal: Partial<TradingSignal>): number | null {
+  return signal.pnl ?? signal.pnl_usd ?? null;
+}
+
+// Get AI reasoning text from a signal
+export function getNotes(signal: Partial<TradingSignal>): string | null {
+  if (signal.notes) return signal.notes;
+  if (signal.filter_reason) return signal.filter_reason;
+  if (typeof signal.ai_reasoning === 'string') return signal.ai_reasoning;
+  return null;
 }
