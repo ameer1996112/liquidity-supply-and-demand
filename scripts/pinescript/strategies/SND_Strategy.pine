@@ -4011,16 +4011,15 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     int dummy_var = 0  // Dummy statement to prevent empty block error
                 else
                     string typeTag = z.isAccuracy ? "⭐ACC" : "[NRM]"
-                    // AI Data Packet V3: Score, Freshness, Session, ZoneType, ATR_Ratio, isAccuracy, Trend, RSI, HTF_Trend, RVOL
-                    // Added V3: HTF_Trend (1H), RVOL
+                    // AI Data Packet V5.1: Key-Value format for train_ai_guardian.py (F:key=value)
                     int f_fresh = bar_index - z.createdBarIndex
                     float zone_range = z.top - z.bottom
                     float f_atr_ratio = atr14 > 0 ? zone_range / atr14 : 0.0
                     int f_zone_type = 0  // 0 = Demand
                     int f_is_accuracy = z.isAccuracy ? 1 : 0
-                    string ai_features = "F:" + str.tostring(z.score, "#") + "," + str.tostring(f_fresh) + "," + str.tostring(feature_session) + "," + str.tostring(f_zone_type) + "," + str.tostring(f_atr_ratio, "#.##") + "," + str.tostring(f_is_accuracy) + "," + str.tostring(feature_trend) + "," + str.tostring(feature_rsi, "#.##") + "," + str.tostring(feature_htf_trend) + "," + str.tostring(feature_rvol, "#.##") + "," + str.tostring(feature_adx, "#.##") + "," + str.tostring(z.touchCount) + "," + str.tostring(z.baseQuality, "#.##") + "," + str.tostring(z.departureStrength, "#.##") + "," + str.tostring(z.liquidityDistance, "#.##") + "," + str.tostring(z.liquiditySpread, "#.##") + "," + str.tostring(z.returnStrength, "#.##")
-                    string entryComment = (show_entry_labels ? "" : typeTag) + " | " + ai_features
-                    
+                    string ai_features = " | F:score=" + str.tostring(z.score, "#.##") + " | F:fresh=" + str.tostring(f_fresh) + " | F:session=" + str.tostring(feature_session) + " | F:zone_type=" + str.tostring(f_zone_type) + " | F:atr_ratio=" + str.tostring(f_atr_ratio, "#.##") + " | F:is_accuracy=" + str.tostring(f_is_accuracy) + " | F:trend=" + str.tostring(feature_trend) + " | F:rsi=" + str.tostring(feature_rsi, "#.##") + " | F:htf_trend=" + str.tostring(feature_htf_trend) + " | F:rvol=" + str.tostring(feature_rvol, "#.##") + " | F:adx=" + str.tostring(feature_adx, "#.##") + " | F:touch_count=" + str.tostring(z.touchCount) + " | F:base_quality=" + str.tostring(z.baseQuality, "#.##") + " | F:departure_strength=" + str.tostring(z.departureStrength, "#.##") + " | F:liquidity_distance=" + str.tostring(z.liquidityDistance, "#.##") + " | F:liquidity_spread=" + str.tostring(z.liquiditySpread, "#.##") + " | F:return_strength=" + str.tostring(z.returnStrength, "#.##")
+                    string entryComment = (show_entry_labels ? "" : typeTag) + ai_features
+
                     // Include webhook alert_message for TradingView webhook integration
                     if enable_webhook_alerts
                         strategy.entry("Long", strategy.long, qty = pos_qty_units, comment = entryComment, alert_message = webhook_payload)
@@ -4424,15 +4423,14 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     int dummy_var = 0  // Dummy statement to prevent empty block error
                 else
                     string typeTag = z.isAccuracy ? "⭐ACC" : "[NRM]"
-                    // AI Data Packet V3: Score, Freshness, Session, ZoneType, ATR_Ratio, isAccuracy, Trend, RSI, HTF_Trend, RVOL
-                    // Added V3: HTF_Trend (1H), RVOL
+                    // AI Data Packet V5.1: Key-Value format for train_ai_guardian.py (F:key=value)
                     int f_fresh = bar_index - z.createdBarIndex
                     float zone_range = z.top - z.bottom
                     float f_atr_ratio = atr14 > 0 ? zone_range / atr14 : 0.0
                     int f_zone_type = 1  // 1 = Supply
                     int f_is_accuracy = z.isAccuracy ? 1 : 0
-                    string ai_features = "F:" + str.tostring(z.score, "#") + "," + str.tostring(f_fresh) + "," + str.tostring(feature_session) + "," + str.tostring(f_zone_type) + "," + str.tostring(f_atr_ratio, "#.##") + "," + str.tostring(f_is_accuracy) + "," + str.tostring(feature_trend) + "," + str.tostring(feature_rsi, "#.##") + "," + str.tostring(feature_htf_trend) + "," + str.tostring(feature_rvol, "#.##") + "," + str.tostring(feature_adx, "#.##") + "," + str.tostring(z.touchCount) + "," + str.tostring(z.baseQuality, "#.##") + "," + str.tostring(z.departureStrength, "#.##") + "," + str.tostring(z.liquidityDistance, "#.##") + "," + str.tostring(z.liquiditySpread, "#.##") + "," + str.tostring(z.returnStrength, "#.##")
-                    string entryComment = (show_entry_labels ? "" : typeTag) + " | " + ai_features
+                    string ai_features = " | F:score=" + str.tostring(z.score, "#.##") + " | F:fresh=" + str.tostring(f_fresh) + " | F:session=" + str.tostring(feature_session) + " | F:zone_type=" + str.tostring(f_zone_type) + " | F:atr_ratio=" + str.tostring(f_atr_ratio, "#.##") + " | F:is_accuracy=" + str.tostring(f_is_accuracy) + " | F:trend=" + str.tostring(feature_trend) + " | F:rsi=" + str.tostring(feature_rsi, "#.##") + " | F:htf_trend=" + str.tostring(feature_htf_trend) + " | F:rvol=" + str.tostring(feature_rvol, "#.##") + " | F:adx=" + str.tostring(feature_adx, "#.##") + " | F:touch_count=" + str.tostring(z.touchCount) + " | F:base_quality=" + str.tostring(z.baseQuality, "#.##") + " | F:departure_strength=" + str.tostring(z.departureStrength, "#.##") + " | F:liquidity_distance=" + str.tostring(z.liquidityDistance, "#.##") + " | F:liquidity_spread=" + str.tostring(z.liquiditySpread, "#.##") + " | F:return_strength=" + str.tostring(z.returnStrength, "#.##")
+                    string entryComment = (show_entry_labels ? "" : typeTag) + ai_features
 
                     // Include webhook alert_message for TradingView webhook integration
                     if enable_webhook_alerts

@@ -296,7 +296,10 @@ export build_webhook_payload(
     payload := payload + ',"caused_sweep":' + (_caused_sweep ? "true" : "false")
     payload := payload + ',"is_accuracy":' + (_is_accuracy ? "true" : "false")
 
-    // === AI FEATURES ===
+    // === AI FEATURES (V5.1 Key-Value format for train_ai_guardian.py) ===
+    int _zone_type_int = _zone_type == "supply" ? 1 : 0
+    string _signal_f = " | F:score=" + str.tostring(_score, "#.##") + " | F:fresh=" + str.tostring(_freshness) + " | F:session=" + str.tostring(_session) + " | F:zone_type=" + str.tostring(_zone_type_int) + " | F:atr_ratio=" + str.tostring(_atr_ratio, "#.##") + " | F:is_accuracy=" + str.tostring(_is_accuracy ? 1 : 0) + " | F:trend=" + str.tostring(_trend) + " | F:rsi=" + str.tostring(_rsi, "#.##") + " | F:htf_trend=" + str.tostring(_htf_trend) + " | F:rvol=" + str.tostring(_rvol, "#.##") + " | F:adx=" + str.tostring(_adx, "#.##") + " | F:touch_count=" + str.tostring(_touch_count) + " | F:base_quality=" + str.tostring(_base_quality, "#.##") + " | F:departure_strength=" + str.tostring(_departure_strength, "#.##") + " | F:liquidity_distance=" + str.tostring(_liq_distance, "#.##") + " | F:liquidity_spread=" + str.tostring(_liq_spread, "#.##") + " | F:return_strength=" + str.tostring(_return_strength, "#.##")
+    payload := payload + ',"signal":"' + _signal_f + '"'
     payload := payload + ',"score":' + to_json_num(_score, "#.#")
     payload := payload + ',"freshness":' + str.tostring(_freshness, "#")
     payload := payload + ',"session":' + str.tostring(_session, "#")
