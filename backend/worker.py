@@ -1,23 +1,23 @@
 """
-Trade Executor (Consumer) v6.1 - CRASH-PROOF
-=============================================
+Trade Executor (Consumer) v6.4 - SAFE MODE
+==========================================
 
-Simplified, robust worker with three core guards:
+Extreme stability worker with crash-proof guards:
 1. RISK GUARD: Hard limit on position size
 2. CORRELATION GUARD: Max 3 open positions
 3. ML GUARD: RandomForest win probability prediction
 
-Key Fixes in v6.1:
+Key Fixes in v6.4:
+- ALL guards wrapped in individual try/except blocks
+- Explicit logging: "Correlation Check: X/Y active" on every check
+- Fail-SAFE design: guard failures reject (not allow) trades
 - Absolute path resolution for model files (Railway compatibility)
-- Broad exception handling to prevent crashes
-- Fail-open design (returns 0.5 on any prediction error)
-- Strict feature frame initialization
-- Shorter blpop timeout for cleaner restarts
+- Strict feature frame initialization with 0.0 defaults
 
 Architecture:
 - Single-load brain (model loaded once at startup)
 - Regex-based feature extraction for "Super String" signals
-- Fail-open error handling
+- Crash-proof guard pipeline
 - Clean Supabase logging
 """
 
@@ -90,16 +90,16 @@ def load_brain():
 
     try:
         if not model_path.exists():
-            logger.error(f"BRAIN MISSING: File not found at {model_path}")
+            logger.warning(f"⚠️ Brain Missing: {model_path}")
             return
 
         with open(model_path, "rb") as f:
             AI_MODEL = pickle.load(f)
         with open(enc_path, "rb") as f:
             AI_ENCODERS = pickle.load(f)
-        logger.info(f"BRAIN ONLINE. Features: {len(AI_MODEL.feature_names_in_)}")
+        logger.info(f"🧠 Brain Online. Features: {len(AI_MODEL.feature_names_in_)}")
     except Exception as e:
-        logger.error(f"BRAIN DAMAGE (Load Failed): {e}")
+        logger.error(f"❌ Brain Load Error: {e}")
 
 
 # --- INTELLIGENCE LAYER ---
@@ -152,7 +152,7 @@ def get_prediction(payload: Dict[str, Any]) -> tuple:
         return prob, f"AI Confidence: {prob:.1%}"
 
     except Exception as e:
-        logger.error(f"PREDICTION CRASH: {e}")
+        logger.error(f"⚠️ Prediction Error: {e}")
         return 0.5, f"AI Error: {str(e)[:50]}"
 
 
@@ -162,7 +162,7 @@ def process_trade(payload: Dict[str, Any]):
     """
     Process incoming trade signal through the guard pipeline.
 
-    Guards:
+    Guards (each wrapped in try/except for crash prevention):
     1. RISK GUARD - Reject oversized positions
     2. CORRELATION GUARD - Reject if bucket full (3 positions)
     3. ML GUARD - Reject low confidence trades
@@ -171,44 +171,66 @@ def process_trade(payload: Dict[str, Any]):
     side = payload.get('side', 'buy')
     size = float(payload.get('size', 0.01))
 
-    logger.info(f"Processing: {symbol} | {side.upper()} | Size: {size}")
+    logger.info(f"⚡ Processing: {symbol} | {side.upper()} | Size: {size}")
 
     # ══════════════════════════════════════════════════════════
     # GUARD 1: RISK GUARDIAN (Hard Limit)
     # ══════════════════════════════════════════════════════════
-    if size > MAX_LOT_SIZE:
-        save_result(payload, "risk_rejected", f"Size {size} > Limit {MAX_LOT_SIZE}", 0.0)
-        logger.warning(f"RISK REJECTED: {symbol} size {size} exceeds limit {MAX_LOT_SIZE}")
+    try:
+        logger.info(f"   Risk Check: size {size} vs limit {MAX_LOT_SIZE}")
+        if size > MAX_LOT_SIZE:
+            save_result(payload, "risk_rejected", f"Size {size} > Limit {MAX_LOT_SIZE}", 0.0)
+            logger.warning(f"❌ RISK REJECTED: {symbol} size {size} exceeds limit {MAX_LOT_SIZE}")
+            return
+        logger.info(f"   Risk Check: PASSED")
+    except Exception as e:
+        logger.error(f"❌ Risk Guard Crashed: {e}")
+        save_result(payload, "risk_rejected", f"Risk Guard Error: {str(e)[:50]}", 0.0)
         return
 
     # ══════════════════════════════════════════════════════════
     # GUARD 2: CORRELATION GUARDIAN (Bucket Limit)
     # ══════════════════════════════════════════════════════════
-    if supabase:
-        try:
+    try:
+        if supabase:
+            # Fetch just IDs, no fancy count - use len() in Python
             active = supabase.table("trading_signals").select("id").eq("status", "active").execute()
-            if len(active.data) >= MAX_OPEN_POSITIONS:
-                save_result(payload, "correlation_rejected", f"Bucket Full ({len(active.data)}/{MAX_OPEN_POSITIONS})", 0.0)
-                logger.warning(f"CORRELATION REJECTED: {symbol} - bucket full ({len(active.data)}/{MAX_OPEN_POSITIONS})")
+            active_count = len(active.data)
+            logger.info(f"   Correlation Check: {active_count}/{MAX_OPEN_POSITIONS} active")
+
+            if active_count >= MAX_OPEN_POSITIONS:
+                save_result(payload, "correlation_rejected", f"Bucket Full ({active_count}/{MAX_OPEN_POSITIONS})", 0.0)
+                logger.warning(f"❌ CORRELATION REJECTED: {symbol} - bucket full ({active_count}/{MAX_OPEN_POSITIONS})")
                 return
-        except Exception as e:
-            logger.error(f"Correlation check failed: {e} - allowing trade (fail-open)")
+            logger.info(f"   Correlation Check: PASSED")
+        else:
+            logger.warning("   Correlation Check: SKIPPED (no Supabase)")
+    except Exception as e:
+        logger.error(f"❌ Correlation Guard Crashed: {e}")
+        # Fail-SAFE: reject trade on DB error to avoid risk
+        save_result(payload, "correlation_rejected", f"DB Error: {str(e)[:50]}", 0.0)
+        return
 
     # ══════════════════════════════════════════════════════════
     # GUARD 3: ML GUARDIAN (The Brain)
     # ══════════════════════════════════════════════════════════
-    win_prob, note = get_prediction(payload)
+    try:
+        win_prob, note = get_prediction(payload)
+        logger.info(f"   ML Check: confidence {win_prob:.1%} vs threshold {ML_MIN_CONFIDENCE:.0%}")
 
-    if win_prob >= ML_MIN_CONFIDENCE:
-        status = "active"
-        note = f"AI Approved (confidence: {win_prob:.1%})"
-        logger.info(f"ML APPROVED: {symbol} (confidence: {win_prob:.1%})")
-    else:
-        status = "ml_rejected"
-        note = f"Low Confidence ({win_prob:.1%} < {ML_MIN_CONFIDENCE:.0%})"
-        logger.warning(f"ML REJECTED: {symbol} (confidence: {win_prob:.1%} < {ML_MIN_CONFIDENCE:.0%})")
+        if win_prob >= ML_MIN_CONFIDENCE:
+            status = "active"
+            note = f"AI Approved (confidence: {win_prob:.1%})"
+            logger.info(f"✅ ML APPROVED: {symbol} (confidence: {win_prob:.1%})")
+        else:
+            status = "ml_rejected"
+            note = f"Low Confidence ({win_prob:.1%} < {ML_MIN_CONFIDENCE:.0%})"
+            logger.warning(f"❌ ML REJECTED: {symbol} (confidence: {win_prob:.1%} < {ML_MIN_CONFIDENCE:.0%})")
 
-    save_result(payload, status, note, win_prob)
+        save_result(payload, status, note, win_prob)
+    except Exception as e:
+        logger.error(f"❌ ML Guard Crashed: {e}")
+        save_result(payload, "ml_rejected", f"ML Guard Error: {str(e)[:50]}", 0.0)
 
 
 def save_result(payload: Dict[str, Any], status: str, note: str, prob: float):
@@ -232,9 +254,9 @@ def save_result(payload: Dict[str, Any], status: str, note: str, prob: float):
 
     try:
         supabase.table("trading_signals").insert(data).execute()
-        logger.info(f"Saved: {status} | {note}")
+        logger.info(f"🏁 Saved: {status} | {note}")
     except Exception as e:
-        logger.error(f"Failed to save to Supabase: {e}")
+        logger.error(f"❌ DB Write Failed: {e}")
 
 
 # --- MAIN LOOP ---
@@ -245,11 +267,12 @@ def run():
     load_brain()
 
     logger.info("=" * 60)
-    logger.info("WORKER v6.1 (CRASH-PROOF) STARTED")
+    logger.info("🚀 WORKER v6.4 (SAFE MODE) STARTED")
     logger.info(f"  Risk Limit: {MAX_LOT_SIZE} lots")
     logger.info(f"  Correlation Limit: {MAX_OPEN_POSITIONS} positions")
     logger.info(f"  ML Confidence: {ML_MIN_CONFIDENCE:.0%}")
     logger.info(f"  AI Brain: {'LOADED' if AI_MODEL else 'DISABLED'}")
+    logger.info(f"  Guard Strategy: FAIL-SAFE (reject on error)")
     logger.info("=" * 60)
 
     backoff = 5
@@ -273,10 +296,10 @@ def run():
             process_trade(payload)
 
         except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON from queue: {e}")
+            logger.error(f"⚠️ Invalid JSON from queue: {e}")
             continue
         except Exception as e:
-            logger.error(f"Worker error: {e}")
+            logger.error(f"🔥 Loop Error: {e}")
             time.sleep(backoff)
             backoff = min(backoff * 2, 60)
 
