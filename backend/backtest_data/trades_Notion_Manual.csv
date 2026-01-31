@@ -1,0 +1,563 @@
+Trade #,Type,Date and time,Signal,Price,Position size (qty),Position size (value),Net P&L USD,Net P&L %,Favorable excursion USD,Favorable excursion %,Adverse excursion USD,Adverse excursion %,Cumulative P&L USD,Cumulative P&L %,Symbol
+1,Long Exit,2023-01-05 09:50,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,0.0,GBPJPY
+1,Entry long,2023-01-05 09:50, | F:signal_encoded=65 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=5 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,-1.0,GBPJPY
+2,Long Exit,2023-01-05 16:10,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,-1.0,GBPJPY
+2,Entry long,2023-01-05 16:10, | F:signal_encoded=72 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=1 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,-2.0,GBPJPY
+3,Long Exit,2023-01-06 09:20,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,-2.0,GBPJPY
+3,Entry long,2023-01-06 09:20, | F:signal_encoded=72 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=2 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,-3.0,GBPJPY
+4,Short Exit,2023-01-06 12:55,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,-3.0,GBPJPY
+4,Entry short,2023-01-06 12:55, | F:signal_encoded=65 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=4 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,-4.0,GBPJPY
+5,Long Exit,2023-01-11 09:10,Long Exit,0,1,0,0,4.5,0,4.5,0,0.0,0,-4.0,GBPJPY
+5,Entry long,2023-01-11 09:10, | F:signal_encoded=72 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=1 | F:source_encoded=2,0,1,0,0,4.5,0,4.5,0,0.0,0,0.5,GBPJPY
+6,Short Exit,2023-01-11 17:00,Short Exit,0,1,0,0,4.5,0,4.5,0,0.0,0,0.5,GBPJPY
+6,Entry short,2023-01-11 17:00, | F:signal_encoded=72 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=1 | F:source_encoded=2,0,1,0,0,4.5,0,4.5,0,0.0,0,5.0,GBPJPY
+7,Short Exit,2023-01-13 11:30,Short Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,5.0,GBPJPY
+7,Entry short,2023-01-13 11:30, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=1 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,7.0,GBPJPY
+8,Long Exit,2023-01-18 08:15,Long Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,7.0,GBPJPY
+8,Entry long,2023-01-18 08:15, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=9 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,9.0,GBPJPY
+9,Short Exit,2023-01-19 15:45,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,9.0,GBPJPY
+9,Entry short,2023-01-19 15:45, | F:signal_encoded=65 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=2 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,8.0,GBPJPY
+10,Short Exit,2023-01-26 12:05,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,8.0,GBPJPY
+10,Entry short,2023-01-26 12:05, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=3 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,7.0,GBPJPY
+11,Short Exit,2023-01-27 08:30,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,7.0,GBPJPY
+11,Entry short,2023-01-27 08:30, | F:signal_encoded=95 | F:session_encoded=1 | F:zone_type=0 | F:liq_distance=2 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,6.0,GBPJPY
+12,Short Exit,2023-01-31 09:10,Short Exit,0,1,0,0,3.0,0,3.0,0,0.0,0,6.0,GBPJPY
+12,Entry short,2023-01-31 09:10, | F:signal_encoded=85 | F:session_encoded=1 | F:zone_type=0 | F:liq_distance=6 | F:source_encoded=2,0,1,0,0,3.0,0,3.0,0,0.0,0,9.0,GBPJPY
+13,Short Exit,2023-01-31 14:05,Short Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,9.0,GBPJPY
+13,Entry short,2023-01-31 14:05, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=2 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,11.0,GBPJPY
+14,Short Exit,2023-02-08 09:40,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,11.0,GBPJPY
+14,Entry short,2023-02-08 09:40, | F:signal_encoded=65 | F:session_encoded=1 | F:zone_type=0 | F:liq_distance=2 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,10.0,GBPJPY
+15,Long Exit,2023-02-08 10:55,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,10.0,GBPJPY
+15,Entry long,2023-02-08 10:55, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=1 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,9.0,GBPJPY
+16,Long Exit,2023-02-09 14:30,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,9.0,GBPJPY
+16,Entry long,2023-02-09 14:30, | F:signal_encoded=72 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=1 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,8.0,GBPJPY
+17,Long Exit,2023-02-09 18:55,Long Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,8.0,GBPJPY
+17,Entry long,2023-02-09 18:55, | F:signal_encoded=95 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=7 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,10.0,GBPJPY
+18,Short Exit,2023-02-13 21:00,Short Exit,0,1,0,0,2.5,0,2.5,0,0.0,0,10.0,GBPJPY
+18,Entry short,2023-02-13 21:00, | F:signal_encoded=72 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=6 | F:source_encoded=2,0,1,0,0,2.5,0,2.5,0,0.0,0,12.5,GBPJPY
+19,Long Exit,2023-02-14 14:15,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,12.5,GBPJPY
+19,Entry long,2023-02-14 14:15, | F:signal_encoded=95 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=3 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,11.5,GBPJPY
+20,Short Exit,2023-02-15 18:10,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,11.5,GBPJPY
+20,Entry short,2023-02-15 18:10, | F:signal_encoded=95 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=6 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,10.5,GBPJPY
+21,Long Exit,2023-03-01 07:50,Long Exit,0,1,0,0,4.5,0,4.5,0,0.0,0,10.5,GBPJPY
+21,Entry long,2023-03-01 07:50, | F:signal_encoded=65 | F:session_encoded=1 | F:zone_type=1 | F:liq_distance=1 | F:source_encoded=2,0,1,0,0,4.5,0,4.5,0,0.0,0,15.0,GBPJPY
+22,Short Exit,2023-03-02 18:00,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,15.0,GBPJPY
+22,Entry short,2023-03-02 18:00, | F:signal_encoded=95 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=11 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,14.0,GBPJPY
+23,Short Exit,2023-03-06 17:05,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,14.0,GBPJPY
+23,Entry short,2023-03-06 17:05, | F:signal_encoded=72 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=3 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,13.0,GBPJPY
+24,Short Exit,2023-03-07 09:15,Short Exit,0,1,0,0,3.0,0,3.0,0,0.0,0,13.0,GBPJPY
+24,Entry short,2023-03-07 09:15, | F:signal_encoded=65 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=3 | F:source_encoded=2,0,1,0,0,3.0,0,3.0,0,0.0,0,16.0,GBPJPY
+25,Long Exit,2023-03-09 15:40,Long Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,16.0,GBPJPY
+25,Entry long,2023-03-09 15:40, | F:signal_encoded=65 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=4 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,18.0,GBPJPY
+26,Short Exit,2023-03-17 08:00,Short Exit,0,1,0,0,3.0,0,3.0,0,0.0,0,18.0,GBPJPY
+26,Entry short,2023-03-17 08:00, | F:signal_encoded=65 | F:session_encoded=1 | F:zone_type=0 | F:liq_distance=4 | F:source_encoded=2,0,1,0,0,3.0,0,3.0,0,0.0,0,21.0,GBPJPY
+27,Long Exit,2023-03-21 16:35,Long Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,21.0,GBPJPY
+27,Entry long,2023-03-21 16:35, | F:signal_encoded=55 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=6 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,23.0,GBPJPY
+28,Long Exit,2023-03-22 15:45,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,23.0,GBPJPY
+28,Entry long,2023-03-22 15:45, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=8 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,22.0,GBPJPY
+29,Long Exit,2023-03-23 18:50,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,22.0,GBPJPY
+29,Entry long,2023-03-23 18:50, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=7 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,21.0,GBPJPY
+30,Short Exit,2023-03-24 09:15,Short Exit,0,1,0,0,3.0,0,3.0,0,0.0,0,21.0,GBPJPY
+30,Entry short,2023-03-24 09:15, | F:signal_encoded=95 | F:session_encoded=1 | F:zone_type=0 | F:liq_distance=3 | F:source_encoded=2,0,1,0,0,3.0,0,3.0,0,0.0,0,24.0,GBPJPY
+31,Long Exit,2023-03-29 09:30,Long Exit,0,1,0,0,3.0,0,3.0,0,0.0,0,24.0,GBPJPY
+31,Entry long,2023-03-29 09:30, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=4 | F:source_encoded=2,0,1,0,0,3.0,0,3.0,0,0.0,0,27.0,GBPJPY
+32,Long Exit,2023-03-31 08:20,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,27.0,GBPJPY
+32,Entry long,2023-03-31 08:20, | F:signal_encoded=65 | F:session_encoded=1 | F:zone_type=1 | F:liq_distance=2 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,26.0,GBPJPY
+33,Long Exit,2023-03-31 14:30,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,26.0,GBPJPY
+33,Entry long,2023-03-31 14:30, | F:signal_encoded=72 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=3 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,25.0,GBPJPY
+34,Long Exit,2023-04-03 14:35,Long Exit,0,1,0,0,2.5,0,2.5,0,0.0,0,25.0,GBPJPY
+34,Entry long,2023-04-03 14:35, | F:signal_encoded=95 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=6 | F:source_encoded=2,0,1,0,0,2.5,0,2.5,0,0.0,0,27.5,GBPJPY
+35,Long Exit,2023-04-10 19:00,Long Exit,0,1,0,0,3.0,0,3.0,0,0.0,0,27.5,GBPJPY
+35,Entry long,2023-04-10 19:00, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=8 | F:source_encoded=2,0,1,0,0,3.0,0,3.0,0,0.0,0,30.5,GBPJPY
+36,Long Exit,2023-04-11 10:45,Long Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,30.5,GBPJPY
+36,Entry long,2023-04-11 10:45, | F:signal_encoded=65 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=4 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,32.5,GBPJPY
+37,Long Exit,2024-01-02 10:30,Long Exit,0,1,0,0,3.0,0,3.0,0,0.0,0,32.5,XAUUSD
+37,Entry long,2024-01-02 10:30, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=66 | F:source_encoded=2,0,1,0,0,3.0,0,3.0,0,0.0,0,35.5,XAUUSD
+38,Long Exit,2024-01-03 07:15,Long Exit,0,1,0,0,3.0,0,3.0,0,0.0,0,35.5,XAUUSD
+38,Entry long,2024-01-03 07:15, | F:signal_encoded=65 | F:session_encoded=1 | F:zone_type=1 | F:liq_distance=54 | F:source_encoded=2,0,1,0,0,3.0,0,3.0,0,0.0,0,38.5,XAUUSD
+39,Long Exit,2024-01-04 14:05,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,38.5,XAUUSD
+39,Entry long,2024-01-04 14:05, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=34 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,37.5,XAUUSD
+40,Short Exit,2024-01-05 15:20,Short Exit,0,1,0,0,2.5,0,2.5,0,0.0,0,37.5,XAUUSD
+40,Entry short,2024-01-05 15:20, | F:signal_encoded=95 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=28 | F:source_encoded=2,0,1,0,0,2.5,0,2.5,0,0.0,0,40.0,XAUUSD
+41,Long Exit,2024-01-09 15:25,Long Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,40.0,XAUUSD
+41,Entry long,2024-01-09 15:25, | F:signal_encoded=95 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=42 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,42.0,XAUUSD
+42,Long Exit,2024-01-09 21:45,Long Exit,0,1,0,0,4.5,0,4.5,0,0.0,0,42.0,XAUUSD
+42,Entry long,2024-01-09 21:45, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=72 | F:source_encoded=2,0,1,0,0,4.5,0,4.5,0,0.0,0,46.5,XAUUSD
+43,Short Exit,2024-01-09 22:15,Short Exit,0,1,0,0,4.5,0,4.5,0,0.0,0,46.5,XAUUSD
+43,Entry short,2024-01-09 22:15, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=155 | F:source_encoded=2,0,1,0,0,4.5,0,4.5,0,0.0,0,51.0,XAUUSD
+44,Short Exit,2024-01-10 19:00,Short Exit,0,1,0,0,3.0,0,3.0,0,0.0,0,51.0,XAUUSD
+44,Entry short,2024-01-10 19:00, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=20 | F:source_encoded=2,0,1,0,0,3.0,0,3.0,0,0.0,0,54.0,XAUUSD
+45,Long Exit,2024-01-11 10:10,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,54.0,XAUUSD
+45,Entry long,2024-01-11 10:10, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=4 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,53.0,XAUUSD
+46,Short Exit,2024-01-11 12:40,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,53.0,XAUUSD
+46,Entry short,2024-01-11 12:40, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=7 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,52.0,XAUUSD
+47,Long Exit,2024-01-15 11:05,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,52.0,XAUUSD
+47,Entry long,2024-01-15 11:05, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=6 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,51.0,XAUUSD
+48,Long Exit,2024-01-15 15:30,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,51.0,XAUUSD
+48,Entry long,2024-01-15 15:30, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=6 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,50.0,XAUUSD
+49,Short Exit,2024-01-16 17:10,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,50.0,XAUUSD
+49,Entry short,2024-01-16 17:10, | F:signal_encoded=65 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=43 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,49.0,XAUUSD
+50,Short Exit,2024-01-17 10:00,Short Exit,0,1,0,0,2.5,0,2.5,0,0.0,0,49.0,XAUUSD
+50,Entry short,2024-01-17 10:00, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=60 | F:source_encoded=2,0,1,0,0,2.5,0,2.5,0,0.0,0,51.5,XAUUSD
+51,Long Exit,2024-01-17 15:30,Long Exit,0,1,0,0,4.5,0,4.5,0,0.0,0,51.5,XAUUSD
+51,Entry long,2024-01-17 15:30, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=29 | F:source_encoded=2,0,1,0,0,4.5,0,4.5,0,0.0,0,56.0,XAUUSD
+52,Short Exit,2024-01-18 11:35,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,56.0,XAUUSD
+52,Entry short,2024-01-18 11:35, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=78 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,55.0,XAUUSD
+53,Short Exit,2024-01-22 23:00,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,55.0,XAUUSD
+53,Entry short,2024-01-22 23:00, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=15 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,54.0,XAUUSD
+54,Long Exit,2024-01-23 09:25,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,54.0,XAUUSD
+54,Entry long,2024-01-23 09:25, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=19 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,53.0,XAUUSD
+55,Short Exit,2024-01-26 07:55,Short Exit,0,1,0,0,3.0,0,3.0,0,0.0,0,53.0,XAUUSD
+55,Entry short,2024-01-26 07:55, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=27 | F:source_encoded=2,0,1,0,0,3.0,0,3.0,0,0.0,0,56.0,XAUUSD
+56,Long Exit,2024-01-26 09:15,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,56.0,XAUUSD
+56,Entry long,2024-01-26 09:15, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=101 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,55.0,XAUUSD
+57,Long Exit,2024-01-26 15:40,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,55.0,XAUUSD
+57,Entry long,2024-01-26 15:40, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=99 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,54.0,XAUUSD
+58,Long Exit,2024-01-29 07:10,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,54.0,XAUUSD
+58,Entry long,2024-01-29 07:10, | F:signal_encoded=85 | F:session_encoded=1 | F:zone_type=1 | F:liq_distance=29 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,53.0,XAUUSD
+59,Long Exit,2024-01-29 12:45,Long Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,53.0,XAUUSD
+59,Entry long,2024-01-29 12:45, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=8 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,55.0,XAUUSD
+60,Long Exit,2024-01-30 13:35,Long Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,55.0,XAUUSD
+60,Entry long,2024-01-30 13:35, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=39 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,56.5,XAUUSD
+61,Short Exit,2024-01-31 20:30,Short Exit,0,1,0,0,3.0,0,3.0,0,0.0,0,56.5,XAUUSD
+61,Entry short,2024-01-31 20:30, | F:signal_encoded=95 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=49 | F:source_encoded=2,0,1,0,0,3.0,0,3.0,0,0.0,0,59.5,XAUUSD
+62,Long Exit,2024-02-01 15:15,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,59.5,XAUUSD
+62,Entry long,2024-02-01 15:15, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=18 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,58.5,XAUUSD
+63,Short Exit,2024-02-01 15:45,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,58.5,XAUUSD
+63,Entry short,2024-02-01 15:45, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=32 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,57.5,XAUUSD
+64,Short Exit,2024-02-01 22:35,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,57.5,XAUUSD
+64,Entry short,2024-02-01 22:35, | F:signal_encoded=95 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=17 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,56.5,XAUUSD
+65,Long Exit,2024-02-02 11:05,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,56.5,XAUUSD
+65,Entry long,2024-02-02 11:05, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=35 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,55.5,XAUUSD
+66,Long Exit,2024-02-05 22:20,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,55.5,XAUUSD
+66,Entry long,2024-02-05 22:20, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=88 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,54.5,XAUUSD
+67,Long Exit,2024-02-06 10:10,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,54.5,XAUUSD
+67,Entry long,2024-02-06 10:10, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=26 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,53.5,XAUUSD
+68,Long Exit,2024-02-06 16:35,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,53.5,XAUUSD
+68,Entry long,2024-02-06 16:35, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=35 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,52.5,XAUUSD
+69,Long Exit,2024-02-07 12:10,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,52.5,XAUUSD
+69,Entry long,2024-02-07 12:10, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=71 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,51.5,XAUUSD
+70,Long Exit,2024-02-07 16:35,Long Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,51.5,XAUUSD
+70,Entry long,2024-02-07 16:35, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=54 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,53.5,XAUUSD
+71,Long Exit,2024-02-09 10:05,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,53.5,XAUUSD
+71,Entry long,2024-02-09 10:05, | F:signal_encoded=65 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=6 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,52.5,XAUUSD
+72,Long Exit,2024-02-12 09:15,Long Exit,0,1,0,0,3.0,0,3.0,0,0.0,0,52.5,XAUUSD
+72,Entry long,2024-02-12 09:15, | F:signal_encoded=95 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=3 | F:source_encoded=2,0,1,0,0,3.0,0,3.0,0,0.0,0,55.5,XAUUSD
+73,Long Exit,2024-02-13 21:20,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,55.5,XAUUSD
+73,Entry long,2024-02-13 21:20, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=55 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,54.5,XAUUSD
+74,Long Exit,2024-02-14 08:15,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,54.5,XAUUSD
+74,Entry long,2024-02-14 08:15, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=3 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,53.5,XAUUSD
+75,Short Exit,2024-02-19 17:00,Short Exit,0,1,0,0,3.0,0,3.0,0,0.0,0,53.5,XAUUSD
+75,Entry short,2024-02-19 17:00, | F:signal_encoded=95 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=10 | F:source_encoded=2,0,1,0,0,3.0,0,3.0,0,0.0,0,56.5,XAUUSD
+76,Long Exit,2024-02-20 15:00,Long Exit,0,1,0,0,2.5,0,2.5,0,0.0,0,56.5,XAUUSD
+76,Entry long,2024-02-20 15:00, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=25 | F:source_encoded=2,0,1,0,0,2.5,0,2.5,0,0.0,0,59.0,XAUUSD
+77,Long Exit,2024-02-21 13:00,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,59.0,XAUUSD
+77,Entry long,2024-02-21 13:00, | F:signal_encoded=95 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=63 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,58.0,XAUUSD
+78,Long Exit,2024-02-29 11:25,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,58.0,XAUUSD
+78,Entry long,2024-02-29 11:25, | F:signal_encoded=65 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=14 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,57.0,XAUUSD
+79,Long Exit,2024-03-04 10:40,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,57.0,XAUUSD
+79,Entry long,2024-03-04 10:40, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=55 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,56.0,XAUUSD
+80,Long Exit,2024-03-05 09:15,Long Exit,0,1,0,0,3.0,0,3.0,0,0.0,0,56.0,XAUUSD
+80,Entry long,2024-03-05 09:15, | F:signal_encoded=95 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=16 | F:source_encoded=2,0,1,0,0,3.0,0,3.0,0,0.0,0,59.0,XAUUSD
+81,Long Exit,2024-03-12 19:15,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,59.0,XAUUSD
+81,Entry long,2024-03-12 19:15, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=60 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,58.0,XAUUSD
+82,Long Exit,2024-03-13 08:00,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,58.0,XAUUSD
+82,Entry long,2024-03-13 08:00, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=15 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,57.0,XAUUSD
+83,Short Exit,2024-03-15 17:00,Short Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,57.0,XAUUSD
+83,Entry short,2024-03-15 17:00, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=23 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,58.5,XAUUSD
+84,Short Exit,2024-03-20 15:10,Short Exit,0,1,0,0,2.5,0,2.5,0,0.0,0,58.5,XAUUSD
+84,Entry short,2024-03-20 15:10, | F:signal_encoded=95 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=22 | F:source_encoded=2,0,1,0,0,2.5,0,2.5,0,0.0,0,61.0,XAUUSD
+85,Long Exit,2024-03-26 14:35,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,61.0,XAUUSD
+85,Entry long,2024-03-26 14:35, | F:signal_encoded=95 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=21 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,60.0,XAUUSD
+86,Short Exit,2024-04-01 14:35,Short Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,60.0,XAUUSD
+86,Entry short,2024-04-01 14:35, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=35 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,62.0,XAUUSD
+87,Long Exit,2024-04-02 18:30,Long Exit,0,1,0,0,8.2,0,8.2,0,0.0,0,62.0,XAUUSD
+87,Entry long,2024-04-02 18:30, | F:signal_encoded=95 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=64 | F:source_encoded=2,0,1,0,0,8.2,0,8.2,0,0.0,0,70.2,XAUUSD
+88,Long Exit,2024-04-03 22:25,Long Exit,0,1,0,0,2.5,0,2.5,0,0.0,0,70.2,XAUUSD
+88,Entry long,2024-04-03 22:25, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=120 | F:source_encoded=2,0,1,0,0,2.5,0,2.5,0,0.0,0,72.7,XAUUSD
+89,Long Exit,2024-04-04 13:35,Long Exit,0,1,0,0,3.0,0,3.0,0,0.0,0,72.7,XAUUSD
+89,Entry long,2024-04-04 13:35, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=14 | F:source_encoded=2,0,1,0,0,3.0,0,3.0,0,0.0,0,75.7,XAUUSD
+90,Long Exit,2024-04-05 11:40,Long Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,75.7,XAUUSD
+90,Entry long,2024-04-05 11:40, | F:signal_encoded=65 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=125 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,77.2,XAUUSD
+91,Short Exit,2024-04-09 16:35,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,77.2,XAUUSD
+91,Entry short,2024-04-09 16:35, | F:signal_encoded=65 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=45 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,76.2,XAUUSD
+92,Long Exit,2024-04-11 07:35,Long Exit,0,1,0,0,3.0,0,3.0,0,0.0,0,76.2,XAUUSD
+92,Entry long,2024-04-11 07:35, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=119 | F:source_encoded=2,0,1,0,0,3.0,0,3.0,0,0.0,0,79.2,XAUUSD
+93,Long Exit,2024-04-11 11:20,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,79.2,XAUUSD
+93,Entry long,2024-04-11 11:20, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=113 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,78.2,XAUUSD
+94,Short Exit,2024-04-15 17:55,Short Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,78.2,XAUUSD
+94,Entry short,2024-04-15 17:55, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=88 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,79.7,XAUUSD
+95,Short Exit,2024-04-16 06:05,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,79.7,XAUUSD
+95,Entry short,2024-04-16 06:05, | F:signal_encoded=65 | F:session_encoded=1 | F:zone_type=0 | F:liq_distance=16 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,78.7,XAUUSD
+96,Long Exit,2024-04-16 13:30,Long Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,78.7,XAUUSD
+96,Entry long,2024-04-16 13:30, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=11 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,80.7,XAUUSD
+97,Long Exit,2024-05-01 17:45,Long Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,80.7,XAUUSD
+97,Entry long,2024-05-01 17:45, | F:signal_encoded=95 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=137 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,82.2,XAUUSD
+98,Short Exit,2024-05-07 10:45,Short Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,82.2,XAUUSD
+98,Entry short,2024-05-07 10:45, | F:signal_encoded=95 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=63 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,84.2,XAUUSD
+99,Long Exit,2024-05-07 18:00,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,84.2,XAUUSD
+99,Entry long,2024-05-07 18:00, | F:signal_encoded=65 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=127 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,83.2,XAUUSD
+100,Long Exit,2024-05-08 15:00,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,83.2,XAUUSD
+100,Entry long,2024-05-08 15:00, | F:signal_encoded=65 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=25 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,82.2,XAUUSD
+101,Long Exit,2024-05-08 21:30,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,82.2,XAUUSD
+101,Entry long,2024-05-08 21:30, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=67 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,81.2,XAUUSD
+102,Long Exit,2024-05-09 16:20,Long Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,81.2,XAUUSD
+102,Entry long,2024-05-09 16:20, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=139 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,82.7,XAUUSD
+103,Long Exit,2024-05-14 09:40,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,82.7,XAUUSD
+103,Entry long,2024-05-14 09:40, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=68 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,81.7,XAUUSD
+104,Long Exit,2024-05-14 22:20,Long Exit,0,1,0,0,3.0,0,3.0,0,0.0,0,81.7,XAUUSD
+104,Entry long,2024-05-14 22:20, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=47 | F:source_encoded=2,0,1,0,0,3.0,0,3.0,0,0.0,0,84.7,XAUUSD
+105,Short Exit,2024-05-15 15:05,Short Exit,0,1,0,0,2.5,0,2.5,0,0.0,0,84.7,XAUUSD
+105,Entry short,2024-05-15 15:05, | F:signal_encoded=95 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=44 | F:source_encoded=2,0,1,0,0,2.5,0,2.5,0,0.0,0,87.2,XAUUSD
+106,Long Exit,2024-05-20 09:40,Long Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,87.2,XAUUSD
+106,Entry long,2024-05-20 09:40, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=165 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,88.7,XAUUSD
+107,Long Exit,2024-05-21 08:00,Long Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,88.7,XAUUSD
+107,Entry long,2024-05-21 08:00, | F:signal_encoded=85 | F:session_encoded=1 | F:zone_type=1 | F:liq_distance=106 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,90.2,XAUUSD
+108,Short Exit,2024-05-22 10:15,Short Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,90.2,XAUUSD
+108,Entry short,2024-05-22 10:15, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=22 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,92.2,XAUUSD
+109,Long Exit,2024-05-23 08:10,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,92.2,XAUUSD
+109,Entry long,2024-05-23 08:10, | F:signal_encoded=85 | F:session_encoded=1 | F:zone_type=1 | F:liq_distance=46 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,91.2,XAUUSD
+110,Short Exit,2024-06-03 08:25,Short Exit,0,1,0,0,3.0,0,3.0,0,0.0,0,91.2,XAUUSD
+110,Entry short,2024-06-03 08:25, | F:signal_encoded=85 | F:session_encoded=1 | F:zone_type=0 | F:liq_distance=74 | F:source_encoded=2,0,1,0,0,3.0,0,3.0,0,0.0,0,94.2,XAUUSD
+111,Long Exit,2024-06-03 12:30,Long Exit,0,1,0,0,2.5,0,2.5,0,0.0,0,94.2,XAUUSD
+111,Entry long,2024-06-03 12:30, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=18 | F:source_encoded=2,0,1,0,0,2.5,0,2.5,0,0.0,0,96.7,XAUUSD
+112,Long Exit,2024-06-07 20:25,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,96.7,XAUUSD
+112,Entry long,2024-06-07 20:25, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=112 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,95.7,XAUUSD
+113,Long Exit,2024-06-10 16:50,Long Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,95.7,XAUUSD
+113,Entry long,2024-06-10 16:50, | F:signal_encoded=65 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=219 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,97.2,XAUUSD
+114,Short Exit,2024-06-17 15:50,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,97.2,XAUUSD
+114,Entry short,2024-06-17 15:50, | F:signal_encoded=65 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=200 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,96.2,XAUUSD
+115,Short Exit,2024-06-18 14:50,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,96.2,XAUUSD
+115,Entry short,2024-06-18 14:50, | F:signal_encoded=95 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=95 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,95.2,XAUUSD
+116,Short Exit,2024-06-19 12:10,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,95.2,XAUUSD
+116,Entry short,2024-06-19 12:10, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=23 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,94.2,XAUUSD
+117,Long Exit,2024-06-19 13:00,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,94.2,XAUUSD
+117,Entry long,2024-06-19 13:00, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=57 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,93.2,XAUUSD
+118,Short Exit,2024-06-21 15:35,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,93.2,XAUUSD
+118,Entry short,2024-06-21 15:35, | F:signal_encoded=65 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=129 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,92.2,XAUUSD
+119,Short Exit,2024-06-25 17:25,Short Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,92.2,XAUUSD
+119,Entry short,2024-06-25 17:25, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=10 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,93.7,XAUUSD
+120,Short Exit,2024-06-26 20:20,Short Exit,0,1,0,0,2.5,0,2.5,0,0.0,0,93.7,XAUUSD
+120,Entry short,2024-06-26 20:20, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=10 | F:source_encoded=2,0,1,0,0,2.5,0,2.5,0,0.0,0,96.2,XAUUSD
+121,Long Exit,2024-07-01 19:55,Long Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,96.2,XAUUSD
+121,Entry long,2024-07-01 19:55, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=26 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,98.2,XAUUSD
+122,Long Exit,2024-07-04 15:35,Long Exit,0,1,0,0,3.0,0,3.0,0,0.0,0,98.2,XAUUSD
+122,Entry long,2024-07-04 15:35, | F:signal_encoded=95 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=42 | F:source_encoded=2,0,1,0,0,3.0,0,3.0,0,0.0,0,101.2,XAUUSD
+123,Long Exit,2024-07-11 09:20,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,101.2,XAUUSD
+123,Entry long,2024-07-11 09:20, | F:signal_encoded=95 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=76 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,100.2,XAUUSD
+124,Long Exit,2024-07-15 12:40,Long Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,100.2,XAUUSD
+124,Entry long,2024-07-15 12:40, | F:signal_encoded=65 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=5 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,102.2,XAUUSD
+125,Short Exit,2024-07-16 14:25,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,102.2,XAUUSD
+125,Entry short,2024-07-16 14:25, | F:signal_encoded=65 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=15 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,101.2,XAUUSD
+126,Long Exit,2024-07-17 16:30,Long Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,101.2,XAUUSD
+126,Entry long,2024-07-17 16:30, | F:signal_encoded=95 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=10 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,103.2,XAUUSD
+127,Long Exit,2024-07-18 09:05,Long Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,103.2,XAUUSD
+127,Entry long,2024-07-18 09:05, | F:signal_encoded=85 | F:session_encoded=1 | F:zone_type=1 | F:liq_distance=9 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,105.2,XAUUSD
+128,Long Exit,2024-07-22 14:25,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,105.2,XAUUSD
+128,Entry long,2024-07-22 14:25, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=89 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,104.2,XAUUSD
+129,Long Exit,2024-07-29 14:15,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,104.2,XAUUSD
+129,Entry long,2024-07-29 14:15, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=74 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,103.2,XAUUSD
+130,Long Exit,2024-07-31 11:35,Long Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,103.2,XAUUSD
+130,Entry long,2024-07-31 11:35, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=19 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,104.7,XAUUSD
+131,Long Exit,2024-07-31 15:10,Long Exit,0,1,0,0,2.5,0,2.5,0,0.0,0,104.7,XAUUSD
+131,Entry long,2024-07-31 15:10, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=23 | F:source_encoded=2,0,1,0,0,2.5,0,2.5,0,0.0,0,107.2,XAUUSD
+132,Long Exit,2024-07-31 21:15,Long Exit,0,1,0,0,2.5,0,2.5,0,0.0,0,107.2,XAUUSD
+132,Entry long,2024-07-31 21:15, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=11 | F:source_encoded=2,0,1,0,0,2.5,0,2.5,0,0.0,0,109.7,XAUUSD
+133,Long Exit,2024-08-07 14:45,Long Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,109.7,XAUUSD
+133,Entry long,2024-08-07 14:45, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=95 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,111.2,XAUUSD
+134,Long Exit,2024-08-07 16:50,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,111.2,XAUUSD
+134,Entry long,2024-08-07 16:50, | F:signal_encoded=65 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=147 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,110.2,XAUUSD
+135,Long Exit,2024-08-09 16:50,Long Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,110.2,XAUUSD
+135,Entry long,2024-08-09 16:50, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=10 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,111.7,XAUUSD
+136,Long Exit,2024-08-29 08:10,Long Exit,0,1,0,0,2.5,0,2.5,0,0.0,0,111.7,XAUUSD
+136,Entry long,2024-08-29 08:10, | F:signal_encoded=65 | F:session_encoded=1 | F:zone_type=1 | F:liq_distance=74 | F:source_encoded=2,0,1,0,0,2.5,0,2.5,0,0.0,0,114.2,XAUUSD
+137,Long Exit,2024-08-29 12:40,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,114.2,XAUUSD
+137,Entry long,2024-08-29 12:40, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=10 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,113.2,XAUUSD
+138,Long Exit,2024-09-05 10:55,Long Exit,0,1,0,0,3.0,0,3.0,0,0.0,0,113.2,XAUUSD
+138,Entry long,2024-09-05 10:55, | F:signal_encoded=65 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=89 | F:source_encoded=2,0,1,0,0,3.0,0,3.0,0,0.0,0,116.2,XAUUSD
+139,Short Exit,2024-09-05 17:20,Short Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,116.2,XAUUSD
+139,Entry short,2024-09-05 17:20, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=104 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,118.2,XAUUSD
+140,Short Exit,2024-09-20 18:15,Short Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,118.2,XAUUSD
+140,Entry short,2024-09-20 18:15, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=117 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,119.7,XAUUSD
+141,Long Exit,2024-09-23 15:25,Long Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,119.7,XAUUSD
+141,Entry long,2024-09-23 15:25, | F:signal_encoded=65 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=41 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,121.7,XAUUSD
+142,Long Exit,2024-09-24 09:00,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,121.7,XAUUSD
+142,Entry long,2024-09-24 09:00, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=180 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,120.7,XAUUSD
+143,Long Exit,2024-09-25 08:50,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,120.7,XAUUSD
+143,Entry long,2024-09-25 08:50, | F:signal_encoded=85 | F:session_encoded=1 | F:zone_type=1 | F:liq_distance=48 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,119.7,XAUUSD
+144,Long Exit,2024-09-25 14:00,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,119.7,XAUUSD
+144,Entry long,2024-09-25 14:00, | F:signal_encoded=65 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=55 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,118.7,XAUUSD
+145,Long Exit,2024-09-26 15:15,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,118.7,XAUUSD
+145,Entry long,2024-09-26 15:15, | F:signal_encoded=72 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=152 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,117.7,XAUUSD
+146,Long Exit,2024-09-26 15:40,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,117.7,XAUUSD
+146,Entry long,2024-09-26 15:40, | F:signal_encoded=72 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=28 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,116.7,XAUUSD
+147,Long Exit,2024-10-02 15:15,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,116.7,XAUUSD
+147,Entry long,2024-10-02 15:15, | F:signal_encoded=55 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=15 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,115.7,XAUUSD
+148,Long Exit,2024-10-03 14:25,Long Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,115.7,XAUUSD
+148,Entry long,2024-10-03 14:25, | F:signal_encoded=72 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=23 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,117.7,XAUUSD
+149,Short Exit,2024-10-13 16:00,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,117.7,GBPUSD
+149,Entry short,2024-10-13 16:00, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=1 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,116.7,GBPUSD
+150,Long Exit,2024-10-14 20:50,Long Exit,0,1,0,0,2.5,0,2.5,0,0.0,0,116.7,XAUUSD
+150,Entry long,2024-10-14 20:50, | F:signal_encoded=72 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=15 | F:source_encoded=2,0,1,0,0,2.5,0,2.5,0,0.0,0,119.2,XAUUSD
+151,Long Exit,2024-10-17 06:45,Long Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,119.2,XAUUSD
+151,Entry long,2024-10-17 06:45, | F:signal_encoded=95 | F:session_encoded=1 | F:zone_type=1 | F:liq_distance=90 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,120.7,XAUUSD
+152,Long Exit,2024-10-17 10:10,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,120.7,XAUUSD
+152,Entry long,2024-10-17 10:10, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=95 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,119.7,XAUUSD
+153,Long Exit,2024-10-18 09:05,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,119.7,XAUUSD
+153,Entry long,2024-10-18 09:05, | F:signal_encoded=95 | F:session_encoded=1 | F:zone_type=1 | F:liq_distance=2 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,118.7,XAUUSD
+154,Long Exit,2024-10-22 08:50,Long Exit,0,1,0,0,2.5,0,2.5,0,0.0,0,118.7,XAUUSD
+154,Entry long,2024-10-22 08:50, | F:signal_encoded=72 | F:session_encoded=1 | F:zone_type=1 | F:liq_distance=34 | F:source_encoded=2,0,1,0,0,2.5,0,2.5,0,0.0,0,121.2,XAUUSD
+155,Long Exit,2024-10-28 14:55,Long Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,121.2,XAUUSD
+155,Entry long,2024-10-28 14:55, | F:signal_encoded=65 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=25 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,122.7,XAUUSD
+156,Long Exit,2024-11-01 15:30,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,122.7,XAUUSD
+156,Entry long,2024-11-01 15:30, | F:signal_encoded=72 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=36 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,121.7,XAUUSD
+157,Short Exit,2024-11-04 20:40,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,121.7,XAUUSD
+157,Entry short,2024-11-04 20:40, | F:signal_encoded=95 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=22 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,120.7,XAUUSD
+158,Short Exit,2024-11-08 14:25,Short Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,120.7,XAUUSD
+158,Entry short,2024-11-08 14:25, | F:signal_encoded=72 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=58 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,122.2,XAUUSD
+159,Short Exit,2024-11-13 07:35,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,122.2,XAUUSD
+159,Entry short,2024-11-13 07:35, | F:signal_encoded=85 | F:session_encoded=1 | F:zone_type=0 | F:liq_distance=52 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,121.2,XAUUSD
+160,Long Exit,2024-11-18 19:10,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,121.2,XAUUSD
+160,Entry long,2024-11-18 19:10, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=49 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,120.2,XAUUSD
+161,Long Exit,2024-11-21 11:50,Long Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,120.2,XAUUSD
+161,Entry long,2024-11-21 11:50, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=145 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,121.7,XAUUSD
+162,Long Exit,2024-11-21 15:00,Long Exit,0,1,0,0,2.5,0,2.5,0,0.0,0,121.7,XAUUSD
+162,Entry long,2024-11-21 15:00, | F:signal_encoded=95 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=145 | F:source_encoded=2,0,1,0,0,2.5,0,2.5,0,0.0,0,124.2,XAUUSD
+163,Short Exit,2024-11-25 15:30,Short Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,124.2,XAUUSD
+163,Entry short,2024-11-25 15:30, | F:signal_encoded=72 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=137 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,125.7,XAUUSD
+164,Short Exit,2024-11-26 08:10,Short Exit,0,1,0,0,2.5,0,2.5,0,0.0,0,125.7,XAUUSD
+164,Entry short,2024-11-26 08:10, | F:signal_encoded=85 | F:session_encoded=1 | F:zone_type=0 | F:liq_distance=137 | F:source_encoded=2,0,1,0,0,2.5,0,2.5,0,0.0,0,128.2,XAUUSD
+165,Long Exit,2024-11-29 15:15,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,128.2,XAUUSD
+165,Entry long,2024-11-29 15:15, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=34 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,127.19999999999999,XAUUSD
+166,Short Exit,2024-12-02 21:20,Short Exit,0,1,0,0,2.31,0,2.31,0,0.0,0,127.19999999999999,XAUUSD
+166,Entry short,2024-12-02 21:20, | F:signal_encoded=72 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=54 | F:source_encoded=2,0,1,0,0,2.31,0,2.31,0,0.0,0,129.51,XAUUSD
+167,Long Exit,2024-12-03 15:00,Long Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,129.51,XAUUSD
+167,Entry long,2024-12-03 15:00, | F:signal_encoded=55 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=10 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,131.01,XAUUSD
+168,Short Exit,2024-12-13 07:45,Short Exit,0,1,0,0,2.5,0,2.5,0,0.0,0,131.01,XAUUSD
+168,Entry short,2024-12-13 07:45, | F:signal_encoded=55 | F:session_encoded=1 | F:zone_type=0 | F:liq_distance=23 | F:source_encoded=2,0,1,0,0,2.5,0,2.5,0,0.0,0,133.51,XAUUSD
+169,Short Exit,2024-12-18 07:45,Short Exit,0,1,0,0,2.5,0,2.5,0,0.0,0,133.51,XAUUSD
+169,Entry short,2024-12-18 07:45, | F:signal_encoded=55 | F:session_encoded=1 | F:zone_type=0 | F:liq_distance=23 | F:source_encoded=2,0,1,0,0,2.5,0,2.5,0,0.0,0,136.01,XAUUSD
+170,Short Exit,2024-12-31 08:30,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,136.01,XAUUSD
+170,Entry short,2024-12-31 08:30, | F:signal_encoded=55 | F:session_encoded=1 | F:zone_type=0 | F:liq_distance=5 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,135.01,XAUUSD
+171,Short Exit,2025-01-07 13:20,Short Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,135.01,XAUUSD
+171,Entry short,2025-01-07 13:20, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=19 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,136.51,XAUUSD
+172,Short Exit,2025-01-07 21:45,Short Exit,0,1,0,0,3.0,0,3.0,0,0.0,0,136.51,XAUUSD
+172,Entry short,2025-01-07 21:45, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=18 | F:source_encoded=2,0,1,0,0,3.0,0,3.0,0,0.0,0,139.51,XAUUSD
+173,Short Exit,2025-01-08 08:00,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,139.51,XAUUSD
+173,Entry short,2025-01-08 08:00, | F:signal_encoded=85 | F:session_encoded=1 | F:zone_type=0 | F:liq_distance=41 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,138.51,XAUUSD
+174,Long Exit,2025-01-09 16:25,Long Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,138.51,XAUUSD
+174,Entry long,2025-01-09 16:25, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=77 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,140.01,XAUUSD
+175,Long Exit,2025-01-14 14:40,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,140.01,XAUUSD
+175,Entry long,2025-01-14 14:40, | F:signal_encoded=72 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=44 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,139.01,XAUUSD
+176,Long Exit,2025-01-22 10:05,Long Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,139.01,XAUUSD
+176,Entry long,2025-01-22 10:05, | F:signal_encoded=72 | F:session_encoded=1 | F:zone_type=1 | F:liq_distance=114 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,140.51,XAUUSD
+177,Long Exit,2025-01-23 22:00,Long Exit,0,1,0,0,3.0,0,3.0,0,0.0,0,140.51,XAUUSD
+177,Entry long,2025-01-23 22:00, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=114 | F:source_encoded=2,0,1,0,0,3.0,0,3.0,0,0.0,0,143.51,XAUUSD
+178,Short Exit,2025-01-27 10:40,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,143.51,XAUUSD
+178,Entry short,2025-01-27 10:40, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=58 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,142.51,XAUUSD
+179,Long Exit,2025-01-29 15:10,Long Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,142.51,XAUUSD
+179,Entry long,2025-01-29 15:10, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=8 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,144.01,XAUUSD
+180,Short Exit,2025-01-31 13:30,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,144.01,XAUUSD
+180,Entry short,2025-01-31 13:30, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=36 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,143.01,XAUUSD
+181,Short Exit,2025-02-04 10:20,Short Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,143.01,XAUUSD
+181,Entry short,2025-02-04 10:20, | F:signal_encoded=72 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=94 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,144.51,XAUUSD
+182,Long Exit,2025-02-05 09:05,Long Exit,0,1,0,0,3.0,0,3.0,0,0.0,0,144.51,XAUUSD
+182,Entry long,2025-02-05 09:05, | F:signal_encoded=72 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=32 | F:source_encoded=2,0,1,0,0,3.0,0,3.0,0,0.0,0,147.51,XAUUSD
+183,Long Exit,2025-02-05 15:50,Long Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,147.51,XAUUSD
+183,Entry long,2025-02-05 15:50, | F:signal_encoded=72 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=62 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,149.51,XAUUSD
+184,Long Exit,2025-02-10 16:05,Long Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,149.51,XAUUSD
+184,Entry long,2025-02-10 16:05, | F:signal_encoded=95 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=142 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,151.01,XAUUSD
+185,Short Exit,2025-02-18 10:20,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,151.01,XAUUSD
+185,Entry short,2025-02-18 10:20, | F:signal_encoded=72 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=15 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,150.01,XAUUSD
+186,Long Exit,2025-02-20 20:00,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,150.01,XAUUSD
+186,Entry long,2025-02-20 20:00, | F:signal_encoded=72 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=88 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,149.01,XAUUSD
+187,Long Exit,2025-02-21 14:00,Long Exit,0,1,0,0,2.5,0,2.5,0,0.0,0,149.01,XAUUSD
+187,Entry long,2025-02-21 14:00, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=93 | F:source_encoded=2,0,1,0,0,2.5,0,2.5,0,0.0,0,151.51,XAUUSD
+188,Long Exit,2025-02-24 10:40,Long Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,151.51,XAUUSD
+188,Entry long,2025-02-24 10:40, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=50 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,153.01,XAUUSD
+189,Short Exit,2025-02-28 18:05,Short Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,153.01,XAUUSD
+189,Entry short,2025-02-28 18:05, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=227 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,154.51,XAUUSD
+190,Long Exit,2025-03-04 16:20,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,154.51,XAUUSD
+190,Entry long,2025-03-04 16:20, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=114 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,153.51,XAUUSD
+191,Long Exit,2025-03-10 15:40,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,153.51,XAUUSD
+191,Entry long,2025-03-10 15:40, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=37 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,152.51,XAUUSD
+192,Long Exit,2025-03-18 15:40,Long Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,152.51,XAUUSD
+193,Long Exit,2025-03-18 15:40,Long Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,152.51,XAUUSD
+192,Entry long,2025-03-18 15:40, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=36 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,154.51,XAUUSD
+193,Entry long,2025-03-18 15:40, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=63 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,156.51,XAUUSD
+194,Long Exit,2025-03-24 15:45,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,156.51,XAUUSD
+195,Long Exit,2025-03-24 15:45,Long Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,156.51,XAUUSD
+194,Entry long,2025-03-24 15:45, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=13 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,155.51,XAUUSD
+195,Entry long,2025-03-24 15:45, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=13 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,157.01,XAUUSD
+196,Long Exit,2025-03-31 16:05,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,157.01,XAUUSD
+196,Entry long,2025-03-31 16:05, | F:signal_encoded=72 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=26 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,156.01,XAUUSD
+197,Long Exit,2025-04-02 16:50,Long Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,156.01,XAUUSD
+197,Entry long,2025-04-02 16:50, | F:signal_encoded=72 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=18 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,157.51,XAUUSD
+198,Long Exit,2025-04-11 16:55,Long Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,157.51,XAUUSD
+198,Entry long,2025-04-11 16:55, | F:signal_encoded=72 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=202 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,159.01,XAUUSD
+199,Short Exit,2025-04-25 15:30,Short Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,159.01,XAUUSD
+199,Entry short,2025-04-25 15:30, | F:signal_encoded=72 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=167 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,160.51,XAUUSD
+200,Short Exit,2025-05-01 15:45,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,160.51,XAUUSD
+200,Entry short,2025-05-01 15:45, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=87 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,159.51,XAUUSD
+201,Short Exit,2025-05-07 16:55,Short Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,159.51,XAUUSD
+201,Entry short,2025-05-07 16:55, | F:signal_encoded=72 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=29 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,161.01,XAUUSD
+202,Short Exit,2025-05-12 14:55,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,161.01,XAUUSD
+202,Entry short,2025-05-12 14:55, | F:signal_encoded=95 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=315 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,160.01,XAUUSD
+203,Short Exit,2025-05-14 09:00,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,160.01,XAUUSD
+203,Entry short,2025-05-14 09:00, | F:signal_encoded=85 | F:session_encoded=1 | F:zone_type=0 | F:liq_distance=192 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,159.01,XAUUSD
+204,Long Exit,2025-05-20 15:20,Long Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,159.01,XAUUSD
+204,Entry long,2025-05-20 15:20, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=73 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,160.51,XAUUSD
+205,Long Exit,2025-05-28 13:20,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,160.51,XAUUSD
+205,Entry long,2025-05-28 13:20, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=156 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,159.51,XAUUSD
+206,Long Exit,2025-06-02 16:30,Long Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,159.51,XAUUSD
+206,Entry long,2025-06-02 16:30, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=219 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,161.01,XAUUSD
+207,Long Exit,2025-06-09 16:25,Long Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,161.01,XAUUSD
+208,Long Exit,2025-06-09 16:25,Long Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,161.01,XAUUSD
+207,Entry long,2025-06-09 16:25, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=83 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,162.51,XAUUSD
+208,Entry long,2025-06-09 16:25, | F:signal_encoded=72 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=76 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,164.01,XAUUSD
+209,Long Exit,2025-06-09 16:35,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,164.01,GBPJPY
+209,Entry long,2025-06-09 16:35, | F:signal_encoded=72 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=5 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,163.01,GBPJPY
+210,Long Exit,2025-06-09 17:40,Long Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,163.01,XAUUSD
+211,Long Exit,2025-06-09 17:40,Long Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,163.01,XAUUSD
+210,Entry long,2025-06-09 17:40, | F:signal_encoded=65 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=44 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,164.51,XAUUSD
+211,Entry long,2025-06-09 17:40, | F:signal_encoded=65 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=35 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,166.01,XAUUSD
+212,Long Exit,2025-06-10 11:45,Long Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,166.01,XAUUSD
+212,Entry long,2025-06-10 11:45, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=35 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,167.51,XAUUSD
+213,Short Exit,2025-06-10 20:55,Short Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,167.51,XAUUSD
+213,Entry short,2025-06-10 20:55, | F:signal_encoded=95 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=100 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,169.01,XAUUSD
+214,Long Exit,2025-06-11 18:35,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,169.01,GBPJPY
+214,Entry long,2025-06-11 18:35, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=3 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,168.01,GBPJPY
+215,Long Exit,2025-06-12 16:25,Long Exit,0,1,0,0,2.5,0,2.5,0,0.0,0,168.01,CHFJPY
+215,Entry long,2025-06-12 16:25, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=5 | F:source_encoded=2,0,1,0,0,2.5,0,2.5,0,0.0,0,170.51,CHFJPY
+216,Short Exit,2025-06-12 18:15,Short Exit,0,1,0,0,2.5,0,2.5,0,0.0,0,170.51,USDJPY
+216,Entry short,2025-06-12 18:15, | F:signal_encoded=72 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=0 | F:source_encoded=2,0,1,0,0,2.5,0,2.5,0,0.0,0,173.01,USDJPY
+217,Short Exit,2025-06-12 21:00,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,173.01,NAS100
+217,Entry short,2025-06-12 21:00, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=24 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,172.01,NAS100
+218,Long Exit,2025-06-12 22:40,Long Exit,0,1,0,0,3.0,0,3.0,0,0.0,0,172.01,GBPJPY
+218,Entry long,2025-06-12 22:40, | F:signal_encoded=65 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=1 | F:source_encoded=2,0,1,0,0,3.0,0,3.0,0,0.0,0,175.01,GBPJPY
+219,Short Exit,2025-06-13 12:05,Short Exit,0,1,0,0,2.5,0,2.5,0,0.0,0,175.01,XAUUSD
+219,Entry short,2025-06-13 12:05, | F:signal_encoded=72 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=25 | F:source_encoded=2,0,1,0,0,2.5,0,2.5,0,0.0,0,177.51,XAUUSD
+220,Short Exit,2025-06-13 14:00,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,177.51,CHFJPY
+220,Entry short,2025-06-13 14:00, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=0 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,176.51,CHFJPY
+221,Long Exit,2025-06-13 16:50,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,176.51,USDJPY
+221,Entry long,2025-06-13 16:50, | F:signal_encoded=95 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=1 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,175.51,USDJPY
+222,Long Exit,2025-06-13 17:35,Long Exit,0,1,0,0,2.71,0,2.71,0,0.0,0,175.51,NAS100
+222,Entry long,2025-06-13 17:35, | F:signal_encoded=72 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=666 | F:source_encoded=2,0,1,0,0,2.71,0,2.71,0,0.0,0,178.22,NAS100
+223,Long Exit,2025-06-13 22:50,Long Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,178.22,GBPCAD
+223,Entry long,2025-06-13 22:50, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=2 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,180.22,GBPCAD
+224,Long Exit,2025-06-16 22:30,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,180.22,CHFJPY
+224,Entry long,2025-06-16 22:30, | F:signal_encoded=65 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=2 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,179.22,CHFJPY
+225,Long Exit,2025-06-17 09:35,Long Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,179.22,USDJPY
+225,Entry long,2025-06-17 09:35, | F:signal_encoded=72 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=5 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,181.22,USDJPY
+226,Long Exit,2025-06-17 13:00,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,181.22,GBPJPY
+226,Entry long,2025-06-17 13:00, | F:signal_encoded=72 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=4 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,180.22,GBPJPY
+227,Short Exit,2025-06-17 14:15,Short Exit,0,1,0,0,4.82,0,4.82,0,0.0,0,180.22,GBPCAD
+227,Entry short,2025-06-17 14:15, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=5 | F:source_encoded=2,0,1,0,0,4.82,0,4.82,0,0.0,0,185.04,GBPCAD
+228,Short Exit,2025-06-17 14:25,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,185.04,NAS100
+228,Entry short,2025-06-17 14:25, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=613 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,184.04,NAS100
+229,Short Exit,2025-06-17 16:35,Short Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,184.04,XAUUSD
+229,Entry short,2025-06-17 16:35, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=5 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,185.54,XAUUSD
+230,Long Exit,2025-06-18 20:45,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,185.54,XAUUSD
+230,Entry long,2025-06-18 20:45, | F:signal_encoded=65 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=25 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,184.54,XAUUSD
+231,Long Exit,2025-06-23 15:35,Long Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,184.54,XAUUSD
+231,Entry long,2025-06-23 15:35, | F:signal_encoded=72 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=146 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,186.04,XAUUSD
+232,Long Exit,2025-06-23 19:50,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,186.04,XAUUSD
+232,Entry long,2025-06-23 19:50, | F:signal_encoded=72 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=179 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,185.04,XAUUSD
+233,Long Exit,2025-06-24 15:10,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,185.04,GBPJPY
+233,Entry long,2025-06-24 15:10, | F:signal_encoded=72 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=1 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,184.04,GBPJPY
+234,Long Exit,2025-06-25 12:35,Long Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,184.04,CHFJPY
+234,Entry long,2025-06-25 12:35, | F:signal_encoded=72 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=1 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,186.04,CHFJPY
+235,Short Exit,2025-06-26 15:45,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,186.04,GBPJPY
+235,Entry short,2025-06-26 15:45, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=4 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,185.04,GBPJPY
+236,Long Exit,2025-06-26 22:10,Long Exit,0,1,0,0,4.82,0,4.82,0,0.0,0,185.04,GBPCAD
+236,Entry long,2025-06-26 22:10, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=4 | F:source_encoded=2,0,1,0,0,4.82,0,4.82,0,0.0,0,189.85999999999999,GBPCAD
+237,Short Exit,2025-06-27 10:25,Short Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,189.85999999999999,USDJPY
+237,Entry short,2025-06-27 10:25, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=1 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,191.85999999999999,USDJPY
+238,Short Exit,2025-06-27 11:55,Short Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,191.85999999999999,XAUUSD
+238,Entry short,2025-06-27 11:55, | F:signal_encoded=72 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=101 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,193.85999999999999,XAUUSD
+239,Short Exit,2025-06-27 15:45,Short Exit,0,1,0,0,4.82,0,4.82,0,0.0,0,193.85999999999999,GBPCAD
+239,Entry short,2025-06-27 15:45, | F:signal_encoded=72 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=0 | F:source_encoded=2,0,1,0,0,4.82,0,4.82,0,0.0,0,198.67999999999998,GBPCAD
+240,Long Exit,2025-06-27 17:50,Long Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,198.67999999999998,XAUUSD
+240,Entry long,2025-06-27 17:50, | F:signal_encoded=65 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=47 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,200.17999999999998,XAUUSD
+241,Short Exit,2025-06-27 17:55,Short Exit,0,1,0,0,3.0,0,3.0,0,0.0,0,200.17999999999998,CHFJPY
+241,Entry short,2025-06-27 17:55, | F:signal_encoded=65 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=1 | F:source_encoded=2,0,1,0,0,3.0,0,3.0,0,0.0,0,203.17999999999998,CHFJPY
+242,Short Exit,2025-06-30 13:00,Short Exit,0,1,0,0,3.0,0,3.0,0,0.0,0,203.17999999999998,XAUUSD
+242,Entry short,2025-06-30 13:00, | F:signal_encoded=72 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=108 | F:source_encoded=2,0,1,0,0,3.0,0,3.0,0,0.0,0,206.17999999999998,XAUUSD
+243,Long Exit,2025-06-30 14:25,Long Exit,0,1,0,0,2.5,0,2.5,0,0.0,0,206.17999999999998,XAUUSD
+243,Entry long,2025-06-30 14:25, | F:signal_encoded=72 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=144 | F:source_encoded=2,0,1,0,0,2.5,0,2.5,0,0.0,0,208.67999999999998,XAUUSD
+244,Short Exit,2025-06-30 16:45,Short Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,208.67999999999998,GBPCAD
+244,Entry short,2025-06-30 16:45, | F:signal_encoded=72 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=1 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,210.17999999999998,GBPCAD
+245,Long Exit,2025-07-03 11:50,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,210.17999999999998,CHFJPY
+245,Entry long,2025-07-03 11:50, | F:signal_encoded=72 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=1 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,209.17999999999998,CHFJPY
+246,Short Exit,2025-07-04 11:55,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,209.17999999999998,CHFJPY
+246,Entry short,2025-07-04 11:55, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=0 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,208.17999999999998,CHFJPY
+247,Short Exit,2025-07-04 12:50,Short Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,208.17999999999998,NAS100
+247,Entry short,2025-07-04 12:50, | F:signal_encoded=72 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=316 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,210.17999999999998,NAS100
+248,Long Exit,2025-07-07 09:40,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,210.17999999999998,GBPJPY
+248,Entry long,2025-07-07 09:40, | F:signal_encoded=95 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=2 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,209.17999999999998,GBPJPY
+249,Long Exit,2025-07-07 16:20,Long Exit,0,1,0,0,4.5,0,4.5,0,0.0,0,209.17999999999998,GBPCAD
+249,Entry long,2025-07-07 16:20, | F:signal_encoded=72 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=4 | F:source_encoded=2,0,1,0,0,4.5,0,4.5,0,0.0,0,213.67999999999998,GBPCAD
+250,Short Exit,2025-07-08 10:10,Short Exit,0,1,0,0,5.0,0,5.0,0,0.0,0,213.67999999999998,XAUUSD
+250,Entry short,2025-07-08 10:10, | F:signal_encoded=72 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=112 | F:source_encoded=2,0,1,0,0,5.0,0,5.0,0,0.0,0,218.67999999999998,XAUUSD
+251,Short Exit,2025-07-08 10:15,Short Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,218.67999999999998,GBPCAD
+251,Entry short,2025-07-08 10:15, | F:signal_encoded=72 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=2 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,220.67999999999998,GBPCAD
+252,Long Exit,2025-07-09 10:50,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,220.67999999999998,GBPJPY
+252,Entry long,2025-07-09 10:50, | F:signal_encoded=55 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=7 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,219.67999999999998,GBPJPY
+253,Long Exit,2025-07-09 13:45,Long Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,219.67999999999998,GBPCAD
+253,Entry long,2025-07-09 13:45, | F:signal_encoded=72 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=3 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,221.67999999999998,GBPCAD
+254,Short Exit,2025-07-09 14:40,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,221.67999999999998,GBPJPY
+254,Entry short,2025-07-09 14:40, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=3 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,220.67999999999998,GBPJPY
+255,Short Exit,2025-07-10 14:50,Short Exit,0,1,0,0,2.5,0,2.5,0,0.0,0,220.67999999999998,CHFJPY
+255,Entry short,2025-07-10 14:50, | F:signal_encoded=95 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=3 | F:source_encoded=2,0,1,0,0,2.5,0,2.5,0,0.0,0,223.17999999999998,CHFJPY
+256,Long Exit,2025-07-10 18:05,Long Exit,0,1,0,0,3.0,0,3.0,0,0.0,0,223.17999999999998,GBPJPY
+256,Entry long,2025-07-10 18:05, | F:signal_encoded=65 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=4 | F:source_encoded=2,0,1,0,0,3.0,0,3.0,0,0.0,0,226.17999999999998,GBPJPY
+257,Long Exit,2025-07-10 20:50,Long Exit,0,1,0,0,4.5,0,4.5,0,0.0,0,226.17999999999998,GBPJPY
+257,Entry long,2025-07-10 20:50, | F:signal_encoded=72 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=1 | F:source_encoded=2,0,1,0,0,4.5,0,4.5,0,0.0,0,230.67999999999998,GBPJPY
+258,Long Exit,2025-07-11 10:00,Long Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,230.67999999999998,XAUUSD
+258,Entry long,2025-07-11 10:00, | F:signal_encoded=95 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=80 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,232.67999999999998,XAUUSD
+259,Short Exit,2025-07-11 14:55,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,232.67999999999998,NAS100
+259,Entry short,2025-07-11 14:55, | F:signal_encoded=72 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=1050 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,231.67999999999998,NAS100
+260,Long Exit,2025-07-11 15:35,Long Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,231.67999999999998,USDJPY
+260,Entry long,2025-07-11 15:35, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=6 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,233.67999999999998,USDJPY
+261,Short Exit,2025-07-13 14:15,Short Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,233.67999999999998,NAS100
+261,Entry short,2025-07-13 14:15, | F:signal_encoded=65 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=1363 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,235.67999999999998,NAS100
+262,Long Exit,2025-07-14 08:50,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,235.67999999999998,XAUUSD
+262,Entry long,2025-07-14 08:50, | F:signal_encoded=72 | F:session_encoded=1 | F:zone_type=1 | F:liq_distance=405 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,234.67999999999998,XAUUSD
+263,Short Exit,2025-07-14 10:30,Short Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,234.67999999999998,NAS100
+263,Entry short,2025-07-14 10:30, | F:signal_encoded=72 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=10 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,236.67999999999998,NAS100
+264,Long Exit,2025-07-14 15:30,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,236.67999999999998,GBPJPY
+264,Entry long,2025-07-14 15:30, | F:signal_encoded=72 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=4 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,235.67999999999998,GBPJPY
+265,Long Exit,2025-07-14 17:05,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,235.67999999999998,USDJPY
+265,Entry long,2025-07-14 17:05, | F:signal_encoded=72 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=2 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,234.67999999999998,USDJPY
+266,Long Exit,2025-07-15 09:30,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,234.67999999999998,XAUUSD
+266,Entry long,2025-07-15 09:30, | F:signal_encoded=95 | F:session_encoded=1 | F:zone_type=1 | F:liq_distance=63 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,233.67999999999998,XAUUSD
+267,Long Exit,2025-07-15 11:25,Long Exit,0,1,0,0,3.0,0,3.0,0,0.0,0,233.67999999999998,XAUUSD
+267,Entry long,2025-07-15 11:25, | F:signal_encoded=85 | F:session_encoded=2 | F:zone_type=1 | F:liq_distance=61 | F:source_encoded=2,0,1,0,0,3.0,0,3.0,0,0.0,0,236.67999999999998,XAUUSD
+268,Short Exit,2025-07-15 14:00,Short Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,236.67999999999998,NAS100
+268,Entry short,2025-07-15 14:00, | F:signal_encoded=95 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=210 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,238.67999999999998,NAS100
+269,Long Exit,2025-07-15 19:00,Long Exit,0,1,0,0,3.0,0,3.0,0,0.0,0,238.67999999999998,USDJPY
+269,Entry long,2025-07-15 19:00, | F:signal_encoded=95 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=4 | F:source_encoded=2,0,1,0,0,3.0,0,3.0,0,0.0,0,241.67999999999998,USDJPY
+270,Long Exit,2025-07-16 08:25,Long Exit,0,1,0,0,2.5,0,2.5,0,0.0,0,241.67999999999998,GBPJPY
+270,Entry long,2025-07-16 08:25, | F:signal_encoded=65 | F:session_encoded=1 | F:zone_type=1 | F:liq_distance=2 | F:source_encoded=2,0,1,0,0,2.5,0,2.5,0,0.0,0,244.17999999999998,GBPJPY
+271,Short Exit,2025-07-29 10:20,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,244.17999999999998,GBPJPY
+271,Entry short,2025-07-29 10:20, | F:signal_encoded=72 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=4 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,243.17999999999998,GBPJPY
+272,Short Exit,2025-10-14 14:10,Short Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,243.17999999999998,GBPCAD
+272,Entry short,2025-10-14 14:10, | F:signal_encoded=95 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=4 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,245.17999999999998,GBPCAD
+273,Long Exit,2025-10-15 12:25,Long Exit,0,1,0,0,1.0,0,1.0,0,0.0,0,245.17999999999998,XAUUSD
+273,Entry long,2025-10-15 12:25, | F:signal_encoded=85 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=10 | F:source_encoded=2,0,1,0,0,1.0,0,1.0,0,0.0,0,246.17999999999998,XAUUSD
+274,Short Exit,2025-10-15 16:00,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,246.17999999999998,GBPUSD
+274,Entry short,2025-10-15 16:00, | F:signal_encoded=72 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=2 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,245.17999999999998,GBPUSD
+275,Long Exit,2025-10-15 16:50,Long Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,245.17999999999998,NAS100
+275,Entry long,2025-10-15 16:50, | F:signal_encoded=72 | F:session_encoded=3 | F:zone_type=1 | F:liq_distance=100 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,246.67999999999998,NAS100
+276,Short Exit,2025-10-20 15:15,Short Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,246.67999999999998,GBPUSD
+276,Entry short,2025-10-20 15:15, | F:signal_encoded=72 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=0 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,245.67999999999998,GBPUSD
+277,Short Exit,2025-10-21 12:35,Short Exit,0,1,0,0,2.0,0,2.0,0,0.0,0,245.67999999999998,GBPUSD
+277,Entry short,2025-10-21 12:35, | F:signal_encoded=72 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=3 | F:source_encoded=2,0,1,0,0,2.0,0,2.0,0,0.0,0,247.67999999999998,GBPUSD
+278,Short Exit,2025-10-21 17:20,Short Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,247.67999999999998,NAS100
+278,Entry short,2025-10-21 17:20, | F:signal_encoded=65 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=841 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,249.17999999999998,NAS100
+279,Long Exit,2025-10-22 09:40,Long Exit,0,1,0,0,-1.0,0,0.0,0,-1.0,0,249.17999999999998,USDJPY
+279,Entry long,2025-10-22 09:40, | F:signal_encoded=95 | F:session_encoded=1 | F:zone_type=1 | F:liq_distance=2 | F:source_encoded=2,0,1,0,0,-1.0,0,0.0,0,-1.0,0,248.17999999999998,USDJPY
+280,Short Exit,2025-10-22 13:30,Short Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,248.17999999999998,XAUUSD
+280,Entry short,2025-10-22 13:30, | F:signal_encoded=72 | F:session_encoded=2 | F:zone_type=0 | F:liq_distance=109 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,249.67999999999998,XAUUSD
+281,Short Exit,2025-10-24 16:20,Short Exit,0,1,0,0,1.5,0,1.5,0,0.0,0,249.67999999999998,XAUUSD
+281,Entry short,2025-10-24 16:20, | F:signal_encoded=72 | F:session_encoded=3 | F:zone_type=0 | F:liq_distance=327 | F:source_encoded=2,0,1,0,0,1.5,0,1.5,0,0.0,0,251.17999999999998,XAUUSD
