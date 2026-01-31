@@ -103,6 +103,87 @@ class Settings(BaseSettings):
         description="AI model to use. Default: llama-3.3-70b-versatile (Groq). Empty = use provider default."
     )
 
+    # ══════════════════════════════════════════════════════════
+    # TRINITY ENGINE SETTINGS (Prop Firm Risk Management v2.0)
+    # ══════════════════════════════════════════════════════════
+
+    # Master toggle for Trinity Engine
+    trinity_enabled: bool = Field(
+        default=True,
+        description="Enable Trinity Engine (Risk Guardian + Market Adapter + Correlation Manager)"
+    )
+
+    # Risk Guardian Settings
+    trinity_max_daily_loss_pct: float = Field(
+        default=4.0,
+        ge=0.1,
+        le=10.0,
+        description="Maximum daily loss percentage before blocking all trades (4.0 = 4%)"
+    )
+
+    trinity_max_drawdown_pct: float = Field(
+        default=8.0,
+        ge=1.0,
+        le=20.0,
+        description="Maximum total drawdown percentage before kill switch engages (8.0 = 8%)"
+    )
+
+    trinity_max_risk_per_trade_pct: float = Field(
+        default=1.0,
+        ge=0.1,
+        le=5.0,
+        description="Maximum risk per trade as percentage of equity (1.0 = 1%)"
+    )
+
+    # Correlation Manager Settings
+    trinity_max_positions: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        description="Maximum concurrent open positions"
+    )
+
+    trinity_max_currency_exposure: int = Field(
+        default=2,
+        ge=1,
+        le=5,
+        description="Maximum positions with same currency exposure"
+    )
+
+    trinity_max_correlation_group: int = Field(
+        default=1,
+        ge=1,
+        le=3,
+        description="Maximum positions in same correlation group (e.g., USD pairs)"
+    )
+
+    trinity_allow_hedging: bool = Field(
+        default=False,
+        description="Allow opposing positions on same symbol (hedging)"
+    )
+
+    # Market Adapter Settings
+    usdjpy_rate: float = Field(
+        default=150.0,
+        ge=50.0,
+        le=300.0,
+        description="Current USDJPY rate for pip value calculations"
+    )
+
+    us30_point_value: float = Field(
+        default=1.0,
+        ge=0.1,
+        le=100.0,
+        description="Point value for US30/Dow Jones (broker-specific)"
+    )
+
+    nas100_point_value: float = Field(
+        default=1.0,
+        ge=0.1,
+        le=100.0,
+        description="Point value for NAS100/NASDAQ (broker-specific)"
+    )
+
 
 @lru_cache
 def get_settings() -> Settings:

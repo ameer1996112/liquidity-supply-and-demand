@@ -626,3 +626,263 @@ def check_supabase_health() -> bool:
     except Exception as e:
         logger.error(f"❌ Supabase health check failed: {e}")
         return False
+
+
+# ══════════════════════════════════════════════════════════
+# TRINITY ENGINE LOGGING FUNCTIONS
+# ══════════════════════════════════════════════════════════
+
+
+def log_risk_guardian_rejection(data: dict, rejection_reason: str, risk_result: dict = None) -> Optional[int]:
+    """
+    Log Risk Guardian rejection to Supabase.
+
+    Creates a trading_signals entry with status='risk_rejected' for tracking
+    risk management violations (daily loss limit, drawdown, anti-gambling).
+
+    Risk Guardian Rules Enforced:
+    - DAILY LOSS LIMIT: Blocks all trades if daily loss > 4%
+    - EQUITY PROTECTOR: Kill switch if drawdown > 8%
+    - ANTI-GAMBLING: Rejects trades with > 1% equity risk
+
+    Args:
+        data: Original trade payload from TradingView webhook
+        rejection_reason: Human-readable reason for rejection
+        risk_result: RiskCheckResult dict with risk_metrics
+
+    Returns:
+        alert_id if logged successfully, None on error
+    """
+    if not supabase:
+        init_supabase()
+
+    # Ensure minimal required fields
+    entry_data = dict(data)
+    defaults = {'symbol': 'unknown', 'side': 'buy', 'entry': 0.0, 'sl': 0.0, 'tp': 0.0, 'size': 0.0}
+    for k in ('symbol', 'side', 'entry', 'sl', 'tp', 'size'):
+        if k not in entry_data or entry_data[k] is None:
+            entry_data[k] = defaults.get(k, 0.0)
+
+    # Build Risk Guardian-specific filter reasons
+    filter_reasons = ["RISK_REJECTED"]
+    if risk_result:
+        reason_type = risk_result.get('rejection_reason', 'UNKNOWN')
+        filter_reasons.append(f"type={reason_type}")
+
+        metrics = risk_result.get('risk_metrics', {})
+        if metrics.get('daily_loss_pct'):
+            filter_reasons.append(f"daily_loss={metrics['daily_loss_pct']:.2f}%")
+        if metrics.get('total_drawdown_pct'):
+            filter_reasons.append(f"drawdown={metrics['total_drawdown_pct']:.2f}%")
+        if metrics.get('trade_risk_pct'):
+            filter_reasons.append(f"trade_risk={metrics['trade_risk_pct']:.2f}%")
+        if metrics.get('kill_switch_active'):
+            filter_reasons.append("KILL_SWITCH_ACTIVE")
+
+    try:
+        # Save alert with risk_rejected status
+        alert_id = save_alert(entry_data, mode='manual', filter_reasons=filter_reasons)
+
+        # Build notes with full risk analysis
+        notes_parts = [f"RISK_GUARDIAN: {rejection_reason}"]
+        if risk_result and risk_result.get('risk_metrics'):
+            metrics = risk_result['risk_metrics']
+            notes_parts.append(f"Equity: ${metrics.get('current_equity', 0):,.2f}")
+            notes_parts.append(f"Daily P&L: ${metrics.get('daily_pnl', 0):,.2f}")
+            if metrics.get('trade_risk_usd'):
+                notes_parts.append(f"Trade Risk: ${metrics['trade_risk_usd']:,.2f}")
+
+        notes = " | ".join(notes_parts)
+
+        # Update status to risk_rejected
+        update_alert_status(alert_id, 'risk_rejected', notes=notes[:1000])
+
+        logger.info(
+            f"✅ Risk Guardian rejection logged: alert_id={alert_id}, "
+            f"symbol={data.get('symbol')}, reason={rejection_reason[:100]}"
+        )
+        return alert_id
+
+    except Exception as e:
+        logger.error(f"❌ Failed to log Risk Guardian rejection to Supabase: {e}")
+        return None
+
+
+def log_correlation_rejection(data: dict, rejection_reason: str, correlation_result: dict = None) -> Optional[int]:
+    """
+    Log Correlation Manager rejection to Supabase.
+
+    Creates a trading_signals entry with status='correlation_rejected' for tracking
+    portfolio diversification violations.
+
+    Correlation Manager Rules Enforced:
+    - MAX POSITIONS: Max 3 open positions
+    - CURRENCY EXPOSURE: No double USD/EUR/etc exposure
+    - CORRELATION GROUP: No multiple positions in correlated assets
+
+    Args:
+        data: Original trade payload from TradingView webhook
+        rejection_reason: Human-readable reason for rejection
+        correlation_result: CorrelationCheckResult dict with exposure_details
+
+    Returns:
+        alert_id if logged successfully, None on error
+    """
+    if not supabase:
+        init_supabase()
+
+    # Ensure minimal required fields
+    entry_data = dict(data)
+    defaults = {'symbol': 'unknown', 'side': 'buy', 'entry': 0.0, 'sl': 0.0, 'tp': 0.0, 'size': 0.0}
+    for k in ('symbol', 'side', 'entry', 'sl', 'tp', 'size'):
+        if k not in entry_data or entry_data[k] is None:
+            entry_data[k] = defaults.get(k, 0.0)
+
+    # Build Correlation-specific filter reasons
+    filter_reasons = ["CORRELATION_REJECTED"]
+    if correlation_result:
+        reason_type = correlation_result.get('rejection_reason', 'UNKNOWN')
+        filter_reasons.append(f"type={reason_type}")
+
+        details = correlation_result.get('exposure_details', {})
+        if details.get('total_positions'):
+            filter_reasons.append(f"positions={details['total_positions']}/{details.get('max_positions', 3)}")
+        if details.get('base_currency'):
+            filter_reasons.append(f"base={details['base_currency']}")
+        if details.get('correlation_groups'):
+            groups = list(details['correlation_groups'].keys())[:2]
+            filter_reasons.append(f"groups={','.join(groups)}")
+
+    try:
+        # Save alert with correlation_rejected status
+        alert_id = save_alert(entry_data, mode='manual', filter_reasons=filter_reasons)
+
+        # Build notes with full correlation analysis
+        notes_parts = [f"CORRELATION_GUARD: {rejection_reason}"]
+        if correlation_result and correlation_result.get('exposure_details'):
+            details = correlation_result['exposure_details']
+            notes_parts.append(f"Positions: {details.get('total_positions', 0)}/{details.get('max_positions', 3)}")
+            if details.get('base_currency'):
+                notes_parts.append(f"Base: {details['base_currency']}, Quote: {details.get('quote_currency', 'N/A')}")
+
+        notes = " | ".join(notes_parts)
+
+        # Update status to correlation_rejected
+        update_alert_status(alert_id, 'correlation_rejected', notes=notes[:1000])
+
+        logger.info(
+            f"✅ Correlation rejection logged: alert_id={alert_id}, "
+            f"symbol={data.get('symbol')}, reason={rejection_reason[:100]}"
+        )
+        return alert_id
+
+    except Exception as e:
+        logger.error(f"❌ Failed to log Correlation rejection to Supabase: {e}")
+        return None
+
+
+def log_market_adapter_rejection(data: dict, rejection_reason: str, adapter_result: dict = None) -> Optional[int]:
+    """
+    Log Market Adapter rejection to Supabase.
+
+    Creates a trading_signals entry with status='adapter_rejected' for tracking
+    lot size calculation failures or mismatches.
+
+    Args:
+        data: Original trade payload from TradingView webhook
+        rejection_reason: Human-readable reason for rejection
+        adapter_result: LotSizeResult dict with calculation_details
+
+    Returns:
+        alert_id if logged successfully, None on error
+    """
+    if not supabase:
+        init_supabase()
+
+    # Ensure minimal required fields
+    entry_data = dict(data)
+    defaults = {'symbol': 'unknown', 'side': 'buy', 'entry': 0.0, 'sl': 0.0, 'tp': 0.0, 'size': 0.0}
+    for k in ('symbol', 'side', 'entry', 'sl', 'tp', 'size'):
+        if k not in entry_data or entry_data[k] is None:
+            entry_data[k] = defaults.get(k, 0.0)
+
+    # Build Adapter-specific filter reasons
+    filter_reasons = ["ADAPTER_REJECTED"]
+    if adapter_result:
+        filter_reasons.append(f"asset_class={adapter_result.get('asset_class', 'unknown')}")
+        if adapter_result.get('lots_rounded'):
+            filter_reasons.append(f"calc_lots={adapter_result['lots_rounded']:.3f}")
+        if adapter_result.get('sl_pips'):
+            filter_reasons.append(f"sl_pips={adapter_result['sl_pips']:.1f}")
+
+    try:
+        # Save alert with adapter_rejected status
+        alert_id = save_alert(entry_data, mode='manual', filter_reasons=filter_reasons)
+
+        # Build notes with calculation details
+        notes_parts = [f"MARKET_ADAPTER: {rejection_reason}"]
+        if adapter_result:
+            notes_parts.append(f"Asset: {adapter_result.get('asset_class', 'unknown')}")
+            if adapter_result.get('lots_rounded'):
+                notes_parts.append(f"Calculated: {adapter_result['lots_rounded']:.3f} lots")
+            if adapter_result.get('risk_usd'):
+                notes_parts.append(f"Risk: ${adapter_result['risk_usd']:.2f}")
+
+        notes = " | ".join(notes_parts)
+
+        # Update status to adapter_rejected
+        update_alert_status(alert_id, 'adapter_rejected', notes=notes[:1000])
+
+        logger.info(
+            f"✅ Market Adapter rejection logged: alert_id={alert_id}, "
+            f"symbol={data.get('symbol')}, reason={rejection_reason[:100]}"
+        )
+        return alert_id
+
+    except Exception as e:
+        logger.error(f"❌ Failed to log Market Adapter rejection to Supabase: {e}")
+        return None
+
+
+def get_daily_pnl(start_of_day: str = None) -> float:
+    """
+    Get total P&L for today from closed trades.
+
+    Used by Risk Guardian for daily loss limit enforcement.
+
+    Args:
+        start_of_day: ISO format date string (defaults to today)
+
+    Returns:
+        Total P&L in USD for today
+    """
+    if not supabase:
+        init_supabase()
+
+    from datetime import date
+
+    if start_of_day is None:
+        start_of_day = date.today().isoformat()
+
+    try:
+        # Get all closed trades from today
+        response = supabase.table('trading_signals').select(
+            'pnl_usd, pnl, closed_at'
+        ).eq('status', 'closed').gte('closed_at', start_of_day).execute()
+
+        total_pnl = 0.0
+        for trade in response.data:
+            # Prefer pnl_usd (actual), fallback to pnl (manual)
+            pnl_usd = trade.get('pnl_usd')
+            pnl = trade.get('pnl')
+            if pnl_usd is not None:
+                total_pnl += float(pnl_usd)
+            elif pnl is not None:
+                total_pnl += float(pnl)
+
+        logger.info(f"Daily P&L for {start_of_day}: ${total_pnl:,.2f}")
+        return total_pnl
+
+    except Exception as e:
+        logger.error(f"❌ Failed to get daily P&L: {e}")
+        return 0.0
