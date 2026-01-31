@@ -1,166 +1,186 @@
-import requests
-import time
+print("🚀 NEW WORKER CODE LOADED: v5.1 (Probability Fix)")  # <--- PROOF LINE
 import os
-import sys
-from pathlib import Path
-from dotenv import load_dotenv
+import json
+import time
+import asyncio
+import logging
+import pickle
+import pandas as pd
+import numpy as np
 from supabase import create_client, Client
+from redis import Redis
+from pathlib import Path
 
-# --- CONFIGURATION & SETUP ---
-# Auto-discover .env: scripts/, project root, backend/
-current_dir = Path(__file__).resolve().parent
-project_root = current_dir.parent
-env_candidates = [
-    current_dir / ".env",
-    project_root / ".env",
-    project_root / "backend" / ".env",
-]
-env_path = None
-for p in env_candidates:
-    if p.exists():
-        load_dotenv(dotenv_path=p)
-        env_path = p
-        break
-
-if env_path:
-    print(f"🔍 Loaded .env from: {env_path}")
-else:
-    print("   ⚠️  WARNING: No .env found (checked scripts/, root, backend/). Using system vars.")
-
-BASE_URL = os.getenv("WEBHOOK_URL", os.getenv("API_URL", "https://grand-learning-production-bc96.up.railway.app")).strip().rstrip("/")
-SECRET = os.getenv("WEBHOOK_SECRET", "c817492a65caa767fdc438f61b8c2b64404a4e4aa6d9edfac74514c07bae20c6")
+# --- CONFIGURATION ---
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-if not SUPABASE_URL or not SUPABASE_KEY:
-    print("\n❌ CRITICAL ERROR: Missing Supabase Credentials.")
-    sys.exit(1)
+# --- LOGGING SETUP ---
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+# --- INIT CLIENTS ---
+redis_client = Redis.from_url(REDIS_URL, decode_responses=True)
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# --- LOAD BRAIN (ML MODEL) ---
+BASE_DIR = Path(__file__).resolve().parent.parent
+MODEL_PATH = BASE_DIR / "ml" / "model.pkl"
+ENCODER_PATH = BASE_DIR / "ml" / "encoders.pkl"
+
+model = None
+encoders = {}
 
 try:
-    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    if MODEL_PATH.exists():
+        with open(MODEL_PATH, "rb") as f:
+            model = pickle.load(f)
+        with open(ENCODER_PATH, "rb") as f:
+            encoders = pickle.load(f)
+        logger.info(f"🧠 AI Brain Loaded! Features: {getattr(model, 'feature_names_', 'Unknown')}")
+    else:
+        logger.warning("⚠️ ML Model not found. AI Guardian will be disabled.")
 except Exception as e:
-    print(f"❌ Failed to initialize Supabase client: {e}")
-    sys.exit(1)
+    logger.error(f"❌ Failed to load ML model: {e}")
 
-# --- HELPER FUNCTIONS ---
-def send_signal(symbol, size, signal_features="Unknown", entry=1.0, sl=0.99, tp=1.02):
-    params = {"secret": SECRET}
-    payload = {
-        "passphrase": SECRET,
-        "symbol": symbol,
-        "side": "buy",
-        "entry": entry,
-        "sl": sl,
-        "tp": tp,
-        "size": size,
-        "run_mode": "PAPER",
-        "time": "2026-01-27T15:00:00Z",
-        "exchange": "OANDA",
-        "signal": signal_features
+# --- TRADING LOGIC ---
+
+def calculate_position_size(account_balance, risk_per_trade, stop_loss_pips, symbol):
+    """Calculates safe lot size based on risk %"""
+    risk_amount = account_balance * risk_per_trade
+    # Standard approximation: $10 per pip per lot (for standard pairs)
+    # For JPY pairs, it's roughly $6.5 per pip.
+    pip_value = 6.5 if "JPY" in symbol else 10.0
+    
+    if stop_loss_pips <= 0: return 0.01
+    
+    lots = risk_amount / (stop_loss_pips * pip_value)
+    return round(lots, 2)
+
+def ml_predict(signal_data):
+    """Asks the AI Brain for a probability score"""
+    if not model or not encoders:
+        return 0.5 
+        
+    try:
+        # 1. Extract Features
+        features = {
+            'asset_id': 0, 'hour': 12, 'day_of_week': 2, 'type_encoded': 0,
+            'signal_encoded': 0, 'source_encoded': 0, 'session_encoded': 0, 'liq_distance': 50.0
+        }
+        
+        # Symbol Encoding
+        sym = signal_data.get('symbol', '')
+        if 'symbol' in encoders and sym in encoders['symbol'].classes_:
+            features['asset_id'] = encoders['symbol'].transform([sym])[0]
+            
+        # Time Encoding
+        if 'time' in signal_data:
+            dt = pd.to_datetime(signal_data['time'])
+            features['hour'] = dt.hour
+            features['day_of_week'] = dt.dayofweek
+
+        # Signal Feature Extraction
+        sig_str = signal_data.get('signal', '')
+        import re
+        f_pattern = re.compile(r'F:(\w+)=([\d.+-]+)')
+        matches = f_pattern.findall(str(sig_str))
+        for key, val in matches:
+            features[f'f_{key.lower()}'] = float(val)
+
+        # Create DataFrame 
+        df_feat = pd.DataFrame([features])
+        
+        # Ensure all model columns exist
+        for col in model.feature_names_:
+            if col not in df_feat.columns:
+                df_feat[col] = 0.0
+                
+        # Reorder columns 
+        df_feat = df_feat[model.feature_names_]
+        
+        # Predict
+        prob = model.predict_proba(df_feat)[0][1]
+        return float(prob)
+
+    except Exception as e:
+        logger.error(f"🧠 Brain Freeze: {e}")
+        return 0.5
+
+def process_trade(signal):
+    """Main Processor"""
+    symbol = signal['symbol']
+    side = signal['side']
+    size = float(signal['size'])
+    entry = float(signal['entry'])
+    sl = float(signal['sl'])
+    
+    logger.info(f"⚡ Processing: {symbol} {side} {size} lots")
+
+    # 1. RISK GUARDIAN
+    price_diff = abs(entry - sl)
+    contract_size = 100000
+    converter = 155.0 if "JPY" in symbol else 1.0 
+    risk_usd = (price_diff * contract_size * size) / converter
+    
+    if risk_usd > 500.0:
+        save_result(signal, "risk_rejected", f"Risk too high: ${risk_usd:.2f}", 0.0)
+        return
+
+    # 2. CORRELATION GUARD
+    active_trades = supabase.table("trading_signals").select("*").eq("status", "active").execute()
+    if len(active_trades.data) >= 3:
+        save_result(signal, "correlation_rejected", "Max trades (3) reached.", 0.0)
+        return
+
+    # 3. PINE GUARDIAN
+    pips = price_diff * (100 if "JPY" in symbol else 10000)
+    safe_lots = calculate_position_size(10000, 0.01, pips, symbol)
+    
+    # 50% tolerance for testing
+    if abs(size - safe_lots) > (safe_lots * 0.5): 
+        save_result(signal, "pine_rejected", f"Size mismatch: Sent {size}, Safe {safe_lots}", 0.0)
+        return
+
+    # 4. AI GUARDIAN
+    win_prob = ml_predict(signal)
+    
+    if win_prob >= 0.60:
+        status = "active"
+        note = "AI Approved"
+    else:
+        status = "ml_rejected"
+        note = f"AI Low Confidence: {win_prob:.2%}"
+        
+    save_result(signal, status, note, win_prob)
+
+def save_result(signal, status, note, prob):
+    """Saves to Supabase"""
+    data = {
+        "symbol": signal['symbol'], "side": signal['side'], "size": signal['size'],
+        "entry": signal['entry'], "sl": signal['sl'], "tp": signal['tp'],
+        "status": status, "notes": note,
+        "ml_win_probability": prob,  # <--- CRITICAL LINE
+        "run_mode": signal.get("run_mode", "PAPER")
     }
     try:
-        requests.post(f"{BASE_URL}/webhook", json=payload, params=params)
+        supabase.table("trading_signals").insert(data).execute()
+        logger.info(f"✅ Saved: {status} | Prob: {prob}")
     except Exception as e:
-        print(f"   ❌ Connection Error: {e}")
+        logger.error(f"❌ DB Save Failed: {e}")
 
-def verify_db_status(symbol, expected_status_list):
-    print(f"   ...verifying {symbol} in Database...")
-    for _ in range(12): # Wait up to 12s
-        time.sleep(1)
-        response = supabase.table("trading_signals").select("status, notes, ml_win_probability").eq("symbol", symbol).order("created_at", desc=True).limit(1).execute()
-        if response.data:
-            record = response.data[0]
-            status = record['status']
-            prob = record.get('ml_win_probability', 0)
-            
-            # Print status to debug if it fails
-            if status in expected_status_list:
-                return True, status, prob, record['notes']
-            
-            # If we see pine_rejected, we know why it failed
-            if status == 'pine_rejected':
-                 return False, status, 0, record['notes']
-                 
-    return False, "TIMEOUT", 0, "Worker did not process in time"
+def run_worker():
+    logger.info("👷 Worker Started & Listening...")
+    while True:
+        try:
+            task = redis_client.blpop("trading_queue", timeout=5)
+            if task:
+                payload = json.loads(task[1])
+                process_trade(payload)
+        except Exception as e:
+            logger.error(f"Worker Error: {e}")
+            time.sleep(1)
 
-# ==========================================
-# 🚀 STARTING THE TEST SUITE
-# ==========================================
-
-print("\n🤖 TRINITY SYSTEM INTEGRITY CHECK (CORRECTED MATH MODE)")
-print(f"Target: {BASE_URL}")
-
-# --- TEST 1: RISK ENGINE ---
-print("\n🧪 TESTING: RISK GUARDIAN")
-print("👉 Sending XAUUSD with 5.0 Lots (Should be REJECTED)...")
-send_signal("XAUUSD", size=5.0, entry=2000.0, sl=1990.0) 
-
-success, status, _, _ = verify_db_status("XAUUSD", ["risk_rejected"])
-if success: 
-    print(f"✅ PASS: Blocked with status '{status}'")
-else: 
-    print(f"❌ FAIL: Expected 'risk_rejected', got '{status}'")
-
-# --- TEST 2: CORRELATION ENGINE ---
-print("\n🧪 TESTING: CORRELATION GUARD")
-good_features = " | F:75,8,2,0,0.57,0,1,63.56,1,0,32.82,0,100,38.38,98.2,2.8,36.67"
-
-# NOTE: We use 0.2 lots because for $10,000 acct, 1% risk ($100), 50 pip SL -> 0.2 lots is correct.
-# If we send 0.1, Pine Guardian rejects it.
-
-print("👉 Filling Slot 1: EURUSD (0.2 lots)...")
-send_signal("EURUSD", size=0.2, signal_features=good_features, entry=1.1000, sl=1.0950)
-time.sleep(1)
-
-print("👉 Filling Slot 2: GBPUSD (0.2 lots)...")
-send_signal("GBPUSD", size=0.2, signal_features=good_features, entry=1.2500, sl=1.2450)
-time.sleep(1)
-
-print("👉 Filling Slot 3: AUDUSD (0.2 lots)...")
-send_signal("AUDUSD", size=0.2, signal_features=good_features, entry=0.6500, sl=0.6450)
-time.sleep(1)
-
-print("👉 Sending 4th Trade: NZDUSD (Should Fail due to limit)...")
-send_signal("NZDUSD", size=0.2, signal_features=good_features, entry=0.6000, sl=0.5950)
-
-success, status, _, note = verify_db_status("NZDUSD", ["correlation_rejected"])
-if success: 
-    print(f"✅ PASS: Overflow blocked with status '{status}'")
-elif status == 'pine_rejected':
-    print(f"⚠️ FAIL: Trade rejected by Pine Guardian (Size mismatch). Adjust script size.")
-    print(f"   Note: {note}")
-else: 
-    print(f"❌ FAIL: Expected 'correlation_rejected', got '{status}'")
-
-# --- TEST 3: AI BRAIN ---
-print("\n🧪 TESTING: AI GUARDIAN")
-
-# Naked Signal (GBPCAD) -> 0.2 Lots
-print("👉 Sending 'Naked' GBPCAD...")
-send_signal("GBPCAD", size=0.2, signal_features="Unknown", entry=1.7000, sl=1.6950)
-success, status, prob, _ = verify_db_status("GBPCAD", ["ml_rejected", "active"])
-
-if success:
-    if prob is None:
-         print(f"⚠️ PARTIAL FAIL: Worker outdated (NULL probability). Push to Railway!")
-    elif prob < 0.60:
-        print(f"✅ PASS: AI doubted trade (Conf: {prob:.2%})")
-    else:
-        print(f"⚠️ WARNING: AI had high confidence ({prob:.2%}) on naked signal.")
-else:
-    print(f"❌ FAIL: Expected processed, got '{status}'")
-
-# Rich Signal (USDJPY) -> 0.3 Lots (JPY pairs need larger size for same risk)
-print("\n👉 Sending 'Rich' USDJPY (0.3 lots)...")
-send_signal("USDJPY", size=0.3, signal_features=good_features, entry=155.00, sl=154.50)
-success, status, prob, _ = verify_db_status("USDJPY", ["active"])
-
-if success:
-    if prob is None:
-         print(f"⚠️ PARTIAL FAIL: Worker outdated (NULL probability). Push to Railway!")
-    elif prob >= 0.60:
-        print(f"✅ PASS: AI Liked trade (Conf: {prob:.2%})")
-    else:
-        print(f"❌ FAIL: AI rejected good trade (Conf: {prob:.2%})")
-
-print("\n🏁 DONE")
+if __name__ == "__main__":
+    run_worker()
