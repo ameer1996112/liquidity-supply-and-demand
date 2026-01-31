@@ -1,5 +1,5 @@
 {
-  "trained_at": "2026-01-31T16:06:03.055892",
+  "trained_at": "2026-01-31T16:42:26.189232",
   "version": "5.0",
   "data_leakage_fix": true,
   "forbidden_columns": [

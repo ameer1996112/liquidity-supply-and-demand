@@ -1,129 +1,49 @@
-#!/usr/bin/env python3
-"""
-Trinity System Integrity Check
-==============================
-Verifies Risk Guardian, Correlation Guard, and AI Brain.
-Run from project root or scripts/ — auto-discovers .env.
-"""
-
+import requests
+import time
 import os
 import sys
-import time
 from pathlib import Path
-
-import requests
+from dotenv import load_dotenv
 from supabase import create_client, Client
 
-# -----------------------------------------------------------------------------
-# Robust Env Loading: Search up the directory tree
-# -----------------------------------------------------------------------------
+# --- CONFIGURATION & SETUP ---
+# Auto-discover .env: scripts/, project root, backend/
+current_dir = Path(__file__).resolve().parent
+project_root = current_dir.parent
+env_candidates = [
+    current_dir / ".env",
+    project_root / ".env",
+    project_root / "backend" / ".env",
+]
+env_path = None
+for p in env_candidates:
+    if p.exists():
+        load_dotenv(dotenv_path=p)
+        env_path = p
+        break
 
-def _find_and_load_env() -> Path | None:
-    """
-    Check ./.env, ../.env, ../../.env. Stop at the first one found.
-    Returns the path if found, None otherwise.
-    """
-    try:
-        from dotenv import load_dotenv
-    except ImportError:
-        print("❌ ERROR: python-dotenv not installed. Run: pip install python-dotenv")
-        sys.exit(1)
+if env_path:
+    print(f"🔍 Loaded .env from: {env_path}")
+else:
+    print("   ⚠️  WARNING: No .env found (checked scripts/, root, backend/). Using system vars.")
 
-    script_dir = Path(__file__).resolve().parent
-    project_root = script_dir.parent
-    candidates = [
-        script_dir / ".env",              # scripts/.env
-        project_root / ".env",            # project_root/.env
-        project_root / "backend" / ".env",  # project_root/backend/.env
-        project_root.parent / ".env",     # project_root/../.env
-    ]
+BASE_URL = os.getenv("WEBHOOK_URL", os.getenv("API_URL", "https://grand-learning-production-bc96.up.railway.app")).strip().rstrip("/")
+SECRET = os.getenv("WEBHOOK_SECRET", "c817492a65caa767fdc438f61b8c2b64404a4e4aa6d9edfac74514c07bae20c6")
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
 
-    for path in candidates:
-        if path.exists():
-            load_dotenv(dotenv_path=path)
-            print(f"🔍 Loaded .env from: {path}")
-            return path
+if not SUPABASE_URL or not SUPABASE_KEY:
+    print("\n❌ CRITICAL ERROR: Missing Supabase Credentials.")
+    sys.exit(1)
 
-    return None
+try:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+except Exception as e:
+    print(f"❌ Failed to initialize Supabase client: {e}")
+    sys.exit(1)
 
-
-def _validate_config() -> tuple[str, str, str, str]:
-    """Validate required env vars. Exit loudly if missing."""
-    env_path = _find_and_load_env()
-    if env_path is None:
-        print("")
-        print("❌ " + "=" * 56)
-        print("❌  ERROR: No .env file found!")
-        print("❌  Searched: ./, ../, ../../")
-        print("❌  Please create .env in the project root.")
-        print("❌ " + "=" * 56)
-        sys.exit(1)
-
-    supabase_url = (os.getenv("SUPABASE_URL") or "").strip()
-    supabase_key = (
-        (os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY") or "").strip()
-    )
-    base_url = (os.getenv("WEBHOOK_URL") or os.getenv("API_URL") or "").strip().rstrip("/")
-    secret = (os.getenv("WEBHOOK_SECRET") or "").strip()
-
-    if not supabase_url:
-        print("")
-        print("❌ " + "=" * 56)
-        print("❌  ERROR: SUPABASE_URL is missing!")
-        print("❌  .env was loaded but SUPABASE_URL is not set.")
-        print("❌  Please add SUPABASE_URL to your .env file.")
-        print("❌ " + "=" * 56)
-        sys.exit(1)
-
-    if not supabase_key:
-        print("")
-        print("❌ " + "=" * 56)
-        print("❌  ERROR: SUPABASE_SERVICE_ROLE_KEY or SUPABASE_KEY is missing!")
-        print("❌  Please add one of these to your .env file.")
-        print("❌ " + "=" * 56)
-        sys.exit(1)
-
-    if not base_url:
-        base_url = "https://grand-learning-production-bc96.up.railway.app"
-
-    if not secret:
-        secret = "c817492a65caa767fdc438f61b8c2b64404a4e4aa6d9edfac74514c07bae20c6"
-
-    return supabase_url, supabase_key, base_url, secret
-
-
-# -----------------------------------------------------------------------------
-# Configuration
-# -----------------------------------------------------------------------------
-
-SUPABASE_URL, SUPABASE_KEY, BASE_URL, SECRET = _validate_config()
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-
-# -----------------------------------------------------------------------------
-# Helpers
-# -----------------------------------------------------------------------------
-
-REDEPLOY_WARNING = (
-    "⚠️  Worker outdated! Please git push to Railway."
-)
-
-
-def print_header(title: str) -> None:
-    print(f"\n{'='*60}")
-    print(f"🧪 TESTING: {title}")
-    print(f"{'='*60}")
-
-
-def send_signal(
-    symbol: str,
-    size: float,
-    signal_features: str = "Unknown",
-    entry: float = 1.0,
-    sl: float = 0.99,
-    tp: float = 1.02,
-) -> int:
-    """Sends a standardized signal to the webhook."""
+# --- HELPER FUNCTIONS ---
+def send_signal(symbol, size, signal_features="Unknown", entry=1.0, sl=0.99, tp=1.02):
     params = {"secret": SECRET}
     payload = {
         "passphrase": SECRET,
@@ -136,174 +56,111 @@ def send_signal(
         "run_mode": "PAPER",
         "time": "2026-01-27T15:00:00Z",
         "exchange": "OANDA",
-        "signal": signal_features,
+        "signal": signal_features
     }
     try:
-        r = requests.post(f"{BASE_URL}/webhook", json=payload, params=params, timeout=15)
-        return r.status_code
+        requests.post(f"{BASE_URL}/webhook", json=payload, params=params)
     except Exception as e:
         print(f"   ❌ Connection Error: {e}")
-        return 0
 
-
-def verify_db_status(
-    symbol: str,
-    expected_status_list: list[str],
-) -> tuple[str, str | None, float | None, str | None]:
-    """
-    Queries Supabase to see what the Worker actually did.
-
-    Returns: (result, status, ml_win_probability, notes)
-    - result: "PASS" | "FAIL" | "PARTIAL_FAIL"
-    - status: record status or None if timeout
-    - ml_win_probability: float or None if NULL (worker outdated)
-    - notes: record notes or None
-    """
+def verify_db_status(symbol, expected_status_list):
     print(f"   ...verifying {symbol} in Database...")
-    for _ in range(10):
+    for _ in range(12): # Wait up to 12s
         time.sleep(1)
-        try:
-            response = (
-                supabase.table("trading_signals")
-                .select("status, notes, ml_win_probability")
-                .eq("symbol", symbol)
-                .order("created_at", desc=True)
-                .limit(1)
-                .execute()
-            )
-        except Exception as e:
-            print(f"   ❌ DB Error: {e}")
-            return "FAIL", None, None, None
-
+        response = supabase.table("trading_signals").select("status, notes, ml_win_probability").eq("symbol", symbol).order("created_at", desc=True).limit(1).execute()
         if response.data:
             record = response.data[0]
-            status = record.get("status")
-            prob_raw = record.get("ml_win_probability")
-            notes = record.get("notes")
-
-            # Smart Verification: NULL ml_win_probability = worker outdated
-            prob: float | None = None
-            if prob_raw is not None:
-                try:
-                    prob = float(prob_raw)
-                except (TypeError, ValueError):
-                    prob = None
-
+            status = record['status']
+            prob = record.get('ml_win_probability', 0)
+            
+            # Print status to debug if it fails
             if status in expected_status_list:
-                if prob is None:
-                    return "PARTIAL_FAIL", status, None, notes
-                return "PASS", status, prob, notes
-            else:
-                # Record exists but wrong status
-                if prob is None:
-                    return "PARTIAL_FAIL", status, None, notes
-                return "FAIL", status, prob, notes
+                return True, status, prob, record['notes']
+            
+            # If we see pine_rejected, we know why it failed
+            if status == 'pine_rejected':
+                 return False, status, 0, record['notes']
+                 
+    return False, "TIMEOUT", 0, "Worker did not process in time"
 
-    return "FAIL", "TIMEOUT", None, "Worker did not process in time"
+# ==========================================
+# 🚀 STARTING THE TEST SUITE
+# ==========================================
 
+print("\n🤖 TRINITY SYSTEM INTEGRITY CHECK (CORRECTED MATH MODE)")
+print(f"Target: {BASE_URL}")
 
-# =============================================================================
-# Test Suite
-# =============================================================================
+# --- TEST 1: RISK ENGINE ---
+print("\n🧪 TESTING: RISK GUARDIAN")
+print("👉 Sending XAUUSD with 5.0 Lots (Should be REJECTED)...")
+send_signal("XAUUSD", size=5.0, entry=2000.0, sl=1990.0) 
 
-def main() -> int:
-    print("\n🤖 TRINITY SYSTEM INTEGRITY CHECK")
-    print(f"Target: {BASE_URL}")
+success, status, _, _ = verify_db_status("XAUUSD", ["risk_rejected"])
+if success: 
+    print(f"✅ PASS: Blocked with status '{status}'")
+else: 
+    print(f"❌ FAIL: Expected 'risk_rejected', got '{status}'")
 
-    # --- TEST 1: RISK ENGINE ---
-    print_header("RISK GUARDIAN (Anti-Gambling)")
-    symbol = "TEST_RISK"
-    print(f"👉 Sending {symbol} with 5.0 Lots ($5000 Risk)...")
-    code = send_signal(symbol, size=5.0)
+# --- TEST 2: CORRELATION ENGINE ---
+print("\n🧪 TESTING: CORRELATION GUARD")
+good_features = " | F:75,8,2,0,0.57,0,1,63.56,1,0,32.82,0,100,38.38,98.2,2.8,36.67"
 
-    if code == 200:
-        result, status, prob, note = verify_db_status(symbol, ["risk_rejected"])
-        if result == "PASS":
-            print(f"✅ PASS: Blocked with status '{status}'")
-            print(f"   Note: {note}")
-        elif result == "PARTIAL_FAIL":
-            print(f"⚠️  PARTIAL FAIL: Blocked with status '{status}'")
-            print(f"   {REDEPLOY_WARNING}")
-            if note:
-                print(f"   Note: {note}")
-        else:
-            print(f"❌ FAIL: Expected 'risk_rejected', got '{status}'")
+# NOTE: We use 0.2 lots because for $10,000 acct, 1% risk ($100), 50 pip SL -> 0.2 lots is correct.
+# If we send 0.1, Pine Guardian rejects it.
+
+print("👉 Filling Slot 1: EURUSD (0.2 lots)...")
+send_signal("EURUSD", size=0.2, signal_features=good_features, entry=1.1000, sl=1.0950)
+time.sleep(1)
+
+print("👉 Filling Slot 2: GBPUSD (0.2 lots)...")
+send_signal("GBPUSD", size=0.2, signal_features=good_features, entry=1.2500, sl=1.2450)
+time.sleep(1)
+
+print("👉 Filling Slot 3: AUDUSD (0.2 lots)...")
+send_signal("AUDUSD", size=0.2, signal_features=good_features, entry=0.6500, sl=0.6450)
+time.sleep(1)
+
+print("👉 Sending 4th Trade: NZDUSD (Should Fail due to limit)...")
+send_signal("NZDUSD", size=0.2, signal_features=good_features, entry=0.6000, sl=0.5950)
+
+success, status, _, note = verify_db_status("NZDUSD", ["correlation_rejected"])
+if success: 
+    print(f"✅ PASS: Overflow blocked with status '{status}'")
+elif status == 'pine_rejected':
+    print(f"⚠️ FAIL: Trade rejected by Pine Guardian (Size mismatch). Adjust script size.")
+    print(f"   Note: {note}")
+else: 
+    print(f"❌ FAIL: Expected 'correlation_rejected', got '{status}'")
+
+# --- TEST 3: AI BRAIN ---
+print("\n🧪 TESTING: AI GUARDIAN")
+
+# Naked Signal (GBPCAD) -> 0.2 Lots
+print("👉 Sending 'Naked' GBPCAD...")
+send_signal("GBPCAD", size=0.2, signal_features="Unknown", entry=1.7000, sl=1.6950)
+success, status, prob, _ = verify_db_status("GBPCAD", ["ml_rejected", "active"])
+
+if success:
+    if prob is None:
+         print(f"⚠️ PARTIAL FAIL: Worker outdated (NULL probability). Push to Railway!")
+    elif prob < 0.60:
+        print(f"✅ PASS: AI doubted trade (Conf: {prob:.2%})")
     else:
-        print(f"❌ FAIL: API did not accept signal (Code {code})")
+        print(f"⚠️ WARNING: AI had high confidence ({prob:.2%}) on naked signal.")
+else:
+    print(f"❌ FAIL: Expected processed, got '{status}'")
 
-    # --- TEST 2: CORRELATION ENGINE ---
-    print_header("CORRELATION GUARD (Max 3 Trades)")
-    good_features = " | F:75,8,2,0,0.57,0,1,63.56,1,0,32.82,0,100,38.38,98.2,2.8,36.67"
+# Rich Signal (USDJPY) -> 0.3 Lots (JPY pairs need larger size for same risk)
+print("\n👉 Sending 'Rich' USDJPY (0.3 lots)...")
+send_signal("USDJPY", size=0.3, signal_features=good_features, entry=155.00, sl=154.50)
+success, status, prob, _ = verify_db_status("USDJPY", ["active"])
 
-    for i in range(1, 4):
-        sym = f"TEST_FILL_{i}"
-        print(f"👉 Filling Slot {i}: {sym}...")
-        send_signal(sym, size=0.1, signal_features=good_features, entry=155.0, sl=154.5)
-        time.sleep(1)
-
-    overflow_sym = "TEST_OVERFLOW"
-    print(f"👉 Sending 4th Trade: {overflow_sym} (Should Fail)...")
-    send_signal(overflow_sym, size=0.1, signal_features=good_features, entry=155.0, sl=154.5)
-
-    result, status, prob, note = verify_db_status(overflow_sym, ["correlation_rejected"])
-    if result == "PASS":
-        print(f"✅ PASS: Overflow blocked with status '{status}'")
-        print(f"   Note: {note}")
-    elif result == "PARTIAL_FAIL":
-        print(f"⚠️  PARTIAL FAIL: Overflow blocked with status '{status}'")
-        print(f"   {REDEPLOY_WARNING}")
-        if note:
-            print(f"   Note: {note}")
+if success:
+    if prob is None:
+         print(f"⚠️ PARTIAL FAIL: Worker outdated (NULL probability). Push to Railway!")
+    elif prob >= 0.60:
+        print(f"✅ PASS: AI Liked trade (Conf: {prob:.2%})")
     else:
-        print(f"❌ FAIL: Expected 'correlation_rejected', got '{status}'")
+        print(f"❌ FAIL: AI rejected good trade (Conf: {prob:.2%})")
 
-    # --- TEST 3: AI BRAIN (ML GUARDIAN) ---
-    print_header("AI GUARDIAN (The Brain)")
-
-    # A. The Idiot Test (Naked Signal)
-    naked_sym = "TEST_AI_DUMB"
-    print(f"👉 Sending 'Naked' Signal (No Features): {naked_sym}...")
-    send_signal(naked_sym, size=0.1, signal_features="Unknown", entry=155.0, sl=154.5)
-
-    result, status, prob, _ = verify_db_status(naked_sym, ["ml_rejected", "active"])
-    if result == "PASS":
-        if prob is not None and prob < 0.60:
-            print(f"✅ PASS: AI correctly doubted this trade.")
-            print(f"   Confidence: {prob:.2%} (Low)")
-        else:
-            prob_str = f"{prob:.2%}" if prob is not None else "N/A"
-            print(f"⚠️ WARNING: AI had high confidence ({prob_str}) on a naked signal? Check Training.")
-    elif result == "PARTIAL_FAIL":
-        print(f"⚠️  PARTIAL FAIL: Signal processed but ml_win_probability is NULL.")
-        print(f"   {REDEPLOY_WARNING}")
-    else:
-        print(f"❌ FAIL: Worker failed to process. Status: {status}")
-
-    # B. The Genius Test (Rich Data)
-    rich_sym = "TEST_AI_SMART"
-    print(f"\n👉 Sending 'Rich' Signal (Winning Pattern): {rich_sym}...")
-    send_signal(rich_sym, size=0.1, signal_features=good_features, entry=155.0, sl=154.5)
-
-    result, status, prob, _ = verify_db_status(rich_sym, ["active"])
-    if result == "PASS":
-        if prob is not None and prob >= 0.60:
-            print(f"✅ PASS: AI Recognized the winner!")
-            print(f"   Confidence: {prob:.2%} (High)")
-        else:
-            prob_str = f"{prob:.2%}" if prob is not None else "N/A"
-            print(f"❌ FAIL: AI rejected a good trade. Confidence: {prob_str}")
-    elif result == "PARTIAL_FAIL":
-        print(f"⚠️  PARTIAL FAIL: Signal active but ml_win_probability is NULL.")
-        print(f"   {REDEPLOY_WARNING}")
-    else:
-        print(f"❌ FAIL: Signal not active. Status: {status}")
-
-    print("\n" + "=" * 60)
-    print("🏁 SYSTEM INTEGRITY CHECK COMPLETE")
-    print("=" * 60)
-
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
+print("\n🏁 DONE")
