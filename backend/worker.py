@@ -1,11 +1,18 @@
 """
-Trade Executor (Consumer) v6.0 - OPTIMIZED
-==========================================
+Trade Executor (Consumer) v6.1 - CRASH-PROOF
+=============================================
 
 Simplified, robust worker with three core guards:
 1. RISK GUARD: Hard limit on position size
 2. CORRELATION GUARD: Max 3 open positions
 3. ML GUARD: RandomForest win probability prediction
+
+Key Fixes in v6.1:
+- Absolute path resolution for model files (Railway compatibility)
+- Broad exception handling to prevent crashes
+- Fail-open design (returns 0.5 on any prediction error)
+- Strict feature frame initialization
+- Shorter blpop timeout for cleaner restarts
 
 Architecture:
 - Single-load brain (model loaded once at startup)
@@ -70,97 +77,83 @@ def init_connections():
 
 
 def load_brain():
-    """Load the ML model and encoders once at startup."""
+    """
+    Load the ML model and encoders once at startup.
+    Uses strict absolute path resolution for Railway compatibility.
+    """
     global AI_MODEL, AI_ENCODERS
 
+    # STRICT ABSOLUTE PATH RESOLUTION
     base_dir = Path(__file__).resolve().parent.parent
     model_path = base_dir / "ml" / "model.pkl"
     enc_path = base_dir / "ml" / "encoders.pkl"
 
     try:
-        if model_path.exists():
-            with open(model_path, "rb") as f:
-                AI_MODEL = pickle.load(f)
-            with open(enc_path, "rb") as f:
-                AI_ENCODERS = pickle.load(f)
-            logger.info(f"AI Brain Loaded. Features: {len(AI_MODEL.feature_names_in_)}")
-        else:
-            logger.warning("Brain Missing (ml/model.pkl). AI will be DISABLED.")
+        if not model_path.exists():
+            logger.error(f"BRAIN MISSING: File not found at {model_path}")
+            return
+
+        with open(model_path, "rb") as f:
+            AI_MODEL = pickle.load(f)
+        with open(enc_path, "rb") as f:
+            AI_ENCODERS = pickle.load(f)
+        logger.info(f"BRAIN ONLINE. Features: {len(AI_MODEL.feature_names_in_)}")
     except Exception as e:
-        logger.error(f"Brain Damage: {e}")
+        logger.error(f"BRAIN DAMAGE (Load Failed): {e}")
 
 
 # --- INTELLIGENCE LAYER ---
 
-def extract_features(signal_str: str) -> Dict[str, float]:
+def get_prediction(payload: Dict[str, Any]) -> tuple:
     """
-    Parse the 'Super String' from TradingView/Notion.
-
-    Extracts key=value pairs like: F:score=95, F:signal_encoded=95
-    Returns a dict mapping feature names to float values.
-    """
-    features = {}
-
-    if not signal_str:
-        return features
-
-    # Regex to find F:key=value patterns (e.g., F:score=95)
-    matches = re.findall(r"F:([a-zA-Z_]+)=([0-9.]+)", str(signal_str))
-    for key, val in matches:
-        try:
-            float_val = float(val)
-            features[key] = float_val
-            # Double mapping for safety (both score and f_score)
-            features[f"f_{key}"] = float_val
-        except ValueError:
-            pass
-
-    # Hardcoded criticals (if missing)
-    if 'score' in features and 'signal_encoded' not in features:
-        features['signal_encoded'] = features['score']
-    if 'f_score' in features and 'f_signal_encoded' not in features:
-        features['f_signal_encoded'] = features['f_score']
-
-    return features
-
-
-def predict_success(signal_data: Dict[str, Any]) -> float:
-    """
-    Predict win probability using the trained RandomForest model.
+    Safely predict win probability using the trained RandomForest model.
 
     Returns:
-        float: Win probability between 0.0 and 1.0
-               Returns 0.5 (neutral) if model unavailable
+        tuple: (probability: float, note: str)
+               Returns (0.5, "AI Disabled") if model unavailable
+               Returns (0.5, "AI Error: ...") on any prediction failure
     """
     if AI_MODEL is None:
-        return 0.5
+        return 0.5, "AI Disabled (Missing Model)"
 
     try:
-        # 1. Base Feature Frame (initialize with zeros)
-        df = pd.DataFrame(columns=AI_MODEL.feature_names_in_)
-        df.loc[0] = 0.0
+        # 1. Initialize Safe Feature Frame (All Zeros)
+        features = {col: 0.0 for col in AI_MODEL.feature_names_in_}
 
-        # 2. Extract features from signal string
-        extracted = extract_features(signal_data.get('signal', ''))
+        # 2. Extract Features from Signal String (Regex)
+        signal_str = str(payload.get('signal', ''))
+        matches = re.findall(r"F:([a-zA-Z_]+)=([0-9.]+)", signal_str)
+        for key, val in matches:
+            try:
+                val_f = float(val)
+                # Map raw key and f_key to ensure hit
+                if key in features:
+                    features[key] = val_f
+                if f"f_{key}" in features:
+                    features[f"f_{key}"] = val_f
+            except ValueError:
+                pass
 
-        # 3. Encode asset_id if available
-        sym = signal_data.get('symbol', 'UNKNOWN')
+        # 3. Fallback Mapping (Score -> Signal Encoded)
+        if features.get('signal_encoded', 0) == 0:
+            features['signal_encoded'] = features.get('score', 0)
+        if features.get('f_signal_encoded', 0) == 0:
+            features['f_signal_encoded'] = features.get('f_score', 0)
+
+        # 4. Asset Encoding
+        symbol = payload.get('symbol', 'UNKNOWN')
         if AI_ENCODERS and 'asset_id' in AI_ENCODERS:
-            if sym in AI_ENCODERS['asset_id'].classes_:
-                df.loc[0, 'asset_id'] = AI_ENCODERS['asset_id'].transform([sym])[0]
-
-        # 4. Fill known features
-        for col in df.columns:
-            if col in extracted:
-                df.loc[0, col] = extracted[col]
+            if symbol in AI_ENCODERS['asset_id'].classes_:
+                features['asset_id'] = AI_ENCODERS['asset_id'].transform([symbol])[0]
 
         # 5. Predict
-        prob = AI_MODEL.predict_proba(df)[0][1]
-        return float(prob)
+        df = pd.DataFrame([features])
+        prob = float(AI_MODEL.predict_proba(df)[0][1])
+        return prob, f"AI Confidence: {prob:.1%}"
 
     except Exception as e:
-        logger.error(f"Prediction Failed: {e}")
-        return 0.5
+        logger.error(f"PREDICTION CRASH: {e}")
+        return 0.5, f"AI Error: {str(e)[:50]}"
 
 
 # --- EXECUTION LAYER ---
@@ -204,7 +197,7 @@ def process_trade(payload: Dict[str, Any]):
     # ══════════════════════════════════════════════════════════
     # GUARD 3: ML GUARDIAN (The Brain)
     # ══════════════════════════════════════════════════════════
-    win_prob = predict_success(payload)
+    win_prob, note = get_prediction(payload)
 
     if win_prob >= ML_MIN_CONFIDENCE:
         status = "active"
@@ -247,12 +240,12 @@ def save_result(payload: Dict[str, Any], status: str, note: str, prob: float):
 # --- MAIN LOOP ---
 
 def run():
-    """Main worker loop - never crashes."""
+    """Main worker loop - crash-proof with exponential backoff."""
     init_connections()
     load_brain()
 
     logger.info("=" * 60)
-    logger.info("WORKER v6.0 (OPTIMIZED) STARTED")
+    logger.info("WORKER v6.1 (CRASH-PROOF) STARTED")
     logger.info(f"  Risk Limit: {MAX_LOT_SIZE} lots")
     logger.info(f"  Correlation Limit: {MAX_OPEN_POSITIONS} positions")
     logger.info(f"  ML Confidence: {ML_MIN_CONFIDENCE:.0%}")
@@ -262,7 +255,8 @@ def run():
     backoff = 5
     while True:
         try:
-            task = redis_client.blpop(QUEUE_NAME, timeout=30)
+            # Short timeout to allow clean shutdowns/restarts if needed
+            task = redis_client.blpop(QUEUE_NAME, timeout=5)
             backoff = 5  # Reset backoff on success
 
             if task is None:
