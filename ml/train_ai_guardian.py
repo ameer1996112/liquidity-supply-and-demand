@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """
-AI Guardian Multi-Asset Super-Model Training Script - v4.0
+AI Guardian Multi-Asset Super-Model Training Script - v5.0
 ============================================================
 Trains a unified ML model across multiple trading assets using
 TradingView and Notion backtest data.
+
+CRITICAL FIX v5.0: Removed data leakage from outcome variables
+(runup_pct, drawdown_pct, etc.) that don't exist at entry time.
 
 Input: backtest_data/ folder (recursive scan)
 Output: ml/model.pkl, ml/encoders.pkl, accuracy leaderboard by asset
@@ -34,6 +37,24 @@ logger = logging.getLogger(__name__)
 # Script directory for saving outputs
 SCRIPT_DIR = Path(__file__).parent.resolve()
 PROJECT_ROOT = SCRIPT_DIR.parent
+
+# =============================================================================
+# FORBIDDEN COLUMNS - OUTCOME VARIABLES (FUTURE DATA)
+# These columns represent data that does NOT exist at trade ENTRY time.
+# Including them causes data leakage and model failure in live trading.
+# =============================================================================
+FORBIDDEN_COLUMNS = [
+    'runup_pct',
+    'drawdown_pct',
+    'net_pnl_pct',
+    'profit_pct',
+    'gross_profit',
+    'net_pnl',
+    'exit_time',
+    'trade_#',
+    'trade_num',
+    'trade_number',
+]
 
 # Known forex/crypto/index tickers for symbol extraction
 KNOWN_TICKERS = [
@@ -161,7 +182,7 @@ def standardize_tradingview(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
     else:
         standardized['close_time'] = pd.NaT
 
-    # Profit percentage
+    # Profit percentage (needed for target variable only, NOT as a feature)
     profit_col = None
     for col in ['Net P&L %', 'Profit %', 'P&L %']:
         if col in df.columns:
@@ -174,14 +195,8 @@ def standardize_tradingview(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
     else:
         standardized['profit_pct'] = np.nan
 
-    # Keep additional useful columns
-    if 'Favorable excursion %' in df.columns:
-        runup_str = df['Favorable excursion %'].astype(str).str.replace(r'[%$,\s]', '', regex=True)
-        standardized['runup_pct'] = pd.to_numeric(runup_str, errors='coerce')
-
-    if 'Adverse excursion %' in df.columns:
-        drawdown_str = df['Adverse excursion %'].astype(str).str.replace(r'[%$,\s]', '', regex=True)
-        standardized['drawdown_pct'] = pd.to_numeric(drawdown_str, errors='coerce').abs()
+    # NOTE: We intentionally do NOT include runup_pct/drawdown_pct here
+    # as they are outcome variables that cause data leakage
 
     # Source tracking
     standardized['_source'] = 'tradingview'
@@ -230,7 +245,7 @@ def standardize_notion(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
     else:
         standardized['close_time'] = pd.NaT
 
-    # Profit percentage - from "+ R (%)" column
+    # Profit percentage - from "+ R (%)" column (for target only, NOT as feature)
     profit_col = None
     for col in ['+ R (%)', '+R (%)', 'R%', 'Profit %', 'Net Profit']:
         if col in df.columns:
@@ -249,7 +264,7 @@ def standardize_notion(df: pd.DataFrame, symbol: str) -> pd.DataFrame:
             standardized.loc[win_mask, 'profit_pct'] = 1.0  # Default win value
             standardized.loc[loss_mask, 'profit_pct'] = -1.0  # Default loss value
 
-    # Additional Notion features
+    # Additional Notion features (legitimate - exist at entry time)
     if 'Session' in df.columns:
         standardized['session'] = df['Session'].astype(str)
 
@@ -319,22 +334,76 @@ def load_and_standardize_all(csv_files: list) -> pd.DataFrame:
 # FEATURE ENGINEERING
 # ============================================================================
 
+def extract_f_packet_features(signal_series: pd.Series) -> pd.DataFrame:
+    """
+    Extract numeric values from F: packets in signal strings.
+
+    Example signal: "F:rsi=45.2|F:atr=0.0015|BUY_SIGNAL"
+    Extracts: {'f_rsi': 45.2, 'f_atr': 0.0015}
+
+    These are LEGITIMATE features as they represent indicator values
+    at the time of signal generation (entry time).
+    """
+    # Pattern to match F:key=value
+    f_pattern = re.compile(r'F:(\w+)=([\d.+-]+)')
+
+    # Collect all unique F: keys first
+    all_keys = set()
+    for signal in signal_series.dropna().unique():
+        matches = f_pattern.findall(str(signal))
+        for key, _ in matches:
+            all_keys.add(key.lower())
+
+    if not all_keys:
+        return pd.DataFrame(index=signal_series.index)
+
+    # Initialize columns
+    f_features = pd.DataFrame(index=signal_series.index)
+    for key in all_keys:
+        f_features[f'f_{key}'] = np.nan
+
+    # Extract values
+    for idx, signal in signal_series.items():
+        if pd.isna(signal):
+            continue
+        matches = f_pattern.findall(str(signal))
+        for key, value in matches:
+            col_name = f'f_{key.lower()}'
+            try:
+                f_features.at[idx, col_name] = float(value)
+            except (ValueError, TypeError):
+                pass
+
+    # Fill NaN with 0 for extracted features
+    for col in f_features.columns:
+        f_features[col] = f_features[col].fillna(0)
+
+    if f_features.columns.tolist():
+        logger.info(f"Extracted F: packet features: {f_features.columns.tolist()}")
+
+    return f_features
+
+
 def engineer_features(df: pd.DataFrame) -> tuple:
     """
     Feature Engineering for Multi-Asset Super-Model.
 
+    CRITICAL: Only uses features available at ENTRY time.
+    Explicitly excludes outcome variables (future data).
+
     Creates:
     - is_win (target): 1 if profit > 0, else 0
     - asset_id: LabelEncoded symbol
-    - hour: Hour of close (0-23)
+    - hour: Hour of entry (0-23)
     - day_of_week: Day (0=Monday, 6=Sunday)
-    - type_encoded: Trade type encoded
+    - type_encoded: Trade type encoded (long/short)
     - signal_encoded: Signal type encoded
+    - f_* features: Extracted from F: packets in signals
     """
     features = pd.DataFrame()
     encoders = {}
 
-    # Filter out rows with invalid profit
+    # Filter out rows with invalid profit (needed for target)
     valid_mask = df['profit_pct'].notna()
     df_valid = df[valid_mask].copy()
 
@@ -365,11 +434,20 @@ def engineer_features(df: pd.DataFrame) -> tuple:
 
     # === FEATURE: Signal (Label Encoded) ===
     signal_values = df_valid['signal'].fillna('unknown').astype(str)
-    # Clean up signals - take first part before pipe or comma
-    signal_clean = signal_values.apply(lambda x: x.split('|')[0].split(',')[0].strip()[:50])
+    # Clean up signals - remove F: packets before encoding, take first part
+    signal_clean = signal_values.apply(
+        lambda x: re.sub(r'F:\w+=[^|]+\|?', '', x).split('|')[0].split(',')[0].strip()[:50]
+    )
+    signal_clean = signal_clean.replace('', 'unknown')
     signal_encoder = LabelEncoder()
     features['signal_encoded'] = signal_encoder.fit_transform(signal_clean)
     encoders['signal'] = signal_encoder
+
+    # === FEATURE: F: Packet Extraction (Indicator values at entry) ===
+    f_packet_features = extract_f_packet_features(df_valid['signal'])
+    if not f_packet_features.empty:
+        for col in f_packet_features.columns:
+            features[col] = f_packet_features[col].values
 
     # === OPTIONAL FEATURES: Session, Trade Score ===
     if 'session' in df_valid.columns:
@@ -387,12 +465,15 @@ def engineer_features(df: pd.DataFrame) -> tuple:
     features['source_encoded'] = source_encoder.fit_transform(source_values)
     encoders['source'] = source_encoder
 
-    # === FEATURE: Runup and Drawdown (if available) ===
-    if 'runup_pct' in df_valid.columns:
-        features['runup_pct'] = df_valid['runup_pct'].fillna(0)
-
-    if 'drawdown_pct' in df_valid.columns:
-        features['drawdown_pct'] = df_valid['drawdown_pct'].fillna(0)
+    # ==========================================================================
+    # CRITICAL: DO NOT ADD OUTCOME VARIABLES AS FEATURES
+    # The following are FORBIDDEN and must NOT be added:
+    # - runup_pct (max favorable excursion - only known after trade)
+    # - drawdown_pct (max adverse excursion - only known after trade)
+    # - net_pnl_pct, profit_pct, gross_profit, net_pnl (outcome)
+    # - exit_time (only known after trade closes)
+    # - trade_# (sequential, causes data leakage)
+    # ==========================================================================
 
     # Keep symbol for per-asset accuracy calculation
     features['_symbol'] = df_valid['symbol'].values
@@ -409,13 +490,48 @@ def engineer_features(df: pd.DataFrame) -> tuple:
 def train_super_model(features: pd.DataFrame, encoders: dict) -> tuple:
     """
     Train a single RandomForestClassifier on the combined multi-asset dataset.
+
+    CRITICAL: Explicitly drops forbidden columns before training to prevent
+    any data leakage from outcome variables.
     """
     # Separate target, features, and metadata
     y = features['is_win']
     symbols = features['_symbol']
     X = features.drop(columns=['is_win', '_symbol'])
 
+    # ==========================================================================
+    # CRITICAL DATA LEAKAGE PREVENTION
+    # Explicitly drop any forbidden columns that might have slipped through
+    # ==========================================================================
+    columns_to_drop = []
+    for col in X.columns:
+        col_lower = col.lower()
+        for forbidden in FORBIDDEN_COLUMNS:
+            if forbidden in col_lower:
+                columns_to_drop.append(col)
+                break
+
+    if columns_to_drop:
+        logger.warning(f"⚠️  DROPPING FORBIDDEN COLUMNS (data leakage prevention): {columns_to_drop}")
+        X = X.drop(columns=columns_to_drop)
+
     feature_names = X.columns.tolist()
+
+    # ==========================================================================
+    # PRINT FINAL FEATURE LIST - CONFIRM NO LEAKAGE
+    # ==========================================================================
+    print("\n" + "=" * 60)
+    print("✅ FINAL FEATURE LIST (Data Leakage Check)")
+    print("=" * 60)
+    print(f"\nFeatures being used ({len(feature_names)}):")
+    for i, name in enumerate(feature_names, 1):
+        print(f"  {i:2}. {name}")
+
+    print(f"\n🛡️  Forbidden columns explicitly excluded:")
+    for col in FORBIDDEN_COLUMNS:
+        print(f"  ✗ {col}")
+    print("=" * 60)
+
     logger.info(f"\nTraining with {len(feature_names)} features: {feature_names}")
 
     # Split: 80% Train / 20% Test (stratified by target)
@@ -547,7 +663,9 @@ def save_artifacts(model, encoders: dict):
 
     metadata = {
         'trained_at': datetime.now().isoformat(),
-        'version': '4.0',
+        'version': '5.0',
+        'data_leakage_fix': True,
+        'forbidden_columns': FORBIDDEN_COLUMNS,
         'feature_names': model.feature_names_,
         'n_estimators': model.n_estimators,
         'max_depth': model.max_depth,
@@ -564,6 +682,11 @@ def save_artifacts(model, encoders: dict):
         json.dump(metadata, f, indent=2)
     print(f"✅ Metadata saved to: {metadata_path}")
 
+    # Print feature list confirmation
+    print(f"\n📋 Model trained with {len(model.feature_names_)} features:")
+    for feat in model.feature_names_:
+        print(f"   • {feat}")
+
 
 # ============================================================================
 # MAIN
@@ -574,7 +697,8 @@ def main(data_path: str = None):
     Main training pipeline for Multi-Asset Super-Model.
     """
     print("\n" + "=" * 60)
-    print("🧠 AI GUARDIAN MULTI-ASSET SUPER-MODEL TRAINING v4.0")
+    print("🧠 AI GUARDIAN MULTI-ASSET SUPER-MODEL TRAINING v5.0")
+    print("   (Critical Fix: Data Leakage Removed)")
     print("=" * 60)
 
     # 1. Determine data path
@@ -605,7 +729,7 @@ def main(data_path: str = None):
 
     # 4. Feature engineering
     print("\n" + "-" * 60)
-    print("⚙️  FEATURE ENGINEERING")
+    print("⚙️  FEATURE ENGINEERING (Leakage-Free)")
     print("-" * 60)
     features, encoders = engineer_features(df)
 
@@ -620,6 +744,7 @@ def main(data_path: str = None):
 
     print("\n" + "=" * 60)
     print("🎉 TRAINING COMPLETE! The AI Guardian Brain is ready.")
+    print("   ✅ No data leakage - model uses only entry-time features")
     print("=" * 60 + "\n")
 
 
@@ -627,7 +752,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(
-        description='Train AI Guardian Multi-Asset Super-Model'
+        description='Train AI Guardian Multi-Asset Super-Model (v5.0 - Data Leakage Fix)'
     )
     parser.add_argument(
         '--data', '-d',
