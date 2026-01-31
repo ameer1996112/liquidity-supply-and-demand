@@ -1,6 +1,19 @@
 {
-  "trained_at": "2026-01-31T15:28:00.174893",
-  "version": "4.0",
+  "trained_at": "2026-01-31T16:06:03.055892",
+  "version": "5.0",
+  "data_leakage_fix": true,
+  "forbidden_columns": [
+    "runup_pct",
+    "drawdown_pct",
+    "net_pnl_pct",
+    "profit_pct",
+    "gross_profit",
+    "net_pnl",
+    "exit_time",
+    "trade_#",
+    "trade_num",
+    "trade_number"
+  ],
   "feature_names": [
     "asset_id",
     "hour",
@@ -9,40 +22,38 @@
     "signal_encoded",
     "session_encoded",
     "liq_distance",
-    "source_encoded",
-    "runup_pct",
-    "drawdown_pct"
+    "source_encoded"
   ],
   "n_estimators": 200,
   "max_depth": 10,
   "asset_leaderboard": [
     {
-      "symbol": "GBPCAD",
-      "accuracy": 0.9572649572649573,
-      "samples": 117,
-      "win_rate": 0.3076923076923077
-    },
-    {
-      "symbol": "USDJPY",
-      "accuracy": 0.9304347826086956,
-      "samples": 115,
-      "win_rate": 0.28695652173913044
-    },
-    {
       "symbol": "EURUSD",
-      "accuracy": 0.9279279279279279,
+      "accuracy": 0.8108108108108109,
       "samples": 111,
       "win_rate": 0.23423423423423423
     },
     {
+      "symbol": "GBPCAD",
+      "accuracy": 0.7264957264957265,
+      "samples": 117,
+      "win_rate": 0.3076923076923077
+    },
+    {
       "symbol": "GBPJPY",
-      "accuracy": 0.9096774193548387,
+      "accuracy": 0.7161290322580646,
       "samples": 155,
       "win_rate": 0.23870967741935484
     },
     {
+      "symbol": "USDJPY",
+      "accuracy": 0.6782608695652174,
+      "samples": 115,
+      "win_rate": 0.28695652173913044
+    },
+    {
       "symbol": "XAUUSD",
-      "accuracy": 0.8431372549019608,
+      "accuracy": 0.5784313725490197,
       "samples": 204,
       "win_rate": 0.43137254901960786
     }
@@ -68,11 +79,11 @@
       "flip"
     ],
     "signal": [
-      "",
       "Long Exit",
       "S&D Retest",
       "Short Exit",
-      "Time Stop (Bars)"
+      "Time Stop (Bars)",
+      "unknown"
     ],
     "session": [
       "London",
