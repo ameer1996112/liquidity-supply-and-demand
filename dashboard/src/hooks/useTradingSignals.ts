@@ -11,6 +11,7 @@ import {
 import {
   TradingSignal,
   TradingMode,
+  SignalStatus,
   RealtimePayload,
   normalizeSignal,
 } from '@/types/trading';
@@ -129,10 +130,12 @@ export function useTradingSignals(mode?: TradingMode) {
       });
 
       // Normalize run_mode (uppercase) and status (lowercase) for case-insensitive filtering
-      const signals = rawSignals.map((s) => ({
+      const signals: TradingSignal[] = rawSignals.map((s) => ({
         ...s,
-        mode: s.mode ? String(s.mode).toUpperCase() : s.mode,
-        status: s.status ? String(s.status).toLowerCase() : s.status,
+        mode: s.mode ? (String(s.mode).toUpperCase() as TradingMode) : s.mode,
+        status: (s.status
+          ? String(s.status).toLowerCase()
+          : 'pending') as SignalStatus,
       }));
 
       // Debug: Log raw data for field mapping verification
