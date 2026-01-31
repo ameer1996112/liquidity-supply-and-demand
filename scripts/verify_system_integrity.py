@@ -7,25 +7,19 @@ from dotenv import load_dotenv
 from supabase import create_client, Client
 
 # --- CONFIGURATION & SETUP ---
-# Auto-discover .env: scripts/, project root, backend/
+# Auto-discover .env: scripts/, root, backend/
 current_dir = Path(__file__).resolve().parent
 project_root = current_dir.parent
-env_candidates = [
-    current_dir / ".env",
-    project_root / ".env",
-    project_root / "backend" / ".env",
-]
 env_path = None
-for p in env_candidates:
+for p in [current_dir / ".env", project_root / ".env", project_root / "backend" / ".env"]:
     if p.exists():
         load_dotenv(dotenv_path=p)
         env_path = p
         break
-
 if env_path:
     print(f"🔍 Loaded .env from: {env_path}")
 else:
-    print("   ⚠️  WARNING: No .env found (scripts/, root, backend/). Using system vars.")
+    print("   ⚠️  No .env found (scripts/, root, backend/). Using system vars.")
 
 BASE_URL = os.getenv("WEBHOOK_URL", os.getenv("API_URL", "https://grand-learning-production-bc96.up.railway.app")).strip().rstrip("/")
 SECRET = os.getenv("WEBHOOK_SECRET", "c817492a65caa767fdc438f61b8c2b64404a4e4aa6d9edfac74514c07bae20c6")
@@ -76,8 +70,11 @@ def verify_db_status(symbol, expected_status_list):
             if status in expected_status_list:
                 return True, status, prob, record['notes']
             
+            # Debugging Help
+            if status == 'risk_rejected':
+                 return False, status, 0, f"Risk Rejection: {record.get('notes')}"
             if status == 'pine_rejected':
-                 return False, status, 0, record['notes']
+                 return False, status, 0, f"Pine Rejection: {record.get('notes')}"
                  
     return False, "TIMEOUT", 0, "Worker did not process in time"
 
@@ -85,7 +82,7 @@ def verify_db_status(symbol, expected_status_list):
 # 🚀 STARTING THE TEST SUITE
 # ==========================================
 
-print("\n🤖 TRINITY SYSTEM INTEGRITY CHECK (CORRECTED MATH MODE)")
+print("\n🤖 TRINITY SYSTEM INTEGRITY CHECK (BUFFERED MATH MODE)")
 print(f"Target: {BASE_URL}")
 
 # --- TEST 1: RISK ENGINE ---
@@ -103,36 +100,35 @@ else:
 print("\n🧪 TESTING: CORRELATION GUARD")
 good_features = " | F:75,8,2,0,0.57,0,1,63.56,1,0,32.82,0,100,38.38,98.2,2.8,36.67"
 
-print("👉 Filling Slot 1: EURUSD (0.2 lots)...")
-send_signal("EURUSD", size=0.2, signal_features=good_features, entry=1.1000, sl=1.0950)
+# NOTE: Using 0.19 lots ($95 risk) to safely clear the $100 limit
+print("👉 Filling Slot 1: EURUSD (0.19 lots)...")
+send_signal("EURUSD", size=0.19, signal_features=good_features, entry=1.1000, sl=1.0950)
 time.sleep(1)
 
-print("👉 Filling Slot 2: GBPUSD (0.2 lots)...")
-send_signal("GBPUSD", size=0.2, signal_features=good_features, entry=1.2500, sl=1.2450)
+print("👉 Filling Slot 2: GBPUSD (0.19 lots)...")
+send_signal("GBPUSD", size=0.19, signal_features=good_features, entry=1.2500, sl=1.2450)
 time.sleep(1)
 
-print("👉 Filling Slot 3: AUDUSD (0.2 lots)...")
-send_signal("AUDUSD", size=0.2, signal_features=good_features, entry=0.6500, sl=0.6450)
+print("👉 Filling Slot 3: AUDUSD (0.19 lots)...")
+send_signal("AUDUSD", size=0.19, signal_features=good_features, entry=0.6500, sl=0.6450)
 time.sleep(1)
 
 print("👉 Sending 4th Trade: NZDUSD (Should Fail due to limit)...")
-send_signal("NZDUSD", size=0.2, signal_features=good_features, entry=0.6000, sl=0.5950)
+send_signal("NZDUSD", size=0.19, signal_features=good_features, entry=0.6000, sl=0.5950)
 
 success, status, _, note = verify_db_status("NZDUSD", ["correlation_rejected"])
 if success: 
     print(f"✅ PASS: Overflow blocked with status '{status}'")
-elif status == 'pine_rejected':
-    print(f"⚠️ FAIL: Trade rejected by Pine Guardian (Size mismatch). Adjust script size.")
-    print(f"   Note: {note}")
 else: 
     print(f"❌ FAIL: Expected 'correlation_rejected', got '{status}'")
+    print(f"   Reason: {note}")
 
 # --- TEST 3: AI BRAIN ---
 print("\n🧪 TESTING: AI GUARDIAN")
 
-# Naked Signal (GBPCAD) -> 0.2 Lots
+# Naked Signal (GBPCAD) -> 0.19 Lots
 print("👉 Sending 'Naked' GBPCAD...")
-send_signal("GBPCAD", size=0.2, signal_features="Unknown", entry=1.7000, sl=1.6950)
+send_signal("GBPCAD", size=0.19, signal_features="Unknown", entry=1.7000, sl=1.6950)
 success, status, prob, _ = verify_db_status("GBPCAD", ["ml_rejected", "active"])
 
 if success:
@@ -145,9 +141,9 @@ if success:
 else:
     print(f"❌ FAIL: Expected processed, got '{status}'")
 
-# Rich Signal (USDJPY) -> 0.3 Lots (JPY pairs need larger size for same risk)
-print("\n👉 Sending 'Rich' USDJPY (0.3 lots)...")
-send_signal("USDJPY", size=0.3, signal_features=good_features, entry=155.00, sl=154.50)
+# Rich Signal (USDJPY) -> 0.29 Lots (JPY needs slightly more size, using 0.29 for buffer)
+print("\n👉 Sending 'Rich' USDJPY (0.29 lots)...")
+send_signal("USDJPY", size=0.29, signal_features=good_features, entry=155.00, sl=154.50)
 success, status, prob, _ = verify_db_status("USDJPY", ["active"])
 
 if success:
