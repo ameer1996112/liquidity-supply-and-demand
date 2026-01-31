@@ -31,3 +31,6 @@ supabase==2.10.0
 
 # AI Guardian (OpenAI provider)
 openai>=1.0.0
+
+# Live market data (MarketAdapter v2.1)
+yfinance>=0.2.36

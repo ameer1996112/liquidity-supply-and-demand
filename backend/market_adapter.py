@@ -21,13 +21,209 @@ Author: Trinity Engine v2.0
 """
 
 import logging
+import time
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, Optional, Tuple
 
+import yfinance as yf
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
+
+
+# ══════════════════════════════════════════════════════════
+# PRICE CACHE - Prevents API spam, 60-second TTL
+# ══════════════════════════════════════════════════════════
+
+class PriceCache:
+    """
+    Simple in-memory price cache with TTL.
+
+    Prevents excessive API calls by caching prices for 60 seconds.
+    Thread-safe for basic read/write operations.
+    """
+
+    def __init__(self, ttl_seconds: int = 60):
+        self._cache: Dict[str, Tuple[float, float]] = {}  # symbol -> (price, timestamp)
+        self._ttl = ttl_seconds
+
+    def get(self, symbol: str) -> Optional[float]:
+        """Get cached price if still valid."""
+        if symbol in self._cache:
+            price, timestamp = self._cache[symbol]
+            if time.time() - timestamp < self._ttl:
+                logger.debug(f"PriceCache HIT: {symbol} = {price}")
+                return price
+            else:
+                logger.debug(f"PriceCache EXPIRED: {symbol}")
+                del self._cache[symbol]
+        return None
+
+    def set(self, symbol: str, price: float) -> None:
+        """Cache a price with current timestamp."""
+        self._cache[symbol] = (price, time.time())
+        logger.debug(f"PriceCache SET: {symbol} = {price}")
+
+    def clear(self) -> None:
+        """Clear all cached prices."""
+        self._cache.clear()
+        logger.info("PriceCache cleared")
+
+
+# Global price cache instance
+_price_cache = PriceCache(ttl_seconds=60)
+
+
+# ══════════════════════════════════════════════════════════
+# SYMBOL MAPPING - Convert broker symbols to Yahoo Finance format
+# ══════════════════════════════════════════════════════════
+
+# Yahoo Finance symbol mappings
+YAHOO_SYMBOL_MAP: Dict[str, str] = {
+    # Forex pairs -> Add =X suffix
+    "EURUSD": "EURUSD=X",
+    "GBPUSD": "GBPUSD=X",
+    "USDJPY": "USDJPY=X",
+    "USDCHF": "USDCHF=X",
+    "AUDUSD": "AUDUSD=X",
+    "USDCAD": "USDCAD=X",
+    "NZDUSD": "NZDUSD=X",
+    "EURJPY": "EURJPY=X",
+    "GBPJPY": "GBPJPY=X",
+    "EURGBP": "EURGBP=X",
+    "AUDJPY": "AUDJPY=X",
+    "CADJPY": "CADJPY=X",
+    "CHFJPY": "CHFJPY=X",
+    "EURAUD": "EURAUD=X",
+    "EURCAD": "EURCAD=X",
+    "EURCHF": "EURCHF=X",
+    "GBPAUD": "GBPAUD=X",
+    "GBPCAD": "GBPCAD=X",
+    "GBPCHF": "GBPCHF=X",
+    "AUDCAD": "AUDCAD=X",
+    "AUDCHF": "AUDCHF=X",
+    "AUDNZD": "AUDNZD=X",
+    "NZDJPY": "NZDJPY=X",
+
+    # Precious metals
+    "XAUUSD": "GC=F",      # Gold futures
+    "GOLD": "GC=F",
+    "XAGUSD": "SI=F",      # Silver futures
+    "SILVER": "SI=F",
+
+    # Crypto -> Add -USD suffix
+    "BTCUSD": "BTC-USD",
+    "ETHUSD": "ETH-USD",
+    "BTCUSDT": "BTC-USD",
+    "ETHUSDT": "ETH-USD",
+
+    # Indices
+    "US30": "^DJI",        # Dow Jones
+    "DJ30": "^DJI",
+    "DJI": "^DJI",
+    "NAS100": "^NDX",      # NASDAQ 100
+    "NDX": "^NDX",
+    "USTEC": "^NDX",
+    "US100": "^NDX",
+    "SPX500": "^GSPC",     # S&P 500
+    "SPX": "^GSPC",
+    "US500": "^GSPC",
+    "SP500": "^GSPC",
+}
+
+
+def map_to_yahoo_symbol(symbol: str) -> str:
+    """
+    Convert broker symbol to Yahoo Finance symbol.
+
+    Args:
+        symbol: Broker symbol (e.g., "EURUSD", "BTCUSD", "XAUUSD")
+
+    Returns:
+        Yahoo Finance symbol (e.g., "EURUSD=X", "BTC-USD", "GC=F")
+    """
+    symbol_upper = symbol.upper().replace(".", "").replace("/", "")
+
+    # Direct mapping first
+    if symbol_upper in YAHOO_SYMBOL_MAP:
+        return YAHOO_SYMBOL_MAP[symbol_upper]
+
+    # Auto-detect forex pairs (6 letters, all alpha)
+    if len(symbol_upper) == 6 and symbol_upper.isalpha():
+        return f"{symbol_upper}=X"
+
+    # Auto-detect crypto (ends with USD/USDT)
+    if symbol_upper.endswith("USD") and len(symbol_upper) > 3:
+        base = symbol_upper[:-3]
+        if base in ["BTC", "ETH", "SOL", "XRP", "ADA", "DOGE", "DOT", "LINK", "AVAX", "MATIC"]:
+            return f"{base}-USD"
+
+    if symbol_upper.endswith("USDT") and len(symbol_upper) > 4:
+        base = symbol_upper[:-4]
+        return f"{base}-USD"
+
+    # Return as-is if no mapping found
+    logger.warning(f"No Yahoo symbol mapping for: {symbol}, using as-is")
+    return symbol
+
+
+def fetch_live_price(symbol: str) -> Optional[float]:
+    """
+    Fetch live price from Yahoo Finance.
+
+    Uses caching to prevent excessive API calls.
+
+    Args:
+        symbol: Broker symbol (will be mapped to Yahoo format)
+
+    Returns:
+        Current price or None if fetch failed
+    """
+    symbol_upper = symbol.upper().replace(".", "").replace("/", "")
+
+    # Check cache first
+    cached_price = _price_cache.get(symbol_upper)
+    if cached_price is not None:
+        return cached_price
+
+    # Map to Yahoo symbol
+    yahoo_symbol = map_to_yahoo_symbol(symbol)
+
+    try:
+        ticker = yf.Ticker(yahoo_symbol)
+
+        # Try to get the most recent price
+        # fast_info is quicker but may not always be available
+        price = None
+
+        # Method 1: fast_info (fastest)
+        try:
+            fast_info = ticker.fast_info
+            if hasattr(fast_info, 'last_price') and fast_info.last_price:
+                price = float(fast_info.last_price)
+            elif hasattr(fast_info, 'previous_close') and fast_info.previous_close:
+                price = float(fast_info.previous_close)
+        except Exception:
+            pass
+
+        # Method 2: history (more reliable but slower)
+        if price is None:
+            hist = ticker.history(period="1d", interval="1m")
+            if not hist.empty:
+                price = float(hist['Close'].iloc[-1])
+
+        if price is not None and price > 0:
+            _price_cache.set(symbol_upper, price)
+            logger.info(f"Live price fetched: {symbol} ({yahoo_symbol}) = {price}")
+            return price
+        else:
+            logger.warning(f"No valid price data for {symbol} ({yahoo_symbol})")
+            return None
+
+    except Exception as e:
+        logger.error(f"Failed to fetch price for {symbol} ({yahoo_symbol}): {e}")
+        return None
 
 
 # ══════════════════════════════════════════════════════════
@@ -250,6 +446,11 @@ class MarketAdapter:
     Handles the complexity of multi-asset position sizing, ensuring
     precise execution across all supported markets.
 
+    NOW WITH LIVE PRICING (v2.1):
+    - Fetches real-time prices from Yahoo Finance via yfinance
+    - 60-second price cache to prevent API spam
+    - Automatic fallback to entry_price if API fails
+
     Usage:
         adapter = MarketAdapter()
 
@@ -263,22 +464,119 @@ class MarketAdapter:
         print(f"Trade {result.lots_rounded} lots (risk ${result.risk_usd})")
     """
 
+    # Default fallback USDJPY rate (used only if live fetch fails)
+    DEFAULT_USDJPY_RATE = 150.0
+
     def __init__(
         self,
-        usdjpy_rate: float = 150.0,
+        usdjpy_rate: Optional[float] = None,
         index_point_values: Optional[Dict[str, float]] = None,
+        use_live_prices: bool = True,
     ):
         """
-        Initialize Market Adapter.
+        Initialize Market Adapter with live pricing support.
 
         Args:
-            usdjpy_rate: Current USDJPY rate for JPY pair calculations
+            usdjpy_rate: Override USDJPY rate (None = fetch live)
             index_point_values: Override point values for indices (broker-specific)
+            use_live_prices: Enable/disable live price fetching (default: True)
         """
-        self.usdjpy_rate = usdjpy_rate
+        self._static_usdjpy_rate = usdjpy_rate
         self.index_point_values = index_point_values or {}
+        self.use_live_prices = use_live_prices
 
-        logger.info(f"MarketAdapter initialized: USDJPY={usdjpy_rate}")
+        # Initialize with live rate if enabled
+        if use_live_prices and usdjpy_rate is None:
+            live_rate = self.get_current_price("USDJPY")
+            self._cached_usdjpy_rate = live_rate if live_rate else self.DEFAULT_USDJPY_RATE
+        else:
+            self._cached_usdjpy_rate = usdjpy_rate or self.DEFAULT_USDJPY_RATE
+
+        logger.info(
+            f"MarketAdapter initialized: USDJPY={self._cached_usdjpy_rate}, "
+            f"live_prices={'enabled' if use_live_prices else 'disabled'}"
+        )
+
+    @property
+    def usdjpy_rate(self) -> float:
+        """
+        Get current USDJPY rate (live or cached).
+
+        Fetches live rate if enabled, otherwise uses static/cached value.
+        """
+        if self._static_usdjpy_rate is not None:
+            return self._static_usdjpy_rate
+
+        if self.use_live_prices:
+            live_rate = self.get_current_price("USDJPY")
+            if live_rate:
+                self._cached_usdjpy_rate = live_rate
+                return live_rate
+
+        return self._cached_usdjpy_rate
+
+    def get_current_price(
+        self,
+        symbol: str,
+        fallback_price: Optional[float] = None,
+    ) -> Optional[float]:
+        """
+        Get current price for a symbol with fallback support.
+
+        This is the primary method for getting live prices. It:
+        1. Checks the 60-second cache first
+        2. Fetches from Yahoo Finance if cache miss
+        3. Falls back to provided price if API fails
+
+        Args:
+            symbol: Trading symbol (e.g., "EURUSD", "XAUUSD", "BTCUSD")
+            fallback_price: Price to use if API fetch fails (e.g., entry_price)
+
+        Returns:
+            Current price, fallback price, or None if no fallback provided
+        """
+        if not self.use_live_prices:
+            logger.debug(f"Live prices disabled, using fallback for {symbol}")
+            return fallback_price
+
+        # Try to fetch live price
+        live_price = fetch_live_price(symbol)
+
+        if live_price is not None:
+            return live_price
+
+        # Fallback to provided price
+        if fallback_price is not None:
+            logger.warning(
+                f"Using fallback price for {symbol}: {fallback_price} "
+                "(live fetch failed)"
+            )
+            return fallback_price
+
+        logger.error(f"No price available for {symbol} (no fallback provided)")
+        return None
+
+    def refresh_prices(self, symbols: Optional[list] = None) -> Dict[str, Optional[float]]:
+        """
+        Pre-fetch and cache prices for multiple symbols.
+
+        Useful for warming up the cache before processing a batch of signals.
+
+        Args:
+            symbols: List of symbols to fetch (None = common symbols)
+
+        Returns:
+            Dict of symbol -> price (or None if fetch failed)
+        """
+        if symbols is None:
+            symbols = ["USDJPY", "EURUSD", "GBPUSD", "XAUUSD", "BTCUSD"]
+
+        results = {}
+        for symbol in symbols:
+            results[symbol] = self.get_current_price(symbol)
+
+        logger.info(f"Refreshed prices for {len(symbols)} symbols")
+        return results
 
     def get_asset_specs(self, symbol: str) -> Tuple[AssetClass, AssetSpecs]:
         """
@@ -515,6 +813,10 @@ def create_market_adapter_from_settings() -> MarketAdapter:
     """
     Factory function to create MarketAdapter from config settings.
 
+    Supports live pricing configuration via environment:
+    - USE_LIVE_PRICES: Enable/disable live price fetching (default: True)
+    - USDJPY_RATE: Override USDJPY rate (None = fetch live)
+
     Returns:
         MarketAdapter instance configured from environment
     """
@@ -522,8 +824,11 @@ def create_market_adapter_from_settings() -> MarketAdapter:
 
     settings = get_settings()
 
-    # Get broker-specific settings (with fallbacks)
-    usdjpy_rate = getattr(settings, "usdjpy_rate", 150.0)
+    # Live pricing configuration (default: enabled for funded accounts)
+    use_live_prices = getattr(settings, "use_live_prices", True)
+
+    # USDJPY rate override (None = use live rate)
+    usdjpy_rate = getattr(settings, "usdjpy_rate", None)
 
     # Index point values can be overridden per broker
     index_point_values = {}
@@ -535,4 +840,10 @@ def create_market_adapter_from_settings() -> MarketAdapter:
     return MarketAdapter(
         usdjpy_rate=usdjpy_rate,
         index_point_values=index_point_values,
+        use_live_prices=use_live_prices,
     )
+
+
+def get_price_cache() -> PriceCache:
+    """Get the global price cache instance (for testing/monitoring)."""
+    return _price_cache
