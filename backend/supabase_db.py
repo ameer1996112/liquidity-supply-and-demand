@@ -384,6 +384,88 @@ def log_ai_rejection(data: dict, rejection_reason: str, ai_result: dict = None) 
         return None
 
 
+def log_pine_rejection(data: dict, rejection_reason: str, pine_result: dict = None) -> Optional[int]:
+    """
+    Log Pine Guardian rejection to Supabase.
+
+    Creates a trading_signals entry with status='pine_rejected' for tracking
+    position sizing mismatches and risk limit violations.
+
+    Pine Guardian Rules Enforced:
+    - POSITION SIZE VALIDATION: Recalculates lot size using Pine Script formula
+    - DAILY LOSS LIMIT: Blocks if daily loss exceeds max_daily_loss_pct
+    - DAILY PROFIT TARGET: Blocks if daily profit reaches max_daily_profit_pct
+    - MAX TRADES/DAY: Blocks if trade count exceeds limit
+
+    Args:
+        data: Original trade payload from TradingView webhook
+        rejection_reason: Human-readable reason for rejection
+        pine_result: Pine Guardian validation result dict
+
+    Returns:
+        alert_id if logged successfully, None on error
+    """
+    if not supabase:
+        init_supabase()
+
+    # Ensure minimal required fields
+    entry_data = dict(data)
+    defaults = {'symbol': 'unknown', 'side': 'buy', 'entry': 0.0, 'sl': 0.0, 'tp': 0.0, 'size': 0.0}
+    for k in ('symbol', 'side', 'entry', 'sl', 'tp', 'size'):
+        if k not in entry_data or entry_data[k] is None:
+            entry_data[k] = defaults.get(k, 0.0)
+
+    # Build Pine-specific filter reasons
+    filter_reasons = ["PINE_REJECTED"]
+    if pine_result:
+        reason_type = pine_result.get('rejection_reason', 'UNKNOWN')
+        filter_reasons.append(f"reason={reason_type}")
+
+        if pine_result.get('variance_percent'):
+            filter_reasons.append(f"variance={pine_result['variance_percent']:.1f}%")
+
+        if pine_result.get('calculated_lots') and pine_result.get('requested_lots'):
+            filter_reasons.append(
+                f"calc={pine_result['calculated_lots']:.3f}_vs_req={pine_result['requested_lots']:.3f}"
+            )
+
+    try:
+        # Save alert with pine_rejected status
+        alert_id = save_alert(entry_data, mode='manual', filter_reasons=filter_reasons)
+
+        # Build notes with full Pine validation details
+        notes_parts = [f"PINE_REJECTION: {rejection_reason}"]
+        if pine_result:
+            if pine_result.get('calculated_lots'):
+                notes_parts.append(f"Calculated: {pine_result['calculated_lots']:.3f} lots")
+            if pine_result.get('requested_lots'):
+                notes_parts.append(f"Requested: {pine_result['requested_lots']:.3f} lots")
+            if pine_result.get('variance_percent'):
+                notes_parts.append(f"Variance: {pine_result['variance_percent']:.1f}%")
+            if pine_result.get('details'):
+                details = pine_result['details']
+                if details.get('risk_pct'):
+                    notes_parts.append(f"Risk: {details['risk_pct']}%")
+                if details.get('sl_pips'):
+                    notes_parts.append(f"SL: {details['sl_pips']:.1f} pips")
+
+        notes = " | ".join(notes_parts)
+
+        # Update status to pine_rejected
+        update_alert_status(alert_id, 'pine_rejected', notes=notes[:1000])
+
+        logger.info(
+            f"✅ Pine rejection logged: alert_id={alert_id}, "
+            f"symbol={data.get('symbol')}, zone_id={data.get('zone_id')}, "
+            f"reason={rejection_reason[:100]}"
+        )
+        return alert_id
+
+    except Exception as e:
+        logger.error(f"❌ Failed to log Pine rejection to Supabase: {e}")
+        return None
+
+
 def get_statistics(run_mode: str = None, run_id: str = None) -> Dict[str, Any]:
     """
     Calculate trading statistics

@@ -46,6 +46,10 @@ REDIS_RETRY_MAX_SEC = 60
 _ai_guardian = None
 _ai_guardian_initialized = False
 
+# Global Pine Guardian instance (lazy initialized)
+_pine_guardian = None
+_pine_guardian_initialized = False
+
 
 def _get_ai_guardian():
     """
@@ -75,6 +79,82 @@ def _get_ai_guardian():
         _ai_guardian = None
 
     return _ai_guardian
+
+
+def _get_pine_guardian():
+    """
+    Lazy-load Pine Guardian singleton.
+
+    Pine Guardian validates position sizing and risk limits against
+    the exact formulas from SND_Strategy.pine (Source of Truth).
+
+    Returns:
+        PineGuardian instance or None on error
+    """
+    global _pine_guardian, _pine_guardian_initialized
+
+    if _pine_guardian_initialized:
+        return _pine_guardian
+
+    _pine_guardian_initialized = True
+
+    try:
+        from backend.pine_guardian import create_pine_guardian_from_settings
+        _pine_guardian = create_pine_guardian_from_settings()
+        logger.info("Pine Guardian initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize Pine Guardian: {e}")
+        _pine_guardian = None
+
+    return _pine_guardian
+
+
+def _run_pine_validation(data: Dict[str, Any], current_balance: float) -> Tuple[bool, Optional[str], Optional[Dict[str, Any]]]:
+    """
+    Run Pine Guardian validation on trade signal.
+
+    Validates position sizing against Pine Script formulas to catch:
+    - Fat finger errors (oversized positions)
+    - Calculation bugs in TradingView signals
+    - Daily limit violations
+
+    Args:
+        data: Raw trade payload from queue
+        current_balance: Current account balance in USD
+
+    Returns:
+        Tuple of (should_proceed, rejection_reason, details_dict)
+        - should_proceed: True to continue, False to reject
+        - rejection_reason: Human-readable reason if rejected
+        - details_dict: Validation details for logging
+    """
+    guardian = _get_pine_guardian()
+
+    if guardian is None:
+        return True, None, {"decision": "SKIP_CHECK", "reason": "Pine Guardian not initialized"}
+
+    try:
+        from backend.pine_guardian import ValidationResult
+
+        result = guardian.validate_signal(data, current_balance)
+
+        result_dict = {
+            "is_valid": result.is_valid,
+            "rejection_reason": result.rejection_reason.value if result.rejection_reason else None,
+            "calculated_lots": result.calculated_lots,
+            "requested_lots": result.requested_lots,
+            "variance_percent": result.variance_percent,
+            "details": result.details,
+        }
+
+        if not result.is_valid:
+            return False, result.rejection_message, result_dict
+
+        return True, None, result_dict
+
+    except Exception as e:
+        logger.error(f"Pine Guardian error: {e} - allowing trade (fail-open)")
+        return True, None, {"decision": "SKIP_CHECK", "reason": f"Error: {str(e)[:100]}"}
 
 
 async def _run_ai_validation(data: Dict[str, Any]) -> Tuple[bool, Optional[str], Optional[Dict[str, Any]]]:
@@ -215,9 +295,44 @@ def run():
             logger.exception("Queue read error: %s", e)
             continue
 
+        # === PINE GUARDIAN VALIDATION (Position Sizing & Risk Limits) ===
+        # Skip for exit events (only validate entries)
+        is_entry_event = data.get("event_type") != "exit"
+
+        if is_entry_event:
+            try:
+                should_proceed, rejection_reason, pine_result = _run_pine_validation(
+                    data, current_balance=s.account_balance
+                )
+
+                if not should_proceed:
+                    # Log rejection to Supabase
+                    try:
+                        supabase_db.log_pine_rejection(data, rejection_reason, pine_result)
+                    except Exception as log_err:
+                        logger.error(f"Failed to log Pine Guardian rejection to Supabase: {log_err}")
+
+                    logger.warning(
+                        f"Pine Guardian REJECTED: {data.get('symbol')} {data.get('side')} "
+                        f"size={data.get('size')} - {rejection_reason}"
+                    )
+                    continue  # Skip this trade
+
+                # Append Pine validation details to data for logging
+                if pine_result:
+                    data["pine_calculated_lots"] = pine_result.get("calculated_lots")
+                    data["pine_variance_pct"] = pine_result.get("variance_percent")
+
+                logger.info(
+                    f"Pine Guardian APPROVED: {data.get('symbol')} {data.get('side')} "
+                    f"size={data.get('size')} (variance={pine_result.get('variance_percent', 0):.1f}%)"
+                )
+
+            except Exception as e:
+                logger.error(f"Pine Guardian wrapper error: {e} - allowing trade (fail-open)")
+
         # === AI GUARDIAN VALIDATION ===
         # Skip AI check for exit events (only validate entries)
-        is_entry_event = data.get("event_type") != "exit"
 
         if is_entry_event and s.ai_filter_enabled:
             try:
