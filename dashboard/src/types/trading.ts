@@ -3,13 +3,13 @@
 
 export type SignalSide = 'buy' | 'sell' | 'BUY' | 'SELL';
 export type SignalStatus =
-  | 'active'      // Live trade
-  | 'closed'      // Trade completed
-  | 'filtered'    // Pre-execution filter
+  | 'active' // Live trade
+  | 'closed' // Trade completed
+  | 'filtered' // Pre-execution filter
   | 'ai_rejected' // AI veto
-  | 'executed'    // Legacy: filled
-  | 'pending'     // Awaiting execution
-  | 'failed';     // Execution failed
+  | 'executed' // Legacy: filled
+  | 'pending' // Awaiting execution
+  | 'failed'; // Execution failed
 
 export type TradingMode = 'LIVE' | 'PAPER';
 
@@ -50,28 +50,28 @@ export interface TradingSignal {
   updated_at?: string;
 
   // Asset identification
-  symbol: string;           // e.g., "BTCUSD", "XAUUSD"
-  ticker?: string;          // Legacy alias for symbol
+  symbol: string; // e.g., "BTCUSD", "XAUUSD"
+  ticker?: string; // Legacy alias for symbol
 
   // Direction
-  side: SignalSide;         // "buy" or "sell"
-  action?: SignalSide;      // Legacy alias for side
+  side: SignalSide; // "buy" or "sell"
+  action?: SignalSide; // Legacy alias for side
 
   // Entry parameters
-  price?: number;           // Entry price
-  entry?: number;           // Alternative entry field
+  price?: number; // Entry price
+  entry?: number; // Alternative entry field
   stop_loss?: number;
-  sl?: number;              // Alternative SL field
+  sl?: number; // Alternative SL field
   take_profit?: number;
-  tp?: number;              // Alternative TP field
+  tp?: number; // Alternative TP field
   position_size?: number;
 
   // AI Analysis
-  score?: number;           // AI confidence 0-100
-  ai_confidence?: number;   // Legacy alias for score
-  notes?: string | null;    // AI reasoning text
+  score?: number; // AI confidence 0-100
+  ai_confidence?: number; // Legacy alias for score
+  notes?: string | null; // AI reasoning text
   ai_reasoning?: AIReasoning | string | null; // Structured or stringified JSON
-  filter_reason?: string | null;   // Why signal was filtered/rejected
+  filter_reason?: string | null; // Why signal was filtered/rejected
 
   // Status & Outcome
   status: SignalStatus;
@@ -81,7 +81,7 @@ export interface TradingSignal {
   rr_ratio?: number;
   sl_pips?: number;
   pnl?: number;
-  pnl_usd?: number;         // Alternative PnL field
+  pnl_usd?: number; // Alternative PnL field
   pnl_percentage?: number;
 
   // Exit information
@@ -122,7 +122,11 @@ export interface RealtimePayload<T> {
 }
 
 // Helper type guards and normalizers
-export function normalizeSignal(raw: Partial<TradingSignal>): TradingSignal {
+export function normalizeSignal(
+  raw: Partial<TradingSignal> & { run_mode?: string },
+): TradingSignal {
+  const rawMode = raw.mode ?? (raw as { run_mode?: string }).run_mode;
+  const rawStatus = raw.status || 'pending';
   return {
     id: raw.id || '',
     created_at: raw.created_at || new Date().toISOString(),
@@ -143,8 +147,12 @@ export function normalizeSignal(raw: Partial<TradingSignal>): TradingSignal {
     notes: raw.notes,
     ai_reasoning: raw.ai_reasoning,
     filter_reason: raw.filter_reason,
-    status: raw.status || 'pending',
-    mode: raw.mode,
+    status: (typeof rawStatus === 'string'
+      ? rawStatus.toLowerCase()
+      : 'pending') as SignalStatus,
+    mode: (typeof rawMode === 'string' ? rawMode.toUpperCase() : rawMode) as
+      | TradingMode
+      | undefined,
     rr_ratio: raw.rr_ratio,
     sl_pips: raw.sl_pips,
     pnl: raw.pnl ?? raw.pnl_usd,

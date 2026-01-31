@@ -2,8 +2,18 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useCallback, useRef } from 'react';
-import { supabase, fetchSignals, fetchSignalStats, isSupabaseAvailable } from '@/lib/supabase';
-import { TradingSignal, TradingMode, RealtimePayload, normalizeSignal } from '@/types/trading';
+import {
+  supabase,
+  fetchSignals,
+  fetchSignalStats,
+  isSupabaseAvailable,
+} from '@/lib/supabase';
+import {
+  TradingSignal,
+  TradingMode,
+  RealtimePayload,
+  normalizeSignal,
+} from '@/types/trading';
 
 // =============================================================================
 // CONFIGURATION
@@ -60,7 +70,10 @@ function validateSignal(signal: TradingSignal, source: string): void {
   }
 
   if (warnings.length > 0) {
-    console.warn(`[useTradingSignals] Signal validation (${source}):`, signal.id);
+    console.warn(
+      `[useTradingSignals] Signal validation (${source}):`,
+      signal.id,
+    );
     warnings.forEach((w) => console.warn('  ', w));
   }
 }
@@ -110,20 +123,34 @@ export function useTradingSignals(mode?: TradingMode) {
     queryFn: async () => {
       debugLog('Fetching signals', { mode, limit: CONFIG.SIGNAL_LIMIT });
 
-      const signals = await fetchSignals({ mode, limit: CONFIG.SIGNAL_LIMIT });
+      const rawSignals = await fetchSignals({
+        mode,
+        limit: CONFIG.SIGNAL_LIMIT,
+      });
+
+      // Normalize run_mode (uppercase) and status (lowercase) for case-insensitive filtering
+      const signals = rawSignals.map((s) => ({
+        ...s,
+        mode: s.mode ? String(s.mode).toUpperCase() : s.mode,
+        status: s.status ? String(s.status).toLowerCase() : s.status,
+      }));
 
       // Debug: Log raw data for field mapping verification
+      console.log('First Signal Raw:', rawSignals[0]);
       debugLog('Received signals', {
         count: signals.length,
         firstSignal: signals[0],
-        fieldSample: signals[0] ? {
-          symbol: signals[0].symbol,
-          side: signals[0].side,
-          score: signals[0].score,
-          status: signals[0].status,
-          notes: signals[0].notes,
-          pnl: signals[0].pnl,
-        } : null,
+        fieldSample: signals[0]
+          ? {
+              symbol: signals[0].symbol,
+              side: signals[0].side,
+              score: signals[0].score,
+              status: signals[0].status,
+              run_mode: signals[0].mode,
+              notes: signals[0].notes,
+              pnl: signals[0].pnl,
+            }
+          : null,
       });
 
       // Validate each signal for field mapping issues
@@ -131,7 +158,9 @@ export function useTradingSignals(mode?: TradingMode) {
 
       return signals;
     },
-    refetchInterval: isSupabaseAvailable() ? false : CONFIG.FALLBACK_POLL_INTERVAL,
+    refetchInterval: isSupabaseAvailable()
+      ? false
+      : CONFIG.FALLBACK_POLL_INTERVAL,
     staleTime: 1000 * 60, // 1 minute
   });
 
@@ -159,7 +188,11 @@ export function useTradingSignals(mode?: TradingMode) {
           table: 'trading_signals',
         },
         (payload) => {
-          const { eventType, new: newRecord, old: oldRecord } = payload as unknown as RealtimePayload<TradingSignal>;
+          const {
+            eventType,
+            new: newRecord,
+            old: oldRecord,
+          } = payload as unknown as RealtimePayload<TradingSignal>;
 
           debugLog(`Realtime event: ${eventType}`, {
             eventType,
@@ -168,9 +201,10 @@ export function useTradingSignals(mode?: TradingMode) {
           });
 
           // Normalize the incoming signal
-          const normalizedNew = eventType !== 'DELETE'
-            ? normalizeSignal(newRecord as Partial<TradingSignal>)
-            : null;
+          const normalizedNew =
+            eventType !== 'DELETE'
+              ? normalizeSignal(newRecord as Partial<TradingSignal>)
+              : null;
 
           if (normalizedNew) {
             validateSignal(normalizedNew, `realtime-${eventType}`);
@@ -181,13 +215,21 @@ export function useTradingSignals(mode?: TradingMode) {
             signalKeys.list(mode),
             (old = []) => {
               if (eventType === 'INSERT' && normalizedNew) {
-                // Filter by mode if specified
-                if (mode && normalizedNew.mode !== mode) {
-                  debugLog('INSERT filtered by mode', { signalMode: normalizedNew.mode, filterMode: mode });
+                // Filter by mode if specified (case-insensitive: LIVE/live, PAPER/paper)
+                const signalMode = (normalizedNew.mode ?? '').toUpperCase();
+                const filterMode = (mode ?? '').toUpperCase();
+                if (mode && signalMode !== filterMode) {
+                  debugLog('INSERT filtered by mode', {
+                    signalMode,
+                    filterMode,
+                  });
                   return old;
                 }
 
-                debugLog('Prepending new signal', { id: normalizedNew.id, symbol: normalizedNew.symbol });
+                debugLog('Prepending new signal', {
+                  id: normalizedNew.id,
+                  symbol: normalizedNew.symbol,
+                });
 
                 // Prepend new signal and limit to CONFIG.SIGNAL_LIMIT
                 return [normalizedNew, ...old].slice(0, CONFIG.SIGNAL_LIMIT);
@@ -196,7 +238,7 @@ export function useTradingSignals(mode?: TradingMode) {
               if (eventType === 'UPDATE' && normalizedNew) {
                 debugLog('Updating signal', { id: normalizedNew.id });
                 return old.map((signal) =>
-                  signal.id === normalizedNew.id ? normalizedNew : signal
+                  signal.id === normalizedNew.id ? normalizedNew : signal,
                 );
               }
 
@@ -206,12 +248,12 @@ export function useTradingSignals(mode?: TradingMode) {
               }
 
               return old;
-            }
+            },
           );
 
           // Invalidate stats cache on any change
           queryClient.invalidateQueries({ queryKey: signalKeys.stats });
-        }
+        },
       )
       .subscribe((status) => {
         debugLog('Realtime subscription status', status);
@@ -294,7 +336,7 @@ export function useRefreshSignals() {
 export function useSignalSubscription(
   onInsert?: (signal: TradingSignal) => void,
   onUpdate?: (signal: TradingSignal) => void,
-  onDelete?: (signalId: string) => void
+  onDelete?: (signalId: string) => void,
 ) {
   useEffect(() => {
     if (!isSupabaseAvailable() || !supabase) return;
@@ -309,22 +351,30 @@ export function useSignalSubscription(
           table: 'trading_signals',
         },
         (payload) => {
-          const { eventType, new: newRecord, old: oldRecord } = payload as unknown as RealtimePayload<TradingSignal>;
+          const {
+            eventType,
+            new: newRecord,
+            old: oldRecord,
+          } = payload as unknown as RealtimePayload<TradingSignal>;
 
           if (eventType === 'INSERT' && newRecord) {
-            const normalized = normalizeSignal(newRecord as Partial<TradingSignal>);
+            const normalized = normalizeSignal(
+              newRecord as Partial<TradingSignal>,
+            );
             onInsert?.(normalized);
           }
 
           if (eventType === 'UPDATE' && newRecord) {
-            const normalized = normalizeSignal(newRecord as Partial<TradingSignal>);
+            const normalized = normalizeSignal(
+              newRecord as Partial<TradingSignal>,
+            );
             onUpdate?.(normalized);
           }
 
           if (eventType === 'DELETE' && oldRecord) {
             onDelete?.(oldRecord.id);
           }
-        }
+        },
       )
       .subscribe();
 

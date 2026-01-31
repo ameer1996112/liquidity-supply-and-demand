@@ -21,7 +21,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 if (!supabaseUrl || !supabaseAnonKey) {
   console.warn(
     '⚠️ Supabase credentials not found. Using mock data mode. ' +
-    'Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to connect.'
+      'Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to connect.',
   );
 }
 
@@ -46,7 +46,7 @@ export async function fetchSignals(
     mode?: 'LIVE' | 'PAPER';
     limit?: number;
     offset?: number;
-  } = {}
+  } = {},
 ): Promise<TradingSignal[]> {
   if (!supabase) {
     return getMockSignals(options.mode);
@@ -60,8 +60,9 @@ export async function fetchSignals(
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
 
+  // DB uses run_mode for LIVE/PAPER (backend writes run_mode; legacy schema may use mode)
   if (mode) {
-    query = query.eq('mode', mode);
+    query = query.eq('run_mode', mode);
   }
 
   const { data, error } = await query;
@@ -72,7 +73,9 @@ export async function fetchSignals(
   }
 
   // Normalize signals to handle both old and new field names
-  return (data || []).map((row) => normalizeSignal(row as Partial<TradingSignal>));
+  return (data || []).map((row) =>
+    normalizeSignal(row as Partial<TradingSignal>),
+  );
 }
 
 export async function fetchSignalStats(): Promise<SignalStats> {
@@ -81,7 +84,9 @@ export async function fetchSignalStats(): Promise<SignalStats> {
   }
 
   // Get signals from last 24 hours
-  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const twentyFourHoursAgo = new Date(
+    Date.now() - 24 * 60 * 60 * 1000,
+  ).toISOString();
 
   const { data, error } = await supabase
     .from('trading_signals')
@@ -94,24 +99,35 @@ export async function fetchSignalStats(): Promise<SignalStats> {
   }
 
   const signals: TradingSignal[] = (data || []).map((row) =>
-    normalizeSignal(row as Partial<TradingSignal>)
+    normalizeSignal(row as Partial<TradingSignal>),
   );
 
   // Normalize status comparison to handle both uppercase and lowercase
   const normalizeStatus = (status: string | undefined) => status?.toLowerCase();
-  const executed = signals.filter(s => normalizeStatus(s.status) === 'executed');
-  const filtered = signals.filter(s =>
-    normalizeStatus(s.status) === 'filtered' || normalizeStatus(s.status) === 'ai_rejected'
+  const executed = signals.filter(
+    (s) => normalizeStatus(s.status) === 'executed',
   );
-  const failed = signals.filter(s => normalizeStatus(s.status) === 'failed');
-  const activeSignals = signals.filter(s => normalizeStatus(s.status) === 'active');
-  const closed = [...executed, ...signals.filter(s => normalizeStatus(s.status) === 'closed')].filter(s => s.closed_at);
-  const wins = closed.filter(s => (s.pnl ?? s.pnl_usd ?? 0) > 0);
+  const filtered = signals.filter(
+    (s) =>
+      normalizeStatus(s.status) === 'filtered' ||
+      normalizeStatus(s.status) === 'ai_rejected',
+  );
+  const failed = signals.filter((s) => normalizeStatus(s.status) === 'failed');
+  const activeSignals = signals.filter(
+    (s) => normalizeStatus(s.status) === 'active',
+  );
+  const closed = [
+    ...executed,
+    ...signals.filter((s) => normalizeStatus(s.status) === 'closed'),
+  ].filter((s) => s.closed_at);
+  const wins = closed.filter((s) => (s.pnl ?? s.pnl_usd ?? 0) > 0);
   // Active trades are either 'active' status or executed without closed_at
-  const active = [...activeSignals, ...executed.filter(s => !s.closed_at)];
+  const active = [...activeSignals, ...executed.filter((s) => !s.closed_at)];
 
   // Count AI rejected signals separately
-  const aiRejected = signals.filter(s => normalizeStatus(s.status) === 'ai_rejected');
+  const aiRejected = signals.filter(
+    (s) => normalizeStatus(s.status) === 'ai_rejected',
+  );
 
   return {
     total_signals_24h: signals.length,
@@ -119,11 +135,13 @@ export async function fetchSignalStats(): Promise<SignalStats> {
     filtered_count: filtered.length,
     failed_count: failed.length,
     win_rate: closed.length > 0 ? (wins.length / closed.length) * 100 : 0,
-    ai_reject_rate: signals.length > 0
-      ? (aiRejected.length / signals.length) * 100
-      : 0,
+    ai_reject_rate:
+      signals.length > 0 ? (aiRejected.length / signals.length) * 100 : 0,
     active_trades: active.length,
-    total_pnl_24h: closed.reduce((sum, s) => sum + (s.pnl ?? s.pnl_usd ?? 0), 0),
+    total_pnl_24h: closed.reduce(
+      (sum, s) => sum + (s.pnl ?? s.pnl_usd ?? 0),
+      0,
+    ),
   };
 }
 
@@ -137,12 +155,13 @@ function getMockSignals(mode?: 'LIVE' | 'PAPER'): TradingSignal[] {
       updated_at: new Date(Date.now() - 1000 * 60 * 2).toISOString(),
       symbol: 'BTCUSD',
       side: 'buy',
-      price: 97245.50,
-      stop_loss: 96800.00,
-      take_profit: 98500.00,
+      price: 97245.5,
+      stop_loss: 96800.0,
+      take_profit: 98500.0,
       position_size: 0.15,
       score: 92,
-      notes: 'Strong momentum breakout detected. Volume surge confirmed with RSI divergence on 4H timeframe. Institutional accumulation pattern visible.',
+      notes:
+        'Strong momentum breakout detected. Volume surge confirmed with RSI divergence on 4H timeframe. Institutional accumulation pattern visible.',
       ai_reasoning: {
         zone_id: 142,
         zone_type: 'demand',
@@ -181,12 +200,13 @@ function getMockSignals(mode?: 'LIVE' | 'PAPER'): TradingSignal[] {
       updated_at: new Date(Date.now() - 1000 * 60 * 8).toISOString(),
       symbol: 'XAUUSD',
       side: 'sell',
-      price: 2645.50,
-      stop_loss: 2652.00,
-      take_profit: 2628.00,
+      price: 2645.5,
+      stop_loss: 2652.0,
+      take_profit: 2628.0,
       position_size: 0.5,
       score: 87,
-      notes: 'Supply zone rejection at key resistance. Multiple timeframe confluence with bearish engulfing on H1.',
+      notes:
+        'Supply zone rejection at key resistance. Multiple timeframe confluence with bearish engulfing on H1.',
       ai_reasoning: {
         zone_id: 89,
         zone_type: 'supply',
@@ -218,10 +238,10 @@ function getMockSignals(mode?: 'LIVE' | 'PAPER'): TradingSignal[] {
       mode: 'LIVE',
       rr_ratio: 2.7,
       sl_pips: 65,
-      pnl: 325.50,
+      pnl: 325.5,
       pnl_percentage: 2.17,
       closed_at: new Date(Date.now() - 1000 * 60 * 3).toISOString(),
-      exit_price: 2628.00,
+      exit_price: 2628.0,
       exit_type: 'TP_HIT',
     },
     {
@@ -235,7 +255,8 @@ function getMockSignals(mode?: 'LIVE' | 'PAPER'): TradingSignal[] {
       take_profit: 1.0895,
       position_size: 1.0,
       score: 54,
-      notes: 'Demand zone touch but lacking confirmation. HTF trend opposing, session timing suboptimal.',
+      notes:
+        'Demand zone touch but lacking confirmation. HTF trend opposing, session timing suboptimal.',
       ai_reasoning: {
         zone_id: 203,
         zone_type: 'demand',
@@ -263,7 +284,8 @@ function getMockSignals(mode?: 'LIVE' | 'PAPER'): TradingSignal[] {
         guardian_structure_break: false,
       },
       status: 'ai_rejected',
-      filter_reason: 'AI Quality Score 54 below 60 threshold. Liquidity not swept. HTF trend mismatch.',
+      filter_reason:
+        'AI Quality Score 54 below 60 threshold. Liquidity not swept. HTF trend mismatch.',
       mode: 'LIVE',
       rr_ratio: 2.5,
       sl_pips: 20,
@@ -274,12 +296,13 @@ function getMockSignals(mode?: 'LIVE' | 'PAPER'): TradingSignal[] {
       updated_at: new Date(Date.now() - 1000 * 60 * 25).toISOString(),
       symbol: 'GBPJPY',
       side: 'sell',
-      price: 188.450,
-      stop_loss: 188.950,
-      take_profit: 186.950,
+      price: 188.45,
+      stop_loss: 188.95,
+      take_profit: 186.95,
       position_size: 0.3,
       score: 78,
-      notes: 'Clean supply zone with aggressive departure. Session timing optimal for JPY pairs.',
+      notes:
+        'Clean supply zone with aggressive departure. Session timing optimal for JPY pairs.',
       ai_reasoning: {
         zone_id: 156,
         zone_type: 'supply',
@@ -311,10 +334,10 @@ function getMockSignals(mode?: 'LIVE' | 'PAPER'): TradingSignal[] {
       mode: 'LIVE',
       rr_ratio: 3.0,
       sl_pips: 50,
-      pnl: -150.00,
-      pnl_percentage: -1.00,
+      pnl: -150.0,
+      pnl_percentage: -1.0,
       closed_at: new Date(Date.now() - 1000 * 60 * 10).toISOString(),
-      exit_price: 188.950,
+      exit_price: 188.95,
       exit_type: 'SL_HIT',
     },
     {
@@ -323,12 +346,13 @@ function getMockSignals(mode?: 'LIVE' | 'PAPER'): TradingSignal[] {
       updated_at: new Date(Date.now() - 1000 * 60 * 35).toISOString(),
       symbol: 'USDJPY',
       side: 'buy',
-      price: 149.850,
-      stop_loss: 149.450,
-      take_profit: 150.850,
+      price: 149.85,
+      stop_loss: 149.45,
+      take_profit: 150.85,
       position_size: 0.8,
       score: 81,
-      notes: 'Demand zone flip confirmed. Strong institutional footprint with order flow alignment.',
+      notes:
+        'Demand zone flip confirmed. Strong institutional footprint with order flow alignment.',
       ai_reasoning: {
         zone_id: 178,
         zone_type: 'demand',
@@ -367,12 +391,13 @@ function getMockSignals(mode?: 'LIVE' | 'PAPER'): TradingSignal[] {
       updated_at: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
       symbol: 'ETHUSD',
       side: 'sell',
-      price: 3245.00,
-      stop_loss: 3295.00,
-      take_profit: 3145.00,
+      price: 3245.0,
+      stop_loss: 3295.0,
+      take_profit: 3145.0,
       position_size: 0.25,
       score: 45,
-      notes: 'Weak supply zone. Low volume, no clear institutional interest. Risk/reward unfavorable.',
+      notes:
+        'Weak supply zone. Low volume, no clear institutional interest. Risk/reward unfavorable.',
       ai_reasoning: {
         zone_id: 221,
         zone_type: 'supply',
@@ -400,7 +425,8 @@ function getMockSignals(mode?: 'LIVE' | 'PAPER'): TradingSignal[] {
         guardian_structure_break: false,
       },
       status: 'filtered',
-      filter_reason: 'Low zone score (45). No liquidity swept. Trend opposing on all timeframes.',
+      filter_reason:
+        'Low zone score (45). No liquidity swept. Trend opposing on all timeframes.',
       mode: 'PAPER',
       rr_ratio: 2.0,
       sl_pips: 50,
@@ -416,7 +442,8 @@ function getMockSignals(mode?: 'LIVE' | 'PAPER'): TradingSignal[] {
       take_profit: 0.9185,
       position_size: 0.6,
       score: 68,
-      notes: 'Moderate demand zone. Volume picking up but HTF structure still developing.',
+      notes:
+        'Moderate demand zone. Volume picking up but HTF structure still developing.',
       ai_reasoning: {
         zone_id: 334,
         zone_type: 'demand',
@@ -448,8 +475,8 @@ function getMockSignals(mode?: 'LIVE' | 'PAPER'): TradingSignal[] {
       mode: 'PAPER',
       rr_ratio: 2.0,
       sl_pips: 30,
-      pnl: 180.00,
-      pnl_percentage: 1.20,
+      pnl: 180.0,
+      pnl_percentage: 1.2,
       closed_at: new Date(Date.now() - 1000 * 60 * 20).toISOString(),
       exit_price: 0.9185,
       exit_type: 'TP_HIT',
@@ -465,7 +492,8 @@ function getMockSignals(mode?: 'LIVE' | 'PAPER'): TradingSignal[] {
       take_profit: 0.5785,
       position_size: 0.4,
       score: 52,
-      notes: 'Supply zone test but RVOL too low. Waiting for better confirmation.',
+      notes:
+        'Supply zone test but RVOL too low. Waiting for better confirmation.',
       ai_reasoning: {
         zone_id: 445,
         zone_type: 'supply',
@@ -493,7 +521,8 @@ function getMockSignals(mode?: 'LIVE' | 'PAPER'): TradingSignal[] {
         guardian_structure_break: false,
       },
       status: 'ai_rejected',
-      filter_reason: 'AI Score 52 below threshold. RVOL 0.58 indicates low participation. Asian session - suboptimal for USD pairs.',
+      filter_reason:
+        'AI Score 52 below threshold. RVOL 0.58 indicates low participation. Asian session - suboptimal for USD pairs.',
       mode: 'PAPER',
       rr_ratio: 2.0,
       sl_pips: 30,
@@ -501,7 +530,7 @@ function getMockSignals(mode?: 'LIVE' | 'PAPER'): TradingSignal[] {
   ];
 
   if (mode) {
-    return mockSignals.filter(s => s.mode === mode);
+    return mockSignals.filter((s) => s.mode === mode);
   }
 
   return mockSignals;

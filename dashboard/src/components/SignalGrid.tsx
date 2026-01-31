@@ -30,43 +30,48 @@ const FILTER_TABS: FilterConfig[] = [
   {
     id: 'all',
     label: 'ALL',
-    icon: <Layers className="w-3.5 h-3.5" />,
+    icon: <Layers className='w-3.5 h-3.5' />,
     filter: () => true,
-    accentColor: 'data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100',
+    accentColor:
+      'data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100',
   },
   {
     id: 'live',
     label: 'LIVE TRADES',
-    icon: <Radio className="w-3.5 h-3.5" />,
-    filter: (s) => s.status?.toLowerCase() === 'active',
-    accentColor: 'data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-400',
+    icon: <Radio className='w-3.5 h-3.5' />,
+    filter: (s) => (s.status ?? '').toLowerCase() === 'active',
+    accentColor:
+      'data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-400',
   },
   {
     id: 'ai_rejects',
     label: 'AI REJECTS',
-    icon: <ShieldX className="w-3.5 h-3.5" />,
-    filter: (s) => s.status?.toLowerCase() === 'ai_rejected',
-    accentColor: 'data-[state=active]:bg-rose-500/20 data-[state=active]:text-rose-400',
+    icon: <ShieldX className='w-3.5 h-3.5' />,
+    filter: (s) => (s.status ?? '').toLowerCase().includes('reject'),
+    accentColor:
+      'data-[state=active]:bg-rose-500/20 data-[state=active]:text-rose-400',
   },
   {
     id: 'wins',
     label: 'WINS',
-    icon: <TrendingUp className="w-3.5 h-3.5" />,
+    icon: <TrendingUp className='w-3.5 h-3.5' />,
     filter: (s) => {
       const pnl = getPnl(s);
       return pnl !== null && pnl > 0;
     },
-    accentColor: 'data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-400',
+    accentColor:
+      'data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-400',
   },
   {
     id: 'losses',
     label: 'LOSSES',
-    icon: <TrendingDown className="w-3.5 h-3.5" />,
+    icon: <TrendingDown className='w-3.5 h-3.5' />,
     filter: (s) => {
       const pnl = getPnl(s);
       return pnl !== null && pnl < 0;
     },
-    accentColor: 'data-[state=active]:bg-rose-500/20 data-[state=active]:text-rose-400',
+    accentColor:
+      'data-[state=active]:bg-rose-500/20 data-[state=active]:text-rose-400',
   },
 ];
 
@@ -92,15 +97,17 @@ function FilterTabButton({
         'border border-transparent',
         'hover:bg-zinc-800/50',
         'data-[state=inactive]:text-zinc-500',
-        config.accentColor
+        config.accentColor,
       )}
     >
       {config.icon}
       <span>{config.label}</span>
-      <span className={cn(
-        'ml-1 px-1.5 py-0.5 rounded text-[10px]',
-        isActive ? 'bg-white/10' : 'bg-zinc-800 text-zinc-500'
-      )}>
+      <span
+        className={cn(
+          'ml-1 px-1.5 py-0.5 rounded text-[10px]',
+          isActive ? 'bg-white/10' : 'bg-zinc-800 text-zinc-500',
+        )}
+      >
         {count}
       </span>
     </button>
@@ -108,7 +115,13 @@ function FilterTabButton({
 }
 
 // Empty state component
-function EmptyState({ filter, mode }: { filter: FilterTab; mode?: TradingMode }) {
+function EmptyState({
+  filter,
+  mode,
+}: {
+  filter: FilterTab;
+  mode?: TradingMode;
+}) {
   const getMessage = () => {
     switch (filter) {
       case 'live':
@@ -127,12 +140,12 @@ function EmptyState({ filter, mode }: { filter: FilterTab; mode?: TradingMode })
   };
 
   return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
-      <div className="w-16 h-16 rounded-full bg-zinc-800/50 flex items-center justify-center mb-4">
-        <Inbox className="w-8 h-8 text-zinc-600" />
+    <div className='flex flex-col items-center justify-center py-20 text-center'>
+      <div className='w-16 h-16 rounded-full bg-zinc-800/50 flex items-center justify-center mb-4'>
+        <Inbox className='w-8 h-8 text-zinc-600' />
       </div>
-      <h3 className="font-mono text-sm text-zinc-400 mb-2">No Signals Found</h3>
-      <p className="text-xs text-zinc-600 max-w-xs">{getMessage()}</p>
+      <h3 className='font-mono text-sm text-zinc-400 mb-2'>No Signals Found</h3>
+      <p className='text-xs text-zinc-600 max-w-xs'>{getMessage()}</p>
     </div>
   );
 }
@@ -140,12 +153,12 @@ function EmptyState({ filter, mode }: { filter: FilterTab; mode?: TradingMode })
 // Error state component
 function ErrorState() {
   return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
-      <div className="w-16 h-16 rounded-full bg-rose-500/10 flex items-center justify-center mb-4">
-        <AlertCircle className="w-8 h-8 text-rose-400" />
+    <div className='flex flex-col items-center justify-center py-20 text-center'>
+      <div className='w-16 h-16 rounded-full bg-rose-500/10 flex items-center justify-center mb-4'>
+        <AlertCircle className='w-8 h-8 text-rose-400' />
       </div>
-      <h3 className="font-mono text-sm text-rose-400 mb-2">Connection Error</h3>
-      <p className="text-xs text-zinc-500 max-w-xs">
+      <h3 className='font-mono text-sm text-rose-400 mb-2'>Connection Error</h3>
+      <p className='text-xs text-zinc-500 max-w-xs'>
         Failed to load trading signals. Check your connection and try again.
       </p>
     </div>
@@ -155,7 +168,7 @@ function ErrorState() {
 // Loading skeleton grid
 function LoadingGrid() {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+    <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'>
       {[...Array(8)].map((_, i) => (
         <SignalCardSkeleton key={i} />
       ))}
@@ -174,10 +187,13 @@ export function SignalGrid({ mode, onSelectSignal }: SignalGridProps) {
 
   // Calculate counts for each filter
   const filterCounts = useMemo(() => {
-    return FILTER_TABS.reduce((acc, tab) => {
-      acc[tab.id] = signals.filter(tab.filter).length;
-      return acc;
-    }, {} as Record<FilterTab, number>);
+    return FILTER_TABS.reduce(
+      (acc, tab) => {
+        acc[tab.id] = signals.filter(tab.filter).length;
+        return acc;
+      },
+      {} as Record<FilterTab, number>,
+    );
   }, [signals]);
 
   // Apply active filter
@@ -192,9 +208,9 @@ export function SignalGrid({ mode, onSelectSignal }: SignalGridProps) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className='space-y-4'>
       {/* Filter Tabs */}
-      <div className="flex items-center gap-1 p-1 bg-zinc-900/50 border border-zinc-800/50 rounded-lg overflow-x-auto scrollbar-thin">
+      <div className='flex items-center gap-1 p-1 bg-zinc-900/50 border border-zinc-800/50 rounded-lg overflow-x-auto scrollbar-thin'>
         {FILTER_TABS.map((tab) => (
           <FilterTabButton
             key={tab.id}
@@ -209,11 +225,27 @@ export function SignalGrid({ mode, onSelectSignal }: SignalGridProps) {
       {/* Signal Grid */}
       {isLoading ? (
         <LoadingGrid />
+      ) : filteredSignals.length === 0 && signals.length > 0 ? (
+        <div className='flex flex-col items-center justify-center py-20 text-center'>
+          <p className='font-mono text-sm text-amber-400/90'>
+            Loaded {signals.length} signals, but hidden by filters.
+          </p>
+          <p className='font-mono text-xs text-zinc-500 mt-2'>
+            Sample run_mode: [{signals[0]?.mode ?? 'N/A'}], status: [
+            {signals[0]?.status ?? 'N/A'}]
+          </p>
+          <button
+            onClick={() => setActiveFilter('all')}
+            className='mt-4 text-[11px] font-mono text-blue-400 hover:text-blue-300 uppercase tracking-wider'
+          >
+            Show All
+          </button>
+        </div>
       ) : filteredSignals.length === 0 ? (
         <EmptyState filter={activeFilter} mode={mode} />
       ) : (
-        <ScrollArea className="h-[calc(100vh-240px)]">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pr-4">
+        <ScrollArea className='h-[calc(100vh-240px)]'>
+          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pr-4'>
             {filteredSignals.map((signal) => (
               <SignalCard
                 key={signal.id}
@@ -227,14 +259,14 @@ export function SignalGrid({ mode, onSelectSignal }: SignalGridProps) {
 
       {/* Signal Count Footer */}
       {!isLoading && filteredSignals.length > 0 && (
-        <div className="flex items-center justify-between pt-2 border-t border-zinc-800/50">
-          <span className="text-[11px] text-zinc-600 font-mono">
+        <div className='flex items-center justify-between pt-2 border-t border-zinc-800/50'>
+          <span className='text-[11px] text-zinc-600 font-mono'>
             Showing {filteredSignals.length} of {signals.length} signals
           </span>
           {activeFilter !== 'all' && (
             <button
               onClick={() => setActiveFilter('all')}
-              className="text-[11px] text-zinc-500 hover:text-zinc-300 font-mono uppercase tracking-wider"
+              className='text-[11px] text-zinc-500 hover:text-zinc-300 font-mono uppercase tracking-wider'
             >
               Clear Filter
             </button>
