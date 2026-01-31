@@ -45,7 +45,7 @@ SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY
 QUEUE_NAME = "trading_queue"
 
 # Risk limits
-MAX_LOT_SIZE = 0.19  # Hard limit (0.20+ = rejected)
+MAX_LOT_SIZE = 0.30  # Hard limit (0.30+ = rejected)
 MAX_OPEN_POSITIONS = 3  # Correlation bucket limit
 ML_MIN_CONFIDENCE = 0.60  # 60% win probability threshold
 
