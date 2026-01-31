@@ -104,6 +104,24 @@ class Settings(BaseSettings):
     )
 
     # ══════════════════════════════════════════════════════════
+    # ML GUARDIAN SETTINGS (RandomForest Model)
+    # ══════════════════════════════════════════════════════════
+
+    # Master toggle for ML Guardian (trained RandomForest model)
+    ml_guardian_enabled: bool = Field(
+        default=True,
+        description="Enable ML Guardian validation layer. When False, ML model check is skipped."
+    )
+
+    # Minimum win probability threshold (0.0-1.0). Trades below this are rejected.
+    ml_min_confidence: float = Field(
+        default=0.60,
+        ge=0.0,
+        le=1.0,
+        description="Minimum win probability (0-1) from ML model to approve a trade. Default: 0.60 (60%)"
+    )
+
+    # ══════════════════════════════════════════════════════════
     # TRINITY ENGINE SETTINGS (Prop Firm Risk Management v2.0)
     # ══════════════════════════════════════════════════════════
 

@@ -384,6 +384,76 @@ def log_ai_rejection(data: dict, rejection_reason: str, ai_result: dict = None) 
         return None
 
 
+def log_ml_rejection(data: dict, rejection_reason: str, ml_result: dict = None) -> Optional[int]:
+    """
+    Log ML Guardian rejection to Supabase.
+
+    Creates a trading_signals entry with status='ml_rejected' for tracking
+    and analysis of ML model filtering decisions.
+
+    ML Guardian Rules Enforced:
+    - WIN PROBABILITY: Rejects trades with predicted win probability below threshold
+
+    Args:
+        data: Original trade payload from TradingView webhook
+        rejection_reason: Human-readable reason for rejection
+        ml_result: Full ML analysis result dict with win_probability, decision, features
+
+    Returns:
+        alert_id if logged successfully, None on error
+    """
+    if not supabase:
+        init_supabase()
+
+    # Ensure minimal required fields
+    entry_data = dict(data)
+    defaults = {'symbol': 'unknown', 'side': 'buy', 'entry': 0.0, 'sl': 0.0, 'tp': 0.0, 'size': 0.0}
+    for k in ('symbol', 'side', 'entry', 'sl', 'tp', 'size'):
+        if k not in entry_data or entry_data[k] is None:
+            entry_data[k] = defaults.get(k, 0.0)
+
+    # Build ML-specific filter reasons
+    filter_reasons = ["ML_REJECTED"]
+    if ml_result:
+        win_prob = ml_result.get('win_probability', 0)
+        threshold = ml_result.get('threshold', 0.60)
+        filter_reasons.append(f"win_prob={win_prob:.1%}")
+        filter_reasons.append(f"threshold={threshold:.1%}")
+        filter_reasons.append(f"decision={ml_result.get('decision', 'UNKNOWN')}")
+
+    try:
+        # Save alert with ml_rejected status
+        alert_id = save_alert(entry_data, mode='manual', filter_reasons=filter_reasons)
+
+        # Build notes with full ML analysis
+        notes_parts = [f"ML_REJECTION: {rejection_reason}"]
+        if ml_result:
+            notes_parts.append(f"Win Probability: {ml_result.get('win_probability', 0):.1%}")
+            notes_parts.append(f"Threshold: {ml_result.get('threshold', 0.60):.1%}")
+            if ml_result.get('feature_names') and ml_result.get('features'):
+                feature_str = ", ".join(
+                    f"{name}={val}"
+                    for name, val in zip(ml_result['feature_names'], ml_result['features'])
+                )
+                notes_parts.append(f"Features: {feature_str}")
+
+        notes = " | ".join(notes_parts)
+
+        # Update status to ml_rejected
+        update_alert_status(alert_id, 'ml_rejected', notes=notes[:1000])  # Truncate if too long
+
+        logger.info(
+            f"✅ ML rejection logged: alert_id={alert_id}, "
+            f"symbol={data.get('symbol')}, "
+            f"win_prob={ml_result.get('win_probability', 0):.1%}"
+        )
+        return alert_id
+
+    except Exception as e:
+        logger.error(f"❌ Failed to log ML rejection to Supabase: {e}")
+        return None
+
+
 def log_pine_rejection(data: dict, rejection_reason: str, pine_result: dict = None) -> Optional[int]:
     """
     Log Pine Guardian rejection to Supabase.

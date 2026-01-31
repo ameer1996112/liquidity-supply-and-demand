@@ -8,8 +8,9 @@ Architecture:
    b. RISK GUARDIAN: Check daily loss, drawdown, per-trade risk limits
    c. MARKET ADAPTER: Validate/recalculate lot size for asset class
 3. PINE GUARDIAN: Validate position sizing against Pine Script formulas
-4. AI GUARDIAN: If enabled, validate against Liquidity S&D rules
-5. Execute: logic.process_trade(data)
+4. ML GUARDIAN: Predict win probability using trained RandomForest model
+5. AI GUARDIAN: If enabled, validate against Liquidity S&D rules (LLM-based)
+6. Execute: logic.process_trade(data)
 
 On failure: log to Supabase with rejection reason and continue.
 Worker never crashes - robust against all errors.
@@ -19,7 +20,11 @@ Trinity Engine Rules Enforced:
 - RISK GUARDIAN: 4% daily loss limit, 8% drawdown kill switch, 1% max per trade
 - MARKET ADAPTER: Asset-specific lot sizing (Forex, Gold, Indices, Crypto)
 
-AI Guardian Rules Enforced:
+ML Guardian Rules Enforced:
+- Win probability prediction using trained RandomForest model
+- Rejects trades with win probability < ML_MIN_CONFIDENCE (default 60%)
+
+AI Guardian Rules Enforced (LLM-based):
 - THE INDUCEMENT RULE: Liquidity must be swept before entry (liq_swept=True)
 - THE ARRIVAL RULE: Price must arrive aggressively, not compressed
 - THE INVALIDATION RULE: Entry candle must reject, not close inside zone
@@ -52,6 +57,10 @@ REDIS_RETRY_MAX_SEC = 60
 # Global AI Guardian instance (lazy initialized)
 _ai_guardian = None
 _ai_guardian_initialized = False
+
+# Global ML Guardian instance (lazy initialized)
+_ml_guardian = None
+_ml_guardian_initialized = False
 
 # Global Pine Guardian instance (lazy initialized)
 _pine_guardian = None
@@ -94,6 +103,39 @@ def _get_ai_guardian():
         _ai_guardian = None
 
     return _ai_guardian
+
+
+def _get_ml_guardian():
+    """
+    Lazy-load ML Guardian singleton.
+
+    ML Guardian uses the trained RandomForest model to predict
+    win probability for incoming trade signals.
+
+    Returns None if:
+    - ML_GUARDIAN_ENABLED=False
+    - Model files not found
+    - Import/initialization error
+    """
+    global _ml_guardian, _ml_guardian_initialized
+
+    if _ml_guardian_initialized:
+        return _ml_guardian
+
+    _ml_guardian_initialized = True
+
+    try:
+        from backend.ml_guardian import create_ml_guardian_from_settings
+        _ml_guardian = create_ml_guardian_from_settings()
+        if _ml_guardian:
+            logger.info("ML Guardian initialized successfully")
+        else:
+            logger.info("ML Guardian disabled or model not found")
+    except Exception as e:
+        logger.error(f"Failed to initialize ML Guardian: {e}")
+        _ml_guardian = None
+
+    return _ml_guardian
 
 
 def _get_pine_guardian():
@@ -450,6 +492,51 @@ def _run_pine_validation(data: Dict[str, Any], current_balance: float) -> Tuple[
         return True, None, {"decision": "SKIP_CHECK", "reason": f"Error: {str(e)[:100]}"}
 
 
+def _run_ml_guardian_check(data: Dict[str, Any]) -> Tuple[bool, Optional[str], Optional[Dict[str, Any]]]:
+    """
+    Run ML Guardian check on trade signal.
+
+    Uses the trained RandomForest model to predict win probability.
+    Rejects trades with win probability below ML_MIN_CONFIDENCE threshold.
+
+    Args:
+        data: Raw trade payload from queue
+
+    Returns:
+        Tuple of (should_proceed, rejection_reason, details_dict)
+    """
+    from backend.config import get_settings
+
+    settings = get_settings()
+
+    # Check if ML Guardian is enabled
+    if not getattr(settings, 'ml_guardian_enabled', True):
+        return True, None, {"decision": "SKIP_CHECK", "reason": "ML Guardian disabled"}
+
+    guardian = _get_ml_guardian()
+
+    if guardian is None:
+        return True, None, {"decision": "SKIP_CHECK", "reason": "ML Guardian not initialized"}
+
+    try:
+        # Run ML prediction
+        should_proceed, win_probability, ml_result = guardian.analyze(data)
+
+        if not should_proceed:
+            min_conf = getattr(settings, 'ml_min_confidence', 0.60)
+            reason = (
+                f"ML Guardian REJECT: win probability {win_probability:.1%} "
+                f"< threshold {min_conf:.1%}"
+            )
+            return False, reason, ml_result
+
+        return True, None, ml_result
+
+    except Exception as e:
+        logger.error(f"ML Guardian error: {e} - allowing trade (fail-open)")
+        return True, None, {"decision": "SKIP_CHECK", "reason": f"Error: {str(e)[:100]}"}
+
+
 async def _run_ai_validation(data: Dict[str, Any]) -> Tuple[bool, Optional[str], Optional[Dict[str, Any]]]:
     """
     Run AI Guardian validation on trade signal.
@@ -546,9 +633,10 @@ def run():
        b. Risk Guardian - Check daily loss, drawdown, per-trade risk
        c. Market Adapter - Validate/recalculate lot size
     4. Pine Guardian - Validate position sizing
-    5. AI Guardian - Validate against Liquidity S&D rules
-    6. Execute trade
-    7. Log results to Supabase
+    5. ML Guardian - Predict win probability (RandomForest model)
+    6. AI Guardian - Validate against Liquidity S&D rules (LLM)
+    7. Execute trade
+    8. Log results to Supabase
     """
     from backend.config import get_settings
     from backend import logic
@@ -570,14 +658,25 @@ def run():
     else:
         logger.info("Worker started with Trinity Engine DISABLED")
 
-    # Log AI Guardian status
+    # Log ML Guardian status
+    ml_guardian_enabled = getattr(s, "ml_guardian_enabled", True)
+    ml_min_confidence = getattr(s, "ml_min_confidence", 0.60)
+    if ml_guardian_enabled:
+        logger.info(
+            f"ML Guardian ENABLED "
+            f"(min_confidence={ml_min_confidence:.0%})"
+        )
+    else:
+        logger.info("ML Guardian DISABLED (passthrough mode)")
+
+    # Log AI Guardian status (LLM-based)
     if s.ai_filter_enabled:
         logger.info(
-            f"AI Guardian ENABLED "
+            f"AI Guardian (LLM) ENABLED "
             f"(provider={s.ai_provider}, min_confidence={s.ai_min_confidence}%)"
         )
     else:
-        logger.info("AI Guardian DISABLED (passthrough mode)")
+        logger.info("AI Guardian (LLM) DISABLED (passthrough mode)")
 
     logger.info(f"Listening on queue={QUEUE_NAME}")
 
@@ -749,8 +848,45 @@ def run():
             except Exception as e:
                 logger.error(f"Pine Guardian wrapper error: {e} - allowing trade (fail-open)")
 
+            # ══════════════════════════════════════════════════════════
+            # STEP 5: ML GUARDIAN (Win Probability Prediction)
+            # ══════════════════════════════════════════════════════════
+            # Uses trained RandomForest model to predict win probability
+            # Only runs in PAPER or LIVE mode (not DRY_RUN)
+            run_mode = "PAPER" if s.paper_trading_enabled else "LIVE"
+
+            if run_mode in ("PAPER", "LIVE"):
+                try:
+                    should_proceed, rejection_reason, ml_result = _run_ml_guardian_check(data)
+
+                    # Always save ML confidence to data for logging
+                    if ml_result:
+                        data["ml_win_probability"] = ml_result.get("win_probability", 0)
+                        data["ml_decision"] = ml_result.get("decision")
+
+                    if not should_proceed:
+                        # Log rejection to Supabase with ML confidence score
+                        try:
+                            supabase_db.log_ml_rejection(data, rejection_reason, ml_result)
+                        except Exception as log_err:
+                            logger.error(f"Failed to log ML Guardian rejection to Supabase: {log_err}")
+
+                        logger.warning(
+                            f"ML Guardian REJECTED: {data.get('symbol')} {data.get('side')} "
+                            f"win_prob={ml_result.get('win_probability', 0):.1%} - {rejection_reason}"
+                        )
+                        continue  # Skip this trade
+
+                    logger.info(
+                        f"ML Guardian APPROVED: {data.get('symbol')} {data.get('side')} "
+                        f"(win_prob={ml_result.get('win_probability', 0):.1%})"
+                    )
+
+                except Exception as e:
+                    logger.error(f"ML Guardian wrapper error: {e} - allowing trade (fail-open)")
+
         # ══════════════════════════════════════════════════════════
-        # STEP 5: AI GUARDIAN (Liquidity S&D Validation)
+        # STEP 6: AI GUARDIAN (Liquidity S&D Validation)
         # ══════════════════════════════════════════════════════════
         # Skip AI check for exit events (only validate entries)
 
@@ -787,7 +923,7 @@ def run():
                 # Fail-open: continue to execution on any error
 
         # ══════════════════════════════════════════════════════════
-        # STEP 6: EXECUTE TRADE
+        # STEP 7: EXECUTE TRADE
         # ══════════════════════════════════════════════════════════
         try:
             logic.process_trade(data)

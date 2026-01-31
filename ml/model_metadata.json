@@ -1,0 +1,97 @@
+{
+  "trained_at": "2026-01-31T15:28:00.174893",
+  "version": "4.0",
+  "feature_names": [
+    "asset_id",
+    "hour",
+    "day_of_week",
+    "type_encoded",
+    "signal_encoded",
+    "session_encoded",
+    "liq_distance",
+    "source_encoded",
+    "runup_pct",
+    "drawdown_pct"
+  ],
+  "n_estimators": 200,
+  "max_depth": 10,
+  "asset_leaderboard": [
+    {
+      "symbol": "GBPCAD",
+      "accuracy": 0.9572649572649573,
+      "samples": 117,
+      "win_rate": 0.3076923076923077
+    },
+    {
+      "symbol": "USDJPY",
+      "accuracy": 0.9304347826086956,
+      "samples": 115,
+      "win_rate": 0.28695652173913044
+    },
+    {
+      "symbol": "EURUSD",
+      "accuracy": 0.9279279279279279,
+      "samples": 111,
+      "win_rate": 0.23423423423423423
+    },
+    {
+      "symbol": "GBPJPY",
+      "accuracy": 0.9096774193548387,
+      "samples": 155,
+      "win_rate": 0.23870967741935484
+    },
+    {
+      "symbol": "XAUUSD",
+      "accuracy": 0.8431372549019608,
+      "samples": 204,
+      "win_rate": 0.43137254901960786
+    }
+  ],
+  "encoder_classes": {
+    "symbol": [
+      "CHFJPY",
+      "EURUSD",
+      "GBPCAD",
+      "GBPJPY",
+      "GBPUSD",
+      "NAS100",
+      "USDJPY",
+      "XAUUSD"
+    ],
+    "type": [
+      "boc",
+      "default",
+      "entry long",
+      "entry short",
+      "exit long",
+      "exit short",
+      "flip"
+    ],
+    "signal": [
+      "",
+      "Long Exit",
+      "S&D Retest",
+      "Short Exit",
+      "Time Stop (Bars)"
+    ],
+    "session": [
+      "London",
+      "London, New York",
+      "London, Sydney",
+      "London, Sydney, Tokyo",
+      "London, Tokyo",
+      "New York",
+      "New York, Sydney",
+      "New York, Sydney, Tokyo",
+      "New York, Tokyo",
+      "Sydney",
+      "Sydney, Tokyo",
+      "Tokyo",
+      "unknown"
+    ],
+    "source": [
+      "notion",
+      "tradingview"
+    ]
+  }
+}
