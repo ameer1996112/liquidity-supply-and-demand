@@ -1,5 +1,6 @@
 print("🚀 NEW WORKER CODE LOADED: v5.1 (Probability Fix)")  # <--- PROOF LINE
 import os
+import sys
 import json
 import time
 import asyncio
@@ -7,14 +8,29 @@ import logging
 import pickle
 import pandas as pd
 import numpy as np
+from pathlib import Path
+
+# --- LOAD .ENV (must run before any os.getenv) ---
+_script_dir = Path(__file__).resolve().parent
+_project_root = _script_dir.parent
+for _p in [_script_dir / ".env", _project_root / ".env", _project_root / "backend" / ".env"]:
+    if _p.exists():
+        from dotenv import load_dotenv
+        load_dotenv(dotenv_path=_p)
+        print(f"🔍 Loaded .env from: {_p}")
+        break
+
 from supabase import create_client, Client
 from redis import Redis
-from pathlib import Path
 
 # --- CONFIGURATION ---
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+SUPABASE_URL = (os.getenv("SUPABASE_URL") or "").strip()
+SUPABASE_KEY = (os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY") or "").strip()
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    print("❌ CRITICAL: SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (or SUPABASE_KEY) required in .env")
+    sys.exit(1)
 
 # --- LOGGING SETUP ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
