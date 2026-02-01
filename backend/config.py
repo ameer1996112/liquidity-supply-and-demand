@@ -45,6 +45,23 @@ class Settings(BaseSettings):
     telegram_chat_id: str = ""
     paper_trading_enabled: bool = False
     paper_auto_execute: bool = True
+
+    # ══════════════════════════════════════════════════════════
+    # EXECUTION GATE & KILL-SWITCH
+    # ══════════════════════════════════════════════════════════
+    # When True: block all trade execution (save to DB as kill_switch_blocked only).
+    trading_kill_switch: bool = Field(
+        default=False,
+        description="Kill-switch: when True, block all execution.",
+        validation_alias=AliasChoices("TRADING_KILL_SWITCH", "KILL_SWITCH"),
+    )
+    # When False: DRY_RUN mode (save alert + Discord/Telegram, no paper/live orders).
+    # When True: allow paper/live execution per paper_trading_enabled and broker config.
+    live_trading_enabled: bool = Field(
+        default=False,
+        description="Gate: False=DRY_RUN (log only), True=allow orders.",
+        validation_alias=AliasChoices("LIVE_TRADING", "LIVE_TRADING_ENABLED"),
+    )
     paper_symbols: str = ""  # comma-separated, empty = all
     paper_max_positions: int = 10
     paper_account_balance: float = 10000.0

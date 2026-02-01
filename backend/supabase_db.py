@@ -218,6 +218,30 @@ def get_alert_by_zone_id(zone_id: int) -> Optional[Dict[str, Any]]:
         return None
 
 
+def get_alert_by_trade_key(trade_key: str) -> Optional[Dict[str, Any]]:
+    """
+    Get alert by trade_key (idempotency key).
+    Used to prevent duplicate orders for the same signal_id/trade_key.
+    """
+    if not trade_key or not str(trade_key).strip():
+        return None
+    if not supabase:
+        init_supabase()
+    try:
+        response = supabase.table('trading_signals').select('id, status').eq('trade_key', trade_key.strip()).limit(1).execute()
+        if response.data:
+            return response.data[0]
+        return None
+    except Exception as e:
+        logger.error(f"❌ Failed to get alert by trade_key: {e}")
+        return None
+
+
+def exists_by_signal_id(signal_id: str) -> bool:
+    """Return True if an alert already exists for this signal_id (trade_key). Used for idempotency."""
+    return get_alert_by_trade_key(signal_id) is not None
+
+
 def get_recent_alerts(limit: int = 10, run_mode: str = None, run_id: str = None) -> List[Dict[str, Any]]:
     """
     Get recent alerts ordered by created_at

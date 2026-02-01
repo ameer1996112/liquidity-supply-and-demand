@@ -226,10 +226,11 @@ def should_forward_alert(data: Dict[str, Any]) -> Tuple[bool, List[str], Dict[st
     return True, ["OK"], debug_meta
 
 
-def process_trade(data: Dict[str, Any]) -> None:
+def process_trade(data: Dict[str, Any], dry_run: bool = False) -> None:
     """
     Execute one trade payload: save to Supabase, filter or notify, optional paper position.
     Handles both entry and exit events. Called by worker only.
+    When dry_run=True: save alert + Discord/Telegram only; no paper/live order.
     """
     db = _get_supabase_db()
 
@@ -272,7 +273,7 @@ def process_trade(data: Dict[str, Any]) -> None:
         logger.info(f"Alert #{alert_id} filtered: {reason_str}")
         return
 
-    if mode == "paper":
+    if mode == "paper" and not dry_run:
         pt = _get_paper_trader()
         entry = float(data["entry"])
         sl = float(data["sl"])
@@ -283,6 +284,8 @@ def process_trade(data: Dict[str, Any]) -> None:
         rr_ratio = reward / risk if risk > 0 else 0
         pt.open_position(alert_id, symbol, str(data["side"]).lower(), entry, sl, tp, size, rr_ratio)
         logger.info(f"Paper position #{alert_id} opened")
+    elif dry_run:
+        logger.info(f"DRY_RUN: Alert #{alert_id} saved, no order placed (LIVE_TRADING=false)")
 
     send_discord(data, alert_id, mode=mode)
     send_telegram(data, alert_id)
