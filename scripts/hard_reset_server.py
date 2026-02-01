@@ -28,6 +28,17 @@ SUPA_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
 REDIS_URL = os.getenv("REDIS_URL")
 
 
+def _check_test_environment() -> bool:
+    """Check if running in test environment. Returns True if safe to proceed."""
+    trinity_env = os.getenv("TRINITY_ENV", "").lower()
+    if trinity_env != "test":
+        print(f"SAFETY CHECK FAILED: TRINITY_ENV must be 'test' to run destructive operations.")
+        print(f"  Current TRINITY_ENV: '{trinity_env or '(not set)'}'")
+        print(f"  Set TRINITY_ENV=test to proceed.")
+        return False
+    return True
+
+
 def hard_reset():
     print("INITIATING HARD SERVER RESET...")
 
@@ -68,6 +79,11 @@ if __name__ == "__main__":
     print("\n" + "=" * 50)
     print("SERVER HARD RESET UTILITY")
     print("=" * 50)
+
+    # Safety check: refuse to run unless TRINITY_ENV == "test"
+    if not _check_test_environment():
+        sys.exit(1)
+
     print(f"\nTarget Redis: {REDIS_URL[:30]}..." if REDIS_URL else "Redis: NOT CONFIGURED")
     print(f"Target Supabase: {SUPA_URL[:30]}..." if SUPA_URL else "Supabase: NOT CONFIGURED")
     print("")

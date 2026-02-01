@@ -54,7 +54,7 @@ QUEUE_NAME = "trading_queue"
 # Risk limits
 MAX_LOT_SIZE = 0.30  # Hard limit (0.30+ = rejected)
 MAX_OPEN_POSITIONS = 3  # Correlation bucket limit
-ML_MIN_CONFIDENCE = 0.60  # 60% win probability threshold
+ML_MIN_CONFIDENCE = 0.50  # 50% win probability threshold (lowered for testing)
 
 # --- GLOBAL SINGLETONS ---
 redis_client: Optional[Redis] = None

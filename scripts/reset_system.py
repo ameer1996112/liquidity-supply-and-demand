@@ -20,6 +20,11 @@ import os
 import sys
 from pathlib import Path
 
+# Guard: Never run in test environment
+if os.getenv("TRINITY_ENV") == "test":
+    print("❌ reset_system.py is disabled when TRINITY_ENV=test (safety).")
+    sys.exit(1)
+
 # Load .env from project root or backend/
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 for env_file in [PROJECT_ROOT / ".env", PROJECT_ROOT / "backend" / ".env"]:
@@ -201,12 +206,27 @@ def _delete_all_via_supabase(url: str, key: str) -> bool:
         return False
 
 
+def _check_test_environment() -> bool:
+    """Check if running in test environment. Returns True if safe to proceed."""
+    trinity_env = os.getenv("TRINITY_ENV", "").lower()
+    if trinity_env != "test":
+        _log(f"❌ SAFETY CHECK FAILED: TRINITY_ENV must be 'test' to run destructive operations.", RED)
+        _log(f"   Current TRINITY_ENV: '{trinity_env or '(not set)'}'", RED)
+        _log(f"   Set TRINITY_ENV=test to proceed.", YELLOW)
+        return False
+    return True
+
+
 def reset_system() -> int:
     """Execute full system reset. Returns 0 on success, 1 on failure."""
     _log("")
     _log(f"{BOLD}Factory Reset — Trading Bot{RESET}", CYAN)
     _log("Redis + Supabase data will be wiped.", DIM)
     _log("", "")
+
+    # Safety check: refuse to run unless TRINITY_ENV == "test"
+    if not _check_test_environment():
+        return 1
 
     if not _require_confirmation():
         return 1

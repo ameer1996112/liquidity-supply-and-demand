@@ -25,6 +25,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
+from backend.market_adapter import MarketAdapter
+
 logger = logging.getLogger(__name__)
 
 
@@ -240,8 +242,6 @@ class RiskGuardian:
         Returns:
             Risk amount in USD
         """
-        from backend.market_adapter import MarketAdapter
-
         adapter = MarketAdapter()
         pip_value = adapter.get_pip_value(symbol, position_size_lots)
         sl_pips = adapter.price_to_pips(symbol, abs(entry_price - stop_loss))

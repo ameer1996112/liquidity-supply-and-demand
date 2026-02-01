@@ -5,6 +5,14 @@
 
 set -e
 
+# Safety check: refuse to run unless TRINITY_ENV == "test"
+if [ "$TRINITY_ENV" != "test" ]; then
+    echo "SAFETY CHECK FAILED: TRINITY_ENV must be 'test' to run destructive operations."
+    echo "  Current TRINITY_ENV: '${TRINITY_ENV:-"(not set)"}'"
+    echo "  Set TRINITY_ENV=test to proceed."
+    exit 1
+fi
+
 echo "STARTING DEEP CLEAN..."
 
 # 1. Clean Backtest Data (Preserve only the 'Golden' datasets)

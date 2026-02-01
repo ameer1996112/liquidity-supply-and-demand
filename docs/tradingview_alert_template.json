@@ -1,0 +1,21 @@
+{
+    "passphrase": "YOUR_WEBHOOK_SECRET_HERE",
+    "symbol": "{{ticker}}",
+    "side": "{{strategy.order.action}}",
+    "entry": {{close}},
+    "sl": {{strategy.order.price}},
+    "tp": {{strategy.order.limit}},
+    "size": 0.01,
+    "zone_id": {{time}},
+    "zone_type": "{{strategy.order.action}}",
+    "entry_model": "FLIP",
+    "score": 95,
+    "freshness": 1,
+    "liq_swept": true,
+    "target_swept": false,
+    "is_accuracy": false,
+    "bar_time": "{{timenow}}",
+    "signal": "F:score=95 | F:source=TV | F:freshness=1 | F:liq_swept=1 | F:departure_strength=75",
+    "run_mode": "LIVE",
+    "trade_key": "{{ticker}}_{{timenow}}"
+}

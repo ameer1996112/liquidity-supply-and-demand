@@ -400,7 +400,8 @@ class PineGuardian:
         daily_pnl = current_equity - self.daily_start_equity
         loss_limit = self.daily_start_equity * (self.max_daily_loss_pct / 100.0)
 
-        return daily_pnl >= -loss_limit
+        # Block when loss_pct >= max_loss (at 2% boundary: block)
+        return daily_pnl > -loss_limit
 
     def check_daily_profit_target(self, current_equity: float) -> bool:
         """
@@ -532,6 +533,18 @@ class PineGuardian:
             )
 
         # ══════════════════════════════════════════════════════════
+        # STEP 1b: Hard Max Position Size (before variance/mismatch)
+        # ══════════════════════════════════════════════════════════
+
+        if requested_lots > MAX_POSITION_SIZE_LOTS:
+            return ValidationResult(
+                is_valid=False,
+                rejection_reason=RejectionReason.POSITION_TOO_LARGE,
+                rejection_message=f"Position too large: {requested_lots:.3f} lots > {MAX_POSITION_SIZE_LOTS} max",
+                requested_lots=requested_lots,
+            )
+
+        # ══════════════════════════════════════════════════════════
         # STEP 2: Re-Calculate Position Size
         # ══════════════════════════════════════════════════════════
 
@@ -580,17 +593,8 @@ class PineGuardian:
             )
 
         # ══════════════════════════════════════════════════════════
-        # STEP 4: Position Size Limits
+        # STEP 4: Position Size Min Limit (max checked in STEP 1b)
         # ══════════════════════════════════════════════════════════
-
-        if requested_lots > MAX_POSITION_SIZE_LOTS:
-            return ValidationResult(
-                is_valid=False,
-                rejection_reason=RejectionReason.POSITION_TOO_LARGE,
-                rejection_message=f"Position too large: {requested_lots:.3f} lots > {MAX_POSITION_SIZE_LOTS} max",
-                calculated_lots=calculated_lots,
-                requested_lots=requested_lots,
-            )
 
         contract_size, min_units = self.get_contract_size(symbol)
         min_lots = min_units / contract_size
