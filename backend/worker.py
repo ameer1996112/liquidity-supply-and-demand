@@ -158,20 +158,67 @@ def get_prediction(payload: Dict[str, Any]) -> tuple:
 
 # --- EXECUTION LAYER ---
 
+def _get_settings():
+    """Lazy load config (works as backend.worker or standalone worker.py)."""
+    try:
+        from backend.config import get_settings
+        return get_settings()
+    except ImportError:
+        from config import get_settings
+        return get_settings()
+
+
+def _exists_trade_key(trade_key: str) -> bool:
+    """Return True if an alert already exists for this trade_key (idempotency)."""
+    if not trade_key or not str(trade_key).strip() or not supabase:
+        return False
+    try:
+        r = supabase.table("trading_signals").select("id").eq("trade_key", trade_key.strip()).limit(1).execute()
+        return len(r.data) > 0
+    except Exception as e:
+        logger.warning(f"Idempotency check failed (trade_key): {e}")
+        return False
+
+
 def process_trade(payload: Dict[str, Any]):
     """
     Process incoming trade signal through the guard pipeline.
 
     Guards (each wrapped in try/except for crash prevention):
-    1. RISK GUARD - Reject oversized positions
-    2. CORRELATION GUARD - Reject if bucket full (3 positions)
-    3. ML GUARD - Reject low confidence trades
+    0. KILL-SWITCH - Block all if trading_kill_switch enabled
+    1. IDEMPOTENCY - Skip if signal_id/trade_key already exists
+    2. RISK GUARD - Reject oversized positions
+    3. CORRELATION GUARD - Reject if bucket full (3 positions)
+    4. ML GUARD - Reject low confidence trades
+    On pass: call logic.process_trade() (save_alert + optional paper + Discord). Rejections use save_result only.
     """
     symbol = payload.get('symbol', 'UNKNOWN')
     side = payload.get('side', 'buy')
     size = float(payload.get('size', 0.01))
 
     logger.info(f"⚡ Processing: {symbol} | {side.upper()} | Size: {size}")
+
+    # ══════════════════════════════════════════════════════════
+    # GUARD 0: KILL-SWITCH
+    # ══════════════════════════════════════════════════════════
+    try:
+        s = _get_settings()
+        if getattr(s, "trading_kill_switch", False):
+            save_result(payload, "kill_switch_blocked", "Trading kill-switch is ON", 0.0)
+            logger.warning("❌ KILL-SWITCH: execution blocked")
+            return
+    except Exception as e:
+        logger.error(f"❌ Kill-switch check failed: {e}")
+        save_result(payload, "kill_switch_blocked", f"Config error: {str(e)[:50]}", 0.0)
+        return
+
+    # ══════════════════════════════════════════════════════════
+    # GUARD 0.5: IDEMPOTENCY (prevent duplicate orders for same signal_id)
+    # ══════════════════════════════════════════════════════════
+    signal_id = payload.get("signal_id") or payload.get("trade_key")
+    if signal_id and _exists_trade_key(signal_id):
+        logger.info(f"⏭️ Idempotency: signal_id/trade_key already exists, skipping: {str(signal_id)[:64]}")
+        return
 
     # ══════════════════════════════════════════════════════════
     # GUARD 1: RISK GUARDIAN (Hard Limit)
@@ -219,15 +266,27 @@ def process_trade(payload: Dict[str, Any]):
         logger.info(f"   ML Check: confidence {win_prob:.1%} vs threshold {ML_MIN_CONFIDENCE:.0%}")
 
         if win_prob >= ML_MIN_CONFIDENCE:
-            status = "active"
-            note = f"AI Approved (confidence: {win_prob:.1%})"
             logger.info(f"✅ ML APPROVED: {symbol} (confidence: {win_prob:.1%})")
+            # Execute via logic: save_alert + optional paper + Discord/Telegram (DRY_RUN when LIVE_TRADING=false)
+            try:
+                s = _get_settings()
+                dry_run = not getattr(s, "live_trading_enabled", False)
+                if dry_run:
+                    logger.info("   DRY_RUN: LIVE_TRADING=false — saving alert + notify only, no order")
+                try:
+                    from backend import logic
+                except ImportError:
+                    import logic
+                logic.process_trade(payload, dry_run=dry_run)
+                logger.info("🏁 logic.process_trade completed")
+            except Exception as exec_err:
+                logger.error(f"❌ logic.process_trade failed: {exec_err}")
+                save_result(payload, "execution_failed", f"logic.process_trade: {str(exec_err)[:80]}", win_prob)
         else:
             status = "ml_rejected"
             note = f"Low Confidence ({win_prob:.1%} < {ML_MIN_CONFIDENCE:.0%})"
             logger.warning(f"❌ ML REJECTED: {symbol} (confidence: {win_prob:.1%} < {ML_MIN_CONFIDENCE:.0%})")
-
-        save_result(payload, status, note, win_prob)
+            save_result(payload, status, note, win_prob)
     except Exception as e:
         logger.error(f"❌ ML Guard Crashed: {e}")
         save_result(payload, "ml_rejected", f"ML Guard Error: {str(e)[:50]}", 0.0)
@@ -251,7 +310,9 @@ def save_result(payload: Dict[str, Any], status: str, note: str, prob: float):
         "ml_win_probability": prob,
         "run_mode": payload.get('run_mode', 'PAPER'),
     }
-
+    tk = (payload.get("trade_key") or "").strip()
+    if tk:
+        data["trade_key"] = tk
     try:
         supabase.table("trading_signals").insert(data).execute()
         logger.info(f"🏁 Saved: {status} | {note}")
@@ -266,11 +327,20 @@ def run():
     init_connections()
     load_brain()
 
+    try:
+        s = _get_settings()
+        kill_sw = getattr(s, "trading_kill_switch", False)
+        live = getattr(s, "live_trading_enabled", False)
+    except Exception:
+        kill_sw = False
+        live = False
     logger.info("=" * 60)
-    logger.info("🚀 WORKER v6.4 (SAFE MODE) STARTED")
+    logger.info("🚀 WORKER v6.5 (SAFE MODE) STARTED")
     logger.info(f"  Risk Limit: {MAX_LOT_SIZE} lots")
     logger.info(f"  Correlation Limit: {MAX_OPEN_POSITIONS} positions")
     logger.info(f"  ML Confidence: {ML_MIN_CONFIDENCE:.0%}")
+    logger.info(f"  Kill-Switch: {'ON (blocking all)' if kill_sw else 'OFF'}")
+    logger.info(f"  LIVE_TRADING: {'true (orders allowed)' if live else 'false (DRY_RUN)'}")
     logger.info(f"  AI Brain: {'LOADED' if AI_MODEL else 'DISABLED'}")
     logger.info(f"  Guard Strategy: FAIL-SAFE (reject on error)")
     logger.info("=" * 60)
