@@ -109,12 +109,12 @@ def get_prediction(payload: Dict[str, Any]) -> tuple:
     Safely predict win probability using the trained RandomForest model.
 
     Returns:
-        tuple: (probability: float, note: str)
-               Returns (0.5, "AI Disabled") if model unavailable
-               Returns (0.5, "AI Error: ...") on any prediction failure
+        tuple: (probability: float, note: str, features_used: dict)
+               Returns (0.5, "AI Disabled", {}) if model unavailable
+               Returns (0.5, "AI Error: ...", {}) on any prediction failure
     """
     if AI_MODEL is None:
-        return 0.5, "AI Disabled (Missing Model)"
+        return 0.5, "AI Disabled (Missing Model)", {}
 
     try:
         # 1. Initialize Safe Feature Frame (All Zeros)
@@ -149,11 +149,11 @@ def get_prediction(payload: Dict[str, Any]) -> tuple:
         # 5. Predict
         df = pd.DataFrame([features])
         prob = float(AI_MODEL.predict_proba(df)[0][1])
-        return prob, f"AI Confidence: {prob:.1%}"
+        return prob, f"AI Confidence: {prob:.1%}", features
 
     except Exception as e:
         logger.error(f"⚠️ Prediction Error: {e}")
-        return 0.5, f"AI Error: {str(e)[:50]}"
+        return 0.5, f"AI Error: {str(e)[:50]}", {}
 
 
 # --- EXECUTION LAYER ---
@@ -262,7 +262,7 @@ def process_trade(payload: Dict[str, Any]):
     # GUARD 3: ML GUARDIAN (The Brain)
     # ══════════════════════════════════════════════════════════
     try:
-        win_prob, note = get_prediction(payload)
+        win_prob, note, features_used = get_prediction(payload)
         logger.info(f"   ML Check: confidence {win_prob:.1%} vs threshold {ML_MIN_CONFIDENCE:.0%}")
 
         if win_prob >= ML_MIN_CONFIDENCE:
@@ -286,14 +286,58 @@ def process_trade(payload: Dict[str, Any]):
             status = "ml_rejected"
             note = f"Low Confidence ({win_prob:.1%} < {ML_MIN_CONFIDENCE:.0%})"
             logger.warning(f"❌ ML REJECTED: {symbol} (confidence: {win_prob:.1%} < {ML_MIN_CONFIDENCE:.0%})")
-            save_result(payload, status, note, win_prob)
+            # Build structured ai_reasoning for AI BRAIN tab
+            ai_reasoning = _build_ml_rejection_reasoning(payload, win_prob, features_used, note)
+            save_result(payload, status, note, win_prob, ai_reasoning=ai_reasoning)
     except Exception as e:
         logger.error(f"❌ ML Guard Crashed: {e}")
         save_result(payload, "ml_rejected", f"ML Guard Error: {str(e)[:50]}", 0.0)
 
 
-def save_result(payload: Dict[str, Any], status: str, note: str, prob: float):
-    """Log trade result to Supabase."""
+def _build_ml_rejection_reasoning(
+    payload: Dict[str, Any],
+    win_prob: float,
+    features_used: Dict[str, Any],
+    note: str,
+) -> Dict[str, Any]:
+    """
+    Build structured ai_reasoning for ML-rejected trades (AI BRAIN tab).
+    Includes zone/technical data from payload, model features, and threshold comparison.
+    """
+    reasoning: Dict[str, Any] = {
+        "decision": "rejected",
+        "confidence": round(win_prob, 4),
+        "threshold": ML_MIN_CONFIDENCE,
+        "reason": note,
+    }
+    # Zone data from payload (matches AIReasoning interface)
+    for k in ("zone_id", "zone_type", "zone_grade", "entry_model"):
+        if payload.get(k) is not None:
+            reasoning[k] = payload[k]
+    if payload.get("score") is not None:
+        reasoning["zone_score"] = payload["score"]
+    # Liquidity flags
+    if payload.get("liq_swept") is not None:
+        reasoning["liquidity_swept"] = payload["liq_swept"]
+    for k in ("target_swept", "caused_sweep", "is_accuracy"):
+        if payload.get(k) is not None:
+            reasoning[k] = payload[k]
+    # Technical indicators from payload
+    for k in ("score", "session", "trend", "rsi", "rvol", "adx", "atr_ratio",
+              "base_quality", "departure_strength", "liquidity_distance", "liquidity_spread", "return_strength"):
+        if payload.get(k) is not None:
+            reasoning[k] = payload[k]
+    # Features used by model (sanitize for JSON)
+    if features_used:
+        reasoning["features_used"] = {
+            k: float(v) if isinstance(v, (int, float)) else v
+            for k, v in features_used.items() if v is not None
+        }
+    return reasoning
+
+
+def save_result(payload: Dict[str, Any], status: str, note: str, prob: float, ai_reasoning: Optional[Dict[str, Any]] = None):
+    """Log trade result to Supabase with optional AI reasoning data."""
     if not supabase:
         logger.warning(f"Supabase unavailable - result not saved: {status}")
         return
@@ -313,6 +357,9 @@ def save_result(payload: Dict[str, Any], status: str, note: str, prob: float):
     tk = (payload.get("trade_key") or "").strip()
     if tk:
         data["trade_key"] = tk
+    # Add AI reasoning if provided
+    if ai_reasoning:
+        data["ai_reasoning"] = json.dumps(ai_reasoning)
     try:
         supabase.table("trading_signals").insert(data).execute()
         logger.info(f"🏁 Saved: {status} | {note}")

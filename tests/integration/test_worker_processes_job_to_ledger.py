@@ -228,8 +228,8 @@ class TestMLGuardianIntegration:
         with patch("backend.worker.supabase", mock_supabase), \
              patch("backend.worker.get_prediction") as mock_predict:
 
-            # Mock low confidence prediction
-            mock_predict.return_value = (0.45, "Low Confidence (45%)")
+            # Mock low confidence prediction (prob, note, features_used)
+            mock_predict.return_value = (0.45, "Low Confidence (45%)", {})
 
             from backend.worker import process_trade
 
@@ -250,6 +250,43 @@ class TestMLGuardianIntegration:
                 insert_data = last_call[0][0] if last_call[0] else {}
                 assert insert_data.get("status") == "ml_rejected"
 
+    def test_ml_rejection_saves_ai_reasoning(self, mock_supabase):
+        """ML-rejected trades should save structured ai_reasoning for AI BRAIN tab."""
+        mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = []
+
+        with patch("backend.worker.supabase", mock_supabase), \
+             patch("backend.worker.get_prediction") as mock_predict:
+
+            mock_predict.return_value = (0.45, "Low Confidence (45%)", {"f_score": 45, "f_rsi": 30})
+
+            from backend.worker import process_trade
+
+            payload = {
+                "symbol": "EURUSD",
+                "side": "buy",
+                "size": 0.10,
+                "entry": 1.0850,
+                "sl": 1.0800,
+                "zone_id": 12345,
+                "zone_type": "demand",
+                "score": 55,
+            }
+
+            process_trade(payload)
+
+            insert_calls = mock_supabase.table.return_value.insert.call_args_list
+            assert len(insert_calls) >= 1
+            insert_data = insert_calls[-1][0][0]
+            assert insert_data.get("status") == "ml_rejected"
+            assert "ai_reasoning" in insert_data
+            import json
+            ai_reasoning = json.loads(insert_data["ai_reasoning"])
+            assert ai_reasoning.get("decision") == "rejected"
+            assert ai_reasoning.get("confidence") == 0.45
+            assert ai_reasoning.get("threshold") == 0.5
+            assert ai_reasoning.get("zone_id") == 12345
+            assert "features_used" in ai_reasoning
+
     def test_ml_approval_when_high_confidence(self, mock_supabase):
         """Should approve when ML confidence above threshold."""
         # Mock no active positions
@@ -258,7 +295,7 @@ class TestMLGuardianIntegration:
         with patch("backend.worker.supabase", mock_supabase), \
              patch("backend.worker.get_prediction") as mock_predict:
 
-            mock_predict.return_value = (0.75, "High Confidence (75%)")
+            mock_predict.return_value = (0.75, "High Confidence (75%)", {})
 
             from backend.worker import process_trade
 
@@ -360,10 +397,11 @@ class TestGetPrediction:
             from backend.worker import get_prediction
 
             payload = {"symbol": "EURUSD", "side": "buy"}
-            prob, note = get_prediction(payload)
+            prob, note, features = get_prediction(payload)
 
             assert prob == 0.5
             assert "Disabled" in note or "Missing" in note
+            assert features == {}
 
     def test_extracts_features_from_signal_string(self):
         """Should extract F: features from signal string."""
@@ -382,7 +420,7 @@ class TestGetPrediction:
                 "signal": "FLIP|F:score=85.5|F:rsi=45"
             }
 
-            prob, note = get_prediction(payload)
+            prob, note, features = get_prediction(payload)
 
             # Should have called predict_proba
             assert mock_model.predict_proba.called
@@ -401,7 +439,7 @@ class TestIdempotency:
         mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = []
 
         with patch("backend.worker.supabase", mock_supabase), \
-             patch("backend.worker.get_prediction", return_value=(0.75, "OK")):
+             patch("backend.worker.get_prediction", return_value=(0.75, "OK", {})):
 
             from backend.worker import process_trade
 

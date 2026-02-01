@@ -296,7 +296,7 @@ class TestWorkerBurstProcessing:
 
         processed = 0
         with patch("backend.worker.supabase", mock_supabase), \
-             patch("backend.worker.get_prediction", return_value=(0.75, "OK")):
+             patch("backend.worker.get_prediction", return_value=(0.75, "OK", {})):
 
             while True:
                 item = redis_client.lpop(burst_queue_name)
@@ -328,7 +328,7 @@ class TestWorkerBurstProcessing:
         mock_supabase.table.return_value.insert.return_value.execute.return_value = MagicMock(data=[{"id": 1}])
 
         with patch("backend.worker.supabase", mock_supabase), \
-             patch("backend.worker.get_prediction", return_value=(0.75, "OK")):
+             patch("backend.worker.get_prediction", return_value=(0.75, "OK", {})):
 
             while True:
                 item = redis_client.lpop(burst_queue_name)
