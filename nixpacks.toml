@@ -1,5 +1,5 @@
 # Nixpacks configuration for Railway - Backend API Service
-# This runs the FastAPI webhook receiver (main.py)
+# Runs FastAPI webhook receiver (src.api). start.sh runs API + Worker; override start for API-only.
 
 [phases.setup]
 aptPkgs = ["python3", "python3-pip", "python3-venv"]
@@ -7,11 +7,11 @@ aptPkgs = ["python3", "python3-pip", "python3-venv"]
 [phases.install]
 cmds = [
   "python3 -m venv /app/venv",
-  "/app/venv/bin/pip install -r backend/requirements.txt"
+  "/app/venv/bin/pip install -r requirements.txt"
 ]
 
 [phases.build]
 cmds = []
 
 [start]
-cmd = "cd backend && /app/venv/bin/python main.py"
+cmd = "chmod +x start.sh && ./start.sh"

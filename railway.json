@@ -2,7 +2,15 @@
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
     "builder": "NIXPACKS",
-    "watchPatterns": ["backend/**", "start.sh", "railway.json", "nixpacks.toml"]
+    "watchPatterns": [
+      "src/**",
+      "config/**",
+      "requirements.txt",
+      "start.sh",
+      "railway.json",
+      "nixpacks.toml",
+      "nixpacks.worker.toml"
+    ]
   },
   "deploy": {
     "startCommand": "chmod +x start.sh && ./start.sh",
