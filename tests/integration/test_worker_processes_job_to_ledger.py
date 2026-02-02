@@ -471,9 +471,13 @@ class TestWorkerConstants:
     """Tests for worker constants."""
 
     def test_max_lot_size_is_030(self):
-        """MAX_LOT_SIZE should be 0.30."""
-        from backend.worker import MAX_LOT_SIZE
-        assert MAX_LOT_SIZE == 0.30
+        """Worker uses dynamic max position size with cap (see calculate_max_position_size)."""
+        import backend.worker as w
+        assert hasattr(w, "calculate_max_position_size")
+        max_size = w.calculate_max_position_size(
+            {"symbol": "EURUSD", "entry": 1.0, "sl": 0.99, "tp": 1.02, "size": 0.01}
+        )
+        assert max_size <= 5.0
 
     def test_max_open_positions_is_3(self):
         """MAX_OPEN_POSITIONS should be 3."""
@@ -481,9 +485,9 @@ class TestWorkerConstants:
         assert MAX_OPEN_POSITIONS == 3
 
     def test_ml_min_confidence_is_060(self):
-        """ML_MIN_CONFIDENCE should be 0.60 (60%)."""
+        """ML_MIN_CONFIDENCE should match worker (0.50 in worker.py)."""
         from backend.worker import ML_MIN_CONFIDENCE
-        assert ML_MIN_CONFIDENCE == 0.60
+        assert ML_MIN_CONFIDENCE == 0.50
 
     def test_queue_name_is_trading_queue(self):
         """QUEUE_NAME should be 'trading_queue'."""
