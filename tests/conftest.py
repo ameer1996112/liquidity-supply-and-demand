@@ -21,6 +21,10 @@ os.environ["TRINITY_ENV"] = "test"
 os.environ["WEBHOOK_SECRET"] = ""  # Disable auth for e2e webhook tests
 if "REDIS_URL" not in os.environ:
     os.environ["REDIS_URL"] = os.getenv("TEST_REDIS_URL", "redis://localhost:6379")
+if "SUPABASE_URL" not in os.environ:
+    os.environ["SUPABASE_URL"] = os.getenv("TEST_SUPABASE_URL", "https://test.supabase.co")
+if "SUPABASE_ANON_KEY" not in os.environ:
+    os.environ["SUPABASE_ANON_KEY"] = os.getenv("TEST_SUPABASE_ANON_KEY", "test-anon-key")
 
 
 # ══════════════════════════════════════════════════════════
@@ -342,7 +346,7 @@ def test_queue_name():
 @pytest.fixture
 def active_positions_full():
     """List of 3 active positions (at max limit)."""
-    from backend.correlation_manager import ActivePosition
+    from src.core.guard_rails.correlation import ActivePosition
     from datetime import datetime
 
     return [
@@ -376,7 +380,7 @@ def active_positions_full():
 @pytest.fixture
 def active_positions_two():
     """List of 2 active positions (below max limit)."""
-    from backend.correlation_manager import ActivePosition
+    from src.core.guard_rails.correlation import ActivePosition
     from datetime import datetime
 
     return [
@@ -412,7 +416,7 @@ def active_positions_empty():
 def test_app():
     """FastAPI TestClient for E2E tests."""
     from fastapi.testclient import TestClient
-    from backend.main import app
+    from src.api import app
 
     return TestClient(app)
 

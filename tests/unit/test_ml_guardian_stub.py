@@ -16,7 +16,7 @@ from unittest.mock import patch, MagicMock, PropertyMock
 from pathlib import Path
 import numpy as np
 
-from backend.ml_guardian import (
+from src.ai.ml_guardian import (
     MLGuardian,
     MODEL_PATH,
     ENCODERS_PATH,
@@ -464,13 +464,13 @@ class TestWorkerIntegration:
 
     def test_worker_ml_min_confidence_matches(self):
         """Worker's ML_MIN_CONFIDENCE should match expected threshold."""
-        from backend.worker import ML_MIN_CONFIDENCE
+        from src.worker import ML_MIN_CONFIDENCE
 
         assert ML_MIN_CONFIDENCE == 0.50  # worker uses 0.50 (see worker.py)
 
     def test_guardian_threshold_matches_worker(self):
         """MLGuardian threshold should match worker when aligned."""
-        from backend.worker import ML_MIN_CONFIDENCE
+        from src.worker import ML_MIN_CONFIDENCE
 
         guardian = MLGuardian(min_confidence=ML_MIN_CONFIDENCE)
         assert guardian.min_confidence == ML_MIN_CONFIDENCE

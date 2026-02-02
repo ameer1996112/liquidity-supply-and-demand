@@ -1,5 +1,6 @@
-# Microservices: Signal Receiver (API) + Trade Executor (Worker) + Redis
-# Shared network; API only validates and pushes to Redis; Worker executes trades.
+# Microservices: Backend (API + Worker) + Redis + Frontend (Next.js)
+# Backend: API validates and pushes to Redis; Worker executes trades.
+# Frontend: Next.js app; talks to Supabase; optional NEXT_PUBLIC_API_URL for backend.
 
 services:
   redis:
@@ -14,9 +15,9 @@ services:
       timeout: 3s
       retries: 3
 
-  api:
+  backend:
     build:
-      context: ./backend
+      context: .
       dockerfile: Dockerfile.api
     ports:
       - '8000:8000'
@@ -34,7 +35,7 @@ services:
 
   worker:
     build:
-      context: ./backend
+      context: .
       dockerfile: Dockerfile.worker
     environment:
       - REDIS_URL=redis://redis:6379/0
@@ -53,6 +54,24 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    networks:
+      - trading
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://backend:8000
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+    ports:
+      - '3000:3000'
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:8000
+    depends_on:
+      - backend
     networks:
       - trading
     restart: unless-stopped

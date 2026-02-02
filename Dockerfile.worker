@@ -1,0 +1,16 @@
+# Worker (Trade Executor) - v9 DDD
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY config/ config/
+COPY src/ src/
+COPY ml/ ml/
+
+ENV PYTHONPATH=/app
+
+EXPOSE 0
+CMD ["python", "-u", "-m", "src.worker"]

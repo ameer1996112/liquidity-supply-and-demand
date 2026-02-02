@@ -27,7 +27,7 @@ pytestmark = pytest.mark.e2e
 @pytest.fixture
 def client():
     """FastAPI TestClient for webhook testing."""
-    from backend.main import app
+    from src.api import app
     return TestClient(app)
 
 
@@ -77,7 +77,7 @@ class TestValidWebhook:
 
     def test_valid_entry_returns_200(self, client, valid_entry_payload, mock_redis):
         """Valid entry payload should return 200."""
-        with patch("backend.main.get_redis", return_value=mock_redis):
+        with patch("src.api.get_redis", return_value=mock_redis):
             response = client.post("/webhook", json=valid_entry_payload)
 
         assert response.status_code == 200
@@ -85,7 +85,7 @@ class TestValidWebhook:
 
     def test_valid_entry_enqueues_job(self, client, valid_entry_payload, mock_redis):
         """Valid entry should enqueue exactly 1 job."""
-        with patch("backend.main.get_redis", return_value=mock_redis):
+        with patch("src.api.get_redis", return_value=mock_redis):
             client.post("/webhook", json=valid_entry_payload)
 
         # Verify rpush was called once
@@ -98,7 +98,7 @@ class TestValidWebhook:
 
     def test_valid_entry_payload_preserved(self, client, valid_entry_payload, mock_redis):
         """Entry payload should be preserved in queue."""
-        with patch("backend.main.get_redis", return_value=mock_redis):
+        with patch("src.api.get_redis", return_value=mock_redis):
             client.post("/webhook", json=valid_entry_payload)
 
         # Get the payload that was enqueued
@@ -112,14 +112,14 @@ class TestValidWebhook:
 
     def test_valid_exit_returns_200(self, client, valid_exit_payload, mock_redis):
         """Valid exit payload should return 200."""
-        with patch("backend.main.get_redis", return_value=mock_redis):
+        with patch("src.api.get_redis", return_value=mock_redis):
             response = client.post("/webhook", json=valid_exit_payload)
 
         assert response.status_code == 200
 
     def test_exit_event_enqueued(self, client, valid_exit_payload, mock_redis):
         """Exit event should also be enqueued."""
-        with patch("backend.main.get_redis", return_value=mock_redis):
+        with patch("src.api.get_redis", return_value=mock_redis):
             client.post("/webhook", json=valid_exit_payload)
 
         mock_redis.rpush.assert_called_once()
@@ -143,7 +143,7 @@ class TestInvalidWebhook:
             "size": 0.10,
         }
 
-        with patch("backend.main.get_redis", return_value=mock_redis):
+        with patch("src.api.get_redis", return_value=mock_redis):
             response = client.post("/webhook", json=payload)
 
         assert response.status_code == 422
@@ -158,7 +158,7 @@ class TestInvalidWebhook:
             "size": 0.10,
         }
 
-        with patch("backend.main.get_redis", return_value=mock_redis):
+        with patch("src.api.get_redis", return_value=mock_redis):
             client.post("/webhook", json=payload)
 
         mock_redis.rpush.assert_not_called()
@@ -174,21 +174,21 @@ class TestInvalidWebhook:
             "size": 0.10,
         }
 
-        with patch("backend.main.get_redis", return_value=mock_redis):
+        with patch("src.api.get_redis", return_value=mock_redis):
             response = client.post("/webhook", json=payload)
 
         assert response.status_code == 422
 
     def test_empty_body_returns_422(self, client, mock_redis):
         """Empty body should return 422."""
-        with patch("backend.main.get_redis", return_value=mock_redis):
+        with patch("src.api.get_redis", return_value=mock_redis):
             response = client.post("/webhook", json={})
 
         assert response.status_code == 422
 
     def test_invalid_json_returns_400(self, client, mock_redis):
         """Invalid JSON should return 400."""
-        with patch("backend.main.get_redis", return_value=mock_redis):
+        with patch("src.api.get_redis", return_value=mock_redis):
             response = client.post(
                 "/webhook",
                 content="not json",
@@ -208,8 +208,8 @@ class TestWebhookSecret:
 
     def test_accepts_valid_secret_in_header(self, client, valid_entry_payload, mock_redis):
         """Should accept valid secret in X-Webhook-Secret header."""
-        with patch("backend.main.get_redis", return_value=mock_redis), \
-             patch("backend.main.get_settings") as mock_settings:
+        with patch("src.api.get_redis", return_value=mock_redis), \
+             patch("src.api.get_settings") as mock_settings:
 
             mock_settings.return_value.webhook_secret = "test-secret"
             mock_settings.return_value.redis_url = "redis://localhost:6379"
@@ -224,8 +224,8 @@ class TestWebhookSecret:
 
     def test_accepts_valid_secret_in_query(self, client, valid_entry_payload, mock_redis):
         """Should accept valid secret in query parameter."""
-        with patch("backend.main.get_redis", return_value=mock_redis), \
-             patch("backend.main.get_settings") as mock_settings:
+        with patch("src.api.get_redis", return_value=mock_redis), \
+             patch("src.api.get_settings") as mock_settings:
 
             mock_settings.return_value.webhook_secret = "test-secret"
             mock_settings.return_value.redis_url = "redis://localhost:6379"
@@ -239,8 +239,8 @@ class TestWebhookSecret:
 
     def test_rejects_invalid_secret(self, client, valid_entry_payload, mock_redis):
         """Should reject invalid secret with 401."""
-        with patch("backend.main.get_redis", return_value=mock_redis), \
-             patch("backend.main.get_settings") as mock_settings:
+        with patch("src.api.get_redis", return_value=mock_redis), \
+             patch("src.api.get_settings") as mock_settings:
 
             mock_settings.return_value.webhook_secret = "correct-secret"
             mock_settings.return_value.redis_url = "redis://localhost:6379"
@@ -255,8 +255,8 @@ class TestWebhookSecret:
 
     def test_no_secret_when_not_configured(self, client, valid_entry_payload, mock_redis):
         """Should work without secret when not configured."""
-        with patch("backend.main.get_redis", return_value=mock_redis), \
-             patch("backend.main.get_settings") as mock_settings:
+        with patch("src.api.get_redis", return_value=mock_redis), \
+             patch("src.api.get_settings") as mock_settings:
 
             mock_settings.return_value.webhook_secret = ""  # Not configured
             mock_settings.return_value.redis_url = "redis://localhost:6379"
@@ -307,7 +307,7 @@ class TestPayloadHandling:
             "zone_id": 12345,
         }
 
-        with patch("backend.main.get_redis", return_value=mock_redis):
+        with patch("src.api.get_redis", return_value=mock_redis):
             client.post("/webhook", json=payload)
 
         call_args = mock_redis.rpush.call_args
@@ -327,7 +327,7 @@ class TestPayloadHandling:
             "size": 0.123,
         }
 
-        with patch("backend.main.get_redis", return_value=mock_redis):
+        with patch("src.api.get_redis", return_value=mock_redis):
             client.post("/webhook", json=payload)
 
         call_args = mock_redis.rpush.call_args
@@ -342,7 +342,7 @@ class TestPayloadHandling:
         # TradingView may send {{placeholder}} that didn't resolve
         raw_body = b'{"symbol": "EURUSD", "side": "buy", "entry": {{close}}, "sl": 1.0800, "tp": 1.0950, "size": 0.10}'
 
-        with patch("backend.main.get_redis", return_value=mock_redis):
+        with patch("src.api.get_redis", return_value=mock_redis):
             response = client.post(
                 "/webhook",
                 content=raw_body,
@@ -368,8 +368,8 @@ class TestRealRedisFlow:
         test_queue = "trading_queue_e2e_test"
 
         # Patch to use test queue
-        with patch("backend.main.QUEUE_NAME", test_queue), \
-             patch("backend.main.get_redis", return_value=redis_client):
+        with patch("src.api.QUEUE_NAME", test_queue), \
+             patch("src.api.get_redis", return_value=redis_client):
 
             # Clear queue
             redis_client.delete(test_queue)
@@ -396,8 +396,8 @@ class TestRealRedisFlow:
         """Multiple webhooks should be queued in FIFO order."""
         test_queue = "trading_queue_e2e_test"
 
-        with patch("backend.main.QUEUE_NAME", test_queue), \
-             patch("backend.main.get_redis", return_value=redis_client):
+        with patch("src.api.QUEUE_NAME", test_queue), \
+             patch("src.api.get_redis", return_value=redis_client):
 
             redis_client.delete(test_queue)
 

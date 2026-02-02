@@ -10,7 +10,7 @@ from supabase import create_client, Client
 # --- CONFIG ---
 _base = Path(__file__).resolve().parent.parent
 env_path = None
-for p in [_base / "backend" / ".env", _base / ".env", _base / "scripts" / ".env"]:
+for p in [_base / ".env", _base / "scripts" / ".env"]:
     if p.exists():
         load_dotenv(dotenv_path=p)
         env_path = p

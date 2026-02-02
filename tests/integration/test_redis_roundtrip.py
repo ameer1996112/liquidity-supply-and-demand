@@ -299,14 +299,14 @@ class TestQueueName:
 
     def test_production_queue_name_is_trading_queue(self):
         """Production queue name should be 'trading_queue'."""
-        from backend.worker import QUEUE_NAME
+        from src.worker import QUEUE_NAME
 
         assert QUEUE_NAME == "trading_queue"
 
     def test_main_queue_name_matches_worker(self):
         """Main and worker should use same queue name."""
-        from backend.main import QUEUE_NAME as MAIN_QUEUE
-        from backend.worker import QUEUE_NAME as WORKER_QUEUE
+        from src.api import QUEUE_NAME as MAIN_QUEUE
+        from src.worker import QUEUE_NAME as WORKER_QUEUE
 
         assert MAIN_QUEUE == WORKER_QUEUE
 

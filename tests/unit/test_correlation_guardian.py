@@ -14,7 +14,7 @@ These tests run without network calls using fixture positions.
 import pytest
 from datetime import datetime
 
-from backend.correlation_manager import (
+from src.core.guard_rails.correlation import (
     CorrelationManager,
     CorrelationCheckResult,
     CorrelationRejectionReason,

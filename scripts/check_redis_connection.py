@@ -2,8 +2,10 @@ import os
 import redis
 from dotenv import load_dotenv
 
-# Load .env
-load_dotenv("backend/.env")
+# Load .env from project root
+from pathlib import Path
+_root = Path(__file__).resolve().parent.parent
+load_dotenv(_root / ".env")
 
 REDIS_URL = os.getenv("REDIS_URL")
 
@@ -12,7 +14,7 @@ def check_redis():
     print("------------------------------")
 
     if not REDIS_URL:
-        print("❌ ERROR: REDIS_URL is missing from backend/.env")
+        print("❌ ERROR: REDIS_URL is missing from .env (project root)")
         return
 
     # Mask the password for security

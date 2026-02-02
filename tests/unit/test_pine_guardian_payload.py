@@ -13,7 +13,7 @@ These tests run without network calls.
 import pytest
 from unittest.mock import patch
 
-from backend.pine_guardian import (
+from src.core.guard_rails.pine_guardian import (
     PineGuardian,
     ValidationResult,
     RejectionReason,

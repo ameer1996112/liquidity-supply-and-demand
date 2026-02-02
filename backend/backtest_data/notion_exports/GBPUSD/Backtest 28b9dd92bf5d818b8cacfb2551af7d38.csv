@@ -1,5 +1,0 @@
-﻿Trade #,Day,Session,Entry model,Entry method,Liquidity Distance,+ R (%),Potential R,Win,Loss,BE,RSI,Candle Close,News,Entry Type,Trade Score,Close,Open,SL Pips,Zone Type
-1,Monday,"London, New York",S&D Retest,Candle Close,1.2,-1%,2%,,Loss,,Between,Beraish,No,Default,A,"October 13, 2024 16:05 (GMT+3)","October 13, 2024 16:00 (GMT+3)",3.3,Supply
-2,Wednesday,"London, New York",S&D Retest,Candle Close,1.8,-1%,2%,,Loss,,Between,Beraish,No,Default,B+,"October 15, 2025 16:05 (GMT+3)","October 15, 2025 16:00 (GMT+3)",5,Supply
-3,Monday,"London, New York",S&D Retest,Candle Close,0.1,-1%,2%,,Loss,,Between,Beraish,No,Default,B+,"October 20, 2025 15:15 (GMT+3)","October 20, 2025 15:15 (GMT+3)",2.4,Supply
-4,Tuesday,London,S&D Retest,Candle Close,3.4,2%,2%,,,,Between,Bullish,No,Default,B+,"October 21, 2025 13:15 (GMT+3)","October 21, 2025 12:35 (GMT+3)",6.6,Supply

@@ -58,8 +58,8 @@ class TestProcessTrade:
 
     def test_risk_rejection_for_oversized_lot(self, mock_supabase):
         """Should reject trades exceeding MAX_LOT_SIZE (0.30)."""
-        with patch("backend.worker.supabase", mock_supabase):
-            from backend.worker import process_trade, save_result
+        with patch("src.worker.supabase", mock_supabase):
+            from src.worker import process_trade, save_result
 
             payload = {
                 "symbol": "EURUSD",
@@ -80,8 +80,8 @@ class TestProcessTrade:
 
     def test_valid_trade_passes_risk_check(self, mock_supabase):
         """Trade with valid lot size should pass risk check."""
-        with patch("backend.worker.supabase", mock_supabase):
-            from backend.worker import process_trade
+        with patch("src.worker.supabase", mock_supabase):
+            from src.worker import process_trade
 
             payload = {
                 "symbol": "EURUSD",
@@ -104,8 +104,8 @@ class TestProcessTrade:
             {"id": 1}, {"id": 2}, {"id": 3}
         ]
 
-        with patch("backend.worker.supabase", mock_supabase):
-            from backend.worker import process_trade
+        with patch("src.worker.supabase", mock_supabase):
+            from src.worker import process_trade
 
             payload = {
                 "symbol": "AUDUSD",
@@ -138,8 +138,8 @@ class TestProcessTrade:
         }
 
         # The worker checks event_type == 'exit' and skips
-        with patch("backend.worker.supabase", mock_supabase):
-            from backend.worker import process_trade
+        with patch("src.worker.supabase", mock_supabase):
+            from src.worker import process_trade
 
             # process_trade shouldn't be called for exit events
             # but if called, it should handle gracefully
@@ -156,8 +156,8 @@ class TestSaveResult:
 
     def test_save_result_inserts_correct_data(self, mock_supabase):
         """save_result should insert data with correct fields."""
-        with patch("backend.worker.supabase", mock_supabase):
-            from backend.worker import save_result
+        with patch("src.worker.supabase", mock_supabase):
+            from src.worker import save_result
 
             payload = {
                 "symbol": "EURUSD",
@@ -186,8 +186,8 @@ class TestSaveResult:
 
     def test_save_result_handles_missing_optional_fields(self, mock_supabase):
         """save_result should handle missing optional fields."""
-        with patch("backend.worker.supabase", mock_supabase):
-            from backend.worker import save_result
+        with patch("src.worker.supabase", mock_supabase):
+            from src.worker import save_result
 
             # Minimal payload
             payload = {
@@ -203,8 +203,8 @@ class TestSaveResult:
 
     def test_save_result_logs_when_supabase_unavailable(self, caplog):
         """save_result should log warning when supabase is None."""
-        with patch("backend.worker.supabase", None):
-            from backend.worker import save_result
+        with patch("src.worker.supabase", None):
+            from src.worker import save_result
 
             payload = {"symbol": "EURUSD", "side": "buy", "size": 0.10}
             save_result(payload, "active", "Test", 0.5)
@@ -225,13 +225,13 @@ class TestMLGuardianIntegration:
         # Mock no active positions (pass correlation check)
         mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = []
 
-        with patch("backend.worker.supabase", mock_supabase), \
-             patch("backend.worker.get_prediction") as mock_predict:
+        with patch("src.worker.supabase", mock_supabase), \
+             patch("src.worker.get_prediction") as mock_predict:
 
             # Mock low confidence prediction (prob, note, features_used)
             mock_predict.return_value = (0.45, "Low Confidence (45%)", {})
 
-            from backend.worker import process_trade
+            from src.worker import process_trade
 
             payload = {
                 "symbol": "EURUSD",
@@ -254,12 +254,12 @@ class TestMLGuardianIntegration:
         """ML-rejected trades should save structured ai_reasoning for AI BRAIN tab."""
         mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = []
 
-        with patch("backend.worker.supabase", mock_supabase), \
-             patch("backend.worker.get_prediction") as mock_predict:
+        with patch("src.worker.supabase", mock_supabase), \
+             patch("src.worker.get_prediction") as mock_predict:
 
             mock_predict.return_value = (0.45, "Low Confidence (45%)", {"f_score": 45, "f_rsi": 30})
 
-            from backend.worker import process_trade
+            from src.worker import process_trade
 
             payload = {
                 "symbol": "EURUSD",
@@ -292,12 +292,12 @@ class TestMLGuardianIntegration:
         # Mock no active positions
         mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = []
 
-        with patch("backend.worker.supabase", mock_supabase), \
-             patch("backend.worker.get_prediction") as mock_predict:
+        with patch("src.worker.supabase", mock_supabase), \
+             patch("src.worker.get_prediction") as mock_predict:
 
             mock_predict.return_value = (0.75, "High Confidence (75%)", {})
 
-            from backend.worker import process_trade
+            from src.worker import process_trade
 
             payload = {
                 "symbol": "EURUSD",
@@ -330,8 +330,8 @@ class TestErrorHandling:
         # Make insert raise exception
         mock_supabase.table.return_value.insert.return_value.execute.side_effect = Exception("DB Error")
 
-        with patch("backend.worker.supabase", mock_supabase):
-            from backend.worker import save_result
+        with patch("src.worker.supabase", mock_supabase):
+            from src.worker import save_result
 
             payload = {"symbol": "EURUSD", "side": "buy", "size": 0.10}
 
@@ -343,8 +343,8 @@ class TestErrorHandling:
         # Make select raise exception
         mock_supabase.table.return_value.select.return_value.eq.return_value.execute.side_effect = Exception("DB Error")
 
-        with patch("backend.worker.supabase", mock_supabase):
-            from backend.worker import process_trade
+        with patch("src.worker.supabase", mock_supabase):
+            from src.worker import process_trade
 
             payload = {
                 "symbol": "EURUSD",
@@ -364,12 +364,12 @@ class TestErrorHandling:
         """Worker should survive ML prediction failures."""
         mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = []
 
-        with patch("backend.worker.supabase", mock_supabase), \
-             patch("backend.worker.get_prediction") as mock_predict:
+        with patch("src.worker.supabase", mock_supabase), \
+             patch("src.worker.get_prediction") as mock_predict:
 
             mock_predict.side_effect = Exception("ML Error")
 
-            from backend.worker import process_trade
+            from src.worker import process_trade
 
             payload = {
                 "symbol": "EURUSD",
@@ -393,8 +393,8 @@ class TestGetPrediction:
 
     def test_returns_default_when_model_missing(self):
         """Should return 0.5 when model not loaded."""
-        with patch("backend.worker.AI_MODEL", None):
-            from backend.worker import get_prediction
+        with patch("src.worker.AI_MODEL", None):
+            from src.worker import get_prediction
 
             payload = {"symbol": "EURUSD", "side": "buy"}
             prob, note, features = get_prediction(payload)
@@ -410,10 +410,10 @@ class TestGetPrediction:
         mock_model.feature_names_in_ = ["score", "f_score", "signal_encoded", "asset_id"]
         mock_model.predict_proba.return_value = [[0.3, 0.7]]
 
-        with patch("backend.worker.AI_MODEL", mock_model), \
-             patch("backend.worker.AI_ENCODERS", {"asset_id": MagicMock()}):
+        with patch("src.worker.AI_MODEL", mock_model), \
+             patch("src.worker.AI_ENCODERS", {"asset_id": MagicMock()}):
 
-            from backend.worker import get_prediction
+            from src.worker import get_prediction
 
             payload = {
                 "symbol": "EURUSD",
@@ -438,10 +438,10 @@ class TestIdempotency:
         """Processing same signal twice should create separate records."""
         mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = []
 
-        with patch("backend.worker.supabase", mock_supabase), \
-             patch("backend.worker.get_prediction", return_value=(0.75, "OK", {})):
+        with patch("src.worker.supabase", mock_supabase), \
+             patch("src.worker.get_prediction", return_value=(0.75, "OK", {})):
 
-            from backend.worker import process_trade
+            from src.worker import process_trade
 
             payload = {
                 "symbol": "EURUSD",
@@ -472,7 +472,7 @@ class TestWorkerConstants:
 
     def test_max_lot_size_is_030(self):
         """Worker uses dynamic max position size with cap (see calculate_max_position_size)."""
-        import backend.worker as w
+        import src.worker as w
         assert hasattr(w, "calculate_max_position_size")
         max_size = w.calculate_max_position_size(
             {"symbol": "EURUSD", "entry": 1.0, "sl": 0.99, "tp": 1.02, "size": 0.01}
@@ -481,15 +481,15 @@ class TestWorkerConstants:
 
     def test_max_open_positions_is_3(self):
         """MAX_OPEN_POSITIONS should be 3."""
-        from backend.worker import MAX_OPEN_POSITIONS
+        from src.worker import MAX_OPEN_POSITIONS
         assert MAX_OPEN_POSITIONS == 3
 
     def test_ml_min_confidence_is_060(self):
         """ML_MIN_CONFIDENCE should match worker (0.50 in worker.py)."""
-        from backend.worker import ML_MIN_CONFIDENCE
+        from src.worker import ML_MIN_CONFIDENCE
         assert ML_MIN_CONFIDENCE == 0.50
 
     def test_queue_name_is_trading_queue(self):
         """QUEUE_NAME should be 'trading_queue'."""
-        from backend.worker import QUEUE_NAME
+        from src.worker import QUEUE_NAME
         assert QUEUE_NAME == "trading_queue"

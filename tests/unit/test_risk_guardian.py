@@ -13,7 +13,7 @@ These tests run without network calls.
 import pytest
 from unittest.mock import patch, MagicMock
 
-from backend.risk_guardian import (
+from src.core.risk_engine import (
     RiskGuardian,
     RiskCheckResult,
     RiskRejectionReason,
@@ -360,7 +360,7 @@ class TestLotSizeLimit:
     def test_worker_max_lot_constant(self):
         """Worker uses dynamic max position size (calculate_max_position_size) with cap 5.0."""
         # Worker does not expose MAX_LOT_SIZE; it uses dynamic sizing and cap in calculate_max_position_size
-        import backend.worker as w
+        import src.worker as w
 
         assert hasattr(w, "calculate_max_position_size")
         # Cap is 5.0 in calculate_max_position_size (see worker.py)

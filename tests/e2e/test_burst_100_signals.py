@@ -30,7 +30,7 @@ pytestmark = [pytest.mark.e2e, pytest.mark.slow]
 @pytest.fixture
 def client():
     """FastAPI TestClient for webhook testing."""
-    from backend.main import app
+    from src.api import app
     return TestClient(app)
 
 
@@ -152,8 +152,8 @@ class TestBurstWebhook:
 
     def test_burst_100_webhooks_all_accepted(self, client, redis_client, burst_queue_name, sample_symbols):
         """100 sequential webhook requests should all succeed."""
-        with patch("backend.main.QUEUE_NAME", burst_queue_name), \
-             patch("backend.main.get_redis", return_value=redis_client):
+        with patch("src.api.QUEUE_NAME", burst_queue_name), \
+             patch("src.api.get_redis", return_value=redis_client):
 
             redis_client.delete(burst_queue_name)
 
@@ -176,8 +176,8 @@ class TestBurstWebhook:
 
     def test_burst_no_crash(self, client, redis_client, burst_queue_name, sample_symbols):
         """System should not crash under burst load."""
-        with patch("backend.main.QUEUE_NAME", burst_queue_name), \
-             patch("backend.main.get_redis", return_value=redis_client):
+        with patch("src.api.QUEUE_NAME", burst_queue_name), \
+             patch("src.api.get_redis", return_value=redis_client):
 
             redis_client.delete(burst_queue_name)
 
@@ -203,8 +203,8 @@ class TestConcurrentBurst:
 
     def test_concurrent_50_webhooks(self, client, redis_client, burst_queue_name, sample_symbols):
         """50 concurrent webhook requests should all succeed."""
-        with patch("backend.main.QUEUE_NAME", burst_queue_name), \
-             patch("backend.main.get_redis", return_value=redis_client):
+        with patch("src.api.QUEUE_NAME", burst_queue_name), \
+             patch("src.api.get_redis", return_value=redis_client):
 
             redis_client.delete(burst_queue_name)
 
@@ -241,8 +241,8 @@ class TestMixedBurst:
 
     def test_mixed_burst_valid_signals_enqueued(self, client, redis_client, burst_queue_name, sample_symbols):
         """Only valid signals in mixed burst should be enqueued."""
-        with patch("backend.main.QUEUE_NAME", burst_queue_name), \
-             patch("backend.main.get_redis", return_value=redis_client):
+        with patch("src.api.QUEUE_NAME", burst_queue_name), \
+             patch("src.api.get_redis", return_value=redis_client):
 
             redis_client.delete(burst_queue_name)
 
@@ -280,7 +280,7 @@ class TestWorkerBurstProcessing:
 
     def test_process_100_jobs_no_crash(self, redis_client, burst_queue_name, sample_symbols):
         """Worker should process 100 jobs without crashing."""
-        from backend.worker import process_trade
+        from src.worker import process_trade
 
         redis_client.delete(burst_queue_name)
 
@@ -295,8 +295,8 @@ class TestWorkerBurstProcessing:
         mock_supabase.table.return_value.insert.return_value.execute.return_value = MagicMock(data=[{"id": 1}])
 
         processed = 0
-        with patch("backend.worker.supabase", mock_supabase), \
-             patch("backend.worker.get_prediction", return_value=(0.75, "OK", {})):
+        with patch("src.worker.supabase", mock_supabase), \
+             patch("src.worker.get_prediction", return_value=(0.75, "OK", {})):
 
             while True:
                 item = redis_client.lpop(burst_queue_name)
@@ -315,7 +315,7 @@ class TestWorkerBurstProcessing:
 
     def test_all_jobs_accounted_for(self, redis_client, burst_queue_name, sample_symbols):
         """All 100 jobs should result in ledger writes."""
-        from backend.worker import process_trade
+        from src.worker import process_trade
 
         redis_client.delete(burst_queue_name)
 
@@ -327,8 +327,8 @@ class TestWorkerBurstProcessing:
         mock_supabase.table.return_value.select.return_value.eq.return_value.execute.return_value.data = []
         mock_supabase.table.return_value.insert.return_value.execute.return_value = MagicMock(data=[{"id": 1}])
 
-        with patch("backend.worker.supabase", mock_supabase), \
-             patch("backend.worker.get_prediction", return_value=(0.75, "OK", {})):
+        with patch("src.worker.supabase", mock_supabase), \
+             patch("src.worker.get_prediction", return_value=(0.75, "OK", {})):
 
             while True:
                 item = redis_client.lpop(burst_queue_name)
