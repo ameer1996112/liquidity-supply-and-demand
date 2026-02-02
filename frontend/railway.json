@@ -5,7 +5,7 @@
     "watchPatterns": ["**"]
   },
   "deploy": {
-    "startCommand": "node node_modules/next/dist/bin/next start",
+    "startCommand": "cd .next/standalone && node server.js",
     "healthcheckPath": "/",
     "healthcheckTimeout": 30,
     "restartPolicyType": "ON_FAILURE",

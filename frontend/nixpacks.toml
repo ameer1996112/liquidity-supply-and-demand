@@ -1,0 +1,16 @@
+# Nixpacks config for Next.js frontend (standalone output)
+# Build produces .next/standalone; start runs node server.js (no full node_modules at runtime).
+# Node version from package.json engines.
+
+[phases.install]
+cmds = ["npm ci"]
+
+[phases.build]
+cmds = [
+  "npm run build",
+  "cp -r public .next/standalone/ 2>/dev/null || true",
+  "cp -r .next/static .next/standalone/.next/ 2>/dev/null || true"
+]
+
+[start]
+cmd = "cd .next/standalone && node server.js"
