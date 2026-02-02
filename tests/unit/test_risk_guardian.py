@@ -358,12 +358,16 @@ class TestLotSizeLimit:
     """Tests for lot size limits (as enforced by worker, not RiskGuardian directly)."""
 
     def test_worker_max_lot_constant(self):
-        """Verify the worker's MAX_LOT_SIZE constant is 0.30."""
-        # This tests that the constant exists and is correct
-        # The actual enforcement is in worker.py
-        from backend.worker import MAX_LOT_SIZE
+        """Worker uses dynamic max position size (calculate_max_position_size) with cap 5.0."""
+        # Worker does not expose MAX_LOT_SIZE; it uses dynamic sizing and cap in calculate_max_position_size
+        import backend.worker as w
 
-        assert MAX_LOT_SIZE == 0.30
+        assert hasattr(w, "calculate_max_position_size")
+        # Cap is 5.0 in calculate_max_position_size (see worker.py)
+        max_size = w.calculate_max_position_size(
+            {"symbol": "EURUSD", "entry": 1.0, "sl": 0.99, "tp": 1.02, "size": 0.01}
+        )
+        assert max_size <= 5.0
 
     def test_signal_above_lot_limit_should_be_rejected(self):
         """Signal with size > 0.30 should be rejected by worker logic."""

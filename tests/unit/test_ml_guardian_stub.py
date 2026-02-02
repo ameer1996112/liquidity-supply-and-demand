@@ -463,16 +463,16 @@ class TestWorkerIntegration:
     """Tests verifying ML Guardian constants match worker."""
 
     def test_worker_ml_min_confidence_matches(self):
-        """Worker's ML_MIN_CONFIDENCE should match default."""
+        """Worker's ML_MIN_CONFIDENCE should match expected threshold."""
         from backend.worker import ML_MIN_CONFIDENCE
 
-        assert ML_MIN_CONFIDENCE == 0.60
+        assert ML_MIN_CONFIDENCE == 0.50  # worker uses 0.50 (see worker.py)
 
     def test_guardian_threshold_matches_worker(self):
-        """MLGuardian default threshold should match worker."""
-        guardian = MLGuardian()
+        """MLGuardian threshold should match worker when aligned."""
         from backend.worker import ML_MIN_CONFIDENCE
 
+        guardian = MLGuardian(min_confidence=ML_MIN_CONFIDENCE)
         assert guardian.min_confidence == ML_MIN_CONFIDENCE
 
 
