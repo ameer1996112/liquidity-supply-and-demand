@@ -352,7 +352,7 @@ def save_result(payload: Dict[str, Any], status: str, note: str, prob: float, ai
         "status": status,
         "notes": note,
         "ml_win_probability": prob,
-        "run_mode": payload.get('run_mode', 'PAPER'),
+        "run_mode": payload.get('run_mode', 'LIVE'),  # Default to LIVE (TradingView alerts)
     }
     tk = (payload.get("trade_key") or "").strip()
     if tk:
