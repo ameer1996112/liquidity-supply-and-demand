@@ -292,7 +292,7 @@ def main():
 
     print()
     print(f"{CYAN}📺 Now check your Dashboard at your frontend URL{RESET}")
-    print(f"{CYAN}📋 See TESTING_GUIDE.md for what to look for in logs{RESET}")
+    print(f"{CYAN}📋 See docs/TESTING_GUIDE.md for what to look for in logs{RESET}")
     print()
 
 

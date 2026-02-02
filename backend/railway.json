@@ -4,7 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "chmod +x start_api_and_worker.sh && ./start_api_and_worker.sh",
+    "startCommand": "chmod +x ../start.sh && ../start.sh",
     "healthcheckPath": "/health",
     "healthcheckTimeout": 30,
     "restartPolicyType": "ON_FAILURE",
