@@ -1,5 +1,5 @@
-# Nixpacks configuration for Railway - Backend API Service
-# Runs FastAPI webhook receiver (src.api). start.sh runs API + Worker; override start for API-only.
+# Nixpacks configuration for Railway - Backend API Service (API only)
+# Receives webhooks and pushes to Redis. Worker service consumes from Redis.
 
 [phases.setup]
 aptPkgs = ["python3", "python3-pip", "python3-venv"]
@@ -14,4 +14,4 @@ cmds = [
 cmds = []
 
 [start]
-cmd = "chmod +x start.sh && ./start.sh"
+cmd = "cd /app && PYTHONPATH=/app /app/venv/bin/python -m uvicorn src.api:app --host 0.0.0.0 --port ${PORT:-8000}"

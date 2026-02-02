@@ -5,7 +5,7 @@ set -e
 export PORT="${PORT:-8000}"
 
 # Set ROOT_DIR - Railway deploys to /app, local dev uses script location
-if [ -d "/app/backend" ]; then
+if [ -d "/app/src" ]; then
   ROOT_DIR="/app"
 else
   ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

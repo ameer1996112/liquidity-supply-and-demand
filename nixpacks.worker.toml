@@ -1,5 +1,5 @@
-# Nixpacks configuration for Railway - Worker Service
-# Runs the queue consumer (src.worker). Use start.sh for API+Worker together, or this for worker-only.
+# Nixpacks configuration for Railway - Worker Service (consumer only)
+# Pops jobs from Redis, runs guards + ML, writes to Supabase. Backend API pushes to Redis.
 
 [phases.setup]
 aptPkgs = ["python3", "python3-pip", "python3-venv"]
@@ -14,4 +14,4 @@ cmds = [
 cmds = []
 
 [start]
-cmd = "chmod +x start.sh && ./start.sh"
+cmd = "cd /app && PYTHONPATH=/app /app/venv/bin/python -m src.worker"
