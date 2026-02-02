@@ -273,7 +273,7 @@ export build_webhook_payload(
     payload := payload + ',"sl":' + to_json_num(_sl, "#.##########")
     payload := payload + ',"tp":' + to_json_num(_tp, "#.##########")
     payload := payload + ',"size":' + to_json_num(_size_lots, "#.##")
-    payload := payload + ',"run_mode":"LIVE"'
+    payload := payload + ',"run_mode":"PAPER"'
 
     // Zone Inspector Data
     if include_zone_id and not na(_zone_id)

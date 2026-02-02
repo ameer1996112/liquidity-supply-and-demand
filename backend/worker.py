@@ -52,7 +52,6 @@ SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY
 QUEUE_NAME = "trading_queue"
 
 # Risk limits
-MAX_LOT_SIZE = 0.30  # Hard limit (0.30+ = rejected)
 MAX_OPEN_POSITIONS = 3  # Correlation bucket limit
 ML_MIN_CONFIDENCE = 0.50  # 50% win probability threshold (lowered for testing)
 
@@ -180,6 +179,66 @@ def _exists_trade_key(trade_key: str) -> bool:
         return False
 
 
+def calculate_max_position_size(payload: Dict[str, Any]) -> float:
+    """
+    Calculate maximum allowed position size based on account balance and risk %.
+    
+    Returns:
+        Maximum lot size allowed for this trade based on:
+        - Account balance (from config or payload)
+        - Risk percentage (from config)
+        - Stop loss distance in pips
+        - Pip value for the symbol
+    """
+    try:
+        s = _get_settings()
+        
+        # Get account balance (prefer payload, fallback to config)
+        account_balance = float(payload.get('account_balance', s.account_balance))
+        risk_pct = float(payload.get('risk_percent', s.risk_percent))
+        
+        # Calculate max risk in USD
+        max_risk_usd = account_balance * (risk_pct / 100.0)
+        
+        # Get trade parameters
+        entry = float(payload.get('entry', 0))
+        sl = float(payload.get('sl', 0))
+        symbol = payload.get('symbol', 'UNKNOWN')
+        
+        if entry == 0 or sl == 0:
+            logger.warning(f"⚠️ Missing entry/SL for max size calculation, using default 1.0 lot limit")
+            return 1.0
+        
+        # Calculate SL distance in pips
+        sl_distance = abs(entry - sl)
+        
+        # Estimate pip value (simplified - assumes standard forex)
+        # For more accuracy, you'd use MarketAdapter.get_pip_value()
+        if 'JPY' in symbol:
+            pip_size = 0.01
+            pip_value_per_lot = 1000.0  # ~$10/pip for 1 lot USDJPY
+        elif 'XAU' in symbol or 'GOLD' in symbol:
+            pip_size = 0.01
+            pip_value_per_lot = 100.0  # $1/pip for 1 lot Gold
+        else:
+            pip_size = 0.0001
+            pip_value_per_lot = 10.0  # $10/pip for 1 lot EUR/GBP pairs
+        
+        sl_pips = sl_distance / pip_size
+        
+        # Calculate max lot size: max_risk_usd / (sl_pips * pip_value_per_lot)
+        if sl_pips > 0:
+            max_lots = max_risk_usd / (sl_pips * pip_value_per_lot)
+            # Apply safety cap (prevent extreme sizes from bad data)
+            return min(max_lots, 5.0)  # Cap at 5 lots maximum
+        else:
+            return 1.0
+            
+    except Exception as e:
+        logger.error(f"⚠️ Max size calculation error: {e}, using default 1.0 lot limit")
+        return 1.0
+
+
 def process_trade(payload: Dict[str, Any]):
     """
     Process incoming trade signal through the guard pipeline.
@@ -187,7 +246,7 @@ def process_trade(payload: Dict[str, Any]):
     Guards (each wrapped in try/except for crash prevention):
     0. KILL-SWITCH - Block all if trading_kill_switch enabled
     1. IDEMPOTENCY - Skip if signal_id/trade_key already exists
-    2. RISK GUARD - Reject oversized positions
+    2. RISK GUARD - Reject oversized positions (dynamic based on account/risk%)
     3. CORRELATION GUARD - Reject if bucket full (3 positions)
     4. ML GUARD - Reject low confidence trades
     On pass: call logic.process_trade() (save_alert + optional paper + Discord). Rejections use save_result only.
@@ -221,13 +280,14 @@ def process_trade(payload: Dict[str, Any]):
         return
 
     # ══════════════════════════════════════════════════════════
-    # GUARD 1: RISK GUARDIAN (Hard Limit)
+    # GUARD 1: RISK GUARDIAN (Dynamic based on Account Balance & Risk %)
     # ══════════════════════════════════════════════════════════
     try:
-        logger.info(f"   Risk Check: size {size} vs limit {MAX_LOT_SIZE}")
-        if size > MAX_LOT_SIZE:
-            save_result(payload, "risk_rejected", f"Size {size} > Limit {MAX_LOT_SIZE}", 0.0)
-            logger.warning(f"❌ RISK REJECTED: {symbol} size {size} exceeds limit {MAX_LOT_SIZE}")
+        max_allowed_size = calculate_max_position_size(payload)
+        logger.info(f"   Risk Check: size {size} vs dynamic limit {max_allowed_size:.2f}")
+        if size > max_allowed_size:
+            save_result(payload, "risk_rejected", f"Size {size} > Limit {max_allowed_size:.2f}", 0.0)
+            logger.warning(f"❌ RISK REJECTED: {symbol} size {size} exceeds limit {max_allowed_size:.2f}")
             return
         logger.info(f"   Risk Check: PASSED")
     except Exception as e:
@@ -382,8 +442,9 @@ def run():
         kill_sw = False
         live = False
     logger.info("=" * 60)
-    logger.info("🚀 WORKER v6.5 (SAFE MODE) STARTED")
-    logger.info(f"  Risk Limit: {MAX_LOT_SIZE} lots")
+    logger.info("🚀 WORKER v6.6 (DYNAMIC RISK MODE) STARTED")
+    logger.info(f"  Account Balance: ${s.account_balance:,.0f}")
+    logger.info(f"  Risk Per Trade: {s.risk_percent}%")
     logger.info(f"  Correlation Limit: {MAX_OPEN_POSITIONS} positions")
     logger.info(f"  ML Confidence: {ML_MIN_CONFIDENCE:.0%}")
     logger.info(f"  Kill-Switch: {'ON (blocking all)' if kill_sw else 'OFF'}")
