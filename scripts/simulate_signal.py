@@ -18,21 +18,23 @@ from typing import Any, Dict
 import requests
 
 
-def build_payload() -> Dict[str, Any]:
-    """Build a representative TradingView-style payload."""
+def build_payload(symbol: str = "XAUUSD") -> Dict[str, Any]:
+    """Build a representative TradingView-style payload. Use symbol=NAS100 to test index pts+pips in Discord."""
+    if symbol.upper() == "NAS100":
+        # Index: entry/sl/tp in points; Discord will show "X pts, XXX pips"
+        entry, sl, tp = 25893.16, 25886.28, 25920.68
+        size = 0.1
+    else:
+        entry, sl, tp = 2350.00, 2340.00, 2380.00
+        size = 0.1
     return {
-        # Core required fields for EntryWebhookPayload
-        "symbol": "XAUUSD",
+        "symbol": symbol,
         "side": "buy",
-        "entry": 2350.00,
-        "sl": 2340.00,
-        "tp": 2380.00,
-        # Use a small test size so it passes risk checks in prod
-        "size": 0.1,
-
-        # Extra / feature fields (allowed by model_config.extra = "allow")
+        "entry": entry,
+        "sl": sl,
+        "tp": tp,
+        "size": size,
         "action": "buy",
-        "symbol": "XAUUSD",
         "atr": 2.5,
         "F:score": 85,
         "F:signal_encoded": 95,
@@ -41,9 +43,10 @@ def build_payload() -> Dict[str, Any]:
 
 def main() -> None:
     base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
+    symbol = os.getenv("SIMULATE_SYMBOL", "XAUUSD").strip().upper() or "XAUUSD"
     url = f"{base_url.rstrip('/')}/webhook"
 
-    payload = build_payload()
+    payload = build_payload(symbol)
     headers = {"Content-Type": "application/json"}
 
     # Optional webhook secret for auth (matches API validate_webhook_secret)

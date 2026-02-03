@@ -230,8 +230,7 @@ def run():
             _key, payload_str = task
             payload = json.loads(payload_str)
             if payload.get("event_type") == "exit":
-                logger.info("Exit event for %s - skipping", payload.get("symbol"))
-                continue
+                logger.info("Exit event for zone_id=%s - processing", payload.get("zone_id"))
             process_trade(payload)
         except json.JSONDecodeError as e:
             logger.error("Invalid JSON from queue: %s", e)

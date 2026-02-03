@@ -46,9 +46,9 @@ If you need a fully static payload for curl/Postman testing:
 {
   "symbol": "BTCUSD",
   "side": "buy",
-  "entry": 45000.00,
-  "sl": 44550.00,
-  "tp": 45900.00,
+  "entry": 45000.0,
+  "sl": 44550.0,
+  "tp": 45900.0,
   "size": 0.01,
   "run_mode": "PAPER",
   "signal": "F:score=95 | F:signal_encoded=95 | F:source=TV_BTC_TEST",
@@ -62,17 +62,17 @@ If you need a fully static payload for curl/Postman testing:
 
 ### 1.3 Field Reference Table
 
-| Field | Value | Purpose |
-|-------|-------|---------|
-| `symbol` | `"BTCUSD"` | Target instrument (Bitcoin vs USD) |
-| `side` | `"buy"` or `"sell"` | Trade direction |
-| `entry` | `{{close}}` | Current price at alert trigger |
-| `sl` | `{{close}} * 0.99` | Stop Loss: 1% below entry |
-| `tp` | `{{close}} * 1.02` | Take Profit: 2% above entry |
-| `size` | `0.01` | Position size in lots (passes risk checks) |
-| `run_mode` | `"PAPER"` | Paper trading mode (no real execution) |
-| `signal` | Hardcoded string | Forces AI approval with score=95 |
-| `score` | `95` | High confidence score for testing |
+| Field      | Value               | Purpose                                    |
+| ---------- | ------------------- | ------------------------------------------ |
+| `symbol`   | `"BTCUSD"`          | Target instrument (Bitcoin vs USD)         |
+| `side`     | `"buy"` or `"sell"` | Trade direction                            |
+| `entry`    | `{{close}}`         | Current price at alert trigger             |
+| `sl`       | `{{close}} * 0.99`  | Stop Loss: 1% below entry                  |
+| `tp`       | `{{close}} * 1.02`  | Take Profit: 2% above entry                |
+| `size`     | `0.01`              | Position size in lots (passes risk checks) |
+| `run_mode` | `"PAPER"`           | Paper trading mode (no real execution)     |
+| `signal`   | Hardcoded string    | Forces AI approval with score=95           |
+| `score`    | `95`                | High confidence score for testing          |
 
 ---
 
@@ -136,14 +136,15 @@ https://grand-learning-production-bc96.up.railway.app/webhook
 
 In the **"Create Alert"** dialog:
 
-| Setting | Configuration |
-|---------|---------------|
-| **Condition** | Select `BTCUSD` from the first dropdown |
-| **Trigger** | Select `Crossing` |
-| **Value** | Enter a price slightly above or below current price (for testing) |
-| **Options** | Check `"Once Per Bar Close"` for cleaner triggers |
+| Setting       | Configuration                                                     |
+| ------------- | ----------------------------------------------------------------- |
+| **Condition** | Select `BTCUSD` from the first dropdown                           |
+| **Trigger**   | Select `Crossing`                                                 |
+| **Value**     | Enter a price slightly above or below current price (for testing) |
+| **Options**   | Check `"Once Per Bar Close"` for cleaner triggers                 |
 
 **Example Test Setup:**
+
 - If BTC is at $45,000, set the trigger to `Crossing Up` at `$45,050`
 - This triggers when price crosses above $45,050
 
@@ -226,14 +227,14 @@ Discord Notification Sent ✓
 
 ### 4.2 What to Check if No Discord Ping
 
-| Issue | Diagnostic Action |
-|-------|-------------------|
-| **Alert didn't fire** | Check TradingView's "Alerts" tab for status |
-| **Webhook rejected** | Check Railway logs for HTTP 401/422 errors |
-| **Secret mismatch** | Verify `WEBHOOK_SECRET` in Railway matches URL |
-| **Payload malformed** | Validate JSON at [jsonlint.com](https://jsonlint.com) |
-| **Worker not running** | Check Railway for active worker process |
-| **Risk check failed** | Check Railway logs for "REJECT" messages |
+| Issue                  | Diagnostic Action                                     |
+| ---------------------- | ----------------------------------------------------- |
+| **Alert didn't fire**  | Check TradingView's "Alerts" tab for status           |
+| **Webhook rejected**   | Check Railway logs for HTTP 401/422 errors            |
+| **Secret mismatch**    | Verify `WEBHOOK_SECRET` in Railway matches URL        |
+| **Payload malformed**  | Validate JSON at [jsonlint.com](https://jsonlint.com) |
+| **Worker not running** | Check Railway for active worker process               |
+| **Risk check failed**  | Check Railway logs for "REJECT" messages              |
 
 ---
 
@@ -269,11 +270,13 @@ WARNING:  [RISK] Trade rejected: Daily loss limit exceeded
 ## Section 5: Quick Reference Card
 
 ### Webhook URL (With Auth)
+
 ```
 https://grand-learning-production-bc96.up.railway.app/webhook?secret=YOUR_SECRET_FROM_ENV_FILE
 ```
 
 ### Test Payload (Copy-Paste Ready)
+
 ```json
 {
   "symbol": "BTCUSD",
@@ -291,6 +294,7 @@ https://grand-learning-production-bc96.up.railway.app/webhook?secret=YOUR_SECRET
 ```
 
 ### Manual cURL Test
+
 ```bash
 curl -X POST "https://grand-learning-production-bc96.up.railway.app/webhook?secret=YOUR_SECRET" \
   -H "Content-Type: application/json" \
@@ -307,38 +311,39 @@ curl -X POST "https://grand-learning-production-bc96.up.railway.app/webhook?secr
 ```
 
 **Expected Response:**
+
 ```json
-{"status": "queued"}
+{ "status": "queued" }
 ```
 
 ---
 
 ## Section 6: Troubleshooting Matrix
 
-| Symptom | Cause | Solution |
-|---------|-------|----------|
-| `401 Unauthorized` | Secret mismatch | Check `WEBHOOK_SECRET` in Railway env vars |
-| `422 Unprocessable Entity` | Missing/invalid fields | Validate JSON structure matches template |
-| `400 Bad Request` | Malformed JSON | Check for syntax errors, missing commas |
-| No Discord ping but 200 OK | Worker not processing | Check Redis connection, restart worker |
-| Trade rejected by Risk Guardian | Daily limits exceeded | Wait for daily reset or increase limits |
-| Trade rejected by Pine Guardian | Size variance >5% | Adjust `size` field to match expected |
+| Symptom                         | Cause                  | Solution                                   |
+| ------------------------------- | ---------------------- | ------------------------------------------ |
+| `401 Unauthorized`              | Secret mismatch        | Check `WEBHOOK_SECRET` in Railway env vars |
+| `422 Unprocessable Entity`      | Missing/invalid fields | Validate JSON structure matches template   |
+| `400 Bad Request`               | Malformed JSON         | Check for syntax errors, missing commas    |
+| No Discord ping but 200 OK      | Worker not processing  | Check Redis connection, restart worker     |
+| Trade rejected by Risk Guardian | Daily limits exceeded  | Wait for daily reset or increase limits    |
+| Trade rejected by Pine Guardian | Size variance >5%      | Adjust `size` field to match expected      |
 
 ---
 
 ## Appendix A: TradingView Placeholders Reference
 
-| Placeholder | Description | Example Output |
-|-------------|-------------|----------------|
-| `{{ticker}}` | Symbol name | `BTCUSD` |
-| `{{close}}` | Current close price | `45123.45` |
-| `{{open}}` | Current open price | `45000.00` |
-| `{{high}}` | Current high price | `45500.00` |
-| `{{low}}` | Current low price | `44800.00` |
-| `{{volume}}` | Current volume | `1234567` |
-| `{{timenow}}` | Unix timestamp (ms) | `1706745600000` |
-| `{{time}}` | Bar timestamp | `2024-02-01T12:00:00Z` |
-| `{{exchange}}` | Exchange name | `COINBASE` |
+| Placeholder    | Description         | Example Output         |
+| -------------- | ------------------- | ---------------------- |
+| `{{ticker}}`   | Symbol name         | `BTCUSD`               |
+| `{{close}}`    | Current close price | `45123.45`             |
+| `{{open}}`     | Current open price  | `45000.00`             |
+| `{{high}}`     | Current high price  | `45500.00`             |
+| `{{low}}`      | Current low price   | `44800.00`             |
+| `{{volume}}`   | Current volume      | `1234567`              |
+| `{{timenow}}`  | Unix timestamp (ms) | `1706745600000`        |
+| `{{time}}`     | Bar timestamp       | `2024-02-01T12:00:00Z` |
+| `{{exchange}}` | Exchange name       | `COINBASE`             |
 
 ---
 
@@ -366,6 +371,50 @@ Note: For sell orders, SL is **above** entry and TP is **below** entry.
 
 ---
 
+## Section: Exit Webhooks (Update Trade Status & PNL)
+
+To have the dashboard and Mission Control show **Win/Loss** and **PNL** when a trade closes, your strategy must send a **second webhook** when TP or SL is hit, with `event_type: "exit"`.
+
+**Same URL** as entry: `https://your-api.up.railway.app/webhook?secret=...`
+
+**Exit payload (required fields):**
+
+| Field         | Type                                 | Description                                                             |
+| ------------- | ------------------------------------ | ----------------------------------------------------------------------- |
+| `event_type`  | `"exit"`                             | Must be exactly `"exit"`                                                |
+| `zone_id`     | number                               | Same `zone_id` you sent on entry (used to find the row to update)       |
+| `trade_key`   | string                               | Optional; if set on entry, use same value here (preferred for matching) |
+| `outcome`     | `"win"` \| `"loss"` \| `"breakeven"` | Result of the trade                                                     |
+| `close_price` | number                               | Price at which the position closed                                      |
+| `exit_type`   | string                               | e.g. `"tp"`, `"sl"`, `"manual"`                                         |
+| `bars_held`   | number                               | Bars the position was held                                              |
+| `mae_pips`    | number                               | Max adverse excursion in pips                                           |
+| `pnl_usd`     | number                               | Optional; P&L in USD                                                    |
+| `pnl_r`       | number                               | Optional; P&L in R-multiples                                            |
+
+**Example exit payload (TP hit):**
+
+```json
+{
+  "event_type": "exit",
+  "zone_id": 18580,
+  "trade_key": "NAS100_1738600000",
+  "outcome": "win",
+  "close_price": 25920.68,
+  "exit_type": "tp",
+  "bars_held": 12,
+  "mae_pips": 5.0,
+  "pnl_r": 2.0,
+  "pnl_usd": 150.0
+}
+```
+
+In Pine Script: create a **second alert** that fires when your exit condition is met (TP hit, SL hit, or manual close) and set the message to the exit JSON above, using the **same `zone_id`** (and `trade_key` if you use it) as the entry alert. The worker will update the `trading_signals` row to `status=closed`, set `outcome` and `pnl_usd`, and the dashboard will show the result.
+
+**Local test:** Use `scripts/simulate_exit.py` with `ZONE_ID=<your active trade's zone_id>` to simulate an exit and verify the row and dashboard update.
+
+---
+
 **Document End**
 
-*Last Updated: 2026-02-01*
+_Last Updated: 2026-02-03_
