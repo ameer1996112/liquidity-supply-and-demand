@@ -88,6 +88,28 @@ class Settings(BaseSettings):
     trinity_max_correlation_group: int = Field(default=1, ge=1, le=3)
     trinity_allow_hedging: bool = Field(default=False)
 
+    # Dynamic risk scaling (swarm-inspired)
+    enable_risk_scaling: bool = True
+    drawdown_threshold_1: float = 0.02  # -2% daily loss
+    risk_reduction_1: float = 0.5       # 50% size
+    drawdown_threshold_2: float = 0.03  # -3% daily loss
+    risk_reduction_2: float = 0.25      # 25% size
+
+    # Asymmetric compounding / Step-Up Protocol
+    risk_mode: str = "step_up"  # "linear" or "step_up"
+    volatility_targeting: bool = True
+    step_up_threshold_1: float = 0.02  # +2% profit buffer
+    step_up_risk_1: float = 1.0       # 1.0% risk in buffer
+    step_up_threshold_2: float = 0.05  # +5% profit - kill zone
+    step_up_risk_2: float = 2.0       # 2.0% risk when far ahead
+    survival_risk: float = 0.5        # 0.5% when below starting equity
+
+    # Ensemble brain / LLM filter
+    enable_llm_filter: bool = True
+
+    # Shadow launch toggle for EnsembleBrain gating in worker
+    run_shadow_mode: bool = False
+
     usdjpy_rate: float = Field(default=150.0, ge=50.0, le=300.0)
     us30_point_value: float = Field(default=1.0, ge=0.1, le=100.0)
     nas100_point_value: float = Field(default=1.0, ge=0.1, le=100.0)

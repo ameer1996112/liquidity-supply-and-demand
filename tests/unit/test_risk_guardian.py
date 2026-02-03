@@ -282,7 +282,7 @@ class TestAntiGamblingRisk:
         }
 
         # Mock the market adapter to avoid network calls
-        with patch("backend.risk_guardian.MarketAdapter") as mock_adapter_class:
+        with patch("src.core.guard_rails.market_filter.MarketAdapter") as mock_adapter_class:
             mock_adapter = MagicMock()
             # $1/pip for 0.10 lots; 50 pips SL -> $50 risk (0.5% of $10k)
             mock_adapter.get_pip_value.return_value = 1.0

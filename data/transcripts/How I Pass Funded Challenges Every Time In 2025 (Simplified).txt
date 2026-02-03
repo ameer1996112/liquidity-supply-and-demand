@@ -1,0 +1,931 @@
+00:00 As we all know, prop firms have
+00:02 
+
+00:02 completely changed the landscape of
+00:03 
+
+00:03 trading, allowing us to use an absurd
+00:05 
+
+00:05 amount of capital that people otherwise
+00:07 
+
+00:07 would not have. And it's all without
+00:09 
+
+00:09 even risking that much money ourselves.
+00:11 
+
+00:11 But there are going to be some rules and
+00:12 
+
+00:12 general principles that you need to
+00:14 
+
+00:14 follow to be able to pass these
+00:16 
+
+00:16 challenge phases consistently. So, in
+00:18 
+
+00:18 today's video, I'm going to be showing
+00:19 
+
+00:19 you my entire plan to pass these
+00:21 
+
+00:21 challenges every single time. Starting
+00:24 
+
+00:24 off, risk management. This is easily
+00:26 
+
+00:26 going to be the most important part of
+00:27 
+
+00:27 the whole trading plan. And I'm going to
+00:29 
+
+00:29 try and simplify everything as much as
+00:31 
+
+00:31 possible for you guys. So, I'll also try
+00:32 
+
+00:32 and visualize some of the stuff that I
+00:34 
+
+00:34 talk about. So, straight away, what are
+00:36 
+
+00:36 our goals going to be when we buy a
+00:38 
+
+00:38 challenge? Well, we don't want to fail
+00:39 
+
+00:39 it, obviously. So, we're going to want
+00:41 
+
+00:41 some margin for error. And we also don't
+00:43 
+
+00:43 want to take forever to pass it. So,
+00:44 
+
+00:44 we're not going to be taking, you know,
+00:45 
+
+00:45 0.25% risk for every single trade. We're
+00:48 
+
+00:48 going to be trading with confidence.
+00:50 
+
+00:50 Obviously, we have confidence in our
+00:51 
+
+00:51 strategy. And these are the skills that
+00:53 
+
+00:53 we'll leverage to pass the challenges.
+00:55 
+
+00:55 So firstly, this is assuming we have
+00:57 
+
+00:57 your average challenge. You're going to
+00:58 
+
+00:58 have two phases with a 10% target and a
+01:01 
+
+01:01 10% draw down. So when I buy one of
+01:03 
+
+01:03 these challenges, I'm going to start off
+01:04 
+
+01:04 by risking 0.5%. Now, this isn't going
+01:07 
+
+01:07 to be for long because, as I said, we
+01:09 
+
+01:09 don't want to take forever on this
+01:10 
+
+01:10 challenge. Obviously, we're going to
+01:11 
+
+01:11 want to pass it quickly and move on to
+01:13 
+
+01:13 the next stage, which is going to be,
+01:14 
+
+01:14 you know, the funded stage. But by
+01:16 
+
+01:16 risking 0.5% when we come into the
+01:18 
+
+01:18 challenge, this is going to allow us for
+01:20 
+
+01:20 so much margin for error. You would have
+01:22 
+
+01:22 to lose 20 trades in a row to fail this
+01:25 
+
+01:25 challenge. If you're completely new to
+01:26 
+
+01:26 trading, then please just start on demo
+01:28 
+
+01:28 first. You will be wasting your money,
+01:31 
+
+01:31 and I'm not here to sell you a dream.
+01:32 
+
+01:32 So, we have margin for 20 losses, and
+01:34 
+
+01:34 that's assuming that you never take a
+01:36 
+
+01:36 win, which is just not going to happen
+01:38 
+
+01:38 if you have literally any strategy. And
+01:40 
+
+01:40 you're going to trade like this until
+01:42 
+
+01:42 you have a 2% buffer. All this means is
+01:44 
+
+01:44 you're going to trade with a 0.5% risk
+01:46 
+
+01:46 until you are 2% up on the account. So
+01:49 
+
+01:49 let's just say we are on a 100k
+01:51 
+
+01:51 challenge. You would need to try and get
+01:52 
+
+01:52 to 102K risking 0.5%. I'm sure if you've
+01:56 
+
+01:56 taken a funed challenge before, you've
+01:58 
+
+01:58 likely been in 2% profit at some point.
+02:00 
+
+02:00 So this part really shouldn't be that
+02:02 
+
+02:02 difficult. I trade a strategy with a
+02:03 
+
+02:03 decent average risk reward. So to get to
+02:05 
+
+02:05 this buffer, it would literally be one
+02:08 
+
+02:08 maybe two trades. And then from this
+02:10 
+
+02:10 buffer onwards, we will be risking 1%.
+02:12 
+
+02:12 By trading like this, we will always
+02:14 
+
+02:14 have such a large amount of draw down to
+02:16 
+
+02:16 fall back on. So, if we do lose one
+02:18 
+
+02:18 trade, it will literally mean nothing.
+02:20 
+
+02:20 This is not only going to be great for
+02:22 
+
+02:22 your account, but it will also be
+02:24 
+
+02:24 amazing for your psychology. You'll be
+02:26 
+
+02:26 much less prone to revenge trading. You
+02:28 
+
+02:28 won't leave the charts thinking that
+02:29 
+
+02:29 you've just messed things up. It will be
+02:31 
+
+02:31 something that you look at, something
+02:32 
+
+02:32 that you reflect on, and something that
+02:34 
+
+02:34 you, you know, journal and learn from.
+02:35 
+
+02:35 The daily loss limit won't even be a
+02:37 
+
+02:37 consideration. I've heard that is
+02:39 
+
+02:39 statistically the most common way that
+02:41 
+
+02:41 people fail these challenges, which is
+02:42 
+
+02:42 just crazy if it's true. But people
+02:44 
+
+02:44 really just aren't following a strict
+02:46 
+
+02:46 risk management plan. So, I guess that
+02:48 
+
+02:48 will happen. You're going to need to
+02:49 
+
+02:49 take 10 losses in one single day to
+02:51 
+
+02:51 reach that with this plan. And please
+02:53 
+
+02:53 tell me you're not allowing yourself to
+02:55 
+
+02:55 lose 10 times in one single day. That's
+02:57 
+
+02:57 going to be another thing that we limit
+02:59 
+
+02:59 with this trading plan. It will all
+03:00 
+
+03:00 eventually come together and you'll feel
+03:02 
+
+03:02 as though you can never actually fail a
+03:04 
+
+03:04 challenge again if you just stick to
+03:06 
+
+03:06 these rules. But anyway, we'll continue
+03:08 
+
+03:08 risking 1% until we pass this phase. So,
+03:10 
+
+03:10 with a strategy like my own, this will
+03:12 
+
+03:12 probably be around three winning trades
+03:14 
+
+03:14 or so, and then we are already on to the
+03:15 
+
+03:15 next. And like I said, we're going to be
+03:17 
+
+03:17 assuming that we are on a two-phase
+03:19 
+
+03:19 challenge. So, for the next phase, we
+03:21 
+
+03:21 are going to do the exact same thing.
+03:22 
+
+03:22 Risk 0.5% until we have a 2% buffer. And
+03:26 
+
+03:26 then from there, risk 1% for the last 3%
+03:28 
+
+03:28 that we actually need to make. So, for
+03:30 
+
+03:30 my strategy, this could literally just
+03:31 
+
+03:31 be, you know, two to three wins to pass.
+03:34 
+
+03:34 And we're still looking at 20 losses
+03:36 
+
+03:36 straight to lose the account. Can you
+03:38 
+
+03:38 see why this method is crazy though? On
+03:40 
+
+03:40 phase two, you need two to three wins to
+03:42 
+
+03:42 pass it or 20 losses to lose it. If you
+03:44 
+
+03:44 are at all close to profitability, then
+03:46 
+
+03:46 keeping this account should be a piece
+03:48 
+
+03:48 of cake. Even if it does take you a
+03:49 
+
+03:49 little longer to pass it, it's still
+03:51 
+
+03:51 just good practice. Proving to yourself
+03:53 
+
+03:53 that your equity curve is actually
+03:55 
+
+03:55 profitable rather than just going out
+03:56 
+
+03:56 and spending thousands on challenges
+03:58 
+
+03:58 pretty much just gambling just trying to
+03:60 
+
+03:60 get one payout. Chasing that payout is
+04:02 
+
+04:02 not going to be the method, but a good
+04:04 
+
+04:04 risk management plan is. Now, I'm not
+04:05 
+
+04:05 going to go too deep into once you're
+04:07 
+
+04:07 actually funded in this video. I'll
+04:08 
+
+04:08 release some information over in my
+04:10 
+
+04:10 Discord about how I manage my accounts
+04:12 
+
+04:12 to make sure that I'm getting consistent
+04:13 
+
+04:13 payouts and never losing the accounts.
+04:16 
+
+04:16 So, go and join that. That'll just be
+04:17 
+
+04:17 down in the description. It's completely
+04:19 
+
+04:19 free and there is a fantastic community
+04:21 
+
+04:21 over there. So, I would highly recommend
+04:22 
+
+04:22 it. But since I'm sure a lot of you will
+04:24 
+
+04:24 go on to get funded after this video, I
+04:26 
+
+04:26 will say that my plan is relatively
+04:27 
+
+04:27 similar to the other phases, except I
+04:29 
+
+04:29 just risk 1% if I'm at break even or
+04:32 
+
+04:32 above, and I risk 0.5% if I am in any
+04:35 
+
+04:35 draw down. This allows me to get super
+04:36 
+
+04:36 big payouts and still keep those 20
+04:39 
+
+04:39 losses in draw down. And believe it or
+04:41 
+
+04:41 not, that has never happened since I've
+04:43 
+
+04:43 been profitable. Nor do I ever expect it
+04:45 
+
+04:45 to happen unless I just go completely
+04:47 
+
+04:47 insane one day, which I mean it might
+04:49 
+
+04:49 happen. I hope not. Anyway, that is
+04:51 
+
+04:51 going to cover risk management. But now
+04:53 
+
+04:53 we are going to move on to the other
+04:54 
+
+04:54 side of the equation that is actually
+04:56 
+
+04:56 going to get you the results that you
+04:57 
+
+04:57 want and that is going to be your
+04:59 
+
+04:59 trading plan because hear me out, risk
+05:01 
+
+05:01 management is going to be what keeps you
+05:02 
+
+05:02 alive. But your trading plan is what's
+05:04 
+
+05:04 actually going to make you profitable.
+05:06 
+
+05:06 And the two are literally going to go
+05:07 
+
+05:07 hand in hand, right? It's like having
+05:09 
+
+05:09 body armor but no weapon. Like you won't
+05:12 
+
+05:12 die, but you're not going to be winning
+05:13 
+
+05:13 anything either, will you? For me
+05:15 
+
+05:15 personally, I like to keep things
+05:17 
+
+05:17 stupidly simple. I'm only going to be
+05:18 
+
+05:18 looking at a handful of pairs. I know my
+05:21 
+
+05:21 setups inside out and I don't try to
+05:23 
+
+05:23 force trades every single day. And that
+05:25 
+
+05:25 is probably going to be the first
+05:26 
+
+05:26 mistake that people actually make on
+05:27 
+
+05:27 these challenges. That's going to be
+05:28 
+
+05:28 overtrading. They're so desperate to hit
+05:30 
+
+05:30 that profit target quickly. They'll take
+05:32 
+
+05:32 trades that are literally three out of
+05:34 
+
+05:34 10 setups just because they might play
+05:36 
+
+05:36 out. But you need to think of yourself
+05:38 
+
+05:38 as a capital manager, an investor even.
+05:41 
+
+05:41 You have to trade professionally. You
+05:42 
+
+05:42 can't keep taking these 50/50 setups
+05:44 
+
+05:44 just because you feel like you need to
+05:46 
+
+05:46 take a trade. People often fall into
+05:48 
+
+05:48 that trap of feeling like they need to
+05:49 
+
+05:49 take a trade because if they don't, they
+05:51 
+
+05:51 feel like they're not working. But that
+05:52 
+
+05:52 is not the truth at all. In fact, it is
+05:54 
+
+05:54 the complete opposite. I mean, think, if
+05:56 
+
+05:56 you've got unlimited days to pass a
+05:58 
+
+05:58 phase, then you don't need to force
+05:60 
+
+05:60 anything. You can literally take one
+06:01 
+
+06:01 trade a week, and if you stick to that
+06:03 
+
+06:03 risk management plan that I've just been
+06:04 
+
+06:04 talking about, then you will 100% make
+06:06 
+
+06:06 it. So, I'd rather wait for that A+
+06:08 
+
+06:08 setup, you know, something clean,
+06:10 
+
+06:10 something that I've seen play out dozens
+06:12 
+
+06:12 of times, rather than just take random
+06:13 
+
+06:13 trash and hope it runs. For me, I'm
+06:16 
+
+06:16 literally taking the same A+ setup every
+06:18 
+
+06:18 single time. Five minute time frame,
+06:20 
+
+06:20 supply and demand plus liquidity, entry
+06:22 
+
+06:22 models, boom. It's literally robotic.
+06:24 
+
+06:24 There is no need to over complicate it.
+06:26 
+
+06:26 No need to trade any other strategy
+06:28 
+
+06:28 because they will just make things more
+06:29 
+
+06:29 complicated. It will keep you at the
+06:31 
+
+06:31 charts for longer, which is inevitably
+06:32 
+
+06:32 going to make you take these dumber
+06:34 
+
+06:34 trades and that is not going to get you
+06:36 
+
+06:36 anywhere. If you're trading different
+06:37 
+
+06:37 strategies, risking different amounts at
+06:39 
+
+06:39 different times of the day on different
+06:41 
+
+06:41 pairs, then you are not going to be
+06:42 
+
+06:42 seeing that clean equity curve that you
+06:44 
+
+06:44 definitely want to see when taking these
+06:46 
+
+06:46 challenges. Now, let's talk about
+06:47 
+
+06:47 something that I know a lot of people
+06:49 
+
+06:49 sleep on. Journaling. Yeah, I know it's
+06:51 
+
+06:51 boring. It's not sexy, but if you're not
+06:53 
+
+06:53 tracking your trades, then you are
+06:55 
+
+06:55 literally flying blind. Imagine trying
+06:57 
+
+06:57 to play poker but never looking at the
+06:59 
+
+06:59 cards that you've won or lost with.
+07:01 
+
+07:01 You'd literally have no clue what's
+07:02 
+
+07:02 working and what's not. So what I
+07:04 
+
+07:04 recommend you journal are these four
+07:06 
+
+07:06 things. The setup you took, the date,
+07:08 
+
+07:08 the time, the pair, whether this is
+07:10 
+
+07:10 something that you should have taken,
+07:11 
+
+07:11 was there something against it. You need
+07:13 
+
+07:13 to take accountability. How you felt
+07:15 
+
+07:15 before, during, and after the trade.
+07:17 
+
+07:17 This is going to show you exactly what
+07:19 
+
+07:19 emotions you need to try and get rid of.
+07:20 
+
+07:20 And of course, the result of the trade.
+07:23 
+
+07:23 Over time, you will start to see
+07:25 
+
+07:25 patterns. You'll notice, oh, every time
+07:27 
+
+07:27 I take a trade, right after a loss, that
+07:29 
+
+07:29 one seems to lose, too. and you can
+07:31 
+
+07:31 easily just look through it and figure
+07:32 
+
+07:32 out some bad habits. Maybe taking setups
+07:35 
+
+07:35 with a weak break of structure give you
+07:37 
+
+07:37 a bad win rate. Or maybe you realize
+07:38 
+
+07:38 when I wait for this specific structure
+07:40 
+
+07:40 confirmation, my win rate is just
+07:42 
+
+07:42 [ __ ] insane. Those little
+07:44 
+
+07:44 realizations is exactly what's going to
+07:46 
+
+07:46 change you from gambling your way
+07:47 
+
+07:47 through challenges to passing them
+07:49 
+
+07:49 consistently and trading profitably.
+07:52 
+
+07:52 Here is the mindset shift that really
+07:53 
+
+07:53 made a difference for me. Stop thinking
+07:55 
+
+07:55 about passing a challenge and try and
+07:58 
+
+07:58 think about building a repeatable
+07:60 
+
+07:60 process. If your process works, then the
+08:02 
+
+08:02 challenge is just going to take care of
+08:03 
+
+08:03 itself. If your process doesn't work,
+08:05 
+
+08:05 then you might fluke maybe one or two
+08:07 
+
+08:07 accounts, but you would just blow them
+08:08 
+
+08:08 eventually. So, instead of just chasing
+08:10 
+
+08:10 that one payout, please just ask
+08:12 
+
+08:12 yourself, can I do this exact same thing
+08:14 
+
+08:14 every single month for a year? And if
+08:17 
+
+08:17 the answer's no, just tighten it up if
+08:19 
+
+08:19 you can. Once you've passed and you're
+08:20 
+
+08:20 funded, this is where things finally get
+08:22 
+
+08:22 fun because you can start compounding
+08:24 
+
+08:24 payouts, stacking accounts, and suddenly
+08:27 
+
+08:27 you're playing a completely different
+08:28 
+
+08:28 game. You're no longer trying to flip
+08:30 
+
+08:30 $500 into $1,000. You're making 8K, 10K,
+08:34 
+
+08:34 20K payouts without even going crazy on
+08:37 
+
+08:37 risk. But once again, this is only going
+08:38 
+
+08:38 to work if you've built that discipline
+08:40 
+
+08:40 during your challenge phase. If you're
+08:42 
+
+08:42 sloppy whilst you're trying to pass,
+08:44 
+
+08:44 then you're going to be sloppy once
+08:45 
+
+08:45 you're funded. and that prop firm is
+08:47 
+
+08:47 going to take that account back quicker
+08:48 
+
+08:48 than you can ever make it. So, to wrap
+08:50 
+
+08:50 it all up, start small, build that
+08:52 
+
+08:52 buffer, and then scale risk. Stick to
+08:54 
+
+08:54 one strategy that you know works.
+08:56 
+
+08:56 Journal everything so you can improve.
+08:57 
+
+08:57 Respect psychology and discipline
+08:59 
+
+08:59 because that is exactly what's going to
+09:00 
+
+09:00 separate winners from losers. And
+09:02 
+
+09:02 research your prop firm's rules inside
+09:04 
+
+09:04 out. If you do all of that, I promise
+09:06 
+
+09:06 you will stop worrying about passing
+09:07 
+
+09:07 challenges because it will come as a
+09:09 
+
+09:09 natural result of just sticking to your
+09:11 
+
+09:11 plan. And if you want to go any deeper,
+09:13 
+
+09:13 then like I said, go and hop in that
+09:15 
+
+09:15 Discord. I'll be sharing a lot more
+09:16 
+
+09:16 detailed breakdowns over in there. We've
+09:18 
+
+09:18 got people sending trade ideas,
+09:20 
+
+09:20 journaling together, and holding each
+09:21 
+
+09:21 other accountable. And it's free to
+09:23 
+
+09:23 join, so literally, why not? Anyways,
+09:25 
+
+09:25 that's it for today's video. I hope this
+09:26 
+
+09:26 gave you some clarity and cleared up the
+09:28 
+
+09:28 whole process for you. Drop a like if
+09:30 
+
+09:30 you learned something. Subscribe if
+09:31 
+
+09:31 you're new. And as always, I'll catch
+09:33 
+
+09:33 you in the next one. Peace.

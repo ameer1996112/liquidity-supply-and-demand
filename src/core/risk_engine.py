@@ -54,10 +54,18 @@ def calculate_max_position_size(
     payload: Dict[str, Any],
     account_balance: float,
     risk_percent: float,
+    risk_multiplier: float = 1.0,
 ) -> float:
-    """
-    Maximum allowed lot size from account balance and risk %.
-    Pure calculation; no settings import. Returns cap (e.g. min(calculated, 5.0)).
+    """Maximum allowed lot size from account balance and risk %, with scaling.
+
+    Args:
+        payload: Trade payload with at least ``symbol``, ``entry`` and ``sl``.
+        account_balance: Account equity in USD.
+        risk_percent: Base risk per trade (e.g. ``1.0`` for 1%).
+        risk_multiplier: Additional scaling factor (0-1 defensive, >1 aggressive).
+
+    Returns:
+        Capped maximum lot size after applying the risk multiplier.
     """
     try:
         entry = float(payload.get("entry", 0))
@@ -65,8 +73,11 @@ def calculate_max_position_size(
         symbol = payload.get("symbol", "UNKNOWN")
         if entry == 0 or sl == 0:
             return 1.0
+
+        # Base risk in USD from percentage
         max_risk_usd = account_balance * (risk_percent / 100.0)
-        sl_distance = abs(entry - sl)
+
+        # Pip characteristics per symbol
         if "JPY" in symbol:
             pip_size = 0.01
             pip_value_per_lot = 1000.0
@@ -76,10 +87,38 @@ def calculate_max_position_size(
         else:
             pip_size = 0.0001
             pip_value_per_lot = 10.0
+
+        # Optional volatility targeting via ATR
+        use_vol_targeting = False
+        try:
+            from config import get_settings  # type: ignore
+
+            s = get_settings()
+            use_vol_targeting = bool(getattr(s, "volatility_targeting", False))
+        except Exception:
+            use_vol_targeting = False
+
+        atr = payload.get("atr")
+        if use_vol_targeting and atr is not None:
+            try:
+                atr_val = float(atr)
+            except (TypeError, ValueError):
+                atr_val = 0.0
+
+            if atr_val > 0:
+                # Volatility-normalized position sizing:
+                # lots = risk_usd / (ATR * pip_value_per_lot)
+                base_max_lots = max_risk_usd / (atr_val * pip_value_per_lot)
+                scaled_max_lots = base_max_lots * max(risk_multiplier, 0.0)
+                return min(max(scaled_max_lots, 0.0), 5.0)
+
+        # Fallback: distance-to-stop based sizing
+        sl_distance = abs(entry - sl)
         sl_pips = sl_distance / pip_size
         if sl_pips > 0:
-            max_lots = max_risk_usd / (sl_pips * pip_value_per_lot)
-            return min(max_lots, 5.0)
+            base_max_lots = max_risk_usd / (sl_pips * pip_value_per_lot)
+            scaled_max_lots = base_max_lots * max(risk_multiplier, 0.0)
+            return min(scaled_max_lots, 5.0)
         return 1.0
     except Exception as e:
         logger.warning(f"Max size calculation error: {e}")

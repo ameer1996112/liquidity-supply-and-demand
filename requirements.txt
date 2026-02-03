@@ -20,8 +20,11 @@ pandas>=2.0.0
 # Database & alerts
 supabase==2.10.0
 
-# Optional
+# Optional / AI
+langchain-community>=0.2.0
 beautifulsoup4
 lxml
 openai>=1.0.0
 yfinance>=0.2.36
+youtube-transcript-api
+scrapetube

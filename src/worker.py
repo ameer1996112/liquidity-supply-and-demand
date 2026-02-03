@@ -17,7 +17,7 @@ load_dotenv(_root / ".env")
 
 from config import get_settings
 from src.adapters.redis_queue import QUEUE_NAME, get_redis
-from src.ai.brain import get_prediction, load_brain
+from src.ai.brain import ensemble_decision, get_prediction, load_brain
 from src.core.risk_engine import calculate_max_position_size as _calculate_max_position_size_impl
 from src import logic
 
@@ -150,25 +150,57 @@ def process_trade(payload: Dict[str, Any]):
             save_result(payload, "correlation_rejected", f"DB Error: {str(e)[:50]}", 0.0)
             return
 
-    win_prob, note, features_used = get_prediction(payload)
-    logger.info("ML Check: confidence %s vs threshold %s", f"{win_prob:.1%}", f"{ML_MIN_CONFIDENCE:.0%}")
-    if win_prob >= ML_MIN_CONFIDENCE:
-        logger.info("ML APPROVED: %s (confidence: %s)", symbol, f"{win_prob:.1%}")
-        try:
-            dry_run = not getattr(s, "live_trading_enabled", False)
-            if dry_run:
-                logger.info("DRY_RUN: LIVE_TRADING=false — saving alert + notify only")
-            logic.process_trade(payload, dry_run=dry_run)
-            logger.info("logic.process_trade completed")
-        except Exception as exec_err:
-            logger.error("logic.process_trade failed: %s", exec_err)
-            save_result(payload, "execution_failed", f"logic.process_trade: {str(exec_err)[:80]}", win_prob)
-    else:
-        status = "ml_rejected"
-        note = f"Low Confidence ({win_prob:.1%} < {ML_MIN_CONFIDENCE:.0%})"
-        logger.warning("ML REJECTED: %s (confidence %s)", symbol, f"{win_prob:.1%}")
-        ai_reasoning = _build_ml_rejection_reasoning(payload, win_prob, features_used, note)
-        save_result(payload, status, note, win_prob, ai_reasoning=ai_reasoning)
+    # ------------------------------------------------------------------
+    # Ensemble Brain decision (RF + RAG + LLM)
+    # ------------------------------------------------------------------
+    ai_result = ensemble_decision(payload)
+
+    logger.info(
+        "🧠 BRAIN DECISION:\n"
+        "Decision: %s\n"
+        "RF Score: %.4f\n"
+        "RAG Rules: %d found\n"
+        "Reason: %s",
+        ai_result.get("decision"),
+        ai_result.get("rf_prob", 0.0),
+        len(ai_result.get("rules") or []),
+        ai_result.get("reason", ""),
+    )
+
+    decision = str(ai_result.get("decision", "NO_GO")).upper()
+    shadow_mode = bool(getattr(s, "run_shadow_mode", False))
+
+    if decision == "NO_GO":
+        if shadow_mode:
+            logger.warning("⚠️ SHADOW MODE: Executing trade despite AI rejection.")
+        else:
+            # Block trade when not in shadow mode
+            save_result(
+                payload,
+                "ai_rejected",
+                ai_result.get("reason", "AI ensemble rejected trade."),
+                float(ai_result.get("rf_prob", 0.0)),
+                ai_reasoning=ai_result,
+            )
+            return
+
+    # If we reach here, either AI said GO or shadow mode is allowing it
+    win_prob = float(ai_result.get("rf_prob", 0.0))
+    try:
+        dry_run = not getattr(s, "live_trading_enabled", False)
+        if dry_run:
+            logger.info("DRY_RUN: LIVE_TRADING=false — saving alert + notify only")
+        logic.process_trade(payload, dry_run=dry_run)
+        logger.info("logic.process_trade completed")
+    except Exception as exec_err:
+        logger.error("logic.process_trade failed: %s", exec_err)
+        save_result(
+            payload,
+            "execution_failed",
+            f"logic.process_trade: {str(exec_err)[:80]}",
+            win_prob,
+            ai_reasoning=ai_result,
+        )
 
 
 def run():
