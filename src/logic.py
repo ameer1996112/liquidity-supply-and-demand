@@ -7,7 +7,12 @@ import logging
 from typing import Any, Dict, List, Tuple
 
 from config import get_settings
-import src.adapters.supabase as supabase_db
+from src.adapters.supabase import (
+    init_supabase,
+    save_alert,
+    update_alert_exit,
+    update_alert_status,
+)
 from src.adapters.discord import send_discord, send_telegram
 from src.adapters.paper_trader import get_paper_trader
 
@@ -20,7 +25,7 @@ _paper_trader = None
 def _get_paper_trader_instance():
     global _paper_trader
     if _paper_trader is None:
-        supabase_db.init_supabase()
+        init_supabase()
         _paper_trader = get_paper_trader(None)
     return _paper_trader
 
@@ -49,8 +54,7 @@ def should_forward_alert(data: Dict[str, Any]) -> Tuple[bool, List[str], Dict[st
 
 
 def process_trade(data: Dict[str, Any], dry_run: bool = False) -> None:
-    supabase_db.init_supabase()
-    db = supabase_db
+    init_supabase()
 
     if data.get("event_type") == "exit":
         exit_data = {
@@ -66,7 +70,7 @@ def process_trade(data: Dict[str, Any], dry_run: bool = False) -> None:
             "bars_held": data["bars_held"],
         }
         trade_key = (data.get("trade_key") or "").strip()
-        db.update_alert_exit(data["zone_id"], exit_data, trade_key=trade_key)
+        update_alert_exit(data["zone_id"], exit_data, trade_key=trade_key)
         logger.info("Exit recorded: zone_id=%s, outcome=%s", data["zone_id"], data["outcome"])
         return
 
@@ -81,11 +85,11 @@ def process_trade(data: Dict[str, Any], dry_run: bool = False) -> None:
             if len(pt.get_open_positions()) < s.paper_max_positions:
                 mode = "paper"
 
-    alert_id = db.save_alert(data, mode=mode, filter_reasons=filter_reasons if not should_forward else None)
+    alert_id = save_alert(data, mode=mode, filter_reasons=filter_reasons if not should_forward else None)
 
     if not should_forward:
         reason_str = "; ".join(filter_reasons)
-        db.update_alert_status(alert_id, "filtered", notes=reason_str)
+        update_alert_status(alert_id, "filtered", notes=reason_str)
         logger.info("Alert #%s filtered: %s", alert_id, reason_str)
         return
 

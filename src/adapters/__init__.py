@@ -6,8 +6,8 @@ from src.adapters.supabase import (
     update_alert_exit,
     update_alert_status,
     get_alert_by_trade_key,
-    supabase,
 )
+import src.adapters.supabase as supabase  # expose module, not Client instance
 from src.adapters.redis_queue import get_redis, QUEUE_NAME
 
 __all__ = [
@@ -16,7 +16,7 @@ __all__ = [
     "update_alert_exit",
     "update_alert_status",
     "get_alert_by_trade_key",
-    "supabase",
+    "supabase",  # module
     "get_redis",
     "QUEUE_NAME",
 ]

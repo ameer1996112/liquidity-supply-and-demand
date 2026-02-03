@@ -522,7 +522,7 @@ def get_active_positions_from_db() -> List[ActivePosition]:
         List of ActivePosition objects
     """
     try:
-        from src.adapters import supabase as supabase_db
+        import src.adapters.supabase as supabase_db
 
         if not supabase_db.supabase:
             supabase_db.init_supabase()
