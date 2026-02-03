@@ -72,14 +72,18 @@ def send_discord(data: Dict[str, Any], alert_id: int, mode: str = "manual") -> T
         unit_label = "pts" if pip_divisor == 1.0 else "pips"
         sl_pips = abs(entry - sl) / pip_divisor
         tp_pips = abs(tp - entry) / pip_divisor
+        # For indices (pts): also show TradingView-style pips (1 pip = 0.01 pt) so Discord matches TV
+        is_index = pip_divisor == 1.0
+        sl_display = f"{data['sl']} ({sl_pips:.1f} pts, {round(sl_pips * 100):.0f} pips)" if is_index else f"{data['sl']} ({sl_pips:.1f} {unit_label})"
+        tp_display = f"{data['tp']} ({tp_pips:.1f} pts, {round(tp_pips * 100):.0f} pips)" if is_index else f"{data['tp']} ({tp_pips:.1f} {unit_label})"
         position_info = calculate_position_size(sl_pips, symbol)
         fields = [
             {"name": "Symbol", "value": f"**{data['symbol']}**", "inline": True},
             {"name": "Type", "value": side, "inline": True},
             {"name": "R:R", "value": f"1:{rr_ratio:.2f}", "inline": True},
             {"name": "Entry", "value": str(data["entry"]), "inline": True},
-            {"name": "Stop Loss", "value": f"{data['sl']} ({sl_pips:.1f} {unit_label})", "inline": True},
-            {"name": "Take Profit", "value": f"{data['tp']} ({tp_pips:.1f} {unit_label})", "inline": True},
+            {"name": "Stop Loss", "value": sl_display, "inline": True},
+            {"name": "Take Profit", "value": tp_display, "inline": True},
             {"name": "Suggested Size", "value": f"{position_info['lots']:.2f} lots", "inline": True},
             {"name": "Risk Amount", "value": f"${position_info['risk_amount']:.2f}", "inline": True},
         ]
