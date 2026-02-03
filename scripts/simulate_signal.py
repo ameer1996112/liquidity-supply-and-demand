@@ -21,11 +21,18 @@ import requests
 def build_payload() -> Dict[str, Any]:
     """Build a representative TradingView-style payload."""
     return {
-        "action": "buy",
+        # Core required fields for EntryWebhookPayload
         "symbol": "XAUUSD",
-        "price": 2350.00,
+        "side": "buy",
+        "entry": 2350.00,
         "sl": 2340.00,
         "tp": 2380.00,
+        # Use a small test size so it passes risk checks in prod
+        "size": 0.1,
+
+        # Extra / feature fields (allowed by model_config.extra = "allow")
+        "action": "buy",
+        "symbol": "XAUUSD",
         "atr": 2.5,
         "F:score": 85,
         "F:signal_encoded": 95,
@@ -38,6 +45,11 @@ def main() -> None:
 
     payload = build_payload()
     headers = {"Content-Type": "application/json"}
+
+    # Optional webhook secret for auth (matches API validate_webhook_secret)
+    secret = os.getenv("WEBHOOK_SECRET", "").strip().strip('"').strip("'")
+    if secret:
+        headers["X-Webhook-Secret"] = secret
 
     print(f"POST {url}")
     print("Payload:")

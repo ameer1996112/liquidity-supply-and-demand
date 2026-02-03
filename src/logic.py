@@ -7,7 +7,7 @@ import logging
 from typing import Any, Dict, List, Tuple
 
 from config import get_settings
-from src.adapters import supabase as supabase_db
+import src.adapters.supabase as supabase_db
 from src.adapters.discord import send_discord, send_telegram
 from src.adapters.paper_trader import get_paper_trader
 
