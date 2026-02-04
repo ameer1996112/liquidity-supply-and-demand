@@ -327,14 +327,27 @@ export build_webhook_payload(
 
 // Builds EXIT webhook payload
 // Returns: JSON string with exit telemetry
+// @param _pnl_r   P&L in R (risk units)
+// @param _pnl_usd P&L in account currency (can be negative for losses)
 // @returns JSON string payload
-export build_exit_webhook_payload(int _zone_id, string _outcome, int _bars_held, float _close_price, float _pnl_r, string _exit_type, float _mae_pips, int current_time) =>
+export build_exit_webhook_payload(
+     int   _zone_id,
+     string _outcome,
+     int    _bars_held,
+     float  _close_price,
+     float  _pnl_r,
+     float  _pnl_usd,
+     string _exit_type,
+     float  _mae_pips,
+     int    current_time
+ ) =>
     string payload = '{"event_type":"exit"'
     payload := payload + ',"zone_id":' + str.tostring(_zone_id, "#")
     payload := payload + ',"outcome":"' + _outcome + '"'
     payload := payload + ',"bars_held":' + str.tostring(_bars_held, "#")
     payload := payload + ',"close_price":' + to_json_num(_close_price, "#.##########")
     payload := payload + ',"pnl_r":' + to_json_num(_pnl_r, "#.##")
+    payload := payload + ',"pnl_usd":' + to_json_num(_pnl_usd, "#.##")
     payload := payload + ',"exit_type":"' + _exit_type + '"'
     payload := payload + ',"mae_pips":' + to_json_num(_mae_pips, "#.#")
     payload := payload + ',"close_time":"' + str.format("{0,date,yyyy-MM-dd HH:mm:ss}", current_time) + '"'

@@ -4816,8 +4816,8 @@ if trade_just_closed
     else if str.contains(exit_comment, "Close")
         exit_type := "manual_close"
 
-    // Calculate P&L in R (risk units)
-    float lastProfit = strategy.closedtrades.profit(last_trade_idx)
+    // Calculate P&L in R (risk units) and USD
+    float lastProfit = strategy.closedtrades.profit(last_trade_idx)  // account currency P&L (can be negative)
     float lastEntry = strategy.closedtrades.entry_price(last_trade_idx)
     float riskPips = trade_original_sl_pips
     float pnl_r = (not na(riskPips) and riskPips != 0 and not na(lastEntry)) ? lastProfit / (riskPips * pip_size * 100) : 0.0
@@ -4830,6 +4830,7 @@ if trade_just_closed
             bars_held,                  // bars_held
             close,                      // close_price
             pnl_r,                      // pnl_r
+            lastProfit,                 // pnl_usd (account currency, negative on loss)
             exit_type,                  // exit_type
             mae_pips,                   // mae_pips
             timenow                     // current_time
