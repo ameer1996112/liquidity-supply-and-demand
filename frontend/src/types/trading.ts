@@ -39,13 +39,13 @@ export interface AIReasoning {
   guardian_liq_sweep?: boolean;
   guardian_arrival?: string;
   guardian_structure_break?: boolean;
-  // Ensemble brain fields (v9.1)
-  decision?: string;
+  // v9.1 Ensemble Brain – must match backend worker ai_result (src/worker.py, src/ai/brain.py)
+  decision?: string; // "GO" | "NO_GO"
   reason?: string;
-  rf_prob?: number;
+  rf_prob?: number; // 0–1 from RF model
   rf_note?: string;
-  narrative?: string;
-  rules?: string[] | null;
+  narrative?: string; // Market narrative from adapters/market_data
+  rules?: string[]; // RAG-retrieved rule strings
   // Allow arbitrary additional fields
   [key: string]: unknown;
 }

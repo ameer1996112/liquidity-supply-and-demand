@@ -426,9 +426,11 @@ export function SignalInspector({
                           <span
                             className={cn(
                               'font-mono text-sm font-bold px-2 py-0.5 rounded',
-                              ai.decision === 'GO'
-                                ? 'bg-emerald-500/20 text-emerald-400'
-                                : 'bg-rose-500/20 text-rose-400',
+                              ai.decision === 'GO' && 'bg-emerald-500/20 text-emerald-400',
+                              ai.decision === 'NO_GO' && 'bg-rose-500/20 text-rose-400',
+                              !ai.decision || (ai.decision !== 'GO' && ai.decision !== 'NO_GO')
+                                ? 'bg-zinc-600/30 text-zinc-400'
+                                : '',
                             )}
                           >
                             {(ai.decision ?? signal.status ?? 'unknown').toString().toUpperCase()}
