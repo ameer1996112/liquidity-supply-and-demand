@@ -184,7 +184,16 @@ def process_trade(payload: Dict[str, Any]):
             )
             return
 
-    # If we reach here, either AI said GO or shadow mode is allowing it
+    # If we reach here, either AI said GO or shadow mode is allowing it.
+    # Attach AI reasoning to the payload so it is persisted with the entry row.
+    payload["ai_reasoning"] = ai_result
+    payload["ai_decision"] = ai_result.get("decision")
+    # Use RF probability (0-1) as a proxy for AI confidence in percent
+    try:
+        payload["ai_confidence"] = round(float(ai_result.get("rf_prob", 0.0)) * 100, 1)
+    except Exception:
+        pass
+
     win_prob = float(ai_result.get("rf_prob", 0.0))
     try:
         dry_run = not getattr(s, "live_trading_enabled", False)

@@ -127,6 +127,12 @@ def save_alert(data: dict, mode: str = 'manual', filter_reasons: List[str] = Non
     if filter_reasons:
         insert_data['filter_reason_json'] = json.dumps(filter_reasons)
 
+    # Optional: attach AI ensemble reasoning if present on the payload
+    ai_reasoning = data.get('ai_reasoning')
+    if ai_reasoning is not None:
+        # Supabase can accept native dict for jsonb; fall back to string if already encoded
+        insert_data['ai_reasoning'] = ai_reasoning
+
     try:
         response = supabase.table('trading_signals').insert(insert_data).execute()
         alert_id = response.data[0]['id']
