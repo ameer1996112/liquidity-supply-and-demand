@@ -1,0 +1,1330 @@
+00:00 So, if you trade liquidity, supply and
+00:02 
+
+00:02 demand, you probably know about RD. It's
+00:03 
+
+00:03 basically where the strategy originated.
+00:05 
+
+00:05 Amazing trader, by the way. And
+00:07 
+
+00:07 recently, alongside some strange market
+00:09 
+
+00:09 conditions for the 30-inut charts,
+00:10 
+
+00:10 mainly since the Trump election and
+00:12 
+
+00:12 everything. Uh, the 5minute has made a
+00:14 
+
+00:14 return. Now, personally, I have actually
+00:16 
+
+00:16 continued to have consistently good
+00:17 
+
+00:17 results on the 30-inut. Those in the
+00:19 
+
+00:19 private Discord know from the trade
+00:20 
+
+00:20 ideas I send out. However, adding the
+00:22 
+
+00:22 5-minute charts has been a consideration
+00:24 
+
+00:24 for quite a long time. Anyway, RD always
+00:26 
+
+00:26 talked about the potential of including
+00:27 
+
+00:27 it again, and I was always interested in
+00:29 
+
+00:29 it. So, this is a perfect time. But with
+00:31 
+
+00:31 some new rules in place, I'm basically
+00:32 
+
+00:32 going to back test through gold. Yes,
+00:34 
+
+00:34 that's right. Gold works really well
+00:36 
+
+00:36 with this strategy apparently on the
+00:37 
+
+00:37 5-minute charts. Apparently, the win
+00:39 
+
+00:39 rate is insane. It's pretty bad on the
+00:41 
+
+00:41 30 minutes. So, we'll see today how this
+00:43 
+
+00:43 works. And yeah, depending on these
+00:44 
+
+00:44 results as well as some testing I'll do
+00:46 
+
+00:46 after this. I'll probably be adding this
+00:48 
+
+00:48 back to my trading as well as in the
+00:49 
+
+00:49 Discord. But yeah, starting off
+00:50 
+
+00:50 obviously session does matter on the
+00:52 
+
+00:52 5minute. You can't really just trade it
+00:53 
+
+00:53 all day. So, I'm just going to try out
+00:55 
+
+00:55 the same session as RD has been.
+00:56 
+
+00:56 Apparently, it's worked really well so
+00:58 
+
+00:58 far, so why not? And that time period is
+00:60 
+
+00:60 between 700 a.m. and 9:00 a.m. UK time.
+01:03 
+
+01:03 So, I'm going to start from here. This
+01:04 
+
+01:04 is a month ago yesterday. And yeah,
+01:06 
+
+01:06 we'll just go through the past month or
+01:08 
+
+01:08 so. It's been a while since I properly
+01:09 
+
+01:09 traded the 5minute. If you used to watch
+01:11 
+
+01:11 my videos back in the day, that was all
+01:13 
+
+01:13 I traded. Uh the 5minute used to be
+01:15 
+
+01:15 great, so I imagine it hasn't really
+01:16 
+
+01:16 changed. I know that the pair list at
+01:18 
+
+01:18 the moment for RD is currently GJ and
+01:21 
+
+01:21 gold. GJ used to always work great. Uh
+01:23 
+
+01:23 so I imagine it stayed that way. There
+01:24 
+
+01:24 was nothing on this day, so let me just
+01:26 
+
+01:26 fast forward. But yeah, GJ was always
+01:28 
+
+01:28 great with this. Uh we used to trade GJ
+01:30 
+
+01:30 and CJ, but apparently gold is just
+01:32 
+
+01:32 insane. Uh which is quite crazy uh to
+01:35 
+
+01:35 hear. Uh we have had if wait is this
+01:38 
+
+01:38 valid? This is technically a zone right
+01:40 
+
+01:40 here. One candle liquidity, but it's
+01:42 
+
+01:42 formed like a a proper low. It's not the
+01:44 
+
+01:44 best liquidity ever, but we did have
+01:46 
+
+01:46 this kind of exhaustion candle right
+01:47 
+
+01:47 here that just came straight down to the
+01:48 
+
+01:48 zone. Got a great rejection. Even with
+01:50 
+
+01:50 this black candle here, I still don't
+01:52 
+
+01:52 mind the zone at all. I will be talking
+01:54 
+
+01:54 about more things on the five minute
+01:55 
+
+01:55 that just apply to only the fiveminute.
+01:57 
+
+01:57 Obviously, it's not going to be the
+01:58 
+
+01:58 exact same as trading the 30-minut
+01:60 
+
+02:00 charts, but I think this is something I
+02:02 
+
+02:02 would uh I would take. So, no more is
+02:05 
+
+02:05 there any stop- loss room on the 5minut.
+02:07 
+
+02:07 Uh obviously, once again, I'll do my own
+02:09 
+
+02:09 testing for this. If they do come down
+02:10 
+
+02:10 to that one pit below the stop, then
+02:12 
+
+02:12 I'll start including it. But apparently,
+02:14 
+
+02:14 it's not really necessary on the 5minute
+02:16 
+
+02:16 from new testing. And time to look at
+02:17 
+
+02:17 the current TP rules that have been put
+02:19 
+
+02:19 in place. A stop loss of between 150 and
+02:21 
+
+02:21 200 pips should have a minimum RR of
+02:23 
+
+02:23 two. So, we'll see if this works. Okay,
+02:26 
+
+02:26 great candle to start with. Okay, and
+02:28 
+
+02:28 boom. I'm not used to this at all. On
+02:30 
+
+02:30 the 30 minute, you're waiting like many
+02:32 
+
+02:32 candles. And also, those candles are 30
+02:34 
+
+02:34 minutes each. On the 5m minute, the fact
+02:36 
+
+02:36 that you can just hit a 1 to two within
+02:38 
+
+02:38 like 10 minutes is just crazy to me.
+02:41 
+
+02:41 Even though it was literally all I used
+02:42 
+
+02:42 to do, I only used to trade the 5minute.
+02:44 
+
+02:44 But, um, yeah, that was very quick. Now,
+02:46 
+
+02:46 I know there is a one minute trailing
+02:48 
+
+02:48 stop, but I don't know if I can actually
+02:50 
+
+02:50 go that far back on the one minute
+02:52 
+
+02:52 charts. Apparently, I can. So, the one
+02:54 
+
+02:54 minute trailing stop is basically
+02:55 
+
+02:55 putting the stop just below each bullish
+02:58 
+
+02:58 candle. So, this actually would have
+02:60 
+
+02:60 taken us up to a 1 to3. I automatically
+03:03 
+
+03:03 put into 30 minute, but yeah, this would
+03:05 
+
+03:05 have gotten us a 1 to three if you did
+03:07 
+
+03:07 the 1 minute trailing stop. But yeah,
+03:09 
+
+03:09 that is a great start. I'm not going to
+03:10 
+
+03:10 go too deep into it for now. I'm just
+03:12 
+
+03:12 going to see if the win rate holds and
+03:14 
+
+03:14 I'll go back and properly back test this
+03:16 
+
+03:16 myself later as well as on GJ. But um
+03:19 
+
+03:19 yeah, to the next session and let's see
+03:21 
+
+03:21 what we got. We have left a demand zone
+03:23 
+
+03:23 at the bottom just got immediately
+03:25 
+
+03:25 invalidated. Um looks like nothing.
+03:28 
+
+03:28 Yeah, it is weird just trading like a
+03:31 
+
+03:31 particular session rather than like
+03:33 
+
+03:33 fully. We have a nice demand down here,
+03:35 
+
+03:35 but we'll see if it comes down rather
+03:36 
+
+03:36 than just fully going through everything
+03:38 
+
+03:38 cuz I've only back tested the 30 minute
+03:41 
+
+03:41 for ages. is actually given an entry
+03:43 
+
+03:43 immediately. Uh, which is nice to see.
+03:46 
+
+03:46 This one I wouldn't even question it to
+03:48 
+
+03:48 be honest. This is just a a very nice
+03:49 
+
+03:49 setup. 205 pips close full at 1 to 1.5.
+03:54 
+
+03:54 So once again, actually I don't know if
+03:56 
+
+03:56 I did say this, but TPS won't be quite
+03:59 
+
+03:59 as big. Jeez, like one candle. Okay,
+04:03 
+
+04:03 this is quite crazy. Um, wow. Okay.
+04:06 
+
+04:06 Yeah, the TPS won't be nearly as big as
+04:08 
+
+04:08 on the 30 minute for the most part.
+04:10 
+
+04:10 Obviously, like I did with that previous
+04:11 
+
+04:11 one, there is a one minute trading stop
+04:13 
+
+04:13 that you can do. Let me go on to the
+04:15 
+
+04:15 next
+04:16 
+
+04:16 day, but that's not something you'd use
+04:18 
+
+04:18 every trade
+04:20 
+
+04:20 anyway. Really doesn't seem like much
+04:22 
+
+04:22 here. It's so weird just having so
+04:25 
+
+04:25 little candles before I'm just moving on
+04:27 
+
+04:27 to the next day.
+04:28 
+
+04:28 But you got to be used to just not
+04:31 
+
+04:31 having a trade every day a lot of the
+04:33 
+
+04:33 time. Same with on the 30 minute.
+04:35 
+
+04:35 There's no difference. You're not going
+04:36 
+
+04:36 to get a trade every single day. Most
+04:38 
+
+04:38 days I don't, to be honest. It's
+04:39 
+
+04:39 probably about 40% of the time I do get
+04:41 
+
+04:41 a trade. Uh we do have a supply zone up
+04:43 
+
+04:43 here. That is the only one until up
+04:46 
+
+04:46 here. So, we will see. It's looking like
+04:49 
+
+04:49 it probably won't hit before session
+04:51 
+
+04:51 ends,
+04:53 
+
+04:53 though. I lied apparently. I'm just a
+04:56 
+
+04:56 just a liar. Sorry. Uh it did tap and it
+04:59 
+
+04:59 gave a good rejection. This is a valid
+05:01 
+
+05:01 flip. Not sure how much uh flips are
+05:04 
+
+05:04 valid on the 5m minute. I guess I'll
+05:06 
+
+05:06 figure it out with more back testing.
+05:08 
+
+05:08 Once again, no stop loss room needed. I
+05:09 
+
+05:09 mean, you can do a little bit on
+05:10 
+
+05:10 supplies just to account for spreads
+05:12 
+
+05:12 because obviously supplies have like
+05:14 
+
+05:14 slightly higher spreads. But back to the
+05:17 
+
+05:17 TP rules, 166 pips once again 1 to2.
+05:21 
+
+05:21 Shout out to RD for the current TP rules
+05:23 
+
+05:23 I'm looking through. I may adjust them
+05:24 
+
+05:24 for myself uh depending on how my
+05:26 
+
+05:26 results are and if I notice any
+05:28 
+
+05:28 differences, but uh I mean, so far it's
+05:30 
+
+05:30 going great. And yeah, one to two, we'll
+05:32 
+
+05:32 see if we can get a trailing uh a
+05:35 
+
+05:35 trailing one minute again.
+05:38 
+
+05:38 if it
+05:39 
+
+05:39 wins and it does. Wow, this is crazy.
+05:43 
+
+05:43 Okay, it looks like no one minute uh
+05:45 
+
+05:45 trailing stop was uh really given
+05:48 
+
+05:48 because it just immediately came back
+05:49 
+
+05:49 up. But wow. Yeah, that is quite crazy.
+05:51 
+
+05:51 Yes, this was given right at the end of
+05:53 
+
+05:53 the session right on the 9 uh on the
+05:56 
+
+05:56 9:00 candle. Actually, this probably
+05:58 
+
+05:58 would have been a flip entry because
+06:01 
+
+06:01 this is a new 1 hour candle and it came
+06:03 
+
+06:03 up made that top pick and then rejected
+06:05 
+
+06:05 immediately. This looks perfect for a
+06:08 
+
+06:08 flip entry, but even if it was this, the
+06:10 
+
+06:10 TP rules would have been for a 1 to 2.5
+06:13 
+
+06:13 instead. Um, which would have been
+06:16 
+
+06:16 within two candles again. So, either way
+06:19 
+
+06:19 you did it, it's completely fine. But
+06:21 
+
+06:21 yeah, you could definitely take these
+06:22 
+
+06:22 for higher RS. Uh, I'm not sure if the
+06:25 
+
+06:25 previous one, yeah, this one could have
+06:27 
+
+06:27 gone higher. This one was marked out
+06:29 
+
+06:29 with the one minute stop. I believe it
+06:30 
+
+06:30 was a one to two. All of them could go a
+06:32 
+
+06:32 little bit further, but to be fair, the
+06:34 
+
+06:34 win rate is ridiculous just based on
+06:35 
+
+06:35 this. It might not be worth to even do
+06:38 
+
+06:38 it higher. I forgot to go to the next
+06:39 
+
+06:39 day. I keep forgetting,
+06:43 
+
+06:43 man. And onto the next. Yeah, one thing
+06:46 
+
+06:46 I was going to say, I completely forgot
+06:48 
+
+06:48 about this point, is that trend doesn't
+06:50 
+
+06:50 really matter. Okay, that's invalid.
+06:52 
+
+06:52 trend doesn't really matter on the
+06:53 
+
+06:53 5minute that much because a 5minut move
+06:55 
+
+06:55 is so small compared to the higher time
+06:57 
+
+06:57 frames that it really does not matter
+06:59 
+
+06:59 nearly as much as um on the 30 minute
+07:03 
+
+07:03 for example. Um, obviously being what
+07:06 
+
+07:06 looks like in trend for the five minute
+07:07 
+
+07:07 still great. Obviously you'd rather be
+07:10 
+
+07:10 in
+07:13 
+
+07:13 trend. However, the trend doesn't matter
+07:15 
+
+07:15 too much. You can easily scalp uh
+07:18 
+
+07:18 something especially with these TP rules
+07:20 
+
+07:20 just using Okay, just immediate invalid.
+07:23 
+
+07:23 Uh yeah, just well just taking uh all
+07:26 
+
+07:26 the trades are in trend as long as
+07:27 
+
+07:27 they're like high quality or at least
+07:29 
+
+07:29 most of them. Obviously, it could still
+07:30 
+
+07:30 be reacting from uh a demand or
+07:32 
+
+07:32 something that maybe makes it not as
+07:34 
+
+07:34 nice. Can we come up to the supply
+07:36 
+
+07:36 before the end of the session? Yes, we
+07:38 
+
+07:38 can, but immediately invalidated. Okay,
+07:40 
+
+07:40 let's go to the next
+07:43 
+
+07:43 [Music]
+07:45 
+
+07:45 day. Uh this could easily be another no
+07:48 
+
+07:48 trade day. There's not I'm not really
+07:51 
+
+07:51 seeing anything at all to be honest. Uh
+07:53 
+
+07:53 yeah, no, absolutely nothing. But there
+07:55 
+
+07:55 will be more pairs. I mean, at the
+07:57 
+
+07:57 moment it's just GJ, but that's
+07:58 
+
+07:58 completely fine. This five minute is
+07:60 
+
+08:00 just kind of an extra uh this is a 655.
+08:04 
+
+08:04 This is 100% valid, 100% something we
+08:07 
+
+08:07 would take. I assume we'd be active 5
+08:09 
+
+08:09 minutes for the session. Um I mean, I
+08:12 
+
+08:12 guess you never know. But this is an
+08:14 
+
+08:14 absolutely gorgeous trade right here.
+08:16 
+
+08:16 115 pips would mean a 1 to 2.5, which
+08:20 
+
+08:20 would have already hit like what? Okay,
+08:24 
+
+08:24 these results are crazy. These might be
+08:26 
+
+08:26 better than the 30
+08:28 
+
+08:28 minute. What would the trailing 1 minute
+08:31 
+
+08:31 stop do for us to have done anything?
+08:34 
+
+08:34 So, if the 1 minute stop was below each
+08:36 
+
+08:36 candle, it would have hit here. So,
+08:38 
+
+08:38 that's when we' put it below this
+08:40 
+
+08:40 candle. Didn't go below it. Uh, and
+08:42 
+
+08:42 didn't go below until we went up here.
+08:44 
+
+08:44 Didn't go below that. So, I think it'd
+08:45 
+
+08:45 still be
+08:47 
+
+08:47 running. Still be
+08:49 
+
+08:49 running. Oh, until here. So, I guess
+08:53 
+
+08:53 that's the power of the one minute
+08:56 
+
+08:56 trailing stop. Um, yeah, looks
+09:00 
+
+09:00 like
+09:02 
+
+09:02 Jesus. Okay. Wow. Yeah, what a crazy
+09:05 
+
+09:05 zone. But I guess that's the power of
+09:08 
+
+09:08 the one minute trailing stop. Uh, there
+09:10 
+
+09:10 still could be another zone. You never
+09:12 
+
+09:12 know with the 5m minute. I can literally
+09:13 
+
+09:13 create and tap a zone within
+09:16 
+
+09:16 uh just like 30 minutes, but now it
+09:18 
+
+09:18 looks like nothing else. Yeah, what a
+09:19 
+
+09:19 crazy trade. That is insane. We haven't
+09:21 
+
+09:21 lost yet, by the way. Uh, feel free to
+09:23 
+
+09:23 point out in the comments if I've missed
+09:25 
+
+09:25 a setup, but I don't think I have. I
+09:27 
+
+09:27 think every trade so far has actually
+09:29 
+
+09:29 just been a winner. Uh, this is
+09:31 
+
+09:31 literally just the last month, the most
+09:33 
+
+09:33 recent month. I'll do it up to current
+09:34 
+
+09:34 day. Um, but yeah, that's crazy. So far,
+09:40 
+
+09:40 uh, liquidity was not valid on this one,
+09:42 
+
+09:42 unfortunately, because it looks like it
+09:43 
+
+09:43 just immediately won. Well, I mean it
+09:45 
+
+09:45 depends if you count this as uh as a
+09:48 
+
+09:48 good break structure, which in my mind
+09:50 
+
+09:50 on a 30 minute a lot of the time that
+09:52 
+
+09:52 would be valid, but I'm not going to
+09:53 
+
+09:53 mark out. The moves already happened. Uh
+09:55 
+
+09:55 seems kind of like I'm trying to make
+09:57 
+
+09:57 something work here, but doesn't really
+09:58 
+
+09:58 matter either way. Our results are
+09:60 
+
+09:60 already pretty
+10:02 
+
+10:02 [Music]
+10:03 
+
+10:03 crazy. And the great thing about this as
+10:06 
+
+10:06 well is I'm already waking up at um like
+10:09 
+
+10:09 around this time just because it's
+10:11 
+
+10:11 generally good to Oh my god. Wait. Is
+10:15 
+
+10:15 that Oh my god, that is crazy. Every
+10:18 
+
+10:18 zone that I've seen so far, say this is
+10:21 
+
+10:21 a break a candle entry. Literally every
+10:23 
+
+10:23 zone so far has one. I think this would
+10:25 
+
+10:25 be a 1 to 2.5 again. Let's test the 1
+10:28 
+
+10:28 minute trail and stop again. So it' be
+10:30 
+
+10:30 above
+10:31 
+
+10:31 this and above this and above this,
+10:33 
+
+10:33 above this. So it would have been
+10:35 
+
+10:35 stopped just down here at 1 to three.
+10:37 
+
+10:37 This is crazy. This is actually crazy.
+10:40 
+
+10:40 Let me know in the comments if you want
+10:41 
+
+10:41 me to uh bat test GJ as well because
+10:43 
+
+10:43 this is a lot better than I expected.
+10:46 
+
+10:46 I'll be honest. Literally, every trade
+10:48 
+
+10:48 has won so far. I promise I've not
+10:51 
+
+10:51 skipped out any days. I'm going to keep
+10:52 
+
+10:52 in the edit literally every day of
+10:54 
+
+10:54 trades just so that you know that this
+10:57 
+
+10:57 is actually what's happened. Okay, no to
+10:60 
+
+10:60 the next
+11:02 
+
+11:02 day. Uh we've got a really nice zone at
+11:05 
+
+11:05 the bottom here. supplies don't look
+11:07 
+
+11:07 great just based on my 30 minute
+11:09 
+
+11:09 knowledge and I assume it's
+11:11 
+
+11:11 realistically the same I mean
+11:13 
+
+11:13 considering the results I've got so far
+11:15 
+
+11:15 and onto the next day
+11:18 
+
+11:18 already. All right, only went slightly
+11:20 
+
+11:20 past but um should be good. Immediately
+11:23 
+
+11:23 invalidated that demand. Nothing down
+11:25 
+
+11:25 here. Looks like it's going to be an
+11:28 
+
+11:28 already gone day. Wow, it's 8:40
+11:30 
+
+11:30 already. And there we go. It's crazy how
+11:33 
+
+11:33 quickly setups go by.
+11:36 
+
+11:36 Well, these days, well, these trading
+11:39 
+
+11:39 hours, same thing. But here, we don't
+11:43 
+
+11:43 look like we're going to get anything
+11:44 
+
+11:44 once again. Like, oh my god, it's
+11:46 
+
+11:46 already 8:40. Nothing. It's easy to back
+11:49 
+
+11:49 test to be
+11:51 
+
+11:51 fair. Looks like it hit one literally
+11:55 
+
+11:55 just before our session at at 5. Fair
+11:58 
+
+11:58 enough. Yeah, that's one we definitely
+11:60 
+
+11:60 wouldn't have caught due to timing. And
+12:03 
+
+12:03 that's the end already. Oh
+12:06 
+
+12:06 [Music]
+12:08 
+
+12:08 my. Nothing so
+12:13 
+
+12:13 far. Nope. This zone's
+12:17 
+
+12:17 invalidated. Uh there's still another
+12:19 
+
+12:19 zone below it. This is the bottom zone.
+12:21 
+
+12:21 If we come down to it,
+12:25 
+
+12:25 uh we have rejected the closed bullish
+12:28 
+
+12:28 though, so I'm not too confident. Uh but
+12:30 
+
+12:30 we'll see.
+12:33 
+
+12:33 Never
+12:34 
+
+12:34 mind. Uh we probably we'll just say we
+12:37 
+
+12:37 took a close on this. Um it's hard to
+12:39 
+
+12:39 say with all these wicks. There is
+12:41 
+
+12:41 definitely potential that we would have
+12:42 
+
+12:42 taken this break candle. Um but I'm not
+12:45 
+
+12:45 going to do that because I mean I don't
+12:47 
+
+12:47 think I would have. And for 226 pips,
+12:51 
+
+12:51 this would be 1 to 1.5 if we just took
+12:55 
+
+12:55 it normally. see if we can get a
+12:56 
+
+12:56 trailing stop as well because this looks
+12:59 
+
+12:59 like a fairly large structure trade for
+13:01 
+
+13:01 the five minutes.
+13:02 
+
+13:02 So, looks like we might be able to get a
+13:05 
+
+13:05 one minute trailing
+13:06 
+
+13:06 stop just just a hunch. So, stop would
+13:09 
+
+13:09 be under this then stop would be under
+13:11 
+
+13:11 this candle and stop would be under this
+13:13 
+
+13:13 candle then this candle. So, it would
+13:14 
+
+13:14 have been stopped out just here um which
+13:17 
+
+13:17 increases by almost double and let's see
+13:21 
+
+13:21 if it continued going.
+13:24 
+
+13:24 Looks like it did. Wow. Five minutes
+13:27 
+
+13:27 actually got some power, you know. Um,
+13:29 
+
+13:29 this is actually insane though. Like act
+13:32 
+
+13:32 like genuinely as a whole the win rate
+13:35 
+
+13:35 that we've seen so far on it. Okay,
+13:37 
+
+13:37 never mind. Let me get involved. Uh,
+13:39 
+
+13:39 yeah, it's been pretty ridiculous. I
+13:42 
+
+13:42 mean, obviously it's a it's been 100% so
+13:44 
+
+13:44 far. Obviously, I don't Well, I know for
+13:47 
+
+13:47 a fact that that won't continue forever.
+13:49 
+
+13:49 We're already past session. I literally
+13:50 
+
+13:50 forgot. Although, I wish we weren't
+13:52 
+
+13:52 because it's served. literally just did
+13:54 
+
+13:54 that. Yeah, obviously I won't always
+13:56 
+
+13:56 have a 100% win rate. There'll
+13:57 
+
+13:57 definitely be many losses to come and
+13:60 
+
+13:60 have been in in the past, but maybe the
+14:02 
+
+14:02 last month was just crazy. Maybe this is
+14:04 
+
+14:04 actually realistic. That's
+14:09 
+
+14:09 invalid. Uh but yeah, that's pretty
+14:11 
+
+14:11 nuts. We have a nice demand zone at the
+14:13 
+
+14:13 bottom here. We actually have Oh, we
+14:15 
+
+14:15 actually have a
+14:17 
+
+14:17 few. We have another one, but it's
+14:20 
+
+14:20 already so late in the day. Well, not
+14:22 
+
+14:22 late in the day. Late for the five
+14:24 
+
+14:24 minute. And yeah, it's already blew
+14:27 
+
+14:27 [Music]
+14:28 
+
+14:28 by. Once again, we've got a decent zone
+14:30 
+
+14:30 down here.
+14:33 
+
+14:33 Validated. Invalidated that one and
+14:37 
+
+14:37 validated all of them. Okay. Uh, this
+14:39 
+
+14:39 was actually yesterday and I believe
+14:42 
+
+14:42 that was anything today because I was
+14:43 
+
+14:43 looking. So, I believe that's about it
+14:45 
+
+14:45 for the last month on gold. This is the
+14:48 
+
+14:48 first back test video where I've sent a
+14:50 
+
+14:50 100% win rate. I'll say that for sure.
+14:53 
+
+14:53 Yeah. Wow. Okay. This is present day.
+14:55 
+
+14:55 So, I think I'm going to be bringing
+14:56 
+
+14:56 back the 5m
+14:58 
+
+14:58 minute. Based on those results we've
+15:00 
+
+15:00 just seen, I think it's pretty safe to
+15:02 
+
+15:02 say that it'll probably bring it'll
+15:03 
+
+15:03 probably be brought back once again. I'm
+15:05 
+
+15:05 going to do some more testing. I'm going
+15:06 
+
+15:06 to do past the last month. Of course,
+15:08 
+
+15:08 also going to do GJ. And yeah, I'll
+15:11 
+
+15:11 probably start trading this in a
+15:13 
+
+15:13 Discord, sending setups out there. Once
+15:16 
+
+15:16 again, shout out to RD that is the goat.
+15:18 
+
+15:18 uh he came up with the rule set uh and
+15:20 
+
+15:20 all that and he's been killing it
+15:21 
+
+15:21 anyway. But uh yeah, this could be a
+15:23 
+
+15:23 nice inclusion to the strategy if there
+15:25 
+
+15:25 are dry periods on the 30 minute. This
+15:27 
+
+15:27 is fantastic. This is a great way to
+15:30 
+
+15:30 hopefully stop that because apparently
+15:31 
+
+15:31 the 5minut has been killing it for a
+15:33 
+
+15:33 long time now. Actually apparently
+15:35 
+
+15:35 doesn't really have many rough periods.
+15:36 
+
+15:36 So it's just quite consistent overall.
+15:38 
+
+15:38 Yeah, that's going to add some nice
+15:40 
+
+15:40 extra profits to um what we currently
+15:42 
+
+15:42 have. And once again, I'm not doing bad
+15:43 
+
+15:43 as it is. Yeah, feel free to join the
+15:45 
+
+15:45 Discord. Feel free to join RD's Discord
+15:47 
+
+15:47 in the description. Uh either either or
+15:49 
+
+15:49 you can just take the free information
+15:50 
+
+15:50 on the YouTube. Uh but yeah, I'll be
+15:52 
+
+15:52 coming out with more content on the
+15:53 
+
+15:53 Fman. I suppose maybe back to those five
+15:56 
+
+15:56 minute live trades. That would be an
+15:57 
+
+15:57 absolute throwback. Wow. Uh but yeah, I
+15:60 
+
+15:60 guess I'll see you next video. Peace.

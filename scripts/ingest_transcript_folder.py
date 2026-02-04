@@ -43,7 +43,9 @@ logger = logging.getLogger("TRANSCRIPT_FOLDER_INGEST")
 
 
 # Root folder containing your transcript files
-TRANSCRIPTS_DIR = Path(os.getenv("TRANSCRIPTS_DIR", str(Path.home() / "Downloads" / "transcripts")))
+# Default: project_root/data/transcripts (no env needed in normal use)
+DEFAULT_TRANSCRIPTS_DIR = ROOT / "data" / "transcripts"
+TRANSCRIPTS_DIR = Path(os.getenv("TRANSCRIPTS_DIR", str(DEFAULT_TRANSCRIPTS_DIR)))
 
 load_dotenv()
 
@@ -102,15 +104,28 @@ def load_transcripts_from_folder(root: Path) -> List[TranscriptFile]:
 
 
 def refine_transcript(raw_text: str, client: OpenAI) -> str | None:
-    """Use LLM to extract only actionable trading rules from a transcript."""
+    """
+    Use LLM to extract ONLY 5-minute S&D trading rules from a transcript.
+
+    Many videos mix 30m/1H/4H rules with 5m execution rules. We want the
+    knowledge base to contain ONLY the 5-minute strategy rules.
+    """
     if not raw_text or not raw_text.strip():
         return None
 
     snippet = raw_text[:16000]
     system_prompt = (
-        "You are a Technical Analyst. Extract ONLY actionable trading rules, "
-        "entry triggers, and risk parameters from this transcript. Ignore "
-        "intro/outro/fluff. Format as a bulleted list."
+        "You are a Technical Analyst.\n\n"
+        "Extract ONLY actionable trading rules, entry triggers, and risk "
+        "parameters that apply to a 5-minute (5m) supply & demand scalping "
+        "strategy.\n\n"
+        "- KEEP rules that clearly apply to the 5m chart, scalping, or intraday execution.\n"
+        "- IGNORE or DROP any rules that are specific to higher timeframes "
+        "  (15m, 30m, 1H, 4H, daily, HTF confirmation, etc.).\n"
+        "- If a rule mentions multiple timeframes, rewrite it so that only the "
+        "  5m execution part remains.\n"
+        "- Ignore intro/outro/fluff.\n\n"
+        "Output format: a concise bulleted list of 5m S&D trading rules only."
     )
 
     try:
@@ -123,8 +138,37 @@ def refine_transcript(raw_text: str, client: OpenAI) -> str | None:
             temperature=0.2,
             max_tokens=800,
         )
-        content = resp.choices[0].message.content
-        return content.strip() if content else None
+        content = (resp.choices[0].message.content or "").strip()
+        if not content:
+            return None
+
+        # Lightweight post-filter: drop any bullet that explicitly mentions
+        # higher timeframes. Keep neutral/5m rules.
+        lines = content.splitlines()
+        filtered: list[str] = []
+        higher_tf_markers = [
+            "30m",
+            "30 m",
+            "15m",
+            "15 m",
+            "1h",
+            "1 h",
+            "4h",
+            "4 h",
+            "htf",
+            "higher timeframe",
+            "daily",
+            "4-hour",
+            "1-hour",
+        ]
+        for line in lines:
+            lower = line.lower()
+            if any(m in lower for m in higher_tf_markers):
+                continue
+            filtered.append(line)
+
+        cleaned = "\n".join(filtered).strip()
+        return cleaned or None
     except Exception as e:
         logger.error("Refinement LLM call failed: %s", e)
         return None
@@ -170,6 +214,10 @@ def main() -> None:
                     "source": doc.source,
                     "title": doc.title,
                     "kind": "local_transcript",
+                    # Tag that this rule comes from a 5-minute S&D style video.
+                    # This lets the RagEngine filter for 5m-only strategies.
+                    "timeframe": "5m",
+                    "strategy": "supply_demand_5m",
                 },
             )
             logger.info("[Transcript %d/%d] Ingested: %s", idx, total, doc.title)

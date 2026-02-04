@@ -154,7 +154,12 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
     rules_texts: list[str] = []
     if rag is not None:
         try:
-            docs = rag.query_rules(narrative, k=4)
+            # Restrict RAG to 5-minute S&D strategy rules
+            docs = rag.query_rules(
+                narrative,
+                k=4,
+                filter={"timeframe": "5m"},
+            )
             rules_texts = [d.page_content for d in docs]
         except Exception as e:
             logger.error("RAG query failed: %s", e)

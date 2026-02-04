@@ -18,16 +18,15 @@ from typing import Any, Dict
 import requests
 
 
-def build_payload(symbol: str = "XAUUSD") -> Dict[str, Any]:
+def build_payload(symbol: str = "XAUUSD", zone_id: int = 0) -> Dict[str, Any]:
     """Build a representative TradingView-style payload. Use symbol=NAS100 to test index pts+pips in Discord."""
     if symbol.upper() == "NAS100":
-        # Index: entry/sl/tp in points; Discord will show "X pts, XXX pips"
         entry, sl, tp = 25893.16, 25886.28, 25920.68
         size = 0.1
     else:
         entry, sl, tp = 2350.00, 2340.00, 2380.00
         size = 0.1
-    return {
+    payload = {
         "symbol": symbol,
         "side": "buy",
         "entry": entry,
@@ -39,14 +38,19 @@ def build_payload(symbol: str = "XAUUSD") -> Dict[str, Any]:
         "F:score": 85,
         "F:signal_encoded": 95,
     }
+    if zone_id:
+        payload["zone_id"] = zone_id
+        payload["trade_key"] = f"{symbol}_{zone_id}"
+    return payload
 
 
 def main() -> None:
     base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
     symbol = os.getenv("SIMULATE_SYMBOL", "XAUUSD").strip().upper() or "XAUUSD"
+    zone_id = int(os.getenv("ZONE_ID", "0"))
     url = f"{base_url.rstrip('/')}/webhook"
 
-    payload = build_payload(symbol)
+    payload = build_payload(symbol, zone_id=zone_id)
     headers = {"Content-Type": "application/json"}
 
     # Optional webhook secret for auth (matches API validate_webhook_secret)
