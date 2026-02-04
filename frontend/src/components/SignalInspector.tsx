@@ -155,7 +155,7 @@ function JsonViewer({ data, title }: { data: unknown; title: string }) {
         </button>
       </div>
       <ScrollArea className="h-64">
-        <pre className="p-3 text-[11px] text-zinc-400 font-mono leading-relaxed overflow-x-auto">
+        <pre className="p-3 text-[11px] text-zinc-400 font-mono leading-relaxed whitespace-pre-wrap break-words">
           {jsonString}
         </pre>
       </ScrollArea>
