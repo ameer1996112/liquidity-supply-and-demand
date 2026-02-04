@@ -85,15 +85,29 @@ def get_market_narrative(symbol: str, candles: int = 50) -> str:
     Build a compact natural-language narrative for the given symbol.
 
     Uses 15m candles for the last `candles` periods via yfinance.
+    Maps common trading symbols to Yahoo Finance tickers so that
+    indices/FX pairs resolve correctly (e.g. XAUUSD -> GC=F).
     """
+    # Map internal symbols to Yahoo Finance tickers
+    ticker_map = {
+        "XAUUSD": "GC=F",
+        "EURUSD": "EURUSD=X",
+        "GBPUSD": "GBPUSD=X",
+        "USDJPY": "USDJPY=X",
+        "BTCUSD": "BTC-USD",
+        "NAS100": "NQ=F",
+        "US30": "YM=F",
+    }
+    lookup_symbol = ticker_map.get(symbol.upper(), symbol)
+
     try:
-        ticker = yf.Ticker(symbol)
+        ticker = yf.Ticker(lookup_symbol)
         df = ticker.history(period="3d", interval="15m")
         if df.empty:
             raise ValueError("no data returned")
         df = df.tail(candles).copy()
     except Exception as e:
-        logger.warning("Failed to fetch market data for %s: %s", symbol, e)
+        logger.warning("Failed to fetch market data for %s (lookup=%s): %s", symbol, lookup_symbol, e)
         return f"{symbol} market data unavailable; treat context as neutral."
 
     df = df.rename(columns=str.capitalize)  # Ensure Open/High/Low/Close

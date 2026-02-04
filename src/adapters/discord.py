@@ -52,7 +52,12 @@ def calculate_position_size(
     }
 
 
-def send_discord(data: Dict[str, Any], alert_id: int, mode: str = "manual") -> Tuple[bool, Optional[str]]:
+def send_discord(
+    data: Dict[str, Any],
+    alert_id: int,
+    mode: str = "manual",
+    ai_result: Optional[Dict[str, Any]] = None,
+) -> Tuple[bool, Optional[str]]:
     s = get_settings()
     if not s.discord_webhook_url:
         return False, "DISCORD_WEBHOOK_URL not configured"
@@ -92,13 +97,50 @@ def send_discord(data: Dict[str, Any], alert_id: int, mode: str = "manual") -> T
         if data.get("zone_type"):
             zone_emoji = "🟢" if data["zone_type"] == "demand" else "🔴"
             fields.append({"name": "Zone Type", "value": f"{zone_emoji} {data['zone_type'].upper()}", "inline": True})
+
+        # Optional: legacy inline AI flags on the card (still supported)
         if data.get("ai_decision"):
-            ai_emoji = "🤖✅" if data["ai_decision"] == "APPROVE" else "🤖⚠️"
+            ai_emoji = "🤖✅" if str(data["ai_decision"]).upper() == "GO" else "🤖⚠️"
             ai_confidence = data.get("ai_confidence", "N/A")
-            fields.append({"name": "AI Guardian", "value": f"{ai_emoji} {data['ai_decision']} ({ai_confidence}%)", "inline": True})
-        if data.get("ai_reasoning"):
-            reasoning = data["ai_reasoning"][:200] + "..." if len(data.get("ai_reasoning", "")) > 200 else data["ai_reasoning"]
-            fields.append({"name": "AI Analysis", "value": reasoning, "inline": False})
+            fields.append(
+                {
+                    "name": "AI Gate",
+                    "value": f"{ai_emoji} {data['ai_decision']} ({ai_confidence}%)",
+                    "inline": True,
+                }
+            )
+
+        # New: rich AI Brain analysis section when ai_result is provided
+        if ai_result:
+            decision = str(ai_result.get("decision", "NO_GO")).upper()
+            try:
+                rf_prob = float(ai_result.get("rf_prob", 0.0)) * 100.0
+            except Exception:
+                rf_prob = 0.0
+            reason = str(ai_result.get("reason", "") or "N/A").strip()
+            rules = ai_result.get("rules") or []
+            rule_count = len(rules)
+            top_snippet = ""
+            if rules:
+                top_snippet = str(rules[0]).replace("\n", " ")
+                if len(top_snippet) > 200:
+                    top_snippet = top_snippet[:197].rstrip() + "..."
+
+            ai_lines = [
+                f"**Decision:** {decision} (Shadow Mode)",
+                f"**Confidence:** {rf_prob:.1f}%",
+                f"**Reason:** {reason}",
+                f"**RAG Wisdom:** {rule_count} rules found."
+                + (f' Top advice: \"{top_snippet}\"' if top_snippet else ""),
+            ]
+            fields.append(
+                {
+                    "name": "🧠 AI Analysis",
+                    "value": "\n".join(ai_lines),
+                    "inline": False,
+                }
+            )
+
         embed = {
             "title": f"{mode_prefix}{emoji} New {side} Signal - #{alert_id}",
             "description": f"**{'Auto-executed (paper)' if mode == 'paper' else 'Execute manually'}** | Reply with outcome later",

@@ -199,7 +199,8 @@ def process_trade(payload: Dict[str, Any]):
         dry_run = not getattr(s, "live_trading_enabled", False)
         if dry_run:
             logger.info("DRY_RUN: LIVE_TRADING=false — saving alert + notify only")
-        logic.process_trade(payload, dry_run=dry_run)
+        # Pass ai_result through so downstream notifications can render the brain matrix
+        logic.process_trade(payload, dry_run=dry_run, ai_result=ai_result)
         logger.info("logic.process_trade completed")
     except Exception as exec_err:
         logger.error("logic.process_trade failed: %s", exec_err)

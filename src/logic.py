@@ -4,7 +4,7 @@ Save to Supabase, filter or notify, optional paper position. Used only by worker
 """
 
 import logging
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Optional
 
 from config import get_settings
 from src.adapters.supabase import (
@@ -53,7 +53,11 @@ def should_forward_alert(data: Dict[str, Any]) -> Tuple[bool, List[str], Dict[st
     return True, ["OK"], debug_meta
 
 
-def process_trade(data: Dict[str, Any], dry_run: bool = False) -> None:
+def process_trade(
+    data: Dict[str, Any],
+    dry_run: bool = False,
+    ai_result: Optional[Dict[str, Any]] = None,
+) -> None:
     init_supabase()
 
     if data.get("event_type") == "exit":
@@ -107,7 +111,9 @@ def process_trade(data: Dict[str, Any], dry_run: bool = False) -> None:
     elif dry_run:
         logger.info("DRY_RUN: Alert #%s saved, no order placed", alert_id)
 
-    send_discord(data, alert_id, mode=mode)
+    # Pass through AI ensemble result (if available) so Discord can render
+    # the full brain decision matrix.
+    send_discord(data, alert_id, mode=mode, ai_result=ai_result)
     send_telegram(data, alert_id)
 
 
