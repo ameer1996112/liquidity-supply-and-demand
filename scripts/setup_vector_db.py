@@ -63,10 +63,11 @@ def main() -> None:
         );
 
         -- Similarity search function using pgvector
-        -- 3-arg version (useful for manual SQL / future extensions)
+        -- Signature matches SupabaseVectorStore RPC call:
+        --   POST /rest/v1/rpc/match_documents?limit=K
+        --   body: {\"query_embedding\": [...], \"filter\": { ... } }
         create or replace function match_documents(
             query_embedding vector(1536),
-            match_count int,
             filter jsonb default '{}'::jsonb
         )
         returns table(
@@ -86,34 +87,8 @@ def main() -> None:
                 1 - (d.embedding <=> query_embedding) as similarity
             from documents d
             where d.metadata @> filter
-            order by d.embedding <=> query_embedding
-            limit match_count;
-        end;
-        $$;
-
-        -- 1-arg wrapper version for PostgREST / LangChain SupabaseVectorStore
-        -- This matches an RPC call body like: {"query_embedding": [...]}
-        create or replace function match_documents(
-            query_embedding vector(1536)
-        )
-        returns table(
-            id uuid,
-            content text,
-            metadata jsonb,
-            similarity float
-        )
-        language plpgsql
-        as $$
-        begin
-            return query
-            select
-                d.id,
-                d.content,
-                d.metadata,
-                1 - (d.embedding <=> query_embedding) as similarity
-            from documents d
-            order by d.embedding <=> query_embedding
-            limit 5;
+            order by d.embedding <=> query_embedding;
+            -- NOTE: row limiting is done by PostgREST via the `?limit=` query param.
         end;
         $$;
         """
