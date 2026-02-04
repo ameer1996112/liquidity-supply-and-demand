@@ -116,7 +116,8 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
     """
     settings = get_settings()
 
-    # Step 1: RF filter
+    # Step 1: RF model – always run, but don't return early so we can still
+    # observe RAG and market narrative even when RF is skeptical.
     rf_prob, rf_note, features = get_prediction(payload)
     result: Dict[str, Any] = {
         "decision": "NO_GO",
@@ -129,19 +130,9 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
         "features": features,
     }
 
-    if rf_prob < 0.60:
-        result["reason"] = f"RF probability {rf_prob:.1%} below 60% threshold."
-        return result
-
-    # If LLM filter disabled, accept RF decision
-    if not getattr(settings, "enable_llm_filter", True):
-        result["decision"] = "GO"
-        result["reason"] = "RF pass and LLM filter disabled."
-        return result
-
     symbol = payload.get("symbol", "UNKNOWN")
 
-    # Step 2: Market narrative
+    # Step 2: Market narrative – always attempt, even if RF is low
     try:
         narrative = get_market_narrative(symbol)
     except Exception as e:
@@ -149,14 +140,15 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
         narrative = f"{symbol} market narrative unavailable."
     result["narrative"] = narrative
 
-    # Step 2b: RAG retrieval
+    # Step 3: RAG retrieval – always attempt so we can inspect rules in logs
     rag = _get_rag_engine()
     rules_texts: list[str] = []
     if rag is not None:
         try:
-            # Restrict RAG to 5-minute S&D strategy rules
+            # Make the query explicitly about S&D 5m liquidity/OB entries
+            rag_query = f"{narrative} supply demand liquidity sweep entry trading strategy"
             docs = rag.query_rules(
-                narrative,
+                rag_query,
                 k=4,
                 filter={"timeframe": "5m"},
             )
@@ -167,7 +159,18 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
         logger.warning("RagEngine unavailable; skipping RAG retrieval.")
     result["rules"] = rules_texts
 
-    # Step 3: LLM wisdom
+    # Step 4: Late RF rejection - after we have narrative & RAG context
+    if rf_prob < 0.60:
+        result["reason"] = f"RF probability {rf_prob:.1%} below 60% threshold."
+        return result
+
+    # If LLM filter disabled, accept RF decision (but still include RAG/narrative)
+    if not getattr(settings, "enable_llm_filter", True):
+        result["decision"] = "GO"
+        result["reason"] = "RF pass and LLM filter disabled."
+        return result
+
+    # Step 5: LLM wisdom
     client = _get_llm_client()
     if client is None:
         # Fallback: trust RF
