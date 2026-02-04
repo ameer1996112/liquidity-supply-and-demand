@@ -39,6 +39,13 @@ export interface AIReasoning {
   guardian_liq_sweep?: boolean;
   guardian_arrival?: string;
   guardian_structure_break?: boolean;
+  // Ensemble brain fields (v9.1)
+  decision?: string;
+  reason?: string;
+  rf_prob?: number;
+  rf_note?: string;
+  narrative?: string;
+  rules?: string[] | null;
   // Allow arbitrary additional fields
   [key: string]: unknown;
 }

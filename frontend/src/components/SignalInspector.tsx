@@ -192,6 +192,15 @@ export function SignalInspector({
   const notes = getNotes(signal);
   const ai = parseAIReasoning(signal);
   const isBuy = side === 'buy';
+  const hasLegacyMetrics =
+    !!ai &&
+    (ai.zone_score != null ||
+      ai.base_quality != null ||
+      ai.departure_strength != null ||
+      ai.return_strength != null ||
+      ai.rsi != null ||
+      ai.adx != null ||
+      ai.rvol != null);
   const entryPrice = signal.price ?? signal.entry;
   const stopLoss = signal.stop_loss ?? signal.sl;
   const takeProfit = signal.take_profit ?? signal.tp;
@@ -401,6 +410,71 @@ export function SignalInspector({
               <TabsContent value="ai" className="space-y-4 mt-0">
                 {ai ? (
                   <>
+                    {/* Ensemble Decision Summary */}
+                    <div className="rounded-lg bg-zinc-900/50 border border-zinc-800 overflow-hidden">
+                      <div className="px-4 py-2.5 border-b border-zinc-800 flex items-center gap-2">
+                        <Shield className="w-4 h-4 text-zinc-500" />
+                        <span className="text-[11px] text-zinc-400 uppercase tracking-wider">
+                          Ensemble Decision
+                        </span>
+                      </div>
+                      <div className="p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] text-zinc-500 uppercase tracking-wider">
+                            Decision
+                          </span>
+                          <span
+                            className={cn(
+                              'font-mono text-sm font-bold px-2 py-0.5 rounded',
+                              ai.decision === 'GO'
+                                ? 'bg-emerald-500/20 text-emerald-400'
+                                : 'bg-rose-500/20 text-rose-400',
+                            )}
+                          >
+                            {(ai.decision ?? signal.status ?? 'unknown').toString().toUpperCase()}
+                          </span>
+                        </div>
+
+                        {/* RF / AI confidence bar (reuses main score) */}
+                        {score !== null && (
+                          <ScoreBar
+                            label="AI Confidence"
+                            value={score}
+                            icon={<Gauge className="w-3 h-3" />}
+                          />
+                        )}
+
+                        {ai.reason && (
+                          <div className="text-sm text-zinc-300 leading-relaxed">
+                            {ai.reason}
+                          </div>
+                        )}
+
+                        {ai.narrative && (
+                          <div className="text-xs text-zinc-400 leading-relaxed">
+                            <span className="block text-[11px] text-zinc-500 uppercase tracking-wider mb-1">
+                              Market Narrative
+                            </span>
+                            <p>{ai.narrative}</p>
+                          </div>
+                        )}
+
+                        {Array.isArray(ai.rules) && ai.rules.length > 0 && (
+                          <div className="text-xs text-zinc-300">
+                            <span className="block text-[11px] text-zinc-500 uppercase tracking-wider mb-1">
+                              RAG Rules (Top {Math.min(ai.rules.length, 5)})
+                            </span>
+                            <ul className="list-disc pl-4 space-y-1">
+                              {ai.rules.slice(0, 5).map((rule, idx) => (
+                                // eslint-disable-next-line react/no-array-index-key
+                                <li key={idx}>{String(rule)}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
                     {/* Zone Analysis */}
                     <div className="rounded-lg bg-zinc-900/50 border border-zinc-800 overflow-hidden">
                       <div className="px-4 py-2.5 border-b border-zinc-800 flex items-center gap-2">
@@ -507,39 +581,64 @@ export function SignalInspector({
                         </span>
                       </div>
                       <div className="p-4 space-y-3">
-                        <ScoreBar label="Zone Score" value={ai.zone_score} icon={<Gauge className="w-3 h-3" />} />
-                        <ScoreBar label="Base Quality" value={ai.base_quality} icon={<Activity className="w-3 h-3" />} />
-                        <ScoreBar label="Departure Strength" value={ai.departure_strength} icon={<Zap className="w-3 h-3" />} />
-                        <ScoreBar label="Return Strength" value={ai.return_strength} icon={<TrendingUp className="w-3 h-3" />} />
+                        {hasLegacyMetrics ? (
+                          <>
+                            <ScoreBar
+                              label="Zone Score"
+                              value={ai.zone_score}
+                              icon={<Gauge className="w-3 h-3" />}
+                            />
+                            <ScoreBar
+                              label="Base Quality"
+                              value={ai.base_quality}
+                              icon={<Activity className="w-3 h-3" />}
+                            />
+                            <ScoreBar
+                              label="Departure Strength"
+                              value={ai.departure_strength}
+                              icon={<Zap className="w-3 h-3" />}
+                            />
+                            <ScoreBar
+                              label="Return Strength"
+                              value={ai.return_strength}
+                              icon={<TrendingUp className="w-3 h-3" />}
+                            />
 
-                        {/* Indicator Stats */}
-                        <Separator className="bg-zinc-800" />
-                        <div className="grid grid-cols-3 gap-2">
-                          {ai.rsi != null && (
-                            <div className="text-center p-2 bg-zinc-800/50 rounded">
-                              <div className="font-mono text-sm font-bold text-zinc-100">
-                                {formatNum(ai.rsi, 1)}
-                              </div>
-                              <div className="text-[10px] text-zinc-500">RSI</div>
+                            {/* Indicator Stats */}
+                            <Separator className="bg-zinc-800" />
+                            <div className="grid grid-cols-3 gap-2">
+                              {ai.rsi != null && (
+                                <div className="text-center p-2 bg-zinc-800/50 rounded">
+                                  <div className="font-mono text-sm font-bold text-zinc-100">
+                                    {formatNum(ai.rsi, 1)}
+                                  </div>
+                                  <div className="text-[10px] text-zinc-500">RSI</div>
+                                </div>
+                              )}
+                              {ai.adx != null && (
+                                <div className="text-center p-2 bg-zinc-800/50 rounded">
+                                  <div className="font-mono text-sm font-bold text-zinc-100">
+                                    {formatNum(ai.adx, 1)}
+                                  </div>
+                                  <div className="text-[10px] text-zinc-500">ADX</div>
+                                </div>
+                              )}
+                              {ai.rvol != null && (
+                                <div className="text-center p-2 bg-zinc-800/50 rounded">
+                                  <div className="font-mono text-sm font-bold text-zinc-100">
+                                    {formatNum(ai.rvol, 2)}x
+                                  </div>
+                                  <div className="text-[10px] text-zinc-500">RVOL</div>
+                                </div>
+                              )}
                             </div>
-                          )}
-                          {ai.adx != null && (
-                            <div className="text-center p-2 bg-zinc-800/50 rounded">
-                              <div className="font-mono text-sm font-bold text-zinc-100">
-                                {formatNum(ai.adx, 1)}
-                              </div>
-                              <div className="text-[10px] text-zinc-500">ADX</div>
-                            </div>
-                          )}
-                          {ai.rvol != null && (
-                            <div className="text-center p-2 bg-zinc-800/50 rounded">
-                              <div className="font-mono text-sm font-bold text-zinc-100">
-                                {formatNum(ai.rvol, 2)}x
-                              </div>
-                              <div className="text-[10px] text-zinc-500">RVOL</div>
-                            </div>
-                          )}
-                        </div>
+                          </>
+                        ) : (
+                          <p className="text-xs text-zinc-500">
+                            No legacy zone metrics recorded for this signal. The ensemble brain
+                            decision, narrative, and rules are shown above.
+                          </p>
+                        )}
                       </div>
                     </div>
                   </>
