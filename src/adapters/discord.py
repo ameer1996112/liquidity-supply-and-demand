@@ -110,7 +110,12 @@ def send_discord(
                 }
             )
 
-        # New: rich AI Brain analysis section when ai_result is provided
+        # New: rich AI Brain analysis section.
+        # If the worker didn't pass ai_result explicitly, fall back to
+        # any structured reasoning payload attached to the data.
+        if ai_result is None:
+            ai_result = data.get("ai_reasoning")
+
         if ai_result:
             decision = str(ai_result.get("decision", "NO_GO")).upper()
             try:
@@ -120,19 +125,27 @@ def send_discord(
             reason = str(ai_result.get("reason", "") or "N/A").strip()
             rules = ai_result.get("rules") or []
             rule_count = len(rules)
-            top_snippet = ""
-            if rules:
-                top_snippet = str(rules[0]).replace("\n", " ")
-                if len(top_snippet) > 200:
-                    top_snippet = top_snippet[:197].rstrip() + "..."
+
+            # Build a multi-line summary of the top few rules so you can
+            # see the full reasoning, not just a single truncated line.
+            wisdom_lines: List[str] = []
+            for idx, rule in enumerate(rules[:5], start=1):
+                snippet = str(rule).strip().replace("\n", " ")
+                # Keep each bullet under control for Discord's field limits
+                if len(snippet) > 300:
+                    snippet = snippet[:297].rstrip() + "..."
+                wisdom_lines.append(f"{idx}. {snippet}")
+
+            wisdom_body = "No matching rules." if not wisdom_lines else "\n".join(wisdom_lines)
 
             ai_lines = [
                 f"**Decision:** {decision} (Shadow Mode)",
                 f"**Confidence:** {rf_prob:.1f}%",
                 f"**Reason:** {reason}",
-                f"**RAG Wisdom:** {rule_count} rules found."
-                + (f' Top advice: \"{top_snippet}\"' if top_snippet else ""),
+                f"**RAG Wisdom:** {rule_count} rules found:",
+                wisdom_body,
             ]
+
             fields.append(
                 {
                     "name": "🧠 AI Analysis",
