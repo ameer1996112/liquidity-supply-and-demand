@@ -19,13 +19,19 @@ import requests
 
 
 def build_payload(symbol: str = "XAUUSD", zone_id: int = 0) -> Dict[str, Any]:
-    """Build a representative TradingView-style payload. Use symbol=NAS100 to test index pts+pips in Discord."""
+    """
+    Build a representative Supply & Demand test payload.
+
+    - Default: XAUUSD 5m BUY with tight S&D stop and ~1:3 RR
+      entry=2000.50, sl=1995.00, tp=2015.00, size=0.10
+    - NAS100 branch is kept to test index formatting in Discord.
+    """
     if symbol.upper() == "NAS100":
         entry, sl, tp = 25893.16, 25886.28, 25920.68
         size = 0.1
     else:
-        entry, sl, tp = 2350.00, 2340.00, 2380.00
-        size = 0.1
+        entry, sl, tp = 2000.50, 1995.00, 2015.00
+        size = 0.10
     payload = {
         "symbol": symbol,
         "side": "buy",
