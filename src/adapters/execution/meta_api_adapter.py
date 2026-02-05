@@ -113,7 +113,7 @@ class MetaApiAdapter:
 
         # ------------------------------------------------------------------
         # Cross-broker relative SL/TP: recompute stops from current bid/ask.
-       -# ------------------------------------------------------------------
+        # ------------------------------------------------------------------
         bid, ask = self._get_symbol_price(request.symbol)
         sl_value: float | None = None
         tp_value: float | None = None
