@@ -160,8 +160,12 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
     result["rules"] = rules_texts
 
     # Step 4: Late RF rejection - after we have narrative & RAG context
-    if rf_prob < 0.60:
-        result["reason"] = f"RF probability {rf_prob:.1%} below 60% threshold."
+    # Threshold is configurable via ML_MIN_CONFIDENCE (0-1); default 0.60.
+    rf_threshold = getattr(settings, "ml_min_confidence", 0.60)
+    if rf_prob < rf_threshold:
+        result["reason"] = (
+            f"RF probability {rf_prob:.1%} below {rf_threshold:.0%} threshold."
+        )
         return result
 
     # If LLM filter disabled, accept RF decision (but still include RAG/narrative)
