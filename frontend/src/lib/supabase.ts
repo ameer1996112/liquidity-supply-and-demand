@@ -102,8 +102,13 @@ export async function fetchSignalStats(): Promise<SignalStats> {
     normalizeSignal(row as Partial<TradingSignal>),
   );
 
-  // Normalize status comparison to handle both uppercase and lowercase
-  const normalizeStatus = (status: string | undefined) => status?.toLowerCase();
+  console.log('Signals for Stats:', signals);
+
+  const normalizeStatus = (status: string | undefined) =>
+    status?.toLowerCase();
+  const normalizeMode = (mode: string | undefined) =>
+    mode ? String(mode).toUpperCase() : undefined;
+
   const executed = signals.filter(
     (s) => normalizeStatus(s.status) === 'executed',
   );
@@ -116,15 +121,54 @@ export async function fetchSignalStats(): Promise<SignalStats> {
   const activeSignals = signals.filter(
     (s) => normalizeStatus(s.status) === 'active',
   );
+
   const closed = [
     ...executed,
     ...signals.filter((s) => normalizeStatus(s.status) === 'closed'),
   ].filter((s) => s.closed_at);
-  const wins = closed.filter((s) => (s.pnl ?? s.pnl_usd ?? 0) > 0);
+
+  // Helper to get a consistent PnL in USD for a signal
+  const getPnlUsd = (s: TradingSignal): number => {
+    const direct = s.pnl_usd ?? s.pnl;
+    if (direct != null) return direct;
+
+    const entry = s.entry ?? s.price;
+    const exit = s.exit_price;
+    if (entry == null || exit == null) return 0;
+
+    const size = s.position_size ?? 0;
+    if (!size) return 0;
+
+    const side = String(s.side || 'buy').toLowerCase();
+    const diff = side === 'buy' ? exit - entry : entry - exit;
+    // NOTE: Contract size is broker-specific; we assume 1 here as a fallback.
+    return diff * size;
+  };
+
+  const liveClosed = closed.filter(
+    (s) => normalizeMode(s.mode) === 'LIVE',
+  );
+  const paperClosed = closed.filter(
+    (s) => normalizeMode(s.mode) === 'PAPER',
+  );
+
+  const liveWins = liveClosed.filter((s) => getPnlUsd(s) > 0);
+  const liveLosses = liveClosed.filter((s) => getPnlUsd(s) <= 0);
+  const liveWinRate =
+    liveClosed.length > 0 ? (liveWins.length / liveClosed.length) * 100 : 0;
+
+  const livePnl = liveClosed.reduce(
+    (sum, s) => sum + getPnlUsd(s),
+    0,
+  );
+  const paperPnl = paperClosed.reduce(
+    (sum, s) => sum + getPnlUsd(s),
+    0,
+  );
+
   // Active trades are either 'active' status or executed without closed_at
   const active = [...activeSignals, ...executed.filter((s) => !s.closed_at)];
 
-  // Count AI rejected signals separately
   const aiRejected = signals.filter(
     (s) => normalizeStatus(s.status) === 'ai_rejected',
   );
@@ -134,14 +178,14 @@ export async function fetchSignalStats(): Promise<SignalStats> {
     executed_count: executed.length + activeSignals.length,
     filtered_count: filtered.length,
     failed_count: failed.length,
-    win_rate: closed.length > 0 ? (wins.length / closed.length) * 100 : 0,
+    win_rate: liveWinRate,
+    live_win_rate: liveWinRate,
     ai_reject_rate:
       signals.length > 0 ? (aiRejected.length / signals.length) * 100 : 0,
     active_trades: active.length,
-    total_pnl_24h: closed.reduce(
-      (sum, s) => sum + (s.pnl ?? s.pnl_usd ?? 0),
-      0,
-    ),
+    total_pnl_24h: livePnl,
+    live_pnl_24h: livePnl,
+    paper_pnl_24h: paperPnl,
   };
 }
 

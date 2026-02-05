@@ -106,16 +106,16 @@ export function StatsTicker() {
               icon={<Activity className="w-4 h-4" />}
             />
             <StatItem
-              label="Win Rate"
-              value={`${(stats?.win_rate || 0).toFixed(1)}%`}
+              label="Live Win Rate"
+              value={`${(stats?.live_win_rate ?? stats?.win_rate ?? 0).toFixed(1)}%`}
               icon={
-                (stats?.win_rate || 0) >= 50 ? (
+                (stats?.live_win_rate ?? stats?.win_rate ?? 0) >= 50 ? (
                   <TrendingUp className="w-4 h-4" />
                 ) : (
                   <TrendingDown className="w-4 h-4" />
                 )
               }
-              trend={(stats?.win_rate || 0) >= 50 ? 'up' : 'down'}
+              trend={(stats?.live_win_rate ?? stats?.win_rate ?? 0) >= 50 ? 'up' : 'down'}
             />
             <StatItem
               label="Active"
@@ -129,10 +129,15 @@ export function StatsTicker() {
               icon={<Filter className="w-4 h-4" />}
             />
             <StatItem
-              label="24h PnL"
-              value={`${(stats?.total_pnl_24h || 0) >= 0 ? '+' : ''}$${(stats?.total_pnl_24h || 0).toFixed(2)}`}
+              label="Live 24h PnL"
+              value={`${(stats?.live_pnl_24h ?? stats?.total_pnl_24h ?? 0) >= 0 ? '+' : ''}$${(stats?.live_pnl_24h ?? stats?.total_pnl_24h ?? 0).toFixed(2)}`}
               icon={<DollarSign className="w-4 h-4" />}
-              trend={(stats?.total_pnl_24h || 0) >= 0 ? 'up' : 'down'}
+              trend={(stats?.live_pnl_24h ?? stats?.total_pnl_24h ?? 0) >= 0 ? 'up' : 'down'}
+            />
+            <StatItem
+              label="Paper PnL"
+              value={`${(stats?.paper_pnl_24h ?? 0) >= 0 ? '+' : ''}$${(stats?.paper_pnl_24h ?? 0).toFixed(2)}`}
+              icon={<DollarSign className="w-4 h-4" />}
             />
           </>
         )}

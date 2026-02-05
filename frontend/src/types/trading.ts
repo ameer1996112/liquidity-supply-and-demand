@@ -106,10 +106,13 @@ export interface SignalStats {
   executed_count: number;
   filtered_count: number;
   failed_count: number;
-  win_rate: number;
+  win_rate: number;        // Backwards-compatible overall win rate (defaults to live)
+  live_win_rate?: number;  // Live-only win rate
   ai_reject_rate: number;
   active_trades: number;
-  total_pnl_24h: number;
+  total_pnl_24h: number;   // Backwards-compatible PnL (defaults to live)
+  live_pnl_24h?: number;
+  paper_pnl_24h?: number;
 }
 
 // Filter types for queries
