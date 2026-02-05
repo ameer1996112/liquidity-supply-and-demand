@@ -7,6 +7,7 @@ from typing import Any, Dict
 
 import requests
 
+from config import get_settings
 from src.adapters.execution.interfaces import (
     CloseRequest,
     ExecutionAdapter,
@@ -24,14 +25,18 @@ class MetaApiAdapter:
     Docs: https://metaapi.cloud/docs/client/restApi/
     """
 
-    BASE_URL = "https://mt-client-api-v1.new-york.agiliumtrade.ai"
-
     def __init__(self, token: str, account_id: str) -> None:
         self.token = token.strip()
         self.account_id = account_id.strip()
 
         if not self.token or not self.account_id:
             raise ValueError("MetaApiAdapter requires non-empty token and account_id")
+
+        # Allow region to be configured via settings (META_API_REGION)
+        settings = get_settings()
+        region = (getattr(settings, "meta_api_region", "new-york") or "new-york").strip()
+        self.base_url = f"https://mt-client-api-v1.{region}.agiliumtrade.ai"
+        logger.info("MetaApiAdapter using region '%s' (%s)", region, self.base_url)
 
     def _headers(self) -> Dict[str, str]:
         return {
@@ -46,7 +51,7 @@ class MetaApiAdapter:
         Returns (bid, ask); any failures are logged and return (None, None).
         """
         url = (
-            f"{self.BASE_URL}/users/current/accounts/"
+            f"{self.base_url}/users/current/accounts/"
             f"{self.account_id}/symbols/{symbol}/current-price"
         )
         try:

@@ -29,19 +29,20 @@ class TradeWatchdog:
     PnL and status in Supabase.
     """
 
-    # NOTE: adjust region if your MetaApi account uses a different data center.
-    BASE_URL = "https://mt-client-api-v1.new-york.agiliumtrade.ai"
-
     def __init__(self, supabase_client: Optional[Any] = None) -> None:
         self.settings = get_settings()
         self.token = (self.settings.meta_api_token or "").strip()
         self.account_id = (self.settings.meta_api_account_id or "").strip()
+        region = (getattr(self.settings, "meta_api_region", "new-york") or "new-york").strip()
+        self.base_url = f"https://mt-client-api-v1.{region}.agiliumtrade.ai"
         self.supabase = supabase_client
 
         if not self.token or not self.account_id:
             logger.warning(
                 "TradeWatchdog disabled: META_API_TOKEN or META_API_ACCOUNT_ID missing.",
             )
+        else:
+            logger.info("TradeWatchdog using MetaApi region '%s' (%s)", region, self.base_url)
 
     # ------------------------------------------------------------------ #
     # HTTP helpers
@@ -58,7 +59,7 @@ class TradeWatchdog:
         if not self.token or not self.account_id:
             return None
 
-        url = f"{self.BASE_URL}{path}"
+        url = f"{self.base_url}{path}"
         try:
             resp = requests.get(url, headers=self._headers(), params=params, timeout=10)
         except Exception as exc:  # noqa: BLE001

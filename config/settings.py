@@ -113,6 +113,11 @@ class Settings(BaseSettings):
     # External execution via MetaApi (MT5 over HTTP)
     meta_api_token: str = ""
     meta_api_account_id: str = ""
+    meta_api_region: str = Field(
+        default="new-york",
+        description="MetaApi region slug (e.g. 'new-york', 'london', 'tokyo').",
+        validation_alias="META_API_REGION",
+    )
     execution_mode: str = "SHADOW"  # SHADOW | METAAPI (or others in future)
 
     usdjpy_rate: float = Field(default=150.0, ge=50.0, le=300.0)
