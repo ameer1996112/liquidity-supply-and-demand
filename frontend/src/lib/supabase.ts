@@ -108,6 +108,11 @@ export async function fetchSignalStats(): Promise<SignalStats> {
     status?.toLowerCase();
   const normalizeMode = (mode: string | undefined) =>
     mode ? String(mode).toUpperCase() : undefined;
+  /** Treat as LIVE if mode or run_mode is LIVE (DB may expose only run_mode). */
+  const isLive = (s: TradingSignal) =>
+    normalizeMode(s.mode ?? s.run_mode) === 'LIVE';
+  const isPaper = (s: TradingSignal) =>
+    normalizeMode(s.mode ?? s.run_mode) === 'PAPER';
 
   const executed = signals.filter(
     (s) => normalizeStatus(s.status) === 'executed',
@@ -149,12 +154,8 @@ export async function fetchSignalStats(): Promise<SignalStats> {
     return hasPnl && (st === 'closed' || st === 'executed');
   });
 
-  const liveClosed = eligibleForPnl.filter(
-    (s) => normalizeMode(s.mode) === 'LIVE',
-  );
-  const paperClosed = eligibleForPnl.filter(
-    (s) => normalizeMode(s.mode) === 'PAPER',
-  );
+  const liveClosed = eligibleForPnl.filter(isLive);
+  const paperClosed = eligibleForPnl.filter(isPaper);
 
   const liveWins = liveClosed.filter((s) => getPnlUsd(s) > 0);
   const liveLosses = liveClosed.filter((s) => getPnlUsd(s) <= 0);

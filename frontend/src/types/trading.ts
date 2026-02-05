@@ -83,6 +83,8 @@ export interface TradingSignal {
   // Status & Outcome
   status: SignalStatus;
   mode?: TradingMode;
+  /** DB column run_mode (LIVE/PAPER); use with mode for stats. */
+  run_mode?: string;
 
   // Trade metrics
   rr_ratio?: number;
@@ -167,6 +169,7 @@ export function normalizeSignal(
     mode: (typeof rawMode === 'string' ? rawMode.toUpperCase() : rawMode) as
       | TradingMode
       | undefined,
+    run_mode: (raw as { run_mode?: string }).run_mode,
     rr_ratio: raw.rr_ratio,
     sl_pips: raw.sl_pips,
     pnl: raw.pnl ?? raw.pnl_usd,
