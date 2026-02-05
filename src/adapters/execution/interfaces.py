@@ -30,7 +30,7 @@ class CloseRequest(BaseModel):
 
 
 class ExecutionResult(BaseModel):
-    status: Literal["submitted", "rejected", "failed"] = "submitted"
+    status: Literal["submitted", "rejected", "failed", "filled"] = "submitted"
     broker_order_id: Optional[str] = None
     message: Optional[str] = None
     client_order_id: str = ""

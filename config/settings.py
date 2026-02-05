@@ -110,6 +110,11 @@ class Settings(BaseSettings):
     # Shadow launch toggle for EnsembleBrain gating in worker
     run_shadow_mode: bool = False
 
+    # External execution via MetaApi (MT5 over HTTP)
+    meta_api_token: str = ""
+    meta_api_account_id: str = ""
+    execution_mode: str = "SHADOW"  # SHADOW | METAAPI (or others in future)
+
     usdjpy_rate: float = Field(default=150.0, ge=50.0, le=300.0)
     us30_point_value: float = Field(default=1.0, ge=0.1, le=100.0)
     nas100_point_value: float = Field(default=1.0, ge=0.1, le=100.0)
