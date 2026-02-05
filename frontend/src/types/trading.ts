@@ -141,7 +141,8 @@ export interface RealtimePayload<T> {
 export function normalizeSignal(
   raw: Partial<TradingSignal> & { run_mode?: string },
 ): TradingSignal {
-  const rawMode = raw.mode ?? (raw as { run_mode?: string }).run_mode;
+  // IMPORTANT: Prioritize run_mode over mode since backend uses run_mode as the canonical field
+  const rawMode = (raw as { run_mode?: string }).run_mode ?? raw.mode;
   const rawStatus = raw.status || 'pending';
   return {
     id: raw.id || '',
