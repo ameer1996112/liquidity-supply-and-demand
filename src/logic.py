@@ -4,6 +4,7 @@ Save to Supabase, filter or notify, optional paper position. Used only by worker
 """
 
 import logging
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Tuple, Optional
 
 from config import get_settings
@@ -19,6 +20,7 @@ from src.adapters.discord import send_discord, send_telegram
 from src.adapters.paper_trader import get_paper_trader
 from src.adapters.execution.interfaces import OrderRequest, CloseRequest
 from src.adapters.execution.router import get_adapter
+from src.adapters import supabase as supabase_module
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -184,8 +186,10 @@ def process_trade(
                 reward = abs(tp - entry)
                 rr_ratio = reward / risk if risk > 0 else 0.0
 
+                trade_key = (data.get("trade_key") or "").strip()
+
                 order_req = OrderRequest(
-                    client_order_id=str(data.get("trade_key") or f"alert-{alert_id}"),
+                    client_order_id=str(trade_key or f"alert-{alert_id}"),
                     signal_id=alert_id,
                     symbol=symbol,
                     side=str(data.get("side", "")).lower(),
@@ -205,7 +209,45 @@ def process_trade(
                     exec_result.message,
                 )
 
-                if exec_result.status in {"submitted", "filled"}:
+                # CRITICAL: Force update broker_order_id when filled so exit logic can close it later
+                if exec_result.status == "filled":
+                    try:
+                        supabase_module.init_supabase()
+                        client = supabase_module.supabase
+                        if client is None:
+                            logger.error(
+                                "Supabase client not initialized; cannot persist broker_order_id for alert #%s",
+                                alert_id,
+                            )
+                        else:
+                            update_payload = {
+                                "status": "executed",
+                                "broker_order_id": str(exec_result.broker_order_id),
+                                "filled_entry_price": float(data.get("entry", 0.0)),
+                                "entry_time": datetime.now(timezone.utc).isoformat(),
+                            }
+
+                            if trade_key:
+                                client.table("trading_signals").update(update_payload).eq(
+                                    "trade_key", trade_key
+                                ).execute()
+                            else:
+                                client.table("trading_signals").update(update_payload).eq(
+                                    "id", alert_id
+                                ).execute()
+
+                            logger.info(
+                                "✅ Database Synced: Alert #%s linked to Ticket #%s",
+                                alert_id,
+                                exec_result.broker_order_id,
+                            )
+                    except Exception as db_err:  # noqa: BLE001
+                        logger.error(
+                            "Failed to update broker_order_id for alert #%s: %s",
+                            alert_id,
+                            db_err,
+                        )
+                elif exec_result.status == "submitted":
                     # Mark as executed; PnL/outcome updated later on exit webhook
                     update_alert_status(alert_id, "executed")
             except Exception as e:  # noqa: BLE001

@@ -122,11 +122,6 @@ export async function fetchSignalStats(): Promise<SignalStats> {
     (s) => normalizeStatus(s.status) === 'active',
   );
 
-  const closed = [
-    ...executed,
-    ...signals.filter((s) => normalizeStatus(s.status) === 'closed'),
-  ].filter((s) => s.closed_at);
-
   // Helper to get a consistent PnL in USD for a signal
   const getPnlUsd = (s: TradingSignal): number => {
     const direct = s.pnl_usd ?? s.pnl;
@@ -145,10 +140,19 @@ export async function fetchSignalStats(): Promise<SignalStats> {
     return diff * size;
   };
 
-  const liveClosed = closed.filter(
+  // More aggressive PnL eligibility:
+  // - status 'closed' OR 'executed'
+  // - AND has explicit PnL (pnl or pnl_usd)
+  const eligibleForPnl = signals.filter((s) => {
+    const st = normalizeStatus(s.status);
+    const hasPnl = s.pnl_usd != null || s.pnl != null;
+    return hasPnl && (st === 'closed' || st === 'executed');
+  });
+
+  const liveClosed = eligibleForPnl.filter(
     (s) => normalizeMode(s.mode) === 'LIVE',
   );
-  const paperClosed = closed.filter(
+  const paperClosed = eligibleForPnl.filter(
     (s) => normalizeMode(s.mode) === 'PAPER',
   );
 
