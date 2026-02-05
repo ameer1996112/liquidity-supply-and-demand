@@ -128,21 +128,89 @@ class MetaApiAdapter:
 
     def close_order(self, request: CloseRequest) -> ExecutionResult:
         """
-        Close order is not yet implemented for MetaApi in this adapter.
+        Close an existing MT5 position via MetaApi.
 
-        You can extend this method to call the appropriate MetaApi close/position
-        modification endpoint once your exit workflow is defined.
+        For hedging accounts (e.g. FTMO), positionId is required.
         """
-        logger.warning(
-            "MetaApiAdapter.close_order called but not implemented. "
-            "client_order_id=%s symbol=%s outcome=%s",
+        if not request.broker_order_id:
+            msg = "MetaApi close_order requires broker_order_id (positionId)"
+            logger.error(msg)
+            return ExecutionResult(
+                status="failed",
+                client_order_id=request.client_order_id,
+                message=msg,
+            )
+
+        side = (request.side or "").lower()
+        if side not in {"buy", "sell"}:
+            msg = f"Invalid side '{request.side}' for MetaApi close_order"
+            logger.error(msg)
+            return ExecutionResult(
+                status="failed",
+                client_order_id=request.client_order_id,
+                message=msg,
+            )
+
+        # To close a BUY, send a SELL; to close a SELL, send a BUY
+        action_type = "ORDER_TYPE_SELL" if side == "buy" else "ORDER_TYPE_BUY"
+
+        payload: Dict[str, Any] = {
+            "actionType": action_type,
+            "positionId": str(request.broker_order_id),
+            "symbol": request.symbol,
+            "volume": float(request.size or 0.0),
+            "comment": f"AI-Exit-{request.signal_id or request.alert_id}",
+        }
+
+        logger.info(
+            "MetaApi close_order: client_order_id=%s positionId=%s symbol=%s side=%s size=%s",
             request.client_order_id,
+            request.broker_order_id,
             request.symbol,
-            request.outcome,
+            request.side,
+            request.size,
         )
+
+        try:
+            resp = requests.post(
+                self._trade_url(),
+                json=payload,
+                headers=self._headers(),
+                timeout=10,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.error("MetaApi close_order network error: %s", exc)
+            return ExecutionResult(
+                status="failed",
+                client_order_id=request.client_order_id,
+                message=str(exc),
+            )
+
+        if resp.status_code != 200:
+            msg = f"HTTP {resp.status_code}: {resp.text[:200]}"
+            logger.error("MetaApi close_order failed: %s", msg)
+            return ExecutionResult(
+                status="failed",
+                client_order_id=request.client_order_id,
+                message=msg,
+            )
+
+        try:
+            data = resp.json()
+        except ValueError:
+            msg = f"Invalid JSON response from MetaApi (close): {resp.text[:200]}"
+            logger.error(msg)
+            return ExecutionResult(
+                status="failed",
+                client_order_id=request.client_order_id,
+                message=msg,
+            )
+
+        logger.info("MetaApi close_order response: %s", data)
         return ExecutionResult(
-            status="failed",
+            status="filled",
             client_order_id=request.client_order_id,
-            message="MetaApi close_order not implemented",
+            broker_order_id=str(request.broker_order_id),
+            message="MetaApi position close sent",
         )
 

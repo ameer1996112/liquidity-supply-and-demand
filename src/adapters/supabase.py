@@ -230,14 +230,14 @@ def get_alert_by_zone_id(zone_id: int) -> Optional[Dict[str, Any]]:
 def get_alert_by_trade_key(trade_key: str) -> Optional[Dict[str, Any]]:
     """
     Get alert by trade_key (idempotency key).
-    Used to prevent duplicate orders for the same signal_id/trade_key.
+    Returns full row (including broker_order_id, etc.) for execution paths.
     """
     if not trade_key or not str(trade_key).strip():
         return None
     if not supabase:
         init_supabase()
     try:
-        response = supabase.table('trading_signals').select('id, status').eq('trade_key', trade_key.strip()).limit(1).execute()
+        response = supabase.table('trading_signals').select('*').eq('trade_key', trade_key.strip()).limit(1).execute()
         if response.data:
             return response.data[0]
         return None

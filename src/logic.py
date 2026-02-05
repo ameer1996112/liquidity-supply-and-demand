@@ -12,10 +12,12 @@ from src.adapters.supabase import (
     save_alert,
     update_alert_exit,
     update_alert_status,
+    get_alert_by_zone_id,
+    get_alert_by_trade_key,
 )
 from src.adapters.discord import send_discord, send_telegram
 from src.adapters.paper_trader import get_paper_trader
-from src.adapters.execution.interfaces import OrderRequest
+from src.adapters.execution.interfaces import OrderRequest, CloseRequest
 from src.adapters.execution.router import get_adapter
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -61,8 +63,10 @@ def process_trade(
     ai_result: Optional[Dict[str, Any]] = None,
 ) -> None:
     init_supabase()
+    s = get_settings()
 
     if data.get("event_type") == "exit":
+        # 1) Update Supabase with exit telemetry (existing behavior)
         exit_data = {
             "outcome": data["outcome"],
             "close_price": data["close_price"],
@@ -78,11 +82,61 @@ def process_trade(
         trade_key = (data.get("trade_key") or "").strip()
         update_alert_exit(data["zone_id"], exit_data, trade_key=trade_key)
         logger.info("Exit recorded: zone_id=%s, outcome=%s", data["zone_id"], data["outcome"])
+
+        # 2) Live broker close via execution adapter (MetaApi) if enabled
+        if getattr(s, "live_trading_enabled", False):
+            try:
+                adapter = get_adapter(run_mode=s.run_mode, settings=s)
+
+                alert = None
+                if trade_key:
+                    alert = get_alert_by_trade_key(trade_key)
+                if not alert:
+                    alert = get_alert_by_zone_id(data["zone_id"])
+
+                if not alert:
+                    logger.warning(
+                        "No alert found for exit: zone_id=%s trade_key=%s (skipping broker close)",
+                        data["zone_id"],
+                        trade_key,
+                    )
+                    return
+
+                broker_order_id = alert.get("broker_order_id")
+                if not broker_order_id:
+                    logger.warning(
+                        "No broker_order_id on alert %s; cannot send broker close.",
+                        alert.get("id"),
+                    )
+                    return
+
+                close_req = CloseRequest(
+                    client_order_id=str(trade_key or f"alert-{alert['id']}"),
+                    signal_id=alert["id"],
+                    symbol=alert["symbol"],
+                    close_price=data.get("close_price"),
+                    outcome=data.get("outcome"),
+                    alert_id=alert["id"],
+                    broker_order_id=str(broker_order_id),
+                    notes="exit_webhook",
+                    side=str(alert.get("side", "")).lower(),
+                    size=float(alert.get("size", 0.0)),
+                )
+
+                exec_result = adapter.close_order(close_req)
+                logger.info(
+                    "Broker exit result for alert #%s: status=%s message=%s",
+                    alert["id"],
+                    exec_result.status,
+                    exec_result.message,
+                )
+            except Exception as e:  # noqa: BLE001
+                logger.error("Broker close failed for zone_id=%s: %s", data["zone_id"], e)
+
         return
 
     symbol = str(data.get("symbol", "")).upper()
     should_forward, filter_reasons, _ = should_forward_alert(data)
-    s = get_settings()
     mode = "manual"
     if s.paper_trading_enabled and s.paper_auto_execute:
         paper_symbols = [x.strip() for x in s.paper_symbols.split(",") if x.strip()]

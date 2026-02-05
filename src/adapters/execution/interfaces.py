@@ -27,6 +27,9 @@ class CloseRequest(BaseModel):
     alert_id: Optional[int] = None
     broker_order_id: Optional[str] = None
     notes: str = ""
+    # Additional fields used by some adapters (e.g. MetaApi)
+    side: str = ""   # original entry side: "buy" or "sell"
+    size: float = 0.0  # volume to close
 
 
 class ExecutionResult(BaseModel):
