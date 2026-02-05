@@ -91,6 +91,10 @@ export interface TradingSignal {
   pnl_usd?: number; // Alternative PnL field
   pnl_percentage?: number;
 
+  // Broker execution info (LIVE)
+  broker_order_id?: string;
+  close_broker_order_id?: string;
+
   // Exit information
   closed_at?: string;
   exit_price?: number;

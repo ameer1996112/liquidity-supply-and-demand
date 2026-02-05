@@ -393,11 +393,20 @@ export function SignalCard({ signal, onInspect }: SignalCardProps) {
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════════
-          MIDDLE: Progress Bar for AI Confidence Score
-          SPEC: Map from `score` field (0-100)
+          MIDDLE: Progress Bar for AI Confidence Score + Broker Ticket
           ═══════════════════════════════════════════════════════════════════ */}
-      <div className="px-3 pt-3 pb-2">
+      <div className="px-3 pt-3 pb-2 space-y-1.5">
         <ConfidenceBar score={score} />
+        {signal.broker_order_id && (
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-mono text-zinc-600 uppercase">
+              Ticket
+            </span>
+            <span className="font-mono text-xs text-zinc-400">
+              {signal.broker_order_id}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Trade Metrics Row */}
@@ -425,9 +434,22 @@ export function SignalCard({ signal, onInspect }: SignalCardProps) {
         )}
 
         {/* PnL Display - SPEC: Handle null safely with "--" */}
-        <div className="flex items-center gap-1.5">
-          <span className="text-[10px] font-mono text-zinc-600 uppercase">PnL</span>
-          <PnLDisplay pnl={pnl} size="sm" />
+        <div className="flex flex-col items-end gap-0.5">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-mono text-zinc-600 uppercase">PnL</span>
+            <PnLDisplay pnl={pnl} size="sm" />
+          </div>
+          {/* Exit price for closed trades */}
+          {isClosed && signal.exit_price !== undefined && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-mono text-zinc-600 uppercase">
+                Exit
+              </span>
+              <span className="font-mono text-[10px] text-zinc-500">
+                {safeFloat(signal.exit_price, symbol.includes('JPY') ? 3 : symbol.includes('BTC') ? 2 : 5)}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
