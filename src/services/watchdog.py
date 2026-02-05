@@ -1,17 +1,18 @@
 """
-TradeWatchdog service
-=====================
+TradeWatchdog
+=============
 
-Polls MetaApi for open positions and trade history to detect "silent exits"
-when a position hits SL/TP on the broker but no exit webhook was received.
-
-Runs inside the worker process on a timer.
+Background service that polls MetaApi and Supabase to detect "silent exits":
+positions that have been closed on the broker (SL/TP hit) without an explicit
+exit webhook reaching the backend. When such a position is detected, the
+watchdog resolves its PnL from broker history and updates the corresponding
+row in the `trading_signals` table.
 """
 
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Sequence
 
 import requests
@@ -22,11 +23,16 @@ logger = logging.getLogger(__name__)
 
 
 class TradeWatchdog:
-    """Periodically syncs executed trades in Supabase with MetaApi positions."""
+    """
+    Periodically compares Supabase trades vs MetaApi positions to detect trades
+    that have closed on the broker without an exit webhook, then syncs their
+    PnL and status in Supabase.
+    """
 
+    # NOTE: adjust region if your MetaApi account uses a different data center.
     BASE_URL = "https://mt-client-api-v1.new-york.agiliumtrade.ai"
 
-    def __init__(self, supabase_client: Any | None = None) -> None:
+    def __init__(self, supabase_client: Optional[Any] = None) -> None:
         self.settings = get_settings()
         self.token = (self.settings.meta_api_token or "").strip()
         self.account_id = (self.settings.meta_api_account_id or "").strip()
@@ -47,8 +53,8 @@ class TradeWatchdog:
             "Content-Type": "application/json",
         }
 
-    def _get(self, path: str, params: Dict[str, Any] | None = None) -> Optional[Any]:
-        """Wrapper around requests.get with basic error handling."""
+    def _get(self, path: str, params: Optional[Dict[str, Any]] = None) -> Optional[Any]:
+        """Simple GET wrapper against the MetaApi REST endpoint."""
         if not self.token or not self.account_id:
             return None
 
@@ -80,24 +86,28 @@ class TradeWatchdog:
 
     def run_sync(self) -> None:
         """
-        Sync executed trades in Supabase with MetaApi open positions.
+        Main entry point.
 
-        - Fetch all Supabase trades with status='executed' (LIVE only)
-        - Fetch all open positions from MetaApi
-        - For any executed trade whose broker_order_id is NOT in the open
-          positions set, treat it as a "silent exit" and process it.
+        1. Fetch trades from Supabase where:
+           - run_mode = 'LIVE'
+           - status   = 'executed'
+        2. Fetch open positions from MetaApi.
+        3. For any Supabase trade whose broker_order_id is NOT present in the
+           list of open positions, treat it as a "silent exit" and resolve PnL
+           from MetaApi history.
         """
         if not self.supabase:
-            logger.debug("TradeWatchdog: Supabase client not available, skipping run.")
             return
         if not self.token or not self.account_id:
-            # Already logged in __init__
             return
 
         try:
-            resp = self.supabase.table("trading_signals").select("*").eq(
-                "status", "executed",
-            ).eq("mode", "LIVE").execute()
+            resp = (
+                self.supabase.table("trading_signals")
+                .select("*")
+                .eq("run_mode", "LIVE")
+                .eq("status", "executed")
+            ).execute()
             executed_trades: Sequence[Dict[str, Any]] = resp.data or []
         except Exception as exc:  # noqa: BLE001
             logger.error("TradeWatchdog: failed to fetch executed trades: %s", exc)
@@ -112,33 +122,27 @@ class TradeWatchdog:
         if positions is None:
             return
 
-        # MetaApi returns an array of positions; extract their IDs as strings
+        # Build a set of currently-open broker tickets
         open_ids: set[str] = set()
         for pos in positions or []:
             pid = pos.get("id") or pos.get("positionId")
             if pid is not None:
                 open_ids.add(str(pid))
 
-        logger.debug(
-            "TradeWatchdog: %s executed trades, %s open positions",
-            len(executed_trades),
-            len(open_ids),
-        )
-
         for trade in executed_trades:
             broker_id = str(trade.get("broker_order_id") or "").strip()
             if not broker_id:
                 continue
             if broker_id in open_ids:
-                # Still open on broker; nothing to do
+                # Still open on broker; nothing to do yet.
                 continue
 
-            # No longer open on broker side – process as silent exit
+            # Position is no longer in open positions – resolve as silent exit.
             try:
-                self._process_closed_trade(trade, broker_id)
+                self._resolve_closed_trade(trade, broker_id)
             except Exception as exc:  # noqa: BLE001
                 logger.error(
-                    "TradeWatchdog: failed to process closed trade %s (ticket %s): %s",
+                    "TradeWatchdog: failed to resolve closed trade %s (ticket %s): %s",
                     trade.get("id"),
                     broker_id,
                     exc,
@@ -148,21 +152,17 @@ class TradeWatchdog:
     # Internal helpers
     # ------------------------------------------------------------------ #
 
-    def _process_closed_trade(self, trade: Dict[str, Any], broker_id: str) -> None:
+    def _resolve_closed_trade(self, trade: Dict[str, Any], position_id: str) -> None:
         """
-        Inspect MetaApi deal history for the given broker position and sync PnL.
-
-        - Find DEAL_ENTRY_OUT for matching positionId
-        - Extract profit, swap, commission, and exit price
-        - Update Supabase trading_signals row
+        Given a Supabase trade and its broker positionId, query MetaApi
+        history-deals and update the trade with PnL and exit information.
         """
         if not self.supabase:
             return
 
-        # Fetch recent deal history; using a broad startTime to be safe.
-        params = {
-            "startTime": "2024-01-01T00:00:00.000Z",
-        }
+        # Look back 30 days in history.
+        start_time = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+        params = {"startTime": start_time}
         deals = self._get(
             f"/users/current/accounts/{self.account_id}/history-deals",
             params=params,
@@ -171,17 +171,17 @@ class TradeWatchdog:
             logger.warning(
                 "TradeWatchdog: no deals returned for account %s when inspecting ticket %s",
                 self.account_id,
-                broker_id,
+                position_id,
             )
             return
 
-        # Filter for exit deals for this position
+        # Find exit deal(s) for this positionId.
         matching: List[Dict[str, Any]] = []
         for d in deals:
             pid = d.get("positionId")
             if pid is None:
                 continue
-            if str(pid) != str(broker_id):
+            if str(pid) != str(position_id):
                 continue
             if d.get("entryType") != "DEAL_ENTRY_OUT":
                 continue
@@ -189,11 +189,11 @@ class TradeWatchdog:
 
         if not matching:
             logger.warning(
-                "TradeWatchdog: no DEAL_ENTRY_OUT found for ticket %s", broker_id,
+                "TradeWatchdog: no DEAL_ENTRY_OUT found for ticket %s", position_id,
             )
             return
 
-        # Use the latest exit deal
+        # Use the latest exit deal.
         matching.sort(key=lambda d: d.get("time", ""))
         exit_deal = matching[-1]
 
@@ -201,17 +201,17 @@ class TradeWatchdog:
         swap = float(exit_deal.get("swap", 0.0) or 0.0)
         commission = float(exit_deal.get("commission", 0.0) or 0.0)
         total_pnl = profit + swap + commission
-        exit_price = float(exit_deal.get("price", 0.0) or 0.0)
 
+        price = float(exit_deal.get("price", 0.0) or 0.0)
         outcome = "win" if total_pnl > 0 else "loss" if total_pnl < 0 else "breakeven"
 
         update_data = {
             "status": "closed",
             "pnl_usd": total_pnl,
             "outcome": outcome,
-            "close_price": exit_price or None,
-            "close_broker_order_id": broker_id,
-            "notes": "Watchdog: Silent Exit (SL/TP)",
+            "exit_price": price or None,
+            "close_broker_order_id": str(position_id),
+            "notes": "Auto-Resolved via Watchdog",
             "closed_at": datetime.now(timezone.utc).isoformat(),
         }
 
@@ -219,7 +219,7 @@ class TradeWatchdog:
         if alert_id is None:
             logger.error(
                 "TradeWatchdog: trade without id for ticket %s, skipping Supabase update",
-                broker_id,
+                position_id,
             )
             return
 
@@ -230,7 +230,7 @@ class TradeWatchdog:
             logger.info(
                 "TradeWatchdog: synced silent exit for alert #%s (ticket %s, pnl_usd=%.2f)",
                 alert_id,
-                broker_id,
+                position_id,
                 total_pnl,
             )
         except Exception as exc:  # noqa: BLE001
