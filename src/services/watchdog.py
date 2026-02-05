@@ -196,17 +196,15 @@ class TradeWatchdog:
         if not self.supabase:
             return
 
-        # Look back 30 days in history. MetaStats expects the time range as
-        # path parameters in `YYYY-MM-DD HH:MM:SS.sss` format (broker tz).
-        # We approximate using UTC here, which is sufficient for our use‑case.
+        # Look back 30 days in history. We use the MetaApi client REST
+        # `history-deals/time` endpoint which accepts ISO8601 timestamps.
         now = datetime.now(timezone.utc)
         start = now - timedelta(days=30)
-        time_fmt = "%Y-%m-%d %H:%M:%S.%f"
-        start_str = start.strftime(time_fmt)[:-3]  # trim to millis
-        end_str = now.strftime(time_fmt)[:-3]
+        start_str = start.isoformat().replace("+00:00", "Z")
+        end_str = now.isoformat().replace("+00:00", "Z")
 
-        deals = self._get_stats(
-            f"/users/current/accounts/{self.account_id}/historical-trades/{start_str}/{end_str}",
+        deals = self._get_client(
+            f"/users/current/accounts/{self.account_id}/history-deals/time/{start_str}/{end_str}",
         )
         if not deals:
             logger.warning(
@@ -216,23 +214,18 @@ class TradeWatchdog:
             )
             return
 
-        # MetaStats returns an object like {"trades": [...]}.
-        if isinstance(deals, dict):
-            raw_deals = deals.get("trades") or deals.get("items") or []
-        else:
-            raw_deals = deals
-
-        if not raw_deals:
+        # Client history-deals returns an array of MetatraderDeal objects.
+        if not isinstance(deals, list) or not deals:
             logger.warning(
-                "TradeWatchdog: no trades returned for account %s when inspecting ticket %s",
+                "TradeWatchdog: no history deals returned for account %s when inspecting ticket %s",
                 self.account_id,
                 position_id,
             )
             return
 
-        # Find exit trade(s) for this positionId.
+        # Find exit deal(s) for this positionId.
         matching: List[Dict[str, Any]] = []
-        for d in raw_deals:
+        for d in deals:
             pid = d.get("positionId")
             if pid is None:
                 continue
