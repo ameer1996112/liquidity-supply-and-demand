@@ -262,7 +262,8 @@ class TradeWatchdog:
             "pnl_usd": total_pnl,
             "outcome": outcome,
             "exit_price": price or None,
-            "close_broker_order_id": str(position_id),
+            # `close_broker_order_id` column may not exist in older schemas;
+            # we keep the update compatible by omitting it.
             "notes": "Auto-Resolved via Watchdog",
             "closed_at": datetime.now(timezone.utc).isoformat(),
         }
