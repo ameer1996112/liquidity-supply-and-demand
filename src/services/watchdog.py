@@ -196,12 +196,17 @@ class TradeWatchdog:
         if not self.supabase:
             return
 
-        # Look back 30 days in history.
-        start_time = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
-        params = {"startTime": start_time}
+        # Look back 30 days in history. MetaStats expects the time range as
+        # path parameters in `YYYY-MM-DD HH:MM:SS.sss` format (broker tz).
+        # We approximate using UTC here, which is sufficient for our use‑case.
+        now = datetime.now(timezone.utc)
+        start = now - timedelta(days=30)
+        time_fmt = "%Y-%m-%d %H:%M:%S.%f"
+        start_str = start.strftime(time_fmt)[:-3]  # trim to millis
+        end_str = now.strftime(time_fmt)[:-3]
+
         deals = self._get_stats(
-            f"/users/current/accounts/{self.account_id}/history-deals",
-            params=params,
+            f"/users/current/accounts/{self.account_id}/historical-trades/{start_str}/{end_str}",
         )
         if not deals:
             logger.warning(
@@ -219,7 +224,10 @@ class TradeWatchdog:
                 continue
             if str(pid) != str(position_id):
                 continue
-            if d.get("entryType") != "DEAL_ENTRY_OUT":
+            # Some APIs expose `entryType`, but MetaStats historical trades may
+            # not. If it is present, we still only want exit deals.
+            entry_type = d.get("entryType")
+            if entry_type and entry_type != "DEAL_ENTRY_OUT":
                 continue
             matching.append(d)
 
