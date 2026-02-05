@@ -15,6 +15,8 @@ from src.adapters.supabase import (
 )
 from src.adapters.discord import send_discord, send_telegram
 from src.adapters.paper_trader import get_paper_trader
+from src.adapters.execution.interfaces import OrderRequest
+from src.adapters.execution.router import get_adapter
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -110,6 +112,50 @@ def process_trade(
         logger.info("Paper position #%s opened", alert_id)
     elif dry_run:
         logger.info("DRY_RUN: Alert #%s saved, no order placed", alert_id)
+    else:
+        # Live execution path (MetaApi / other adapters via router)
+        if not getattr(s, "live_trading_enabled", False):
+            logger.info(
+                "LIVE_TRADING disabled in settings; skipping live execution for alert #%s",
+                alert_id,
+            )
+        else:
+            try:
+                adapter = get_adapter(run_mode=s.run_mode, settings=s)
+                entry = float(data["entry"])
+                sl = float(data["sl"])
+                tp = float(data["tp"])
+                size = float(data.get("size", 0.01))
+                risk = abs(entry - sl)
+                reward = abs(tp - entry)
+                rr_ratio = reward / risk if risk > 0 else 0.0
+
+                order_req = OrderRequest(
+                    client_order_id=str(data.get("trade_key") or f"alert-{alert_id}"),
+                    signal_id=alert_id,
+                    symbol=symbol,
+                    side=str(data.get("side", "")).lower(),
+                    size=size,
+                    entry=entry,
+                    sl=sl,
+                    tp=tp,
+                    alert_id=alert_id,
+                    rr_ratio=rr_ratio,
+                )
+                exec_result = adapter.submit_order(order_req)
+                logger.info(
+                    "Execution result for alert #%s: status=%s broker_order_id=%s message=%s",
+                    alert_id,
+                    exec_result.status,
+                    exec_result.broker_order_id,
+                    exec_result.message,
+                )
+
+                if exec_result.status in {"submitted", "filled"}:
+                    # Mark as executed; PnL/outcome updated later on exit webhook
+                    update_alert_status(alert_id, "executed")
+            except Exception as e:  # noqa: BLE001
+                logger.error("Execution adapter error for alert #%s: %s", alert_id, e)
 
     # Pass through AI ensemble result (if available) so Discord can render
     # the full brain decision matrix.
