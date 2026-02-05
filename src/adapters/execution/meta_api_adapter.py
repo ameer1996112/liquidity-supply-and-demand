@@ -54,12 +54,14 @@ class MetaApiAdapter:
 
         action_type = "ORDER_TYPE_BUY" if side == "buy" else "ORDER_TYPE_SELL"
 
+        # TEMP: debug mode – submit orders without SL/TP to validate connectivity
+        logger.warning("⚠️ DEBUG: Submitting order WITHOUT Stops to test connectivity.")
         payload: Dict[str, Any] = {
             "actionType": action_type,
             "symbol": request.symbol,
             "volume": float(request.size or 0.0),
-            "stopLoss": request.sl,
-            "takeProfit": request.tp,
+            # "stopLoss": request.sl,
+            # "takeProfit": request.tp,
             "comment": f"AI-Trade-{request.signal_id or request.alert_id}",
         }
 
