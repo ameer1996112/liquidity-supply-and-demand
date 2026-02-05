@@ -20,6 +20,7 @@ from src.adapters.redis_queue import QUEUE_NAME, get_redis
 from src.ai.brain import ensemble_decision, get_prediction, load_brain
 from src.core.risk_engine import calculate_max_position_size as _calculate_max_position_size_impl
 from src import logic
+from src.services.watchdog import TradeWatchdog
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 logger = logging.getLogger("TRINITY_WORKER")
@@ -231,8 +232,20 @@ def run():
 
     backoff = 5
     redis_client = get_redis()
+    watchdog = TradeWatchdog(supabase_client=supabase)
+    last_watchdog_ts = time.time()
     while True:
         try:
+            # Periodic watchdog: every 60 seconds, sync silent exits
+            now = time.time()
+            if now - last_watchdog_ts >= 60:
+                try:
+                    watchdog.run_sync()
+                except Exception as w_exc:  # noqa: BLE001
+                    logger.error("TradeWatchdog run failed: %s", w_exc)
+                finally:
+                    last_watchdog_ts = now
+
             task = redis_client.blpop(QUEUE_NAME, timeout=5)
             backoff = 5
             if task is None:
