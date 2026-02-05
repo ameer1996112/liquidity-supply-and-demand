@@ -4,6 +4,7 @@ import { TradingSignal, AIReasoning, getSymbol, getSide, getScore, getPnl, getNo
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
@@ -207,7 +208,8 @@ export function SignalInspector({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-xl bg-zinc-950 border-zinc-800 p-0">
+      <SheetContent className="w-full sm:max-w-xl bg-zinc-950 border-zinc-800 p-0" aria-describedby="signal-inspector-desc">
+        <SheetDescription id="signal-inspector-desc" className="sr-only">Trade details and AI reasoning</SheetDescription>
         <ScrollArea className="h-full">
           <div className="p-6">
             {/* Header */}

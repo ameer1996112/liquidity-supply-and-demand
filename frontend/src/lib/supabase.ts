@@ -174,6 +174,10 @@ export async function fetchSignalStats(): Promise<SignalStats> {
     0,
   );
 
+  if (process.env.NODE_ENV === 'development' && eligibleForPnl.length > 0) {
+    console.log('Stats 24h: liveClosed=', liveClosed.length, 'livePnl=', livePnl.toFixed(2), 'paperClosed=', paperClosed.length, 'paperPnl=', paperPnl.toFixed(2));
+  }
+
   // Active trades are either 'active' status or executed without closed_at
   const active = [...activeSignals, ...executed.filter((s) => !s.closed_at)];
 
