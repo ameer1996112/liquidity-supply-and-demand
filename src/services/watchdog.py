@@ -34,7 +34,10 @@ class TradeWatchdog:
         self.token = (self.settings.meta_api_token or "").strip()
         self.account_id = (self.settings.meta_api_account_id or "").strip()
         region = (getattr(self.settings, "meta_api_region", "new-york") or "new-york").strip()
-        self.base_url = f"https://mt-client-api-v1.{region}.agiliumtrade.ai"
+        # mt-client API (positions)
+        self.client_base_url = f"https://mt-client-api-v1.{region}.agiliumtrade.ai"
+        # MetaStats API (history-deals)
+        self.stats_base_url = f"https://metastats-api-v1.{region}.agiliumtrade.ai"
         self.supabase = supabase_client
 
         if not self.token or not self.account_id:
@@ -42,7 +45,12 @@ class TradeWatchdog:
                 "TradeWatchdog disabled: META_API_TOKEN or META_API_ACCOUNT_ID missing.",
             )
         else:
-            logger.info("TradeWatchdog using MetaApi region '%s' (%s)", region, self.base_url)
+            logger.info(
+                "TradeWatchdog using MetaApi region '%s' (client=%s, stats=%s)",
+                region,
+                self.client_base_url,
+                self.stats_base_url,
+            )
 
     # ------------------------------------------------------------------ #
     # HTTP helpers
@@ -54,21 +62,21 @@ class TradeWatchdog:
             "Content-Type": "application/json",
         }
 
-    def _get(self, path: str, params: Optional[Dict[str, Any]] = None) -> Optional[Any]:
-        """Simple GET wrapper against the MetaApi REST endpoint."""
+    def _get_client(self, path: str, params: Optional[Dict[str, Any]] = None) -> Optional[Any]:
+        """GET wrapper against the MetaApi client API (positions, etc.)."""
         if not self.token or not self.account_id:
             return None
 
-        url = f"{self.base_url}{path}"
+        url = f"{self.client_base_url}{path}"
         try:
             resp = requests.get(url, headers=self._headers(), params=params, timeout=10)
         except Exception as exc:  # noqa: BLE001
-            logger.error("TradeWatchdog GET %s failed: %s", url, exc)
+            logger.error("TradeWatchdog client GET %s failed: %s", url, exc)
             return None
 
         if resp.status_code != 200:
             logger.error(
-                "TradeWatchdog GET %s failed: HTTP %s %s",
+                "TradeWatchdog client GET %s failed: HTTP %s %s",
                 url,
                 resp.status_code,
                 resp.text[:200],
@@ -78,7 +86,34 @@ class TradeWatchdog:
         try:
             return resp.json()
         except ValueError:
-            logger.error("TradeWatchdog GET %s invalid JSON: %s", url, resp.text[:200])
+            logger.error("TradeWatchdog client GET %s invalid JSON: %s", url, resp.text[:200])
+            return None
+
+    def _get_stats(self, path: str, params: Optional[Dict[str, Any]] = None) -> Optional[Any]:
+        """GET wrapper against the MetaStats API (history-deals)."""
+        if not self.token or not self.account_id:
+            return None
+
+        url = f"{self.stats_base_url}{path}"
+        try:
+            resp = requests.get(url, headers=self._headers(), params=params, timeout=10)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("TradeWatchdog stats GET %s failed: %s", url, exc)
+            return None
+
+        if resp.status_code != 200:
+            logger.error(
+                "TradeWatchdog stats GET %s failed: HTTP %s %s",
+                url,
+                resp.status_code,
+                resp.text[:200],
+            )
+            return None
+
+        try:
+            return resp.json()
+        except ValueError:
+            logger.error("TradeWatchdog stats GET %s invalid JSON: %s", url, resp.text[:200])
             return None
 
     # ------------------------------------------------------------------ #
@@ -117,7 +152,7 @@ class TradeWatchdog:
         if not executed_trades:
             return
 
-        positions = self._get(
+        positions = self._get_client(
             f"/users/current/accounts/{self.account_id}/positions",
         )
         if positions is None:
@@ -164,7 +199,7 @@ class TradeWatchdog:
         # Look back 30 days in history.
         start_time = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
         params = {"startTime": start_time}
-        deals = self._get(
+        deals = self._get_stats(
             f"/users/current/accounts/{self.account_id}/history-deals",
             params=params,
         )
