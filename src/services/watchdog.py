@@ -210,24 +210,33 @@ class TradeWatchdog:
         )
         if not deals:
             logger.warning(
-                "TradeWatchdog: no deals returned for account %s when inspecting ticket %s",
+                "TradeWatchdog: no historical trades payload for account %s when inspecting ticket %s",
                 self.account_id,
                 position_id,
             )
             return
 
-        # Find exit deal(s) for this positionId.
+        # MetaStats returns an object like {"trades": [...]}.
+        if isinstance(deals, dict):
+            raw_deals = deals.get("trades") or deals.get("items") or []
+        else:
+            raw_deals = deals
+
+        if not raw_deals:
+            logger.warning(
+                "TradeWatchdog: no trades returned for account %s when inspecting ticket %s",
+                self.account_id,
+                position_id,
+            )
+            return
+
+        # Find exit trade(s) for this positionId.
         matching: List[Dict[str, Any]] = []
-        for d in deals:
+        for d in raw_deals:
             pid = d.get("positionId")
             if pid is None:
                 continue
             if str(pid) != str(position_id):
-                continue
-            # Some APIs expose `entryType`, but MetaStats historical trades may
-            # not. If it is present, we still only want exit deals.
-            entry_type = d.get("entryType")
-            if entry_type and entry_type != "DEAL_ENTRY_OUT":
                 continue
             matching.append(d)
 
@@ -237,16 +246,22 @@ class TradeWatchdog:
             )
             return
 
-        # Use the latest exit deal.
-        matching.sort(key=lambda d: d.get("time", ""))
+        # Use the latest trade (by close time if available).
+        matching.sort(key=lambda d: d.get("closeTime") or d.get("time") or "")
         exit_deal = matching[-1]
 
         profit = float(exit_deal.get("profit", 0.0) or 0.0)
+        # MetaStats trades response already includes net profit, so swap/commission
+        # are either baked in or absent; treat them as zero if missing.
         swap = float(exit_deal.get("swap", 0.0) or 0.0)
         commission = float(exit_deal.get("commission", 0.0) or 0.0)
         total_pnl = profit + swap + commission
 
-        price = float(exit_deal.get("price", 0.0) or 0.0)
+        price = float(
+            exit_deal.get("closePrice")
+            or exit_deal.get("price", 0.0)
+            or 0.0,
+        )
         outcome = "win" if total_pnl > 0 else "loss" if total_pnl < 0 else "breakeven"
 
         update_data = {
