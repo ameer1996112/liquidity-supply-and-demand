@@ -190,15 +190,14 @@ class TradeWatchdog:
 
     def _resolve_closed_trade(self, trade: Dict[str, Any], ticket_id: str) -> None:
         """
-        Resolve a closed trade by looking up history-deals. DB stores broker_order_id
-        which in MT5 is often the Order ID (entry order), not the Position ID.
-        Use a 2-step lookup: (1) find entry deal by orderId → get positionId,
-        (2) find exit deal by positionId and entryType OUT.
+        Chain-link lookup: DB stores broker_order_id (Order ID / Entry Ticket);
+        MetaTrader history groups deals by Position ID. Find Entry Deal first to
+        get real Position ID, then find Exit Deal by that Position ID.
         """
         if not self.supabase:
             return
 
-        # 1. Fetch history with wide time window (+24h end buffer for server TZ)
+        # 1. Fetch history: path-based URL, start 30 days ago, end now+24h (broker TZ buffer)
         now = datetime.now(timezone.utc)
         start_dt = now - timedelta(days=30)
         end_dt = now + timedelta(hours=24)
@@ -216,7 +215,6 @@ class TradeWatchdog:
             )
             return
 
-        # API may return list or {"deals": [...]}
         if isinstance(raw, dict):
             deals = raw.get("deals") or []
         else:
@@ -229,30 +227,28 @@ class TradeWatchdog:
             )
             return
 
-        # 2. Step 1 – Find ENTRY deal (orderId == broker_order_id) to get real Position ID
+        # 2. Step 1: Find real Position ID (entry lookup)
         real_position_id: Optional[str] = None
         for deal in deals:
             if str(deal.get("orderId")) == str(ticket_id):
-                real_position_id = deal.get("positionId")
-                if real_position_id is not None:
-                    real_position_id = str(real_position_id)
+                pos = deal.get("positionId")
+                real_position_id = str(pos) if pos is not None else None
                 logger.info(
-                    "TradeWatchdog: found Entry Deal: ID=%s PositionID=%s",
-                    deal.get("id"),
+                    "🔗 Linked Order %s to Position %s",
+                    ticket_id,
                     real_position_id,
                 )
                 break
 
         if not real_position_id:
             logger.warning(
-                "TradeWatchdog: could not link Order %s to a Position; assuming it IS the Position ID",
+                "TradeWatchdog: no entry order found for %s; assuming it IS the Position ID",
                 ticket_id,
             )
             real_position_id = ticket_id
 
-        # 3. Step 2 – Find EXIT deal for this position
+        # 3. Step 2: Find exit deal for this position
         exit_types = ("DEAL_ENTRY_OUT", "DEAL_ENTRY_INOUT", "DEAL_ENTRY_OUT_BY")
-        exit_deal: Optional[Dict[str, Any]] = None
         exit_candidates: List[Dict[str, Any]] = []
         for deal in deals:
             if str(deal.get("positionId")) != str(real_position_id):
@@ -260,57 +256,52 @@ class TradeWatchdog:
             if deal.get("entryType") in exit_types:
                 exit_candidates.append(deal)
 
-        if exit_candidates:
-            exit_candidates.sort(key=lambda d: d.get("time") or "")
-            exit_deal = exit_candidates[-1]
-            logger.info(
-                "TradeWatchdog: found Exit Deal: ID=%s PnL=%s",
-                exit_deal.get("id"),
-                exit_deal.get("profit"),
-            )
-
-        if not exit_deal:
+        if not exit_candidates:
             logger.warning(
-                "TradeWatchdog: Position %s has no Exit Deal yet (deals in window: %s)",
+                "TradeWatchdog: Position %s has no Exit Deal (deals in window: %s)",
                 real_position_id,
                 len(deals),
             )
             return
 
-        # 4. Calculate PnL and outcome
+        exit_candidates.sort(key=lambda d: d.get("time") or "")
+        exit_deal = exit_candidates[-1]
+
+        # 4. Step 3: Update database
         profit = float(exit_deal.get("profit", 0.0) or 0.0)
         swap = float(exit_deal.get("swap", 0.0) or 0.0)
         commission = float(exit_deal.get("commission", 0.0) or 0.0)
         total_pnl = profit + swap + commission
         outcome = "win" if total_pnl > 0 else "loss" if total_pnl < 0 else "breakeven"
-        price = float(exit_deal.get("price", 0.0) or exit_deal.get("closePrice") or 0.0)
-
-        update_data = {
-            "status": "closed",
-            "pnl_usd": total_pnl,
-            "outcome": outcome,
-            "exit_price": price or None,
-            "notes": "Auto-Resolved via Watchdog",
-            "closed_at": datetime.now(timezone.utc).isoformat(),
-        }
+        exit_fill_price = float(exit_deal.get("price", 0.0) or exit_deal.get("closePrice") or 0.0)
+        exit_time = datetime.now(timezone.utc).isoformat()
 
         alert_id = trade.get("id")
         if alert_id is None:
             logger.error(
-                "TradeWatchdog: trade without id for ticket %s, skipping Supabase update",
+                "TradeWatchdog: trade without id for ticket %s, skipping update",
                 ticket_id,
             )
             return
+
+        # Schema uses exit_price and closed_at (frontend/DB); map exit_fill_price → exit_price, exit_time → closed_at
+        update_data = {
+            "status": "closed",
+            "pnl_usd": total_pnl,
+            "outcome": outcome,
+            "exit_price": exit_fill_price or None,
+            "closed_at": exit_time,
+            "notes": "Auto-Resolved via Watchdog",
+        }
 
         try:
             self.supabase.table("trading_signals").update(update_data).eq(
                 "id", alert_id,
             ).execute()
             logger.info(
-                "TradeWatchdog: synced silent exit for alert #%s (ticket %s, pnl_usd=%.2f)",
-                alert_id,
-                ticket_id,
+                "✅ Auto-Resolved: PnL=$%.2f (%s)",
                 total_pnl,
+                outcome,
             )
         except Exception as exc:  # noqa: BLE001
             logger.error(
