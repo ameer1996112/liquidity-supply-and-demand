@@ -102,7 +102,8 @@ class MetaApiAdapter:
         return 2
 
     def _trade_url(self) -> str:
-        return f"{self.BASE_URL}/users/current/accounts/{self.account_id}/trade"
+        """Build trade endpoint URL for the configured MetaApi region."""
+        return f"{self.base_url}/users/current/accounts/{self.account_id}/trade"
 
     def submit_order(self, request: OrderRequest) -> ExecutionResult:
         """Submit a market order to MetaApi."""
