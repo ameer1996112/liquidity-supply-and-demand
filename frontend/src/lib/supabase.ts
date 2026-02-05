@@ -108,9 +108,12 @@ export async function fetchSignalStats(): Promise<SignalStats> {
     status?.toLowerCase();
   const normalizeMode = (mode: string | undefined) =>
     mode ? String(mode).toUpperCase() : undefined;
-  /** Treat as LIVE if mode or run_mode is LIVE (DB may expose only run_mode). */
-  const isLive = (s: TradingSignal) =>
-    normalizeMode(s.mode ?? s.run_mode) === 'LIVE';
+  /** Treat as LIVE if mode/run_mode is LIVE or missing (default = live when not paper). */
+  const isLive = (s: TradingSignal) => {
+    const m = normalizeMode(s.mode ?? s.run_mode);
+    return m === 'LIVE' || m === undefined;
+  };
+  /** Only PAPER when explicitly set. */
   const isPaper = (s: TradingSignal) =>
     normalizeMode(s.mode ?? s.run_mode) === 'PAPER';
 
