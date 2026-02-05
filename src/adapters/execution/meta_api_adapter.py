@@ -39,6 +39,63 @@ class MetaApiAdapter:
             "Content-Type": "application/json",
         }
 
+    def _get_symbol_price(self, symbol: str) -> tuple[float | None, float | None]:
+        """
+        Fetch current bid/ask from MetaApi for the given symbol.
+
+        Returns (bid, ask); any failures are logged and return (None, None).
+        """
+        url = (
+            f"{self.BASE_URL}/users/current/accounts/"
+            f"{self.account_id}/symbols/{symbol}/current-price"
+        )
+        try:
+            resp = requests.get(url, headers=self._headers(), timeout=5)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("MetaApi _get_symbol_price network error for %s: %s", symbol, exc)
+            return None, None
+
+        if resp.status_code != 200:
+            logger.error(
+                "MetaApi _get_symbol_price failed for %s: HTTP %s %s",
+                symbol,
+                resp.status_code,
+                resp.text[:200],
+            )
+            return None, None
+
+        try:
+            data = resp.json()
+        except ValueError:
+            logger.error(
+                "MetaApi _get_symbol_price invalid JSON for %s: %s",
+                symbol,
+                resp.text[:200],
+            )
+            return None, None
+
+        bid = data.get("bid")
+        ask = data.get("ask")
+        return bid, ask
+
+    @staticmethod
+    def _infer_digits(price: float | None, symbol: str) -> int:
+        """
+        Heuristic to pick decimal digits for rounding SL/TP.
+        """
+        if price is None:
+            # Sensible defaults: 2 for metals/indices, 5 for FX
+            sym = symbol.upper()
+            if "XAU" in sym or "NAS" in sym or "US30" in sym or "DE40" in sym:
+                return 2
+            return 5
+
+        txt = f"{price:.10f}".rstrip("0").rstrip(".")
+        if "." in txt:
+            decs = len(txt.split(".")[1])
+            return max(1, min(decs, 5))
+        return 2
+
     def _trade_url(self) -> str:
         return f"{self.BASE_URL}/users/current/accounts/{self.account_id}/trade"
 
@@ -54,16 +111,70 @@ class MetaApiAdapter:
 
         action_type = "ORDER_TYPE_BUY" if side == "buy" else "ORDER_TYPE_SELL"
 
-        # TEMP: debug mode – submit orders without SL/TP to validate connectivity
-        logger.warning("⚠️ DEBUG: Submitting order WITHOUT Stops to test connectivity.")
+        # ------------------------------------------------------------------
+        # Cross-broker relative SL/TP: recompute stops from current bid/ask.
+       -# ------------------------------------------------------------------
+        bid, ask = self._get_symbol_price(request.symbol)
+        sl_value: float | None = None
+        tp_value: float | None = None
+
+        # Only attempt recalculation when both SL and TP and a reference entry exist
+        if request.sl is not None and request.tp is not None and request.entry is not None:
+            try:
+                sl_dist = abs(float(request.entry) - float(request.sl))
+                tp_dist = abs(float(request.entry) - float(request.tp))
+
+                entry_price: float | None = None
+                if side == "buy" and ask is not None:
+                    entry_price = float(ask)
+                    raw_sl = entry_price - sl_dist
+                    raw_tp = entry_price + tp_dist
+                elif side == "sell" and bid is not None:
+                    entry_price = float(bid)
+                    raw_sl = entry_price + sl_dist
+                    raw_tp = entry_price - tp_dist
+                else:
+                    entry_price = None
+
+                digits = self._infer_digits(entry_price, request.symbol)
+                if entry_price is not None:
+                    sl_value = round(raw_sl, digits)
+                    tp_value = round(raw_tp, digits)
+                    logger.info(
+                        "MetaApi recalculated stops for %s %s: entry=%.5f SL=%.5f TP=%.5f "
+                        "(dist=%.5f / %.5f, digits=%s)",
+                        request.symbol,
+                        side,
+                        entry_price,
+                        sl_value,
+                        tp_value,
+                        sl_dist,
+                        tp_dist,
+                        digits,
+                    )
+            except Exception as exc:  # noqa: BLE001
+                logger.error(
+                    "MetaApi stop recalculation failed for %s: %s", request.symbol, exc
+                )
+                sl_value = None
+                tp_value = None
+
+        # Fallback: if we couldn't recompute, use raw SL/TP (may still error on broker)
+        if sl_value is None and request.sl is not None:
+            sl_value = float(request.sl)
+        if tp_value is None and request.tp is not None:
+            tp_value = float(request.tp)
+
         payload: Dict[str, Any] = {
             "actionType": action_type,
             "symbol": request.symbol,
             "volume": float(request.size or 0.0),
-            # "stopLoss": request.sl,
-            # "takeProfit": request.tp,
             "comment": f"AI-Trade-{request.signal_id or request.alert_id}",
         }
+        if sl_value is not None:
+            payload["stopLoss"] = sl_value
+        if tp_value is not None:
+            payload["takeProfit"] = tp_value
 
         try:
             resp = requests.post(
