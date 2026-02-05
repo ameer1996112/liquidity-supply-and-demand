@@ -188,82 +188,108 @@ class TradeWatchdog:
     # Internal helpers
     # ------------------------------------------------------------------ #
 
-    def _resolve_closed_trade(self, trade: Dict[str, Any], position_id: str) -> None:
+    def _resolve_closed_trade(self, trade: Dict[str, Any], ticket_id: str) -> None:
         """
-        Given a Supabase trade and its broker positionId, query MetaApi
-        history-deals and update the trade with PnL and exit information.
+        Resolve a closed trade by looking up history-deals. DB stores broker_order_id
+        which in MT5 is often the Order ID (entry order), not the Position ID.
+        Use a 2-step lookup: (1) find entry deal by orderId → get positionId,
+        (2) find exit deal by positionId and entryType OUT.
         """
         if not self.supabase:
             return
 
-        # Look back 30 days in history. We use the MetaApi client REST
-        # `history-deals/time` endpoint which accepts ISO8601 timestamps.
+        # 1. Fetch history with wide time window (+24h end buffer for server TZ)
         now = datetime.now(timezone.utc)
-        start = now - timedelta(days=30)
-        start_str = start.isoformat().replace("+00:00", "Z")
-        end_str = now.isoformat().replace("+00:00", "Z")
+        start_dt = now - timedelta(days=30)
+        end_dt = now + timedelta(hours=24)
+        start_str = start_dt.isoformat().replace("+00:00", "Z")
+        end_str = end_dt.isoformat().replace("+00:00", "Z")
 
-        deals = self._get_client(
+        raw = self._get_client(
             f"/users/current/accounts/{self.account_id}/history-deals/time/{start_str}/{end_str}",
         )
+        if raw is None:
+            logger.warning(
+                "TradeWatchdog: no history response for account %s ticket %s",
+                self.account_id,
+                ticket_id,
+            )
+            return
+
+        # API may return list or {"deals": [...]}
+        if isinstance(raw, dict):
+            deals = raw.get("deals") or []
+        else:
+            deals = raw if isinstance(raw, list) else []
         if not deals:
             logger.warning(
-                "TradeWatchdog: no historical trades payload for account %s when inspecting ticket %s",
+                "TradeWatchdog: no history deals for account %s ticket %s",
                 self.account_id,
-                position_id,
+                ticket_id,
             )
             return
 
-        # Client history-deals returns an array of MetatraderDeal objects.
-        if not isinstance(deals, list) or not deals:
+        # 2. Step 1 – Find ENTRY deal (orderId == broker_order_id) to get real Position ID
+        real_position_id: Optional[str] = None
+        for deal in deals:
+            if str(deal.get("orderId")) == str(ticket_id):
+                real_position_id = deal.get("positionId")
+                if real_position_id is not None:
+                    real_position_id = str(real_position_id)
+                logger.info(
+                    "TradeWatchdog: found Entry Deal: ID=%s PositionID=%s",
+                    deal.get("id"),
+                    real_position_id,
+                )
+                break
+
+        if not real_position_id:
             logger.warning(
-                "TradeWatchdog: no history deals returned for account %s when inspecting ticket %s",
-                self.account_id,
-                position_id,
+                "TradeWatchdog: could not link Order %s to a Position; assuming it IS the Position ID",
+                ticket_id,
             )
-            return
+            real_position_id = ticket_id
 
-        # Find exit deal(s) for this positionId.
-        matching: List[Dict[str, Any]] = []
-        for d in deals:
-            pid = d.get("positionId")
-            if pid is None:
+        # 3. Step 2 – Find EXIT deal for this position
+        exit_types = ("DEAL_ENTRY_OUT", "DEAL_ENTRY_INOUT", "DEAL_ENTRY_OUT_BY")
+        exit_deal: Optional[Dict[str, Any]] = None
+        exit_candidates: List[Dict[str, Any]] = []
+        for deal in deals:
+            if str(deal.get("positionId")) != str(real_position_id):
                 continue
-            if str(pid) != str(position_id):
-                continue
-            matching.append(d)
+            if deal.get("entryType") in exit_types:
+                exit_candidates.append(deal)
 
-        if not matching:
+        if exit_candidates:
+            exit_candidates.sort(key=lambda d: d.get("time") or "")
+            exit_deal = exit_candidates[-1]
+            logger.info(
+                "TradeWatchdog: found Exit Deal: ID=%s PnL=%s",
+                exit_deal.get("id"),
+                exit_deal.get("profit"),
+            )
+
+        if not exit_deal:
             logger.warning(
-                "TradeWatchdog: no DEAL_ENTRY_OUT found for ticket %s", position_id,
+                "TradeWatchdog: Position %s has no Exit Deal yet (deals in window: %s)",
+                real_position_id,
+                len(deals),
             )
             return
 
-        # Use the latest trade (by close time if available).
-        matching.sort(key=lambda d: d.get("closeTime") or d.get("time") or "")
-        exit_deal = matching[-1]
-
+        # 4. Calculate PnL and outcome
         profit = float(exit_deal.get("profit", 0.0) or 0.0)
-        # MetaStats trades response already includes net profit, so swap/commission
-        # are either baked in or absent; treat them as zero if missing.
         swap = float(exit_deal.get("swap", 0.0) or 0.0)
         commission = float(exit_deal.get("commission", 0.0) or 0.0)
         total_pnl = profit + swap + commission
-
-        price = float(
-            exit_deal.get("closePrice")
-            or exit_deal.get("price", 0.0)
-            or 0.0,
-        )
         outcome = "win" if total_pnl > 0 else "loss" if total_pnl < 0 else "breakeven"
+        price = float(exit_deal.get("price", 0.0) or exit_deal.get("closePrice") or 0.0)
 
         update_data = {
             "status": "closed",
             "pnl_usd": total_pnl,
             "outcome": outcome,
             "exit_price": price or None,
-            # `close_broker_order_id` column may not exist in older schemas;
-            # we keep the update compatible by omitting it.
             "notes": "Auto-Resolved via Watchdog",
             "closed_at": datetime.now(timezone.utc).isoformat(),
         }
@@ -272,7 +298,7 @@ class TradeWatchdog:
         if alert_id is None:
             logger.error(
                 "TradeWatchdog: trade without id for ticket %s, skipping Supabase update",
-                position_id,
+                ticket_id,
             )
             return
 
@@ -283,7 +309,7 @@ class TradeWatchdog:
             logger.info(
                 "TradeWatchdog: synced silent exit for alert #%s (ticket %s, pnl_usd=%.2f)",
                 alert_id,
-                position_id,
+                ticket_id,
                 total_pnl,
             )
         except Exception as exc:  # noqa: BLE001
