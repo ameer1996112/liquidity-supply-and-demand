@@ -107,6 +107,17 @@ class Settings(BaseSettings):
     # Ensemble brain / LLM filter
     enable_llm_filter: bool = True
 
+    # Pine-matching deterministic pre-filters (mirror SND_Strategy.pine Balanced profile)
+    pine_min_score: float = Field(default=60.0, ge=0.0, le=100.0, description="Min zone score (Pine ai_quality_threshold). 60=Balanced, 70=Conservative.")
+    pine_min_grade: str = Field(default="C+", description="Min zone grade. A+/A/B+/B/C+/C. C+=Balanced, B+=Conservative.")
+    pine_min_return_strength: float = Field(default=30.0, ge=0.0, le=100.0, description="Min return strength. 30=Balanced, 50=Conservative, 0=OFF.")
+    pine_require_liq_swept: bool = Field(default=True, description="Require liquidity swept before entry (core S&D rule).")
+    pine_min_departure_strength: float = Field(default=40.0, ge=0.0, le=100.0, description="Min departure strength (arrival rule). <40=compressed=reject.")
+    pine_block_dead_zone: bool = Field(default=True, description="Block entries in last 10 min of each hour (xx:50-xx:00).")
+    pine_trading_start_hour: int = Field(default=7, ge=0, le=23, description="Trading start hour (UTC). 7=default.")
+    pine_trading_end_hour: int = Field(default=22, ge=0, le=23, description="Trading end hour (UTC). 22=default.")
+    pine_max_trades_per_day: int = Field(default=2, ge=0, le=10, description="Max trades per day. 2=Balanced, 1=Conservative. 0=OFF.")
+
     # Shadow launch toggle for EnsembleBrain gating in worker
     run_shadow_mode: bool = False
 

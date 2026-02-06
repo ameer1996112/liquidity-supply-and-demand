@@ -188,6 +188,131 @@ def _validate_flip_timing(payload: Dict[str, Any]) -> Optional[str]:
         return None
 
 
+_GRADE_VALUES = {"A+": 6, "A": 5, "B+": 4, "B": 3, "C+": 2, "C": 1}
+
+
+def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
+    """Deterministic pre-filters mirroring SND_Strategy.pine entry conditions.
+
+    Checks: score, grade, return strength, liquidity sweep, departure strength,
+    dead zone, trading hours, daily trade limit.
+    Returns None if all pass, rejection reason string if any fails.
+    """
+    s = get_settings()
+
+    # --- Zone quality score ---
+    score = payload.get("score")
+    if score is not None:
+        try:
+            if float(score) < s.pine_min_score:
+                return f"Zone score {score} below minimum {s.pine_min_score}"
+        except (ValueError, TypeError):
+            pass
+
+    # --- Zone grade ---
+    grade = payload.get("zone_grade") or payload.get("grade")
+    if grade and s.pine_min_grade:
+        grade_val = _GRADE_VALUES.get(str(grade).upper().strip(), 0)
+        min_val = _GRADE_VALUES.get(s.pine_min_grade.upper().strip(), 0)
+        if grade_val > 0 and min_val > 0 and grade_val < min_val:
+            return f"Zone grade {grade} below minimum {s.pine_min_grade}"
+
+    # --- Liquidity swept (core S&D rule) ---
+    if s.pine_require_liq_swept:
+        liq_swept = payload.get("liq_swept")
+        if liq_swept is not None and not bool(liq_swept):
+            return "Liquidity not swept before entry (liq_swept=false)"
+
+    # --- Departure strength (arrival rule) ---
+    dep_str = payload.get("departure_strength")
+    if dep_str is not None and s.pine_min_departure_strength > 0:
+        try:
+            if float(dep_str) < s.pine_min_departure_strength:
+                return f"Compressed arrival: departure_strength {dep_str} < {s.pine_min_departure_strength}"
+        except (ValueError, TypeError):
+            pass
+
+    # --- Return strength ---
+    ret_str = payload.get("return_strength")
+    if ret_str is not None and s.pine_min_return_strength > 0:
+        try:
+            if float(ret_str) < s.pine_min_return_strength:
+                return f"Slow return: return_strength {ret_str} < {s.pine_min_return_strength}"
+        except (ValueError, TypeError):
+            pass
+
+    # --- Dead zone (xx:50-xx:00) ---
+    if s.pine_block_dead_zone:
+        bar_time = payload.get("bar_time")
+        if bar_time and isinstance(bar_time, str):
+            try:
+                from datetime import datetime as _dt
+                cleaned = bar_time.replace("+00:00", "").replace("Z", "").split("+")[0].split("-0")[0] if "T" in bar_time else bar_time
+                for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%d %H:%M:%S"):
+                    try:
+                        dt = _dt.strptime(cleaned, fmt)
+                        break
+                    except ValueError:
+                        continue
+                else:
+                    from dateutil.parser import parse as _parse_dt
+                    dt = _parse_dt(bar_time)
+                if dt.minute >= 50:
+                    return f"Dead zone: bar_time {bar_time} is in last 10 min of hour (minute={dt.minute})"
+            except Exception:
+                pass  # fail-open
+
+    # --- Trading hours (UTC) ---
+    if s.pine_trading_start_hour != 0 or s.pine_trading_end_hour != 23:
+        bar_time = payload.get("bar_time")
+        if bar_time and isinstance(bar_time, str):
+            try:
+                from datetime import datetime as _dt
+                cleaned = bar_time.replace("+00:00", "").replace("Z", "").split("+")[0].split("-0")[0] if "T" in bar_time else bar_time
+                for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%d %H:%M:%S"):
+                    try:
+                        dt = _dt.strptime(cleaned, fmt)
+                        break
+                    except ValueError:
+                        continue
+                else:
+                    from dateutil.parser import parse as _parse_dt
+                    dt = _parse_dt(bar_time)
+                if dt.hour < s.pine_trading_start_hour or dt.hour >= s.pine_trading_end_hour:
+                    return f"Outside trading hours: hour={dt.hour} (allowed {s.pine_trading_start_hour}-{s.pine_trading_end_hour} UTC)"
+            except Exception:
+                pass  # fail-open
+
+    # --- Daily trade limit ---
+    if s.pine_max_trades_per_day > 0 and supabase:
+        try:
+            from datetime import datetime as _dt, timezone
+            today_start = _dt.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+            result = (
+                supabase.table("trading_signals")
+                .select("id")
+                .in_("status", ["active", "executed", "closed"])
+                .gte("created_at", today_start)
+                .execute()
+            )
+            today_count = len(result.data)
+            if today_count >= s.pine_max_trades_per_day:
+                return f"Daily trade limit reached: {today_count}/{s.pine_max_trades_per_day} trades today"
+        except Exception as e:
+            logger.warning("Daily trade limit check failed: %s (fail-open)", e)
+
+    # --- R:R ratio ---
+    rr = payload.get("rr_ratio")
+    if rr is not None and s.min_rr_ratio > 0:
+        try:
+            if float(rr) < s.min_rr_ratio:
+                return f"R:R ratio {rr} below minimum {s.min_rr_ratio}"
+        except (ValueError, TypeError):
+            pass
+
+    return None
+
+
 def process_trade(payload: Dict[str, Any]):
     symbol = payload.get("symbol", "UNKNOWN")
     side = payload.get("side", "buy")
@@ -237,6 +362,18 @@ def process_trade(payload: Dict[str, Any]):
     if flip_error:
         save_result(payload, "filtered", flip_error, 0.0)
         logger.warning("FLIP TIMING REJECTED: %s", flip_error)
+        return
+
+    # ------------------------------------------------------------------
+    # Pine-Matching Deterministic Pre-Filters
+    # Mirror SND_Strategy.pine entry rules: score, grade, liq_swept,
+    # departure/return strength, dead zone, trading hours, daily limit, R:R.
+    # Runs BEFORE ensemble brain to avoid wasting AI/ML processing.
+    # ------------------------------------------------------------------
+    pine_error = _validate_pine_filters(payload)
+    if pine_error:
+        save_result(payload, "filtered", f"Pine filter: {pine_error}", 0.0)
+        logger.warning("PINE PRE-FILTER REJECTED: %s", pine_error)
         return
 
     # ------------------------------------------------------------------
@@ -346,6 +483,12 @@ def run():
     logger.info("ML Confidence: %s", f"{ML_MIN_CONFIDENCE:.0%}")
     logger.info("Kill-Switch: %s", "ON" if kill_sw else "OFF")
     logger.info("LIVE_TRADING: %s", "true" if live else "false")
+    logger.info("--- Pine Pre-Filters ---")
+    logger.info("Min Score: %s | Min Grade: %s", s.pine_min_score, s.pine_min_grade)
+    logger.info("Liq Swept Required: %s", s.pine_require_liq_swept)
+    logger.info("Min Departure Str: %s | Min Return Str: %s", s.pine_min_departure_strength, s.pine_min_return_strength)
+    logger.info("Dead Zone Block: %s | Hours: %s-%s UTC", s.pine_block_dead_zone, s.pine_trading_start_hour, s.pine_trading_end_hour)
+    logger.info("Max Trades/Day: %s | Min R:R: %s", s.pine_max_trades_per_day, s.min_rr_ratio)
     logger.info("=" * 60)
 
     backoff = 5
