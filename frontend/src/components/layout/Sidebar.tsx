@@ -9,6 +9,7 @@ import {
   Settings,
   ShieldCheck,
   FlaskConical,
+  Crosshair,
   PanelLeftClose,
   PanelLeft,
   Activity,
@@ -24,6 +25,7 @@ import {
 
 const NAV_ITEMS = [
   { label: 'Dashboard', icon: LayoutDashboard, path: '/' },
+  { label: 'Positions', icon: Crosshair, path: '/positions' },
   { label: 'Analytics', icon: BarChart3, path: '/analytics' },
   { label: 'Rules', icon: ShieldCheck, path: '/rules' },
   { label: 'Journal', icon: BookOpen, path: '/journal' },

@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useAlerts, type Alert } from '@/hooks/useAlerts';
+import { useToast } from '@/components/ui/toast';
 
 interface AlertContextValue {
   alerts: Alert[];
@@ -33,9 +34,10 @@ interface AlertProviderProps {
 
 export function AlertProvider({ children }: AlertProviderProps) {
   const { alerts, unreadCount, markAsRead, clearAll } = useAlerts();
+  const { addToast } = useToast();
   const seenIdsRef = useRef<Set<number>>(new Set());
 
-  // Fire a simple toast/notification when a new critical alert appears.
+  // Show toast for new alerts via the custom toast system.
   useEffect(() => {
     if (!alerts.length) return;
 
@@ -46,21 +48,22 @@ export function AlertProvider({ children }: AlertProviderProps) {
       seenIdsRef.current.add(id);
 
       const severity = String(alert.severity).toLowerCase();
-      if (severity === 'critical' || severity === 'error') {
-        const title = alert.title || alert.alert_type || 'Critical Alert';
-        const body = alert.message;
+      const title = alert.title || alert.alert_type || 'Alert';
+      const toastSeverity =
+        severity === 'critical' || severity === 'error'
+          ? 'critical'
+          : severity === 'warning'
+            ? 'warning'
+            : 'info';
 
-        // Minimal fallback: browser alert; teams can wire in real toast system.
-        if (typeof window !== 'undefined') {
-          // eslint-disable-next-line no-alert
-          window.alert(`${title}\n\n${body}`);
-        } else {
-          // eslint-disable-next-line no-console
-          console.error('[Alert]', title, body);
-        }
-      }
+      addToast({
+        title,
+        message: alert.message,
+        severity: toastSeverity,
+        duration: toastSeverity === 'critical' ? 15_000 : 8_000,
+      });
     }
-  }, [alerts]);
+  }, [alerts, addToast]);
 
   const value = useMemo<AlertContextValue>(
     () => ({

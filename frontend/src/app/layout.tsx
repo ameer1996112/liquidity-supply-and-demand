@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import { QueryProvider } from '@/providers/QueryProvider';
 import { SidebarProvider } from '@/providers/SidebarProvider';
 import { AppShell } from '@/components/layout/AppShell';
+import { ToastProvider } from '@/components/ui/toast';
+import { AlertProvider } from '@/components/alerts/AlertProvider';
 import './globals.css';
 
 const geistSans = Geist({
@@ -34,9 +36,13 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased font-sans`}
       >
         <QueryProvider>
-          <SidebarProvider>
-            <AppShell>{children}</AppShell>
-          </SidebarProvider>
+          <ToastProvider>
+            <AlertProvider>
+              <SidebarProvider>
+                <AppShell>{children}</AppShell>
+              </SidebarProvider>
+            </AlertProvider>
+          </ToastProvider>
         </QueryProvider>
       </body>
     </html>
