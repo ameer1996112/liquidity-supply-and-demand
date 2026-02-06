@@ -207,10 +207,12 @@ def process_trade(
 
                 # Risk-based position sizing: cap size to max allowed by balance
                 sl_pips = risk  # raw price distance (used for logging)
+                symbol_overrides = data.get("_symbol_overrides")
                 max_lots = calculate_max_position_size(
                     payload=data,
                     account_balance=current_balance,
                     risk_percent=s.risk_percent,
+                    symbol_overrides=symbol_overrides,
                 )
                 if size > max_lots:
                     logger.warning(

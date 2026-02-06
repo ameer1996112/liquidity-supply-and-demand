@@ -79,3 +79,9 @@ export async function fetchAiConfig(): Promise<AiConfigResponse> {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
+
+/** e.g. "http://backend:8000/rules/strategy" */
+export function getRulesStrategyUrl(): string {
+  const base = getBase();
+  return base ? `${base}/rules/strategy` : '';
+}

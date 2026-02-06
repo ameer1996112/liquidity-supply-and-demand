@@ -55,6 +55,7 @@ def calculate_max_position_size(
     account_balance: float,
     risk_percent: float,
     risk_multiplier: float = 1.0,
+    symbol_overrides: Optional[Dict[str, Any]] = None,
 ) -> float:
     """Maximum allowed lot size from account balance and risk %, with scaling.
 
@@ -63,6 +64,7 @@ def calculate_max_position_size(
         account_balance: Account equity in USD.
         risk_percent: Base risk per trade (e.g. ``1.0`` for 1%).
         risk_multiplier: Additional scaling factor (0-1 defensive, >1 aggressive).
+        symbol_overrides: Per-symbol pip/risk values from ``symbol_risk_rules`` table.
 
     Returns:
         Capped maximum lot size after applying the risk multiplier.
@@ -74,19 +76,27 @@ def calculate_max_position_size(
         if entry == 0 or sl == 0:
             return 1.0
 
+        # Per-symbol overrides from DB (if provided and enabled)
+        if symbol_overrides and symbol_overrides.get("enabled", True):
+            pip_size = float(symbol_overrides.get("pip_size", 0.0001))
+            pip_value_per_lot = float(symbol_overrides.get("pip_value_per_lot", 10.0))
+            risk_percent = float(symbol_overrides.get("risk_percent", risk_percent))
+            max_lot_cap = float(symbol_overrides.get("max_lot_size", 5.0))
+        else:
+            # Hardcoded fallback for unknown symbols
+            if "JPY" in symbol:
+                pip_size = 0.01
+                pip_value_per_lot = 1000.0
+            elif "XAU" in symbol or "GOLD" in symbol:
+                pip_size = 0.01
+                pip_value_per_lot = 100.0
+            else:
+                pip_size = 0.0001
+                pip_value_per_lot = 10.0
+            max_lot_cap = 5.0
+
         # Base risk in USD from percentage
         max_risk_usd = account_balance * (risk_percent / 100.0)
-
-        # Pip characteristics per symbol
-        if "JPY" in symbol:
-            pip_size = 0.01
-            pip_value_per_lot = 1000.0
-        elif "XAU" in symbol or "GOLD" in symbol:
-            pip_size = 0.01
-            pip_value_per_lot = 100.0
-        else:
-            pip_size = 0.0001
-            pip_value_per_lot = 10.0
 
         # Optional volatility targeting via ATR
         use_vol_targeting = False
@@ -106,11 +116,9 @@ def calculate_max_position_size(
                 atr_val = 0.0
 
             if atr_val > 0:
-                # Volatility-normalized position sizing:
-                # lots = risk_usd / (ATR * pip_value_per_lot)
                 base_max_lots = max_risk_usd / (atr_val * pip_value_per_lot)
                 scaled_max_lots = base_max_lots * max(risk_multiplier, 0.0)
-                return min(max(scaled_max_lots, 0.0), 5.0)
+                return min(max(scaled_max_lots, 0.0), max_lot_cap)
 
         # Fallback: distance-to-stop based sizing
         sl_distance = abs(entry - sl)
@@ -118,7 +126,7 @@ def calculate_max_position_size(
         if sl_pips > 0:
             base_max_lots = max_risk_usd / (sl_pips * pip_value_per_lot)
             scaled_max_lots = base_max_lots * max(risk_multiplier, 0.0)
-            return min(scaled_max_lots, 5.0)
+            return min(scaled_max_lots, max_lot_cap)
         return 1.0
     except Exception as e:
         logger.warning(f"Max size calculation error: {e}")

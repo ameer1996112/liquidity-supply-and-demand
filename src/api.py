@@ -37,7 +37,10 @@ def _build_cors_origins() -> list[str]:
     return origins
 
 
+from src.api_rules import router as rules_router
+
 app = FastAPI(title="Trading Webhook API", version="1.0.0")
+app.include_router(rules_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_build_cors_origins(),

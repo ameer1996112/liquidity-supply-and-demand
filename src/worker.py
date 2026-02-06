@@ -55,12 +55,43 @@ def _exists_trade_key(trade_key: str) -> bool:
         return False
 
 
+def _lookup_symbol_overrides(symbol: str) -> Optional[Dict[str, Any]]:
+    """Fetch per-symbol risk rules from Supabase (if available)."""
+    if not supabase or not symbol:
+        return None
+    try:
+        r = (
+            supabase.table("symbol_risk_rules")
+            .select("*")
+            .eq("symbol", symbol.upper())
+            .limit(1)
+            .execute()
+        )
+        if r.data:
+            return r.data[0]
+    except Exception as e:
+        logger.warning("symbol_risk_rules lookup failed for %s: %s", symbol, e)
+    return None
+
+
 def _max_position_size(payload: Dict[str, Any]) -> float:
     s = get_settings()
+    symbol = payload.get("symbol", "UNKNOWN")
+    symbol_overrides = _lookup_symbol_overrides(symbol)
+    if symbol_overrides:
+        logger.info(
+            "Symbol overrides for %s: pip_size=%s pip_value=%s max_lot=%s",
+            symbol,
+            symbol_overrides.get("pip_size"),
+            symbol_overrides.get("pip_value_per_lot"),
+            symbol_overrides.get("max_lot_size"),
+        )
+        payload["_symbol_overrides"] = symbol_overrides
     return _calculate_max_position_size_impl(
         payload,
         account_balance=float(payload.get("account_balance", s.account_balance)),
         risk_percent=float(payload.get("risk_percent", s.risk_percent)),
+        symbol_overrides=symbol_overrides,
     )
 
 

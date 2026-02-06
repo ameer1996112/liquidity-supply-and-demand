@@ -7,6 +7,7 @@ import {
   BarChart3,
   BookOpen,
   Settings,
+  ShieldCheck,
   PanelLeftClose,
   PanelLeft,
   Activity,
@@ -23,6 +24,7 @@ import {
 const NAV_ITEMS = [
   { label: 'Dashboard', icon: LayoutDashboard, path: '/' },
   { label: 'Analytics', icon: BarChart3, path: '/analytics' },
+  { label: 'Rules', icon: ShieldCheck, path: '/rules' },
   { label: 'Journal', icon: BookOpen, path: '/journal' },
   { label: 'Settings', icon: Settings, path: '/settings' },
 ] as const;
