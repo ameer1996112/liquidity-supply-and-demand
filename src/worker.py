@@ -116,6 +116,57 @@ def calculate_max_position_size(payload: Dict[str, Any]) -> float:
     return _max_position_size(payload)
 
 
+def _payload_zone_and_metrics(payload: Dict[str, Any]) -> tuple[Dict[str, Any], Dict[str, Any]]:
+    """Extract zone and metric fields from payload (including F: prefixed) for DB and ai_reasoning.
+    So filtered signals still show Zone Analysis and score breakdown in the inspector.
+    """
+    def _f(k: str, default=None):
+        return payload.get(k) if payload.get(k) is not None else payload.get(f"F:{k}", default)
+
+    # Top-level columns for trading_signals (match save_alert / frontend fallbacks)
+    columns = {}
+    for key in (
+        "zone_id", "zone_type", "zone_grade", "zone_top", "zone_bottom", "zone_size_pips",
+        "entry_model", "score", "freshness", "session", "atr_ratio", "trend", "htf_trend",
+        "rsi", "rvol", "adx", "touch_count", "base_quality", "departure_strength",
+        "liquidity_distance", "liquidity_spread", "return_strength",
+    ):
+        val = _f(key) if key != "zone_grade" else (payload.get("zone_grade") or payload.get("grade"))
+        if val is not None:
+            columns[key] = val
+    for key in ("liq_swept", "target_swept", "caused_sweep", "is_accuracy"):
+        if payload.get(key) is not None:
+            columns[key] = bool(payload[key])
+
+    # ai_reasoning shape for Signal Inspector (Zone Analysis + AI Metrics)
+    reason = {
+        "zone_id": columns.get("zone_id"),
+        "zone_type": columns.get("zone_type"),
+        "zone_grade": columns.get("zone_grade"),
+        "zone_score": columns.get("score"),
+        "entry_model": columns.get("entry_model"),
+        "liquidity_swept": columns.get("liq_swept"),
+        "target_swept": columns.get("target_swept"),
+        "caused_sweep": columns.get("caused_sweep"),
+        "is_accuracy": columns.get("is_accuracy"),
+        "session": columns.get("session"),
+        "trend": columns.get("trend"),
+        "htf_trend": columns.get("htf_trend"),
+        "rsi": columns.get("rsi"),
+        "rvol": columns.get("rvol"),
+        "adx": columns.get("adx"),
+        "atr_ratio": columns.get("atr_ratio"),
+        "base_quality": columns.get("base_quality"),
+        "departure_strength": columns.get("departure_strength"),
+        "return_strength": columns.get("return_strength"),
+        "liquidity_distance": columns.get("liquidity_distance"),
+        "liquidity_spread": columns.get("liquidity_spread"),
+    }
+    # Drop None values so frontend doesn't show empty rows
+    reason = {k: v for k, v in reason.items() if v is not None}
+    return columns, reason
+
+
 def save_result(payload: Dict[str, Any], status: str, note: str, prob: float, ai_reasoning: Optional[Dict[str, Any]] = None):
     if not supabase:
         logger.warning("Supabase unavailable - result not saved: %s", status)
@@ -135,8 +186,20 @@ def save_result(payload: Dict[str, Any], status: str, note: str, prob: float, ai
     tk = (payload.get("trade_key") or "").strip()
     if tk:
         data["trade_key"] = tk
+
+    # Zone + metrics so filtered signals show Zone Analysis and score breakdown in UI
+    extra_columns, zone_reason = _payload_zone_and_metrics(payload)
+    data.update(extra_columns)
+
+    # ai_reasoning: merge zone/metrics with optional caller-provided (e.g. ensemble)
+    merged_reason = {**zone_reason}
     if ai_reasoning:
-        data["ai_reasoning"] = json.dumps(ai_reasoning)
+        merged_reason.update(ai_reasoning)
+    if merged_reason:
+        merged_reason.setdefault("decision", status)
+        merged_reason.setdefault("reason", note)
+        data["ai_reasoning"] = json.dumps(merged_reason)
+
     try:
         supabase.table("trading_signals").insert(data).execute()
         logger.info("Saved: %s | %s", status, note)
