@@ -3,6 +3,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
+
+// Untyped accessor for tables not in the Database generic
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = supabase as any;
 import type { SymbolRiskRule } from '@/types/rules';
 import {
   Table,
@@ -48,7 +52,7 @@ export function RiskRulesPanel() {
     setLoading(true);
     setError('');
     try {
-      const { data, error: err } = await supabase
+      const { data, error: err } = await db
         .from('symbol_risk_rules')
         .select('*')
         .order('symbol', { ascending: true });
@@ -132,7 +136,7 @@ export function RiskRulesPanel() {
     if (!confirm(`Delete risk rules for ${symbol}?`)) return;
     setError('');
     try {
-      const { error: err } = await supabase
+      const { error: err } = await db
         .from('symbol_risk_rules')
         .delete()
         .eq('id', id);
@@ -146,7 +150,7 @@ export function RiskRulesPanel() {
   const toggleEnabled = async (rule: SymbolRiskRule) => {
     if (!supabase) return;
     try {
-      const { error: err } = await supabase
+      const { error: err } = await db
         .from('symbol_risk_rules')
         .update({ enabled: !rule.enabled, updated_at: new Date().toISOString() })
         .eq('id', rule.id);

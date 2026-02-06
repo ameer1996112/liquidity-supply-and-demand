@@ -1,8 +1,9 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { TradingSignal, SignalStats, normalizeSignal } from '@/types/trading';
-import { SymbolRiskRule, StrategyRule } from '@/types/rules';
 
 // Database types for Supabase
+// Note: Only trading_signals is typed here. Other tables (symbol_risk_rules,
+// documents) are accessed via untyped .from() calls with explicit casts.
 export interface Database {
   public: {
     Tables: {
@@ -10,16 +11,6 @@ export interface Database {
         Row: TradingSignal;
         Insert: Omit<TradingSignal, 'id' | 'created_at' | 'updated_at'>;
         Update: Partial<Omit<TradingSignal, 'id' | 'created_at'>>;
-      };
-      symbol_risk_rules: {
-        Row: SymbolRiskRule;
-        Insert: Omit<SymbolRiskRule, 'id' | 'created_at' | 'updated_at'>;
-        Update: Partial<Omit<SymbolRiskRule, 'id' | 'created_at'>>;
-      };
-      documents: {
-        Row: StrategyRule;
-        Insert: Omit<StrategyRule, 'id'>;
-        Update: Partial<Omit<StrategyRule, 'id'>>;
       };
     };
   };

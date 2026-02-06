@@ -3,6 +3,10 @@
 import { useEffect, useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
+
+// Untyped accessor for tables not in the Database generic
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const db = supabase as any;
 import { getRulesStrategyUrl } from '@/lib/api';
 import type { StrategyRule } from '@/types/rules';
 import { Badge } from '@/components/ui/badge';
@@ -30,7 +34,7 @@ export function StrategyRulesPanel() {
     setLoading(true);
     setError('');
     try {
-      const { data, error: err } = await supabase
+      const { data, error: err } = await db
         .from('documents')
         .select('id, content, metadata')
         .order('id', { ascending: false });
