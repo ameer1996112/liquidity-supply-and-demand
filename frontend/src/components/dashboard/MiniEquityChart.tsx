@@ -1,0 +1,123 @@
+'use client';
+
+import { useMemo } from 'react';
+import { useTradingSignals } from '@/hooks/useTradingSignals';
+import { TradingMode, getPnl } from '@/types/trading';
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  ReferenceLine,
+} from 'recharts';
+import { TrendingUp, TrendingDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+interface MiniEquityChartProps {
+  mode?: TradingMode;
+}
+
+export function MiniEquityChart({ mode }: MiniEquityChartProps) {
+  const { data: signals = [] } = useTradingSignals(mode);
+
+  const { chartData, totalPnl } = useMemo(() => {
+    // Filter to closed trades with PnL, sort by time ascending
+    const closed = signals
+      .filter((s) => {
+        const st = s.status?.toLowerCase();
+        const pnl = getPnl(s);
+        return (st === 'closed' || st === 'executed') && pnl != null;
+      })
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+    if (closed.length === 0) {
+      return { chartData: [], totalPnl: 0 };
+    }
+
+    // Build cumulative PnL series
+    let cumPnl = 0;
+    const data = closed.map((s) => {
+      const pnl = getPnl(s) ?? 0;
+      cumPnl += pnl;
+      return {
+        time: new Date(s.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        cumPnl: Number(cumPnl.toFixed(2)),
+      };
+    });
+
+    return { chartData: data, totalPnl: cumPnl };
+  }, [signals]);
+
+  const isPositive = totalPnl >= 0;
+
+  if (chartData.length < 2) {
+    return (
+      <div className="tv-card flex flex-col items-center justify-center h-[140px]">
+        <span className="text-[10px] text-zinc-600 font-mono">Not enough data for equity curve</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="tv-card p-3">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-2">
+        <span className="font-mono text-[10px] text-zinc-500 uppercase tracking-wider">Equity Curve</span>
+        <div className="flex items-center gap-1">
+          {isPositive ? (
+            <TrendingUp className="w-3 h-3 text-[#26a69a]" />
+          ) : (
+            <TrendingDown className="w-3 h-3 text-[#ef5350]" />
+          )}
+          <span
+            className={cn(
+              'font-mono text-xs font-bold tabular-nums',
+              isPositive ? 'text-[#26a69a]' : 'text-[#ef5350]'
+            )}
+          >
+            {isPositive ? '+' : ''}${totalPnl.toFixed(2)}
+          </span>
+        </div>
+      </div>
+
+      {/* Chart */}
+      <ResponsiveContainer width="100%" height={100}>
+        <AreaChart data={chartData} margin={{ top: 2, right: 2, left: 2, bottom: 0 }}>
+          <defs>
+            <linearGradient id="equityGradientUp" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#26a69a" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="#26a69a" stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id="equityGradientDown" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#ef5350" stopOpacity={0.3} />
+              <stop offset="95%" stopColor="#ef5350" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <XAxis dataKey="time" hide />
+          <YAxis hide domain={['auto', 'auto']} />
+          <ReferenceLine y={0} stroke="#2a2e39" strokeDasharray="3 3" />
+          <Tooltip
+            contentStyle={{
+              background: '#1e222d',
+              border: '1px solid #2a2e39',
+              borderRadius: '6px',
+              fontSize: '11px',
+              fontFamily: 'monospace',
+              color: '#d1d4dc',
+            }}
+            formatter={(value: number | undefined) => [`$${(value ?? 0).toFixed(2)}`, 'PnL']}
+          />
+          <Area
+            type="monotone"
+            dataKey="cumPnl"
+            stroke={isPositive ? '#26a69a' : '#ef5350'}
+            strokeWidth={1.5}
+            fill={isPositive ? 'url(#equityGradientUp)' : 'url(#equityGradientDown)'}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}

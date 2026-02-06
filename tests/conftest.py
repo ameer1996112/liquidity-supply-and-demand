@@ -567,6 +567,8 @@ def mock_settings_live():
         run_mode="LIVE",
         live_trading_enabled=True,
         live_shadow=False,
+        paper_trading_enabled=False,
+        paper_auto_execute=False,
     )
 
 

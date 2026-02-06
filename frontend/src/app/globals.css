@@ -3,7 +3,7 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Midnight Quant Theme - High Density Trading Dashboard */
+/* TradingView Professional Theme */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -49,75 +49,75 @@
 
 :root {
   --radius: 0.5rem;
-  /* Midnight Quant - Dark Mode Only */
-  --background: #09090b;
-  --foreground: #fafafa;
-  --card: #18181b;
-  --card-foreground: #fafafa;
-  --popover: #18181b;
-  --popover-foreground: #fafafa;
-  --primary: #10b981;
-  --primary-foreground: #09090b;
-  --secondary: #27272a;
-  --secondary-foreground: #fafafa;
-  --muted: #27272a;
-  --muted-foreground: #a1a1aa;
-  --accent: #27272a;
-  --accent-foreground: #fafafa;
-  --destructive: #ef4444;
-  --border: #27272a;
-  --input: #27272a;
-  --ring: #10b981;
+  /* TradingView Dark Theme */
+  --background: #131722;
+  --foreground: #d1d4dc;
+  --card: #1e222d;
+  --card-foreground: #d1d4dc;
+  --popover: #1e222d;
+  --popover-foreground: #d1d4dc;
+  --primary: #2962ff;
+  --primary-foreground: #ffffff;
+  --secondary: #2a2e39;
+  --secondary-foreground: #d1d4dc;
+  --muted: #2a2e39;
+  --muted-foreground: #787b86;
+  --accent: #2a2e39;
+  --accent-foreground: #d1d4dc;
+  --destructive: #f23645;
+  --border: #2a2e39;
+  --input: #2a2e39;
+  --ring: #2962ff;
   /* Chart colors - Trading themed */
-  --chart-1: #10b981; /* Emerald - Profit/Buy */
-  --chart-2: #ef4444; /* Red - Loss/Sell */
-  --chart-3: #f59e0b; /* Amber - Warning */
-  --chart-4: #3b82f6; /* Blue - Info */
-  --chart-5: #8b5cf6; /* Purple - Accuracy */
+  --chart-1: #26a69a; /* Teal - Profit/Buy (TradingView green) */
+  --chart-2: #ef5350; /* Red - Loss/Sell (TradingView red) */
+  --chart-3: #ff9800; /* Orange - Warning */
+  --chart-4: #2962ff; /* Blue - Info */
+  --chart-5: #ab47bc; /* Purple - Accuracy */
   /* Sidebar */
-  --sidebar: #18181b;
-  --sidebar-foreground: #fafafa;
-  --sidebar-primary: #10b981;
-  --sidebar-primary-foreground: #09090b;
-  --sidebar-accent: #27272a;
-  --sidebar-accent-foreground: #fafafa;
-  --sidebar-border: #27272a;
-  --sidebar-ring: #10b981;
+  --sidebar: #0f1117;
+  --sidebar-foreground: #d1d4dc;
+  --sidebar-primary: #2962ff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1e222d;
+  --sidebar-accent-foreground: #d1d4dc;
+  --sidebar-border: #2a2e39;
+  --sidebar-ring: #2962ff;
 }
 
 /* Force dark mode */
 .dark {
-  --background: #09090b;
-  --foreground: #fafafa;
-  --card: #18181b;
-  --card-foreground: #fafafa;
-  --popover: #18181b;
-  --popover-foreground: #fafafa;
-  --primary: #10b981;
-  --primary-foreground: #09090b;
-  --secondary: #27272a;
-  --secondary-foreground: #fafafa;
-  --muted: #27272a;
-  --muted-foreground: #a1a1aa;
-  --accent: #27272a;
-  --accent-foreground: #fafafa;
-  --destructive: #ef4444;
-  --border: #27272a;
-  --input: #27272a;
-  --ring: #10b981;
-  --chart-1: #10b981;
-  --chart-2: #ef4444;
-  --chart-3: #f59e0b;
-  --chart-4: #3b82f6;
-  --chart-5: #8b5cf6;
-  --sidebar: #18181b;
-  --sidebar-foreground: #fafafa;
-  --sidebar-primary: #10b981;
-  --sidebar-primary-foreground: #09090b;
-  --sidebar-accent: #27272a;
-  --sidebar-accent-foreground: #fafafa;
-  --sidebar-border: #27272a;
-  --sidebar-ring: #10b981;
+  --background: #131722;
+  --foreground: #d1d4dc;
+  --card: #1e222d;
+  --card-foreground: #d1d4dc;
+  --popover: #1e222d;
+  --popover-foreground: #d1d4dc;
+  --primary: #2962ff;
+  --primary-foreground: #ffffff;
+  --secondary: #2a2e39;
+  --secondary-foreground: #d1d4dc;
+  --muted: #2a2e39;
+  --muted-foreground: #787b86;
+  --accent: #2a2e39;
+  --accent-foreground: #d1d4dc;
+  --destructive: #f23645;
+  --border: #2a2e39;
+  --input: #2a2e39;
+  --ring: #2962ff;
+  --chart-1: #26a69a;
+  --chart-2: #ef5350;
+  --chart-3: #ff9800;
+  --chart-4: #2962ff;
+  --chart-5: #ab47bc;
+  --sidebar: #0f1117;
+  --sidebar-foreground: #d1d4dc;
+  --sidebar-primary: #2962ff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1e222d;
+  --sidebar-accent-foreground: #d1d4dc;
+  --sidebar-border: #2a2e39;
+  --sidebar-ring: #2962ff;
 }
 
 @layer base {
@@ -126,7 +126,6 @@
   }
 
   html {
-    /* Force dark mode */
     color-scheme: dark;
   }
 
@@ -140,7 +139,7 @@
 @layer utilities {
   .scrollbar-thin {
     scrollbar-width: thin;
-    scrollbar-color: #27272a transparent;
+    scrollbar-color: #363a45 transparent;
   }
 
   .scrollbar-thin::-webkit-scrollbar {
@@ -153,39 +152,29 @@
   }
 
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background: #27272a;
+    background: #363a45;
     border-radius: 3px;
   }
 
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-    background: #3f3f46;
+    background: #4c505c;
   }
 }
 
-/* Glassmorphic card effect */
-.glass {
-  background: rgba(24, 24, 27, 0.6);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(39, 39, 42, 0.5);
-}
-
-/* Glow effects */
-.glow-emerald {
-  box-shadow: 0 0 20px rgba(16, 185, 129, 0.15);
-}
-
-.glow-red {
-  box-shadow: 0 0 20px rgba(239, 68, 68, 0.15);
+/* Card style - clean, no heavy shadows */
+.tv-card {
+  background: #1e222d;
+  border: 1px solid #2a2e39;
+  border-radius: 0.5rem;
 }
 
 /* Active trade indicator pulse */
 @keyframes pulse-emerald {
   0%, 100% {
-    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+    box-shadow: 0 0 0 0 rgba(38, 166, 154, 0.4);
   }
   50% {
-    box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+    box-shadow: 0 0 0 6px rgba(38, 166, 154, 0);
   }
 }
 
@@ -199,7 +188,7 @@
 }
 
 .data-row:hover {
-  background-color: rgba(39, 39, 42, 0.3);
+  background-color: rgba(42, 46, 57, 0.5);
 }
 
 /* Monospace numbers */
@@ -227,14 +216,6 @@
   }
 }
 
-/* Gradient text */
-.gradient-text {
-  background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
 /* Status indicator dot */
 .status-dot {
   width: 8px;
@@ -243,22 +224,39 @@
 }
 
 .status-dot-active {
-  background-color: #10b981;
-  box-shadow: 0 0 8px #10b981;
+  background-color: #26a69a;
+  box-shadow: 0 0 6px #26a69a;
 }
 
 .status-dot-warning {
-  background-color: #f59e0b;
-  box-shadow: 0 0 8px #f59e0b;
+  background-color: #ff9800;
+  box-shadow: 0 0 6px #ff9800;
 }
 
 .status-dot-error {
-  background-color: #ef4444;
-  box-shadow: 0 0 8px #ef4444;
+  background-color: #f23645;
+  box-shadow: 0 0 6px #f23645;
 }
 
 /* Sheet/Drawer backdrop blur */
 [data-state="open"] > [data-radix-dialog-overlay] {
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
+}
+
+/* Trading colors (semantic) */
+.text-profit {
+  color: #26a69a;
+}
+
+.text-loss {
+  color: #ef5350;
+}
+
+.bg-profit {
+  background-color: #26a69a;
+}
+
+.bg-loss {
+  background-color: #ef5350;
 }

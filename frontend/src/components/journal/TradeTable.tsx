@@ -1,0 +1,131 @@
+'use client';
+
+import { useState, useMemo } from 'react';
+import { TradingSignal, getSymbol, getScore, getPnl } from '@/types/trading';
+import { ExpandableTradeRow } from './ExpandableTradeRow';
+import { cn } from '@/lib/utils';
+import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+
+interface TradeTableProps {
+  signals: TradingSignal[];
+  onInspect: (signal: TradingSignal) => void;
+}
+
+type SortKey = 'date' | 'symbol' | 'side' | 'status' | 'entry' | 'exit' | 'score' | 'rr' | 'pnl';
+type SortDir = 'asc' | 'desc';
+
+const COLUMNS: { key: SortKey; label: string; align?: string }[] = [
+  { key: 'date', label: 'Date' },
+  { key: 'symbol', label: 'Symbol' },
+  { key: 'side', label: 'Side' },
+  { key: 'status', label: 'Status' },
+  { key: 'entry', label: 'Entry' },
+  { key: 'exit', label: 'Exit' },
+  { key: 'score', label: 'AI' },
+  { key: 'rr', label: 'R:R' },
+  { key: 'pnl', label: 'PnL' },
+];
+
+function getSortValue(signal: TradingSignal, key: SortKey): number | string {
+  switch (key) {
+    case 'date':
+      return new Date(signal.created_at).getTime();
+    case 'symbol':
+      return getSymbol(signal);
+    case 'side':
+      return signal.side || '';
+    case 'status':
+      return signal.status || '';
+    case 'entry':
+      return signal.price ?? signal.entry ?? 0;
+    case 'exit':
+      return signal.exit_price ?? 0;
+    case 'score':
+      return getScore(signal) ?? -1;
+    case 'rr':
+      return signal.rr_ratio ?? 0;
+    case 'pnl':
+      return getPnl(signal) ?? 0;
+    default:
+      return 0;
+  }
+}
+
+export function TradeTable({ signals, onInspect }: TradeTableProps) {
+  const [sortKey, setSortKey] = useState<SortKey>('date');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDir('desc');
+    }
+  };
+
+  const sorted = useMemo(() => {
+    return [...signals].sort((a, b) => {
+      const aVal = getSortValue(a, sortKey);
+      const bVal = getSortValue(b, sortKey);
+      const cmp = typeof aVal === 'string' && typeof bVal === 'string'
+        ? aVal.localeCompare(bVal)
+        : Number(aVal) - Number(bVal);
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [signals, sortKey, sortDir]);
+
+  if (signals.length === 0) {
+    return (
+      <div className="tv-card p-12 flex flex-col items-center justify-center">
+        <span className="text-sm text-zinc-500 font-mono">No trades match your filters</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="tv-card overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-[#2a2e39]">
+              {COLUMNS.map((col) => (
+                <th
+                  key={col.key}
+                  onClick={() => handleSort(col.key)}
+                  className="py-2.5 px-3 text-left cursor-pointer select-none group"
+                >
+                  <div className="flex items-center gap-1">
+                    <span className="font-mono text-[10px] text-zinc-500 uppercase tracking-wider group-hover:text-zinc-300 transition-colors">
+                      {col.label}
+                    </span>
+                    {sortKey === col.key ? (
+                      sortDir === 'asc' ? (
+                        <ArrowUp className="w-3 h-3 text-zinc-400" />
+                      ) : (
+                        <ArrowDown className="w-3 h-3 text-zinc-400" />
+                      )
+                    ) : (
+                      <ArrowUpDown className="w-3 h-3 text-zinc-700 group-hover:text-zinc-500 transition-colors" />
+                    )}
+                  </div>
+                </th>
+              ))}
+              {/* Expand column */}
+              <th className="py-2.5 px-3 w-8" />
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((signal) => (
+              <ExpandableTradeRow
+                key={signal.id}
+                signal={signal}
+                onInspect={onInspect}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

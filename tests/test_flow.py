@@ -212,14 +212,14 @@ class TestProcessTradeE2E:
 
         mock_supabase.table = mock_table
 
-        # Mock MetaApi success
-        mock_order_resp = MagicMock()
-        mock_order_resp.status_code = 200
-        mock_order_resp.json.return_value = {"orderId": "BROKER-12345"}
-
-        mock_price_resp = MagicMock()
-        mock_price_resp.status_code = 200
-        mock_price_resp.json.return_value = {"bid": 1.0848, "ask": 1.0852}
+        # Mock execution adapter with successful fill
+        from src.adapters.execution.interfaces import ExecutionResult
+        mock_adapter = MagicMock()
+        mock_adapter.submit_order.return_value = ExecutionResult(
+            status="filled",
+            broker_order_id="BROKER-12345",
+            message="Order filled",
+        )
 
         with patch("src.logic.get_settings", return_value=mock_settings_live), \
              patch("src.logic.init_supabase"), \
@@ -227,11 +227,11 @@ class TestProcessTradeE2E:
              patch("src.logic.update_alert_status", side_effect=mock_update_status), \
              patch("src.logic.send_discord"), \
              patch("src.logic.send_telegram"), \
-             patch("src.adapters.supabase.supabase", mock_supabase), \
-             patch("src.adapters.supabase.init_supabase"), \
-             patch("src.adapters.execution.meta_api_adapter.get_settings", return_value=mock_settings_live), \
-             patch("requests.get", return_value=mock_price_resp), \
-             patch("requests.post", return_value=mock_order_resp):
+             patch("src.logic.supabase_module") as mock_sb_module, \
+             patch("src.logic.get_adapter", return_value=mock_adapter):
+
+            # Wire up supabase_module.supabase to capture the DB update
+            mock_sb_module.supabase = mock_supabase
 
             from src.logic import process_trade
 
@@ -247,9 +247,11 @@ class TestProcessTradeE2E:
             assert len(saved_alerts) == 1
             assert saved_alerts[0]["data"]["symbol"] == "EURUSD"
 
-            # Verify status was updated to executed with broker_order_id
+            # Verify adapter was called
+            mock_adapter.submit_order.assert_called_once()
+
+            # Verify Supabase update with broker_order_id
             assert len(updated_records) >= 1
-            # Find the execution update
             exec_update = [u for u in updated_records if isinstance(u, dict) and "broker_order_id" in u]
             assert len(exec_update) == 1
             assert exec_update[0]["status"] == "executed"
@@ -593,8 +595,9 @@ class TestCorrelationGuard:
         manager = CorrelationManager(max_positions=3)
 
         # Use a symbol not in active_positions_two (EURUSD, USDJPY)
+        # and not in any shared correlation group (eur_gbp, usd_jpy_chf, jpy_crosses)
         result = manager.check(
-            symbol="GBPUSD",  # Different symbol to avoid duplicate rejection
+            symbol="AUDUSD",  # commodity_fx group - no overlap with EURUSD or USDJPY groups
             side="buy",
             active_positions=active_positions_two,  # 2 positions (below max)
         )

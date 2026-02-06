@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { QueryProvider } from '@/providers/QueryProvider';
+import { SidebarProvider } from '@/providers/SidebarProvider';
+import { AppShell } from '@/components/layout/AppShell';
 import './globals.css';
 
 const geistSans = Geist({
@@ -14,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Mission Control | Trading Dashboard',
-  description: 'Real-time trading bot monitoring and analytics dashboard',
+  title: 'TradeOps | Trading Dashboard',
+  description: 'Professional trading bot monitoring and analytics dashboard',
   icons: {
     icon: '/favicon.ico',
   },
@@ -31,7 +33,11 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased font-sans`}
       >
-        <QueryProvider>{children}</QueryProvider>
+        <QueryProvider>
+          <SidebarProvider>
+            <AppShell>{children}</AppShell>
+          </SidebarProvider>
+        </QueryProvider>
       </body>
     </html>
   );
