@@ -11,7 +11,7 @@ interface TradeTableProps {
   onInspect: (signal: TradingSignal) => void;
 }
 
-type SortKey = 'date' | 'symbol' | 'side' | 'status' | 'entry' | 'exit' | 'score' | 'rr' | 'pnl';
+type SortKey = 'date' | 'symbol' | 'side' | 'status' | 'zone' | 'model' | 'session' | 'entry' | 'exit' | 'slPips' | 'score' | 'rr' | 'pnl';
 type SortDir = 'asc' | 'desc';
 
 const COLUMNS: { key: SortKey; label: string; align?: string }[] = [
@@ -19,8 +19,12 @@ const COLUMNS: { key: SortKey; label: string; align?: string }[] = [
   { key: 'symbol', label: 'Symbol' },
   { key: 'side', label: 'Side' },
   { key: 'status', label: 'Status' },
+  { key: 'zone', label: 'Zone' },
+  { key: 'model', label: 'Model' },
+  { key: 'session', label: 'Session' },
   { key: 'entry', label: 'Entry' },
   { key: 'exit', label: 'Exit' },
+  { key: 'slPips', label: 'SL Pips' },
   { key: 'score', label: 'AI' },
   { key: 'rr', label: 'R:R' },
   { key: 'pnl', label: 'PnL' },
@@ -36,10 +40,18 @@ function getSortValue(signal: TradingSignal, key: SortKey): number | string {
       return signal.side || '';
     case 'status':
       return signal.status || '';
+    case 'zone':
+      return signal.zone_type || '';
+    case 'model':
+      return signal.entry_model || '';
+    case 'session':
+      return signal.session ?? -1;
     case 'entry':
       return signal.price ?? signal.entry ?? 0;
     case 'exit':
       return signal.exit_price ?? 0;
+    case 'slPips':
+      return signal.sl_pips ?? 0;
     case 'score':
       return getScore(signal) ?? -1;
     case 'rr':

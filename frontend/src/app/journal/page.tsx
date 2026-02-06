@@ -38,12 +38,16 @@ export default function JournalPage() {
         const status = (s.status || '').toLowerCase();
         const notes = (getNotes(s) || '').toLowerCase();
         const mode = (s.mode || s.run_mode || '').toLowerCase();
+        const model = (s.entry_model || '').toLowerCase();
+        const zone = (s.zone_type || '').toLowerCase();
         if (
           !sym.includes(q) &&
           !side.includes(q) &&
           !status.includes(q) &&
           !notes.includes(q) &&
-          !mode.includes(q)
+          !mode.includes(q) &&
+          !model.includes(q) &&
+          !zone.includes(q)
         ) {
           return false;
         }

@@ -21,6 +21,14 @@ const statusColors: Record<string, string> = {
   failed: 'text-red-400 bg-red-500/10',
 };
 
+const SESSION_LABELS: Record<number, string> = { 0: 'Asia', 1: 'LDN', 2: 'NY', 3: 'Off' };
+const SESSION_COLORS: Record<number, string> = {
+  0: 'text-purple-400 bg-purple-500/10',
+  1: 'text-blue-400 bg-blue-500/10',
+  2: 'text-amber-400 bg-amber-500/10',
+  3: 'text-zinc-500 bg-zinc-700/30',
+};
+
 function parseAI(signal: TradingSignal): AIReasoning | null {
   if (!signal.ai_reasoning) return null;
   if (typeof signal.ai_reasoning === 'string') {
@@ -42,6 +50,14 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
   const sl = signal.stop_loss ?? signal.sl;
   const tp = signal.take_profit ?? signal.tp;
   const statusClass = statusColors[signal.status?.toLowerCase() || ''] || 'text-zinc-400 bg-zinc-700/30';
+
+  // Zone / model / session from top-level signal fields, AI reasoning as fallback
+  const zoneType = signal.zone_type || ai?.zone_type;
+  const zoneGrade = signal.zone_grade || ai?.zone_grade;
+  const entryModel = signal.entry_model || ai?.entry_model;
+  const session = signal.session ?? ai?.session;
+  const slPips = signal.sl_pips;
+  const trend = signal.trend ?? ai?.trend;
 
   return (
     <>
@@ -71,12 +87,55 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
             {(signal.status || '').toUpperCase().replace('_', ' ')}
           </span>
         </td>
+
+        {/* Zone (type + grade) */}
+        <td className="py-2.5 px-3">
+          {zoneType ? (
+            <span className={cn(
+              'font-mono text-[10px] px-1.5 py-0.5 rounded',
+              zoneType.toLowerCase() === 'demand' ? 'text-emerald-400 bg-emerald-500/10' : 'text-rose-400 bg-rose-500/10'
+            )}>
+              {zoneType.toUpperCase().slice(0, 1)}{zoneGrade ? ` ${zoneGrade}` : ''}
+            </span>
+          ) : (
+            <span className="text-zinc-600 text-[11px]">--</span>
+          )}
+        </td>
+
+        {/* Entry Model */}
+        <td className="py-2.5 px-3">
+          {entryModel ? (
+            <span className="font-mono text-[10px] text-zinc-300 px-1.5 py-0.5 rounded bg-zinc-700/40">
+              {entryModel.toUpperCase()}
+            </span>
+          ) : (
+            <span className="text-zinc-600 text-[11px]">--</span>
+          )}
+        </td>
+
+        {/* Session */}
+        <td className="py-2.5 px-3">
+          {session != null ? (
+            <span className={cn('font-mono text-[10px] px-1.5 py-0.5 rounded', SESSION_COLORS[session] || SESSION_COLORS[3])}>
+              {SESSION_LABELS[session] || '--'}
+            </span>
+          ) : (
+            <span className="text-zinc-600 text-[11px]">--</span>
+          )}
+        </td>
+
         <td className="py-2.5 px-3 font-mono text-[11px] text-zinc-400">
           {entry != null ? entry.toFixed(symbol.includes('JPY') ? 3 : symbol.includes('BTC') || symbol.includes('XAU') ? 2 : 5) : '--'}
         </td>
         <td className="py-2.5 px-3 font-mono text-[11px] text-zinc-400">
           {signal.exit_price != null ? signal.exit_price.toFixed(symbol.includes('JPY') ? 3 : symbol.includes('BTC') || symbol.includes('XAU') ? 2 : 5) : '--'}
         </td>
+
+        {/* SL Pips */}
+        <td className="py-2.5 px-3 font-mono text-[11px] text-zinc-400">
+          {slPips != null ? slPips.toFixed(1) : '--'}
+        </td>
+
         <td className="py-2.5 px-3">
           {score != null ? (
             <span
@@ -121,7 +180,7 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
       {/* Expanded Detail Row */}
       {expanded && (
         <tr className="border-b border-[#2a2e39] bg-[#1a1e28]">
-          <td colSpan={10} className="p-4">
+          <td colSpan={14} className="p-4">
             <div className="grid grid-cols-3 gap-6">
               {/* Technical Setup */}
               <div className="space-y-2">
@@ -145,6 +204,12 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
                     <span className="text-zinc-500">Position Size</span>
                     <span className="font-mono text-zinc-300">{signal.position_size ?? '--'} lots</span>
                   </div>
+                  {signal.rr_ratio != null && (
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">R:R</span>
+                      <span className="font-mono text-zinc-300">1:{signal.rr_ratio.toFixed(1)}</span>
+                    </div>
+                  )}
                   {signal.exit_type && (
                     <div className="flex justify-between">
                       <span className="text-zinc-500">Exit Type</span>
@@ -168,16 +233,18 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
                   AI Analysis
                 </span>
                 <div className="space-y-1.5 text-[11px]">
-                  {ai?.zone_type && (
+                  {zoneType && (
                     <div className="flex justify-between">
                       <span className="text-zinc-500">Zone</span>
-                      <span className="font-mono text-zinc-300">{ai.zone_type.toUpperCase()} {ai.zone_grade || ''}</span>
+                      <span className={cn('font-mono', zoneType.toLowerCase() === 'demand' ? 'text-emerald-400' : 'text-rose-400')}>
+                        {zoneType.toUpperCase()} {zoneGrade || ''}
+                      </span>
                     </div>
                   )}
-                  {ai?.entry_model && (
+                  {entryModel && (
                     <div className="flex justify-between">
                       <span className="text-zinc-500">Model</span>
-                      <span className="font-mono text-zinc-300">{ai.entry_model}</span>
+                      <span className="font-mono text-zinc-300">{entryModel.toUpperCase()}</span>
                     </div>
                   )}
                   {ai?.decision && (
@@ -186,6 +253,42 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
                       <span className={cn('font-mono font-semibold', ai.decision === 'GO' ? 'text-emerald-400' : 'text-rose-400')}>
                         {ai.decision}
                       </span>
+                    </div>
+                  )}
+                  {ai?.rf_prob != null && (
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">RF Prob</span>
+                      <span className={cn(
+                        'font-mono font-semibold',
+                        ai.rf_prob >= 0.7 ? 'text-emerald-400' : ai.rf_prob >= 0.5 ? 'text-amber-400' : 'text-rose-400'
+                      )}>
+                        {(ai.rf_prob * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                  )}
+                  {(signal.liq_swept != null || ai?.liquidity_swept != null) && (
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Liq Swept</span>
+                      <span className={cn('font-mono', (signal.liq_swept ?? ai?.liquidity_swept) ? 'text-emerald-400' : 'text-rose-400')}>
+                        {(signal.liq_swept ?? ai?.liquidity_swept) ? 'YES' : 'NO'}
+                      </span>
+                    </div>
+                  )}
+                  {trend != null && (
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">Trend</span>
+                      <span className={cn('font-mono', trend === 1 ? 'text-emerald-400' : 'text-rose-400')}>
+                        {trend === 1 ? 'BULL' : 'BEAR'}
+                      </span>
+                    </div>
+                  )}
+                  {signal.rsi != null && (
+                    <div className="flex justify-between">
+                      <span className="text-zinc-500">RSI</span>
+                      <span className={cn(
+                        'font-mono text-zinc-300',
+                        signal.rsi > 70 ? 'text-rose-400' : signal.rsi < 30 ? 'text-emerald-400' : ''
+                      )}>{signal.rsi.toFixed(1)}</span>
                     </div>
                   )}
                   {notes && (

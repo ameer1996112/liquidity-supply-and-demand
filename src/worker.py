@@ -144,6 +144,50 @@ def _build_ml_rejection_reasoning(payload: Dict, win_prob: float, features_used:
     return reasoning
 
 
+def _validate_flip_timing(payload: Dict[str, Any]) -> Optional[str]:
+    """Validate FLIP entry timing: bar_time minutes must be at 15-min boundary (00/15/30/45).
+
+    Returns None if valid or not a FLIP entry, error message if invalid.
+    Fail-open: missing bar_time or parse errors allow the trade through.
+    """
+    entry_model = str(payload.get("entry_model", "")).strip()
+    if not entry_model or "flip" not in entry_model.lower():
+        return None
+
+    bar_time = payload.get("bar_time")
+    if not bar_time:
+        logger.warning("FLIP entry but no bar_time in payload — allowing (no data to validate)")
+        return None
+
+    try:
+        from datetime import datetime as _dt
+
+        if not isinstance(bar_time, str):
+            logger.warning("bar_time is not a string (%s) — skipping FLIP timing check", type(bar_time))
+            return None
+
+        cleaned = bar_time.replace("+00:00", "").replace("Z", "").split("+")[0].split("-0")[0] if "T" in bar_time else bar_time
+        for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%d %H:%M:%S"):
+            try:
+                dt = _dt.strptime(cleaned, fmt)
+                break
+            except ValueError:
+                continue
+        else:
+            from dateutil.parser import parse as _parse_dt
+            dt = _parse_dt(bar_time)
+
+        if dt.minute not in {0, 15, 30, 45}:
+            return (
+                f"FLIP entry rejected: bar_time {bar_time} has minute={dt.minute}, "
+                f"but FLIP entries require 15-min boundaries (00/15/30/45)"
+            )
+        return None
+    except Exception as e:
+        logger.warning("FLIP timing validation error: %s — allowing trade (fail-open)", e)
+        return None
+
+
 def process_trade(payload: Dict[str, Any]):
     symbol = payload.get("symbol", "UNKNOWN")
     side = payload.get("side", "buy")
@@ -184,6 +228,16 @@ def process_trade(payload: Dict[str, Any]):
             logger.error("Correlation guard crashed: %s", e)
             save_result(payload, "correlation_rejected", f"DB Error: {str(e)[:50]}", 0.0)
             return
+
+    # ------------------------------------------------------------------
+    # FLIP Entry Timing Validation
+    # FLIP entries must occur at 15-minute candle boundaries (xx:00/15/30/45)
+    # ------------------------------------------------------------------
+    flip_error = _validate_flip_timing(payload)
+    if flip_error:
+        save_result(payload, "filtered", flip_error, 0.0)
+        logger.warning("FLIP TIMING REJECTED: %s", flip_error)
+        return
 
     # ------------------------------------------------------------------
     # Ensemble Brain decision (RF + RAG + LLM)
