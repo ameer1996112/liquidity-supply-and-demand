@@ -138,6 +138,55 @@ def health():
     return {"status": "ok", "service": "api"}
 
 
+# ---------------------------------------------------------------------------
+# AI / ML Configuration endpoint
+# ---------------------------------------------------------------------------
+
+@app.get("/config/ai")
+def get_ai_config():
+    """Return current AI/ML/RAG configuration (read-only)."""
+    s = get_settings()
+    return {
+        "ai": {
+            "ai_filter_enabled": s.ai_filter_enabled,
+            "ai_provider": s.ai_provider,
+            "ai_model": s.ai_model,
+            "ai_base_url": s.ai_base_url,
+            "ai_min_confidence": s.ai_min_confidence,
+            "ai_timeout_seconds": s.ai_timeout_seconds,
+            "ai_api_key_set": bool(s.ai_api_key.get_secret_value()),
+        },
+        "ml": {
+            "ml_guardian_enabled": s.ml_guardian_enabled,
+            "ml_min_confidence": s.ml_min_confidence,
+        },
+        "ensemble": {
+            "enable_llm_filter": s.enable_llm_filter,
+            "run_shadow_mode": s.run_shadow_mode,
+        },
+        "execution": {
+            "execution_mode": s.execution_mode,
+            "run_mode": s.run_mode,
+            "live_trading_enabled": s.live_trading_enabled,
+            "live_shadow": s.live_shadow,
+            "trading_kill_switch": s.trading_kill_switch,
+            "meta_api_configured": bool(s.meta_api_token and s.meta_api_account_id),
+            "meta_api_region": s.meta_api_region,
+        },
+        "risk": {
+            "trinity_enabled": s.trinity_enabled,
+            "trinity_max_daily_loss_pct": s.trinity_max_daily_loss_pct,
+            "trinity_max_drawdown_pct": s.trinity_max_drawdown_pct,
+            "trinity_max_risk_per_trade_pct": s.trinity_max_risk_per_trade_pct,
+            "trinity_max_positions": s.trinity_max_positions,
+            "risk_percent": s.risk_percent,
+            "account_balance": s.account_balance,
+            "enable_risk_scaling": s.enable_risk_scaling,
+            "risk_mode": s.risk_mode,
+        },
+    }
+
+
 @app.post("/webhook")
 async def webhook(payload: dict[str, Any] = Depends(get_webhook_payload)):
     payload_str = json.dumps(payload)
