@@ -5,6 +5,7 @@ import { SignalInspector } from '@/components/SignalInspector';
 import { ActiveTradesPanel } from '@/components/dashboard/ActiveTradesPanel';
 import { RecentSignalsPanel } from '@/components/dashboard/RecentSignalsPanel';
 import { MiniEquityChart } from '@/components/dashboard/MiniEquityChart';
+import { EvaluationDashboard } from '@/components/evaluation/EvaluationDashboard';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TradingSignal, TradingMode } from '@/types/trading';
 import { Radio, FlaskConical } from 'lucide-react';
@@ -64,12 +65,13 @@ export default function DashboardPage() {
 
       {/* 2-Panel Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-[calc(100%-3rem)]">
-        {/* Left Panel: Active Trades + Equity Chart */}
-        <div className="flex flex-col gap-4">
+        {/* Left Panel: Active Trades + Equity Chart + Evaluation */}
+        <div className="flex flex-col gap-4 overflow-y-auto">
           <div className="flex-1 min-h-0">
             <ActiveTradesPanel mode={activeMode} onSelectSignal={handleSelectSignal} />
           </div>
           <MiniEquityChart mode={activeMode} />
+          <EvaluationDashboard />
         </div>
 
         {/* Right Panel: Recent Signals Table */}

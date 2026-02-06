@@ -135,6 +135,30 @@ class Settings(BaseSettings):
     us30_point_value: float = Field(default=1.0, ge=0.1, le=100.0)
     nas100_point_value: float = Field(default=1.0, ge=0.1, le=100.0)
 
+    # ── Evaluation Mode (Prop Firm Challenge Tracking) ──────────────────────
+    evaluation_mode: bool = Field(default=False, description="Enable prop firm evaluation tracking")
+    evaluation_phase: Literal["phase1", "phase2", "funded"] = Field(default="phase1", description="Current evaluation phase")
+    evaluation_start_date: str = Field(default="", description="ISO datetime when evaluation started (YYYY-MM-DD)")
+
+    # Phase 1 Rules (FTMO/MyFundedFX style)
+    phase1_profit_target: float = Field(default=5000.0, ge=0.0, description="Phase 1 profit target ($)")
+    phase1_max_daily_loss: float = Field(default=500.0, ge=0.0, description="Phase 1 max daily loss ($)")
+    phase1_max_drawdown_pct: float = Field(default=5.0, ge=0.0, le=100.0, description="Phase 1 max drawdown (%)")
+    phase1_min_trading_days: int = Field(default=4, ge=0, description="Phase 1 minimum trading days")
+
+    # Phase 2 Rules
+    phase2_profit_target: float = Field(default=2500.0, ge=0.0, description="Phase 2 profit target ($)")
+    phase2_max_daily_loss: float = Field(default=500.0, ge=0.0, description="Phase 2 max daily loss ($)")
+    phase2_max_drawdown_pct: float = Field(default=5.0, ge=0.0, le=100.0, description="Phase 2 max drawdown (%)")
+    phase2_min_trading_days: int = Field(default=4, ge=0, description="Phase 2 minimum trading days")
+
+    # Funded Account Rules
+    funded_max_daily_loss: float = Field(default=500.0, ge=0.0, description="Funded account max daily loss ($)")
+    funded_max_drawdown_pct: float = Field(default=10.0, ge=0.0, le=100.0, description="Funded account trailing drawdown (%)")
+
+    # Consistency Rule
+    consistency_target_pct: float = Field(default=70.0, ge=0.0, le=100.0, description="Consistency target (% of profitable days)")
+
 
 @lru_cache
 def get_settings() -> Settings:

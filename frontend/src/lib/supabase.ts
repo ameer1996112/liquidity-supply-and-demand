@@ -210,13 +210,27 @@ export async function fetchSignalStats(): Promise<SignalStats> {
     if (supabase) {
       const { data: allClosed } = await supabase
         .from('trading_signals')
-        .select('pnl, pnl_usd')
+        .select('pnl, pnl_usd, entry, exit_price, price, position_size, side')
         .in('status', ['closed', 'executed']);
 
       if (allClosed) {
         totalPnl = allClosed.reduce((sum, s) => {
-          const p = getPnlUsd(s as TradingSignal);
-          return sum + p;
+          // Try pnl_usd first, then pnl, then calculate from entry/exit
+          const pnlUsd = s.pnl_usd ?? s.pnl;
+          if (pnlUsd != null) {
+            return sum + pnlUsd;
+          }
+
+          // Fallback: calculate from entry/exit prices
+          const entry = s.entry ?? s.price;
+          const exit = s.exit_price;
+          if (entry != null && exit != null && s.position_size) {
+            const side = String(s.side || 'buy').toLowerCase();
+            const diff = side === 'buy' ? exit - entry : entry - exit;
+            return sum + (diff * s.position_size);
+          }
+
+          return sum;
         }, 0);
       }
     }
