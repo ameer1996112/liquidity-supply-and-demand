@@ -214,7 +214,7 @@ export async function fetchSignalStats(): Promise<SignalStats> {
         .in('status', ['closed', 'executed']);
 
       if (allClosed) {
-        totalPnl = allClosed.reduce((sum, s) => {
+        totalPnl = allClosed.reduce((sum, s: any) => {
           // Try pnl_usd first, then pnl, then calculate from entry/exit
           const pnlUsd = s.pnl_usd ?? s.pnl;
           if (pnlUsd != null) {
