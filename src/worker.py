@@ -123,26 +123,27 @@ def _payload_zone_and_metrics(payload: Dict[str, Any]) -> tuple[Dict[str, Any], 
     def _f(k: str, default=None):
         return payload.get(k) if payload.get(k) is not None else payload.get(f"F:{k}", default)
 
-    # Top-level columns for trading_signals (match save_alert / frontend fallbacks)
-    columns = {}
-    for key in (
-        "zone_id", "zone_type", "zone_grade", "zone_top", "zone_bottom", "zone_size_pips",
+    # Top-level columns for trading_signals (only keys that exist in schema - no zone_grade column)
+    schema_zone_metrics = (
+        "zone_id", "zone_type", "zone_top", "zone_bottom", "zone_size_pips",
         "entry_model", "score", "freshness", "session", "atr_ratio", "trend", "htf_trend",
         "rsi", "rvol", "adx", "touch_count", "base_quality", "departure_strength",
         "liquidity_distance", "liquidity_spread", "return_strength",
-    ):
-        val = _f(key) if key != "zone_grade" else (payload.get("zone_grade") or payload.get("grade"))
+    )
+    columns = {}
+    for key in schema_zone_metrics:
+        val = _f(key)
         if val is not None:
             columns[key] = val
     for key in ("liq_swept", "target_swept", "caused_sweep", "is_accuracy"):
         if payload.get(key) is not None:
             columns[key] = bool(payload[key])
 
-    # ai_reasoning shape for Signal Inspector (Zone Analysis + AI Metrics)
+    # ai_reasoning shape for Signal Inspector (zone_grade lives only in JSON, not a DB column)
     reason = {
         "zone_id": columns.get("zone_id"),
         "zone_type": columns.get("zone_type"),
-        "zone_grade": columns.get("zone_grade"),
+        "zone_grade": payload.get("zone_grade") or payload.get("grade"),
         "zone_score": columns.get("score"),
         "entry_model": columns.get("entry_model"),
         "liquidity_swept": columns.get("liq_swept"),
