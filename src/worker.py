@@ -336,6 +336,20 @@ def process_trade(payload: Dict[str, Any]):
 
     s = get_settings()
 
+    # ── Invalid size (e.g. TradingView sent size=0) ─────────────────────
+    if size <= 0 or not isinstance(payload.get("size"), (int, float)):
+        save_result(
+            payload,
+            "filtered",
+            f"Position size must be positive (got size={payload.get('size')})",
+            0.0,
+        )
+        logger.warning(
+            "SIZE REJECTED: size=%s (must be > 0). Check TradingView alert / Pine position sizing.",
+            payload.get("size"),
+        )
+        return
+
     # ── Kill Switch (env var + Redis key from UI) ────────────
     redis_kill = False
     try:
