@@ -27,6 +27,8 @@ export function ConnectionStatus() {
       setServices((prev) => prev.map((s, i) => (i === index ? { ...s, status, detail } : s)));
     };
 
+    let channel: ReturnType<NonNullable<typeof supabase>['channel']> | null = null;
+
     // 1. Test Supabase DB
     if (!supabase) {
       update(0, 'offline', 'Supabase not configured (missing env vars)');
@@ -51,7 +53,7 @@ export function ConnectionStatus() {
         });
 
       // 2. Test Realtime
-      const channel = client
+      channel = client
         .channel('settings-health-check')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'trading_signals' }, () => {})
         .subscribe((status, err) => {
@@ -63,13 +65,9 @@ export function ConnectionStatus() {
             update(1, 'offline', 'Channel closed');
           }
         });
-
-      return () => {
-        client.removeChannel(channel);
-      };
     }
 
-    // 3. Test Railway Backend API
+    // 3. Test Railway Backend API (always runs, independent of Supabase)
     const healthUrl = getHealthUrl();
     if (!healthUrl) {
       update(2, 'offline', 'NEXT_PUBLIC_API_URL not configured');
@@ -91,6 +89,12 @@ export function ConnectionStatus() {
           update(2, 'offline', `Cannot reach ${healthUrl}`);
         });
     }
+
+    return () => {
+      if (channel && supabase) {
+        supabase.removeChannel(channel);
+      }
+    };
   }, []);
 
   const statusColor = (status: Status) => {
