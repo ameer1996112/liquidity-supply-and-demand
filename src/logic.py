@@ -4,6 +4,7 @@ Save to Supabase, filter or notify, optional paper position. Used only by worker
 """
 
 import logging
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Tuple, Optional
 
@@ -88,8 +89,11 @@ def process_trade(
         logger.info("Exit recorded: zone_id=%s, outcome=%s", data["zone_id"], data["outcome"])
         log_event(None, "exit_processed", "logic", {"zone_id": data["zone_id"], "outcome": data["outcome"]})
 
-        # 2) Live broker close via execution adapter (MetaApi) if enabled
-        if getattr(s, "live_trading_enabled", False):
+        # 2) Broker close: only for LIVE signals with live_trading_enabled
+        exit_run_mode = str(data.get("run_mode", "PAPER")).upper()
+        if exit_run_mode == "PAPER":
+            logger.info("PAPER exit — skipping broker close for zone_id=%s", data["zone_id"])
+        elif getattr(s, "live_trading_enabled", False):
             try:
                 adapter = get_adapter(run_mode=s.run_mode, settings=s)
 
@@ -141,14 +145,11 @@ def process_trade(
         return
 
     symbol = str(data.get("symbol", "")).upper()
+    run_mode = str(data.get("run_mode", "PAPER")).upper()
+    logger.info("Signal: %s | Mode: %s", symbol, run_mode)
+
     should_forward, filter_reasons, _ = should_forward_alert(data)
-    mode = "manual"
-    if s.paper_trading_enabled and s.paper_auto_execute:
-        paper_symbols = [x.strip() for x in s.paper_symbols.split(",") if x.strip()]
-        if not paper_symbols or symbol in paper_symbols:
-            pt = _get_paper_trader_instance()
-            if len(pt.get_open_positions()) < s.paper_max_positions:
-                mode = "paper"
+    mode = "paper" if run_mode == "PAPER" else "manual"
 
     alert_id = save_alert(data, mode=mode, filter_reasons=filter_reasons if not should_forward else None)
     log_event(alert_id, "alert_saved", "logic", {"symbol": symbol, "mode": mode})
@@ -159,17 +160,24 @@ def process_trade(
         logger.info("Alert #%s filtered: %s", alert_id, reason_str)
         return
 
-    if mode == "paper" and not dry_run:
-        pt = _get_paper_trader_instance()
-        entry = float(data["entry"])
-        sl = float(data["sl"])
-        tp = float(data["tp"])
-        size = float(data.get("size", 0.01))
-        risk = abs(entry - sl)
-        reward = abs(tp - entry)
-        rr_ratio = reward / risk if risk > 0 else 0
-        pt.open_position(alert_id, symbol, str(data["side"]).lower(), entry, sl, tp, size, rr_ratio)
-        logger.info("Paper position #%s opened", alert_id)
+    if run_mode == "PAPER":
+        # ── PAPER: simulate execution, skip broker ─────────────────────
+        mock_broker_id = f"paper_{uuid.uuid4().hex[:8]}"
+        logger.info("Simulating PAPER execution for %s (broker_id=%s)", symbol, mock_broker_id)
+        try:
+            supabase_module.init_supabase()
+            client = supabase_module.supabase
+            if client:
+                client.table("trading_signals").update({
+                    "status": "executed",
+                    "broker_order_id": mock_broker_id,
+                    "entry_time": datetime.now(timezone.utc).isoformat(),
+                }).eq("id", alert_id).execute()
+            log_event(alert_id, "paper_executed", "logic", {
+                "broker_order_id": mock_broker_id, "symbol": symbol,
+            })
+        except Exception as e:
+            logger.error("Failed to update paper broker_order_id for alert #%s: %s", alert_id, e)
     elif dry_run:
         logger.info("DRY_RUN: Alert #%s saved, no order placed", alert_id)
     else:

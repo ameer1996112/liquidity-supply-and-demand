@@ -71,6 +71,16 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
         </td>
         <td className="py-2.5 px-3">
           <span className="font-mono text-xs font-semibold text-zinc-200">{symbol}</span>
+          {(() => {
+            const runMode = (signal.run_mode || signal.mode || '').toUpperCase();
+            if (runMode === 'LIVE') return (
+              <span className="ml-1.5 font-mono text-[9px] font-bold px-1 py-0.5 rounded bg-rose-500/15 text-rose-400">LIVE</span>
+            );
+            if (runMode === 'PAPER') return (
+              <span className="ml-1.5 font-mono text-[9px] font-bold px-1 py-0.5 rounded bg-blue-500/15 text-blue-400">PAPER</span>
+            );
+            return null;
+          })()}
         </td>
         <td className="py-2.5 px-3">
           <span

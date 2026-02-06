@@ -204,6 +204,11 @@ def get_ai_config():
 
 @app.post("/webhook")
 async def webhook(payload: dict[str, Any] = Depends(get_webhook_payload)):
+    # Safety default: treat signals without explicit run_mode as PAPER
+    payload.setdefault("run_mode", "PAPER")
+    symbol = payload.get("symbol", payload.get("zone_id", "N/A"))
+    run_mode = payload["run_mode"]
+    logger.info("Signal: %s | Mode: %s", symbol, run_mode)
     payload_str = json.dumps(payload)
     push_payload(payload_str)
     logger.info("Queued payload (len=%d)", len(payload_str))

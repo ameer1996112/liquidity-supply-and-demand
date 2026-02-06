@@ -63,9 +63,12 @@ function getSortValue(signal: TradingSignal, key: SortKey): number | string {
   }
 }
 
+type ModeFilter = 'all' | 'LIVE' | 'PAPER';
+
 export function TradeTable({ signals, onInspect }: TradeTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>('date');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [modeFilter, setModeFilter] = useState<ModeFilter>('all');
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -76,8 +79,16 @@ export function TradeTable({ signals, onInspect }: TradeTableProps) {
     }
   };
 
+  const filtered = useMemo(() => {
+    if (modeFilter === 'all') return signals;
+    return signals.filter((s) => {
+      const mode = (s.run_mode || s.mode || '').toUpperCase();
+      return mode === modeFilter;
+    });
+  }, [signals, modeFilter]);
+
   const sorted = useMemo(() => {
-    return [...signals].sort((a, b) => {
+    return [...filtered].sort((a, b) => {
       const aVal = getSortValue(a, sortKey);
       const bVal = getSortValue(b, sortKey);
       const cmp = typeof aVal === 'string' && typeof bVal === 'string'
@@ -85,7 +96,7 @@ export function TradeTable({ signals, onInspect }: TradeTableProps) {
         : Number(aVal) - Number(bVal);
       return sortDir === 'asc' ? cmp : -cmp;
     });
-  }, [signals, sortKey, sortDir]);
+  }, [filtered, sortKey, sortDir]);
 
   if (signals.length === 0) {
     return (
@@ -97,6 +108,32 @@ export function TradeTable({ signals, onInspect }: TradeTableProps) {
 
   return (
     <div className="tv-card overflow-hidden">
+      {/* Mode Filter Toggle */}
+      <div className="flex items-center gap-1 px-3 py-2 border-b border-[#2a2e39]">
+        {(['all', 'LIVE', 'PAPER'] as ModeFilter[]).map((mode) => (
+          <button
+            key={mode}
+            onClick={() => setModeFilter(mode)}
+            className={cn(
+              'font-mono text-[10px] px-2.5 py-1 rounded transition-colors',
+              modeFilter === mode
+                ? mode === 'LIVE'
+                  ? 'bg-emerald-500/20 text-emerald-400'
+                  : mode === 'PAPER'
+                    ? 'bg-blue-500/20 text-blue-400'
+                    : 'bg-zinc-700/50 text-zinc-300'
+                : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'
+            )}
+          >
+            {mode === 'all' ? 'All' : mode === 'LIVE' ? 'Live Only' : 'Paper Only'}
+          </button>
+        ))}
+        {modeFilter !== 'all' && (
+          <span className="ml-2 text-[10px] text-zinc-600 font-mono">
+            {filtered.length}/{signals.length}
+          </span>
+        )}
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
