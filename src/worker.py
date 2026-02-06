@@ -16,9 +16,15 @@ _root = Path(__file__).resolve().parent.parent
 load_dotenv(_root / ".env")
 
 from config import get_settings
-from src.adapters.redis_queue import QUEUE_NAME, get_redis
+from src.adapters.redis_queue import QUEUE_NAME, get_redis, push_dead_letter
 from src.ai.brain import ensemble_decision, get_prediction, load_brain
 from src.core.risk_engine import calculate_max_position_size as _calculate_max_position_size_impl
+from src.core.guard_rails.correlation import (
+    create_correlation_manager_from_settings,
+    get_active_positions_from_db,
+)
+from src.core.guard_rails.prop_guard import check_safety
+from src.services.trade_events import log_event
 from src import logic
 from src.services.watchdog import TradeWatchdog
 
@@ -29,10 +35,11 @@ MAX_OPEN_POSITIONS = 3
 ML_MIN_CONFIDENCE = 0.50
 
 supabase = None
+correlation_manager = None
 
 
 def init_connections():
-    global supabase
+    global supabase, correlation_manager
     r = get_redis()
     s = get_settings()
     key = (s.supabase_service_role_key or s.supabase_key).strip()
@@ -42,6 +49,12 @@ def init_connections():
         logger.info("Supabase connected")
     else:
         logger.warning("Supabase credentials missing - logging disabled")
+
+    try:
+        correlation_manager = create_correlation_manager_from_settings()
+        logger.info("CorrelationManager initialized")
+    except Exception as exc:
+        logger.warning("CorrelationManager init failed (fallback to simple count): %s", exc)
 
 
 def _exists_trade_key(trade_key: str) -> bool:
@@ -87,10 +100,12 @@ def _max_position_size(payload: Dict[str, Any]) -> float:
             symbol_overrides.get("max_lot_size"),
         )
         payload["_symbol_overrides"] = symbol_overrides
+    risk_multiplier = float(payload.get("_risk_multiplier", 1.0))
     return _calculate_max_position_size_impl(
         payload,
         account_balance=float(payload.get("account_balance", s.account_balance)),
         risk_percent=float(payload.get("risk_percent", s.risk_percent)),
+        risk_multiplier=risk_multiplier,
         symbol_overrides=symbol_overrides,
     )
 
@@ -320,15 +335,45 @@ def process_trade(payload: Dict[str, Any]):
     logger.info("Processing: %s | %s | Size: %s", symbol, side.upper(), size)
 
     s = get_settings()
-    if getattr(s, "trading_kill_switch", False):
+
+    # ── Kill Switch (env var + Redis key from UI) ────────────
+    redis_kill = False
+    try:
+        redis_kill = get_redis().get("trading:kill_switch") == "1"
+    except Exception:
+        pass
+    if getattr(s, "trading_kill_switch", False) or redis_kill:
         save_result(payload, "kill_switch_blocked", "Trading kill-switch is ON", 0.0)
+        log_event(None, "kill_switch_blocked", "worker", {"symbol": symbol})
         logger.warning("KILL-SWITCH: execution blocked")
         return
 
+    # ── Idempotency ──────────────────────────────────────────
     signal_id = payload.get("signal_id") or payload.get("trade_key")
     if signal_id and _exists_trade_key(signal_id):
+        log_event(None, "idempotency_skip", "worker", {"signal_id": signal_id})
         logger.info("Idempotency: signal_id/trade_key already exists, skipping")
         return
+
+    # ── PropGuard: Step-Up Risk Scaling ──────────────────────
+    daily_pnl = 0.0
+    if supabase:
+        try:
+            from datetime import date, datetime
+            today_start = datetime.combine(date.today(), datetime.min.time()).isoformat()
+            pnl_resp = supabase.table("trading_signals").select("pnl_usd").eq("status", "closed").gte("created_at", today_start).execute()
+            daily_pnl = sum(float(t.get("pnl_usd") or 0) for t in (pnl_resp.data or []))
+        except Exception:
+            pass
+    current_equity = s.account_balance + daily_pnl
+    allowed, risk_multiplier, risk_label = check_safety(current_equity, s.account_balance, daily_pnl)
+    if not allowed:
+        save_result(payload, "risk_rejected", f"PropGuard: {risk_label}", 0.0)
+        log_event(None, "prop_guard_blocked", "worker", {"label": risk_label, "daily_pnl": daily_pnl})
+        logger.warning("PROP GUARD BLOCKED: %s", risk_label)
+        return
+    logger.info("PropGuard: %s (multiplier=%.2f)", risk_label, risk_multiplier)
+    payload["_risk_multiplier"] = risk_multiplier
 
     # Pre-flight risk estimate (config balance — actual cap with live balance is in logic.py)
     max_allowed_size = _max_position_size(payload)
@@ -340,11 +385,26 @@ def process_trade(payload: Dict[str, Any]):
             round(max_allowed_size, 2),
         )
 
-    if supabase:
+    # ── Correlation Guard (full portfolio check) ─────────────
+    if correlation_manager:
         try:
-            active = supabase.table("trading_signals").select("id").eq("status", "active").execute()
+            active_positions = get_active_positions_from_db()
+            corr_result = correlation_manager.check(symbol=symbol, side=side, active_positions=active_positions)
+            logger.info("Correlation Check: %s/%s active", len(active_positions), s.trinity_max_positions)
+            if not corr_result.passed:
+                save_result(payload, "correlation_rejected", corr_result.rejection_message, 0.0)
+                log_event(None, "correlation_rejected", "worker", {"reason": corr_result.rejection_message})
+                logger.warning("CORRELATION REJECTED: %s", corr_result.rejection_message)
+                return
+        except Exception as e:
+            logger.error("Correlation guard crashed: %s", e)
+            save_result(payload, "correlation_rejected", f"DB Error: {str(e)[:50]}", 0.0)
+            return
+    elif supabase:
+        try:
+            active = supabase.table("trading_signals").select("id").in_("status", ["active", "executed"]).execute()
             active_count = len(active.data)
-            logger.info("Correlation Check: %s/%s active", active_count, MAX_OPEN_POSITIONS)
+            logger.info("Correlation Check (simple): %s/%s active", active_count, MAX_OPEN_POSITIONS)
             if active_count >= MAX_OPEN_POSITIONS:
                 save_result(payload, "correlation_rejected", f"Bucket Full ({active_count}/{MAX_OPEN_POSITIONS})", 0.0)
                 logger.warning("CORRELATION REJECTED: bucket full")
@@ -438,7 +498,10 @@ def process_trade(payload: Dict[str, Any]):
                 float(ai_result.get("rf_prob", 0.0)),
                 ai_reasoning=ai_result,
             )
+            log_event(None, "ai_rejected", "worker", {"symbol": symbol, "reason": ai_result.get("reason", "")[:200]})
             return
+
+    log_event(None, "ai_approved", "worker", {"symbol": symbol, "rf_prob": ai_result.get("rf_prob")})
 
     # If we reach here, either AI said GO or shadow mode is allowing it.
     # Attach AI reasoning to the payload so it is persisted with the entry row.
@@ -455,11 +518,13 @@ def process_trade(payload: Dict[str, Any]):
         dry_run = not getattr(s, "live_trading_enabled", False)
         if dry_run:
             logger.info("DRY_RUN: LIVE_TRADING=false — saving alert + notify only")
+        log_event(None, "execution_started", "worker", {"symbol": symbol, "dry_run": dry_run})
         # Pass ai_result through so downstream notifications can render the brain matrix
         logic.process_trade(payload, dry_run=dry_run, ai_result=ai_result)
         logger.info("logic.process_trade completed")
     except Exception as exec_err:
         logger.error("logic.process_trade failed: %s", exec_err)
+        log_event(None, "execution_failed", "worker", {"symbol": symbol, "error": str(exec_err)[:200]})
         save_result(
             payload,
             "execution_failed",
@@ -494,16 +559,22 @@ def run():
     backoff = 5
     redis_client = get_redis()
     watchdog = TradeWatchdog(supabase_client=supabase)
+    from src.services.alert_engine import AlertEngine
+    alert_engine = AlertEngine(supabase_client=supabase)
     last_watchdog_ts = time.time()
     while True:
         try:
-            # Periodic watchdog: every 60 seconds, sync silent exits
+            # Periodic watchdog + alert engine: every 60 seconds
             now = time.time()
             if now - last_watchdog_ts >= 60:
                 try:
                     watchdog.run_sync()
                 except Exception as w_exc:  # noqa: BLE001
                     logger.error("TradeWatchdog run failed: %s", w_exc)
+                try:
+                    alert_engine.evaluate_all()
+                except Exception as a_exc:  # noqa: BLE001
+                    logger.error("AlertEngine run failed: %s", a_exc)
                 finally:
                     last_watchdog_ts = now
 
@@ -521,6 +592,13 @@ def run():
             continue
         except Exception as e:
             logger.error("Loop error: %s", e)
+            # Push to dead letter queue so the payload is not lost
+            try:
+                if task is not None:
+                    push_dead_letter(payload_str, str(e))
+                    log_event(None, "dead_lettered", "worker", {"error": str(e)[:200]})
+            except Exception:
+                pass
             time.sleep(backoff)
             backoff = min(backoff * 2, 60)
 

@@ -21,11 +21,11 @@ export interface AnalyticsData {
   outcomeDistribution: { wins: number; losses: number; breakeven: number };
 }
 
-export function useAnalytics(mode?: TradingMode) {
+export function useAnalytics(mode?: TradingMode | 'BACKTEST', runId?: string) {
   return useQuery<AnalyticsData>({
-    queryKey: ['analytics', mode],
+    queryKey: ['analytics', mode, runId],
     queryFn: async () => {
-      const signals = await fetchSignals({ mode, limit: 500 });
+      const signals = await fetchSignals({ mode: mode as any, limit: 500, runId });
       return computeAnalytics(signals);
     },
     staleTime: 5 * 60 * 1000, // 5 minutes

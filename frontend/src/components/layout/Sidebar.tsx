@@ -8,6 +8,7 @@ import {
   BookOpen,
   Settings,
   ShieldCheck,
+  FlaskConical,
   PanelLeftClose,
   PanelLeft,
   Activity,
@@ -26,6 +27,7 @@ const NAV_ITEMS = [
   { label: 'Analytics', icon: BarChart3, path: '/analytics' },
   { label: 'Rules', icon: ShieldCheck, path: '/rules' },
   { label: 'Journal', icon: BookOpen, path: '/journal' },
+  { label: 'Backtest', icon: FlaskConical, path: '/backtest' },
   { label: 'Settings', icon: Settings, path: '/settings' },
 ] as const;
 

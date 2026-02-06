@@ -3,6 +3,7 @@
 import { useSignalStats, useRefreshSignals } from '@/hooks/useTradingSignals';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
+import { RiskBar } from '@/components/risk/RiskBar';
 import {
   Activity,
   TrendingUp,
@@ -116,6 +117,9 @@ export function TopBar() {
           </>
         )}
       </div>
+
+      {/* Center: Risk Cockpit */}
+      <RiskBar />
 
       {/* Right: Actions */}
       <div className="flex items-center gap-3">

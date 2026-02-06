@@ -281,6 +281,51 @@ class MetaApiAdapter:
             message="MetaApi order filled",
         )
 
+    def modify_position(
+        self, position_id: str, sl: float | None = None, tp: float | None = None
+    ) -> ExecutionResult:
+        """Modify SL/TP on an existing position via MetaApi POSITION_MODIFY."""
+        payload: Dict[str, Any] = {
+            "actionType": "POSITION_MODIFY",
+            "positionId": position_id,
+        }
+        if sl is not None:
+            payload["stopLoss"] = sl
+        if tp is not None:
+            payload["takeProfit"] = tp
+
+        try:
+            resp = requests.post(
+                self._trade_url(),
+                json=payload,
+                headers=self._headers(),
+                timeout=10,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.error("MetaApi modify_position network error: %s", exc)
+            return ExecutionResult(
+                status="failed",
+                client_order_id=position_id,
+                message=str(exc),
+            )
+
+        if resp.status_code != 200:
+            msg = f"HTTP {resp.status_code}: {resp.text[:200]}"
+            logger.error("MetaApi modify_position failed: %s", msg)
+            return ExecutionResult(
+                status="failed",
+                client_order_id=position_id,
+                message=msg,
+            )
+
+        logger.info("MetaApi position %s SL/TP modified: sl=%s tp=%s", position_id, sl, tp)
+        return ExecutionResult(
+            status="filled",
+            client_order_id=position_id,
+            broker_order_id=position_id,
+            message="Position SL/TP modified",
+        )
+
     def close_order(self, request: CloseRequest) -> ExecutionResult:
         """
         Close an existing MT5 position via MetaApi.

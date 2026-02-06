@@ -3,6 +3,7 @@
 import { ConnectionStatus } from '@/components/settings/ConnectionStatus';
 import { ConfigDisplay } from '@/components/settings/ConfigDisplay';
 import { AiConfigPanel } from '@/components/settings/AiConfigPanel';
+import { SystemHealthPanel } from '@/components/settings/SystemHealthPanel';
 import { Info, Layers } from 'lucide-react';
 
 export default function SettingsPage() {
@@ -20,6 +21,9 @@ export default function SettingsPage() {
 
       {/* AI / ML / RAG Configuration */}
       <AiConfigPanel />
+
+      {/* System Health (DLQ, Queue, Redis) */}
+      <SystemHealthPanel />
 
       {/* Environment Config */}
       <ConfigDisplay

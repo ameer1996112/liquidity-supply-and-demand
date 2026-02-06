@@ -45,16 +45,17 @@ export const isSupabaseAvailable = (): boolean => supabase !== null;
 // Query helpers
 export async function fetchSignals(
   options: {
-    mode?: 'LIVE' | 'PAPER';
+    mode?: 'LIVE' | 'PAPER' | 'BACKTEST';
     limit?: number;
     offset?: number;
+    runId?: string;
   } = {},
 ): Promise<TradingSignal[]> {
   if (!supabase) {
-    return getMockSignals(options.mode);
+    return getMockSignals(options.mode === 'BACKTEST' ? undefined : options.mode);
   }
 
-  const { mode, limit = 50, offset = 0 } = options;
+  const { mode, limit = 50, offset = 0, runId } = options;
 
   let query = supabase
     .from('trading_signals')
@@ -62,9 +63,13 @@ export async function fetchSignals(
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
 
-  // DB uses run_mode for LIVE/PAPER (backend writes run_mode; legacy schema may use mode)
+  // DB uses run_mode for LIVE/PAPER/BACKTEST (backend writes run_mode)
   if (mode) {
     query = query.eq('run_mode', mode);
+  }
+
+  if (runId) {
+    query = query.eq('run_id', runId);
   }
 
   const { data, error } = await query;

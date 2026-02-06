@@ -22,6 +22,7 @@ from src.adapters.execution.interfaces import OrderRequest, CloseRequest
 from src.adapters.execution.router import get_adapter
 from src.core.risk_engine import calculate_max_position_size
 from src.adapters import supabase as supabase_module
+from src.services.trade_events import log_event
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -85,6 +86,7 @@ def process_trade(
         trade_key = (data.get("trade_key") or "").strip()
         update_alert_exit(data["zone_id"], exit_data, trade_key=trade_key)
         logger.info("Exit recorded: zone_id=%s, outcome=%s", data["zone_id"], data["outcome"])
+        log_event(None, "exit_processed", "logic", {"zone_id": data["zone_id"], "outcome": data["outcome"]})
 
         # 2) Live broker close via execution adapter (MetaApi) if enabled
         if getattr(s, "live_trading_enabled", False):
@@ -149,6 +151,7 @@ def process_trade(
                 mode = "paper"
 
     alert_id = save_alert(data, mode=mode, filter_reasons=filter_reasons if not should_forward else None)
+    log_event(alert_id, "alert_saved", "logic", {"symbol": symbol, "mode": mode})
 
     if not should_forward:
         reason_str = "; ".join(filter_reasons)
@@ -282,6 +285,9 @@ def process_trade(
                                     "id", alert_id
                                 ).execute()
 
+                            log_event(alert_id, "execution_filled", "logic", {
+                                "broker_order_id": str(exec_result.broker_order_id),
+                            })
                             logger.info(
                                 "✅ Database Synced: Alert #%s linked to Ticket #%s",
                                 alert_id,
@@ -298,6 +304,7 @@ def process_trade(
                     update_alert_status(alert_id, "executed")
             except Exception as e:  # noqa: BLE001
                 logger.error("Execution adapter error for alert #%s: %s", alert_id, e)
+                log_event(alert_id, "execution_failed", "logic", {"error": str(e)[:200]})
 
     # Pass through AI ensemble result (if available) so Discord can render
     # the full brain decision matrix.
