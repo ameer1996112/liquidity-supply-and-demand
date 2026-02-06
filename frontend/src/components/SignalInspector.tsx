@@ -164,19 +164,64 @@ function JsonViewer({ data, title }: { data: unknown; title: string }) {
   );
 }
 
-// Parse AI reasoning - handle both string and object
+// Parse AI reasoning - handle both string and object, then merge
+// signal-level zone fields as fallbacks (save_alert stores them as
+// top-level DB columns, not inside ai_reasoning).
 function parseAIReasoning(signal: TradingSignal): AIReasoning | null {
-  if (!signal.ai_reasoning) return null;
+  let ai: AIReasoning | null = null;
 
-  if (typeof signal.ai_reasoning === 'string') {
-    try {
-      return JSON.parse(signal.ai_reasoning);
-    } catch {
-      return null;
+  if (signal.ai_reasoning) {
+    if (typeof signal.ai_reasoning === 'string') {
+      try {
+        ai = JSON.parse(signal.ai_reasoning);
+      } catch {
+        ai = null;
+      }
+    } else {
+      ai = signal.ai_reasoning as AIReasoning;
     }
   }
 
-  return signal.ai_reasoning as AIReasoning;
+  // Merge signal-level zone/metric fields as fallbacks so Zone Analysis
+  // displays data even when ai_reasoning doesn't contain these fields.
+  const fallbacks: Partial<AIReasoning> = {
+    zone_id: signal.zone_id,
+    zone_type: signal.zone_type as AIReasoning['zone_type'],
+    zone_grade: signal.zone_grade,
+    zone_score: signal.score ?? signal.ai_confidence,
+    entry_model: signal.entry_model,
+    liquidity_swept: signal.liq_swept,
+    target_swept: signal.target_swept,
+    caused_sweep: signal.caused_sweep,
+    is_accuracy: signal.is_accuracy,
+    session: signal.session,
+    trend: signal.trend,
+    htf_trend: signal.htf_trend,
+    rsi: signal.rsi,
+    rvol: signal.rvol,
+    adx: signal.adx,
+    atr_ratio: signal.atr_ratio,
+    base_quality: signal.base_quality,
+    departure_strength: signal.departure_strength,
+    liquidity_distance: signal.liquidity_distance,
+    liquidity_spread: signal.liquidity_spread,
+    return_strength: signal.return_strength,
+  };
+
+  if (!ai) {
+    // No ai_reasoning at all — build from signal-level fields only
+    const hasAny = Object.values(fallbacks).some((v) => v != null);
+    return hasAny ? (fallbacks as AIReasoning) : null;
+  }
+
+  // Merge: ai_reasoning values take precedence, signal-level fill gaps
+  for (const [key, val] of Object.entries(fallbacks)) {
+    if (val != null && (ai as Record<string, unknown>)[key] == null) {
+      (ai as Record<string, unknown>)[key] = val;
+    }
+  }
+
+  return ai;
 }
 
 export function SignalInspector({
@@ -201,7 +246,13 @@ export function SignalInspector({
       ai.return_strength != null ||
       ai.rsi != null ||
       ai.adx != null ||
-      ai.rvol != null);
+      ai.rvol != null ||
+      signal.base_quality != null ||
+      signal.departure_strength != null ||
+      signal.return_strength != null ||
+      signal.rsi != null ||
+      signal.adx != null ||
+      signal.rvol != null);
   const entryPrice = signal.price ?? signal.entry;
   const stopLoss = signal.stop_loss ?? signal.sl;
   const takeProfit = signal.take_profit ?? signal.tp;

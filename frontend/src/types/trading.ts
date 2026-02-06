@@ -86,6 +86,28 @@ export interface TradingSignal {
   /** DB column run_mode (LIVE/PAPER); use with mode for stats. */
   run_mode?: string;
 
+  // Zone / signal context (top-level DB columns from TradingView webhook)
+  zone_id?: number;
+  zone_type?: 'demand' | 'supply' | string;
+  zone_grade?: string;
+  entry_model?: string;
+  liq_swept?: boolean;
+  target_swept?: boolean;
+  caused_sweep?: boolean;
+  is_accuracy?: boolean;
+  session?: number;
+  trend?: number;
+  htf_trend?: number;
+  rsi?: number;
+  rvol?: number;
+  adx?: number;
+  atr_ratio?: number;
+  base_quality?: number;
+  departure_strength?: number;
+  liquidity_distance?: number;
+  liquidity_spread?: number;
+  return_strength?: number;
+
   // Trade metrics
   rr_ratio?: number;
   sl_pips?: number;
@@ -171,6 +193,26 @@ export function normalizeSignal(
       | TradingMode
       | undefined,
     run_mode: (raw as { run_mode?: string }).run_mode,
+    zone_id: raw.zone_id,
+    zone_type: raw.zone_type,
+    zone_grade: raw.zone_grade,
+    entry_model: raw.entry_model,
+    liq_swept: raw.liq_swept,
+    target_swept: raw.target_swept,
+    caused_sweep: raw.caused_sweep,
+    is_accuracy: raw.is_accuracy,
+    session: raw.session,
+    trend: raw.trend,
+    htf_trend: raw.htf_trend,
+    rsi: raw.rsi,
+    rvol: raw.rvol,
+    adx: raw.adx,
+    atr_ratio: raw.atr_ratio,
+    base_quality: raw.base_quality,
+    departure_strength: raw.departure_strength,
+    liquidity_distance: raw.liquidity_distance,
+    liquidity_spread: raw.liquidity_spread,
+    return_strength: raw.return_strength,
     rr_ratio: raw.rr_ratio,
     sl_pips: raw.sl_pips,
     pnl: raw.pnl ?? raw.pnl_usd,
