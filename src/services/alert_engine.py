@@ -124,33 +124,45 @@ class AlertEngine:
 
     def _check_consecutive_losses(self, condition: dict, severity: str) -> None:
         threshold = int(condition.get("threshold", 3))
+        run_mode = condition.get("run_mode", "LIVE")  # Default to LIVE only
 
-        resp = (
+        query = (
             self.supabase.table("trading_signals")
-            .select("pnl_usd, outcome")
+            .select("pnl_usd, pnl, outcome, run_mode")
             .eq("status", "closed")
             .order("created_at", desc=True)
-            .limit(threshold + 2)
-            .execute()
+            .limit(threshold + 5)  # Fetch extra to account for filtering
         )
+
+        # Filter by run_mode if specified
+        if run_mode:
+            query = query.eq("run_mode", run_mode.upper())
+
+        resp = query.execute()
         trades = resp.data or []
 
         consecutive = 0
         for t in trades:
-            pnl = float(t.get("pnl_usd") or 0)
+            # Use pnl_usd or pnl as fallback
+            pnl = float(t.get("pnl_usd") or t.get("pnl") or 0)
             outcome = (t.get("outcome") or "").lower()
+
+            # Count as loss if PnL < 0 OR outcome explicitly marked as "loss"
             if pnl < 0 or outcome == "loss":
                 consecutive += 1
+                if consecutive >= threshold:
+                    break  # Stop counting once threshold reached
             else:
-                break
+                break  # Stop on first win
 
         if consecutive >= threshold:
+            mode_label = f" ({run_mode})" if run_mode else ""
             self._create_alert(
                 "consecutive_losses",
                 severity,
-                f"{consecutive} Consecutive Losses",
-                f"Last {consecutive} closed trades were losses. Consider pausing.",
-                {"consecutive_count": consecutive},
+                f"{consecutive} Consecutive Losses{mode_label}",
+                f"Last {consecutive} closed {run_mode or 'all'} trades were losses. Consider pausing.",
+                {"consecutive_count": consecutive, "run_mode": run_mode},
             )
 
     def _check_drawdown_threshold(self, condition: dict, severity: str) -> None:
@@ -158,26 +170,33 @@ class AlertEngine:
 
         s = get_settings()
         threshold = float(condition.get("threshold", 6))
+        run_mode = condition.get("run_mode", "LIVE")  # Default to LIVE only
 
         today_start = datetime.combine(date.today(), datetime.min.time()).isoformat()
-        resp = (
+        query = (
             self.supabase.table("trading_signals")
-            .select("pnl_usd")
+            .select("pnl_usd, pnl")
             .eq("status", "closed")
             .gte("created_at", today_start)
-            .execute()
         )
-        daily_pnl = sum(float(t.get("pnl_usd") or 0) for t in (resp.data or []))
+
+        # Filter by run_mode if specified
+        if run_mode:
+            query = query.eq("run_mode", run_mode.upper())
+
+        resp = query.execute()
+        daily_pnl = sum(float(t.get("pnl_usd") or t.get("pnl") or 0) for t in (resp.data or []))
 
         if s.account_balance > 0 and daily_pnl < 0:
             drawdown_pct = abs(daily_pnl / s.account_balance * 100)
             if drawdown_pct >= threshold:
+                mode_label = f" ({run_mode})" if run_mode else ""
                 self._create_alert(
                     "drawdown_breach",
                     severity,
-                    f"Drawdown {drawdown_pct:.1f}% Exceeded Threshold",
-                    f"Daily drawdown {drawdown_pct:.1f}% >= {threshold}% limit.",
-                    {"drawdown_pct": round(drawdown_pct, 2), "daily_pnl": round(daily_pnl, 2)},
+                    f"Drawdown {drawdown_pct:.1f}% Exceeded{mode_label}",
+                    f"Daily {run_mode or 'all'} drawdown {drawdown_pct:.1f}% >= {threshold}% limit.",
+                    {"drawdown_pct": round(drawdown_pct, 2), "daily_pnl": round(daily_pnl, 2), "run_mode": run_mode},
                 )
 
     def _check_dlq_spike(self, condition: dict, severity: str) -> None:
