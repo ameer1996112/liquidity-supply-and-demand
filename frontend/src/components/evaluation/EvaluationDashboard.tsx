@@ -7,7 +7,7 @@ import { AlertCircle, CheckCircle2, TrendingUp, Calendar, Target } from 'lucide-
 import { cn } from '@/lib/utils';
 
 export function EvaluationDashboard() {
-  const { data: eval, isLoading, error } = useEvaluationStats();
+  const { data: evaluation, isLoading, error } = useEvaluationStats();
 
   if (isLoading) {
     return (
@@ -19,21 +19,21 @@ export function EvaluationDashboard() {
     );
   }
 
-  if (error || !eval?.evaluation_mode) {
-    return null; // Don't show if evaluation mode is off
+  if (error || !evaluation?.evaluationuation_mode) {
+    return null; // Don't show if evaluationuation mode is off
   }
 
   const phaseLabel = {
     phase1: 'Phase 1',
     phase2: 'Phase 2',
     funded: 'Funded Account',
-  }[eval.phase];
+  }[evaluation.phase];
 
   const phaseBadgeColor = {
     phase1: 'bg-[#2962ff]/15 text-[#2962ff] border-[#2962ff]/30',
     phase2: 'bg-[#ff9800]/15 text-[#ff9800] border-[#ff9800]/30',
     funded: 'bg-[#26a69a]/15 text-[#26a69a] border-[#26a69a]/30',
-  }[eval.phase];
+  }[evaluation.phase];
 
   return (
     <div className="tv-card">
@@ -55,10 +55,10 @@ export function EvaluationDashboard() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm text-zinc-400">
             <Calendar className="w-4 h-4" />
-            <span>Day {eval.current_day} of {eval.total_days}</span>
+            <span>Day {evaluation.current_day} of {evaluation.total_days}</span>
           </div>
           <div className="text-xs text-zinc-500">
-            {eval.actual_trading_days} / {eval.min_trading_days} trading days
+            {evaluation.actual_trading_days} / {evaluation.min_trading_days} trading days
           </div>
         </div>
 
@@ -68,23 +68,23 @@ export function EvaluationDashboard() {
             <span className="text-zinc-400">Profit Target</span>
             <span className={cn(
               'font-mono font-semibold',
-              eval.current_profit >= eval.profit_target ? 'text-emerald-400' :
-              eval.current_profit >= 0 ? 'text-zinc-100' : 'text-rose-400'
+              evaluation.current_profit >= evaluation.profit_target ? 'text-emerald-400' :
+              evaluation.current_profit >= 0 ? 'text-zinc-100' : 'text-rose-400'
             )}>
-              ${eval.current_profit.toFixed(2)} / ${eval.profit_target.toFixed(0)}
+              ${evaluation.current_profit.toFixed(2)} / ${evaluation.profit_target.toFixed(0)}
             </span>
           </div>
           <Progress
-            value={eval.profit_progress_pct}
+            value={evaluation.profit_progress_pct}
             className="h-2 bg-[#1e222d]"
             indicatorClassName={cn(
-              eval.profit_progress_pct >= 100 ? 'bg-emerald-500' :
-              eval.profit_progress_pct >= 75 ? 'bg-[#26a69a]' :
-              eval.profit_progress_pct >= 50 ? 'bg-[#2962ff]' : 'bg-[#787b86]'
+              evaluation.profit_progress_pct >= 100 ? 'bg-emerald-500' :
+              evaluation.profit_progress_pct >= 75 ? 'bg-[#26a69a]' :
+              evaluation.profit_progress_pct >= 50 ? 'bg-[#2962ff]' : 'bg-[#787b86]'
             )}
           />
           <div className="text-right text-xs text-zinc-500">
-            {eval.profit_progress_pct.toFixed(1)}%
+            {evaluation.profit_progress_pct.toFixed(1)}%
           </div>
         </div>
 
@@ -94,31 +94,31 @@ export function EvaluationDashboard() {
             <span className="text-zinc-400">Max Daily Loss</span>
             <span className={cn(
               'font-mono font-semibold',
-              eval.daily_loss_buffer <= 0 ? 'text-rose-400' :
-              eval.daily_loss_buffer < eval.max_daily_loss * 0.2 ? 'text-orange-400' :
+              evaluation.daily_loss_buffer <= 0 ? 'text-rose-400' :
+              evaluation.daily_loss_buffer < evaluation.max_daily_loss * 0.2 ? 'text-orange-400' :
               'text-emerald-400'
             )}>
-              ${Math.abs(eval.today_pnl).toFixed(2)} / ${eval.max_daily_loss.toFixed(0)}
+              ${Math.abs(evaluation.today_pnl).toFixed(2)} / ${evaluation.max_daily_loss.toFixed(0)}
             </span>
           </div>
           <Progress
-            value={Math.abs(eval.today_pnl / eval.max_daily_loss * 100)}
+            value={Math.abs(evaluation.today_pnl / evaluation.max_daily_loss * 100)}
             className="h-2 bg-[#1e222d]"
             indicatorClassName={cn(
-              eval.daily_loss_buffer <= 0 ? 'bg-rose-500' :
-              eval.daily_loss_buffer < eval.max_daily_loss * 0.2 ? 'bg-orange-500' :
+              evaluation.daily_loss_buffer <= 0 ? 'bg-rose-500' :
+              evaluation.daily_loss_buffer < evaluation.max_daily_loss * 0.2 ? 'bg-orange-500' :
               'bg-emerald-500'
             )}
           />
           <div className="flex justify-between text-xs">
             <span className="text-zinc-500">
-              Buffer: ${eval.daily_loss_buffer.toFixed(2)}
+              Buffer: ${evaluation.daily_loss_buffer.toFixed(2)}
             </span>
             <span className={cn(
               'font-semibold',
-              eval.daily_loss_buffer <= 0 ? 'text-rose-400' : 'text-emerald-400'
+              evaluation.daily_loss_buffer <= 0 ? 'text-rose-400' : 'text-emerald-400'
             )}>
-              {eval.rules_passed.max_daily_loss ? '✓ Safe' : '⚠ At Risk'}
+              {evaluation.rules_passed.max_daily_loss ? '✓ Safe' : '⚠ At Risk'}
             </span>
           </div>
         </div>
@@ -129,24 +129,24 @@ export function EvaluationDashboard() {
             <span className="text-zinc-400">Max Drawdown</span>
             <span className={cn(
               'font-mono font-semibold',
-              eval.current_drawdown_pct >= eval.max_drawdown_pct ? 'text-rose-400' :
-              eval.current_drawdown_pct >= eval.max_drawdown_pct * 0.8 ? 'text-orange-400' :
+              evaluation.current_drawdown_pct >= evaluation.max_drawdown_pct ? 'text-rose-400' :
+              evaluation.current_drawdown_pct >= evaluation.max_drawdown_pct * 0.8 ? 'text-orange-400' :
               'text-emerald-400'
             )}>
-              {eval.current_drawdown_pct.toFixed(2)}% / {eval.max_drawdown_pct.toFixed(1)}%
+              {evaluation.current_drawdown_pct.toFixed(2)}% / {evaluation.max_drawdown_pct.toFixed(1)}%
             </span>
           </div>
           <Progress
-            value={(eval.current_drawdown_pct / eval.max_drawdown_pct) * 100}
+            value={(evaluation.current_drawdown_pct / evaluation.max_drawdown_pct) * 100}
             className="h-2 bg-[#1e222d]"
             indicatorClassName={cn(
-              eval.current_drawdown_pct >= eval.max_drawdown_pct ? 'bg-rose-500' :
-              eval.current_drawdown_pct >= eval.max_drawdown_pct * 0.8 ? 'bg-orange-500' :
+              evaluation.current_drawdown_pct >= evaluation.max_drawdown_pct ? 'bg-rose-500' :
+              evaluation.current_drawdown_pct >= evaluation.max_drawdown_pct * 0.8 ? 'bg-orange-500' :
               'bg-emerald-500'
             )}
           />
           <div className="text-right text-xs text-zinc-500">
-            Peak: ${eval.peak_balance.toFixed(2)}
+            Peak: ${evaluation.peak_balance.toFixed(2)}
           </div>
         </div>
 
@@ -156,18 +156,18 @@ export function EvaluationDashboard() {
             <span className="text-zinc-400">Consistency</span>
             <span className={cn(
               'font-mono font-semibold',
-              eval.consistency_pct >= eval.consistency_target_pct ? 'text-emerald-400' :
-              eval.consistency_pct >= eval.consistency_target_pct * 0.8 ? 'text-[#2962ff]' :
+              evaluation.consistency_pct >= evaluation.consistency_target_pct ? 'text-emerald-400' :
+              evaluation.consistency_pct >= evaluation.consistency_target_pct * 0.8 ? 'text-[#2962ff]' :
               'text-zinc-400'
             )}>
-              {eval.consistency_pct.toFixed(0)}% / {eval.consistency_target_pct.toFixed(0)}%
+              {evaluation.consistency_pct.toFixed(0)}% / {evaluation.consistency_target_pct.toFixed(0)}%
             </span>
           </div>
           <Progress
-            value={(eval.consistency_pct / eval.consistency_target_pct) * 100}
+            value={(evaluation.consistency_pct / evaluation.consistency_target_pct) * 100}
             className="h-2 bg-[#1e222d]"
             indicatorClassName={cn(
-              eval.consistency_pct >= eval.consistency_target_pct ? 'bg-emerald-500' : 'bg-[#2962ff]'
+              evaluation.consistency_pct >= evaluation.consistency_target_pct ? 'bg-emerald-500' : 'bg-[#2962ff]'
             )}
           />
         </div>
@@ -178,7 +178,7 @@ export function EvaluationDashboard() {
             Requirements
           </div>
           <div className="grid grid-cols-1 gap-2">
-            {Object.entries(eval.rules_passed).map(([rule, passed]) => (
+            {Object.entries(evaluation.rules_passed).map(([rule, passed]) => (
               <div
                 key={rule}
                 className="flex items-center justify-between text-sm"
@@ -197,13 +197,13 @@ export function EvaluationDashboard() {
         </div>
 
         {/* Violations */}
-        {eval.violations.length > 0 && (
+        {evaluation.violations.length > 0 && (
           <div className="space-y-2 pt-4 border-t border-[#2a2e39]">
             <div className="flex items-center gap-2 text-xs font-semibold text-rose-400 uppercase tracking-wide mb-3">
               <AlertCircle className="w-4 h-4" />
               Rule Violations
             </div>
-            {eval.violations.map((violation, idx) => (
+            {evaluation.violations.map((violation, idx) => (
               <div
                 key={idx}
                 className={cn(
@@ -223,7 +223,7 @@ export function EvaluationDashboard() {
         )}
 
         {/* Upgrade Button */}
-        {eval.can_upgrade && (
+        {evaluation.can_upgrade && (
           <button
             className={cn(
               'w-full mt-4 px-4 py-3 rounded font-semibold text-sm',
@@ -233,7 +233,7 @@ export function EvaluationDashboard() {
             )}
           >
             <TrendingUp className="w-4 h-4" />
-            Ready to Upgrade to {eval.phase === 'phase1' ? 'Phase 2' : 'Funded Account'}
+            Ready to Upgrade to {evaluation.phase === 'phase1' ? 'Phase 2' : 'Funded Account'}
           </button>
         )}
       </div>
