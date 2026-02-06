@@ -190,6 +190,36 @@ def process_trade(payload: Dict[str, Any]):
     # ------------------------------------------------------------------
     ai_result = ensemble_decision(payload)
 
+    # Enrich AI result with zone/sweep/metrics from original payload
+    # so the frontend Signal Inspector can display them.
+    _ZONE_FIELD_MAP = {
+        "zone_id": "zone_id",
+        "zone_type": "zone_type",
+        "zone_grade": "zone_grade",
+        "entry_model": "entry_model",
+        "score": "zone_score",
+        "liq_swept": "liquidity_swept",
+        "target_swept": "target_swept",
+        "caused_sweep": "caused_sweep",
+        "is_accuracy": "is_accuracy",
+        "session": "session",
+        "trend": "trend",
+        "htf_trend": "htf_trend",
+        "rsi": "rsi",
+        "rvol": "rvol",
+        "adx": "adx",
+        "atr_ratio": "atr_ratio",
+        "base_quality": "base_quality",
+        "departure_strength": "departure_strength",
+        "liquidity_distance": "liquidity_distance",
+        "liquidity_spread": "liquidity_spread",
+        "return_strength": "return_strength",
+    }
+    for src_key, dst_key in _ZONE_FIELD_MAP.items():
+        val = payload.get(src_key)
+        if val is not None and dst_key not in ai_result:
+            ai_result[dst_key] = val
+
     logger.info(
         "🧠 BRAIN DECISION:\n"
         "Decision: %s\n"
