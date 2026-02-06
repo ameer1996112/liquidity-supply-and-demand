@@ -193,16 +193,14 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
     rules_block = "\n\n".join(f"- {r}" for r in rules_texts) if rules_texts else "No explicit rules found."
 
     prompt = (
-        "You are a trading risk co-pilot for a Supply & Demand strategy.\n\n"
+        "You are a strict trading risk gatekeeper.\n\n"
         f"Context (Market Narrative):\n{narrative}\n\n"
         f"Strategy Rules (from knowledge base):\n{rules_block}\n\n"
-        f"RF Model Score: {rf_prob:.4f} (already passed threshold)\n\n"
-        "Task: Decide if this trade should be executed.\n"
-        "Guidelines:\n"
-        "- The RF model has already approved this trade. Only reject if you see a clear conflict.\n"
-        "- Approve if the trade aligns with the strategy rules and market context.\n"
-        "- If rules or context are unavailable, trust the RF model and approve.\n"
-        "- Only reject for concrete reasons: wrong trend direction, extreme overbought/oversold against the trade, or direct rule violation.\n\n"
+        f"RF Model Score: {rf_prob:.4f}\n\n"
+        "Task: Decide if this trade is valid and should be executed.\n"
+        "Constraints:\n"
+        "- Only approve trades that clearly align with the rules and context.\n"
+        "- Be conservative if context or rules are ambiguous.\n\n"
         "Response: Return ONLY a valid JSON object of the form:\n"
         "{\n"
         "  \"decision\": \"GO\" | \"NO_GO\",\n"
@@ -210,12 +208,11 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
         "}\n"
     )
 
-    llm_model = getattr(settings, "ai_model", "gpt-4o-mini") or "gpt-4o-mini"
     try:
         chat = client.chat.completions.create(
-            model=llm_model,
+            model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "You are a trading risk co-pilot. Approve trades unless there is a clear reason to reject."},
+                {"role": "system", "content": "You are a strict trading risk co-pilot."},
                 {"role": "user", "content": prompt},
             ],
             temperature=0.1,
@@ -236,10 +233,10 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
             result["decision"] = "NO_GO"
             result["reason"] = reason or "LLM rejected trade."
     except Exception as e:
-        logger.error("LLM ensemble decision failed: %s (fail-open: trusting RF)", e)
-        # Fail-open: RF already passed its threshold, trust it
-        result["decision"] = "GO"
-        result["reason"] = f"LLM unavailable ({str(e)[:60]}); RF passed — executing."
+        logger.error("LLM ensemble decision failed: %s", e)
+        # On failure, be conservative or trust RF – choose conservative:
+        result["decision"] = "NO_GO"
+        result["reason"] = f"LLM error: {str(e)[:80]}"
 
     return result
 

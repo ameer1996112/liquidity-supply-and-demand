@@ -85,3 +85,22 @@ export function getRulesStrategyUrl(): string {
   const base = getBase();
   return base ? `${base}/rules/strategy` : '';
 }
+
+// ---------------------------------------------------------------------------
+// Alerts API helpers
+// ---------------------------------------------------------------------------
+
+export function getAlertsActiveUrl(): string {
+  const base = getBase();
+  return base ? `${base}/alerts/active` : '';
+}
+
+export function getAlertAcknowledgeUrl(id: number | string): string {
+  const base = getBase();
+  return base ? `${base}/alerts/${id}/acknowledge` : '';
+}
+
+export function getAlertAcknowledgeAllUrl(): string {
+  const base = getBase();
+  return base ? `${base}/alerts/acknowledge_all` : '';
+}

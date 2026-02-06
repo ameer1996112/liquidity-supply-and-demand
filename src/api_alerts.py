@@ -108,6 +108,19 @@ def list_alerts(
     )
 
 
+@router.get("/active", response_model=AlertsListResponse)
+def list_active_alerts(
+    severity: Optional[str] = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+) -> AlertsListResponse:
+    """
+    Convenience endpoint for "active" alerts, i.e. not yet acknowledged.
+
+    Mirrors `list_alerts` with `acknowledged=False` and optional severity
+    filter so the frontend can simply poll `/alerts/active`.
+    """
+    return list_alerts(severity=severity, acknowledged=False, limit=limit)
+
 @router.post("/{alert_id}/acknowledge")
 def acknowledge_alert(alert_id: int):
     """Mark an alert as acknowledged."""
@@ -128,6 +141,25 @@ def acknowledge_alert(alert_id: int):
         raise HTTPException(status_code=500, detail=f"Failed to acknowledge: {exc}")
 
     return {"status": "ok", "alert_id": alert_id}
+
+
+@router.post("/acknowledge_all")
+def acknowledge_all_alerts():
+    """
+    Mark all unacknowledged alerts as acknowledged.
+
+    Used by the frontend `clearAll()` action in the alert bell.
+    """
+    sb = _get_supabase()
+
+    try:
+        sb.table("trading_alerts").update(
+            {"acknowledged_at": datetime.now(timezone.utc).isoformat()},
+        ).is_("acknowledged_at", "null").execute()
+    except Exception as exc:  # pragma: no cover - defensive
+        raise HTTPException(status_code=500, detail=f"Failed to acknowledge all: {exc}")
+
+    return {"status": "ok"}
 
 
 @router.get("/rules")

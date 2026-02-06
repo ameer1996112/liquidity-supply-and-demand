@@ -41,12 +41,16 @@ from src.api_rules import router as rules_router
 from src.api_risk import router as risk_router
 from src.api_admin import router as admin_router
 from src.api_backtest import router as backtest_router
+from src.api_alerts import router as alerts_router
+from src.api_analytics import router as analytics_router
 
 app = FastAPI(title="Trading Webhook API", version="1.0.0")
 app.include_router(rules_router)
 app.include_router(risk_router)
 app.include_router(admin_router)
 app.include_router(backtest_router)
+app.include_router(alerts_router)
+app.include_router(analytics_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_build_cors_origins(),

@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState } from 'react';
+import { AlertBell } from '@/components/alerts/AlertBell';
 
 interface MetricProps {
   label: string;
@@ -123,6 +124,9 @@ export function TopBar() {
 
       {/* Right: Actions */}
       <div className="flex items-center gap-3">
+        {/* Alerts */}
+        <AlertBell />
+
         {/* Connection indicator */}
         <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-[#1e222d]">
           <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
