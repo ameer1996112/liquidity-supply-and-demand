@@ -137,6 +137,12 @@ export interface SignalStats {
   total_pnl_24h: number;   // Backwards-compatible PnL (defaults to live)
   live_pnl_24h?: number;
   paper_pnl_24h?: number;
+  /** PnL for today only (resets at midnight UTC) */
+  daily_pnl: number;
+  /** All-time cumulative PnL */
+  total_pnl: number;
+  /** Daily drawdown % (today's loss relative to starting equity) */
+  daily_drawdown_pct: number;
 }
 
 // Filter types for queries

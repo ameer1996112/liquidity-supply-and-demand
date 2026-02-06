@@ -72,7 +72,8 @@ export function TopBar() {
   };
 
   const winRate = stats?.live_win_rate ?? stats?.win_rate ?? 0;
-  const pnl = stats?.live_pnl_24h ?? stats?.total_pnl_24h ?? 0;
+  const dailyPnl = stats?.daily_pnl ?? 0;
+  const totalPnl = stats?.total_pnl ?? 0;
 
   return (
     <header className="h-12 bg-[#0f1117] border-b border-[#2a2e39] flex items-center justify-between px-4">
@@ -105,15 +106,16 @@ export function TopBar() {
               icon={<Zap className="w-3.5 h-3.5" />}
             />
             <Metric
-              label="24h PnL"
-              value={`${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`}
+              label="Daily PnL"
+              value={`${dailyPnl >= 0 ? '+' : ''}$${dailyPnl.toFixed(2)}`}
               icon={<DollarSign className="w-3.5 h-3.5" />}
-              trend={pnl >= 0 ? 'up' : 'down'}
+              trend={dailyPnl >= 0 ? 'up' : 'down'}
             />
             <Metric
-              label="Signals"
-              value={stats?.total_signals_24h || 0}
+              label="Total PnL"
+              value={`${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(2)}`}
               icon={<Activity className="w-3.5 h-3.5" />}
+              trend={totalPnl >= 0 ? 'up' : 'down'}
             />
           </>
         )}

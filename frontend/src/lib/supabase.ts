@@ -194,6 +194,42 @@ export async function fetchSignalStats(): Promise<SignalStats> {
     (s) => normalizeStatus(s.status) === 'ai_rejected',
   );
 
+  // ── Daily PnL (today only, resets at midnight UTC) ──────────────────
+  const todayMidnight = new Date();
+  todayMidnight.setUTCHours(0, 0, 0, 0);
+  const todayISO = todayMidnight.toISOString();
+
+  const todaySignals = eligibleForPnl.filter(
+    (s) => s.created_at >= todayISO,
+  );
+  const dailyPnl = todaySignals.reduce((sum, s) => sum + getPnlUsd(s), 0);
+
+  // ── Total PnL (all-time) ────────────────────────────────────────────
+  let totalPnl = 0;
+  try {
+    if (supabase) {
+      const { data: allClosed } = await supabase
+        .from('trading_signals')
+        .select('pnl, pnl_usd, entry, exit_price, price, position_size, side, status')
+        .in('status', ['closed', 'executed'])
+        .not('pnl_usd', 'is', null);
+
+      if (allClosed) {
+        totalPnl = allClosed.reduce((sum, s) => {
+          const p = (s as { pnl_usd?: number; pnl?: number }).pnl_usd
+            ?? (s as { pnl?: number }).pnl
+            ?? 0;
+          return sum + p;
+        }, 0);
+      }
+    }
+  } catch (e) {
+    console.error('Failed to fetch total PnL:', e);
+  }
+
+  // ── Daily Drawdown % ───────────────────────────────────────────────
+  const dailyDrawdownPct = dailyPnl < 0 ? Math.abs(dailyPnl) : 0;
+
   return {
     total_signals_24h: signals.length,
     executed_count: executed.length + activeSignals.length,
@@ -207,6 +243,9 @@ export async function fetchSignalStats(): Promise<SignalStats> {
     total_pnl_24h: livePnl,
     live_pnl_24h: livePnl,
     paper_pnl_24h: paperPnl,
+    daily_pnl: dailyPnl,
+    total_pnl: totalPnl,
+    daily_drawdown_pct: dailyDrawdownPct,
   };
 }
 
@@ -611,5 +650,8 @@ function getMockStats(): SignalStats {
     ai_reject_rate: 68.1,
     active_trades: 2,
     total_pnl_24h: 458.25,
+    daily_pnl: 125.50,
+    total_pnl: 1245.80,
+    daily_drawdown_pct: 0,
   };
 }

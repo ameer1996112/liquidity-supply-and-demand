@@ -79,6 +79,10 @@ export function RiskBar() {
 
   const dailyDanger = risk.daily_pnl_pct > risk.max_daily_loss_pct * 0.7;
   const drawdownDanger = risk.drawdown_pct > risk.max_drawdown_pct * 0.7;
+  const dailyDrawdownPct = risk.starting_equity > 0 && risk.daily_pnl < 0
+    ? (Math.abs(risk.daily_pnl) / risk.starting_equity) * 100
+    : 0;
+  const dailyDrawdownDanger = dailyDrawdownPct > risk.max_daily_loss_pct * 0.7;
   const positionsDanger = risk.active_positions >= risk.max_positions;
 
   const maxDailyLoss = risk.starting_equity * risk.max_daily_loss_pct / 100;
@@ -99,6 +103,13 @@ export function RiskBar() {
         max={risk.max_drawdown_pct}
         unit="%"
         danger={drawdownDanger}
+      />
+      <RiskGauge
+        label="Daily DD"
+        value={dailyDrawdownPct.toFixed(1)}
+        max={risk.max_daily_loss_pct}
+        unit="%"
+        danger={dailyDrawdownDanger}
       />
 
       {/* Positions counter */}

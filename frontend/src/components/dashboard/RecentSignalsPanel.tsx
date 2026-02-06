@@ -234,6 +234,16 @@ export function RecentSignalsPanel({ mode, onSelectSignal }: RecentSignalsPanelP
                     <TableCell className="py-2 px-3">
                       <div className="flex items-center gap-1.5">
                         <span className="font-mono text-xs font-bold text-zinc-200">{symbol}</span>
+                        {(() => {
+                          const runMode = (signal.run_mode || signal.mode || '').toUpperCase();
+                          if (runMode === 'LIVE') return (
+                            <Badge className="font-mono text-[8px] font-bold px-1 py-0 bg-[#ef5350]/15 text-[#ef5350] border-[#ef5350]/30 border">L</Badge>
+                          );
+                          if (runMode === 'PAPER') return (
+                            <Badge className="font-mono text-[8px] font-bold px-1 py-0 bg-[#2962ff]/15 text-[#2962ff] border-[#2962ff]/30 border">P</Badge>
+                          );
+                          return null;
+                        })()}
                         <span className={cn('text-[9px] font-bold', isBuy ? 'text-[#26a69a]' : 'text-[#ef5350]')}>
                           {isBuy ? <TrendingUp className="w-3 h-3 inline" /> : <TrendingDown className="w-3 h-3 inline" />}
                         </span>
