@@ -20,6 +20,7 @@ from src.adapters.discord import send_discord, send_telegram
 from src.adapters.paper_trader import get_paper_trader
 from src.adapters.execution.interfaces import OrderRequest, CloseRequest
 from src.adapters.execution.router import get_adapter
+from src.core.risk_engine import calculate_max_position_size
 from src.adapters import supabase as supabase_module
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -185,6 +186,49 @@ def process_trade(
                 risk = abs(entry - sl)
                 reward = abs(tp - entry)
                 rr_ratio = reward / risk if risk > 0 else 0.0
+
+                # Force-fetch latest balance from broker for risk sizing
+                current_balance = s.account_balance
+                current_equity = s.account_balance
+                if hasattr(adapter, "get_account_information"):
+                    try:
+                        account_info = adapter.get_account_information()
+                        fetched_balance = account_info.get("balance", 0.0)
+                        fetched_equity = account_info.get("equity", 0.0)
+                        if fetched_balance > 0:
+                            current_balance = fetched_balance
+                        if fetched_equity > 0:
+                            current_equity = fetched_equity
+                    except Exception as acct_err:  # noqa: BLE001
+                        logger.warning(
+                            "Failed to fetch live balance, falling back to config: %s",
+                            acct_err,
+                        )
+
+                # Risk-based position sizing: cap size to max allowed by balance
+                sl_pips = risk  # raw price distance (used for logging)
+                max_lots = calculate_max_position_size(
+                    payload=data,
+                    account_balance=current_balance,
+                    risk_percent=s.risk_percent,
+                )
+                if size > max_lots:
+                    logger.warning(
+                        "Size %.4f exceeds risk limit %.4f — capping to max",
+                        size,
+                        max_lots,
+                    )
+                    size = max_lots
+                size = round(size, 2)
+
+                logger.info(
+                    "Risk Calc: Balance=$%.2f Risk=%.1f%% SL_dist=%.5f -> MaxSize=%.4f, FinalSize=%.2f",
+                    current_balance,
+                    s.risk_percent,
+                    sl_pips,
+                    max_lots,
+                    size,
+                )
 
                 trade_key = (data.get("trade_key") or "").strip()
 

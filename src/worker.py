@@ -130,12 +130,15 @@ def process_trade(payload: Dict[str, Any]):
         logger.info("Idempotency: signal_id/trade_key already exists, skipping")
         return
 
+    # Pre-flight risk estimate (config balance — actual cap with live balance is in logic.py)
     max_allowed_size = _max_position_size(payload)
-    logger.info("Risk Check: size %s vs limit %s", size, round(max_allowed_size, 2))
+    logger.info("Risk Pre-Check (config balance): size %s vs estimate %s", size, round(max_allowed_size, 2))
     if size > max_allowed_size:
-        save_result(payload, "risk_rejected", f"Size {size} > Limit {max_allowed_size:.2f}", 0.0)
-        logger.warning("RISK REJECTED: %s size %s exceeds limit %s", symbol, size, max_allowed_size)
-        return
+        logger.warning(
+            "Size %s exceeds config-based estimate %s — logic.py will re-check with live balance",
+            size,
+            round(max_allowed_size, 2),
+        )
 
     if supabase:
         try:

@@ -101,6 +101,44 @@ class MetaApiAdapter:
             return max(1, min(decs, 5))
         return 2
 
+    def get_account_information(self) -> Dict[str, Any]:
+        """Fetch current account balance/equity from MetaApi.
+
+        Returns dict with at least 'balance' and 'equity' keys (0.0 on failure).
+        """
+        url = (
+            f"{self.base_url}/users/current/accounts/"
+            f"{self.account_id}/account-information"
+        )
+        try:
+            resp = requests.get(url, headers=self._headers(), timeout=10)
+        except Exception as exc:  # noqa: BLE001
+            logger.error("MetaApi get_account_information network error: %s", exc)
+            return {"balance": 0.0, "equity": 0.0}
+
+        if resp.status_code != 200:
+            logger.error(
+                "MetaApi get_account_information failed: HTTP %s %s",
+                resp.status_code,
+                resp.text[:200],
+            )
+            return {"balance": 0.0, "equity": 0.0}
+
+        try:
+            data = resp.json()
+        except ValueError:
+            logger.error(
+                "MetaApi get_account_information invalid JSON: %s", resp.text[:200]
+            )
+            return {"balance": 0.0, "equity": 0.0}
+
+        logger.info(
+            "MetaApi account info: balance=%.2f equity=%.2f",
+            data.get("balance", 0.0),
+            data.get("equity", 0.0),
+        )
+        return data
+
     def _trade_url(self) -> str:
         """Build trade endpoint URL for the configured MetaApi region."""
         return f"{self.base_url}/users/current/accounts/{self.account_id}/trade"
