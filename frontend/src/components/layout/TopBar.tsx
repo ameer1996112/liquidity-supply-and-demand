@@ -72,8 +72,9 @@ export function TopBar() {
   };
 
   const winRate = stats?.live_win_rate ?? stats?.win_rate ?? 0;
-  const dailyPnl = stats?.daily_pnl ?? 0;
-  const totalPnl = stats?.total_pnl ?? 0;
+  // Use LIVE-specific PnL fields to avoid mixing PAPER trades
+  const dailyPnl = stats?.live_daily_pnl ?? stats?.live_pnl_24h ?? 0;
+  const totalPnl = stats?.live_total_pnl ?? 0;
 
   return (
     <header className="h-12 bg-[#0f1117] border-b border-[#2a2e39] flex items-center justify-between px-4">

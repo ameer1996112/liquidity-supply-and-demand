@@ -204,13 +204,21 @@ export async function fetchSignalStats(): Promise<SignalStats> {
   );
   const dailyPnl = todaySignals.reduce((sum, s) => sum + getPnlUsd(s), 0);
 
+  // Mode-specific daily PnL
+  const liveTodaySignals = todaySignals.filter(isLive);
+  const paperTodaySignals = todaySignals.filter(isPaper);
+  const liveDailyPnl = liveTodaySignals.reduce((sum, s) => sum + getPnlUsd(s), 0);
+  const paperDailyPnl = paperTodaySignals.reduce((sum, s) => sum + getPnlUsd(s), 0);
+
   // ── Total PnL (all-time) ────────────────────────────────────────────
   let totalPnl = 0;
+  let liveTotalPnl = 0;
+  let paperTotalPnl = 0;
   try {
     if (supabase) {
       const { data: allClosed } = await supabase
         .from('trading_signals')
-        .select('pnl, pnl_usd, entry, exit_price, price, position_size, side')
+        .select('pnl, pnl_usd, entry, exit_price, price, position_size, side, run_mode, mode')
         .in('status', ['closed', 'executed']);
 
       if (allClosed) {
@@ -232,6 +240,44 @@ export async function fetchSignalStats(): Promise<SignalStats> {
 
           return sum;
         }, 0);
+
+        // Calculate mode-specific totals
+        liveTotalPnl = allClosed
+          .filter((s: any) => {
+            const m = normalizeMode(s.run_mode ?? s.mode);
+            return m === 'LIVE' || m === undefined;
+          })
+          .reduce((sum, s: any) => {
+            const pnlUsd = s.pnl_usd ?? s.pnl;
+            if (pnlUsd != null) {
+              return sum + pnlUsd;
+            }
+            const entry = s.entry ?? s.price;
+            const exit = s.exit_price;
+            if (entry != null && exit != null && s.position_size) {
+              const side = String(s.side || 'buy').toLowerCase();
+              const diff = side === 'buy' ? exit - entry : entry - exit;
+              return sum + (diff * s.position_size);
+            }
+            return sum;
+          }, 0);
+
+        paperTotalPnl = allClosed
+          .filter((s: any) => normalizeMode(s.run_mode ?? s.mode) === 'PAPER')
+          .reduce((sum, s: any) => {
+            const pnlUsd = s.pnl_usd ?? s.pnl;
+            if (pnlUsd != null) {
+              return sum + pnlUsd;
+            }
+            const entry = s.entry ?? s.price;
+            const exit = s.exit_price;
+            if (entry != null && exit != null && s.position_size) {
+              const side = String(s.side || 'buy').toLowerCase();
+              const diff = side === 'buy' ? exit - entry : entry - exit;
+              return sum + (diff * s.position_size);
+            }
+            return sum;
+          }, 0);
       }
     }
   } catch (e) {
@@ -255,7 +301,11 @@ export async function fetchSignalStats(): Promise<SignalStats> {
     live_pnl_24h: livePnl,
     paper_pnl_24h: paperPnl,
     daily_pnl: dailyPnl,
+    live_daily_pnl: liveDailyPnl,
+    paper_daily_pnl: paperDailyPnl,
     total_pnl: totalPnl,
+    live_total_pnl: liveTotalPnl,
+    paper_total_pnl: paperTotalPnl,
     daily_drawdown_pct: dailyDrawdownPct,
   };
 }
@@ -658,11 +708,18 @@ function getMockStats(): SignalStats {
     filtered_count: 32,
     failed_count: 3,
     win_rate: 66.7,
+    live_win_rate: 66.7,
     ai_reject_rate: 68.1,
     active_trades: 2,
     total_pnl_24h: 458.25,
+    live_pnl_24h: 458.25,
+    paper_pnl_24h: 85.50,
     daily_pnl: 125.50,
+    live_daily_pnl: 125.50,
+    paper_daily_pnl: 32.20,
     total_pnl: 1245.80,
+    live_total_pnl: 1245.80,
+    paper_total_pnl: 342.15,
     daily_drawdown_pct: 0,
   };
 }
