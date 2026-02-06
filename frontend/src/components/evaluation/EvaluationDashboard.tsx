@@ -19,8 +19,8 @@ export function EvaluationDashboard() {
     );
   }
 
-  if (error || !evaluation?.evaluationuation_mode) {
-    return null; // Don't show if evaluationuation mode is off
+  if (error || !evaluation?.evaluation_mode) {
+    return null; // Don't show if evaluation mode is off
   }
 
   const phaseLabel = {
