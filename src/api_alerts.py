@@ -13,6 +13,25 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
+# Tables trading_alerts and alert_rules require migrations/004_trading_alerts.sql and 005_alert_rules.sql
+_ALERTS_TABLE_MISSING_MSG = "Could not find the table"
+_PGRST205 = "PGRST205"
+
+
+def _is_table_missing(exc: BaseException) -> bool:
+    """True if the exception indicates trading_alerts or alert_rules table is missing (migrations not run)."""
+    # Supabase/PostgREST can raise with body as dict or message in str(exc)
+    msg = str(exc)
+    if _ALERTS_TABLE_MISSING_MSG in msg or _PGRST205 in msg:
+        return True
+    if getattr(exc, "args", None) and len(exc.args) > 0:
+        first = exc.args[0]
+        if isinstance(first, dict) and (first.get("code") == _PGRST205 or _ALERTS_TABLE_MISSING_MSG in str(first.get("message", ""))):
+            return True
+        if _ALERTS_TABLE_MISSING_MSG in str(first) or _PGRST205 in str(first):
+            return True
+    return False
+
 # ── Lazy Supabase client ─────────────────────────────────────
 
 _client = None
@@ -99,8 +118,12 @@ def list_alerts(
         resp = query.execute()
         alerts = resp.data or []
     except Exception as exc:
-        logger.error("Failed to fetch alerts: %s", exc)
-        alerts = []
+        if _is_table_missing(exc):
+            logger.debug("trading_alerts table not found (run migrations/004_trading_alerts.sql): %s", exc)
+            alerts = []
+        else:
+            logger.error("Failed to fetch alerts: %s", exc)
+            alerts = []
 
     return AlertsListResponse(
         alerts=[AlertResponse(**a) for a in alerts],
@@ -138,6 +161,11 @@ def acknowledge_alert(alert_id: int):
     except HTTPException:
         raise
     except Exception as exc:
+        if _is_table_missing(exc):
+            raise HTTPException(
+                status_code=503,
+                detail="Alerts table not available. Run migrations/004_trading_alerts.sql in Supabase.",
+            ) from exc
         raise HTTPException(status_code=500, detail=f"Failed to acknowledge: {exc}")
 
     return {"status": "ok", "alert_id": alert_id}
@@ -157,6 +185,11 @@ def acknowledge_all_alerts():
             {"acknowledged_at": datetime.now(timezone.utc).isoformat()},
         ).is_("acknowledged_at", "null").execute()
     except Exception as exc:  # pragma: no cover - defensive
+        if _is_table_missing(exc):
+            raise HTTPException(
+                status_code=503,
+                detail="Alerts table not available. Run migrations/004_trading_alerts.sql in Supabase.",
+            ) from exc
         raise HTTPException(status_code=500, detail=f"Failed to acknowledge all: {exc}")
 
     return {"status": "ok"}
@@ -176,8 +209,12 @@ def list_alert_rules():
         )
         rules = resp.data or []
     except Exception as exc:
-        logger.error("Failed to fetch alert rules: %s", exc)
-        rules = []
+        if _is_table_missing(exc):
+            logger.debug("alert_rules table not found (run migrations/005_alert_rules.sql): %s", exc)
+            rules = []
+        else:
+            logger.error("Failed to fetch alert rules: %s", exc)
+            rules = []
 
     return {"rules": rules}
 
@@ -202,6 +239,11 @@ def create_alert_rule(body: CreateAlertRuleRequest):
         )
         return {"status": "ok", "rule": resp.data[0] if resp.data else None}
     except Exception as exc:
+        if _is_table_missing(exc):
+            raise HTTPException(
+                status_code=503,
+                detail="Alert rules table not available. Run migrations/005_alert_rules.sql in Supabase.",
+            ) from exc
         raise HTTPException(status_code=500, detail=f"Failed to create rule: {exc}")
 
 
@@ -213,6 +255,11 @@ def delete_alert_rule(rule_id: int):
     try:
         sb.table("alert_rules").delete().eq("id", rule_id).execute()
     except Exception as exc:
+        if _is_table_missing(exc):
+            raise HTTPException(
+                status_code=503,
+                detail="Alert rules table not available. Run migrations/005_alert_rules.sql in Supabase.",
+            ) from exc
         raise HTTPException(status_code=500, detail=f"Failed to delete rule: {exc}")
 
     return {"status": "ok", "deleted_id": rule_id}

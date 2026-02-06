@@ -6,6 +6,26 @@ from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
+_ALERTS_TABLE_MISSING_MSG = "Could not find the table"
+_PGRST205 = "PGRST205"
+
+
+def _is_table_missing(exc: BaseException) -> bool:
+    """True if the exception indicates alert_rules or trading_alerts table is missing."""
+    msg = str(exc)
+    if _ALERTS_TABLE_MISSING_MSG in msg or _PGRST205 in msg:
+        return True
+    if getattr(exc, "args", None) and len(exc.args) > 0:
+        first = exc.args[0]
+        if isinstance(first, dict) and (
+            first.get("code") == _PGRST205
+            or _ALERTS_TABLE_MISSING_MSG in str(first.get("message", ""))
+        ):
+            return True
+        if _ALERTS_TABLE_MISSING_MSG in str(first) or _PGRST205 in str(first):
+            return True
+    return False
+
 
 class AlertEngine:
     """Evaluates alert rules and inserts alerts into trading_alerts table."""
@@ -27,7 +47,13 @@ class AlertEngine:
             )
             rules = rules_resp.data or []
         except Exception as exc:
-            logger.error("AlertEngine: failed to fetch rules: %s", exc)
+            if _is_table_missing(exc):
+                logger.debug(
+                    "AlertEngine: alert_rules table not found (run migrations/005_alert_rules.sql): %s",
+                    exc,
+                )
+            else:
+                logger.error("AlertEngine: failed to fetch rules: %s", exc)
             return
 
         for rule in rules:
@@ -86,7 +112,13 @@ class AlertEngine:
             self.supabase.table("trading_alerts").insert(row).execute()
             logger.info("Alert created: [%s] %s", severity, title)
         except Exception as exc:
-            logger.error("AlertEngine: failed to create alert: %s", exc)
+            if _is_table_missing(exc):
+                logger.debug(
+                    "AlertEngine: trading_alerts table not found (run migrations/004_trading_alerts.sql): %s",
+                    exc,
+                )
+            else:
+                logger.error("AlertEngine: failed to create alert: %s", exc)
 
     # ── Rule checks ──────────────────────────────────────────
 

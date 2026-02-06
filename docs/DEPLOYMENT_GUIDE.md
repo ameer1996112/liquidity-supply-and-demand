@@ -171,6 +171,17 @@ With Root Directory set to `/frontend`, Railway will:
 
 ---
 
+## Supabase schema (optional): Alerts
+
+The app works without the alerts tables. If you want **alerts** (dashboard bell, alert rules, AlertEngine):
+
+1. In Supabase Dashboard → **SQL Editor**, run in order:
+   - Contents of `migrations/004_trading_alerts.sql`
+   - Contents of `migrations/005_alert_rules.sql`
+2. If these tables are missing, the API returns empty lists for `/alerts` and `/alerts/active` and no ERROR logs after the change; mutations (acknowledge, create rule) return 503 with a message to run the migrations.
+
+---
+
 ## Troubleshooting
 
 ### Both services rebuild on every push
