@@ -64,6 +64,13 @@ export function RiskBar() {
 
   if (isLoading || !risk) return null;
 
+  // Use LIVE-only daily PnL when available so RiskBar matches TopBar (no PAPER mix-in)
+  const dailyPnlForDisplay = risk.live_daily_pnl ?? risk.daily_pnl;
+  const dailyPnlPctForDanger =
+    risk.starting_equity > 0 && dailyPnlForDisplay < 0
+      ? (Math.abs(dailyPnlForDisplay) / risk.starting_equity) * 100
+      : 0;
+
   const handleToggle = () => {
     if (risk.kill_switch_active) {
       setShowConfirm(true);
@@ -77,11 +84,9 @@ export function RiskBar() {
     setShowConfirm(false);
   };
 
-  const dailyDanger = risk.daily_pnl_pct > risk.max_daily_loss_pct * 0.7;
+  const dailyDanger = dailyPnlPctForDanger > risk.max_daily_loss_pct * 0.7;
   const drawdownDanger = risk.drawdown_pct > risk.max_drawdown_pct * 0.7;
-  const dailyDrawdownPct = risk.starting_equity > 0 && risk.daily_pnl < 0
-    ? (Math.abs(risk.daily_pnl) / risk.starting_equity) * 100
-    : 0;
+  const dailyDrawdownPct = dailyPnlPctForDanger;
   const dailyDrawdownDanger = dailyDrawdownPct > risk.max_daily_loss_pct * 0.7;
   const positionsDanger = risk.active_positions >= risk.max_positions;
 
@@ -92,7 +97,7 @@ export function RiskBar() {
       {/* Gauges */}
       <RiskGauge
         label="Daily P&L"
-        value={`${risk.daily_pnl >= 0 ? '+' : ''}${risk.daily_pnl.toFixed(0)}`}
+        value={`${dailyPnlForDisplay >= 0 ? '+' : ''}${dailyPnlForDisplay.toFixed(0)}`}
         max={maxDailyLoss}
         unit="$"
         danger={dailyDanger}

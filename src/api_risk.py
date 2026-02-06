@@ -59,6 +59,8 @@ class RiskStatusResponse(BaseModel):
     kill_switch_reason: Optional[str] = None
     daily_pnl: float
     daily_pnl_pct: float
+    live_daily_pnl: Optional[float] = None
+    paper_daily_pnl: Optional[float] = None
     max_daily_loss_pct: float
     drawdown_pct: float
     max_drawdown_pct: float
@@ -81,19 +83,36 @@ def get_risk_status():
     s = get_settings()
     sb = _get_supabase()
 
-    # 1. Daily PnL from closed trades today
+    # 1. Daily PnL from closed trades today (combined + by run_mode for UI)
     today_start = datetime.combine(date.today(), datetime.min.time()).isoformat()
+    daily_pnl = 0.0
+    live_daily_pnl: Optional[float] = None
+    paper_daily_pnl: Optional[float] = None
     try:
+        # Combined (backward compat)
         resp = (
             sb.table("trading_signals")
-            .select("pnl_usd")
+            .select("pnl_usd, run_mode")
             .eq("status", "closed")
             .gte("created_at", today_start)
             .execute()
         )
-        daily_pnl = sum(float(t.get("pnl_usd") or 0) for t in (resp.data or []))
+        rows = resp.data or []
+        for t in rows:
+            daily_pnl += float(t.get("pnl_usd") or 0)
+        # Mode-specific for RiskBar / TopBar (LIVE vs PAPER)
+        live_daily_pnl = sum(
+            float(t.get("pnl_usd") or 0)
+            for t in rows
+            if (t.get("run_mode") or "LIVE").upper() == "LIVE"
+        )
+        paper_daily_pnl = sum(
+            float(t.get("pnl_usd") or 0)
+            for t in rows
+            if (t.get("run_mode") or "").upper() == "PAPER"
+        )
     except Exception:
-        daily_pnl = 0.0
+        pass
 
     # 2. Active positions + correlation exposure
     try:
@@ -169,6 +188,8 @@ def get_risk_status():
         kill_switch_reason=kill_reason,
         daily_pnl=round(daily_pnl, 2),
         daily_pnl_pct=round(daily_pnl_pct, 2),
+        live_daily_pnl=round(live_daily_pnl, 2) if live_daily_pnl is not None else None,
+        paper_daily_pnl=round(paper_daily_pnl, 2) if paper_daily_pnl is not None else None,
         max_daily_loss_pct=s.trinity_max_daily_loss_pct,
         drawdown_pct=round(drawdown_pct, 2),
         max_drawdown_pct=s.trinity_max_drawdown_pct,

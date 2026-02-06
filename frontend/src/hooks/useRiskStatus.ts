@@ -8,6 +8,10 @@ export interface RiskStatus {
   kill_switch_reason: string | null;
   daily_pnl: number;
   daily_pnl_pct: number;
+  /** LIVE-only daily PnL (closed today). Use in RiskBar when showing LIVE risk. */
+  live_daily_pnl?: number | null;
+  /** PAPER-only daily PnL (closed today). */
+  paper_daily_pnl?: number | null;
   max_daily_loss_pct: number;
   drawdown_pct: number;
   max_drawdown_pct: number;
