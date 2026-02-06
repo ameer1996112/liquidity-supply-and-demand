@@ -95,7 +95,7 @@ export function RiskRulesPanel() {
     setError('');
     try {
       if (addingNew) {
-        const { error: err } = await supabase
+        const { error: err } = await db
           .from('symbol_risk_rules')
           .insert({
             symbol: editRow.symbol.toUpperCase().trim(),
@@ -108,7 +108,7 @@ export function RiskRulesPanel() {
           });
         if (err) throw err;
       } else if (editId) {
-        const { error: err } = await supabase
+        const { error: err } = await db
           .from('symbol_risk_rules')
           .update({
             max_lot_size: editRow.max_lot_size,
