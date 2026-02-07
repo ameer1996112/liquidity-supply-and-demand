@@ -76,7 +76,18 @@ export function TopBar() {
     setTimeout(() => setIsRefreshing(false), 500);
   };
 
-  const winRate = stats?.live_win_rate ?? stats?.win_rate ?? 0;
+  // Win rate: compute from closed signals for current mode (same source as Total PnL)
+  const winRate = useMemo(() => {
+    const closed = signals.filter((s) => {
+      const st = s.status?.toLowerCase();
+      const pnl = getPnl(s);
+      return (st === 'closed' || st === 'executed') && pnl != null;
+    });
+    if (closed.length === 0) return 0;
+    const wins = closed.filter((s) => (getPnl(s) ?? 0) > 0).length;
+    return (wins / closed.length) * 100;
+  }, [signals]);
+
   const dailyPnl =
     mode === 'PAPER'
       ? (stats?.paper_daily_pnl ?? stats?.paper_pnl_24h ?? 0)
