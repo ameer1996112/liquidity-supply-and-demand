@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { useSignalStats, useRefreshSignals, useTradingSignals } from '@/hooks/useTradingSignals';
+import { useTradingMode } from '@/providers/TradingModeProvider';
 import { getPnl } from '@/types/trading';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -63,8 +64,9 @@ function MetricSkeleton() {
 }
 
 export function TopBar() {
+  const { mode } = useTradingMode();
   const { data: stats, isLoading } = useSignalStats();
-  const { data: liveSignals = [] } = useTradingSignals('LIVE');
+  const { data: signals = [] } = useTradingSignals(mode);
   const refreshSignals = useRefreshSignals();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -75,18 +77,20 @@ export function TopBar() {
   };
 
   const winRate = stats?.live_win_rate ?? stats?.win_rate ?? 0;
-  // Use LIVE-specific PnL fields to avoid mixing PAPER trades
-  const dailyPnl = stats?.live_daily_pnl ?? stats?.live_pnl_24h ?? 0;
+  const dailyPnl =
+    mode === 'PAPER'
+      ? (stats?.paper_daily_pnl ?? stats?.paper_pnl_24h ?? 0)
+      : (stats?.live_daily_pnl ?? stats?.live_pnl_24h ?? 0);
 
-  // Total PnL: use same source as Equity Curve (closed LIVE signals) for consistency
+  // Total PnL: use same source as Equity Curve (closed signals for current mode) for consistency
   const totalPnl = useMemo(() => {
-    const closed = liveSignals.filter((s) => {
+    const closed = signals.filter((s) => {
       const st = s.status?.toLowerCase();
       const pnl = getPnl(s);
       return (st === 'closed' || st === 'executed') && pnl != null;
     });
     return closed.reduce((sum, s) => sum + (getPnl(s) ?? 0), 0);
-  }, [liveSignals]);
+  }, [signals]);
 
   return (
     <header className="h-12 bg-[#0f1117] border-b border-[#2a2e39] flex items-center justify-between px-4">
@@ -142,11 +146,16 @@ export function TopBar() {
         {/* Alerts */}
         <AlertBell />
 
-        {/* Connection indicator */}
+        {/* Connection indicator / mode badge */}
         <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-[#1e222d]">
-          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <div
+            className={cn(
+              'w-1.5 h-1.5 rounded-full animate-pulse',
+              mode === 'PAPER' ? 'bg-amber-400' : 'bg-emerald-400'
+            )}
+          />
           <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-mono">
-            Live
+            {mode}
           </span>
         </div>
 

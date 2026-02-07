@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { QueryProvider } from '@/providers/QueryProvider';
 import { SidebarProvider } from '@/providers/SidebarProvider';
+import { TradingModeProvider } from '@/providers/TradingModeProvider';
 import { AppShell } from '@/components/layout/AppShell';
 import { ToastProvider } from '@/components/ui/toast';
 import { AlertProvider } from '@/components/alerts/AlertProvider';
@@ -26,7 +27,9 @@ export default function RootLayout({
           <ToastProvider>
             <AlertProvider>
               <SidebarProvider>
-                <AppShell>{children}</AppShell>
+                <TradingModeProvider>
+                  <AppShell>{children}</AppShell>
+                </TradingModeProvider>
               </SidebarProvider>
             </AlertProvider>
           </ToastProvider>

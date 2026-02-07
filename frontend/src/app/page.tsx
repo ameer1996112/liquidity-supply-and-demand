@@ -9,14 +9,15 @@ import { ExecutionQualityWidget } from '@/components/dashboard/ExecutionQualityW
 import { PortfolioRiskWidget } from '@/components/dashboard/PortfolioRiskWidget';
 import { EvaluationDashboard } from '@/components/evaluation/EvaluationDashboard';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { TradingSignal, TradingMode } from '@/types/trading';
+import { useTradingMode } from '@/providers/TradingModeProvider';
+import { TradingSignal } from '@/types/trading';
 import { Radio, FlaskConical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function DashboardPage() {
   const [selectedSignal, setSelectedSignal] = useState<TradingSignal | null>(null);
   const [inspectorOpen, setInspectorOpen] = useState(false);
-  const [activeMode, setActiveMode] = useState<TradingMode>('LIVE');
+  const { mode: activeMode, setMode } = useTradingMode();
 
   const handleSelectSignal = (signal: TradingSignal) => {
     setSelectedSignal(signal);
@@ -31,8 +32,8 @@ export default function DashboardPage() {
 
         {/* Mode Tabs */}
         <Tabs
-          defaultValue="live"
-          onValueChange={(v) => setActiveMode(v === 'live' ? 'LIVE' : 'PAPER')}
+          value={activeMode.toLowerCase()}
+          onValueChange={(v) => setMode(v === 'live' ? 'LIVE' : 'PAPER')}
         >
           <TabsList className="bg-[#1e222d] border border-[#2a2e39] p-1">
             <TabsTrigger
