@@ -27,6 +27,8 @@ from src.core.guard_rails.prop_guard import check_safety
 from src.services.trade_events import log_event, log_guard_decision
 from src import logic
 from src.services.watchdog import TradeWatchdog
+from src.services.trailing_stop_manager import TrailingStopManager
+from src.core.dynamic_config import get_dynamic_setting, clear_settings_cache, apply_time_based_rules
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 logger = logging.getLogger("TRINITY_WORKER")
@@ -36,10 +38,11 @@ ML_MIN_CONFIDENCE = 0.50
 
 supabase = None
 correlation_manager = None
+trailing_stop_manager = None
 
 
 def init_connections():
-    global supabase, correlation_manager
+    global supabase, correlation_manager, trailing_stop_manager
     r = get_redis()
     s = get_settings()
     key = (s.supabase_service_role_key or s.supabase_key).strip()
@@ -55,6 +58,16 @@ def init_connections():
         logger.info("CorrelationManager initialized")
     except Exception as exc:
         logger.warning("CorrelationManager init failed (fallback to simple count): %s", exc)
+
+    # Initialize trailing stop manager
+    if supabase:
+        try:
+            from src.adapters.execution.router import get_adapter
+            adapter = get_adapter(run_mode=s.run_mode, settings=s)
+            trailing_stop_manager = TrailingStopManager(supabase, adapter)
+            logger.info("TrailingStopManager initialized")
+        except Exception as exc:
+            logger.warning("TrailingStopManager init failed: %s", exc)
 
 
 def _exists_trade_key(trade_key: str, broker_profile_id: Optional[int] = None) -> bool:
@@ -414,6 +427,13 @@ def process_trade(payload: Dict[str, Any]):
     logger.info("Processing: %s | %s | Size: %s", symbol, side.upper(), size)
 
     s = get_settings()
+
+    # ── Dynamic Risk Controls: Check for time-based rules & DB overrides ────
+    time_based_multiplier = apply_time_based_rules()
+    if time_based_multiplier is not None and time_based_multiplier < 1.0:
+        logger.info(f"⏰ Time-based risk rule active: reducing risk by {(1.0 - time_based_multiplier) * 100:.0f}%")
+        # Apply to subsequent calculations via payload
+        payload["_time_risk_multiplier"] = time_based_multiplier
 
     # ── Invalid size (e.g. TradingView sent size=0) ─────────────────────
     if size <= 0 or not isinstance(payload.get("size"), (int, float)):
@@ -810,7 +830,7 @@ def run():
         payload_str = None
         try:
             redis_client = get_redis()
-            # Periodic watchdog + alert engine: every 60 seconds
+            # Periodic tasks: every 60 seconds (watchdog, alerts, trailing stops, config refresh)
             now = time.time()
             if now - last_watchdog_ts >= 60:
                 try:
@@ -821,8 +841,21 @@ def run():
                     alert_engine.evaluate_all()
                 except Exception as a_exc:  # noqa: BLE001
                     logger.error("AlertEngine run failed: %s", a_exc)
-                finally:
-                    last_watchdog_ts = now
+
+                # Update trailing stops
+                if trailing_stop_manager:
+                    try:
+                        trailing_stop_manager.update_trailing_stops()
+                    except Exception as ts_exc:  # noqa: BLE001
+                        logger.error("TrailingStopManager update failed: %s", ts_exc)
+
+                # Clear config cache to pick up DB changes
+                try:
+                    clear_settings_cache()
+                except Exception as cfg_exc:  # noqa: BLE001
+                    logger.error("Config cache clear failed: %s", cfg_exc)
+
+                last_watchdog_ts = now
 
             task = redis_client.blpop(QUEUE_NAME, timeout=5)
             backoff = 5

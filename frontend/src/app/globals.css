@@ -3,6 +3,12 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* System font stack (no Google Fonts fetch at build — avoids CI/network errors) */
+:root {
+  --font-geist-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-geist-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
 /* TradingView Professional Theme */
 @theme inline {
   --color-background: var(--background);
