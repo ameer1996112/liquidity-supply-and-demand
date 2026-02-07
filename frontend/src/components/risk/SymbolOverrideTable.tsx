@@ -13,15 +13,15 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Pencil, Trash2, Save, X, Loader2 } from 'lucide-react';
 import {
-  useSymbolRiskRules,
-  useCreateSymbolRiskRule,
-  useUpdateSymbolRiskRule,
-  useDeleteSymbolRiskRule,
-} from '@/hooks/useRiskConfig';
-import type { SymbolRiskRuleApi } from '@/lib/api';
+  useSymbolRiskRulesSupabase,
+  useCreateSymbolRiskRuleSupabase,
+  useUpdateSymbolRiskRuleSupabase,
+  useDeleteSymbolRiskRuleSupabase,
+} from '@/hooks/useSymbolRiskRulesSupabase';
+import type { SymbolRiskRule } from '@/types/rules';
 import { cn } from '@/lib/utils';
 
-type EditingRow = Partial<SymbolRiskRuleApi> & { symbol: string };
+type EditingRow = Partial<SymbolRiskRule> & { symbol: string };
 const EMPTY: EditingRow = {
   symbol: '',
   risk_percent: 1,
@@ -33,10 +33,10 @@ const EMPTY: EditingRow = {
 };
 
 export function SymbolOverrideTable() {
-  const { data: rules = [], isLoading, error } = useSymbolRiskRules();
-  const createRule = useCreateSymbolRiskRule();
-  const updateRule = useUpdateSymbolRiskRule();
-  const deleteRule = useDeleteSymbolRiskRule();
+  const { data: rules = [], isLoading, error } = useSymbolRiskRulesSupabase();
+  const createRule = useCreateSymbolRiskRuleSupabase();
+  const updateRule = useUpdateSymbolRiskRuleSupabase();
+  const deleteRule = useDeleteSymbolRiskRuleSupabase();
 
   const [adding, setAdding] = useState(false);
   const [editSymbol, setEditSymbol] = useState<string | null>(null);
@@ -53,7 +53,7 @@ export function SymbolOverrideTable() {
     setEditRow(EMPTY);
   }, []);
 
-  const startEdit = useCallback((rule: SymbolRiskRuleApi) => {
+  const startEdit = useCallback((rule: SymbolRiskRule) => {
     setAdding(false);
     setEditSymbol(rule.symbol);
     setEditRow({
@@ -134,7 +134,7 @@ export function SymbolOverrideTable() {
   if (error) {
     return (
       <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 text-amber-600 text-sm">
-        Failed to load symbol overrides. Check API connection.
+        Failed to load symbol overrides. Ensure Supabase is configured.
       </div>
     );
   }
