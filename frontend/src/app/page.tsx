@@ -67,16 +67,24 @@ export default function DashboardPage() {
       </div>
 
       {/* 2-Panel Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-[calc(100%-3rem)]">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-[calc(100%-3rem)] min-h-0">
         {/* Left Panel: Active Trades + Equity Chart + Execution Quality + Portfolio Risk + Evaluation */}
-        <div className="flex flex-col gap-4 overflow-y-auto">
-          <div className="flex-1 min-h-0">
+        <div className="flex flex-col gap-4 overflow-y-auto min-h-0">
+          <div className="min-h-[120px] max-h-[200px] shrink-0 overflow-hidden">
             <ActiveTradesPanel mode={activeMode} onSelectSignal={handleSelectSignal} />
           </div>
-          <MiniEquityChart mode={activeMode} />
-          <ExecutionQualityWidget />
-          <PortfolioRiskWidget />
-          <EvaluationDashboard />
+          <div className="shrink-0">
+            <MiniEquityChart mode={activeMode} />
+          </div>
+          <div className="shrink-0">
+            <ExecutionQualityWidget />
+          </div>
+          <div className="shrink-0">
+            <PortfolioRiskWidget />
+          </div>
+          <div className="shrink-0">
+            <EvaluationDashboard />
+          </div>
         </div>
 
         {/* Right Panel: Recent Signals Table */}

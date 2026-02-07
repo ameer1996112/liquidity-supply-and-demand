@@ -26,7 +26,7 @@ export function ActiveTradesPanel({ mode, onSelectSignal }: ActiveTradesPanelPro
   );
 
   return (
-    <div className="tv-card flex flex-col h-full">
+    <div className="tv-card flex flex-col h-full min-h-0 overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a2e39]">
         <div className="flex items-center gap-2">
@@ -48,7 +48,7 @@ export function ActiveTradesPanel({ mode, onSelectSignal }: ActiveTradesPanelPro
       </div>
 
       {/* Content */}
-      <ScrollArea className="flex-1 px-2 py-2">
+      <ScrollArea className="flex-1 min-h-0 px-2 py-2">
         {isLoading ? (
           <div className="space-y-2 px-1">
             {[...Array(3)].map((_, i) => (

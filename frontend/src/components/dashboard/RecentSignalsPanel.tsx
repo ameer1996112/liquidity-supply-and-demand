@@ -165,13 +165,13 @@ export function RecentSignalsPanel({ mode, onSelectSignal }: RecentSignalsPanelP
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex items-center gap-1 px-4 py-2 border-b border-[#2a2e39]">
+      <div className="flex flex-wrap items-center gap-1 px-4 py-2 border-b border-[#2a2e39]">
         {FILTER_TABS.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveFilter(tab.key)}
             className={cn(
-              'font-mono text-[10px] px-2.5 py-1 rounded transition-colors',
+              'font-mono text-[10px] px-3 py-1 rounded transition-colors whitespace-nowrap',
               activeFilter === tab.key
                 ? 'bg-[#2a2e39] text-zinc-200'
                 : 'text-zinc-600 hover:text-zinc-400 hover:bg-[#2a2e39]/50'
