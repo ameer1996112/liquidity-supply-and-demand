@@ -45,6 +45,8 @@ from src.api_positions import router as positions_router
 from src.api_alerts import router as alerts_router
 from src.api_analytics import router as analytics_router
 from src.api_evaluation import router as evaluation_router
+from src.api_execution import router as execution_router
+from src.api_portfolio import router as portfolio_router
 
 app = FastAPI(title="Trading Webhook API", version="1.0.0")
 app.include_router(rules_router)
@@ -55,6 +57,8 @@ app.include_router(positions_router)
 app.include_router(alerts_router)
 app.include_router(analytics_router)
 app.include_router(evaluation_router)
+app.include_router(execution_router)
+app.include_router(portfolio_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_build_cors_origins(),

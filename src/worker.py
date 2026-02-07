@@ -526,6 +526,122 @@ def process_trade(payload: Dict[str, Any]):
             save_result(payload, "correlation_rejected", f"DB Error: {str(e)[:50]}", 0.0)
             return
 
+    # ── Portfolio VaR Guard ───────────────────────────────────
+    if s.portfolio_var_enabled and supabase:
+        try:
+            from src.core.guard_rails.portfolio_var_guard import PortfolioVarGuard
+            from src.services.portfolio_analyzer import PortfolioAnalyzer
+            from src.services.historical_returns import HistoricalReturnsService
+            from src.adapters.market_data import get_current_price
+
+            # Get active positions with current prices
+            active_positions = get_active_positions_from_db()
+            position_dicts = []
+
+            for pos in active_positions:
+                current_price = get_current_price(pos.symbol)
+                if current_price is None:
+                    current_price = pos.entry_price
+
+                # Calculate notional value
+                notional = abs(pos.size) * 100_000 * current_price  # Simplified for forex
+
+                position_dicts.append({
+                    "symbol": pos.symbol,
+                    "side": pos.side,
+                    "entry": pos.entry_price,
+                    "size": pos.size,
+                    "current_price": current_price,
+                    "pnl": 0.0,
+                    "notional_value": notional,
+                })
+
+            # Calculate max VaR
+            max_var_usd = min(
+                s.portfolio_max_var_usd,
+                current_equity * (s.portfolio_max_var_pct / 100.0),
+            )
+
+            # Initialize services
+            returns_service = HistoricalReturnsService()
+            portfolio_analyzer = PortfolioAnalyzer(returns_service)
+            var_guard = PortfolioVarGuard(portfolio_analyzer)
+
+            # Check VaR limit
+            passed, reason = var_guard.check(
+                new_signal=payload,
+                current_positions=position_dicts,
+                max_var_usd=max_var_usd,
+            )
+
+            if not passed:
+                save_result(payload, "portfolio_var_rejected", reason, 0.0)
+                log_event(None, "portfolio_var_rejected", "worker", {"reason": reason})
+                log_guard_decision("portfolio_var", "rejected", reason, symbol)
+                logger.warning("PORTFOLIO VAR REJECTED: %s", reason)
+                return
+
+            logger.info("Portfolio VaR Guard: PASSED (limit=$%.0f)", max_var_usd)
+
+        except Exception as e:
+            logger.error("Portfolio VaR guard crashed: %s", e, exc_info=True)
+            # Allow trade on guard failure (fail-open for robustness)
+
+    # ── Sector Exposure Guard ─────────────────────────────────
+    if s.portfolio_var_enabled and supabase:  # Reuse same toggle for now
+        try:
+            from src.core.guard_rails.sector_guard import SectorExposureGuard
+
+            # Get active positions
+            active_positions = get_active_positions_from_db()
+            position_dicts = []
+
+            for pos in active_positions:
+                current_price = get_current_price(pos.symbol) or pos.entry_price
+                notional = abs(pos.size) * 100_000 * current_price
+
+                position_dicts.append({
+                    "symbol": pos.symbol,
+                    "notional_value": notional,
+                })
+
+            # Sector limits from settings
+            sector_limits = {
+                "forex_majors": s.sector_limit_forex_majors,
+                "forex_jpy": s.sector_limit_forex_jpy,
+                "forex_eur": s.sector_limit_forex_eur,
+                "forex_gbp": s.sector_limit_forex_gbp,
+                "indices_us": s.sector_limit_indices_us,
+                "indices_eu": s.sector_limit_indices_eu,
+                "indices_asia": s.sector_limit_indices_asia,
+                "precious_metals": s.sector_limit_precious_metals,
+                "commodities": s.sector_limit_commodities,
+                "crypto": s.sector_limit_crypto,
+            }
+
+            sector_guard = SectorExposureGuard()
+
+            # Check sector limits
+            passed, reason = sector_guard.check(
+                new_signal=payload,
+                current_positions=position_dicts,
+                sector_limits=sector_limits,
+                total_equity=current_equity,
+            )
+
+            if not passed:
+                save_result(payload, "sector_limit_rejected", reason, 0.0)
+                log_event(None, "sector_limit_rejected", "worker", {"reason": reason})
+                log_guard_decision("sector_guard", "rejected", reason, symbol)
+                logger.warning("SECTOR LIMIT REJECTED: %s", reason)
+                return
+
+            logger.info("Sector Exposure Guard: PASSED")
+
+        except Exception as e:
+            logger.error("Sector guard crashed: %s", e, exc_info=True)
+            # Allow trade on guard failure (fail-open for robustness)
+
     # ------------------------------------------------------------------
     # FLIP Entry Timing Validation
     # FLIP entries must occur at 15-minute candle boundaries (xx:00/15/30/45)

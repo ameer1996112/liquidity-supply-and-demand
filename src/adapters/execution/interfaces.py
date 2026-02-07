@@ -37,6 +37,7 @@ class ExecutionResult(BaseModel):
     broker_order_id: Optional[str] = None
     message: Optional[str] = None
     client_order_id: str = ""
+    actual_fill_price: Optional[float] = None  # TCA: Actual fill price from broker
 
 
 class ExecutionAdapter(Protocol):

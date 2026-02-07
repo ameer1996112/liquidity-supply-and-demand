@@ -161,6 +161,38 @@ class Settings(BaseSettings):
     # Consistency Rule
     consistency_target_pct: float = Field(default=70.0, ge=0.0, le=100.0, description="Consistency target (% of profitable days)")
 
+    # ── Transaction Cost Analysis (TCA) Settings ─────────────────────────
+    tca_enabled: bool = Field(default=True, description="Enable Transaction Cost Analysis tracking")
+    tca_slippage_threshold_pips: float = Field(default=3.0, ge=0.0, description="Alert threshold for slippage (pips)")
+    tca_latency_threshold_ms: int = Field(default=5000, ge=0, description="Alert threshold for execution latency (milliseconds)")
+    tca_spread_threshold_pips: float = Field(default=5.0, ge=0.0, description="Warning threshold for wide spreads (pips)")
+
+    # ── Portfolio Risk Management Settings ────────────────────────────────
+    # Portfolio VaR (Value at Risk) limits
+    portfolio_var_enabled: bool = Field(default=True, description="Enable portfolio VaR guard")
+    portfolio_max_var_usd: float = Field(default=500.0, ge=0.0, description="Maximum portfolio VaR in USD")
+    portfolio_max_var_pct: float = Field(default=5.0, ge=0.0, le=20.0, description="Maximum portfolio VaR as % of equity")
+
+    # Sector exposure limits (as fraction of equity, 0.0-1.0)
+    sector_limit_forex_majors: float = Field(default=0.40, ge=0.0, le=1.0, description="Max exposure to forex majors (% of equity)")
+    sector_limit_forex_jpy: float = Field(default=0.20, ge=0.0, le=1.0, description="Max exposure to JPY crosses (% of equity)")
+    sector_limit_forex_eur: float = Field(default=0.30, ge=0.0, le=1.0, description="Max exposure to EUR crosses (% of equity)")
+    sector_limit_forex_gbp: float = Field(default=0.30, ge=0.0, le=1.0, description="Max exposure to GBP crosses (% of equity)")
+    sector_limit_indices_us: float = Field(default=0.30, ge=0.0, le=1.0, description="Max exposure to US indices (% of equity)")
+    sector_limit_indices_eu: float = Field(default=0.20, ge=0.0, le=1.0, description="Max exposure to EU indices (% of equity)")
+    sector_limit_indices_asia: float = Field(default=0.20, ge=0.0, le=1.0, description="Max exposure to Asian indices (% of equity)")
+    sector_limit_precious_metals: float = Field(default=0.10, ge=0.0, le=1.0, description="Max exposure to precious metals (% of equity)")
+    sector_limit_commodities: float = Field(default=0.15, ge=0.0, le=1.0, description="Max exposure to commodities (% of equity)")
+    sector_limit_crypto: float = Field(default=0.10, ge=0.0, le=1.0, description="Max exposure to crypto (% of equity)")
+
+    # Kelly Criterion position sizing
+    kelly_enabled: bool = Field(default=False, description="Enable Kelly Criterion position sizing")
+    kelly_fraction: float = Field(default=0.25, ge=0.01, le=1.0, description="Fractional Kelly multiplier (0.25 = quarter Kelly)")
+
+    # Correlation matrix settings
+    correlation_matrix_enabled: bool = Field(default=True, description="Enable real correlation matrix checks")
+    max_avg_portfolio_correlation: float = Field(default=0.7, ge=0.0, le=1.0, description="Max average correlation with portfolio")
+
 
 @lru_cache
 def get_settings() -> Settings:

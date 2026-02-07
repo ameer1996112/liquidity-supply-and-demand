@@ -24,6 +24,7 @@ from src.adapters.execution.router import get_adapter
 from src.core.risk_engine import calculate_max_position_size
 from src.adapters import supabase as supabase_module
 from src.services.trade_events import log_event
+from src.services.execution_engine import ExecutionEngine
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -229,6 +230,59 @@ def process_trade(
 
                 # Risk-based position sizing: use profile risk_pct when in multi-account
                 risk_pct = (profile.get("risk_pct") if profile else None) or s.risk_percent
+
+                # ── Kelly Criterion Position Sizing ────────────────────
+                if s.kelly_enabled and supabase:
+                    try:
+                        from src.services.position_optimizer import PositionOptimizer
+
+                        # Fetch historical performance stats
+                        mode_filter = profile.get("run_mode") if profile else s.run_mode
+
+                        # Get closed trades for win rate calculation
+                        stats_query = (
+                            supabase.table("trading_signals")
+                            .select("pnl_r, outcome")
+                            .eq("mode", mode_filter)
+                            .in_("outcome", ["win", "loss"])
+                            .order("created_at", desc=True)
+                            .limit(100)
+                        )
+
+                        stats_result = stats_query.execute()
+
+                        if stats_result.data and len(stats_result.data) >= 20:
+                            wins = [t for t in stats_result.data if t.get("outcome") == "win"]
+                            losses = [t for t in stats_result.data if t.get("outcome") == "loss"]
+
+                            win_rate = len(wins) / len(stats_result.data) if stats_result.data else 0.6
+                            avg_win_r = sum(t.get("pnl_r", 0) for t in wins) / len(wins) if wins else 2.0
+                            avg_loss_r = abs(sum(t.get("pnl_r", 0) for t in losses) / len(losses)) if losses else 1.0
+
+                            # Calculate Kelly-adjusted risk
+                            optimizer = PositionOptimizer()
+                            kelly_risk_pct = optimizer.suggest_position_size(
+                                base_risk_pct=risk_pct,
+                                win_rate=win_rate,
+                                avg_win_r=avg_win_r,
+                                kelly_fraction=s.kelly_fraction,
+                                use_kelly=True,
+                            )
+
+                            logger.info(
+                                "Kelly sizing: win_rate=%.2f, avg_win=%.2fR, "
+                                "base=%.2f%%, kelly=%.2f%%",
+                                win_rate, avg_win_r, risk_pct, kelly_risk_pct,
+                            )
+
+                            risk_pct = kelly_risk_pct
+
+                        else:
+                            logger.info("Insufficient trade history for Kelly (%d trades), using base risk", len(stats_result.data) if stats_result.data else 0)
+
+                    except Exception as kelly_err:
+                        logger.warning("Kelly Criterion failed, using base risk: %s", kelly_err)
+
                 sl_pips = risk  # raw price distance (used for logging)
                 symbol_overrides = data.get("_symbol_overrides")
                 max_lots = calculate_max_position_size(
@@ -269,7 +323,35 @@ def process_trade(
                     alert_id=alert_id,
                     rr_ratio=rr_ratio,
                 )
-                exec_result = adapter.submit_order(order_req)
+
+                # Use Execution Engine for TCA tracking
+                # Prepare signal data for TCA analysis
+                signal_data = {
+                    "created_at": data.get("bar_time") or datetime.now(timezone.utc).isoformat(),
+                    "symbol": symbol,
+                    "side": data.get("side"),
+                    "entry": entry,
+                    "sl": sl,
+                    "tp": tp,
+                }
+
+                # Initialize Supabase client if needed
+                supabase_module.init_supabase()
+                client = supabase_module.supabase
+
+                if client and s.tca_enabled:
+                    # Use execution engine with TCA tracking
+                    execution_engine = ExecutionEngine(client, s)
+                    exec_result = execution_engine.execute_with_tca(
+                        order_request=order_req,
+                        signal_data=signal_data,
+                        adapter=adapter,
+                        profile=profile
+                    )
+                else:
+                    # Fallback to direct adapter call (TCA disabled or no DB)
+                    exec_result = adapter.submit_order(order_req)
+
                 logger.info(
                     "Execution result for alert #%s: status=%s broker_order_id=%s message=%s",
                     alert_id,

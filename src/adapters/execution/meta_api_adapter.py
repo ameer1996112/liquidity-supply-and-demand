@@ -322,13 +322,22 @@ class MetaApiAdapter:
                 message=msg,
             )
 
+        # TCA: Extract actual fill price from broker response
+        # MetaAPI returns price in various fields depending on order type
+        fill_price = (
+            data.get("openPrice") or  # Position open price
+            data.get("price") or       # Alternative price field
+            request.entry              # Fallback to requested entry
+        )
+
         logger.info(
-            "MetaApi order submitted: client_order_id=%s broker_order_id=%s symbol=%s side=%s size=%s",
+            "MetaApi order submitted: client_order_id=%s broker_order_id=%s symbol=%s side=%s size=%s fill_price=%s",
             request.client_order_id,
             order_id,
             request.symbol,
             request.side,
             request.size,
+            fill_price,
         )
 
         return ExecutionResult(
@@ -336,6 +345,7 @@ class MetaApiAdapter:
             broker_order_id=str(order_id),
             client_order_id=request.client_order_id,
             message="MetaApi order filled",
+            actual_fill_price=float(fill_price) if fill_price else None,
         )
 
     def modify_position(

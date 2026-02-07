@@ -5,6 +5,8 @@ import { SignalInspector } from '@/components/SignalInspector';
 import { ActiveTradesPanel } from '@/components/dashboard/ActiveTradesPanel';
 import { RecentSignalsPanel } from '@/components/dashboard/RecentSignalsPanel';
 import { MiniEquityChart } from '@/components/dashboard/MiniEquityChart';
+import { ExecutionQualityWidget } from '@/components/dashboard/ExecutionQualityWidget';
+import { PortfolioRiskWidget } from '@/components/dashboard/PortfolioRiskWidget';
 import { EvaluationDashboard } from '@/components/evaluation/EvaluationDashboard';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TradingSignal, TradingMode } from '@/types/trading';
@@ -65,12 +67,14 @@ export default function DashboardPage() {
 
       {/* 2-Panel Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-[calc(100%-3rem)]">
-        {/* Left Panel: Active Trades + Equity Chart + Evaluation */}
+        {/* Left Panel: Active Trades + Equity Chart + Execution Quality + Portfolio Risk + Evaluation */}
         <div className="flex flex-col gap-4 overflow-y-auto">
           <div className="flex-1 min-h-0">
             <ActiveTradesPanel mode={activeMode} onSelectSignal={handleSelectSignal} />
           </div>
           <MiniEquityChart mode={activeMode} />
+          <ExecutionQualityWidget />
+          <PortfolioRiskWidget />
           <EvaluationDashboard />
         </div>
 

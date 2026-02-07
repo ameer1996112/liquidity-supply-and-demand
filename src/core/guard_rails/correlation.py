@@ -508,6 +508,122 @@ class CorrelationManager:
 
         return exposure
 
+    def check_with_correlation_matrix(
+        self,
+        symbol: str,
+        side: str,
+        active_positions: List[ActivePosition],
+        correlation_matrix: Optional[Any] = None,
+        max_avg_correlation: float = 0.7,
+        historical_returns_service: Optional[Any] = None,
+        lookback_days: int = 30,
+    ) -> CorrelationCheckResult:
+        """
+        Enhanced correlation check using real correlation matrix.
+
+        This method calculates actual historical correlations instead of
+        relying on pre-defined correlation groups.
+
+        Args:
+            symbol: Symbol to trade
+            side: Trade direction ("buy" or "sell")
+            active_positions: List of current open positions
+            correlation_matrix: Pre-calculated correlation matrix (optional)
+            max_avg_correlation: Maximum allowed average correlation (0.0-1.0)
+            historical_returns_service: Service for fetching historical data
+            lookback_days: Historical lookback period for correlation
+
+        Returns:
+            CorrelationCheckResult with pass/fail and details
+        """
+        import numpy as np
+
+        if not active_positions:
+            return CorrelationCheckResult(passed=True)
+
+        # Only check same-direction positions for correlation
+        same_direction_positions = [
+            pos for pos in active_positions
+            if pos.side.lower() == side.lower()
+        ]
+
+        if not same_direction_positions:
+            return CorrelationCheckResult(passed=True)
+
+        # Get correlation matrix
+        if correlation_matrix is None:
+            if historical_returns_service is None:
+                # Fallback to standard check if no correlation data available
+                logger.warning(
+                    "No correlation matrix or historical service provided, "
+                    "falling back to standard correlation check"
+                )
+                return self.check(symbol, side, active_positions)
+
+            # Calculate correlation matrix
+            portfolio_symbols = [pos.symbol for pos in same_direction_positions]
+            all_symbols = portfolio_symbols + [symbol]
+
+            try:
+                corr_matrix = historical_returns_service.get_correlation_matrix(
+                    all_symbols,
+                    lookback_days
+                )
+
+                if corr_matrix is None:
+                    logger.warning("Failed to calculate correlation matrix, allowing trade")
+                    return CorrelationCheckResult(passed=True)
+
+            except Exception as e:
+                logger.error(f"Error calculating correlation matrix: {e}")
+                return CorrelationCheckResult(passed=True)
+        else:
+            corr_matrix = correlation_matrix
+
+        # Calculate average correlation of new symbol with portfolio
+        # New symbol is the last one in the matrix
+        n_positions = len(same_direction_positions)
+        new_symbol_correlations = corr_matrix[:-1, -1]  # Last column, excluding diagonal
+
+        avg_correlation = float(np.mean(new_symbol_correlations))
+        max_correlation = float(np.max(new_symbol_correlations))
+
+        exposure_details = {
+            "total_positions": len(active_positions),
+            "same_direction_positions": n_positions,
+            "new_symbol": symbol.upper(),
+            "new_side": side.lower(),
+            "avg_correlation": avg_correlation,
+            "max_correlation": max_correlation,
+            "correlation_threshold": max_avg_correlation,
+        }
+
+        logger.info(
+            f"Correlation matrix check: {symbol} avg_corr={avg_correlation:.2f}, "
+            f"max_corr={max_correlation:.2f}, threshold={max_avg_correlation:.2f}"
+        )
+
+        if avg_correlation > max_avg_correlation:
+            highly_correlated_symbols = []
+            for i, pos in enumerate(same_direction_positions):
+                if new_symbol_correlations[i] > 0.7:
+                    highly_correlated_symbols.append(
+                        f"{pos.symbol} ({new_symbol_correlations[i]:.2f})"
+                    )
+
+            return CorrelationCheckResult(
+                passed=False,
+                rejection_reason=CorrelationRejectionReason.CORRELATION_GROUP_LIMIT,
+                rejection_message=(
+                    f"HIGH CORRELATION: {symbol} has avg correlation of {avg_correlation:.2f} "
+                    f"with portfolio (max {max_avg_correlation:.2f}). "
+                    f"Highly correlated with: {', '.join(highly_correlated_symbols[:3])}"
+                ),
+                exposure_details=exposure_details,
+            )
+
+        return CorrelationCheckResult(passed=True, exposure_details=exposure_details)
+
 
 # ══════════════════════════════════════════════════════════
 # DATABASE INTEGRATION HELPERS

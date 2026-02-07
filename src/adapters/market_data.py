@@ -158,5 +158,149 @@ def get_market_narrative(symbol: str, candles: int = 50) -> str:
     return narrative
 
 
-__all__ = ["get_market_narrative"]
+def get_market_snapshot(symbol: str) -> dict:
+    """
+    Get current market snapshot for TCA tracking.
+
+    Returns:
+        dict with:
+            - bid: Current bid price
+            - ask: Current ask price
+            - spread_pips: Bid-ask spread in pips
+            - atr: Average True Range (14-period, hourly)
+            - timestamp: When data was captured
+    """
+    from datetime import datetime, timezone
+
+    # Map internal symbols to Yahoo Finance tickers
+    ticker_map = {
+        "XAUUSD": "GC=F",
+        "EURUSD": "EURUSD=X",
+        "GBPUSD": "GBPUSD=X",
+        "USDJPY": "USDJPY=X",
+        "USDCHF": "USDCHF=X",
+        "AUDUSD": "AUDUSD=X",
+        "NZDUSD": "NZDUSD=X",
+        "USDCAD": "USDCAD=X",
+        "BTCUSD": "BTC-USD",
+        "NAS100": "NQ=F",
+        "US30": "YM=F",
+    }
+    lookup_symbol = ticker_map.get(symbol.upper(), symbol)
+
+    try:
+        ticker = yf.Ticker(lookup_symbol)
+
+        # Get current price data
+        info = ticker.info
+        current_price = info.get("regularMarketPrice") or info.get("currentPrice", 0)
+
+        # For forex, yfinance doesn't provide bid/ask, so we approximate
+        # Typical forex spread is 1-3 pips for majors
+        spread_pips_estimate = 2.0  # Conservative estimate
+
+        # Get pip size
+        from src.services.tca_analyzer import TCAAnalyzer
+        pip_size = TCAAnalyzer.PIP_SIZES.get(symbol.upper(), 0.0001)
+
+        # Approximate bid/ask from current price
+        spread_value = spread_pips_estimate * pip_size
+        bid = current_price - (spread_value / 2)
+        ask = current_price + (spread_value / 2)
+
+        # Calculate ATR (14-period on hourly data)
+        df = ticker.history(period="7d", interval="1h")
+        if not df.empty:
+            df = df.rename(columns=str.capitalize)
+            atr = _calculate_atr(df, period=14)
+        else:
+            atr = 0.0
+
+        return {
+            "symbol": symbol,
+            "bid": bid,
+            "ask": ask,
+            "spread_pips": spread_pips_estimate,
+            "atr": atr,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+    except Exception as e:
+        logger.warning(f"Failed to get market snapshot for {symbol}: {e}")
+        # Return fallback data
+        return {
+            "symbol": symbol,
+            "bid": 0.0,
+            "ask": 0.0,
+            "spread_pips": 2.0,
+            "atr": 0.0,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+
+def _calculate_atr(df: pd.DataFrame, period: int = 14) -> float:
+    """
+    Calculate Average True Range (ATR).
+
+    ATR measures volatility by decomposing the entire range of an asset
+    for that period.
+    """
+    if len(df) < period + 1:
+        return 0.0
+
+    high = df["High"]
+    low = df["Low"]
+    close = df["Close"].shift(1)
+
+    # True Range is the greatest of:
+    # 1. Current High - Current Low
+    # 2. Abs(Current High - Previous Close)
+    # 3. Abs(Current Low - Previous Close)
+    tr1 = high - low
+    tr2 = (high - close).abs()
+    tr3 = (low - close).abs()
+
+    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+
+    # ATR is the moving average of True Range
+    atr = tr.rolling(window=period).mean().iloc[-1]
+
+    return float(atr) if pd.notnull(atr) else 0.0
+
+
+def get_current_price(symbol: str) -> float:
+    """
+    Get current price for a symbol.
+
+    Used for live PnL calculations and quick price checks.
+
+    Returns:
+        Current price, or 0.0 if unavailable
+    """
+    ticker_map = {
+        "XAUUSD": "GC=F",
+        "EURUSD": "EURUSD=X",
+        "GBPUSD": "GBPUSD=X",
+        "USDJPY": "USDJPY=X",
+        "USDCHF": "USDCHF=X",
+        "AUDUSD": "AUDUSD=X",
+        "NZDUSD": "NZDUSD=X",
+        "USDCAD": "USDCAD=X",
+        "BTCUSD": "BTC-USD",
+        "NAS100": "NQ=F",
+        "US30": "YM=F",
+    }
+    lookup_symbol = ticker_map.get(symbol.upper(), symbol)
+
+    try:
+        ticker = yf.Ticker(lookup_symbol)
+        info = ticker.info
+        price = info.get("regularMarketPrice") or info.get("currentPrice", 0)
+        return float(price)
+    except Exception as e:
+        logger.warning(f"Failed to get current price for {symbol}: {e}")
+        return 0.0
+
+
+__all__ = ["get_market_narrative", "get_market_snapshot", "get_current_price"]
 
