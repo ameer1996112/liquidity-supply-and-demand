@@ -66,7 +66,12 @@ def process_trade(
     data: Dict[str, Any],
     dry_run: bool = False,
     ai_result: Optional[Dict[str, Any]] = None,
+    profile: Optional[Dict[str, Any]] = None,
 ) -> None:
+    """
+    Execute one trade. When profile is set (multi-account), save one row per profile
+    and use that profile's token/account_id/risk_pct for execution.
+    """
     init_supabase()
     s = get_settings()
 
@@ -151,8 +156,14 @@ def process_trade(
     should_forward, filter_reasons, _ = should_forward_alert(data)
     mode = "paper" if run_mode == "PAPER" else "manual"
 
-    alert_id = save_alert(data, mode=mode, filter_reasons=filter_reasons if not should_forward else None)
-    log_event(alert_id, "alert_saved", "logic", {"symbol": symbol, "mode": mode})
+    broker_profile_id = profile.get("id") if profile and profile.get("id") is not None else None
+    alert_id = save_alert(
+        data,
+        mode=mode,
+        filter_reasons=filter_reasons if not should_forward else None,
+        broker_profile_id=broker_profile_id,
+    )
+    log_event(alert_id, "alert_saved", "logic", {"symbol": symbol, "mode": mode, "broker_profile_id": broker_profile_id})
 
     if not should_forward:
         reason_str = "; ".join(filter_reasons)
@@ -189,7 +200,7 @@ def process_trade(
             )
         else:
             try:
-                adapter = get_adapter(run_mode=s.run_mode, settings=s)
+                adapter = get_adapter(run_mode=s.run_mode, settings=s, profile=profile)
                 entry = float(data["entry"])
                 sl = float(data["sl"])
                 tp = float(data["tp"])
@@ -216,13 +227,14 @@ def process_trade(
                             acct_err,
                         )
 
-                # Risk-based position sizing: cap size to max allowed by balance
+                # Risk-based position sizing: use profile risk_pct when in multi-account
+                risk_pct = (profile.get("risk_pct") if profile else None) or s.risk_percent
                 sl_pips = risk  # raw price distance (used for logging)
                 symbol_overrides = data.get("_symbol_overrides")
                 max_lots = calculate_max_position_size(
                     payload=data,
                     account_balance=current_balance,
-                    risk_percent=s.risk_percent,
+                    risk_percent=risk_pct,
                     symbol_overrides=symbol_overrides,
                 )
                 if size > max_lots:
@@ -285,9 +297,12 @@ def process_trade(
                             }
 
                             if trade_key:
-                                client.table("trading_signals").update(update_payload).eq(
-                                    "trade_key", trade_key
-                                ).execute()
+                                q = client.table("trading_signals").update(update_payload).eq("trade_key", trade_key)
+                                if broker_profile_id is not None:
+                                    q = q.eq("broker_profile_id", broker_profile_id)
+                                else:
+                                    q = q.is_("broker_profile_id", "null")
+                                q.execute()
                             else:
                                 client.table("trading_signals").update(update_payload).eq(
                                     "id", alert_id

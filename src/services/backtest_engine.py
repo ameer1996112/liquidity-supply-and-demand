@@ -4,6 +4,8 @@ Replays historical signals through the full pipeline (pine filters, ensemble
 brain, position sizing) with optional config overrides.  Does NOT interact
 with any broker — results are written to ``trading_signals`` with
 ``run_mode='BACKTEST'`` and a unique ``run_id``.
+
+Also provides equity curve and drawdown from existing signals (LIVE or BACKTEST).
 """
 
 import json
@@ -11,7 +13,7 @@ import logging
 import time
 from copy import deepcopy
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -181,3 +183,108 @@ class BacktestEngine:
         except Exception as exc:
             logger.debug("Backtest save failed: %s", exc)
             return None
+
+
+# ── Equity curve & drawdown from existing signals ──────────────────────
+
+
+def get_equity_curve_and_drawdown(
+    run_mode: str = "BACKTEST",
+    run_id: Optional[str] = None,
+    starting_equity: float = 0.0,
+) -> Dict[str, Any]:
+    """
+    Load closed signals for the given run_mode/run_id, sort by created_at,
+    and compute cumulative PnL (equity curve) and max drawdown.
+
+    Returns:
+        {
+            "equity_curve": [{"created_at": "...", "cumulative_pnl": float, "equity": float}, ...],
+            "max_drawdown": float,
+            "max_drawdown_pct": float,
+            "total_pnl": float,
+            "closed_count": int,
+            "win_rate": float,
+        }
+    """
+    sb = _get_supabase()
+    if not sb:
+        return {
+            "equity_curve": [],
+            "max_drawdown": 0.0,
+            "max_drawdown_pct": 0.0,
+            "total_pnl": 0.0,
+            "closed_count": 0,
+            "win_rate": 0.0,
+        }
+    try:
+        query = (
+            sb.table("trading_signals")
+            .select("id, created_at, pnl_usd, pnl, outcome")
+            .eq("status", "closed")
+            .eq("run_mode", run_mode)
+            .order("created_at")
+        )
+        if run_id:
+            query = query.eq("run_id", run_id)
+        rows = query.execute().data or []
+    except Exception as exc:
+        logger.error("get_equity_curve_and_drawdown query failed: %s", exc)
+        return {
+            "equity_curve": [],
+            "max_drawdown": 0.0,
+            "max_drawdown_pct": 0.0,
+            "total_pnl": 0.0,
+            "closed_count": 0,
+            "win_rate": 0.0,
+        }
+
+    cumulative = starting_equity
+    peak = cumulative
+    max_dd = 0.0
+    max_dd_pct = 0.0
+    curve: List[Dict[str, Any]] = []
+    wins = 0
+    losses = 0
+
+    for r in rows:
+        pnl = r.get("pnl_usd")
+        if pnl is None:
+            pnl = r.get("pnl")
+        if pnl is not None:
+            pnl = float(pnl)
+        else:
+            pnl = 0.0
+        cumulative += pnl
+        if cumulative > peak:
+            peak = cumulative
+        dd = peak - cumulative
+        if dd > max_dd:
+            max_dd = dd
+        if peak > 0 and dd > 0:
+            pct = dd / peak * 100
+            if pct > max_dd_pct:
+                max_dd_pct = pct
+        outcome = (r.get("outcome") or "").lower()
+        if outcome == "win":
+            wins += 1
+        elif outcome == "loss":
+            losses += 1
+        curve.append({
+            "created_at": r.get("created_at"),
+            "cumulative_pnl": round(cumulative - starting_equity, 2),
+            "equity": round(cumulative, 2),
+        })
+
+    total_closed = wins + losses
+    win_rate = (wins / total_closed * 100) if total_closed > 0 else 0.0
+    total_pnl = cumulative - starting_equity
+
+    return {
+        "equity_curve": curve,
+        "max_drawdown": round(max_dd, 2),
+        "max_drawdown_pct": round(max_dd_pct, 2),
+        "total_pnl": round(total_pnl, 2),
+        "closed_count": len(rows),
+        "win_rate": round(win_rate, 1),
+    }

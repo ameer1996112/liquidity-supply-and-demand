@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict
+import time
+from typing import Any, Dict, Optional
 
 import requests
 
@@ -16,6 +17,11 @@ from src.adapters.execution.interfaces import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Retry: max 3 attempts, backoff 1s then 2s. On 429: open circuit breaker and fail.
+MAX_RETRIES = 2
+RETRY_BACKOFF = (1.0, 2.0)
+RATE_LIMIT_SLEEP = 60
 
 
 class MetaApiAdapter:
@@ -44,6 +50,56 @@ class MetaApiAdapter:
             "Content-Type": "application/json",
         }
 
+    def _check_circuit_breaker(self) -> bool:
+        """True if circuit is open (should not call MetaApi)."""
+        try:
+            from src.core.circuit_breaker import is_metaapi_circuit_open
+            return is_metaapi_circuit_open()
+        except Exception:  # noqa: BLE001
+            return False
+
+    def _request_with_retry(
+        self,
+        method: str,
+        url: str,
+        timeout: int = 10,
+        json: Optional[Dict[str, Any]] = None,
+    ) -> Optional[requests.Response]:
+        """
+        GET or POST with retries on timeout/5xx. On 429: open circuit breaker, sleep 60s, return None.
+        """
+        last_exc = None
+        for attempt in range(MAX_RETRIES + 1):
+            try:
+                if method.upper() == "GET":
+                    resp = requests.get(url, headers=self._headers(), timeout=timeout)
+                else:
+                    resp = requests.post(url, headers=self._headers(), json=json, timeout=timeout)
+            except (requests.exceptions.Timeout, requests.exceptions.ConnectionError, OSError) as exc:
+                last_exc = exc
+                logger.warning("MetaApi %s %s attempt %s failed: %s", method, url[:80], attempt + 1, exc)
+                if attempt < MAX_RETRIES:
+                    time.sleep(RETRY_BACKOFF[attempt] if attempt < len(RETRY_BACKOFF) else 2)
+                continue
+
+            if resp.status_code == 429:
+                try:
+                    from src.core.circuit_breaker import set_metaapi_circuit_open
+                    set_metaapi_circuit_open()
+                except Exception:  # noqa: BLE001
+                    pass
+                logger.warning("MetaApi rate limited (429); circuit breaker opened, sleeping %ss", RATE_LIMIT_SLEEP)
+                time.sleep(RATE_LIMIT_SLEEP)
+                return None
+            if 500 <= resp.status_code < 600 and attempt < MAX_RETRIES:
+                logger.warning("MetaApi %s %s HTTP %s; retrying in %.1fs", method, url[:80], resp.status_code, RETRY_BACKOFF[attempt] if attempt < len(RETRY_BACKOFF) else 2)
+                time.sleep(RETRY_BACKOFF[attempt] if attempt < len(RETRY_BACKOFF) else 2)
+                continue
+            return resp
+        if last_exc:
+            logger.error("MetaApi _request_with_retry failed after %s attempts: %s", MAX_RETRIES + 1, last_exc)
+        return None
+
     def _get_symbol_price(self, symbol: str) -> tuple[float | None, float | None]:
         """
         Fetch current bid/ask from MetaApi for the given symbol.
@@ -54,19 +110,15 @@ class MetaApiAdapter:
             f"{self.base_url}/users/current/accounts/"
             f"{self.account_id}/symbols/{symbol}/current-price"
         )
-        try:
-            resp = requests.get(url, headers=self._headers(), timeout=5)
-        except Exception as exc:  # noqa: BLE001
-            logger.error("MetaApi _get_symbol_price network error for %s: %s", symbol, exc)
-            return None, None
-
-        if resp.status_code != 200:
-            logger.error(
-                "MetaApi _get_symbol_price failed for %s: HTTP %s %s",
-                symbol,
-                resp.status_code,
-                resp.text[:200],
-            )
+        resp = self._request_with_retry("GET", url, timeout=5)
+        if resp is None or resp.status_code != 200:
+            if resp is not None:
+                logger.error(
+                    "MetaApi _get_symbol_price failed for %s: HTTP %s %s",
+                    symbol,
+                    resp.status_code,
+                    resp.text[:200],
+                )
             return None, None
 
         try:
@@ -106,16 +158,16 @@ class MetaApiAdapter:
 
         Returns dict with at least 'balance' and 'equity' keys (0.0 on failure).
         """
+        if self._check_circuit_breaker():
+            logger.warning("MetaApi get_account_information skipped: circuit breaker open")
+            return {"balance": 0.0, "equity": 0.0}
         url = (
             f"{self.base_url}/users/current/accounts/"
             f"{self.account_id}/account-information"
         )
-        try:
-            resp = requests.get(url, headers=self._headers(), timeout=10)
-        except Exception as exc:  # noqa: BLE001
-            logger.error("MetaApi get_account_information network error: %s", exc)
+        resp = self._request_with_retry("GET", url, timeout=10)
+        if resp is None:
             return {"balance": 0.0, "equity": 0.0}
-
         if resp.status_code != 200:
             logger.error(
                 "MetaApi get_account_information failed: HTTP %s %s",
@@ -220,19 +272,24 @@ class MetaApiAdapter:
         if tp_value is not None:
             payload["takeProfit"] = tp_value
 
-        try:
-            resp = requests.post(
-                self._trade_url(),
-                json=payload,
-                headers=self._headers(),
-                timeout=10,
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.error("MetaApi submit_order network error: %s", exc)
+        if self._check_circuit_breaker():
+            logger.warning("MetaApi submit_order skipped: circuit breaker open")
             return ExecutionResult(
                 status="failed",
                 client_order_id=request.client_order_id,
-                message=str(exc),
+                message="MetaApi circuit breaker open (rate limit or failures)",
+            )
+        resp = self._request_with_retry(
+            "POST",
+            self._trade_url(),
+            timeout=10,
+            json=payload,
+        )
+        if resp is None:
+            return ExecutionResult(
+                status="failed",
+                client_order_id=request.client_order_id,
+                message="MetaApi request failed after retries or rate limited",
             )
 
         if resp.status_code != 200:
@@ -294,21 +351,18 @@ class MetaApiAdapter:
         if tp is not None:
             payload["takeProfit"] = tp
 
-        try:
-            resp = requests.post(
-                self._trade_url(),
-                json=payload,
-                headers=self._headers(),
-                timeout=10,
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.error("MetaApi modify_position network error: %s", exc)
+        resp = self._request_with_retry(
+            "POST",
+            self._trade_url(),
+            timeout=10,
+            json=payload,
+        )
+        if resp is None:
             return ExecutionResult(
                 status="failed",
                 client_order_id=position_id,
-                message=str(exc),
+                message="MetaApi request failed after retries or rate limited",
             )
-
         if resp.status_code != 200:
             msg = f"HTTP {resp.status_code}: {resp.text[:200]}"
             logger.error("MetaApi modify_position failed: %s", msg)
@@ -371,21 +425,24 @@ class MetaApiAdapter:
             request.size,
         )
 
-        try:
-            resp = requests.post(
-                self._trade_url(),
-                json=payload,
-                headers=self._headers(),
-                timeout=10,
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.error("MetaApi close_order network error: %s", exc)
+        if self._check_circuit_breaker():
             return ExecutionResult(
                 status="failed",
                 client_order_id=request.client_order_id,
-                message=str(exc),
+                message="MetaApi circuit breaker open",
             )
-
+        resp = self._request_with_retry(
+            "POST",
+            self._trade_url(),
+            timeout=10,
+            json=payload,
+        )
+        if resp is None:
+            return ExecutionResult(
+                status="failed",
+                client_order_id=request.client_order_id,
+                message="MetaApi request failed after retries or rate limited",
+            )
         if resp.status_code != 200:
             msg = f"HTTP {resp.status_code}: {resp.text[:200]}"
             logger.error("MetaApi close_order failed: %s", msg)

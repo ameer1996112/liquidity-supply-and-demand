@@ -124,6 +124,8 @@ class Settings(BaseSettings):
     # External execution via MetaApi (MT5 over HTTP)
     meta_api_token: str = ""
     meta_api_account_id: str = ""
+    # Optional: JSON array of {name, account_id, token_env_key, risk_pct, max_positions, run_mode} for multi-account (Package A)
+    broker_profiles_json: str = Field(default="", description="BROKER_PROFILES_JSON: optional list of broker profiles for one-signal-many-accounts")
     meta_api_region: str = Field(
         default="new-york",
         description="MetaApi region slug (e.g. 'new-york', 'london', 'tokyo').",

@@ -242,3 +242,15 @@ def toggle_kill_switch(body: KillSwitchRequest):
         "action": action,
         "reason": body.reason,
     }
+
+
+@router.post("/circuit-breaker/reset")
+def reset_circuit_breaker():
+    """Reset the MetaApi circuit breaker so LIVE execution and watchdog can call MetaApi again."""
+    try:
+        from src.core.circuit_breaker import reset_metaapi_circuit
+        reset_metaapi_circuit()
+        return {"status": "ok", "message": "Circuit breaker reset"}
+    except Exception as exc:
+        logger.warning("Circuit breaker reset failed: %s", exc)
+        raise HTTPException(status_code=500, detail=str(exc))

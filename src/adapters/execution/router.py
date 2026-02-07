@@ -1,6 +1,6 @@
-"""Execution router: choose adapter by RUN_MODE and settings."""
+"""Execution router: choose adapter by RUN_MODE, settings, or broker profile (multi-account)."""
 
-from typing import Any
+from typing import Any, Dict
 
 from config import get_settings
 from config.settings import Settings
@@ -16,10 +16,23 @@ def get_adapter(
     run_mode: str | None = None,
     settings: Settings | None = None,
     paper_trader: Any = None,
+    profile: Dict[str, Any] | None = None,
 ) -> ExecutionAdapter:
+    """
+    Return execution adapter. When profile is provided (multi-account), use its token/account_id
+    for MetaApi. Otherwise use settings (single-account).
+    """
     s = settings or get_settings()
 
-    # Explicit override: external execution via MetaApi
+    # Multi-account: profile carries token and account_id
+    if profile and isinstance(profile, dict):
+        token = (profile.get("token") or "").strip()
+        account_id = (profile.get("meta_api_account_id") or profile.get("account_id") or "").strip()
+        if token and account_id:
+            return MetaApiAdapter(token=token, account_id=account_id)
+        # Fall through to single-account
+
+    # Explicit override: external execution via MetaApi (single-account)
     if getattr(s, "execution_mode", "").upper() == "METAAPI":
         return MetaApiAdapter(token=s.meta_api_token, account_id=s.meta_api_account_id)
 

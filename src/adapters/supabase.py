@@ -48,14 +48,20 @@ def init_supabase() -> Client:
         raise
 
 
-def save_alert(data: dict, mode: str = 'manual', filter_reasons: List[str] = None) -> int:
+def save_alert(
+    data: dict,
+    mode: str = 'manual',
+    filter_reasons: List[str] = None,
+    broker_profile_id: int | None = None,
+) -> int:
     """
-    Save alert to Supabase trading_signals table
+    Save alert to Supabase trading_signals table.
 
     Args:
         data: Alert data dictionary
         mode: Trading mode ('manual', 'paper', 'live')
         filter_reasons: List of filter reason codes (if filtered)
+        broker_profile_id: Optional; for multi-account, one row per (trade_key, broker_profile_id)
 
     Returns:
         alert_id: The ID of the inserted row
@@ -122,6 +128,8 @@ def save_alert(data: dict, mode: str = 'manual', filter_reasons: List[str] = Non
         'trade_key': trade_key,
         'entry_time': entry_time,
     }
+    if broker_profile_id is not None:
+        insert_data['broker_profile_id'] = broker_profile_id
 
     # Add filter reasons if provided
     if filter_reasons:

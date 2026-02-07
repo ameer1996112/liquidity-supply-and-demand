@@ -12,6 +12,7 @@ row in the `trading_signals` table.
 from __future__ import annotations
 
 import logging
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Sequence
 
@@ -62,58 +63,68 @@ class TradeWatchdog:
             "Content-Type": "application/json",
         }
 
-    def _get_client(self, path: str, params: Optional[Dict[str, Any]] = None) -> Optional[Any]:
-        """GET wrapper against the MetaApi client API (positions, etc.)."""
+    def _get_with_retry(
+        self,
+        base_url: str,
+        path: str,
+        params: Optional[Dict[str, Any]] = None,
+        max_attempts: int = 3,
+    ) -> Optional[requests.Response]:
+        """GET with retries (1s, 2s backoff) on timeout/5xx. Returns Response or None."""
         if not self.token or not self.account_id:
             return None
+        url = f"{base_url}{path}"
+        for attempt in range(max_attempts):
+            try:
+                resp = requests.get(url, headers=self._headers(), params=params, timeout=10)
+            except (requests.exceptions.Timeout, requests.exceptions.ConnectionError, OSError) as exc:
+                logger.warning("TradeWatchdog GET %s attempt %s failed: %s", url[:80], attempt + 1, exc)
+                if attempt < max_attempts - 1:
+                    time.sleep(1.0 + attempt)
+                continue
+            if 500 <= resp.status_code < 600 and attempt < max_attempts - 1:
+                logger.warning("TradeWatchdog GET %s HTTP %s; retrying", url[:80], resp.status_code)
+                time.sleep(1.0 + attempt)
+                continue
+            return resp
+        return None
 
-        url = f"{self.client_base_url}{path}"
-        try:
-            resp = requests.get(url, headers=self._headers(), params=params, timeout=10)
-        except Exception as exc:  # noqa: BLE001
-            logger.error("TradeWatchdog client GET %s failed: %s", url, exc)
+    def _get_client(self, path: str, params: Optional[Dict[str, Any]] = None) -> Optional[Any]:
+        """GET wrapper against the MetaApi client API (positions, etc.)."""
+        resp = self._get_with_retry(self.client_base_url, path, params)
+        if resp is None or resp.status_code != 200:
+            if resp is not None:
+                logger.error(
+                    "TradeWatchdog client GET %s failed: HTTP %s %s",
+                    f"{self.client_base_url}{path}"[:80],
+                    resp.status_code,
+                    resp.text[:200],
+                )
             return None
-
-        if resp.status_code != 200:
-            logger.error(
-                "TradeWatchdog client GET %s failed: HTTP %s %s",
-                url,
-                resp.status_code,
-                resp.text[:200],
-            )
-            return None
-
         try:
             return resp.json()
         except ValueError:
-            logger.error("TradeWatchdog client GET %s invalid JSON: %s", url, resp.text[:200])
+            logger.error("TradeWatchdog client GET invalid JSON: %s", resp.text[:200])
             return None
 
     def _get_stats(self, path: str, params: Optional[Dict[str, Any]] = None) -> Optional[Any]:
         """GET wrapper against the MetaStats API (history-deals)."""
         if not self.token or not self.account_id:
             return None
-
-        url = f"{self.stats_base_url}{path}"
-        try:
-            resp = requests.get(url, headers=self._headers(), params=params, timeout=10)
-        except Exception as exc:  # noqa: BLE001
-            logger.error("TradeWatchdog stats GET %s failed: %s", url, exc)
+        resp = self._get_with_retry(self.stats_base_url, path, params)
+        if resp is None or resp.status_code != 200:
+            if resp is not None:
+                logger.error(
+                    "TradeWatchdog stats GET %s failed: HTTP %s %s",
+                    f"{self.stats_base_url}{path}"[:80],
+                    resp.status_code,
+                    resp.text[:200],
+                )
             return None
-
-        if resp.status_code != 200:
-            logger.error(
-                "TradeWatchdog stats GET %s failed: HTTP %s %s",
-                url,
-                resp.status_code,
-                resp.text[:200],
-            )
-            return None
-
         try:
             return resp.json()
         except ValueError:
-            logger.error("TradeWatchdog stats GET %s invalid JSON: %s", url, resp.text[:200])
+            logger.error("TradeWatchdog stats GET invalid JSON: %s", resp.text[:200])
             return None
 
     # ------------------------------------------------------------------ #
@@ -136,6 +147,13 @@ class TradeWatchdog:
             return
         if not self.token or not self.account_id:
             return
+        try:
+            from src.core.circuit_breaker import is_metaapi_circuit_open
+            if is_metaapi_circuit_open():
+                logger.debug("TradeWatchdog: circuit breaker open, skipping sync")
+                return
+        except Exception:  # noqa: BLE001
+            pass
 
         try:
             resp = (

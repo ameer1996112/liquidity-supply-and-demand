@@ -153,7 +153,6 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
     rules_texts: list[str] = []
     if rag is not None:
         try:
-            # Make the query explicitly about S&D 5m liquidity/OB entries
             rag_query = f"{narrative} supply demand liquidity sweep entry trading strategy"
             docs = rag.query_rules(
                 rag_query,
@@ -161,6 +160,16 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
                 filter={"timeframe": "5m"},
             )
             rules_texts = [d.page_content for d in docs]
+            try:
+                from src.services.trade_events import log_event
+                log_event(
+                    None,
+                    "rag_query",
+                    "brain",
+                    {"query_preview": rag_query[:200], "k": 4, "num_docs": len(docs), "symbol": symbol},
+                )
+            except Exception:
+                pass
         except Exception as e:
             logger.error("RAG query failed: %s", e)
     else:
@@ -168,26 +177,27 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
     result["rules"] = rules_texts
 
     # Step 4: Late RF rejection - after we have narrative & RAG context
-    # Threshold is configurable via ML_MIN_CONFIDENCE (0-1); default 0.60.
     rf_threshold = getattr(settings, "ml_min_confidence", 0.60)
     if rf_prob < rf_threshold:
         result["reason"] = (
             f"RF probability {rf_prob:.1%} below {rf_threshold:.0%} threshold."
         )
+        _log_brain_decision(symbol, result)
         return result
 
     # If LLM filter disabled, accept RF decision (but still include RAG/narrative)
     if not getattr(settings, "enable_llm_filter", True):
         result["decision"] = "GO"
         result["reason"] = "RF pass and LLM filter disabled."
+        _log_brain_decision(symbol, result)
         return result
 
     # Step 5: LLM wisdom
     client = _get_llm_client()
     if client is None:
-        # Fallback: trust RF
         result["decision"] = "GO"
         result["reason"] = "RF pass; LLM unavailable, defaulting to GO."
+        _log_brain_decision(symbol, result)
         return result
 
     rules_block = "\n\n".join(f"- {r}" for r in rules_texts) if rules_texts else "No explicit rules found."
@@ -234,11 +244,27 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
             result["reason"] = reason or "LLM rejected trade."
     except Exception as e:
         logger.error("LLM ensemble decision failed: %s", e)
-        # On failure, be conservative or trust RF – choose conservative:
         result["decision"] = "NO_GO"
         result["reason"] = f"LLM error: {str(e)[:80]}"
 
+    _log_brain_decision(symbol, result)
     return result
+
+
+def _log_brain_decision(symbol: str, result: Dict[str, Any]) -> None:
+    """Log brain prediction to trade_events for audit and tuning (Package C)."""
+    try:
+        from src.services.trade_events import log_event
+        meta = {
+            "decision": result.get("decision", ""),
+            "rf_prob": result.get("rf_prob"),
+            "reason": (result.get("reason") or "")[:300],
+            "symbol": symbol,
+            "num_rules": len(result.get("rules") or []),
+        }
+        log_event(None, "brain_prediction", "brain", meta)
+    except Exception:
+        pass
 
 
 __all__ = ["load_brain", "get_prediction", "ensemble_decision"]

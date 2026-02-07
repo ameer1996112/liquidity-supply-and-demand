@@ -16,7 +16,7 @@ _root = Path(__file__).resolve().parent.parent
 load_dotenv(_root / ".env")
 
 from config import get_settings
-from src.adapters.redis_queue import QUEUE_NAME, get_redis, push_dead_letter
+from src.adapters.redis_queue import QUEUE_NAME, get_redis, push_dead_letter, reset_redis_client
 from src.ai.brain import ensemble_decision, get_prediction, load_brain
 from src.core.risk_engine import calculate_max_position_size as _calculate_max_position_size_impl
 from src.core.guard_rails.correlation import (
@@ -24,7 +24,7 @@ from src.core.guard_rails.correlation import (
     get_active_positions_from_db,
 )
 from src.core.guard_rails.prop_guard import check_safety
-from src.services.trade_events import log_event
+from src.services.trade_events import log_event, log_guard_decision
 from src import logic
 from src.services.watchdog import TradeWatchdog
 
@@ -57,11 +57,17 @@ def init_connections():
         logger.warning("CorrelationManager init failed (fallback to simple count): %s", exc)
 
 
-def _exists_trade_key(trade_key: str) -> bool:
+def _exists_trade_key(trade_key: str, broker_profile_id: Optional[int] = None) -> bool:
+    """True if a row already exists for this trade_key (and optional broker_profile_id)."""
     if not trade_key or not str(trade_key).strip() or not supabase:
         return False
     try:
-        r = supabase.table("trading_signals").select("id").eq("trade_key", trade_key.strip()).limit(1).execute()
+        q = supabase.table("trading_signals").select("id").eq("trade_key", trade_key.strip()).limit(1)
+        if broker_profile_id is not None:
+            q = q.eq("broker_profile_id", broker_profile_id)
+        else:
+            q = q.is_("broker_profile_id", "null")
+        r = q.execute()
         return len(r.data) > 0
     except Exception as e:
         logger.warning("Idempotency check failed: %s", e)
@@ -168,7 +174,14 @@ def _payload_zone_and_metrics(payload: Dict[str, Any]) -> tuple[Dict[str, Any], 
     return columns, reason
 
 
-def save_result(payload: Dict[str, Any], status: str, note: str, prob: float, ai_reasoning: Optional[Dict[str, Any]] = None):
+def save_result(
+    payload: Dict[str, Any],
+    status: str,
+    note: str,
+    prob: float,
+    ai_reasoning: Optional[Dict[str, Any]] = None,
+    broker_profile_id: Optional[int] = None,
+):
     if not supabase:
         logger.warning("Supabase unavailable - result not saved: %s", status)
         return
@@ -187,6 +200,8 @@ def save_result(payload: Dict[str, Any], status: str, note: str, prob: float, ai
     tk = (payload.get("trade_key") or "").strip()
     if tk:
         data["trade_key"] = tk
+    if broker_profile_id is not None:
+        data["broker_profile_id"] = broker_profile_id
 
     # Zone + metrics so filtered signals show Zone Analysis and score breakdown in UI
     extra_columns, zone_reason = _payload_zone_and_metrics(payload)
@@ -423,15 +438,30 @@ def process_trade(payload: Dict[str, Any]):
     if getattr(s, "trading_kill_switch", False) or redis_kill:
         save_result(payload, "kill_switch_blocked", "Trading kill-switch is ON", 0.0)
         log_event(None, "kill_switch_blocked", "worker", {"symbol": symbol})
+        log_guard_decision("kill_switch", "blocked", "Trading kill-switch is ON", symbol)
         logger.warning("KILL-SWITCH: execution blocked")
         return
 
-    # ── Idempotency ──────────────────────────────────────────
-    signal_id = payload.get("signal_id") or payload.get("trade_key")
-    if signal_id and _exists_trade_key(signal_id):
-        log_event(None, "idempotency_skip", "worker", {"signal_id": signal_id})
-        logger.info("Idempotency: signal_id/trade_key already exists, skipping")
-        return
+    # ── Circuit breaker (MetaApi / LIVE) ─────────────────────
+    run_mode = str(payload.get("run_mode", "PAPER")).upper()
+    if run_mode == "LIVE":
+        try:
+            from src.core.circuit_breaker import is_metaapi_circuit_open
+            if is_metaapi_circuit_open():
+                save_result(
+                    payload,
+                    "circuit_breaker_blocked",
+                    "MetaApi circuit breaker open (rate limit or repeated failures)",
+                    0.0,
+                )
+                log_event(None, "circuit_breaker_blocked", "worker", {"symbol": symbol})
+                log_guard_decision("circuit_breaker", "blocked", "MetaApi circuit open", symbol)
+                logger.warning("CIRCUIT BREAKER: LIVE execution skipped")
+                return
+        except Exception:
+            pass  # fail-open if circuit module unavailable
+
+    # ── Idempotency is checked per-profile in the execution loop (multi-account) ──
 
     # ── PropGuard: Step-Up Risk Scaling ──────────────────────
     daily_pnl = 0.0
@@ -448,6 +478,7 @@ def process_trade(payload: Dict[str, Any]):
     if not allowed:
         save_result(payload, "risk_rejected", f"PropGuard: {risk_label}", 0.0)
         log_event(None, "prop_guard_blocked", "worker", {"label": risk_label, "daily_pnl": daily_pnl})
+        log_guard_decision("prop_guard", "rejected", risk_label, symbol, {"daily_pnl": daily_pnl})
         logger.warning("PROP GUARD BLOCKED: %s", risk_label)
         return
     logger.info("PropGuard: %s (multiplier=%.2f)", risk_label, risk_multiplier)
@@ -472,6 +503,7 @@ def process_trade(payload: Dict[str, Any]):
             if not corr_result.passed:
                 save_result(payload, "correlation_rejected", corr_result.rejection_message, 0.0)
                 log_event(None, "correlation_rejected", "worker", {"reason": corr_result.rejection_message})
+                log_guard_decision("correlation", "rejected", corr_result.rejection_message, symbol)
                 logger.warning("CORRELATION REJECTED: %s", corr_result.rejection_message)
                 return
         except Exception as e:
@@ -484,7 +516,9 @@ def process_trade(payload: Dict[str, Any]):
             active_count = len(active.data)
             logger.info("Correlation Check (simple): %s/%s active", active_count, MAX_OPEN_POSITIONS)
             if active_count >= MAX_OPEN_POSITIONS:
-                save_result(payload, "correlation_rejected", f"Bucket Full ({active_count}/{MAX_OPEN_POSITIONS})", 0.0)
+                msg = f"Bucket Full ({active_count}/{MAX_OPEN_POSITIONS})"
+                save_result(payload, "correlation_rejected", msg, 0.0)
+                log_guard_decision("correlation", "rejected", msg, symbol)
                 logger.warning("CORRELATION REJECTED: bucket full")
                 return
         except Exception as e:
@@ -568,48 +602,64 @@ def process_trade(payload: Dict[str, Any]):
         if shadow_mode:
             logger.warning("⚠️ SHADOW MODE: Executing trade despite AI rejection.")
         else:
-            # Block trade when not in shadow mode
+            reason = ai_result.get("reason", "AI ensemble rejected trade.")
             save_result(
                 payload,
                 "ai_rejected",
-                ai_result.get("reason", "AI ensemble rejected trade."),
+                reason,
                 float(ai_result.get("rf_prob", 0.0)),
                 ai_reasoning=ai_result,
             )
-            log_event(None, "ai_rejected", "worker", {"symbol": symbol, "reason": ai_result.get("reason", "")[:200]})
+            log_event(None, "ai_rejected", "worker", {"symbol": symbol, "reason": reason[:200]})
+            log_guard_decision("ai_ensemble", "rejected", reason, symbol, {"rf_prob": ai_result.get("rf_prob")})
             return
 
     log_event(None, "ai_approved", "worker", {"symbol": symbol, "rf_prob": ai_result.get("rf_prob")})
+    log_guard_decision("ai_ensemble", "approved", ai_result.get("reason", "GO")[:200], symbol, {"rf_prob": ai_result.get("rf_prob")})
 
     # If we reach here, either AI said GO or shadow mode is allowing it.
-    # Attach AI reasoning to the payload so it is persisted with the entry row.
     payload["ai_reasoning"] = ai_result
     payload["ai_decision"] = ai_result.get("decision")
-    # Use RF probability (0-1) as a proxy for AI confidence in percent
     try:
         payload["ai_confidence"] = round(float(ai_result.get("rf_prob", 0.0)) * 100, 1)
     except Exception:
         pass
 
     win_prob = float(ai_result.get("rf_prob", 0.0))
-    try:
-        dry_run = not getattr(s, "live_trading_enabled", False)
-        if dry_run:
-            logger.info("DRY_RUN: LIVE_TRADING=false — saving alert + notify only")
-        log_event(None, "execution_started", "worker", {"symbol": symbol, "dry_run": dry_run})
-        # Pass ai_result through so downstream notifications can render the brain matrix
-        logic.process_trade(payload, dry_run=dry_run, ai_result=ai_result)
-        logger.info("logic.process_trade completed")
-    except Exception as exec_err:
-        logger.error("logic.process_trade failed: %s", exec_err)
-        log_event(None, "execution_failed", "worker", {"symbol": symbol, "error": str(exec_err)[:200]})
-        save_result(
-            payload,
-            "execution_failed",
-            f"logic.process_trade: {str(exec_err)[:80]}",
-            win_prob,
-            ai_reasoning=ai_result,
-        )
+    dry_run = not getattr(s, "live_trading_enabled", False)
+
+    # Multi-account: execute for each matching profile (or single default)
+    from src.core.broker_profiles import get_active_profiles
+
+    profiles = get_active_profiles()
+    payload_run_mode = str(payload.get("run_mode", "PAPER")).upper()
+    matching = [p for p in profiles if (p.get("run_mode") or "LIVE") == payload_run_mode]
+    if not matching:
+        matching = [None]  # fallback: one call with profile=None (single-account from settings)
+
+    trade_key = (payload.get("trade_key") or "").strip()
+    for profile in matching:
+        profile_id = profile.get("id") if profile else None
+        if trade_key and _exists_trade_key(trade_key, profile_id):
+            logger.info("Idempotency: (trade_key=%s, profile_id=%s) exists, skipping", trade_key, profile_id)
+            continue
+        try:
+            if dry_run:
+                logger.info("DRY_RUN: LIVE_TRADING=false — saving alert + notify only")
+            log_event(None, "execution_started", "worker", {"symbol": symbol, "dry_run": dry_run, "profile": (profile or {}).get("name")})
+            logic.process_trade(payload, dry_run=dry_run, ai_result=ai_result, profile=profile)
+            logger.info("logic.process_trade completed for profile %s", (profile or {}).get("name") or "default")
+        except Exception as exec_err:
+            logger.error("logic.process_trade failed: %s", exec_err)
+            log_event(None, "execution_failed", "worker", {"symbol": symbol, "error": str(exec_err)[:200], "profile": (profile or {}).get("name")})
+            save_result(
+                payload,
+                "execution_failed",
+                f"logic.process_trade: {str(exec_err)[:80]}",
+                win_prob,
+                ai_reasoning=ai_result,
+                broker_profile_id=profile_id,
+            )
 
 
 def run():
@@ -635,13 +685,15 @@ def run():
     logger.info("=" * 60)
 
     backoff = 5
-    redis_client = get_redis()
     watchdog = TradeWatchdog(supabase_client=supabase)
     from src.services.alert_engine import AlertEngine
     alert_engine = AlertEngine(supabase_client=supabase)
     last_watchdog_ts = time.time()
     while True:
+        task = None
+        payload_str = None
         try:
+            redis_client = get_redis()
             # Periodic watchdog + alert engine: every 60 seconds
             now = time.time()
             if now - last_watchdog_ts >= 60:
@@ -668,11 +720,23 @@ def run():
         except json.JSONDecodeError as e:
             logger.error("Invalid JSON from queue: %s", e)
             continue
+        except (ConnectionError, OSError) as e:
+            logger.error("Redis connection error: %s (reconnecting)", e)
+            try:
+                reset_redis_client()
+            except Exception:
+                pass
+            time.sleep(backoff)
+            backoff = min(backoff * 2, 60)
         except Exception as e:
             logger.error("Loop error: %s", e)
-            # Push to dead letter queue so the payload is not lost
             try:
-                if task is not None:
+                if "redis" in type(e).__module__.lower() or "ConnectionError" in type(e).__name__:
+                    reset_redis_client()
+            except Exception:
+                pass
+            try:
+                if task is not None and payload_str is not None:
                     push_dead_letter(payload_str, str(e))
                     log_event(None, "dead_lettered", "worker", {"error": str(e)[:200]})
             except Exception:

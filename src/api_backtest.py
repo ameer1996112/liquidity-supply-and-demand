@@ -150,3 +150,23 @@ def compare_runs(run_id_1: str = "live", run_id_2: str = ""):
         "run_1": {"run_id": run_id_1, "stats": stats_1},
         "run_2": {"run_id": run_id_2, "stats": stats_2} if run_id_2 else None,
     }
+
+
+@router.get("/equity-curve")
+def get_equity_curve(
+    run_mode: str = "BACKTEST",
+    run_id: Optional[str] = None,
+    starting_equity: float = 0.0,
+):
+    """
+    Get equity curve and drawdown for a run (Package C).
+    Query params: run_mode (LIVE | BACKTEST), run_id (optional), starting_equity (default 0).
+    """
+    from src.services.backtest_engine import get_equity_curve_and_drawdown
+
+    data = get_equity_curve_and_drawdown(
+        run_mode=run_mode,
+        run_id=run_id,
+        starting_equity=starting_equity,
+    )
+    return data

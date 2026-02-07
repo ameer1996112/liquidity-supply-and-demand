@@ -19,6 +19,22 @@ def get_redis():
     return _redis
 
 
+def reset_redis_client() -> None:
+    """Drop the cached Redis client so next get_redis() creates a new connection. Use after connection errors."""
+    global _redis
+    _redis = None
+    logger.info("Redis client reset (reconnect on next use)")
+
+
+def ping_redis() -> bool:
+    """Return True if Redis is reachable."""
+    try:
+        get_redis().ping()
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def push_payload(payload_str: str) -> None:
     """Push JSON payload to queue (used by API)."""
     get_redis().rpush(QUEUE_NAME, payload_str)

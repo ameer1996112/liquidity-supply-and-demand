@@ -1,6 +1,11 @@
 # Strategic Roadmap: From MVP to Professional Hedge Fund Infrastructure
 
-This document is a **Level Up Proposal** based on a codebase audit of the trading bot. It categorizes upgrades into three pillars and three concrete "Upgrade Packages" with file-level changes and complexity estimates.
+This document is a **Level Up Proposal** based on a codebase audit of the trading bot.
+
+**Implementation status (as of latest upgrade):**
+- **Package B (Safety Core):** Implemented — circuit breaker, worker Redis reconnect, MetaApi retries/429 handling, watchdog retries and circuit check. Unique `trade_key` already enforced in migration 001.
+- **Package C (Analytics & Alpha):** Implemented — guard/AI decision logging via `log_guard_decision()` to `trade_events` and optional `guard_decisions` table (migration 005); backtest engine `get_equity_curve_and_drawdown()`; **GET /backtest/equity-curve**; brain logs every decision to `trade_events` as `brain_prediction`; RAG logs each query as `rag_query` (query_preview, k, num_docs, symbol).
+- **Package A (Multi-Account):** Implemented — broker profiles from DB or `BROKER_PROFILES_JSON`; worker loops over profiles matching payload `run_mode`; one row per (trade_key, broker_profile_id); router and logic accept `profile`; migrations `003_broker_profiles_up.sql` and `004_multi_account_trading_signals_up.sql`. **Exit webhook:** one exit updates all rows with that trade_key; broker close uses first matching row (extend exit payload with `broker_profile_id` for per-account close if needed). It categorizes upgrades into three pillars and three concrete "Upgrade Packages" with file-level changes and complexity estimates.
 
 ---
 
