@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, useRef, useEffect } from 'react';
 import { Shield, Gauge, Table2 } from 'lucide-react';
 import { RiskKnob } from '@/components/risk/RiskKnob';
 import { GuardRailToggle } from '@/components/risk/GuardRailToggle';
@@ -31,6 +31,14 @@ export default function RiskControlPage() {
     return typeof v === 'number' ? v : Number(v) || 1;
   }, [data?.settings, optimisticRisk]);
 
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
+
   const portfolioVarEnabled = useMemo(() => {
     if (!data?.settings) return true;
     const v = data.settings.portfolio_var_enabled;
@@ -40,35 +48,41 @@ export default function RiskControlPage() {
   const handleRiskChange = useCallback(
     (value: number) => {
       setOptimisticRisk(value);
-      updateSetting.mutate(
-        {
-          settingKey: 'risk_percent',
-          value,
-          changeReason: 'Risk Control Center',
-        },
-        {
-          onSuccess: () => {
-            setOptimisticRisk(null);
-            addToast({
-              title: 'Risk updated',
-              message: `Risk per trade set to ${value.toFixed(1)}%`,
-              severity: 'success',
-              duration: 3000,
-            });
+
+      // Debounce API call: only fire after user stops sliding for 400ms
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        debounceRef.current = null;
+        updateSetting.mutate(
+          {
+            settingKey: 'risk_percent',
+            value,
+            changeReason: 'Risk Control Center',
           },
-          onError: (err) => {
-            setOptimisticRisk(null);
-            addToast({
-              title: 'Failed to update risk',
-              message: err instanceof Error ? err.message : 'Check API connection',
-              severity: 'critical',
-              duration: 8000,
-            });
-          },
-        }
-      );
+          {
+            onSuccess: () => {
+              setOptimisticRisk(null);
+              addToast({
+                title: 'Risk updated',
+                message: `Risk per trade set to ${value.toFixed(1)}%`,
+                severity: 'success',
+                duration: 3000,
+              });
+            },
+            onError: (err) => {
+              setOptimisticRisk(null);
+              addToast({
+                title: 'Failed to update risk',
+                message: err instanceof Error ? err.message : 'Check API connection',
+                severity: 'critical',
+                duration: 8000,
+              });
+            },
+          }
+        );
+      }, 400);
     },
-    [updateSetting, addToast, optimisticRisk, data?.settings?.risk_percent]
+    [updateSetting, addToast]
   );
 
   const guardRailItems = useMemo(
