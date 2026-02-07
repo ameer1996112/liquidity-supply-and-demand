@@ -204,8 +204,8 @@ def update_setting(
         if change_reason:
             data["change_reason"] = change_reason
 
-        # Upsert
-        sb.table("risk_config_overrides").upsert(data).execute()
+        # Upsert on setting_key (UNIQUE) - update existing row or insert new
+        sb.table("risk_config_overrides").upsert(data, on_conflict="setting_key").execute()
 
         # Clear cache so new value takes effect immediately
         clear_settings_cache()
