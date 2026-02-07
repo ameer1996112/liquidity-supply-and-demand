@@ -430,15 +430,20 @@ COMMENT ON FUNCTION update_risk_setting IS 'Update risk setting with automatic a
 
 
 -- ═══════════════════════════════════════════════════════════════
--- Seed Data: Default Profit Lock Rules
+-- Seed Data: Default Profit Lock Rules (idempotent)
 -- ═══════════════════════════════════════════════════════════════
 
 INSERT INTO public.profit_lock_rules (rule_name, enabled, trigger_r_multiple, close_percent, move_sl_to, priority)
-VALUES
-    ('Default: Lock Breakeven at +1R', false, 1.0, NULL, 'BREAKEVEN', 100),
-    ('Default: Scale Out 50% at +2R', false, 2.0, 0.5, '+1R', 200),
-    ('Default: Trail 50 pips at +3R', false, 3.0, NULL, 'TRAILING_50PIPS', 300)
-ON CONFLICT DO NOTHING;
+SELECT v.rule_name, v.enabled, v.trigger_r_multiple, v.close_percent, v.move_sl_to, v.priority
+FROM (VALUES
+    ('Default: Lock Breakeven at +1R', false, 1.0::real, NULL::real, 'BREAKEVEN', 100),
+    ('Default: Scale Out 50% at +2R', false, 2.0::real, 0.5::real, '+1R', 200),
+    ('Default: Trail 50 pips at +3R', false, 3.0::real, NULL::real, 'TRAILING_50PIPS', 300)
+) AS v(rule_name, enabled, trigger_r_multiple, close_percent, move_sl_to, priority)
+WHERE NOT EXISTS (
+    SELECT 1 FROM public.profit_lock_rules
+    WHERE rule_name = v.rule_name AND trigger_r_multiple = v.trigger_r_multiple
+);
 
 
 -- ═══════════════════════════════════════════════════════════════

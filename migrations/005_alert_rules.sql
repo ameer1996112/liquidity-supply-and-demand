@@ -10,9 +10,13 @@ CREATE TABLE IF NOT EXISTS alert_rules (
     created_at  timestamptz DEFAULT now()
 );
 
--- Pre-seed default rules
-INSERT INTO alert_rules (rule_type, condition, severity) VALUES
+-- Pre-seed default rules (idempotent: skip if rule_type already exists)
+INSERT INTO alert_rules (rule_type, condition, severity)
+SELECT v.rule_type, v.condition::jsonb, v.severity
+FROM (VALUES
     ('consecutive_losses', '{"threshold": 3}', 'warning'),
     ('drawdown_pct', '{"threshold": 6}', 'critical'),
     ('dlq_count', '{"threshold": 1}', 'warning'),
-    ('position_age_hours', '{"threshold": 24}', 'info');
+    ('position_age_hours', '{"threshold": 24}', 'info')
+) AS v(rule_type, condition, severity)
+WHERE NOT EXISTS (SELECT 1 FROM alert_rules WHERE rule_type = v.rule_type);

@@ -10,10 +10,11 @@ CREATE TABLE IF NOT EXISTS trade_events (
     created_at  timestamptz DEFAULT now()
 );
 
-CREATE INDEX idx_trade_events_signal_id ON trade_events(signal_id);
-CREATE INDEX idx_trade_events_event_type ON trade_events(event_type);
-CREATE INDEX idx_trade_events_created_at ON trade_events(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_trade_events_signal_id ON trade_events(signal_id);
+CREATE INDEX IF NOT EXISTS idx_trade_events_event_type ON trade_events(event_type);
+CREATE INDEX IF NOT EXISTS idx_trade_events_created_at ON trade_events(created_at DESC);
 
 ALTER TABLE trade_events ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all for service role" ON trade_events;
 CREATE POLICY "Allow all for service role" ON trade_events
     FOR ALL USING (true);

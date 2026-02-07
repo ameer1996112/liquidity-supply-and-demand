@@ -10,5 +10,6 @@ CREATE TABLE IF NOT EXISTS kill_switch_log (
 );
 
 ALTER TABLE kill_switch_log ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all for service role" ON kill_switch_log;
 CREATE POLICY "Allow all for service role" ON kill_switch_log
     FOR ALL USING (true);

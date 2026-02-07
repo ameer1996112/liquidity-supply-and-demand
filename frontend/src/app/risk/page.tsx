@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Shield, Gauge, Table2 } from 'lucide-react';
 import { RiskKnob } from '@/components/risk/RiskKnob';
 import { GuardRailToggle } from '@/components/risk/GuardRailToggle';
@@ -9,6 +9,7 @@ import {
   useRiskSettings,
   useUpdateRiskSetting,
 } from '@/hooks/useRiskConfig';
+import { useToast } from '@/components/ui/toast';
 import {
   Card,
   CardContent,
@@ -18,14 +19,17 @@ import {
 } from '@/components/ui/card';
 
 export default function RiskControlPage() {
+  const { addToast } = useToast();
   const { data, isLoading, error } = useRiskSettings();
   const updateSetting = useUpdateRiskSetting();
+  const [optimisticRisk, setOptimisticRisk] = useState<number | null>(null);
 
   const riskPercent = useMemo(() => {
+    if (optimisticRisk != null) return optimisticRisk;
     if (!data?.settings) return 1;
     const v = data.settings.risk_percent;
     return typeof v === 'number' ? v : Number(v) || 1;
-  }, [data?.settings]);
+  }, [data?.settings, optimisticRisk]);
 
   const portfolioVarEnabled = useMemo(() => {
     if (!data?.settings) return true;
@@ -35,13 +39,36 @@ export default function RiskControlPage() {
 
   const handleRiskChange = useCallback(
     (value: number) => {
-      updateSetting.mutate({
-        settingKey: 'risk_percent',
-        value,
-        changeReason: 'Risk Control Center',
-      });
+      setOptimisticRisk(value);
+      updateSetting.mutate(
+        {
+          settingKey: 'risk_percent',
+          value,
+          changeReason: 'Risk Control Center',
+        },
+        {
+          onSuccess: () => {
+            setOptimisticRisk(null);
+            addToast({
+              title: 'Risk updated',
+              message: `Risk per trade set to ${value.toFixed(1)}%`,
+              severity: 'success',
+              duration: 3000,
+            });
+          },
+          onError: (err) => {
+            setOptimisticRisk(null);
+            addToast({
+              title: 'Failed to update risk',
+              message: err instanceof Error ? err.message : 'Check API connection',
+              severity: 'critical',
+              duration: 8000,
+            });
+          },
+        }
+      );
     },
-    [updateSetting]
+    [updateSetting, addToast, optimisticRisk, data?.settings?.risk_percent]
   );
 
   const guardRailItems = useMemo(
@@ -74,13 +101,33 @@ export default function RiskControlPage() {
   const handleGuardToggle = useCallback(
     (id: string, enabled: boolean, settingKey?: string) => {
       if (!settingKey) return;
-      updateSetting.mutate({
-        settingKey,
-        value: enabled,
-        changeReason: `Guard rail: ${id}`,
-      });
+      updateSetting.mutate(
+        {
+          settingKey,
+          value: enabled,
+          changeReason: `Guard rail: ${id}`,
+        },
+        {
+          onSuccess: () => {
+            addToast({
+              title: 'Guard rail updated',
+              message: `${id.replace(/_/g, ' ')} ${enabled ? 'enabled' : 'disabled'}`,
+              severity: 'success',
+              duration: 3000,
+            });
+          },
+          onError: (err) => {
+            addToast({
+              title: 'Failed to update guard rail',
+              message: err instanceof Error ? err.message : 'Check API connection',
+              severity: 'critical',
+              duration: 8000,
+            });
+          },
+        }
+      );
     },
-    [updateSetting]
+    [updateSetting, addToast]
   );
 
   return (

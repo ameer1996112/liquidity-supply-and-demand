@@ -3,6 +3,21 @@
 -- Author: AI Trading System - TCA Module
 -- Date: 2026-02-07
 
+-- Ensure broker_profiles exists (required by tca_execution_metrics and 009)
+CREATE TABLE IF NOT EXISTS public.broker_profiles (
+    id                  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name                text NOT NULL,
+    meta_api_account_id text NOT NULL,
+    token_env_key       text NOT NULL DEFAULT 'META_API_TOKEN',
+    risk_pct            real NOT NULL DEFAULT 1.0,
+    max_positions       int NOT NULL DEFAULT 3,
+    run_mode            text NOT NULL DEFAULT 'LIVE' CHECK (run_mode IN ('LIVE', 'PAPER')),
+    is_active           boolean NOT NULL DEFAULT true,
+    created_at          timestamptz DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_broker_profiles_active ON public.broker_profiles(is_active) WHERE is_active = true;
+COMMENT ON TABLE public.broker_profiles IS 'Multi-account execution: one signal can be executed on multiple broker profiles';
+
 -- Create TCA execution metrics table
 CREATE TABLE IF NOT EXISTS public.tca_execution_metrics (
     id                      bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -70,6 +85,7 @@ CREATE INDEX IF NOT EXISTS idx_tca_alerts
 ALTER TABLE public.tca_execution_metrics ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Allow all operations for service role
+DROP POLICY IF EXISTS "Allow all for service role" ON public.tca_execution_metrics;
 CREATE POLICY "Allow all for service role"
     ON public.tca_execution_metrics
     FOR ALL
