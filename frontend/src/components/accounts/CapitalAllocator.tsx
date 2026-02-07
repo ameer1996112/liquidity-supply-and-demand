@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   useAccountsComparison,
   useAllocationSuggest,
@@ -22,14 +22,15 @@ import { cn } from '@/lib/utils';
 export function CapitalAllocator() {
   const { addToast } = useToast();
   const { data: accounts = [] } = useAccountsComparison();
-  const [totalCapital, setTotalCapital] = useState(() => {
-    const sum = accounts.reduce((a, c) => a + c.balance, 0);
-    return sum > 0 ? sum : 100000;
-  });
-  const { data: plan, isLoading, refetch } = useAllocationSuggest(totalCapital);
-  const executeAllocation = useExecuteAllocation();
-
   const totalFromAccounts = accounts.reduce((a, c) => a + c.balance, 0);
+  const [totalCapital, setTotalCapital] = useState(100000);
+
+  useEffect(() => {
+    if (totalFromAccounts > 0) setTotalCapital(totalFromAccounts);
+  }, [totalFromAccounts]);
+
+  const { data: plan, isLoading, error, refetch } = useAllocationSuggest(totalCapital);
+  const executeAllocation = useExecuteAllocation();
 
   const handleSuggest = () => {
     if (totalFromAccounts > 0) setTotalCapital(totalFromAccounts);
@@ -129,11 +130,19 @@ export function CapitalAllocator() {
               ))}
             </ul>
           </div>
+        ) : error ? (
+          <p className="text-xs text-amber-600 font-mono py-4 text-center">
+            Failed to load recommendations. Ensure backend API is running and NEXT_PUBLIC_API_URL is set.
+          </p>
+        ) : accounts.length === 0 ? (
+          <p className="text-xs text-zinc-600 font-mono py-4 text-center">
+            Add accounts to see allocation suggestions.
+          </p>
         ) : (
           <p className="text-xs text-zinc-600 font-mono py-4 text-center">
-            {accounts.length === 0
-              ? 'Add accounts to see allocation suggestions.'
-              : 'No allocation recommendations. Ensure account_strategies has data.'}
+            {accounts.length === 1
+              ? 'Single account — current allocation is optimal.'
+              : 'No recommendations yet. Click &quot;Suggest allocation&quot; to refresh.'}
           </p>
         )}
       </CardContent>

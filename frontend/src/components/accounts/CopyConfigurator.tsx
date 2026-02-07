@@ -174,8 +174,14 @@ export function CopyConfigurator() {
 
         {isLoading ? (
           <Skeleton className="h-24 w-full bg-[#1e222d]" />
+        ) : accountNames.length < 2 ? (
+          <p className="text-xs text-zinc-600 font-mono py-4 text-center">
+            Add at least 2 accounts to create copy rules (master → slave).
+          </p>
         ) : rules.length === 0 ? (
-          <p className="text-xs text-zinc-600 font-mono py-4 text-center">No copy rules yet. Add one above.</p>
+          <p className="text-xs text-zinc-600 font-mono py-4 text-center">
+            No copy rules yet. Click &quot;Add rule&quot; to create one.
+          </p>
         ) : (
           <ul className="space-y-2">
             {rules.map((rule) => (
