@@ -61,8 +61,10 @@ class Settings(BaseSettings):
     paper_max_positions: int = 10
     paper_account_balance: float = 10000.0
     account_balance: float = 10000.0
-    risk_percent: float = 1.0
-    min_rr_ratio: float = 1.0
+    risk_percent: float = 0.5  # Aligned with Pine Balanced profile
+    min_rr_ratio: float = 2.0  # Aligned with Pine Balanced profile
+    stop_loss_buffer_pips: float = Field(default=1.0, ge=0.0, le=5.0, description="Extra pips added to SL beyond zone boundary (Pine: 1.0)")
+    max_lot_size: float = Field(default=10.0, ge=0.1, le=100.0, description="Maximum position size in lots (Pine: 10.0)")
     gold_pip_divisor: float = 0.1
 
     ai_filter_enabled: bool = Field(default=True, description="Enable AI Guardian validation layer.")

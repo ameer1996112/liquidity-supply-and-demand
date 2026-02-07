@@ -73,6 +73,7 @@ def calculate_max_position_size(
         entry = float(payload.get("entry", 0))
         sl = float(payload.get("sl", 0))
         symbol = payload.get("symbol", "UNKNOWN")
+        side = payload.get("side", "buy").lower()
         if entry == 0 or sl == 0:
             return 1.0
 
@@ -81,7 +82,8 @@ def calculate_max_position_size(
             pip_size = float(symbol_overrides.get("pip_size", 0.0001))
             pip_value_per_lot = float(symbol_overrides.get("pip_value_per_lot", 10.0))
             risk_percent = float(symbol_overrides.get("risk_percent", risk_percent))
-            max_lot_cap = float(symbol_overrides.get("max_lot_size", 5.0))
+            max_lot_cap = float(symbol_overrides.get("max_lot_size", 10.0))
+            sl_buffer_pips = float(symbol_overrides.get("stop_loss_buffer_pips", 1.0))
         else:
             # Hardcoded fallback for unknown symbols
             if "JPY" in symbol:
@@ -93,7 +95,25 @@ def calculate_max_position_size(
             else:
                 pip_size = 0.0001
                 pip_value_per_lot = 10.0
-            max_lot_cap = 5.0
+
+            # Get max_lot_cap and sl_buffer from settings
+            try:
+                from config import get_settings  # type: ignore
+                s = get_settings()
+                max_lot_cap = float(getattr(s, "max_lot_size", 10.0))
+                sl_buffer_pips = float(getattr(s, "stop_loss_buffer_pips", 1.0))
+            except Exception:
+                max_lot_cap = 10.0
+                sl_buffer_pips = 1.0
+
+        # Apply stop loss buffer (Pine: adds 1 pip safety margin beyond zone)
+        # For buy: SL is below entry, so subtract buffer (more conservative)
+        # For sell: SL is above entry, so add buffer (more conservative)
+        sl_buffer = sl_buffer_pips * pip_size
+        if side == "buy":
+            sl_adjusted = sl - sl_buffer
+        else:
+            sl_adjusted = sl + sl_buffer
 
         # Base risk in USD from percentage
         max_risk_usd = account_balance * (risk_percent / 100.0)
@@ -120,8 +140,8 @@ def calculate_max_position_size(
                 scaled_max_lots = base_max_lots * max(risk_multiplier, 0.0)
                 return min(max(scaled_max_lots, 0.0), max_lot_cap)
 
-        # Fallback: distance-to-stop based sizing
-        sl_distance = abs(entry - sl)
+        # Fallback: distance-to-stop based sizing (using adjusted SL with buffer)
+        sl_distance = abs(entry - sl_adjusted)
         sl_pips = sl_distance / pip_size
         if sl_pips > 0:
             base_max_lots = max_risk_usd / (sl_pips * pip_value_per_lot)
