@@ -366,3 +366,146 @@ export async function removeTrailingStop(trailingStopId: number): Promise<{ stat
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
+
+// ---------------------------------------------------------------------------
+// Multi-Account Manager
+// ---------------------------------------------------------------------------
+
+export interface AccountComparisonApi {
+  account_name: string;
+  strategy_type?: string;
+  balance: number;
+  daily_pnl: number;
+  daily_pnl_pct: number;
+  win_rate: number;
+  sharpe_ratio: number;
+  active_positions: number;
+  total_trades?: number;
+}
+
+export interface AllocationRecommendationApi {
+  account_name: string;
+  current_balance: number;
+  suggested_allocation_usd: number;
+  change_usd: number;
+  change_pct: number;
+  reason: string;
+}
+
+export interface AllocationPlanApi {
+  total_capital: number;
+  total_allocated: number;
+  unallocated: number;
+  recommendations: AllocationRecommendationApi[];
+  expected_portfolio_sharpe: number;
+}
+
+export interface TradeCopyRuleApi {
+  id: number;
+  rule_name: string;
+  master_account_name: string;
+  slave_account_names: string[];
+  scale_by_balance: boolean;
+  risk_multiplier: number;
+  copy_sl_tp: boolean;
+  enabled: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface TradeCopyLogApi {
+  id: number;
+  rule_id: number;
+  master_signal_id: number;
+  master_account: string;
+  slave_signal_id: number;
+  slave_account: string;
+  master_size: number;
+  slave_size: number;
+  copied_at: string;
+  success: boolean;
+}
+
+export async function fetchAccountsComparison(): Promise<AccountComparisonApi[]> {
+  const url = getPortfolioControlUrl('/accounts/comparison');
+  if (!url) throw new Error('API URL not configured');
+  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  return (data.accounts ?? []) as AccountComparisonApi[];
+}
+
+export async function fetchAllocationSuggest(
+  totalCapital: number,
+  goal = 'maximize_sharpe'
+): Promise<AllocationPlanApi> {
+  const url = getPortfolioControlUrl(`/accounts/allocation/suggest?total_capital=${totalCapital}&optimization_goal=${goal}`);
+  if (!url) throw new Error('API URL not configured');
+  const res = await fetch(url, { method: 'POST', signal: AbortSignal.timeout(10000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function executeAllocation(
+  accountName: string,
+  allocationUsd: number
+): Promise<{ status: string; account_name: string; new_allocation: number }> {
+  const url = getPortfolioControlUrl(`/accounts/allocation/execute/${encodeURIComponent(accountName)}?allocation_usd=${allocationUsd}`);
+  if (!url) throw new Error('API URL not configured');
+  const res = await fetch(url, { method: 'POST', signal: AbortSignal.timeout(10000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function fetchTradeCopyRules(): Promise<TradeCopyRuleApi[]> {
+  const url = getPortfolioControlUrl('/accounts/trade-copy-rules');
+  if (!url) throw new Error('API URL not configured');
+  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  return (data.rules ?? []) as TradeCopyRuleApi[];
+}
+
+export async function createTradeCopyRule(rule: {
+  rule_name: string;
+  master_account_name: string;
+  slave_account_names: string[];
+  scale_by_balance?: boolean;
+  risk_multiplier?: number;
+  copy_sl_tp?: boolean;
+  enabled?: boolean;
+}): Promise<{ status: string; rule: TradeCopyRuleApi }> {
+  const url = getPortfolioControlUrl('/accounts/trade-copy-rules');
+  if (!url) throw new Error('API URL not configured');
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(rule),
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function toggleTradeCopyRule(
+  ruleId: number,
+  enabled: boolean
+): Promise<{ status: string; rule_id: number; enabled: boolean }> {
+  const url = getPortfolioControlUrl(`/accounts/trade-copy-rules/${ruleId}/toggle?enabled=${enabled}`);
+  if (!url) throw new Error('API URL not configured');
+  const res = await fetch(url, {
+    method: 'PATCH',
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function fetchTradeCopyLog(limit = 50): Promise<TradeCopyLogApi[]> {
+  const url = getPortfolioControlUrl(`/accounts/trade-copy-log?limit=${limit}`);
+  if (!url) throw new Error('API URL not configured');
+  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  return (data.log ?? []) as TradeCopyLogApi[];
+}
