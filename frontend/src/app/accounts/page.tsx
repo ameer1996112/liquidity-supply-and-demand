@@ -1,13 +1,17 @@
 'use client';
 
-import { Users } from 'lucide-react';
+import { useState } from 'react';
+import { Users, Plus } from 'lucide-react';
 import { AccountCard } from '@/components/accounts/AccountCard';
 import { CopyConfigurator } from '@/components/accounts/CopyConfigurator';
 import { CapitalAllocator } from '@/components/accounts/CapitalAllocator';
+import { AddAccountForm } from '@/components/accounts/AddAccountForm';
 import { useAccountsComparison } from '@/hooks/useAccounts';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
 
 export default function AccountsPage() {
+  const [showAddForm, setShowAddForm] = useState(false);
   const { data: accounts = [], isLoading, error } = useAccountsComparison();
 
   return (
@@ -32,10 +36,31 @@ export default function AccountsPage() {
 
       {/* Account Cards - Side-by-side comparison */}
       <section>
-        <h2 className="text-sm font-medium text-zinc-300 mb-3 flex items-center gap-2">
-          <Users className="h-4 w-4 text-emerald-500" />
-          Account Comparison
-        </h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-medium text-zinc-300 flex items-center gap-2">
+            <Users className="h-4 w-4 text-emerald-500" />
+            Account Comparison
+          </h2>
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-[#2a2e39] text-zinc-400 hover:bg-[#2a2e39] hover:text-zinc-200"
+            onClick={() => setShowAddForm(!showAddForm)}
+          >
+            <Plus className="h-3.5 w-3.5 mr-1.5" />
+            Add account
+          </Button>
+        </div>
+
+        {showAddForm && (
+          <div className="mb-4">
+            <AddAccountForm
+              onSuccess={() => setShowAddForm(false)}
+              onCancel={() => setShowAddForm(false)}
+            />
+          </div>
+        )}
+
         {isLoading ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {[1, 2, 3].map((i) => (
@@ -47,8 +72,8 @@ export default function AccountsPage() {
             <Users className="h-10 w-10 mb-3 opacity-50" />
             <p className="text-sm font-mono">No accounts configured</p>
             <p className="text-xs text-zinc-600 mt-1 max-w-md text-center">
-              Add rows to <code className="text-[10px]">account_strategies</code> or{' '}
-              <code className="text-[10px]">broker_profiles</code> and link them.
+              Click &quot;Add account&quot; above to create one, or add rows to{' '}
+              <code className="text-[10px]">account_strategies</code> in Supabase.
               Run migration 009 if needed.
             </p>
           </div>
