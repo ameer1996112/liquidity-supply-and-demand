@@ -1,6 +1,8 @@
 'use client';
 
-import { useSignalStats, useRefreshSignals } from '@/hooks/useTradingSignals';
+import { useMemo } from 'react';
+import { useSignalStats, useRefreshSignals, useTradingSignals } from '@/hooks/useTradingSignals';
+import { getPnl } from '@/types/trading';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { RiskBar } from '@/components/risk/RiskBar';
@@ -62,6 +64,7 @@ function MetricSkeleton() {
 
 export function TopBar() {
   const { data: stats, isLoading } = useSignalStats();
+  const { data: liveSignals = [] } = useTradingSignals('LIVE');
   const refreshSignals = useRefreshSignals();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -74,7 +77,16 @@ export function TopBar() {
   const winRate = stats?.live_win_rate ?? stats?.win_rate ?? 0;
   // Use LIVE-specific PnL fields to avoid mixing PAPER trades
   const dailyPnl = stats?.live_daily_pnl ?? stats?.live_pnl_24h ?? 0;
-  const totalPnl = stats?.live_total_pnl ?? 0;
+
+  // Total PnL: use same source as Equity Curve (closed LIVE signals) for consistency
+  const totalPnl = useMemo(() => {
+    const closed = liveSignals.filter((s) => {
+      const st = s.status?.toLowerCase();
+      const pnl = getPnl(s);
+      return (st === 'closed' || st === 'executed') && pnl != null;
+    });
+    return closed.reduce((sum, s) => sum + (getPnl(s) ?? 0), 0);
+  }, [liveSignals]);
 
   return (
     <header className="h-12 bg-[#0f1117] border-b border-[#2a2e39] flex items-center justify-between px-4">
