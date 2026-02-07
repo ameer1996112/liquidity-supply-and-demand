@@ -225,3 +225,144 @@ export async function deleteSymbolRiskRule(symbol: string): Promise<void> {
   const res = await fetch(url, { method: 'DELETE', signal: AbortSignal.timeout(10000) });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }
+
+// ---------------------------------------------------------------------------
+// Portfolio Optimizer (batch actions, hedging, trailing stops)
+// ---------------------------------------------------------------------------
+
+export async function batchPositionAction(payload: {
+  signal_ids: number[];
+  action: 'close' | 'scale_out' | 'move_sl_breakeven' | 'add_trailing';
+  action_params?: { trail_distance_pips?: number };
+}): Promise<{
+  status: string;
+  action: string;
+  total: number;
+  success: number;
+  failed: number;
+  results: Array<{ signal_id: number; success: boolean; error?: string; trailing_stop_id?: number }>;
+}> {
+  const url = getPortfolioControlUrl('/optimizer/batch-action');
+  if (!url) throw new Error('API URL not configured');
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export interface HedgeSuggestionApi {
+  id: number;
+  suggested_symbol: string;
+  suggested_side: string;
+  suggested_size: number;
+  expected_var_reduction_pct: number;
+  hedge_reason: string;
+  currency_exposure: Record<string, number>;
+  total_exposure_usd: number;
+  current_var: number;
+}
+
+export async function fetchHedgeSuggestions(): Promise<HedgeSuggestionApi[]> {
+  const url = getPortfolioControlUrl('/optimizer/hedge-suggestions');
+  if (!url) throw new Error('API URL not configured');
+  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  return (data.suggestions ?? []).map((s: Record<string, unknown>) => ({
+    id: s.id,
+    suggested_symbol: s.suggested_symbol ?? s.symbol,
+    suggested_side: s.suggested_side ?? s.side,
+    suggested_size: s.suggested_size ?? s.size,
+    expected_var_reduction_pct: s.expected_var_reduction_pct ?? 0,
+    hedge_reason: s.hedge_reason ?? s.reason ?? '',
+    currency_exposure: (s.currency_exposure as Record<string, number>) ?? {},
+    total_exposure_usd: s.total_exposure_usd ?? 0,
+    current_var: s.current_var ?? 0,
+  })) as HedgeSuggestionApi[];
+}
+
+export async function generateHedgeSuggestion(): Promise<{
+  status: string;
+  suggestion_id?: number;
+  suggestion?: {
+    symbol: string;
+    side: string;
+    size: number;
+    expected_var_reduction_pct: number;
+    reason: string;
+    currency_exposure: Record<string, number>;
+  };
+  message?: string;
+}> {
+  const url = getPortfolioControlUrl('/optimizer/generate-hedge');
+  if (!url) throw new Error('API URL not configured');
+  const res = await fetch(url, { method: 'POST', signal: AbortSignal.timeout(15000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function acceptHedgeSuggestion(suggestionId: number): Promise<{ status: string; suggestion_id: number }> {
+  const url = getPortfolioControlUrl(`/optimizer/hedge-suggestions/${suggestionId}/accept`);
+  if (!url) throw new Error('API URL not configured');
+  const res = await fetch(url, { method: 'POST', signal: AbortSignal.timeout(10000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function rejectHedgeSuggestion(suggestionId: number): Promise<{ status: string; suggestion_id: number }> {
+  const url = getPortfolioControlUrl(`/optimizer/hedge-suggestions/${suggestionId}/reject`);
+  if (!url) throw new Error('API URL not configured');
+  const res = await fetch(url, { method: 'POST', signal: AbortSignal.timeout(10000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export interface TrailingStopApi {
+  id: number;
+  signal_id: number;
+  symbol: string;
+  side: string;
+  trail_distance_pips: number;
+  current_sl: number | null;
+  is_activated: boolean;
+  times_moved: number;
+}
+
+export async function fetchTrailingStops(): Promise<TrailingStopApi[]> {
+  const url = getPortfolioControlUrl('/optimizer/trailing-stops');
+  if (!url) throw new Error('API URL not configured');
+  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  return (data.trailing_stops ?? []) as TrailingStopApi[];
+}
+
+export async function addTrailingStop(payload: {
+  signal_id: number;
+  trail_distance_pips: number;
+  activation_price?: number;
+  wait_for_breakeven?: boolean;
+}): Promise<{ status: string; trailing_stop_id: number }> {
+  const url = getPortfolioControlUrl('/optimizer/trailing-stop');
+  if (!url) throw new Error('API URL not configured');
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function removeTrailingStop(trailingStopId: number): Promise<{ status: string }> {
+  const url = getPortfolioControlUrl(`/optimizer/trailing-stops/${trailingStopId}`);
+  if (!url) throw new Error('API URL not configured');
+  const res = await fetch(url, { method: 'DELETE', signal: AbortSignal.timeout(10000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}

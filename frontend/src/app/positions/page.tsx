@@ -3,6 +3,7 @@
 import { useActivePositions } from '@/hooks/usePositions';
 import { AccountBar } from '@/components/positions/AccountBar';
 import { PositionCard } from '@/components/positions/PositionCard';
+import { OptimizerPanel } from '@/components/portfolio/OptimizerPanel';
 import { Crosshair } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -22,6 +23,9 @@ export default function PositionsPage() {
 
       {/* Account Bar */}
       <AccountBar />
+
+      {/* Portfolio Optimizer: batch actions, hedging, trailing stops */}
+      <OptimizerPanel />
 
       {/* Positions */}
       {isLoading ? (
