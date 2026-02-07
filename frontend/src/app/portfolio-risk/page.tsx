@@ -210,16 +210,17 @@ export default function PortfolioRiskPage() {
                     cy="50%"
                     labelLine={false}
                     label={({
-                      cx,
-                      cy,
-                      midAngle,
-                      innerRadius,
-                      outerRadius,
-                      percent,
+                      cx = 0,
+                      cy = 0,
+                      midAngle = 0,
+                      innerRadius = 0,
+                      outerRadius = 0,
+                      percent = 0,
                     }) => {
                       const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-                      const x = cx + radius * Math.cos(-midAngle * (Math.PI / 180));
-                      const y = cy + radius * Math.sin(-midAngle * (Math.PI / 180));
+                      const angle = midAngle * (Math.PI / 180);
+                      const x = cx + radius * Math.cos(-angle);
+                      const y = cy + radius * Math.sin(-angle);
                       return (
                         <text
                           x={x}
