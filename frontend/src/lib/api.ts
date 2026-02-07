@@ -104,3 +104,124 @@ export function getAlertAcknowledgeAllUrl(): string {
   const base = getBase();
   return base ? `${base}/alerts/acknowledge_all` : '';
 }
+
+// ---------------------------------------------------------------------------
+// Portfolio Command Center (V2.0)
+// ---------------------------------------------------------------------------
+
+export function getPortfolioControlUrl(path = ''): string {
+  const base = getBase();
+  const p = path.startsWith('/') ? path : `/${path}`;
+  return base ? `${base}/portfolio-control${p}` : '';
+}
+
+/** GET /portfolio-control/risk/settings */
+export function getRiskSettingsUrl(): string {
+  return getPortfolioControlUrl('/risk/settings');
+}
+
+/** PATCH /portfolio-control/risk/settings/{key} */
+export function getRiskSettingUpdateUrl(settingKey: string): string {
+  return getPortfolioControlUrl(`/risk/settings/${encodeURIComponent(settingKey)}`);
+}
+
+export interface RiskSettingsResponse {
+  settings: Record<string, number | boolean | string | Record<string, unknown>>;
+  overrides_count: number;
+}
+
+export async function fetchRiskSettings(): Promise<RiskSettingsResponse> {
+  const url = getRiskSettingsUrl();
+  if (!url) throw new Error('API URL not configured');
+  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function updateRiskSetting(
+  settingKey: string,
+  value: number | boolean | string | Record<string, unknown>,
+  changeReason?: string
+): Promise<{ status: string; setting: string; value: unknown }> {
+  const url = getRiskSettingUpdateUrl(settingKey);
+  if (!url) throw new Error('API URL not configured');
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ value, change_reason: changeReason ?? undefined }),
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Rules API (symbol risk rules for Risk Control Center)
+// ---------------------------------------------------------------------------
+
+export function getRulesSymbolsUrl(): string {
+  const base = getBase();
+  return base ? `${base}/rules/symbols` : '';
+}
+
+export function getRulesSymbolUrl(symbol: string): string {
+  const base = getBase();
+  return base ? `${base}/rules/symbols/${encodeURIComponent(symbol)}` : '';
+}
+
+export interface SymbolRiskRuleApi {
+  id?: string;
+  symbol: string;
+  max_lot_size: number;
+  risk_percent: number;
+  pip_size: number;
+  pip_value_per_lot: number;
+  max_positions: number;
+  enabled: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export async function fetchSymbolRiskRules(): Promise<SymbolRiskRuleApi[]> {
+  const url = getRulesSymbolsUrl();
+  if (!url) throw new Error('API URL not configured');
+  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  return (data.rules ?? []) as SymbolRiskRuleApi[];
+}
+
+export async function createSymbolRiskRule(rule: Omit<SymbolRiskRuleApi, 'id' | 'created_at' | 'updated_at'>): Promise<SymbolRiskRuleApi> {
+  const url = getRulesSymbolsUrl();
+  if (!url) throw new Error('API URL not configured');
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(rule),
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  return data.rule as SymbolRiskRuleApi;
+}
+
+export async function updateSymbolRiskRule(symbol: string, updates: Partial<SymbolRiskRuleApi>): Promise<SymbolRiskRuleApi> {
+  const url = getRulesSymbolUrl(symbol);
+  if (!url) throw new Error('API URL not configured');
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates),
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  return data.rule as SymbolRiskRuleApi;
+}
+
+export async function deleteSymbolRiskRule(symbol: string): Promise<void> {
+  const url = getRulesSymbolUrl(symbol);
+  if (!url) throw new Error('API URL not configured');
+  const res = await fetch(url, { method: 'DELETE', signal: AbortSignal.timeout(10000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+}

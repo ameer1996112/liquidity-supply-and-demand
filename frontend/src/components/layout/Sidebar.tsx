@@ -13,6 +13,8 @@ import {
   PanelLeftClose,
   PanelLeft,
   Activity,
+  Gauge,
+  Users,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSidebar } from '@/providers/SidebarProvider';
@@ -26,6 +28,8 @@ import {
 const NAV_ITEMS = [
   { label: 'Dashboard', icon: LayoutDashboard, path: '/' },
   { label: 'Positions', icon: Crosshair, path: '/positions' },
+  { label: 'Risk Control', icon: Gauge, path: '/risk' },
+  { label: 'Accounts', icon: Users, path: '/accounts' },
   { label: 'Analytics', icon: BarChart3, path: '/analytics' },
   { label: 'Rules', icon: ShieldCheck, path: '/rules' },
   { label: 'Journal', icon: BookOpen, path: '/journal' },
