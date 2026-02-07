@@ -218,7 +218,7 @@ export async function fetchSignalStats(): Promise<SignalStats> {
     if (supabase) {
       const { data: allClosed } = await supabase
         .from('trading_signals')
-        .select('pnl, pnl_usd, entry, exit_price, price, position_size, side, run_mode')
+        .select('pnl, pnl_usd, entry, exit_fill_price, size, side, run_mode')
         .or('status.eq.closed,status.eq.executed,status.eq.CLOSED,status.eq.EXECUTED');
 
       if (allClosed) {
@@ -229,13 +229,14 @@ export async function fetchSignalStats(): Promise<SignalStats> {
             return sum + pnlUsd;
           }
 
-          // Fallback: calculate from entry/exit prices
-          const entry = s.entry ?? s.price;
-          const exit = s.exit_price;
-          if (entry != null && exit != null && s.position_size) {
+          // Fallback: calculate from entry/exit (DB columns: entry, exit_fill_price, size)
+          const entry = s.entry;
+          const exit = s.exit_fill_price ?? s.exit_price;
+          const size = s.size ?? s.position_size;
+          if (entry != null && exit != null && size) {
             const side = String(s.side || 'buy').toLowerCase();
             const diff = side === 'buy' ? exit - entry : entry - exit;
-            return sum + (diff * s.position_size);
+            return sum + (diff * size);
           }
 
           return sum;
@@ -252,12 +253,13 @@ export async function fetchSignalStats(): Promise<SignalStats> {
             if (pnlUsd != null) {
               return sum + pnlUsd;
             }
-            const entry = s.entry ?? s.price;
-            const exit = s.exit_price;
-            if (entry != null && exit != null && s.position_size) {
+            const entry = s.entry;
+            const exit = s.exit_fill_price ?? s.exit_price;
+            const size = s.size ?? s.position_size;
+            if (entry != null && exit != null && size) {
               const side = String(s.side || 'buy').toLowerCase();
               const diff = side === 'buy' ? exit - entry : entry - exit;
-              return sum + (diff * s.position_size);
+              return sum + (diff * size);
             }
             return sum;
           }, 0);
@@ -269,12 +271,13 @@ export async function fetchSignalStats(): Promise<SignalStats> {
             if (pnlUsd != null) {
               return sum + pnlUsd;
             }
-            const entry = s.entry ?? s.price;
-            const exit = s.exit_price;
-            if (entry != null && exit != null && s.position_size) {
+            const entry = s.entry;
+            const exit = s.exit_fill_price ?? s.exit_price;
+            const size = s.size ?? s.position_size;
+            if (entry != null && exit != null && size) {
               const side = String(s.side || 'buy').toLowerCase();
               const diff = side === 'buy' ? exit - entry : entry - exit;
-              return sum + (diff * s.position_size);
+              return sum + (diff * size);
             }
             return sum;
           }, 0);
