@@ -218,7 +218,7 @@ export async function fetchSignalStats(): Promise<SignalStats> {
     if (supabase) {
       const { data: allClosed } = await supabase
         .from('trading_signals')
-        .select('pnl, pnl_usd, entry, exit_price, price, position_size, side, run_mode, mode')
+        .select('pnl, pnl_usd, entry, exit_price, price, position_size, side, run_mode')
         .or('status.eq.closed,status.eq.executed,status.eq.CLOSED,status.eq.EXECUTED');
 
       if (allClosed) {
