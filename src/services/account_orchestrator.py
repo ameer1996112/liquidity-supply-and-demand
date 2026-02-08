@@ -289,7 +289,7 @@ class AccountOrchestrator:
             )
 
         except Exception as e:
-            logger.error(f"Failed to suggest capital allocation: {e}")
+            logger.exception("Failed to suggest capital allocation: %s", e)
             return AllocationPlan(
                 total_capital=total_available_capital,
                 total_allocated=0.0,
