@@ -587,6 +587,37 @@ def get_account_performance(account_name: str, lookback_days: int = 30):
     )
 
 
+@router.delete("/accounts/{account_name}")
+def delete_account(account_name: str):
+    """
+    Delete an account strategy from account_strategies table.
+
+    This does NOT delete associated trades - trades remain in trading_signals.
+    """
+    sb = _get_supabase()
+
+    try:
+        # Check if account exists
+        result = sb.table("account_strategies").select("id").eq(
+            "account_name", account_name
+        ).execute()
+
+        if not result.data or len(result.data) == 0:
+            raise HTTPException(404, detail=f"Account '{account_name}' not found")
+
+        # Delete the account
+        sb.table("account_strategies").delete().eq(
+            "account_name", account_name
+        ).execute()
+
+        return {"success": True, "message": f"Account '{account_name}' deleted successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, detail=f"Failed to delete account: {str(e)}")
+
+
 @router.post("/accounts/allocation/suggest", response_model=AllocationPlanResponse)
 def suggest_capital_allocation(
     total_capital: float,

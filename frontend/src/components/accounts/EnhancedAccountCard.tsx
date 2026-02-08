@@ -15,6 +15,7 @@ import {
   Play,
   Calendar,
   Settings,
+  Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
@@ -22,13 +23,22 @@ import { useState } from 'react';
 interface EnhancedAccountCardProps {
   account: AccountComparisonApi;
   className?: string;
+  onDelete?: (accountName: string) => void;
 }
 
-export function EnhancedAccountCard({ account, className }: EnhancedAccountCardProps) {
+export function EnhancedAccountCard({ account, className, onDelete }: EnhancedAccountCardProps) {
   const [showDetails, setShowDetails] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const dailyPositive = account.daily_pnl >= 0;
   const winRatePct = (account.win_rate * 100).toFixed(1);
   const isPaused = account.pause_trading ?? false;
+
+  const handleDelete = () => {
+    if (onDelete) {
+      onDelete(account.account_name);
+    }
+    setShowDeleteConfirm(false);
+  };
 
   // Calculate derived metrics
   const avgRR = account.avg_win_usd && account.avg_loss_usd && account.avg_loss_usd > 0
@@ -71,6 +81,16 @@ export function EnhancedAccountCard({ account, className }: EnhancedAccountCardP
           >
             <Settings className="h-3.5 w-3.5" />
           </Button>
+          {onDelete && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 w-6 p-0 text-zinc-500 hover:text-red-500"
+              onClick={() => setShowDeleteConfirm(true)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          )}
         </div>
       </div>
 
@@ -240,6 +260,42 @@ export function EnhancedAccountCard({ account, className }: EnhancedAccountCardP
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="tv-card p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <AlertTriangle className="h-5 w-5 text-red-500" />
+              <h3 className="text-base font-semibold text-zinc-100">
+                Delete Account
+              </h3>
+            </div>
+            <p className="text-sm text-zinc-400 mb-6">
+              Are you sure you want to delete <span className="font-mono text-zinc-200">{account.account_name}</span>?
+              This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-[#2a2e39] text-zinc-400 hover:bg-[#2a2e39] hover:text-zinc-200"
+                onClick={() => setShowDeleteConfirm(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                className="bg-red-500 text-white hover:bg-red-600"
+                onClick={handleDelete}
+              >
+                <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

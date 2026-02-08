@@ -9,10 +9,50 @@ import { AddAccountForm } from '@/components/accounts/AddAccountForm';
 import { useAccountsComparison } from '@/hooks/useAccounts';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useToast } from '@/hooks/use-toast';
 
 export default function AccountsPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const { data: accounts = [], isLoading, error } = useAccountsComparison();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const deleteAccountMutation = useMutation({
+    mutationFn: async (accountName: string) => {
+      const response = await fetch(
+        `/api/portfolio-control/accounts/${encodeURIComponent(accountName)}`,
+        {
+          method: 'DELETE',
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.detail || 'Failed to delete account');
+      }
+
+      return response.json();
+    },
+    onSuccess: (data, accountName) => {
+      queryClient.invalidateQueries({ queryKey: ['accounts', 'comparison'] });
+      toast({
+        title: 'Account deleted',
+        description: `${accountName} has been removed successfully.`,
+      });
+    },
+    onError: (error: Error, accountName) => {
+      toast({
+        title: 'Delete failed',
+        description: error.message || `Failed to delete ${accountName}`,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const handleDeleteAccount = (accountName: string) => {
+    deleteAccountMutation.mutate(accountName);
+  };
 
   return (
     <div className="space-y-6">
@@ -80,7 +120,11 @@ export default function AccountsPage() {
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {accounts.map((account) => (
-              <EnhancedAccountCard key={account.account_name} account={account} />
+              <EnhancedAccountCard
+                key={account.account_name}
+                account={account}
+                onDelete={handleDeleteAccount}
+              />
             ))}
           </div>
         )}
