@@ -7,7 +7,7 @@ and risk contribution analysis.
 
 import logging
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 from datetime import datetime, timezone
 
@@ -462,3 +462,173 @@ class PortfolioAnalyzer:
                 )
 
         return len(concentrated_symbols) > 0, concentrated_symbols
+
+    def save_snapshot(
+        self,
+        supabase_client,
+        positions: List[Position],
+        metrics: PortfolioRiskMetrics,
+        run_mode: str,
+        account_name: Optional[str] = None,
+        account_balance: Optional[float] = None,
+        daily_pnl: Optional[float] = None,
+        var_limit_usd: Optional[float] = None,
+        var_utilization_pct: Optional[float] = None,
+        lookback_days: int = 30
+    ) -> Optional[int]:
+        """
+        Persist portfolio snapshot to database for historical trend analysis.
+
+        Args:
+            supabase_client: Supabase client instance
+            positions: List of active positions
+            metrics: Pre-calculated portfolio metrics
+            run_mode: Execution mode (LIVE, PAPER, DRY_RUN)
+            account_name: Optional account name for multi-account support
+            account_balance: Current account balance
+            daily_pnl: Daily profit/loss
+            var_limit_usd: VaR limit in USD
+            var_utilization_pct: VaR utilization percentage
+            lookback_days: Historical lookback period
+
+        Returns:
+            Snapshot ID if successful, None otherwise
+        """
+        try:
+            # Build positions array
+            positions_json = [
+                {
+                    "symbol": p.symbol,
+                    "side": p.side,
+                    "size": p.size,
+                    "entry_price": p.entry_price,
+                    "current_price": p.current_price,
+                    "pnl_usd": p.pnl_usd,
+                    "notional_value": p.notional_value,
+                }
+                for p in positions
+            ]
+
+            # Build correlation matrix JSON
+            correlation_matrix_json = {}
+            if len(positions) > 1:
+                corr_matrix = self.get_correlation_matrix(positions, lookback_days)
+                if corr_matrix is not None:
+                    symbols = [p.symbol for p in positions]
+                    correlation_matrix_json = {
+                        "symbols": symbols,
+                        "matrix": corr_matrix.tolist(),
+                    }
+
+            # Build sector exposure JSON
+            sector_exposure_json = self._calculate_sector_exposure(positions)
+
+            # Build risk contribution JSON
+            risk_contribution_json = {}
+            if metrics.var_95_1d != 0 and len(positions) > 0:
+                risk_contributions = self.compute_risk_contribution(
+                    positions, metrics.var_95_1d, lookback_days
+                )
+                risk_contribution_json = {
+                    rc.symbol: {
+                        "contribution_usd": rc.var_contribution_usd,
+                        "contribution_pct": rc.var_contribution_pct,
+                        "marginal_var": rc.marginal_var,
+                    }
+                    for rc in risk_contributions
+                }
+
+            # Insert into database
+            snapshot_data = {
+                "total_equity": account_balance or 0.0,
+                "account_balance": account_balance,
+                "daily_pnl": daily_pnl,
+                "var_95_1d": metrics.var_95_1d,
+                "var_99_1d": metrics.var_99_1d,
+                "cvar_95": metrics.cvar_95,
+                "var_limit_usd": var_limit_usd,
+                "var_utilization_pct": var_utilization_pct,
+                "portfolio_vol": metrics.portfolio_volatility,
+                "sharpe_ratio": metrics.sharpe_ratio,
+                "total_exposure": metrics.total_exposure,
+                "net_exposure": metrics.net_exposure,
+                "position_count": metrics.position_count,
+                "correlation_avg": metrics.correlation_avg,
+                "max_correlation": metrics.max_correlation,
+                "positions": positions_json,
+                "correlation_matrix": correlation_matrix_json,
+                "sector_exposure": sector_exposure_json,
+                "risk_contribution": risk_contribution_json,
+                "run_mode": run_mode,
+                "account_name": account_name,
+            }
+
+            result = supabase_client.table("portfolio_snapshots").insert(snapshot_data).execute()
+
+            if result.data and len(result.data) > 0:
+                snapshot_id = result.data[0].get("id")
+                logger.info(
+                    f"Portfolio snapshot saved: ID={snapshot_id}, account={account_name}, "
+                    f"VaR={metrics.var_95_1d:.2f}, positions={len(positions)}"
+                )
+                return snapshot_id
+            else:
+                logger.warning("Portfolio snapshot insert returned no data")
+                return None
+
+        except Exception as e:
+            logger.error(f"Failed to save portfolio snapshot: {e}", exc_info=True)
+            return None
+
+    def _calculate_sector_exposure(self, positions: List[Position]) -> Dict[str, Any]:
+        """
+        Calculate sector exposure breakdown from positions.
+
+        Args:
+            positions: List of active positions
+
+        Returns:
+            Dict with sector exposure data
+        """
+        # Sector classification map (simplified)
+        SECTOR_MAP = {
+            "EURUSD": "forex_majors",
+            "GBPUSD": "forex_majors",
+            "USDJPY": "forex_jpy",
+            "EURJPY": "forex_jpy",
+            "GBPJPY": "forex_jpy",
+            "EURGBP": "forex_eur",
+            "XAUUSD": "precious_metals",
+            "XAGUSD": "precious_metals",
+            "US30": "indices_us",
+            "NAS100": "indices_us",
+            "SPX500": "indices_us",
+            "GER30": "indices_eu",
+            "UK100": "indices_eu",
+            "JPN225": "indices_asia",
+            "BTCUSD": "crypto",
+            "ETHUSD": "crypto",
+        }
+
+        sector_exposure: Dict[str, Dict[str, float]] = {}
+        total_exposure = sum(p.notional_value for p in positions)
+
+        for position in positions:
+            sector = SECTOR_MAP.get(position.symbol, "other")
+
+            if sector not in sector_exposure:
+                sector_exposure[sector] = {
+                    "exposure_usd": 0.0,
+                    "exposure_pct": 0.0,
+                }
+
+            sector_exposure[sector]["exposure_usd"] += position.notional_value
+
+        # Calculate percentages
+        if total_exposure > 0:
+            for sector_data in sector_exposure.values():
+                sector_data["exposure_pct"] = (
+                    sector_data["exposure_usd"] / total_exposure * 100
+                )
+
+        return sector_exposure

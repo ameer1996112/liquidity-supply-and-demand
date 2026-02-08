@@ -175,7 +175,7 @@ async def get_risk_dashboard(
             for pos in positions
         ]
 
-        return PortfolioRiskDashboard(
+        dashboard_response = PortfolioRiskDashboard(
             var_95_1d=metrics.var_95_1d,
             var_99_1d=metrics.var_99_1d,
             cvar_95=metrics.cvar_95,
@@ -189,6 +189,29 @@ async def get_risk_dashboard(
             var_utilization_pct=var_utilization,
             positions=position_details,
         )
+
+        # Save portfolio snapshot for historical analysis
+        try:
+            from src.adapters.supabase_client import get_supabase_client
+            supabase = get_supabase_client()
+            if supabase:
+                portfolio_analyzer.save_snapshot(
+                    supabase_client=supabase,
+                    positions=positions,
+                    metrics=metrics,
+                    run_mode=settings.run_mode,
+                    account_name=None,  # Aggregated portfolio snapshot
+                    account_balance=current_equity,
+                    daily_pnl=None,  # Could be calculated from positions
+                    var_limit_usd=var_limit_usd,
+                    var_utilization_pct=var_utilization,
+                    lookback_days=lookback_days,
+                )
+        except Exception as snapshot_err:
+            # Don't fail the request if snapshot save fails
+            logger.warning(f"Failed to save portfolio snapshot: {snapshot_err}")
+
+        return dashboard_response
 
     except Exception as e:
         logger.error(f"Error in risk dashboard: {e}", exc_info=True)

@@ -26,7 +26,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +51,8 @@ class CorrelationRejectionReason(str, Enum):
 
 class CorrelationCheckResult(BaseModel):
     """Result of a correlation check."""
+    model_config = ConfigDict(use_enum_values=True)
+
     passed: bool = Field(description="Whether the trade passed correlation checks")
     rejection_reason: Optional[CorrelationRejectionReason] = Field(
         default=None, description="Reason for rejection if passed=False"
@@ -61,9 +63,6 @@ class CorrelationCheckResult(BaseModel):
     exposure_details: Dict[str, Any] = Field(
         default_factory=dict, description="Current exposure details"
     )
-
-    class Config:
-        use_enum_values = True
 
 
 # ══════════════════════════════════════════════════════════

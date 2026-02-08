@@ -9,7 +9,7 @@ from datetime import date, datetime
 from enum import Enum
 from typing import Any, Dict, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 logger = logging.getLogger(__name__)
 
@@ -28,13 +28,12 @@ class RiskRejectionReason(str, Enum):
 
 
 class RiskCheckResult(BaseModel):
+    model_config = ConfigDict(use_enum_values=True)
+
     passed: bool = Field(description="Whether the trade passed all risk checks")
     rejection_reason: Optional[RiskRejectionReason] = Field(default=None)
     rejection_message: Optional[str] = Field(default=None)
     risk_metrics: Dict[str, Any] = Field(default_factory=dict)
-
-    class Config:
-        use_enum_values = True
 
 
 class TradeRiskParams(BaseModel):
