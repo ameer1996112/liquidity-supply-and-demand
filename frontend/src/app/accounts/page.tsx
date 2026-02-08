@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Users, Plus } from 'lucide-react';
-import { AccountCard } from '@/components/accounts/AccountCard';
+import { EnhancedAccountCard } from '@/components/accounts/EnhancedAccountCard';
 import { CopyConfigurator } from '@/components/accounts/CopyConfigurator';
 import { CapitalAllocator } from '@/components/accounts/CapitalAllocator';
 import { AddAccountForm } from '@/components/accounts/AddAccountForm';
@@ -80,7 +80,7 @@ export default function AccountsPage() {
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {accounts.map((account) => (
-              <AccountCard key={account.account_name} account={account} />
+              <EnhancedAccountCard key={account.account_name} account={account} />
             ))}
           </div>
         )}

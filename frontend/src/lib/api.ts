@@ -375,12 +375,26 @@ export interface AccountComparisonApi {
   account_name: string;
   strategy_type?: string;
   balance: number;
+  equity?: number;
   daily_pnl: number;
   daily_pnl_pct: number;
   win_rate: number;
   sharpe_ratio: number;
+  max_drawdown_pct?: number;
   active_positions: number;
   total_trades?: number;
+  profit_factor?: number;
+  avg_win_usd?: number;
+  avg_loss_usd?: number;
+  risk_percent?: number;
+  max_positions?: number;
+  max_lot_size?: number;
+  min_rr_ratio?: number;
+  allocated_capital_usd?: number;
+  pause_trading?: boolean;
+  broker_profile_id?: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface AllocationRecommendationApi {

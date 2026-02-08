@@ -365,10 +365,10 @@ class AccountOrchestrator:
 
     def get_account_comparison(self) -> List[Dict]:
         """
-        Get side-by-side comparison of all accounts.
+        Get side-by-side comparison of all accounts with comprehensive metrics.
 
         Returns:
-            List of account comparison dicts
+            List of account comparison dicts with full metrics
         """
         try:
             accounts = self.client.table("account_strategies").select("*").eq(
@@ -380,17 +380,59 @@ class AccountOrchestrator:
                 perf = self.get_account_performance(account["account_name"])
 
                 if perf:
+                    # Calculate additional metrics
+                    profit_factor = 0.0
+                    avg_win = 0.0
+                    avg_loss = 0.0
+
+                    # Get recent trades for profit factor
+                    try:
+                        broker_profile_id = account.get("broker_profile_id")
+                        trades_query = self.client.table("trading_signals").select(
+                            "pnl_usd, pnl_r, outcome"
+                        ).limit(100)
+
+                        if broker_profile_id:
+                            trades_query = trades_query.eq("broker_profile_id", broker_profile_id)
+
+                        trades = trades_query.execute().data or []
+
+                        wins = [float(t.get("pnl_usd", 0)) for t in trades if t.get("outcome") == "win" and t.get("pnl_usd")]
+                        losses = [abs(float(t.get("pnl_usd", 0))) for t in trades if t.get("outcome") == "loss" and t.get("pnl_usd")]
+
+                        if wins:
+                            avg_win = sum(wins) / len(wins)
+                        if losses:
+                            avg_loss = sum(losses) / len(losses)
+                        if avg_loss > 0:
+                            profit_factor = sum(wins) / sum(losses) if losses else 0.0
+                    except Exception as e:
+                        logger.warning(f"Failed to calculate profit metrics for {account['account_name']}: {e}")
+
                     comparison.append({
                         "account_name": account["account_name"],
                         "strategy_type": account.get("strategy_type", "BALANCED"),
                         "balance": perf.balance,
+                        "equity": perf.balance,  # TODO: Get actual equity from broker
                         "daily_pnl": perf.daily_pnl,
                         "daily_pnl_pct": perf.daily_pnl_pct,
                         "win_rate": perf.win_rate,
                         "sharpe_ratio": perf.sharpe_ratio,
+                        "max_drawdown_pct": perf.max_drawdown_pct,
                         "active_positions": perf.active_positions,
+                        "total_trades": perf.total_trades,
+                        "profit_factor": profit_factor,
+                        "avg_win_usd": avg_win,
+                        "avg_loss_usd": avg_loss,
+                        "risk_percent": account.get("risk_percent", 0.5),
                         "max_positions": account.get("max_positions", 3),
+                        "max_lot_size": account.get("max_lot_size", 10.0),
+                        "min_rr_ratio": account.get("min_rr_ratio", 2.0),
+                        "allocated_capital_usd": account.get("allocated_capital_usd", 0),
                         "pause_trading": account.get("pause_trading", False),
+                        "broker_profile_id": account.get("broker_profile_id"),
+                        "created_at": account.get("created_at"),
+                        "updated_at": account.get("updated_at"),
                     })
 
             return comparison
