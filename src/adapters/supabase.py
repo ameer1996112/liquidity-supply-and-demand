@@ -48,6 +48,14 @@ def init_supabase() -> Client:
         raise
 
 
+def get_supabase() -> Client:
+    """Get Supabase client, initializing if needed"""
+    global supabase
+    if supabase is None:
+        return init_supabase()
+    return supabase
+
+
 def save_alert(
     data: dict,
     mode: str = 'manual',
