@@ -119,7 +119,33 @@ class AccountOrchestrator:
                 if t.get("created_at", "") >= today_start
             )
 
-            balance = account_data.get("allocated_capital_usd", 0)
+            # Get real balance from broker (not static allocated capital)
+            balance = account_data.get("allocated_capital_usd", 0)  # Fallback
+
+            # Try to fetch real balance from MetaApi if broker_profile_id exists
+            if broker_profile_id:
+                try:
+                    from src.adapters.execution.router import get_adapter
+                    from config import get_settings
+
+                    # Get broker profile details
+                    profile_query = self.client.table("broker_profiles").select("*").eq(
+                        "id", broker_profile_id
+                    ).single().execute()
+
+                    if profile_query.data:
+                        profile = profile_query.data
+                        adapter = get_adapter(profile=profile, settings=get_settings())
+
+                        # Fetch real account info from broker
+                        if hasattr(adapter, "get_account_information"):
+                            account_info = adapter.get_account_information()
+                            if account_info and "balance" in account_info:
+                                balance = float(account_info["balance"])
+                                logger.info(f"Fetched real balance for {account_name}: ${balance:.2f}")
+                except Exception as e:
+                    logger.warning(f"Failed to fetch real balance for {account_name}, using allocated capital: {e}")
+
             daily_pnl_pct = (daily_pnl / balance * 100) if balance > 0 else 0.0
 
             # Sharpe ratio (simplified)
