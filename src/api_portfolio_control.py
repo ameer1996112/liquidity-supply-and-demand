@@ -150,6 +150,46 @@ class TradeCopyRuleRequest(BaseModel):
     enabled: bool = True
 
 
+# ── Evaluation Progress ───────────────────────────────────────────
+
+class EvaluationRulesRequest(BaseModel):
+    profit_target_usd: float = Field(..., ge=100, description="Total profit required to pass (e.g., 10000)")
+    daily_loss_limit_pct: float = Field(..., ge=0, le=100, description="Max daily loss % of starting balance (e.g., 5)")
+    max_drawdown_pct: float = Field(..., ge=0, le=100, description="Max drawdown % from peak equity (e.g., 10)")
+    min_trading_days: int = Field(default=0, ge=0, description="Minimum number of trading days required")
+    consistency_max_day_pct: Optional[float] = Field(None, ge=0, le=1, description="Max % of total profit from single day (e.g., 0.40)")
+
+
+class EvaluationProgressResponse(BaseModel):
+    id: int
+    account_name: str
+    profit_target_usd: float
+    daily_loss_limit_pct: float
+    max_drawdown_pct: float
+    min_trading_days: int
+    consistency_max_day_pct: Optional[float]
+    current_profit_usd: float
+    current_dd_pct: float
+    daily_loss_today_pct: float
+    days_traded: int
+    largest_day_profit_pct: float
+    largest_day_profit_usd: float
+    status: str
+    failure_reason: Optional[str]
+    started_at: str
+    completed_at: Optional[str]
+    created_at: str
+    updated_at: str
+
+
+class JournalEntryRequest(BaseModel):
+    signal_id: Optional[int] = None
+    note_text: str = Field(..., min_length=1, max_length=5000)
+    tags: Optional[List[str]] = None
+    trade_rating: Optional[int] = Field(None, ge=1, le=5)
+    emotional_state: Optional[str] = None
+
+
 # ══════════════════════════════════════════════════════════════════
 # LIVE RISK CONTROLS ENDPOINTS
 # ══════════════════════════════════════════════════════════════════
@@ -562,6 +602,70 @@ def get_account_comparison():
     return {"accounts": comparison}
 
 
+@router.post("/accounts/{account_name}/sync")
+def sync_account(account_name: str):
+    """
+    Manually trigger sync for a specific account.
+
+    Fetches account status and positions from MetaAPI and saves to database.
+
+    Args:
+        account_name: Name of the account to sync
+
+    Returns:
+        Sync status and results
+    """
+    from src.services.account_sync_service import AccountSyncService
+
+    sb = _get_supabase()
+    sync_service = AccountSyncService(sb)
+
+    # Sync account status
+    status_ok = sync_service.sync_account_status(account_name)
+
+    # Sync positions
+    positions_ok = sync_service.sync_account_positions(account_name)
+
+    if not status_ok and not positions_ok:
+        raise HTTPException(
+            500,
+            detail=f"Failed to sync account {account_name}. Check logs for details."
+        )
+
+    return {
+        "status": "ok",
+        "account_name": account_name,
+        "status_synced": status_ok,
+        "positions_synced": positions_ok,
+    }
+
+
+@router.post("/accounts/sync-all")
+def sync_all_accounts():
+    """
+    Manually trigger sync for all active accounts.
+
+    Returns:
+        Sync results for all accounts
+    """
+    from src.services.account_sync_service import AccountSyncService
+
+    sb = _get_supabase()
+    sync_service = AccountSyncService(sb)
+
+    results = sync_service.sync_all_active_accounts()
+
+    success_count = sum(1 for v in results.values() if v)
+
+    return {
+        "status": "ok",
+        "total_accounts": len(results),
+        "success_count": success_count,
+        "failed_count": len(results) - success_count,
+        "results": results,
+    }
+
+
 @router.get("/accounts/{account_name}/performance", response_model=AccountPerformanceResponse)
 def get_account_performance(account_name: str, lookback_days: int = 30):
     """Get performance metrics for a specific account."""
@@ -658,6 +762,432 @@ def delete_account(account_name: str):
                 detail=f"Cannot delete account: it is still referenced by other data (e.g. portfolio_snapshots). {err_msg}",
             )
         raise HTTPException(500, detail=f"Failed to delete account: {err_msg}")
+
+
+# ══════════════════════════════════════════════════════════════════
+# EVALUATION PROGRESS ENDPOINTS (FTMO/PropFirm Challenges)
+# ══════════════════════════════════════════════════════════════════
+
+
+@router.get("/accounts/{account_name}/evaluation", response_model=EvaluationProgressResponse)
+def get_evaluation_progress(account_name: str):
+    """
+    Get evaluation progress for an account.
+
+    Returns current challenge status, rules, and progress metrics.
+    Returns 404 if no evaluation is configured.
+    """
+    from src.services.evaluation_tracker import EvaluationTracker
+
+    sb = _get_supabase()
+    tracker = EvaluationTracker(sb)
+
+    eval_data = tracker.get_evaluation(account_name)
+
+    if not eval_data:
+        raise HTTPException(404, detail=f"No evaluation configured for account '{account_name}'")
+
+    return EvaluationProgressResponse(**eval_data)
+
+
+@router.put("/accounts/{account_name}/evaluation")
+def update_evaluation_rules(account_name: str, rules: EvaluationRulesRequest):
+    """
+    Create or update evaluation rules for an account.
+
+    This configures the challenge parameters (profit target, DD limits, etc.).
+    Use POST /accounts/{account_name}/evaluation/recalculate to update progress.
+    """
+    from src.services.evaluation_tracker import EvaluationTracker
+
+    sb = _get_supabase()
+    tracker = EvaluationTracker(sb)
+
+    eval_data = tracker.create_or_update_evaluation(
+        account_name=account_name,
+        profit_target_usd=rules.profit_target_usd,
+        daily_loss_limit_pct=rules.daily_loss_limit_pct,
+        max_drawdown_pct=rules.max_drawdown_pct,
+        min_trading_days=rules.min_trading_days,
+        consistency_max_day_pct=rules.consistency_max_day_pct,
+    )
+
+    return {
+        "status": "ok",
+        "message": "Evaluation rules updated successfully",
+        "evaluation": eval_data,
+    }
+
+
+@router.post("/accounts/{account_name}/evaluation/recalculate")
+def recalculate_evaluation_progress(account_name: str):
+    """
+    Recalculate evaluation progress from closed trades.
+
+    This updates current_profit, days_traded, drawdown, etc.
+    Also checks for rule violations and updates status (active -> passed/failed).
+    """
+    from src.services.evaluation_tracker import EvaluationTracker
+
+    sb = _get_supabase()
+    tracker = EvaluationTracker(sb)
+
+    try:
+        eval_data = tracker.calculate_progress(account_name)
+
+        return {
+            "status": "ok",
+            "message": "Evaluation progress recalculated successfully",
+            "evaluation": eval_data,
+        }
+    except ValueError as e:
+        raise HTTPException(404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to recalculate evaluation for {account_name}: {e}")
+        raise HTTPException(500, detail=f"Failed to recalculate evaluation: {str(e)}")
+
+
+@router.delete("/accounts/{account_name}/evaluation")
+def delete_evaluation(account_name: str):
+    """
+    Delete evaluation configuration for an account.
+
+    Use this to remove challenge tracking when account transitions
+    from Eval to Funded or is no longer needed.
+    """
+    from src.services.evaluation_tracker import EvaluationTracker
+
+    sb = _get_supabase()
+    tracker = EvaluationTracker(sb)
+
+    deleted = tracker.delete_evaluation(account_name)
+
+    if not deleted:
+        raise HTTPException(404, detail=f"No evaluation found for account '{account_name}'")
+
+    return {
+        "status": "ok",
+        "message": f"Evaluation deleted for '{account_name}'",
+    }
+
+
+@router.post("/evaluation/recalculate-all")
+def recalculate_all_evaluations():
+    """
+    Recalculate progress for all active evaluations.
+
+    Useful for daily cron jobs or batch processing.
+    Returns summary of success/failure counts.
+    """
+    from src.services.evaluation_tracker import EvaluationTracker
+
+    sb = _get_supabase()
+    tracker = EvaluationTracker(sb)
+
+    results = tracker.recalculate_all_active()
+
+    return {
+        "status": "ok",
+        "message": f"Recalculated {results['total']} evaluations",
+        "results": results,
+    }
+
+
+# ══════════════════════════════════════════════════════════════════
+# ANALYTICS & JOURNAL ENDPOINTS
+# ══════════════════════════════════════════════════════════════════
+
+
+@router.get("/accounts/{account_name}/analytics/pairs")
+def get_per_pair_analytics(account_name: str):
+    """
+    Get per-pair performance analytics for an account.
+
+    Returns win rate, profit factor, avg hold time, etc. for each symbol.
+    """
+    sb = _get_supabase()
+
+    try:
+        # Fetch all closed trades for this account
+        result = (
+            sb.table("trading_signals")
+            .select("symbol, pnl_usd, exit_time, created_at, exit_price")
+            .eq("account_name", account_name)
+            .not_.is_("exit_price", "null")
+            .not_.is_("pnl_usd", "null")
+            .execute()
+        )
+
+        if not result.data:
+            return {"pairs": []}
+
+        # Group by symbol
+        from collections import defaultdict
+        from datetime import datetime
+
+        pair_data = defaultdict(lambda: {
+            "wins": [], "losses": [], "hold_times": []
+        })
+
+        for trade in result.data:
+            symbol = trade.get("symbol")
+            pnl = trade.get("pnl_usd", 0)
+            exit_time = trade.get("exit_time")
+            created_at = trade.get("created_at")
+
+            if not symbol:
+                continue
+
+            if pnl >= 0:
+                pair_data[symbol]["wins"].append(pnl)
+            else:
+                pair_data[symbol]["losses"].append(pnl)
+
+            # Calculate hold time
+            if exit_time and created_at:
+                try:
+                    exit_dt = datetime.fromisoformat(exit_time.replace('Z', '+00:00'))
+                    entry_dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                    hold_hours = (exit_dt - entry_dt).total_seconds() / 3600
+                    pair_data[symbol]["hold_times"].append(hold_hours)
+                except:
+                    pass
+
+        # Calculate stats per pair
+        pairs = []
+        for symbol, data in pair_data.items():
+            wins = data["wins"]
+            losses = data["losses"]
+            total_trades = len(wins) + len(losses)
+
+            if total_trades == 0:
+                continue
+
+            total_wins_usd = sum(wins)
+            total_losses_usd = abs(sum(losses))
+            total_pnl = sum(wins) + sum(losses)
+
+            win_rate = len(wins) / total_trades if total_trades > 0 else 0
+            avg_win = total_wins_usd / len(wins) if wins else 0
+            avg_loss = total_losses_usd / len(losses) if losses else 0
+            profit_factor = total_wins_usd / total_losses_usd if total_losses_usd > 0 else (10.0 if total_wins_usd > 0 else 1.0)
+
+            avg_hold_time = sum(data["hold_times"]) / len(data["hold_times"]) if data["hold_times"] else 0
+
+            pairs.append({
+                "symbol": symbol,
+                "total_trades": total_trades,
+                "wins": len(wins),
+                "losses": len(losses),
+                "win_rate": win_rate,
+                "total_pnl": total_pnl,
+                "avg_win": avg_win,
+                "avg_loss": avg_loss,
+                "profit_factor": profit_factor,
+                "largest_win": max(wins) if wins else 0,
+                "largest_loss": min(losses) if losses else 0,
+                "avg_hold_time_hours": avg_hold_time,
+            })
+
+        # Sort by total trades descending
+        pairs.sort(key=lambda x: x["total_trades"], reverse=True)
+
+        return {"pairs": pairs}
+
+    except Exception as e:
+        logger.error(f"Failed to calculate pair analytics for {account_name}: {e}")
+        raise HTTPException(500, detail=f"Failed to calculate analytics: {str(e)}")
+
+
+@router.get("/accounts/{account_name}/analytics/streaks")
+def get_losing_streaks(account_name: str, min_streak_length: int = 3):
+    """
+    Detect losing streaks (consecutive losses) for an account.
+
+    Args:
+        min_streak_length: Minimum number of consecutive losses to report (default 3)
+    """
+    sb = _get_supabase()
+
+    try:
+        # Fetch all closed trades ordered by exit time
+        result = (
+            sb.table("trading_signals")
+            .select("symbol, pnl_usd, exit_time")
+            .eq("account_name", account_name)
+            .not_.is_("exit_price", "null")
+            .not_.is_("pnl_usd", "null")
+            .order("exit_time", desc=False)
+            .execute()
+        )
+
+        if not result.data or len(result.data) < min_streak_length:
+            return {"streaks": []}
+
+        # Detect streaks
+        streaks = []
+        current_streak = None
+
+        for trade in result.data:
+            pnl = trade.get("pnl_usd", 0)
+            symbol = trade.get("symbol", "UNKNOWN")
+            exit_time = trade.get("exit_time")
+
+            if pnl < 0:  # Loss
+                if current_streak is None:
+                    # Start new streak
+                    current_streak = {
+                        "start_date": exit_time,
+                        "end_date": exit_time,
+                        "streak_length": 1,
+                        "total_loss": pnl,
+                        "symbols": [symbol],
+                    }
+                else:
+                    # Continue streak
+                    current_streak["end_date"] = exit_time
+                    current_streak["streak_length"] += 1
+                    current_streak["total_loss"] += pnl
+                    if symbol not in current_streak["symbols"]:
+                        current_streak["symbols"].append(symbol)
+            else:  # Win - streak broken
+                if current_streak and current_streak["streak_length"] >= min_streak_length:
+                    current_streak["status"] = "ended"
+                    streaks.append(current_streak)
+                current_streak = None
+
+        # Check if last streak is still active
+        if current_streak and current_streak["streak_length"] >= min_streak_length:
+            current_streak["status"] = "active"
+            streaks.append(current_streak)
+
+        return {"streaks": streaks}
+
+    except Exception as e:
+        logger.error(f"Failed to detect losing streaks for {account_name}: {e}")
+        raise HTTPException(500, detail=f"Failed to detect streaks: {str(e)}")
+
+
+@router.get("/accounts/{account_name}/journal")
+def get_journal_entries(account_name: str, tag: Optional[str] = None):
+    """
+    Get journal entries for an account, optionally filtered by tag.
+    """
+    sb = _get_supabase()
+
+    try:
+        query = (
+            sb.table("trade_journal")
+            .select("*, trading_signals!inner(account_name, symbol, pnl_usd, exit_price)")
+            .eq("trading_signals.account_name", account_name)
+        )
+
+        if tag:
+            # PostgreSQL array contains operator
+            query = query.contains("tags", [tag])
+
+        query = query.order("created_at", desc=True)
+        result = query.execute()
+
+        if not result.data:
+            return {"entries": []}
+
+        # Transform data
+        entries = []
+        for entry in result.data:
+            signal_data = entry.get("trading_signals", {})
+            pnl = signal_data.get("pnl_usd")
+
+            entries.append({
+                "id": entry.get("id"),
+                "signal_id": entry.get("signal_id"),
+                "symbol": signal_data.get("symbol"),
+                "note_text": entry.get("note_text"),
+                "tags": entry.get("tags", []),
+                "screenshot_urls": entry.get("screenshot_urls", []),
+                "trade_rating": entry.get("trade_rating"),
+                "emotional_state": entry.get("emotional_state"),
+                "created_at": entry.get("created_at"),
+                "trade_outcome": "win" if pnl and pnl >= 0 else "loss" if pnl else "open",
+                "trade_pnl": pnl,
+            })
+
+        return {"entries": entries}
+
+    except Exception as e:
+        logger.error(f"Failed to fetch journal entries for {account_name}: {e}")
+        raise HTTPException(500, detail=f"Failed to fetch journal: {str(e)}")
+
+
+@router.post("/accounts/{account_name}/journal")
+def create_journal_entry(account_name: str, entry: JournalEntryRequest):
+    """
+    Create a new journal entry for an account.
+
+    Can be linked to a specific trade (signal_id) or a general note.
+    """
+    sb = _get_supabase()
+
+    try:
+        # If signal_id provided, verify it belongs to this account
+        if entry.signal_id:
+            signal_check = (
+                sb.table("trading_signals")
+                .select("id")
+                .eq("id", entry.signal_id)
+                .eq("account_name", account_name)
+                .single()
+                .execute()
+            )
+            if not signal_check.data:
+                raise HTTPException(404, detail=f"Signal {entry.signal_id} not found for account {account_name}")
+
+        payload = {
+            "signal_id": entry.signal_id,
+            "note_text": entry.note_text,
+            "tags": entry.tags or [],
+            "trade_rating": entry.trade_rating,
+            "emotional_state": entry.emotional_state,
+        }
+
+        result = sb.table("trade_journal").insert(payload).execute()
+
+        return {
+            "status": "ok",
+            "message": "Journal entry created successfully",
+            "entry": result.data[0] if result.data else payload,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to create journal entry for {account_name}: {e}")
+        raise HTTPException(500, detail=f"Failed to create journal entry: {str(e)}")
+
+
+@router.delete("/journal/{journal_id}")
+def delete_journal_entry_endpoint(journal_id: int):
+    """
+    Delete a journal entry by ID.
+    """
+    sb = _get_supabase()
+
+    try:
+        result = sb.table("trade_journal").delete().eq("id", journal_id).execute()
+
+        if not result.data or len(result.data) == 0:
+            raise HTTPException(404, detail=f"Journal entry {journal_id} not found")
+
+        return {
+            "status": "ok",
+            "message": f"Journal entry {journal_id} deleted successfully",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete journal entry {journal_id}: {e}")
+        raise HTTPException(500, detail=f"Failed to delete journal entry: {str(e)}")
 
 
 @router.post("/accounts/allocation/suggest", response_model=AllocationPlanResponse)
@@ -791,3 +1321,40 @@ def get_trade_copy_log(limit: int = 50):
         return {"log": result.data or []}
     except Exception as e:
         raise HTTPException(500, detail=f"Failed to fetch trade copy log: {e}")
+
+
+# ══════════════════════════════════════════════════════════════════
+# HEALTH CHECK & MONITORING
+# ══════════════════════════════════════════════════════════════════
+
+
+@router.get("/health")
+def get_health_status():
+    """
+    Get system health status including background worker status.
+
+    Returns:
+        - API status
+        - Background sync worker status
+        - Last sync info
+        - Cache status
+    """
+    from src.services.background_sync_worker import get_background_worker
+
+    worker = get_background_worker()
+
+    health_data = {
+        "api_status": "healthy",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "background_worker": None,
+    }
+
+    if worker:
+        health_data["background_worker"] = worker.get_health_status()
+    else:
+        health_data["background_worker"] = {
+            "worker_status": "disabled",
+            "message": "Background sync is disabled (ACCOUNT_SYNC_ENABLED=false)"
+        }
+
+    return health_data

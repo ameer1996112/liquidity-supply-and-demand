@@ -74,8 +74,51 @@ app.add_middleware(
 
 @app.on_event("startup")
 def _fail_fast_config():
-    get_settings()
-    get_redis()
+    settings = get_settings()
+    redis_client = get_redis()
+
+    # Initialize background sync worker if enabled
+    try:
+        from supabase import create_client
+        from src.services.background_sync_worker import initialize_background_worker
+
+        # Get supabase client
+        key = (settings.supabase_service_role_key or settings.supabase_key or "").strip()
+        if settings.supabase_url and key:
+            sb_client = create_client(settings.supabase_url, key)
+
+            # Initialize worker
+            sync_enabled = getattr(settings, 'account_sync_enabled', False)
+            sync_interval = getattr(settings, 'account_sync_interval_seconds', 60)
+
+            if sync_enabled:
+                logger.info(f"Initializing background sync worker (interval: {sync_interval}s)...")
+                initialize_background_worker(
+                    supabase_client=sb_client,
+                    sync_enabled=sync_enabled,
+                    sync_interval_seconds=sync_interval,
+                    redis_client=redis_client,
+                    cache_ttl_seconds=30,
+                )
+            else:
+                logger.info("Background sync worker disabled (ACCOUNT_SYNC_ENABLED=false)")
+        else:
+            logger.warning("Supabase not configured, background sync disabled")
+
+    except Exception as e:
+        logger.error(f"Failed to initialize background sync worker: {e}")
+        # Don't fail startup if worker init fails
+
+
+@app.on_event("shutdown")
+def _shutdown_worker():
+    """Shutdown background worker gracefully."""
+    try:
+        from src.services.background_sync_worker import shutdown_background_worker
+        logger.info("Shutting down background sync worker...")
+        shutdown_background_worker()
+    except Exception as e:
+        logger.error(f"Error during worker shutdown: {e}")
 
 
 def validate_webhook_secret(request: Request, secret: str | None) -> None:

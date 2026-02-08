@@ -235,6 +235,115 @@ class MetaApiAdapter:
         )
         return data
 
+    def get_open_positions(self) -> list[Dict[str, Any]]:
+        """
+        Fetch all open positions from MetaAPI.
+
+        Returns:
+            List of position dicts with keys:
+            - id: Position ID (str)
+            - symbol: Trading symbol
+            - type: POSITION_TYPE_BUY or POSITION_TYPE_SELL
+            - volume: Position size in lots
+            - openPrice: Entry price
+            - currentPrice: Current market price
+            - sl: Stop loss (optional)
+            - tp: Take profit (optional)
+            - profit: Current unrealized profit in USD
+            - swap: Swap charges
+            - commission: Commission paid
+            - comment: Order comment/EA identifier
+            - time: Position open time (ISO 8601)
+            - magic: Magic number (MT4/MT5)
+
+        On failure or circuit breaker open, returns empty list [].
+        """
+        if self._check_circuit_breaker():
+            logger.warning("MetaApi get_open_positions skipped: circuit breaker open")
+            return []
+
+        url = f"{self.base_url}/users/current/accounts/{self.account_id}/positions"
+        resp = self._request_with_retry("GET", url, timeout=10)
+
+        if resp is None:
+            logger.error("MetaApi get_open_positions failed: timeout or retries exhausted")
+            return []
+
+        if resp.status_code != 200:
+            logger.error(
+                "MetaApi get_open_positions failed: HTTP %s %s",
+                resp.status_code,
+                resp.text[:200],
+            )
+            return []
+
+        try:
+            data = resp.json()
+            if not isinstance(data, list):
+                logger.error("MetaApi get_open_positions: expected list, got %s", type(data).__name__)
+                return []
+
+            logger.info(
+                "MetaApi get_open_positions: fetched %d positions for account %s",
+                len(data),
+                self.account_id,
+            )
+            return data
+
+        except ValueError:
+            logger.error(
+                "MetaApi get_open_positions invalid JSON: %s", resp.text[:200]
+            )
+            return []
+
+    def get_account_status(self) -> Dict[str, Any]:
+        """
+        Fetch enhanced account status including connection info.
+
+        Combines data from:
+        - /account-information (balance, equity, margin, etc.)
+        - /accounts/{id} (server, platform, connection status)
+
+        Returns:
+            Dict with keys:
+            - balance, equity, margin, freeMargin, marginLevel
+            - server, platform, state, connectionStatus
+            - lastSyncTime (added by this method)
+
+        On failure, returns minimal dict with zeros.
+        """
+        if self._check_circuit_breaker():
+            logger.warning("MetaApi get_account_status skipped: circuit breaker open")
+            return {
+                "balance": 0.0,
+                "equity": 0.0,
+                "connectionStatus": "circuit_breaker_open",
+            }
+
+        # Fetch account info (balance, equity, margin)
+        account_info = self.get_account_information()
+
+        # Fetch account details (server, platform, connection)
+        account_url = f"{self.base_url}/users/current/accounts/{self.account_id}"
+        resp = self._request_with_retry("GET", account_url, timeout=5)
+
+        if resp and resp.status_code == 200:
+            try:
+                account_details = resp.json()
+                # Merge account details into account_info
+                account_info["server"] = account_details.get("server", "unknown")
+                account_info["platform"] = account_details.get("platform", "unknown")
+                account_info["state"] = account_details.get("state", "unknown")
+                account_info["connectionStatus"] = account_details.get("connectionStatus", "unknown")
+            except ValueError:
+                logger.warning("Failed to parse account details JSON")
+
+        # Add timestamp
+        from datetime import datetime, timezone
+        account_info["lastSyncTime"] = datetime.now(timezone.utc).isoformat()
+
+        return account_info
+
     def _trade_url(self) -> str:
         """Build trade endpoint URL for the configured MetaApi region."""
         return f"{self.base_url}/users/current/accounts/{self.account_id}/trade"

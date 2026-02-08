@@ -195,6 +195,11 @@ class Settings(BaseSettings):
     correlation_matrix_enabled: bool = Field(default=True, description="Enable real correlation matrix checks")
     max_avg_portfolio_correlation: float = Field(default=0.7, ge=0.0, le=1.0, description="Max average correlation with portfolio")
 
+    # ── Multi-Account Background Sync Settings ────────────────────────────
+    account_sync_enabled: bool = Field(default=False, description="Enable background account sync from MetaAPI")
+    account_sync_interval_seconds: int = Field(default=60, ge=10, le=3600, description="Account sync interval in seconds (10-3600)")
+    account_cache_ttl_seconds: int = Field(default=30, ge=5, le=300, description="Account data cache TTL in seconds (5-300)")
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -523,3 +523,103 @@ export async function fetchTradeCopyLog(limit = 50): Promise<TradeCopyLogApi[]> 
   const data = await res.json();
   return (data.log ?? []) as TradeCopyLogApi[];
 }
+
+// ---------------------------------------------------------------------------
+// Account Detail & Sync
+// ---------------------------------------------------------------------------
+
+export interface AccountDetailApi extends AccountComparisonApi {
+  connection_status: 'connected' | 'disconnected' | 'error' | 'not_configured';
+  last_sync_time: string | null;
+  meta_api_account_id: string | null;
+  server_name?: string;
+  platform_type?: string;
+  leverage?: number;
+}
+
+export interface AccountStatusSnapshotApi {
+  id: number;
+  balance: number;
+  equity: number;
+  margin: number;
+  free_margin: number;
+  margin_level_pct: number;
+  connection_status: string;
+  sync_latency_ms: number;
+  snapshot_time: string;
+}
+
+export interface PositionSnapshotApi {
+  id: number;
+  broker_position_id: string;
+  symbol: string;
+  side: string;
+  volume: number;
+  open_price: number;
+  current_price: number | null;
+  sl: number | null;
+  tp: number | null;
+  profit: number;
+  swap: number;
+  commission: number;
+  comment: string | null;
+  matched_signal_id: number | null;
+  reconciliation_status: 'pending' | 'matched' | 'orphaned';
+  snapshot_time: string;
+}
+
+export async function fetchAccountDetail(accountName: string): Promise<AccountDetailApi> {
+  const url = getPortfolioControlUrl(`/accounts/${encodeURIComponent(accountName)}/performance`);
+  if (!url) throw new Error('API URL not configured');
+  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function syncAccount(accountName: string): Promise<{
+  status: string;
+  account_name: string;
+  status_synced: boolean;
+  positions_synced: boolean;
+}> {
+  const url = getPortfolioControlUrl(`/accounts/${encodeURIComponent(accountName)}/sync`);
+  if (!url) throw new Error('API URL not configured');
+  const res = await fetch(url, {
+    method: 'POST',
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function fetchAccountStatusSnapshots(
+  accountName: string,
+  limit = 100
+): Promise<AccountStatusSnapshotApi[]> {
+  const url = getPortfolioControlUrl(`/accounts/${encodeURIComponent(accountName)}/status-history?limit=${limit}`);
+  if (!url) throw new Error('API URL not configured');
+  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) {
+    // Endpoint may not exist yet, return empty
+    return [];
+  }
+  const data = await res.json();
+  return (data.snapshots ?? []) as AccountStatusSnapshotApi[];
+}
+
+export async function fetchAccountPositions(
+  accountName: string
+): Promise<{ broker: PositionSnapshotApi[]; db: any[] }> {
+  const url = getPortfolioControlUrl(`/accounts/${encodeURIComponent(accountName)}/positions`);
+  if (!url) throw new Error('API URL not configured');
+  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+  if (!res.ok) {
+    // Endpoint may not exist yet, return empty
+    return { broker: [], db: [] };
+  }
+  const data = await res.json();
+  return {
+    broker: (data.broker_positions ?? []) as PositionSnapshotApi[],
+    db: data.db_positions ?? [],
+  };
+}

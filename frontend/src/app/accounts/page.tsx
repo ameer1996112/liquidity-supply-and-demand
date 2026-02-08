@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Users, Plus } from 'lucide-react';
+import { Users, Plus, Table2, LayoutGrid } from 'lucide-react';
 import { EnhancedAccountCard } from '@/components/accounts/EnhancedAccountCard';
+import { AccountsTable } from '@/components/accounts/AccountsTable';
 import { CopyConfigurator } from '@/components/accounts/CopyConfigurator';
 import { CapitalAllocator } from '@/components/accounts/CapitalAllocator';
 import { AddAccountForm } from '@/components/accounts/AddAccountForm';
@@ -13,8 +14,11 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/components/ui/toast';
 import { getPortfolioControlUrl } from '@/lib/api';
 
+type ViewMode = 'table' | 'cards';
+
 export default function AccountsPage() {
   const [showAddForm, setShowAddForm] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('table');
   const { data: accounts = [], isLoading, error } = useAccountsComparison();
   const queryClient = useQueryClient();
   const { addToast } = useToast();
@@ -82,22 +86,50 @@ export default function AccountsPage() {
         </div>
       )}
 
-      {/* Account Cards - Side-by-side comparison */}
+      {/* Account Comparison */}
       <section>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-medium text-zinc-300 flex items-center gap-2">
             <Users className="h-4 w-4 text-emerald-500" />
             Account Comparison
           </h2>
-          <Button
-            variant="outline"
-            size="sm"
-            className="border-[#2a2e39] text-zinc-400 hover:bg-[#2a2e39] hover:text-zinc-200"
-            onClick={() => setShowAddForm(!showAddForm)}
-          >
-            <Plus className="h-3.5 w-3.5 mr-1.5" />
-            Add account
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* View Toggle */}
+            <div className="flex items-center gap-1 rounded border border-[#2a2e39] bg-[#1e222d] p-0.5">
+              <button
+                onClick={() => setViewMode('table')}
+                className={`px-2 py-1 rounded text-xs flex items-center gap-1 transition-colors ${
+                  viewMode === 'table'
+                    ? 'bg-emerald-500/20 text-emerald-400'
+                    : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                <Table2 className="h-3.5 w-3.5" />
+                Table
+              </button>
+              <button
+                onClick={() => setViewMode('cards')}
+                className={`px-2 py-1 rounded text-xs flex items-center gap-1 transition-colors ${
+                  viewMode === 'cards'
+                    ? 'bg-emerald-500/20 text-emerald-400'
+                    : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+              >
+                <LayoutGrid className="h-3.5 w-3.5" />
+                Cards
+              </button>
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-[#2a2e39] text-zinc-400 hover:bg-[#2a2e39] hover:text-zinc-200"
+              onClick={() => setShowAddForm(!showAddForm)}
+            >
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
+              Add account
+            </Button>
+          </div>
         </div>
 
         {showAddForm && (
@@ -110,9 +142,9 @@ export default function AccountsPage() {
         )}
 
         {isLoading ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="space-y-2">
             {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-48 rounded-lg bg-[#1e222d]" />
+              <Skeleton key={i} className="h-16 rounded-lg bg-[#1e222d]" />
             ))}
           </div>
         ) : accounts.length === 0 ? (
@@ -125,6 +157,8 @@ export default function AccountsPage() {
               Run migration 009 if needed.
             </p>
           </div>
+        ) : viewMode === 'table' ? (
+          <AccountsTable accounts={accounts} onDelete={handleDeleteAccount} />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {accounts.map((account) => (
