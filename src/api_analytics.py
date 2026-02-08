@@ -163,7 +163,7 @@ class SummaryResponse(BaseModel):
 
 @router.get("/breakdown", response_model=BreakdownResponse)
 def get_breakdown(
-    period: str = Query("7d", regex="^(24h|7d|30d|all)$"),
+    period: str = Query("7d", pattern="^(24h|7d|30d|all)$"),
     mode: str = Query("LIVE"),
 ):
     """Multi-dimensional performance breakdown."""

@@ -374,6 +374,8 @@ export async function removeTrailingStop(trailingStopId: number): Promise<{ stat
 export interface AccountComparisonApi {
   account_name: string;
   strategy_type?: string;
+  provider?: string;
+  account_type?: 'Eval' | 'Funded' | 'Personal';
   balance: number;
   equity?: number;
   daily_pnl: number;
