@@ -118,6 +118,8 @@ export interface TradingSignal {
   // Broker execution info (LIVE)
   broker_order_id?: string;
   close_broker_order_id?: string;
+  /** Broker account name at execution (MetaApi or config). */
+  account_name?: string | null;
 
   // Exit information
   closed_at?: string;

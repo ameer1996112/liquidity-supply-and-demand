@@ -24,12 +24,13 @@ def get_adapter(
     """
     s = settings or get_settings()
 
-    # Multi-account: profile carries token and account_id
+    # Multi-account: profile carries token, account_id, and optional name
     if profile and isinstance(profile, dict):
         token = (profile.get("token") or "").strip()
         account_id = (profile.get("meta_api_account_id") or profile.get("account_id") or "").strip()
+        account_name = (profile.get("name") or "").strip() or None
         if token and account_id:
-            return MetaApiAdapter(token=token, account_id=account_id)
+            return MetaApiAdapter(token=token, account_id=account_id, account_name=account_name)
         # Fall through to single-account
 
     # Explicit override: external execution via MetaApi (single-account)

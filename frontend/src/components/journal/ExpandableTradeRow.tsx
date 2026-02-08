@@ -98,6 +98,13 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
           </span>
         </td>
 
+        {/* Account */}
+        <td className="py-2.5 px-3">
+          <span className="font-mono text-[10px] text-zinc-400">
+            {signal.account_name ?? 'Unknown'}
+          </span>
+        </td>
+
         {/* Zone (type + grade) */}
         <td className="py-2.5 px-3">
           {zoneType ? (
@@ -190,7 +197,7 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
       {/* Expanded Detail Row */}
       {expanded && (
         <tr className="border-b border-[#2a2e39] bg-[#1a1e28]">
-          <td colSpan={14} className="p-4">
+          <td colSpan={15} className="p-4">
             <div className="grid grid-cols-3 gap-6">
               {/* Technical Setup */}
               <div className="space-y-2">

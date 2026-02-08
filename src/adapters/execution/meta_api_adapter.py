@@ -31,9 +31,16 @@ class MetaApiAdapter:
     Docs: https://metaapi.cloud/docs/client/restApi/
     """
 
-    def __init__(self, token: str, account_id: str) -> None:
+    def __init__(
+        self,
+        token: str,
+        account_id: str,
+        account_name: Optional[str] = None,
+    ) -> None:
         self.token = token.strip()
         self.account_id = account_id.strip()
+        self._account_name_from_config = (account_name or "").strip() or None
+        self._account_name_cached: Optional[str] = None
 
         if not self.token or not self.account_id:
             raise ValueError("MetaApiAdapter requires non-empty token and account_id")
@@ -152,6 +159,43 @@ class MetaApiAdapter:
             decs = len(txt.split(".")[1])
             return max(1, min(decs, 5))
         return 2
+
+    def get_account_name(self) -> Optional[str]:
+        """
+        Fetch the account name from MetaApi or use config fallback.
+
+        Tries GET /users/current/accounts/{account_id} first; if name is not
+        available, returns the name passed at construction (e.g. from broker_profiles).
+        """
+        if self._account_name_cached is not None:
+            return self._account_name_cached or self._account_name_from_config
+        if self._account_name_from_config:
+            self._account_name_cached = ""
+            return self._account_name_from_config
+        if self._check_circuit_breaker():
+            return None
+        url = (
+            f"{self.base_url}/users/current/accounts/"
+            f"{self.account_id}"
+        )
+        resp = self._request_with_retry("GET", url, timeout=5)
+        if resp is None or resp.status_code != 200:
+            self._account_name_cached = ""
+            return None
+        try:
+            data = resp.json()
+            name = (
+                data.get("name")
+                or data.get("accountName")
+                or data.get("title")
+            )
+            if name and isinstance(name, str):
+                self._account_name_cached = name.strip()
+                return self._account_name_cached
+        except (ValueError, TypeError):
+            pass
+        self._account_name_cached = ""
+        return None
 
     def get_account_information(self) -> Dict[str, Any]:
         """Fetch current account balance/equity from MetaApi.
@@ -340,12 +384,15 @@ class MetaApiAdapter:
             fill_price,
         )
 
+        account_name = self.get_account_name()
+
         return ExecutionResult(
             status="filled",
             broker_order_id=str(order_id),
             client_order_id=request.client_order_id,
             message="MetaApi order filled",
             actual_fill_price=float(fill_price) if fill_price else None,
+            account_name=account_name,
         )
 
     def modify_position(

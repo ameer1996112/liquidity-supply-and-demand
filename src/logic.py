@@ -180,11 +180,16 @@ def process_trade(
             supabase_module.init_supabase()
             client = supabase_module.supabase
             if client:
-                client.table("trading_signals").update({
+                paper_update = {
                     "status": "executed",
                     "broker_order_id": mock_broker_id,
                     "entry_time": datetime.now(timezone.utc).isoformat(),
-                }).eq("id", alert_id).execute()
+                }
+                if profile and profile.get("name"):
+                    paper_update["account_name"] = profile["name"]
+                else:
+                    paper_update["account_name"] = "Paper"
+                client.table("trading_signals").update(paper_update).eq("id", alert_id).execute()
             log_event(alert_id, "paper_executed", "logic", {
                 "broker_order_id": mock_broker_id, "symbol": symbol,
             })
@@ -371,12 +376,17 @@ def process_trade(
                                 alert_id,
                             )
                         else:
+                            account_name = getattr(
+                                exec_result, "account_name", None
+                            ) or (profile.get("name") if profile else None)
                             update_payload = {
                                 "status": "executed",
                                 "broker_order_id": str(exec_result.broker_order_id),
                                 "filled_entry_price": float(data.get("entry", 0.0)),
                                 "entry_time": datetime.now(timezone.utc).isoformat(),
                             }
+                            if account_name:
+                                update_payload["account_name"] = account_name
 
                             if trade_key:
                                 q = client.table("trading_signals").update(update_payload).eq("trade_key", trade_key)

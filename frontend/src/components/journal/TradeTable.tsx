@@ -11,7 +11,7 @@ interface TradeTableProps {
   onInspect: (signal: TradingSignal) => void;
 }
 
-type SortKey = 'date' | 'symbol' | 'side' | 'status' | 'zone' | 'model' | 'session' | 'entry' | 'exit' | 'slPips' | 'score' | 'rr' | 'pnl';
+type SortKey = 'date' | 'symbol' | 'side' | 'status' | 'account' | 'zone' | 'model' | 'session' | 'entry' | 'exit' | 'slPips' | 'score' | 'rr' | 'pnl';
 type SortDir = 'asc' | 'desc';
 
 const COLUMNS: { key: SortKey; label: string; align?: string }[] = [
@@ -19,6 +19,7 @@ const COLUMNS: { key: SortKey; label: string; align?: string }[] = [
   { key: 'symbol', label: 'Symbol' },
   { key: 'side', label: 'Side' },
   { key: 'status', label: 'Status' },
+  { key: 'account', label: 'Account' },
   { key: 'zone', label: 'Zone' },
   { key: 'model', label: 'Model' },
   { key: 'session', label: 'Session' },
@@ -40,6 +41,8 @@ function getSortValue(signal: TradingSignal, key: SortKey): number | string {
       return signal.side || '';
     case 'status':
       return signal.status || '';
+    case 'account':
+      return signal.account_name || '';
     case 'zone':
       return signal.zone_type || '';
     case 'model':
