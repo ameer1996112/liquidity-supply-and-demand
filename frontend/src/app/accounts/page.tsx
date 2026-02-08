@@ -10,13 +10,13 @@ import { useAccountsComparison } from '@/hooks/useAccounts';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/components/ui/toast';
 
 export default function AccountsPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const { data: accounts = [], isLoading, error } = useAccountsComparison();
   const queryClient = useQueryClient();
-  const { toast } = useToast();
+  const { addToast } = useToast();
 
   const deleteAccountMutation = useMutation({
     mutationFn: async (accountName: string) => {
@@ -36,16 +36,19 @@ export default function AccountsPage() {
     },
     onSuccess: (data, accountName) => {
       queryClient.invalidateQueries({ queryKey: ['accounts', 'comparison'] });
-      toast({
+      addToast({
         title: 'Account deleted',
-        description: `${accountName} has been removed successfully.`,
+        message: `${accountName} has been removed successfully.`,
+        severity: 'success',
+        duration: 5000,
       });
     },
     onError: (error: Error, accountName) => {
-      toast({
+      addToast({
         title: 'Delete failed',
-        description: error.message || `Failed to delete ${accountName}`,
-        variant: 'destructive',
+        message: error.message || `Failed to delete ${accountName}`,
+        severity: 'critical',
+        duration: 8000,
       });
     },
   });
