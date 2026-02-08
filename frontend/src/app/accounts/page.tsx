@@ -20,8 +20,9 @@ export default function AccountsPage() {
 
   const deleteAccountMutation = useMutation({
     mutationFn: async (accountName: string) => {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
       const response = await fetch(
-        `/api/portfolio-control/accounts/${encodeURIComponent(accountName)}`,
+        `${apiUrl}/api/portfolio-control/accounts/${encodeURIComponent(accountName)}`,
         {
           method: 'DELETE',
         }
