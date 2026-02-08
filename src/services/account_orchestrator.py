@@ -278,7 +278,7 @@ class AccountOrchestrator:
                         None
                     )
                     if matching_perf:
-                        expected_sharpe += weight * matching_perf[0].sharpe_ratio
+                        expected_sharpe += weight * matching_perf.sharpe_ratio
 
             return AllocationPlan(
                 total_capital=total_available_capital,
