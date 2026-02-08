@@ -8,7 +8,6 @@ import {
   BookOpen,
   Settings,
   ShieldCheck,
-  FlaskConical,
   Crosshair,
   PanelLeftClose,
   PanelLeft,
@@ -28,12 +27,11 @@ import {
 const NAV_ITEMS = [
   { label: 'Dashboard', icon: LayoutDashboard, path: '/' },
   { label: 'Positions', icon: Crosshair, path: '/positions' },
-  { label: 'Risk Control', icon: Gauge, path: '/risk' },
+  { label: 'Risk Monitor', icon: Gauge, path: '/risk' },
   { label: 'Accounts', icon: Users, path: '/accounts' },
   { label: 'Analytics', icon: BarChart3, path: '/analytics' },
   { label: 'Rules', icon: ShieldCheck, path: '/rules' },
   { label: 'Journal', icon: BookOpen, path: '/journal' },
-  { label: 'Backtest', icon: FlaskConical, path: '/backtest' },
   { label: 'Settings', icon: Settings, path: '/settings' },
 ] as const;
 

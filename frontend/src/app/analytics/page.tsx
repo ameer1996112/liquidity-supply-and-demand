@@ -9,7 +9,6 @@ import {
   useSummary,
 } from '@/hooks/usePerformanceAnalytics';
 import { TradingMode } from '@/types/trading';
-import { useBacktestRuns } from '@/hooks/useBacktest';
 import { MetricCard } from '@/components/analytics/MetricCard';
 import { EquityCurveChart } from '@/components/analytics/EquityCurveChart';
 import { WinRateDonut } from '@/components/analytics/WinRateDonut';
@@ -29,7 +28,7 @@ import {
   Hash,
 } from 'lucide-react';
 
-type ModeFilter = 'LIVE' | 'PAPER' | 'BACKTEST' | 'ALL';
+type ModeFilter = 'LIVE' | 'PAPER' | 'ALL';
 type AnalyticsTab = 'overview' | 'breakdown' | 'drawdown' | 'streaks';
 
 const TABS: { key: AnalyticsTab; label: string }[] = [
@@ -45,17 +44,14 @@ const HOUR_LABELS = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2
 
 export default function AnalyticsPage() {
   const [modeFilter, setModeFilter] = useState<ModeFilter>('ALL');
-  const [selectedRunId, setSelectedRunId] = useState<string>('');
   const [activeTab, setActiveTab] = useState<AnalyticsTab>('overview');
   const [period, setPeriod] = useState<string>('7d');
-  const { data: runsData } = useBacktestRuns();
 
   const mode = modeFilter === 'ALL' ? undefined : modeFilter;
-  const runId = modeFilter === 'BACKTEST' && selectedRunId ? selectedRunId : undefined;
   const apiMode = modeFilter === 'ALL' ? 'LIVE' : modeFilter;
 
   // Overview tab data
-  const { data: analytics, isLoading } = useAnalytics(mode, runId);
+  const { data: analytics, isLoading } = useAnalytics(mode);
 
   // Performance Intelligence tab data (only fetch when tab active)
   const { data: breakdown, isLoading: breakdownLoading } = useBreakdown(period, apiMode);
@@ -90,31 +86,12 @@ export default function AnalyticsPage() {
             </div>
           )}
 
-          {/* Backtest run selector */}
-          {modeFilter === 'BACKTEST' && runsData?.runs && runsData.runs.length > 0 && (
-            <select
-              value={selectedRunId}
-              onChange={(e) => setSelectedRunId(e.target.value)}
-              className="bg-[#131722] border border-[#2a2e39] rounded px-2 py-1 text-xs font-mono text-zinc-300 focus:outline-none focus:border-[#26a69a]"
-            >
-              <option value="">All Runs</option>
-              {runsData.runs.map((run: { run_id: string; name?: string }) => (
-                <option key={run.run_id} value={run.run_id}>
-                  {run.name || run.run_id}
-                </option>
-              ))}
-            </select>
-          )}
-
           {/* Mode Filter */}
           <div className="flex items-center gap-1 bg-[#1e222d] border border-[#2a2e39] rounded-md p-1">
-            {(['ALL', 'LIVE', 'PAPER', 'BACKTEST'] as ModeFilter[]).map((m) => (
+            {(['ALL', 'LIVE', 'PAPER'] as ModeFilter[]).map((m) => (
               <button
                 key={m}
-                onClick={() => {
-                  setModeFilter(m);
-                  if (m !== 'BACKTEST') setSelectedRunId('');
-                }}
+                onClick={() => setModeFilter(m)}
                 className={cn(
                   'font-mono text-[11px] px-3 py-1 rounded transition-colors',
                   modeFilter === m
