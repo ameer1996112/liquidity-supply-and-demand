@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/components/ui/toast';
+import { getPortfolioControlUrl } from '@/lib/api';
 
 export default function AccountsPage() {
   const [showAddForm, setShowAddForm] = useState(false);
@@ -20,23 +21,26 @@ export default function AccountsPage() {
 
   const deleteAccountMutation = useMutation({
     mutationFn: async (accountName: string) => {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-      const response = await fetch(
-        `${apiUrl}/api/portfolio-control/accounts/${encodeURIComponent(accountName)}`,
-        {
-          method: 'DELETE',
-        }
-      );
+      const url = getPortfolioControlUrl(`/accounts/${encodeURIComponent(accountName)}`);
+      if (!url) throw new Error('Backend API URL not configured');
+      const response = await fetch(url, { method: 'DELETE' });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Failed to delete account');
+        let message = `Delete failed (${response.status})`;
+        try {
+          const body = await response.json();
+          const detail = typeof body?.detail === 'string' ? body.detail : body?.detail?.join?.(' ') ?? body?.message;
+          if (detail) message = detail;
+        } catch {
+          // response not JSON (e.g. HTML error page)
+        }
+        throw new Error(message);
       }
 
       return response.json();
     },
     onSuccess: (data, accountName) => {
-      queryClient.invalidateQueries({ queryKey: ['accounts', 'comparison'] });
+      queryClient.invalidateQueries({ queryKey: ['portfolio-control', 'accounts', 'comparison'] });
       addToast({
         title: 'Account deleted',
         message: `${accountName} has been removed successfully.`,

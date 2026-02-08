@@ -592,7 +592,10 @@ def delete_account(account_name: str):
     """
     Delete an account strategy from account_strategies table.
 
-    This does NOT delete associated trades - trades remain in trading_signals.
+    Cleans up dependent rows so the delete succeeds: portfolio_snapshots
+    (unlink via update where supported), capital_allocation_history,
+    and trade_copy_rules that reference this account. Trades in
+    trading_signals are left as-is (account_name may become orphaned).
     """
     sb = _get_supabase()
 
@@ -605,6 +608,39 @@ def delete_account(account_name: str):
         if not result.data or len(result.data) == 0:
             raise HTTPException(404, detail=f"Account '{account_name}' not found")
 
+        # Unlink dependent data so delete is not blocked by references
+        # 1. portfolio_snapshots: set account_name to NULL (if FK is ON DELETE SET NULL this happens automatically; otherwise do it explicitly)
+        try:
+            sb.table("portfolio_snapshots").update({"account_name": None}).eq(
+                "account_name", account_name
+            ).execute()
+        except Exception:
+            pass  # Column or table may not exist; continue
+
+        # 2. capital_allocation_history: delete history for this account (audit trail is optional)
+        try:
+            sb.table("capital_allocation_history").delete().eq(
+                "account_name", account_name
+            ).execute()
+        except Exception:
+            pass
+
+        # 3. trade_copy_rules: delete rules where this account is master; for slave, remove from array (or delete rule if only slave)
+        try:
+            rules = sb.table("trade_copy_rules").select("id, master_account_name, slave_account_names").execute()
+            if rules.data:
+                for rule in rules.data:
+                    if rule.get("master_account_name") == account_name:
+                        sb.table("trade_copy_rules").delete().eq("id", rule["id"]).execute()
+                    elif account_name in (rule.get("slave_account_names") or []):
+                        new_slaves = [s for s in (rule.get("slave_account_names") or []) if s != account_name]
+                        if new_slaves:
+                            sb.table("trade_copy_rules").update({"slave_account_names": new_slaves}).eq("id", rule["id"]).execute()
+                        else:
+                            sb.table("trade_copy_rules").delete().eq("id", rule["id"]).execute()
+        except Exception:
+            pass
+
         # Delete the account
         sb.table("account_strategies").delete().eq(
             "account_name", account_name
@@ -615,7 +651,13 @@ def delete_account(account_name: str):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, detail=f"Failed to delete account: {str(e)}")
+        err_msg = str(e)
+        if "foreign key" in err_msg.lower() or "violates" in err_msg.lower():
+            raise HTTPException(
+                409,
+                detail=f"Cannot delete account: it is still referenced by other data (e.g. portfolio_snapshots). {err_msg}",
+            )
+        raise HTTPException(500, detail=f"Failed to delete account: {err_msg}")
 
 
 @router.post("/accounts/allocation/suggest", response_model=AllocationPlanResponse)
