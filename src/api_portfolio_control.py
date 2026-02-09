@@ -1187,7 +1187,7 @@ def get_trade_history(
                 r_multiple = float(trade.get("realized_r_multiple"))
             elif trade.get("pnl_usd") and trade.get("entry") and trade.get("sl"):
                 risk_pips = abs(float(trade.get("entry")) - float(trade.get("sl")))
-                risk_usd = risk_pips * float(trade.get("size", 0.01")) * 100000 * 0.0001
+                risk_usd = risk_pips * float(trade.get("size", 0.01)) * 100000 * 0.0001
                 if risk_usd > 0:
                     r_multiple = float(trade.get("pnl_usd")) / risk_usd
 
