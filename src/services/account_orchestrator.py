@@ -113,18 +113,26 @@ class AccountOrchestrator:
             account_data = account.data
             broker_profile_id = account_data.get("broker_profile_id")
 
-            # Get trades for this account (match by account_name OR broker_profile_id)
+            # Get trades for this account (match by account_name OR broker_profile_id for legacy trades)
             start_date = (datetime.now(timezone.utc) - timedelta(days=lookback_days)).isoformat()
 
+            # Strategy: Try account_name filter; if 0 results and broker_profile_id exists, also get trades by broker_profile_id
             trades_query = self.client.table("trading_signals").select(
                 "pnl_usd, pnl_r, outcome, created_at"
-            ).gte("created_at", start_date)
-
-            # Filter by account_name first (primary); if no broker_profile_id, this is the only filter
-            trades_query = trades_query.eq("account_name", account_name)
+            ).gte("created_at", start_date).eq("account_name", account_name)
 
             trades_result = trades_query.execute()
-            trades = trades_result.data or []
+            trades = list(trades_result.data or [])
+
+            # If no trades found by account_name and broker_profile_id exists, query by broker_profile_id (legacy trades)
+            if len(trades) == 0 and broker_profile_id:
+                fallback_query = self.client.table("trading_signals").select(
+                    "pnl_usd, pnl_r, outcome, created_at"
+                ).gte("created_at", start_date).eq("broker_profile_id", broker_profile_id).is_("account_name", "null")
+                
+                fallback_result = fallback_query.execute()
+                trades.extend(fallback_result.data or [])
+                logger.info(f"Found {len(fallback_result.data or [])} legacy trades for {account_name} via broker_profile_id")
 
             # Calculate metrics
             total_trades = len(trades)
@@ -222,17 +230,26 @@ class AccountOrchestrator:
             # Max drawdown (simplified - would need equity curve)
             max_drawdown_pct = 0.0  # TODO: Calculate from equity curve
 
-            # Active positions (by account_name)
+            # Active positions (by account_name, or broker_profile_id if account_name is null)
             active_query = self.client.table("trading_signals").select(
                 "id", count="exact"
-            ).eq("account_name", account_name
             ).in_("status", ["active", "executed"])
 
             if broker_profile_id:
-                active_query = active_query.eq("broker_profile_id", broker_profile_id)
-
-            active_result = active_query.execute()
-            active_positions = active_result.count or 0
+                # Include trades with this account_name OR trades with this broker_profile_id and no account_name (legacy)
+                # Note: Supabase doesn't support OR in query builder directly; we'll do two queries and combine
+                active_by_name = self.client.table("trading_signals").select(
+                    "id", count="exact"
+                ).eq("account_name", account_name).in_("status", ["active", "executed"]).execute()
+                
+                active_by_profile = self.client.table("trading_signals").select(
+                    "id", count="exact"
+                ).eq("broker_profile_id", broker_profile_id).is_("account_name", "null").in_("status", ["active", "executed"]).execute()
+                
+                active_positions = (active_by_name.count or 0) + (active_by_profile.count or 0)
+            else:
+                active_result = active_query.eq("account_name", account_name).execute()
+                active_positions = active_result.count or 0
 
             return AccountPerformance(
                 account_name=account_name,

@@ -962,7 +962,7 @@ def get_per_pair_analytics(account_name: str):
     sb = _get_supabase()
 
     try:
-        # Fetch all closed trades for this account
+        # Fetch all closed trades for this account (with fallback for legacy trades)
         result = (
             sb.table("trading_signals")
             .select("symbol, pnl_usd, exit_time, created_at, exit_price")
@@ -972,7 +972,25 @@ def get_per_pair_analytics(account_name: str):
             .execute()
         )
 
-        if not result.data:
+        trades = list(result.data or [])
+
+        # If no trades found, try broker_profile_id fallback for legacy trades without account_name
+        if len(trades) == 0:
+            account_query = sb.table("account_strategies").select("broker_profile_id").eq("account_name", account_name).limit(1).execute()
+            if account_query.data and account_query.data[0].get("broker_profile_id"):
+                broker_profile_id = account_query.data[0]["broker_profile_id"]
+                fallback_result = (
+                    sb.table("trading_signals")
+                    .select("symbol, pnl_usd, exit_time, created_at, exit_price")
+                    .eq("broker_profile_id", broker_profile_id)
+                    .is_("account_name", "null")
+                    .not_.is_("exit_price", "null")
+                    .not_.is_("pnl_usd", "null")
+                    .execute()
+                )
+                trades.extend(fallback_result.data or [])
+
+        if not trades:
             return {"pairs": []}
 
         # Group by symbol
@@ -983,7 +1001,7 @@ def get_per_pair_analytics(account_name: str):
             "wins": [], "losses": [], "hold_times": []
         })
 
-        for trade in result.data:
+        for trade in trades:
             symbol = trade.get("symbol")
             pnl = trade.get("pnl_usd", 0)
             exit_time = trade.get("exit_time")
@@ -1082,7 +1100,7 @@ def get_losing_streaks(account_name: str, min_streak_length: int = 3):
         streaks = []
         current_streak = None
 
-        for trade in result.data:
+        for trade in trades:
             pnl = trade.get("pnl_usd", 0)
             symbol = trade.get("symbol", "UNKNOWN")
             exit_time = trade.get("exit_time")
@@ -1201,7 +1219,7 @@ def get_trade_history(
 
     try:
         # ======================================================================
-        # 1. FETCH FROM DATABASE
+        # 1. FETCH FROM DATABASE (with fallback for legacy trades)
         # ======================================================================
         query = (
             sb.table("trading_signals")
@@ -1220,11 +1238,32 @@ def get_trade_history(
         query = query.order("exit_time", desc=True)
         db_result = query.execute()
 
+        db_trades_data = list(db_result.data or [])
+
+        # If no trades found by account_name, try broker_profile_id fallback for legacy trades
+        if len(db_trades_data) == 0:
+            account_query = sb.table("account_strategies").select("broker_profile_id").eq("account_name", account_name).limit(1).execute()
+            if account_query.data and account_query.data[0].get("broker_profile_id"):
+                broker_profile_id = account_query.data[0]["broker_profile_id"]
+                fallback_query = (
+                    sb.table("trading_signals")
+                    .select("*")
+                    .eq("broker_profile_id", broker_profile_id)
+                    .is_("account_name", "null")
+                    .not_.is_("exit_price", "null")
+                    .not_.is_("pnl_usd", "null")
+                )
+                if cutoff_time:
+                    fallback_query = fallback_query.gte("exit_time", cutoff_time.isoformat())
+                fallback_query = fallback_query.order("exit_time", desc=True)
+                fallback_result = fallback_query.execute()
+                db_trades_data.extend(fallback_result.data or [])
+
         # Transform database trades
         db_trades = []
         db_position_ids = set()  # Track position IDs we have in DB
 
-        for trade in db_result.data or []:
+        for trade in db_trades_data:
             # Calculate R multiple if possible
             r_multiple = None
             if trade.get("realized_r_multiple") is not None:
