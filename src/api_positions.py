@@ -15,21 +15,7 @@ router = APIRouter(prefix="/positions", tags=["positions"])
 
 # ── Lazy Supabase client (same pattern as api_risk.py) ──────
 
-_client = None
-
-
-def _get_supabase():
-    global _client
-    if _client is not None:
-        return _client
-    s = get_settings()
-    key = (s.supabase_service_role_key or s.supabase_key or "").strip()
-    if not s.supabase_url or not key:
-        raise HTTPException(status_code=503, detail="Supabase not configured")
-    from supabase import create_client
-
-    _client = create_client(s.supabase_url, key)
-    return _client
+from src.adapters.supabase_api import get_api_supabase as _get_supabase
 
 
 def _get_adapter():

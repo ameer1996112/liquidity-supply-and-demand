@@ -18,26 +18,15 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/portfolio-control", tags=["portfolio-control"])
 
-# ── Lazy initialization ──────────────────────────────────────────
+# ── Shared Supabase client with auto-reconnect ──────────────────
 
-_client = None
+from src.adapters.supabase_api import get_api_supabase as _get_supabase, reset_api_supabase
 
 
-def _get_supabase():
-    global _client
-    if _client is not None:
-        return _client
-
-    from config import get_settings
-    from supabase import create_client
-
-    s = get_settings()
-    key = (s.supabase_service_role_key or s.supabase_key or "").strip()
-    if not s.supabase_url or not key:
-        raise HTTPException(status_code=503, detail="Supabase not configured")
-
-    _client = create_client(s.supabase_url, key)
-    return _client
+def _is_connection_error(exc: Exception) -> bool:
+    """Check if an exception is a transient Supabase/HTTP2 connection error."""
+    err = str(exc).lower()
+    return any(k in err for k in ("connectionterminated", "remoteprotocolerror", "connection reset", "broken pipe"))
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -626,12 +615,18 @@ def get_account_comparison():
     """Get side-by-side comparison of all accounts."""
     from src.services.account_orchestrator import AccountOrchestrator
 
-    sb = _get_supabase()
-    orchestrator = AccountOrchestrator(sb)
-
-    comparison = orchestrator.get_account_comparison()
-
-    return {"accounts": comparison}
+    for attempt in range(2):
+        try:
+            sb = _get_supabase()
+            orchestrator = AccountOrchestrator(sb)
+            comparison = orchestrator.get_account_comparison()
+            return {"accounts": comparison}
+        except Exception as e:
+            if attempt == 0 and _is_connection_error(e):
+                logger.warning("Supabase connection error in comparison, retrying: %s", e)
+                reset_api_supabase()
+                continue
+            raise
 
 
 @router.post("/accounts/{account_name}/sync")
@@ -1602,13 +1597,17 @@ def execute_allocation(account_name: str, allocation_usd: float):
 @router.get("/accounts/trade-copy-rules")
 def get_trade_copy_rules():
     """Get all trade copy rules."""
-    sb = _get_supabase()
-
-    try:
-        result = sb.table("trade_copy_rules").select("*").order("id").execute()
-        return {"rules": result.data or []}
-    except Exception as e:
-        raise HTTPException(500, detail=f"Failed to fetch trade copy rules: {e}")
+    for attempt in range(2):
+        try:
+            sb = _get_supabase()
+            result = sb.table("trade_copy_rules").select("*").order("id").execute()
+            return {"rules": result.data or []}
+        except Exception as e:
+            if attempt == 0 and _is_connection_error(e):
+                logger.warning("Supabase connection error in trade-copy-rules, retrying: %s", e)
+                reset_api_supabase()
+                continue
+            raise HTTPException(500, detail=f"Failed to fetch trade copy rules: {e}")
 
 
 @router.post("/accounts/trade-copy-rules")

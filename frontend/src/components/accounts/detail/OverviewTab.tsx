@@ -87,8 +87,8 @@ export function OverviewTab({ account }: OverviewTabProps) {
           />
           <MetricCard
             label="Min R:R Ratio"
-            value={`${account.min_rr_ratio || 2.0}:1`}
-            valueColor="text-amber-400"
+            value={account.min_rr_ratio != null && account.min_rr_ratio > 0 ? `${account.min_rr_ratio}:1` : 'Off (Pine)'}
+            valueColor={account.min_rr_ratio != null && account.min_rr_ratio > 0 ? 'text-amber-400' : 'text-zinc-500'}
           />
           <MetricCard
             label="Max Lot Size"

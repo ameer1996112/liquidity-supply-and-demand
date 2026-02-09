@@ -19,6 +19,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from config import get_settings
+from src.adapters.supabase_api import get_api_supabase as _get_supabase
 
 logger = logging.getLogger(__name__)
 
@@ -52,17 +53,10 @@ async def get_prop_firm_metrics(
         PropFirmMetricsResponse with all compliance data
     """
     try:
-        from supabase import create_client
         from src.services.prop_firm_tracker import PropFirmTracker
 
         settings = get_settings()
-
-        # Initialize Supabase client
-        key = (settings.supabase_service_role_key or settings.supabase_key).strip()
-        if not settings.supabase_url or not key:
-            raise HTTPException(status_code=500, detail="Supabase not configured")
-
-        supabase = create_client(settings.supabase_url, key)
+        supabase = _get_supabase()
 
         # Get metrics
         tracker = PropFirmTracker(supabase, settings)
@@ -140,17 +134,10 @@ async def get_prop_firm_history(
         List of historical snapshots with drawdown trends
     """
     try:
-        from supabase import create_client
         from src.services.prop_firm_tracker import PropFirmTracker
 
         settings = get_settings()
-
-        # Initialize Supabase client
-        key = (settings.supabase_service_role_key or settings.supabase_key).strip()
-        if not settings.supabase_url or not key:
-            raise HTTPException(status_code=500, detail="Supabase not configured")
-
-        supabase = create_client(settings.supabase_url, key)
+        supabase = _get_supabase()
 
         # Get historical snapshots
         tracker = PropFirmTracker(supabase, settings)
@@ -179,17 +166,10 @@ async def perform_daily_reset(
     Creates new daily starting balance snapshot.
     """
     try:
-        from supabase import create_client
         from src.services.prop_firm_tracker import PropFirmTracker
 
         settings = get_settings()
-
-        # Initialize Supabase client
-        key = (settings.supabase_service_role_key or settings.supabase_key).strip()
-        if not settings.supabase_url or not key:
-            raise HTTPException(status_code=500, detail="Supabase not configured")
-
-        supabase = create_client(settings.supabase_url, key)
+        supabase = _get_supabase()
 
         # Perform reset
         tracker = PropFirmTracker(supabase, settings)
@@ -221,17 +201,10 @@ async def get_consistency_metrics(
         - Daily profit breakdown
     """
     try:
-        from supabase import create_client
         from src.services.consistency_analyzer import ConsistencyAnalyzer
 
         settings = get_settings()
-
-        # Initialize Supabase client
-        key = (settings.supabase_service_role_key or settings.supabase_key).strip()
-        if not settings.supabase_url or not key:
-            raise HTTPException(status_code=500, detail="Supabase not configured")
-
-        supabase = create_client(settings.supabase_url, key)
+        supabase = _get_supabase()
 
         # Get consistency data
         consistency = ConsistencyAnalyzer(supabase, settings)
@@ -263,17 +236,10 @@ async def get_mtm_realtime(
         - At-risk positions (>50% to stop loss)
     """
     try:
-        from supabase import create_client
         from src.services.mtm_guardian import MTMGuardian
 
         settings = get_settings()
-
-        # Initialize Supabase client
-        key = (settings.supabase_service_role_key or settings.supabase_key).strip()
-        if not settings.supabase_url or not key:
-            raise HTTPException(status_code=500, detail="Supabase not configured")
-
-        supabase = create_client(settings.supabase_url, key)
+        supabase = _get_supabase()
 
         # Get MTM data
         mtm = MTMGuardian(supabase, settings)
