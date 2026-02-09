@@ -209,6 +209,7 @@ def save_result(
         "notes": note,
         "ml_win_probability": prob,
         "run_mode": payload.get("run_mode", "PAPER"),
+        "account_balance": float(payload.get("account_balance", s.account_balance)),
     }
     tk = (payload.get("trade_key") or "").strip()
     if tk:
@@ -526,6 +527,13 @@ def process_trade(payload: Dict[str, Any]):
 
     # ── Idempotency is checked per-profile in the execution loop (multi-account) ──
 
+    # ── Extract Dynamic Account Balance from Pine ────────────
+    # Use account_balance from webhook (sent by Pine) or fallback to .env setting
+    dynamic_account_balance = float(payload.get("account_balance", s.account_balance))
+    logger.info("Using account balance: $%s (from %s)",
+                f"{dynamic_account_balance:,.0f}",
+                "Pine webhook" if "account_balance" in payload else ".env fallback")
+
     # ── PropGuard: Step-Up Risk Scaling ──────────────────────
     daily_pnl = 0.0
     if supabase:
@@ -536,8 +544,8 @@ def process_trade(payload: Dict[str, Any]):
             daily_pnl = sum(float(t.get("pnl_usd") or 0) for t in (pnl_resp.data or []))
         except Exception:
             pass
-    current_equity = s.account_balance + daily_pnl
-    allowed, risk_multiplier, risk_label = check_safety(current_equity, s.account_balance, daily_pnl)
+    current_equity = dynamic_account_balance + daily_pnl
+    allowed, risk_multiplier, risk_label = check_safety(current_equity, dynamic_account_balance, daily_pnl)
     if not allowed:
         save_result(payload, "risk_rejected", f"PropGuard: {risk_label}", 0.0)
         log_event(None, "prop_guard_blocked", "worker", {"label": risk_label, "daily_pnl": daily_pnl})

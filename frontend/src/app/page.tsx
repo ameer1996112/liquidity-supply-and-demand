@@ -8,6 +8,7 @@ import { MiniEquityChart } from '@/components/dashboard/MiniEquityChart';
 import { ExecutionQualityWidget } from '@/components/dashboard/ExecutionQualityWidget';
 import { PortfolioRiskWidget } from '@/components/dashboard/PortfolioRiskWidget';
 import { EvaluationDashboard } from '@/components/evaluation/EvaluationDashboard';
+import { PineConfigStatus } from '@/components/dashboard/PineConfigStatus';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useTradingMode } from '@/providers/TradingModeProvider';
 import { TradingSignal } from '@/types/trading';
@@ -66,8 +67,13 @@ export default function DashboardPage() {
         </Tabs>
       </div>
 
+      {/* Pine Config Status */}
+      <div className="mb-4">
+        <PineConfigStatus />
+      </div>
+
       {/* 2-Panel Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-[calc(100%-3rem)] min-h-0">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-[calc(100%-7rem)] min-h-0">
         {/* Left Panel: Active Trades + Equity Chart + Execution Quality + Portfolio Risk + Evaluation */}
         <div className="flex flex-col gap-4 overflow-y-auto min-h-0">
           <div className="min-h-[120px] max-h-[200px] shrink-0 overflow-hidden">

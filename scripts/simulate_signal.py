@@ -51,12 +51,27 @@ def build_payload(symbol: str = "XAUUSD", zone_id: int = 0) -> Dict[str, Any]:
 
 
 def main() -> None:
+    import sys
+
     base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
-    symbol = os.getenv("SIMULATE_SYMBOL", "XAUUSD").strip().upper() or "XAUUSD"
-    zone_id = int(os.getenv("ZONE_ID", "0"))
     url = f"{base_url.rstrip('/')}/webhook"
 
-    payload = build_payload(symbol, zone_id=zone_id)
+    # Check if a JSON file was provided as argument
+    if len(sys.argv) > 1:
+        json_file = sys.argv[1]
+        print(f"Loading payload from: {json_file}")
+        try:
+            with open(json_file, 'r') as f:
+                payload = json.load(f)
+        except Exception as e:
+            print(f"❌ Failed to load JSON file: {e}")
+            return
+    else:
+        # Use default payload builder
+        symbol = os.getenv("SIMULATE_SYMBOL", "XAUUSD").strip().upper() or "XAUUSD"
+        zone_id = int(os.getenv("ZONE_ID", "0"))
+        payload = build_payload(symbol, zone_id=zone_id)
+
     headers = {"Content-Type": "application/json"}
 
     # Optional webhook secret for auth (matches API validate_webhook_secret)
