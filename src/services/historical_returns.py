@@ -94,8 +94,7 @@ class HistoricalReturnsService:
                 ticker,
                 start=start_date,
                 end=end_date,
-                progress=False,
-                show_errors=False
+                progress=False
             )
 
             if data.empty:

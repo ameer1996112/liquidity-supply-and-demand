@@ -449,6 +449,25 @@ def process_trade(payload: Dict[str, Any]):
         )
         return
 
+    # ── Max Lot Size Guard ────────────────────────────────────
+    # CRITICAL: Prevent oversized trades from Pine using $10M initial_capital
+    max_lot_size = s.max_lot_size if hasattr(s, 'max_lot_size') else 10.0
+    if size > max_lot_size:
+        save_result(
+            payload,
+            "filtered",
+            f"Position size {size} lots exceeds max_lot_size={max_lot_size}. "
+            f"Check TradingView Pine initial_capital vs actual account balance.",
+            0.0,
+        )
+        logger.warning(
+            "MAX LOT SIZE REJECTED: size=%s > max=%s lots. "
+            "Pine may be using initial_capital ($10M) instead of account_size_usd.",
+            size,
+            max_lot_size,
+        )
+        return
+
     # ── Kill Switch (ENV + Redis + MTM Guardian) ─────────────
     # CRITICAL: Now includes floating PnL to prevent prop firm breaches
     redis_kill = False
