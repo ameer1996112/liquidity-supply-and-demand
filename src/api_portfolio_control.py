@@ -520,10 +520,20 @@ def generate_hedge_suggestion():
 
     position_dicts = []
     for pos in active_positions:
+        # Calculate notional value using instrument-aware calculation
+        from src.services.position_optimizer import PositionOptimizer
+        optimizer = PositionOptimizer()
+        notional = optimizer.calculate_notional_value(
+            symbol=pos.symbol,
+            side=pos.side,
+            size=abs(pos.size),
+            entry_price=pos.entry_price
+        )
+
         position_dicts.append({
             "symbol": pos.symbol,
             "side": pos.side,
-            "notional_value": abs(pos.size) * 100_000,  # Simplified
+            "notional_value": notional,
             "size": pos.size,
             "entry_price": pos.entry_price,
         })

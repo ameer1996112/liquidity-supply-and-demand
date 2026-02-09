@@ -51,8 +51,15 @@ class PortfolioVarGuard:
         # Use current_price if provided, otherwise entry
         price = current_price if current_price is not None else entry
 
-        # Calculate notional value (simplified - assumes 1 lot = 100k for forex)
-        notional = abs(size) * 100_000 * price
+        # Calculate notional value using instrument-aware calculation
+        from src.services.position_optimizer import PositionOptimizer
+        optimizer = PositionOptimizer()
+        notional = optimizer.calculate_notional_value(
+            symbol=symbol,
+            side=side,
+            size=abs(size),
+            entry_price=price
+        )
 
         return Position(
             symbol=symbol,

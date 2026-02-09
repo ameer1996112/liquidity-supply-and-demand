@@ -39,12 +39,14 @@ ML_MIN_CONFIDENCE = 0.50
 supabase = None
 correlation_manager = None
 trailing_stop_manager = None
+settings = None  # Global settings instance
 
 
 def init_connections():
-    global supabase, correlation_manager, trailing_stop_manager
+    global supabase, correlation_manager, trailing_stop_manager, settings
     r = get_redis()
     s = get_settings()
+    settings = s  # Store in global for use in save_result
     key = (s.supabase_service_role_key or s.supabase_key).strip()
     if s.supabase_url and key:
         from supabase import create_client
@@ -198,6 +200,10 @@ def save_result(
     if not supabase:
         logger.warning("Supabase unavailable - result not saved: %s", status)
         return
+
+    # Use global settings instance
+    default_balance = settings.account_balance if settings else 50000
+
     data = {
         "symbol": payload.get("symbol", "UNKNOWN"),
         "side": payload.get("side", "buy"),
@@ -209,7 +215,7 @@ def save_result(
         "notes": note,
         "ml_win_probability": prob,
         "run_mode": payload.get("run_mode", "PAPER"),
-        "account_balance": float(payload.get("account_balance", s.account_balance)),
+        "account_balance": float(payload.get("account_balance", default_balance)),
     }
     tk = (payload.get("trade_key") or "").strip()
     if tk:
@@ -609,13 +615,22 @@ def process_trade(payload: Dict[str, Any]):
             active_positions = get_active_positions_from_db()
             position_dicts = []
 
+            # Create optimizer for instrument-aware notional calculations
+            from src.services.position_optimizer import PositionOptimizer
+            optimizer = PositionOptimizer()
+
             for pos in active_positions:
                 current_price = get_current_price(pos.symbol)
                 if current_price is None:
                     current_price = pos.entry_price
 
-                # Calculate notional value
-                notional = abs(pos.size) * 100_000 * current_price  # Simplified for forex
+                # Use instrument-aware notional calculation (handles forex, metals, indices correctly)
+                notional = optimizer.calculate_notional_value(
+                    symbol=pos.symbol,
+                    side=pos.side,
+                    size=abs(pos.size),
+                    entry_price=current_price
+                )
 
                 position_dicts.append({
                     "symbol": pos.symbol,
@@ -662,14 +677,22 @@ def process_trade(payload: Dict[str, Any]):
     if s.portfolio_var_enabled and supabase:  # Reuse same toggle for now
         try:
             from src.core.guard_rails.sector_guard import SectorExposureGuard
+            from src.services.position_optimizer import PositionOptimizer
 
             # Get active positions
             active_positions = get_active_positions_from_db()
             position_dicts = []
+            optimizer = PositionOptimizer()
 
             for pos in active_positions:
                 current_price = get_current_price(pos.symbol) or pos.entry_price
-                notional = abs(pos.size) * 100_000 * current_price
+                # Use instrument-aware notional calculation (handles forex, metals, indices correctly)
+                notional = optimizer.calculate_notional_value(
+                    symbol=pos.symbol,
+                    side=pos.side,
+                    size=abs(pos.size),
+                    entry_price=current_price
+                )
 
                 position_dicts.append({
                     "symbol": pos.symbol,

@@ -102,8 +102,15 @@ def get_active_positions_from_db() -> List[Position]:
             if current_price is None:
                 current_price = entry
 
-            # Calculate notional value
-            notional = abs(size) * 100_000 * current_price  # Simplified for forex
+            # Calculate notional value using instrument-aware calculation
+            from src.services.position_optimizer import PositionOptimizer
+            optimizer = PositionOptimizer()
+            notional = optimizer.calculate_notional_value(
+                symbol=symbol,
+                side=side,
+                size=abs(size),
+                entry_price=current_price
+            )
 
             positions.append(
                 Position(
