@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase';
+import { supabase, isSupabaseAvailable } from '@/lib/supabase';
 import { Settings } from 'lucide-react';
 
 interface PineConfig {
@@ -11,9 +11,12 @@ interface PineConfig {
 
 export function PineConfigStatus() {
   const [config, setConfig] = useState<PineConfig | null>(null);
-  const supabase = createClient();
 
   useEffect(() => {
+    if (!isSupabaseAvailable() || !supabase) {
+      return;
+    }
+
     // Fetch the most recent signal to get account_balance
     const fetchConfig = async () => {
       const { data } = await supabase
@@ -23,7 +26,7 @@ export function PineConfigStatus() {
         .limit(1)
         .maybeSingle();
 
-      if (data?.account_balance) {
+      if (data?.account_balance != null) {
         setConfig({
           account_balance: data.account_balance,
           updated_at: data.created_at,
@@ -44,7 +47,7 @@ export function PineConfigStatus() {
           table: 'trading_signals',
         },
         (payload: any) => {
-          if (payload.new?.account_balance) {
+          if (payload.new?.account_balance != null) {
             setConfig({
               account_balance: payload.new.account_balance,
               updated_at: payload.new.created_at,
@@ -55,9 +58,9 @@ export function PineConfigStatus() {
       .subscribe();
 
     return () => {
-      channel.unsubscribe();
+      supabase.removeChannel(channel);
     };
-  }, [supabase]);
+  }, []);
 
   if (!config) return null;
 
