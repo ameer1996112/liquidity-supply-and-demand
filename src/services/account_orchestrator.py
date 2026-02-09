@@ -111,16 +111,16 @@ class AccountOrchestrator:
             losses = [t for t in trades if t.get("outcome") == "loss"]
             win_rate = len(wins) / total_trades if total_trades > 0 else 0.0
 
-            # Daily PnL
+            # Daily PnL (handle None values from database)
             today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
             daily_pnl = sum(
-                float(t.get("pnl_usd", 0))
+                float(t.get("pnl_usd") or 0)
                 for t in trades
                 if t.get("created_at", "") >= today_start
             )
 
             # Get real balance from broker (not static allocated capital)
-            balance = account_data.get("allocated_capital_usd", 0)  # Fallback
+            balance = float(account_data.get("allocated_capital_usd") or 0)  # Fallback
 
             # Try to fetch real balance from MetaApi if broker_profile_id exists
             if broker_profile_id:
@@ -150,7 +150,7 @@ class AccountOrchestrator:
 
             # Sharpe ratio (simplified)
             if len(trades) > 5:
-                returns = [float(t.get("pnl_r", 0)) for t in trades if t.get("pnl_r")]
+                returns = [float(t.get("pnl_r") or 0) for t in trades if t.get("pnl_r")]
                 if returns:
                     import numpy as np
                     mean_return = np.mean(returns)
@@ -423,8 +423,8 @@ class AccountOrchestrator:
 
                         trades = trades_query.execute().data or []
 
-                        wins = [float(t.get("pnl_usd", 0)) for t in trades if t.get("outcome") == "win" and t.get("pnl_usd")]
-                        losses = [abs(float(t.get("pnl_usd", 0))) for t in trades if t.get("outcome") == "loss" and t.get("pnl_usd")]
+                        wins = [float(t.get("pnl_usd") or 0) for t in trades if t.get("outcome") == "win" and t.get("pnl_usd")]
+                        losses = [abs(float(t.get("pnl_usd") or 0)) for t in trades if t.get("outcome") == "loss" and t.get("pnl_usd")]
 
                         if wins:
                             avg_win = sum(wins) / len(wins)
