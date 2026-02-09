@@ -531,9 +531,8 @@ export async function fetchTradeCopyLog(limit = 50): Promise<TradeCopyLogApi[]> 
 // ---------------------------------------------------------------------------
 
 export interface AccountDetailApi extends AccountComparisonApi {
-  equity: number;
-  max_drawdown_pct: number;
-  profit_factor: number;
+  // Additional fields not in AccountComparisonApi
+  // (equity, max_drawdown_pct, profit_factor already in parent or will be merged)
   free_margin: number | null;
   margin_used: number | null;
   margin_level_pct: number | null;
@@ -543,14 +542,8 @@ export interface AccountDetailApi extends AccountComparisonApi {
   server_name?: string;
   platform_type?: string;
   leverage?: number;
-  provider?: string;
-  account_type?: string;
-  strategy_type?: string;
-  risk_percent?: number;
-  min_rr_ratio?: number;
-  max_lot_size?: number;
-  max_positions?: number;
-  pause_trading?: boolean;
+  // Note: provider, account_type, strategy_type, risk_percent, min_rr_ratio, max_lot_size, max_positions, pause_trading
+  // are all inherited from AccountComparisonApi - don't redeclare them to avoid type conflicts
 }
 
 export interface AccountStatusSnapshotApi {
