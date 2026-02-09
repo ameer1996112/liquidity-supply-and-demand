@@ -282,7 +282,12 @@ zone_label_size       = "Tiny"
 debug_level           = input.string("None", "Debug Level", options = ["None", "Basic", "Full"], group = "⚙️ Advanced / Manual Tweaks", tooltip = "None = Clean chart. Basic = Key info. Full = All debug data.")
 debug_last_bars       = 200
 showZoneInspector     = input.bool(true, "Zone Inspector Panel", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Show detailed zone info panel on chart.")
-manual_zone_id_input = ""  // Manual zone ID (leave empty)
+manual_zone_id_input  = input.string(
+     "",
+     "Zone Inspector: Zone ID (optional)",
+     group   = "⚙️ Advanced / Manual Tweaks",
+     tooltip = "Leave empty to inspect the latest active zone. Or type a specific Zone ID shown on the chart, e.g. 12, D-12, or S-5."
+ )
 showActiveProfile       = input.bool(true, "Show Active Profile (Bottom Center)", group = "⚙️ Advanced / Manual Tweaks", tooltip = "Show compact 'Active Profile' status bar at bottom-center when debug is enabled.")
 show_performance_table  = input.bool(true, "Performance Table", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Show performance statistics (Results) table on chart.")
 showResults             = input.bool(true, "Show Results Table", group = "⚙️ Advanced / Manual Tweaks", tooltip = "Show compact performance statistics table.")

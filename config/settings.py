@@ -200,6 +200,19 @@ class Settings(BaseSettings):
     account_sync_interval_seconds: int = Field(default=60, ge=10, le=3600, description="Account sync interval in seconds (10-3600)")
     account_cache_ttl_seconds: int = Field(default=30, ge=5, le=300, description="Account data cache TTL in seconds (5-300)")
 
+    # ── MTM Guardian Settings (Real-time Floating PnL Tracking) ───────────
+    mtm_guardian_enabled: bool = Field(default=True, description="Enable MTM Guardian for real-time equity monitoring")
+    mtm_cache_ttl_seconds: int = Field(default=10, ge=1, le=60, description="MTM cache refresh interval (seconds)")
+
+    # ── Staleness Guard Settings (Webhook Latency Protection) ─────────────
+    enable_staleness_guard: bool = Field(default=True, description="Enable staleness guard to reject delayed signals")
+    staleness_max_age_seconds: int = Field(default=5, ge=1, le=30, description="Maximum signal age before rejection (seconds)")
+    staleness_max_price_deviation_pips: float = Field(default=3.0, ge=0.5, le=10.0, description="Maximum price movement from signal entry (pips)")
+
+    # ── Consistency Analyzer Settings (Prop Firm Compliance) ──────────────
+    consistency_enabled: bool = Field(default=True, description="Enable consistency analyzer (FTMO 40% rule)")
+    consistency_limit_pct: float = Field(default=40.0, ge=20.0, le=60.0, description="Max % of total profit from single day (FTMO: 40%)")
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -449,17 +449,41 @@ def process_trade(payload: Dict[str, Any]):
         )
         return
 
-    # ── Kill Switch (env var + Redis key from UI) ────────────
+    # ── Kill Switch (ENV + Redis + MTM Guardian) ─────────────
+    # CRITICAL: Now includes floating PnL to prevent prop firm breaches
     redis_kill = False
     try:
         redis_kill = get_redis().get("trading:kill_switch") == "1"
     except Exception:
         pass
-    if getattr(s, "trading_kill_switch", False) or redis_kill:
-        save_result(payload, "kill_switch_blocked", "Trading kill-switch is ON", 0.0)
-        log_event(None, "kill_switch_blocked", "worker", {"symbol": symbol})
-        log_guard_decision("kill_switch", "blocked", "Trading kill-switch is ON", symbol)
-        logger.warning("KILL-SWITCH: execution blocked")
+
+    env_kill = getattr(s, "trading_kill_switch", False)
+
+    # NEW: Check MTM Guardian for real-time equity breach
+    mtm_kill = False
+    mtm_reason = ""
+    if not env_kill and not redis_kill:  # Only check MTM if manual kill not active
+        try:
+            from src.services.mtm_guardian import MTMGuardian
+            mtm_guardian = MTMGuardian(supabase, s)
+            mtm_kill, mtm_reason = mtm_guardian.check_kill_switch()
+
+            if mtm_kill:
+                # Engage Redis kill switch to prevent future trades
+                try:
+                    get_redis().set("trading:kill_switch", "1")
+                    logger.critical(f"🚨 MTM KILL SWITCH ENGAGED: {mtm_reason}")
+                except Exception as redis_err:
+                    logger.error(f"Failed to set Redis kill switch: {redis_err}")
+        except Exception as mtm_err:
+            logger.error(f"MTM Guardian check failed: {mtm_err}")
+
+    if env_kill or redis_kill or mtm_kill:
+        reason = mtm_reason if mtm_kill else "Trading kill-switch is ON"
+        save_result(payload, "kill_switch_blocked", reason, 0.0)
+        log_event(None, "kill_switch_blocked", "worker", {"symbol": symbol, "reason": reason})
+        log_guard_decision("kill_switch", "blocked", reason, symbol)
+        logger.warning(f"KILL-SWITCH: execution blocked - {reason}")
         return
 
     # ── Circuit breaker (MetaApi / LIVE) ─────────────────────
@@ -662,6 +686,28 @@ def process_trade(payload: Dict[str, Any]):
             logger.error("Sector guard crashed: %s", e, exc_info=True)
             # Allow trade on guard failure (fail-open for robustness)
 
+    # ── Signal Staleness Guard ────────────────────────────────
+    # CRITICAL: Prevent slippage from delayed webhooks
+    if getattr(s, "enable_staleness_guard", True):  # Enabled by default
+        try:
+            from src.core.guard_rails.staleness_guard import StalenessGuard
+            staleness_guard = StalenessGuard(
+                max_age_seconds=getattr(s, "staleness_max_age_seconds", 5),
+                max_price_deviation_pips=getattr(s, "staleness_max_price_deviation_pips", 3.0)
+            )
+            passed, reason = staleness_guard.check(payload)
+            if not passed:
+                save_result(payload, "staleness_rejected", reason, 0.0)
+                log_event(None, "staleness_rejected", "worker", {"symbol": symbol, "reason": reason})
+                log_guard_decision("staleness", "rejected", reason, symbol)
+                logger.warning("STALENESS REJECTED: %s", reason)
+                return
+
+            logger.info("Staleness Guard: PASSED")
+        except Exception as e:
+            logger.error("Staleness guard crashed: %s", e, exc_info=True)
+            # Allow trade on guard failure (fail-open for robustness)
+
     # ------------------------------------------------------------------
     # FLIP Entry Timing Validation
     # FLIP entries must occur at 15-minute candle boundaries (xx:00/15/30/45)
@@ -683,6 +729,54 @@ def process_trade(payload: Dict[str, Any]):
         save_result(payload, "filtered", f"Pine filter: {pine_error}", 0.0)
         logger.warning("PINE PRE-FILTER REJECTED: %s", pine_error)
         return
+
+    # ------------------------------------------------------------------
+    # Consistency Rule Enforcement (FTMO/Prop Firm Compliance)
+    # Prevents best day from exceeding 40% of total profit
+    # ------------------------------------------------------------------
+    if getattr(s, "evaluation_mode", False) and supabase:  # Only enforce in evaluation mode
+        try:
+            from src.services.consistency_analyzer import ConsistencyAnalyzer
+
+            consistency = ConsistencyAnalyzer(supabase, s)
+
+            # Calculate expected profit if trade hits TP
+            entry = float(payload.get("entry", 0))
+            tp = float(payload.get("tp", 0))
+            size = float(payload.get("size", 0))
+
+            if entry > 0 and tp > 0:
+                # Get pip values
+                if "JPY" in symbol:
+                    pip_size = 0.01
+                    pip_value = 1000.0
+                elif "XAU" in symbol or "GOLD" in symbol:
+                    pip_size = 0.01
+                    pip_value = 100.0
+                else:
+                    pip_size = 0.0001
+                    pip_value = 10.0
+
+                tp_pips = abs(tp - entry) / pip_size
+                expected_profit = tp_pips * pip_value * size
+
+                allowed, reason, risk_mult = consistency.check_trade_consistency_risk(expected_profit)
+
+                if not allowed:
+                    save_result(payload, "consistency_rejected", reason, 0.0)
+                    log_event(None, "consistency_rejected", "worker", {"symbol": symbol, "reason": reason})
+                    log_guard_decision("consistency", "rejected", reason, symbol)
+                    logger.warning("CONSISTENCY REJECTED: %s", reason)
+                    return
+
+                if risk_mult < 1.0:
+                    # Reduce risk due to consistency warning
+                    payload["_consistency_risk_multiplier"] = risk_mult
+                    logger.info("Consistency warning: reducing risk to %.0f%%", risk_mult * 100)
+
+        except Exception as e:
+            logger.error("Consistency analyzer crashed: %s", e, exc_info=True)
+            # Allow trade on guard failure (fail-open for robustness)
 
     # ------------------------------------------------------------------
     # Ensemble Brain decision (RF + RAG + LLM)
@@ -824,6 +918,17 @@ def run():
     watchdog = TradeWatchdog(supabase_client=supabase)
     from src.services.alert_engine import AlertEngine
     alert_engine = AlertEngine(supabase_client=supabase)
+
+    # Initialize daily reset scheduler for prop firm metrics
+    daily_reset_scheduler = None
+    if supabase and getattr(s, "evaluation_mode", False):
+        try:
+            from src.services.daily_reset_scheduler import DailyResetScheduler
+            daily_reset_scheduler = DailyResetScheduler(supabase, s)
+            logger.info("📊 Daily reset scheduler initialized for prop firm tracking")
+        except Exception as exc:
+            logger.warning("Daily reset scheduler init failed: %s", exc)
+
     last_watchdog_ts = time.time()
     while True:
         task = None
@@ -854,6 +959,13 @@ def run():
                     clear_settings_cache()
                 except Exception as cfg_exc:  # noqa: BLE001
                     logger.error("Config cache clear failed: %s", cfg_exc)
+
+                # Check and execute daily reset for prop firm metrics
+                if daily_reset_scheduler:
+                    try:
+                        daily_reset_scheduler.check_and_execute_reset()
+                    except Exception as reset_exc:  # noqa: BLE001
+                        logger.error("Daily reset check failed: %s", reset_exc)
 
                 last_watchdog_ts = now
 

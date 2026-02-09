@@ -1,0 +1,272 @@
+"""
+Mark-to-Market (MTM) Guardian
+Real-time position monitoring with floating PnL tracking.
+
+CRITICAL: This prevents prop firm failures by tracking OPEN position losses
+that the standard kill switch misses (which only counts closed trades).
+
+Author: Trinity Engine v3.0
+"""
+
+import logging
+from typing import Dict, List, Tuple, Optional
+from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
+
+
+class MTMGuardian:
+    """
+    Monitors all open positions and calculates real-time equity.
+    Engages kill switch if floating losses push daily drawdown beyond limit.
+
+    PROP FIRM PROTECTION:
+    - FTMO/MyFundedFX fail at -5% daily loss
+    - Standard kill switch at -4% only counts CLOSED trades
+    - Open positions with -$250 floating loss can push you over -5%
+    - This guard prevents that scenario by including floating PnL
+
+    Usage:
+        guardian = MTMGuardian(supabase, settings)
+        should_kill, reason = guardian.check_kill_switch()
+
+        if should_kill:
+            # Engage kill switch
+            redis.set("trading:kill_switch", "1")
+    """
+
+    def __init__(self, supabase_client, settings):
+        self.supabase = supabase_client
+        self.settings = settings
+        self._last_check_time = None
+        self._cached_equity = None
+        self._cache_ttl_seconds = 10  # Refresh every 10 seconds
+
+    def get_real_time_equity(self, account_name: str = "default") -> Dict[str, float]:
+        """
+        Calculate current equity including floating PnL from open positions.
+
+        Args:
+            account_name: Account identifier for multi-account setups
+
+        Returns:
+            {
+                'starting_balance': float,
+                'closed_pnl': float,
+                'floating_pnl': float,
+                'current_equity': float,
+                'daily_drawdown_pct': float,
+                'position_details': List[Dict],
+                'timestamp': str,
+            }
+        """
+        now = datetime.now(timezone.utc)
+
+        # Use cache if fresh (avoid excessive market data calls)
+        if (self._last_check_time and
+            (now - self._last_check_time).total_seconds() < self._cache_ttl_seconds and
+            self._cached_equity):
+            return self._cached_equity
+
+        # 1. Get starting balance for today
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+
+        # 2. Calculate closed PnL
+        try:
+            closed_trades = self.supabase.table("trading_signals")\
+                .select("pnl_usd")\
+                .eq("status", "closed")\
+                .gte("created_at", today_start)\
+                .execute()
+
+            closed_pnl = sum(float(t.get("pnl_usd", 0)) for t in closed_trades.data) if closed_trades.data else 0.0
+        except Exception as e:
+            logger.error(f"Failed to fetch closed PnL: {e}")
+            closed_pnl = 0.0
+
+        # 3. Calculate floating PnL from active positions
+        try:
+            open_positions = self.supabase.table("trading_signals")\
+                .select("id, symbol, side, entry, size, filled_entry_price, sl, tp")\
+                .in_("status", ["active", "executed"])\
+                .execute()
+        except Exception as e:
+            logger.error(f"Failed to fetch open positions: {e}")
+            open_positions = None
+
+        floating_pnl = 0.0
+        position_details = []
+
+        if open_positions and open_positions.data:
+            from src.adapters.market_data import get_current_price
+
+            for pos in open_positions.data:
+                try:
+                    current_price = get_current_price(pos["symbol"])
+                    if not current_price:
+                        logger.warning(f"No market data for {pos['symbol']}, skipping MTM")
+                        continue
+
+                    entry = pos.get("filled_entry_price") or pos.get("entry", 0)
+                    size = pos.get("size", 0)
+                    side = pos["side"].lower()
+                    symbol = pos["symbol"]
+
+                    # Get pip values (reuse from risk_engine logic)
+                    if "JPY" in symbol:
+                        pip_size = 0.01
+                        pip_value_per_lot = 1000.0
+                    elif "XAU" in symbol or "GOLD" in symbol:
+                        pip_size = 0.01
+                        pip_value_per_lot = 100.0
+                    else:
+                        pip_size = 0.0001
+                        pip_value_per_lot = 10.0
+
+                    # Calculate PnL
+                    if side == "buy":
+                        price_diff = current_price - entry
+                    else:
+                        price_diff = entry - current_price
+
+                    pips = price_diff / pip_size
+                    pnl = pips * pip_value_per_lot * size
+                    floating_pnl += pnl
+
+                    position_details.append({
+                        "id": pos["id"],
+                        "symbol": symbol,
+                        "side": side,
+                        "entry": entry,
+                        "current": current_price,
+                        "pnl": round(pnl, 2),
+                        "pnl_pips": round(pips, 1),
+                        "size": size,
+                    })
+
+                except Exception as e:
+                    logger.error(f"MTM calculation error for position {pos.get('id')}: {e}")
+
+        # 4. Calculate total equity and drawdown
+        starting_balance = self.settings.account_balance
+        current_equity = starting_balance + closed_pnl + floating_pnl
+
+        # Daily drawdown percentage
+        daily_drawdown_pct = ((starting_balance - current_equity) / starting_balance) * 100 if starting_balance > 0 else 0
+
+        result = {
+            "starting_balance": starting_balance,
+            "closed_pnl": round(closed_pnl, 2),
+            "floating_pnl": round(floating_pnl, 2),
+            "current_equity": round(current_equity, 2),
+            "daily_drawdown_pct": round(daily_drawdown_pct, 2),
+            "position_details": position_details,
+            "timestamp": now.isoformat(),
+        }
+
+        # Update cache
+        self._cached_equity = result
+        self._last_check_time = now
+
+        return result
+
+    def check_kill_switch(self, account_name: str = "default") -> Tuple[bool, str]:
+        """
+        Check if kill switch should engage based on real-time equity.
+
+        Args:
+            account_name: Account identifier
+
+        Returns:
+            (should_engage, reason)
+        """
+        equity_data = self.get_real_time_equity(account_name)
+
+        kill_threshold_pct = getattr(self.settings, "trinity_max_daily_loss_pct", 4.0)
+        daily_dd_pct = equity_data["daily_drawdown_pct"]
+
+        if daily_dd_pct >= kill_threshold_pct:
+            reason = (
+                f"MTM Kill Switch: Daily drawdown {daily_dd_pct:.2f}% >= {kill_threshold_pct}% "
+                f"(Closed: ${equity_data['closed_pnl']:.2f}, Floating: ${equity_data['floating_pnl']:.2f})"
+            )
+            return True, reason
+
+        # Warning zone: 80% of limit
+        warning_threshold = kill_threshold_pct * 0.8
+        if daily_dd_pct >= warning_threshold:
+            logger.warning(
+                f"⚠️ MTM WARNING: Daily drawdown {daily_dd_pct:.2f}% approaching limit ({kill_threshold_pct}%)"
+            )
+
+        return False, "MTM Guardian: OK"
+
+    def get_position_summary(self, account_name: str = "default") -> Dict:
+        """
+        Get summary of all open positions with live PnL.
+
+        Returns:
+            {
+                'total_positions': int,
+                'floating_pnl': float,
+                'largest_winner': float,
+                'largest_loser': float,
+                'positions': List[Dict],
+            }
+        """
+        equity_data = self.get_real_time_equity(account_name)
+
+        position_pnls = [p["pnl"] for p in equity_data["position_details"]]
+
+        return {
+            "total_positions": len(equity_data["position_details"]),
+            "floating_pnl": equity_data["floating_pnl"],
+            "largest_winner": max(position_pnls) if position_pnls else 0,
+            "largest_loser": min(position_pnls) if position_pnls else 0,
+            "positions": equity_data["position_details"],
+        }
+
+    def get_at_risk_positions(self, risk_threshold_pct: float = 50.0) -> List[Dict]:
+        """
+        Get positions that have lost >50% of their risk (approaching stop loss).
+
+        Args:
+            risk_threshold_pct: Percentage of initial risk (50 = halfway to SL)
+
+        Returns:
+            List of positions at risk
+        """
+        equity_data = self.get_real_time_equity()
+        at_risk = []
+
+        for pos in equity_data["position_details"]:
+            if pos["pnl"] < 0:  # Only check losing positions
+                # Calculate distance to SL as percentage
+                try:
+                    query = self.supabase.table("trading_signals")\
+                        .select("sl, entry")\
+                        .eq("id", pos["id"])\
+                        .single()\
+                        .execute()
+
+                    if query.data:
+                        entry = query.data.get("entry")
+                        sl = query.data.get("sl")
+                        current = pos["current"]
+
+                        if entry and sl:
+                            # Calculate % of distance to SL
+                            total_risk = abs(entry - sl)
+                            current_loss = abs(entry - current) if pos["side"] == "buy" else abs(current - entry)
+                            pct_to_sl = (current_loss / total_risk) * 100 if total_risk > 0 else 0
+
+                            if pct_to_sl >= risk_threshold_pct:
+                                at_risk.append({
+                                    **pos,
+                                    "pct_to_sl": round(pct_to_sl, 1),
+                                    "sl": sl,
+                                })
+                except Exception as e:
+                    logger.error(f"Failed to check risk for position {pos['id']}: {e}")
+
+        return at_risk
