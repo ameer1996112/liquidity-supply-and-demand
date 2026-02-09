@@ -35,19 +35,33 @@ class MTMGuardian:
             redis.set("trading:kill_switch", "1")
     """
 
-    def __init__(self, supabase_client, settings):
+    def __init__(self, supabase_client, settings, *, starting_balance: float | None = None):
         self.supabase = supabase_client
         self.settings = settings
-        self._last_check_time = None
-        self._cached_equity = None
-        self._cache_ttl_seconds = 10  # Refresh every 10 seconds
+        self._starting_balance_override = starting_balance
+        self._last_check_time = {}   # per-account cache timestamps
+        self._cached_equity = {}     # per-account equity caches
+        self._cache_ttl_seconds = getattr(settings, "mtm_cache_ttl_seconds", 10)
 
-    def get_real_time_equity(self, account_name: str = "default") -> Dict[str, float]:
+    def _apply_account_filter(self, query, account_name=None, broker_profile_id=None):
+        """Add account isolation filters to a Supabase query."""
+        if broker_profile_id is not None:
+            query = query.eq("broker_profile_id", broker_profile_id)
+        elif account_name and account_name != "default":
+            query = query.eq("account_name", account_name)
+        return query
+
+    def get_real_time_equity(
+        self,
+        account_name: str = "default",
+        broker_profile_id: int | None = None,
+    ) -> Dict[str, float]:
         """
         Calculate current equity including floating PnL from open positions.
 
         Args:
             account_name: Account identifier for multi-account setups
+            broker_profile_id: Optional broker profile id for account isolation
 
         Returns:
             {
@@ -61,35 +75,40 @@ class MTMGuardian:
             }
         """
         now = datetime.now(timezone.utc)
+        cache_key = f"{account_name}:{broker_profile_id}"
 
         # Use cache if fresh (avoid excessive market data calls)
-        if (self._last_check_time and
-            (now - self._last_check_time).total_seconds() < self._cache_ttl_seconds and
-            self._cached_equity):
-            return self._cached_equity
+        last_time = self._last_check_time.get(cache_key)
+        cached = self._cached_equity.get(cache_key)
+        if (last_time and
+            (now - last_time).total_seconds() < self._cache_ttl_seconds and
+            cached):
+            return cached
 
         # 1. Get starting balance for today
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
 
-        # 2. Calculate closed PnL
+        # 2. Calculate closed PnL — scoped to this account
         try:
-            closed_trades = self.supabase.table("trading_signals")\
+            q = self.supabase.table("trading_signals")\
                 .select("pnl_usd")\
                 .eq("status", "closed")\
-                .gte("created_at", today_start)\
-                .execute()
+                .gte("created_at", today_start)
+            q = self._apply_account_filter(q, account_name, broker_profile_id)
+            closed_trades = q.execute()
 
             closed_pnl = sum(float(t.get("pnl_usd", 0)) for t in closed_trades.data) if closed_trades.data else 0.0
         except Exception as e:
             logger.error(f"Failed to fetch closed PnL: {e}")
             closed_pnl = 0.0
 
-        # 3. Calculate floating PnL from active positions
+        # 3. Calculate floating PnL from active positions — scoped to this account
         try:
-            open_positions = self.supabase.table("trading_signals")\
+            q = self.supabase.table("trading_signals")\
                 .select("id, symbol, side, entry, size, filled_entry_price, sl, tp")\
-                .in_("status", ["active", "executed"])\
-                .execute()
+                .in_("status", ["active", "executed"])
+            q = self._apply_account_filter(q, account_name, broker_profile_id)
+            open_positions = q.execute()
         except Exception as e:
             logger.error(f"Failed to fetch open positions: {e}")
             open_positions = None
@@ -148,7 +167,7 @@ class MTMGuardian:
                     logger.error(f"MTM calculation error for position {pos.get('id')}: {e}")
 
         # 4. Calculate total equity and drawdown
-        starting_balance = self.settings.account_balance
+        starting_balance = self._starting_balance_override or self.settings.account_balance
         current_equity = starting_balance + closed_pnl + floating_pnl
 
         # Daily drawdown percentage
@@ -164,23 +183,28 @@ class MTMGuardian:
             "timestamp": now.isoformat(),
         }
 
-        # Update cache
-        self._cached_equity = result
-        self._last_check_time = now
+        # Update per-account cache
+        self._cached_equity[cache_key] = result
+        self._last_check_time[cache_key] = now
 
         return result
 
-    def check_kill_switch(self, account_name: str = "default") -> Tuple[bool, str]:
+    def check_kill_switch(
+        self,
+        account_name: str = "default",
+        broker_profile_id: int | None = None,
+    ) -> Tuple[bool, str]:
         """
         Check if kill switch should engage based on real-time equity.
 
         Args:
             account_name: Account identifier
+            broker_profile_id: Optional broker profile id for account isolation
 
         Returns:
             (should_engage, reason)
         """
-        equity_data = self.get_real_time_equity(account_name)
+        equity_data = self.get_real_time_equity(account_name, broker_profile_id=broker_profile_id)
 
         kill_threshold_pct = getattr(self.settings, "trinity_max_daily_loss_pct", 4.0)
         daily_dd_pct = equity_data["daily_drawdown_pct"]

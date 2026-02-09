@@ -41,6 +41,12 @@ def _get_paper_trader_instance():
 
 
 def should_forward_alert(data: Dict[str, Any]) -> Tuple[bool, List[str], Dict[str, Any]]:
+    """Validate that the alert has required fields.
+
+    NOTE: R:R filtering is disabled by default (min_rr_ratio=0) because
+    the Pine Script strategy handles SL/TP rules directly.
+    Set MIN_RR_RATIO > 0 in .env to re-enable backend R:R filtering.
+    """
     reasons = []
     debug_meta: Dict[str, Any] = {}
     if data.get("entry") is None or data.get("sl") is None or data.get("tp") is None:
@@ -56,7 +62,8 @@ def should_forward_alert(data: Dict[str, Any]) -> Tuple[bool, List[str], Dict[st
     rr_ratio = reward / risk if risk > 0 else 0
     debug_meta["rr_ratio"] = rr_ratio
     min_rr = get_settings().min_rr_ratio
-    if rr_ratio < min_rr:
+    # Only enforce if min_rr_ratio > 0 (disabled by default since Pine handles SL/TP)
+    if min_rr > 0 and rr_ratio < min_rr:
         reasons.append(f"R:R {rr_ratio:.2f} below minimum ({min_rr})")
     if reasons:
         return False, reasons, debug_meta
@@ -101,7 +108,8 @@ def process_trade(
             logger.info("PAPER exit — skipping broker close for zone_id=%s", data["zone_id"])
         elif getattr(s, "live_trading_enabled", False):
             try:
-                adapter = get_adapter(run_mode=s.run_mode, settings=s)
+                # Use profile-specific adapter when available (multi-account)
+                adapter = get_adapter(run_mode=s.run_mode, settings=s, profile=profile)
 
                 alert = None
                 if trade_key:

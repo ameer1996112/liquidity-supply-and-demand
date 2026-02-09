@@ -1,6 +1,11 @@
 """
 Circuit breaker for external services (e.g. MetaApi).
 Uses Redis so worker, API, and watchdog share the same state.
+
+Supports per-account circuit breakers for multi-account isolation:
+  - Each account gets its own Redis key so one account's rate limit
+    doesn't block other accounts.
+  - Legacy global key still works as a fallback.
 """
 
 from __future__ import annotations
@@ -11,39 +16,61 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# Redis key: when set, LIVE execution and MetaApi calls should be skipped until TTL or manual reset
-METAAPI_CIRCUIT_KEY = "trading:circuit_breaker:metaapi"
+# Redis key templates — per-account isolation
+_CIRCUIT_KEY_PREFIX = "trading:circuit_breaker:metaapi"
+METAAPI_CIRCUIT_KEY = _CIRCUIT_KEY_PREFIX  # global (legacy)
 # TTL seconds (e.g. 5 min) so breaker auto-resets after rate limit cools down
 DEFAULT_TTL = 300
 
 
-def is_metaapi_circuit_open() -> bool:
-    """True if MetaApi circuit breaker is open (should not call MetaApi / skip LIVE execution)."""
+def _account_key(account_name: Optional[str] = None) -> str:
+    """Return Redis key for the given account (or global fallback)."""
+    if account_name:
+        return f"{_CIRCUIT_KEY_PREFIX}:{account_name}"
+    return METAAPI_CIRCUIT_KEY
+
+
+def is_metaapi_circuit_open(account_name: Optional[str] = None) -> bool:
+    """True if MetaApi circuit breaker is open for a specific account (or globally).
+
+    Checks the per-account key first, then falls back to the global key.
+    """
     try:
         from src.adapters.redis_queue import get_redis
         r = get_redis()
+        # Check account-specific breaker
+        if account_name and r.get(_account_key(account_name)) == "1":
+            return True
+        # Check global breaker (backward-compat)
         return r.get(METAAPI_CIRCUIT_KEY) == "1"
     except Exception as exc:  # noqa: BLE001
         logger.debug("Circuit breaker check failed (fail-open): %s", exc)
         return False
 
 
-def set_metaapi_circuit_open(ttl_seconds: int = DEFAULT_TTL) -> None:
-    """Open the MetaApi circuit breaker for ttl_seconds (default 5 min)."""
+def set_metaapi_circuit_open(ttl_seconds: int = DEFAULT_TTL, account_name: Optional[str] = None) -> None:
+    """Open the MetaApi circuit breaker for ttl_seconds (default 5 min).
+
+    When account_name is provided, only that account is blocked.
+    """
+    key = _account_key(account_name)
     try:
         from src.adapters.redis_queue import get_redis
         r = get_redis()
-        r.setex(METAAPI_CIRCUIT_KEY, ttl_seconds, "1")
-        logger.warning("MetaApi circuit breaker OPEN for %s seconds", ttl_seconds)
+        r.setex(key, ttl_seconds, "1")
+        label = f"account={account_name}" if account_name else "GLOBAL"
+        logger.warning("MetaApi circuit breaker OPEN for %s seconds (%s)", ttl_seconds, label)
     except Exception as exc:  # noqa: BLE001
         logger.warning("Failed to set circuit breaker: %s", exc)
 
 
-def reset_metaapi_circuit() -> None:
+def reset_metaapi_circuit(account_name: Optional[str] = None) -> None:
     """Close the circuit breaker (allow MetaApi calls again)."""
+    key = _account_key(account_name)
     try:
         from src.adapters.redis_queue import get_redis
-        get_redis().delete(METAAPI_CIRCUIT_KEY)
-        logger.info("MetaApi circuit breaker RESET")
+        get_redis().delete(key)
+        label = f"account={account_name}" if account_name else "GLOBAL"
+        logger.info("MetaApi circuit breaker RESET (%s)", label)
     except Exception as exc:  # noqa: BLE001
         logger.warning("Failed to reset circuit breaker: %s", exc)

@@ -45,10 +45,20 @@ class ConsistencyAnalyzer:
         self.settings = settings
         self.consistency_limit_pct = consistency_limit_pct
 
+    # ── Account-scoped query helper ────────────────────────────────
+    def _apply_account_filter(self, query, account_name=None, broker_profile_id=None):
+        """Add account isolation filters to a Supabase query."""
+        if broker_profile_id is not None:
+            query = query.eq("broker_profile_id", broker_profile_id)
+        elif account_name and account_name != "default":
+            query = query.eq("account_name", account_name)
+        return query
+
     def get_daily_profit_breakdown(
         self,
         account_name: str = "default",
-        lookback_days: int = 30
+        lookback_days: int = 30,
+        broker_profile_id: Optional[int] = None,
     ) -> Dict:
         """
         Get profit breakdown by day for consistency analysis.
@@ -56,6 +66,7 @@ class ConsistencyAnalyzer:
         Args:
             account_name: Account identifier
             lookback_days: How many days to analyze (default: 30)
+            broker_profile_id: Optional broker profile id for account isolation
 
         Returns:
             {
@@ -72,14 +83,15 @@ class ConsistencyAnalyzer:
         """
         start_date = (datetime.now(timezone.utc) - timedelta(days=lookback_days)).isoformat()
 
-        # Get all closed trades
+        # Get all closed trades — scoped to this account
         try:
-            trades = self.supabase.table("trading_signals")\
+            query = self.supabase.table("trading_signals")\
                 .select("pnl_usd, created_at")\
                 .eq("status", "closed")\
                 .gte("created_at", start_date)\
-                .order("created_at", desc=False)\
-                .execute()
+                .order("created_at", desc=False)
+            query = self._apply_account_filter(query, account_name, broker_profile_id)
+            trades = query.execute()
         except Exception as e:
             logger.error(f"Failed to fetch trades for consistency analysis: {e}")
             return self._empty_result()
@@ -127,7 +139,8 @@ class ConsistencyAnalyzer:
     def check_trade_consistency_risk(
         self,
         expected_profit: float,
-        account_name: str = "default"
+        account_name: str = "default",
+        broker_profile_id: Optional[int] = None,
     ) -> Tuple[bool, str, float]:
         """
         Check if taking this trade (if it wins) would violate consistency rule.
@@ -141,11 +154,12 @@ class ConsistencyAnalyzer:
         Args:
             expected_profit: Expected profit if trade hits TP (entry to TP distance * size)
             account_name: Account identifier
+            broker_profile_id: Optional broker profile id for account isolation
 
         Returns:
             (should_allow, reason, risk_multiplier)
         """
-        analysis = self.get_daily_profit_breakdown(account_name)
+        analysis = self.get_daily_profit_breakdown(account_name, broker_profile_id=broker_profile_id)
 
         # Get today's profit so far
         today = datetime.now(timezone.utc).date().isoformat()

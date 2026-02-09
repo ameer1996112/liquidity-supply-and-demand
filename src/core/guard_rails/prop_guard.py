@@ -30,6 +30,10 @@ def check_safety(
     current_equity: float,
     starting_balance: float,
     daily_pnl: float,
+    *,
+    account_name: str | None = None,
+    kill_threshold_override: float | None = None,
+    risk_pct_override: float | None = None,
 ) -> tuple[bool, float, str]:
     """Step-Up Protocol guard (asymmetric compounding + survival mode).
 
@@ -37,6 +41,9 @@ def check_safety(
         current_equity: Current account equity in USD.
         starting_balance: Reference starting balance in USD.
         daily_pnl: PnL for the current day in USD (negative = loss).
+        account_name: Optional account identifier for logging.
+        kill_threshold_override: Override daily loss kill threshold (%).
+        risk_pct_override: Override base risk percent for multiplier calc.
 
     Returns:
         (allowed, risk_multiplier, reason)
@@ -51,7 +58,7 @@ def check_safety(
 
     # Daily hard stop (kill switch) based on existing Trinity limit
     daily_loss_pct = abs(daily_pnl / starting_balance) if daily_pnl < 0 else 0.0
-    kill_threshold = getattr(s, "trinity_max_daily_loss_pct", 4.0)
+    kill_threshold = kill_threshold_override or getattr(s, "trinity_max_daily_loss_pct", 4.0)
     if daily_loss_pct >= kill_threshold:
         return False, 0.0, "Kill Switch"
 
@@ -62,6 +69,7 @@ def check_safety(
     # Step-Up zones based on equity curve vs starting balance
     profit_pct = (current_equity - starting_balance) / starting_balance
 
+    base_risk = risk_pct_override or getattr(s, "risk_percent", 1.0)
     survival_risk = getattr(s, "survival_risk", 0.5)
     th1 = getattr(s, "step_up_threshold_1", 0.02)
     r1 = getattr(s, "step_up_risk_1", 1.0)
@@ -70,13 +78,13 @@ def check_safety(
 
     if profit_pct < 0:
         # Below starting balance: preserve capital
-        return True, survival_risk / max(getattr(s, "risk_percent", 1.0), 1e-6), "Survival Mode"
+        return True, survival_risk / max(base_risk, 1e-6), "Survival Mode"
     if profit_pct > th2:
         # Deep in profit: house money mode
-        return True, r2 / max(getattr(s, "risk_percent", 1.0), 1e-6), "Aggressive Kill Zone"
+        return True, r2 / max(base_risk, 1e-6), "Aggressive Kill Zone"
     if profit_pct > th1:
         # Healthy buffer built: normal base risk
-        return True, r1 / max(getattr(s, "risk_percent", 1.0), 1e-6), "Normal Buffer"
+        return True, r1 / max(base_risk, 1e-6), "Normal Buffer"
     # 0–2% profit: build buffer with slightly reduced risk
     return True, 0.75, "Building Buffer"
 

@@ -1,13 +1,20 @@
 """
 Trade Executor (Consumer) - Orchestrator.
-Guards: kill-switch, idempotency, risk, correlation, ML. On pass: logic.process_trade.
+Guards: kill-switch, idempotency, risk, correlation, AI. On pass: logic.process_trade.
+
+Architecture (v2 - multi-account isolated):
+  Global guards (run once):  kill-switch(env), max-lot, staleness, AI ensemble
+  Per-account guards (run inside account loop): kill-switch(Redis/MTM), circuit-breaker,
+      PropGuard, correlation, VaR, sector, consistency
+  Execution: accounts run in parallel via ThreadPoolExecutor
 """
 
 import json
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
 
@@ -430,6 +437,234 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
     return None
 
 
+def _get_account_daily_pnl(profile: Optional[Dict[str, Any]] = None) -> float:
+    """Fetch today's closed PnL scoped to a specific account (or global fallback)."""
+    if not supabase:
+        return 0.0
+    try:
+        from datetime import date, datetime
+        today_start = datetime.combine(date.today(), datetime.min.time()).isoformat()
+        q = supabase.table("trading_signals").select("pnl_usd").eq("status", "closed").gte("created_at", today_start)
+        if profile and profile.get("id") is not None:
+            q = q.eq("broker_profile_id", profile["id"])
+        elif profile and profile.get("name"):
+            q = q.eq("account_name", profile["name"])
+        pnl_resp = q.execute()
+        return sum(float(t.get("pnl_usd") or 0) for t in (pnl_resp.data or []))
+    except Exception:
+        return 0.0
+
+
+def _get_account_positions_from_db(profile: Optional[Dict[str, Any]] = None) -> list:
+    """Fetch active positions scoped to a specific account."""
+    try:
+        import src.adapters.supabase as supabase_db
+        if not supabase_db.supabase:
+            supabase_db.init_supabase()
+        q = supabase_db.supabase.table("trading_signals").select(
+            "symbol, side, size, entry, created_at, zone_id, trade_key"
+        ).in_("status", ["active", "executed"])
+        if profile and profile.get("id") is not None:
+            q = q.eq("broker_profile_id", profile["id"])
+        elif profile and profile.get("name"):
+            q = q.eq("account_name", profile["name"])
+        response = q.execute()
+        from src.core.guard_rails.correlation import ActivePosition
+        from datetime import datetime
+        positions = []
+        for row in response.data:
+            positions.append(ActivePosition(
+                symbol=row.get("symbol", "UNKNOWN"),
+                side=row.get("side", "buy"),
+                size=float(row.get("size", 0)),
+                entry_price=float(row.get("entry", 0)),
+                entry_time=datetime.fromisoformat(row["created_at"]) if row.get("created_at") else datetime.utcnow(),
+                zone_id=row.get("zone_id"),
+                trade_key=row.get("trade_key"),
+            ))
+        return positions
+    except Exception as e:
+        logger.error("Failed to fetch account positions: %s", e)
+        return []
+
+
+def _run_account_guards(
+    payload: Dict[str, Any],
+    profile: Optional[Dict[str, Any]],
+    s,
+    current_equity_global: float,
+) -> Optional[str]:
+    """Run per-account guards. Returns rejection reason or None if all pass.
+
+    These guards are scoped to a specific broker profile so one account's
+    state doesn't interfere with another.
+    """
+    symbol = payload.get("symbol", "UNKNOWN")
+    side = payload.get("side", "buy")
+    run_mode = str(payload.get("run_mode", "PAPER")).upper()
+    profile_id = profile.get("id") if profile else None
+    account_name = (profile.get("name") if profile else None) or "default"
+    profile_risk_pct = float(profile.get("risk_pct", s.risk_percent)) if profile else s.risk_percent
+
+    # ── Per-account kill switch (Redis + MTM) ─────────────────
+    try:
+        from src.adapters.redis_queue import get_redis as _get_redis
+        acct_kill_key = f"trading:kill_switch:{account_name}" if account_name != "default" else "trading:kill_switch"
+        if _get_redis().get(acct_kill_key) == "1":
+            return f"Kill switch ON for account {account_name}"
+    except Exception:
+        pass
+
+    # MTM Guardian (per-account)
+    if supabase and getattr(s, "mtm_guardian_enabled", True):
+        try:
+            from src.services.mtm_guardian import MTMGuardian
+            # Use per-account starting balance if available
+            acct_balance = float(payload.get("account_balance", s.account_balance))
+            mtm_guardian = MTMGuardian(supabase, s, starting_balance=acct_balance)
+            mtm_kill, mtm_reason = mtm_guardian.check_kill_switch(
+                account_name=account_name,
+                broker_profile_id=profile_id,
+            )
+            if mtm_kill:
+                try:
+                    from src.adapters.redis_queue import get_redis as _get_redis
+                    kill_key = f"trading:kill_switch:{account_name}" if account_name != "default" else "trading:kill_switch"
+                    _get_redis().set(kill_key, "1")
+                    logger.critical("MTM KILL SWITCH ENGAGED for %s: %s", account_name, mtm_reason)
+                except Exception:
+                    pass
+                return mtm_reason
+        except Exception as e:
+            logger.error("MTM Guardian check failed for %s: %s", account_name, e)
+
+    # ── Per-account circuit breaker ───────────────────────────
+    if run_mode == "LIVE":
+        try:
+            from src.core.circuit_breaker import is_metaapi_circuit_open
+            if is_metaapi_circuit_open(account_name=account_name):
+                return f"Circuit breaker open for account {account_name}"
+        except Exception:
+            pass
+
+    # ── Per-account PropGuard ─────────────────────────────────
+    acct_balance = float(payload.get("account_balance", s.account_balance))
+    daily_pnl = _get_account_daily_pnl(profile)
+    current_equity = acct_balance + daily_pnl
+
+    allowed, risk_multiplier, risk_label = check_safety(
+        current_equity, acct_balance, daily_pnl,
+        account_name=account_name,
+        risk_pct_override=profile_risk_pct,
+    )
+    if not allowed:
+        return f"PropGuard ({account_name}): {risk_label}"
+    logger.info("PropGuard [%s]: %s (multiplier=%.2f)", account_name, risk_label, risk_multiplier)
+    # Store per-account risk multiplier
+    payload[f"_risk_multiplier_{account_name}"] = risk_multiplier
+
+    # ── Per-account Correlation Guard ─────────────────────────
+    active_positions = _get_account_positions_from_db(profile)
+    max_pos = (profile.get("max_positions") if profile else None) or s.trinity_max_positions
+
+    if correlation_manager:
+        try:
+            corr_result = correlation_manager.check(symbol=symbol, side=side, active_positions=active_positions)
+            if not corr_result.passed:
+                return f"Correlation ({account_name}): {corr_result.rejection_message}"
+            logger.info("Correlation [%s]: %s/%s active — PASSED", account_name, len(active_positions), max_pos)
+        except Exception as e:
+            logger.error("Correlation guard crashed for %s: %s", account_name, e)
+            return f"Correlation error ({account_name}): {str(e)[:50]}"
+    elif len(active_positions) >= max_pos:
+        return f"Bucket Full ({account_name}): {len(active_positions)}/{max_pos}"
+
+    # ── Per-account Consistency Analyzer ──────────────────────
+    if getattr(s, "evaluation_mode", False) and supabase:
+        try:
+            from src.services.consistency_analyzer import ConsistencyAnalyzer
+            consistency = ConsistencyAnalyzer(supabase, s)
+            entry = float(payload.get("entry", 0))
+            tp = float(payload.get("tp", 0))
+            size = float(payload.get("size", 0))
+            if entry > 0 and tp > 0:
+                if "JPY" in symbol:
+                    pip_size, pip_value = 0.01, 1000.0
+                elif "XAU" in symbol or "GOLD" in symbol:
+                    pip_size, pip_value = 0.01, 100.0
+                else:
+                    pip_size, pip_value = 0.0001, 10.0
+                tp_pips = abs(tp - entry) / pip_size
+                expected_profit = tp_pips * pip_value * size
+                allowed, reason, risk_mult = consistency.check_trade_consistency_risk(
+                    expected_profit,
+                    account_name=account_name,
+                    broker_profile_id=profile_id,
+                )
+                if not allowed:
+                    return f"Consistency ({account_name}): {reason}"
+                if risk_mult < 1.0:
+                    payload[f"_consistency_risk_multiplier_{account_name}"] = risk_mult
+        except Exception as e:
+            logger.error("Consistency analyzer crashed for %s: %s", account_name, e)
+
+    return None  # All account-level guards passed
+
+
+def _execute_for_profile(
+    payload: Dict[str, Any],
+    profile: Optional[Dict[str, Any]],
+    ai_result: Dict[str, Any],
+    dry_run: bool,
+    s,
+    current_equity_global: float,
+) -> None:
+    """Run per-account guards then execute for a single broker profile."""
+    profile_id = profile.get("id") if profile else None
+    account_name = (profile.get("name") if profile else None) or "default"
+    symbol = payload.get("symbol", "UNKNOWN")
+    win_prob = float(ai_result.get("rf_prob", 0.0))
+    trade_key = (payload.get("trade_key") or "").strip()
+
+    # Idempotency check per-profile
+    if trade_key and _exists_trade_key(trade_key, profile_id):
+        logger.info("Idempotency: (trade_key=%s, profile=%s) exists, skipping", trade_key, account_name)
+        return
+
+    # Apply per-account risk multiplier from guard phase
+    acct_multiplier_key = f"_risk_multiplier_{account_name}"
+    if acct_multiplier_key in payload:
+        payload["_risk_multiplier"] = payload[acct_multiplier_key]
+
+    # Run per-account guards
+    rejection = _run_account_guards(payload, profile, s, current_equity_global)
+    if rejection:
+        save_result(payload, "risk_rejected", rejection, 0.0, broker_profile_id=profile_id, account_name=account_name)
+        log_guard_decision("account_guard", "rejected", rejection, symbol)
+        logger.warning("ACCOUNT GUARD BLOCKED [%s]: %s", account_name, rejection)
+        return
+
+    # Execute
+    try:
+        if dry_run:
+            logger.info("DRY_RUN [%s]: LIVE_TRADING=false — saving alert + notify only", account_name)
+        log_event(None, "execution_started", "worker", {"symbol": symbol, "dry_run": dry_run, "profile": account_name})
+        logic.process_trade(payload, dry_run=dry_run, ai_result=ai_result, profile=profile)
+        logger.info("logic.process_trade completed for profile %s", account_name)
+    except Exception as exec_err:
+        logger.error("logic.process_trade failed for %s: %s", account_name, exec_err)
+        log_event(None, "execution_failed", "worker", {"symbol": symbol, "error": str(exec_err)[:200], "profile": account_name})
+        save_result(
+            payload,
+            "execution_failed",
+            f"logic.process_trade: {str(exec_err)[:80]}",
+            win_prob,
+            ai_reasoning=ai_result,
+            broker_profile_id=profile_id,
+            account_name=account_name,
+        )
+
+
 def process_trade(payload: Dict[str, Any]):
     symbol = payload.get("symbol", "UNKNOWN")
     side = payload.get("side", "buy")
@@ -439,7 +674,6 @@ def process_trade(payload: Dict[str, Any]):
     s = get_settings()
 
     # ── Determine account_name early for tracking rejected signals ────
-    # Fetch active profiles and match against payload run_mode
     from src.core.broker_profiles import get_active_profiles
 
     account_name = None
@@ -456,9 +690,12 @@ def process_trade(payload: Dict[str, Any]):
     # ── Dynamic Risk Controls: Check for time-based rules & DB overrides ────
     time_based_multiplier = apply_time_based_rules()
     if time_based_multiplier is not None and time_based_multiplier < 1.0:
-        logger.info(f"⏰ Time-based risk rule active: reducing risk by {(1.0 - time_based_multiplier) * 100:.0f}%")
-        # Apply to subsequent calculations via payload
+        logger.info(f"Time-based risk rule active: reducing risk by {(1.0 - time_based_multiplier) * 100:.0f}%")
         payload["_time_risk_multiplier"] = time_based_multiplier
+
+    # ══════════════════════════════════════════════════════════════════
+    # GLOBAL GUARDS (run once, affect all accounts)
+    # ══════════════════════════════════════════════════════════════════
 
     # ── Invalid size (e.g. TradingView sent size=0) ─────────────────────
     if size <= 0 or not isinstance(payload.get("size"), (int, float)):
@@ -476,7 +713,6 @@ def process_trade(payload: Dict[str, Any]):
         return
 
     # ── Max Lot Size Guard ────────────────────────────────────
-    # CRITICAL: Prevent oversized trades from Pine using $10M initial_capital
     max_lot_size = s.max_lot_size if hasattr(s, 'max_lot_size') else 10.0
     if size > max_lot_size:
         save_result(
@@ -488,278 +724,24 @@ def process_trade(payload: Dict[str, Any]):
             account_name=account_name,
         )
         logger.warning(
-            "MAX LOT SIZE REJECTED: size=%s > max=%s lots. "
-            "Pine may be using initial_capital ($10M) instead of account_size_usd.",
+            "MAX LOT SIZE REJECTED: size=%s > max=%s lots.",
             size,
             max_lot_size,
         )
         return
 
-    # ── Kill Switch (ENV + Redis + MTM Guardian) ─────────────
-    # CRITICAL: Now includes floating PnL to prevent prop firm breaches
-    redis_kill = False
-    try:
-        redis_kill = get_redis().get("trading:kill_switch") == "1"
-    except Exception:
-        pass
-
+    # ── Global Kill Switch (ENV only — Redis/MTM are now per-account) ──
     env_kill = getattr(s, "trading_kill_switch", False)
-
-    # NEW: Check MTM Guardian for real-time equity breach
-    mtm_kill = False
-    mtm_reason = ""
-    if not env_kill and not redis_kill:  # Only check MTM if manual kill not active
-        try:
-            from src.services.mtm_guardian import MTMGuardian
-            mtm_guardian = MTMGuardian(supabase, s)
-            mtm_kill, mtm_reason = mtm_guardian.check_kill_switch()
-
-            if mtm_kill:
-                # Engage Redis kill switch to prevent future trades
-                try:
-                    get_redis().set("trading:kill_switch", "1")
-                    logger.critical(f"🚨 MTM KILL SWITCH ENGAGED: {mtm_reason}")
-                except Exception as redis_err:
-                    logger.error(f"Failed to set Redis kill switch: {redis_err}")
-        except Exception as mtm_err:
-            logger.error(f"MTM Guardian check failed: {mtm_err}")
-
-    if env_kill or redis_kill or mtm_kill:
-        reason = mtm_reason if mtm_kill else "Trading kill-switch is ON"
+    if env_kill:
+        reason = "Trading kill-switch is ON (env)"
         save_result(payload, "kill_switch_blocked", reason, 0.0, account_name=account_name)
         log_event(None, "kill_switch_blocked", "worker", {"symbol": symbol, "reason": reason})
         log_guard_decision("kill_switch", "blocked", reason, symbol)
-        logger.warning(f"KILL-SWITCH: execution blocked - {reason}")
+        logger.warning("KILL-SWITCH: execution blocked - %s", reason)
         return
 
-    # ── Circuit breaker (MetaApi / LIVE) ─────────────────────
+    # ── Signal Staleness Guard (global — same signal for all accounts) ──
     run_mode = str(payload.get("run_mode", "PAPER")).upper()
-    if run_mode == "LIVE":
-        try:
-            from src.core.circuit_breaker import is_metaapi_circuit_open
-            if is_metaapi_circuit_open():
-                save_result(
-                    payload,
-                    "circuit_breaker_blocked",
-                    "MetaApi circuit breaker open (rate limit or repeated failures)",
-                    0.0,
-                    account_name=account_name,
-                )
-                log_event(None, "circuit_breaker_blocked", "worker", {"symbol": symbol})
-                log_guard_decision("circuit_breaker", "blocked", "MetaApi circuit open", symbol)
-                logger.warning("CIRCUIT BREAKER: LIVE execution skipped")
-                return
-        except Exception:
-            pass  # fail-open if circuit module unavailable
-
-    # ── Idempotency is checked per-profile in the execution loop (multi-account) ──
-
-    # ── Extract Dynamic Account Balance from Pine ────────────
-    # Use account_balance from webhook (sent by Pine) or fallback to .env setting
-    dynamic_account_balance = float(payload.get("account_balance", s.account_balance))
-    logger.info("Using account balance: $%s (from %s)",
-                f"{dynamic_account_balance:,.0f}",
-                "Pine webhook" if "account_balance" in payload else ".env fallback")
-
-    # ── PropGuard: Step-Up Risk Scaling ──────────────────────
-    daily_pnl = 0.0
-    if supabase:
-        try:
-            from datetime import date, datetime
-            today_start = datetime.combine(date.today(), datetime.min.time()).isoformat()
-            pnl_resp = supabase.table("trading_signals").select("pnl_usd").eq("status", "closed").gte("created_at", today_start).execute()
-            daily_pnl = sum(float(t.get("pnl_usd") or 0) for t in (pnl_resp.data or []))
-        except Exception:
-            pass
-    current_equity = dynamic_account_balance + daily_pnl
-    allowed, risk_multiplier, risk_label = check_safety(current_equity, dynamic_account_balance, daily_pnl)
-    if not allowed:
-        save_result(payload, "risk_rejected", f"PropGuard: {risk_label}", 0.0, account_name=account_name)
-        log_event(None, "prop_guard_blocked", "worker", {"label": risk_label, "daily_pnl": daily_pnl})
-        log_guard_decision("prop_guard", "rejected", risk_label, symbol, {"daily_pnl": daily_pnl})
-        logger.warning("PROP GUARD BLOCKED: %s", risk_label)
-        return
-    logger.info("PropGuard: %s (multiplier=%.2f)", risk_label, risk_multiplier)
-    payload["_risk_multiplier"] = risk_multiplier
-
-    # Pre-flight risk estimate (config balance — actual cap with live balance is in logic.py)
-    max_allowed_size = _max_position_size(payload)
-    logger.info("Risk Pre-Check (config balance): size %s vs estimate %s", size, round(max_allowed_size, 2))
-    if size > max_allowed_size:
-        logger.warning(
-            "Size %s exceeds config-based estimate %s — logic.py will re-check with live balance",
-            size,
-            round(max_allowed_size, 2),
-        )
-
-    # ── Correlation Guard (full portfolio check) ─────────────
-    if correlation_manager:
-        try:
-            active_positions = get_active_positions_from_db()
-            corr_result = correlation_manager.check(symbol=symbol, side=side, active_positions=active_positions)
-            logger.info("Correlation Check: %s/%s active", len(active_positions), s.trinity_max_positions)
-            if not corr_result.passed:
-                save_result(payload, "correlation_rejected", corr_result.rejection_message, 0.0, account_name=account_name)
-                log_event(None, "correlation_rejected", "worker", {"reason": corr_result.rejection_message})
-                log_guard_decision("correlation", "rejected", corr_result.rejection_message, symbol)
-                logger.warning("CORRELATION REJECTED: %s", corr_result.rejection_message)
-                return
-        except Exception as e:
-            logger.error("Correlation guard crashed: %s", e)
-            save_result(payload, "correlation_rejected", f"DB Error: {str(e)[:50]}", 0.0, account_name=account_name)
-            return
-    elif supabase:
-        try:
-            active = supabase.table("trading_signals").select("id").in_("status", ["active", "executed"]).execute()
-            active_count = len(active.data)
-            logger.info("Correlation Check (simple): %s/%s active", active_count, MAX_OPEN_POSITIONS)
-            if active_count >= MAX_OPEN_POSITIONS:
-                msg = f"Bucket Full ({active_count}/{MAX_OPEN_POSITIONS})"
-                save_result(payload, "correlation_rejected", msg, 0.0, account_name=account_name)
-                log_guard_decision("correlation", "rejected", msg, symbol)
-                logger.warning("CORRELATION REJECTED: bucket full")
-                return
-        except Exception as e:
-            logger.error("Correlation guard crashed: %s", e)
-            save_result(payload, "correlation_rejected", f"DB Error: {str(e)[:50]}", 0.0, account_name=account_name)
-            return
-
-    # ── Portfolio VaR Guard ───────────────────────────────────
-    if s.portfolio_var_enabled and supabase:
-        try:
-            from src.core.guard_rails.portfolio_var_guard import PortfolioVarGuard
-            from src.services.portfolio_analyzer import PortfolioAnalyzer
-            from src.services.historical_returns import HistoricalReturnsService
-            from src.adapters.market_data import get_current_price
-
-            # Get active positions with current prices
-            active_positions = get_active_positions_from_db()
-            position_dicts = []
-
-            # Create optimizer for instrument-aware notional calculations
-            from src.services.position_optimizer import PositionOptimizer
-            optimizer = PositionOptimizer()
-
-            for pos in active_positions:
-                current_price = get_current_price(pos.symbol)
-                if current_price is None:
-                    current_price = pos.entry_price
-
-                # Use instrument-aware notional calculation (handles forex, metals, indices correctly)
-                notional = optimizer.calculate_notional_value(
-                    symbol=pos.symbol,
-                    side=pos.side,
-                    size=abs(pos.size),
-                    entry_price=current_price
-                )
-
-                position_dicts.append({
-                    "symbol": pos.symbol,
-                    "side": pos.side,
-                    "entry": pos.entry_price,
-                    "size": pos.size,
-                    "current_price": current_price,
-                    "pnl": 0.0,
-                    "notional_value": notional,
-                })
-
-            # Calculate max VaR
-            max_var_usd = min(
-                s.portfolio_max_var_usd,
-                current_equity * (s.portfolio_max_var_pct / 100.0),
-            )
-
-            # Initialize services
-            returns_service = HistoricalReturnsService()
-            portfolio_analyzer = PortfolioAnalyzer(returns_service)
-            var_guard = PortfolioVarGuard(portfolio_analyzer)
-
-            # Check VaR limit
-            passed, reason = var_guard.check(
-                new_signal=payload,
-                current_positions=position_dicts,
-                max_var_usd=max_var_usd,
-            )
-
-            if not passed:
-                save_result(payload, "portfolio_var_rejected", reason, 0.0, account_name=account_name)
-                log_event(None, "portfolio_var_rejected", "worker", {"reason": reason})
-                log_guard_decision("portfolio_var", "rejected", reason, symbol)
-                logger.warning("PORTFOLIO VAR REJECTED: %s", reason)
-                return
-
-            logger.info("Portfolio VaR Guard: PASSED (limit=$%.0f)", max_var_usd)
-
-        except Exception as e:
-            logger.error("Portfolio VaR guard crashed: %s", e, exc_info=True)
-            # Allow trade on guard failure (fail-open for robustness)
-
-    # ── Sector Exposure Guard ─────────────────────────────────
-    if s.portfolio_var_enabled and supabase:  # Reuse same toggle for now
-        try:
-            from src.core.guard_rails.sector_guard import SectorExposureGuard
-            from src.services.position_optimizer import PositionOptimizer
-
-            # Get active positions
-            active_positions = get_active_positions_from_db()
-            position_dicts = []
-            optimizer = PositionOptimizer()
-
-            for pos in active_positions:
-                current_price = get_current_price(pos.symbol) or pos.entry_price
-                # Use instrument-aware notional calculation (handles forex, metals, indices correctly)
-                notional = optimizer.calculate_notional_value(
-                    symbol=pos.symbol,
-                    side=pos.side,
-                    size=abs(pos.size),
-                    entry_price=current_price
-                )
-
-                position_dicts.append({
-                    "symbol": pos.symbol,
-                    "notional_value": notional,
-                })
-
-            # Sector limits from settings
-            sector_limits = {
-                "forex_majors": s.sector_limit_forex_majors,
-                "forex_jpy": s.sector_limit_forex_jpy,
-                "forex_eur": s.sector_limit_forex_eur,
-                "forex_gbp": s.sector_limit_forex_gbp,
-                "indices_us": s.sector_limit_indices_us,
-                "indices_eu": s.sector_limit_indices_eu,
-                "indices_asia": s.sector_limit_indices_asia,
-                "precious_metals": s.sector_limit_precious_metals,
-                "commodities": s.sector_limit_commodities,
-                "crypto": s.sector_limit_crypto,
-            }
-
-            sector_guard = SectorExposureGuard()
-
-            # Check sector limits
-            passed, reason = sector_guard.check(
-                new_signal=payload,
-                current_positions=position_dicts,
-                sector_limits=sector_limits,
-                total_equity=current_equity,
-            )
-
-            if not passed:
-                save_result(payload, "sector_limit_rejected", reason, 0.0, account_name=account_name)
-                log_event(None, "sector_limit_rejected", "worker", {"reason": reason})
-                log_guard_decision("sector_guard", "rejected", reason, symbol)
-                logger.warning("SECTOR LIMIT REJECTED: %s", reason)
-                return
-
-            logger.info("Sector Exposure Guard: PASSED")
-
-        except Exception as e:
-            logger.error("Sector guard crashed: %s", e, exc_info=True)
-            # Allow trade on guard failure (fail-open for robustness)
-
-    # ── Signal Staleness Guard ────────────────────────────────
-    # CRITICAL: Prevent slippage from delayed webhooks (LIVE mode only)
-    # PAPER mode skips this since slippage doesn't affect backtesting/simulation
     if run_mode == "LIVE" and getattr(s, "enable_staleness_guard", True):
         try:
             from src.core.guard_rails.staleness_guard import StalenessGuard
@@ -774,89 +756,18 @@ def process_trade(payload: Dict[str, Any]):
                 log_guard_decision("staleness", "rejected", reason, symbol)
                 logger.warning("STALENESS REJECTED: %s", reason)
                 return
-
             logger.info("Staleness Guard: PASSED")
         except Exception as e:
             logger.error("Staleness guard crashed: %s", e, exc_info=True)
-            # Allow trade on guard failure (fail-open for robustness)
 
-    # ------------------------------------------------------------------
-    # FLIP Entry Timing Validation
-    # FLIP entries must occur at 15-minute candle boundaries (xx:00/15/30/45)
-    # ------------------------------------------------------------------
-    flip_error = _validate_flip_timing(payload)
-    if flip_error:
-        save_result(payload, "filtered", flip_error, 0.0, account_name=account_name)
-        logger.warning("FLIP TIMING REJECTED: %s", flip_error)
-        return
-
-    # ------------------------------------------------------------------
-    # Pine-Matching Deterministic Pre-Filters
-    # Mirror SND_Strategy.pine entry rules: score, grade, liq_swept,
-    # departure/return strength, dead zone, trading hours, daily limit, R:R.
-    # Runs BEFORE ensemble brain to avoid wasting AI/ML processing.
-    # ------------------------------------------------------------------
-    pine_error = _validate_pine_filters(payload)
-    if pine_error:
-        save_result(payload, "filtered", f"Pine filter: {pine_error}", 0.0, account_name=account_name)
-        logger.warning("PINE PRE-FILTER REJECTED: %s", pine_error)
-        return
-
-    # ------------------------------------------------------------------
-    # Consistency Rule Enforcement (FTMO/Prop Firm Compliance)
-    # Prevents best day from exceeding 40% of total profit
-    # ------------------------------------------------------------------
-    if getattr(s, "evaluation_mode", False) and supabase:  # Only enforce in evaluation mode
-        try:
-            from src.services.consistency_analyzer import ConsistencyAnalyzer
-
-            consistency = ConsistencyAnalyzer(supabase, s)
-
-            # Calculate expected profit if trade hits TP
-            entry = float(payload.get("entry", 0))
-            tp = float(payload.get("tp", 0))
-            size = float(payload.get("size", 0))
-
-            if entry > 0 and tp > 0:
-                # Get pip values
-                if "JPY" in symbol:
-                    pip_size = 0.01
-                    pip_value = 1000.0
-                elif "XAU" in symbol or "GOLD" in symbol:
-                    pip_size = 0.01
-                    pip_value = 100.0
-                else:
-                    pip_size = 0.0001
-                    pip_value = 10.0
-
-                tp_pips = abs(tp - entry) / pip_size
-                expected_profit = tp_pips * pip_value * size
-
-                allowed, reason, risk_mult = consistency.check_trade_consistency_risk(expected_profit)
-
-                if not allowed:
-                    save_result(payload, "consistency_rejected", reason, 0.0, account_name=account_name)
-                    log_event(None, "consistency_rejected", "worker", {"symbol": symbol, "reason": reason})
-                    log_guard_decision("consistency", "rejected", reason, symbol)
-                    logger.warning("CONSISTENCY REJECTED: %s", reason)
-                    return
-
-                if risk_mult < 1.0:
-                    # Reduce risk due to consistency warning
-                    payload["_consistency_risk_multiplier"] = risk_mult
-                    logger.info("Consistency warning: reducing risk to %.0f%%", risk_mult * 100)
-
-        except Exception as e:
-            logger.error("Consistency analyzer crashed: %s", e, exc_info=True)
-            # Allow trade on guard failure (fail-open for robustness)
-
-    # ------------------------------------------------------------------
-    # Ensemble Brain decision (RF + RAG + LLM)
-    # ------------------------------------------------------------------
+    # ══════════════════════════════════════════════════════════════════
+    # AI ENSEMBLE DECISION (global — same decision for all accounts)
+    # Pine pre-filters REMOVED: Pine Script handles entry rules directly.
+    # The AI ensemble adds ML-based optimization on top of Pine signals.
+    # ══════════════════════════════════════════════════════════════════
     ai_result = ensemble_decision(payload)
 
     # Enrich AI result with zone/sweep/metrics from original payload
-    # so the frontend Signal Inspector can display them.
     _ZONE_FIELD_MAP = {
         "zone_id": "zone_id",
         "zone_type": "zone_type",
@@ -886,11 +797,7 @@ def process_trade(payload: Dict[str, Any]):
             ai_result[dst_key] = val
 
     logger.info(
-        "🧠 BRAIN DECISION:\n"
-        "Decision: %s\n"
-        "RF Score: %.4f\n"
-        "RAG Rules: %d found\n"
-        "Reason: %s",
+        "BRAIN DECISION: decision=%s rf=%.4f rag_rules=%d reason=%s",
         ai_result.get("decision"),
         ai_result.get("rf_prob", 0.0),
         len(ai_result.get("rules") or []),
@@ -902,7 +809,7 @@ def process_trade(payload: Dict[str, Any]):
 
     if decision == "NO_GO":
         if shadow_mode:
-            logger.warning("⚠️ SHADOW MODE: Executing trade despite AI rejection.")
+            logger.warning("SHADOW MODE: Executing trade despite AI rejection.")
         else:
             reason = ai_result.get("reason", "AI ensemble rejected trade.")
             save_result(
@@ -920,7 +827,6 @@ def process_trade(payload: Dict[str, Any]):
     log_event(None, "ai_approved", "worker", {"symbol": symbol, "rf_prob": ai_result.get("rf_prob")})
     log_guard_decision("ai_ensemble", "approved", ai_result.get("reason", "GO")[:200], symbol, {"rf_prob": ai_result.get("rf_prob")})
 
-    # If we reach here, either AI said GO or shadow mode is allowing it.
     payload["ai_reasoning"] = ai_result
     payload["ai_decision"] = ai_result.get("decision")
     try:
@@ -928,43 +834,51 @@ def process_trade(payload: Dict[str, Any]):
     except Exception:
         pass
 
-    win_prob = float(ai_result.get("rf_prob", 0.0))
     dry_run = not getattr(s, "live_trading_enabled", False)
 
-    # Multi-account: execute for each matching profile (or single default)
+    # Global equity estimate for VaR/sector (pre-account loop)
+    dynamic_account_balance = float(payload.get("account_balance", s.account_balance))
+    global_daily_pnl = _get_account_daily_pnl(None)
+    current_equity_global = dynamic_account_balance + global_daily_pnl
+
+    # ══════════════════════════════════════════════════════════════════
+    # MULTI-ACCOUNT EXECUTION (parallel — each account isolated)
+    # Per-account guards (kill switch, circuit breaker, PropGuard,
+    # correlation, consistency) run inside each profile's execution.
+    # ══════════════════════════════════════════════════════════════════
     from src.core.broker_profiles import get_active_profiles
 
     profiles = get_active_profiles()
     payload_run_mode = str(payload.get("run_mode", "PAPER")).upper()
     matching = [p for p in profiles if (p.get("run_mode") or "LIVE") == payload_run_mode]
     if not matching:
-        matching = [None]  # fallback: one call with profile=None (single-account from settings)
+        matching = [None]
 
-    trade_key = (payload.get("trade_key") or "").strip()
-    for profile in matching:
-        profile_id = profile.get("id") if profile else None
-        if trade_key and _exists_trade_key(trade_key, profile_id):
-            logger.info("Idempotency: (trade_key=%s, profile_id=%s) exists, skipping", trade_key, profile_id)
-            continue
-        try:
-            if dry_run:
-                logger.info("DRY_RUN: LIVE_TRADING=false — saving alert + notify only")
-            log_event(None, "execution_started", "worker", {"symbol": symbol, "dry_run": dry_run, "profile": (profile or {}).get("name")})
-            logic.process_trade(payload, dry_run=dry_run, ai_result=ai_result, profile=profile)
-            logger.info("logic.process_trade completed for profile %s", (profile or {}).get("name") or "default")
-        except Exception as exec_err:
-            logger.error("logic.process_trade failed: %s", exec_err)
-            log_event(None, "execution_failed", "worker", {"symbol": symbol, "error": str(exec_err)[:200], "profile": (profile or {}).get("name")})
-            profile_account_name = (profile.get("name") if profile else None) or account_name
-            save_result(
-                payload,
-                "execution_failed",
-                f"logic.process_trade: {str(exec_err)[:80]}",
-                win_prob,
-                ai_reasoning=ai_result,
-                broker_profile_id=profile_id,
-                account_name=profile_account_name,
-            )
+    if len(matching) == 1:
+        # Single account: run directly (no thread overhead)
+        _execute_for_profile(payload.copy(), matching[0], ai_result, dry_run, s, current_equity_global)
+    else:
+        # Multiple accounts: execute in parallel
+        logger.info("Multi-account execution: %d profiles matched", len(matching))
+        with ThreadPoolExecutor(max_workers=min(len(matching), 5)) as executor:
+            futures = {
+                executor.submit(
+                    _execute_for_profile,
+                    payload.copy(),
+                    profile,
+                    ai_result,
+                    dry_run,
+                    s,
+                    current_equity_global,
+                ): (profile or {}).get("name", "default")
+                for profile in matching
+            }
+            for future in as_completed(futures):
+                name = futures[future]
+                try:
+                    future.result()
+                except Exception as exc:
+                    logger.error("Profile %s execution error: %s", name, exc)
 
 
 def run():
@@ -974,19 +888,19 @@ def run():
     kill_sw = getattr(s, "trading_kill_switch", False)
     live = getattr(s, "live_trading_enabled", False)
     logger.info("=" * 60)
-    logger.info("WORKER (DYNAMIC RISK MODE) STARTED")
+    logger.info("WORKER v2 (MULTI-ACCOUNT ISOLATED) STARTED")
     logger.info("Account Balance: $%s", f"{s.account_balance:,.0f}")
     logger.info("Risk Per Trade: %s%%", s.risk_percent)
-    logger.info("Correlation Limit: %s positions", MAX_OPEN_POSITIONS)
-    logger.info("ML Confidence: %s", f"{ML_MIN_CONFIDENCE:.0%}")
+    logger.info("Correlation Limit: %s positions", s.trinity_max_positions)
+    logger.info("AI Ensemble: %s | Shadow: %s", "ON", "ON" if getattr(s, "run_shadow_mode", False) else "OFF")
     logger.info("Kill-Switch: %s", "ON" if kill_sw else "OFF")
     logger.info("LIVE_TRADING: %s", "true" if live else "false")
-    logger.info("--- Pine Pre-Filters ---")
-    logger.info("Min Score: %s | Min Grade: %s", s.pine_min_score, s.pine_min_grade)
-    logger.info("Liq Swept Required: %s", s.pine_require_liq_swept)
-    logger.info("Min Departure Str: %s | Min Return Str: %s", s.pine_min_departure_strength, s.pine_min_return_strength)
-    logger.info("Dead Zone Block: %s | Hours: %s-%s UTC", s.pine_block_dead_zone, s.pine_trading_start_hour, s.pine_trading_end_hour)
-    logger.info("Max Trades/Day: %s | Min R:R: %s", s.pine_max_trades_per_day, s.min_rr_ratio)
+    logger.info("Evaluation Mode: %s", "ON" if getattr(s, "evaluation_mode", False) else "OFF")
+    logger.info("--- Guards ---")
+    logger.info("Global: kill-switch(env), max-lot, staleness, AI ensemble")
+    logger.info("Per-account: kill-switch(Redis/MTM), circuit-breaker, PropGuard, correlation, consistency")
+    logger.info("Pine pre-filters: DISABLED (Pine Script handles entry rules)")
+    logger.info("R:R filter: %s", f"ON (min={s.min_rr_ratio})" if s.min_rr_ratio > 0 else "OFF (Pine handles SL/TP)")
     logger.info("=" * 60)
 
     backoff = 5
