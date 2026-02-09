@@ -9,6 +9,11 @@ interface PineConfig {
   updated_at: string;
 }
 
+interface SignalData {
+  account_balance: number;
+  created_at: string;
+}
+
 export function PineConfigStatus() {
   const [config, setConfig] = useState<PineConfig | null>(null);
 
@@ -17,14 +22,17 @@ export function PineConfigStatus() {
       return;
     }
 
+    // Capture supabase instance to avoid null checks
+    const client = supabase;
+
     // Fetch the most recent signal to get account_balance
     const fetchConfig = async () => {
-      const { data } = await supabase
+      const { data } = await client
         .from('trading_signals')
         .select('account_balance, created_at')
         .order('created_at', { ascending: false })
         .limit(1)
-        .maybeSingle();
+        .maybeSingle<SignalData>();
 
       if (data?.account_balance != null) {
         setConfig({
@@ -37,7 +45,7 @@ export function PineConfigStatus() {
     fetchConfig();
 
     // Subscribe to new signals to update account balance in real-time
-    const channel = supabase
+    const channel = client
       .channel('pine-config-updates')
       .on(
         'postgres_changes',
@@ -58,7 +66,7 @@ export function PineConfigStatus() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      client.removeChannel(channel);
     };
   }, []);
 
