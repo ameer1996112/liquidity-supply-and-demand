@@ -199,8 +199,8 @@ async def get_risk_dashboard(
 
         # Save portfolio snapshot for historical analysis
         try:
-            from src.adapters.supabase_client import get_supabase_client
-            supabase = get_supabase_client()
+            from src.adapters.supabase import get_supabase
+            supabase = get_supabase()
             if supabase:
                 portfolio_analyzer.save_snapshot(
                     supabase_client=supabase,

@@ -52,9 +52,13 @@ class SectorExposureGuard:
         entry = new_signal.get("entry", 0.0)
         side = new_signal.get("side", "long")
 
+        logger.info(f"🔍 Sector Guard - Calculating notional: symbol={symbol}, size={size} lots, entry=${entry}, side={side}")
+
         new_notional = self.optimizer.calculate_notional_value(
             symbol, side, size, entry
         )
+
+        logger.info(f"💰 Sector Guard - Calculated notional: ${new_notional:,.2f}")
 
         new_position_dict = {
             "symbol": symbol,
