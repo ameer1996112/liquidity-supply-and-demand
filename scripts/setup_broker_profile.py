@@ -30,7 +30,25 @@ def main():
         settings.supabase_service_role_key or settings.supabase_key
     )
 
-    account_name = "FTMO-Demo-50K"
+    # Get account name from command line or use default
+    if len(sys.argv) > 1:
+        account_name = sys.argv[1]
+    else:
+        # List available accounts
+        accounts = client.table("account_strategies").select("account_name, is_active").execute()
+        if accounts.data:
+            print("=" * 80)
+            print("AVAILABLE ACCOUNTS")
+            print("=" * 80)
+            for acc in accounts.data:
+                status = "✅" if acc.get("is_active") else "❌"
+                print(f"  {status} {acc.get('account_name')}")
+            print("\nUsage: python scripts/setup_broker_profile.py <account_name>")
+            print(f"Example: python scripts/setup_broker_profile.py {accounts.data[0].get('account_name')}")
+            return
+        else:
+            print("❌ No accounts found in database")
+            return
 
     print("=" * 80)
     print("BROKER PROFILE SETUP")
@@ -39,13 +57,14 @@ def main():
     # Get current account data
     account_result = client.table("account_strategies").select("*").eq(
         "account_name", account_name
-    ).single().execute()
+    ).execute()
 
     if not account_result.data:
         print(f"❌ Account {account_name} not found")
         return
 
-    account = account_result.data
+    account = account_result.data[0]
+
     meta_api_account_id = account.get("meta_api_account_id")
     meta_api_token_env_key = account.get("meta_api_token_env_key")
 
@@ -56,7 +75,18 @@ def main():
 
     if not meta_api_account_id:
         print("\n❌ No Meta API Account ID found in account_strategies")
-        print("Please add meta_api_account_id to the account first")
+        print("\n📝 To fix this, you need to add the Meta API Account ID to your database:")
+        print("\n   Option 1: Update via Supabase Dashboard")
+        print(f"      1. Go to Supabase > Table Editor > account_strategies")
+        print(f"      2. Find row with account_name = '{account_name}'")
+        print(f"      3. Set meta_api_account_id = '<your-metaapi-account-id>'")
+        print(f"      4. Set meta_api_token_env_key = 'META_API_TOKEN'")
+        print("\n   Option 2: Update via SQL")
+        print(f"      UPDATE account_strategies")
+        print(f"      SET meta_api_account_id = '<your-metaapi-account-id>',")
+        print(f"          meta_api_token_env_key = 'META_API_TOKEN'")
+        print(f"      WHERE account_name = '{account_name}';")
+        print("\n   Then run this script again.")
         return
 
     # Check if token env key is set

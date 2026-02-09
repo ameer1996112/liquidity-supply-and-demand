@@ -344,6 +344,68 @@ class MetaApiAdapter:
 
         return account_info
 
+    def get_historical_deals(self, start_time: str, end_time: str) -> list[Dict[str, Any]]:
+        """
+        Fetch historical deals (closed trades) from MetaAPI.
+
+        Args:
+            start_time: ISO 8601 timestamp (e.g., "2024-01-01T00:00:00Z")
+            end_time: ISO 8601 timestamp (e.g., "2024-01-31T23:59:59Z")
+
+        Returns:
+            List of deal dicts with keys:
+            - id: Deal ID
+            - type: DEAL_TYPE_BUY or DEAL_TYPE_SELL
+            - entryType: DEAL_ENTRY_IN, DEAL_ENTRY_OUT, etc.
+            - symbol: Trading symbol
+            - volume: Position size in lots
+            - price: Execution price
+            - profit: Profit in account currency
+            - swap: Swap/rollover
+            - commission: Commission
+            - time: Deal execution time
+            - positionId: Position ID this deal belongs to
+            - orderId: Order ID that triggered this deal
+        """
+        if self._check_circuit_breaker():
+            logger.warning("MetaApi get_historical_deals skipped: circuit breaker open")
+            return []
+
+        url = (
+            f"{self.base_url}/users/current/accounts/"
+            f"{self.account_id}/history-deals/time/{start_time}/{end_time}"
+        )
+
+        resp = self._request_with_retry("GET", url, timeout=30)
+        if resp is None:
+            logger.warning("MetaApi get_historical_deals: no response")
+            return []
+
+        if resp.status_code != 200:
+            logger.error(
+                "MetaApi get_historical_deals failed: HTTP %s %s",
+                resp.status_code,
+                resp.text[:200],
+            )
+            return []
+
+        try:
+            data = resp.json()
+        except ValueError:
+            logger.error(
+                "MetaApi get_historical_deals invalid JSON: %s", resp.text[:200]
+            )
+            return []
+
+        # Response can be a dict with "deals" key, or a list directly
+        if isinstance(data, dict):
+            deals = data.get("deals") or []
+        else:
+            deals = data if isinstance(data, list) else []
+
+        logger.info("MetaApi fetched %d historical deals", len(deals))
+        return deals
+
     def _trade_url(self) -> str:
         """Build trade endpoint URL for the configured MetaApi region."""
         return f"{self.base_url}/users/current/accounts/{self.account_id}/trade"

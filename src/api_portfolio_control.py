@@ -1129,6 +1129,246 @@ def get_journal_entries(account_name: str, tag: Optional[str] = None):
         raise HTTPException(500, detail=f"Failed to fetch journal: {str(e)}")
 
 
+@router.get("/accounts/{account_name}/history")
+def get_trade_history(
+    account_name: str,
+    days: Optional[int] = None,
+    outcome: Optional[str] = None
+):
+    """
+    Get closed trade history for an account (hybrid approach).
+
+    Fetches from:
+    1. Local database (trading_signals table)
+    2. MetaAPI historical deals
+
+    Then merges and deduplicates the results.
+
+    Args:
+        account_name: Account to fetch history for
+        days: Number of days to look back (7, 30, 90, or None for all time, max 90 for MetaAPI)
+        outcome: Filter by outcome ('win', 'loss', or None for all)
+
+    Returns:
+        List of closed trades with entry/exit details, P&L, and metrics
+    """
+    sb = _get_supabase()
+    from datetime import timedelta
+
+    try:
+        # ======================================================================
+        # 1. FETCH FROM DATABASE
+        # ======================================================================
+        query = (
+            sb.table("trading_signals")
+            .select("*")
+            .eq("account_name", account_name)
+            .not_.is_("exit_price", "null")
+            .not_.is_("pnl_usd", "null")
+        )
+
+        # Date range filter
+        cutoff_time = None
+        if days:
+            cutoff_time = datetime.now(timezone.utc) - timedelta(days=days)
+            query = query.gte("exit_time", cutoff_time.isoformat())
+
+        query = query.order("exit_time", desc=True)
+        db_result = query.execute()
+
+        # Transform database trades
+        db_trades = []
+        db_position_ids = set()  # Track position IDs we have in DB
+
+        for trade in db_result.data or []:
+            # Calculate R multiple if possible
+            r_multiple = None
+            if trade.get("realized_r_multiple") is not None:
+                r_multiple = float(trade.get("realized_r_multiple"))
+            elif trade.get("pnl_usd") and trade.get("entry") and trade.get("sl"):
+                risk_pips = abs(float(trade.get("entry")) - float(trade.get("sl")))
+                risk_usd = risk_pips * float(trade.get("size", 0.01")) * 100000 * 0.0001
+                if risk_usd > 0:
+                    r_multiple = float(trade.get("pnl_usd")) / risk_usd
+
+            trade_dict = {
+                "id": trade.get("id"),
+                "symbol": trade.get("symbol"),
+                "side": trade.get("side"),
+                "size": float(trade.get("size", 0)),
+                "entry": float(trade.get("entry", 0)),
+                "exit": float(trade.get("exit_price", 0)),
+                "sl": float(trade.get("sl", 0)) if trade.get("sl") else None,
+                "tp": float(trade.get("tp", 0)) if trade.get("tp") else None,
+                "pnl_usd": float(trade.get("pnl_usd", 0)),
+                "pnl_percent": float(trade.get("pnl_percent", 0)) if trade.get("pnl_percent") else None,
+                "r_multiple": r_multiple,
+                "mae": float(trade.get("mae", 0)) if trade.get("mae") else None,
+                "mfe": float(trade.get("mfe", 0)) if trade.get("mfe") else None,
+                "entry_time": trade.get("entry_time"),
+                "exit_time": trade.get("exit_time"),
+                "exit_reason": trade.get("exit_reason"),
+                "outcome": "win" if trade.get("pnl_usd", 0) >= 0 else "loss",
+                "trade_key": trade.get("trade_key"),
+                "source": "database",
+            }
+            db_trades.append(trade_dict)
+
+            # Track broker order ID for deduplication
+            if trade.get("broker_order_id"):
+                db_position_ids.add(str(trade.get("broker_order_id")))
+
+        logger.info(f"Fetched {len(db_trades)} trades from database for {account_name}")
+
+        # ======================================================================
+        # 2. FETCH FROM METAAPI
+        # ======================================================================
+        metaapi_trades = []
+
+        # Get account's broker profile
+        account_query = (
+            sb.table("account_strategies")
+            .select("*, broker_profiles(*)")
+            .eq("account_name", account_name)
+            .eq("is_active", True)
+            .limit(1)
+        )
+        account_result = account_query.execute()
+
+        if account_result.data and len(account_result.data) > 0:
+            account = account_result.data[0]
+            broker_profile = account.get("broker_profiles")
+
+            if broker_profile and broker_profile.get("meta_api_account_id"):
+                try:
+                    # Get MetaAPI credentials
+                    import os
+                    token_env_key = broker_profile.get("meta_api_token_env_key", "META_API_TOKEN")
+                    token = os.getenv(token_env_key)
+                    meta_account_id = broker_profile.get("meta_api_account_id")
+
+                    if token and meta_account_id:
+                        from src.adapters.execution.meta_api_adapter import MetaApiAdapter
+
+                        adapter = MetaApiAdapter(token=token, account_id=meta_account_id, account_name=account_name)
+
+                        # Calculate time range (max 90 days for MetaAPI)
+                        lookback_days = min(days or 90, 90)
+                        start_time = datetime.now(timezone.utc) - timedelta(days=lookback_days)
+                        end_time = datetime.now(timezone.utc)
+
+                        start_str = start_time.isoformat().replace("+00:00", "Z")
+                        end_str = end_time.isoformat().replace("+00:00", "Z")
+
+                        # Fetch historical deals
+                        deals = adapter.get_historical_deals(start_str, end_str)
+
+                        # Group deals by position ID and convert to closed trades
+                        positions_map: Dict[str, List[Dict]] = {}
+                        for deal in deals:
+                            position_id = str(deal.get("positionId", ""))
+                            if not position_id:
+                                continue
+                            if position_id not in positions_map:
+                                positions_map[position_id] = []
+                            positions_map[position_id].append(deal)
+
+                        # Process each position
+                        for position_id, position_deals in positions_map.items():
+                            # Skip if we already have this position in database
+                            if position_id in db_position_ids:
+                                continue
+
+                            # Sort deals by time
+                            position_deals.sort(key=lambda d: d.get("time", ""))
+
+                            # Find entry and exit deals
+                            entry_deal = None
+                            exit_deal = None
+
+                            for deal in position_deals:
+                                entry_type = deal.get("entryType", "")
+                                if entry_type in ("DEAL_ENTRY_IN", "DEAL_ENTRY_INOUT"):
+                                    entry_deal = deal
+                                elif entry_type in ("DEAL_ENTRY_OUT", "DEAL_ENTRY_OUT_BY"):
+                                    exit_deal = deal
+
+                            # Only include closed positions
+                            if not entry_deal or not exit_deal:
+                                continue
+
+                            # Calculate P&L
+                            profit = float(exit_deal.get("profit", 0) or 0)
+                            swap = float(exit_deal.get("swap", 0) or 0)
+                            commission = float(exit_deal.get("commission", 0) or 0)
+                            total_pnl = profit + swap + commission
+
+                            # Determine side
+                            deal_type = entry_deal.get("type", "")
+                            side = "buy" if "BUY" in deal_type else "sell"
+
+                            metaapi_trade = {
+                                "id": f"meta_{position_id}",
+                                "symbol": entry_deal.get("symbol", ""),
+                                "side": side,
+                                "size": float(entry_deal.get("volume", 0)),
+                                "entry": float(entry_deal.get("price", 0)),
+                                "exit": float(exit_deal.get("price", 0)),
+                                "sl": None,  # MetaAPI deals don't include SL/TP
+                                "tp": None,
+                                "pnl_usd": total_pnl,
+                                "pnl_percent": None,
+                                "r_multiple": None,
+                                "mae": None,
+                                "mfe": None,
+                                "entry_time": entry_deal.get("time"),
+                                "exit_time": exit_deal.get("time"),
+                                "exit_reason": "MetaAPI",
+                                "outcome": "win" if total_pnl >= 0 else "loss",
+                                "trade_key": position_id,
+                                "source": "metaapi",
+                            }
+                            metaapi_trades.append(metaapi_trade)
+
+                        logger.info(f"Fetched {len(metaapi_trades)} trades from MetaAPI for {account_name}")
+
+                    else:
+                        logger.warning(f"MetaAPI credentials not found for {account_name}")
+
+                except Exception as metaapi_err:
+                    logger.error(f"Failed to fetch MetaAPI history for {account_name}: {metaapi_err}")
+                    # Continue with database trades only
+
+        # ======================================================================
+        # 3. MERGE AND FILTER
+        # ======================================================================
+        all_trades = db_trades + metaapi_trades
+
+        # Apply outcome filter
+        if outcome == "win":
+            all_trades = [t for t in all_trades if t["pnl_usd"] >= 0]
+        elif outcome == "loss":
+            all_trades = [t for t in all_trades if t["pnl_usd"] < 0]
+
+        # Sort by exit time (most recent first)
+        all_trades.sort(key=lambda t: t.get("exit_time") or "", reverse=True)
+
+        return {
+            "trades": all_trades,
+            "total": len(all_trades),
+            "sources": {
+                "database": len(db_trades),
+                "metaapi": len(metaapi_trades),
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to fetch trade history for {account_name}: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(500, detail=f"Failed to fetch trade history: {str(e)}")
+
+
 @router.post("/accounts/{account_name}/journal")
 def create_journal_entry(account_name: str, entry: JournalEntryRequest):
     """

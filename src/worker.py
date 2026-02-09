@@ -196,6 +196,7 @@ def save_result(
     prob: float,
     ai_reasoning: Optional[Dict[str, Any]] = None,
     broker_profile_id: Optional[int] = None,
+    account_name: Optional[str] = None,
 ):
     if not supabase:
         logger.warning("Supabase unavailable - result not saved: %s", status)
@@ -222,6 +223,8 @@ def save_result(
         data["trade_key"] = tk
     if broker_profile_id is not None:
         data["broker_profile_id"] = broker_profile_id
+    if account_name is not None:
+        data["account_name"] = account_name
 
     # Zone + metrics so filtered signals show Zone Analysis and score breakdown in UI
     extra_columns, zone_reason = _payload_zone_and_metrics(payload)
@@ -435,6 +438,21 @@ def process_trade(payload: Dict[str, Any]):
 
     s = get_settings()
 
+    # ── Determine account_name early for tracking rejected signals ────
+    # Fetch active profiles and match against payload run_mode
+    from src.core.broker_profiles import get_active_profiles
+
+    account_name = None
+    payload_run_mode = str(payload.get("run_mode", "PAPER")).upper()
+    try:
+        profiles = get_active_profiles()
+        matching = [p for p in profiles if (p.get("run_mode") or "LIVE") == payload_run_mode]
+        if matching and matching[0].get("name"):
+            account_name = matching[0]["name"]
+            logger.info("Account: %s (mode: %s)", account_name, payload_run_mode)
+    except Exception as e:
+        logger.warning("Failed to determine account_name: %s", e)
+
     # ── Dynamic Risk Controls: Check for time-based rules & DB overrides ────
     time_based_multiplier = apply_time_based_rules()
     if time_based_multiplier is not None and time_based_multiplier < 1.0:
@@ -449,6 +467,7 @@ def process_trade(payload: Dict[str, Any]):
             "filtered",
             f"Position size must be positive (got size={payload.get('size')})",
             0.0,
+            account_name=account_name,
         )
         logger.warning(
             "SIZE REJECTED: size=%s (must be > 0). Check TradingView alert / Pine position sizing.",
@@ -466,6 +485,7 @@ def process_trade(payload: Dict[str, Any]):
             f"Position size {size} lots exceeds max_lot_size={max_lot_size}. "
             f"Check TradingView Pine initial_capital vs actual account balance.",
             0.0,
+            account_name=account_name,
         )
         logger.warning(
             "MAX LOT SIZE REJECTED: size=%s > max=%s lots. "
@@ -506,7 +526,7 @@ def process_trade(payload: Dict[str, Any]):
 
     if env_kill or redis_kill or mtm_kill:
         reason = mtm_reason if mtm_kill else "Trading kill-switch is ON"
-        save_result(payload, "kill_switch_blocked", reason, 0.0)
+        save_result(payload, "kill_switch_blocked", reason, 0.0, account_name=account_name)
         log_event(None, "kill_switch_blocked", "worker", {"symbol": symbol, "reason": reason})
         log_guard_decision("kill_switch", "blocked", reason, symbol)
         logger.warning(f"KILL-SWITCH: execution blocked - {reason}")
@@ -523,6 +543,7 @@ def process_trade(payload: Dict[str, Any]):
                     "circuit_breaker_blocked",
                     "MetaApi circuit breaker open (rate limit or repeated failures)",
                     0.0,
+                    account_name=account_name,
                 )
                 log_event(None, "circuit_breaker_blocked", "worker", {"symbol": symbol})
                 log_guard_decision("circuit_breaker", "blocked", "MetaApi circuit open", symbol)
@@ -553,7 +574,7 @@ def process_trade(payload: Dict[str, Any]):
     current_equity = dynamic_account_balance + daily_pnl
     allowed, risk_multiplier, risk_label = check_safety(current_equity, dynamic_account_balance, daily_pnl)
     if not allowed:
-        save_result(payload, "risk_rejected", f"PropGuard: {risk_label}", 0.0)
+        save_result(payload, "risk_rejected", f"PropGuard: {risk_label}", 0.0, account_name=account_name)
         log_event(None, "prop_guard_blocked", "worker", {"label": risk_label, "daily_pnl": daily_pnl})
         log_guard_decision("prop_guard", "rejected", risk_label, symbol, {"daily_pnl": daily_pnl})
         logger.warning("PROP GUARD BLOCKED: %s", risk_label)
@@ -578,14 +599,14 @@ def process_trade(payload: Dict[str, Any]):
             corr_result = correlation_manager.check(symbol=symbol, side=side, active_positions=active_positions)
             logger.info("Correlation Check: %s/%s active", len(active_positions), s.trinity_max_positions)
             if not corr_result.passed:
-                save_result(payload, "correlation_rejected", corr_result.rejection_message, 0.0)
+                save_result(payload, "correlation_rejected", corr_result.rejection_message, 0.0, account_name=account_name)
                 log_event(None, "correlation_rejected", "worker", {"reason": corr_result.rejection_message})
                 log_guard_decision("correlation", "rejected", corr_result.rejection_message, symbol)
                 logger.warning("CORRELATION REJECTED: %s", corr_result.rejection_message)
                 return
         except Exception as e:
             logger.error("Correlation guard crashed: %s", e)
-            save_result(payload, "correlation_rejected", f"DB Error: {str(e)[:50]}", 0.0)
+            save_result(payload, "correlation_rejected", f"DB Error: {str(e)[:50]}", 0.0, account_name=account_name)
             return
     elif supabase:
         try:
@@ -594,13 +615,13 @@ def process_trade(payload: Dict[str, Any]):
             logger.info("Correlation Check (simple): %s/%s active", active_count, MAX_OPEN_POSITIONS)
             if active_count >= MAX_OPEN_POSITIONS:
                 msg = f"Bucket Full ({active_count}/{MAX_OPEN_POSITIONS})"
-                save_result(payload, "correlation_rejected", msg, 0.0)
+                save_result(payload, "correlation_rejected", msg, 0.0, account_name=account_name)
                 log_guard_decision("correlation", "rejected", msg, symbol)
                 logger.warning("CORRELATION REJECTED: bucket full")
                 return
         except Exception as e:
             logger.error("Correlation guard crashed: %s", e)
-            save_result(payload, "correlation_rejected", f"DB Error: {str(e)[:50]}", 0.0)
+            save_result(payload, "correlation_rejected", f"DB Error: {str(e)[:50]}", 0.0, account_name=account_name)
             return
 
     # ── Portfolio VaR Guard ───────────────────────────────────
@@ -661,7 +682,7 @@ def process_trade(payload: Dict[str, Any]):
             )
 
             if not passed:
-                save_result(payload, "portfolio_var_rejected", reason, 0.0)
+                save_result(payload, "portfolio_var_rejected", reason, 0.0, account_name=account_name)
                 log_event(None, "portfolio_var_rejected", "worker", {"reason": reason})
                 log_guard_decision("portfolio_var", "rejected", reason, symbol)
                 logger.warning("PORTFOLIO VAR REJECTED: %s", reason)
@@ -724,7 +745,7 @@ def process_trade(payload: Dict[str, Any]):
             )
 
             if not passed:
-                save_result(payload, "sector_limit_rejected", reason, 0.0)
+                save_result(payload, "sector_limit_rejected", reason, 0.0, account_name=account_name)
                 log_event(None, "sector_limit_rejected", "worker", {"reason": reason})
                 log_guard_decision("sector_guard", "rejected", reason, symbol)
                 logger.warning("SECTOR LIMIT REJECTED: %s", reason)
@@ -748,7 +769,7 @@ def process_trade(payload: Dict[str, Any]):
             )
             passed, reason = staleness_guard.check(payload)
             if not passed:
-                save_result(payload, "staleness_rejected", reason, 0.0)
+                save_result(payload, "staleness_rejected", reason, 0.0, account_name=account_name)
                 log_event(None, "staleness_rejected", "worker", {"symbol": symbol, "reason": reason})
                 log_guard_decision("staleness", "rejected", reason, symbol)
                 logger.warning("STALENESS REJECTED: %s", reason)
@@ -765,7 +786,7 @@ def process_trade(payload: Dict[str, Any]):
     # ------------------------------------------------------------------
     flip_error = _validate_flip_timing(payload)
     if flip_error:
-        save_result(payload, "filtered", flip_error, 0.0)
+        save_result(payload, "filtered", flip_error, 0.0, account_name=account_name)
         logger.warning("FLIP TIMING REJECTED: %s", flip_error)
         return
 
@@ -777,7 +798,7 @@ def process_trade(payload: Dict[str, Any]):
     # ------------------------------------------------------------------
     pine_error = _validate_pine_filters(payload)
     if pine_error:
-        save_result(payload, "filtered", f"Pine filter: {pine_error}", 0.0)
+        save_result(payload, "filtered", f"Pine filter: {pine_error}", 0.0, account_name=account_name)
         logger.warning("PINE PRE-FILTER REJECTED: %s", pine_error)
         return
 
@@ -814,7 +835,7 @@ def process_trade(payload: Dict[str, Any]):
                 allowed, reason, risk_mult = consistency.check_trade_consistency_risk(expected_profit)
 
                 if not allowed:
-                    save_result(payload, "consistency_rejected", reason, 0.0)
+                    save_result(payload, "consistency_rejected", reason, 0.0, account_name=account_name)
                     log_event(None, "consistency_rejected", "worker", {"symbol": symbol, "reason": reason})
                     log_guard_decision("consistency", "rejected", reason, symbol)
                     logger.warning("CONSISTENCY REJECTED: %s", reason)
@@ -890,6 +911,7 @@ def process_trade(payload: Dict[str, Any]):
                 reason,
                 float(ai_result.get("rf_prob", 0.0)),
                 ai_reasoning=ai_result,
+                account_name=account_name,
             )
             log_event(None, "ai_rejected", "worker", {"symbol": symbol, "reason": reason[:200]})
             log_guard_decision("ai_ensemble", "rejected", reason, symbol, {"rf_prob": ai_result.get("rf_prob")})
@@ -933,6 +955,7 @@ def process_trade(payload: Dict[str, Any]):
         except Exception as exec_err:
             logger.error("logic.process_trade failed: %s", exec_err)
             log_event(None, "execution_failed", "worker", {"symbol": symbol, "error": str(exec_err)[:200], "profile": (profile or {}).get("name")})
+            profile_account_name = (profile.get("name") if profile else None) or account_name
             save_result(
                 payload,
                 "execution_failed",
@@ -940,6 +963,7 @@ def process_trade(payload: Dict[str, Any]):
                 win_prob,
                 ai_reasoning=ai_result,
                 broker_profile_id=profile_id,
+                account_name=profile_account_name,
             )
 
 
