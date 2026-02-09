@@ -737,8 +737,9 @@ def process_trade(payload: Dict[str, Any]):
             # Allow trade on guard failure (fail-open for robustness)
 
     # ── Signal Staleness Guard ────────────────────────────────
-    # CRITICAL: Prevent slippage from delayed webhooks
-    if getattr(s, "enable_staleness_guard", True):  # Enabled by default
+    # CRITICAL: Prevent slippage from delayed webhooks (LIVE mode only)
+    # PAPER mode skips this since slippage doesn't affect backtesting/simulation
+    if run_mode == "LIVE" and getattr(s, "enable_staleness_guard", True):
         try:
             from src.core.guard_rails.staleness_guard import StalenessGuard
             staleness_guard = StalenessGuard(
