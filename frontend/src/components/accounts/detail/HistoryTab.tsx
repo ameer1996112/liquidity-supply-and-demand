@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Download, Filter, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { getPortfolioControlUrl } from '@/lib/api';
 
 interface HistoryTabProps {
   accountName: string;
@@ -55,9 +56,9 @@ export function HistoryTab({ accountName }: HistoryTabProps) {
         params.append('outcome', outcomeFilter);
       }
 
-      const response = await fetch(
-        `/api/portfolio-control/accounts/${encodeURIComponent(accountName)}/history?${params}`
-      );
+      const url = getPortfolioControlUrl(`/accounts/${encodeURIComponent(accountName)}/history?${params}`);
+      if (!url) throw new Error('Backend API URL not configured');
+      const response = await fetch(url);
 
       if (!response.ok) {
         throw new Error(`Failed to fetch trade history: ${response.statusText}`);
