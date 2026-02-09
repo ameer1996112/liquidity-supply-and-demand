@@ -28,19 +28,27 @@ export function OverviewTab({ account }: OverviewTabProps) {
           <MetricCard
             label="Equity"
             value={`$${(account.equity || account.balance).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
-            valueColor="text-zinc-100"
+            valueColor={account.equity && account.equity >= account.balance ? 'text-[#26a69a]' : account.equity && account.equity < account.balance ? 'text-[#ef5350]' : 'text-zinc-100'}
           />
           <MetricCard
             label="Free Margin"
-            value="N/A"
-            valueColor="text-zinc-400"
-            sublabel="Real-time data coming soon"
+            value={account.free_margin != null ? `$${account.free_margin.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : 'N/A'}
+            valueColor="text-zinc-300"
+            sublabel={account.free_margin == null ? 'Awaiting sync' : undefined}
           />
           <MetricCard
             label="Margin Level"
-            value="N/A"
-            valueColor="text-zinc-400"
-            sublabel="Real-time data coming soon"
+            value={account.margin_level_pct != null ? `${account.margin_level_pct.toFixed(1)}%` : 'N/A'}
+            valueColor={
+              account.margin_level_pct && account.margin_level_pct >= 200
+                ? 'text-[#26a69a]'
+                : account.margin_level_pct && account.margin_level_pct >= 100
+                ? 'text-zinc-300'
+                : account.margin_level_pct
+                ? 'text-[#ef5350]'
+                : 'text-zinc-400'
+            }
+            sublabel={account.margin_level_pct == null ? 'Awaiting sync' : undefined}
           />
         </div>
 
@@ -106,34 +114,93 @@ export function OverviewTab({ account }: OverviewTabProps) {
         <h3 className="text-sm font-medium text-zinc-300 mb-4 flex items-center gap-2">
           <Activity className="h-4 w-4 text-green-500" />
           Performance Summary
+          <span className="ml-auto text-xs text-zinc-600 font-mono">(Last 30 days)</span>
         </h3>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <MetricCard
             label="Win Rate"
             value={`${(account.win_rate * 100).toFixed(1)}%`}
             valueColor={account.win_rate >= 0.5 ? 'text-[#26a69a]' : 'text-[#ef5350]'}
           />
           <MetricCard
-            label="Sharpe Ratio"
-            value={account.sharpe_ratio ? account.sharpe_ratio.toFixed(2) : 'N/A'}
-            valueColor="text-zinc-300"
-          />
-          <MetricCard
             label="Profit Factor"
-            value={account.profit_factor ? account.profit_factor.toFixed(2) : 'N/A'}
+            value={account.profit_factor != null && account.profit_factor > 0 ? account.profit_factor.toFixed(2) : 'N/A'}
             valueColor={
               account.profit_factor && account.profit_factor >= 1.5
                 ? 'text-[#26a69a]'
                 : account.profit_factor && account.profit_factor >= 1
                 ? 'text-zinc-400'
-                : 'text-[#ef5350]'
+                : account.profit_factor
+                ? 'text-[#ef5350]'
+                : 'text-zinc-400'
             }
+            sublabel={account.total_trades && account.total_trades < 10 ? 'Low sample' : undefined}
+          />
+          <MetricCard
+            label="Sharpe Ratio"
+            value={account.sharpe_ratio && account.sharpe_ratio !== 0 ? account.sharpe_ratio.toFixed(2) : 'N/A'}
+            valueColor={
+              account.sharpe_ratio && account.sharpe_ratio >= 1.5
+                ? 'text-[#26a69a]'
+                : account.sharpe_ratio && account.sharpe_ratio >= 1
+                ? 'text-zinc-300'
+                : 'text-zinc-400'
+            }
+          />
+          <MetricCard
+            label="Max Drawdown"
+            value={account.max_drawdown_pct != null && account.max_drawdown_pct > 0 ? `${account.max_drawdown_pct.toFixed(1)}%` : 'N/A'}
+            valueColor={
+              account.max_drawdown_pct && account.max_drawdown_pct >= 10
+                ? 'text-[#ef5350]'
+                : account.max_drawdown_pct && account.max_drawdown_pct >= 5
+                ? 'text-amber-400'
+                : 'text-zinc-400'
+            }
+            sublabel={account.max_drawdown_pct == null || account.max_drawdown_pct === 0 ? 'Calculating' : undefined}
           />
           <MetricCard
             label="Total Trades"
             value={account.total_trades?.toString() || '0'}
             valueColor="text-zinc-300"
+          />
+        </div>
+      </section>
+
+      {/* Today's Activity */}
+      <section className="tv-card p-4">
+        <h3 className="text-sm font-medium text-zinc-300 mb-4 flex items-center gap-2">
+          <TrendingUp className="h-4 w-4 text-blue-500" />
+          Today's Activity
+        </h3>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <MetricCard
+            label="Daily P&L"
+            value={`${account.daily_pnl >= 0 ? '+' : ''}$${Math.abs(account.daily_pnl).toFixed(2)}`}
+            valueColor={account.daily_pnl >= 0 ? 'text-[#26a69a]' : 'text-[#ef5350]'}
+          />
+          <MetricCard
+            label="Daily P&L %"
+            value={`${account.daily_pnl_pct >= 0 ? '+' : ''}${account.daily_pnl_pct.toFixed(2)}%`}
+            valueColor={account.daily_pnl_pct >= 0 ? 'text-[#26a69a]' : 'text-[#ef5350]'}
+          />
+          <MetricCard
+            label="Active Positions"
+            value={account.active_positions?.toString() || '0'}
+            valueColor={
+              account.active_positions && account.max_positions && account.active_positions >= account.max_positions
+                ? 'text-amber-400'
+                : 'text-zinc-300'
+            }
+            sublabel={account.max_positions ? `Max: ${account.max_positions}` : undefined}
+          />
+          <MetricCard
+            label="Margin Used"
+            value={account.margin_used != null ? `$${account.margin_used.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : 'N/A'}
+            valueColor="text-zinc-300"
+            sublabel={account.margin_used == null ? 'No positions' : undefined}
           />
         </div>
       </section>

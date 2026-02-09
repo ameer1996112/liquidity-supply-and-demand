@@ -21,13 +21,34 @@ class AccountPerformance:
     """Performance metrics for an account."""
     account_name: str
     balance: float
+    equity: float
     daily_pnl: float
     daily_pnl_pct: float
     win_rate: float
     sharpe_ratio: float
     max_drawdown_pct: float
+    profit_factor: float
     total_trades: int
     active_positions: int
+    # Live broker data
+    free_margin: Optional[float] = None
+    margin_used: Optional[float] = None
+    margin_level_pct: Optional[float] = None
+    # Account config
+    provider: Optional[str] = None
+    account_type: Optional[str] = None
+    strategy_type: Optional[str] = None
+    connection_status: Optional[str] = None
+    last_sync_time: Optional[str] = None
+    server_name: Optional[str] = None
+    platform_type: Optional[str] = None
+    leverage: Optional[int] = None
+    # Risk config
+    risk_percent: Optional[float] = None
+    min_rr_ratio: Optional[float] = None
+    max_lot_size: Optional[float] = None
+    max_positions: Optional[int] = None
+    pause_trading: Optional[bool] = None
 
 
 @dataclass
@@ -92,15 +113,15 @@ class AccountOrchestrator:
             account_data = account.data
             broker_profile_id = account_data.get("broker_profile_id")
 
-            # Get trades for this account
+            # Get trades for this account (match by account_name OR broker_profile_id)
             start_date = (datetime.now(timezone.utc) - timedelta(days=lookback_days)).isoformat()
 
             trades_query = self.client.table("trading_signals").select(
                 "pnl_usd, pnl_r, outcome, created_at"
             ).gte("created_at", start_date)
 
-            if broker_profile_id:
-                trades_query = trades_query.eq("broker_profile_id", broker_profile_id)
+            # Filter by account_name first (primary); if no broker_profile_id, this is the only filter
+            trades_query = trades_query.eq("account_name", account_name)
 
             trades_result = trades_query.execute()
             trades = trades_result.data or []
@@ -119,10 +140,19 @@ class AccountOrchestrator:
                 if t.get("created_at", "") >= today_start
             )
 
-            # Get real balance from broker (not static allocated capital)
+            # Get real balance and live data from broker (not static allocated capital)
             balance = float(account_data.get("allocated_capital_usd") or 0)  # Fallback
+            equity = balance  # Default: equity = balance
+            free_margin = None
+            margin_used = None
+            margin_level_pct = None
+            server_name = None
+            platform_type = None
+            leverage = None
+            connection_status = "not_configured"
+            last_sync_time = None
 
-            # Try to fetch real balance from MetaApi if broker_profile_id exists
+            # Try to fetch real account data from MetaApi if broker_profile_id exists
             if broker_profile_id:
                 try:
                     from src.adapters.execution.router import get_adapter
@@ -140,13 +170,41 @@ class AccountOrchestrator:
                         # Fetch real account info from broker
                         if hasattr(adapter, "get_account_information"):
                             account_info = adapter.get_account_information()
-                            if account_info and "balance" in account_info:
-                                balance = float(account_info["balance"])
-                                logger.info(f"Fetched real balance for {account_name}: ${balance:.2f}")
+                            if account_info:
+                                balance = float(account_info.get("balance", balance))
+                                equity = float(account_info.get("equity", balance))
+                                free_margin = float(account_info.get("freeMargin") or account_info.get("free_margin") or 0)
+                                margin_used = float(account_info.get("margin", 0))
+                                if free_margin and margin_used and margin_used > 0:
+                                    margin_level_pct = ((free_margin + margin_used) / margin_used) * 100
+                                server_name = account_info.get("server") or account_info.get("broker")
+                                platform_type = account_info.get("platform", "MetaTrader")
+                                leverage = int(account_info.get("leverage", 0)) if account_info.get("leverage") else None
+                                connection_status = "connected"
+                                logger.info(f"Fetched live data for {account_name}: balance=${balance:.2f}, equity=${equity:.2f}")
+                        
+                        # Get last sync time from account_status_snapshots
+                        try:
+                            snapshot = self.client.table("account_status_snapshots").select("snapshot_time").eq(
+                                "broker_profile_id", broker_profile_id
+                            ).order("snapshot_time", desc=True).limit(1).maybe_single().execute()
+                            if snapshot.data:
+                                last_sync_time = snapshot.data.get("snapshot_time")
+                        except Exception:
+                            pass
+
                 except Exception as e:
-                    logger.warning(f"Failed to fetch real balance for {account_name}, using allocated capital: {e}")
+                    logger.warning(f"Failed to fetch live data for {account_name}: {e}")
+                    connection_status = "error"
 
             daily_pnl_pct = (daily_pnl / balance * 100) if balance > 0 else 0.0
+
+            # Profit factor (gross wins / gross losses)
+            profit_factor = 0.0
+            if wins and losses:
+                gross_wins = sum(float(t.get("pnl_usd") or 0) for t in wins)
+                gross_losses = abs(sum(float(t.get("pnl_usd") or 0) for t in losses))
+                profit_factor = gross_wins / gross_losses if gross_losses > 0 else (gross_wins if gross_wins > 0 else 0.0)
 
             # Sharpe ratio (simplified)
             if len(trades) > 5:
@@ -164,9 +222,10 @@ class AccountOrchestrator:
             # Max drawdown (simplified - would need equity curve)
             max_drawdown_pct = 0.0  # TODO: Calculate from equity curve
 
-            # Active positions
+            # Active positions (by account_name)
             active_query = self.client.table("trading_signals").select(
                 "id", count="exact"
+            ).eq("account_name", account_name
             ).in_("status", ["active", "executed"])
 
             if broker_profile_id:
@@ -178,13 +237,34 @@ class AccountOrchestrator:
             return AccountPerformance(
                 account_name=account_name,
                 balance=balance,
+                equity=equity,
                 daily_pnl=daily_pnl,
                 daily_pnl_pct=daily_pnl_pct,
                 win_rate=win_rate,
                 sharpe_ratio=sharpe_ratio,
                 max_drawdown_pct=max_drawdown_pct,
+                profit_factor=profit_factor,
                 total_trades=total_trades,
                 active_positions=active_positions,
+                # Live broker data
+                free_margin=free_margin,
+                margin_used=margin_used,
+                margin_level_pct=margin_level_pct,
+                # Account config
+                provider=account_data.get("provider"),
+                account_type=account_data.get("account_type"),
+                strategy_type=account_data.get("strategy_type"),
+                connection_status=connection_status,
+                last_sync_time=last_sync_time,
+                server_name=server_name,
+                platform_type=platform_type,
+                leverage=leverage,
+                # Risk config
+                risk_percent=account_data.get("risk_percent"),
+                min_rr_ratio=account_data.get("min_rr_ratio"),
+                max_lot_size=account_data.get("max_lot_size"),
+                max_positions=account_data.get("max_positions"),
+                pause_trading=account_data.get("pause_trading"),
             )
 
         except Exception as e:

@@ -531,12 +531,26 @@ export async function fetchTradeCopyLog(limit = 50): Promise<TradeCopyLogApi[]> 
 // ---------------------------------------------------------------------------
 
 export interface AccountDetailApi extends AccountComparisonApi {
-  connection_status: 'connected' | 'disconnected' | 'error' | 'not_configured';
+  equity: number;
+  max_drawdown_pct: number;
+  profit_factor: number;
+  free_margin: number | null;
+  margin_used: number | null;
+  margin_level_pct: number | null;
+  connection_status: 'connected' | 'disconnected' | 'error' | 'not_configured' | string;
   last_sync_time: string | null;
   meta_api_account_id: string | null;
   server_name?: string;
   platform_type?: string;
   leverage?: number;
+  provider?: string;
+  account_type?: string;
+  strategy_type?: string;
+  risk_percent?: number;
+  min_rr_ratio?: number;
+  max_lot_size?: number;
+  max_positions?: number;
+  pause_trading?: boolean;
 }
 
 export interface AccountStatusSnapshotApi {

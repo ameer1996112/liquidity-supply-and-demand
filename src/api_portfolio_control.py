@@ -115,12 +115,34 @@ class HedgeSuggestionResponse(BaseModel):
 class AccountPerformanceResponse(BaseModel):
     account_name: str
     balance: float
+    equity: float
     daily_pnl: float
     daily_pnl_pct: float
     win_rate: float
     sharpe_ratio: float
+    max_drawdown_pct: float
+    profit_factor: float
     active_positions: int
     total_trades: int
+    # Live broker data
+    free_margin: Optional[float] = None
+    margin_used: Optional[float] = None
+    margin_level_pct: Optional[float] = None
+    # Account config
+    provider: Optional[str] = None
+    account_type: Optional[str] = None
+    strategy_type: Optional[str] = None
+    connection_status: Optional[str] = None
+    last_sync_time: Optional[str] = None
+    server_name: Optional[str] = None
+    platform_type: Optional[str] = None
+    leverage: Optional[int] = None
+    # Risk config
+    risk_percent: Optional[float] = None
+    min_rr_ratio: Optional[float] = None
+    max_lot_size: Optional[float] = None
+    max_positions: Optional[int] = None
+    pause_trading: Optional[bool] = None
 
 
 class AllocationRecommendationResponse(BaseModel):
@@ -692,12 +714,34 @@ def get_account_performance(account_name: str, lookback_days: int = 30):
     return AccountPerformanceResponse(
         account_name=perf.account_name,
         balance=perf.balance,
+        equity=perf.equity,
         daily_pnl=perf.daily_pnl,
         daily_pnl_pct=perf.daily_pnl_pct,
         win_rate=perf.win_rate,
         sharpe_ratio=perf.sharpe_ratio,
+        max_drawdown_pct=perf.max_drawdown_pct,
+        profit_factor=perf.profit_factor,
         active_positions=perf.active_positions,
         total_trades=perf.total_trades,
+        # Live broker data
+        free_margin=perf.free_margin,
+        margin_used=perf.margin_used,
+        margin_level_pct=perf.margin_level_pct,
+        # Account config
+        provider=perf.provider,
+        account_type=perf.account_type,
+        strategy_type=perf.strategy_type,
+        connection_status=perf.connection_status,
+        last_sync_time=perf.last_sync_time,
+        server_name=perf.server_name,
+        platform_type=perf.platform_type,
+        leverage=perf.leverage,
+        # Risk config
+        risk_percent=perf.risk_percent,
+        min_rr_ratio=perf.min_rr_ratio,
+        max_lot_size=perf.max_lot_size,
+        max_positions=perf.max_positions,
+        pause_trading=perf.pause_trading,
     )
 
 
