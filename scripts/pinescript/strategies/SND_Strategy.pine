@@ -37,7 +37,8 @@ strategy("Institutional Liquidity Protocol [Pro]",
      shorttitle = "S&D Algo [Pro]",
      overlay = true,
      max_bars_back = 5000,
-     initial_capital = 10000000,
+     initial_capital = 10000000,  // ⚠️ For BACKTESTING ONLY - NOT used for live position sizing!
+                                   // Live position sizing uses "account_size_usd" input below (line ~260)
      currency = currency.USD,
      default_qty_type = strategy.fixed,
      default_qty_value = 100,
@@ -257,8 +258,13 @@ allow_long_trades     = trade_direction == "Both" or trade_direction == "Long On
 allow_short_trades    = trade_direction == "Both" or trade_direction == "Short Only"
 
 // Position Sizing & Risk Management
-account_size_usd      = input.float(10000, "Account Size ($)", minval = 100, step = 100, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Your trading account balance in USD. Used to calculate position size.")
-risk_per_trade_pct    = input.float(0.5, "Risk Per Trade (%)", minval = 0.1, maxval = 10, step = 0.1, group = "🎯 Quick Setup", tooltip = "Percentage of account to risk per trade. 0.5% = $50 risk on $10,000 account.")
+// ⚠️ CRITICAL: Set this to your LIVE account balance! Default is $50k for prop firm accounts.
+// This value is used for:
+//   1. Position size calculations (lots = account × risk% / SL distance)
+//   2. Webhook payload (sent to backend for validation)
+// Mismatch = trades rejected by backend sector guard!
+account_size_usd      = input.float(50000, "💰 Account Size ($)", minval = 100, step = 1000, group = "🎯 Quick Setup", tooltip = "⚠️ MUST MATCH YOUR LIVE ACCOUNT BALANCE!\n\nThis is used to calculate position sizes:\n• Position Size = Account × Risk% / SL Distance\n• Sent to backend for validation\n\nExamples:\n• Prop firm challenge: $50,000\n• Personal account: $10,000\n• Demo/Paper: $10,000\n\nIf mismatch with live balance, backend will reject trades!")
+risk_per_trade_pct    = input.float(0.5, "Risk Per Trade (%)", minval = 0.1, maxval = 10, step = 0.1, group = "🎯 Quick Setup", tooltip = "Percentage of account to risk per trade.\n\n0.5% (Balanced - Recommended):\n• $50k account = $250 max risk/trade\n• Survives 200 consecutive losses\n\n1.0% (Aggressive):\n• $50k account = $500 max risk/trade\n• Survives 100 consecutive losses")
 stop_loss_buffer_pips = input.float(1.0, "SL Buffer (Pips)", minval = 0, step = 0.1, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Extra pips added below/above the zone wick for stop loss. Protects against wick hunts.")
 use_custom_rr         = input.bool(false, "☐ Override: Use Fixed RR", group = "⚙️ Advanced / Manual Tweaks", tooltip = "OFF (default): Uses smart SL-based rules (tight SL = higher RR). ON: Uses your custom ratio below for all trades.")
 risk_reward_ratio     = input.float(2.0, "   └─ Custom R:R Ratio", minval = 0.5, step = 0.1, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Your custom Risk:Reward ratio. Only used when 'Override: Use Fixed RR' is checked.")
