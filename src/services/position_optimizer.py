@@ -331,26 +331,28 @@ class PositionOptimizer:
         }
 
         # Determine instrument type
-        if any(curr in symbol.upper() for curr in ["USD", "EUR", "GBP", "JPY", "CHF", "AUD", "NZD", "CAD"]):
-            lot_size = LOT_SIZES["forex"]
-            instrument_type = "forex"
-        elif "XAU" in symbol.upper() or "XAG" in symbol.upper():
+        # IMPORTANT: Check metals and crypto FIRST before forex currencies
+        # to prevent XAUUSD/XAGUSD/BTCUSD from matching the forex condition
+        if "XAU" in symbol.upper() or "XAG" in symbol.upper():
             lot_size = LOT_SIZES["metals"]
             instrument_type = "metals"
-        elif any(idx in symbol.upper() for idx in ["US30", "NAS100", "SPX", "UK100", "GER", "FRA", "JPN"]):
-            lot_size = LOT_SIZES["indices"]
-            instrument_type = "indices"
         elif any(crypto in symbol.upper() for crypto in ["BTC", "ETH", "BCH", "LTC"]):
             lot_size = LOT_SIZES["crypto"]
             instrument_type = "crypto"
+        elif any(idx in symbol.upper() for idx in ["US30", "NAS100", "SPX", "UK100", "GER", "FRA", "JPN"]):
+            lot_size = LOT_SIZES["indices"]
+            instrument_type = "indices"
+        elif any(curr in symbol.upper() for curr in ["USD", "EUR", "GBP", "JPY", "CHF", "AUD", "NZD", "CAD"]):
+            lot_size = LOT_SIZES["forex"]
+            instrument_type = "forex"
         else:
             lot_size = 1  # Default
             instrument_type = "unknown"
 
         notional = abs(size) * lot_size * entry_price
 
-        logger.debug(
-            f"calculate_notional_value: {symbol} ({instrument_type}) | "
+        logger.info(
+            f"📊 calculate_notional_value: {symbol} ({instrument_type}) | "
             f"size={size} lots × lot_size={lot_size} × entry=${entry_price} = ${notional:,.2f}"
         )
 
