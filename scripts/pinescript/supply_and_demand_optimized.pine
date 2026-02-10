@@ -1064,9 +1064,10 @@ calculate_ai_quality_score(Zone z, bool isDemand) =>
     else if f_atr_ratio < 2.0
         quality_score += 4.0
     // 10. Zone Base Score (11%) - Quality of imbalance
-    if z.score >= 8
+    // z.score is on a 0-100 scale (80 = A grade, 50 = C+ grade)
+    if z.score >= 80
         quality_score += 11.0
-    else if z.score >= 5
+    else if z.score >= 50
         quality_score += 6.0
     else
         quality_score += 2.0
@@ -3248,12 +3249,11 @@ is_late_friday() =>
     day_of_week == dayofweek.friday and current_hour >= 20
 
 // === HTF CONTEXT CHECK (For Flip Entry) ===
-// Check if we are in the first 10 minutes of a new 30m candle
-// This aligns Flip entries with HTF candle opens where "wicks" form
+// Check if current bar is on a 15-minute boundary (xx:00, xx:15, xx:30, xx:45)
+// Flip entries only valid on these exact candle opens
 is_htf_candle_open() =>
     int currentMinute = minute(time)
-    // First 10 minutes of each half hour (0-9 or 30-39)
-    (currentMinute >= 0 and currentMinute <= 9) or (currentMinute >= 30 and currentMinute <= 39)
+    currentMinute == 0 or currentMinute == 15 or currentMinute == 30 or currentMinute == 45
 
 // Helper function to get readable dead zone status for debugging
 getDeadZoneStatus() =>
@@ -4275,6 +4275,14 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     z.primedRefLow := low
                     z.inactiveReason := "PRIMED - waiting for bullish close"
                     
+                    // Add liquidity bonus to zone score (was 0 at creation since liq wasn't known yet)
+                    if z.liquiditySwept
+                        z.score := z.score + 20  // Full bonus: liquidity was swept
+                    else if not na(z.liqLowPrice)
+                        z.score := z.score + 10  // Partial bonus: liquidity exists but not swept yet
+                    z.score := math.min(z.score, 100)
+                    z.grade := Core.get_grade_from_score(z.score)
+                    
                     // === V7.1 AI FEATURES (CONDITIONAL - Only if enabled) ===
                     // IMPORTANT: Call functions unconditionally for Pine Script series consistency
                     float temp_liq_distance = calculate_liquidity_distance(z.top, z.liqLowPrice, true)
@@ -4319,12 +4327,13 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
             if hasValidPrimedRef and not is_flip
                 is_break := (open > z.primedRefClose or high > z.primedRefHigh) and close > open
 
+            // Priority: Flip (reversal) > Break of Candle (continuation gap) > Dir Close (catch-all)
             if is_flip
                 chosenModel := "FLIP"
-            else if is_dir_close
-                chosenModel := "DIR_CLOSE"
             else if is_break
                 chosenModel := "BREAK_CANDLE"
+            else if is_dir_close
+                chosenModel := "DIR_CLOSE"
 
             if chosenModel == "NONE"
                 continue  // No valid entry pattern yet, keep zone primed
@@ -4676,6 +4685,14 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     z.primedRefLow := low
                     z.inactiveReason := "PRIMED - waiting for bearish close"
                     
+                    // Add liquidity bonus to zone score (was 0 at creation since liq wasn't known yet)
+                    if z.liquiditySwept
+                        z.score := z.score + 20  // Full bonus: liquidity was swept
+                    else if not na(z.liqHighPrice)
+                        z.score := z.score + 10  // Partial bonus: liquidity exists but not swept yet
+                    z.score := math.min(z.score, 100)
+                    z.grade := Core.get_grade_from_score(z.score)
+                    
                     // === V7.1 AI FEATURES (CONDITIONAL - Only if enabled) ===
                     // IMPORTANT: Call functions unconditionally for Pine Script series consistency
                     float temp_liq_distance = calculate_liquidity_distance(z.bottom, z.liqHighPrice, false)
@@ -4720,12 +4737,13 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
             if hasValidPrimedRef and not is_flip
                 is_break := (open < z.primedRefClose or low < z.primedRefLow) and close < open
 
+            // Priority: Flip (reversal) > Break of Candle (continuation gap) > Dir Close (catch-all)
             if is_flip
                 chosenModel := "FLIP"
-            else if is_dir_close
-                chosenModel := "DIR_CLOSE"
             else if is_break
                 chosenModel := "BREAK_CANDLE"
+            else if is_dir_close
+                chosenModel := "DIR_CLOSE"
 
             if chosenModel == "NONE"
                 continue  // No valid entry pattern yet, keep zone primed

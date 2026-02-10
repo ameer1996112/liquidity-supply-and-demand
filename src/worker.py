@@ -41,7 +41,9 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(
 logger = logging.getLogger("TRINITY_WORKER")
 
 MAX_OPEN_POSITIONS = 3
-ML_MIN_CONFIDENCE = 0.50
+# NOTE: Actual RF threshold is settings.ml_min_confidence (default 0.60).
+# This constant is only used in _build_ml_rejection_reasoning for legacy logging.
+ML_MIN_CONFIDENCE = 0.60
 
 supabase = None
 correlation_manager = None

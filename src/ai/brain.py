@@ -54,11 +54,11 @@ def get_prediction(payload: Dict[str, Any]) -> Tuple[float, str, Dict[str, Any]]
     if AI_MODEL is None:
         return 0.5, "AI Disabled (Missing Model)", {}
     try:
-        features = build_feature_frame(payload, list(AI_MODEL.feature_names_in_))
+        features = build_feature_frame(payload, list(AI_MODEL.feature_names_in_), AI_ENCODERS or {})
         symbol = payload.get("symbol", "UNKNOWN")
         asset_id = encode_asset_id(symbol, AI_ENCODERS or {})
         if asset_id is not None and "asset_id" in features:
-            features["asset_id"] = asset_id
+            features["asset_id"] = float(asset_id)
         df = pd.DataFrame([features])
         prob = float(AI_MODEL.predict_proba(df)[0][1])
         return prob, f"AI Confidence: {prob:.1%}", features
@@ -177,6 +177,15 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
     result["rules"] = rules_texts
 
     # Step 4: Late RF rejection - after we have narrative & RAG context
+    # Log feature values for debugging (helps verify Pine Script data)
+    if features:
+        _nonzero = {k: round(v, 3) for k, v in features.items() if v != 0.0}
+        _zero_keys = [k for k, v in features.items() if v == 0.0]
+        logger.info(
+            "RF features for %s: non-zero=%s | zero_keys=%s",
+            symbol, _nonzero, _zero_keys,
+        )
+
     rf_threshold = getattr(settings, "ml_min_confidence", 0.60)
     if rf_prob < rf_threshold:
         result["reason"] = (
@@ -244,8 +253,9 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
             result["reason"] = reason or "LLM rejected trade."
     except Exception as e:
         logger.error("LLM ensemble decision failed: %s", e)
-        result["decision"] = "NO_GO"
-        result["reason"] = f"LLM error: {str(e)[:80]}"
+        # Fail-open: RF already passed, so if LLM is down we allow the trade
+        result["decision"] = "GO"
+        result["reason"] = f"RF pass; LLM error (fail-open): {str(e)[:60]}"
 
     _log_brain_decision(symbol, result)
     return result

@@ -292,9 +292,10 @@ export calculate_ai_quality_score(Zone z, bool isDemand, float feature_rvol, int
         quality_score += 4.0
 
     // 10. Zone Base Score (11%) - Quality of imbalance
-    if z.score >= 8
+    // z.score is on a 0-100 scale (80 = A grade, 50 = C+ grade)
+    if z.score >= 80
         quality_score += 11.0
-    else if z.score >= 5
+    else if z.score >= 50
         quality_score += 6.0
     else
         quality_score += 2.0
