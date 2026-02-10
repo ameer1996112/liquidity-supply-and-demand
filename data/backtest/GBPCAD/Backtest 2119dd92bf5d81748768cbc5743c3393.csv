@@ -1,0 +1,11 @@
+﻿Trade #,Day,Session,Entry model,Entry method,Liquidity Distance,+ R (%),Potential R,Win,Loss,BE,RSI,Candle Close,News,Entry Type,Trade Score,Close,Open,SL Pips,Zone Type
+1,Friday,New York,S&D Retest,Candle Close,2.1,2%,2%,,,,Between,Beraish,No,BOC,A,"June 13, 2025 22:55 (GMT+3)","June 13, 2025 22:50 (GMT+3)",4.3,Demand
+2,Tuesday,London,S&D Retest,Candle Close,4.7,4.82%,4.82%,,,,Between,Bullish,No,Default,A,"June 17, 2025 14:35 (GMT+3)","June 17, 2025 14:15 (GMT+3)",3.2,Supply
+3,Friday,New York,S&D Retest,Candle Close,3.5,4.82%,4.82%,,,,Between,Bullish,No,Default,A,"June 26, 2025 22:55 (GMT+3)","June 26, 2025 22:10 (GMT+3)",6.4,Demand
+4,Friday,London,S&D Retest,Candle Close,0.4,4.82%,4.82%,,,,Between,Bullish,No,Default,B+,"June 27, 2025 16:25 (GMT+3)","June 27, 2025 15:45 (GMT+3)",7.8,Supply
+5,Monday,"London, New York",S&D Retest,Candle Close,1,1.5%,1.5%,,,,Between,Beraish,No,Default,B+,"June 30, 2025 17:50 (GMT+3)","June 30, 2025 16:45 (GMT+3)",14.4,Supply
+6,Monday,"London, New York",S&D Retest,Candle Close,4.2,4.5%,4.5%,,,,Between,Beraish,No,Default,B+,"July 7, 2025 17:30 (GMT+3)","July 7, 2025 16:20 (GMT+3)",5.7,Demand
+7,Tuesday,London,S&D Retest,Candle Close,2.2,2%,2%,,,,Between,Bullish,No,Default,B+,"July 8, 2025 11:25 (GMT+3)","July 8, 2025 10:15 (GMT+3)",11,Supply
+8,Wednesday,London,S&D Retest,Candle Close,3.4,2%,2%,,,,Between,Beraish,No,Default,B+,"July 9, 2025 14:40 (GMT+3)","July 9, 2025 13:45 (GMT+3)",6.6,Demand
+9,Tuesday,London,S&D Retest,Candle Close,4.5,2%,2%,,,,Between,Beraish,No,Default,A+,"October 14, 2025 14:40 (GMT+3)","October 14, 2025 14:10 (GMT+3)",6.1,Supply
+,,,,,,,,,,,,,No,,,,,,

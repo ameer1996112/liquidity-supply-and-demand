@@ -1,7 +1,8 @@
 {
-  "trained_at": "2026-01-31T18:46:49.875629",
-  "version": "5.0",
+  "trained_at": "2026-02-10T16:36:13.151171",
+  "version": "5.1",
   "data_leakage_fix": true,
+  "feature_scaling": true,
   "forbidden_columns": [
     "runup_pct",
     "drawdown_pct",
@@ -20,106 +21,54 @@
     "day_of_week",
     "type_encoded",
     "signal_encoded",
-    "f_is_accuracy",
-    "f_rsi",
-    "f_zone_type",
-    "f_atr_ratio",
-    "f_liquidity_spread",
-    "f_trend",
-    "f_touch_count",
-    "f_session_encoded",
-    "f_liquidity_distance",
-    "f_session",
-    "f_return_strength",
-    "f_adx",
-    "f_fresh",
-    "f_base_quality",
-    "f_score",
-    "f_source_encoded",
-    "f_rvol",
-    "f_htf_trend",
-    "f_departure_strength",
-    "f_signal_encoded",
-    "f_liq_distance",
     "session_encoded",
     "liq_distance",
+    "source_encoded"
+  ],
+  "numerical_features": [
+    "hour",
+    "day_of_week",
+    "liq_distance"
+  ],
+  "categorical_features": [
+    "asset_id",
+    "type_encoded",
+    "signal_encoded",
+    "session_encoded",
     "source_encoded"
   ],
   "n_estimators": 200,
   "max_depth": 10,
   "asset_leaderboard": [
     {
-      "symbol": "NAS100",
-      "accuracy": 0.7476190476190476,
-      "samples": 210,
-      "win_rate": 0.2904761904761905
-    },
-    {
-      "symbol": "EURUSD",
-      "accuracy": 0.7364341085271318,
-      "samples": 258,
-      "win_rate": 0.29069767441860467
-    },
-    {
-      "symbol": "GBPCAD",
-      "accuracy": 0.7178423236514523,
-      "samples": 241,
-      "win_rate": 0.2946058091286307
+      "symbol": "XAUUSD",
+      "accuracy": 0.4,
+      "samples": 35,
+      "win_rate": 0.6
     },
     {
       "symbol": "GBPJPY",
-      "accuracy": 0.7089201877934272,
-      "samples": 213,
-      "win_rate": 0.29107981220657275
-    },
-    {
-      "symbol": "USDJPY",
-      "accuracy": 0.6511627906976745,
-      "samples": 215,
-      "win_rate": 0.31627906976744186
-    },
-    {
-      "symbol": "UNKNOWN",
-      "accuracy": 0.5631067961165048,
-      "samples": 103,
-      "win_rate": 0.5728155339805825
-    },
-    {
-      "symbol": "XAUUSD",
-      "accuracy": 0.5263157894736842,
-      "samples": 285,
-      "win_rate": 0.3894736842105263
+      "accuracy": 0.3333333333333333,
+      "samples": 6,
+      "win_rate": 0.3333333333333333
     }
   ],
   "encoder_classes": {
     "symbol": [
       "CHFJPY",
-      "EURUSD",
       "GBPCAD",
       "GBPJPY",
       "GBPUSD",
       "NAS100",
-      "UNKNOWN",
-      "USDJPY",
       "XAUUSD"
     ],
     "type": [
       "boc",
       "default",
-      "entry long",
-      "entry short",
-      "exit long",
-      "exit short",
-      "flip",
-      "long exit",
-      "short exit"
+      "flip"
     ],
     "signal": [
-      "Long Exit",
-      "S&D Retest",
-      "Short Exit",
-      "Time Stop (Bars)",
-      "unknown"
+      "S&D Retest"
     ],
     "session": [
       "London",
@@ -133,12 +82,10 @@
       "New York, Tokyo",
       "Sydney",
       "Sydney, Tokyo",
-      "Tokyo",
-      "unknown"
+      "Tokyo"
     ],
     "source": [
-      "notion",
-      "tradingview"
+      "notion"
     ]
   }
 }

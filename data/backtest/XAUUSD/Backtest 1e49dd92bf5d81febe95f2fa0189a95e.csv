@@ -1,0 +1,176 @@
+﻿Trade #,Day,Session,Entry model,Entry method,Liquidity Distance,+ R (%),Potential R,Win,Loss,BE,RSI,Candle Close,News,Entry Type,Trade Score,Close,Open,SL Pips,Zone Type
+1,Tuesday,London,S&D Retest,Candle Close,66,3%,3%,,,,Between,Bullish,No,Flip,A,"January 2, 2024 11:10 (GMT+2)","January 2, 2024 10:30 (GMT+2)",95,Demand
+2,Wednesday,"Sydney, Tokyo",S&D Retest,Candle Close,54,3%,3%,,,,Between,Beraish,No,Default,B,"January 3, 2024 7:20 (GMT+2)","January 3, 2024 7:15 (GMT+2)",30,Demand
+3,Thursday,"London, New York",S&D Retest,Candle Close,34,-1%,2%,,Loss,,Between,Bullish,No,Default,A,"January 4, 2024 15:20 (GMT+2)","January 4, 2024 14:05 (GMT+2)",168,Demand
+4,Friday,"London, New York",S&D Retest,Candle Close,28,2.5%,2.5%,,,,Between,Beraish,No,Default,A+,"January 5, 2024 15:30 (GMT+2)","January 5, 2024 15:20 (GMT+2)",140,Supply
+5,Tuesday,"London, New York",S&D Retest,Candle Close,42,2%,2%,,,,Between,Bullish,No,Default,A+,"January 9, 2024 15:35 (GMT+2)","January 9, 2024 15:25 (GMT+2)",181,Demand
+6,Tuesday,New York,S&D Retest,Candle Close,72,4.5%,4.5%,,,,Between,Beraish,No,BOC,A,"January 9, 2024 22:00 (GMT+2)","January 9, 2024 21:45 (GMT+2)",54,Demand
+7,Tuesday,"New York, Sydney",S&D Retest,Candle Close,155,4.5%,4.5%,,,,Between,Bullish,No,BOC,A,"January 10, 2024 1:30 (GMT+2)","January 9, 2024 22:15 (GMT+2)",54,Supply
+8,Wednesday,New York,S&D Retest,Candle Close,20,3%,3%,,,,Between,Bullish,No,Default,A,"January 10, 2024 19:50 (GMT+2)","January 10, 2024 19:00 (GMT+2)",98,Supply
+9,Thursday,London,S&D Retest,Candle Close,4,-1%,2%,,Loss,,Between,Beraish,No,Default,A,"January 11, 2024 10:45 (GMT+2)","January 11, 2024 10:10 (GMT+2)",147,Demand
+10,Thursday,London,S&D Retest,Candle Close,7,-1%,3%,,Loss,,Between,Beraish,No,Default,A,"January 11, 2024 13:20 (GMT+2)","January 11, 2024 12:40 (GMT+2)",112,Supply
+11,Monday,London,S&D Retest,Candle Close,6,-1%,2%,,Loss,,Between,Beraish,No,Default,A,"January 15, 2024 11:35 (GMT+2)","January 15, 2024 11:05 (GMT+2)",184,Demand
+12,Monday,"London, New York",S&D Retest,Candle Close,6,-1%,4.5%,,Loss,,Between,Bullish,No,Default,A,"January 15, 2024 16:30 (GMT+2)","January 15, 2024 15:30 (GMT+2)",66,Demand
+13,Tuesday,"London, New York",S&D Retest,Candle Close,43,-1%,2%,,Loss,,Between,Bullish,No,Default,B,"January 16, 2024 17:35 (GMT+2)","January 16, 2024 17:10 (GMT+2)",172,Supply
+14,Wednesday,London,S&D Retest,Candle Close,60,2.5%,2.5%,,,,Between,Beraish,No,Default,A,"January 17, 2024 10:45 (GMT+2)","January 17, 2024 10:00 (GMT+2)",137,Supply
+15,Wednesday,"London, New York",S&D Retest,Candle Close,29,4.5%,4.5%,,,,Between,Beraish,No,Flip,A,"January 17, 2024 15:30 (GMT+2)","January 17, 2024 15:30 (GMT+2)",86,Demand
+16,Thursday,London,S&D Retest,Candle Close,78,-1%,3%,,Loss,,Between,Bullish,No,Default,A,"January 18, 2024 13:40 (GMT+2)","January 18, 2024 11:35 (GMT+2)",101,Supply
+17,Monday,"New York, Sydney",S&D Retest,Candle Close,15,-1%,4.5%,,Loss,,Between,Bullish,No,Default,A,"January 22, 2024 23:40 (GMT+2)","January 22, 2024 23:00 (GMT+2)",50,Supply
+18,Tuesday,London,S&D Retest,Candle Close,19,-1%,2%,,Loss,,Between,Beraish,No,BOC,A,"January 23, 2024 11:50 (GMT+2)","January 23, 2024 9:25 (GMT+2)",251,Demand
+19,Friday,"London, Tokyo",S&D Retest,Candle Close,27,3%,3%,,,,Between,Bullish,No,Default,A,"January 26, 2024 9:00 (GMT+2)","January 26, 2024 7:55 (GMT+2)",52,Supply
+20,Friday,London,S&D Retest,Candle Close,101,-1%,2.5%,,Loss,,Between,Bullish,No,BOC,A,"January 26, 2024 11:00 (GMT+2)","January 26, 2024 9:15 (GMT+2)",112,Demand
+21,Friday,"London, New York",S&D Retest,Candle Close,99,-1%,2%,,Loss,,Between,Beraish,No,BOC,A,"January 26, 2024 17:00 (GMT+2)","January 26, 2024 15:40 (GMT+2)",333,Demand
+22,Monday,"Sydney, Tokyo",S&D Retest,Candle Close,29,-1%,3%,,Loss,,Between,Bullish,No,Default,A,"January 29, 2024 7:25 (GMT+2)","January 29, 2024 7:10 (GMT+2)",96,Demand
+23,Monday,"London, New York",S&D Retest,Candle Close,8,2%,2%,,,,Between,Beraish,No,Default,A,"January 29, 2024 15:25 (GMT+2)","January 29, 2024 12:45 (GMT+2)",190,Demand
+24,Wednesday,New York,S&D Retest,Candle Close,49,3%,3%,,,,Between,Beraish,No,Flip,A+,"January 31, 2024 20:40 (GMT+2)","January 31, 2024 20:30 (GMT+2)",62,Supply
+25,Tuesday,"London, New York",S&D Retest,Candle Close,39,1.5%,1.5%,,,,Between,Beraish,No,BOC,A,"January 30, 2024 15:55 (GMT+2)","January 30, 2024 13:35 (GMT+2)",280,Demand
+26,Thursday,"London, New York",S&D Retest,Candle Close,18,-1%,2%,,Loss,,Between,Beraish,No,Default,A,"February 1, 2024 15:25 (GMT+2)","February 1, 2024 15:15 (GMT+2)",176,Demand
+27,Thursday,"London, New York",S&D Retest,Candle Close,32,-1%,2%,,Loss,,Between,Bullish,No,Default,A,"February 1, 2024 15:50 (GMT+2)","February 1, 2024 15:45 (GMT+2)",150,Supply
+28,Thursday,"New York, Sydney",S&D Retest,Candle Close,17,-1%,2.5%,,Loss,,Between,Beraish,No,Default,A+,"February 1, 2024 1:20 (GMT+2)","February 1, 2024 22:35 (GMT+2)",100,Supply
+29,Friday,London,S&D Retest,Candle Close,35,-1%,2.5%,,Loss,,Between,Bullish,No,Default,A,"February 2, 2024 11:55 (GMT+2)","February 2, 2024 11:05 (GMT+2)",112,Demand
+30,Monday,"New York, Sydney, Tokyo",S&D Retest,Candle Close,88,-1%,4.5%,,Loss,,Between,Beraish,No,Default,A,"February 5, 2024 1:30 (GMT+2)","February 5, 2024 22:20 (GMT+2)",44,Demand
+31,Tuesday,"London, Tokyo",S&D Retest,Candle Close,26,-1%,3%,,Loss,,Between,Beraish,No,Default,A,"February 6, 2024 10:15 (GMT+2)","February 6, 2024 10:10 (GMT+2)",59,Demand
+32,Tuesday,New York,S&D Retest,Candle Close,35,-1%,3%,,Loss,,Between,Beraish,No,Default,A,"February 6, 2024 16:45 (GMT+2)","February 6, 2024 16:35 (GMT+2)",59,Demand
+33,Wednesday,London,S&D Retest,Candle Close,71,-1%,4.5%,,Loss,,Between,Beraish,No,Default,A,"February 7, 2024 12:25 (GMT+2)","February 7, 2024 12:10 (GMT+2)",57,Demand
+34,Wednesday,"London, New York",S&D Retest,Candle Close,54,2%,2%,,,,Between,Beraish,No,BOC,A,"February 7, 2024 16:40 (GMT+2)","February 7, 2024 16:35 (GMT+2)",224,Demand
+35,Friday,London,S&D Retest,Candle Close,6,-1%,3%,,Loss,,Between,Beraish,No,BOC,B,"February 9, 2024 10:10 (GMT+2)","February 9, 2024 10:05 (GMT+2)",57,Demand
+36,Tuesday,New York,S&D Retest,Candle Close,55,-1%,4.5%,,Loss,,Between,Beraish,No,Default,A,"February 13, 2024 21:25 (GMT+2)","February 13, 2024 21:20 (GMT+2)",41,Demand
+37,Monday,"London, Tokyo",S&D Retest,Candle Close,3,3%,3%,,,,Between,Bullish,No,BOC,A+,"February 12, 2024 9:50 (GMT+2)","February 12, 2024 9:15 (GMT+2)",64,Demand
+38,Wednesday,"London, Tokyo",S&D Retest,Candle Close,3,-1%,4.5%,,Loss,,Between,Beraish,No,Default,A,"February 14, 2024 8:45 (GMT+2)","February 14, 2024 8:15 (GMT+2)",48,Demand
+39,Monday,New York,S&D Retest,Candle Close,10,3%,3%,,,,Between,Beraish,No,BOC,A+,"February 19, 2024 18:00 (GMT+2)","February 19, 2024 17:00 (GMT+2)",80,Supply
+40,Tuesday,"London, New York",S&D Retest,Candle Close,25,2.5%,2.5%,,,,Between,Beraish,No,BOC,A,"February 20, 2024 15:45 (GMT+2)","February 20, 2024 15:00 (GMT+2)",125,Demand
+41,Wednesday,"London, New York",S&D Retest,Candle Close,63,-1%,3%,,Loss,,Between,Beraish,No,Default,A+,"February 21, 2024 15:00 (GMT+2)","February 21, 2024 13:00 (GMT+2)",73,Demand
+42,Thursday,London,S&D Retest,Candle Close,14,-1%,3%,,Loss,,Between,Beraish,No,BOC,B,"February 29, 2024 11:35 (GMT+2)","February 29, 2024 11:25 (GMT+2)",58,Demand
+43,Thursday,London,S&D Retest,Candle Close,55,-1%,3%,,Loss,,Between,Bullish,No,Default,A,"March 4, 2024 10:45 (GMT+2)","March 4, 2024 10:40 (GMT+2)",58,Demand
+44,Tuesday,"London, Tokyo",S&D Retest,Candle Close,16,3%,3%,,,,Between,Bullish,No,Default,A+,"March 4, 2024 10:05 (GMT+2)","March 5, 2024 9:15 (GMT+2)",88,Demand
+45,Tuesday,New York,S&D Retest,Candle Close,60,-1%,2.5%,,Loss,,Between,Bullish,No,Default,A,"March 12, 2024 19:25 (GMT+2)","March 12, 2024 19:15 (GMT+2)",153,Demand
+46,Tuesday,"London, Tokyo",S&D Retest,Candle Close,15,-1%,2%,,Loss,,Between,Beraish,No,Default,A,"March 12, 2024 19:25 (GMT+2)","March 13, 2024 8:00 (GMT+2)",153,Demand
+47,Friday,New York,S&D Retest,Candle Close,23,1.5%,1.5%,,,,Between,Bullish,No,Default,A,"March 15, 2024 17:45 (GMT+2)","March 15, 2024 17:00 (GMT+2)",266,Supply
+48,Wednesday,"London, New York",S&D Retest,Candle Close,22,2.5%,2.5%,,,,Between,Beraish,No,Default,A+,"March 20, 2024 15:25 (GMT+2)","March 20, 2024 15:10 (GMT+2)",123,Supply
+49,Tuesday,London,S&D Retest,Candle Close,21,-1%,2.5%,,Loss,,Between,Beraish,No,Default,A+,"March 26, 2024 14:40 (GMT+2)","March 26, 2024 14:35 (GMT+2)",167,Demand
+50,Monday,London,S&D Retest,Candle Close,35,2%,2%,,,,Between,Bullish,No,Default,A,"April 1, 2024 15:05 (GMT+3)","April 1, 2024 14:35 (GMT+3)",238,Supply
+,,,,,,,,,,,,,No,,,,,,
+51,Tuesday,"London, New York",S&D Retest,Candle Close,64,8.2%,8.2%,,,,Between,Beraish,No,Flip,A+,"April 2, 2024 19:35 (GMT+3)","April 2, 2024 18:30 (GMT+3)",110,Demand
+52,Wednesday,New York,S&D Retest,Candle Close,120,2.5%,2.5%,,,,Between,Beraish,No,Default,A,"April 3, 2024 23:20 (GMT+3)","April 3, 2024 22:25 (GMT+3)",129,Demand
+53,Thursday,London,S&D Retest,Candle Close,14,3%,3%,,,,Between,Bullish,No,Default,A,"April 4, 2024 14:00 (GMT+3)","April 4, 2024 13:35 (GMT+3)",61,Demand
+54,Friday,"London, New York",S&D Retest,Candle Close,45,-1%,1.5%,,Loss,,Between,Bullish,No,BOC,B,"April 9, 2024 17:10 (GMT+3)","April 9, 2024 16:35 (GMT+3)",599,Supply
+55,Friday,London,S&D Retest,Candle Close,125,1.5%,1.5%,,,,Between,Beraish,No,BOC,B,"April 5, 2024 12:40 (GMT+3)","April 5, 2024 11:40 (GMT+3)",225,Demand
+56,Thursday,"London, Tokyo",S&D Retest,Candle Close,119,3%,3%,,,,Between,Beraish,No,Default,A,"April 11, 2024 8:30 (GMT+3)","April 11, 2024 7:35 (GMT+3)",77,Demand
+57,Thursday,"London, Tokyo",S&D Retest,Candle Close,113,-1%,2%,,Loss,,Between,Beraish,No,Default,A,"April 11, 2024 11:35 (GMT+3)","April 11, 2024 11:20 (GMT+3)",214,Demand
+58,Monday,"London, New York",S&D Retest,Candle Close,88,1.5%,1.5%,,,,Between,Bullish,No,Default,A,"April 15, 2024 18:00 (GMT+3)","April 15, 2024 17:55 (GMT+3)",331,Supply
+59,Tuesday,London,S&D Retest,Candle Close,11,2%,2%,,,,Between,Bullish,No,Default,A,"April 16, 2024 14:05 (GMT+3)","April 16, 2024 13:30 (GMT+3)",164,Demand
+60,Tuesday,"Sydney, Tokyo",S&D Retest,Candle Close,16,-1%,1.5%,,Loss,,Between,Bullish,No,Default,B,"April 16, 2024 6:20 (GMT+3)","April 16, 2024 6:05 (GMT+3)",248,Supply
+61,Wednesday,"London, New York",S&D Retest,Candle Close,137,1.5%,1.5%,,,,Between,Bullish,No,Default,A+,"May 1, 2024 18:00 (GMT+3)","May 1, 2024 17:45 (GMT+3)",336,Demand
+62,Monday,London,S&D Retest,Candle Close,63,2%,2%,,,,Between,Bullish,No,Default,A+,"May 7, 2024 11:10 (GMT+3)","May 7, 2024 10:45 (GMT+3)",172,Supply
+63,Monday,"London, New York",S&D Retest,Candle Close,127,-1%,1.5%,,Loss,,Between,Beraish,No,BOC,B,"May 7, 2024 20:05 (GMT+3)","May 7, 2024 18:00 (GMT+3)",485,Demand
+64,Wednesday,"London, New York",S&D Retest,Candle Close,25,-1%,1.5%,,Loss,,Between,Beraish,No,BOC,B,"May 8, 2024 16:15 (GMT+3)","May 8, 2024 15:00 (GMT+3)",260,Demand
+65,Wednesday,New York,S&D Retest,Candle Close,67,-1%,2.5%,,Loss,,Between,Beraish,No,BOC,A,"May 8, 2024 22:10 (GMT+3)","May 8, 2024 21:30 (GMT+3)",114,Demand
+66,Thursday,"London, New York",S&D Retest,Candle Close,139,1.5%,1.5%,,,,Between,Beraish,No,Default,A,"May 9, 2024 16:25 (GMT+3)","May 9, 2024 16:20 (GMT+3)",254,Demand
+67,Tuesday,"London, Tokyo",S&D Retest,Candle Close,68,-1%,2%,,Loss,,Between,Bullish,No,Default,A,"May 14, 2024 10:20 (GMT+3)","May 14, 2024 9:40 (GMT+3)",181,Demand
+68,Tuesday,"New York, Sydney, Tokyo",S&D Retest,Candle Close,47,3%,3%,,,,Between,Bullish,No,Default,A,"May 15, 2024 4:30 (GMT+3)","May 14, 2024 22:20 (GMT+3)",96,Demand
+69,Wednesday,London,S&D Retest,Candle Close,44,2.5%,2.5%,,,,Between,Beraish,No,Default,A+,"May 15, 2024 15:25 (GMT+3)","May 15, 2024 15:05 (GMT+3)",148,Supply
+70,Monday,London,S&D Retest,Candle Close,165,1.5%,1.5%,,,,Between,Beraish,No,Default,A,"May 20, 2024 10:05 (GMT+3)","May 20, 2024 9:40 (GMT+3)",388,Demand
+71,Tuesday,Tokyo,S&D Retest,Candle Close,106,1.5%,1.5%,,,,Between,Beraish,No,BOC,A,"May 21, 2024 8:55 (GMT+3)","May 21, 2024 8:00 (GMT+3)",288,Demand
+72,Wednesday,London,S&D Retest,Candle Close,22,2%,2%,,,,Between,Bullish,No,BOC,A,"May 22, 2024 10:25 (GMT+3)","May 22, 2024 10:15 (GMT+3)",186,Supply
+73,Thursday,Tokyo,S&D Retest,Candle Close,46,-1%,2%,,Loss,,Between,Beraish,No,Default,A,"May 23, 2024 8:35 (GMT+3)","May 23, 2024 8:10 (GMT+3)",182,Demand
+74,Monday,Tokyo,S&D Retest,Candle Close,74,3%,3%,,,,Between,Beraish,No,Default,A,"June 3, 2024 8:40 (GMT+3)","June 3, 2024 8:25 (GMT+3)",106,Supply
+75,Monday,London,S&D Retest,Candle Close,18,2.5%,2.5%,,,,Between,Beraish,No,Default,A,"June 3, 2024 13:40 (GMT+3)","June 3, 2024 12:30 (GMT+3)",151,Demand
+76,Friday,New York,S&D Retest,Candle Close,112,-1%,1.5%,,Loss,,Between,Bullish,No,Default,A,"June 7, 2024 20:45 (GMT+3)","June 7, 2024 20:25 (GMT+3)",230,Demand
+77,Monday,"London, New York",S&D Retest,Candle Close,219,1.5%,1.5%,,,,Between,Bullish,No,Default,B,"June 10, 2024 18:40 (GMT+3)","June 10, 2024 16:50 (GMT+3)",300,Demand
+78,Monday,"London, New York",S&D Retest,Candle Close,200,-1%,1.5%,,Loss,,Between,Bullish,No,BOC,B,"June 17, 2024 16:05 (GMT+3)","June 17, 2024 15:50 (GMT+3)",300,Supply
+79,Tuesday,London,S&D Retest,Candle Close,95,-1%,2.5%,,Loss,,Between,Beraish,No,BOC,A+,"June 18, 2024 15:15 (GMT+3)","June 18, 2024 14:50 (GMT+3)",148,Supply
+80,Wednesday,London,S&D Retest,Candle Close,23,-1%,3%,,Loss,,Between,Bullish,No,Default,A,"June 19, 2024 12:30 (GMT+3)","June 19, 2024 12:10 (GMT+3)",148,Supply
+81,Wednesday,London,S&D Retest,Candle Close,57,-1%,3%,,Loss,,Between,Bullish,No,Default,A,"June 19, 2024 14:00 (GMT+3)","June 19, 2024 13:00 (GMT+3)",90,Demand
+82,Friday,London,S&D Retest,Candle Close,129,-1%,2%,,Loss,,Between,Beraish,No,Default,B,"June 21, 2024 15:45 (GMT+3)","June 21, 2024 15:35 (GMT+3)",162,Supply
+83,Tuesday,"London, New York",S&D Retest,Candle Close,10,1.5%,1.5%,,,,Between,Beraish,No,Default,A,"June 25, 2024 18:30 (GMT+3)","June 25, 2024 17:25 (GMT+3)",383,Supply
+84,Wednesday,New York,S&D Retest,Candle Close,10,2.5%,2.5%,,,,Between,Bullish,No,Default,A,"June 26, 2024 21:40 (GMT+3)","June 26, 2024 20:20 (GMT+3)",126,Supply
+85,Monday,New York,S&D Retest,Candle Close,26,2%,2%,,,,Between,Bullish,No,Default,A,"July 1, 2024 23:00 (GMT+3)","July 1, 2024 19:55 (GMT+3)",180,Demand
+86,Thursday,"London, New York",S&D Retest,Candle Close,42,3%,3%,,,,Between,Beraish,No,Default,A+,"July 4, 2024 17:15 (GMT+3)","July 4, 2024 15:35 (GMT+3)",82,Demand
+87,Thursday,"London, New York",S&D Retest,Candle Close,76,-1%,2.5%,,Loss,,Between,Beraish,No,Default,A+,"July 11, 2024 9:30 (GMT+3)","July 11, 2024 9:20 (GMT+3)",110,Demand
+88,Monday,London,S&D Retest,Candle Close,5,2%,2%,,,,Between,Beraish,No,Default,B,"July 15, 2024 13:05 (GMT+3)","July 15, 2024 12:40 (GMT+3)",154,Demand
+89,Tuesday,London,S&D Retest,Candle Close,15,-1%,2.5%,,Loss,,Between,Beraish,No,Default,B,"July 16, 2024 15:20 (GMT+3)","July 16, 2024 14:25 (GMT+3)",128,Supply
+90,Wednesday,"London, New York",S&D Retest,Candle Close,10,2%,2%,,,,Between,Bullish,No,Flip,A+,"July 16, 2024 16:30 (GMT+3)","July 17, 2024 16:30 (GMT+3)",166,Demand
+91,Thursday,Tokyo,S&D Retest,Candle Close,9,2%,2%,,,,Between,Beraish,No,Default,A,"July 18, 2024 9:30 (GMT+3)","July 18, 2024 9:05 (GMT+3)",180,Demand
+92,Monday,London,S&D Retest,Candle Close,89,-1%,2.5%,,Loss,,Between,Beraish,No,Default,A,"July 22, 2024 14:35 (GMT+3)","July 22, 2024 14:25 (GMT+3)",120,Demand
+93,Monday,London,S&D Retest,Candle Close,74,-1%,2.5%,,Loss,,Between,Beraish,No,Default,A,"July 29, 2024 14:25 (GMT+3)","July 29, 2024 14:15 (GMT+3)",142,Demand
+94,Wednesday,"London, Tokyo",S&D Retest,Candle Close,19,1.5%,1.5%,,,,Between,Beraish,No,Default,A,"July 31, 2024 11:45 (GMT+3)","July 31, 2024 11:35 (GMT+3)",205,Demand
+95,Wednesday,London,S&D Retest,Candle Close,23,2.5%,2.5%,,,,Between,Beraish,No,Default,A,"July 31, 2024 15:30 (GMT+3)","July 31, 2024 15:10 (GMT+3)",133,Demand
+96,Wednesday,London,S&D Retest,Candle Close,11,2.5%,2.5%,,,,Between,Beraish,No,Default,A,"July 31, 2024 21:30 (GMT+3)","July 31, 2024 21:15 (GMT+3)",135,Demand
+97,Wednesday,London,S&D Retest,Candle Close,95,1.5%,1.5%,,,,Between,Beraish,No,Default,A,"August 7, 2024 14:55 (GMT+3)","August 7, 2024 14:45 (GMT+3)",321,Demand
+98,Wednesday,"London, New York",S&D Retest,Candle Close,147,-1%,1.5%,,Loss,,Between,Beraish,No,Default,B,"August 7, 2024 18:25 (GMT+3)","August 7, 2024 16:50 (GMT+3)",297,Demand
+99,Friday,"London, New York",S&D Retest,Candle Close,10,1.5%,1.5%,,,,Between,Beraish,No,Default,A,"August 9, 2024 17:05 (GMT+3)","August 9, 2024 16:50 (GMT+3)",306,Demand
+100,Thursday,"Sydney, Tokyo",S&D Retest,Candle Close,74,2.5%,2.5%,,,,Between,Beraish,No,Default,B,"August 9, 2024 8:30 (GMT+3)","August 29, 2024 8:10 (GMT+3)",113,Demand
+,,,,,,,,,,,,,No,,,,,,
+101,Thursday,London,S&D Retest,Candle Close,10,-1%,2%,,Loss,,Between,Beraish,No,Default,A,"August 9, 2024 12:50 (GMT+3)","August 29, 2024 12:40 (GMT+3)",189,Demand
+102,Thursday,"London, Tokyo",S&D Retest,Candle Close,89,3%,3%,,,,Between,Beraish,No,Default,B,"September 5, 2024 11:00 (GMT+3)","September 5, 2024 10:55 (GMT+3)",242,Demand
+103,Thursday,"London, New York",S&D Retest,Candle Close,104,2%,2%,,,,Between,Bullish,No,Default,A,"September 5, 2024 11:00 (GMT+3)","September 5, 2024 17:20 (GMT+3)",343,Supply
+104,Friday,New York,S&D Retest,Candle Close,117,1.5%,1.5%,,,,Between,Bullish,No,Default,A,"September 20, 2024 18:40 (GMT+3)","September 20, 2024 18:15 (GMT+3)",336,Supply
+105,Monday,"London, New York",S&D Retest,Candle Close,41,2%,2%,,,,Between,Bullish,No,Default,B,"September 23, 2024 15:45 (GMT+3)","September 23, 2024 15:25 (GMT+3)",185,Demand
+106,Tuesday,"London, Tokyo",S&D Retest,Candle Close,180,-1%,1.5%,,Loss,,Between,Bullish,No,Default,A,"September 24, 2024 10:35 (GMT+3)","September 24, 2024 9:00 (GMT+3)",270,Demand
+107,Wednesday,"Sydney, Tokyo",S&D Retest,Candle Close,48,-1%,1.5%,,Loss,,Between,Bullish,No,Default,A,"September 25, 2024 9:10 (GMT+3)","September 25, 2024 8:50 (GMT+3)",395,Demand
+108,Wednesday,London,S&D Retest,Candle Close,55,-1%,1.5%,,Loss,,Between,Beraish,No,Default,B,"September 25, 2024 15:00 (GMT+3)","September 25, 2024 14:00 (GMT+3)",131,Demand
+109,Thursday,London,S&D Retest,Candle Close,152,-1%,1.5%,,Loss,,Between,Beraish,No,Default,B+,"September 26, 2024 15:30 (GMT+3)","September 26, 2024 15:15 (GMT+3)",482,Demand
+110,Thursday,London,S&D Retest,Candle Close,28,-1%,1.5%,,Loss,,Between,Bullish,No,Default,B+,"September 26, 2024 16:10 (GMT+3)","September 26, 2024 15:40 (GMT+3)",519,Demand
+111,Wednesday,"London, New York",S&D Retest,Candle Close,15,-1%,1.5%,,Loss,,Between,Beraish,No,Default,C+,"October 2, 2024 15:25 (GMT+3)","October 2, 2024 15:15 (GMT+3)",367,Demand
+112,Thursday,London,S&D Retest,Candle Close,23,2%,2%,,,,Between,Beraish,No,Default,B+,"October 3, 2024 15:00 (GMT+3)","October 3, 2024 14:25 (GMT+3)",180,Demand
+113,Monday,New York,S&D Retest,Candle Close,15,2.5%,2.5%,,,,Between,Beraish,No,Default,B+,"October 14, 2024 21:25 (GMT+3)","October 14, 2024 20:50 (GMT+3)",88,Demand
+114,Thursday,"Sydney, Tokyo",S&D Retest,Candle Close,90,1.5%,1.5%,,,,Between,Bullish,No,Default,A+,"October 17, 2024 8:10 (GMT+3)","October 17, 2024 6:45 (GMT+3)",237,Demand
+115,Thursday,"London, Tokyo",S&D Retest,Candle Close,95,-1%,1.5%,,Loss,,Between,Beraish,No,Default,A,"October 17, 2024 10:25 (GMT+3)","October 17, 2024 10:10 (GMT+3)",237,Demand
+116,Friday,Tokyo,S&D Retest,Candle Close,2,-1%,1.5%,,Loss,,Between,Bullish,No,Default,A+,"October 18, 2024 9:10 (GMT+3)","October 18, 2024 9:05 (GMT+3)",310,Demand
+117,Tuesday,"Sydney, Tokyo",S&D Retest,Candle Close,34,2.5%,2.5%,,,,Between,Beraish,No,Default,B+,"October 22, 2024 9:15 (GMT+3)","October 22, 2024 8:50 (GMT+3)",140,Demand
+118,Monday,London,S&D Retest,Candle Close,25,1.5%,1.5%,,,,Between,Bullish,No,Default,B,"October 28, 2024 9:15 (GMT+2)","October 28, 2024 14:55 (GMT+2)",317,Demand
+119,Friday,"London, New York",S&D Retest,Candle Close,36,-1%,1.5%,,Loss,,Between,Bullish,No,Default,B+,"November 1, 2024 16:20 (GMT+2)","November 1, 2024 15:30 (GMT+2)",305,Demand
+120,Monday,New York,S&D Retest,Candle Close,22,-1%,1.5%,,Loss,,Between,Beraish,No,Default,A+,"November 4, 2024 21:40 (GMT+2)","November 4, 2024 20:40 (GMT+2)",155,Supply
+121,Friday,"London, New York",S&D Retest,Candle Close,58,1.5%,1.5%,,,,Between,Bullish,No,Default,B+,"November 8, 2024 14:50 (GMT+2)","November 8, 2024 14:25 (GMT+2)",241,Supply
+122,Wednesday,"Sydney, Tokyo",S&D Retest,Candle Close,52,-1%,1.5%,,Loss,,Between,Beraish,No,Default,A,"November 13, 2024 10:10 (GMT+2)","November 13, 2024 7:35 (GMT+2)",196,Supply
+123,Monday,New York,S&D Retest,Candle Close,49,-1%,2.5%,,Loss,,Between,Beraish,No,Default,A,"November 18, 2024 19:20 (GMT+2)","November 18, 2024 19:10 (GMT+2)",127,Demand
+124,Thursday,London,S&D Retest,Candle Close,145,1.5%,1.5%,,,,Between,Beraish,No,Default,A,"November 21, 2024 13:50 (GMT+2)","November 21, 2024 11:50 (GMT+2)",368,Demand
+125,Thursday,"London, New York",S&D Retest,Candle Close,145,2.5%,2.5%,,,,Between,Bullish,No,Default,A+,"November 21, 2024 15:05 (GMT+2)","November 21, 2024 15:00 (GMT+2)",164,Demand
+126,Monday,"London, New York",S&D Retest,Candle Close,137,1.5%,1.5%,,,,Between,Bullish,No,Default,B+,"November 25, 2024 16:00 (GMT+2)","November 25, 2024 15:30 (GMT+2)",575,Supply
+127,Tuesday,"Sydney, Tokyo",S&D Retest,Candle Close,137,2.5%,2.5%,,,,Between,Bullish,No,BOC,A,"November 26, 2024 9:00 (GMT+2)","November 26, 2024 8:10 (GMT+2)",164,Supply
+128,Friday,"London, New York",S&D Retest,Candle Close,34,-1%,1.5%,,Loss,,Between,Beraish,No,BOC,A,"November 29, 2024 16:25 (GMT+2)","November 29, 2024 15:15 (GMT+2)",347,Demand
+129,Monday,New York,S&D Retest,Candle Close,54,2.31%,2.31%,,,,Between,Bullish,No,BOC,B+,"December 2, 2024 22:10 (GMT+2)","December 2, 2024 21:20 (GMT+2)",148,Supply
+130,Tuesday,"London, New York",S&D Retest,Candle Close,10,1.5%,1.5%,,,,Between,Bullish,No,Default,C+,"December 3, 2024 15:15 (GMT+2)","December 3, 2024 15:00 (GMT+2)",252,Demand
+131,Friday,"Sydney, Tokyo",S&D Retest,Candle Close,23,2.5%,2.5%,,,,Between,Bullish,No,Default,C+,"December 13, 2024 8:25 (GMT+2)","December 13, 2024 7:45 (GMT+2)",130,Supply
+132,Wednesday,"Sydney, Tokyo",S&D Retest,Candle Close,23,2.5%,2.5%,,,,Between,Bullish,No,Default,C+,"December 18, 2024 9:30 (GMT+2)","December 18, 2024 7:45 (GMT+2)",142,Supply
+133,Tuesday,"Sydney, Tokyo",S&D Retest,Candle Close,5,-1%,2%,,Loss,,Between,Bullish,No,Default,C+,"December 31, 2024 8:55 (GMT+2)","December 31, 2024 8:30 (GMT+2)",186,Supply
+134,Tuesday,London,S&D Retest,Candle Close,19,1.5%,1.5%,,,,Between,Bullish,No,Default,A,"January 7, 2025 13:45 (GMT+2)","January 7, 2025 13:20 (GMT+2)",214,Supply
+135,Tuesday,New York,S&D Retest,Candle Close,18,3%,3%,,,,Between,Beraish,No,Default,A,"January 7, 2025 22:35 (GMT+2)","January 7, 2025 21:45 (GMT+2)",78,Supply
+136,Wednesday,"Sydney, Tokyo",S&D Retest,Candle Close,41,-1%,2.5%,,Loss,,Between,Bullish,No,Default,A,"January 8, 2025 8:10 (GMT+2)","January 8, 2025 8:00 (GMT+2)",136,Supply
+137,Thursday,"London, New York",S&D Retest,Candle Close,77,1.5%,1.5%,,,,Between,Beraish,No,Default,A,"January 9, 2025 16:50 (GMT+2)","January 9, 2025 16:25 (GMT+2)",336,Demand
+138,Tuesday,London,S&D Retest,Candle Close,44,-1%,1.5%,,Loss,,Between,Bullish,No,Default,B+,"January 14, 2025 14:45 (GMT+2)","January 14, 2025 14:40 (GMT+2)",190,Demand
+139,Wednesday,"Sydney, Tokyo",S&D Retest,Candle Close,114,1.5%,1.5%,,,,Between,Beraish,No,Default,B+,"January 22, 2025 10:35 (GMT+2)","January 22, 2025 10:05 (GMT+2)",232,Demand
+140,Thursday,New York,S&D Retest,Candle Close,114,3%,3%,,,,Between,Beraish,No,Default,A,"January 23, 2025 23:55 (GMT+2)","January 23, 2025 22:00 (GMT+2)",70,Demand
+141,Monday,"London, Tokyo",S&D Retest,Candle Close,58,-1%,2%,,Loss,,Between,Beraish,No,Default,A,"January 27, 2025 11:00 (GMT+2)","January 27, 2025 10:40 (GMT+2)",195,Supply
+142,Wednesday,"London, New York",S&D Retest,Candle Close,8,1.5%,1.5%,,,,Between,Beraish,No,Default,A,"January 29, 2025 15:15 (GMT+2)","January 29, 2025 15:10 (GMT+2)",244,Demand
+143,Friday,London,S&D Retest,Candle Close,36,-1%,1.5%,,Loss,,Between,Bullish,No,Default,A,"January 31, 2025 13:35 (GMT+2)","January 31, 2025 13:30 (GMT+2)",92,Supply
+144,Tuesday,"London, Tokyo",S&D Retest,Candle Close,94,1.5%,1.5%,,,,Between,Beraish,No,Default,B+,"February 4, 2025 10:40 (GMT+2)","February 4, 2025 10:20 (GMT+2)",267,Supply
+145,Wednesday,"London, Tokyo",S&D Retest,Candle Close,32,3%,3%,,,,Between,Beraish,No,Default,B+,"February 5, 2025 9:30 (GMT+2)","February 5, 2025 9:05 (GMT+2)",95,Demand
+146,Wednesday,"London, New York",S&D Retest,Candle Close,62,2%,2%,,,,Between,Beraish,No,Default,B+,"February 5, 2025 16:05 (GMT+2)","February 5, 2025 15:50 (GMT+2)",197,Demand
+147,Monday,"London, New York",S&D Retest,Candle Close,83,1.5%,1.5%,,,,Between,Beraish,No,Default,A,"June 9, 2025 16:45 (GMT+3)","June 9, 2025 16:25 (GMT+3)",323,Demand
+148,Monday,New York,S&D Retest,Candle Close,44,1.5%,1.5%,,,,Between,Beraish,No,Default,B,"June 9, 2025 18:15 (GMT+3)","June 9, 2025 17:40 (GMT+3)",329,Demand
+149,Monday,"London, New York",S&D Retest,Candle Close,142,1.5%,1.5%,,,,Between,Beraish,No,Default,A+,"February 10, 2025 16:15 (GMT+2)","February 10, 2025 16:05 (GMT+2)",206,Demand
+150,Tuesday,London,S&D Retest,Candle Close,15,-1%,1.5%,,Loss,,Between,Bullish,No,Default,B+,"February 18, 2025 10:40 (GMT+2)","February 18, 2025 10:20 (GMT+2)",277,Supply
+151,Thursday,New York,S&D Retest,Candle Close,88,-1%,1.5%,,Loss,,Between,Beraish,No,Default,B+,"February 20, 2025 20:15 (GMT+2)","February 20, 2025 20:00 (GMT+2)",194,Demand
+152,Friday,London,S&D Retest,Candle Close,93,2.5%,2.5%,,,,Between,Bullish,No,Default,A,"February 21, 2025 14:10 (GMT+2)","February 21, 2025 14:00 (GMT+2)",111,Demand
+153,Monday,"London, Tokyo",S&D Retest,Candle Close,50,1.5%,1.5%,,,,Between,Bullish,No,Default,A,"February 24, 2025 10:50 (GMT+2)","February 24, 2025 10:40 (GMT+2)",221,Demand
+154,Friday,New York,S&D Retest,Candle Close,227,1.5%,1.5%,,,,Between,Bullish,No,Default,A,"February 28, 2025 18:25 (GMT+2)","February 28, 2025 18:05 (GMT+2)",246,Supply
+155,Tuesday,"London, New York",S&D Retest,Candle Close,114,-1%,1.5%,,Loss,,Between,Beraish,No,Default,A,"March 4, 2025 16:30 (GMT+2)","March 4, 2025 16:20 (GMT+2)",272,Demand
+156,Monday,"London, New York",S&D Retest,Candle Close,37,-1%,1.5%,,Loss,,Between,Beraish,No,Default,A,"March 10, 2025 15:45 (GMT+2)","March 10, 2025 15:40 (GMT+2)",348,Demand
+157,Tuesday,"London, New York",S&D Retest,Candle Close,36,2%,2%,,,,Between,Bullish,No,Default,A,"March 18, 2025 15:45 (GMT+2)","March 18, 2025 15:40 (GMT+2)",182,Demand
+158,Tuesday,New York,S&D Retest,Candle Close,63,2%,2%,,,,Between,Bullish,No,Flip,A,"March 18, 2025 15:45 (GMT+2)","March 18, 2025 15:40 (GMT+2)",144,Demand
+159,Monday,"London, New York",S&D Retest,Candle Close,13,-1%,1.5%,,Loss,,Between,Bullish,No,Default,A,"March 24, 2025 16:20 (GMT+2)","March 24, 2025 15:45 (GMT+2)",316,Demand
+160,Monday,"London, New York",S&D Retest,Candle Close,13,1.5%,1.5%,,,,Between,Bullish,No,Default,A,"March 24, 2025 16:20 (GMT+2)","March 24, 2025 15:45 (GMT+2)",316,Demand
+161,Monday,"London, New York",S&D Retest,Candle Close,26,-1%,1.5%,,Loss,,Between,Beraish,No,Default,B+,"March 31, 2025 16:30 (GMT+3)","March 31, 2025 16:05 (GMT+3)",376,Demand
+162,Wednesday,New York,S&D Retest,Candle Close,18,1.5%,1.5%,,,,Between,Beraish,No,Default,B+,"April 2, 2025 16:55 (GMT+3)","April 2, 2025 16:50 (GMT+3)",307,Demand
+163,Friday,"London, New York",S&D Retest,Candle Close,202,1.5%,1.5%,,,,Between,Beraish,No,Default,B+,"April 11, 2025 17:10 (GMT+3)","April 11, 2025 16:55 (GMT+3)",606,Demand
+164,Friday,London,S&D Retest,Candle Close,167,1.5%,1.5%,,,,Between,Bullish,No,Default,B+,"April 25, 2025 16:00 (GMT+3)","April 25, 2025 15:30 (GMT+3)",759,Supply
+165,Thursday,"London, New York",S&D Retest,Candle Close,87,-1%,1.5%,,Loss,,Between,Bullish,No,Default,A,"May 1, 2025 15:55 (GMT+3)","May 1, 2025 15:45 (GMT+3)",399,Supply
+166,Wednesday,"London, New York",S&D Retest,Candle Close,29,1.5%,1.5%,,,,Between,Bullish,No,Default,B+,"May 7, 2025 17:05 (GMT+3)","May 7, 2025 16:55 (GMT+3)",399,Supply
+167,Monday,London,S&D Retest,Candle Close,315,-1%,1.5%,,Loss,,Between,Beraish,No,Default,A+,"May 12, 2025 15:20 (GMT+3)","May 12, 2025 14:55 (GMT+3)",460,Supply
+168,Wednesday,Tokyo,S&D Retest,Candle Close,192,-1%,2%,,Loss,,Between,Bullish,No,Default,A,"May 14, 2025 9:05 (GMT+3)","May 14, 2025 9:00 (GMT+3)",175,Supply
+169,Tuesday,London,S&D Retest,Candle Close,73,1.5%,1.5%,,,,Between,Bullish,No,Default,A,"May 20, 2025 15:30 (GMT+3)","May 20, 2025 15:20 (GMT+3)",299,Demand
+170,Tuesday,London,S&D Retest,Candle Close,156,-1%,1.5%,,Loss,,Between,Beraish,No,Default,A,"May 28, 2025 13:30 (GMT+3)","May 28, 2025 13:20 (GMT+3)",233,Demand
+171,Monday,"London, New York",S&D Retest,Candle Close,219,1.5%,1.5%,,,,Between,Bullish,No,Default,A,"June 2, 2025 16:40 (GMT+3)","June 2, 2025 16:30 (GMT+3)",588,Demand
+,,,,,,,,,,,,,No,,,,,,
+,,,,,,,,,,,,,No,,,,,,
