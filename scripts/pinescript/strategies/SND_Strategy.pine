@@ -2195,7 +2195,11 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
             
             // === V6 AI FEATURES (CONDITIONAL - Only if enabled) ===
             // IMPORTANT: Call functions unconditionally for Pine Script series consistency
-            float temp_base_quality = Core.calculate_base_quality(baseBarIdx, baseIdx, bar_index, high, low, open, close)
+            // Both params must be absolute bar indices.
+            // base spans from baseBarIdx to baseBarIdx + (candlesInBase - 1)
+            // base_start_idx must be >= base_end_idx for the function to work
+            int baseEndAbsolute = baseBarIdx + candlesInBase - 1
+            float temp_base_quality = Core.calculate_base_quality(baseEndAbsolute, baseBarIdx, bar_index, high, low, open, close)
             float temp_departure_strength = Core.calculate_departure_strength(baseIdx, isDemand, high, low, open, close, volume, vol_sma_20)
             
             if enable_v6_v7_features
