@@ -787,7 +787,7 @@ def create_account(body: CreateAccountRequest):
             "provider": body.provider,
             "meta_api_account_id": meta_api_id,
             "meta_api_token_env_key": body.meta_api_token_env_key,
-            "connection_status": "pending" if meta_api_id else "not_configured",
+            "connection_status": "disconnected" if meta_api_id else "not_configured",
             "broker_profile_id": None,
         }
         account_result = sb.table("account_strategies").insert(payload).execute()
