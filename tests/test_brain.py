@@ -252,7 +252,7 @@ class TestBrainRagFailure:
 class TestBrainJsonParsingError:
     """Test Brain handling of malformed LLM responses."""
 
-    def test_brain_llm_broken_json_defaults_to_no_go(
+    def test_brain_llm_broken_json_fails_open(
         self,
         brain_payload_bullish,
         stub_model_high_confidence,
@@ -261,9 +261,10 @@ class TestBrainJsonParsingError:
         mock_settings,
     ):
         """
-        Test: LLM returns broken JSON, Brain defaults to NO_GO.
+        Test: LLM returns broken JSON, Brain fails open (GO).
 
-        Expected: decision == "NO_GO", reason mentions error.
+        RF already passed, so if LLM response is unparseable we trust the RF.
+        Expected: decision == "GO", reason mentions fail-open/error.
         """
         # Create a mock that returns invalid JSON
         mock_broken_client = MagicMock()
@@ -280,8 +281,8 @@ class TestBrainJsonParsingError:
 
             result = brain_module.ensemble_decision(brain_payload_bullish)
 
-            assert result["decision"] == "NO_GO"
-            assert "error" in result["reason"].lower() or "LLM" in result["reason"]
+            assert result["decision"] == "GO"
+            assert "fail-open" in result["reason"].lower() or "error" in result["reason"].lower()
 
     def test_brain_llm_missing_decision_field(
         self,
@@ -313,7 +314,7 @@ class TestBrainJsonParsingError:
             # Missing decision field defaults to NO_GO
             assert result["decision"] == "NO_GO"
 
-    def test_brain_llm_api_error_conservative_fallback(
+    def test_brain_llm_api_error_fails_open(
         self,
         brain_payload_bullish,
         stub_model_high_confidence,
@@ -323,9 +324,10 @@ class TestBrainJsonParsingError:
         mock_settings,
     ):
         """
-        Test: LLM API throws exception, Brain handles gracefully.
+        Test: LLM API throws exception, Brain fails open (GO).
 
-        Expected: decision == "NO_GO" (conservative fallback).
+        RF already passed, so if LLM is unreachable we trust the RF.
+        Expected: decision == "GO" (fail-open), reason mentions error.
         """
         mock_error_client = MagicMock()
         mock_error_client.chat.completions.create.side_effect = Exception("API rate limit exceeded")
@@ -339,9 +341,9 @@ class TestBrainJsonParsingError:
 
             result = brain_module.ensemble_decision(brain_payload_bullish)
 
-            # On error, should be conservative
-            assert result["decision"] == "NO_GO"
-            assert "error" in result["reason"].lower()
+            # On LLM error, fail-open: trust RF which already passed
+            assert result["decision"] == "GO"
+            assert "fail-open" in result["reason"].lower() or "error" in result["reason"].lower()
 
 
 # ══════════════════════════════════════════════════════════

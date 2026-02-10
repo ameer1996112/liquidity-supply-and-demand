@@ -153,12 +153,20 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
     rules_texts: list[str] = []
     if rag is not None:
         try:
-            rag_query = f"{narrative} supply demand liquidity sweep entry trading strategy"
-            docs = rag.query_rules(
-                rag_query,
-                k=4,
-                filter={"timeframe": "5m"},
-            )
+            # Build a signal-aware query instead of generic keyword stuffing.
+            # This matches rule-document vocabulary much better.
+            side = payload.get("side", "")
+            zone_type = payload.get("zone_type", "")
+            entry_model = payload.get("entry_model", "")
+            liq_swept = "liquidity swept" if payload.get("liq_swept") else ""
+            rag_query = (
+                f"{zone_type} zone {side} entry using {entry_model} model. "
+                f"{liq_swept} {narrative}"
+            ).strip()
+
+            # No metadata filter – documents from all ingestion paths are valid.
+            # Previously filtered by {"timeframe": "5m"} which hid most docs.
+            docs = rag.query_rules(rag_query, k=4)
             rules_texts = [d.page_content for d in docs]
             try:
                 from src.services.trade_events import log_event

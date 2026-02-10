@@ -220,6 +220,8 @@ def main() -> None:
                     "title": doc.title,
                     "channel_id": doc.video_id,  # video_id stored; channel may be absent
                     "kind": "youtube_transcript_offline",
+                    "timeframe": "5m",
+                    "strategy": "supply_demand_5m",
                 },
             )
             logger.info("[Transcript %d/%d] Ingested: %s", idx, total, doc.title)

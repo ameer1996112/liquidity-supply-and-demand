@@ -31,6 +31,55 @@ from config import get_settings
 logger = logging.getLogger(__name__)
 
 
+# ── Chunking helper ──────────────────────────────────────────────────
+import re as _re
+
+_BULLET_RE = _re.compile(
+    r"^(?:"                       # start of line
+    r"\s*[-•*]\s+"                # bullet: - / • / *
+    r"|\s*\d+[.)]\s+"            # numbered: 1. / 2) / 3.
+    r"|\s*[A-Z][.)]\s+"          # lettered: A. / B)
+    r")",
+)
+
+
+def _split_into_rules(text: str, min_len: int = 30) -> list[str]:
+    """Split a bulleted / numbered document into individual rules.
+
+    Consecutive non-bullet lines are merged into the preceding bullet.
+    If the text has no bullets at all, it is returned as a single chunk.
+    """
+    lines = text.strip().splitlines()
+    chunks: list[str] = []
+    current: list[str] = []
+
+    has_bullets = any(_BULLET_RE.match(line) for line in lines)
+    if not has_bullets:
+        # No structure to split on – return the whole text
+        return [text.strip()] if len(text.strip()) >= min_len else []
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if _BULLET_RE.match(line) and current:
+            # Start of new bullet → flush previous
+            merged = " ".join(current).strip()
+            if len(merged) >= min_len:
+                chunks.append(merged)
+            current = [stripped.lstrip("-•* ").lstrip("0123456789.)").strip()]
+        else:
+            current.append(stripped.lstrip("-•* ").lstrip("0123456789.)").strip())
+
+    # Flush last chunk
+    if current:
+        merged = " ".join(current).strip()
+        if len(merged) >= min_len:
+            chunks.append(merged)
+
+    return chunks
+
+
 class OpenAIEmbeddingAdapter(Embeddings):
     """Minimal adapter around OpenAI embeddings for LangChain.
 
@@ -102,31 +151,44 @@ class RagEngine:
     # Ingestion
     # ------------------------------------------------------------------
 
-    def ingest_rule(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> None:
-        """Ingest a single rule / document into the vector store.
+    def ingest_rule(
+        self,
+        text: str,
+        metadata: Optional[Dict[str, Any]] = None,
+        *,
+        chunk: bool = True,
+        min_chunk_len: int = 30,
+    ) -> None:
+        """Ingest a rule / document into the vector store.
 
-        Uses `SupabaseVectorStore.from_texts` on first call, then `add_texts`
-        for subsequent ingests.
+        When *chunk* is True (default), the text is split on bullet
+        points / numbered items so each rule gets its own embedding.
+        This dramatically improves retrieval precision versus embedding
+        an entire multi-paragraph document as a single vector.
+
+        Short fragments (< *min_chunk_len* chars) are skipped.
         """
         if not text or not text.strip():
             return
 
         md = metadata or {}
 
-        if self.vector_store is None:
-            # First-time bootstrap – from_texts will create the table rows
-            self.vector_store = SupabaseVectorStore.from_texts(
-                texts=[text],
-                embedding=self.vector_store._embedding,  # type: ignore[attr-defined]
-                client=self.client,
-                table_name=self.vector_store.table_name,  # type: ignore[attr-defined]
-                query_name=self.vector_store.query_name,  # type: ignore[attr-defined]
-                metadatas=[md],
-            )
+        # ── Chunk into individual rules ──────────────────────────
+        if chunk:
+            chunks = _split_into_rules(text, min_chunk_len)
         else:
-            self.vector_store.add_texts([text], metadatas=[md])
+            chunks = [text.strip()]
 
-        logger.info("Ingested rule into Supabase vector store (len(text)=%s).", len(text))
+        if not chunks:
+            logger.warning("No chunks to ingest (text too short or empty after splitting).")
+            return
+
+        self.vector_store.add_texts(chunks, metadatas=[md] * len(chunks))
+        logger.info(
+            "Ingested %d chunk(s) into Supabase vector store (total chars=%s).",
+            len(chunks),
+            sum(len(c) for c in chunks),
+        )
 
     # ------------------------------------------------------------------
     # Retrieval

@@ -212,7 +212,13 @@ def main() -> None:
         try:
             rag.ingest_rule(
                 refined,
-                metadata={"source": video.url, "title": video.title, "channel_id": video.channel_id},
+                metadata={
+                    "source": video.url,
+                    "title": video.title,
+                    "channel_id": video.channel_id,
+                    "timeframe": "5m",
+                    "strategy": "supply_demand_5m",
+                },
             )
             logger.info("[Video %d/%d] Processed: %s", idx, total, video.title)
         except Exception as e:
