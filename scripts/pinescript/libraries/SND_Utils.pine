@@ -266,7 +266,8 @@ export build_webhook_payload(
      float _liq_distance, float _liq_spread, float _return_strength,
      float pip_size, bool include_zone_id,
      bool _liquidity_sweep, string _arrival_type, bool _structure_break,
-     float _account_balance = 10000) =>
+     float _account_balance = 10000,
+     float _liq_distance_pips = na, float _liq_spread_pips = na) =>
 
     string payload = '{"symbol":"' + _symbol + '"'
     payload := payload + ',"side":"' + _side + '"'
@@ -318,6 +319,12 @@ export build_webhook_payload(
     payload := payload + ',"liquidity_distance":' + to_json_num(_liq_distance, "#.##")
     payload := payload + ',"liquidity_spread":' + to_json_num(_liq_spread, "#.##")
     payload := payload + ',"return_strength":' + to_json_num(_return_strength, "#.##")
+
+    // === RAW PIP VALUES (for dashboard display) ===
+    if not na(_liq_distance_pips)
+        payload := payload + ',"liquidity_distance_pips":' + to_json_num(_liq_distance_pips, "#.#")
+    if not na(_liq_spread_pips)
+        payload := payload + ',"liquidity_spread_pips":' + to_json_num(_liq_spread_pips, "#.#")
 
     // === AI GUARDIAN METRICS ===
     payload := payload + ',"liquidity_sweep":' + (_liquidity_sweep ? "true" : "false")

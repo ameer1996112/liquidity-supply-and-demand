@@ -157,6 +157,7 @@ def _payload_zone_and_metrics(payload: Dict[str, Any]) -> tuple[Dict[str, Any], 
         "entry_model", "score", "freshness", "session", "atr_ratio", "trend", "htf_trend",
         "rsi", "rvol", "adx", "touch_count", "base_quality", "departure_strength",
         "liquidity_distance", "liquidity_spread", "return_strength",
+        "liquidity_distance_pips", "liquidity_spread_pips",
     )
     columns = {}
     for key in schema_zone_metrics:
@@ -190,6 +191,8 @@ def _payload_zone_and_metrics(payload: Dict[str, Any]) -> tuple[Dict[str, Any], 
         "return_strength": columns.get("return_strength"),
         "liquidity_distance": columns.get("liquidity_distance"),
         "liquidity_spread": columns.get("liquidity_spread"),
+        "liquidity_distance_pips": columns.get("liquidity_distance_pips"),
+        "liquidity_spread_pips": columns.get("liquidity_spread_pips"),
     }
     # Drop None values so frontend doesn't show empty rows
     reason = {k: v for k, v in reason.items() if v is not None}
@@ -790,6 +793,8 @@ def process_trade(payload: Dict[str, Any]):
         "liquidity_distance": "liquidity_distance",
         "liquidity_spread": "liquidity_spread",
         "return_strength": "return_strength",
+        "liquidity_distance_pips": "liquidity_distance_pips",
+        "liquidity_spread_pips": "liquidity_spread_pips",
     }
     for src_key, dst_key in _ZONE_FIELD_MAP.items():
         val = payload.get(src_key)

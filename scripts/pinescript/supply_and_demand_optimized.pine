@@ -921,7 +921,8 @@ build_webhook_payload(
      // AI Features (NEW)
      _score, _freshness, _session, _atr_ratio, _trend, _rsi,
      _htf_trend, _rvol, _adx, _touch_count, _base_quality,
-     _departure_strength, _liq_distance, _liq_spread, _return_strength) =>
+     _departure_strength, _liq_distance, _liq_spread, _return_strength,
+     _liq_distance_pips = float(na), _liq_spread_pips = float(na)) =>
 
     string payload = '{"symbol":"' + _symbol + '"'
     payload := payload + ',"side":"' + _side + '"'
@@ -968,6 +969,12 @@ build_webhook_payload(
     payload := payload + ',"liquidity_distance":' + to_json_num(_liq_distance, "#.##")
     payload := payload + ',"liquidity_spread":' + to_json_num(_liq_spread, "#.##")
     payload := payload + ',"return_strength":' + to_json_num(_return_strength, "#.##")
+
+    // === RAW PIP VALUES (for dashboard display) ===
+    if not na(_liq_distance_pips)
+        payload := payload + ',"liquidity_distance_pips":' + to_json_num(_liq_distance_pips, "#.#")
+    if not na(_liq_spread_pips)
+        payload := payload + ',"liquidity_spread_pips":' + to_json_num(_liq_spread_pips, "#.#")
 
     payload := payload + '}'
     payload
@@ -1191,6 +1198,13 @@ calculate_liquidity_distance(float zone_boundary, float liq_price, bool isDemand
         // Cap at 50 pips distance = 0 score
         float score = distance_pips >= 50.0 ? 0.0 : (1.0 - (distance_pips / 50.0)) * 100.0
         score
+
+// Calculate Liquidity Distance in RAW PIPS (for dashboard display)
+calculate_liquidity_distance_pips(float zone_boundary, float liq_price) =>
+    if na(zone_boundary) or na(liq_price)
+        0.0
+    else
+        math.abs(liq_price - zone_boundary) / pip_size
 
 // Calculate Liquidity Spread: Distance between inducement and target (in pips)
 // Hypothesis: Wider spread = More conviction = Higher win rate
@@ -4510,9 +4524,12 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     z.touchCount,            // touch_count
                     z.baseQuality,           // base_quality
                     z.departureStrength,     // departure_strength
-                    z.liquidityDistance,     // liquidity_distance
-                    z.liquiditySpread,       // liquidity_spread
-                    z.returnStrength         // return_strength
+                    z.liquidityDistance,     // liquidity_distance (score)
+                    z.liquiditySpread,       // liquidity_spread (score)
+                    z.returnStrength,        // return_strength
+                    // === RAW PIP VALUES (for dashboard display) ===
+                    calculate_liquidity_distance_pips(z.top, z.liqLowPrice),  // liq_distance_pips (demand: zone top → liq low)
+                    na(z.liqHighPrice) or na(z.liqLowPrice) ? na : math.abs(z.liqHighPrice - z.liqLowPrice) / pip_size  // liq_spread_pips
                 ) : ""
 
                 if dry_run_mode
@@ -4908,9 +4925,12 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     z.touchCount,            // touch_count
                     z.baseQuality,           // base_quality
                     z.departureStrength,     // departure_strength
-                    z.liquidityDistance,     // liquidity_distance
-                    z.liquiditySpread,       // liquidity_spread
-                    z.returnStrength         // return_strength
+                    z.liquidityDistance,     // liquidity_distance (score)
+                    z.liquiditySpread,       // liquidity_spread (score)
+                    z.returnStrength,        // return_strength
+                    // === RAW PIP VALUES (for dashboard display) ===
+                    calculate_liquidity_distance_pips(z.bottom, z.liqHighPrice),  // liq_distance_pips (supply: zone bottom → liq high)
+                    na(z.liqLowPrice) or na(z.liqHighPrice) ? na : math.abs(z.liqLowPrice - z.liqHighPrice) / pip_size  // liq_spread_pips
                 ) : ""
 
                 if dry_run_mode

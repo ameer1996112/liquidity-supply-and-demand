@@ -130,6 +130,8 @@ def save_alert(
         'liquidity_distance': data.get('liquidity_distance'),
         'liquidity_spread': data.get('liquidity_spread'),
         'return_strength': data.get('return_strength'),
+        'liquidity_distance_pips': data.get('liquidity_distance_pips'),
+        'liquidity_spread_pips': data.get('liquidity_spread_pips'),
         # V2.0 Telemetry Fields
         'run_mode': run_mode,
         'run_id': run_id,

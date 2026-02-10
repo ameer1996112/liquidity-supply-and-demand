@@ -35,6 +35,8 @@ export interface AIReasoning {
   departure_strength?: number;
   liquidity_distance?: number;
   liquidity_spread?: number;
+  liquidity_distance_pips?: number;
+  liquidity_spread_pips?: number;
   return_strength?: number;
   guardian_liq_sweep?: boolean;
   guardian_arrival?: string;
@@ -106,6 +108,8 @@ export interface TradingSignal {
   departure_strength?: number;
   liquidity_distance?: number;
   liquidity_spread?: number;
+  liquidity_distance_pips?: number;
+  liquidity_spread_pips?: number;
   return_strength?: number;
 
   // Trade metrics
@@ -228,6 +232,8 @@ export function normalizeSignal(
     departure_strength: raw.departure_strength,
     liquidity_distance: raw.liquidity_distance,
     liquidity_spread: raw.liquidity_spread,
+    liquidity_distance_pips: raw.liquidity_distance_pips,
+    liquidity_spread_pips: raw.liquidity_spread_pips,
     return_strength: raw.return_strength,
     rr_ratio: raw.rr_ratio,
     sl_pips: raw.sl_pips,

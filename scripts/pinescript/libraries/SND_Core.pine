@@ -424,7 +424,7 @@ export calculate_departure_strength(int base_end_idx, bool isDemand, series floa
 // === V7.1 AI FEATURES: LIQUIDITY DISTANCE & SPREAD ===
 // ══════════════════════════════════════════════════════════
 
-// Calculate Liquidity Distance: How far liquidity sits from zone boundary (in pips)
+// Calculate Liquidity Distance SCORE: How far liquidity sits from zone boundary
 // Hypothesis: Closer liquidity = Tighter setup = Higher win rate
 // @param zone_boundary The zone boundary price (top for demand, bottom for supply)
 // @param liq_price The liquidity price level
@@ -443,6 +443,17 @@ export calculate_liquidity_distance(float zone_boundary, float liq_price, float 
         // Cap at 50 pips distance = 0 score
         float score = distance_pips >= 50.0 ? 0.0 : (1.0 - (distance_pips / 50.0)) * 100.0
         score
+
+// Calculate Liquidity Distance in RAW PIPS (for display on dashboard)
+// @param zone_boundary The zone boundary price (top for demand, bottom for supply)
+// @param liq_price The liquidity price level
+// @param pip_size The pip size for the symbol
+// @returns Distance in pips (0 = at zone, higher = farther away)
+export calculate_liquidity_distance_pips(float zone_boundary, float liq_price, float pip_size) =>
+    if na(zone_boundary) or na(liq_price)
+        0.0
+    else
+        math.abs(liq_price - zone_boundary) / pip_size
 
 // Calculate Liquidity Spread: Distance between inducement and target (in pips)
 // Hypothesis: Wider spread = More conviction = Higher win rate

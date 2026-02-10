@@ -69,9 +69,10 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
       setShowAdvanced(false);
       onSuccess?.();
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
       addToast({
         title: 'Failed to add account',
-        message: err instanceof Error ? err.message : 'Check Supabase config and RLS',
+        message: msg || 'Unknown error. Check backend logs.',
         severity: 'critical',
         duration: 6000,
       });

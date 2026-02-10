@@ -205,6 +205,8 @@ function parseAIReasoning(signal: TradingSignal): AIReasoning | null {
     departure_strength: signal.departure_strength,
     liquidity_distance: signal.liquidity_distance,
     liquidity_spread: signal.liquidity_spread,
+    liquidity_distance_pips: signal.liquidity_distance_pips,
+    liquidity_spread_pips: signal.liquidity_spread_pips,
     return_strength: signal.return_strength,
   };
 
@@ -617,11 +619,29 @@ export function SignalInspector({
                         </div>
                         <Separator className="bg-zinc-800" />
                         <div className="grid grid-cols-2 gap-2">
-                          {ai.liquidity_distance != null && (
-                            <InfoRow label="Distance" value={`${formatNum(ai.liquidity_distance, 1)} pips`} />
+                          {(ai.liquidity_distance_pips != null || ai.liquidity_distance != null) && (
+                            <InfoRow
+                              label="Distance"
+                              value={
+                                ai.liquidity_distance_pips != null
+                                  ? `${formatNum(ai.liquidity_distance_pips, 1)} pips`
+                                  : ai.liquidity_distance != null && ai.liquidity_distance > 0
+                                    ? `~${formatNum((1 - ai.liquidity_distance / 100) * 50, 1)} pips`
+                                    : ai.liquidity_distance === 0
+                                      ? '>50 pips'
+                                      : 'N/A'
+                              }
+                            />
                           )}
-                          {ai.liquidity_spread != null && (
-                            <InfoRow label="Spread" value={`${formatNum(ai.liquidity_spread, 1)} pips`} />
+                          {(ai.liquidity_spread_pips != null || ai.liquidity_spread != null) && (
+                            <InfoRow
+                              label="Spread"
+                              value={
+                                ai.liquidity_spread_pips != null
+                                  ? `${formatNum(ai.liquidity_spread_pips, 1)} pips`
+                                  : `${formatNum(ai.liquidity_spread!, 1)} pips`
+                              }
+                            />
                           )}
                         </div>
                       </div>

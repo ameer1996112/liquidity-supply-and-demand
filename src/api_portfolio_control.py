@@ -161,6 +161,22 @@ class TradeCopyRuleRequest(BaseModel):
     enabled: bool = True
 
 
+# ── Account Creation ─────────────────────────────────────────────
+
+class CreateAccountRequest(BaseModel):
+    account_name: str = Field(..., min_length=1, max_length=100)
+    account_type: str = Field(default="Personal", description="Personal, Eval, Funded")
+    provider: str = Field(default="Personal", description="FTMO, MyFundedFX, Personal, etc.")
+    strategy_type: str = Field(default="BALANCED")
+    risk_percent: float = Field(default=1.0, ge=0.1, le=10.0)
+    max_positions: int = Field(default=3, ge=1, le=20)
+    allocated_capital_usd: float = Field(default=10000, ge=0)
+    max_lot_size: float = Field(default=1.0, ge=0.01, le=100)
+    min_rr_ratio: float = Field(default=0.0, ge=0)
+    meta_api_account_id: Optional[str] = None
+    meta_api_token_env_key: str = Field(default="META_API_TOKEN")
+
+
 # ── Evaluation Progress ───────────────────────────────────────────
 
 class EvaluationRulesRequest(BaseModel):
@@ -738,6 +754,94 @@ def get_account_performance(account_name: str, lookback_days: int = 30):
         max_positions=perf.max_positions,
         pause_trading=perf.pause_trading,
     )
+
+
+@router.post("/accounts")
+def create_account(body: CreateAccountRequest):
+    """
+    Create a new account strategy (and optionally a linked broker profile).
+
+    Uses the service-role key so RLS is bypassed.
+    """
+    sb = _get_supabase()
+    account_name = body.account_name.strip()
+    meta_api_id = (body.meta_api_account_id or "").strip() or None
+
+    # Check duplicate name
+    existing = sb.table("account_strategies").select("id").eq("account_name", account_name).execute()
+    if existing.data:
+        raise HTTPException(409, detail=f"Account '{account_name}' already exists")
+
+    try:
+        # 1. Insert into account_strategies
+        payload = {
+            "account_name": account_name,
+            "strategy_type": body.strategy_type,
+            "risk_percent": body.risk_percent,
+            "max_positions": body.max_positions,
+            "allocated_capital_usd": body.allocated_capital_usd,
+            "max_lot_size": body.max_lot_size,
+            "min_rr_ratio": body.min_rr_ratio,
+            "is_active": True,
+            "account_type": body.account_type,
+            "provider": body.provider,
+            "meta_api_account_id": meta_api_id,
+            "meta_api_token_env_key": body.meta_api_token_env_key,
+            "connection_status": "pending" if meta_api_id else "not_configured",
+            "broker_profile_id": None,
+        }
+        account_result = sb.table("account_strategies").insert(payload).select().single().execute()
+        account_data = account_result.data
+        if not account_data:
+            raise HTTPException(500, detail="Insert returned no data")
+
+        # 2. Auto-create broker profile if MetaAPI ID provided
+        broker_profile = None
+        if meta_api_id:
+            # Check if profile already exists
+            existing_bp = (
+                sb.table("broker_profiles")
+                .select("id")
+                .eq("meta_api_account_id", meta_api_id)
+                .limit(1)
+                .execute()
+            )
+
+            if existing_bp.data:
+                profile_id = existing_bp.data[0]["id"]
+            else:
+                bp_payload = {
+                    "name": account_name,
+                    "meta_api_account_id": meta_api_id,
+                    "token_env_key": body.meta_api_token_env_key,
+                    "risk_pct": body.risk_percent,
+                    "max_positions": body.max_positions,
+                    "run_mode": "LIVE",
+                    "is_active": True,
+                    "evaluation_mode": body.account_type == "Eval",
+                    "starting_balance": body.allocated_capital_usd,
+                }
+                bp_result = sb.table("broker_profiles").insert(bp_payload).select().single().execute()
+                broker_profile = bp_result.data
+                profile_id = broker_profile["id"] if broker_profile else None
+
+            if profile_id:
+                sb.table("account_strategies").update(
+                    {"broker_profile_id": profile_id}
+                ).eq("id", account_data["id"]).execute()
+                account_data["broker_profile_id"] = profile_id
+
+        return {
+            "status": "ok",
+            "account": account_data,
+            "broker_profile": broker_profile,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Failed to create account '%s': %s", account_name, e, exc_info=True)
+        raise HTTPException(500, detail=f"Failed to create account: {str(e)}")
 
 
 @router.delete("/accounts/{account_name}")
