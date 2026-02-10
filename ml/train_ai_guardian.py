@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-AI Guardian Multi-Asset Super-Model Training Script - v5.0
+AI Guardian Multi-Asset Super-Model Training Script - v5.1
 ============================================================
 Trains a unified ML model across multiple trading assets using
 TradingView and Notion backtest data.
@@ -8,8 +8,13 @@ TradingView and Notion backtest data.
 CRITICAL FIX v5.0: Removed data leakage from outcome variables
 (runup_pct, drawdown_pct, etc.) that don't exist at entry time.
 
+NEW IN v5.1: Feature scaling with StandardScaler for improved RF accuracy
+- Prevents large-scale features (entry price) from dominating predictions
+- Categorical features (encoded IDs) remain unscaled
+- Scaler fitted on training data only to prevent leakage
+
 Input: backtest_data/ folder (recursive scan)
-Output: ml/model.pkl, ml/encoders.pkl, accuracy leaderboard by asset
+Output: ml/model.pkl, ml/encoders.pkl, ml/scaler.pkl, accuracy leaderboard by asset
 """
 
 import pandas as pd
@@ -24,7 +29,7 @@ from pathlib import Path
 from datetime import datetime
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.metrics import classification_report, accuracy_score, confusion_matrix
 
 # Configure logging
@@ -542,8 +547,47 @@ def train_super_model(features: pd.DataFrame, encoders: dict) -> tuple:
     logger.info(f"Train: {len(X_train)} samples | Test: {len(X_test)} samples")
     logger.info(f"Class distribution - Train: {y_train.value_counts().to_dict()}")
 
-    # Train RandomForestClassifier
-    logger.info("\n🌲 Training RandomForestClassifier...")
+    # ==========================================================================
+    # ✅ FEATURE SCALING PIPELINE (v5.1 - RF Accuracy Fix)
+    # ==========================================================================
+    print("\n" + "=" * 60)
+    print("📐 APPLYING FEATURE SCALING (StandardScaler)")
+    print("=" * 60)
+
+    # Identify categorical vs numerical features
+    # Categorical features: encoded columns (already integers from LabelEncoder)
+    categorical_features = [col for col in feature_names if '_encoded' in col or col == 'asset_id']
+    numerical_features = [col for col in feature_names if col not in categorical_features]
+
+    logger.info(f"Categorical features ({len(categorical_features)}): {categorical_features}")
+    logger.info(f"Numerical features ({len(numerical_features)}): {numerical_features[:10]}...")
+
+    # Create scaler
+    scaler = StandardScaler()
+
+    # Copy DataFrames to preserve originals
+    X_train_scaled = X_train.copy()
+    X_test_scaled = X_test.copy()
+
+    # Fit scaler on TRAINING data only (critical: prevent data leakage)
+    # Transform both train and test
+    if numerical_features:
+        logger.info(f"Fitting StandardScaler on {len(numerical_features)} numerical features...")
+        X_train_scaled[numerical_features] = scaler.fit_transform(X_train[numerical_features])
+        X_test_scaled[numerical_features] = scaler.transform(X_test[numerical_features])
+
+        # Log example scaling stats
+        sample_col = numerical_features[0]
+        logger.info(f"Example scaling - '{sample_col}':")
+        logger.info(f"  Before: mean={X_train[sample_col].mean():.3f}, std={X_train[sample_col].std():.3f}")
+        logger.info(f"  After:  mean={X_train_scaled[sample_col].mean():.3f}, std={X_train_scaled[sample_col].std():.3f}")
+    else:
+        logger.warning("No numerical features found - skipping scaling")
+
+    print("✅ Feature scaling complete\n")
+
+    # Train RandomForestClassifier on SCALED data
+    logger.info("\n🌲 Training RandomForestClassifier on scaled features...")
     model = RandomForestClassifier(
         n_estimators=200,
         max_depth=10,
@@ -553,10 +597,10 @@ def train_super_model(features: pd.DataFrame, encoders: dict) -> tuple:
         random_state=42,
         n_jobs=-1
     )
-    model.fit(X_train, y_train)
+    model.fit(X_train_scaled, y_train)
 
-    # === OVERALL EVALUATION ===
-    y_pred = model.predict(X_test)
+    # === OVERALL EVALUATION (on scaled test data) ===
+    y_pred = model.predict(X_test_scaled)
     accuracy = accuracy_score(y_test, y_pred)
 
     print("\n" + "=" * 60)
@@ -626,19 +670,27 @@ def train_super_model(features: pd.DataFrame, encoders: dict) -> tuple:
     model.feature_names_ = feature_names
     model.asset_leaderboard_ = asset_results
 
-    return model, encoders
+    # ✅ Return scaler along with model and encoders
+    scaler_metadata = {
+        'scaler': scaler if numerical_features else None,
+        'numerical_features': numerical_features,
+        'categorical_features': categorical_features
+    }
+
+    return model, encoders, scaler_metadata
 
 
 # ============================================================================
 # SAVE ARTIFACTS
 # ============================================================================
 
-def save_artifacts(model, encoders: dict):
+def save_artifacts(model, encoders: dict, scaler_metadata: dict = None):
     """
-    Save model and encoders to ml/ directory.
+    Save model, encoders, and scaler to ml/ directory.
     """
     model_path = SCRIPT_DIR / 'model.pkl'
     encoders_path = SCRIPT_DIR / 'encoders.pkl'
+    scaler_path = SCRIPT_DIR / 'scaler.pkl'
 
     # Save model
     with open(model_path, 'wb') as f:
@@ -649,6 +701,16 @@ def save_artifacts(model, encoders: dict):
     with open(encoders_path, 'wb') as f:
         pickle.dump(encoders, f)
     print(f"✅ Encoders saved to: {encoders_path}")
+
+    # ✅ Save scaler (v5.1 - RF accuracy fix)
+    if scaler_metadata and scaler_metadata.get('scaler') is not None:
+        with open(scaler_path, 'wb') as f:
+            pickle.dump(scaler_metadata, f)
+        print(f"✅ Scaler saved to: {scaler_path}")
+        print(f"   • Numerical features: {len(scaler_metadata['numerical_features'])}")
+        print(f"   • Categorical features: {len(scaler_metadata['categorical_features'])}")
+    else:
+        print(f"⚠️  No scaler to save (no numerical features found)")
 
     # Save metadata (convert numpy types to native Python types)
     asset_leaderboard_clean = [
@@ -663,10 +725,13 @@ def save_artifacts(model, encoders: dict):
 
     metadata = {
         'trained_at': datetime.now().isoformat(),
-        'version': '5.0',
+        'version': '5.1',  # ✅ Updated version for scaler addition
         'data_leakage_fix': True,
+        'feature_scaling': scaler_metadata is not None and scaler_metadata.get('scaler') is not None,
         'forbidden_columns': FORBIDDEN_COLUMNS,
         'feature_names': model.feature_names_,
+        'numerical_features': scaler_metadata['numerical_features'] if scaler_metadata else [],
+        'categorical_features': scaler_metadata['categorical_features'] if scaler_metadata else [],
         'n_estimators': model.n_estimators,
         'max_depth': model.max_depth,
         'asset_leaderboard': asset_leaderboard_clean,
@@ -697,8 +762,8 @@ def main(data_path: str = None):
     Main training pipeline for Multi-Asset Super-Model.
     """
     print("\n" + "=" * 60)
-    print("🧠 AI GUARDIAN MULTI-ASSET SUPER-MODEL TRAINING v5.0")
-    print("   (Critical Fix: Data Leakage Removed)")
+    print("🧠 AI GUARDIAN MULTI-ASSET SUPER-MODEL TRAINING v5.1")
+    print("   (v5.0: Data Leakage Removed | v5.1: Feature Scaling Added)")
     print("=" * 60)
 
     # 1. Determine data path
@@ -737,14 +802,15 @@ def main(data_path: str = None):
     print("\n" + "-" * 60)
     print("🚀 TRAINING SUPER-MODEL")
     print("-" * 60)
-    model, encoders = train_super_model(features, encoders)
+    model, encoders, scaler_metadata = train_super_model(features, encoders)
 
-    # 6. Save artifacts
-    save_artifacts(model, encoders)
+    # 6. Save artifacts (model, encoders, and scaler)
+    save_artifacts(model, encoders, scaler_metadata)
 
     print("\n" + "=" * 60)
     print("🎉 TRAINING COMPLETE! The AI Guardian Brain is ready.")
     print("   ✅ No data leakage - model uses only entry-time features")
+    print("   ✅ Feature scaling applied - improved prediction accuracy")
     print("=" * 60 + "\n")
 
 
@@ -752,7 +818,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(
-        description='Train AI Guardian Multi-Asset Super-Model (v5.0 - Data Leakage Fix)'
+        description='Train AI Guardian Multi-Asset Super-Model (v5.1 - Feature Scaling + Data Leakage Fix)'
     )
     parser.add_argument(
         '--data', '-d',

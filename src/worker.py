@@ -80,6 +80,15 @@ def init_connections():
         except Exception as exc:
             logger.warning("TrailingStopManager init failed: %s", exc)
 
+    # ✅ v5.1: Load custom symbol mappings from database
+    if supabase:
+        try:
+            from src.services.symbol_mapper import SymbolMapper
+            SymbolMapper.load_from_database(supabase)
+            logger.info("SymbolMapper initialized (custom mappings loaded)")
+        except Exception as exc:
+            logger.warning("SymbolMapper failed to load custom mappings: %s", exc)
+
 
 def _exists_trade_key(trade_key: str, broker_profile_id: Optional[int] = None) -> bool:
     """True if a row already exists for this trade_key (and optional broker_profile_id)."""
@@ -702,18 +711,53 @@ def process_trade(payload: Dict[str, Any]):
     # GLOBAL GUARDS (run once, affect all accounts)
     # ══════════════════════════════════════════════════════════════════
 
-    # ── Invalid size (e.g. TradingView sent size=0) ─────────────────────
+    # ── Invalid size (e.g. TradingView sent size=0 or risk engine returned 0) ──────
     if size <= 0 or not isinstance(payload.get("size"), (int, float)):
+        # ✅ v5.1: Provide detailed error explanation
+        entry = float(payload.get("entry", 0))
+        sl = float(payload.get("sl", 0))
+        sl_distance = abs(entry - sl) if entry and sl else 0
+        account_balance = float(payload.get("account_balance", s.account_balance))
+        risk_pct = float(payload.get("risk_percent", s.risk_percent))
+
+        rejection_reason = (
+            f"Position size must be positive (got size={payload.get('size')}). "
+        )
+
+        # Diagnose the root cause
+        if sl_distance > 0:
+            # Calculate what the min account balance would need to be
+            min_lot = 0.01  # Typical broker minimum
+            pip_size = 0.01 if "JPY" in symbol.upper() else 0.0001
+            sl_pips = sl_distance / pip_size
+            pip_value = 10.0  # Approximate for forex
+            min_risk_needed = min_lot * sl_pips * pip_value
+            min_balance_needed = (min_risk_needed / (risk_pct / 100))
+
+            rejection_reason += (
+                f"This usually means the stop loss is TOO WIDE relative to account size. "
+                f"Details: SL distance={sl_distance:.5f} ({sl_pips:.1f} pips), "
+                f"Account balance=${account_balance:.2f}, Risk={risk_pct}%. "
+                f"To place min trade (0.01 lots), you need ~${min_balance_needed:.0f} account balance "
+                f"OR reduce SL distance by {(sl_pips / 50):.0f}x. "
+                f"Alternatively, check TradingView Pine 'account_size_usd' input (should match ${account_balance:.0f}, not initial_capital)."
+            )
+        else:
+            rejection_reason += (
+                "Missing entry/SL prices. Check TradingView webhook payload."
+            )
+
         save_result(
             payload,
             "filtered",
-            f"Position size must be positive (got size={payload.get('size')})",
+            rejection_reason,
             0.0,
             account_name=account_name,
         )
         logger.warning(
-            "SIZE REJECTED: size=%s (must be > 0). Check TradingView alert / Pine position sizing.",
+            "SIZE REJECTED: size=%s (must be > 0). Reason: %s",
             payload.get("size"),
+            rejection_reason[:200],
         )
         return
 

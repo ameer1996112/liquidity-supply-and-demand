@@ -20,16 +20,18 @@ logger = logging.getLogger(__name__)
 _ROOT = Path(__file__).resolve().parent.parent.parent
 MODEL_PATH = _ROOT / "ml" / "model.pkl"
 ENCODERS_PATH = _ROOT / "ml" / "encoders.pkl"
+SCALER_PATH = _ROOT / "ml" / "scaler.pkl"
 
 AI_MODEL = None
 AI_ENCODERS = None
+AI_SCALER = None  # ✅ v5.1: StandardScaler for feature normalization
 _RAG_ENGINE: Optional[RagEngine] = None
 _LLM_CLIENT: Optional[OpenAI] = None
 
 
 def load_brain() -> None:
-    """Load ML model and encoders once at startup."""
-    global AI_MODEL, AI_ENCODERS
+    """Load ML model, encoders, and scaler once at startup."""
+    global AI_MODEL, AI_ENCODERS, AI_SCALER
     try:
         if not MODEL_PATH.exists():
             logger.warning("Brain missing: %s", MODEL_PATH)
@@ -38,6 +40,25 @@ def load_brain() -> None:
             AI_MODEL = pickle.load(f)
         with open(ENCODERS_PATH, "rb") as f:
             AI_ENCODERS = pickle.load(f)
+
+        # ✅ v5.1: Load feature scaler for RF accuracy improvement
+        if SCALER_PATH.exists():
+            with open(SCALER_PATH, "rb") as f:
+                scaler_data = pickle.load(f)
+                AI_SCALER = scaler_data['scaler']
+                logger.info(
+                    "Scaler loaded: numerical=%d, categorical=%d",
+                    len(scaler_data.get('numerical_features', [])),
+                    len(scaler_data.get('categorical_features', []))
+                )
+        else:
+            logger.warning(
+                "⚠️  Scaler not found at %s - predictions may be inaccurate! "
+                "Run 'python ml/train_ai_guardian.py' to retrain with v5.1",
+                SCALER_PATH
+            )
+            AI_SCALER = None
+
         logger.info("Brain online. Features: %s", len(AI_MODEL.feature_names_in_))
     except Exception as e:
         logger.error("Brain load error: %s", e)
@@ -45,7 +66,8 @@ def load_brain() -> None:
 
 def get_prediction(payload: Dict[str, Any]) -> Tuple[float, str, Dict[str, Any]]:
     """
-    Predict win probability. Returns (probability, note, features_used).
+    Predict win probability with feature scaling (v5.1).
+    Returns (probability, note, features_used).
     Returns (0.5, "AI Disabled", {}) if model unavailable or on error.
 
     This remains a pure RF call for backward compatibility. The full
@@ -59,8 +81,31 @@ def get_prediction(payload: Dict[str, Any]) -> Tuple[float, str, Dict[str, Any]]
         asset_id = encode_asset_id(symbol, AI_ENCODERS or {})
         if asset_id is not None and "asset_id" in features:
             features["asset_id"] = float(asset_id)
+
         df = pd.DataFrame([features])
-        prob = float(AI_MODEL.predict_proba(df)[0][1])
+
+        # ✅ v5.1: Apply feature scaling before prediction
+        if AI_SCALER is not None:
+            # Identify categorical vs numerical columns
+            # Categorical: encoded columns and asset_id (already integers)
+            categorical_cols = [col for col in df.columns if '_encoded' in col or col == 'asset_id']
+            numerical_cols = [col for col in df.columns if col not in categorical_cols]
+
+            # Scale numerical features only
+            df_scaled = df.copy()
+            if numerical_cols:
+                df_scaled[numerical_cols] = AI_SCALER.transform(df[numerical_cols])
+
+            prob = float(AI_MODEL.predict_proba(df_scaled)[0][1])
+            logger.debug(f"Prediction for {symbol}: {prob:.2%} (WITH scaling)")
+        else:
+            # Fallback: no scaling (legacy behavior - warn user to retrain)
+            prob = float(AI_MODEL.predict_proba(df)[0][1])
+            logger.warning(
+                f"⚠️  Prediction for {symbol}: {prob:.2%} (NO scaling - "
+                "retrain model with v5.1 for better accuracy)"
+            )
+
         return prob, f"AI Confidence: {prob:.1%}", features
     except Exception as e:
         logger.error("Prediction error: %s", e)

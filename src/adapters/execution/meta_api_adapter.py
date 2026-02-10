@@ -15,6 +15,7 @@ from src.adapters.execution.interfaces import (
     ExecutionResult,
     OrderRequest,
 )
+from src.services.symbol_mapper import SymbolMapper
 
 logger = logging.getLogger(__name__)
 
@@ -422,10 +423,18 @@ class MetaApiAdapter:
 
         action_type = "ORDER_TYPE_BUY" if side == "buy" else "ORDER_TYPE_SELL"
 
+        # ✅ v5.1: Translate TradingView symbol to broker symbol
+        broker_symbol = SymbolMapper.to_broker_symbol(request.symbol)
+        if broker_symbol != request.symbol:
+            logger.info(
+                "Symbol translated: %s -> %s (broker-specific)",
+                request.symbol, broker_symbol
+            )
+
         # ------------------------------------------------------------------
         # Cross-broker relative SL/TP: recompute stops from current bid/ask.
         # ------------------------------------------------------------------
-        bid, ask = self._get_symbol_price(request.symbol)
+        bid, ask = self._get_symbol_price(broker_symbol)
         sl_value: float | None = None
         tp_value: float | None = None
 
@@ -447,14 +456,14 @@ class MetaApiAdapter:
                 else:
                     entry_price = None
 
-                digits = self._infer_digits(entry_price, request.symbol)
+                digits = self._infer_digits(entry_price, broker_symbol)
                 if entry_price is not None:
                     sl_value = round(raw_sl, digits)
                     tp_value = round(raw_tp, digits)
                     logger.info(
                         "MetaApi recalculated stops for %s %s: entry=%.5f SL=%.5f TP=%.5f "
                         "(dist=%.5f / %.5f, digits=%s)",
-                        request.symbol,
+                        broker_symbol,
                         side,
                         entry_price,
                         sl_value,
@@ -465,7 +474,7 @@ class MetaApiAdapter:
                     )
             except Exception as exc:  # noqa: BLE001
                 logger.error(
-                    "MetaApi stop recalculation failed for %s: %s", request.symbol, exc
+                    "MetaApi stop recalculation failed for %s: %s", broker_symbol, exc
                 )
                 sl_value = None
                 tp_value = None
@@ -476,9 +485,10 @@ class MetaApiAdapter:
         if tp_value is None and request.tp is not None:
             tp_value = float(request.tp)
 
+        # ✅ Use broker_symbol (translated) instead of request.symbol
         payload: Dict[str, Any] = {
             "actionType": action_type,
-            "symbol": request.symbol,
+            "symbol": broker_symbol,
             "volume": float(request.size or 0.0),
             "comment": f"AI-Trade-{request.signal_id or request.alert_id}",
         }
@@ -636,10 +646,13 @@ class MetaApiAdapter:
         # To close a BUY, send a SELL; to close a SELL, send a BUY
         action_type = "ORDER_TYPE_SELL" if side == "buy" else "ORDER_TYPE_BUY"
 
+        # ✅ v5.1: Translate TradingView symbol to broker symbol
+        broker_symbol = SymbolMapper.to_broker_symbol(request.symbol)
+
         payload: Dict[str, Any] = {
             "actionType": action_type,
             "positionId": str(request.broker_order_id),
-            "symbol": request.symbol,
+            "symbol": broker_symbol,
             "volume": float(request.size or 0.0),
             "comment": f"AI-Exit-{request.signal_id or request.alert_id}",
         }

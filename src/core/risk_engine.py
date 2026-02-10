@@ -142,10 +142,45 @@ def calculate_max_position_size(
         # Fallback: distance-to-stop based sizing (using adjusted SL with buffer)
         sl_distance = abs(entry - sl_adjusted)
         sl_pips = sl_distance / pip_size
+
         if sl_pips > 0:
             base_max_lots = max_risk_usd / (sl_pips * pip_value_per_lot)
             scaled_max_lots = base_max_lots * max(risk_multiplier, 0.0)
-            return min(scaled_max_lots, max_lot_cap)
+
+            # ✅ Enforce minimum lot size (v5.1 - Zero Size Bug Fix)
+            min_lot_size = float(symbol_overrides.get("min_lot_size", 0.01)) if symbol_overrides else 0.01
+            lot_step = float(symbol_overrides.get("lot_step", 0.01)) if symbol_overrides else 0.01
+
+            # If calculated size is below minimum, return 0.0 to signal rejection
+            # (Caller should provide clear error message about stop loss being too wide)
+            if scaled_max_lots < min_lot_size:
+                logger.warning(
+                    "Calculated lot size %.4f below minimum %.2f for %s "
+                    "(risk=$%.2f, sl_pips=%.2f, pip_value=%.2f). "
+                    "Stop loss may be too wide for account size.",
+                    scaled_max_lots, min_lot_size, symbol,
+                    max_risk_usd, sl_pips, pip_value_per_lot
+                )
+                return 0.0  # Signal rejection to caller
+
+            # Cap at max and round to lot step
+            final_lots = min(scaled_max_lots, max_lot_cap)
+
+            # Round to lot step (e.g., 0.01 for forex)
+            final_lots = round(final_lots / lot_step) * lot_step
+
+            # Ensure we didn't round below minimum
+            final_lots = max(min_lot_size, final_lots)
+
+            logger.info(
+                "Position sizing: %s | base=%.4f | scaled=%.4f | final=%.2f lots "
+                "(min=%.2f, max=%.2f, step=%.2f)",
+                symbol, base_max_lots, scaled_max_lots, final_lots,
+                min_lot_size, max_lot_cap, lot_step
+            )
+
+            return final_lots
+
         return 1.0
     except Exception as e:
         logger.warning(f"Max size calculation error: {e}")
