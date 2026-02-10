@@ -790,8 +790,8 @@ def create_account(body: CreateAccountRequest):
             "connection_status": "pending" if meta_api_id else "not_configured",
             "broker_profile_id": None,
         }
-        account_result = sb.table("account_strategies").insert(payload).select().single().execute()
-        account_data = account_result.data
+        account_result = sb.table("account_strategies").insert(payload).execute()
+        account_data = account_result.data[0] if account_result.data else None
         if not account_data:
             raise HTTPException(500, detail="Insert returned no data")
 
@@ -821,8 +821,8 @@ def create_account(body: CreateAccountRequest):
                     "evaluation_mode": body.account_type == "Eval",
                     "starting_balance": body.allocated_capital_usd,
                 }
-                bp_result = sb.table("broker_profiles").insert(bp_payload).select().single().execute()
-                broker_profile = bp_result.data
+                bp_result = sb.table("broker_profiles").insert(bp_payload).execute()
+                broker_profile = bp_result.data[0] if bp_result.data else None
                 profile_id = broker_profile["id"] if broker_profile else None
 
             if profile_id:
