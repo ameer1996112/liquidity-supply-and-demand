@@ -446,6 +446,33 @@ if use_profile_defaults
         max_trades_per_day := 2
         min_tp_distance_pips := 5.0
 
+    // ══════════════════════════════════════════════════════════
+    // ✅ OPTIMIZATION: Symbol-Specific Auto-Configuration (v5.1)
+    // ══════════════════════════════════════════════════════════
+    // Auto-detect and apply optimal settings based on symbol type
+    // Aggressive works great for indices/metals (60% win rate on XAUUSD)
+    // but needs optimization for forex pairs (33% win rate → target 50%+)
+
+    // For Aggressive profile on FOREX (not indices/metals), apply "Forex-Optimized Aggressive"
+    // Indices/metals keep the raw Aggressive settings defined above.
+    if is_aggressive and not (is_gold or is_index)
+        // Tighten liquidity filters for forex (critical!)
+        liq_max_distance_pips_forex := 12.0  // ← Reduced from 20 (split between Aggressive 20 and Balanced 15)
+        liq_entry_max_dist := 60.0           // ← Reduced from 100 (split between Aggressive 100 and Balanced 50)
+
+        // Add quality filters (CRITICAL for forex win rate improvement)
+        min_return_strength := 25            // ← CRITICAL FIX: Was 0! Now requires decent return momentum
+        min_entry_grade := "C+"              // ← Improved from "C" (better zone quality)
+        ai_quality_threshold := 55           // ← Improved from 50 (stricter AI filter, Balanced is 60)
+
+        // Keep aggressive advantages:
+        // - 2 trades/day (vs 1 in Conservative)
+        // - 1.5 RR (acceptable for forex with good setup)
+        // - pvtMax = 10 (more opportunities)
+
+        // Slightly tighter TP for forex volatility
+        min_tp_distance_pips := 8.0          // ← Up from 5 (prevents spread eating profits)
+
     // Common settings for conservative & balanced; dead zone & hours also for Aggressive
     require_major_liquidity := is_conservative or is_balanced
     structure_mode := is_conservative ? "Standard (Bodies)" : "Relaxed (Wicks)"
