@@ -275,28 +275,30 @@ def render_chart(chart_data: dict, symbol: str):
     # TODO: Implement custom Rectangle series for trade boxes
 
 
-def render_metrics(summary: dict):
+def render_metrics(summary):
     """Render performance metrics cards."""
+    from app.outputs import BacktestSummary
+
     col1, col2, col3, col4, col5 = st.columns(5)
 
     with col1:
-        net_profit = summary.get("net_profit", 0)
+        net_profit = summary.net_profit if isinstance(summary, BacktestSummary) else 0
         st.metric("Net Profit", f"${net_profit:,.2f}")
 
     with col2:
-        win_rate = summary.get("win_rate", 0)
+        win_rate = summary.win_rate if isinstance(summary, BacktestSummary) else 0
         st.metric("Win Rate", f"{win_rate:.1f}%")
 
     with col3:
-        total_trades = summary.get("total_trades", 0)
+        total_trades = summary.total_trades if isinstance(summary, BacktestSummary) else 0
         st.metric("Total Trades", total_trades)
 
     with col4:
-        max_dd = summary.get("max_drawdown_pct", 0)
-        st.metric("Max Drawdown", f"{max_dd:.2f}%")
+        max_dd = summary.max_drawdown if isinstance(summary, BacktestSummary) else 0
+        st.metric("Max Drawdown", f"${max_dd:,.2f}")
 
     with col5:
-        profit_factor = summary.get("profit_factor", 0)
+        profit_factor = summary.profit_factor if isinstance(summary, BacktestSummary) else 0
         st.metric("Profit Factor", f"{profit_factor:.2f}")
 
 
@@ -361,6 +363,16 @@ def main():
 
         st.divider()
 
+        st.subheader("Entry Filters")
+        quality_threshold = st.slider("AI Quality Threshold", 0, 100, 0, 5,
+                                       help="Lower = more trades. Set to 0 to allow all zones.")
+        min_bar_idx = st.slider("Min Bar Index", 10, 200, 50, 10,
+                                 help="Wait N bars before taking first trade")
+        require_htf = st.checkbox("Require HTF Flip", value=False,
+                                   help="Requires higher timeframe confirmation (not yet implemented)")
+
+        st.divider()
+
         run_backtest = st.button("🚀 Run Backtest", type="primary", use_container_width=True)
 
     # Convert dates to UTC datetime
@@ -377,6 +389,9 @@ def main():
         end_date=to_dt,
         account_size_usd=float(account_size),
         risk_per_trade_pct=float(risk_pct),
+        ai_quality_threshold=quality_threshold,
+        min_bar_index_for_entries=min_bar_idx,
+        require_htf_flip=require_htf,
     )
 
     # Run backtest
@@ -424,15 +439,17 @@ def main():
 
             with col1:
                 st.write("**Returns**")
-                st.write(f"Net Profit: ${summary.get('net_profit', 0):,.2f}")
-                st.write(f"ROI: {summary.get('roi_pct', 0):.2f}%")
-                st.write(f"Sharpe Ratio: {summary.get('sharpe_ratio', 0):.2f}")
+                st.write(f"Net Profit: ${summary.net_profit:,.2f}")
+                st.write(f"Gross Profit: ${summary.gross_profit:,.2f}")
+                st.write(f"Gross Loss: ${summary.gross_loss:,.2f}")
+                st.write(f"Avg Trade: ${summary.avg_trade:,.2f}")
 
             with col2:
                 st.write("**Risk Metrics**")
-                st.write(f"Max Drawdown: {summary.get('max_drawdown_pct', 0):.2f}%")
-                st.write(f"Avg Win: ${summary.get('avg_win', 0):,.2f}")
-                st.write(f"Avg Loss: ${summary.get('avg_loss', 0):,.2f}")
+                st.write(f"Max Drawdown: ${summary.max_drawdown:,.2f}")
+                st.write(f"Win Count: {summary.win_count}")
+                st.write(f"Loss Count: {summary.loss_count}")
+                st.write(f"Avg Bars Held: {summary.avg_bars_held:.1f}")
 
 
 if __name__ == "__main__":

@@ -98,6 +98,9 @@ class FastBacktestEngine:
         kernel_time = time.time() - kernel_start
         logger.info(f"Numba kernel completed in {kernel_time:.2f}s ({n_bars / kernel_time:.0f} bars/sec)")
 
+        # Update zone manager with final count from Numba kernel
+        self.zone_manager.zone_count = final_zone_count
+
         # Convert NumPy results → Python objects
         logger.info(f"Converting {len(trades_np)} trades to Python objects...")
         self.closed_trades = self._convert_trades_to_python(trades_np, candles_df)

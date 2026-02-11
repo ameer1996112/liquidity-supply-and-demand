@@ -352,12 +352,11 @@ def load_historical_csv(
         logger.info(f"📂 Loading historical data from: {csv_file.name}")
         df = pd.read_csv(csv_file)
 
-        # Parse datetime and set as index
+        # Parse datetime (keep as column, not index)
         df['time'] = pd.to_datetime(df['time'], utc=True)
-        df = df.set_index('time')
 
         # Filter to requested date range
-        df = df[(df.index >= from_date) & (df.index <= to_date)]
+        df = df[(df['time'] >= from_date) & (df['time'] <= to_date)]
 
         if len(df) == 0:
             logger.warning(f"CSV file exists but contains no data for {from_date} to {to_date}")
