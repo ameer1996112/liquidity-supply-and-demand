@@ -18,6 +18,7 @@ scikit-learn==1.7.2
 numpy>=1.24.0
 pandas>=2.0.0
 pyarrow>=14.0.0
+numba>=0.58.0  # JIT compilation for high-performance backtesting
 
 # Database & alerts
 supabase==2.10.0
@@ -33,5 +34,8 @@ beautifulsoup4
 lxml
 yfinance>=0.2.36
 streamlit>=1.28.0
+lightweight-charts>=2.0.0  # TradingView-style interactive charts
+plotly>=5.18.0  # Analytics heatmaps and visualizations
+optuna>=3.5.0  # Bayesian optimization
 youtube-transcript-api
 scrapetube

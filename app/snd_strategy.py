@@ -390,7 +390,14 @@ class SNDStrategy:
                 if cfg.enable_grade_filter and get_grade_value(get_grade_from_score(z.score)) < get_grade_value(cfg.min_entry_grade):
                     continue
 
+                # FIX: Ensure entry price is within zone bounds (clamp to zone)
+                # If close is below zone, enter at zone bottom; if above, enter at zone top
                 entry_price = close
+                if close < z.bottom:
+                    entry_price = z.bottom  # Enter at zone bottom if close is below
+                elif close > z.top:
+                    entry_price = z.top  # Enter at zone top if close is above
+
                 sl_buffer = cfg.stop_loss_buffer_pips * pip_size * (10.0 if cfg.is_gold() else 1.0)
                 stop_loss_price = z.bottom - sl_buffer
                 sl_pips = abs(entry_price - stop_loss_price) / pip_size
@@ -462,7 +469,14 @@ class SNDStrategy:
                 if cfg.enable_ai_quality_filter and z.score < cfg.ai_quality_threshold:
                     continue
 
+                # FIX: Ensure entry price is within zone bounds (clamp to zone)
+                # If close is above zone, enter at zone top; if below, enter at zone bottom
                 entry_price = close
+                if close > z.top:
+                    entry_price = z.top  # Enter at zone top if close is above
+                elif close < z.bottom:
+                    entry_price = z.bottom  # Enter at zone bottom if close is below
+
                 sl_buffer = cfg.stop_loss_buffer_pips * pip_size * (10.0 if cfg.is_gold() else 1.0)
                 stop_loss_price = z.top + sl_buffer
                 sl_pips = abs(stop_loss_price - entry_price) / pip_size

@@ -236,7 +236,7 @@ def get_candles(
     parquet_path = data_dir / resolved / timeframe / f"{from_str}_{to_str}.parquet"
     csv_path = data_dir / resolved / timeframe / f"{from_str}_{to_str}.csv"
 
-    # Try load from file
+    # Try load from file (exact date range match)
     for p in [parquet_path, csv_path]:
         df = load_candles_from_file(p)
         if df is not None and len(df) > 0:
@@ -244,6 +244,18 @@ def get_candles(
             if len(df) > 0:
                 logger.info("Loaded %d candles from %s", len(df), p)
                 return df.reset_index(drop=True)
+
+    # Fallback: try any file in symbol/timeframe that might contain the range
+    base_dir = data_dir / resolved / timeframe
+    if base_dir.exists():
+        for ext in [".csv", ".parquet"]:
+            for p in sorted(base_dir.glob(f"*{ext}")):
+                df = load_candles_from_file(p)
+                if df is not None and len(df) > 0:
+                    df = df[(df["time"] >= from_date) & (df["time"] <= to_date)]
+                    if len(df) > 0:
+                        logger.info("Loaded %d candles from %s (fallback)", len(df), p)
+                        return df.reset_index(drop=True)
 
     # Fetch from MetaApi
     if not metaapi_token or not metaapi_account_id:

@@ -24,6 +24,14 @@ from app.engine import BacktestEngine
 from app.outputs import compute_summary, print_summary, write_equity_csv, write_trades_csv
 from app.snd_strategy import SNDStrategy
 
+# FastBacktestEngine requires numba; numba can fail with coverage<7.6.1
+try:
+    from app.engine_core import FastBacktestEngine
+    _FAST_ENGINE_AVAILABLE = True
+except (ImportError, AttributeError):
+    FastBacktestEngine = None
+    _FAST_ENGINE_AVAILABLE = False
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -39,6 +47,7 @@ def main() -> None:
     parser.add_argument("--tick-size", type=float, default=0.01, help="Instrument tick size (XAUUSD: 0.01)")
     parser.add_argument("--no-fetch", action="store_true", help="Do not fetch from MetaApi (use local only)")
     parser.add_argument("--debug-trades", action="store_true", help="Log each trade with entry reason (FLIP/BREAK_CANDLE/DIR_CLOSE)")
+    parser.add_argument("--engine", choices=["fast", "legacy"], default="legacy", help="Engine: legacy (Python, full SND logic) or fast (Numba, experimental)")
     args = parser.parse_args()
 
     from_date = datetime.strptime(args.from_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
@@ -80,22 +89,41 @@ def main() -> None:
 
     logger.info("Loaded %d candles from %s to %s", len(candles), candles["time"].min(), candles["time"].max())
 
-    # Engine + strategy
-    engine = BacktestEngine(
-        tick_size=cfg.tick_size,
-        slippage_ticks=3,
-        initial_equity=cfg.account_size_usd,
-        commission_pct=0.0,
-        pyramiding=0,
-        max_bars_held=cfg.max_bars_held,
-    )
+    # Engine selection (A/B testing)
+    use_fast = args.engine == "fast" and _FAST_ENGINE_AVAILABLE
+    if use_fast:
+        logger.info("Using FAST engine (Numba-optimized)")
+        engine = FastBacktestEngine(config=cfg)
+        trades = engine.run(candles)
 
-    strategy = SNDStrategy(config=cfg)
+        # Log performance metrics
+        perf = engine.get_performance_summary()
+        logger.info(
+            "Performance: %d trades in %.2fs (%.0f bars/sec, ~%.1fx speedup)",
+            perf['n_trades'],
+            perf['runtime_seconds'],
+            perf['bars_per_second'],
+            perf['speedup_estimate']
+        )
+    else:
+        if args.engine == "fast" and not _FAST_ENGINE_AVAILABLE:
+            logger.warning("Fast engine unavailable (numba/coverage issue). Using legacy. Fix: pip install coverage>=7.6.1")
+        logger.info("Using LEGACY engine (Python)")
+        engine = BacktestEngine(
+            tick_size=cfg.tick_size,
+            slippage_ticks=3,
+            initial_equity=cfg.account_size_usd,
+            commission_pct=0.0,
+            pyramiding=0,
+            max_bars_held=cfg.max_bars_held,
+        )
 
-    def on_bar(bar_idx: int, bar: pd.Series, history: pd.DataFrame, has_position: bool):
-        return strategy.on_bar(bar_idx, bar, history, has_position)
+        strategy = SNDStrategy(config=cfg)
 
-    trades = engine.run(candles, on_bar)
+        def on_bar(bar_idx: int, bar: pd.Series, history: pd.DataFrame, has_position: bool):
+            return strategy.on_bar(bar_idx, bar, history, has_position)
+
+        trades = engine.run(candles, on_bar)
 
     # Outputs
     summary = compute_summary(trades, engine.equity_curve)
