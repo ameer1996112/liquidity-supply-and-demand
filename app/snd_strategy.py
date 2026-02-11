@@ -372,6 +372,17 @@ class SNDStrategy:
                                 z.primed_ref_low = low
                     continue
 
+                # CRITICAL FIX: Verify current candle is still touching the zone before entry
+                # Demand zone: candle LOW must be within zone bounds (allow 1 tick tolerance)
+                zone_touch = (low >= z.bottom - tick_size) and (low <= z.top + tick_size)
+                if not zone_touch:
+                    continue  # Skip if current candle doesn't touch zone
+
+                # CRITICAL FIX: Retrace Entry Block (from Pine lines 3769-3773)
+                # Block entries if zone touched more than once (prevent overtrading weak zones)
+                if z.touch_count > 1:
+                    continue  # Skip - zone already retouched
+
                 # Entry models
                 prev_close = _safe_get(history["close"], bar_idx - 1)
                 prev_open = _safe_get(history["open"], bar_idx - 1)
@@ -390,16 +401,36 @@ class SNDStrategy:
                 if cfg.enable_grade_filter and get_grade_value(get_grade_from_score(z.score)) < get_grade_value(cfg.min_entry_grade):
                     continue
 
-                # FIX: Ensure entry price is within zone bounds (clamp to zone)
-                # If close is below zone, enter at zone bottom; if above, enter at zone top
+                # CRITICAL FIX: Entry price = current close (Pine line 3857)
+                # Do NOT clamp to zone - Pine uses close directly
                 entry_price = close
-                if close < z.bottom:
-                    entry_price = z.bottom  # Enter at zone bottom if close is below
-                elif close > z.top:
-                    entry_price = z.top  # Enter at zone top if close is above
 
+                # CRITICAL FIX: SL = deepest wick from 6 bars that touched zone (Pine lines 3859-3878)
+                # Scan lookback bars for lowest wick that interacted with zone
                 sl_buffer = cfg.stop_loss_buffer_pips * pip_size * (10.0 if cfg.is_gold() else 1.0)
-                stop_loss_price = z.bottom - sl_buffer
+                deepest_wick = None
+                lookback = min(6, bar_idx)  # 6-bar lookback or less if near start
+                for j in range(lookback):
+                    idx = bar_idx - j
+                    if idx < 0 or idx >= len(history):
+                        continue
+                    bar_high = float(history.iloc[idx]["high"])
+                    bar_low = float(history.iloc[idx]["low"])
+                    # Check if this bar touched the zone
+                    if bar_high >= z.bottom and bar_low <= z.top:
+                        if deepest_wick is None or bar_low < deepest_wick:
+                            deepest_wick = bar_low
+
+                # If no wick found (shouldn't happen), use current low
+                if deepest_wick is None:
+                    deepest_wick = low
+
+                stop_loss_price = deepest_wick - sl_buffer
+
+                # Safety clamp: ensure SL is below entry with minimum gap
+                min_gap = 2.0 * pip_size  # Minimum 2 pips gap
+                if stop_loss_price >= entry_price - min_gap:
+                    stop_loss_price = entry_price - min_gap
                 sl_pips = abs(entry_price - stop_loss_price) / pip_size
                 tp_ratio = _get_tp_ratio_gold(sl_pips, cfg) if cfg.is_gold() else 2.0
                 if cfg.use_custom_rr:
@@ -455,6 +486,17 @@ class SNDStrategy:
                                 z.primed_ref_low = low
                     continue
 
+                # CRITICAL FIX: Verify current candle is still touching the zone before entry
+                # Supply zone: candle HIGH must be within zone bounds (allow 1 tick tolerance)
+                zone_touch = (high >= z.bottom - tick_size) and (high <= z.top + tick_size)
+                if not zone_touch:
+                    continue  # Skip if current candle doesn't touch zone
+
+                # CRITICAL FIX: Retrace Entry Block (from Pine lines 4214-4218)
+                # Block entries if zone touched more than once (prevent overtrading weak zones)
+                if z.touch_count > 1:
+                    continue  # Skip - zone already retouched
+
                 prev_close = _safe_get(history["close"], bar_idx - 1)
                 prev_open = _safe_get(history["open"], bar_idx - 1)
                 basic_flip = close < open_ and prev_close > prev_open
@@ -469,16 +511,36 @@ class SNDStrategy:
                 if cfg.enable_ai_quality_filter and z.score < cfg.ai_quality_threshold:
                     continue
 
-                # FIX: Ensure entry price is within zone bounds (clamp to zone)
-                # If close is above zone, enter at zone top; if below, enter at zone bottom
+                # CRITICAL FIX: Entry price = current close (Pine line 4302)
+                # Do NOT clamp to zone - Pine uses close directly
                 entry_price = close
-                if close > z.top:
-                    entry_price = z.top  # Enter at zone top if close is above
-                elif close < z.bottom:
-                    entry_price = z.bottom  # Enter at zone bottom if close is below
 
+                # CRITICAL FIX: SL = highest wick from 6 bars that touched zone (Pine lines 4304-4323)
+                # Scan lookback bars for highest wick that interacted with zone
                 sl_buffer = cfg.stop_loss_buffer_pips * pip_size * (10.0 if cfg.is_gold() else 1.0)
-                stop_loss_price = z.top + sl_buffer
+                highest_wick = None
+                lookback = min(6, bar_idx)  # 6-bar lookback or less if near start
+                for j in range(lookback):
+                    idx = bar_idx - j
+                    if idx < 0 or idx >= len(history):
+                        continue
+                    bar_high = float(history.iloc[idx]["high"])
+                    bar_low = float(history.iloc[idx]["low"])
+                    # Check if this bar touched the zone
+                    if bar_high >= z.bottom and bar_low <= z.top:
+                        if highest_wick is None or bar_high > highest_wick:
+                            highest_wick = bar_high
+
+                # If no wick found (shouldn't happen), use current high
+                if highest_wick is None:
+                    highest_wick = high
+
+                stop_loss_price = highest_wick + sl_buffer
+
+                # Safety clamp: ensure SL is above entry with minimum gap
+                min_gap = 2.0 * pip_size  # Minimum 2 pips gap
+                if stop_loss_price <= entry_price + min_gap:
+                    stop_loss_price = entry_price + min_gap
                 sl_pips = abs(stop_loss_price - entry_price) / pip_size
                 tp_ratio = _get_tp_ratio_gold(sl_pips, cfg) if cfg.is_gold() else 2.0
                 if cfg.use_custom_rr:

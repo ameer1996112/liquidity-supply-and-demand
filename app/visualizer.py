@@ -241,14 +241,25 @@ def create_candlestick_chart(candles_df: pd.DataFrame, trades: list) -> go.Figur
                     layer="below",
                 )
 
-    # Layout
+    # Layout: 5m candles need readable bar spacing
+    n_bars = len(candles_df)
+    # Show last ~500 bars by default (c. 3.5 days of 5m data) so bars are distinct
+    max_bars_visible = 500
+    if n_bars > max_bars_visible:
+        x_start = candles_df['time'].iloc[-max_bars_visible]
+        x_end = candles_df['time'].iloc[-1]
+    else:
+        x_start = candles_df['time'].iloc[0]
+        x_end = candles_df['time'].iloc[-1]
+
     fig.update_layout(
-        title="Price Chart with Trades",
+        title="Price Chart with Trades (5m)",
         xaxis_title="Time",
         yaxis_title="Price",
         height=600,
         hovermode='x unified',
-        xaxis_rangeslider_visible=False,
+        xaxis_rangeslider_visible=True,
+        xaxis_range=[x_start, x_end],
         template="plotly_dark",
     )
 
@@ -348,8 +359,10 @@ def main():
 
         # Filters
         st.subheader("Filters")
-        quality_threshold = st.slider("AI Quality Threshold", 0, 100, 50, 5)
+        quality_threshold = st.slider("AI Quality Threshold", 0, 100, 70, 5)
         require_htf_flip = st.checkbox("Require HTF FLIP", value=False)
+        enable_trade_limit = st.checkbox("Enable Daily Trade Limit", value=False)
+        max_trades_per_day = st.number_input("Max Trades Per Day", min_value=1, max_value=20, value=2) if enable_trade_limit else 100
 
         st.subheader("Entry Models")
         enable_flip = st.checkbox("FLIP", value=True)
@@ -380,6 +393,8 @@ def main():
             use_custom_rr=True,
             ai_quality_threshold=quality_threshold,
             require_htf_flip=require_htf_flip,
+            enable_trade_limit=enable_trade_limit,
+            max_trades_per_day=max_trades_per_day,
             account_size_usd=50000.0,
             start_date=datetime.combine(from_date, datetime.min.time()).replace(tzinfo=timezone.utc),
             end_date=datetime.combine(to_date, datetime.min.time()).replace(tzinfo=timezone.utc),
