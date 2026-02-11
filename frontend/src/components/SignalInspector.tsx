@@ -635,7 +635,7 @@ export function SignalInspector({
                           )}
                           {(ai.liquidity_spread_pips != null || ai.liquidity_spread != null) && (
                             <InfoRow
-                              label="Spread"
+                              label="Zone Range"
                               value={
                                 ai.liquidity_spread_pips != null
                                   ? `${formatNum(ai.liquidity_spread_pips, 1)} pips`

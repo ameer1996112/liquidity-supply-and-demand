@@ -239,7 +239,39 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
             symbol, _nonzero, _zero_keys,
         )
 
-    rf_threshold = getattr(settings, "ml_min_confidence", 0.60)
+    # ✅ Dynamic threshold: Lower threshold for high-quality zones
+    # This allows strong setups to pass even if RF is slightly skeptical
+    base_threshold = getattr(settings, "ml_min_confidence", 0.60)
+    zone_score = float(payload.get("score", 0))
+    zone_grade = payload.get("zone_grade", "")
+
+    # Grade multipliers: A+ = -0.05, A = -0.04, B+ = -0.03, B = -0.02, C+ = -0.01, C/lower = 0
+    grade_adjustments = {
+        "A+": -0.05, "A": -0.04,
+        "B+": -0.03, "B": -0.02,
+        "C+": -0.01, "C": 0.00,
+        "D": 0.00, "F": 0.00
+    }
+    grade_adj = grade_adjustments.get(zone_grade, 0.00)
+
+    # Score bonus: 80+ = -0.03, 70-80 = -0.02, 60-70 = -0.01
+    if zone_score >= 80:
+        score_adj = -0.03
+    elif zone_score >= 70:
+        score_adj = -0.02
+    elif zone_score >= 60:
+        score_adj = -0.01
+    else:
+        score_adj = 0.00
+
+    # Combine adjustments (max -0.08 reduction for perfect zones)
+    rf_threshold = max(0.50, base_threshold + grade_adj + score_adj)
+
+    logger.debug(
+        f"RF threshold for {symbol}: base={base_threshold:.0%}, "
+        f"grade_adj={grade_adj:+.0%} ({zone_grade}), score_adj={score_adj:+.0%} ({zone_score:.0f}), "
+        f"final={rf_threshold:.0%}"
+    )
     if rf_prob < rf_threshold:
         result["reason"] = (
             f"RF probability {rf_prob:.1%} below {rf_threshold:.0%} threshold."

@@ -80,11 +80,11 @@ def _detect_pinbar(candle: pd.Series) -> Optional[str]:
     return None
 
 
-def get_market_narrative(symbol: str, candles: int = 50) -> str:
+def get_market_narrative(symbol: str, candles: int = 200) -> str:
     """
     Build a compact natural-language narrative for the given symbol.
 
-    Uses 15m candles for the last `candles` periods via yfinance.
+    Uses 5m candles for intraday analysis with 200 EMA for trend detection.
     Maps common trading symbols to Yahoo Finance tickers so that
     indices/FX pairs resolve correctly (e.g. XAUUSD -> GC=F).
     """
@@ -109,7 +109,8 @@ def get_market_narrative(symbol: str, candles: int = 50) -> str:
 
     try:
         ticker = yf.Ticker(lookup_symbol)
-        df = ticker.history(period="3d", interval="15m")
+        # Use 5m candles for intraday precision (need ~17 hours of data for 200 candles)
+        df = ticker.history(period="7d", interval="5m")
         if df.empty:
             raise ValueError("no data returned")
         df = df.tail(candles).copy()
@@ -119,21 +120,39 @@ def get_market_narrative(symbol: str, candles: int = 50) -> str:
 
     df = df.rename(columns=str.capitalize)  # Ensure Open/High/Low/Close
 
-    # Trend: price vs SMA50
-    df["SMA50"] = df["Close"].rolling(window=50, min_periods=5).mean()
+    # Multi-timeframe trend analysis
+    # 200 EMA: Primary trend filter (institutional level)
+    # 3 MA: Short-term momentum for 5m trading
+    df["EMA200"] = df["Close"].ewm(span=200, min_periods=100, adjust=False).mean()
+    df["MA3"] = df["Close"].rolling(window=3, min_periods=2).mean()
+
     last = df.iloc[-1]
-    sma = last.get("SMA50")
+    ema200 = last.get("EMA200")
+    ma3 = last.get("MA3")
     close = last["Close"]
 
-    if pd.notnull(sma):
-        if close > sma * 1.001:
-            trend = "Bullish (price above SMA50)"
-        elif close < sma * 0.999:
-            trend = "Bearish (price below SMA50)"
+    # Primary trend: 200 EMA
+    trend_parts = []
+    if pd.notnull(ema200):
+        if close > ema200 * 1.0005:
+            trend_parts.append("Bullish (above 200 EMA)")
+        elif close < ema200 * 0.9995:
+            trend_parts.append("Bearish (below 200 EMA)")
         else:
-            trend = "Neutral (price near SMA50)"
+            trend_parts.append("Neutral (at 200 EMA)")
     else:
-        trend = "Unknown (insufficient data for SMA50)"
+        trend_parts.append("Unknown (insufficient 200 EMA data)")
+
+    # Short-term momentum: 3 MA
+    if pd.notnull(ma3):
+        if close > ma3 * 1.0002:
+            trend_parts.append("short-term bullish (above 3 MA)")
+        elif close < ma3 * 0.9998:
+            trend_parts.append("short-term bearish (below 3 MA)")
+        else:
+            trend_parts.append("short-term neutral")
+
+    trend = "; ".join(trend_parts)
 
     # RSI(14)
     df["RSI14"] = _compute_rsi(df["Close"], period=14)
@@ -157,8 +176,8 @@ def get_market_narrative(symbol: str, candles: int = 50) -> str:
         pattern_desc = f"Last candles formed a {pattern} pattern."
 
     narrative = (
-        f"{symbol} trend: {trend}. "
-        f"RSI(14) is {rsi_state} ({rsi_val:.1f}). "
+        f"{symbol}: {trend}. "
+        f"RSI(14) {rsi_state} ({rsi_val:.1f}). "
         f"{pattern_desc}"
     )
 

@@ -2,7 +2,7 @@
 # Run backtest with optimized Pine-aligned settings
 # Results: ~33 trades, +$942 profit, 45.5% win rate
 
-python scripts/backtest_tv_settings.py \
+python3 scripts/backtest_tv_settings.py \
   --symbol XAUUSD \
   --from 2025-01-01 \
   --to 2026-01-10 \
