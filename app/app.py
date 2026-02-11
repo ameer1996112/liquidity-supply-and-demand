@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -31,8 +32,9 @@ from streamlit_lightweight_charts import renderLightweightCharts
 
 from app.config import BacktestConfig
 from app.data_loader_fxcm import get_candles_auto  # FXCM primary, MetaApi fallback
-from app.engine_core import FastBacktestEngine
+from app.engine import BacktestEngine
 from app.outputs import compute_summary
+from app.snd_strategy import SNDStrategy
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -122,21 +124,50 @@ def load_backtest_data(
     timeframe: str,
     config: BacktestConfig
 ):
-    """Load candles and run backtest (cached for 1 hour)."""
+    """Load candles and run backtest (cached for 1 hour). Uses Pine-aligned SND strategy."""
     try:
-        # Use FXCM as primary source (auto-falls back to MetaApi)
-        candles = get_candles_auto(
-            symbol=symbol,
-            from_date=from_date,
-            to_date=to_date,
-            timeframe=timeframe
-        )
+        # 1. Try get_candles_auto (FXCM → MetaApi)
+        try:
+            candles = get_candles_auto(
+                symbol=symbol,
+                from_date=from_date,
+                to_date=to_date,
+                timeframe=timeframe
+            )
+        except ValueError:
+            # 2. Fallback: local parquet/CSV (data/backtest_candles) - from prior backtest_run
+            from app.data import get_candles
+            meta_token = os.getenv("META_API_TOKEN") or os.getenv("META_API_TOKEN_VANTAGE")
+            meta_account = os.getenv("META_API_ACCOUNT_ID") or os.getenv("META_API_ACCOUNT_ID_VANTAGE")
+            candles = get_candles(
+                symbol=symbol,
+                from_date=from_date,
+                to_date=to_date,
+                timeframe=timeframe,
+                data_dir=Path("data/backtest_candles"),
+                metaapi_token=meta_token,
+                metaapi_account_id=meta_account,
+                symbol_aliases=config.symbol_aliases,
+                persist=True,
+            )
 
         logger.info(f"Loaded {len(candles)} candles")
 
-        # Run fast backtest
-        engine = FastBacktestEngine(config=config)
-        trades = engine.run(candles)
+        # Run legacy engine with Pine-aligned SND strategy
+        engine = BacktestEngine(
+            tick_size=config.tick_size,
+            slippage_ticks=3,
+            initial_equity=config.account_size_usd,
+            commission_pct=config.commission_pct,
+            pyramiding=0,
+            max_bars_held=config.max_bars_held,
+        )
+        strategy = SNDStrategy(config=config)
+
+        def on_bar(bar_idx: int, bar: pd.Series, history: pd.DataFrame, has_position: bool):
+            return strategy.on_bar(bar_idx, bar, history, has_position)
+
+        trades = engine.run(candles, on_bar)
 
         summary = compute_summary(trades, engine.equity_curve)
 
@@ -342,7 +373,7 @@ def render_trades_table(trades: list):
 # ========== Main App ==========
 def main():
     st.title("📈 FX Replay - Backtest Dashboard")
-    st.caption("Professional backtesting interface powered by Numba-accelerated engine")
+    st.caption("Pine-aligned SND strategy (demand/supply zones, pivot liquidity, mitigation)")
 
     # Sidebar - Controls
     with st.sidebar:
@@ -379,7 +410,7 @@ def main():
     from_dt = datetime.combine(from_date, datetime.min.time()).replace(tzinfo=timezone.utc)
     to_dt = datetime.combine(to_date, datetime.max.time()).replace(tzinfo=timezone.utc)
 
-    # Config
+    # Config (Pine-aligned SND strategy)
     config = BacktestConfig(
         symbol=symbol,
         timeframe=timeframe,
@@ -389,7 +420,8 @@ def main():
         end_date=to_dt,
         account_size_usd=float(account_size),
         risk_per_trade_pct=float(risk_pct),
-        ai_quality_threshold=quality_threshold,
+        enable_ai_quality_filter=(quality_threshold > 0),
+        ai_quality_threshold=quality_threshold if quality_threshold > 0 else 60,
         min_bar_index_for_entries=min_bar_idx,
         require_htf_flip=require_htf,
     )

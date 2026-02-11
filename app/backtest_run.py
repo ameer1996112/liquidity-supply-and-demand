@@ -89,6 +89,7 @@ def main() -> None:
 
     logger.info("Loaded %d candles from %s to %s", len(candles), candles["time"].min(), candles["time"].max())
 
+    zone_log: list = []
     # Engine selection (A/B testing)
     use_fast = args.engine == "fast" and _FAST_ENGINE_AVAILABLE
     if use_fast:
@@ -118,7 +119,8 @@ def main() -> None:
             max_bars_held=cfg.max_bars_held,
         )
 
-        strategy = SNDStrategy(config=cfg)
+        zone_log: list = []
+        strategy = SNDStrategy(config=cfg, zone_log=zone_log)
 
         def on_bar(bar_idx: int, bar: pd.Series, history: pd.DataFrame, has_position: bool):
             return strategy.on_bar(bar_idx, bar, history, has_position)
@@ -130,9 +132,14 @@ def main() -> None:
     print_summary(summary)
 
     out_dir = args.output_dir / args.symbol
+    out_dir.mkdir(parents=True, exist_ok=True)
     write_trades_csv(trades, out_dir / "trades.csv")
     write_equity_csv(engine.equity_curve, out_dir / "equity.csv")
     logger.info("Wrote trades to %s", out_dir / "trades.csv")
+    if zone_log:
+        zones_df = pd.DataFrame(zone_log)
+        zones_df.to_csv(out_dir / "zones.csv", index=False)
+        logger.info("Wrote %d zones to %s", len(zones_df), out_dir / "zones.csv")
     if args.debug_trades and trades:
         logger.info("--- DEBUG TRADES (entry_model) ---")
         for t in trades:

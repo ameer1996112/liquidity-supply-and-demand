@@ -27,7 +27,6 @@ from app.snd_core import Zone, calculate_zone_score, get_grade_from_score, get_g
 from app.snd_utils import (
     is_bearish,
     is_bullish,
-    detect_liquidity_sweep,
     get_auto_pip_size,
     units_to_lots,
 )
@@ -41,6 +40,28 @@ def _safe_get(arr: pd.Series, idx: int) -> float:
         return np.nan
     v = arr.iloc[idx]
     return float(v) if not (isinstance(v, float) and np.isnan(v)) else np.nan
+
+
+def _is_pivot_low(history: pd.DataFrame, pivot_bar: int) -> bool:
+    """3-candle Makuchaku pivot low: low[middle] < low[older] and low[middle] < low[newer]."""
+    n = len(history)
+    if pivot_bar < 1 or pivot_bar >= n - 1:
+        return False
+    mid = float(history.iloc[pivot_bar]["low"])
+    left = float(history.iloc[pivot_bar - 1]["low"])
+    right = float(history.iloc[pivot_bar + 1]["low"])
+    return mid < left and mid < right
+
+
+def _is_pivot_high(history: pd.DataFrame, pivot_bar: int) -> bool:
+    """3-candle Makuchaku pivot high."""
+    n = len(history)
+    if pivot_bar < 1 or pivot_bar >= n - 1:
+        return False
+    mid = float(history.iloc[pivot_bar]["high"])
+    left = float(history.iloc[pivot_bar - 1]["high"])
+    right = float(history.iloc[pivot_bar + 1]["high"])
+    return mid > left and mid > right
 
 
 def _is_htf_candle_open(bar_time: datetime) -> bool:
@@ -105,6 +126,9 @@ class SNDStrategy:
     """Stateful SND strategy."""
 
     config: BacktestConfig
+
+    # Optional: collector for zone creation (for visualization/export)
+    zone_log: Optional[List[dict]] = None
 
     # Persistent state
     demand_zones: List[Zone] = field(default_factory=list)
@@ -211,28 +235,203 @@ class SNDStrategy:
             score=score,
             grade=get_grade_from_score(score),
         )
+        # Liquidity is set by _scan_*_liquidity (pivot-based, Pine-aligned)
 
-        # Simplified liquidity: use lookback high/low
-        lookback = min(10, bar_idx)
-        if lookback > 0:
-            h = history["high"].iloc[bar_idx - lookback : bar_idx + 1].max()
-            l = history["low"].iloc[bar_idx - lookback : bar_idx + 1].min()
-            current_high = float(history.iloc[bar_idx]["high"])
-            current_low = float(history.iloc[bar_idx]["low"])
-            z.liquidity_swept = detect_liquidity_sweep(current_high, current_low, h, l, is_demand)
-            if is_demand:
-                z.liq_low_price = l
-                z.liq_high_price = h
-            else:
-                z.liq_high_price = h
-                z.liq_low_price = l
-            z.liquidity_valid = True
+        if self.zone_log is not None:
+            base_time = row.get("time")
+            self.zone_log.append({
+                "zone_id": z.id,
+                "type": "demand" if is_demand else "supply",
+                "created_bar": base_idx,
+                "created_time": pd.Timestamp(base_time).isoformat() if base_time is not None else "",
+                "top": z_top,
+                "bottom": z_bottom,
+                "is_accuracy": is_accuracy,
+                "is_historical": is_historical,
+                "score": score,
+                "grade": z.grade,
+            })
 
         if is_demand:
             self.demand_zones.append(z)
         else:
             self.supply_zones.append(z)
         return z
+
+    def _scan_demand_liquidity(
+        self, zone_idx: int, bar_idx: int, history: pd.DataFrame) -> None:
+        """Pine-aligned: find lowest pivot LOW above zone (inducement), then target high."""
+        z = self.demand_zones[zone_idx]
+        if z.created_bar_index < 0 or bar_idx <= z.created_bar_index or z.is_historical:
+            return
+        pip_size = self.config.pip_size
+        effective_liq_max = self.config.get_effective_liq_max_dist(
+            self.config.is_gold(), self.config.is_index()
+        ) * pip_size
+
+        # STEP A: Inducement = lowest valid pivot LOW above zone top
+        best_liq_price = float("inf")
+        best_liq_bar = -1
+        max_scan = min(bar_idx - 1, z.created_bar_index + 500)  # Cap for performance
+        for pivot_bar in range(z.created_bar_index + 1, max_scan):
+            if not _is_pivot_low(history, pivot_bar):
+                continue
+            p_low = float(history.iloc[pivot_bar]["low"])
+            if p_low <= z.top:
+                continue
+            dist = p_low - z.top
+            if effective_liq_max > 0 and dist > effective_liq_max:
+                continue
+            if p_low < best_liq_price:
+                best_liq_price = p_low
+                best_liq_bar = pivot_bar
+
+        if best_liq_bar < 0:
+            z.liquidity_valid = False
+            return
+
+        # Inducement changed? Reset sweep flags
+        induction_changed = (
+            np.isnan(z.liq_low_price) or z.liq_low_price != best_liq_price
+            or z.liq_low_bar != best_liq_bar
+        )
+        z.liquidity_price = best_liq_price
+        z.liquidity_bar_index = best_liq_bar
+        z.liq_low_price = best_liq_price
+        z.liq_low_bar = best_liq_bar
+        if induction_changed:
+            z.liquidity_swept = False
+            z.liquidity_swept_bar_index = -1
+
+        # STEP B: Target = absolute highest high in [createdBar ... inducementBar - 1]
+        range_start = z.created_bar_index
+        range_end = best_liq_bar - 1
+        best_target_price = np.nan
+        best_target_bar = -1
+        if range_end >= range_start and range_end < len(history):
+            slice_high = history["high"].iloc[range_start : range_end + 1]
+            if len(slice_high) > 0:
+                best_target_bar = range_start + int(slice_high.values.argmax())
+                best_target_price = float(history.iloc[best_target_bar]["high"])
+
+        target_changed = (
+            np.isnan(z.liq_high_price) or (not np.isnan(best_target_price) and z.liq_high_price != best_target_price)
+            or z.liq_high_bar != best_target_bar
+        )
+        z.liq_high_bar = best_target_bar
+        z.liq_high_price = best_target_price if not np.isnan(best_target_price) else np.nan
+        if target_changed:
+            z.target_swept = False
+            z.target_swept_bar_index = -1
+
+        z.liquidity_valid = True
+        z.structure_sweep_level = z.liq_high_price
+        z.structure_sweep_level_bar = z.liq_high_bar
+
+    def _scan_supply_liquidity(
+        self, zone_idx: int, bar_idx: int, history: pd.DataFrame) -> None:
+        """Pine-aligned: find highest pivot HIGH below zone (inducement), then target low."""
+        z = self.supply_zones[zone_idx]
+        if z.created_bar_index < 0 or bar_idx <= z.created_bar_index or z.is_historical:
+            return
+        pip_size = self.config.pip_size
+        effective_liq_max = self.config.get_effective_liq_max_dist(
+            self.config.is_gold(), self.config.is_index()
+        ) * pip_size
+
+        best_liq_price = float("-inf")
+        best_liq_bar = -1
+        max_scan = min(bar_idx - 1, z.created_bar_index + 500)  # Cap for performance
+        for pivot_bar in range(z.created_bar_index + 1, max_scan):
+            if not _is_pivot_high(history, pivot_bar):
+                continue
+            p_high = float(history.iloc[pivot_bar]["high"])
+            if p_high >= z.bottom:
+                continue
+            dist = z.bottom - p_high
+            if effective_liq_max > 0 and dist > effective_liq_max:
+                continue
+            if p_high > best_liq_price:
+                best_liq_price = p_high
+                best_liq_bar = pivot_bar
+
+        if best_liq_bar < 0:
+            z.liquidity_valid = False
+            return
+
+        induction_changed = (
+            np.isnan(z.liq_high_price) or z.liq_high_price != best_liq_price
+            or z.liq_high_bar != best_liq_bar
+        )
+        z.liquidity_price = best_liq_price
+        z.liquidity_bar_index = best_liq_bar
+        z.liq_high_price = best_liq_price
+        z.liq_high_bar = best_liq_bar
+        if induction_changed:
+            z.liquidity_swept = False
+            z.liquidity_swept_bar_index = -1
+
+        range_start = z.created_bar_index
+        range_end = best_liq_bar - 1
+        best_target_price = np.nan
+        best_target_bar = -1
+        if range_end >= range_start and range_end < len(history):
+            slice_low = history["low"].iloc[range_start : range_end + 1]
+            if len(slice_low) > 0:
+                best_target_bar = range_start + int(slice_low.values.argmin())
+                best_target_price = float(history.iloc[best_target_bar]["low"])
+
+        target_changed = (
+            np.isnan(z.liq_low_price) or z.liq_low_price != best_target_price
+            or z.liq_low_bar != best_target_bar
+        )
+        z.liq_low_bar = best_target_bar
+        z.liq_low_price = best_target_price if not np.isnan(best_target_price) else np.nan
+        if target_changed:
+            z.target_swept = False
+            z.target_swept_bar_index = -1
+
+        z.liquidity_valid = True
+        z.structure_sweep_level = z.liq_low_price
+        z.structure_sweep_level_bar = z.liq_low_bar
+
+    def _check_demand_sweeps(
+        self, zone_idx: int, bar_idx: int, high: float, low: float,
+        history: pd.DataFrame) -> None:
+        """Pine-aligned: inducement sweep (low <= liqLow+tol), target sweep (high >= liqHigh-tol)."""
+        z = self.demand_zones[zone_idx]
+        pip_size = self.config.pip_size
+        sweep_tol = pip_size * 0.5
+        if not np.isnan(z.liq_low_price) and not z.liquidity_swept:
+            if low <= z.liq_low_price + sweep_tol:
+                z.liquidity_swept = True
+                z.liquidity_swept_bar_index = bar_idx
+                z.caused_sweep = True
+        if z.liquidity_valid and not np.isnan(z.liq_high_price) and not z.target_swept:
+            if high >= z.liq_high_price - sweep_tol:
+                z.target_swept = True
+                z.target_swept_bar_index = bar_idx
+                if not z.caused_sweep:
+                    z.caused_sweep = True
+
+    def _check_supply_sweeps(
+        self, zone_idx: int, bar_idx: int, high: float, low: float,
+        history: pd.DataFrame) -> None:
+        """Pine-aligned: inducement sweep (high >= liqHigh-tol), target sweep (low <= liqLow+tol)."""
+        z = self.supply_zones[zone_idx]
+        pip_size = self.config.pip_size
+        sweep_tol = pip_size * 0.5
+        if not np.isnan(z.liq_high_price) and not z.liquidity_swept:
+            if high >= z.liq_high_price - sweep_tol:
+                z.liquidity_swept = True
+                z.liquidity_swept_bar_index = bar_idx
+                z.caused_sweep = True
+        if z.liquidity_valid and not np.isnan(z.liq_low_price) and not z.target_swept:
+            if low <= z.liq_low_price + sweep_tol:
+                z.target_swept = True
+                z.target_swept_bar_index = bar_idx
+                if not z.caused_sweep:
+                    z.caused_sweep = True
 
     def _update_zones(self, bar_idx: int, bar: pd.Series, history: pd.DataFrame) -> None:
         """Zone creation + liquidity sweep detection."""
@@ -275,27 +474,76 @@ class SNDStrategy:
                 if is_bullish(c_i, o_i) and is_bearish(c_1, o_1) and is_bearish(c_2, o_2):
                     self._create_zone(bar_idx, base_idx, False, True, 1, 2 if i >= 3 else 1, history)
 
-        # Update liquidity sweep + targetSwept on existing zones
-        lookback_high = float(history["high"].iloc[max(0, bar_idx - 10) : bar_idx + 1].max())
-        lookback_low = float(history["low"].iloc[max(0, bar_idx - 10) : bar_idx + 1].min())
-        for z in self.demand_zones + self.supply_zones:
+        # Demand: scan liquidity, check sweeps, mitigation (Pine-aligned)
+        for i in range(len(self.demand_zones)):
+            z = self.demand_zones[i]
+            if not z.active or z.is_historical:
+                continue
+            if not (z.liquidity_valid and not z.liquidity_swept):
+                self._scan_demand_liquidity(i, bar_idx, history)
+            self._check_demand_sweeps(i, bar_idx, high, low, history)
+            # Mitigation: kill zone if touched before sweep
+            if not z.mitigated and bar_idx > z.created_bar_index:
+                closes_inside = close <= z.top and close >= z.bottom
+                breaches_zone = low < z.bottom
+                wicks_into_zone = low <= z.top and low >= z.bottom
+                current_bar_sweeping = (
+                    not np.isnan(z.structure_sweep_level) and high > z.structure_sweep_level
+                )
+                if not z.liquidity_swept and (closes_inside or breaches_zone or wicks_into_zone) and not current_bar_sweeping:
+                    z.mitigated = True
+                    z.touched_pre_sweep = True
+
+        # Supply: scan liquidity, check sweeps, mitigation (Pine-aligned)
+        for i in range(len(self.supply_zones)):
+            z = self.supply_zones[i]
+            if not z.active or z.is_historical:
+                continue
+            if not (z.liquidity_valid and not z.liquidity_swept):
+                self._scan_supply_liquidity(i, bar_idx, history)
+            self._check_supply_sweeps(i, bar_idx, high, low, history)
+            if not z.mitigated and bar_idx > z.created_bar_index:
+                closes_inside = close >= z.bottom and close <= z.top
+                breaches_zone = high > z.top
+                wicks_into_zone = high >= z.bottom and high <= z.top
+                current_bar_sweeping = (
+                    not np.isnan(z.structure_sweep_level) and low < z.structure_sweep_level
+                )
+                if not z.liquidity_swept and (closes_inside or breaches_zone or wicks_into_zone) and not current_bar_sweeping:
+                    z.mitigated = True
+                    z.touched_pre_sweep = True
+
+        # Zone invalidation (24h, close inside, wick)
+        bar_time = bar.get("time")
+        if bar_time is not None:
+            if hasattr(bar_time, "to_pydatetime"):
+                bar_time = bar_time.to_pydatetime()
+            current_ts = int(pd.Timestamp(bar_time).timestamp())
+        else:
+            current_ts = 0
+        HOURS_24_SEC = 24 * 60 * 60
+
+        for i in range(len(self.demand_zones) - 1, -1, -1):
+            z = self.demand_zones[i]
             if not z.active:
                 continue
-            is_demand = z.bottom < z.top
-            swept = detect_liquidity_sweep(high, low, lookback_high, lookback_low, is_demand)
-            if swept and not z.liquidity_swept:
-                z.liquidity_swept = True
-                z.liquidity_swept_bar_index = bar_idx
-                z.caused_sweep = True  # Simplified: zone "caused" sweep when we detect it
-            elif swept:
-                z.liquidity_swept = True
-            # Target swept: demand=high>=liq_high (target), supply=low<=liq_low (target)
-            if is_demand and not np.isnan(z.liq_high_price) and high >= z.liq_high_price and not z.target_swept:
-                z.target_swept = True
-                z.target_swept_bar_index = bar_idx
-            elif not is_demand and not np.isnan(z.liq_low_price) and low <= z.liq_low_price and not z.target_swept:
-                z.target_swept = True
-                z.target_swept_bar_index = bar_idx
+            is_too_old = z.start_time > 0 and (current_ts - z.start_time) > HOURS_24_SEC
+            close_inside = close <= z.top and close >= z.bottom
+            close_below = close < z.bottom
+            wick_below = low < z.bottom
+            if is_too_old or close_inside or close_below or (cfg.invalidate_on_wick and wick_below):
+                self.demand_zones.pop(i)
+
+        for i in range(len(self.supply_zones) - 1, -1, -1):
+            z = self.supply_zones[i]
+            if not z.active:
+                continue
+            is_too_old = z.start_time > 0 and (current_ts - z.start_time) > HOURS_24_SEC
+            close_inside = close >= z.bottom and close <= z.top
+            close_above = close > z.top
+            wick_above = high > z.top
+            if is_too_old or close_inside or close_above or (cfg.invalidate_on_wick and wick_above):
+                self.supply_zones.pop(i)
 
     def on_bar(
         self,
@@ -349,6 +597,8 @@ class SNDStrategy:
                 # Pine: block historical zones
                 if z.is_historical:
                     continue
+                if z.mitigated or z.touched_pre_sweep:
+                    continue
                 if not z.active or not z.primed:
                     # Prime check: require liquidity_swept + target_swept + caused_sweep
                     if (
@@ -382,6 +632,19 @@ class SNDStrategy:
                 # Block entries if zone touched more than once (prevent overtrading weak zones)
                 if z.touch_count > 1:
                     continue  # Skip - zone already retouched
+
+                # 24h freshness (Pine: zoneIsFresh)
+                current_ts = int(pd.Timestamp(bar_time).timestamp())
+                if z.start_time > 0 and (current_ts - z.start_time) > 86400:
+                    continue
+
+                # Liquidity distance (Pine: checkLiquidityDistance) - skip for indices
+                if not cfg.is_index() and cfg.liq_entry_max_dist > 0 and not np.isnan(z.liq_low_price):
+                    dist_pips = abs(z.liq_low_price - z.top) / pip_size
+                    pip_scale = 10.0 if cfg.is_gold() and pip_size <= 0.011 else 1.0
+                    effective_max = cfg.liq_entry_max_dist * pip_scale
+                    if dist_pips > effective_max:
+                        continue
 
                 # Entry models
                 prev_close = _safe_get(history["close"], bar_idx - 1)
@@ -464,6 +727,8 @@ class SNDStrategy:
             for i, z in enumerate(self.supply_zones):
                 if z.is_historical:
                     continue
+                if z.mitigated or z.touched_pre_sweep:
+                    continue
                 if not z.active or not z.primed:
                     if (
                         z.active
@@ -496,6 +761,19 @@ class SNDStrategy:
                 # Block entries if zone touched more than once (prevent overtrading weak zones)
                 if z.touch_count > 1:
                     continue  # Skip - zone already retouched
+
+                # 24h freshness (Pine: zoneIsFresh)
+                current_ts = int(pd.Timestamp(bar_time).timestamp())
+                if z.start_time > 0 and (current_ts - z.start_time) > 86400:
+                    continue
+
+                # Liquidity distance (Pine: checkLiquidityDistance) - skip for indices
+                if not cfg.is_index() and cfg.liq_entry_max_dist > 0 and not np.isnan(z.liq_high_price):
+                    dist_pips = abs(z.bottom - z.liq_high_price) / pip_size
+                    pip_scale = 10.0 if cfg.is_gold() and pip_size <= 0.011 else 1.0
+                    effective_max = cfg.liq_entry_max_dist * pip_scale
+                    if dist_pips > effective_max:
+                        continue
 
                 prev_close = _safe_get(history["close"], bar_idx - 1)
                 prev_open = _safe_get(history["open"], bar_idx - 1)

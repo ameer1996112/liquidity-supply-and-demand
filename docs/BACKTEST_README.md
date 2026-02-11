@@ -35,8 +35,12 @@ python -m app.backtest_chart --symbol XAUUSD --from 2026-01-01 --to 2026-02-10
 | Fix | Description |
 |-----|-------------|
 | Block historical zones | No entries from backfill zones (`is_historical=True`) |
+| **Pivot liquidity** | 3-candle Makuchaku pivots; inducement above zone (demand) |
 | targetSwept | Demand: high ≥ liq_high; Supply: low ≤ liq_low |
 | causedSweep | Set when liquidity sweep detected |
+| touchedPreSweep | Zone invalid if touched before sweep (mitigation) |
+| liq_entry_max_dist | Zone within N pips of liquidity |
+| 24h freshness | Zone must be < 24h old |
 | Touch in zone | Low/high must be inside `[z.bottom, z.top]` |
 
 ### 4. Strategy Tester (Streamlit)
@@ -112,6 +116,17 @@ data/
 
 ## Outputs
 
+### zones.csv (when using legacy engine)
+| Column | Description |
+|--------|-------------|
+| zone_id, type | Demand/supply zone ID and type |
+| created_bar, created_time | Bar index and timestamp when zone was created |
+| top, bottom | Zone boundaries |
+| is_accuracy, is_historical | Zone flags |
+| score, grade | Quality score (0–100) and grade (A+–C) |
+
+Use for overlaying demand/supply zones on charts.
+
 ### trades.csv
 | Column | Description |
 |--------|-------------|
@@ -145,11 +160,14 @@ data/
 
 | Area | Pine | Python |
 |------|------|--------|
-| Liquidity | Pivot-based | 10-bar lookback |
-| touchedPreSweep | Invalid if touched before sweep | Not tracked |
-| liq_entry_max_dist | 50 pips | Not enforced |
+| Liquidity | Pivot-based inducement/target | ✅ Pivot-based (ported) |
+| touchedPreSweep | Invalid if touched before sweep | ✅ Tracked |
+| liq_entry_max_dist | 50 pips | ✅ Enforced |
+| Mitigation | Kill zone on touch before sweep | ✅ Implemented |
 | Timezone | Asia/Jerusalem | UTC |
 | Candle direction | Hammer / inv. hammer | Body only |
+
+See `docs/PINE_TO_PYTHON_SPEC.md` for full logic mapping.
 
 ---
 
