@@ -104,12 +104,17 @@ def test_data_loader(token: str, account_id: str, symbol: str = "EURUSD", region
         raise
 
 
-def test_strategy(df: pd.DataFrame, initial_cash: float = 10000.0) -> None:
+def test_strategy(
+    df: pd.DataFrame,
+    symbol: str = "EURUSD",
+    initial_cash: float = 10000.0,
+) -> None:
     """
     Test SndStrategy - run backtest on provided data.
 
     Args:
         df: pandas DataFrame with OHLCV data
+        symbol: Trading symbol for position sizing (default: EURUSD)
         initial_cash: Initial account balance (default: $10k)
     """
     logger.info("=" * 60)
@@ -126,8 +131,8 @@ def test_strategy(df: pd.DataFrame, initial_cash: float = 10000.0) -> None:
             exclusive_orders=True,
         )
 
-        logger.info(f"Running backtest on {len(df)} candles...")
-        stats = bt.run()
+        logger.info(f"Running backtest on {len(df)} candles (symbol={symbol})...")
+        stats = bt.run(symbol=symbol, account_size_usd=initial_cash)
 
         logger.info("✅ Backtest completed successfully!")
         logger.info("\n" + "=" * 60)
@@ -279,8 +284,8 @@ def quick_test_with_sample_data() -> None:
     logger.info(f"✅ Generated {len(df)} synthetic candles")
     logger.info(f"Price range: {df['Low'].min():.5f} - {df['High'].max():.5f}")
 
-    # Run backtest
-    test_strategy(df)
+    # Run backtest (synthetic EURUSD data)
+    test_strategy(df, symbol="EURUSD", initial_cash=10000.0)
 
 
 def main():
@@ -289,6 +294,7 @@ def main():
     parser.add_argument("--account", help="MetaApi account ID (or set META_API_ACCOUNT_ID env var)")
     parser.add_argument("--region", default="new-york", help="MetaApi region (default: new-york)")
     parser.add_argument("--symbol", default="EURUSD", help="Trading symbol (default: EURUSD)")
+    parser.add_argument("--cash", type=float, default=10000.0, help="Initial cash for backtest (default: 10000)")
     parser.add_argument("--api-url", default="http://localhost:8000", help="API base URL")
 
     parser.add_argument("--test-data", action="store_true", help="Test data loader only")
@@ -334,7 +340,7 @@ def main():
                 logger.info("Fetching data for strategy test...")
                 df = test_data_loader(token, account_id, args.symbol, args.region)
 
-            test_strategy(df)
+            test_strategy(df, symbol=args.symbol, initial_cash=float(args.cash))
             logger.info("✅ Test 2 PASSED\n")
 
         # Test 3: API Endpoint

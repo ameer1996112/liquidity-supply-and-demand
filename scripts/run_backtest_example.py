@@ -180,6 +180,7 @@ def fetch_metaapi_data(
 
 def run_backtest(
     df: pd.DataFrame,
+    symbol: str = "EURUSD",
     initial_cash: float = 10000.0,
     risk_percent: float = 0.5,
     min_rr_ratio: float = 2.0,
@@ -221,8 +222,10 @@ def run_backtest(
         exclusive_orders=True,
     )
 
-    # Run backtest
+    # Run backtest (symbol + account_size_usd required for Pine-aligned position sizing)
     stats = bt.run(
+        symbol=symbol,
+        account_size_usd=initial_cash,
         risk_percent=risk_percent,
         min_rr_ratio=min_rr_ratio,
         stop_buffer_pips=stop_buffer_pips,
@@ -259,7 +262,11 @@ def run_backtest(
     return stats
 
 
-def optimize_parameters(df: pd.DataFrame, initial_cash: float = 10000.0) -> dict:
+def optimize_parameters(
+    df: pd.DataFrame,
+    symbol: str = "EURUSD",
+    initial_cash: float = 10000.0,
+) -> dict:
     """
     Optimize strategy parameters using backtesting.py optimizer.
 
@@ -282,8 +289,10 @@ def optimize_parameters(df: pd.DataFrame, initial_cash: float = 10000.0) -> dict
         margin=0.02,  # 50:1 leverage (forex/metals)
     )
 
-    # Define parameter ranges
+    # Define parameter ranges (symbol + account_size fixed for Pine-aligned position sizing)
     stats = bt.optimize(
+        symbol=[symbol],
+        account_size_usd=[initial_cash],
         risk_percent=[0.3, 0.5, 0.7, 1.0],
         min_rr_ratio=[1.5, 2.0, 2.5, 3.0],
         zone_lookback=range(5, 21, 5),
@@ -357,10 +366,11 @@ def main():
 
         # 2. Run backtest or optimization
         if args.optimize:
-            stats = optimize_parameters(df, initial_cash=args.cash)
+            stats = optimize_parameters(df, symbol=args.symbol, initial_cash=args.cash)
         else:
             stats = run_backtest(
                 df,
+                symbol=args.symbol,
                 initial_cash=args.cash,
                 risk_percent=args.risk,
                 min_rr_ratio=args.rr,

@@ -426,6 +426,9 @@ async def run_backtest(request: BacktestRequest) -> BacktestResponse:
         # Symbol (REQUIRED for symbol-specific logic)
         strategy_kwargs["symbol"] = request.symbol
 
+        # Fixed account size for position sizing (matches Pine account_size_usd)
+        strategy_kwargs["account_size_usd"] = request.initial_cash
+
         # Risk parameters
         if request.risk_percent is not None:
             strategy_kwargs["risk_percent"] = request.risk_percent

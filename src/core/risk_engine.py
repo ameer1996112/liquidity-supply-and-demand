@@ -85,10 +85,17 @@ def calculate_max_position_size(
             sl_buffer_pips = float(symbol_overrides.get("stop_loss_buffer_pips", 1.0))
         else:
             # Hardcoded fallback for unknown symbols
-            if "JPY" in symbol:
+            # IMPORTANT: Check indices and crypto FIRST before forex
+            if any(idx in symbol.upper() for idx in ["NAS100", "US30", "SPX", "UK100", "GER", "FRA", "JPN225", "AUS200"]):
+                pip_size = 1.0  # 1 point = 1 pip for indices
+                pip_value_per_lot = 1.0  # $1 per point per lot (most US indices)
+            elif any(crypto in symbol.upper() for crypto in ["BTC", "ETH", "BCH", "LTC", "XRP", "ADA", "SOL", "DOGE"]):
+                pip_size = 1.0  # 1 point = 1 pip for crypto
+                pip_value_per_lot = 1.0  # $1 per point per lot
+            elif "JPY" in symbol:
                 pip_size = 0.01
                 pip_value_per_lot = 1000.0
-            elif "XAU" in symbol or "GOLD" in symbol:
+            elif "XAU" in symbol or "GOLD" in symbol or "XAG" in symbol or "SILVER" in symbol:
                 pip_size = 0.01
                 pip_value_per_lot = 100.0
             else:

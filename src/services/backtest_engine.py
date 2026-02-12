@@ -253,6 +253,9 @@ class SndStrategy(Strategy):
     # Symbol information (for symbol-specific logic)
     symbol = "EURUSD"  # Default symbol, should be set during init
 
+    # Position sizing: Pine uses fixed account_size_usd; set to match initial_cash for alignment
+    account_size_usd = None  # None = use equity (compounding); set = use fixed (Pine-style)
+
     def init(self):
         """
         Initialize strategy state.
@@ -2433,7 +2436,10 @@ class SndStrategy(Strategy):
         Returns:
             Position size in units (for backtesting.py: integer units)
         """
-        account_balance = self.equity
+        # Pine uses fixed account_size_usd; we use equity unless account_size_usd is set
+        account_balance = (
+            self.account_size_usd if self.account_size_usd is not None else self.equity
+        )
         risk_usd = account_balance * (self.risk_percent / 100.0)
         pip_sz = self._get_pip_size_for_sizing()
 
@@ -2447,6 +2453,17 @@ class SndStrategy(Strategy):
             return 0.0
 
         ticker = getattr(self, "symbol", "EURUSD").upper()
+        current_price = self.data.Close[-1]
+
+        # Infer symbol from price when symbol not passed (scripts often omit it)
+        if ticker == "EURUSD" and current_price > 100:
+            if current_price > 5000:
+                ticker = "NAS100"  # Indices: 15k-20k
+            elif 100 < current_price < 300:
+                ticker = "USDJPY"  # JPY pairs: 140-155
+            else:
+                ticker = "XAUUSD"  # Gold: 2000-2600
+
         is_gold = any(x in ticker for x in ["XAU", "GOLD"])
         is_silver = any(x in ticker for x in ["XAG", "SILVER"])
         is_crypto = any(x in ticker for x in ["BTC", "ETH"])
@@ -2491,7 +2508,6 @@ class SndStrategy(Strategy):
         position_units = min(position_units, max_units_by_lots)
 
         # Cap by margin (95% of equity at 50:1)
-        current_price = self.data.Close[-1]
         max_by_margin = max(1, int(account_balance / current_price * 0.95 * 50))
         position_units = min(position_units, max_by_margin)
 
@@ -2501,12 +2517,18 @@ class SndStrategy(Strategy):
             min_units = 1000  # Forex: min 0.01 lot
         position_units = max(position_units, min_units)
 
-        logger.debug(
-            "Position size (Pine): risk=$%.2f dist=%.5f eff_dist=%.5f units=%d",
+        expected_risk_usd = position_units * effective_distance
+        logger.info(
+            "Position size: balance=$%.0f risk_pct=%.2f%% risk_usd=$%.2f "
+            "dist=%.5f eff_dist=%.5f units=%d expected_risk=$%.2f symbol=%s",
+            account_balance,
+            self.risk_percent,
             risk_usd,
             price_distance,
             effective_distance,
             position_units,
+            expected_risk_usd,
+            ticker,
         )
 
         return position_units
