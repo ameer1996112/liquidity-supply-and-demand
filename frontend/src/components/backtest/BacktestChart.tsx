@@ -94,6 +94,9 @@ export function BacktestChart({
         borderColor: "#374151",
         timeVisible: true,
         secondsVisible: false,
+        rightOffset: 10, // Space on the right edge
+        barSpacing: 6, // Space between candles
+        minBarSpacing: 0.5, // Allow zooming in closer
       },
       rightPriceScale: {
         borderColor: "#374151",
@@ -175,8 +178,18 @@ export function BacktestChart({
 
     volumeSeriesRef.current.setData(volumeData);
 
-    // Fit content to visible area
-    chartRef.current?.timeScale().fitContent();
+    // Show the most recent ~200 candles by default (user can zoom out to see more)
+    if (chartRef.current && candles.length > 0) {
+      const timeScale = chartRef.current.timeScale();
+      const lastCandle = candles[candles.length - 1];
+      const numCandlesToShow = Math.min(200, candles.length);
+      const firstVisibleCandle = candles[candles.length - numCandlesToShow];
+
+      timeScale.setVisibleRange({
+        from: firstVisibleCandle.time as number,
+        to: lastCandle.time as number,
+      });
+    }
   }, [candles]);
 
   // Draw Supply/Demand zones
