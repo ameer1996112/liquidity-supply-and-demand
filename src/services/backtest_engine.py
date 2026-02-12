@@ -2250,17 +2250,27 @@ class SndStrategy(Strategy):
 
         return True, best_zone, entry_price, stop_loss
 
-    def _get_pip_size(self) -> float:
+    def _get_pip_size_for_sizing(self) -> float:
         """
-        Get pip size for current symbol (auto-detect from price).
+        Get pip size for position sizing (matches Pine SND_Utils.get_auto_pip_size).
 
         Returns:
-            Pip size (e.g., 0.0001 for EURUSD, 0.01 for XAUUSD)
+            Pip size (e.g., 0.0001 for EURUSD, 0.01 for XAUUSD, 1.0 for indices)
         """
-        # Simple heuristic: if current price > 10, use 0.01 (metals/indices)
-        # Otherwise use 0.0001 (forex)
-        current_price = self.data.Close[-1]
-        return 0.01 if current_price > 10 else 0.0001
+        ticker = getattr(self, "symbol", "EURUSD").upper()
+        if any(x in ticker for x in ["NAS", "US100", "NDX"]):
+            return 1.0  # NAS100: 1 pip = 1 point
+        if any(x in ticker for x in ["SPX", "US500", "SPY"]):
+            return 1.0  # S&P 500
+        if any(x in ticker for x in ["US30", "DJI"]):
+            return 1.0  # Dow Jones
+        if "JPY" in ticker:
+            return 0.01  # JPY pairs
+        if any(x in ticker for x in ["XAU", "XAG", "GOLD", "SILVER"]):
+            return 0.01  # Gold/Silver
+        if any(x in ticker for x in ["BTC", "ETH"]):
+            return 1.0  # Crypto
+        return 0.0001  # Standard forex
 
     def _detect_liquidity_sweep(self, zone_type: str, lookback: int = 10) -> bool:
         """
@@ -2408,10 +2418,13 @@ class SndStrategy(Strategy):
 
     def _calculate_position_size(self, entry: float, stop_loss: float) -> float:
         """
-        Calculate position size based on risk percentage.
+        Calculate position size in UNITS using Pine Script calc_pos_size_units logic.
 
-        Risk-based formula: units = risk_amount / |entry - stop_loss|
-        So if SL is hit, loss = units * |entry - sl| = risk_amount.
+        Matches SND_Strategy.pine validate_position_size / calc_pos_size_units:
+        - USD Quote (XAUUSD, EURUSD, etc.): units = risk_usd / effective_distance
+        - JPY pairs: units = (risk_usd * usdjpy_rate) / effective_distance
+        - Indices: same as USD quote (1 contract = 1 point move)
+        - Min 2 pips distance clamp to prevent massive sizes on tight SL
 
         Args:
             entry: Entry price
@@ -2421,40 +2434,82 @@ class SndStrategy(Strategy):
             Position size in units (for backtesting.py: integer units)
         """
         account_balance = self.equity
-        risk_amount = account_balance * (self.risk_percent / 100.0)
+        risk_usd = account_balance * (self.risk_percent / 100.0)
+        pip_sz = self._get_pip_size_for_sizing()
 
-        risk_per_unit = abs(entry - stop_loss)
-        if risk_per_unit <= 0:
+        # Price distance (absolute)
+        price_distance = abs(entry - stop_loss)
+
+        # CRITICAL: Min 2 pips clamp (Pine Script line 1055)
+        min_distance = 2.0 * pip_sz
+        effective_distance = max(price_distance, min_distance)
+        if effective_distance <= 0:
             return 0.0
 
-        # units = risk_amount / risk_per_unit
-        # e.g. $250 risk / $5 SL distance = 50 oz (gold) or 50k units (forex)
-        units = risk_amount / risk_per_unit
-
-        current_price = self.data.Close[-1]
-        pip_size = self._get_pip_size()
-
-        # For forex: 1 unit = 1 base currency. Backtesting uses units directly.
-        # For gold: 1 unit = 1 oz. Min 1 oz.
-        if current_price > 100:  # Metals (XAUUSD, etc.) - 1 lot = 100 oz
-            units = max(1, int(round(units)))
-            max_by_lots = int(self.max_lot_size * 100)  # 10 lots = 1000 oz
-        else:  # Forex - 1 lot = 100,000 units
-            units = max(1000, int(round(units)))  # Min 0.01 lot = 1000 units
-            max_by_lots = int(self.max_lot_size * 100_000)
-
-        # Cap by max lot size and margin (95% of equity at 50:1)
-        max_by_margin = int(account_balance / current_price * 0.95 * 50)
-        units = min(units, max_by_lots, max(1, max_by_margin))
-
-        logger.debug(
-            "Position size: risk=$%.2f risk_per_unit=%.5f units=%d",
-            risk_amount,
-            risk_per_unit,
-            units,
+        ticker = getattr(self, "symbol", "EURUSD").upper()
+        is_gold = any(x in ticker for x in ["XAU", "GOLD"])
+        is_silver = any(x in ticker for x in ["XAG", "SILVER"])
+        is_crypto = any(x in ticker for x in ["BTC", "ETH"])
+        is_jpy = "JPY" in ticker
+        is_usd_base = ticker.startswith("USD") and not ticker.endswith("USD")
+        is_usd_quote = (
+            ("USD" in ticker and not is_usd_base) or is_gold or is_silver or is_crypto
+        )
+        is_index = any(
+            x in ticker for x in ["NAS", "US100", "NDX", "SPX", "US500", "US30", "DJI"]
         )
 
-        return units
+        # calc_pos_size_units cases (Pine lines 1078-1098)
+        if (is_usd_quote or is_index) and not is_jpy:
+            # USD Quote / Indices: 1 unit move $1 = $1 P/L
+            position_units = risk_usd / effective_distance
+        elif is_jpy:
+            # JPY pairs: (risk_usd * usdjpy_rate) / effective_distance
+            # USDJPY: rate = entry price; others use USDJPY cross rate
+            usdjpy_rate = entry if "USDJPY" in ticker else 150.0
+            position_units = (risk_usd * usdjpy_rate) / effective_distance
+        else:
+            # Cross pairs: risk_usd / (effective_distance * quote_usd_rate)
+            quote_usd_rate = 1.0  # Simplify; Pine uses get_quote_to_usd_rate
+            position_units = risk_usd / (effective_distance * quote_usd_rate)
+
+        position_units = round(position_units)
+        if position_units <= 0:
+            position_units = 1
+
+        # Contract size for max cap (Pine lines 1241-1259)
+        contract_size = 100_000.0  # Forex
+        if is_gold:
+            contract_size = 100.0
+        elif is_silver:
+            contract_size = 5000.0
+        elif is_crypto or is_index:
+            contract_size = 1.0
+
+        # Cap by max lot size
+        max_units_by_lots = int(self.max_lot_size * contract_size)
+        position_units = min(position_units, max_units_by_lots)
+
+        # Cap by margin (95% of equity at 50:1)
+        current_price = self.data.Close[-1]
+        max_by_margin = max(1, int(account_balance / current_price * 0.95 * 50))
+        position_units = min(position_units, max_by_margin)
+
+        # Minimum by symbol type
+        min_units = 1
+        if not (is_gold or is_silver or is_crypto or is_index):
+            min_units = 1000  # Forex: min 0.01 lot
+        position_units = max(position_units, min_units)
+
+        logger.debug(
+            "Position size (Pine): risk=$%.2f dist=%.5f eff_dist=%.5f units=%d",
+            risk_usd,
+            price_distance,
+            effective_distance,
+            position_units,
+        )
+
+        return position_units
 
     def next(self):
         """
