@@ -53,7 +53,7 @@ export function BacktestChart({
   onTimeChange,
 }: BacktestChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<ReturnType<typeof createChart> | null>(null);
+  const chartRef = useRef<any>(null);
   const candleSeriesRef = useRef<any>(null);
   const volumeSeriesRef = useRef<any>(null);
 
@@ -101,7 +101,7 @@ export function BacktestChart({
       },
       width: chartContainerRef.current.clientWidth,
       height,
-    });
+    }) as any;
 
     // Candlestick series
     const candleSeries = chart.addCandlestickSeries({
@@ -134,7 +134,7 @@ export function BacktestChart({
     volumeSeriesRef.current = volumeSeries;
 
     // Subscribe to crosshair move
-    chart.subscribeCrosshairMove((param) => {
+    chart.subscribeCrosshairMove((param: any) => {
       if (param.time && onTimeChange) {
         onTimeChange(param.time as number);
       }
