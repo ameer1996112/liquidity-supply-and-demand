@@ -161,7 +161,7 @@ export default function AccountsPage() {
           <AccountsTable accounts={accounts} onDelete={handleDeleteAccount} />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {accounts.map((account) => (
+            {accounts.map((account: AccountDetailApi) => (
               <EnhancedAccountCard
                 key={account.account_name}
                 account={account}

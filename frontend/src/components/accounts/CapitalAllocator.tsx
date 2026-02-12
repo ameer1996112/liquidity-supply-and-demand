@@ -94,7 +94,7 @@ export function CapitalAllocator() {
               </p>
             )}
             <ul className="space-y-2">
-              {plan.recommendations.map((rec) => (
+              {plan.recommendations.map((rec: any) => (
                 <li
                   key={rec.account_name}
                   className="flex flex-col gap-1 rounded-lg border border-[#2a2e39] p-3"

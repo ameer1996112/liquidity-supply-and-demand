@@ -10,7 +10,7 @@ interface AccountCardProps {
 }
 
 export function AccountCard({ account, className }: AccountCardProps) {
-  const dailyPositive = account.daily_pnl >= 0;
+  const dailyPositive = (account.daily_pnl ?? 0) >= 0;
   const winRatePct = (account.win_rate * 100).toFixed(1);
 
   return (
@@ -53,9 +53,9 @@ export function AccountCard({ account, className }: AccountCardProps) {
                 dailyPositive ? 'text-[#26a69a]' : 'text-[#ef5350]'
               )}
             >
-              {dailyPositive ? '+' : ''}${account.daily_pnl.toFixed(2)}
+              {dailyPositive ? '+' : ''}${(account.daily_pnl ?? 0).toFixed(2)}
               <span className="text-[10px] ml-0.5 opacity-80">
-                ({dailyPositive ? '+' : ''}{account.daily_pnl_pct.toFixed(2)}%)
+                ({dailyPositive ? '+' : ''}{(account.daily_pnl_pct ?? 0).toFixed(2)}%)
               </span>
             </span>
           </div>

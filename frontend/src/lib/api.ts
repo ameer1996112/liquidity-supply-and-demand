@@ -92,8 +92,9 @@ export const backtestAPI = {
 /**
  * Portfolio Control - Account Management
  */
-export async function fetchAccountsComparison() {
-  return apiFetch<any>("/api/portfolio-control/accounts/comparison");
+export async function fetchAccountsComparison(): Promise<AccountDetailApi[]> {
+  const response = await apiFetch<AccountComparisonResponse>("/api/portfolio-control/accounts/comparison");
+  return response.accounts || [];
 }
 
 export async function fetchAccountDetail(accountName: string) {
@@ -125,9 +126,14 @@ export async function fetchTradeCopyRules() {
 }
 
 export async function createTradeCopyRule(rule: {
+  rule_name?: string;
   master_account_name: string;
   slave_account_names: string[];
   copy_ratio?: number;
+  scale_by_balance?: boolean;
+  risk_multiplier?: number;
+  copy_sl_tp?: boolean;
+  enabled?: boolean;
   filter_symbols?: string[];
   filter_strategies?: string[];
 }) {
@@ -319,29 +325,52 @@ export function getAlertAcknowledgeAllUrl(): string {
 export interface AccountDetailApi {
   account_name: string;
   account_number?: string;
+  account_type?: string;
   balance: number;
   equity: number;
   margin_used: number;
   margin_free: number;
+  free_margin?: number;
   margin_level?: number;
+  margin_level_pct?: number;
   open_positions: number;
+  active_positions?: number;
   floating_pnl: number;
   realized_pnl_today: number;
+  daily_pnl?: number;
+  daily_pnl_pct?: number;
   total_trades: number;
   winning_trades: number;
   losing_trades: number;
   win_rate: number;
+  avg_win_usd?: number;
+  avg_loss_usd?: number;
   profit_factor?: number;
   max_drawdown?: number;
+  max_drawdown_pct?: number;
   sharpe_ratio?: number;
   last_sync?: string;
   broker_profile_id?: number;
   broker_name?: string;
   mt_version?: string;
   status: string;
+  connection_status?: string;
+  strategy_type?: string;
+  provider?: string;
+  allocated_capital_usd?: number;
+  risk_percent?: number;
+  min_rr_ratio?: number;
+  max_lot_size?: number;
+  max_positions?: number;
+  pause_trading?: boolean;
+  created_at?: string;
 }
 
-export interface AccountComparisonApi {
+// AccountComparisonApi is used for individual accounts in cards/tables
+// It's the same as AccountDetailApi
+export type AccountComparisonApi = AccountDetailApi;
+
+export interface AccountComparisonResponse {
   accounts: AccountDetailApi[];
   portfolio_summary?: {
     total_balance: number;

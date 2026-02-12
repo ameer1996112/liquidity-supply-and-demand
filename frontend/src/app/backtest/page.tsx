@@ -107,8 +107,12 @@ export default function BacktestPage() {
     })) || [];
 
   // Filter trades visible up to current candle
+  const lastCandleTime = chartCandles[chartCandles.length - 1]?.time;
   const visibleTrades =
-    backtestResult?.trades.filter((trade) => trade.entry_time <= chartCandles[chartCandles.length - 1]?.time) || [];
+    backtestResult?.trades.filter((trade) => {
+      if (!lastCandleTime) return false;
+      return trade.entry_time <= (typeof lastCandleTime === 'number' ? lastCandleTime : Number(lastCandleTime));
+    }) || [];
 
   const stats = backtestResult?.stats;
 
@@ -267,7 +271,7 @@ export default function BacktestPage() {
 
             <div className="mt-4">
               <FXReplayController
-                candles={backtestResult.candles as CandlestickData<Time>[]}
+                candles={backtestResult.candles as unknown as CandlestickData<Time>[]}
                 currentIndex={currentCandleIndex}
                 onCandleIndexChange={setCurrentCandleIndex}
               />

@@ -62,8 +62,8 @@ export function AccountsTable({ accounts, onDelete }: AccountsTableProps) {
         bVal = b.balance;
         break;
       case 'daily_pnl':
-        aVal = a.daily_pnl;
-        bVal = b.daily_pnl;
+        aVal = a.daily_pnl ?? 0;
+        bVal = b.daily_pnl ?? 0;
         break;
       case 'total_pnl':
         // Calculate total from all trades (not yet implemented, use balance as proxy)
@@ -132,7 +132,7 @@ export function AccountsTable({ accounts, onDelete }: AccountsTableProps) {
           <tbody>
             {sortedAccounts.map((account) => {
               const isPaused = account.pause_trading ?? false;
-              const dailyPositive = account.daily_pnl >= 0;
+              const dailyPositive = (account.daily_pnl ?? 0) >= 0;
               const winRateClass = account.win_rate >= 0.5 ? 'text-[#26a69a]' : 'text-[#ef5350]';
 
               return (
@@ -209,9 +209,9 @@ export function AccountsTable({ accounts, onDelete }: AccountsTableProps) {
                         'font-mono text-xs font-semibold',
                         dailyPositive ? 'text-[#26a69a]' : 'text-[#ef5350]'
                       )}>
-                        {dailyPositive ? '+' : ''}${account.daily_pnl.toFixed(2)}
+                        {dailyPositive ? '+' : ''}${(account.daily_pnl ?? 0).toFixed(2)}
                         <span className="text-[9px] ml-0.5 opacity-80">
-                          ({dailyPositive ? '+' : ''}{account.daily_pnl_pct.toFixed(2)}%)
+                          ({dailyPositive ? '+' : ''}{(account.daily_pnl_pct ?? 0).toFixed(2)}%)
                         </span>
                       </span>
                     </div>

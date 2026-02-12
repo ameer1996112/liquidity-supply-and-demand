@@ -184,7 +184,7 @@ export function CopyConfigurator() {
           </p>
         ) : (
           <ul className="space-y-2">
-            {rules.map((rule) => (
+            {rules.map((rule: any) => (
               <li
                 key={rule.id}
                 className={cn(
