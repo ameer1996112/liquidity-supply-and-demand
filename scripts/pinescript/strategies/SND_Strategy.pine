@@ -30,8 +30,8 @@
 
 // === LIBRARY IMPORTS ===
 // Import helper functions from external libraries to reduce script size
-import ameer_1996112/SND_Utils/5 as Utils
-import ameer_1996112/SND_Core/1 as Core
+import ameer_1996112/SND_Utils/8 as Utils
+import ameer_1996112/SND_Core/2 as Core
 
 strategy("Institutional Liquidity Protocol [Pro]",
      shorttitle = "S&D Algo [Pro]",
@@ -1050,10 +1050,21 @@ calc_pos_size_units(entry, stop, balance, risk_pct, is_short) =>
     // Step 2: Calculate price distance (absolute)
     float price_distance = math.abs(entry - stop)
     
-    // CRITICAL SAFETY CLAMP: Enforce minimum 2 pip distance to prevent massive position sizes
-    // Without this, a 0.1 pip SL would cause position_units = 50 / 0.01 = 5000 units (on Forex)
-    // or on Gold: position_units = 50 / 0.10 = 500 oz = 5 lots (way too big for tight SL)
-    float min_distance = 2.0 * pip_size  // Minimum 2 pips
+    // === SYMBOL-SPECIFIC MINIMUM SL DISTANCES ===
+    // Indices need MUCH larger minimum SL due to $1/point (vs forex $10/pip)
+    // This prevents massive position sizes from tight stops
+    float min_distance = 2.0 * pip_size  // Default: 2 pips for forex
+
+    if is_index
+        // NAS100/SPX500: Minimum 20 points (reasonable for index volatility)
+        min_distance := 20.0 * pip_size
+    else if is_gold
+        // Gold: Minimum 100 pips = $10 (prevents 0.5 lot on $0.50 SL)
+        min_distance := 100.0 * pip_size
+    else if is_crypto
+        // Bitcoin: Minimum 50 points
+        min_distance := 50.0 * pip_size
+
     float effective_distance = math.max(price_distance, min_distance)
     
     // Validate distance is positive
@@ -1247,11 +1258,12 @@ validate_position_size(entry_price, stop_loss_price, balance, risk_pct, is_short
         if is_valid
             qty_units := int(math.round(qty_units_raw))
             
-            // Determine contract size for units-to-lots conversion
+            // === SYMBOL-SPECIFIC CONTRACT SIZES & LIMITS ===
             // Gold: 100 oz/lot, Silver: 5000 oz/lot, Crypto: 1 unit/lot, Forex: 100,000 units/lot
             float contract_size = FOREX_LOT_SIZE
             int effective_min_units = min_position_size_units
-            
+            float effective_max_lots = max_position_size_lots  // Default 10.0
+
             if str.contains(syminfo.ticker, "XAU") or str.contains(syminfo.ticker, "GOLD")
                 contract_size := 100.0
                 effective_min_units := 1  // Gold: minimum 1 oz (0.01 lots)
@@ -1261,23 +1273,25 @@ validate_position_size(entry_price, stop_loss_price, balance, risk_pct, is_short
             else if str.contains(syminfo.ticker, "BTC") or str.contains(syminfo.ticker, "ETH")
                 contract_size := 1.0
                 effective_min_units := 1  // Crypto: minimum 1 unit
+                effective_max_lots := 10.0  // Bitcoin usually small lots
             else if is_index  // Indices: NAS100, SPX, etc.
                 contract_size := 1.0
                 effective_min_units := 1  // Index: minimum 1 contract
-            
+                effective_max_lots := 50.0  // ⚡ INCREASED for indices ($1/point vs $10/pip)
+
             qty_lots := qty_units / contract_size
-            
+
             // Step 6: Minimum position size check (using asset-appropriate minimum)
             if qty_units < effective_min_units
                 is_valid := false
                 error_msg := "Position size below minimum"
                 validation_details := "Units: " + str.tostring(qty_units) + " (min: " + str.tostring(effective_min_units) + ")"
-            
-            // Step 7: Maximum position size check
-            if is_valid and qty_lots > max_position_size_lots
+
+            // Step 7: Maximum position size check (use symbol-specific max)
+            if is_valid and qty_lots > effective_max_lots
                 is_valid := false
                 error_msg := "Position size exceeds maximum"
-                validation_details := "Lots: " + str.tostring(qty_lots, "#.####") + " (max: " + str.tostring(max_position_size_lots) + ")"
+                validation_details := "Lots: " + str.tostring(qty_lots, "#.####") + " (max: " + str.tostring(effective_max_lots) + ")"
             
             // Step 8: Final validation - ensure qty_units is positive and not na
             if is_valid and (na(qty_units) or qty_units <= 0)

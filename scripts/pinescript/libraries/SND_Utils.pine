@@ -184,10 +184,7 @@ export units_to_lots(float units, string ticker) =>
     else if str.contains(ticker, "XAG") or str.contains(ticker, "SILVER")
         lot_size := SILVER_LOT_SIZE     // Silver: 5000 oz per lot
     // Crypto (expanded to cover more coins)
-    else if str.contains(ticker, "BTC") or str.contains(ticker, "ETH") or
-            str.contains(ticker, "SOL") or str.contains(ticker, "ADA") or
-            str.contains(ticker, "XRP") or str.contains(ticker, "LTC") or
-            str.contains(ticker, "BCH") or str.contains(ticker, "DOGE")
+    else if (str.contains(ticker, "BTC") or str.contains(ticker, "ETH") or str.contains(ticker, "SOL") or str.contains(ticker, "ADA") or str.contains(ticker, "XRP") or str.contains(ticker, "LTC") or str.contains(ticker, "BCH") or str.contains(ticker, "DOGE"))
         lot_size := CRYPTO_LOT_SIZE        // Crypto: 1 unit per lot
 
     units / lot_size
