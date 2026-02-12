@@ -205,10 +205,7 @@ export function AiConfigPanel() {
         <ConfigRow label="Max Drawdown" value={`${risk.trinity_max_drawdown_pct}%`} />
         <ConfigRow label="Risk Per Trade" value={`${risk.trinity_max_risk_per_trade_pct}%`} />
         <ConfigRow label="Max Positions" value={risk.trinity_max_positions} />
-        <ConfigRow label="Account Balance" value={`$${risk.account_balance.toLocaleString()}`} />
         <ConfigRow label="Risk %" value={`${risk.risk_percent}%`} />
-        <ConfigRow label="Risk Scaling" value={<StatusBadge enabled={risk.enable_risk_scaling} />} />
-        <ConfigRow label="Risk Mode" value={risk.risk_mode.toUpperCase()} />
       </SectionCard>
 
       {/* Hint */}

@@ -410,3 +410,46 @@ export interface SymbolRiskRuleApi {
   created_at: string;
   updated_at: string;
 }
+
+/**
+ * Risk Settings - TODO: Backend needs to implement these endpoints
+ */
+export async function fetchRiskSettings() {
+  // TODO: Backend needs to implement this endpoint
+  console.warn('fetchRiskSettings not implemented');
+  return {};
+}
+
+export async function updateRiskSetting(
+  settingKey: string,
+  value: number | boolean | string | Record<string, unknown>,
+  changeReason?: string
+) {
+  // TODO: Backend needs to implement this endpoint
+  console.warn(`updateRiskSetting not implemented for ${settingKey}`);
+  return {};
+}
+
+export async function fetchSymbolRiskRules() {
+  // TODO: Backend needs to implement this endpoint
+  console.warn('fetchSymbolRiskRules not implemented');
+  return [];
+}
+
+export async function createSymbolRiskRule(rule: Omit<SymbolRiskRuleApi, 'id' | 'created_at' | 'updated_at'>) {
+  // TODO: Backend needs to implement this endpoint
+  console.warn('createSymbolRiskRule not implemented');
+  return {};
+}
+
+export async function updateSymbolRiskRule(symbol: string, updates: Partial<SymbolRiskRuleApi>) {
+  // TODO: Backend needs to implement this endpoint
+  console.warn(`updateSymbolRiskRule not implemented for ${symbol}`);
+  return {};
+}
+
+export async function deleteSymbolRiskRule(symbol: string) {
+  // TODO: Backend needs to implement this endpoint
+  console.warn(`deleteSymbolRiskRule not implemented for ${symbol}`);
+  return {};
+}
