@@ -3,8 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
   createChart,
-  IChartApi,
-  ISeriesApi,
   CandlestickData,
   Time,
   ColorType,
@@ -55,9 +53,9 @@ export function BacktestChart({
   onTimeChange,
 }: BacktestChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
-  const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
-  const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const chartRef = useRef<ReturnType<typeof createChart> | null>(null);
+  const candleSeriesRef = useRef<ReturnType<ReturnType<typeof createChart>['addCandlestickSeries']> | null>(null);
+  const volumeSeriesRef = useRef<ReturnType<ReturnType<typeof createChart>['addHistogramSeries']> | null>(null);
 
   // Initialize chart
   useEffect(() => {
