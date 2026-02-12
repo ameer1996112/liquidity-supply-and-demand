@@ -17,6 +17,7 @@ const float FOREX_LOT_SIZE = 100000.0
 const float GOLD_LOT_SIZE = 100.0
 const float SILVER_LOT_SIZE = 5000.0
 const float CRYPTO_LOT_SIZE = 1.0
+const float INDEX_LOT_SIZE = 1.0  // Indices: 1 contract = 1 lot
 
 // Default fallback values
 const float USDJPY_FALLBACK = 150.0
@@ -167,12 +168,28 @@ export to_json_num(float val, string fmt) =>
 // @returns Position size in lots
 export units_to_lots(float units, string ticker) =>
     float lot_size = FOREX_LOT_SIZE  // Default forex
-    if str.contains(ticker, "XAU") or str.contains(ticker, "GOLD")
+
+    // IMPORTANT: Check indices FIRST before other instruments
+    // Indices: NAS100, US30, SPX500, GER40, UK100, JPN225, etc.
+    if str.contains(ticker, "NAS") or str.contains(ticker, "US30") or str.contains(ticker, "US100") or
+       str.contains(ticker, "SPX") or str.contains(ticker, "US500") or str.contains(ticker, "SPY") or
+       str.contains(ticker, "GER") or str.contains(ticker, "DAX") or str.contains(ticker, "UK100") or
+       str.contains(ticker, "JPN225") or str.contains(ticker, "NIKKEI") or str.contains(ticker, "AUS200") or
+       str.contains(ticker, "HK50") or str.contains(ticker, "FRA40") or str.contains(ticker, "ESP35")
+        lot_size := INDEX_LOT_SIZE  // Indices: 1 contract = 1 lot
+    // Gold
+    else if str.contains(ticker, "XAU") or str.contains(ticker, "GOLD")
         lot_size := GOLD_LOT_SIZE      // Gold: 100 oz per lot
+    // Silver
     else if str.contains(ticker, "XAG") or str.contains(ticker, "SILVER")
         lot_size := SILVER_LOT_SIZE     // Silver: 5000 oz per lot
-    else if str.contains(ticker, "BTC") or str.contains(ticker, "ETH")
+    // Crypto (expanded to cover more coins)
+    else if str.contains(ticker, "BTC") or str.contains(ticker, "ETH") or
+            str.contains(ticker, "SOL") or str.contains(ticker, "ADA") or
+            str.contains(ticker, "XRP") or str.contains(ticker, "LTC") or
+            str.contains(ticker, "BCH") or str.contains(ticker, "DOGE")
         lot_size := CRYPTO_LOT_SIZE        // Crypto: 1 unit per lot
+
     units / lot_size
 
 // Helper: safe percentage (returns 0.0 instead of na to avoid NaN in tables)
