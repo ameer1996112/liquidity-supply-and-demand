@@ -231,26 +231,36 @@ export function BacktestChart({
   useEffect(() => {
     if (!candleSeriesRef.current || trades.length === 0) return;
 
-    const markers = trades.flatMap((trade) => [
-      // Entry marker
-      {
-        time: trade.entry_time as Time,
-        position: (trade.side === "long" ? "belowBar" : "aboveBar") as "belowBar" | "aboveBar",
-        color: trade.side === "long" ? "#22c55e" : "#ef4444",
-        shape: (trade.side === "long" ? "arrowUp" : "arrowDown") as "arrowUp" | "arrowDown",
-        text: `${trade.side.toUpperCase()} @ ${trade.entry_price.toFixed(5)}`,
-      },
-      // Exit marker
-      {
-        time: trade.exit_time as Time,
-        position: (trade.side === "long" ? "aboveBar" : "belowBar") as "aboveBar" | "belowBar",
-        color: trade.pnl >= 0 ? "#22c55e" : "#ef4444",
-        shape: "circle" as const,
-        text: `${trade.pnl >= 0 ? "WIN" : "LOSS"} $${trade.pnl.toFixed(2)}`,
-      },
-    ]);
+    // Ensure the series has the setMarkers method (type guard)
+    if (typeof candleSeriesRef.current.setMarkers !== 'function') {
+      console.error('CandleSeries does not have setMarkers method');
+      return;
+    }
 
-    candleSeriesRef.current.setMarkers(markers);
+    try {
+      const markers = trades.flatMap((trade) => [
+        // Entry marker
+        {
+          time: trade.entry_time as Time,
+          position: (trade.side === "long" ? "belowBar" : "aboveBar") as "belowBar" | "aboveBar",
+          color: trade.side === "long" ? "#22c55e" : "#ef4444",
+          shape: (trade.side === "long" ? "arrowUp" : "arrowDown") as "arrowUp" | "arrowDown",
+          text: `${trade.side.toUpperCase()} @ ${trade.entry_price.toFixed(5)}`,
+        },
+        // Exit marker
+        {
+          time: trade.exit_time as Time,
+          position: (trade.side === "long" ? "aboveBar" : "belowBar") as "aboveBar" | "belowBar",
+          color: trade.pnl >= 0 ? "#22c55e" : "#ef4444",
+          shape: "circle" as const,
+          text: `${trade.pnl >= 0 ? "WIN" : "LOSS"} $${trade.pnl.toFixed(2)}`,
+        },
+      ]);
+
+      candleSeriesRef.current.setMarkers(markers);
+    } catch (error) {
+      console.error('Error setting markers:', error);
+    }
   }, [trades]);
 
   return (

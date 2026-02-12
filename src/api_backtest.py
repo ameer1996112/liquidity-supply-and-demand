@@ -77,6 +77,17 @@ class BacktestRequest(BaseModel):
         default=None, description="Require market structure break (default: False)"
     )
 
+    # Advanced liquidity & quality settings
+    liq_entry_max_dist: Optional[float] = Field(
+        default=None, ge=10.0, le=1000.0, description="Max liquidity distance at entry (pips)"
+    )
+    ai_quality_threshold: Optional[int] = Field(
+        default=None, ge=0, le=100, description="Minimum AI quality score (0-100)"
+    )
+    min_entry_grade: Optional[str] = Field(
+        default=None, description="Minimum zone grade (A+, A, B+, B, C+, C)"
+    )
+
     # MetaApi config (optional, defaults to env vars)
     meta_api_token: Optional[str] = Field(default=None, description="MetaApi token (or use env META_API_TOKEN)")
     meta_api_account_id: Optional[str] = Field(default=None, description="MetaApi account ID (or use env META_API_ACCOUNT_ID)")
@@ -429,6 +440,14 @@ async def run_backtest(request: BacktestRequest) -> BacktestResponse:
             strategy_kwargs["reject_compression_arrival"] = request.reject_compression_arrival
         if request.require_structure_break is not None:
             strategy_kwargs["require_structure_break"] = request.require_structure_break
+
+        # Advanced liquidity & quality settings
+        if request.liq_entry_max_dist is not None:
+            strategy_kwargs["liq_entry_max_dist"] = request.liq_entry_max_dist
+        if request.ai_quality_threshold is not None:
+            strategy_kwargs["ai_quality_threshold"] = request.ai_quality_threshold
+        if request.min_entry_grade is not None:
+            strategy_kwargs["min_entry_grade"] = request.min_entry_grade
 
         # 5. Run backtest
         bt = Backtest(

@@ -28,6 +28,9 @@ interface BacktestRequest {
   require_liquidity_sweep?: boolean;
   reject_compression_arrival?: boolean;
   require_structure_break?: boolean;
+  liq_entry_max_dist?: number;
+  ai_quality_threshold?: number;
+  min_entry_grade?: string;
 }
 
 interface BacktestResponse {
@@ -83,6 +86,10 @@ export default function BacktestPage() {
     require_liquidity_sweep: true, // ← Changed from false (Pine always requires this)
     reject_compression_arrival: false, // ← Changed from true (let more trades through)
     require_structure_break: false,
+    // Advanced liquidity & quality settings
+    liq_entry_max_dist: 500.0, // Max liquidity distance (pips) - 500 for gold, 50 for forex
+    ai_quality_threshold: 60, // Min AI quality score (0-100)
+    min_entry_grade: "C+", // Min zone grade (A+, A, B+, B, C+, C)
   });
 
   // Run backtest mutation (uses Railway URL in production)
@@ -156,6 +163,9 @@ export default function BacktestPage() {
                   require_liquidity_sweep: true,
                   reject_compression_arrival: true,
                   require_structure_break: false,
+                  liq_entry_max_dist: 50.0,
+                  ai_quality_threshold: 70,
+                  min_entry_grade: "B+",
                 })
               }
             >
@@ -174,6 +184,9 @@ export default function BacktestPage() {
                   require_liquidity_sweep: true,
                   reject_compression_arrival: false,
                   require_structure_break: false,
+                  liq_entry_max_dist: 500.0,
+                  ai_quality_threshold: 60,
+                  min_entry_grade: "C+",
                 })
               }
             >
@@ -367,6 +380,63 @@ export default function BacktestPage() {
             />
             <span className="text-sm">Require Structure Break</span>
           </label>
+        </div>
+
+        {/* Advanced Liquidity & Quality Settings */}
+        <div className="mt-4">
+          <h3 className="text-sm font-semibold text-gray-300 mb-3">Advanced Settings (Liquidity & AI Quality)</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">
+                Max Liquidity Distance (pips)
+              </label>
+              <input
+                type="number"
+                value={config.liq_entry_max_dist}
+                onChange={(e) => setConfig({ ...config, liq_entry_max_dist: parseFloat(e.target.value) || 500.0 })}
+                min="10"
+                max="1000"
+                step="10"
+                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md"
+              />
+              <p className="text-xs text-gray-500 mt-1">Max distance from zone to liquidity level</p>
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">
+                AI Quality Threshold (0-100)
+              </label>
+              <input
+                type="number"
+                value={config.ai_quality_threshold}
+                onChange={(e) => setConfig({ ...config, ai_quality_threshold: parseInt(e.target.value) || 60 })}
+                min="0"
+                max="100"
+                step="5"
+                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md"
+              />
+              <p className="text-xs text-gray-500 mt-1">Minimum AI quality score to enter trade</p>
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">
+                Minimum Entry Grade
+              </label>
+              <select
+                value={config.min_entry_grade}
+                onChange={(e) => setConfig({ ...config, min_entry_grade: e.target.value })}
+                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md"
+              >
+                <option value="A+">A+ (90-100)</option>
+                <option value="A">A (80-89)</option>
+                <option value="B+">B+ (70-79)</option>
+                <option value="B">B (60-69)</option>
+                <option value="C+">C+ (50-59)</option>
+                <option value="C">C (0-49)</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">Minimum zone grade to enter trade</p>
+            </div>
+          </div>
         </div>
 
         <Button
