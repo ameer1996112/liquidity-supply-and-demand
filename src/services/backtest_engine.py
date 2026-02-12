@@ -2564,8 +2564,10 @@ class SndStrategy(Strategy):
         # 3. Exit management (check existing positions first)
         if self.position:
             # Check max bars in trade (time-based exit like Pine Script)
-            if self.max_bars_in_trade > 0:
-                bars_in_trade = bar_index - self.position.entry_bar
+            # Position has no entry_bar; get it from the earliest active trade
+            if self.max_bars_in_trade > 0 and self.trades:
+                entry_bar = min(t.entry_bar for t in self.trades)
+                bars_in_trade = bar_index - entry_bar
                 if bars_in_trade >= self.max_bars_in_trade:
                     logger.info(
                         "Exiting position at bar %d: max bars reached (%d >= %d)",
