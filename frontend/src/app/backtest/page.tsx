@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { BacktestChart, Trade, Zone } from "@/components/backtest/BacktestChart";
 import { FXReplayController } from "@/components/backtest/FXReplayController";
+import { BacktestPerformanceTab } from "@/components/backtest/BacktestPerformanceTab";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -514,41 +515,50 @@ export default function BacktestPage() {
             </Card>
           </div>
 
-          {/* Chart */}
-          <Card className="p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">Backtest Chart</h2>
-              <Button
-                variant={replayMode ? "default" : "outline"}
-                size="sm"
-                onClick={() => {
-                  setReplayMode(!replayMode);
-                  if (!replayMode) {
-                    setCurrentCandleIndex(0); // Reset to start when enabling replay
-                  }
-                }}
-              >
-                <Play className="h-4 w-4 mr-2" />
-                {replayMode ? "Exit Replay Mode" : "Enable FX Replay"}
-              </Button>
-            </div>
+          {/* Chart, Trades, Performance Tabs */}
+          <Tabs defaultValue="chart" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="chart">Chart</TabsTrigger>
+              <TabsTrigger value="trades">Trade List</TabsTrigger>
+              <TabsTrigger value="performance">Performance</TabsTrigger>
+            </TabsList>
 
-            <BacktestChart candles={chartCandles} trades={visibleTrades} height={600} />
+            <TabsContent value="chart" className="mt-4">
+              <Card className="p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-semibold">Backtest Chart</h2>
+                  <Button
+                    variant={replayMode ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => {
+                      setReplayMode(!replayMode);
+                      if (!replayMode) {
+                        setCurrentCandleIndex(0);
+                      }
+                    }}
+                  >
+                    <Play className="h-4 w-4 mr-2" />
+                    {replayMode ? "Exit Replay Mode" : "Enable FX Replay"}
+                  </Button>
+                </div>
 
-            {replayMode && (
-              <div className="mt-4">
-                <FXReplayController
-                  candles={backtestResult.candles as unknown as CandlestickData<Time>[]}
-                  currentIndex={currentCandleIndex}
-                  onCandleIndexChange={setCurrentCandleIndex}
-                />
-              </div>
-            )}
-          </Card>
+                <BacktestChart candles={chartCandles} trades={visibleTrades} height={600} />
 
-          {/* Trade List - TradingView Style */}
-          <Card className="p-6">
-            <h2 className="text-xl font-semibold mb-4">Trade List ({visibleTrades.length} trades)</h2>
+                {replayMode && (
+                  <div className="mt-4">
+                    <FXReplayController
+                      candles={backtestResult.candles as unknown as CandlestickData<Time>[]}
+                      currentIndex={currentCandleIndex}
+                      onCandleIndexChange={setCurrentCandleIndex}
+                    />
+                  </div>
+                )}
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="trades" className="mt-4">
+              <Card className="p-6">
+                <h2 className="text-xl font-semibold mb-4">Trade List ({visibleTrades.length} trades)</h2>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="border-b border-gray-800">
@@ -629,6 +639,34 @@ export default function BacktestPage() {
               )}
             </div>
           </Card>
+            </TabsContent>
+
+            <TabsContent value="performance" className="mt-4">
+              <BacktestPerformanceTab
+                trades={visibleTrades}
+                stats={
+                  stats ?? {
+                    total_trades: 0,
+                    winning_trades: 0,
+                    losing_trades: 0,
+                    win_rate: 0,
+                    total_return: 0,
+                    sharpe_ratio: 0,
+                    max_drawdown: 0,
+                    profit_factor: 0,
+                    avg_win: 0,
+                    avg_loss: 0,
+                    largest_win: 0,
+                    largest_loss: 0,
+                    avg_trade_duration: "0m",
+                    exposure_time: 0,
+                  }
+                }
+                initialCash={backtestResult.initial_cash}
+                finalEquity={backtestResult.final_equity}
+              />
+            </TabsContent>
+          </Tabs>
         </>
       )}
 
