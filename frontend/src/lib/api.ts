@@ -1,634 +1,90 @@
 /**
- * Backend API base URL for health checks, webhook proxy, etc.
- * Set NEXT_PUBLIC_API_URL (e.g. http://backend:8000 in Docker, http://localhost:8000 locally).
+ * API Client Configuration for Railway Deployment
+ *
+ * Automatically uses Railway backend URL in production,
+ * localhost in development.
  */
-function getBase(): string {
-  if (typeof process === 'undefined') return '';
-  const url = (process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/$/, '');
-  if (url) return url;
-  return typeof window === 'undefined' ? 'http://localhost:8000' : '';
-}
 
-export function getApiUrl(): string {
-  return getBase();
-}
+// Get API base URL from environment or default to localhost
+export const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-/** e.g. "http://backend:8000/health" */
-export function getHealthUrl(): string {
-  const base = getBase();
-  return base ? `${base}/health` : '';
-}
+/**
+ * Fetch wrapper with automatic Railway URL handling
+ */
+export async function apiFetch<T>(
+  endpoint: string,
+  options?: RequestInit
+): Promise<T> {
+  const url = `${API_BASE_URL}${endpoint}`;
 
-/** e.g. "http://backend:8000/webhook" - for future webhook proxy or test UI */
-export function getWebhookUrl(): string {
-  const base = getBase();
-  return base ? `${base}/webhook` : '';
-}
-
-/** e.g. "http://backend:8000/config/ai" */
-export function getAiConfigUrl(): string {
-  const base = getBase();
-  return base ? `${base}/config/ai` : '';
-}
-
-/** AI/ML configuration shape returned by GET /config/ai */
-export interface AiConfigResponse {
-  ai: {
-    ai_filter_enabled: boolean;
-    ai_provider: string;
-    ai_model: string;
-    ai_base_url: string;
-    ai_min_confidence: number;
-    ai_timeout_seconds: number;
-    ai_api_key_set: boolean;
-  };
-  ml: {
-    ml_guardian_enabled: boolean;
-    ml_min_confidence: number;
-  };
-  ensemble: {
-    enable_llm_filter: boolean;
-    run_shadow_mode: boolean;
-  };
-  execution: {
-    execution_mode: string;
-    run_mode: string;
-    live_trading_enabled: boolean;
-    live_shadow: boolean;
-    trading_kill_switch: boolean;
-    meta_api_configured: boolean;
-    meta_api_region: string;
-  };
-  risk: {
-    trinity_enabled: boolean;
-    trinity_max_daily_loss_pct: number;
-    trinity_max_drawdown_pct: number;
-    trinity_max_risk_per_trade_pct: number;
-    trinity_max_positions: number;
-    risk_percent: number;
-    account_balance: number;
-    enable_risk_scaling: boolean;
-    risk_mode: string;
-  };
-}
-
-export async function fetchAiConfig(): Promise<AiConfigResponse> {
-  const url = getAiConfigUrl();
-  if (!url) throw new Error('API URL not configured');
-  const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
-
-/** e.g. "http://backend:8000/rules/strategy" */
-export function getRulesStrategyUrl(): string {
-  const base = getBase();
-  return base ? `${base}/rules/strategy` : '';
-}
-
-// ---------------------------------------------------------------------------
-// Alerts API helpers
-// ---------------------------------------------------------------------------
-
-export function getAlertsActiveUrl(): string {
-  const base = getBase();
-  return base ? `${base}/alerts/active` : '';
-}
-
-export function getAlertAcknowledgeUrl(id: number | string): string {
-  const base = getBase();
-  return base ? `${base}/alerts/${id}/acknowledge` : '';
-}
-
-export function getAlertAcknowledgeAllUrl(): string {
-  const base = getBase();
-  return base ? `${base}/alerts/acknowledge_all` : '';
-}
-
-// ---------------------------------------------------------------------------
-// Portfolio Command Center (V2.0)
-// ---------------------------------------------------------------------------
-
-export function getPortfolioControlUrl(path = ''): string {
-  const base = getBase();
-  const p = path.startsWith('/') ? path : `/${path}`;
-  return base ? `${base}/portfolio-control${p}` : '';
-}
-
-/** GET /portfolio-control/risk/settings */
-export function getRiskSettingsUrl(): string {
-  return getPortfolioControlUrl('/risk/settings');
-}
-
-/** PATCH /portfolio-control/risk/settings/{key} */
-export function getRiskSettingUpdateUrl(settingKey: string): string {
-  return getPortfolioControlUrl(`/risk/settings/${encodeURIComponent(settingKey)}`);
-}
-
-export interface RiskSettingsResponse {
-  settings: Record<string, number | boolean | string | Record<string, unknown>>;
-  overrides_count: number;
-}
-
-export async function fetchRiskSettings(): Promise<RiskSettingsResponse> {
-  const url = getRiskSettingsUrl();
-  if (!url) throw new Error('API URL not configured');
-  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
-
-export async function updateRiskSetting(
-  settingKey: string,
-  value: number | boolean | string | Record<string, unknown>,
-  changeReason?: string
-): Promise<{ status: string; setting: string; value: unknown }> {
-  const url = getRiskSettingUpdateUrl(settingKey);
-  if (!url) throw new Error('API URL not configured');
-  const res = await fetch(url, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ value, change_reason: changeReason ?? undefined }),
-    signal: AbortSignal.timeout(10000),
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...options?.headers,
+    },
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`API Error (${response.status}): ${error}`);
+  }
+
+  return response.json();
 }
 
-// ---------------------------------------------------------------------------
-// Rules API (symbol risk rules for Risk Control Center)
-// ---------------------------------------------------------------------------
-
-export function getRulesSymbolsUrl(): string {
-  const base = getBase();
-  return base ? `${base}/rules/symbols` : '';
-}
-
-export function getRulesSymbolUrl(symbol: string): string {
-  const base = getBase();
-  return base ? `${base}/rules/symbols/${encodeURIComponent(symbol)}` : '';
-}
-
-export interface SymbolRiskRuleApi {
-  id?: string;
-  symbol: string;
-  max_lot_size: number;
-  risk_percent: number;
-  pip_size: number;
-  pip_value_per_lot: number;
-  max_positions: number;
-  enabled: boolean;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export async function fetchSymbolRiskRules(): Promise<SymbolRiskRuleApi[]> {
-  const url = getRulesSymbolsUrl();
-  if (!url) throw new Error('API URL not configured');
-  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json();
-  return (data.rules ?? []) as SymbolRiskRuleApi[];
-}
-
-export async function createSymbolRiskRule(rule: Omit<SymbolRiskRuleApi, 'id' | 'created_at' | 'updated_at'>): Promise<SymbolRiskRuleApi> {
-  const url = getRulesSymbolsUrl();
-  if (!url) throw new Error('API URL not configured');
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(rule),
-    signal: AbortSignal.timeout(10000),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json();
-  return data.rule as SymbolRiskRuleApi;
-}
-
-export async function updateSymbolRiskRule(symbol: string, updates: Partial<SymbolRiskRuleApi>): Promise<SymbolRiskRuleApi> {
-  const url = getRulesSymbolUrl(symbol);
-  if (!url) throw new Error('API URL not configured');
-  const res = await fetch(url, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(updates),
-    signal: AbortSignal.timeout(10000),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json();
-  return data.rule as SymbolRiskRuleApi;
-}
-
-export async function deleteSymbolRiskRule(symbol: string): Promise<void> {
-  const url = getRulesSymbolUrl(symbol);
-  if (!url) throw new Error('API URL not configured');
-  const res = await fetch(url, { method: 'DELETE', signal: AbortSignal.timeout(10000) });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-}
-
-// ---------------------------------------------------------------------------
-// Portfolio Optimizer (batch actions, hedging, trailing stops)
-// ---------------------------------------------------------------------------
-
-export async function batchPositionAction(payload: {
-  signal_ids: number[];
-  action: 'close' | 'scale_out' | 'move_sl_breakeven' | 'add_trailing';
-  action_params?: { trail_distance_pips?: number };
-}): Promise<{
-  status: string;
-  action: string;
-  total: number;
-  success: number;
-  failed: number;
-  results: Array<{ signal_id: number; success: boolean; error?: string; trailing_stop_id?: number }>;
-}> {
-  const url = getPortfolioControlUrl('/optimizer/batch-action');
-  if (!url) throw new Error('API URL not configured');
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(15000),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
-
-export interface HedgeSuggestionApi {
-  id: number;
-  suggested_symbol: string;
-  suggested_side: string;
-  suggested_size: number;
-  expected_var_reduction_pct: number;
-  hedge_reason: string;
-  currency_exposure: Record<string, number>;
-  total_exposure_usd: number;
-  current_var: number;
-}
-
-export async function fetchHedgeSuggestions(): Promise<HedgeSuggestionApi[]> {
-  const url = getPortfolioControlUrl('/optimizer/hedge-suggestions');
-  if (!url) throw new Error('API URL not configured');
-  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json();
-  return (data.suggestions ?? []).map((s: Record<string, unknown>) => ({
-    id: s.id,
-    suggested_symbol: s.suggested_symbol ?? s.symbol,
-    suggested_side: s.suggested_side ?? s.side,
-    suggested_size: s.suggested_size ?? s.size,
-    expected_var_reduction_pct: s.expected_var_reduction_pct ?? 0,
-    hedge_reason: s.hedge_reason ?? s.reason ?? '',
-    currency_exposure: (s.currency_exposure as Record<string, number>) ?? {},
-    total_exposure_usd: s.total_exposure_usd ?? 0,
-    current_var: s.current_var ?? 0,
-  })) as HedgeSuggestionApi[];
-}
-
-export async function generateHedgeSuggestion(): Promise<{
-  status: string;
-  suggestion_id?: number;
-  suggestion?: {
+/**
+ * Backtest API client
+ */
+export const backtestAPI = {
+  /**
+   * Run a backtest
+   */
+  async runBacktest(request: {
     symbol: string;
-    side: string;
-    size: number;
-    expected_var_reduction_pct: number;
-    reason: string;
-    currency_exposure: Record<string, number>;
-  };
-  message?: string;
-}> {
-  const url = getPortfolioControlUrl('/optimizer/generate-hedge');
-  if (!url) throw new Error('API URL not configured');
-  const res = await fetch(url, { method: 'POST', signal: AbortSignal.timeout(15000) });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
+    start_date: string;
+    end_date: string;
+    timeframe: string;
+    initial_cash: number;
+    commission: number;
+    risk_percent: number;
+    min_rr_ratio: number;
+    require_liquidity_sweep?: boolean;
+    reject_compression_arrival?: boolean;
+    require_structure_break?: boolean;
+  }) {
+    return apiFetch<any>("/api/backtest/run", {
+      method: "POST",
+      body: JSON.stringify(request),
+    });
+  },
 
-export async function acceptHedgeSuggestion(suggestionId: number): Promise<{ status: string; suggestion_id: number }> {
-  const url = getPortfolioControlUrl(`/optimizer/hedge-suggestions/${suggestionId}/accept`);
-  if (!url) throw new Error('API URL not configured');
-  const res = await fetch(url, { method: 'POST', signal: AbortSignal.timeout(10000) });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
+  /**
+   * Validate strategy before deploying to live bot
+   */
+  async validateStrategy(request: {
+    symbol: string;
+    days_to_test: number;
+    timeframe: string;
+    risk_percent: number;
+    min_rr_ratio: number;
+    reject_compression_arrival: boolean;
+    min_trades: number;
+    min_win_rate: number;
+    min_profit_factor: number;
+    max_drawdown: number;
+  }) {
+    return apiFetch<any>("/api/bot/validate-strategy", {
+      method: "POST",
+      body: JSON.stringify(request),
+    });
+  },
 
-export async function rejectHedgeSuggestion(suggestionId: number): Promise<{ status: string; suggestion_id: number }> {
-  const url = getPortfolioControlUrl(`/optimizer/hedge-suggestions/${suggestionId}/reject`);
-  if (!url) throw new Error('API URL not configured');
-  const res = await fetch(url, { method: 'POST', signal: AbortSignal.timeout(10000) });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
-
-export interface TrailingStopApi {
-  id: number;
-  signal_id: number;
-  symbol: string;
-  side: string;
-  trail_distance_pips: number;
-  current_sl: number | null;
-  is_activated: boolean;
-  times_moved: number;
-}
-
-export async function fetchTrailingStops(): Promise<TrailingStopApi[]> {
-  const url = getPortfolioControlUrl('/optimizer/trailing-stops');
-  if (!url) throw new Error('API URL not configured');
-  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json();
-  return (data.trailing_stops ?? []) as TrailingStopApi[];
-}
-
-export async function addTrailingStop(payload: {
-  signal_id: number;
-  trail_distance_pips: number;
-  activation_price?: number;
-  wait_for_breakeven?: boolean;
-}): Promise<{ status: string; trailing_stop_id: number }> {
-  const url = getPortfolioControlUrl('/optimizer/trailing-stop');
-  if (!url) throw new Error('API URL not configured');
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(10000),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
-
-export async function removeTrailingStop(trailingStopId: number): Promise<{ status: string }> {
-  const url = getPortfolioControlUrl(`/optimizer/trailing-stops/${trailingStopId}`);
-  if (!url) throw new Error('API URL not configured');
-  const res = await fetch(url, { method: 'DELETE', signal: AbortSignal.timeout(10000) });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
-
-// ---------------------------------------------------------------------------
-// Multi-Account Manager
-// ---------------------------------------------------------------------------
-
-export interface AccountComparisonApi {
-  account_name: string;
-  strategy_type?: string;
-  provider?: string;
-  account_type?: 'Eval' | 'Funded' | 'Personal';
-  balance: number;
-  equity?: number;
-  daily_pnl: number;
-  daily_pnl_pct: number;
-  win_rate: number;
-  sharpe_ratio: number;
-  max_drawdown_pct?: number;
-  active_positions: number;
-  total_trades?: number;
-  profit_factor?: number;
-  avg_win_usd?: number;
-  avg_loss_usd?: number;
-  risk_percent?: number;
-  max_positions?: number;
-  max_lot_size?: number;
-  min_rr_ratio?: number;
-  allocated_capital_usd?: number;
-  pause_trading?: boolean;
-  broker_profile_id?: number;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface AllocationRecommendationApi {
-  account_name: string;
-  current_balance: number;
-  suggested_allocation_usd: number;
-  change_usd: number;
-  change_pct: number;
-  reason: string;
-}
-
-export interface AllocationPlanApi {
-  total_capital: number;
-  total_allocated: number;
-  unallocated: number;
-  recommendations: AllocationRecommendationApi[];
-  expected_portfolio_sharpe: number;
-}
-
-export interface TradeCopyRuleApi {
-  id: number;
-  rule_name: string;
-  master_account_name: string;
-  slave_account_names: string[];
-  scale_by_balance: boolean;
-  risk_multiplier: number;
-  copy_sl_tp: boolean;
-  enabled: boolean;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface TradeCopyLogApi {
-  id: number;
-  rule_id: number;
-  master_signal_id: number;
-  master_account: string;
-  slave_signal_id: number;
-  slave_account: string;
-  master_size: number;
-  slave_size: number;
-  copied_at: string;
-  success: boolean;
-}
-
-export async function fetchAccountsComparison(): Promise<AccountComparisonApi[]> {
-  const url = getPortfolioControlUrl('/accounts/comparison');
-  if (!url) throw new Error('API URL not configured');
-  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json();
-  return (data.accounts ?? []) as AccountComparisonApi[];
-}
-
-export async function fetchAllocationSuggest(
-  totalCapital: number,
-  goal = 'maximize_sharpe'
-): Promise<AllocationPlanApi> {
-  const url = getPortfolioControlUrl(`/accounts/allocation/suggest?total_capital=${totalCapital}&optimization_goal=${goal}`);
-  if (!url) throw new Error('API URL not configured');
-  const res = await fetch(url, { method: 'POST', signal: AbortSignal.timeout(10000) });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
-
-export async function executeAllocation(
-  accountName: string,
-  allocationUsd: number
-): Promise<{ status: string; account_name: string; new_allocation: number }> {
-  const url = getPortfolioControlUrl(`/accounts/allocation/execute/${encodeURIComponent(accountName)}?allocation_usd=${allocationUsd}`);
-  if (!url) throw new Error('API URL not configured');
-  const res = await fetch(url, { method: 'POST', signal: AbortSignal.timeout(10000) });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
-
-export async function fetchTradeCopyRules(): Promise<TradeCopyRuleApi[]> {
-  const url = getPortfolioControlUrl('/accounts/trade-copy-rules');
-  if (!url) throw new Error('API URL not configured');
-  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json();
-  return (data.rules ?? []) as TradeCopyRuleApi[];
-}
-
-export async function createTradeCopyRule(rule: {
-  rule_name: string;
-  master_account_name: string;
-  slave_account_names: string[];
-  scale_by_balance?: boolean;
-  risk_multiplier?: number;
-  copy_sl_tp?: boolean;
-  enabled?: boolean;
-}): Promise<{ status: string; rule: TradeCopyRuleApi }> {
-  const url = getPortfolioControlUrl('/accounts/trade-copy-rules');
-  if (!url) throw new Error('API URL not configured');
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(rule),
-    signal: AbortSignal.timeout(10000),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
-
-export async function toggleTradeCopyRule(
-  ruleId: number,
-  enabled: boolean
-): Promise<{ status: string; rule_id: number; enabled: boolean }> {
-  const url = getPortfolioControlUrl(`/accounts/trade-copy-rules/${ruleId}/toggle?enabled=${enabled}`);
-  if (!url) throw new Error('API URL not configured');
-  const res = await fetch(url, {
-    method: 'PATCH',
-    signal: AbortSignal.timeout(10000),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
-
-export async function fetchTradeCopyLog(limit = 50): Promise<TradeCopyLogApi[]> {
-  const url = getPortfolioControlUrl(`/accounts/trade-copy-log?limit=${limit}`);
-  if (!url) throw new Error('API URL not configured');
-  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json();
-  return (data.log ?? []) as TradeCopyLogApi[];
-}
-
-// ---------------------------------------------------------------------------
-// Account Detail & Sync
-// ---------------------------------------------------------------------------
-
-export interface AccountDetailApi extends AccountComparisonApi {
-  // Additional fields not in AccountComparisonApi
-  // (equity, max_drawdown_pct, profit_factor already in parent or will be merged)
-  free_margin: number | null;
-  margin_used: number | null;
-  margin_level_pct: number | null;
-  connection_status: 'connected' | 'disconnected' | 'error' | 'not_configured' | string;
-  last_sync_time: string | null;
-  meta_api_account_id: string | null;
-  server_name?: string;
-  platform_type?: string;
-  leverage?: number;
-  // Note: provider, account_type, strategy_type, risk_percent, min_rr_ratio, max_lot_size, max_positions, pause_trading
-  // are all inherited from AccountComparisonApi - don't redeclare them to avoid type conflicts
-}
-
-export interface AccountStatusSnapshotApi {
-  id: number;
-  balance: number;
-  equity: number;
-  margin: number;
-  free_margin: number;
-  margin_level_pct: number;
-  connection_status: string;
-  sync_latency_ms: number;
-  snapshot_time: string;
-}
-
-export interface PositionSnapshotApi {
-  id: number;
-  broker_position_id: string;
-  symbol: string;
-  side: string;
-  volume: number;
-  open_price: number;
-  current_price: number | null;
-  sl: number | null;
-  tp: number | null;
-  profit: number;
-  swap: number;
-  commission: number;
-  comment: string | null;
-  matched_signal_id: number | null;
-  reconciliation_status: 'pending' | 'matched' | 'orphaned';
-  snapshot_time: string;
-}
-
-export async function fetchAccountDetail(accountName: string): Promise<AccountDetailApi> {
-  const url = getPortfolioControlUrl(`/accounts/${encodeURIComponent(accountName)}/performance`);
-  if (!url) throw new Error('API URL not configured');
-  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
-
-export async function syncAccount(accountName: string): Promise<{
-  status: string;
-  account_name: string;
-  status_synced: boolean;
-  positions_synced: boolean;
-}> {
-  const url = getPortfolioControlUrl(`/accounts/${encodeURIComponent(accountName)}/sync`);
-  if (!url) throw new Error('API URL not configured');
-  const res = await fetch(url, {
-    method: 'POST',
-    signal: AbortSignal.timeout(30000),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
-
-export async function fetchAccountStatusSnapshots(
-  accountName: string,
-  limit = 100
-): Promise<AccountStatusSnapshotApi[]> {
-  const url = getPortfolioControlUrl(`/accounts/${encodeURIComponent(accountName)}/status-history?limit=${limit}`);
-  if (!url) throw new Error('API URL not configured');
-  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-  if (!res.ok) {
-    // Endpoint may not exist yet, return empty
-    return [];
-  }
-  const data = await res.json();
-  return (data.snapshots ?? []) as AccountStatusSnapshotApi[];
-}
-
-export async function fetchAccountPositions(
-  accountName: string
-): Promise<{ broker: PositionSnapshotApi[]; db: any[] }> {
-  const url = getPortfolioControlUrl(`/accounts/${encodeURIComponent(accountName)}/positions`);
-  if (!url) throw new Error('API URL not configured');
-  const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-  if (!res.ok) {
-    // Endpoint may not exist yet, return empty
-    return { broker: [], db: [] };
-  }
-  const data = await res.json();
-  return {
-    broker: (data.broker_positions ?? []) as PositionSnapshotApi[],
-    db: data.db_positions ?? [],
-  };
-}
+  /**
+   * Health check
+   */
+  async healthCheck() {
+    return apiFetch<{ status: string }>("/api/backtest/health");
+  },
+};

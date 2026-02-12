@@ -50,6 +50,7 @@ from src.api_portfolio import router as portfolio_router
 from src.api_portfolio_control import router as portfolio_control_router
 from src.api_prop_firm import router as prop_firm_router  # NEW: Prop firm metrics
 from src.api_backtest import router as backtest_router  # Backtest engine with MetaApi data
+from src.api_backtest_integration import router as bot_integration_router  # Bot strategy validation
 
 app = FastAPI(title="Trading Webhook API", version="1.0.0")
 app.include_router(rules_router)
@@ -65,6 +66,7 @@ app.include_router(portfolio_router)
 app.include_router(portfolio_control_router)  # Portfolio Command Center V2.0
 app.include_router(prop_firm_router)  # NEW: Prop firm compliance tracking
 app.include_router(backtest_router)  # Backtest engine
+app.include_router(bot_integration_router)  # Bot strategy validation
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_build_cors_origins(),

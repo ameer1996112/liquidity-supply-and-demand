@@ -66,6 +66,17 @@ class BacktestRequest(BaseModel):
     zone_lookback: Optional[int] = Field(default=None, ge=5, le=50, description="Zone lookback period")
     stop_buffer_pips: Optional[float] = Field(default=None, ge=0.0, le=10.0, description="Stop loss buffer (pips)")
 
+    # AI Guardian filters (Pine Script v5.1 features)
+    require_liquidity_sweep: Optional[bool] = Field(
+        default=None, description="Require liquidity sweep before entry (default: False)"
+    )
+    reject_compression_arrival: Optional[bool] = Field(
+        default=None, description="Reject slow/grinding arrivals (default: True)"
+    )
+    require_structure_break: Optional[bool] = Field(
+        default=None, description="Require market structure break (default: False)"
+    )
+
     # MetaApi config (optional, defaults to env vars)
     meta_api_token: Optional[str] = Field(default=None, description="MetaApi token (or use env META_API_TOKEN)")
     meta_api_account_id: Optional[str] = Field(default=None, description="MetaApi account ID (or use env META_API_ACCOUNT_ID)")
@@ -405,6 +416,14 @@ async def run_backtest(request: BacktestRequest) -> BacktestResponse:
             strategy_kwargs["zone_lookback"] = request.zone_lookback
         if request.stop_buffer_pips is not None:
             strategy_kwargs["stop_buffer_pips"] = request.stop_buffer_pips
+
+        # AI Guardian filters
+        if request.require_liquidity_sweep is not None:
+            strategy_kwargs["require_liquidity_sweep"] = request.require_liquidity_sweep
+        if request.reject_compression_arrival is not None:
+            strategy_kwargs["reject_compression_arrival"] = request.reject_compression_arrival
+        if request.require_structure_break is not None:
+            strategy_kwargs["require_structure_break"] = request.require_structure_break
 
         # 5. Run backtest
         bt = Backtest(

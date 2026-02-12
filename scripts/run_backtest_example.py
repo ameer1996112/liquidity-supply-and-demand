@@ -152,15 +152,21 @@ def fetch_metaapi_data(
 
     logger.info(f"Fetching {symbol} {timeframe} candles from {start_date.date()} to {end_date.date()}...")
 
+    # Estimate candles needed (5m=288/day, 15m=96/day, 1h=24/day, 1d=1/day)
+    candles_per_day = {"1m": 1440, "5m": 288, "15m": 96, "30m": 48, "1h": 24, "4h": 6, "1d": 1}
+    n_per_day = candles_per_day.get(timeframe, 288)
+    limit = min(days * n_per_day + 100, 50000)  # +100 buffer, cap 50k
+
     # Create loader
     loader = MetaApiDataLoader(token=token, account_id=account_id, region=region)
 
-    # Fetch data
+    # Fetch data (with pagination for >1000 candles)
     df = loader.fetch_candles(
         symbol=symbol,
         start_time=start_date.strftime("%Y-%m-%dT00:00:00.000Z"),
         end_time=end_date.strftime("%Y-%m-%dT23:59:59.999Z"),
         timeframe=timeframe,
+        limit=limit,
     )
 
     if df.empty:
@@ -211,6 +217,7 @@ def run_backtest(
         SndStrategy,
         cash=initial_cash,
         commission=commission,
+        margin=0.02,  # 50:1 leverage (forex/metals)
         exclusive_orders=True,
     )
 
@@ -267,7 +274,13 @@ def optimize_parameters(df: pd.DataFrame, initial_cash: float = 10000.0) -> dict
     logger.info("Running Parameter Optimization...")
     logger.info("=" * 80)
 
-    bt = Backtest(df, SndStrategy, cash=initial_cash, commission=0.0002)
+    bt = Backtest(
+        df,
+        SndStrategy,
+        cash=initial_cash,
+        commission=0.0002,
+        margin=0.02,  # 50:1 leverage (forex/metals)
+    )
 
     # Define parameter ranges
     stats = bt.optimize(

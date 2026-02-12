@@ -254,52 +254,80 @@ class MetaApiDataLoader:
             f"historical-market-data/symbols/{symbol}/timeframes/{tf}/candles"
         )
 
-        params = {
-            "startTime": api_start_str,
-            "limit": min(limit, 1000),  # MetaApi max is 1000
-        }
+        max_per_request = 1000  # MetaApi max per request
+        all_candles: List[Dict[str, Any]] = []
+        current_start = api_start_str
+        target_limit = min(limit, 50000)  # Cap total to avoid excessive requests
 
-        logger.info(
-            "Fetching candles: symbol=%s timeframe=%s startTime=%s limit=%s (loads backwards)",
-            symbol,
-            tf,
-            api_start_str,
-            params["limit"],
-        )
+        while len(all_candles) < target_limit:
+            params = {
+                "startTime": current_start,
+                "limit": max_per_request,
+            }
 
-        try:
-            response = requests.get(
-                url,
-                headers=self._headers(),
-                params=params,
-                timeout=30,
+            logger.info(
+                "Fetching candles: symbol=%s timeframe=%s startTime=%s limit=%s (loads backwards)",
+                symbol,
+                tf,
+                current_start,
+                params["limit"],
             )
-            response.raise_for_status()
-        except requests.exceptions.RequestException as exc:
-            logger.error("MetaApi candles request failed: %s", exc)
-            if hasattr(exc, "response") and exc.response is not None:
-                logger.error("Response body: %s", exc.response.text[:500])
-            raise RuntimeError(f"Failed to fetch candles from MetaApi: {exc}") from exc
 
-        # Parse JSON response
-        try:
-            candles_raw = response.json()
-        except ValueError as exc:
-            logger.error("Invalid JSON response: %s", response.text[:500])
-            raise RuntimeError("MetaApi returned invalid JSON") from exc
+            try:
+                response = requests.get(
+                    url,
+                    headers=self._headers(),
+                    params=params,
+                    timeout=30,
+                )
+                response.raise_for_status()
+            except requests.exceptions.RequestException as exc:
+                logger.error("MetaApi candles request failed: %s", exc)
+                if hasattr(exc, "response") and exc.response is not None:
+                    logger.error("Response body: %s", exc.response.text[:500])
+                raise RuntimeError(f"Failed to fetch candles from MetaApi: {exc}") from exc
 
-        if not isinstance(candles_raw, list):
-            logger.error("Expected list of candles, got: %s", type(candles_raw).__name__)
-            raise RuntimeError(f"Unexpected response format: {type(candles_raw).__name__}")
+            try:
+                candles_raw = response.json()
+            except ValueError as exc:
+                logger.error("Invalid JSON response: %s", response.text[:500])
+                raise RuntimeError("MetaApi returned invalid JSON") from exc
 
-        if not candles_raw:
+            if not isinstance(candles_raw, list):
+                logger.error("Expected list of candles, got: %s", type(candles_raw).__name__)
+                raise RuntimeError(f"Unexpected response format: {type(candles_raw).__name__}")
+
+            if not candles_raw:
+                break
+
+            logger.info("Received %d candles from MetaApi", len(candles_raw))
+            all_candles.extend(candles_raw)
+
+            if len(candles_raw) < max_per_request:
+                break
+
+            # Next batch: start from oldest candle in this batch (load backwards)
+            oldest = min(c["time"] for c in candles_raw)
+            current_start = oldest.replace(".000Z", "Z").replace(".999Z", "Z")
+            if ".Z" in current_start and "." in current_start.split("Z")[0]:
+                current_start = current_start.split(".")[0] + "Z"
+
+            # Check if we've passed start_time
+            if start_str:
+                try:
+                    start_dt = self._parse_timestamp(start_str)
+                    oldest_dt = self._parse_timestamp(oldest)
+                    if oldest_dt <= start_dt:
+                        break
+                except (ValueError, TypeError):
+                    pass
+
+        if not all_candles:
             logger.warning("No candles returned for %s %s", symbol, tf)
             return pd.DataFrame(columns=["Open", "High", "Low", "Close", "Volume"])
 
-        logger.info("Received %d candles from MetaApi", len(candles_raw))
-
         # Convert to DataFrame
-        df = self._candles_to_dataframe(candles_raw)
+        df = self._candles_to_dataframe(all_candles)
 
         # Filter to requested start_time (API returns backwards; we may have extra)
         if start_str and not df.empty:

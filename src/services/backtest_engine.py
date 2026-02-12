@@ -77,12 +77,17 @@ class Zone:
 
 class SndStrategy(Strategy):
     """
-    Supply & Demand Strategy - Python port of SND_Strategy.pine.
+    Supply & Demand Strategy - Python port of SND_Strategy.pine with AI Guardian.
 
     Core Logic:
     1. Detect Supply/Demand zones using swing highs/lows
-    2. Enter on Break of Candle (BoC) + Liquidity Sweep
+    2. Enter on Break of Candle (BoC) + AI Guardian filters
     3. Exit at opposite zone or fixed R:R
+
+    AI Guardian Features (Pine Script v5.1):
+    - Liquidity Sweep Detection: Confirms institutional liquidity grab before reversal
+    - Arrival Type Analysis: Filters slow/grinding arrivals (Compression)
+    - Market Structure Break: Validates BOS/CHoCH patterns
 
     Parameters (optimizable via backtesting.py):
         risk_percent: Risk per trade as % of account balance (default: 0.5)
@@ -91,6 +96,11 @@ class SndStrategy(Strategy):
         zone_strength_min: Minimum zone strength to trade (default: 50.0)
         stop_buffer_pips: Extra pips added to SL beyond zone (default: 1.0)
         max_lot_size: Maximum position size in lots (default: 10.0)
+
+        # AI Guardian filters (new)
+        require_liquidity_sweep: Require liquidity sweep before entry (default: False)
+        reject_compression_arrival: Reject slow arrivals (default: True)
+        require_structure_break: Require market structure break (default: False)
     """
 
     # Strategy parameters (can be optimized)
@@ -101,6 +111,11 @@ class SndStrategy(Strategy):
     stop_buffer_pips = 1.0  # Extra pips beyond zone boundary
     max_lot_size = 10.0  # Maximum position size
     max_active_zones = 5  # Maximum number of active zones per type
+
+    # AI Guardian filters (Pine Script v5.1 features)
+    require_liquidity_sweep = False  # Require liquidity sweep before entry (default: off for flexibility)
+    reject_compression_arrival = True  # Reject slow/grinding arrivals (default: on for quality)
+    require_structure_break = False  # Require market structure break (default: off)
 
     def init(self):
         """
@@ -357,7 +372,7 @@ class SndStrategy(Strategy):
 
     def _check_buy_signal(self) -> tuple[bool, Optional[Zone], float, float]:
         """
-        Check for BUY signal (demand zone + Break of Candle).
+        Check for BUY signal (demand zone + Break of Candle + AI Guardian filters).
 
         Returns:
             (signal, zone, entry_price, stop_loss)
@@ -389,6 +404,27 @@ class SndStrategy(Strategy):
         if current_close <= prev_high:
             return False, None, 0.0, 0.0
 
+        # === AI GUARDIAN FILTERS (Pine Script v5.1) ===
+
+        # Filter 1: Liquidity Sweep (optional)
+        if self.require_liquidity_sweep:
+            if not self._detect_liquidity_sweep("demand"):
+                logger.debug("BUY signal REJECTED: No liquidity sweep detected")
+                return False, None, 0.0, 0.0
+
+        # Filter 2: Arrival Type (reject compression)
+        if self.reject_compression_arrival:
+            arrival_type = self._assess_arrival_type()
+            if arrival_type == "Compression":
+                logger.debug("BUY signal REJECTED: Compression arrival (slow/grinding)")
+                return False, None, 0.0, 0.0
+
+        # Filter 3: Market Structure Break (optional)
+        if self.require_structure_break:
+            if not self._detect_structure_break("demand"):
+                logger.debug("BUY signal REJECTED: No market structure break")
+                return False, None, 0.0, 0.0
+
         # Calculate entry and stop loss
         entry_price = current_close
         stop_loss = best_zone.bottom - (self.stop_buffer_pips * self._get_pip_size())
@@ -403,7 +439,7 @@ class SndStrategy(Strategy):
                 return False, None, 0.0, 0.0
 
         logger.info(
-            "BUY signal: zone=%s entry=%.5f sl=%.5f",
+            "BUY signal ACCEPTED: zone=%s entry=%.5f sl=%.5f",
             best_zone,
             entry_price,
             stop_loss,
@@ -413,7 +449,7 @@ class SndStrategy(Strategy):
 
     def _check_sell_signal(self) -> tuple[bool, Optional[Zone], float, float]:
         """
-        Check for SELL signal (supply zone + Break of Candle).
+        Check for SELL signal (supply zone + Break of Candle + AI Guardian filters).
 
         Returns:
             (signal, zone, entry_price, stop_loss)
@@ -445,6 +481,27 @@ class SndStrategy(Strategy):
         if current_close >= prev_low:
             return False, None, 0.0, 0.0
 
+        # === AI GUARDIAN FILTERS (Pine Script v5.1) ===
+
+        # Filter 1: Liquidity Sweep (optional)
+        if self.require_liquidity_sweep:
+            if not self._detect_liquidity_sweep("supply"):
+                logger.debug("SELL signal REJECTED: No liquidity sweep detected")
+                return False, None, 0.0, 0.0
+
+        # Filter 2: Arrival Type (reject compression)
+        if self.reject_compression_arrival:
+            arrival_type = self._assess_arrival_type()
+            if arrival_type == "Compression":
+                logger.debug("SELL signal REJECTED: Compression arrival (slow/grinding)")
+                return False, None, 0.0, 0.0
+
+        # Filter 3: Market Structure Break (optional)
+        if self.require_structure_break:
+            if not self._detect_structure_break("supply"):
+                logger.debug("SELL signal REJECTED: No market structure break")
+                return False, None, 0.0, 0.0
+
         # Calculate entry and stop loss
         entry_price = current_close
         stop_loss = best_zone.top + (self.stop_buffer_pips * self._get_pip_size())
@@ -458,7 +515,7 @@ class SndStrategy(Strategy):
                 return False, None, 0.0, 0.0
 
         logger.info(
-            "SELL signal: zone=%s entry=%.5f sl=%.5f",
+            "SELL signal ACCEPTED: zone=%s entry=%.5f sl=%.5f",
             best_zone,
             entry_price,
             stop_loss,
@@ -477,6 +534,150 @@ class SndStrategy(Strategy):
         # Otherwise use 0.0001 (forex)
         current_price = self.data.Close[-1]
         return 0.01 if current_price > 10 else 0.0001
+
+    def _detect_liquidity_sweep(self, zone_type: str, lookback: int = 10) -> bool:
+        """
+        Detect if liquidity was swept before tapping the zone.
+
+        Logic (from Pine Utils.pine:197-203):
+        - Demand zones: Check if current low swept below the lowest low of lookback period
+        - Supply zones: Check if current high swept above the highest high of lookback period
+
+        This indicates institutional liquidity grab before reversal (bullish signal).
+
+        Args:
+            zone_type: "demand" or "supply"
+            lookback: Number of bars to check for liquidity (default: 10)
+
+        Returns:
+            True if liquidity sweep detected
+        """
+        if len(self.data.Low) < lookback + 1 or len(self.data.High) < lookback + 1:
+            return False
+
+        current_high = self.data.High[-1]
+        current_low = self.data.Low[-1]
+
+        # Get lookback high/low (excluding current bar)
+        lookback_high = max(self.data.High[-lookback - 1 : -1])
+        lookback_low = min(self.data.Low[-lookback - 1 : -1])
+
+        if zone_type == "demand":
+            # For demand zones: price swept below the lookback low (sell-side liquidity taken)
+            swept = current_low <= lookback_low
+            if swept:
+                logger.debug(
+                    "Liquidity SWEEP detected (demand): low=%.5f <= lookback_low=%.5f",
+                    current_low,
+                    lookback_low,
+                )
+            return swept
+        else:
+            # For supply zones: price swept above the lookback high (buy-side liquidity taken)
+            swept = current_high >= lookback_high
+            if swept:
+                logger.debug(
+                    "Liquidity SWEEP detected (supply): high=%.5f >= lookback_high=%.5f",
+                    current_high,
+                    lookback_high,
+                )
+            return swept
+
+    def _assess_arrival_type(self) -> str:
+        """
+        Assess the arrival type (how price arrived at the zone).
+
+        Logic (from Pine Utils.pine:210-220):
+        - Compare average candle body size (last 3 candles) to ATR
+        - Aggressive: ratio > 1.5 (fast, impulsive arrival - GOOD for reversals)
+        - Compression: ratio < 0.8 (slow, grinding arrival - BAD, likely to fail)
+        - Normal: ratio between 0.8 and 1.5
+
+        Returns:
+            "Aggressive", "Normal", or "Compression"
+        """
+        if len(self.data.Close) < 3 or len(self.atr) < 1:
+            return "Normal"
+
+        # Calculate average body size of last 3 candles
+        body_sizes = []
+        for i in range(1, 4):
+            if len(self.data.Close) > i:
+                body_size = abs(self.data.Close[-i] - self.data.Open[-i])
+                body_sizes.append(body_size)
+
+        if not body_sizes:
+            return "Normal"
+
+        avg_body_size = np.mean(body_sizes)
+        atr_value = self.atr[-1]
+
+        if atr_value <= 0:
+            return "Normal"
+
+        ratio = avg_body_size / atr_value
+
+        if ratio > 1.5:
+            arrival = "Aggressive"
+        elif ratio < 0.8:
+            arrival = "Compression"
+        else:
+            arrival = "Normal"
+
+        logger.debug(
+            "Arrival type: %s (avg_body=%.5f, atr=%.5f, ratio=%.2f)",
+            arrival,
+            avg_body_size,
+            atr_value,
+            ratio,
+        )
+
+        return arrival
+
+    def _detect_structure_break(self, zone_type: str, lookback: int = 20) -> bool:
+        """
+        Detect market structure break (BOS/CHoCH).
+
+        Logic (from Pine Utils.pine:237-245):
+        - Check if current close has broken and closed beyond a key structural level
+        - Structural level = swing high/low from lookback period
+        - Demand: bullish break (close above structural high)
+        - Supply: bearish break (close below structural low)
+
+        Args:
+            zone_type: "demand" or "supply"
+            lookback: Bars to look back for structural level (default: 20)
+
+        Returns:
+            True if structure was broken
+        """
+        if len(self.data.Close) < lookback + 1:
+            return False
+
+        current_close = self.data.Close[-1]
+
+        if zone_type == "demand":
+            # Bullish structure break: close above the structural high
+            structure_level = max(self.data.High[-lookback - 1 : -1])
+            broken = current_close > structure_level
+            if broken:
+                logger.debug(
+                    "Structure BREAK detected (demand): close=%.5f > structure_high=%.5f",
+                    current_close,
+                    structure_level,
+                )
+            return broken
+        else:
+            # Bearish structure break: close below the structural low
+            structure_level = min(self.data.Low[-lookback - 1 : -1])
+            broken = current_close < structure_level
+            if broken:
+                logger.debug(
+                    "Structure BREAK detected (supply): close=%.5f < structure_low=%.5f",
+                    current_close,
+                    structure_level,
+                )
+            return broken
 
     def _calculate_position_size(self, entry: float, stop_loss: float) -> float:
         """
