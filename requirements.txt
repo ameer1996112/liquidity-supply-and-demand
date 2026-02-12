@@ -18,6 +18,8 @@ scikit-learn==1.7.2
 numpy>=1.24.0
 pandas>=2.0.0
 pyarrow>=14.0.0
+lightgbm>=4.0.0  # Ultra-memory-efficient gradient boosting (replaces RandomForest)
+# For GPU support (optional): pip install lightgbm --install-option=--gpu
 numba>=0.58.0  # JIT compilation for high-performance backtesting
 backtesting>=0.3.3  # Python backtesting framework for trading strategies
 

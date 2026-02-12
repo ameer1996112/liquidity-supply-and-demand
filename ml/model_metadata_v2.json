@@ -1,0 +1,96 @@
+{
+  "trained_at": "2026-02-12T20:44:21.030932",
+  "version": "2.0",
+  "ensemble": true,
+  "models": [
+    "RandomForest",
+    "XGBoost",
+    "LightGBM"
+  ],
+  "feature_names": [
+    "score",
+    "freshness",
+    "session",
+    "atr_ratio",
+    "is_accuracy",
+    "trend",
+    "rsi",
+    "htf_trend",
+    "rvol",
+    "adx",
+    "touch_count",
+    "base_quality",
+    "departure_strength",
+    "liquidity_distance",
+    "liquidity_spread",
+    "return_strength",
+    "zone_type",
+    "entry_model",
+    "score_x_freshness",
+    "liquidity_quality",
+    "strength_composite",
+    "trend_alignment",
+    "momentum_composite",
+    "score_squared",
+    "atr_ratio_squared",
+    "accuracy_x_score"
+  ],
+  "numerical_features": [
+    "score",
+    "freshness",
+    "session",
+    "atr_ratio",
+    "trend",
+    "rsi",
+    "htf_trend",
+    "rvol",
+    "adx",
+    "touch_count",
+    "base_quality",
+    "departure_strength",
+    "liquidity_distance",
+    "liquidity_spread",
+    "return_strength",
+    "zone_type",
+    "entry_model",
+    "score_x_freshness",
+    "liquidity_quality",
+    "strength_composite",
+    "trend_alignment",
+    "momentum_composite",
+    "score_squared",
+    "atr_ratio_squared",
+    "accuracy_x_score"
+  ],
+  "categorical_features": [
+    "is_accuracy"
+  ],
+  "cv_accuracy_mean": 0.64,
+  "cv_accuracy_std": 0.025495097567963948,
+  "test_accuracy": 0.64,
+  "test_roc_auc": 0.5492957746478873,
+  "total_samples": 500,
+  "win_rate": 0.706,
+  "confusion_matrix": [
+    [
+      6,
+      23
+    ],
+    [
+      13,
+      58
+    ]
+  ],
+  "top_features": {
+    "liquidity_spread": 0.11216492429037764,
+    "liquidity_quality": 0.10055040633797821,
+    "accuracy_x_score": 0.08517457514560185,
+    "momentum_composite": 0.0703303183506633,
+    "atr_ratio": 0.06938605027239807,
+    "rvol": 0.062437167234921064,
+    "return_strength": 0.05681998288693129,
+    "base_quality": 0.05428936359253736,
+    "rsi": 0.050819570722659205,
+    "score": 0.049529086107699835
+  }
+}

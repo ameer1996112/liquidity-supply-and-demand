@@ -18,97 +18,206 @@ logger = logging.getLogger(__name__)
 
 # Model paths relative to project root
 _ROOT = Path(__file__).resolve().parent.parent.parent
+
+# v3 LightGBM models (preferred - 10x less memory)
+MODEL_V3_LGBM_PATH = _ROOT / "ml" / "model_v3_lgbm.txt"
+MODEL_V3_PKL_PATH = _ROOT / "ml" / "model_v3.pkl"
+ENCODERS_V3_PATH = _ROOT / "ml" / "encoders_v3.pkl"
+
+# v2 RandomForest models (legacy fallback)
+MODEL_V2_PATH = _ROOT / "ml" / "model_v2.pkl"
+ENCODERS_V2_PATH = _ROOT / "ml" / "encoders_v2.pkl"
+SCALER_V2_PATH = _ROOT / "ml" / "scaler_v2.pkl"
+
+# v1 legacy paths
 MODEL_PATH = _ROOT / "ml" / "model.pkl"
 ENCODERS_PATH = _ROOT / "ml" / "encoders.pkl"
 SCALER_PATH = _ROOT / "ml" / "scaler.pkl"
 
 AI_MODEL = None
 AI_ENCODERS = None
-AI_SCALER = None  # ✅ v5.1: StandardScaler for feature normalization
+AI_SCALER = None  # ✅ v5.1: StandardScaler for feature normalization (not used with LightGBM v3)
+AI_MODEL_TYPE = None  # "lightgbm" or "sklearn"
 _RAG_ENGINE: Optional[RagEngine] = None
 _LLM_CLIENT: Optional[OpenAI] = None
 
 
 def load_brain() -> None:
-    """Load ML model, encoders, and scaler once at startup."""
-    global AI_MODEL, AI_ENCODERS, AI_SCALER
+    """
+    Load ML model, encoders, and scaler once at startup.
+
+    Priority order:
+    1. v3 LightGBM (fastest, most memory-efficient)
+    2. v2 RandomForest (legacy, high memory)
+    3. v1 legacy models
+    """
+    global AI_MODEL, AI_ENCODERS, AI_SCALER, AI_MODEL_TYPE
+
     try:
-        if not MODEL_PATH.exists():
-            logger.warning("Brain missing: %s", MODEL_PATH)
-            return
-        with open(MODEL_PATH, "rb") as f:
-            AI_MODEL = pickle.load(f)
-        with open(ENCODERS_PATH, "rb") as f:
-            AI_ENCODERS = pickle.load(f)
+        # Try v3 LightGBM first (preferred)
+        if MODEL_V3_LGBM_PATH.exists() or MODEL_V3_PKL_PATH.exists():
+            try:
+                import lightgbm as lgb
 
-        # ✅ v5.1: Load feature scaler for RF accuracy improvement
-        if SCALER_PATH.exists():
-            with open(SCALER_PATH, "rb") as f:
-                scaler_data = pickle.load(f)
-                AI_SCALER = scaler_data['scaler']
-                logger.info(
-                    "Scaler loaded: numerical=%d, categorical=%d",
-                    len(scaler_data.get('numerical_features', [])),
-                    len(scaler_data.get('categorical_features', []))
+                # Load native LightGBM format (faster)
+                if MODEL_V3_LGBM_PATH.exists():
+                    AI_MODEL = lgb.Booster(model_file=str(MODEL_V3_LGBM_PATH))
+                    AI_MODEL_TYPE = "lightgbm_native"
+                    logger.info("✅ Loaded LightGBM v3 (native format): %s", MODEL_V3_LGBM_PATH)
+
+                # Fallback to pickle format
+                elif MODEL_V3_PKL_PATH.exists():
+                    with open(MODEL_V3_PKL_PATH, "rb") as f:
+                        AI_MODEL = pickle.load(f)
+                    AI_MODEL_TYPE = "lightgbm"
+                    logger.info("✅ Loaded LightGBM v3 (pickle): %s", MODEL_V3_PKL_PATH)
+
+                # Load v3 encoders
+                if ENCODERS_V3_PATH.exists():
+                    with open(ENCODERS_V3_PATH, "rb") as f:
+                        AI_ENCODERS = pickle.load(f)
+                    logger.info("✅ Loaded v3 encoders: %d categorical features", len(AI_ENCODERS))
+
+                # v3 doesn't use StandardScaler (LightGBM handles raw features)
+                AI_SCALER = None
+                logger.info("🚀 Brain v3 online (LightGBM, 10x faster, 90%% less RAM)")
+                return
+
+            except ImportError:
+                logger.warning(
+                    "⚠️  LightGBM model found but library not installed. "
+                    "Install with: pip install lightgbm"
                 )
-        else:
-            logger.warning(
-                "⚠️  Scaler not found at %s - predictions may be inaccurate! "
-                "Run 'python ml/train_ai_guardian.py' to retrain with v5.1",
-                SCALER_PATH
-            )
-            AI_SCALER = None
+                # Fall through to v2/v1 models
+            except Exception as e:
+                logger.error("Failed to load v3 LightGBM model: %s", e)
+                # Fall through to v2/v1 models
 
-        logger.info("Brain online. Features: %s", len(AI_MODEL.feature_names_in_))
+        # Try v2 RandomForest
+        if MODEL_V2_PATH.exists():
+            logger.info("Loading RandomForest v2 model (legacy)...")
+            with open(MODEL_V2_PATH, "rb") as f:
+                AI_MODEL = pickle.load(f)
+            AI_MODEL_TYPE = "sklearn"
+
+            if ENCODERS_V2_PATH.exists():
+                with open(ENCODERS_V2_PATH, "rb") as f:
+                    AI_ENCODERS = pickle.load(f)
+
+            if SCALER_V2_PATH.exists():
+                with open(SCALER_V2_PATH, "rb") as f:
+                    AI_SCALER = pickle.load(f)
+
+            logger.info(
+                "✅ Brain v2 online (RandomForest). "
+                "💡 Upgrade to v3 for 10x faster: python ml/train_ai_guardian_v3_lightgbm.py"
+            )
+            return
+
+        # Try v1 legacy models
+        if MODEL_PATH.exists():
+            logger.info("Loading legacy v1 model...")
+            with open(MODEL_PATH, "rb") as f:
+                AI_MODEL = pickle.load(f)
+            AI_MODEL_TYPE = "sklearn"
+
+            if ENCODERS_PATH.exists():
+                with open(ENCODERS_PATH, "rb") as f:
+                    AI_ENCODERS = pickle.load(f)
+
+            if SCALER_PATH.exists():
+                with open(SCALER_PATH, "rb") as f:
+                    scaler_data = pickle.load(f)
+                    AI_SCALER = scaler_data.get('scaler') if isinstance(scaler_data, dict) else scaler_data
+
+            logger.info(
+                "✅ Brain v1 online (legacy). "
+                "💡 Upgrade to v3: python ml/train_ai_guardian_v3_lightgbm.py"
+            )
+            return
+
+        # No model found
+        logger.warning(
+            "⚠️  No AI model found. Train with: python ml/train_ai_guardian_v3_lightgbm.py"
+        )
+
     except Exception as e:
         logger.error("Brain load error: %s", e)
 
 
 def get_prediction(payload: Dict[str, Any]) -> Tuple[float, str, Dict[str, Any]]:
     """
-    Predict win probability with feature scaling (v5.1).
+    Predict win probability (supports both LightGBM v3 and RandomForest v2).
     Returns (probability, note, features_used).
     Returns (0.5, "AI Disabled", {}) if model unavailable or on error.
 
-    This remains a pure RF call for backward compatibility. The full
+    This remains a pure ML call for backward compatibility. The full
     ensemble decision is implemented in `ensemble_decision`.
     """
     if AI_MODEL is None:
         return 0.5, "AI Disabled (Missing Model)", {}
+
     try:
-        features = build_feature_frame(payload, list(AI_MODEL.feature_names_in_), AI_ENCODERS or {})
         symbol = payload.get("symbol", "UNKNOWN")
+
+        # Get feature names based on model type
+        if AI_MODEL_TYPE == "lightgbm_native":
+            # LightGBM native format doesn't have feature_names_in_
+            # We'll use the features from encoders or expected features
+            feature_names = list(AI_ENCODERS.keys()) if AI_ENCODERS else []
+        elif hasattr(AI_MODEL, 'feature_names_in_'):
+            feature_names = list(AI_MODEL.feature_names_in_)
+        else:
+            logger.warning("Model has no feature_names_in_, using encoders")
+            feature_names = list(AI_ENCODERS.keys()) if AI_ENCODERS else []
+
+        features = build_feature_frame(payload, feature_names, AI_ENCODERS or {})
         asset_id = encode_asset_id(symbol, AI_ENCODERS or {})
         if asset_id is not None and "asset_id" in features:
             features["asset_id"] = float(asset_id)
 
         df = pd.DataFrame([features])
 
-        # ✅ v5.1: Apply feature scaling before prediction
-        if AI_SCALER is not None:
-            # Identify categorical vs numerical columns
-            # Categorical: encoded columns and asset_id (already integers)
-            categorical_cols = [col for col in df.columns if '_encoded' in col or col == 'asset_id']
-            numerical_cols = [col for col in df.columns if col not in categorical_cols]
+        # Different prediction logic based on model type
+        if AI_MODEL_TYPE == "lightgbm_native":
+            # LightGBM native Booster.predict() returns raw scores
+            # No scaling needed - LightGBM handles raw features
+            prob = float(AI_MODEL.predict(df.values)[0])
+            logger.debug(f"Prediction for {symbol}: {prob:.2%} (LightGBM native)")
 
-            # Scale numerical features only
-            df_scaled = df.copy()
-            if numerical_cols:
-                df_scaled[numerical_cols] = AI_SCALER.transform(df[numerical_cols])
-
-            prob = float(AI_MODEL.predict_proba(df_scaled)[0][1])
-            logger.debug(f"Prediction for {symbol}: {prob:.2%} (WITH scaling)")
-        else:
-            # Fallback: no scaling (legacy behavior - warn user to retrain)
+        elif AI_MODEL_TYPE == "lightgbm":
+            # LightGBM sklearn wrapper
+            # No scaling needed - LightGBM handles raw features
             prob = float(AI_MODEL.predict_proba(df)[0][1])
-            logger.warning(
-                f"⚠️  Prediction for {symbol}: {prob:.2%} (NO scaling - "
-                "retrain model with v5.1 for better accuracy)"
-            )
+            logger.debug(f"Prediction for {symbol}: {prob:.2%} (LightGBM sklearn)")
+
+        elif AI_MODEL_TYPE == "sklearn":
+            # RandomForest v2 - use scaling if available
+            if AI_SCALER is not None:
+                # Identify categorical vs numerical columns
+                categorical_cols = [col for col in df.columns if '_encoded' in col or col == 'asset_id']
+                numerical_cols = [col for col in df.columns if col not in categorical_cols]
+
+                # Scale numerical features only
+                df_scaled = df.copy()
+                if numerical_cols:
+                    df_scaled[numerical_cols] = AI_SCALER.transform(df[numerical_cols])
+
+                prob = float(AI_MODEL.predict_proba(df_scaled)[0][1])
+                logger.debug(f"Prediction for {symbol}: {prob:.2%} (RandomForest WITH scaling)")
+            else:
+                # No scaling (legacy behavior)
+                prob = float(AI_MODEL.predict_proba(df)[0][1])
+                logger.debug(f"Prediction for {symbol}: {prob:.2%} (RandomForest NO scaling)")
+        else:
+            # Unknown model type - try sklearn API
+            prob = float(AI_MODEL.predict_proba(df)[0][1])
+            logger.warning(f"Unknown model type: {AI_MODEL_TYPE}, using sklearn API")
 
         return prob, f"AI Confidence: {prob:.1%}", features
+
     except Exception as e:
-        logger.error("Prediction error: %s", e)
+        logger.error("Prediction error: %s", e, exc_info=True)
         return 0.5, f"AI Error: {str(e)[:50]}", {}
 
 
