@@ -64,6 +64,7 @@ interface BacktestResponse {
 export default function BacktestPage() {
   const [currentCandleIndex, setCurrentCandleIndex] = useState(0);
   const [backtestResult, setBacktestResult] = useState<BacktestResponse | null>(null);
+  const [replayMode, setReplayMode] = useState(false); // Replay mode OFF by default
 
   // Backtest configuration
   const [config, setConfig] = useState<BacktestRequest>({
@@ -96,22 +97,29 @@ export default function BacktestPage() {
   };
 
   // Convert candles to lightweight-charts format
+  // If replay mode is OFF, show ALL candles; if ON, show only up to currentCandleIndex
   const chartCandles: CandlestickData<Time>[] =
-    backtestResult?.candles.slice(0, currentCandleIndex + 1).map((candle) => ({
-      time: candle.time as Time,
-      open: candle.open,
-      high: candle.high,
-      low: candle.low,
-      close: candle.close,
-      volume: candle.volume,
-    })) || [];
+    backtestResult?.candles
+      .slice(0, replayMode ? currentCandleIndex + 1 : undefined)
+      .map((candle) => ({
+        time: candle.time as Time,
+        open: candle.open,
+        high: candle.high,
+        low: candle.low,
+        close: candle.close,
+        volume: candle.volume,
+      })) || [];
 
-  // Filter trades visible up to current candle
+  // Filter trades visible up to current candle (only in replay mode)
   const lastCandleTime = chartCandles[chartCandles.length - 1]?.time;
   const visibleTrades =
     backtestResult?.trades.filter((trade) => {
       if (!lastCandleTime) return false;
-      return trade.entry_time <= (typeof lastCandleTime === 'number' ? lastCandleTime : Number(lastCandleTime));
+      // In replay mode, filter by current candle time; otherwise show all trades
+      if (replayMode) {
+        return trade.entry_time <= (typeof lastCandleTime === 'number' ? lastCandleTime : Number(lastCandleTime));
+      }
+      return true; // Show all trades when not in replay mode
     }) || [];
 
   const stats = backtestResult?.stats;
@@ -292,18 +300,36 @@ export default function BacktestPage() {
             </Card>
           </div>
 
-          {/* Chart with FX Replay */}
+          {/* Chart */}
           <Card className="p-6">
-            <h2 className="text-xl font-semibold mb-4">FX Replay Mode</h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">Backtest Chart</h2>
+              <Button
+                variant={replayMode ? "default" : "outline"}
+                size="sm"
+                onClick={() => {
+                  setReplayMode(!replayMode);
+                  if (!replayMode) {
+                    setCurrentCandleIndex(0); // Reset to start when enabling replay
+                  }
+                }}
+              >
+                <Play className="h-4 w-4 mr-2" />
+                {replayMode ? "Exit Replay Mode" : "Enable FX Replay"}
+              </Button>
+            </div>
+
             <BacktestChart candles={chartCandles} trades={visibleTrades} height={600} />
 
-            <div className="mt-4">
-              <FXReplayController
-                candles={backtestResult.candles as unknown as CandlestickData<Time>[]}
-                currentIndex={currentCandleIndex}
-                onCandleIndexChange={setCurrentCandleIndex}
-              />
-            </div>
+            {replayMode && (
+              <div className="mt-4">
+                <FXReplayController
+                  candles={backtestResult.candles as unknown as CandlestickData<Time>[]}
+                  currentIndex={currentCandleIndex}
+                  onCandleIndexChange={setCurrentCandleIndex}
+                />
+              </div>
+            )}
           </Card>
 
           {/* Trade List */}
