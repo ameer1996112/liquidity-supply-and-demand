@@ -230,10 +230,24 @@ export async function batchPositionAction(payload: {
 /**
  * Account Positions - Fetch reconciled positions for an account
  */
-export async function fetchAccountPositions(accountName: string) {
+export interface Position {
+  reconciliation_status?: 'matched' | 'orphaned' | 'pending';
+  [key: string]: any;
+}
+
+export async function fetchAccountPositions(accountName: string): Promise<{
+  broker: Position[];
+  db: Position[];
+  reconciliation_summary: {
+    matched: number;
+    orphaned: number;
+    pending: number;
+  };
+}> {
   // TODO: Backend needs to implement this endpoint
   // For now, return empty structure to prevent build errors
-  return Promise.resolve({
+  console.warn(`fetchAccountPositions not implemented for ${accountName}`);
+  return {
     broker: [],
     db: [],
     reconciliation_summary: {
@@ -241,7 +255,7 @@ export async function fetchAccountPositions(accountName: string) {
       orphaned: 0,
       pending: 0,
     }
-  });
+  };
 }
 
 /**
@@ -350,9 +364,13 @@ export interface AccountDetailApi {
   max_drawdown_pct?: number;
   sharpe_ratio?: number;
   last_sync?: string;
+  last_sync_time?: string;
+  leverage?: number;
   broker_profile_id?: number;
   broker_name?: string;
   mt_version?: string;
+  server_name?: string;
+  platform_type?: string;
   status: string;
   connection_status?: string;
   strategy_type?: string;

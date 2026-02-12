@@ -109,7 +109,7 @@ export function PositionsTab({ accountName }: PositionsTabProps) {
                       matched: 'text-emerald-500',
                       orphaned: 'text-amber-500',
                       pending: 'text-zinc-500',
-                    }[pos.reconciliation_status];
+                    }[pos.reconciliation_status || 'pending'];
 
                     return (
                       <tr key={pos.id || idx} className="border-b border-[#2a2e39] hover:bg-[#1e222d]/30">

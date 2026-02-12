@@ -29,7 +29,7 @@ interface EnhancedAccountCardProps {
 export function EnhancedAccountCard({ account, className, onDelete }: EnhancedAccountCardProps) {
   const [showDetails, setShowDetails] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const dailyPositive = account.daily_pnl >= 0;
+  const dailyPositive = (account.daily_pnl ?? 0) >= 0;
   const winRatePct = (account.win_rate * 100).toFixed(1);
   const isPaused = account.pause_trading ?? false;
 
@@ -133,9 +133,9 @@ export function EnhancedAccountCard({ account, className, onDelete }: EnhancedAc
                 dailyPositive ? 'text-[#26a69a]' : 'text-[#ef5350]'
               )}
             >
-              {dailyPositive ? '+' : ''}${account.daily_pnl.toFixed(2)}
+              {dailyPositive ? '+' : ''}${(account.daily_pnl ?? 0).toFixed(2)}
               <span className="text-[10px] ml-0.5 opacity-80">
-                ({dailyPositive ? '+' : ''}{account.daily_pnl_pct.toFixed(2)}%)
+                ({dailyPositive ? '+' : ''}{(account.daily_pnl_pct ?? 0).toFixed(2)}%)
               </span>
             </span>
           </div>

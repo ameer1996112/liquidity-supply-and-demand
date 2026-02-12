@@ -178,13 +178,13 @@ export function OverviewTab({ account }: OverviewTabProps) {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <MetricCard
             label="Daily P&L"
-            value={`${account.daily_pnl >= 0 ? '+' : ''}$${Math.abs(account.daily_pnl).toFixed(2)}`}
-            valueColor={account.daily_pnl >= 0 ? 'text-[#26a69a]' : 'text-[#ef5350]'}
+            value={`${(account.daily_pnl ?? 0) >= 0 ? '+' : ''}$${Math.abs(account.daily_pnl ?? 0).toFixed(2)}`}
+            valueColor={(account.daily_pnl ?? 0) >= 0 ? 'text-[#26a69a]' : 'text-[#ef5350]'}
           />
           <MetricCard
             label="Daily P&L %"
-            value={`${account.daily_pnl_pct >= 0 ? '+' : ''}${account.daily_pnl_pct.toFixed(2)}%`}
-            valueColor={account.daily_pnl_pct >= 0 ? 'text-[#26a69a]' : 'text-[#ef5350]'}
+            value={`${(account.daily_pnl_pct ?? 0) >= 0 ? '+' : ''}${(account.daily_pnl_pct ?? 0).toFixed(2)}%`}
+            valueColor={(account.daily_pnl_pct ?? 0) >= 0 ? 'text-[#26a69a]' : 'text-[#ef5350]'}
           />
           <MetricCard
             label="Active Positions"
