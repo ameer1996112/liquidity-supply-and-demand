@@ -8,6 +8,9 @@ import {
   ColorType,
   LineStyle,
   CrosshairMode,
+  CandlestickSeries,
+  HistogramSeries,
+  LineSeries,
 } from "lightweight-charts";
 
 export interface Trade {
@@ -104,7 +107,7 @@ export function BacktestChart({
     }) as any;
 
     // Candlestick series (v5 API)
-    const candleSeries = (chart as any).addSeries("Candlestick", {
+    const candleSeries = chart.addSeries(CandlestickSeries, {
       upColor: "#22c55e",
       downColor: "#ef4444",
       borderUpColor: "#22c55e",
@@ -114,7 +117,7 @@ export function BacktestChart({
     });
 
     // Volume histogram (v5 API)
-    const volumeSeries = (chart as any).addSeries("Histogram", {
+    const volumeSeries = chart.addSeries(HistogramSeries, {
       color: "#6b7280",
       priceFormat: {
         type: "volume",
@@ -182,7 +185,7 @@ export function BacktestChart({
 
     zones.forEach((zone) => {
       const color = zone.type === "demand" ? "#22c55e" : "#ef4444";
-      const lineSeries = (chartRef.current as any).addSeries("Line", {
+      const lineSeries = chartRef.current.addSeries(LineSeries, {
         color,
         lineWidth: 1,
         lineStyle: LineStyle.Dashed,
@@ -196,7 +199,7 @@ export function BacktestChart({
         { time: (zone.created_at + 86400 * 7) as Time, value: zone.top }, // 7 days forward
       ]);
 
-      const bottomLine = (chartRef.current as any).addSeries("Line", {
+      const bottomLine = chartRef.current.addSeries(LineSeries, {
         color,
         lineWidth: 1,
         lineStyle: LineStyle.Dashed,
