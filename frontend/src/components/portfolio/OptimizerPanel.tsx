@@ -157,14 +157,11 @@ export function OptimizerPanel() {
                 <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-amber-200">
-                    High exposure: {suggestion.hedge_reason}
+                    High exposure: {suggestion.reason}
                   </p>
                   <p className="text-[11px] text-zinc-400 mt-0.5">
-                    Suggested: <strong>{suggestion.suggested_side.toUpperCase()}</strong>{' '}
-                    {suggestion.suggested_symbol} @ {suggestion.suggested_size} lots
-                    {suggestion.expected_var_reduction_pct > 0 && (
-                      <> · Est. VaR reduction: {suggestion.expected_var_reduction_pct.toFixed(1)}%</>
-                    )}
+                    Suggested: <strong>{suggestion.suggested_direction.toUpperCase()}</strong>{' '}
+                    {suggestion.suggested_symbol} @ {suggestion.suggested_size_lots} lots
                   </p>
                 </div>
               </div>
@@ -228,7 +225,7 @@ export function OptimizerPanel() {
           </CardHeader>
           <CardContent>
             <ul className="space-y-1.5">
-              {trailingStops.map((ts) => (
+              {trailingStops.map((ts: any) => (
                 <li
                   key={ts.id}
                   className={cn(
