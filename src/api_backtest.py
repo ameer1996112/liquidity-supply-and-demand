@@ -87,6 +87,9 @@ class BacktestRequest(BaseModel):
     min_entry_grade: Optional[str] = Field(
         default=None, description="Minimum zone grade (A+, A, B+, B, C+, C)"
     )
+    max_bars_in_trade: Optional[int] = Field(
+        default=None, ge=0, le=1000, description="Max bars before auto-exit (0=disabled, Pine-style)"
+    )
 
     # MetaApi config (optional, defaults to env vars)
     meta_api_token: Optional[str] = Field(default=None, description="MetaApi token (or use env META_API_TOKEN)")
@@ -448,6 +451,8 @@ async def run_backtest(request: BacktestRequest) -> BacktestResponse:
             strategy_kwargs["ai_quality_threshold"] = request.ai_quality_threshold
         if request.min_entry_grade is not None:
             strategy_kwargs["min_entry_grade"] = request.min_entry_grade
+        if request.max_bars_in_trade is not None:
+            strategy_kwargs["max_bars_in_trade"] = request.max_bars_in_trade
 
         # 5. Run backtest
         bt = Backtest(

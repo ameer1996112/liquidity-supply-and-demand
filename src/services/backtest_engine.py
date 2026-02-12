@@ -230,6 +230,7 @@ class SndStrategy(Strategy):
     stop_buffer_pips = 1.0  # Extra pips beyond zone boundary
     max_lot_size = 10.0  # Maximum position size
     max_active_zones = 5  # Maximum number of active zones per type
+    max_bars_in_trade = 0  # Max bars before auto-exit (0=disabled, Pine default: varies by timeframe)
 
     # AI Guardian filters (Pine Script v5.1 features)
     require_liquidity_sweep = False  # Require liquidity sweep before entry (default: off for flexibility)
@@ -2562,9 +2563,19 @@ class SndStrategy(Strategy):
 
         # 3. Exit management (check existing positions first)
         if self.position:
+            # Check max bars in trade (time-based exit like Pine Script)
+            if self.max_bars_in_trade > 0:
+                bars_in_trade = bar_index - self.position.entry_bar
+                if bars_in_trade >= self.max_bars_in_trade:
+                    logger.info(
+                        "Exiting position at bar %d: max bars reached (%d >= %d)",
+                        bar_index,
+                        bars_in_trade,
+                        self.max_bars_in_trade
+                    )
+                    self.position.close()
             # Simple exit: let SL/TP handle it
             # Advanced: could add trailing stop, zone-based exits, etc.
-            pass
 
         # 4. Entry logic (only if no position) - ENHANCED WITH INSTITUTIONAL LOGIC
         if not self.position:

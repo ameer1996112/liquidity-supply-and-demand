@@ -31,6 +31,7 @@ interface BacktestRequest {
   liq_entry_max_dist?: number;
   ai_quality_threshold?: number;
   min_entry_grade?: string;
+  max_bars_in_trade?: number;
 }
 
 interface BacktestResponse {
@@ -90,6 +91,7 @@ export default function BacktestPage() {
     liq_entry_max_dist: 500.0, // Max liquidity distance (pips) - 500 for gold, 50 for forex
     ai_quality_threshold: 60, // Min AI quality score (0-100)
     min_entry_grade: "C+", // Min zone grade (A+, A, B+, B, C+, C)
+    max_bars_in_trade: 0, // Max bars before auto-exit (0=disabled, Pine-style)
   });
 
   // Run backtest mutation (uses Railway URL in production)
@@ -166,6 +168,7 @@ export default function BacktestPage() {
                   liq_entry_max_dist: 50.0,
                   ai_quality_threshold: 70,
                   min_entry_grade: "B+",
+                  max_bars_in_trade: 100,
                 })
               }
             >
@@ -187,6 +190,7 @@ export default function BacktestPage() {
                   liq_entry_max_dist: 500.0,
                   ai_quality_threshold: 60,
                   min_entry_grade: "C+",
+                  max_bars_in_trade: 200,
                 })
               }
             >
@@ -385,7 +389,7 @@ export default function BacktestPage() {
         {/* Advanced Liquidity & Quality Settings */}
         <div className="mt-4">
           <h3 className="text-sm font-semibold text-gray-300 mb-3">Advanced Settings (Liquidity & AI Quality)</h3>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
               <label className="block text-sm text-gray-400 mb-2">
                 Max Liquidity Distance (pips)
@@ -435,6 +439,22 @@ export default function BacktestPage() {
                 <option value="C">C (0-49)</option>
               </select>
               <p className="text-xs text-gray-500 mt-1">Minimum zone grade to enter trade</p>
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">
+                Max Bars in Trade
+              </label>
+              <input
+                type="number"
+                value={config.max_bars_in_trade}
+                onChange={(e) => setConfig({ ...config, max_bars_in_trade: parseInt(e.target.value) || 0 })}
+                min="0"
+                max="500"
+                step="10"
+                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md"
+              />
+              <p className="text-xs text-gray-500 mt-1">Auto-exit after N bars (0=disabled)</p>
             </div>
           </div>
         </div>
