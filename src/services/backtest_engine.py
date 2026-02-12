@@ -789,16 +789,21 @@ class SndStrategy(Strategy):
         """
         # Analyze first 3 candles after zone creation
         dep_start = zone.created_bar + 1
-        dep_end = min(len(self.close_series) - 1, zone.created_bar + 4)
+        dep_end = min(len(self.close_series), zone.created_bar + 4)
 
-        if dep_end <= dep_start:
-            return 50.0  # Default if not enough data
+        # Need at least 1 bar after zone creation
+        if dep_end <= dep_start or dep_start >= len(self.close_series):
+            return 50.0  # Default if not enough data yet
 
         body_score = 0.0
         volume_score = 0.0
         count = 0
 
         for i in range(dep_start, dep_end):
+            # Bounds check for all arrays
+            if i >= len(self.high_series) or i >= len(self.low_series) or i >= len(self.close_series) or i >= len(self.atr):
+                break
+
             candle_range = self.high_series[i] - self.low_series[i]
             candle_body = abs(self.close_series[i] - self.open_series[i])
 
@@ -933,16 +938,20 @@ class SndStrategy(Strategy):
 
         # Analyze candles between sweep and prime
         return_start = zone.liquidity_swept_bar_index + 1
-        return_end = zone.primed_bar
+        return_end = min(zone.primed_bar, len(self.close_series) - 1)
 
-        if return_end <= return_start:
-            return 50.0  # Immediate return = neutral score
+        if return_end <= return_start or return_start >= len(self.close_series):
+            return 50.0  # Not enough data yet
 
         candle_count = return_end - return_start
         body_score = 0.0
         volume_score = 0.0
 
         for i in range(return_start, return_end + 1):
+            # Bounds check
+            if i >= len(self.high_series) or i >= len(self.low_series) or i >= len(self.close_series):
+                break
+
             candle_range = self.high_series[i] - self.low_series[i]
             candle_body = abs(self.close_series[i] - self.open_series[i])
 
@@ -2461,8 +2470,8 @@ class SndStrategy(Strategy):
             if zone.target_swept and not zone.primed:
                 self._check_zone_priming(zone, bar_index)
 
-            # 2E. Update quality metrics when state changes
-            if zone.primed and zone.liquidity_swept:
+            # 2E. Update quality metrics when state changes (and enough bars passed)
+            if zone.primed and zone.liquidity_swept and (bar_index - zone.created_bar >= 3):
                 self._update_zone_quality_metrics(zone, bar_index)
 
         for zone in self.supply_zones:
@@ -2485,8 +2494,8 @@ class SndStrategy(Strategy):
             if zone.target_swept and not zone.primed:
                 self._check_zone_priming(zone, bar_index)
 
-            # 2E. Update quality metrics
-            if zone.primed and zone.liquidity_swept:
+            # 2E. Update quality metrics (and enough bars passed)
+            if zone.primed and zone.liquidity_swept and (bar_index - zone.created_bar >= 3):
                 self._update_zone_quality_metrics(zone, bar_index)
 
         # 2F. Legacy zone updates (for compatibility)
