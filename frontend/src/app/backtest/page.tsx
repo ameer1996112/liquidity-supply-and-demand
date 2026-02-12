@@ -68,8 +68,8 @@ export default function BacktestPage() {
   // Backtest configuration
   const [config, setConfig] = useState<BacktestRequest>({
     symbol: "EURUSD",
-    start_date: "2024-01-01",
-    end_date: "2024-01-31",
+    start_date: "2026-01-01",
+    end_date: "2026-02-12",
     timeframe: "5m",
     initial_cash: 10000,
     commission: 0.0002,
@@ -132,12 +132,40 @@ export default function BacktestPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm text-gray-400 mb-2">Symbol</label>
-            <input
-              type="text"
+            <select
               value={config.symbol}
               onChange={(e) => setConfig({ ...config, symbol: e.target.value })}
               className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md"
-            />
+            >
+              <optgroup label="Forex - Majors">
+                <option value="EURUSD">EUR/USD - Euro vs US Dollar</option>
+                <option value="GBPUSD">GBP/USD - British Pound vs US Dollar</option>
+                <option value="USDJPY">USD/JPY - US Dollar vs Japanese Yen</option>
+                <option value="USDCHF">USD/CHF - US Dollar vs Swiss Franc</option>
+                <option value="AUDUSD">AUD/USD - Australian Dollar vs US Dollar</option>
+                <option value="NZDUSD">NZD/USD - New Zealand Dollar vs US Dollar</option>
+                <option value="USDCAD">USD/CAD - US Dollar vs Canadian Dollar</option>
+              </optgroup>
+              <optgroup label="Forex - Crosses">
+                <option value="EURGBP">EUR/GBP - Euro vs British Pound</option>
+                <option value="EURJPY">EUR/JPY - Euro vs Japanese Yen</option>
+                <option value="GBPJPY">GBP/JPY - British Pound vs Japanese Yen</option>
+                <option value="AUDJPY">AUD/JPY - Australian Dollar vs Japanese Yen</option>
+              </optgroup>
+              <optgroup label="Metals">
+                <option value="XAUUSD">XAU/USD - Gold vs US Dollar</option>
+                <option value="XAGUSD">XAG/USD - Silver vs US Dollar</option>
+              </optgroup>
+              <optgroup label="Indices">
+                <option value="NAS100">NAS100 - NASDAQ 100</option>
+                <option value="US30">US30 - Dow Jones 30</option>
+                <option value="SPX500">SPX500 - S&P 500</option>
+              </optgroup>
+              <optgroup label="Crypto">
+                <option value="BTCUSD">BTC/USD - Bitcoin vs US Dollar</option>
+                <option value="ETHUSD">ETH/USD - Ethereum vs US Dollar</option>
+              </optgroup>
+            </select>
           </div>
 
           <div>
