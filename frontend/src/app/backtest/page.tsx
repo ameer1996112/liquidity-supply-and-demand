@@ -526,30 +526,87 @@ export default function BacktestPage() {
             )}
           </Card>
 
-          {/* Trade List */}
+          {/* Trade List - TradingView Style */}
           <Card className="p-6">
-            <h2 className="text-xl font-semibold mb-4">Trade History</h2>
-            <div className="space-y-2">
-              {visibleTrades.map((trade, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between p-4 bg-gray-900 rounded-lg border border-gray-800"
-                >
-                  <div className="flex items-center gap-4">
-                    <Badge variant={trade.side === "long" ? "default" : "destructive"}>
-                      {trade.side.toUpperCase()}
-                    </Badge>
-                    <div className="text-sm">
-                      <p className="text-gray-400">Entry: {trade.entry_price.toFixed(5)}</p>
-                      <p className="text-gray-400">Exit: {trade.exit_price.toFixed(5)}</p>
-                    </div>
-                  </div>
+            <h2 className="text-xl font-semibold mb-4">Trade List ({visibleTrades.length} trades)</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="border-b border-gray-800">
+                  <tr className="text-gray-400">
+                    <th className="text-left py-3 px-2">#</th>
+                    <th className="text-left py-3 px-2">Type</th>
+                    <th className="text-left py-3 px-2">Entry Date</th>
+                    <th className="text-left py-3 px-2">Exit Date</th>
+                    <th className="text-right py-3 px-2">Duration</th>
+                    <th className="text-right py-3 px-2">Entry Price</th>
+                    <th className="text-right py-3 px-2">Exit Price</th>
+                    <th className="text-right py-3 px-2">Size</th>
+                    <th className="text-right py-3 px-2">Profit $</th>
+                    <th className="text-right py-3 px-2">Profit %</th>
+                    <th className="text-right py-3 px-2">Return %</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleTrades.map((trade, index) => {
+                    const duration = (trade.exit_time - trade.entry_time) / 60; // minutes
+                    const durationText = duration < 60
+                      ? `${Math.floor(duration)}m`
+                      : `${Math.floor(duration / 60)}h ${Math.floor(duration % 60)}m`;
 
-                  <div className={`text-lg font-bold ${trade.pnl >= 0 ? "text-green-500" : "text-red-500"}`}>
-                    {trade.pnl >= 0 ? "+" : ""}${trade.pnl.toFixed(2)}
-                  </div>
+                    return (
+                      <tr
+                        key={index}
+                        className="border-b border-gray-800 hover:bg-gray-900/50 transition-colors"
+                      >
+                        <td className="py-3 px-2 text-gray-300">{index + 1}</td>
+                        <td className="py-3 px-2">
+                          <Badge
+                            variant={trade.side === "long" ? "default" : "destructive"}
+                            className="text-xs"
+                          >
+                            {trade.side === "long" ? "LONG" : "SHORT"}
+                          </Badge>
+                        </td>
+                        <td className="py-3 px-2 text-gray-400 text-xs">
+                          {new Date(trade.entry_time * 1000).toLocaleString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </td>
+                        <td className="py-3 px-2 text-gray-400 text-xs">
+                          {new Date(trade.exit_time * 1000).toLocaleString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </td>
+                        <td className="py-3 px-2 text-right text-gray-400 text-xs">{durationText}</td>
+                        <td className="py-3 px-2 text-right text-gray-300">{trade.entry_price.toFixed(5)}</td>
+                        <td className="py-3 px-2 text-right text-gray-300">{trade.exit_price.toFixed(5)}</td>
+                        <td className="py-3 px-2 text-right text-gray-400">{trade.size.toFixed(2)}</td>
+                        <td className={`py-3 px-2 text-right font-semibold ${trade.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          {trade.pnl >= 0 ? '+' : ''}{trade.pnl.toFixed(2)}
+                        </td>
+                        <td className={`py-3 px-2 text-right font-semibold ${trade.pnl_percent >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          {trade.pnl_percent >= 0 ? '+' : ''}{trade.pnl_percent.toFixed(2)}%
+                        </td>
+                        <td className={`py-3 px-2 text-right font-semibold ${trade.return_pct >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          {trade.return_pct >= 0 ? '+' : ''}{trade.return_pct.toFixed(2)}%
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              {visibleTrades.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  No trades yet. Run a backtest to see results.
                 </div>
-              ))}
+              )}
             </div>
           </Card>
         </>

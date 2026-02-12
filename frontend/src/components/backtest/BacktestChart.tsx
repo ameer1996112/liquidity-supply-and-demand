@@ -20,6 +20,8 @@ export interface Trade {
   exit_price: number;
   side: "long" | "short";
   pnl: number;
+  pnl_percent: number;
+  return_pct: number;
   size: number;
 }
 
