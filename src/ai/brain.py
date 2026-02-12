@@ -273,9 +273,13 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
         f"final={rf_threshold:.0%}"
     )
     if rf_prob < rf_threshold:
-        result["reason"] = (
-            f"RF probability {rf_prob:.1%} below {rf_threshold:.0%} threshold."
-        )
+        # When RF returns 0.5, it's usually model missing or prediction error – show real cause
+        if rf_prob == 0.5 and ("Disabled" in rf_note or "Error" in rf_note):
+            result["reason"] = rf_note
+        else:
+            result["reason"] = (
+                f"RF probability {rf_prob:.1%} below {rf_threshold:.0%} threshold."
+            )
         _log_brain_decision(symbol, result)
         return result
 

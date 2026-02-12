@@ -11,6 +11,9 @@ Usage:
     # Quick test with synthetic data
     python scripts/run_backtest_example.py --synthetic
 
+    # Test all symbols (XAUUSD, NAS100, GBPJPY, BTC) with synthetic data
+    python scripts/run_backtest_example.py --test-all
+
     # Real backtest with MetaApi
     export META_API_TOKEN="your-token"
     export META_API_ACCOUNT_ID="your-account-id"
@@ -73,12 +76,22 @@ def generate_synthetic_data(n: int = 2000, symbol: str = "EURUSD") -> pd.DataFra
 
     np.random.seed(42)
 
-    # Set base price based on symbol
-    if "XAU" in symbol or "GOLD" in symbol:
+    # Set base price and volatility based on symbol (for realistic testing)
+    symbol_upper = symbol.upper()
+    if "XAU" in symbol_upper or "GOLD" in symbol_upper:
         base_price = 2000.0
         volatility = 2.0
-    elif "JPY" in symbol:
-        base_price = 150.0
+    elif "NAS" in symbol_upper or "US100" in symbol_upper or "NDX" in symbol_upper:
+        base_price = 18500.0
+        volatility = 25.0
+    elif "BTC" in symbol_upper:
+        base_price = 60000.0
+        volatility = 500.0
+    elif "JPY" in symbol_upper:
+        base_price = 185.0 if "GBP" in symbol_upper else 150.0  # GBPJPY ~185, USDJPY ~150
+        volatility = 0.18 if "GBP" in symbol_upper else 0.15
+    elif "XAG" in symbol_upper or "SILVER" in symbol_upper:
+        base_price = 24.0
         volatility = 0.15
     else:
         base_price = 1.1000
@@ -186,6 +199,7 @@ def run_backtest(
     min_rr_ratio: float = 2.0,
     stop_buffer_pips: float = 1.0,
     commission: float = 0.0002,
+    skip_plot: bool = False,
 ) -> dict:
     """
     Run backtest with SndStrategy.
@@ -253,11 +267,12 @@ def run_backtest(
 
     logger.info("=" * 80)
 
-    # Save HTML report
-    output_file = project_root / "backtest_results.html"
-    bt.plot(filename=str(output_file), open_browser=False)
-    logger.info(f"\n📄 HTML report saved to: {output_file}")
-    logger.info(f"   Open in browser: file://{output_file}")
+    # Save HTML report (skip when running multi-symbol batch)
+    if not skip_plot:
+        output_file = project_root / "backtest_results.html"
+        bt.plot(filename=str(output_file), open_browser=False)
+        logger.info(f"\n📄 HTML report saved to: {output_file}")
+        logger.info(f"   Open in browser: file://{output_file}")
 
     return stats
 
@@ -320,6 +335,67 @@ def optimize_parameters(
     return stats
 
 
+TEST_SYMBOLS = [
+    "XAUUSD",   # Gold
+    "NAS100",   # Nasdaq 100 index
+    "GBPJPY",   # GBP/JPY forex
+    "BTCUSD",   # Bitcoin
+]
+
+
+def _run_test_all_symbols(args) -> None:
+    """
+    Run synthetic backtests for XAUUSD, NAS100, GBPJPY, BTC.
+    Verifies position sizing and signal logic across all instrument types.
+    """
+    logger.info("=" * 80)
+    logger.info("MULTI-SYMBOL TEST: XAUUSD, NAS100, GBPJPY, BTCUSD")
+    logger.info("Using synthetic data (no MetaApi required)")
+    logger.info("=" * 80)
+
+    results = []
+    for symbol in TEST_SYMBOLS:
+        logger.info(f"\n--- {symbol} ---")
+        try:
+            df = generate_synthetic_data(n=2000, symbol=symbol)
+            stats = run_backtest(
+                df,
+                symbol=symbol,
+                initial_cash=args.cash,
+                risk_percent=args.risk,
+                min_rr_ratio=args.rr,
+                stop_buffer_pips=args.buffer,
+                commission=args.commission,
+                skip_plot=True,
+            )
+            results.append({
+                "symbol": symbol,
+                "trades": stats["# Trades"],
+                "return_pct": stats["Return [%]"],
+                "sharpe": stats["Sharpe Ratio"],
+                "dd_pct": stats["Max. Drawdown [%]"],
+                "ok": True,
+            })
+        except Exception as e:
+            logger.error(f"❌ {symbol} failed: {e}")
+            results.append({"symbol": symbol, "ok": False, "error": str(e)})
+
+    # Summary
+    logger.info("\n" + "=" * 80)
+    logger.info("SUMMARY")
+    logger.info("=" * 80)
+    for r in results:
+        if r.get("ok"):
+            logger.info(
+                f"  {r['symbol']:8} | Trades: {r['trades']:3} | Return: {r['return_pct']:+.2f}% | "
+                f"Sharpe: {r['sharpe']:+.2f} | DD: {r['dd_pct']:.2f}%"
+            )
+        else:
+            logger.info(f"  {r['symbol']:8} | FAILED: {r.get('error', 'unknown')}")
+    logger.info("=" * 80)
+    logger.info("✅ Multi-symbol test complete")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Run backtest with MetaApi data")
 
@@ -328,6 +404,11 @@ def main():
         "--synthetic",
         action="store_true",
         help="Use synthetic data (no MetaApi required)",
+    )
+    parser.add_argument(
+        "--test-all",
+        action="store_true",
+        help="Run synthetic backtests for XAUUSD, NAS100, GBPJPY, BTC",
     )
     parser.add_argument("--symbol", default="EURUSD", help="Trading symbol (default: EURUSD)")
     parser.add_argument("--days", type=int, default=30, help="Days of data to fetch (default: 30)")
@@ -351,7 +432,11 @@ def main():
     args = parser.parse_args()
 
     try:
-        # 1. Load data
+        # 1. Load data (or run multi-symbol test)
+        if args.test_all:
+            _run_test_all_symbols(args)
+            return
+
         if args.synthetic:
             df = generate_synthetic_data(n=2000, symbol=args.symbol)
         else:
