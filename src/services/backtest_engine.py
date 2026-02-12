@@ -2410,67 +2410,48 @@ class SndStrategy(Strategy):
         """
         Calculate position size based on risk percentage.
 
+        Risk-based formula: units = risk_amount / |entry - stop_loss|
+        So if SL is hit, loss = units * |entry - sl| = risk_amount.
+
         Args:
             entry: Entry price
             stop_loss: Stop loss price
 
         Returns:
-            Position size in lots (e.g., 0.1, 1.0, 10.0)
+            Position size in units (for backtesting.py: integer units)
         """
-        account_balance = self.equity  # Current account equity
+        account_balance = self.equity
         risk_amount = account_balance * (self.risk_percent / 100.0)
 
-        # Calculate risk in pips
-        risk_pips = abs(entry - stop_loss) / self._get_pip_size()
-
-        if risk_pips <= 0:
+        risk_per_unit = abs(entry - stop_loss)
+        if risk_per_unit <= 0:
             return 0.0
 
-        # Forex position sizing: risk_amount / (pips * pip_value_per_lot)
-        # Assume $10 per pip per standard lot (simplified)
-        pip_value_per_lot = 10.0
+        # units = risk_amount / risk_per_unit
+        # e.g. $250 risk / $5 SL distance = 50 oz (gold) or 50k units (forex)
+        units = risk_amount / risk_per_unit
 
-        # Handle metals (XAUUSD: $1 per pip per 1.0 lot = $100 contract)
-        if self.data.Close[-1] > 100:  # Likely gold/silver
-            pip_value_per_lot = 1.0
-
-        lot_size = risk_amount / (risk_pips * pip_value_per_lot)
-
-        # Cap at max lot size
-        lot_size = min(lot_size, self.max_lot_size)
-
-        # Round to 2 decimals (0.01 lot minimum)
-        lot_size = max(0.01, round(lot_size, 2))
-
-        # backtesting.py size parameter:
-        # - Fraction (0.0 to 1.0): Percentage of equity to allocate
-        # - Integer >= 1: Number of units (absolute count)
-        #
-        # For gold/metals, we MUST use integer units (ounces)
-        # Fractional sizing doesn't work - need at least 1 oz
-
-        # Calculate units based on current price
         current_price = self.data.Close[-1]
+        pip_size = self._get_pip_size()
 
-        # How many units can we buy with risk amount?
-        # For gold: $1000 risk / $4600 price = 0.217 oz → round up to 1 oz minimum
-        units_affordable = risk_amount / current_price
+        # For forex: 1 unit = 1 base currency. Backtesting uses units directly.
+        # For gold: 1 unit = 1 oz. Min 1 oz.
+        if current_price > 100:  # Metals (XAUUSD, etc.) - 1 lot = 100 oz
+            units = max(1, int(round(units)))
+            max_by_lots = int(self.max_lot_size * 100)  # 10 lots = 1000 oz
+        else:  # Forex - 1 lot = 100,000 units
+            units = max(1000, int(round(units)))  # Min 0.01 lot = 1000 units
+            max_by_lots = int(self.max_lot_size * 100_000)
 
-        # Convert to integer (minimum 1 unit)
-        units = max(1, int(round(units_affordable)))
-
-        # Cap at reasonable maximum (don't buy more than account can afford)
-        max_units = int(account_balance / current_price * 0.95)  # Max 95% of equity
-        units = min(units, max(1, max_units))
+        # Cap by max lot size and margin (95% of equity at 50:1)
+        max_by_margin = int(account_balance / current_price * 0.95 * 50)
+        units = min(units, max_by_lots, max(1, max_by_margin))
 
         logger.debug(
-            "Position size: risk=$%.2f pips=%.1f price=%.2f units_calc=%.2f units=%d (max=%d)",
+            "Position size: risk=$%.2f risk_per_unit=%.5f units=%d",
             risk_amount,
-            risk_pips,
-            current_price,
-            units_affordable,
+            risk_per_unit,
             units,
-            max_units,
         )
 
         return units
