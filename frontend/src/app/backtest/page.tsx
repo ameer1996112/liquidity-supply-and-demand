@@ -66,18 +66,18 @@ export default function BacktestPage() {
   const [backtestResult, setBacktestResult] = useState<BacktestResponse | null>(null);
   const [replayMode, setReplayMode] = useState(false); // Replay mode OFF by default
 
-  // Backtest configuration
+  // Backtest configuration (matches Pine Aggressive profile)
   const [config, setConfig] = useState<BacktestRequest>({
-    symbol: "EURUSD",
+    symbol: "XAUUSD",
     start_date: "2026-01-01",
     end_date: "2026-02-12",
     timeframe: "5m",
     initial_cash: 10000,
     commission: 0.0002,
     risk_percent: 0.5,
-    min_rr_ratio: 2.0,
-    require_liquidity_sweep: false,
-    reject_compression_arrival: true,
+    min_rr_ratio: 1.5, // ← Changed from 2.0 to match Pine Aggressive
+    require_liquidity_sweep: true, // ← Changed from false (Pine always requires this)
+    reject_compression_arrival: false, // ← Changed from true (let more trades through)
     require_structure_break: false,
   });
 
@@ -136,7 +136,43 @@ export default function BacktestPage() {
 
       {/* Configuration Panel */}
       <Card className="p-6">
-        <h2 className="text-xl font-semibold mb-4">Configuration</h2>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold">Configuration</h2>
+          <div className="flex gap-2">
+            <Button
+              variant={config.min_rr_ratio === 2.0 ? "default" : "outline"}
+              size="sm"
+              onClick={() =>
+                setConfig({
+                  ...config,
+                  risk_percent: 0.5,
+                  min_rr_ratio: 2.0,
+                  require_liquidity_sweep: true,
+                  reject_compression_arrival: true,
+                  require_structure_break: false,
+                })
+              }
+            >
+              Balanced
+            </Button>
+            <Button
+              variant={config.min_rr_ratio === 1.5 ? "default" : "outline"}
+              size="sm"
+              onClick={() =>
+                setConfig({
+                  ...config,
+                  risk_percent: 0.5,
+                  min_rr_ratio: 1.5,
+                  require_liquidity_sweep: true,
+                  reject_compression_arrival: false,
+                  require_structure_break: false,
+                })
+              }
+            >
+              Aggressive
+            </Button>
+          </div>
+        </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm text-gray-400 mb-2">Symbol</label>
