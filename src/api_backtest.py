@@ -408,6 +408,11 @@ async def run_backtest(request: BacktestRequest) -> BacktestResponse:
 
         # 4. Prepare strategy parameters
         strategy_kwargs = {}
+
+        # Symbol (REQUIRED for symbol-specific logic)
+        strategy_kwargs["symbol"] = request.symbol
+
+        # Risk parameters
         if request.risk_percent is not None:
             strategy_kwargs["risk_percent"] = request.risk_percent
         if request.min_rr_ratio is not None:
