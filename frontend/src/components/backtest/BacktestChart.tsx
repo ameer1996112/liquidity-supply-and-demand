@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import {
   createChart,
   CandlestickData,
@@ -103,8 +103,8 @@ export function BacktestChart({
       height,
     }) as any;
 
-    // Candlestick series
-    const candleSeries = chart.addCandlestickSeries({
+    // Candlestick series (v5 API)
+    const candleSeries = (chart as any).addSeries("Candlestick", {
       upColor: "#22c55e",
       downColor: "#ef4444",
       borderUpColor: "#22c55e",
@@ -113,8 +113,8 @@ export function BacktestChart({
       wickDownColor: "#ef4444",
     });
 
-    // Volume histogram
-    const volumeSeries = chart.addHistogramSeries({
+    // Volume histogram (v5 API)
+    const volumeSeries = (chart as any).addSeries("Histogram", {
       color: "#6b7280",
       priceFormat: {
         type: "volume",
@@ -182,7 +182,7 @@ export function BacktestChart({
 
     zones.forEach((zone) => {
       const color = zone.type === "demand" ? "#22c55e" : "#ef4444";
-      const lineSeries = chartRef.current!.addLineSeries({
+      const lineSeries = (chartRef.current as any).addSeries("Line", {
         color,
         lineWidth: 1,
         lineStyle: LineStyle.Dashed,
@@ -196,7 +196,7 @@ export function BacktestChart({
         { time: (zone.created_at + 86400 * 7) as Time, value: zone.top }, // 7 days forward
       ]);
 
-      const bottomLine = chartRef.current!.addLineSeries({
+      const bottomLine = (chartRef.current as any).addSeries("Line", {
         color,
         lineWidth: 1,
         lineStyle: LineStyle.Dashed,
