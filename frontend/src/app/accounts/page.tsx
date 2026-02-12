@@ -12,14 +12,14 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/components/ui/toast';
-import { getPortfolioControlUrl } from '@/lib/api';
+import { getPortfolioControlUrl, type AccountDetailApi } from '@/lib/api';
 
 type ViewMode = 'table' | 'cards';
 
 export default function AccountsPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('table');
-  const { data: accounts = [], isLoading, error } = useAccountsComparison();
+  const { data: accounts = [] as AccountDetailApi[], isLoading, error } = useAccountsComparison();
   const queryClient = useQueryClient();
   const { addToast } = useToast();
 

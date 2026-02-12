@@ -54,7 +54,7 @@ export default function AccountDetailPage() {
     },
   });
 
-  const connectionStatus = account?.connection_status || 'not_configured';
+  const connectionStatus = (account?.connection_status || 'not_configured') as 'connected' | 'disconnected' | 'error' | 'not_configured';
   const connectionColor = {
     connected: 'text-emerald-500',
     disconnected: 'text-amber-500',
