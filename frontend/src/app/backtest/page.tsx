@@ -23,6 +23,8 @@ interface BacktestRequest {
   commission: number;
   risk_percent: number;
   min_rr_ratio: number;
+  zone_lookback?: number;
+  stop_buffer_pips?: number;
   require_liquidity_sweep?: boolean;
   reject_compression_arrival?: boolean;
   require_structure_break?: boolean;
@@ -76,6 +78,8 @@ export default function BacktestPage() {
     commission: 0.0002,
     risk_percent: 0.5,
     min_rr_ratio: 1.5, // ← Changed from 2.0 to match Pine Aggressive
+    zone_lookback: 20, // ← Zone detection lookback period
+    stop_buffer_pips: 1.0, // ← Stop loss buffer (from Pine default)
     require_liquidity_sweep: true, // ← Changed from false (Pine always requires this)
     reject_compression_arrival: false, // ← Changed from true (let more trades through)
     require_structure_break: false,
@@ -147,6 +151,8 @@ export default function BacktestPage() {
                   ...config,
                   risk_percent: 0.5,
                   min_rr_ratio: 2.0,
+                  zone_lookback: 20,
+                  stop_buffer_pips: 1.0,
                   require_liquidity_sweep: true,
                   reject_compression_arrival: true,
                   require_structure_break: false,
@@ -163,6 +169,8 @@ export default function BacktestPage() {
                   ...config,
                   risk_percent: 0.5,
                   min_rr_ratio: 1.5,
+                  zone_lookback: 20,
+                  stop_buffer_pips: 1.0,
                   require_liquidity_sweep: true,
                   reject_compression_arrival: false,
                   require_structure_break: false,
@@ -248,34 +256,114 @@ export default function BacktestPage() {
           </div>
         </div>
 
+        {/* Risk & Strategy Parameters */}
+        <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Risk Per Trade (%)</label>
+            <input
+              type="number"
+              value={config.risk_percent}
+              onChange={(e) => setConfig({ ...config, risk_percent: parseFloat(e.target.value) || 0.5 })}
+              min="0.1"
+              max="5.0"
+              step="0.1"
+              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Min R:R Ratio</label>
+            <input
+              type="number"
+              value={config.min_rr_ratio}
+              onChange={(e) => setConfig({ ...config, min_rr_ratio: parseFloat(e.target.value) || 1.5 })}
+              min="0.5"
+              max="10.0"
+              step="0.1"
+              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Zone Lookback (bars)</label>
+            <input
+              type="number"
+              value={config.zone_lookback}
+              onChange={(e) => setConfig({ ...config, zone_lookback: parseInt(e.target.value) || 20 })}
+              min="5"
+              max="50"
+              step="1"
+              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">SL Buffer (pips)</label>
+            <input
+              type="number"
+              value={config.stop_buffer_pips}
+              onChange={(e) => setConfig({ ...config, stop_buffer_pips: parseFloat(e.target.value) || 1.0 })}
+              min="0"
+              max="10.0"
+              step="0.1"
+              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Initial Cash ($)</label>
+            <input
+              type="number"
+              value={config.initial_cash}
+              onChange={(e) => setConfig({ ...config, initial_cash: parseFloat(e.target.value) || 10000 })}
+              min="100"
+              step="1000"
+              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Commission</label>
+            <input
+              type="number"
+              value={config.commission}
+              onChange={(e) => setConfig({ ...config, commission: parseFloat(e.target.value) || 0.0002 })}
+              min="0"
+              max="0.01"
+              step="0.0001"
+              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md"
+            />
+          </div>
+        </div>
+
         {/* AI Guardian Filters */}
         <div className="mt-4 flex gap-4">
-          <label className="flex items-center gap-2">
+          <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
-              checked={config.require_liquidity_sweep}
+              checked={config.require_liquidity_sweep || false}
               onChange={(e) => setConfig({ ...config, require_liquidity_sweep: e.target.checked })}
-              className="rounded"
+              className="rounded cursor-pointer"
             />
             <span className="text-sm">Require Liquidity Sweep</span>
           </label>
 
-          <label className="flex items-center gap-2">
+          <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
-              checked={config.reject_compression_arrival}
+              checked={config.reject_compression_arrival || false}
               onChange={(e) => setConfig({ ...config, reject_compression_arrival: e.target.checked })}
-              className="rounded"
+              className="rounded cursor-pointer"
             />
             <span className="text-sm">Reject Compression</span>
           </label>
 
-          <label className="flex items-center gap-2">
+          <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
-              checked={config.require_structure_break}
+              checked={config.require_structure_break || false}
               onChange={(e) => setConfig({ ...config, require_structure_break: e.target.checked })}
-              className="rounded"
+              className="rounded cursor-pointer"
             />
             <span className="text-sm">Require Structure Break</span>
           </label>
