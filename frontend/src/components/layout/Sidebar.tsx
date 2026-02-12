@@ -14,6 +14,7 @@ import {
   Activity,
   Gauge,
   Users,
+  LineChart,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSidebar } from '@/providers/SidebarProvider';
@@ -30,6 +31,7 @@ const NAV_ITEMS = [
   { label: 'Risk Monitor', icon: Gauge, path: '/risk' },
   { label: 'Accounts', icon: Users, path: '/accounts' },
   { label: 'Analytics', icon: BarChart3, path: '/analytics' },
+  { label: 'Backtest', icon: LineChart, path: '/backtest' },
   { label: 'Rules', icon: ShieldCheck, path: '/rules' },
   { label: 'Journal', icon: BookOpen, path: '/journal' },
   { label: 'Settings', icon: Settings, path: '/settings' },
