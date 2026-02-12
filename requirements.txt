@@ -19,6 +19,7 @@ numpy>=1.24.0
 pandas>=2.0.0
 pyarrow>=14.0.0
 numba>=0.58.0  # JIT compilation for high-performance backtesting
+backtesting>=0.3.3  # Python backtesting framework for trading strategies
 
 # Database & alerts
 supabase==2.10.0

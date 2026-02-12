@@ -1,0 +1,3 @@
+trade_idx,entry_time,side,entry_model,zone_type,zone_id,entry_bar,rule_liquidity_valid,rule_liquidity_swept,rule_target_swept,rule_caused_sweep,rule_not_mitigated,rule_not_touched_pre_sweep,rule_zone_touch,rule_touch_count_ok,touch_count,rule_zone_fresh_24h,rule_liq_distance_ok,liq_distance_pips,rule_quality_ok,zone_score,primed_bar
+1,2025-01-10 16:30:00+00:00,long,FLIP,demand,298,1866,True,True,True,True,True,True,True,True,1,True,True,188.0,True,80.0,1860
+2,2025-01-15 21:35:00+00:00,long,DIR_CLOSE,demand,441,2755,True,True,True,True,True,True,True,True,1,True,True,4.0,True,65.0,2754
