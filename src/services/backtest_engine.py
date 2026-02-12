@@ -236,6 +236,19 @@ class SndStrategy(Strategy):
     reject_compression_arrival = True  # Reject slow/grinding arrivals (default: on for quality)
     require_structure_break = False  # Require market structure break (default: off)
 
+    # Liquidity Detection Parameters (Phase 2)
+    liq_pivot_len = 2  # Williams Fractal period (2 = 3-candle pivot)
+    liq_max_distance_pips = 15.0  # Max distance for liquidity (forex: 15, gold: 300)
+    liq_entry_max_dist = 50.0  # Max zone-to-liq distance at entry
+
+    # Zone Quality Parameters (Phase 1)
+    ai_quality_threshold = 60  # Minimum AI score (0-100)
+    min_entry_grade = "C+"  # Minimum grade (A+, A, B+, B, C+, C)
+    min_return_strength = 0  # Minimum return strength (0-100, 0=disabled)
+
+    # Entry Model Selection (Phase 3)
+    entry_model = "AUTO"  # "FLIP", "DIR_CLOSE", "BOC", or "AUTO"
+
     # Symbol information (for symbol-specific logic)
     symbol = "EURUSD"  # Default symbol, should be set during init
 
@@ -858,12 +871,12 @@ class SndStrategy(Strategy):
         else:  # supply
             distance = abs(zone.bottom - zone.liquidity_price)
 
-        # Convert to pips (assume 0.0001 for forex, will refine later)
-        pip_size = 0.0001
+        # Convert to pips using symbol-aware pip size
+        pip_size = self._get_pip_size()
         distance_pips = distance / pip_size
 
-        # Max acceptable distance (50 pips for forex)
-        max_distance_pips = 50.0
+        # Max acceptable distance (symbol-specific: 50 pips forex, 300 pips gold)
+        max_distance_pips = self._get_liq_max_distance_pips()
 
         # Score decreases linearly with distance
         if distance_pips >= max_distance_pips:
@@ -1227,31 +1240,45 @@ class SndStrategy(Strategy):
         scan_start = zone.created_bar + 1
         scan_end = min(current_bar, len(self.low_series) - 2)  # Need 1 bar ahead for pivot
 
+        pivot_count = 0
         for i in range(scan_start, scan_end + 1):
             # Check if this is a 3-candle Makuchaku pivot low (STRICT)
             if self._is_makuchaku_pivot_low(self.low_series, i):
+                pivot_count += 1
                 pivot_low = self.low_series[i]
 
-                # Check distance from zone top (must be below zone and within max distance)
-                distance_price = pivot_low - zone.top
-                if distance_price >= 0:
-                    continue  # Pivot is above zone, skip
-
-                distance_pips = abs(distance_price) / pip_size
+                # Check distance from zone bottom (inducement can be within max distance)
+                # For demand: inducement is typically below the zone bottom (classic),
+                # but can also be above if it's a retracement low before returning to zone
+                distance_from_bottom = abs(pivot_low - zone.bottom)
+                distance_pips = distance_from_bottom / pip_size
 
                 if distance_pips <= max_distance_pips:
                     # Found valid inducement (take the lowest one)
                     if inducement_price is None or pivot_low < inducement_price:
                         inducement_price = pivot_low
                         inducement_bar = i
+                        logger.debug(
+                            "Demand zone %d: Valid inducement candidate at bar %d (pivot=%.5f zone_bottom=%.5f distance=%.1f pips)",
+                            getattr(zone, "id", 0), i, pivot_low, zone.bottom, distance_pips
+                        )
+                else:
+                    logger.debug(
+                        "Demand zone %d: Pivot %d too far (distance=%.1f pips > max=%.1f pips)",
+                        getattr(zone, "id", 0), i, distance_pips, max_distance_pips
+                    )
 
         if inducement_price is None:
             # No valid inducement found
-            logger.debug(
-                "Demand zone %d: No valid inducement found (scanned bars %d-%d)",
+            logger.info(
+                "Demand zone %d: No valid inducement found (scanned bars %d-%d, found %d pivots, pip_size=%.5f, max_dist=%.1f pips, zone_top=%.5f)",
                 getattr(zone, "id", 0),
                 scan_start,
                 scan_end,
+                pivot_count,
+                pip_size,
+                max_distance_pips,
+                zone.top,
             )
             return
 
@@ -1339,31 +1366,45 @@ class SndStrategy(Strategy):
         scan_start = zone.created_bar + 1
         scan_end = min(current_bar, len(self.high_series) - 2)  # Need 1 bar ahead for pivot
 
+        pivot_count = 0
         for i in range(scan_start, scan_end + 1):
             # Check if this is a 3-candle Makuchaku pivot high (STRICT)
             if self._is_makuchaku_pivot_high(self.high_series, i):
+                pivot_count += 1
                 pivot_high = self.high_series[i]
 
-                # Check distance from zone bottom (must be above zone and within max distance)
-                distance_price = pivot_high - zone.bottom
-                if distance_price <= 0:
-                    continue  # Pivot is below zone, skip
-
-                distance_pips = distance_price / pip_size
+                # Check distance from zone top (inducement can be within max distance)
+                # For supply: inducement is typically above the zone top (classic),
+                # but can also be below if it's a retracement high before returning to zone
+                distance_from_top = abs(pivot_high - zone.top)
+                distance_pips = distance_from_top / pip_size
 
                 if distance_pips <= max_distance_pips:
                     # Found valid inducement (take the highest one)
                     if inducement_price is None or pivot_high > inducement_price:
                         inducement_price = pivot_high
                         inducement_bar = i
+                        logger.debug(
+                            "Supply zone %d: Valid inducement candidate at bar %d (pivot=%.5f zone_top=%.5f distance=%.1f pips)",
+                            getattr(zone, "id", 0), i, pivot_high, zone.top, distance_pips
+                        )
+                else:
+                    logger.debug(
+                        "Supply zone %d: Pivot %d too far (distance=%.1f pips > max=%.1f pips)",
+                        getattr(zone, "id", 0), i, distance_pips, max_distance_pips
+                    )
 
         if inducement_price is None:
             # No valid inducement found
-            logger.debug(
-                "Supply zone %d: No valid inducement found (scanned bars %d-%d)",
+            logger.info(
+                "Supply zone %d: No valid inducement found (scanned bars %d-%d, found %d pivots, pip_size=%.5f, max_dist=%.1f pips, zone_bottom=%.5f)",
                 getattr(zone, "id", 0),
                 scan_start,
                 scan_end,
+                pivot_count,
+                pip_size,
+                max_distance_pips,
+                zone.bottom,
             )
             return
 
@@ -2400,17 +2441,35 @@ class SndStrategy(Strategy):
         # Round to 2 decimals (0.01 lot minimum)
         lot_size = max(0.01, round(lot_size, 2))
 
-        # backtesting.py expects: fraction (0-1) OR positive whole number (units)
-        # Convert lots to units: 1 standard lot = 100,000 units (forex)
-        units = int(round(lot_size * 100_000))
-        units = max(1000, units)  # min 0.01 lot = 1000 units
+        # backtesting.py size parameter:
+        # - Fraction (0.0 to 1.0): Percentage of equity to allocate
+        # - Integer >= 1: Number of units (absolute count)
+        #
+        # For gold/metals, we MUST use integer units (ounces)
+        # Fractional sizing doesn't work - need at least 1 oz
+
+        # Calculate units based on current price
+        current_price = self.data.Close[-1]
+
+        # How many units can we buy with risk amount?
+        # For gold: $1000 risk / $4600 price = 0.217 oz → round up to 1 oz minimum
+        units_affordable = risk_amount / current_price
+
+        # Convert to integer (minimum 1 unit)
+        units = max(1, int(round(units_affordable)))
+
+        # Cap at reasonable maximum (don't buy more than account can afford)
+        max_units = int(account_balance / current_price * 0.95)  # Max 95% of equity
+        units = min(units, max(1, max_units))
 
         logger.debug(
-            "Position size: risk=$%.2f pips=%.1f lot_size=%.2f units=%d",
+            "Position size: risk=$%.2f pips=%.1f price=%.2f units_calc=%.2f units=%d (max=%d)",
             risk_amount,
             risk_pips,
-            lot_size,
+            current_price,
+            units_affordable,
             units,
+            max_units,
         )
 
         return units
@@ -2509,6 +2568,18 @@ class SndStrategy(Strategy):
 
         # 4. Entry logic (only if no position) - ENHANCED WITH INSTITUTIONAL LOGIC
         if not self.position:
+            # Log how many zones are being checked
+            active_demand_zones = [z for z in self.demand_zones if z.active]
+            active_supply_zones = [z for z in self.supply_zones if z.active]
+
+            if len(active_demand_zones) > 0 or len(active_supply_zones) > 0:
+                logger.info(
+                    "Bar %d: Checking entry conditions (%d demand zones, %d supply zones)",
+                    bar_index,
+                    len(active_demand_zones),
+                    len(active_supply_zones)
+                )
+
             # Check demand zones for BUY signals (use enhanced institutional validation)
             for zone in self.demand_zones:
                 if not zone.active:
@@ -2517,15 +2588,17 @@ class SndStrategy(Strategy):
                 # 4A. Comprehensive entry validation (12-point checklist)
                 can_enter, rejection_reason = self._validate_entry_conditions(zone, bar_index)
                 if not can_enter:
-                    if zone.liquidity_valid and zone.target_swept:
-                        # Only log rejection if zone is otherwise ready
-                        logger.debug(
-                            "Demand zone %d rejected: %s (score=%.1f grade=%s)",
-                            zone.id,
-                            rejection_reason,
-                            zone.score,
-                            zone.grade,
-                        )
+                    # Log rejection at INFO level for visibility
+                    logger.info(
+                        "Demand zone %d REJECTED: %s (primed=%s swept=%s target_swept=%s score=%.1f grade=%s)",
+                        zone.id,
+                        rejection_reason,
+                        zone.primed,
+                        zone.liquidity_swept,
+                        zone.target_swept,
+                        zone.score,
+                        zone.grade,
+                    )
                     continue
 
                 # 4B. Check entry models (FLIP, DIR_CLOSE, BoC)
@@ -2533,21 +2606,32 @@ class SndStrategy(Strategy):
                 entry_model = None
 
                 # Try BoC entry (most common - break of priming candle)
-                if self._check_boc_entry(zone, bar_index):
+                boc_result = self._check_boc_entry(zone, bar_index)
+                if boc_result:
                     entry_triggered = True
                     entry_model = "BOC"
+                    logger.info("Zone %d: BOC entry triggered", zone.id)
 
                 # Try FLIP entry (conservative - wick rejection + confirmation)
                 elif self._check_flip_entry(zone, bar_index):
                     entry_triggered = True
                     entry_model = "FLIP"
+                    logger.info("Zone %d: FLIP entry triggered", zone.id)
 
                 # Try DIR_CLOSE entry (aggressive - immediate directional close)
                 elif self._check_dir_close_entry(zone, bar_index):
                     entry_triggered = True
                     entry_model = "DIR_CLOSE"
+                    logger.info("Zone %d: DIR_CLOSE entry triggered", zone.id)
 
                 if not entry_triggered:
+                    logger.info(
+                        "Zone %d: No entry model triggered (primed=%s primed_bar=%s current_bar=%s)",
+                        zone.id,
+                        zone.primed,
+                        zone.primed_bar if zone.primed else None,
+                        bar_index
+                    )
                     continue
 
                 # 4C. Entry confirmed - calculate size and levels
@@ -2569,19 +2653,24 @@ class SndStrategy(Strategy):
                     # Mark zone as used
                     zone.last_entry_bar = bar_index
 
-                    self.buy(size=size, sl=buy_sl, tp=tp)
-                    logger.info(
-                        "BUY executed via %s: zone=%d score=%.1f grade=%s size=%.2f entry=%.5f sl=%.5f tp=%.5f (R:R=%.1f)",
-                        entry_model,
-                        zone.id,
-                        zone.score,
-                        zone.grade,
-                        size,
-                        buy_entry,
-                        buy_sl,
-                        tp,
-                        tp_ratio,
-                    )
+                    try:
+                        # Place BUY order with SL/TP (executes on next bar's open)
+                        self.buy(size=size, sl=buy_sl, tp=tp)
+
+                        logger.info(
+                            "BUY order placed via %s: zone=%d score=%.1f grade=%s size=%.4f entry=%.5f sl=%.5f tp=%.5f (R:R=%.1f)",
+                            entry_model,
+                            zone.id,
+                            zone.score,
+                            zone.grade,
+                            size,
+                            buy_entry,
+                            buy_sl,
+                            tp,
+                            tp_ratio,
+                        )
+                    except Exception as e:
+                        logger.error("BUY order failed: %s", e, exc_info=True)
                     return
 
             # Check supply zones for SELL signals
@@ -2592,14 +2681,17 @@ class SndStrategy(Strategy):
                 # 4A. Comprehensive entry validation
                 can_enter, rejection_reason = self._validate_entry_conditions(zone, bar_index)
                 if not can_enter:
-                    if zone.liquidity_valid and zone.target_swept:
-                        logger.debug(
-                            "Supply zone %d rejected: %s (score=%.1f grade=%s)",
-                            zone.id,
-                            rejection_reason,
-                            zone.score,
-                            zone.grade,
-                        )
+                    # Log rejection at INFO level for visibility
+                    logger.info(
+                        "Supply zone %d REJECTED: %s (primed=%s swept=%s target_swept=%s score=%.1f grade=%s)",
+                        zone.id,
+                        rejection_reason,
+                        zone.primed,
+                        zone.liquidity_swept,
+                        zone.target_swept,
+                        zone.score,
+                        zone.grade,
+                    )
                     continue
 
                 # 4B. Check entry models
@@ -2609,14 +2701,24 @@ class SndStrategy(Strategy):
                 if self._check_boc_entry(zone, bar_index):
                     entry_triggered = True
                     entry_model = "BOC"
+                    logger.info("Zone %d: BOC entry triggered", zone.id)
                 elif self._check_flip_entry(zone, bar_index):
                     entry_triggered = True
                     entry_model = "FLIP"
+                    logger.info("Zone %d: FLIP entry triggered", zone.id)
                 elif self._check_dir_close_entry(zone, bar_index):
                     entry_triggered = True
                     entry_model = "DIR_CLOSE"
+                    logger.info("Zone %d: DIR_CLOSE entry triggered", zone.id)
 
                 if not entry_triggered:
+                    logger.info(
+                        "Zone %d: No entry model triggered (primed=%s primed_bar=%s current_bar=%s)",
+                        zone.id,
+                        zone.primed,
+                        zone.primed_bar if zone.primed else None,
+                        bar_index
+                    )
                     continue
 
                 # 4C. Entry confirmed
@@ -2633,17 +2735,21 @@ class SndStrategy(Strategy):
 
                     zone.last_entry_bar = bar_index
 
-                    self.sell(size=size, sl=sell_sl, tp=tp)
-                    logger.info(
-                        "SELL executed via %s: zone=%d score=%.1f grade=%s size=%.2f entry=%.5f sl=%.5f tp=%.5f (R:R=%.1f)",
-                        entry_model,
-                        zone.id,
-                        zone.score,
-                        zone.grade,
-                        size,
-                        sell_entry,
-                        sell_sl,
-                        tp,
-                        tp_ratio,
-                    )
+                    try:
+                        # Place SELL order with SL/TP (executes on next bar's open)
+                        self.sell(size=size, sl=sell_sl, tp=tp)
+                        logger.info(
+                            "SELL order placed via %s: zone=%d score=%.1f grade=%s size=%.4f entry=%.5f sl=%.5f tp=%.5f (R:R=%.1f)",
+                            entry_model,
+                            zone.id,
+                            zone.score,
+                            zone.grade,
+                            size,
+                            sell_entry,
+                            sell_sl,
+                            tp,
+                            tp_ratio,
+                        )
+                    except Exception as e:
+                        logger.error("SELL order failed: %s", e, exc_info=True)
                     return
