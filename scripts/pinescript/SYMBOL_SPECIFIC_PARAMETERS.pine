@@ -1,0 +1,272 @@
+// ═══════════════════════════════════════════════════════════════
+// SYMBOL-SPECIFIC PARAMETERS FOR S&D STRATEGY
+// ═══════════════════════════════════════════════════════════════
+// Add this code to your SND_Strategy.pine file, BEFORE the strategy logic
+// This optimizes each symbol individually for maximum profitability
+//
+// Analysis shows:
+// - XAUUSD: 37.4% WR (best performer)
+// - Most pairs: Need higher quality filters
+// - AUDUSD, XAGUSD: Exclude completely (unprofitable)
+// ═══════════════════════════════════════════════════════════════
+
+//@version=5
+strategy("S&D with Symbol-Specific Optimization", overlay=true)
+
+// ═══════════════════════════════════════════════════════════════
+// STEP 1: Change R:R to 3:1 (Makes 14/16 symbols profitable!)
+// ═══════════════════════════════════════════════════════════════
+risk_reward_ratio = input.float(3.0, title="Risk:Reward Ratio", minval=1.0, maxval=5.0, step=0.5)
+// Previously: 2.0 (only XAUUSD profitable)
+// Now: 3.0 (14/16 symbols profitable!)
+
+// ═══════════════════════════════════════════════════════════════
+// STEP 2: Symbol-Specific Parameters
+// ═══════════════════════════════════════════════════════════════
+
+// Default parameters (used if symbol not found below)
+var float min_score = 70.0
+var float min_atr_ratio = 0.8
+var float max_atr_ratio = 1.5
+var int max_touches = 3
+var bool require_fresh_zone = false
+var bool require_trend_align = false
+var bool london_session_only = false
+var bool ny_session_only = false
+
+// Get current symbol ticker
+string ticker = syminfo.ticker
+
+// ═══════════════════════════════════════════════════════════════
+// TIER 1: BEST PERFORMERS (High profitability)
+// ═══════════════════════════════════════════════════════════════
+
+if ticker == "XAUUSD"
+    // 🥇 GOLD: BEST PERFORMER (37.4% WR, EV +0.121 at 2:1)
+    // Strategy: Let it run with moderate filters
+    min_score := 75.0
+    min_atr_ratio := 1.0
+    max_atr_ratio := 2.0
+    max_touches := 2
+    require_fresh_zone := true
+    require_trend_align := true
+    london_session_only := false
+    ny_session_only := false
+
+// ═══════════════════════════════════════════════════════════════
+// TIER 2: MEDIUM PERFORMERS (Need 3:1 R:R)
+// ═══════════════════════════════════════════════════════════════
+
+else if ticker == "USDJPY"
+    // 🥈 USDJPY (33.2% WR, EV +0.330 at 3:1)
+    min_score := 75.0
+    min_atr_ratio := 0.9
+    max_atr_ratio := 1.4
+    max_touches := 2
+    require_fresh_zone := false
+    require_trend_align := true
+
+else if ticker == "USDCAD"
+    // 🥈 USDCAD (32.6% WR, EV +0.305 at 3:1)
+    min_score := 75.0
+    min_atr_ratio := 0.8
+    max_atr_ratio := 1.3
+    max_touches := 2
+    require_fresh_zone := false
+    require_trend_align := true
+
+else if ticker == "GBPAUD"
+    // 🥈 GBPAUD (30.9% WR, EV +0.236 at 3:1)
+    // Very volatile - needs strict filters
+    min_score := 80.0
+    min_atr_ratio := 0.9
+    max_atr_ratio := 1.5
+    max_touches := 2
+    require_fresh_zone := true
+    require_trend_align := true
+
+else if ticker == "GBPCAD"
+    // 🥈 GBPCAD (28.9% WR, EV +0.156 at 3:1)
+    min_score := 78.0
+    min_atr_ratio := 0.8
+    max_atr_ratio := 1.3
+    max_touches := 2
+    require_fresh_zone := false
+    require_trend_align := true
+
+// ═══════════════════════════════════════════════════════════════
+// TIER 3: LOWER PERFORMERS (Need strict filters + 3:1 R:R)
+// ═══════════════════════════════════════════════════════════════
+
+else if ticker == "EURUSD"
+    // 🥉 EURUSD (27.6% WR, EV +0.103 at 3:1)
+    // Low volatility, ranges more - needs perfect setups
+    min_score := 80.0
+    min_atr_ratio := 0.7
+    max_atr_ratio := 1.2
+    max_touches := 2  // Was 3, tightening
+    require_fresh_zone := true  // NEW: Only fresh zones
+    require_trend_align := true
+
+else if ticker == "GBPJPY"
+    // 🥉 GBPJPY (27.3% WR, EV +0.090 at 3:1)
+    // VERY volatile - needs VERY strict filters
+    min_score := 85.0  // Highest threshold!
+    min_atr_ratio := 0.8
+    max_atr_ratio := 1.3
+    max_touches := 1   // ONLY first touch!
+    require_fresh_zone := true
+    require_trend_align := true
+    london_session_only := true  // Best sessions only
+
+else if ticker == "BTCUSD" or ticker == "ETHUSD"
+    // 🥉 CRYPTO (26.2-26.9% WR, EV +0.047-0.076 at 3:1)
+    // 24/7 market, very volatile
+    min_score := 85.0
+    min_atr_ratio := 1.5
+    max_atr_ratio := 3.0
+    max_touches := 1   // Only first touch
+    require_fresh_zone := true
+    require_trend_align := true
+
+else if ticker == "EURJPY"
+    // 🥉 EURJPY (26.8% WR, EV +0.073 at 3:1)
+    min_score := 82.0
+    min_atr_ratio := 0.9
+    max_atr_ratio := 1.4
+    max_touches := 2
+    require_fresh_zone := true
+    require_trend_align := true
+
+else if ticker == "EURGBP"
+    // 🥉 EURGBP (28.4% WR, EV +0.137 at 3:1)
+    // Low volatility pair
+    min_score := 78.0
+    min_atr_ratio := 0.6
+    max_atr_ratio := 1.1
+    max_touches := 2
+    require_fresh_zone := false
+    require_trend_align := true
+
+else if ticker == "NZDUSD"
+    // 🥉 NZDUSD (28.3% WR, EV +0.132 at 3:1)
+    min_score := 78.0
+    min_atr_ratio := 0.8
+    max_atr_ratio := 1.3
+    max_touches := 2
+    require_fresh_zone := false
+    require_trend_align := true
+
+// ═══════════════════════════════════════════════════════════════
+// TIER 4: INDICES (Test these carefully!)
+// ═══════════════════════════════════════════════════════════════
+
+else if ticker == "NAS100" or ticker == "US100"
+    // NASDAQ (Test first!)
+    min_score := 80.0
+    min_atr_ratio := 1.2
+    max_atr_ratio := 2.5
+    max_touches := 2
+    require_fresh_zone := true
+    require_trend_align := true
+    ny_session_only := true  // US indices trade best during NY
+
+else if ticker == "SPX500" or ticker == "US500"
+    // S&P 500
+    min_score := 80.0
+    min_atr_ratio := 1.0
+    max_atr_ratio := 2.0
+    max_touches := 2
+    require_fresh_zone := true
+    require_trend_align := true
+    ny_session_only := true
+
+else if ticker == "US30"
+    // Dow Jones
+    min_score := 80.0
+    min_atr_ratio := 1.0
+    max_atr_ratio := 2.0
+    max_touches := 2
+    require_fresh_zone := true
+    require_trend_align := true
+    ny_session_only := true
+
+// ═══════════════════════════════════════════════════════════════
+// EXCLUDED SYMBOLS (Don't trade these!)
+// ═══════════════════════════════════════════════════════════════
+
+else if ticker == "AUDUSD"
+    // ❌ AUDUSD (24.8% WR, EV -0.007 at 3:1) - UNPROFITABLE!
+    min_score := 999.0  // Effectively disable by making impossible to reach
+
+else if ticker == "XAGUSD"
+    // ❌ XAGUSD (24.2% WR, EV -0.033 at 3:1) - UNPROFITABLE!
+    min_score := 999.0  // Effectively disable
+
+// ═══════════════════════════════════════════════════════════════
+// STEP 3: Apply Symbol-Specific Filters to Entry Logic
+// ═══════════════════════════════════════════════════════════════
+
+// Example: In your entry logic, replace hardcoded values with variables:
+
+// OLD WAY (hardcoded):
+// bool score_check = zone_score >= 70
+// bool atr_check = atr_ratio >= 0.8 and atr_ratio <= 1.5
+// bool touch_check = touch_count <= 3
+
+// NEW WAY (symbol-specific):
+bool score_check = zone_score >= min_score
+bool atr_check = atr_ratio >= min_atr_ratio and atr_ratio <= max_atr_ratio
+bool touch_check = touch_count <= max_touches
+bool fresh_check = require_fresh_zone ? (touch_count == 1) : true
+bool trend_check = require_trend_align ? (trend == htf_trend) : true
+
+// Session filters
+bool london_check = london_session_only ? (session == 1) : true
+bool ny_check = ny_session_only ? (session == 2) : true
+bool session_check = london_check and ny_check
+
+// FINAL ENTRY CONDITION:
+bool enter_long = (
+    zone_type == "demand" and
+    score_check and
+    atr_check and
+    touch_check and
+    fresh_check and
+    trend_check and
+    session_check
+)
+
+bool enter_short = (
+    zone_type == "supply" and
+    score_check and
+    atr_check and
+    touch_check and
+    fresh_check and
+    trend_check and
+    session_check
+)
+
+// ═══════════════════════════════════════════════════════════════
+// STEP 4: Update Take Profit to use 3:1 R:R
+// ═══════════════════════════════════════════════════════════════
+
+// Example: In your exit logic
+// sl_distance = abs(entry_price - sl_price)
+// tp_distance = sl_distance * risk_reward_ratio  // Was 2.0, now 3.0!
+// tp_price = entry_price + (direction * tp_distance)
+
+// ═══════════════════════════════════════════════════════════════
+// NOTES FOR OPTIMIZATION:
+// ═══════════════════════════════════════════════════════════════
+// 1. Re-backtest EACH symbol after applying these parameters
+// 2. If symbol still < 33.3% win rate at 3:1 → exclude it
+// 3. Adjust min_score higher if too many losing trades
+// 4. Adjust max_touches lower if zones are getting stale
+// 5. Save the profitable parameters in this file
+//
+// Expected improvement:
+// - BEFORE: Most symbols unprofitable at 2:1
+// - AFTER: 14/16 symbols profitable at 3:1
+// - BEST CASE: Each symbol 35%+ WR with optimized params
+// ═══════════════════════════════════════════════════════════════

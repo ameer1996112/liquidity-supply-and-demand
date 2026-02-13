@@ -45,6 +45,45 @@ MAX_OPEN_POSITIONS = 3
 # This constant is only used in _build_ml_rejection_reasoning for legacy logging.
 ML_MIN_CONFIDENCE = 0.60
 
+# ═══════════════════════════════════════════════════════════════
+# SYMBOL WHITELIST: Only trade profitable symbols (3:1 R:R)
+# ═══════════════════════════════════════════════════════════════
+# Based on backtest analysis (see ml/analyze_symbol_performance.py):
+# - XAUUSD: 37.4% WR, EV +0.121 at 2:1 (best performer)
+# - Most symbols: profitable at 3:1 R:R
+# - AUDUSD, XAGUSD: Unprofitable even at 3:1 (excluded)
+#
+# To disable whitelist: Set SYMBOL_WHITELIST_ENABLED = False
+# ═══════════════════════════════════════════════════════════════
+SYMBOL_WHITELIST_ENABLED = True  # Set to False to allow all symbols
+PROFITABLE_SYMBOLS = {
+    # High performers (profitable at 2:1 R:R)
+    "XAUUSD",     # 37.4% WR, EV +0.121
+
+    # Medium performers (profitable at 3:1 R:R)
+    "USDJPY",     # 33.2% WR, EV +0.330
+    "USDCAD",     # 32.6% WR, EV +0.305
+    "GBPAUD",     # 30.9% WR, EV +0.236
+    "GBPCAD",     # 28.9% WR, EV +0.156
+    "EURGBP",     # 28.4% WR, EV +0.137
+    "NZDUSD",     # 28.3% WR, EV +0.132
+    "EURUSD",     # 27.6% WR, EV +0.103
+    "GBPJPY",     # 27.3% WR, EV +0.090
+    "BTCUSD",     # 26.9% WR, EV +0.076
+    "EURJPY",     # 26.8% WR, EV +0.073
+    "ETHUSD",     # 26.2% WR, EV +0.047
+
+    # Indices (add as you test them)
+    "NAS100", "US100",  # Nasdaq
+    "SPX500", "US500",  # S&P 500
+    "US30",             # Dow Jones
+    "GER40",            # DAX
+
+    # EXCLUDED (unprofitable even at 3:1):
+    # "AUDUSD",   # 24.8% WR, EV -0.007
+    # "XAGUSD",   # 24.2% WR, EV -0.033
+}
+
 supabase = None
 correlation_manager = None
 trailing_stop_manager = None
@@ -686,6 +725,16 @@ def process_trade(payload: Dict[str, Any]):
     logger.info("Processing: %s | %s | Size: %s", symbol, side.upper(), size)
 
     s = get_settings()
+
+    # ══════════════════════════════════════════════════════════════════
+    # SYMBOL WHITELIST CHECK (Block unprofitable symbols)
+    # ══════════════════════════════════════════════════════════════════
+    if SYMBOL_WHITELIST_ENABLED and symbol.upper() not in PROFITABLE_SYMBOLS:
+        rejection = f"Symbol {symbol} not in profitable whitelist (see PROFITABLE_SYMBOLS in worker.py)"
+        logger.warning("❌ SYMBOL WHITELIST BLOCKED: %s", rejection)
+        save_result(payload, "symbol_blacklisted", rejection, 0.0)
+        log_guard_decision("symbol_whitelist", "rejected", rejection, symbol)
+        return
 
     # ── Determine account_name early for tracking rejected signals ────
     from src.core.broker_profiles import get_active_profiles
