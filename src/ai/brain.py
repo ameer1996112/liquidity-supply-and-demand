@@ -16,6 +16,116 @@ from src.ai.rag_engine import RagEngine
 
 logger = logging.getLogger(__name__)
 
+import numpy as np
+
+
+def _engineer_features_for_prediction(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Engineer features for prediction (same as training script).
+    Creates 20 engineered features from base features.
+    """
+    # ═══════════════════════════════════════════════════════
+    # ORIGINAL FEATURES (8)
+    # ═══════════════════════════════════════════════════════
+
+    # Core interactions
+    if 'score' in df and 'fresh' in df:
+        df['score_x_fresh'] = df['score'] * df['fresh']
+    if 'trend' in df and 'htf_trend' in df:
+        df['trend_alignment'] = (df['trend'] == df['htf_trend']).astype(np.int8)
+
+    # Liquidity metrics
+    if 'liquidity_distance' in df and 'liquidity_spread' in df:
+        df['liquidity_quality'] = df['liquidity_distance'] / (df['liquidity_spread'] + 0.001)
+
+    # Strength composite
+    if 'base_quality' in df and 'departure_strength' in df and 'return_strength' in df:
+        df['strength_composite'] = (
+            df['base_quality'] + df['departure_strength'] + df['return_strength']
+        ) / 3.0
+
+    # Momentum indicators
+    if 'rsi' in df:
+        df['rsi_neutral'] = ((df['rsi'] >= 40) & (df['rsi'] <= 60)).astype(np.int8)
+    if 'adx' in df:
+        df['strong_adx'] = (df['adx'] > 25).astype(np.int8)
+
+    # Zone quality
+    if 'score' in df and 'base_quality' in df:
+        df['zone_quality'] = df['score'] * df['base_quality'] / 100.0
+
+    # Risk indicators
+    if 'touch_count' in df and 'atr_ratio' in df:
+        df['high_risk'] = ((df['touch_count'] > 3) | (df['atr_ratio'] > 1.5)).astype(np.int8)
+
+    # ═══════════════════════════════════════════════════════
+    # ADVANCED FEATURES (12 NEW)
+    # ═══════════════════════════════════════════════════════
+
+    if 'score' in df:
+        df['score_tier'] = np.select(
+            [df['score'] >= 90, df['score'] >= 80, df['score'] >= 70],
+            [3, 2, 1],
+            default=0
+        )
+
+    if 'score' in df and 'fresh' in df:
+        df['fresh_premium'] = ((df['score'] >= 85) & (df['fresh'] <= 2)).astype(np.int8)
+
+    if 'trend' in df and 'htf_trend' in df:
+        df['momentum_confluence'] = (
+            (df['trend'] == df['htf_trend']).astype(int) +
+            ((df.get('rsi', 50) > 50).astype(int) if 'rsi' in df else 0) +
+            ((df.get('adx', 0) > 25).astype(int) if 'adx' in df else 0)
+        )
+
+    if 'touch_count' in df:
+        df['zone_age_risk'] = np.minimum(df['touch_count'] / 5.0, 1.0)
+
+    if 'atr_ratio' in df:
+        df['atr_quality'] = ((df['atr_ratio'] >= 0.8) & (df['atr_ratio'] <= 1.5)).astype(np.int8)
+
+    if 'departure_strength' in df and 'return_strength' in df:
+        df['strength_imbalance'] = np.abs(df['departure_strength'] - df['return_strength'])
+
+    if 'session' in df:
+        df['prime_session'] = ((df['session'] == 1) | (df['session'] == 2)).astype(np.int8)
+
+    if 'rsi' in df:
+        df['rsi_extreme'] = ((df['rsi'] < 30) | (df['rsi'] > 70)).astype(np.int8)
+
+    if 'liquidity_distance' in df and 'liquidity_spread' in df:
+        df['liquidity_sweet_spot'] = (
+            (df['liquidity_distance'] >= 5) & (df['liquidity_distance'] <= 20) &
+            (df['liquidity_spread'] >= 10) & (df['liquidity_spread'] <= 50)
+        ).astype(np.int8)
+
+    if 'score' in df and 'fresh' in df and 'trend' in df and 'htf_trend' in df and 'atr_ratio' in df and 'touch_count' in df:
+        df['perfect_setup'] = (
+            (df['score'] >= 85) &
+            (df['fresh'] <= 2) &
+            (df['trend'] == df['htf_trend']) &
+            (df['atr_ratio'] >= 0.8) & (df['atr_ratio'] <= 1.5) &
+            (df['touch_count'] <= 2)
+        ).astype(np.int8)
+
+    if 'rvol' in df and 'adx' in df:
+        df['volume_strength'] = df['rvol'] * (df['adx'] / 50.0)
+
+    if 'score' in df and 'base_quality' in df and 'departure_strength' in df and 'return_strength' in df:
+        zone_age_risk = df.get('zone_age_risk', 0)
+        atr_quality = df.get('atr_quality', 0)
+        df['composite_quality'] = (
+            df['score'] * 0.3 +
+            df['base_quality'] * 0.2 +
+            df['departure_strength'] * 0.15 +
+            df['return_strength'] * 0.15 +
+            (100 - zone_age_risk * 100) * 0.1 +
+            (atr_quality * 100) * 0.1
+        ) / 100.0
+
+    return df
+
 # Model paths relative to project root
 _ROOT = Path(__file__).resolve().parent.parent.parent
 
@@ -163,8 +273,17 @@ def get_prediction(payload: Dict[str, Any]) -> Tuple[float, str, Dict[str, Any]]
         # Get feature names based on model type
         if AI_MODEL_TYPE == "lightgbm_native":
             # LightGBM native format doesn't have feature_names_in_
-            # We'll use the features from encoders or expected features
-            feature_names = list(AI_ENCODERS.keys()) if AI_ENCODERS else []
+            # Load from model metadata file instead
+            import json
+            metadata_path = _ROOT / "ml" / "model_metadata_v3.json"
+            if metadata_path.exists():
+                with open(metadata_path, 'r') as f:
+                    metadata = json.load(f)
+                    feature_names = metadata.get('features', [])
+                logger.info(f"Loaded {len(feature_names)} feature names from metadata")
+            else:
+                logger.error("model_metadata_v3.json not found!")
+                feature_names = []
         elif hasattr(AI_MODEL, 'feature_names_in_'):
             feature_names = list(AI_MODEL.feature_names_in_)
         else:
@@ -177,6 +296,9 @@ def get_prediction(payload: Dict[str, Any]) -> Tuple[float, str, Dict[str, Any]]
             features["asset_id"] = float(asset_id)
 
         df = pd.DataFrame([features])
+
+        # Engineer features (same as training script)
+        df = _engineer_features_for_prediction(df)
 
         # Different prediction logic based on model type
         if AI_MODEL_TYPE == "lightgbm_native":

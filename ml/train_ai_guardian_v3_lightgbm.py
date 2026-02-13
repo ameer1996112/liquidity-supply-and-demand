@@ -101,6 +101,10 @@ def engineer_features(df, inplace=False):
     if not inplace:
         df = df.copy()
 
+    # ═══════════════════════════════════════════════════════
+    # ORIGINAL FEATURES (8)
+    # ═══════════════════════════════════════════════════════
+
     # Core interactions (most predictive)
     df['score_x_fresh'] = df['score'] * df['fresh']
     df['trend_alignment'] = (df['trend'] == df['htf_trend']).astype(np.int8)
@@ -125,7 +129,71 @@ def engineer_features(df, inplace=False):
     # Risk indicators
     df['high_risk'] = ((df['touch_count'] > 3) | (df['atr_ratio'] > 1.5)).astype(np.int8)
 
-    print(f"✅ Created 8 engineered features")
+    # ═══════════════════════════════════════════════════════
+    # ADVANCED FEATURES (12 NEW) - Improve ROC-AUC
+    # ═══════════════════════════════════════════════════════
+
+    # 1. Score tiers (categorical → numeric importance)
+    df['score_tier'] = np.select(
+        [df['score'] >= 90, df['score'] >= 80, df['score'] >= 70],
+        [3, 2, 1],
+        default=0
+    )
+
+    # 2. Fresh premium zone (high score + fresh touch)
+    df['fresh_premium'] = ((df['score'] >= 85) & (df['fresh'] <= 2)).astype(np.int8)
+
+    # 3. Momentum confluence (trend + RSI + ADX alignment)
+    df['momentum_confluence'] = (
+        (df['trend'] == df['htf_trend']).astype(int) +
+        ((df['rsi'] > 50).astype(int) if 'rsi' in df else 0) +
+        ((df['adx'] > 25).astype(int) if 'adx' in df else 0)
+    )
+
+    # 4. Zone age penalty (touch_count as risk factor)
+    df['zone_age_risk'] = np.minimum(df['touch_count'] / 5.0, 1.0)  # Cap at 1.0
+
+    # 5. ATR quality ratio (ideal range: 0.8-1.5)
+    df['atr_quality'] = ((df['atr_ratio'] >= 0.8) & (df['atr_ratio'] <= 1.5)).astype(np.int8)
+
+    # 6. Strength imbalance (departure vs return strength difference)
+    df['strength_imbalance'] = np.abs(df['departure_strength'] - df['return_strength'])
+
+    # 7. Session quality (London + NY = best, 1=London, 2=NY)
+    df['prime_session'] = ((df['session'] == 1) | (df['session'] == 2)).astype(np.int8)
+
+    # 8. RSI extremes (oversold < 30 or overbought > 70)
+    df['rsi_extreme'] = ((df['rsi'] < 30) | (df['rsi'] > 70)).astype(np.int8)
+
+    # 9. Liquidity sweet spot (distance 5-20 pips, spread 10-50 pips)
+    df['liquidity_sweet_spot'] = (
+        (df['liquidity_distance'] >= 5) & (df['liquidity_distance'] <= 20) &
+        (df['liquidity_spread'] >= 10) & (df['liquidity_spread'] <= 50)
+    ).astype(np.int8)
+
+    # 10. Perfect setup (combines multiple quality signals)
+    df['perfect_setup'] = (
+        (df['score'] >= 85) &
+        (df['fresh'] <= 2) &
+        (df['trend'] == df['htf_trend']) &
+        (df['atr_ratio'] >= 0.8) & (df['atr_ratio'] <= 1.5) &
+        (df['touch_count'] <= 2)
+    ).astype(np.int8)
+
+    # 11. Relative volume strength (rvol * adx interaction)
+    df['volume_strength'] = df['rvol'] * (df['adx'] / 50.0)  # Normalize ADX
+
+    # 12. Composite quality score (weighted combination)
+    df['composite_quality'] = (
+        df['score'] * 0.3 +
+        df['base_quality'] * 0.2 +
+        df['departure_strength'] * 0.15 +
+        df['return_strength'] * 0.15 +
+        (100 - df['zone_age_risk'] * 100) * 0.1 +
+        (df['atr_quality'] * 100) * 0.1
+    ) / 100.0
+
+    print(f"✅ Created 20 engineered features (8 original + 12 advanced)")
 
     # Aggressive garbage collection
     gc.collect()

@@ -1,10 +1,10 @@
 {
   "version": "3.0-lightgbm",
   "model_type": "LightGBM",
-  "trained_at": "2026-02-13T00:09:42.780358",
+  "trained_at": "2026-02-13T11:50:19.933817",
   "device": "cpu",
-  "n_samples": 2194,
-  "n_features": 27,
+  "n_samples": 7924,
+  "n_features": 39,
   "features": [
     "score",
     "fresh",
@@ -32,15 +32,27 @@
     "rsi_neutral",
     "strong_adx",
     "zone_quality",
-    "high_risk"
+    "high_risk",
+    "score_tier",
+    "fresh_premium",
+    "momentum_confluence",
+    "zone_age_risk",
+    "atr_quality",
+    "strength_imbalance",
+    "prime_session",
+    "rsi_extreme",
+    "liquidity_sweet_spot",
+    "perfect_setup",
+    "volume_strength",
+    "composite_quality"
   ],
-  "win_rate": 0.3099361896080219,
+  "win_rate": 0.29467440686521956,
   "n_estimators": 200,
   "metrics": {
-    "accuracy": 0.6902050113895216,
-    "precision": 0.0,
-    "recall": 0.0,
-    "f1_score": 0.0,
-    "roc_auc": 0.5554018637157833
+    "accuracy": 0.4113564668769716,
+    "precision": 0.30615640599001664,
+    "recall": 0.7880085653104925,
+    "f1_score": 0.4409826243259437,
+    "roc_auc": 0.5537352568252425
   }
 }
