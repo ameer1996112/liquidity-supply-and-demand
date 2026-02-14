@@ -92,18 +92,23 @@ def get_active_profiles() -> List[Dict[str, Any]]:
         except json.JSONDecodeError as e:
             logger.warning("Invalid BROKER_PROFILES_JSON: %s", e)
 
-    # 3) Default: single account from settings
+    # 3) Default: single account from settings (risk from dynamic config so UI updates apply)
     token = (s.meta_api_token or "").strip()
     account_id = (s.meta_api_account_id or "").strip()
     if not token or not account_id:
         return []
+    try:
+        from src.core.dynamic_config import get_dynamic_setting
+        risk_pct = float(get_dynamic_setting("risk_percent", s.risk_percent))
+    except Exception:
+        risk_pct = s.risk_percent
     return [
         {
             "id": None,
             "name": "default",
             "meta_api_account_id": account_id,
             "token": token,
-            "risk_pct": s.risk_percent,
+            "risk_pct": risk_pct,
             "max_positions": getattr(s, "trinity_max_positions", 3),
             "run_mode": (s.run_mode or "LIVE").upper() if s.run_mode != "DRY_RUN" else "LIVE",
         }

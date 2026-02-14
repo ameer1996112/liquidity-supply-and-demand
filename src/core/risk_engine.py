@@ -144,7 +144,12 @@ def calculate_max_position_size(
             if atr_val > 0:
                 base_max_lots = max_risk_usd / (atr_val * pip_value_per_lot)
                 scaled_max_lots = base_max_lots * max(risk_multiplier, 0.0)
-                return min(max(scaled_max_lots, 0.0), max_lot_cap)
+                final_atr_lots = min(max(scaled_max_lots, 0.0), max_lot_cap)
+                logger.info(
+                    "💰 Risk Calculation: Bal=$%.2f | Risk=%.2f%% ($%.2f) | SL_Dist=ATR(%.4f) | Calc_Lots=%.2f",
+                    account_balance, risk_percent, max_risk_usd, atr_val, final_atr_lots,
+                )
+                return final_atr_lots
 
         # Fallback: distance-to-stop based sizing (using adjusted SL with buffer)
         sl_distance = abs(entry - sl_adjusted)
@@ -168,6 +173,10 @@ def calculate_max_position_size(
                     scaled_max_lots, min_lot_size, symbol,
                     max_risk_usd, sl_pips, pip_value_per_lot
                 )
+                logger.info(
+                    "💰 Risk Calculation: Bal=$%.2f | Risk=%.2f%% ($%.2f) | SL_Dist=%.5f | Calc_Lots=0.00 (rejected: below min)",
+                    account_balance, risk_percent, max_risk_usd, sl_distance,
+                )
                 return 0.0  # Signal rejection to caller
 
             # Cap at max and round to lot step
@@ -179,6 +188,10 @@ def calculate_max_position_size(
             # Ensure we didn't round below minimum
             final_lots = max(min_lot_size, final_lots)
 
+            logger.info(
+                "💰 Risk Calculation: Bal=$%.2f | Risk=%.2f%% ($%.2f) | SL_Dist=%.5f | Calc_Lots=%.2f",
+                account_balance, risk_percent, max_risk_usd, sl_distance, final_lots,
+            )
             logger.info(
                 "Position sizing: %s | base=%.4f | scaled=%.4f | final=%.2f lots "
                 "(min=%.2f, max=%.2f, step=%.2f)",

@@ -241,8 +241,14 @@ def process_trade(
                             acct_err,
                         )
 
-                # Risk-based position sizing: use profile risk_pct when in multi-account
-                risk_pct = (profile.get("risk_pct") if profile else None) or s.risk_percent
+                # Risk-based position sizing: DB broker_profiles > dynamic (UI) > .env
+                _profile_risk = (profile.get("risk_pct") if profile else None)
+                try:
+                    from src.core.dynamic_config import get_dynamic_setting
+                    _dynamic_risk = float(get_dynamic_setting("risk_percent", s.risk_percent))
+                except Exception:
+                    _dynamic_risk = s.risk_percent
+                risk_pct = _profile_risk if (_profile_risk is not None and _profile_risk > 0) else _dynamic_risk
 
                 # ── Kelly Criterion Position Sizing ────────────────────
                 if s.kelly_enabled and supabase:
@@ -316,7 +322,7 @@ def process_trade(
                 logger.info(
                     "Risk Calc: Balance=$%.2f Risk=%.1f%% SL_dist=%.5f -> MaxSize=%.4f, FinalSize=%.2f",
                     current_balance,
-                    s.risk_percent,
+                    risk_pct,
                     sl_pips,
                     max_lots,
                     size,
