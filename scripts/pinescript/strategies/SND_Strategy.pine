@@ -229,15 +229,6 @@ debug_liq_extra         = input.bool(false, "Debug: Liquidity Info", group = "�
 float pip_scale_factor = is_gold and pip_size <= 0.011 ? 10.0 : 1.0
 
 
-float effective_sl_buffer = stop_loss_buffer_pips * pip_scale_factor
-float effective_min_tp_dist = min_tp_distance_pips * pip_scale_factor
-float effective_liq_entry_max_dist = liq_entry_max_dist * pip_scale_factor
-
-
-float effective_liq_max_dist = (atr14 * liq_max_atr_multiple) / pip_size
-float effective_tp_pips = take_profit_pips * pip_scale_factor
-
-
 enable_trade_limit = input.bool(true, "Limit Daily Trades", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Stop trading after X trades per day. Prevents overtrading.")
 max_trades_per_day = input.int(2, "   └─ Max Trades/Day", minval = 1, maxval = 10, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Maximum trades allowed per day. 2 = After 2 trades, no more entries until next day.")
 
@@ -401,6 +392,13 @@ if use_profile_defaults
 
     if is_rag_optimized and is_index
         max_trades_per_day := 5
+
+
+float effective_sl_buffer = stop_loss_buffer_pips * pip_scale_factor
+float effective_min_tp_dist = min_tp_distance_pips * pip_scale_factor
+float effective_liq_entry_max_dist = liq_entry_max_dist * pip_scale_factor
+float effective_liq_max_dist = (atr14 * liq_max_atr_multiple) / pip_size
+float effective_tp_pips = take_profit_pips * pip_scale_factor
 
 
 var float symbol_min_atr_ratio = 0.0
