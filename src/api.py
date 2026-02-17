@@ -76,6 +76,20 @@ app.add_middleware(
 @app.on_event("startup")
 def _fail_fast_config():
     settings = get_settings()
+    
+    # ══════════════════════════════════════════════════════════
+    # CRITICAL: Redis Health Check (Fail-Fast)
+    # ══════════════════════════════════════════════════════════
+    # If Redis is down, the API cannot queue webhooks. Crash immediately
+    # rather than accepting requests that can't be processed.
+    from src.adapters.redis_queue import ping_redis
+    
+    if not ping_redis():
+        logger.critical("❌ FATAL: Redis unreachable. Check REDIS_URL environment variable.")
+        logger.critical("API will not start until Redis is available.")
+        raise RuntimeError("Redis connection failed at startup. Cannot accept webhooks without queue.")
+    
+    logger.info("✅ Redis connection verified - Queue operational")
     redis_client = get_redis()
 
     # Initialize background sync worker if enabled

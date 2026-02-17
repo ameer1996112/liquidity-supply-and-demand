@@ -36,8 +36,20 @@ def ping_redis() -> bool:
 
 
 def push_payload(payload_str: str) -> None:
-    """Push JSON payload to queue (used by API)."""
-    get_redis().rpush(QUEUE_NAME, payload_str)
+    """Push JSON payload to queue (used by API). Falls back to dead-letter on Redis failure."""
+    try:
+        get_redis().rpush(QUEUE_NAME, payload_str)
+        logger.info(f"Queued payload to Redis (len={len(payload_str)})")
+    except Exception as e:
+        logger.error(f"❌ Redis push failed: {e}. Saving to dead-letter queue.", exc_info=True)
+        # Fallback: save signal to dead-letter queue so it's not lost
+        try:
+            push_dead_letter(payload_str, f"Redis push failed: {e}")
+            logger.warning(f"✅ Payload saved to dead-letter queue for manual retry")
+        except Exception as dl_error:
+            logger.critical(f"❌ CRITICAL: Failed to save to dead-letter: {dl_error}", exc_info=True)
+            # Last resort: re-raise to trigger Railway restart (fail-fast)
+            raise
 
 
 def blpop_queue(timeout: int = 5):

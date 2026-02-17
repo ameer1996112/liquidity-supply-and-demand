@@ -1121,8 +1121,8 @@ def get_per_pair_analytics(account_name: str):
                     entry_dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
                     hold_hours = (exit_dt - entry_dt).total_seconds() / 3600
                     pair_data[symbol]["hold_times"].append(hold_hours)
-                except:
-                    pass
+                except Exception as e:
+                    logger.error(f"Failed to calculate hold time for {symbol}: {e}", exc_info=True)
 
         # Calculate stats per pair
         pairs = []
