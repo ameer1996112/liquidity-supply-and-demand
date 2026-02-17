@@ -16,7 +16,9 @@ import { Radio, FlaskConical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function DashboardPage() {
-  const [selectedSignal, setSelectedSignal] = useState<TradingSignal | null>(null);
+  const [selectedSignal, setSelectedSignal] = useState<TradingSignal | null>(
+    null,
+  );
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const { mode: activeMode, setMode } = useTradingMode();
 
@@ -26,40 +28,40 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="h-[calc(100vh-5rem)]">
+    <div className='h-[calc(100vh-5rem)]'>
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-lg font-semibold text-zinc-100">Dashboard</h1>
+      <div className='flex items-center justify-between mb-4'>
+        <h1 className='text-lg font-semibold text-zinc-100'>Dashboard</h1>
 
         {/* Mode Tabs */}
         <Tabs
           value={activeMode.toLowerCase()}
           onValueChange={(v) => setMode(v === 'live' ? 'LIVE' : 'PAPER')}
         >
-          <TabsList className="bg-[#1e222d] border border-[#2a2e39] p-1">
+          <TabsList className='bg-[#1e222d] border border-[#2a2e39] p-1'>
             <TabsTrigger
-              value="live"
+              value='live'
               className={cn(
                 'data-[state=active]:bg-[#26a69a]/15 data-[state=active]:text-[#26a69a]',
                 'data-[state=inactive]:text-zinc-500',
-                'flex items-center gap-2 px-4 py-1.5 rounded transition-colors'
+                'flex items-center gap-2 px-4 py-1.5 rounded transition-colors',
               )}
             >
-              <Radio className="w-3.5 h-3.5" />
-              <span className="font-mono text-[11px] font-semibold uppercase tracking-wider">
+              <Radio className='w-3.5 h-3.5' />
+              <span className='font-mono text-[11px] font-semibold uppercase tracking-wider'>
                 Live
               </span>
             </TabsTrigger>
             <TabsTrigger
-              value="paper"
+              value='paper'
               className={cn(
                 'data-[state=active]:bg-[#ff9800]/15 data-[state=active]:text-[#ff9800]',
                 'data-[state=inactive]:text-zinc-500',
-                'flex items-center gap-2 px-4 py-1.5 rounded transition-colors'
+                'flex items-center gap-2 px-4 py-1.5 rounded transition-colors',
               )}
             >
-              <FlaskConical className="w-3.5 h-3.5" />
-              <span className="font-mono text-[11px] font-semibold uppercase tracking-wider">
+              <FlaskConical className='w-3.5 h-3.5' />
+              <span className='font-mono text-[11px] font-semibold uppercase tracking-wider'>
                 Paper
               </span>
             </TabsTrigger>
@@ -68,34 +70,49 @@ export default function DashboardPage() {
       </div>
 
       {/* Pine Config Status */}
-      <div className="mb-4">
+      <div className='mb-4'>
         <PineConfigStatus />
       </div>
 
-      {/* 2-Panel Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-[calc(100%-7rem)] min-h-0">
-        {/* Left Panel: Active Trades + Equity Chart + Execution Quality + Portfolio Risk + Evaluation */}
-        <div className="flex flex-col gap-4 overflow-y-auto min-h-0">
-          <div className="min-h-[120px] max-h-[200px] shrink-0 overflow-hidden">
-            <ActiveTradesPanel mode={activeMode} onSelectSignal={handleSelectSignal} />
+      {/* 2-Panel Responsive Layout */}
+      <div className='grid grid-cols-1 lg:grid-cols-3 gap-4 h-[calc(100%-7rem)] min-h-0'>
+        {/* Left Panel: Widget Stack */}
+        <div className='flex flex-col gap-4 overflow-y-auto min-h-0 lg:pr-2'>
+          {/* Active Trades - Enforce min/max height */}
+          <div className='min-h-[140px] max-h-[220px] shrink-0 overflow-hidden'>
+            <ActiveTradesPanel
+              mode={activeMode}
+              onSelectSignal={handleSelectSignal}
+            />
           </div>
-          <div className="shrink-0">
+
+          {/* Equity Chart - Enforce min height */}
+          <div className='shrink-0 min-h-[160px]'>
             <MiniEquityChart mode={activeMode} />
           </div>
-          <div className="shrink-0">
+
+          {/* Execution Quality - Enforce min height */}
+          <div className='shrink-0 min-h-[180px]'>
             <ExecutionQualityWidget />
           </div>
-          <div className="shrink-0">
+
+          {/* Portfolio Risk - Enforce min height */}
+          <div className='shrink-0 min-h-[180px]'>
             <PortfolioRiskWidget />
           </div>
-          <div className="shrink-0">
+
+          {/* Evaluation Dashboard */}
+          <div className='shrink-0'>
             <EvaluationDashboard />
           </div>
         </div>
 
-        {/* Right Panel: Recent Signals Table */}
-        <div className="lg:col-span-2 min-h-0">
-          <RecentSignalsPanel mode={activeMode} onSelectSignal={handleSelectSignal} />
+        {/* Right Panel: Signals Table (Prevents infinite growth) */}
+        <div className='lg:col-span-2 min-h-0 flex flex-1 overflow-hidden'>
+          <RecentSignalsPanel
+            mode={activeMode}
+            onSelectSignal={handleSelectSignal}
+          />
         </div>
       </div>
 
