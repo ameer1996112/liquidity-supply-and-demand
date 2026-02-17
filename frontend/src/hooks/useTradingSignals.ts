@@ -139,7 +139,6 @@ export function useTradingSignals(mode?: TradingMode) {
       }));
 
       // Debug: Log raw data for field mapping verification
-      console.log('First Signal Raw:', rawSignals[0]);
       debugLog('Received signals', {
         count: signals.length,
         firstSignal: signals[0],

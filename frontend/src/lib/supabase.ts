@@ -52,7 +52,9 @@ export async function fetchSignals(
   } = {},
 ): Promise<TradingSignal[]> {
   if (!supabase) {
-    return getMockSignals(options.mode === 'BACKTEST' ? undefined : options.mode);
+    return getMockSignals(
+      options.mode === 'BACKTEST' ? undefined : options.mode,
+    );
   }
 
   const { mode, limit = 50, offset = 0, runId } = options;
@@ -109,10 +111,7 @@ export async function fetchSignalStats(): Promise<SignalStats> {
     normalizeSignal(row as Partial<TradingSignal>),
   );
 
-  console.log('Signals for Stats:', signals);
-
-  const normalizeStatus = (status: string | undefined) =>
-    status?.toLowerCase();
+  const normalizeStatus = (status: string | undefined) => status?.toLowerCase();
   const normalizeMode = (mode: string | undefined) =>
     mode ? String(mode).toUpperCase() : undefined;
   /** Treat as LIVE if run_mode is LIVE or missing (default = live when not paper).
@@ -170,21 +169,24 @@ export async function fetchSignalStats(): Promise<SignalStats> {
   const paperClosed = eligibleForPnl.filter(isPaper);
 
   const liveWins = liveClosed.filter((s) => getPnlUsd(s) > 0);
-  const liveLosses = liveClosed.filter((s) => getPnlUsd(s) <= 0);
+  const _liveLosses = liveClosed.filter((s) => getPnlUsd(s) <= 0);
   const liveWinRate =
     liveClosed.length > 0 ? (liveWins.length / liveClosed.length) * 100 : 0;
 
-  const livePnl = liveClosed.reduce(
-    (sum, s) => sum + getPnlUsd(s),
-    0,
-  );
-  const paperPnl = paperClosed.reduce(
-    (sum, s) => sum + getPnlUsd(s),
-    0,
-  );
+  const livePnl = liveClosed.reduce((sum, s) => sum + getPnlUsd(s), 0);
+  const paperPnl = paperClosed.reduce((sum, s) => sum + getPnlUsd(s), 0);
 
   if (process.env.NODE_ENV === 'development' && eligibleForPnl.length > 0) {
-    console.log('Stats 24h: liveClosed=', liveClosed.length, 'livePnl=', livePnl.toFixed(2), 'paperClosed=', paperClosed.length, 'paperPnl=', paperPnl.toFixed(2));
+    console.log(
+      'Stats 24h: liveClosed=',
+      liveClosed.length,
+      'livePnl=',
+      livePnl.toFixed(2),
+      'paperClosed=',
+      paperClosed.length,
+      'paperPnl=',
+      paperPnl.toFixed(2),
+    );
   }
 
   // Active trades are either 'active' status or executed without closed_at
@@ -199,16 +201,20 @@ export async function fetchSignalStats(): Promise<SignalStats> {
   todayMidnight.setUTCHours(0, 0, 0, 0);
   const todayISO = todayMidnight.toISOString();
 
-  const todaySignals = eligibleForPnl.filter(
-    (s) => s.created_at >= todayISO,
-  );
+  const todaySignals = eligibleForPnl.filter((s) => s.created_at >= todayISO);
   const dailyPnl = todaySignals.reduce((sum, s) => sum + getPnlUsd(s), 0);
 
   // Mode-specific daily PnL
   const liveTodaySignals = todaySignals.filter(isLive);
   const paperTodaySignals = todaySignals.filter(isPaper);
-  const liveDailyPnl = liveTodaySignals.reduce((sum, s) => sum + getPnlUsd(s), 0);
-  const paperDailyPnl = paperTodaySignals.reduce((sum, s) => sum + getPnlUsd(s), 0);
+  const liveDailyPnl = liveTodaySignals.reduce(
+    (sum, s) => sum + getPnlUsd(s),
+    0,
+  );
+  const paperDailyPnl = paperTodaySignals.reduce(
+    (sum, s) => sum + getPnlUsd(s),
+    0,
+  );
 
   // ── Total PnL (all-time) ────────────────────────────────────────────
   let totalPnl = 0;
@@ -216,13 +222,29 @@ export async function fetchSignalStats(): Promise<SignalStats> {
   let paperTotalPnl = 0;
   try {
     if (supabase) {
+      // Type for the partial signal row returned by this query
+      interface ClosedSignalRow {
+        pnl?: number | null;
+        pnl_usd?: number | null;
+        entry?: number | null;
+        exit_fill_price?: number | null;
+        exit_price?: number | null;
+        size?: number | null;
+        position_size?: number | null;
+        side?: string | null;
+        run_mode?: string | null;
+        mode?: string | null;
+      }
+
       const { data: allClosed } = await supabase
         .from('trading_signals')
         .select('pnl, pnl_usd, entry, exit_fill_price, size, side, run_mode')
-        .or('status.eq.closed,status.eq.executed,status.eq.CLOSED,status.eq.EXECUTED');
+        .or(
+          'status.eq.closed,status.eq.executed,status.eq.CLOSED,status.eq.EXECUTED',
+        );
 
       if (allClosed) {
-        totalPnl = allClosed.reduce((sum, s: any) => {
+        totalPnl = (allClosed as ClosedSignalRow[]).reduce((sum, s) => {
           // Try pnl_usd first, then pnl, then calculate from entry/exit
           const pnlUsd = s.pnl_usd ?? s.pnl;
           if (pnlUsd != null) {
@@ -236,19 +258,19 @@ export async function fetchSignalStats(): Promise<SignalStats> {
           if (entry != null && exit != null && size) {
             const side = String(s.side || 'buy').toLowerCase();
             const diff = side === 'buy' ? exit - entry : entry - exit;
-            return sum + (diff * size);
+            return sum + diff * size;
           }
 
           return sum;
         }, 0);
 
         // Calculate mode-specific totals
-        liveTotalPnl = allClosed
-          .filter((s: any) => {
-            const m = normalizeMode(s.run_mode ?? s.mode);
+        liveTotalPnl = (allClosed as ClosedSignalRow[])
+          .filter((s) => {
+            const m = normalizeMode(s.run_mode ?? s.mode ?? undefined);
             return m === 'LIVE' || m === undefined;
           })
-          .reduce((sum, s: any) => {
+          .reduce((sum, s) => {
             const pnlUsd = s.pnl_usd ?? s.pnl;
             if (pnlUsd != null) {
               return sum + pnlUsd;
@@ -259,14 +281,16 @@ export async function fetchSignalStats(): Promise<SignalStats> {
             if (entry != null && exit != null && size) {
               const side = String(s.side || 'buy').toLowerCase();
               const diff = side === 'buy' ? exit - entry : entry - exit;
-              return sum + (diff * size);
+              return sum + diff * size;
             }
             return sum;
           }, 0);
 
-        paperTotalPnl = allClosed
-          .filter((s: any) => normalizeMode(s.run_mode ?? s.mode) === 'PAPER')
-          .reduce((sum, s: any) => {
+        paperTotalPnl = (allClosed as ClosedSignalRow[])
+          .filter(
+            (s) => normalizeMode(s.run_mode ?? s.mode ?? undefined) === 'PAPER',
+          )
+          .reduce((sum, s) => {
             const pnlUsd = s.pnl_usd ?? s.pnl;
             if (pnlUsd != null) {
               return sum + pnlUsd;
@@ -277,7 +301,7 @@ export async function fetchSignalStats(): Promise<SignalStats> {
             if (entry != null && exit != null && size) {
               const side = String(s.side || 'buy').toLowerCase();
               const diff = side === 'buy' ? exit - entry : entry - exit;
-              return sum + (diff * size);
+              return sum + diff * size;
             }
             return sum;
           }, 0);
@@ -716,12 +740,12 @@ function getMockStats(): SignalStats {
     active_trades: 2,
     total_pnl_24h: 458.25,
     live_pnl_24h: 458.25,
-    paper_pnl_24h: 85.50,
-    daily_pnl: 125.50,
-    live_daily_pnl: 125.50,
-    paper_daily_pnl: 32.20,
-    total_pnl: 1245.80,
-    live_total_pnl: 1245.80,
+    paper_pnl_24h: 85.5,
+    daily_pnl: 125.5,
+    live_daily_pnl: 125.5,
+    paper_daily_pnl: 32.2,
+    total_pnl: 1245.8,
+    live_total_pnl: 1245.8,
     paper_total_pnl: 342.15,
     daily_drawdown_pct: 0,
   };

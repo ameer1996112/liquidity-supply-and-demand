@@ -1,12 +1,15 @@
-@import "tailwindcss";
-@import "tw-animate-css";
+@import 'tailwindcss';
+@import 'tw-animate-css';
 
 @custom-variant dark (&:is(.dark *));
 
 /* System font stack (no Google Fonts fetch at build — avoids CI/network errors) */
 :root {
-  --font-geist-sans: ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-  --font-geist-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --font-geist-sans:
+    ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+    'Segoe UI Symbol', 'Noto Color Emoji';
+  --font-geist-mono:
+    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
 }
 
 /* TradingView Professional Theme */
@@ -91,41 +94,6 @@
   --sidebar-ring: #2962ff;
 }
 
-/* Force dark mode */
-.dark {
-  --background: #131722;
-  --foreground: #d1d4dc;
-  --card: #1e222d;
-  --card-foreground: #d1d4dc;
-  --popover: #1e222d;
-  --popover-foreground: #d1d4dc;
-  --primary: #2962ff;
-  --primary-foreground: #ffffff;
-  --secondary: #2a2e39;
-  --secondary-foreground: #d1d4dc;
-  --muted: #2a2e39;
-  --muted-foreground: #787b86;
-  --accent: #2a2e39;
-  --accent-foreground: #d1d4dc;
-  --destructive: #f23645;
-  --border: #2a2e39;
-  --input: #2a2e39;
-  --ring: #2962ff;
-  --chart-1: #26a69a;
-  --chart-2: #ef5350;
-  --chart-3: #ff9800;
-  --chart-4: #2962ff;
-  --chart-5: #ab47bc;
-  --sidebar: #0f1117;
-  --sidebar-foreground: #d1d4dc;
-  --sidebar-primary: #2962ff;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #1e222d;
-  --sidebar-accent-foreground: #d1d4dc;
-  --sidebar-border: #2a2e39;
-  --sidebar-ring: #2962ff;
-}
-
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -137,7 +105,9 @@
 
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings:
+      'rlig' 1,
+      'calt' 1;
   }
 }
 
@@ -176,7 +146,8 @@
 
 /* Active trade indicator pulse */
 @keyframes pulse-emerald {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow: 0 0 0 0 rgba(38, 166, 154, 0.4);
   }
   50% {
@@ -214,7 +185,8 @@
 }
 
 @keyframes badge-pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {
@@ -245,7 +217,7 @@
 }
 
 /* Sheet/Drawer backdrop blur */
-[data-state="open"] > [data-radix-dialog-overlay] {
+[data-state='open'] > [data-radix-dialog-overlay] {
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
 }
