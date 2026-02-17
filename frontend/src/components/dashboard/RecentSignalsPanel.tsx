@@ -175,9 +175,9 @@ export function RecentSignalsPanel({
   }, [signals, activeFilter]);
 
   return (
-    <div className='tv-card flex flex-col h-full'>
+    <div className='tv-card flex flex-col h-full overflow-hidden'>
       {/* Header */}
-      <div className='flex items-center justify-between px-4 py-3 border-b border-[#2a2e39]'>
+      <div className='flex items-center justify-between px-4 py-3 border-b border-[#2a2e39] shrink-0'>
         <div className='flex items-center gap-2'>
           <Zap className='w-4 h-4 text-zinc-500' />
           <span className='font-mono text-xs font-semibold text-zinc-300 uppercase tracking-wider'>
@@ -190,7 +190,7 @@ export function RecentSignalsPanel({
       </div>
 
       {/* Filter Tabs */}
-      <div className='flex flex-wrap items-center gap-1 px-4 py-2 border-b border-[#2a2e39]'>
+      <div className='flex flex-wrap items-center gap-1 px-4 py-2 border-b border-[#2a2e39] shrink-0'>
         {FILTER_TABS.map((tab) => (
           <button
             key={tab.key}
@@ -207,57 +207,59 @@ export function RecentSignalsPanel({
         ))}
       </div>
 
-      {/* Table */}
-      <ScrollArea className='flex-1'>
-        {isLoading ? (
-          <div className='space-y-1 p-2'>
-            {[...Array(6)].map((_, i) => (
-              <Skeleton key={i} className='h-10 w-full bg-[#1e222d]' />
-            ))}
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className='flex flex-col items-center justify-center py-16'>
-            <Activity className='w-8 h-8 text-zinc-700 mb-3' />
-            <span className='text-xs text-zinc-600 font-mono'>
-              No signals match filter
-            </span>
-          </div>
-        ) : (
-          <Table className='table-dense'>
-            <TableHeader>
-              <TableRow className='border-b border-[#2a2e39] hover:bg-transparent'>
-                <TableHead className='font-mono text-[9px] text-zinc-600 uppercase tracking-wider py-1.5 px-3 w-[80px]'>
-                  Time
-                </TableHead>
-                <TableHead className='font-mono text-[9px] text-zinc-600 uppercase tracking-wider py-1.5 px-3 w-[120px]'>
-                  Signal
-                </TableHead>
-                <TableHead className='font-mono text-[9px] text-zinc-600 uppercase tracking-wider py-1.5 px-3 w-[100px]'>
-                  Status
-                </TableHead>
-                <TableHead className='font-mono text-[9px] text-zinc-600 uppercase tracking-wider py-1.5 px-3 w-[50px]'>
-                  AI
-                </TableHead>
-                <TableHead className='font-mono text-[9px] text-zinc-600 uppercase tracking-wider py-1.5 px-3 w-[55px] text-right'>
-                  R:R
-                </TableHead>
-                <TableHead className='font-mono text-[9px] text-zinc-600 uppercase tracking-wider py-1.5 px-3 w-[70px] text-right'>
-                  PnL
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((signal) => (
-                <SignalRowMemo
-                  key={signal.id}
-                  signal={signal}
-                  onClick={() => onSelectSignal(signal)}
-                />
+      {/* Table - ScrollArea now properly constrained */}
+      <div className='flex-1 min-h-0 overflow-hidden'>
+        <ScrollArea className='h-full'>
+          {isLoading ? (
+            <div className='space-y-1 p-2'>
+              {[...Array(6)].map((_, i) => (
+                <Skeleton key={i} className='h-10 w-full bg-[#1e222d]' />
               ))}
-            </TableBody>
-          </Table>
-        )}
-      </ScrollArea>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className='flex flex-col items-center justify-center py-16'>
+              <Activity className='w-8 h-8 text-zinc-700 mb-3' />
+              <span className='text-xs text-zinc-600 font-mono'>
+                No signals match filter
+              </span>
+            </div>
+          ) : (
+            <Table className='table-dense'>
+              <TableHeader>
+                <TableRow className='border-b border-[#2a2e39] hover:bg-transparent'>
+                  <TableHead className='font-mono text-[9px] text-zinc-600 uppercase tracking-wider py-1.5 px-3 w-[80px]'>
+                    Time
+                  </TableHead>
+                  <TableHead className='font-mono text-[9px] text-zinc-600 uppercase tracking-wider py-1.5 px-3 w-[120px]'>
+                    Signal
+                  </TableHead>
+                  <TableHead className='font-mono text-[9px] text-zinc-600 uppercase tracking-wider py-1.5 px-3 w-[100px]'>
+                    Status
+                  </TableHead>
+                  <TableHead className='font-mono text-[9px] text-zinc-600 uppercase tracking-wider py-1.5 px-3 w-[50px]'>
+                    AI
+                  </TableHead>
+                  <TableHead className='font-mono text-[9px] text-zinc-600 uppercase tracking-wider py-1.5 px-3 w-[55px] text-right'>
+                    R:R
+                  </TableHead>
+                  <TableHead className='font-mono text-[9px] text-zinc-600 uppercase tracking-wider py-1.5 px-3 w-[70px] text-right'>
+                    PnL
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map((signal) => (
+                  <SignalRowMemo
+                    key={signal.id}
+                    signal={signal}
+                    onClick={() => onSelectSignal(signal)}
+                  />
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </ScrollArea>
+      </div>
     </div>
   );
 }
