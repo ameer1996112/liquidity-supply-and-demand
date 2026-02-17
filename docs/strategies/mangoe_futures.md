@@ -1,5 +1,7 @@
 # Mangoe Futures Strategy (Liquidity Supply & Demand)
 
+> **RAG / Supabase:** This document is the source for the AI strategy context. Ingest it into Supabase so the RAG engine can retrieve it: run `python scripts/ingest_mangoe_futures_rag.py` from the project root (requires `.env` with `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`).
+
 ## Overview
 
 Optimized for **Futures** instruments (Crude Oil, Nasdaq, Gold) where execution is precise (no spreads) but volatility is high. Uses the **5-minute timeframe** exclusively for trend and entry to maximize trade frequency and precision.
