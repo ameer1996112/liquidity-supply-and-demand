@@ -35,7 +35,7 @@ export get_auto_pip_size(string ticker, float mintick) =>
     // NAS100: 1 pip = 1.0 point, tick = 0.25
     if str.contains(ticker, "NAS") or str.contains(ticker, "US100") or str.contains(ticker, "NDX")
         1.0  // NAS100: 1 pip = 1 point
-    else if str.contains(ticker, "SPX") or str.contains(ticker, "US500") or str.contains(ticker, "SPY")
+    else if str.contains(ticker, "SPX") or str.contains(ticker, "SP500") or str.contains(ticker, "US500") or str.contains(ticker, "SPY")
         1.0  // S&P 500: 1 pip = 1 point
     else if str.contains(ticker, "US30") or str.contains(ticker, "DJI")
         1.0  // Dow Jones: 1 pip = 1 point

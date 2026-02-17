@@ -365,6 +365,62 @@ def _validate_flip_timing(payload: Dict[str, Any]) -> Optional[str]:
         return None
 
 
+# Futures symbols (Mangoe rules: BOC or Directional Close primary; Flip only on 15m/1H boundary)
+_FUTURES_SYMBOLS = frozenset({"CL", "NQ", "GC", "ES", "YM", "RTY", "XAUUSD", "XAU", "GOLD", "USOIL", "UKOIL"})
+
+
+def _is_futures_symbol(symbol: str) -> bool:
+    """True if symbol is a Future (Crude, Nasdaq, Gold, etc.) for Mangoe rules."""
+    if not symbol:
+        return False
+    u = symbol.upper().strip()
+    if u in _FUTURES_SYMBOLS:
+        return True
+    # Prefix match for broker suffixes (e.g. CL.c, NQZ4, GCJ24, XAUUSD.a)
+    for prefix in ("CL", "NQ", "GC", "ES", "YM", "RTY", "XAU"):
+        if u.startswith(prefix) or u.startswith(prefix + ".") or u.startswith(prefix + " "):
+            return True
+    if "XAU" in u or "GOLD" in u:
+        return True
+    return False
+
+
+def _validate_futures_entry_model(payload: Dict[str, Any]) -> Optional[str]:
+    """Enforce Mangoe Futures entry rules: BOC or Directional Close primary; reject Flip unless on 15m/1H boundary.
+
+    For Futures (CL, NQ, GC, XAUUSD, etc.):
+    - Prefer Break of Candle or Directional Close.
+    - FLIP entries are only allowed when bar_time is on a 15-min boundary (00/15/30/45).
+    Returns None if valid or not a Futures symbol, rejection reason string otherwise.
+    """
+    symbol = (payload.get("symbol") or "").strip()
+    if not _is_futures_symbol(symbol):
+        return None
+
+    entry_model = str(payload.get("entry_model", "")).strip().lower()
+    if not entry_model:
+        return None  # No model info — allow (Pine may not send it)
+
+    # BOC / Directional Close / Break of Candle / Dir Close — allow
+    if any(x in entry_model for x in ("boc", "break", "directional", "dir_close", "dir close")):
+        return None
+
+    # FLIP: require 15m/1H boundary (strict for Futures — do not fail-open on missing bar_time)
+    if "flip" in entry_model:
+        bar_time = payload.get("bar_time")
+        if not bar_time or not isinstance(bar_time, str):
+            return (
+                "Futures (Mangoe): FLIP entry requires bar_time for 15m/1H boundary check. "
+                "Use Break of Candle or Directional Close, or ensure Flip occurs on 15m/1H candle open."
+            )
+        reason = _validate_flip_timing(payload)
+        if reason:
+            return f"Futures (Mangoe): {reason}"
+        return None
+
+    return None  # Other models (e.g. AUTO) — allow
+
+
 _GRADE_VALUES = {"A+": 6, "A": 5, "B+": 4, "B": 3, "C+": 2, "C": 1}
 
 
@@ -826,6 +882,14 @@ def process_trade(payload: Dict[str, Any]):
             size,
             max_lot_size,
         )
+        return
+
+    # ── Futures (Mangoe) entry model: BOC/Dir Close preferred; Flip only on 15m/1H boundary ──
+    futures_reason = _validate_futures_entry_model(payload)
+    if futures_reason:
+        save_result(payload, "filtered", futures_reason, 0.0, account_name=account_name)
+        log_guard_decision("futures_entry_model", "rejected", futures_reason, symbol)
+        logger.warning("FUTURES ENTRY MODEL REJECTED: %s", futures_reason)
         return
 
     # ── Global Kill Switch (ENV only — Redis/MTM are now per-account) ──

@@ -282,6 +282,11 @@ string ticker = syminfo.ticker
 account_size_usd      = input.float(50000, "💰 Account Size ($)", minval = 100, step = 1000, group = "🎯 Quick Setup", tooltip = "⚠️ MUST MATCH YOUR LIVE ACCOUNT BALANCE!\n\nThis is used to calculate position sizes:\n• Position Size = Account × Risk% / SL Distance\n• Sent to backend for validation\n\nExamples:\n• Prop firm challenge: $50,000\n• Personal account: $10,000\n• Demo/Paper: $10,000\n\nIf mismatch with live balance, backend will reject trades!")
 risk_per_trade_pct    = input.float(0.5, "Risk Per Trade (%)", minval = 0.1, maxval = 10, step = 0.1, group = "🎯 Quick Setup", tooltip = "Percentage of account to risk per trade.\n\n0.5% (Balanced - Recommended):\n• $50k account = $250 max risk/trade\n• Survives 200 consecutive losses\n\n1.0% (Aggressive):\n• $50k account = $500 max risk/trade\n• Survives 100 consecutive losses")
 stop_loss_buffer_pips = input.float(1.0, "SL Buffer (Pips)", minval = 0, step = 0.1, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Extra pips added below/above the zone wick for stop loss. Protects against wick hunts.")
+
+// Futures Settings (Mangoe): 5m only, UK 08:00-15:00, SL = Zone edge ± buffer, TP = 4R, 5m structure only
+use_futures_rules = input.bool(false, "Use Futures Rules (Mangoe)", group = "Futures Settings", tooltip = "ON: 5m only, UK 08:00-15:00, SL = Zone distal ± buffer, TP = 4R, ignore HTF (use 5m structure only).")
+sl_buffer_pips   = input.float(1.0, "Futures SL Buffer (Pips)", minval = 0, step = 0.1, group = "Futures Settings", tooltip = "When Futures Rules ON: SL = Zone edge ± this buffer (avoids wick runs). Default 1.0.")
+
 use_custom_rr         = input.bool(false, "☐ Override: Use Fixed RR", group = "⚙️ Advanced / Manual Tweaks", tooltip = "OFF (default): Uses smart SL-based rules (tight SL = higher RR). ON: Uses your custom ratio below for all trades.")
 risk_reward_ratio     = input.float(2.5, "⚡ Custom R:R Ratio", minval = 0.5, step = 0.1, group = "⚙️ Advanced / Manual Tweaks", tooltip = "⚡ UNIVERSAL FILTER #4: Increased to 2.5:1 (from 2.0:1).\nWith 35% WR target, 2.5 RR provides safety buffer.\n2.0 RR requires 33.3% WR (too tight)\n2.5 RR requires 28.6% WR (safer margin)\nBlocks trades with poor TP placement.")
 liq_entry_max_dist = input.float(150.0, "⚡ Max Zone-to-Liq Distance (Pips)", minval = 0.0, step = 10.0, group = "⚙️ Advanced / Manual Tweaks", tooltip = "⚡ OPTIMIZED: 150 pips max.\nData: 50-150 pips = 41-44% WR (+$7,841) ✅\n      150+ pips = 29.6% WR (-$3,278) ⚠️\n\nBlock trades if zone is too far from liquidity.")
@@ -325,8 +330,8 @@ debug_liq_extra         = input.bool(false, "Debug: Liquidity Info", group = "�
 // IMPORTANT: Indices (NAS100, SPX, etc.) use native tick size and do NOT need scaling.
 float pip_scale_factor = is_gold and pip_size <= 0.011 ? 10.0 : 1.0
 
-// Apply scaling to effective values
-float effective_sl_buffer = stop_loss_buffer_pips * pip_scale_factor
+// Apply scaling to effective values (Futures mode uses sl_buffer_pips at zone edge)
+float effective_sl_buffer = (use_futures_rules ? sl_buffer_pips : stop_loss_buffer_pips) * pip_scale_factor
 float effective_min_tp_dist = min_tp_distance_pips * pip_scale_factor
 float effective_liq_entry_max_dist = liq_entry_max_dist * pip_scale_factor
 // ⚡ UNIVERSAL FILTER #3: ATR-Based Liquidity Distance (Dynamic, Instrument-Agnostic) ⚡
@@ -350,9 +355,12 @@ max_trades_per_week = input.int(3, "   └─ Max Trades/Week", minval = 1, maxv
 
 // Time Filters
 filter_dead_zone = input.bool(true, "Block Dead Zone (xx:50-xx:00)", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: No entries in last 10 minutes of each hour. These periods have erratic price action.")
-filter_trading_hours = input.bool(true, "Trading Hours Only", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Only trade during active market hours. OFF: Trade 24/7.")
-trading_start_hour = input.int(7, "   └─ Start Hour (UTC)", minval = 0, maxval = 23, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Hour to start trading (0-23). 7 = 7:00 AM UTC.")
-trading_end_hour = input.int(22, "   └─ End Hour (UTC)", minval = 0, maxval = 23, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Hour to stop trading (0-23). 22 = 10:00 PM UTC.")
+filter_trading_hours = input.bool(true, "Trading Hours Only", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Only trade during active market hours. OFF: Trade 24/7. When Futures Rules ON, uses UK 08:00-15:00.")
+trading_start_hour = input.int(7, "   └─ Start Hour (UTC)", minval = 0, maxval = 23, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Hour to start trading (0-23). Ignored when Futures Rules ON: uses UK 08:00.")
+trading_end_hour = input.int(22, "   └─ End Hour (UTC)", minval = 0, maxval = 23, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Hour to stop trading (0-23). Ignored when Futures Rules ON: uses UK 15:00.")
+string session_tz = use_futures_rules ? "Europe/London" : "Asia/Jerusalem"
+int effective_start_hour = use_futures_rules ? 8 : trading_start_hour
+int effective_end_hour = use_futures_rules ? 15 : trading_end_hour
 require_htf_flip = input.bool(true, "HTF Flip Context", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Flip entries only valid near 30m/1H candle opens for better timing.")
 
 // AI & Quality Filters
@@ -768,65 +776,62 @@ get_index_tp_rules(sl_pips) =>
 
 // === 2025 TP LOOKUP DICTIONARIES ===
 get_tp_ratio(symbol_type, sl_pips) =>
-    // Default variables
-    float base_ratio = 2.0
-    float be_trig = na
-    float be_sl = na
-    bool move_be = false
+    // Futures (Mangoe): strict 1:4 for all instruments
+    if use_futures_rules
+        [4.0, na, na, false]
+    else
+        float base_ratio = 2.0
+        float be_trig = na
+        float be_sl = na
+        bool move_be = false
 
-    // CHECK: If custom RR override is enabled, use fixed ratio for everything except indices
-    if use_custom_rr and not is_index
-        base_ratio := risk_reward_ratio
-        be_trig := na
-        be_sl := na
-        move_be := false
-    // 1. Check for Indices first (NAS100, SPX, etc.) - Fixed 1:4
-    else if is_index
-        [i_tp, i_bet, i_bes, i_mbe] = get_index_tp_rules(sl_pips)
-        base_ratio := i_tp
-        be_trig := i_bet
-        be_sl := i_bes
-        move_be := i_mbe
-    // 2. Aggressive profile: Gold / JPY&Forex SL-based rules; 1:4 for other (e.g. silver, crypto)
-    else if is_aggressive and use_profile_defaults
-        if is_gold
-            [g_tp, g_bet, g_bes, g_mbe] = get_gold_tp_rules_aggressive(sl_pips)
+        // CHECK: If custom RR override is enabled, use fixed ratio for everything except indices
+        if use_custom_rr and not is_index
+            base_ratio := risk_reward_ratio
+            be_trig := na
+            be_sl := na
+            move_be := false
+        else if is_index
+            [i_tp, i_bet, i_bes, i_mbe] = get_index_tp_rules(sl_pips)
+            base_ratio := i_tp
+            be_trig := i_bet
+            be_sl := i_bes
+            move_be := i_mbe
+        else if is_aggressive and use_profile_defaults
+            if is_gold
+                [g_tp, g_bet, g_bes, g_mbe] = get_gold_tp_rules_aggressive(sl_pips)
+                base_ratio := g_tp
+                be_trig := g_bet
+                be_sl := g_bes
+                move_be := g_mbe
+            else if is_jpy_pair or (not is_silver and not is_crypto)
+                [f_tp, f_bet, f_bes, f_mbe] = get_jpy_tp_rules_aggressive(sl_pips)
+                base_ratio := f_tp
+                be_trig := f_bet
+                be_sl := f_bes
+                move_be := f_mbe
+            else
+                base_ratio := 4.0
+                be_trig := na
+                be_sl := na
+                move_be := false
+        else if is_gold
+            [g_tp, g_bet, g_bes, g_mbe] = get_gold_tp_rules(sl_pips)
             base_ratio := g_tp
             be_trig := g_bet
             be_sl := g_bes
             move_be := g_mbe
-        else if is_jpy_pair or (not is_silver and not is_crypto)
-            // JPY and Forex: same aggressive SL-based rules
-            [f_tp, f_bet, f_bes, f_mbe] = get_jpy_tp_rules_aggressive(sl_pips)
+        else
+            [f_tp, f_bet, f_bes, f_mbe] = get_forex_tp_rules(sl_pips)
             base_ratio := f_tp
             be_trig := f_bet
             be_sl := f_bes
             move_be := f_mbe
-        else
-            // Other (silver, crypto, etc.): 1:4
-            base_ratio := 4.0
-            be_trig := na
-            be_sl := na
-            move_be := false
-    // 3. Conservative/Balanced/Custom: existing rules
-    else if is_gold
-        [g_tp, g_bet, g_bes, g_mbe] = get_gold_tp_rules(sl_pips)
-        base_ratio := g_tp
-        be_trig := g_bet
-        be_sl := g_bes
-        move_be := g_mbe
-    else
-        [f_tp, f_bet, f_bes, f_mbe] = get_forex_tp_rules(sl_pips)
-        base_ratio := f_tp
-        be_trig := f_bet
-        be_sl := f_bes
-        move_be := f_mbe
 
-    // Apply double TP mode if enabled (only affects TP ratio, not BE rules)
-    if enable_double_tp
-        base_ratio := get_double_tp_ratio(base_ratio)
+        if enable_double_tp
+            base_ratio := get_double_tp_ratio(base_ratio)
 
-    [base_ratio, be_trig, be_sl, move_be]
+        [base_ratio, be_trig, be_sl, move_be]
 
 // === AI FEATURE ENGINEERING ===
 // Calculate indicators globally for training data collection
@@ -2429,13 +2434,10 @@ is_time_dead_zone() =>
 // - Late-night volatility spikes
 is_outside_trading_hours() =>
     if not filter_trading_hours
-        false  // Filter disabled, allow all entries
+        false
     else
-        // Israel timezone: Use "Asia/Jerusalem" which handles DST automatically
-        int israelHour = hour(time, "Asia/Jerusalem")
-        // Block if hour is before start or at/after end
-        // Example: start=7, end=22 means allow 07:00-21:59, block 22:00-06:59
-        israelHour < trading_start_hour or israelHour >= trading_end_hour
+        int sessionHour = hour(time, session_tz)
+        sessionHour < effective_start_hour or sessionHour >= effective_end_hour
 
 // Unified Entry Validation
 validate_entry_conditions(bool isDemand, int idx) =>
@@ -2468,12 +2470,16 @@ validate_entry_conditions(bool isDemand, int idx) =>
         canEnter := false
         reason := "Dead Zone: Blocked at " + str.tostring(minute(time)) + "m (avoid xx:50-xx:00)"
 
-    // === TRADING HOURS FILTER (Israel Time) ===
-    // Block entries outside allowed trading window (default: 07:00-22:00)
+    // === FUTURES: 5m ONLY ===
+    if canEnter and use_futures_rules and timeframe.period != "5"
+        canEnter := false
+        reason := "Futures Rules: 5m timeframe only (current: " + timeframe.period + ")"
+
+    // === TRADING HOURS FILTER (UK when Futures Rules, else Israel) ===
     if canEnter and is_outside_trading_hours()
         canEnter := false
-        int israelHour = hour(time, "Asia/Jerusalem")
-        reason := "Outside Trading Hours: " + str.tostring(israelHour) + ":00 (allowed: " + str.tostring(trading_start_hour) + ":00-" + str.tostring(trading_end_hour) + ":00)"
+        int sessionHour = hour(time, session_tz)
+        reason := "Outside Trading Hours: " + str.tostring(sessionHour) + ":00 (allowed: " + str.tostring(effective_start_hour) + ":00-" + str.tostring(effective_end_hour) + ":00)"
 
     // ═══════════════════════════════════════════════════════════════
     // ⚡ UNIVERSAL FILTER #5: WEEKLY TRADE LIMIT ⚡
@@ -2495,13 +2501,15 @@ validate_entry_conditions(bool isDemand, int idx) =>
     //       Trading against HTF reduces WR by 5-10% across ALL pairs
     // Impact: +3-5% win rate improvement, works universally
 
-    if canEnter and isDemand and feature_htf_trend == 0  // Long trade but HTF bearish
-        canEnter := false
-        reason := "⚡ Blocked: Long requires HTF bullish (universal rule)"
+    // Futures Rules: use 5m structure only, ignore HTF
+    if not use_futures_rules
+        if canEnter and isDemand and feature_htf_trend == 0  // Long trade but HTF bearish
+            canEnter := false
+            reason := "⚡ Blocked: Long requires HTF bullish (universal rule)"
 
-    if canEnter and not isDemand and feature_htf_trend == 1  // Short trade but HTF bullish
-        canEnter := false
-        reason := "⚡ Blocked: Short requires HTF bearish (universal rule)"
+        if canEnter and not isDemand and feature_htf_trend == 1  // Short trade but HTF bullish
+            canEnter := false
+            reason := "⚡ Blocked: Short requires HTF bearish (universal rule)"
 
     if canEnter
         // Zone must not have been touched BEFORE sweep
@@ -4024,8 +4032,11 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
             if na(deepest_wick)
                 deepest_wick := current_low  // Fallback to current low
 
-            // SL Calculation: Use deepest wick (even if below zone) minus buffer
-            stop_loss_price = deepest_wick - (effective_sl_buffer * pip_size)
+            // SL: Futures = Zone distal (bottom) + buffer; else deepest wick - buffer
+            if use_futures_rules
+                stop_loss_price := z.bottom - (effective_sl_buffer * pip_size)
+            else
+                stop_loss_price := deepest_wick - (effective_sl_buffer * pip_size)
             
             // --- SAFETY CLAMP (LONG) ---
             // Ensure SL is strictly below Entry (min 2 pips gap) to prevent position sizing errors
@@ -4470,8 +4481,11 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
             if na(highest_wick)
                 highest_wick := current_high  // Fallback to current high
 
-            // SL Calculation: Use highest wick (even if above zone) plus buffer
-            stop_loss_price = highest_wick + (effective_sl_buffer * pip_size)
+            // SL: Futures = Zone distal (top) + buffer; else highest wick + buffer
+            if use_futures_rules
+                stop_loss_price := z.top + (effective_sl_buffer * pip_size)
+            else
+                stop_loss_price := highest_wick + (effective_sl_buffer * pip_size)
 
             // --- SAFETY CLAMP (SHORT) ---
             // Ensure SL is strictly above Entry (min 2 pips gap) to prevent position sizing errors
