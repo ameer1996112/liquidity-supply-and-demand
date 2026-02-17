@@ -26,7 +26,7 @@ fi
 
 # Option A: Backend only (default). Option B: Full stack (frontend + backend).
 # Usage: ./start.sh           → backend only
-#        ./start.sh fullstack → frontend (npm run dev) + backend
+#        ./start.sh fullstack  → frontend (npm run dev) + backend
 FULL_STACK="${FULL_STACK:-0}"
 if [ "$1" = "fullstack" ] || [ "$1" = "full" ]; then
   FULL_STACK=1
@@ -66,7 +66,7 @@ shutdown() {
 
 trap shutdown SIGTERM SIGINT
 
-# Option B: Start frontend (Next.js) in background
+# Start frontend (Next.js) in background if fullstack mode
 if [ "$FULL_STACK" = "1" ]; then
   if [ -d "$ROOT_DIR/frontend" ] && [ -f "$ROOT_DIR/frontend/package.json" ]; then
     echo "[start.sh] Starting Frontend (Next.js) on port 3000..."
@@ -75,7 +75,7 @@ if [ "$FULL_STACK" = "1" ]; then
     echo "[start.sh] Frontend PID=$FRONTEND_PID"
     sleep 2
   else
-    echo "[start.sh] WARN: frontend/ not found or no package.json - skipping frontend"
+    echo "[start.sh] WARN: frontend/ not found - skipping frontend"
   fi
 fi
 
