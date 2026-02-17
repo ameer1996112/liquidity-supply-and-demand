@@ -37,7 +37,7 @@ export interface LiveTradingData {
 
   // Positions & Account
   positions: {
-    active: any[];
+    active: unknown[];
     count: number;
     isLoading: boolean;
     error: Error | null;
@@ -105,11 +105,7 @@ export function useLiveTrading(): LiveTradingData {
   const { mode } = useTradingMode();
 
   // Fetch health status
-  const {
-    data: health,
-    isError: healthError,
-    isLoading: healthLoading,
-  } = useHealthCheck();
+  const { data: health, isError: healthError } = useHealthCheck();
 
   // Fetch positions
   const {
@@ -128,11 +124,10 @@ export function useLiveTrading(): LiveTradingData {
   } = useAccountStatus();
 
   // Fetch trading signals for statistics
-  const {
-    signals,
-    isLoading: signalsLoading,
-    error: signalsError,
-  } = useTradingSignals({ mode });
+  const signalsQuery = useTradingSignals(mode);
+  const signals = signalsQuery.data || [];
+  const signalsLoading = signalsQuery.isLoading;
+  const signalsError = signalsQuery.error;
 
   // ──────────────────────────────────────────────────────
   // Calculate Statistics from Signals
@@ -154,7 +149,6 @@ export function useLiveTrading(): LiveTradingData {
 
     // Calculate wins and losses
     const wins = closedTrades.filter((s) => (s.pnl_usd || 0) > 0);
-    const losses = closedTrades.filter((s) => (s.pnl_usd || 0) <= 0);
 
     // Win rate
     const winRate =
@@ -167,7 +161,7 @@ export function useLiveTrading(): LiveTradingData {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todaySignals = closedTrades.filter((s) => {
-      const exitDate = new Date(s.exit_time || s.created_at);
+      const exitDate = new Date(s.closed_at || s.created_at);
       return exitDate >= today;
     });
     const todayPnL = todaySignals.reduce((sum, s) => sum + (s.pnl_usd || 0), 0);
