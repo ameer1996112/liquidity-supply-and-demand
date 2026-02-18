@@ -1622,10 +1622,11 @@ def delete_journal_entry_endpoint(journal_id: int):
         raise HTTPException(500, detail=f"Failed to delete journal entry: {str(e)}")
 
 
+@router.get("/accounts/allocation-suggest", response_model=AllocationPlanResponse)
 @router.post("/accounts/allocation/suggest", response_model=AllocationPlanResponse)
 def suggest_capital_allocation(
     total_capital: float,
-    optimization_goal: str = "maximize_sharpe"
+    goal: str = "maximize_sharpe",
 ):
     """
     Suggest optimal capital allocation across all accounts.
@@ -1639,7 +1640,7 @@ def suggest_capital_allocation(
     sb = _get_supabase()
     orchestrator = AccountOrchestrator(sb)
 
-    plan = orchestrator.suggest_capital_allocation(total_capital, optimization_goal)
+    plan = orchestrator.suggest_capital_allocation(total_capital, goal)
 
     return AllocationPlanResponse(
         total_capital=plan.total_capital,
