@@ -11,7 +11,7 @@ from config import get_settings
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/alerts", tags=["alerts"])
+router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 
 # Tables trading_alerts and alert_rules require migrations/004_trading_alerts.sql and 005_alert_rules.sql
 _ALERTS_TABLE_MISSING_MSG = "Could not find the table"
