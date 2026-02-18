@@ -280,7 +280,7 @@ export build_webhook_payload(
      float _liq_distance, float _liq_spread, float _return_strength,
      float pip_size, bool include_zone_id,
      bool _liquidity_sweep, string _arrival_type, bool _structure_break,
-     float _account_balance = 10000,
+     float _account_balance = 50000,
      float _liq_distance_pips = na, float _liq_spread_pips = na) =>
 
     string payload = '{"symbol":"' + _symbol + '"'
