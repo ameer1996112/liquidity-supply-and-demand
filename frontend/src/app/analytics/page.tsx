@@ -47,10 +47,7 @@ export default function AnalyticsPage() {
   const mode = modeFilter === 'ALL' ? undefined : modeFilter;
   const apiMode = modeFilter === 'ALL' ? 'LIVE' : modeFilter;
 
-  // Overview tab data
   const { data: analytics, isLoading } = useAnalytics(mode);
-
-  // Performance Intelligence tab data (only fetch when tab active)
   const { data: breakdown, isLoading: breakdownLoading } = useBreakdown(
     period,
     apiMode,
@@ -61,13 +58,14 @@ export default function AnalyticsPage() {
   const { data: summaryData, isLoading: summaryLoading } = useSummary(apiMode);
 
   return (
-    <div className='space-y-6'>
-      {/* Header */}
-      <div className='flex items-center justify-between'>
+    // Full-height flex column — fills the `main` flex-1 area
+    <div className='h-full flex flex-col gap-4 min-h-0'>
+      {/* ── Sticky Header Row ─────────────────────────────── */}
+      <div className='flex items-center justify-between shrink-0'>
         <h1 className='text-lg font-semibold text-zinc-100'>Analytics</h1>
 
         <div className='flex items-center gap-3'>
-          {/* Period selector (for breakdown tab) */}
+          {/* Period selector (breakdown tab only) */}
           {activeTab === 'breakdown' && (
             <div className='flex items-center gap-1 bg-[#1e222d] border border-[#2a2e39] rounded-md p-1'>
               {PERIODS.map((p) => (
@@ -107,8 +105,8 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className='flex items-center gap-1 bg-[#1e222d] border border-[#2a2e39] rounded-md p-1 w-fit'>
+      {/* ── Tab Bar ───────────────────────────────────────── */}
+      <div className='flex items-center gap-1 bg-[#1e222d] border border-[#2a2e39] rounded-md p-1 w-fit shrink-0'>
         {TABS.map((tab) => (
           <button
             key={tab.key}
@@ -125,187 +123,198 @@ export default function AnalyticsPage() {
         ))}
       </div>
 
-      {/* ══════ OVERVIEW TAB ══════ */}
-      {activeTab === 'overview' && (
-        <>
-          {isLoading ? (
-            <div className='grid grid-cols-2 lg:grid-cols-4 gap-4'>
-              {[...Array(4)].map((_, i) => (
-                <Skeleton key={i} className='h-28 rounded-lg bg-[#1e222d]' />
-              ))}
-            </div>
-          ) : analytics ? (
-            <>
-              <div className='grid grid-cols-2 lg:grid-cols-4 gap-4'>
-                <MetricCard
-                  label='Win Rate'
-                  value={`${analytics.winRate.toFixed(1)}%`}
-                  icon={<Target className='w-4 h-4' />}
-                  trend={analytics.winRate >= 50 ? 'up' : 'down'}
-                  subtitle={`${analytics.outcomeDistribution.wins}W / ${analytics.outcomeDistribution.losses}L`}
-                />
-                <MetricCard
-                  label='Profit Factor'
-                  value={
-                    analytics.profitFactor >= 999
-                      ? 'Inf'
-                      : analytics.profitFactor.toFixed(2)
-                  }
-                  icon={<TrendingUp className='w-4 h-4' />}
-                  trend={analytics.profitFactor >= 1 ? 'up' : 'down'}
-                  subtitle={`Avg Win: $${analytics.avgWin.toFixed(2)}`}
-                />
-                <MetricCard
-                  label='Avg R:R'
-                  value={`1:${analytics.avgRR.toFixed(1)}`}
-                  icon={<BarChart3 className='w-4 h-4' />}
-                  subtitle={`Avg Loss: $${analytics.avgLoss.toFixed(2)}`}
-                />
-                <MetricCard
-                  label='Total Trades'
-                  value={analytics.closedTrades}
-                  icon={<Hash className='w-4 h-4' />}
-                  subtitle={`${analytics.totalTrades} signals total`}
-                />
-              </div>
-
-              <div className='min-h-[400px] h-full'>
-                <EquityCurveChart data={analytics.equityCurve} />
-              </div>
-
-              <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
-                <WinRateDonut
-                  wins={analytics.outcomeDistribution.wins}
-                  losses={analytics.outcomeDistribution.losses}
-                  breakeven={analytics.outcomeDistribution.breakeven}
-                />
-                <PnlBySymbolChart data={analytics.pnlBySymbol} />
-              </div>
-
-              <DailyPnlChart data={analytics.pnlByDay} />
-            </>
-          ) : (
-            <div className='tv-card p-12 flex flex-col items-center justify-center'>
-              <BarChart3 className='w-10 h-10 text-zinc-700 mb-3' />
-              <span className='text-sm text-zinc-500'>
-                No analytics data available
-              </span>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* ══════ BREAKDOWN TAB ══════ */}
-      {activeTab === 'breakdown' && (
-        <>
-          {breakdownLoading ? (
-            <div className='space-y-4'>
-              <Skeleton className='h-64 rounded-lg bg-[#1e222d]' />
-              <Skeleton className='h-48 rounded-lg bg-[#1e222d]' />
-            </div>
-          ) : breakdown ? (
-            <div className='space-y-6'>
-              <div className='min-h-[300px]'>
-                <HeatmapChart
-                  title='PnL by Hour of Day'
-                  rows={['PnL']}
-                  columns={HOUR_LABELS.filter((_, i) => i % 3 === 0)}
-                  data={[
-                    HOUR_LABELS.filter((_, i) => i % 3 === 0).map(
-                      (h) => breakdown.pnl_by_hour[h]?.pnl ?? 0,
-                    ),
-                  ]}
-                />
-              </div>
-
-              <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
-                <BreakdownTable
-                  title='By Symbol'
-                  data={breakdown.pnl_by_symbol}
-                />
-                <BreakdownTable
-                  title='By Day of Week'
-                  data={breakdown.pnl_by_day_of_week}
-                />
-              </div>
-
-              <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
-                <BreakdownTable
-                  title='By Zone Type'
-                  data={breakdown.pnl_by_zone_type}
-                />
-                <BreakdownTable
-                  title='By Entry Model'
-                  data={breakdown.pnl_by_entry_model}
-                />
-              </div>
-
-              <BreakdownTable
-                title='By AI Confidence'
-                data={breakdown.win_rate_by_ai_confidence}
-              />
-            </div>
-          ) : (
-            <div className='tv-card p-12 flex flex-col items-center justify-center'>
-              <BarChart3 className='w-10 h-10 text-zinc-700 mb-3' />
-              <span className='text-sm text-zinc-500'>
-                No breakdown data available
-              </span>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* ══════ DRAWDOWN TAB ══════ */}
-      {activeTab === 'drawdown' && (
-        <>
-          {drawdownLoading || summaryLoading ? (
-            <div className='space-y-4'>
-              <Skeleton className='h-80 rounded-lg bg-[#1e222d]' />
-              <div className='grid grid-cols-2 lg:grid-cols-3 gap-4'>
-                {[...Array(6)].map((_, i) => (
-                  <Skeleton key={i} className='h-24 rounded-lg bg-[#1e222d]' />
+      {/* ── Tab Content — scrollable, fills remaining height ─ */}
+      <div className='flex-1 min-h-0 overflow-y-auto scrollbar-thin'>
+        {/* ══════ OVERVIEW TAB ══════ */}
+        {activeTab === 'overview' && (
+          <div className='flex flex-col gap-4 h-full min-h-0'>
+            {isLoading ? (
+              <div className='grid grid-cols-2 lg:grid-cols-4 gap-4 shrink-0'>
+                {[...Array(4)].map((_, i) => (
+                  <Skeleton key={i} className='h-28 rounded-lg bg-[#1e222d]' />
                 ))}
               </div>
-            </div>
-          ) : (
-            <div className='space-y-6'>
-              {drawdownData && (
-                <DrawdownChart
-                  data={drawdownData.data}
-                  maxDrawdownPct={drawdownData.max_drawdown_pct}
-                  maxDrawdownAmount={drawdownData.max_drawdown_amount}
-                />
-              )}
-              {summaryData && <SummaryCards data={summaryData} />}
-            </div>
-          )}
-        </>
-      )}
+            ) : analytics ? (
+              <>
+                {/* KPI Row — natural height, never shrinks */}
+                <div className='grid grid-cols-2 lg:grid-cols-4 gap-4 shrink-0'>
+                  <MetricCard
+                    label='Win Rate'
+                    value={`${analytics.winRate.toFixed(1)}%`}
+                    icon={<Target className='w-4 h-4' />}
+                    trend={analytics.winRate >= 50 ? 'up' : 'down'}
+                    subtitle={`${analytics.outcomeDistribution.wins}W / ${analytics.outcomeDistribution.losses}L`}
+                  />
+                  <MetricCard
+                    label='Profit Factor'
+                    value={
+                      analytics.profitFactor >= 999
+                        ? 'Inf'
+                        : analytics.profitFactor.toFixed(2)
+                    }
+                    icon={<TrendingUp className='w-4 h-4' />}
+                    trend={analytics.profitFactor >= 1 ? 'up' : 'down'}
+                    subtitle={`Avg Win: $${analytics.avgWin.toFixed(2)}`}
+                  />
+                  <MetricCard
+                    label='Avg R:R'
+                    value={`1:${analytics.avgRR.toFixed(1)}`}
+                    icon={<BarChart3 className='w-4 h-4' />}
+                    subtitle={`Avg Loss: $${analytics.avgLoss.toFixed(2)}`}
+                  />
+                  <MetricCard
+                    label='Total Trades'
+                    value={analytics.closedTrades}
+                    icon={<Hash className='w-4 h-4' />}
+                    subtitle={`${analytics.totalTrades} signals total`}
+                  />
+                </div>
 
-      {/* ══════ STREAKS TAB ══════ */}
-      {activeTab === 'streaks' && (
-        <>
-          {streaksLoading ? (
-            <Skeleton className='h-96 rounded-lg bg-[#1e222d]' />
-          ) : streaksData ? (
-            <StreakTimeline
-              streaks={streaksData.streaks}
-              maxWinStreak={streaksData.max_win_streak}
-              maxLossStreak={streaksData.max_loss_streak}
-              currentStreak={streaksData.current_streak}
-              currentStreakType={streaksData.current_streak_type}
-            />
-          ) : (
-            <div className='tv-card p-12 flex flex-col items-center justify-center'>
-              <BarChart3 className='w-10 h-10 text-zinc-700 mb-3' />
-              <span className='text-sm text-zinc-500'>
-                No streak data available
-              </span>
-            </div>
-          )}
-        </>
-      )}
+                {/* Equity Curve — grows to fill remaining space */}
+                <div className='flex-1 min-h-[400px]'>
+                  <EquityCurveChart data={analytics.equityCurve} />
+                </div>
+
+                {/* Secondary charts below */}
+                <div className='grid grid-cols-1 lg:grid-cols-2 gap-4 shrink-0'>
+                  <WinRateDonut
+                    wins={analytics.outcomeDistribution.wins}
+                    losses={analytics.outcomeDistribution.losses}
+                    breakeven={analytics.outcomeDistribution.breakeven}
+                  />
+                  <PnlBySymbolChart data={analytics.pnlBySymbol} />
+                </div>
+
+                <div className='shrink-0'>
+                  <DailyPnlChart data={analytics.pnlByDay} />
+                </div>
+              </>
+            ) : (
+              <div className='tv-card p-12 flex flex-col items-center justify-center flex-1'>
+                <BarChart3 className='w-10 h-10 text-zinc-700 mb-3' />
+                <span className='text-sm text-zinc-500'>
+                  No analytics data available
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ══════ BREAKDOWN TAB ══════ */}
+        {activeTab === 'breakdown' && (
+          <>
+            {breakdownLoading ? (
+              <div className='space-y-4'>
+                <Skeleton className='h-64 rounded-lg bg-[#1e222d]' />
+                <Skeleton className='h-48 rounded-lg bg-[#1e222d]' />
+              </div>
+            ) : breakdown ? (
+              <div className='space-y-6'>
+                <div className='min-h-[300px]'>
+                  <HeatmapChart
+                    title='PnL by Hour of Day'
+                    rows={['PnL']}
+                    columns={HOUR_LABELS.filter((_, i) => i % 3 === 0)}
+                    data={[
+                      HOUR_LABELS.filter((_, i) => i % 3 === 0).map(
+                        (h) => breakdown.pnl_by_hour[h]?.pnl ?? 0,
+                      ),
+                    ]}
+                  />
+                </div>
+
+                <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
+                  <BreakdownTable
+                    title='By Symbol'
+                    data={breakdown.pnl_by_symbol}
+                  />
+                  <BreakdownTable
+                    title='By Day of Week'
+                    data={breakdown.pnl_by_day_of_week}
+                  />
+                </div>
+
+                <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
+                  <BreakdownTable
+                    title='By Zone Type'
+                    data={breakdown.pnl_by_zone_type}
+                  />
+                  <BreakdownTable
+                    title='By Entry Model'
+                    data={breakdown.pnl_by_entry_model}
+                  />
+                </div>
+
+                <BreakdownTable
+                  title='By AI Confidence'
+                  data={breakdown.win_rate_by_ai_confidence}
+                />
+              </div>
+            ) : (
+              <div className='tv-card p-12 flex flex-col items-center justify-center'>
+                <BarChart3 className='w-10 h-10 text-zinc-700 mb-3' />
+                <span className='text-sm text-zinc-500'>
+                  No breakdown data available
+                </span>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ══════ DRAWDOWN TAB ══════ */}
+        {activeTab === 'drawdown' && (
+          <>
+            {drawdownLoading || summaryLoading ? (
+              <div className='space-y-4'>
+                <Skeleton className='h-80 rounded-lg bg-[#1e222d]' />
+                <div className='grid grid-cols-2 lg:grid-cols-3 gap-4'>
+                  {[...Array(6)].map((_, i) => (
+                    <Skeleton
+                      key={i}
+                      className='h-24 rounded-lg bg-[#1e222d]'
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className='space-y-6'>
+                {drawdownData && (
+                  <DrawdownChart
+                    data={drawdownData.data}
+                    maxDrawdownPct={drawdownData.max_drawdown_pct}
+                    maxDrawdownAmount={drawdownData.max_drawdown_amount}
+                  />
+                )}
+                {summaryData && <SummaryCards data={summaryData} />}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ══════ STREAKS TAB ══════ */}
+        {activeTab === 'streaks' && (
+          <>
+            {streaksLoading ? (
+              <Skeleton className='h-96 rounded-lg bg-[#1e222d]' />
+            ) : streaksData ? (
+              <StreakTimeline
+                streaks={streaksData.streaks}
+                maxWinStreak={streaksData.max_win_streak}
+                maxLossStreak={streaksData.max_loss_streak}
+                currentStreak={streaksData.current_streak}
+                currentStreakType={streaksData.current_streak_type}
+              />
+            ) : (
+              <div className='tv-card p-12 flex flex-col items-center justify-center'>
+                <BarChart3 className='w-10 h-10 text-zinc-700 mb-3' />
+                <span className='text-sm text-zinc-500'>
+                  No streak data available
+                </span>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
