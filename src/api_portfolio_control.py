@@ -645,6 +645,34 @@ def get_account_comparison():
             raise
 
 
+
+@router.get("/accounts/{account_name}")
+def get_account_detail(account_name: str):
+    """Get detail for a single account by name."""
+    from src.services.account_orchestrator import AccountOrchestrator
+
+    for attempt in range(2):
+        try:
+            sb = _get_supabase()
+            orchestrator = AccountOrchestrator(sb)
+            accounts = orchestrator.get_account_comparison()
+            match = next(
+                (a for a in accounts if a.get("account_name") == account_name),
+                None,
+            )
+            if match is None:
+                raise HTTPException(404, detail=f"Account '{account_name}' not found")
+            return match
+        except HTTPException:
+            raise
+        except Exception as e:
+            if attempt == 0 and _is_connection_error(e):
+                logger.warning("Supabase connection error in account detail, retrying: %s", e)
+                reset_api_supabase()
+                continue
+            raise
+
+
 @router.post("/accounts/{account_name}/sync")
 def sync_account(account_name: str):
     """
