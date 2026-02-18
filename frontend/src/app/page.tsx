@@ -28,9 +28,9 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className='h-[calc(100vh-5rem)]'>
+    <div className='h-full flex flex-col min-h-0'>
       {/* Header */}
-      <div className='flex items-center justify-between mb-4'>
+      <div className='flex items-center justify-between mb-4 shrink-0'>
         <h1 className='text-lg font-semibold text-zinc-100'>Dashboard</h1>
 
         {/* Mode Tabs */}
@@ -70,15 +70,15 @@ export default function DashboardPage() {
       </div>
 
       {/* Pine Config Status */}
-      <div className='mb-4'>
+      <div className='mb-4 shrink-0'>
         <PineConfigStatus />
       </div>
 
-      {/* 2-Panel Responsive Layout */}
-      <div className='grid grid-cols-1 lg:grid-cols-3 gap-4 h-[calc(100%-7rem)] min-h-0'>
+      {/* 2-Panel Responsive Layout — fills remaining height */}
+      <div className='grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1 min-h-0'>
         {/* Left Panel: Widget Stack */}
-        <div className='flex flex-col gap-4 overflow-y-auto min-h-0 lg:pr-2'>
-          {/* Active Trades - Enforce min/max height */}
+        <div className='flex flex-col gap-4 overflow-y-auto scrollbar-thin min-h-0 lg:pr-2'>
+          {/* Active Trades */}
           <div className='min-h-[140px] max-h-[220px] shrink-0 overflow-hidden'>
             <ActiveTradesPanel
               mode={activeMode}
@@ -86,17 +86,17 @@ export default function DashboardPage() {
             />
           </div>
 
-          {/* Equity Chart - Enforce min height */}
+          {/* Equity Chart */}
           <div className='shrink-0 min-h-[160px]'>
             <MiniEquityChart mode={activeMode} />
           </div>
 
-          {/* Execution Quality - Enforce min height */}
+          {/* Execution Quality */}
           <div className='shrink-0 min-h-[180px]'>
             <ExecutionQualityWidget />
           </div>
 
-          {/* Portfolio Risk - Enforce min height */}
+          {/* Portfolio Risk */}
           <div className='shrink-0 min-h-[180px]'>
             <PortfolioRiskWidget />
           </div>
@@ -107,7 +107,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Right Panel: Signals Table (Prevents infinite growth) */}
+        {/* Right Panel: Signals Table */}
         <div className='lg:col-span-2 min-h-0 flex flex-1 overflow-hidden'>
           <RecentSignalsPanel
             mode={activeMode}
