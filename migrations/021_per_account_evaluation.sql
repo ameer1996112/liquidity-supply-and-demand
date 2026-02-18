@@ -11,11 +11,20 @@ ALTER TABLE public.broker_profiles
   ADD COLUMN IF NOT EXISTS evaluation_phase text NOT NULL DEFAULT 'phase1'
     CHECK (evaluation_phase IN ('phase1', 'phase2', 'funded')),
   ADD COLUMN IF NOT EXISTS evaluation_start_date date,
-  ADD COLUMN IF NOT EXISTS starting_balance real NOT NULL DEFAULT 10000.0,
+  ADD COLUMN IF NOT EXISTS starting_balance real NOT NULL DEFAULT 50000.0,
   ADD COLUMN IF NOT EXISTS max_daily_loss_pct real NOT NULL DEFAULT 5.0,
   ADD COLUMN IF NOT EXISTS max_drawdown_pct real NOT NULL DEFAULT 10.0,
   ADD COLUMN IF NOT EXISTS profit_target real NOT NULL DEFAULT 0.0,
   ADD COLUMN IF NOT EXISTS consistency_limit_pct real NOT NULL DEFAULT 40.0;
+
+-- Fix default for existing databases where column was already added with 10000
+ALTER TABLE public.broker_profiles
+  ALTER COLUMN starting_balance SET DEFAULT 50000.0;
+
+-- Backfill: update any rows still sitting at the old 10000 default
+UPDATE public.broker_profiles
+  SET starting_balance = 50000.0
+  WHERE starting_balance = 10000.0;
 
 COMMENT ON COLUMN public.broker_profiles.evaluation_mode IS
   'True if this account is in prop firm evaluation mode';

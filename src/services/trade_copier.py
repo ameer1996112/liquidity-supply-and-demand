@@ -104,7 +104,7 @@ class TradeCopier:
             Position size in lots for slave account
         """
         master_size = float(master_signal.get("size", 0.01))
-        master_balance = float(master_signal.get("account_balance", 10000))
+        master_balance = float(master_signal.get("account_balance", 50000))
 
         slave_balance = float(slave_account.get("allocated_capital_usd", 10000))
 

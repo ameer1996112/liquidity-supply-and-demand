@@ -59,8 +59,8 @@ class Settings(BaseSettings):
     )
     paper_symbols: str = ""
     paper_max_positions: int = 10
-    paper_account_balance: float = 10000.0
-    account_balance: float = 10000.0
+    paper_account_balance: float = 50000.0
+    account_balance: float = 50000.0
     risk_percent: float = 0.5  # Aligned with Pine Balanced profile
     min_rr_ratio: float = 0.0  # Disabled: Pine Script handles SL/TP rules. Set > 0 to enable backend R:R filter.
     stop_loss_buffer_pips: float = Field(default=1.0, ge=0.0, le=5.0, description="Extra pips added to SL beyond zone boundary (Pine: 1.0)")

@@ -89,20 +89,20 @@ class PineGuardian:
 
     Usage:
         guardian = PineGuardian(
-            account_balance=10000.0,
+            account_balance=50000.0,
             risk_per_trade_pct=0.5,
             max_daily_loss_pct=2.0,
             max_trades_per_day=2,
         )
 
-        result = guardian.validate_signal(signal_data, current_balance=10000.0)
+        result = guardian.validate_signal(signal_data, current_balance=50000.0)
         if not result.is_valid:
             logger.warning(f"Signal rejected: {result.rejection_message}")
     """
 
     def __init__(
         self,
-        account_balance: float = 10_000.0,
+        account_balance: float = 50_000.0,
         risk_per_trade_pct: float = DEFAULT_RISK_PER_TRADE_PCT,
         max_daily_loss_pct: float = DEFAULT_MAX_DAILY_LOSS_PCT,
         max_daily_profit_pct: float = DEFAULT_MAX_DAILY_PROFIT_PCT,
