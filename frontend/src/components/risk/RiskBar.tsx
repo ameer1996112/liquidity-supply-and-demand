@@ -32,7 +32,7 @@ function RiskGauge({
         <span
           className={cn(
             'text-[10px] font-mono font-semibold tabular-nums',
-            danger ? 'text-[#ff7288]' : 'text-[#d8e2f6]'
+            danger ? 'text-[#ff7e92]' : 'text-[#dbe5f8]'
           )}
         >
           {value}
@@ -43,7 +43,7 @@ function RiskGauge({
         <div
           className={cn(
             'h-full rounded-full transition-all duration-500',
-            danger ? 'bg-[#ff7288]' : 'bg-[#2ec9aa]'
+            danger ? 'bg-[#ff7e92]' : 'bg-[#3fc7ad]'
           )}
           style={{ width: `${pct}%` }}
         />
@@ -87,7 +87,7 @@ export function RiskBar() {
   const positionsDanger = risk.active_positions >= risk.max_positions;
 
   return (
-    <div className='relative flex items-center gap-3 rounded-xl border border-[rgba(95,119,163,0.3)] bg-[rgba(12,19,33,0.88)] px-3 py-2'>
+    <div className='relative flex items-center gap-3 rounded-xl border border-[rgba(110,131,170,0.34)] bg-[rgba(14,22,38,0.9)] px-3 py-2'>
       {/* Gauges - Daily P&L removed (TopBar already shows Daily PnL) */}
       <RiskGauge
         label='Drawdown'
@@ -112,7 +112,7 @@ export function RiskBar() {
         <span
           className={cn(
             'font-mono text-xs font-semibold tabular-nums',
-            positionsDanger ? 'text-[#ff7288]' : 'text-[#d8e2f6]'
+            positionsDanger ? 'text-[#ff7e92]' : 'text-[#dbe5f8]'
           )}
         >
           {risk.active_positions}/{risk.max_positions}
@@ -120,7 +120,7 @@ export function RiskBar() {
       </div>
 
       {/* Risk mode badge */}
-      <div className='flex items-center gap-1 rounded-lg border border-[rgba(95,119,163,0.3)] bg-[rgba(24,37,59,0.78)] px-2 py-1'>
+      <div className='flex items-center gap-1 rounded-lg border border-[rgba(110,131,170,0.34)] bg-[rgba(26,39,62,0.8)] px-2 py-1'>
         <Shield className='h-3 w-3 text-[#9aadd3]' />
         <span className='font-mono text-[9px] uppercase text-[#bed0f2]'>
           {risk.risk_label}
@@ -135,8 +135,8 @@ export function RiskBar() {
           'flex items-center gap-1.5 rounded-lg border px-2.5 py-1',
           'font-mono text-[10px] font-semibold uppercase tracking-wider transition-all',
           risk.kill_switch_active
-            ? 'animate-pulse border-[#ff7288] bg-[#ff7288] text-white'
-            : 'border-[rgba(95,119,163,0.3)] bg-[rgba(24,37,59,0.78)] text-[#c2d0eb] hover:border-[rgba(130,153,198,0.6)] hover:text-[#eef3ff]'
+            ? 'animate-pulse border-[#ff7e92] bg-[#ff7e92] text-white'
+            : 'border-[rgba(110,131,170,0.34)] bg-[rgba(26,39,62,0.8)] text-[#c7d4ed] hover:border-[rgba(138,160,202,0.62)] hover:text-[#eef3fb]'
         )}
       >
         <Power className='h-3.5 w-3.5' />
@@ -145,7 +145,7 @@ export function RiskBar() {
 
       {/* Confirm dialog */}
       {showConfirm && (
-        <div className='absolute right-0 top-10 z-50 min-w-[230px] rounded-xl border border-[rgba(95,119,163,0.44)] bg-[rgba(12,19,33,0.98)] p-4 shadow-[0_18px_36px_rgba(3,8,16,0.6)]'>
+        <div className='absolute right-0 top-10 z-50 min-w-[230px] rounded-xl border border-[rgba(110,131,170,0.46)] bg-[rgba(14,22,38,0.98)] p-4 shadow-[0_18px_36px_rgba(3,8,16,0.6)]'>
           <div className='mb-2 flex items-center gap-2'>
             <AlertTriangle className='h-4 w-4 text-[#ffb14f]' />
             <span className='text-xs font-semibold text-[#dce7ff]'>

@@ -46,8 +46,8 @@ export function Sidebar() {
       <aside
         className={cn(
           'fixed left-0 top-0 bottom-0 z-40 flex flex-col',
-          'border-r border-[rgba(90,113,154,0.35)]',
-          'bg-[linear-gradient(180deg,rgba(9,15,31,0.98)_0%,rgba(7,12,22,0.98)_100%)]',
+          'border-r border-[rgba(100,124,167,0.36)]',
+          'bg-[linear-gradient(180deg,rgba(10,17,35,0.98)_0%,rgba(8,13,25,0.98)_100%)]',
           'shadow-[8px_0_34px_rgba(2,5,14,0.5)]',
           'transition-all duration-200 ease-in-out',
           isCollapsed ? 'w-16' : 'w-60'
@@ -62,11 +62,11 @@ export function Sidebar() {
         >
           {!isCollapsed && (
             <div className='flex items-center gap-2.5'>
-              <div className='flex h-8 w-8 items-center justify-center rounded-xl border border-[rgba(104,129,179,0.4)] bg-[rgba(25,38,62,0.82)] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'>
-                <Activity className='h-[18px] w-[18px] text-[#2ec9aa]' />
+              <div className='flex h-8 w-8 items-center justify-center rounded-xl border border-[rgba(112,137,188,0.42)] bg-[rgba(28,42,69,0.84)] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'>
+                <Activity className='h-[18px] w-[18px] text-[#3fc7ad]' />
               </div>
               <div className='flex flex-col leading-tight'>
-                <span className='font-mono text-[13px] font-semibold tracking-tight text-[#ecf2ff]'>
+                <span className='text-[13px] font-semibold tracking-tight text-[#edf3fd]'>
                   TradeOps
                 </span>
                 <span className='text-[10px] uppercase tracking-[0.16em] text-[#8e9dbf]'>
@@ -75,7 +75,7 @@ export function Sidebar() {
               </div>
             </div>
           )}
-          {isCollapsed && <Activity className='h-5 w-5 text-[#2ec9aa]' />}
+          {isCollapsed && <Activity className='h-5 w-5 text-[#3fc7ad]' />}
         </div>
 
         {/* Navigation */}
@@ -94,8 +94,8 @@ export function Sidebar() {
                   'group relative flex items-center gap-3 rounded-xl px-3 py-2.5',
                   'transition-all duration-150',
                   isActive
-                    ? 'border border-[rgba(119,144,194,0.48)] bg-[linear-gradient(135deg,rgba(95,131,255,0.2)_0%,rgba(46,201,170,0.12)_100%)] text-[#f2f6ff] shadow-[0_8px_20px_rgba(7,13,25,0.4)]'
-                    : 'border border-transparent text-[#aab7d5] hover:border-[rgba(99,123,168,0.28)] hover:bg-[rgba(22,33,55,0.72)] hover:text-[#eef3ff]',
+                    ? 'border border-[rgba(126,150,198,0.5)] bg-[linear-gradient(135deg,rgba(110,141,255,0.2)_0%,rgba(63,199,173,0.12)_100%)] text-[#f3f7ff] shadow-[0_8px_20px_rgba(7,13,25,0.4)]'
+                    : 'border border-transparent text-[#aebbd8] hover:border-[rgba(109,132,176,0.3)] hover:bg-[rgba(24,36,59,0.72)] hover:text-[#eef3fb]',
                   isCollapsed && 'justify-center px-0'
                 )}
               >
@@ -107,8 +107,8 @@ export function Sidebar() {
                   className={cn(
                     'w-[18px] h-[18px] shrink-0',
                     isActive
-                      ? 'text-[#9ab4ff]'
-                      : 'text-[#8fa0c4] group-hover:text-[#d7e2fa]'
+                      ? 'text-[#a8bcff]'
+                      : 'text-[#94a5c9] group-hover:text-[#dbe5fa]'
                   )}
                 />
                 {!isCollapsed && (
@@ -141,8 +141,8 @@ export function Sidebar() {
             onClick={toggleCollapse}
             className={cn(
               'flex w-full items-center gap-3 rounded-xl px-3 py-2',
-              'border border-transparent text-[#aab7d5] transition-colors duration-150',
-              'hover:border-[rgba(99,123,168,0.28)] hover:bg-[rgba(22,33,55,0.72)] hover:text-[#eef3ff]',
+              'border border-transparent text-[#aebbd8] transition-colors duration-150',
+              'hover:border-[rgba(109,132,176,0.3)] hover:bg-[rgba(24,36,59,0.72)] hover:text-[#eef3fb]',
               isCollapsed && 'justify-center px-0'
             )}
           >
@@ -160,7 +160,7 @@ export function Sidebar() {
           {!isCollapsed && (
             <div className='px-3 py-1'>
               <span className='font-mono text-[10px] text-[#7d8db2]'>
-                v3.0 • UI refresh
+                v3.1 • refined UI
               </span>
             </div>
           )}

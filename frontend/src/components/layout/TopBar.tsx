@@ -32,20 +32,20 @@ interface MetricProps {
 
 function Metric({ label, value, icon, trend }: MetricProps) {
   return (
-    <div className='flex min-w-[120px] items-center gap-2 rounded-xl border border-[rgba(95,119,163,0.3)] bg-[rgba(17,26,44,0.86)] px-2.5 py-1.5'>
-      <div className='flex h-7 w-7 items-center justify-center rounded-lg border border-[rgba(102,126,173,0.4)] bg-[rgba(30,45,72,0.8)] text-[#9eb3dc]'>
+    <div className='flex min-w-[120px] items-center gap-2 rounded-xl border border-[rgba(110,131,170,0.34)] bg-[rgba(16,24,42,0.88)] px-2.5 py-1.5'>
+      <div className='flex h-7 w-7 items-center justify-center rounded-lg border border-[rgba(112,136,182,0.42)] bg-[rgba(31,47,76,0.82)] text-[#a8bde2]'>
         {icon}
       </div>
       <div className='flex flex-col'>
-        <span className='text-[10px] font-medium leading-none tracking-wider text-[#8e9dbf] uppercase'>
+        <span className='text-[10px] font-medium leading-none tracking-wider text-[#94a4c3] uppercase'>
           {label}
         </span>
         <span
           className={cn(
-            'font-mono text-sm font-semibold leading-tight tabular-nums',
-            trend === 'up' && 'text-[#2ec9aa]',
-            trend === 'down' && 'text-[#ff7288]',
-            !trend && 'text-[#edf3ff]'
+            'text-sm font-semibold leading-tight tabular-nums',
+            trend === 'up' && 'text-[#3fc7ad]',
+            trend === 'down' && 'text-[#ff7e92]',
+            !trend && 'text-[#eaf0fb]'
           )}
         >
           {value}
@@ -57,7 +57,7 @@ function Metric({ label, value, icon, trend }: MetricProps) {
 
 function MetricSkeleton() {
   return (
-    <div className='flex min-w-[120px] items-center gap-2 rounded-xl border border-[rgba(95,119,163,0.3)] bg-[rgba(17,26,44,0.86)] px-2.5 py-1.5'>
+    <div className='flex min-w-[120px] items-center gap-2 rounded-xl border border-[rgba(110,131,170,0.34)] bg-[rgba(16,24,42,0.88)] px-2.5 py-1.5'>
       <Skeleton className='h-7 w-7 rounded-lg bg-[rgba(30,45,72,0.8)]' />
       <div className='flex flex-col gap-1'>
         <Skeleton className='h-2.5 w-14 bg-[rgba(30,45,72,0.8)]' />
@@ -108,7 +108,7 @@ export function TopBar() {
   }, [signals]);
 
   return (
-    <header className='flex h-14 items-center justify-between gap-3 border-b border-[rgba(94,117,161,0.28)] bg-[rgba(8,14,25,0.86)] px-3 backdrop-blur-md sm:px-4'>
+    <header className='flex h-14 items-center justify-between gap-3 border-b border-[rgba(110,131,170,0.3)] bg-[rgba(10,16,31,0.88)] px-3 backdrop-blur-md sm:px-4'>
       {/* Left: Metrics */}
       <div className='scrollbar-thin flex items-center gap-2 overflow-x-auto pr-1'>
         {isLoading ? (
@@ -164,14 +164,14 @@ export function TopBar() {
         <AlertBell />
 
         {/* Connection indicator / mode badge */}
-        <div className='flex items-center gap-1.5 rounded-lg border border-[rgba(95,119,163,0.3)] bg-[rgba(17,26,44,0.86)] px-2.5 py-1'>
+        <div className='flex items-center gap-1.5 rounded-lg border border-[rgba(110,131,170,0.34)] bg-[rgba(16,24,42,0.88)] px-2.5 py-1'>
           <div
             className={cn(
               'h-1.5 w-1.5 rounded-full animate-pulse',
               mode === 'PAPER' ? 'bg-[#ffb14f]' : 'bg-[#2ec9aa]'
             )}
           />
-          <span className='font-mono text-[10px] uppercase tracking-wider text-[#9aabce]'>
+          <span className='text-[10px] uppercase tracking-wider text-[#9eaed0]'>
             {mode}
           </span>
         </div>
@@ -181,7 +181,7 @@ export function TopBar() {
           size='sm'
           onClick={handleRefresh}
           disabled={isRefreshing}
-          className='h-8 w-8 rounded-lg border border-transparent p-0 text-[#9aabce] hover:border-[rgba(95,119,163,0.3)] hover:bg-[rgba(17,26,44,0.86)] hover:text-[#edf3ff]'
+          className='h-8 w-8 rounded-lg border border-transparent p-0 text-[#9eaed0] hover:border-[rgba(110,131,170,0.34)] hover:bg-[rgba(16,24,42,0.88)] hover:text-[#eef3fb]'
         >
           <RefreshCw
             className={cn('w-3.5 h-3.5', isRefreshing && 'animate-spin')}
