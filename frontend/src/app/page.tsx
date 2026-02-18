@@ -17,7 +17,7 @@ import { cn } from '@/lib/utils';
 
 export default function DashboardPage() {
   const [selectedSignal, setSelectedSignal] = useState<TradingSignal | null>(
-    null,
+    null
   );
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const { mode: activeMode, setMode } = useTradingMode();
@@ -28,23 +28,28 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className='h-full flex flex-col min-h-0'>
+    <div className='flex h-full min-h-0 flex-col'>
       {/* Header */}
-      <div className='flex items-center justify-between mb-4 shrink-0'>
-        <h1 className='text-lg font-semibold text-zinc-100'>Dashboard</h1>
+      <div className='mb-4 flex items-center justify-between gap-3 shrink-0'>
+        <div>
+          <h1 className='page-title text-xl font-semibold'>Dashboard</h1>
+          <p className='page-subtitle mt-1 text-xs sm:text-sm'>
+            Live command center for signals, execution, and portfolio health.
+          </p>
+        </div>
 
         {/* Mode Tabs */}
         <Tabs
           value={activeMode.toLowerCase()}
           onValueChange={(v) => setMode(v === 'live' ? 'LIVE' : 'PAPER')}
         >
-          <TabsList className='bg-[#1e222d] border border-[#2a2e39] p-1'>
+          <TabsList className='surface-soft rounded-xl border border-[rgba(95,119,163,0.34)] p-1'>
             <TabsTrigger
               value='live'
               className={cn(
-                'data-[state=active]:bg-[#26a69a]/15 data-[state=active]:text-[#26a69a]',
-                'data-[state=inactive]:text-zinc-500',
-                'flex items-center gap-2 px-4 py-1.5 rounded transition-colors',
+                'data-[state=active]:bg-[rgba(46,201,170,0.18)] data-[state=active]:text-[#2ec9aa]',
+                'data-[state=inactive]:text-[#95a5c8]',
+                'flex items-center gap-2 rounded-lg px-4 py-1.5 transition-colors'
               )}
             >
               <Radio className='w-3.5 h-3.5' />
@@ -55,9 +60,9 @@ export default function DashboardPage() {
             <TabsTrigger
               value='paper'
               className={cn(
-                'data-[state=active]:bg-[#ff9800]/15 data-[state=active]:text-[#ff9800]',
-                'data-[state=inactive]:text-zinc-500',
-                'flex items-center gap-2 px-4 py-1.5 rounded transition-colors',
+                'data-[state=active]:bg-[rgba(255,177,79,0.18)] data-[state=active]:text-[#ffb14f]',
+                'data-[state=inactive]:text-[#95a5c8]',
+                'flex items-center gap-2 rounded-lg px-4 py-1.5 transition-colors'
               )}
             >
               <FlaskConical className='w-3.5 h-3.5' />
@@ -75,11 +80,11 @@ export default function DashboardPage() {
       </div>
 
       {/* 2-Panel Responsive Layout — fills remaining height */}
-      <div className='grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1 min-h-0'>
+      <div className='grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3'>
         {/* Left Panel: Widget Stack */}
-        <div className='flex flex-col gap-4 overflow-y-auto scrollbar-thin min-h-0 lg:pr-2'>
+        <div className='scrollbar-thin flex min-h-0 flex-col gap-4 overflow-y-auto lg:pr-2'>
           {/* Active Trades */}
-          <div className='min-h-[140px] max-h-[220px] shrink-0 overflow-hidden'>
+          <div className='min-h-[150px] max-h-[230px] shrink-0 overflow-hidden'>
             <ActiveTradesPanel
               mode={activeMode}
               onSelectSignal={handleSelectSignal}
@@ -87,17 +92,17 @@ export default function DashboardPage() {
           </div>
 
           {/* Equity Chart */}
-          <div className='shrink-0 min-h-[160px]'>
+          <div className='min-h-[170px] shrink-0'>
             <MiniEquityChart mode={activeMode} />
           </div>
 
           {/* Execution Quality */}
-          <div className='shrink-0 min-h-[180px]'>
+          <div className='min-h-[190px] shrink-0'>
             <ExecutionQualityWidget />
           </div>
 
           {/* Portfolio Risk */}
-          <div className='shrink-0 min-h-[180px]'>
+          <div className='min-h-[190px] shrink-0'>
             <PortfolioRiskWidget />
           </div>
 

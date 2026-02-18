@@ -1,10 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  useRiskStatus,
-  useKillSwitchMutation,
-} from '@/hooks/useRiskStatus';
+import { useRiskStatus, useKillSwitchMutation } from '@/hooks/useRiskStatus';
 import { Shield, AlertTriangle, Power } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -27,26 +24,26 @@ function RiskGauge({
   const pct = max > 0 ? Math.min((Math.abs(numericValue) / max) * 100, 100) : 0;
 
   return (
-    <div className="flex flex-col gap-0.5 min-w-[110px]">
-      <div className="flex items-center justify-between">
-        <span className="text-[9px] uppercase tracking-wider text-zinc-500 font-mono">
+    <div className='flex min-w-[122px] flex-col gap-1'>
+      <div className='flex items-center justify-between'>
+        <span className='font-mono text-[9px] uppercase tracking-[0.14em] text-[#8e9dbf]'>
           {label}
         </span>
         <span
           className={cn(
             'text-[10px] font-mono font-semibold tabular-nums',
-            danger ? 'text-[#ef5350]' : 'text-zinc-300',
+            danger ? 'text-[#ff7288]' : 'text-[#d8e2f6]'
           )}
         >
           {value}
           {unit}
         </span>
       </div>
-      <div className="h-1 bg-[#2a2e39] rounded-full overflow-hidden">
+      <div className='h-1.5 overflow-hidden rounded-full bg-[rgba(36,50,78,0.72)]'>
         <div
           className={cn(
             'h-full rounded-full transition-all duration-500',
-            danger ? 'bg-[#ef5350]' : 'bg-[#26a69a]',
+            danger ? 'bg-[#ff7288]' : 'bg-[#2ec9aa]'
           )}
           style={{ width: `${pct}%` }}
         />
@@ -66,7 +63,9 @@ export function RiskBar() {
 
   const dailyPnlPctForDanger =
     risk.starting_equity > 0 && (risk.live_daily_pnl ?? risk.daily_pnl) < 0
-      ? (Math.abs(risk.live_daily_pnl ?? risk.daily_pnl) / risk.starting_equity) * 100
+      ? (Math.abs(risk.live_daily_pnl ?? risk.daily_pnl) /
+          risk.starting_equity) *
+        100
       : 0;
 
   const handleToggle = () => {
@@ -88,32 +87,32 @@ export function RiskBar() {
   const positionsDanger = risk.active_positions >= risk.max_positions;
 
   return (
-    <div className="flex items-center gap-4 relative">
+    <div className='relative flex items-center gap-3 rounded-xl border border-[rgba(95,119,163,0.3)] bg-[rgba(12,19,33,0.88)] px-3 py-2'>
       {/* Gauges - Daily P&L removed (TopBar already shows Daily PnL) */}
       <RiskGauge
-        label="Drawdown"
+        label='Drawdown'
         value={risk.drawdown_pct.toFixed(1)}
         max={risk.max_drawdown_pct}
-        unit="%"
+        unit='%'
         danger={drawdownDanger}
       />
       <RiskGauge
-        label="Daily DD"
+        label='Daily DD'
         value={dailyDrawdownPct.toFixed(1)}
         max={risk.max_daily_loss_pct}
-        unit="%"
+        unit='%'
         danger={dailyDrawdownDanger}
       />
 
       {/* Positions counter */}
-      <div className="flex items-center gap-1.5">
-        <span className="text-[9px] uppercase tracking-wider text-zinc-500 font-mono">
+      <div className='flex items-center gap-1.5'>
+        <span className='font-mono text-[9px] uppercase tracking-[0.14em] text-[#8e9dbf]'>
           Pos
         </span>
         <span
           className={cn(
             'font-mono text-xs font-semibold tabular-nums',
-            positionsDanger ? 'text-[#ef5350]' : 'text-zinc-300',
+            positionsDanger ? 'text-[#ff7288]' : 'text-[#d8e2f6]'
           )}
         >
           {risk.active_positions}/{risk.max_positions}
@@ -121,9 +120,9 @@ export function RiskBar() {
       </div>
 
       {/* Risk mode badge */}
-      <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#1e222d]">
-        <Shield className="w-3 h-3 text-zinc-500" />
-        <span className="text-[9px] font-mono text-zinc-400 uppercase">
+      <div className='flex items-center gap-1 rounded-lg border border-[rgba(95,119,163,0.3)] bg-[rgba(24,37,59,0.78)] px-2 py-1'>
+        <Shield className='h-3 w-3 text-[#9aadd3]' />
+        <span className='font-mono text-[9px] uppercase text-[#bed0f2]'>
           {risk.risk_label}
         </span>
       </div>
@@ -133,39 +132,39 @@ export function RiskBar() {
         onClick={handleToggle}
         disabled={killMutation.isPending}
         className={cn(
-          'flex items-center gap-1.5 px-2.5 py-1 rounded-md',
+          'flex items-center gap-1.5 rounded-lg border px-2.5 py-1',
           'font-mono text-[10px] font-semibold uppercase tracking-wider transition-all',
           risk.kill_switch_active
-            ? 'bg-[#ef5350] text-white animate-pulse'
-            : 'bg-[#1e222d] text-zinc-400 hover:text-zinc-200 hover:bg-[#2a2e39]',
+            ? 'animate-pulse border-[#ff7288] bg-[#ff7288] text-white'
+            : 'border-[rgba(95,119,163,0.3)] bg-[rgba(24,37,59,0.78)] text-[#c2d0eb] hover:border-[rgba(130,153,198,0.6)] hover:text-[#eef3ff]'
         )}
       >
-        <Power className="w-3.5 h-3.5" />
+        <Power className='h-3.5 w-3.5' />
         {risk.kill_switch_active ? 'KILL ACTIVE' : 'KILL SWITCH'}
       </button>
 
       {/* Confirm dialog */}
       {showConfirm && (
-        <div className="absolute top-10 right-0 z-50 bg-[#1e222d] border border-[#2a2e39] rounded-lg p-4 shadow-xl min-w-[220px]">
-          <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle className="w-4 h-4 text-amber-500" />
-            <span className="text-xs text-zinc-300 font-semibold">
+        <div className='absolute right-0 top-10 z-50 min-w-[230px] rounded-xl border border-[rgba(95,119,163,0.44)] bg-[rgba(12,19,33,0.98)] p-4 shadow-[0_18px_36px_rgba(3,8,16,0.6)]'>
+          <div className='mb-2 flex items-center gap-2'>
+            <AlertTriangle className='h-4 w-4 text-[#ffb14f]' />
+            <span className='text-xs font-semibold text-[#dce7ff]'>
               Reset Kill Switch?
             </span>
           </div>
-          <p className="text-[11px] text-zinc-500 mb-3">
+          <p className='mb-3 text-[11px] text-[#93a5c8]'>
             This will allow trading to resume.
           </p>
-          <div className="flex gap-2">
+          <div className='flex gap-2'>
             <button
               onClick={confirmDisengage}
-              className="px-3 py-1 bg-[#26a69a] text-white rounded text-[10px] font-mono font-semibold"
+              className='rounded-md border border-[rgba(46,201,170,0.45)] bg-[rgba(46,201,170,0.2)] px-3 py-1 font-mono text-[10px] font-semibold text-[#dff9f3]'
             >
               Confirm
             </button>
             <button
               onClick={() => setShowConfirm(false)}
-              className="px-3 py-1 bg-[#2a2e39] text-zinc-400 rounded text-[10px] font-mono"
+              className='rounded-md border border-[rgba(95,119,163,0.32)] bg-[rgba(24,37,59,0.78)] px-3 py-1 font-mono text-[10px] text-[#b8c7e4]'
             >
               Cancel
             </button>

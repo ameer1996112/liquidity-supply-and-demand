@@ -36,7 +36,7 @@ const PERIODS = ['24h', '7d', '30d', 'all'] as const;
 
 const HOUR_LABELS = Array.from(
   { length: 24 },
-  (_, i) => `${String(i).padStart(2, '0')}:00`,
+  (_, i) => `${String(i).padStart(2, '0')}:00`
 );
 
 export default function AnalyticsPage() {
@@ -50,7 +50,7 @@ export default function AnalyticsPage() {
   const { data: analytics, isLoading } = useAnalytics(mode);
   const { data: breakdown, isLoading: breakdownLoading } = useBreakdown(
     period,
-    apiMode,
+    apiMode
   );
   const { data: streaksData, isLoading: streaksLoading } = useStreaks(apiMode);
   const { data: drawdownData, isLoading: drawdownLoading } =
@@ -59,24 +59,29 @@ export default function AnalyticsPage() {
 
   return (
     // Full-height flex column — fills the `main` flex-1 area
-    <div className='h-full flex flex-col gap-4 min-h-0'>
+    <div className='flex h-full min-h-0 flex-col gap-4'>
       {/* ── Sticky Header Row ─────────────────────────────── */}
-      <div className='flex items-center justify-between shrink-0'>
-        <h1 className='text-lg font-semibold text-zinc-100'>Analytics</h1>
+      <div className='shrink-0 flex flex-wrap items-start justify-between gap-3'>
+        <div>
+          <h1 className='page-title text-xl font-semibold'>Analytics</h1>
+          <p className='page-subtitle mt-1 text-sm'>
+            Performance insights across trades, risk, and consistency.
+          </p>
+        </div>
 
-        <div className='flex items-center gap-3'>
+        <div className='flex flex-wrap items-center gap-2'>
           {/* Period selector (breakdown tab only) */}
           {activeTab === 'breakdown' && (
-            <div className='flex items-center gap-1 bg-[#1e222d] border border-[#2a2e39] rounded-md p-1'>
+            <div className='surface-soft flex items-center gap-1 rounded-xl border border-[rgba(95,119,163,0.34)] p-1'>
               {PERIODS.map((p) => (
                 <button
                   key={p}
                   onClick={() => setPeriod(p)}
                   className={cn(
-                    'font-mono text-[11px] px-2.5 py-1 rounded transition-colors',
+                    'font-mono text-[11px] rounded-lg px-2.5 py-1 transition-colors',
                     period === p
-                      ? 'bg-[#2a2e39] text-zinc-200'
-                      : 'text-zinc-500 hover:text-zinc-300',
+                      ? 'bg-[rgba(95,131,255,0.2)] text-[#cfe0ff]'
+                      : 'text-[#9cafd4] hover:text-[#ecf2ff]'
                   )}
                 >
                   {p}
@@ -86,16 +91,16 @@ export default function AnalyticsPage() {
           )}
 
           {/* Mode Filter */}
-          <div className='flex items-center gap-1 bg-[#1e222d] border border-[#2a2e39] rounded-md p-1'>
+          <div className='surface-soft flex items-center gap-1 rounded-xl border border-[rgba(95,119,163,0.34)] p-1'>
             {(['ALL', 'LIVE', 'PAPER'] as ModeFilter[]).map((m) => (
               <button
                 key={m}
                 onClick={() => setModeFilter(m)}
                 className={cn(
-                  'font-mono text-[11px] px-3 py-1 rounded transition-colors',
+                  'font-mono text-[11px] rounded-lg px-3 py-1 transition-colors',
                   modeFilter === m
-                    ? 'bg-[#2a2e39] text-zinc-200'
-                    : 'text-zinc-500 hover:text-zinc-300',
+                    ? 'bg-[rgba(46,201,170,0.18)] text-[#c9faef]'
+                    : 'text-[#9cafd4] hover:text-[#ecf2ff]'
                 )}
               >
                 {m}
@@ -106,16 +111,16 @@ export default function AnalyticsPage() {
       </div>
 
       {/* ── Tab Bar ───────────────────────────────────────── */}
-      <div className='flex items-center gap-1 bg-[#1e222d] border border-[#2a2e39] rounded-md p-1 w-fit shrink-0'>
+      <div className='surface-soft flex w-fit shrink-0 items-center gap-1 rounded-xl border border-[rgba(95,119,163,0.34)] p-1'>
         {TABS.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
             className={cn(
-              'font-mono text-[11px] px-4 py-1.5 rounded transition-colors',
+              'font-mono text-[11px] rounded-lg px-4 py-1.5 transition-colors',
               activeTab === tab.key
-                ? 'bg-[#2a2e39] text-zinc-200'
-                : 'text-zinc-500 hover:text-zinc-300',
+                ? 'bg-[rgba(95,131,255,0.2)] text-[#d8e5ff]'
+                : 'text-[#9cafd4] hover:text-[#ecf2ff]'
             )}
           >
             {tab.label}
@@ -127,17 +132,20 @@ export default function AnalyticsPage() {
       <div className='flex-1 min-h-0 overflow-y-auto scrollbar-thin'>
         {/* ══════ OVERVIEW TAB ══════ */}
         {activeTab === 'overview' && (
-          <div className='flex flex-col gap-4 h-full min-h-0'>
+          <div className='flex h-full min-h-0 flex-col gap-4'>
             {isLoading ? (
-              <div className='grid grid-cols-2 lg:grid-cols-4 gap-4 shrink-0'>
+              <div className='grid shrink-0 grid-cols-2 gap-4 lg:grid-cols-4'>
                 {[...Array(4)].map((_, i) => (
-                  <Skeleton key={i} className='h-28 rounded-lg bg-[#1e222d]' />
+                  <Skeleton
+                    key={i}
+                    className='h-28 rounded-xl bg-[rgba(30,45,72,0.72)]'
+                  />
                 ))}
               </div>
             ) : analytics ? (
               <>
                 {/* KPI Row — natural height, never shrinks */}
-                <div className='grid grid-cols-2 lg:grid-cols-4 gap-4 shrink-0'>
+                <div className='grid shrink-0 grid-cols-2 gap-4 lg:grid-cols-4'>
                   <MetricCard
                     label='Win Rate'
                     value={`${analytics.winRate.toFixed(1)}%`}
@@ -191,8 +199,8 @@ export default function AnalyticsPage() {
               </>
             ) : (
               <div className='tv-card p-12 flex flex-col items-center justify-center flex-1'>
-                <BarChart3 className='w-10 h-10 text-zinc-700 mb-3' />
-                <span className='text-sm text-zinc-500'>
+                <BarChart3 className='mb-3 h-10 w-10 text-[#7588b0]' />
+                <span className='text-sm text-[#9aabd1]'>
                   No analytics data available
                 </span>
               </div>
@@ -205,8 +213,8 @@ export default function AnalyticsPage() {
           <>
             {breakdownLoading ? (
               <div className='space-y-4'>
-                <Skeleton className='h-64 rounded-lg bg-[#1e222d]' />
-                <Skeleton className='h-48 rounded-lg bg-[#1e222d]' />
+                <Skeleton className='h-64 rounded-xl bg-[rgba(30,45,72,0.72)]' />
+                <Skeleton className='h-48 rounded-xl bg-[rgba(30,45,72,0.72)]' />
               </div>
             ) : breakdown ? (
               <div className='space-y-6'>
@@ -217,7 +225,7 @@ export default function AnalyticsPage() {
                     columns={HOUR_LABELS.filter((_, i) => i % 3 === 0)}
                     data={[
                       HOUR_LABELS.filter((_, i) => i % 3 === 0).map(
-                        (h) => breakdown.pnl_by_hour[h]?.pnl ?? 0,
+                        (h) => breakdown.pnl_by_hour[h]?.pnl ?? 0
                       ),
                     ]}
                   />
@@ -252,8 +260,8 @@ export default function AnalyticsPage() {
               </div>
             ) : (
               <div className='tv-card p-12 flex flex-col items-center justify-center'>
-                <BarChart3 className='w-10 h-10 text-zinc-700 mb-3' />
-                <span className='text-sm text-zinc-500'>
+                <BarChart3 className='mb-3 h-10 w-10 text-[#7588b0]' />
+                <span className='text-sm text-[#9aabd1]'>
                   No breakdown data available
                 </span>
               </div>
@@ -266,12 +274,12 @@ export default function AnalyticsPage() {
           <>
             {drawdownLoading || summaryLoading ? (
               <div className='space-y-4'>
-                <Skeleton className='h-80 rounded-lg bg-[#1e222d]' />
-                <div className='grid grid-cols-2 lg:grid-cols-3 gap-4'>
+                <Skeleton className='h-80 rounded-xl bg-[rgba(30,45,72,0.72)]' />
+                <div className='grid grid-cols-2 gap-4 lg:grid-cols-3'>
                   {[...Array(6)].map((_, i) => (
                     <Skeleton
                       key={i}
-                      className='h-24 rounded-lg bg-[#1e222d]'
+                      className='h-24 rounded-xl bg-[rgba(30,45,72,0.72)]'
                     />
                   ))}
                 </div>
@@ -295,7 +303,7 @@ export default function AnalyticsPage() {
         {activeTab === 'streaks' && (
           <>
             {streaksLoading ? (
-              <Skeleton className='h-96 rounded-lg bg-[#1e222d]' />
+              <Skeleton className='h-96 rounded-xl bg-[rgba(30,45,72,0.72)]' />
             ) : streaksData ? (
               <StreakTimeline
                 streaks={streaksData.streaks}
@@ -306,8 +314,8 @@ export default function AnalyticsPage() {
               />
             ) : (
               <div className='tv-card p-12 flex flex-col items-center justify-center'>
-                <BarChart3 className='w-10 h-10 text-zinc-700 mb-3' />
-                <span className='text-sm text-zinc-500'>
+                <BarChart3 className='mb-3 h-10 w-10 text-[#7588b0]' />
+                <span className='text-sm text-[#9aabd1]'>
                   No streak data available
                 </span>
               </div>

@@ -5,14 +5,13 @@
 
 /* System font stack (no Google Fonts fetch at build — avoids CI/network errors) */
 :root {
-  --font-geist-sans:
-    ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-    'Segoe UI Symbol', 'Noto Color Emoji';
-  --font-geist-mono:
-    ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  --font-geist-sans: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
+    'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  --font-geist-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas,
+    monospace;
 }
 
-/* TradingView Professional Theme */
+/* Theme tokens */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -57,70 +56,108 @@
 }
 
 :root {
-  --radius: 0.5rem;
-  /* TradingView Dark Theme */
-  --background: #131722;
-  --foreground: #d1d4dc;
-  --card: #1e222d;
-  --card-foreground: #d1d4dc;
-  --popover: #1e222d;
-  --popover-foreground: #d1d4dc;
-  --primary: #2962ff;
+  --radius: 0.85rem;
+
+  /* Midnight trading desk palette */
+  --background: #070b14;
+  --foreground: #e6ebf5;
+  --card: #111a2c;
+  --card-foreground: #e6ebf5;
+  --popover: #0d1728;
+  --popover-foreground: #e6ebf5;
+  --primary: #5f83ff;
   --primary-foreground: #ffffff;
-  --secondary: #2a2e39;
-  --secondary-foreground: #d1d4dc;
-  --muted: #2a2e39;
-  --muted-foreground: #787b86;
-  --accent: #2a2e39;
-  --accent-foreground: #d1d4dc;
-  --destructive: #f23645;
-  --border: #2a2e39;
-  --input: #2a2e39;
-  --ring: #2962ff;
-  /* Chart colors - Trading themed */
-  --chart-1: #26a69a; /* Teal - Profit/Buy (TradingView green) */
-  --chart-2: #ef5350; /* Red - Loss/Sell (TradingView red) */
-  --chart-3: #ff9800; /* Orange - Warning */
-  --chart-4: #2962ff; /* Blue - Info */
-  --chart-5: #ab47bc; /* Purple - Accuracy */
+  --secondary: #19233a;
+  --secondary-foreground: #cfd8ea;
+  --muted: #161f33;
+  --muted-foreground: #8f9ab3;
+  --accent: #202d49;
+  --accent-foreground: #d9e3f7;
+  --destructive: #ff5f78;
+  --border: #2a3956;
+  --input: #22314c;
+  --ring: #7d9cff;
+
+  /* Chart colors */
+  --chart-1: #2ec9aa;
+  --chart-2: #ff657e;
+  --chart-3: #ffb14f;
+  --chart-4: #5f83ff;
+  --chart-5: #b98bff;
+
   /* Sidebar */
-  --sidebar: #0f1117;
-  --sidebar-foreground: #d1d4dc;
-  --sidebar-primary: #2962ff;
+  --sidebar: #090f1f;
+  --sidebar-foreground: #d6def0;
+  --sidebar-primary: #5f83ff;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #1e222d;
-  --sidebar-accent-foreground: #d1d4dc;
-  --sidebar-border: #2a2e39;
-  --sidebar-ring: #2962ff;
+  --sidebar-accent: #131e33;
+  --sidebar-accent-foreground: #d6def0;
+  --sidebar-border: #24324c;
+  --sidebar-ring: #7d9cff;
 }
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border outline-ring/40;
+  }
+
+  html,
+  body {
+    min-height: 100%;
   }
 
   html {
     color-scheme: dark;
+    scroll-behavior: smooth;
   }
 
   body {
-    @apply bg-background text-foreground;
-    font-feature-settings:
-      'rlig' 1,
-      'calt' 1;
+    @apply text-foreground antialiased;
+    background-color: var(--background);
+    background-image: radial-gradient(
+        900px circle at 5% -15%,
+        rgba(95, 131, 255, 0.18),
+        transparent 45%
+      ),
+      radial-gradient(
+        720px circle at 95% 0%,
+        rgba(46, 201, 170, 0.11),
+        transparent 48%
+      ),
+      linear-gradient(180deg, #090f1d 0%, #070b14 45%, #060a12 100%);
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+    letter-spacing: 0.01em;
+  }
+
+  ::selection {
+    background: rgba(95, 131, 255, 0.3);
+    color: #f5f8ff;
+  }
+
+  a {
+    color: inherit;
   }
 }
 
-/* Custom scrollbar - Minimal */
 @layer utilities {
+  .bg-grid-overlay {
+    background-image: linear-gradient(
+        to right,
+        rgba(138, 160, 199, 0.06) 1px,
+        transparent 1px
+      ),
+      linear-gradient(to bottom, rgba(138, 160, 199, 0.06) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+
   .scrollbar-thin {
     scrollbar-width: thin;
-    scrollbar-color: #363a45 transparent;
+    scrollbar-color: rgba(120, 138, 175, 0.45) transparent;
   }
 
   .scrollbar-thin::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 7px;
+    height: 7px;
   }
 
   .scrollbar-thin::-webkit-scrollbar-track {
@@ -128,23 +165,62 @@
   }
 
   .scrollbar-thin::-webkit-scrollbar-thumb {
-    background: #363a45;
+    background: rgba(120, 138, 175, 0.45);
     border-radius: 3px;
   }
 
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-    background: #4c505c;
+    background: rgba(134, 154, 193, 0.75);
   }
 }
 
-/* Card style - clean, no heavy shadows */
 .tv-card {
-  background: #1e222d;
-  border: 1px solid #2a2e39;
-  border-radius: 0.5rem;
+  background: linear-gradient(
+    165deg,
+    rgba(20, 30, 48, 0.93) 0%,
+    rgba(13, 20, 34, 0.96) 100%
+  );
+  border: 1px solid rgba(87, 108, 145, 0.22);
+  border-radius: calc(var(--radius) + 4px);
+  box-shadow: 0 14px 36px rgba(0, 4, 13, 0.46),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: border-color 180ms ease, transform 180ms ease,
+    box-shadow 180ms ease;
 }
 
-/* Active trade indicator pulse */
+.tv-card:hover {
+  border-color: rgba(121, 146, 195, 0.34);
+  box-shadow: 0 18px 42px rgba(0, 4, 13, 0.52),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.tv-divider {
+  border-color: rgba(94, 117, 161, 0.28) !important;
+}
+
+.tv-chip {
+  background: rgba(26, 38, 61, 0.82);
+  border: 1px solid rgba(84, 102, 138, 0.28);
+  border-radius: 9999px;
+  color: #d1dbef;
+}
+
+.page-title {
+  color: #eef3ff;
+  letter-spacing: 0.01em;
+}
+
+.page-subtitle {
+  color: #95a3c4;
+}
+
+.surface-soft {
+  background: rgba(20, 30, 48, 0.72);
+  border: 1px solid rgba(84, 102, 138, 0.24);
+}
+
 @keyframes pulse-emerald {
   0%,
   100% {
@@ -159,27 +235,23 @@
   animation: pulse-emerald 2s infinite;
 }
 
-/* Data table row hover effect */
 .data-row {
   transition: background-color 0.15s ease;
 }
 
 .data-row:hover {
-  background-color: rgba(42, 46, 57, 0.5);
+  background-color: rgba(36, 50, 78, 0.5);
 }
 
-/* Monospace numbers */
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
 
-/* High density table */
 .table-dense th,
 .table-dense td {
-  padding: 0.5rem 0.75rem;
+  padding: 0.55rem 0.8rem;
 }
 
-/* Badge animations */
 .badge-pulse {
   animation: badge-pulse 2s ease-in-out infinite;
 }
@@ -207,34 +279,32 @@
 }
 
 .status-dot-warning {
-  background-color: #ff9800;
-  box-shadow: 0 0 6px #ff9800;
+  background-color: #ffb14f;
+  box-shadow: 0 0 6px #ffb14f;
 }
 
 .status-dot-error {
-  background-color: #f23645;
-  box-shadow: 0 0 6px #f23645;
+  background-color: #ff5f78;
+  box-shadow: 0 0 6px #ff5f78;
 }
 
-/* Sheet/Drawer backdrop blur */
 [data-state='open'] > [data-radix-dialog-overlay] {
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
-/* Trading colors (semantic) */
 .text-profit {
-  color: #26a69a;
+  color: #2ec9aa;
 }
 
 .text-loss {
-  color: #ef5350;
+  color: #ff657e;
 }
 
 .bg-profit {
-  background-color: #26a69a;
+  background-color: #2ec9aa;
 }
 
 .bg-loss {
-  background-color: #ef5350;
+  background-color: #ff657e;
 }

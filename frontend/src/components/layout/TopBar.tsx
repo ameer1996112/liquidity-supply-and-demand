@@ -1,7 +1,11 @@
 'use client';
 
 import { useMemo } from 'react';
-import { useSignalStats, useRefreshSignals, useTradingSignals } from '@/hooks/useTradingSignals';
+import {
+  useSignalStats,
+  useRefreshSignals,
+  useTradingSignals,
+} from '@/hooks/useTradingSignals';
 import { useTradingMode } from '@/providers/TradingModeProvider';
 import { getPnl } from '@/types/trading';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -28,20 +32,20 @@ interface MetricProps {
 
 function Metric({ label, value, icon, trend }: MetricProps) {
   return (
-    <div className="flex items-center gap-2 px-4">
-      <div className="flex items-center justify-center w-7 h-7 rounded bg-[#1e222d] text-zinc-500">
+    <div className='flex min-w-[120px] items-center gap-2 rounded-xl border border-[rgba(95,119,163,0.3)] bg-[rgba(17,26,44,0.86)] px-2.5 py-1.5'>
+      <div className='flex h-7 w-7 items-center justify-center rounded-lg border border-[rgba(102,126,173,0.4)] bg-[rgba(30,45,72,0.8)] text-[#9eb3dc]'>
         {icon}
       </div>
-      <div className="flex flex-col">
-        <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-medium leading-none">
+      <div className='flex flex-col'>
+        <span className='text-[10px] font-medium leading-none tracking-wider text-[#8e9dbf] uppercase'>
           {label}
         </span>
         <span
           className={cn(
             'font-mono text-sm font-semibold leading-tight tabular-nums',
-            trend === 'up' && 'text-emerald-400',
-            trend === 'down' && 'text-red-400',
-            !trend && 'text-zinc-200'
+            trend === 'up' && 'text-[#2ec9aa]',
+            trend === 'down' && 'text-[#ff7288]',
+            !trend && 'text-[#edf3ff]'
           )}
         >
           {value}
@@ -53,11 +57,11 @@ function Metric({ label, value, icon, trend }: MetricProps) {
 
 function MetricSkeleton() {
   return (
-    <div className="flex items-center gap-2 px-4">
-      <Skeleton className="w-7 h-7 rounded bg-[#1e222d]" />
-      <div className="flex flex-col gap-1">
-        <Skeleton className="w-14 h-2.5 bg-[#1e222d]" />
-        <Skeleton className="w-10 h-3.5 bg-[#1e222d]" />
+    <div className='flex min-w-[120px] items-center gap-2 rounded-xl border border-[rgba(95,119,163,0.3)] bg-[rgba(17,26,44,0.86)] px-2.5 py-1.5'>
+      <Skeleton className='h-7 w-7 rounded-lg bg-[rgba(30,45,72,0.8)]' />
+      <div className='flex flex-col gap-1'>
+        <Skeleton className='h-2.5 w-14 bg-[rgba(30,45,72,0.8)]' />
+        <Skeleton className='h-3.5 w-10 bg-[rgba(30,45,72,0.8)]' />
       </div>
     </div>
   );
@@ -90,8 +94,8 @@ export function TopBar() {
 
   const dailyPnl =
     mode === 'PAPER'
-      ? (stats?.paper_daily_pnl ?? stats?.paper_pnl_24h ?? 0)
-      : (stats?.live_daily_pnl ?? stats?.live_pnl_24h ?? 0);
+      ? stats?.paper_daily_pnl ?? stats?.paper_pnl_24h ?? 0
+      : stats?.live_daily_pnl ?? stats?.live_pnl_24h ?? 0;
 
   // Total PnL: use same source as Equity Curve (closed signals for current mode) for consistency
   const totalPnl = useMemo(() => {
@@ -104,9 +108,9 @@ export function TopBar() {
   }, [signals]);
 
   return (
-    <header className="h-12 bg-[#0f1117] border-b border-[#2a2e39] flex items-center justify-between px-4">
+    <header className='flex h-14 items-center justify-between gap-3 border-b border-[rgba(94,117,161,0.28)] bg-[rgba(8,14,25,0.86)] px-3 backdrop-blur-md sm:px-4'>
       {/* Left: Metrics */}
-      <div className="flex items-center divide-x divide-[#2a2e39]">
+      <div className='scrollbar-thin flex items-center gap-2 overflow-x-auto pr-1'>
         {isLoading ? (
           <>
             <MetricSkeleton />
@@ -117,32 +121,32 @@ export function TopBar() {
         ) : (
           <>
             <Metric
-              label="Win Rate"
+              label='Win Rate'
               value={`${winRate.toFixed(1)}%`}
               icon={
                 winRate >= 50 ? (
-                  <TrendingUp className="w-3.5 h-3.5" />
+                  <TrendingUp className='w-3.5 h-3.5' />
                 ) : (
-                  <TrendingDown className="w-3.5 h-3.5" />
+                  <TrendingDown className='w-3.5 h-3.5' />
                 )
               }
               trend={winRate >= 50 ? 'up' : 'down'}
             />
             <Metric
-              label="Active"
+              label='Active'
               value={stats?.active_trades || 0}
-              icon={<Zap className="w-3.5 h-3.5" />}
+              icon={<Zap className='w-3.5 h-3.5' />}
             />
             <Metric
-              label="Daily PnL"
+              label='Daily PnL'
               value={`${dailyPnl >= 0 ? '+' : ''}$${dailyPnl.toFixed(2)}`}
-              icon={<DollarSign className="w-3.5 h-3.5" />}
+              icon={<DollarSign className='w-3.5 h-3.5' />}
               trend={dailyPnl >= 0 ? 'up' : 'down'}
             />
             <Metric
-              label="Total PnL"
+              label='Total PnL'
               value={`${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(2)}`}
-              icon={<Activity className="w-3.5 h-3.5" />}
+              icon={<Activity className='w-3.5 h-3.5' />}
               trend={totalPnl >= 0 ? 'up' : 'down'}
             />
           </>
@@ -150,32 +154,34 @@ export function TopBar() {
       </div>
 
       {/* Center: Risk Cockpit */}
-      <RiskBar />
+      <div className='hidden xl:flex xl:flex-1 xl:justify-center'>
+        <RiskBar />
+      </div>
 
       {/* Right: Actions */}
-      <div className="flex items-center gap-3">
+      <div className='flex items-center gap-2 sm:gap-3'>
         {/* Alerts */}
         <AlertBell />
 
         {/* Connection indicator / mode badge */}
-        <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-[#1e222d]">
+        <div className='flex items-center gap-1.5 rounded-lg border border-[rgba(95,119,163,0.3)] bg-[rgba(17,26,44,0.86)] px-2.5 py-1'>
           <div
             className={cn(
-              'w-1.5 h-1.5 rounded-full animate-pulse',
-              mode === 'PAPER' ? 'bg-amber-400' : 'bg-emerald-400'
+              'h-1.5 w-1.5 rounded-full animate-pulse',
+              mode === 'PAPER' ? 'bg-[#ffb14f]' : 'bg-[#2ec9aa]'
             )}
           />
-          <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-mono">
+          <span className='font-mono text-[10px] uppercase tracking-wider text-[#9aabce]'>
             {mode}
           </span>
         </div>
 
         <Button
-          variant="ghost"
-          size="sm"
+          variant='ghost'
+          size='sm'
           onClick={handleRefresh}
           disabled={isRefreshing}
-          className="h-8 w-8 p-0 text-zinc-500 hover:text-zinc-300 hover:bg-[#1e222d]"
+          className='h-8 w-8 rounded-lg border border-transparent p-0 text-[#9aabce] hover:border-[rgba(95,119,163,0.3)] hover:bg-[rgba(17,26,44,0.86)] hover:text-[#edf3ff]'
         >
           <RefreshCw
             className={cn('w-3.5 h-3.5', isRefreshing && 'animate-spin')}

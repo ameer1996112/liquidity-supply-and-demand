@@ -12,39 +12,51 @@ export default function PositionsPage() {
   const positions = data?.positions || [];
 
   return (
-    <div className="space-y-6">
+    <div className='space-y-6'>
       {/* Header */}
-      <div className="flex items-center gap-2">
-        <Crosshair className="w-5 h-5 text-zinc-400" />
-        <h1 className="text-lg font-semibold text-zinc-100">
-          Position Command Center
-        </h1>
+      <div>
+        <div className='flex items-center gap-2'>
+          <Crosshair className='h-5 w-5 text-[#9db1d8]' />
+          <h1 className='page-title text-xl font-semibold'>
+            Position Command Center
+          </h1>
+        </div>
+        <p className='page-subtitle mt-1 text-sm'>
+          Manage active positions, exposure, and optimizer actions in real time.
+        </p>
       </div>
 
       {/* Account Bar */}
-      <AccountBar />
+      <div className='tv-card p-2'>
+        <AccountBar />
+      </div>
 
       {/* Portfolio Optimizer: batch actions, hedging, trailing stops */}
-      <OptimizerPanel />
+      <div className='tv-card p-2'>
+        <OptimizerPanel />
+      </div>
 
       {/* Positions */}
       {isLoading ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className='grid grid-cols-1 gap-4 lg:grid-cols-2'>
           {[...Array(3)].map((_, i) => (
-            <Skeleton key={i} className="h-48 rounded-lg bg-[#1e222d]" />
+            <Skeleton
+              key={i}
+              className='h-48 rounded-xl bg-[rgba(30,45,72,0.72)]'
+            />
           ))}
         </div>
       ) : positions.length > 0 ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className='grid grid-cols-1 gap-4 lg:grid-cols-2'>
           {positions.map((pos) => (
             <PositionCard key={pos.id} position={pos} />
           ))}
         </div>
       ) : (
-        <div className="tv-card p-12 flex flex-col items-center justify-center">
-          <Crosshair className="w-10 h-10 text-zinc-700 mb-3" />
-          <span className="text-sm text-zinc-500">No active positions</span>
-          <span className="text-xs text-zinc-600 mt-1">
+        <div className='tv-card flex flex-col items-center justify-center p-12'>
+          <Crosshair className='mb-3 h-10 w-10 text-[#7488b2]' />
+          <span className='text-sm text-[#a8b8da]'>No active positions</span>
+          <span className='mt-1 text-xs text-[#8497be]'>
             Positions will appear here when trades are executed
           </span>
         </div>
