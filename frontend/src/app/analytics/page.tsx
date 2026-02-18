@@ -8,7 +8,6 @@ import {
   useDrawdown,
   useSummary,
 } from '@/hooks/usePerformanceAnalytics';
-import { TradingMode } from '@/types/trading';
 import { MetricCard } from '@/components/analytics/MetricCard';
 import { EquityCurveChart } from '@/components/analytics/EquityCurveChart';
 import { WinRateDonut } from '@/components/analytics/WinRateDonut';
@@ -21,12 +20,7 @@ import { StreakTimeline } from '@/components/analytics/StreakTimeline';
 import { SummaryCards } from '@/components/analytics/SummaryCards';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import {
-  Target,
-  TrendingUp,
-  BarChart3,
-  Hash,
-} from 'lucide-react';
+import { Target, TrendingUp, BarChart3, Hash } from 'lucide-react';
 
 type ModeFilter = 'LIVE' | 'PAPER' | 'ALL';
 type AnalyticsTab = 'overview' | 'breakdown' | 'drawdown' | 'streaks';
@@ -40,7 +34,10 @@ const TABS: { key: AnalyticsTab; label: string }[] = [
 
 const PERIODS = ['24h', '7d', '30d', 'all'] as const;
 
-const HOUR_LABELS = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}:00`);
+const HOUR_LABELS = Array.from(
+  { length: 24 },
+  (_, i) => `${String(i).padStart(2, '0')}:00`,
+);
 
 export default function AnalyticsPage() {
   const [modeFilter, setModeFilter] = useState<ModeFilter>('ALL');
@@ -54,21 +51,25 @@ export default function AnalyticsPage() {
   const { data: analytics, isLoading } = useAnalytics(mode);
 
   // Performance Intelligence tab data (only fetch when tab active)
-  const { data: breakdown, isLoading: breakdownLoading } = useBreakdown(period, apiMode);
+  const { data: breakdown, isLoading: breakdownLoading } = useBreakdown(
+    period,
+    apiMode,
+  );
   const { data: streaksData, isLoading: streaksLoading } = useStreaks(apiMode);
-  const { data: drawdownData, isLoading: drawdownLoading } = useDrawdown(apiMode);
+  const { data: drawdownData, isLoading: drawdownLoading } =
+    useDrawdown(apiMode);
   const { data: summaryData, isLoading: summaryLoading } = useSummary(apiMode);
 
   return (
-    <div className="space-y-6">
+    <div className='space-y-6'>
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-zinc-100">Analytics</h1>
+      <div className='flex items-center justify-between'>
+        <h1 className='text-lg font-semibold text-zinc-100'>Analytics</h1>
 
-        <div className="flex items-center gap-3">
+        <div className='flex items-center gap-3'>
           {/* Period selector (for breakdown tab) */}
           {activeTab === 'breakdown' && (
-            <div className="flex items-center gap-1 bg-[#1e222d] border border-[#2a2e39] rounded-md p-1">
+            <div className='flex items-center gap-1 bg-[#1e222d] border border-[#2a2e39] rounded-md p-1'>
               {PERIODS.map((p) => (
                 <button
                   key={p}
@@ -87,7 +88,7 @@ export default function AnalyticsPage() {
           )}
 
           {/* Mode Filter */}
-          <div className="flex items-center gap-1 bg-[#1e222d] border border-[#2a2e39] rounded-md p-1">
+          <div className='flex items-center gap-1 bg-[#1e222d] border border-[#2a2e39] rounded-md p-1'>
             {(['ALL', 'LIVE', 'PAPER'] as ModeFilter[]).map((m) => (
               <button
                 key={m}
@@ -107,7 +108,7 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 bg-[#1e222d] border border-[#2a2e39] rounded-md p-1 w-fit">
+      <div className='flex items-center gap-1 bg-[#1e222d] border border-[#2a2e39] rounded-md p-1 w-fit'>
         {TABS.map((tab) => (
           <button
             key={tab.key}
@@ -128,45 +129,51 @@ export default function AnalyticsPage() {
       {activeTab === 'overview' && (
         <>
           {isLoading ? (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className='grid grid-cols-2 lg:grid-cols-4 gap-4'>
               {[...Array(4)].map((_, i) => (
-                <Skeleton key={i} className="h-28 rounded-lg bg-[#1e222d]" />
+                <Skeleton key={i} className='h-28 rounded-lg bg-[#1e222d]' />
               ))}
             </div>
           ) : analytics ? (
             <>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className='grid grid-cols-2 lg:grid-cols-4 gap-4'>
                 <MetricCard
-                  label="Win Rate"
+                  label='Win Rate'
                   value={`${analytics.winRate.toFixed(1)}%`}
-                  icon={<Target className="w-4 h-4" />}
+                  icon={<Target className='w-4 h-4' />}
                   trend={analytics.winRate >= 50 ? 'up' : 'down'}
                   subtitle={`${analytics.outcomeDistribution.wins}W / ${analytics.outcomeDistribution.losses}L`}
                 />
                 <MetricCard
-                  label="Profit Factor"
-                  value={analytics.profitFactor >= 999 ? 'Inf' : analytics.profitFactor.toFixed(2)}
-                  icon={<TrendingUp className="w-4 h-4" />}
+                  label='Profit Factor'
+                  value={
+                    analytics.profitFactor >= 999
+                      ? 'Inf'
+                      : analytics.profitFactor.toFixed(2)
+                  }
+                  icon={<TrendingUp className='w-4 h-4' />}
                   trend={analytics.profitFactor >= 1 ? 'up' : 'down'}
                   subtitle={`Avg Win: $${analytics.avgWin.toFixed(2)}`}
                 />
                 <MetricCard
-                  label="Avg R:R"
+                  label='Avg R:R'
                   value={`1:${analytics.avgRR.toFixed(1)}`}
-                  icon={<BarChart3 className="w-4 h-4" />}
+                  icon={<BarChart3 className='w-4 h-4' />}
                   subtitle={`Avg Loss: $${analytics.avgLoss.toFixed(2)}`}
                 />
                 <MetricCard
-                  label="Total Trades"
+                  label='Total Trades'
                   value={analytics.closedTrades}
-                  icon={<Hash className="w-4 h-4" />}
+                  icon={<Hash className='w-4 h-4' />}
                   subtitle={`${analytics.totalTrades} signals total`}
                 />
               </div>
 
-              <EquityCurveChart data={analytics.equityCurve} />
+              <div className='min-h-[400px] h-full'>
+                <EquityCurveChart data={analytics.equityCurve} />
+              </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
                 <WinRateDonut
                   wins={analytics.outcomeDistribution.wins}
                   losses={analytics.outcomeDistribution.losses}
@@ -178,9 +185,11 @@ export default function AnalyticsPage() {
               <DailyPnlChart data={analytics.pnlByDay} />
             </>
           ) : (
-            <div className="tv-card p-12 flex flex-col items-center justify-center">
-              <BarChart3 className="w-10 h-10 text-zinc-700 mb-3" />
-              <span className="text-sm text-zinc-500">No analytics data available</span>
+            <div className='tv-card p-12 flex flex-col items-center justify-center'>
+              <BarChart3 className='w-10 h-10 text-zinc-700 mb-3' />
+              <span className='text-sm text-zinc-500'>
+                No analytics data available
+              </span>
             </div>
           )}
         </>
@@ -190,42 +199,58 @@ export default function AnalyticsPage() {
       {activeTab === 'breakdown' && (
         <>
           {breakdownLoading ? (
-            <div className="space-y-4">
-              <Skeleton className="h-64 rounded-lg bg-[#1e222d]" />
-              <Skeleton className="h-48 rounded-lg bg-[#1e222d]" />
+            <div className='space-y-4'>
+              <Skeleton className='h-64 rounded-lg bg-[#1e222d]' />
+              <Skeleton className='h-48 rounded-lg bg-[#1e222d]' />
             </div>
           ) : breakdown ? (
-            <div className="space-y-6">
-              <HeatmapChart
-                title="PnL by Hour of Day"
-                rows={['PnL']}
-                columns={HOUR_LABELS.filter((_, i) => i % 3 === 0)}
-                data={[
-                  HOUR_LABELS.filter((_, i) => i % 3 === 0).map(
-                    (h) => breakdown.pnl_by_hour[h]?.pnl ?? 0,
-                  ),
-                ]}
-              />
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <BreakdownTable title="By Symbol" data={breakdown.pnl_by_symbol} />
-                <BreakdownTable title="By Day of Week" data={breakdown.pnl_by_day_of_week} />
+            <div className='space-y-6'>
+              <div className='min-h-[300px]'>
+                <HeatmapChart
+                  title='PnL by Hour of Day'
+                  rows={['PnL']}
+                  columns={HOUR_LABELS.filter((_, i) => i % 3 === 0)}
+                  data={[
+                    HOUR_LABELS.filter((_, i) => i % 3 === 0).map(
+                      (h) => breakdown.pnl_by_hour[h]?.pnl ?? 0,
+                    ),
+                  ]}
+                />
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <BreakdownTable title="By Zone Type" data={breakdown.pnl_by_zone_type} />
-                <BreakdownTable title="By Entry Model" data={breakdown.pnl_by_entry_model} />
+              <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
+                <BreakdownTable
+                  title='By Symbol'
+                  data={breakdown.pnl_by_symbol}
+                />
+                <BreakdownTable
+                  title='By Day of Week'
+                  data={breakdown.pnl_by_day_of_week}
+                />
+              </div>
+
+              <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
+                <BreakdownTable
+                  title='By Zone Type'
+                  data={breakdown.pnl_by_zone_type}
+                />
+                <BreakdownTable
+                  title='By Entry Model'
+                  data={breakdown.pnl_by_entry_model}
+                />
               </div>
 
               <BreakdownTable
-                title="By AI Confidence"
+                title='By AI Confidence'
                 data={breakdown.win_rate_by_ai_confidence}
               />
             </div>
           ) : (
-            <div className="tv-card p-12 flex flex-col items-center justify-center">
-              <BarChart3 className="w-10 h-10 text-zinc-700 mb-3" />
-              <span className="text-sm text-zinc-500">No breakdown data available</span>
+            <div className='tv-card p-12 flex flex-col items-center justify-center'>
+              <BarChart3 className='w-10 h-10 text-zinc-700 mb-3' />
+              <span className='text-sm text-zinc-500'>
+                No breakdown data available
+              </span>
             </div>
           )}
         </>
@@ -235,16 +260,16 @@ export default function AnalyticsPage() {
       {activeTab === 'drawdown' && (
         <>
           {drawdownLoading || summaryLoading ? (
-            <div className="space-y-4">
-              <Skeleton className="h-80 rounded-lg bg-[#1e222d]" />
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className='space-y-4'>
+              <Skeleton className='h-80 rounded-lg bg-[#1e222d]' />
+              <div className='grid grid-cols-2 lg:grid-cols-3 gap-4'>
                 {[...Array(6)].map((_, i) => (
-                  <Skeleton key={i} className="h-24 rounded-lg bg-[#1e222d]" />
+                  <Skeleton key={i} className='h-24 rounded-lg bg-[#1e222d]' />
                 ))}
               </div>
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className='space-y-6'>
               {drawdownData && (
                 <DrawdownChart
                   data={drawdownData.data}
@@ -262,7 +287,7 @@ export default function AnalyticsPage() {
       {activeTab === 'streaks' && (
         <>
           {streaksLoading ? (
-            <Skeleton className="h-96 rounded-lg bg-[#1e222d]" />
+            <Skeleton className='h-96 rounded-lg bg-[#1e222d]' />
           ) : streaksData ? (
             <StreakTimeline
               streaks={streaksData.streaks}
@@ -272,9 +297,11 @@ export default function AnalyticsPage() {
               currentStreakType={streaksData.current_streak_type}
             />
           ) : (
-            <div className="tv-card p-12 flex flex-col items-center justify-center">
-              <BarChart3 className="w-10 h-10 text-zinc-700 mb-3" />
-              <span className="text-sm text-zinc-500">No streak data available</span>
+            <div className='tv-card p-12 flex flex-col items-center justify-center'>
+              <BarChart3 className='w-10 h-10 text-zinc-700 mb-3' />
+              <span className='text-sm text-zinc-500'>
+                No streak data available
+              </span>
             </div>
           )}
         </>

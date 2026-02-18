@@ -200,7 +200,7 @@ export function useLiveTrading(): LiveTradingData {
 
     // Account
     account: {
-      balance: accountData?.balance || 0,
+      balance: accountData?.balance ?? 50000,
       equity: accountData?.equity || 0,
       freeMargin: accountData?.free_margin || 0,
       marginUsed: accountData?.margin_used || 0,

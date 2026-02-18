@@ -3,7 +3,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { getPortfolioControlUrl } from '@/lib/api';
 
-const ACCOUNTS_COMPARISON_KEY = ['portfolio-control', 'accounts', 'comparison'] as const;
+const ACCOUNTS_COMPARISON_KEY = [
+  'portfolio-control',
+  'accounts',
+  'comparison',
+] as const;
 
 export interface AddAccountStrategyInput {
   account_name: string;
@@ -19,7 +23,9 @@ export interface AddAccountStrategyInput {
   meta_api_token_env_key?: string;
 }
 
-async function createAccountStrategy(input: AddAccountStrategyInput): Promise<unknown> {
+async function createAccountStrategy(
+  input: AddAccountStrategyInput,
+): Promise<unknown> {
   const url = getPortfolioControlUrl('/accounts');
   if (!url) throw new Error('Backend API URL not configured');
 
@@ -30,7 +36,7 @@ async function createAccountStrategy(input: AddAccountStrategyInput): Promise<un
     strategy_type: input.strategy_type ?? 'BALANCED',
     risk_percent: input.risk_percent ?? 1,
     max_positions: input.max_positions ?? 3,
-    allocated_capital_usd: input.allocated_capital_usd ?? 10000,
+    allocated_capital_usd: input.allocated_capital_usd ?? 50000,
     max_lot_size: input.max_lot_size ?? 1,
     min_rr_ratio: input.min_rr_ratio ?? 0,
     meta_api_account_id: (input.meta_api_account_id || '').trim() || null,
@@ -48,7 +54,10 @@ async function createAccountStrategy(input: AddAccountStrategyInput): Promise<un
     let message = `Failed (${res.status})`;
     try {
       const body = await res.json();
-      const detail = typeof body?.detail === 'string' ? body.detail : body?.detail?.join?.(' ') ?? body?.message;
+      const detail =
+        typeof body?.detail === 'string'
+          ? body.detail
+          : (body?.detail?.join?.(' ') ?? body?.message);
       if (detail) message = detail;
     } catch {
       // non-JSON response
