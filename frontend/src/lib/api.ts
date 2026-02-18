@@ -286,18 +286,9 @@ export async function fetchAccountPositions(accountName: string): Promise<{
     pending: number;
   };
 }> {
-  // TODO: Backend needs to implement this endpoint
-  // For now, return empty structure to prevent build errors
-  console.warn(`fetchAccountPositions not implemented for ${accountName}`);
-  return {
-    broker: [],
-    db: [],
-    reconciliation_summary: {
-      matched: 0,
-      orphaned: 0,
-      pending: 0,
-    },
-  };
+  return apiFetch(
+    `/api/portfolio-control/accounts/${encodeURIComponent(accountName)}/positions`,
+  );
 }
 
 /**

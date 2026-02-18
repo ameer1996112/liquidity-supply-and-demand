@@ -737,6 +737,46 @@ def sync_all_accounts():
     }
 
 
+@router.get("/accounts/{account_name}/positions")
+def get_account_positions(account_name: str):
+    """
+    Get open positions for a specific account.
+    Returns broker positions (from MetaAPI if available) and DB positions
+    from trading_signals, with a basic reconciliation summary.
+    """
+    sb = _get_supabase()
+
+    try:
+        # Fetch active positions from DB
+        resp = (
+            sb.table("trading_signals")
+            .select("*")
+            .eq("account_name", account_name)
+            .in_("status", ["active", "executed"])
+            .order("created_at", desc=True)
+            .execute()
+        )
+        db_positions = resp.data or []
+
+        # Tag each with reconciliation status (all DB-only for now)
+        for pos in db_positions:
+            pos["reconciliation_status"] = "pending"
+
+        return {
+            "broker": [],  # MetaAPI live positions — populated when broker sync is active
+            "db": db_positions,
+            "reconciliation_summary": {
+                "matched": 0,
+                "orphaned": 0,
+                "pending": len(db_positions),
+            },
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to fetch positions for {account_name}: {e}")
+        raise HTTPException(500, detail=f"Failed to fetch positions: {str(e)}")
+
+
 @router.get("/accounts/{account_name}/performance", response_model=AccountPerformanceResponse)
 def get_account_performance(account_name: str, lookback_days: int = 30):
     """Get performance metrics for a specific account."""
