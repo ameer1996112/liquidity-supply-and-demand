@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase, isSupabaseAvailable } from '@/lib/supabase';
+import { API_BASE_URL } from '@/lib/api';
 import { Settings } from 'lucide-react';
 
 interface PineConfig {
   account_balance: number;
   updated_at: string;
+  source: 'tradingview' | 'backend';
 }
 
 interface SignalData {
@@ -14,18 +16,46 @@ interface SignalData {
   created_at: string;
 }
 
+interface BackendConfig {
+  risk?: { account_balance?: number };
+}
+
 export function PineConfigStatus() {
   const [config, setConfig] = useState<PineConfig | null>(null);
+  const backendBalanceRef = useRef<number | null>(null);
 
   useEffect(() => {
+    // Fallback: fetch backend config (ACCOUNT_BALANCE env) so 50k shows even before next signal
+    const fetchBackendConfig = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/config/ai`);
+        if (res.ok) {
+          const json: BackendConfig = await res.json();
+          const balance = json?.risk?.account_balance;
+          if (typeof balance === 'number' && balance > 0) {
+            backendBalanceRef.current = balance;
+            setConfig((prev) => {
+              if (prev?.source === 'tradingview') return prev;
+              return {
+                account_balance: balance,
+                updated_at: '',
+                source: 'backend',
+              };
+            });
+          }
+        }
+      } catch {
+        // Backend may be unavailable; ignore
+      }
+    };
+    fetchBackendConfig();
+
     if (!isSupabaseAvailable() || !supabase) {
       return;
     }
 
-    // Capture supabase instance to avoid null checks
     const client = supabase;
 
-    // Fetch the most recent signal to get account_balance
     const fetchConfig = async () => {
       const { data } = await client
         .from('trading_signals')
@@ -34,17 +64,23 @@ export function PineConfigStatus() {
         .limit(1)
         .maybeSingle<SignalData>();
 
-      if (data?.account_balance != null) {
+      if (data?.account_balance != null && data.account_balance > 0) {
         setConfig({
           account_balance: data.account_balance,
           updated_at: data.created_at,
+          source: 'tradingview',
+        });
+      } else if (backendBalanceRef.current != null) {
+        setConfig({
+          account_balance: backendBalanceRef.current,
+          updated_at: '',
+          source: 'backend',
         });
       }
     };
 
     fetchConfig();
 
-    // Subscribe to new signals to update account balance in real-time
     const channel = client
       .channel('pine-config-updates')
       .on(
@@ -55,10 +91,11 @@ export function PineConfigStatus() {
           table: 'trading_signals',
         },
         (payload: any) => {
-          if (payload.new?.account_balance != null) {
+          if (payload.new?.account_balance != null && payload.new.account_balance > 0) {
             setConfig({
               account_balance: payload.new.account_balance,
               updated_at: payload.new.created_at,
+              source: 'tradingview',
             });
           }
         }
@@ -83,7 +120,7 @@ export function PineConfigStatus() {
           ${config.account_balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
         </span>
         <span className="font-mono text-[10px] text-zinc-600">
-          (from TradingView)
+          {config.source === 'tradingview' ? '(from TradingView)' : '(from backend config)'}
         </span>
       </div>
     </div>
