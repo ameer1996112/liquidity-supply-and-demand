@@ -1275,32 +1275,41 @@ def get_journal_entries(account_name: str, tag: Optional[str] = None):
     sb = _get_supabase()
 
     try:
+        # Step 1: get signal IDs belonging to this account
+        sig_resp = (
+            sb.table("trading_signals")
+            .select("id, symbol, pnl_usd")
+            .eq("account_name", account_name)
+            .execute()
+        )
+        signals = sig_resp.data or []
+        if not signals:
+            return {"entries": []}
+
+        signal_map = {s["id"]: s for s in signals}
+        signal_ids = list(signal_map.keys())
+
+        # Step 2: fetch journal entries for those signal IDs
         query = (
             sb.table("trade_journal")
-            .select("*, trading_signals!inner(account_name, symbol, pnl_usd, exit_price)")
-            .eq("trading_signals.account_name", account_name)
+            .select("*")
+            .in_("signal_id", signal_ids)
         )
 
         if tag:
-            # PostgreSQL array contains operator
             query = query.contains("tags", [tag])
 
         query = query.order("created_at", desc=True)
         result = query.execute()
 
-        if not result.data:
-            return {"entries": []}
-
-        # Transform data
         entries = []
-        for entry in result.data:
-            signal_data = entry.get("trading_signals", {})
-            pnl = signal_data.get("pnl_usd")
-
+        for entry in result.data or []:
+            sig = signal_map.get(entry.get("signal_id"), {})
+            pnl = sig.get("pnl_usd")
             entries.append({
                 "id": entry.get("id"),
                 "signal_id": entry.get("signal_id"),
-                "symbol": signal_data.get("symbol"),
+                "symbol": sig.get("symbol"),
                 "note_text": entry.get("note_text"),
                 "tags": entry.get("tags", []),
                 "screenshot_urls": entry.get("screenshot_urls", []),
@@ -1315,6 +1324,9 @@ def get_journal_entries(account_name: str, tag: Optional[str] = None):
 
     except Exception as e:
         logger.error(f"Failed to fetch journal entries for {account_name}: {e}")
+        # Return empty rather than 500 if table doesn't exist yet
+        if "trade_journal" in str(e) or "does not exist" in str(e):
+            return {"entries": []}
         raise HTTPException(500, detail=f"Failed to fetch journal: {str(e)}")
 
 
