@@ -20,7 +20,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         <TopBar />
         <main className='flex-1 overflow-hidden p-3 sm:p-4 lg:p-6'>
-          <div className='h-full overflow-hidden rounded-2xl border border-[rgba(94,117,161,0.28)] bg-[rgba(8,13,24,0.55)] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'>
+          <div className='h-full w-full max-w-[1800px] 2xl:max-w-[2000px] mx-auto overflow-hidden rounded-2xl border border-[rgba(94,117,161,0.28)] bg-[rgba(8,13,24,0.55)] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'>
             <div className='h-full p-4 sm:p-5 lg:p-6'>{children}</div>
           </div>
         </main>

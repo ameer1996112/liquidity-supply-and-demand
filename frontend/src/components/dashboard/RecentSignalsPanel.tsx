@@ -69,7 +69,7 @@ const SignalRowMemo = memo(function SignalRow({
       className={cn(
         'cursor-pointer border-b border-[#2a2e39]/50 transition-colors',
         'hover:bg-[#2a2e39]/40',
-        isActive && 'border-l-2 border-l-[#2962ff]',
+        isActive && 'border-l-2 border-l-[#2962ff]'
       )}
     >
       <TableCell className='py-2 px-3'>
@@ -107,7 +107,7 @@ const SignalRowMemo = memo(function SignalRow({
           <span
             className={cn(
               'text-[9px] font-bold',
-              isBuy ? 'text-[#26a69a]' : 'text-[#ef5350]',
+              isBuy ? 'text-[#26a69a]' : 'text-[#ef5350]'
             )}
           >
             {isBuy ? (
@@ -175,7 +175,7 @@ export function RecentSignalsPanel({
   }, [signals, activeFilter]);
 
   return (
-    <div className='tv-card flex flex-col h-full overflow-hidden'>
+    <div className='tv-card flex h-full min-w-0 flex-col overflow-hidden'>
       {/* Header */}
       <div className='flex items-center justify-between px-4 py-3 border-b border-[#2a2e39] shrink-0'>
         <div className='flex items-center gap-2'>
@@ -199,7 +199,7 @@ export function RecentSignalsPanel({
               'font-mono text-[10px] px-3 py-1 rounded transition-colors whitespace-nowrap',
               activeFilter === tab.key
                 ? 'bg-[#2a2e39] text-zinc-200'
-                : 'text-zinc-600 hover:text-zinc-400 hover:bg-[#2a2e39]/50',
+                : 'text-zinc-600 hover:text-zinc-400 hover:bg-[#2a2e39]/50'
             )}
           >
             {tab.label}
@@ -224,25 +224,25 @@ export function RecentSignalsPanel({
               </span>
             </div>
           ) : (
-            <Table className='table-dense'>
+            <Table className='table-dense table-fixed min-w-[980px]'>
               <TableHeader>
                 <TableRow className='border-b border-[#2a2e39] hover:bg-transparent'>
-                  <TableHead className='font-mono text-[9px] text-zinc-600 uppercase tracking-wider py-1.5 px-3 w-[80px]'>
+                  <TableHead className='font-mono text-[9px] text-zinc-600 uppercase tracking-wider py-1.5 px-3 w-[16%]'>
                     Time
                   </TableHead>
-                  <TableHead className='font-mono text-[9px] text-zinc-600 uppercase tracking-wider py-1.5 px-3 w-[120px]'>
+                  <TableHead className='font-mono text-[9px] text-zinc-600 uppercase tracking-wider py-1.5 px-3 w-[18%]'>
                     Signal
                   </TableHead>
-                  <TableHead className='font-mono text-[9px] text-zinc-600 uppercase tracking-wider py-1.5 px-3 w-[100px]'>
+                  <TableHead className='font-mono text-[9px] text-zinc-600 uppercase tracking-wider py-1.5 px-3 w-[18%]'>
                     Status
                   </TableHead>
-                  <TableHead className='font-mono text-[9px] text-zinc-600 uppercase tracking-wider py-1.5 px-3 w-[50px]'>
+                  <TableHead className='font-mono text-[9px] text-zinc-600 uppercase tracking-wider py-1.5 px-3 w-[14%]'>
                     AI
                   </TableHead>
-                  <TableHead className='font-mono text-[9px] text-zinc-600 uppercase tracking-wider py-1.5 px-3 w-[55px] text-right'>
+                  <TableHead className='font-mono text-[9px] text-zinc-600 uppercase tracking-wider py-1.5 px-3 w-[16%] text-right'>
                     R:R
                   </TableHead>
-                  <TableHead className='font-mono text-[9px] text-zinc-600 uppercase tracking-wider py-1.5 px-3 w-[70px] text-right'>
+                  <TableHead className='font-mono text-[9px] text-zinc-600 uppercase tracking-wider py-1.5 px-3 w-[18%] text-right'>
                     PnL
                   </TableHead>
                 </TableRow>

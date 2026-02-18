@@ -80,7 +80,7 @@ export default function DashboardPage() {
       </div>
 
       {/* 2-Panel Responsive Layout — fills remaining height */}
-      <div className='grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3'>
+      <div className='grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[1.1fr_1.9fr]'>
         {/* Left Panel: Widget Stack */}
         <div className='scrollbar-thin flex min-h-0 flex-col gap-4 overflow-y-auto lg:pr-2'>
           {/* Active Trades */}
@@ -113,7 +113,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Right Panel: Signals Table */}
-        <div className='lg:col-span-2 min-h-0 flex flex-1 overflow-hidden'>
+        <div className='min-h-0 flex flex-1 overflow-hidden'>
           <RecentSignalsPanel
             mode={activeMode}
             onSelectSignal={handleSelectSignal}
