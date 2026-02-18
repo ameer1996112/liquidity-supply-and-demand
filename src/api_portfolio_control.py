@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/portfolio-control", tags=["portfolio-control"])
+router = APIRouter(prefix="/api/portfolio-control", tags=["portfolio-control"])
 
 # ── Shared Supabase client with auto-reconnect ──────────────────
 

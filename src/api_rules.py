@@ -10,7 +10,7 @@ from config import get_settings
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/rules", tags=["rules"])
+router = APIRouter(prefix="/api/rules", tags=["rules"])
 
 # ── Shared Supabase client with auto-reconnect ──────────────────
 
