@@ -12,7 +12,7 @@ import { PineConfigStatus } from '@/components/dashboard/PineConfigStatus';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useTradingMode } from '@/providers/TradingModeProvider';
 import { TradingSignal } from '@/types/trading';
-import { Radio, FlaskConical } from 'lucide-react';
+import { Radio, FlaskConical, CandlestickChart, Server } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function DashboardPage() {
@@ -74,51 +74,67 @@ export default function DashboardPage() {
         </Tabs>
       </div>
 
-      {/* Pine Config Status */}
-      <div className='mb-4 shrink-0'>
-        <PineConfigStatus />
-      </div>
+      {/* Modern Pro Exchange Layout: 50 / 25 / 25 */}
+      <div className='grid min-h-0 flex-1 grid-cols-1 gap-4 xl:grid-cols-4'>
+        {/* 50% — Technical Analysis Quadrant */}
+        <section className='tv-card col-span-1 flex min-h-0 flex-col overflow-hidden xl:col-span-2'>
+          <div className='tv-divider flex items-center justify-between border-b px-4 py-2.5'>
+            <div className='flex items-center gap-2'>
+              <CandlestickChart className='h-4 w-4 text-[#8ca5ff]' />
+              <span className='text-[11px] font-semibold uppercase tracking-[0.14em] text-[#c7d4ed]'>
+                Technical Analysis
+              </span>
+            </div>
+            <div className='flex items-center gap-2 text-[10px] text-[#9eb0d2]'>
+              <span className='status-dot status-dot-active pulse-active' />
+              Live Feed
+            </div>
+          </div>
 
-      {/* 2-Panel Responsive Layout — fills remaining height */}
-      <div className='grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[1.1fr_1.9fr]'>
-        {/* Left Panel: Widget Stack */}
-        <div className='scrollbar-thin flex min-h-0 flex-col gap-4 overflow-y-auto lg:pr-2'>
-          {/* Active Trades */}
-          <div className='min-h-[150px] max-h-[230px] shrink-0 overflow-hidden'>
-            <ActiveTradesPanel
+          <div className='scrollbar-thin flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4'>
+            <div className='min-h-[200px]'>
+              <MiniEquityChart mode={activeMode} />
+            </div>
+            <div className='grid grid-cols-1 gap-4 lg:grid-cols-2'>
+              <ExecutionQualityWidget />
+              <PortfolioRiskWidget />
+            </div>
+            <EvaluationDashboard />
+          </div>
+        </section>
+
+        {/* 25% — Active Positions */}
+        <section className='col-span-1 min-h-0 overflow-hidden'>
+          <ActiveTradesPanel
+            mode={activeMode}
+            onSelectSignal={handleSelectSignal}
+          />
+        </section>
+
+        {/* 25% — Bot Config + Logs */}
+        <section className='col-span-1 flex min-h-0 flex-col gap-4 overflow-hidden'>
+          <div className='tv-card shrink-0'>
+            <div className='tv-divider flex items-center justify-between border-b px-4 py-2.5'>
+              <div className='flex items-center gap-2'>
+                <Server className='h-4 w-4 text-[#8ca5ff]' />
+                <span className='text-[11px] font-semibold uppercase tracking-[0.14em] text-[#c7d4ed]'>
+                  Bot Runtime
+                </span>
+              </div>
+              <span className='status-dot status-dot-active pulse-active' />
+            </div>
+            <div className='p-3'>
+              <PineConfigStatus />
+            </div>
+          </div>
+
+          <div className='min-h-0 flex-1 overflow-hidden'>
+            <RecentSignalsPanel
               mode={activeMode}
               onSelectSignal={handleSelectSignal}
             />
           </div>
-
-          {/* Equity Chart */}
-          <div className='min-h-[170px] shrink-0'>
-            <MiniEquityChart mode={activeMode} />
-          </div>
-
-          {/* Execution Quality */}
-          <div className='min-h-[190px] shrink-0'>
-            <ExecutionQualityWidget />
-          </div>
-
-          {/* Portfolio Risk */}
-          <div className='min-h-[190px] shrink-0'>
-            <PortfolioRiskWidget />
-          </div>
-
-          {/* Evaluation Dashboard */}
-          <div className='shrink-0'>
-            <EvaluationDashboard />
-          </div>
-        </div>
-
-        {/* Right Panel: Signals Table */}
-        <div className='min-h-0 flex flex-1 overflow-hidden'>
-          <RecentSignalsPanel
-            mode={activeMode}
-            onSelectSignal={handleSelectSignal}
-          />
-        </div>
+        </section>
       </div>
 
       {/* Signal Inspector Sheet */}

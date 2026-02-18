@@ -113,24 +113,23 @@ export function PineConfigStatus() {
   if (!config) return null;
 
   return (
-    <div className='tv-card'>
-      <div className='flex items-center gap-3 px-4 py-2.5'>
-        <Settings className='h-3.5 w-3.5 text-[#95a7cd]' />
-        <span className='font-mono text-[10px] uppercase tracking-[0.14em] text-[#95a7cd]'>
-          Pine Account Size
-        </span>
-        <span className='ml-auto font-mono text-sm font-semibold tabular-nums text-[#2ec9aa]'>
-          $
-          {config.account_balance.toLocaleString('en-US', {
-            minimumFractionDigits: 2,
-          })}
-        </span>
-        <span className='font-mono text-[10px] text-[#7f93bc]'>
-          {config.source === 'tradingview'
-            ? '(from TradingView)'
-            : '(from backend config)'}
-        </span>
-      </div>
+    <div className='flex items-center gap-3 rounded-xl border border-[rgba(107,128,168,0.35)] bg-[rgba(21,31,51,0.78)] px-3 py-2.5'>
+      <Settings className='h-3.5 w-3.5 text-[#95a7cd]' />
+      <span className='status-dot status-dot-active pulse-active' />
+      <span className='font-mono text-[10px] uppercase tracking-[0.14em] text-[#95a7cd]'>
+        Pine Account Size
+      </span>
+      <span className='ml-auto font-mono text-sm font-semibold tabular-nums text-[#3fc7ad]'>
+        $
+        {config.account_balance.toLocaleString('en-US', {
+          minimumFractionDigits: 2,
+        })}
+      </span>
+      <span className='font-mono text-[10px] text-[#7f93bc]'>
+        {config.source === 'tradingview'
+          ? '(from TradingView)'
+          : '(from backend config)'}
+      </span>
     </div>
   );
 }

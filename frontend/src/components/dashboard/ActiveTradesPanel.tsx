@@ -6,7 +6,7 @@ import { TradingSignal, TradingMode } from '@/types/trading';
 import { ActiveTradeRow } from './ActiveTradeRow';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Radio, Radar } from 'lucide-react';
+import { Radio } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ActiveTradesPanelProps {
@@ -14,33 +14,37 @@ interface ActiveTradesPanelProps {
   onSelectSignal: (signal: TradingSignal) => void;
 }
 
-export function ActiveTradesPanel({ mode, onSelectSignal }: ActiveTradesPanelProps) {
+export function ActiveTradesPanel({
+  mode,
+  onSelectSignal,
+}: ActiveTradesPanelProps) {
   const { data: signals = [], isLoading } = useTradingSignals(mode);
 
   const activeTrades = useMemo(
-    () => signals.filter((s) => {
-      const status = s.status?.toLowerCase();
-      return status === 'active' || status === 'executed';
-    }),
+    () =>
+      signals.filter((s) => {
+        const status = s.status?.toLowerCase();
+        return status === 'active' || status === 'executed';
+      }),
     [signals]
   );
 
   return (
-    <div className="tv-card flex flex-col h-full min-h-0 overflow-hidden">
+    <div className='tv-card flex h-full min-h-0 flex-col overflow-hidden'>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a2e39]">
-        <div className="flex items-center gap-2">
-          <Radio className="w-4 h-4 text-[#2962ff]" />
-          <span className="font-mono text-xs font-semibold text-zinc-300 uppercase tracking-wider">
-            Active Trades
+      <div className='tv-divider flex items-center justify-between border-b px-3 py-2'>
+        <div className='flex items-center gap-2'>
+          <Radio className='h-3.5 w-3.5 text-[#8ca5ff]' />
+          <span className='text-[11px] font-semibold uppercase tracking-[0.12em] text-[#c7d4ed]'>
+            Active Positions
           </span>
         </div>
         <span
           className={cn(
-            'font-mono text-xs font-bold px-2 py-0.5 rounded',
+            'rounded px-2 py-0.5 font-mono text-[10px] font-bold',
             activeTrades.length > 0
-              ? 'bg-[#2962ff]/15 text-[#2962ff]'
-              : 'bg-[#2a2e39] text-zinc-500'
+              ? 'bg-[#6e8dff] text-white'
+              : 'bg-[rgba(30,44,71,0.85)] text-[#8ea0c3]'
           )}
         >
           {activeTrades.length}
@@ -48,21 +52,28 @@ export function ActiveTradesPanel({ mode, onSelectSignal }: ActiveTradesPanelPro
       </div>
 
       {/* Content */}
-      <ScrollArea className="flex-1 min-h-0 px-2 py-2">
+      <ScrollArea className='min-h-0 flex-1 px-2 py-2'>
         {isLoading ? (
-          <div className="space-y-2 px-1">
+          <div className='space-y-1.5 px-1'>
             {[...Array(3)].map((_, i) => (
-              <Skeleton key={i} className="h-14 w-full rounded-md bg-[#1e222d]" />
+              <Skeleton
+                key={i}
+                className='h-10 w-full rounded-md bg-[rgba(31,45,74,0.55)]'
+              />
             ))}
           </div>
         ) : activeTrades.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-10 text-center">
-            <Radar className="w-8 h-8 text-zinc-700 mb-3" />
-            <span className="text-xs text-zinc-600 font-mono">No active trades</span>
-            <span className="text-[10px] text-zinc-700 font-mono mt-1">Monitoring signals...</span>
+          <div className='flex flex-col items-center justify-center py-10 text-center'>
+            <div className='radar-scan mb-3' />
+            <span className='font-mono text-[11px] text-[#a1b1cf]'>
+              Scanning market
+            </span>
+            <span className='mt-1 text-[10px] text-[#7b8cb0]'>
+              No active positions
+            </span>
           </div>
         ) : (
-          <div className="space-y-1.5">
+          <div className='space-y-1.5'>
             {activeTrades.map((signal) => (
               <ActiveTradeRow
                 key={signal.id}

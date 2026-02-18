@@ -276,8 +276,8 @@
 }
 
 .status-dot-active {
-  background-color: #26a69a;
-  box-shadow: 0 0 6px #26a69a;
+  background-color: #3fc7ad;
+  box-shadow: 0 0 6px #3fc7ad;
 }
 
 .status-dot-warning {
@@ -309,4 +309,46 @@
 
 .bg-loss {
   background-color: #ff657e;
+}
+
+.radar-scan {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  border-radius: 9999px;
+  border: 1px solid rgba(140, 165, 255, 0.5);
+  background: radial-gradient(
+    circle,
+    rgba(140, 165, 255, 0.2) 0%,
+    rgba(140, 165, 255, 0.04) 55%,
+    transparent 80%
+  );
+  overflow: hidden;
+}
+
+.radar-scan::before {
+  content: '';
+  position: absolute;
+  inset: -30%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    rgba(63, 199, 173, 0.75) 48deg,
+    transparent 100deg
+  );
+  animation: radar-spin 2.2s linear infinite;
+}
+
+.radar-scan::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: inherit;
+  background: rgba(12, 18, 34, 0.9);
+}
+
+@keyframes radar-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
