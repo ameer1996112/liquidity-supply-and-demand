@@ -18,6 +18,10 @@ import { getApiUrl } from '@/lib/api';
 import { useActivePositions, useAccountStatus } from './usePositions';
 import { useTradingSignals } from './useTradingSignals';
 import { useTradingMode } from '@/providers/TradingModeProvider';
+import {
+  computeTodayPnl,
+  computeTradeKpis,
+} from '@/domain/metrics/tradingMetrics';
 
 // ══════════════════════════════════════════════════════════
 // Type Definitions
@@ -144,32 +148,15 @@ export function useLiveTrading(): LiveTradingData {
       };
     }
 
-    // Filter closed trades (those with exit_price)
-    const closedTrades = signals.filter((s) => s.exit_price != null);
-
-    // Calculate wins and losses
-    const wins = closedTrades.filter((s) => (s.pnl_usd || 0) > 0);
-
-    // Win rate
-    const winRate =
-      closedTrades.length > 0 ? (wins.length / closedTrades.length) * 100 : 0;
-
-    // Net P&L
-    const netPnL = closedTrades.reduce((sum, s) => sum + (s.pnl_usd || 0), 0);
-
-    // Today's P&L (signals from today)
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todaySignals = closedTrades.filter((s) => {
-      const exitDate = new Date(s.closed_at || s.created_at);
-      return exitDate >= today;
-    });
-    const todayPnL = todaySignals.reduce((sum, s) => sum + (s.pnl_usd || 0), 0);
+    const kpis = computeTradeKpis(signals);
+    const winRate = kpis.winRatePct ?? 0;
+    const netPnL = kpis.totalPnl;
+    const todayPnL = computeTodayPnl(signals);
 
     return {
       winRate: Math.round(winRate * 10) / 10, // Round to 1 decimal
       netPnL: Math.round(netPnL * 100) / 100, // Round to 2 decimals
-      totalTrades: closedTrades.length,
+      totalTrades: kpis.totalTrades,
       activeTrades: positionsData?.count || 0,
       todayPnL: Math.round(todayPnL * 100) / 100,
     };

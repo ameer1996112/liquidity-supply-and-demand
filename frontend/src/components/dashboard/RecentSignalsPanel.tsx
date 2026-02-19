@@ -9,6 +9,7 @@ import {
   getSide,
   getPnl,
 } from '@/types/trading';
+import { isSignalOpen } from '@/domain/metrics/tradingMetrics';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { PnLDisplay } from '@/components/shared/PnLDisplay';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -181,10 +182,7 @@ export function RecentSignalsPanel({
   const filtered = useMemo(() => {
     switch (activeFilter) {
       case 'active':
-        return signals.filter((s) => {
-          const st = s.status?.toLowerCase();
-          return st === 'active' || st === 'executed';
-        });
+        return signals.filter(isSignalOpen);
       case 'wins':
         return signals.filter((s) => {
           const p = getPnl(s);

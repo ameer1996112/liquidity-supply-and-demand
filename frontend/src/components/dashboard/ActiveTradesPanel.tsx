@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { useTradingSignals } from '@/hooks/useTradingSignals';
 import { TradingSignal, TradingMode } from '@/types/trading';
 import { ActiveTradeRow } from './ActiveTradeRow';
+import { isSignalOpen } from '@/domain/metrics/tradingMetrics';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Radio } from 'lucide-react';
@@ -20,14 +21,7 @@ export function ActiveTradesPanel({
 }: ActiveTradesPanelProps) {
   const { data: signals = [], isLoading } = useTradingSignals(mode);
 
-  const activeTrades = useMemo(
-    () =>
-      signals.filter((s) => {
-        const status = s.status?.toLowerCase();
-        return status === 'active' || status === 'executed';
-      }),
-    [signals]
-  );
+  const activeTrades = useMemo(() => signals.filter(isSignalOpen), [signals]);
 
   return (
     <div className='tv-card flex h-full min-h-0 flex-col overflow-hidden'>

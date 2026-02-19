@@ -5,7 +5,123 @@
 ### Core framework/runtime
 
 - **Framework:** Next.js `16.1.6` (App Router)
-- **React:** `19.2.3`
+- **React:** `19.2You are a staff-level frontend engineer + product designer. Your mission:
+
+1. Analyze my trading bot frontend thoroughly (performance + correctness + architecture).
+2. Then refactor/rebuild the frontend UI completely to be “next-level”: premium, fast, stable, consistent.
+
+NON-NEGOTIABLES
+
+- Do NOT break backend API contracts/endpoints or websocket protocols.
+- Keep ALL features. You may reorganize screens and rename components, but features must remain.
+- Prioritize: correctness + performance first, then redesign.
+- Changes must be incremental and shippable after each phase (no giant broken rewrite).
+
+PHASE 0 — REPO DISCOVERY (MANDATORY)
+
+- Identify stack (Next/Vite, router, state mgmt, styling, chart libs, tables).
+- Map folders and entry points.
+- List pages/routes/screens and what data each uses.
+- Identify API client, websocket handlers, env vars, config files.
+
+Create: /docs/frontend-audit.md containing:
+
+- Tech stack summary
+- Page map (routes → purpose → data sources)
+- Component inventory (key components + responsibilities)
+- Data flow map (API + WS → store → UI)
+- Current pain points (bug sources + perf sources)
+
+PHASE 1 — BASELINE PERFORMANCE + BUG REPRO
+
+- Run locally.
+- Record baseline metrics:
+  - Lighthouse (Performance)
+  - React Profiler: top 10 components by wasted renders
+  - Websocket update frequency and what it updates
+  - Any long tasks > 50ms
+- Identify real bugs (e.g., contradictory KPIs, empty states, NaN/undefined, flicker).
+
+Create: /docs/ui-perf-report.md containing:
+
+- Metrics before
+- Top bottlenecks (render storms, heavy CSS effects, un-memoized lists, expensive charts)
+- Bug list with reproduction steps
+- Fix plan ordered by impact
+
+PHASE 2 — ARCHITECTURE PLAN FOR “NEXT LEVEL UI”
+Produce: /docs/ui-rebuild-plan.md with:
+
+- New information architecture (nav structure)
+- Design system tokens (spacing, radii, typography, colors, semantic status)
+- Component system plan (AppShell, Sidebar, Topbar, StatCard, DataTable, FilterBar, Drawer)
+- State architecture (single source of truth; selectors; batching WS updates)
+- Data layer (typed API client; caching; error handling; loading states)
+- Migration strategy (strangler approach):
+  - Step-by-step migration that keeps app working
+  - Which routes migrate first
+  - How we prevent regressions
+
+PHASE 3 — IMPLEMENTATION (IN ORDER, DO NOT SKIP)
+3A) Stability + Correctness
+
+- Fix KPI logic rules:
+  - If trades=0, winrate must be “—” or 0% (consistent).
+  - Guard against NaN/null; consistent number formatting.
+- Standardize derived metrics computation in one module with unit tests.
+
+3B) Performance Rescue (measurable)
+
+- Stop re-render storms:
+  - websocket updates must be batched (250–500ms) and scoped via selectors.
+  - memoize expensive components; avoid passing new object/array props each tick.
+- Virtualize big tables/logs.
+- Lazy-load heavy routes (Backtest/Analytics).
+- Remove heavy paint/compositing (big blurs/glows/shadows) if they cause paint cost.
+- Ensure scroll and nav feel instant.
+
+3C) Full UI Transformation (premium fintech)
+
+- Build new AppShell + navigation:
+  - Left sidebar, topbar with connection + mode + kill switch.
+- Redesign core screens with consistent layout + empty states:
+  - Dashboard
+  - Positions & Orders
+  - Risk Monitor (PropGuard)
+  - Backtest
+  - Logs
+  - Settings
+- Add theme toggle (dark/light) using CSS variables/tokens.
+- Add robust UI states: skeletons, error boundaries, toasts, confirm dialogs.
+
+TECHNICAL STANDARDS
+
+- Centralize API calls into a typed client module.
+- Create a “domain layer”:
+  - /src/domain/metrics for KPI calculations
+  - /src/domain/types for shared types
+- Create a “ui kit”:
+  - /src/components/ui/\* reusable primitives
+- Enforce consistent formatting/linting.
+- Add unit tests for metrics and key utils. Add basic smoke test for route render if feasible.
+
+DEFINITION OF DONE (MUST MEET)
+
+- UI looks fully transformed and consistent.
+- Bugs fixed: no contradictory KPIs; stable empty states; no NaN.
+- Performance improved:
+  - Lighthouse performance +20 or more OR documented strong improvement
+  - React Profiler shows large reduction in wasted renders
+  - Websocket updates do not trigger full dashboard re-render
+- Build passes, routes work, data loads, websocket still works.
+
+EXECUTION RULES
+
+- Start by writing docs (audit + perf report + rebuild plan).
+- Then implement Phase 3A → 3B → 3C in small commits.
+- After each phase: run tests/build and fix regressions immediately.
+  Now begin with Phase 0 and produce /docs/frontend-audit.md.
+  .3`
 - **Language:** TypeScript
 - **Build/deploy hints:** `next.config.ts` uses `output: 'standalone'` (container-friendly)
 

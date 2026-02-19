@@ -1,14 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
-import {
-  BacktestChart,
-  Trade,
-  Zone,
-} from '@/components/backtest/BacktestChart';
-import { FXReplayController } from '@/components/backtest/FXReplayController';
-import { BacktestPerformanceTab } from '@/components/backtest/BacktestPerformanceTab';
+import dynamic from 'next/dynamic';
+import { useMutation } from '@tanstack/react-query';
+import { Trade } from '@/components/backtest/BacktestChart';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -24,6 +19,40 @@ import {
 } from 'lucide-react';
 import { CandlestickData, Time } from 'lightweight-charts';
 import { backtestAPI } from '@/lib/api';
+
+const BacktestChart = dynamic(
+  () =>
+    import('@/components/backtest/BacktestChart').then((m) => m.BacktestChart),
+  {
+    loading: () => (
+      <Skeleton className='h-[600px] w-full rounded-lg bg-slate-800/60' />
+    ),
+  }
+);
+
+const FXReplayController = dynamic(
+  () =>
+    import('@/components/backtest/FXReplayController').then(
+      (m) => m.FXReplayController
+    ),
+  {
+    loading: () => (
+      <Skeleton className='h-24 w-full rounded-lg bg-slate-800/60 mt-4' />
+    ),
+  }
+);
+
+const BacktestPerformanceTab = dynamic(
+  () =>
+    import('@/components/backtest/BacktestPerformanceTab').then(
+      (m) => m.BacktestPerformanceTab
+    ),
+  {
+    loading: () => (
+      <Skeleton className='h-80 w-full rounded-lg bg-slate-800/60' />
+    ),
+  }
+);
 
 // API Types
 interface BacktestRequest {

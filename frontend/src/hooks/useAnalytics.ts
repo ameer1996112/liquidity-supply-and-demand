@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { fetchSignals } from '@/lib/supabase';
 import { TradingMode, TradingSignal, getPnl, getSymbol } from '@/types/trading';
 import { format } from 'date-fns';
+import { computeTradeKpis } from '@/domain/metrics/tradingMetrics';
 
 export interface AnalyticsData {
   equityCurve: { date: string; cumPnl: number }[];
@@ -16,7 +17,12 @@ export interface AnalyticsData {
   avgLoss: number;
   bestTrade: TradingSignal | null;
   worstTrade: TradingSignal | null;
-  pnlBySymbol: { symbol: string; pnl: number; count: number; winRate: number }[];
+  pnlBySymbol: {
+    symbol: string;
+    pnl: number;
+    count: number;
+    winRate: number;
+  }[];
   pnlByDay: { date: string; pnl: number; wins: number; losses: number }[];
   outcomeDistribution: { wins: number; losses: number; breakeven: number };
 }
@@ -25,7 +31,11 @@ export function useAnalytics(mode?: TradingMode | 'BACKTEST', runId?: string) {
   return useQuery<AnalyticsData>({
     queryKey: ['analytics', mode, runId],
     queryFn: async () => {
-      const signals = await fetchSignals({ mode: mode as any, limit: 500, runId });
+      const signals = await fetchSignals({
+        mode: mode as any,
+        limit: 500,
+        runId,
+      });
       return computeAnalytics(signals);
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -33,14 +43,12 @@ export function useAnalytics(mode?: TradingMode | 'BACKTEST', runId?: string) {
 }
 
 function computeAnalytics(signals: TradingSignal[]): AnalyticsData {
-  // Filter to closed/executed trades with PnL
-  const closed = signals.filter((s) => {
-    const st = s.status?.toLowerCase();
-    return (st === 'closed' || st === 'executed') && getPnl(s) != null;
-  });
+  const kpis = computeTradeKpis(signals);
+  const closed = kpis.closedTrades;
 
   const sorted = [...closed].sort(
-    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    (a, b) =>
+      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
   );
 
   // Outcome distribution
@@ -83,8 +91,13 @@ function computeAnalytics(signals: TradingSignal[]): AnalyticsData {
     }
   }
 
-  const winRate = closed.length > 0 ? (wins / closed.length) * 100 : 0;
-  const profitFactor = totalLossPnl > 0 ? totalWinPnl / totalLossPnl : totalWinPnl > 0 ? Infinity : 0;
+  const winRate = kpis.winRatePct ?? 0;
+  const profitFactor =
+    totalLossPnl > 0
+      ? totalWinPnl / totalLossPnl
+      : totalWinPnl > 0
+      ? Infinity
+      : 0;
   const avgRR = rrCount > 0 ? totalRR / rrCount : 0;
   const avgWin = wins > 0 ? totalWinPnl / wins : 0;
   const avgLoss = losses > 0 ? totalLossPnl / losses : 0;
@@ -100,7 +113,10 @@ function computeAnalytics(signals: TradingSignal[]): AnalyticsData {
   });
 
   // PnL by symbol
-  const symbolMap = new Map<string, { pnl: number; count: number; wins: number }>();
+  const symbolMap = new Map<
+    string,
+    { pnl: number; count: number; wins: number }
+  >();
   for (const s of closed) {
     const sym = getSymbol(s);
     const pnl = getPnl(s) ?? 0;
@@ -120,7 +136,10 @@ function computeAnalytics(signals: TradingSignal[]): AnalyticsData {
     .sort((a, b) => b.pnl - a.pnl);
 
   // PnL by day
-  const dayMap = new Map<string, { pnl: number; wins: number; losses: number }>();
+  const dayMap = new Map<
+    string,
+    { pnl: number; wins: number; losses: number }
+  >();
   for (const s of closed) {
     const day = format(new Date(s.created_at), 'MMM dd');
     const pnl = getPnl(s) ?? 0;
@@ -142,7 +161,9 @@ function computeAnalytics(signals: TradingSignal[]): AnalyticsData {
     winRate,
     totalTrades: signals.length,
     closedTrades: closed.length,
-    profitFactor: Number(profitFactor === Infinity ? 999 : profitFactor.toFixed(2)),
+    profitFactor: Number(
+      profitFactor === Infinity ? 999 : profitFactor.toFixed(2)
+    ),
     avgRR: Number(avgRR.toFixed(2)),
     avgWin: Number(avgWin.toFixed(2)),
     avgLoss: Number(avgLoss.toFixed(2)),

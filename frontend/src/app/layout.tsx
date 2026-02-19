@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { QueryProvider } from '@/providers/QueryProvider';
 import { SidebarProvider } from '@/providers/SidebarProvider';
 import { TradingModeProvider } from '@/providers/TradingModeProvider';
+import { ThemeProvider } from '@/providers/ThemeProvider';
 import { AppShell } from '@/components/layout/AppShell';
 import { ToastProvider } from '@/components/ui/toast';
 import { AlertProvider } from '@/components/alerts/AlertProvider';
@@ -21,16 +22,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
-      <body className="antialiased font-sans">
+    <html lang='en' data-theme='dark' className='dark'>
+      <body className='antialiased font-sans'>
         <QueryProvider>
           <ToastProvider>
             <AlertProvider>
-              <SidebarProvider>
-                <TradingModeProvider>
-                  <AppShell>{children}</AppShell>
-                </TradingModeProvider>
-              </SidebarProvider>
+              <ThemeProvider>
+                <SidebarProvider>
+                  <TradingModeProvider>
+                    <AppShell>{children}</AppShell>
+                  </TradingModeProvider>
+                </SidebarProvider>
+              </ThemeProvider>
             </AlertProvider>
           </ToastProvider>
         </QueryProvider>

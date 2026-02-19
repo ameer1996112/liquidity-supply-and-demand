@@ -5,13 +5,28 @@ import { TradingSignal, getSymbol, getScore, getPnl } from '@/types/trading';
 import { ExpandableTradeRow } from './ExpandableTradeRow';
 import { cn } from '@/lib/utils';
 import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { useVirtualizedList } from '@/hooks/useVirtualizedList';
 
 interface TradeTableProps {
   signals: TradingSignal[];
   onInspect: (signal: TradingSignal) => void;
 }
 
-type SortKey = 'date' | 'symbol' | 'side' | 'status' | 'account' | 'zone' | 'model' | 'session' | 'entry' | 'exit' | 'slPips' | 'score' | 'rr' | 'pnl';
+type SortKey =
+  | 'date'
+  | 'symbol'
+  | 'side'
+  | 'status'
+  | 'account'
+  | 'zone'
+  | 'model'
+  | 'session'
+  | 'entry'
+  | 'exit'
+  | 'slPips'
+  | 'score'
+  | 'rr'
+  | 'pnl';
 type SortDir = 'asc' | 'desc';
 
 const COLUMNS: { key: SortKey; label: string; align?: string }[] = [
@@ -94,25 +109,40 @@ export function TradeTable({ signals, onInspect }: TradeTableProps) {
     return [...filtered].sort((a, b) => {
       const aVal = getSortValue(a, sortKey);
       const bVal = getSortValue(b, sortKey);
-      const cmp = typeof aVal === 'string' && typeof bVal === 'string'
-        ? aVal.localeCompare(bVal)
-        : Number(aVal) - Number(bVal);
+      const cmp =
+        typeof aVal === 'string' && typeof bVal === 'string'
+          ? aVal.localeCompare(bVal)
+          : Number(aVal) - Number(bVal);
       return sortDir === 'asc' ? cmp : -cmp;
     });
   }, [filtered, sortKey, sortDir]);
 
+  const {
+    setScrollTop,
+    visibleItems: visibleRows,
+    totalHeight,
+    offsetY,
+  } = useVirtualizedList({
+    items: sorted,
+    itemHeight: 52,
+    containerHeight: 560,
+    overscan: 8,
+  });
+
   if (signals.length === 0) {
     return (
-      <div className="tv-card p-12 flex flex-col items-center justify-center">
-        <span className="text-sm text-zinc-500 font-mono">No trades match your filters</span>
+      <div className='tv-card p-12 flex flex-col items-center justify-center'>
+        <span className='text-sm text-zinc-500 font-mono'>
+          No trades match your filters
+        </span>
       </div>
     );
   }
 
   return (
-    <div className="tv-card overflow-hidden">
+    <div className='tv-card overflow-hidden'>
       {/* Mode Filter Toggle */}
-      <div className="flex items-center gap-1 px-3 py-2 border-b border-[#2a2e39]">
+      <div className='flex items-center gap-1 px-3 py-2 border-b border-[#2a2e39]'>
         {(['all', 'LIVE', 'PAPER'] as ModeFilter[]).map((mode) => (
           <button
             key={mode}
@@ -123,58 +153,81 @@ export function TradeTable({ signals, onInspect }: TradeTableProps) {
                 ? mode === 'LIVE'
                   ? 'bg-emerald-500/20 text-emerald-400'
                   : mode === 'PAPER'
-                    ? 'bg-blue-500/20 text-blue-400'
-                    : 'bg-zinc-700/50 text-zinc-300'
+                  ? 'bg-blue-500/20 text-blue-400'
+                  : 'bg-zinc-700/50 text-zinc-300'
                 : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'
             )}
           >
-            {mode === 'all' ? 'All' : mode === 'LIVE' ? 'Live Only' : 'Paper Only'}
+            {mode === 'all'
+              ? 'All'
+              : mode === 'LIVE'
+              ? 'Live Only'
+              : 'Paper Only'}
           </button>
         ))}
         {modeFilter !== 'all' && (
-          <span className="ml-2 text-[10px] text-zinc-600 font-mono">
+          <span className='ml-2 text-[10px] text-zinc-600 font-mono'>
             {filtered.length}/{signals.length}
           </span>
         )}
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full">
+      <div className='overflow-x-auto'>
+        <table className='w-full'>
           <thead>
-            <tr className="border-b border-[#2a2e39]">
+            <tr className='border-b border-[#2a2e39]'>
               {COLUMNS.map((col) => (
                 <th
                   key={col.key}
                   onClick={() => handleSort(col.key)}
-                  className="py-2.5 px-3 text-left cursor-pointer select-none group"
+                  className='py-2.5 px-3 text-left cursor-pointer select-none group'
                 >
-                  <div className="flex items-center gap-1">
-                    <span className="font-mono text-[10px] text-zinc-500 uppercase tracking-wider group-hover:text-zinc-300 transition-colors">
+                  <div className='flex items-center gap-1'>
+                    <span className='font-mono text-[10px] text-zinc-500 uppercase tracking-wider group-hover:text-zinc-300 transition-colors'>
                       {col.label}
                     </span>
                     {sortKey === col.key ? (
                       sortDir === 'asc' ? (
-                        <ArrowUp className="w-3 h-3 text-zinc-400" />
+                        <ArrowUp className='w-3 h-3 text-zinc-400' />
                       ) : (
-                        <ArrowDown className="w-3 h-3 text-zinc-400" />
+                        <ArrowDown className='w-3 h-3 text-zinc-400' />
                       )
                     ) : (
-                      <ArrowUpDown className="w-3 h-3 text-zinc-700 group-hover:text-zinc-500 transition-colors" />
+                      <ArrowUpDown className='w-3 h-3 text-zinc-700 group-hover:text-zinc-500 transition-colors' />
                     )}
                   </div>
                 </th>
               ))}
               {/* Expand column */}
-              <th className="py-2.5 px-3 w-8" />
+              <th className='py-2.5 px-3 w-8' />
             </tr>
           </thead>
           <tbody>
-            {sorted.map((signal) => (
-              <ExpandableTradeRow
-                key={signal.id}
-                signal={signal}
-                onInspect={onInspect}
-              />
-            ))}
+            <tr>
+              <td colSpan={COLUMNS.length + 1} className='p-0'>
+                <div
+                  className='relative overflow-y-auto'
+                  style={{ maxHeight: 560 }}
+                  onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
+                >
+                  <div style={{ height: totalHeight, position: 'relative' }}>
+                    <table
+                      className='w-full table-fixed'
+                      style={{ position: 'absolute', top: offsetY, left: 0 }}
+                    >
+                      <tbody>
+                        {visibleRows.map((signal) => (
+                          <ExpandableTradeRow
+                            key={signal.id}
+                            signal={signal}
+                            onInspect={onInspect}
+                          />
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>

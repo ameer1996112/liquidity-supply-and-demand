@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
 import { useAnalytics } from '@/hooks/useAnalytics';
 import {
   useBreakdown,
@@ -9,18 +10,57 @@ import {
   useSummary,
 } from '@/hooks/usePerformanceAnalytics';
 import { MetricCard } from '@/components/analytics/MetricCard';
-import { EquityCurveChart } from '@/components/analytics/EquityCurveChart';
-import { WinRateDonut } from '@/components/analytics/WinRateDonut';
-import { PnlBySymbolChart } from '@/components/analytics/PnlBySymbolChart';
-import { DailyPnlChart } from '@/components/analytics/DailyPnlChart';
-import { HeatmapChart } from '@/components/analytics/HeatmapChart';
-import { DrawdownChart } from '@/components/analytics/DrawdownChart';
 import { BreakdownTable } from '@/components/analytics/BreakdownTable';
-import { StreakTimeline } from '@/components/analytics/StreakTimeline';
 import { SummaryCards } from '@/components/analytics/SummaryCards';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { Target, TrendingUp, BarChart3, Hash } from 'lucide-react';
+
+const EquityCurveChart = dynamic(
+  () =>
+    import('@/components/analytics/EquityCurveChart').then(
+      (m) => m.EquityCurveChart
+    ),
+  {
+    loading: () => (
+      <Skeleton className='h-full min-h-[360px] rounded-lg bg-slate-800/60' />
+    ),
+  }
+);
+const WinRateDonut = dynamic(
+  () =>
+    import('@/components/analytics/WinRateDonut').then((m) => m.WinRateDonut),
+  { loading: () => <Skeleton className='h-64 rounded-lg bg-slate-800/60' /> }
+);
+const PnlBySymbolChart = dynamic(
+  () =>
+    import('@/components/analytics/PnlBySymbolChart').then(
+      (m) => m.PnlBySymbolChart
+    ),
+  { loading: () => <Skeleton className='h-64 rounded-lg bg-slate-800/60' /> }
+);
+const DailyPnlChart = dynamic(
+  () =>
+    import('@/components/analytics/DailyPnlChart').then((m) => m.DailyPnlChart),
+  { loading: () => <Skeleton className='h-64 rounded-lg bg-slate-800/60' /> }
+);
+const HeatmapChart = dynamic(
+  () =>
+    import('@/components/analytics/HeatmapChart').then((m) => m.HeatmapChart),
+  { loading: () => <Skeleton className='h-64 rounded-lg bg-slate-800/60' /> }
+);
+const DrawdownChart = dynamic(
+  () =>
+    import('@/components/analytics/DrawdownChart').then((m) => m.DrawdownChart),
+  { loading: () => <Skeleton className='h-64 rounded-lg bg-slate-800/60' /> }
+);
+const StreakTimeline = dynamic(
+  () =>
+    import('@/components/analytics/StreakTimeline').then(
+      (m) => m.StreakTimeline
+    ),
+  { loading: () => <Skeleton className='h-80 rounded-lg bg-slate-800/60' /> }
+);
 
 type ModeFilter = 'LIVE' | 'PAPER' | 'ALL';
 type AnalyticsTab = 'overview' | 'breakdown' | 'drawdown' | 'streaks';

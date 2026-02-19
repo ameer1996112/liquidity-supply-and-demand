@@ -113,6 +113,49 @@
   --to-accent-amber: #f59e0b;
 }
 
+:root[data-theme='light'] {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+  --primary: #4f46e5;
+  --primary-foreground: #ffffff;
+  --secondary: #e2e8f0;
+  --secondary-foreground: #0f172a;
+  --muted: #f1f5f9;
+  --muted-foreground: #475569;
+  --accent: #e2e8f0;
+  --accent-foreground: #1e293b;
+  --destructive: #dc2626;
+  --border: #cbd5e1;
+  --input: #cbd5e1;
+  --ring: #4f46e5;
+
+  --sidebar: #f8fafc;
+  --sidebar-foreground: #1e293b;
+  --sidebar-primary: #4f46e5;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e2e8f0;
+  --sidebar-accent-foreground: #1e293b;
+  --sidebar-border: #cbd5e1;
+  --sidebar-ring: #4f46e5;
+
+  --to-bg: #f8fafc;
+  --to-surface: #ffffff;
+  --to-surface-raised: #f1f5f9;
+  --to-border: #cbd5e1;
+  --to-border-subtle: #e2e8f0;
+  --to-text-primary: #0f172a;
+  --to-text-secondary: #475569;
+  --to-text-dim: #64748b;
+  --to-accent-blue: #4f46e5;
+  --to-accent-green: #059669;
+  --to-accent-red: #dc2626;
+  --to-accent-amber: #d97706;
+}
+
 /* ── Base styles ──────────────────────────────────────────────────────────── */
 @layer base {
   * {
@@ -129,10 +172,14 @@
     scroll-behavior: smooth;
   }
 
+  html[data-theme='light'] {
+    color-scheme: light;
+  }
+
   body {
     @apply antialiased;
-    background-color: #0f172a;
-    color: #e2e8f0;
+    background-color: var(--to-bg);
+    color: var(--to-text-primary);
     font-family: var(--font-sans);
     font-feature-settings: 'rlig' 1, 'calt' 1;
     letter-spacing: 0.005em;
@@ -162,9 +209,9 @@
 
 /* Every dashboard panel uses this class — consistent bg, border-radius, border */
 .to-panel {
-  background-color: #1e293b;
+  background-color: var(--to-surface);
   border-radius: 0.5rem; /* rounded-lg */
-  border: 1px solid #334155;
+  border: 1px solid var(--to-border);
 }
 
 .to-panel-header {
@@ -172,36 +219,40 @@
   align-items: center;
   justify-content: space-between;
   padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid #334155;
+  border-bottom: 1px solid var(--to-border);
 }
 
 /* Legacy tv-card — now maps to to-panel for backward compat */
 .tv-card {
-  background-color: #1e293b;
+  background-color: var(--to-surface);
   border-radius: 0.5rem;
-  border: 1px solid #334155;
+  border: 1px solid var(--to-border);
 }
 
 .tv-card:hover {
-  border-color: #475569;
+  border-color: color-mix(
+    in srgb,
+    var(--to-border) 70%,
+    var(--to-text-secondary) 30%
+  );
 }
 
 .tv-divider {
-  border-color: #334155 !important;
+  border-color: var(--to-border) !important;
 }
 
 /* ── Typography helpers ───────────────────────────────────────────────────── */
 
 .page-title {
   font-family: var(--font-sans);
-  color: #e2e8f0;
+  color: var(--to-text-primary);
   font-weight: 600;
   letter-spacing: -0.01em;
 }
 
 .page-subtitle {
   font-family: var(--font-sans);
-  color: #64748b;
+  color: var(--to-text-secondary);
   font-size: 0.8125rem;
 }
 
@@ -212,7 +263,7 @@
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #94a3b8;
+  color: var(--to-text-secondary);
 }
 
 /* Monospace data values */
@@ -300,15 +351,15 @@
 /* ── Utility classes ──────────────────────────────────────────────────────── */
 
 .surface-soft {
-  background: #1e293b;
-  border: 1px solid #334155;
+  background: var(--to-surface);
+  border: 1px solid var(--to-border);
 }
 
 .tv-chip {
-  background: #1e293b;
-  border: 1px solid #334155;
+  background: var(--to-surface);
+  border: 1px solid var(--to-border);
   border-radius: 9999px;
-  color: #cbd5e1;
+  color: var(--to-text-secondary);
 }
 
 .scrollbar-thin {

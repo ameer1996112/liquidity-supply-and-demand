@@ -24,13 +24,10 @@ const SidebarContext = createContext<SidebarContextValue>({
 const STORAGE_KEY = 'sidebar-collapsed';
 
 export function SidebarProvider({ children }: { children: ReactNode }) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
-
-  // Hydrate from localStorage
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === 'true') setIsCollapsed(true);
-  }, []);
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem(STORAGE_KEY) === 'true';
+  });
 
   const setCollapsed = useCallback((collapsed: boolean) => {
     setIsCollapsed(collapsed);
@@ -54,7 +51,9 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
   }, [toggleCollapse]);
 
   return (
-    <SidebarContext.Provider value={{ isCollapsed, toggleCollapse, setCollapsed }}>
+    <SidebarContext.Provider
+      value={{ isCollapsed, toggleCollapse, setCollapsed }}
+    >
       {children}
     </SidebarContext.Provider>
   );

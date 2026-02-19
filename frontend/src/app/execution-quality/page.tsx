@@ -105,10 +105,10 @@ export default function ExecutionQualityPage() {
                     hasHighSlippage ? 'text-red-400' : 'text-slate-100'
                   )}
                 >
-                  {tcaSummary?.avg_slippage_pips.toFixed(2) ?? '0.00'} pips
+                  {tcaSummary?.avg_slippage_pips?.toFixed(2) ?? '0.00'} pips
                 </div>
                 <div className='mt-1 text-xs text-slate-500'>
-                  ${tcaSummary?.total_slippage_cost_usd.toFixed(2) ?? '0.00'}{' '}
+                  ${tcaSummary?.total_slippage_cost_usd?.toFixed(2) ?? '0.00'}{' '}
                   total cost
                 </div>
               </div>
@@ -129,7 +129,7 @@ export default function ExecutionQualityPage() {
             ) : (
               <div>
                 <div className='text-2xl font-bold text-slate-100'>
-                  ${tcaSummary?.avg_spread_cost_usd.toFixed(2) ?? '0.00'}
+                  ${tcaSummary?.avg_spread_cost_usd?.toFixed(2) ?? '0.00'}
                 </div>
                 <div className='mt-1 text-xs text-slate-500'>Per trade</div>
               </div>
@@ -150,7 +150,7 @@ export default function ExecutionQualityPage() {
             ) : (
               <div>
                 <div className='text-2xl font-bold text-slate-100'>
-                  {tcaSummary?.avg_execution_time_ms.toFixed(0) ?? '0'}ms
+                  {tcaSummary?.avg_execution_time_ms?.toFixed(0) ?? '0'}ms
                 </div>
                 <div className='mt-1 text-xs text-slate-500'>
                   Signal to fill
@@ -300,20 +300,21 @@ export default function ExecutionQualityPage() {
                     Signal → Submit
                   </span>
                   <span className='text-sm font-mono text-slate-100'>
-                    {latencyBreakdown?.avg_signal_to_submit_ms.toFixed(0) ?? 0}
+                    {latencyBreakdown?.avg_signal_to_submit_ms?.toFixed(0) ?? 0}
                     ms
                   </span>
                 </div>
                 <div className='flex items-center justify-between'>
                   <span className='text-xs text-slate-500'>Submit → Fill</span>
                   <span className='text-sm font-mono text-slate-100'>
-                    {latencyBreakdown?.avg_submit_to_fill_ms.toFixed(0) ?? 0}ms
+                    {latencyBreakdown?.avg_submit_to_fill_ms?.toFixed(0) ?? 0}
+                    ms
                   </span>
                 </div>
                 <div className='flex items-center justify-between'>
                   <span className='text-xs text-slate-500'>Total</span>
                   <span className='text-sm font-mono font-bold text-slate-100'>
-                    {latencyBreakdown?.avg_total_execution_ms.toFixed(0) ?? 0}
+                    {latencyBreakdown?.avg_total_execution_ms?.toFixed(0) ?? 0}
                     ms
                   </span>
                 </div>
@@ -321,13 +322,13 @@ export default function ExecutionQualityPage() {
                   <div className='flex items-center justify-between'>
                     <span className='text-xs text-slate-500'>P95 Latency</span>
                     <span className='text-xs font-mono text-slate-400'>
-                      {latencyBreakdown?.p95_latency_ms.toFixed(0) ?? 0}ms
+                      {latencyBreakdown?.p95_latency_ms?.toFixed(0) ?? 0}ms
                     </span>
                   </div>
                   <div className='flex items-center justify-between'>
                     <span className='text-xs text-slate-500'>P99 Latency</span>
                     <span className='text-xs font-mono text-slate-400'>
-                      {latencyBreakdown?.p99_latency_ms.toFixed(0) ?? 0}ms
+                      {latencyBreakdown?.p99_latency_ms?.toFixed(0) ?? 0}ms
                     </span>
                   </div>
                 </div>

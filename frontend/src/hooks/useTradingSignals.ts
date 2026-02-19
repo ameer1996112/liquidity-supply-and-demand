@@ -31,7 +31,14 @@ const CONFIG = {
   STATS_REFRESH_WITHOUT_REALTIME: 30_000,
   /** Enable debug logging */
   DEBUG: process.env.NODE_ENV === 'development',
+  /** Realtime event batching window (ms) */
+  REALTIME_BATCH_MS: 300,
 } as const;
+
+type QueuedRealtimeEvent = {
+  eventType: 'INSERT' | 'UPDATE' | 'DELETE';
+  signal: TradingSignal;
+};
 
 // =============================================================================
 // DEBUG UTILITIES
@@ -73,7 +80,7 @@ function validateSignal(signal: TradingSignal, source: string): void {
   if (warnings.length > 0) {
     console.warn(
       `[useTradingSignals] Signal validation (${source}):`,
-      signal.id,
+      signal.id
     );
     warnings.forEach((w) => console.warn('  ', w));
   }
@@ -117,6 +124,73 @@ export function useTradingSignals(mode?: TradingMode) {
   const queryClient = useQueryClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const subscriptionRef = useRef<any>(null);
+  const eventQueueRef = useRef<QueuedRealtimeEvent[]>([]);
+  const batchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const flushRealtimeBatch = useCallback(() => {
+    const queued = eventQueueRef.current;
+    eventQueueRef.current = [];
+    batchTimerRef.current = null;
+
+    if (queued.length === 0) return;
+
+    debugLog('Flushing realtime batch', { size: queued.length, mode });
+
+    // Keep only latest event per signal id to minimize cache writes.
+    const latestById = new Map<string, QueuedRealtimeEvent>();
+    for (const evt of queued) {
+      latestById.set(evt.signal.id, evt);
+    }
+    const batchedEvents = Array.from(latestById.values());
+
+    queryClient.setQueryData<TradingSignal[]>(
+      signalKeys.list(mode),
+      (old = []) => {
+        let next = old;
+
+        for (const evt of batchedEvents) {
+          if (evt.eventType === 'DELETE') {
+            next = next.filter((signal) => signal.id !== evt.signal.id);
+            continue;
+          }
+
+          // Filter by mode if requested.
+          const signalMode = (evt.signal.mode ?? '').toUpperCase();
+          const filterMode = (mode ?? '').toUpperCase();
+          if (mode && signalMode !== filterMode) {
+            continue;
+          }
+
+          const idx = next.findIndex((signal) => signal.id === evt.signal.id);
+          if (idx >= 0) {
+            const copy = [...next];
+            copy[idx] = evt.signal;
+            next = copy;
+          } else {
+            next = [evt.signal, ...next].slice(0, CONFIG.SIGNAL_LIMIT);
+          }
+        }
+
+        return next;
+      }
+    );
+
+    // Invalidate derived stats once per batch instead of once per event.
+    queryClient.invalidateQueries({ queryKey: signalKeys.stats });
+  }, [mode, queryClient]);
+
+  const enqueueRealtimeEvent = useCallback(
+    (event: QueuedRealtimeEvent) => {
+      eventQueueRef.current.push(event);
+      if (!batchTimerRef.current) {
+        batchTimerRef.current = setTimeout(
+          flushRealtimeBatch,
+          CONFIG.REALTIME_BATCH_MS
+        );
+      }
+    },
+    [flushRealtimeBatch]
+  );
 
   // Main query
   const query = useQuery({
@@ -212,50 +286,20 @@ export function useTradingSignals(mode?: TradingMode) {
             validateSignal(normalizedNew, `realtime-${eventType}`);
           }
 
-          // Update cache optimistically
-          queryClient.setQueryData<TradingSignal[]>(
-            signalKeys.list(mode),
-            (old = []) => {
-              if (eventType === 'INSERT' && normalizedNew) {
-                // Filter by mode if specified (case-insensitive: LIVE/live, PAPER/paper)
-                const signalMode = (normalizedNew.mode ?? '').toUpperCase();
-                const filterMode = (mode ?? '').toUpperCase();
-                if (mode && signalMode !== filterMode) {
-                  debugLog('INSERT filtered by mode', {
-                    signalMode,
-                    filterMode,
-                  });
-                  return old;
-                }
+          if (
+            (eventType === 'INSERT' || eventType === 'UPDATE') &&
+            normalizedNew
+          ) {
+            enqueueRealtimeEvent({ eventType, signal: normalizedNew });
+          }
 
-                debugLog('Prepending new signal', {
-                  id: normalizedNew.id,
-                  symbol: normalizedNew.symbol,
-                });
-
-                // Prepend new signal and limit to CONFIG.SIGNAL_LIMIT
-                return [normalizedNew, ...old].slice(0, CONFIG.SIGNAL_LIMIT);
-              }
-
-              if (eventType === 'UPDATE' && normalizedNew) {
-                debugLog('Updating signal', { id: normalizedNew.id });
-                return old.map((signal) =>
-                  signal.id === normalizedNew.id ? normalizedNew : signal,
-                );
-              }
-
-              if (eventType === 'DELETE' && oldRecord) {
-                debugLog('Removing signal', { id: oldRecord.id });
-                return old.filter((signal) => signal.id !== oldRecord.id);
-              }
-
-              return old;
-            },
-          );
-
-          // Invalidate stats cache on any change
-          queryClient.invalidateQueries({ queryKey: signalKeys.stats });
-        },
+          if (eventType === 'DELETE' && oldRecord) {
+            enqueueRealtimeEvent({
+              eventType: 'DELETE',
+              signal: normalizeSignal(oldRecord as Partial<TradingSignal>),
+            });
+          }
+        }
       )
       .subscribe((status) => {
         debugLog('Realtime subscription status', status);
@@ -265,12 +309,17 @@ export function useTradingSignals(mode?: TradingMode) {
 
     return () => {
       debugLog('Cleaning up realtime subscription', null);
+      if (batchTimerRef.current) {
+        clearTimeout(batchTimerRef.current);
+        batchTimerRef.current = null;
+      }
+      flushRealtimeBatch();
       if (supabase && subscriptionRef.current) {
         supabase.removeChannel(subscriptionRef.current);
         subscriptionRef.current = null;
       }
     };
-  }, [queryClient, mode]);
+  }, [queryClient, mode, enqueueRealtimeEvent, flushRealtimeBatch]);
 
   return query;
 }
@@ -338,7 +387,7 @@ export function useRefreshSignals() {
 export function useSignalSubscription(
   onInsert?: (signal: TradingSignal) => void,
   onUpdate?: (signal: TradingSignal) => void,
-  onDelete?: (signalId: string) => void,
+  onDelete?: (signalId: string) => void
 ) {
   useEffect(() => {
     if (!isSupabaseAvailable() || !supabase) return;
@@ -361,14 +410,14 @@ export function useSignalSubscription(
 
           if (eventType === 'INSERT' && newRecord) {
             const normalized = normalizeSignal(
-              newRecord as Partial<TradingSignal>,
+              newRecord as Partial<TradingSignal>
             );
             onInsert?.(normalized);
           }
 
           if (eventType === 'UPDATE' && newRecord) {
             const normalized = normalizeSignal(
-              newRecord as Partial<TradingSignal>,
+              newRecord as Partial<TradingSignal>
             );
             onUpdate?.(normalized);
           }
@@ -376,7 +425,7 @@ export function useSignalSubscription(
           if (eventType === 'DELETE' && oldRecord) {
             onDelete?.(oldRecord.id);
           }
-        },
+        }
       )
       .subscribe();
 
