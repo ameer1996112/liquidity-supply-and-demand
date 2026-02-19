@@ -4,7 +4,7 @@ import json
 import logging
 import pickle
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 from openai import OpenAI
@@ -152,6 +152,157 @@ _RAG_ENGINE: Optional[RagEngine] = None
 _LLM_CLIENT: Optional[OpenAI] = None
 
 
+def _load_feature_names_from_metadata(path: Path, key: str) -> List[str]:
+    """Best-effort metadata feature loader."""
+    try:
+        if not path.exists():
+            return []
+        with open(path, "r") as f:
+            data = json.load(f)
+        names = data.get(key, [])
+        return [str(c) for c in names] if isinstance(names, list) else []
+    except Exception as e:
+        logger.warning("Failed reading metadata feature names from %s: %s", path.name, e)
+        return []
+
+
+def _get_expected_feature_spec() -> Tuple[List[str], Optional[int], str]:
+    """
+    Return (expected_feature_names, expected_feature_count, source).
+
+    Priority:
+    1) Model-native names (feature_names_in_ / Booster.feature_name())
+    2) Metadata files
+    3) Encoder keys (last resort)
+    """
+    # LightGBM native booster
+    if AI_MODEL_TYPE == "lightgbm_native":
+        if AI_MODEL is not None and hasattr(AI_MODEL, "feature_name"):
+            try:
+                names = [str(c) for c in AI_MODEL.feature_name()]
+                if names:
+                    return names, len(names), "lightgbm_native.feature_name()"
+            except Exception as e:
+                logger.warning("Could not read Booster.feature_name(): %s", e)
+
+        names = _load_feature_names_from_metadata(_ROOT / "ml" / "model_metadata_v3.json", "features")
+        if names:
+            return names, len(names), "model_metadata_v3.json"
+
+        if AI_MODEL is not None and hasattr(AI_MODEL, "num_feature"):
+            try:
+                return [], int(AI_MODEL.num_feature()), "lightgbm_native.num_feature()"
+            except Exception:
+                pass
+
+    # sklearn-compatible models (RandomForest, LightGBM sklearn wrapper, etc.)
+    if AI_MODEL is not None and hasattr(AI_MODEL, "feature_names_in_"):
+        try:
+            names = [str(c) for c in list(AI_MODEL.feature_names_in_)]
+            if names:
+                n = int(getattr(AI_MODEL, "n_features_in_", len(names)))
+                return names, n, "model.feature_names_in_"
+        except Exception as e:
+            logger.warning("Could not read model.feature_names_in_: %s", e)
+
+    # Metadata fallback for legacy models
+    for path, key in (
+        (_ROOT / "ml" / "model_metadata_v2.json", "feature_names"),
+        (_ROOT / "ml" / "model_metadata.json", "feature_names"),
+    ):
+        names = _load_feature_names_from_metadata(path, key)
+        if names:
+            return names, len(names), path.name
+
+    # Encoder fallback (weakest)
+    if AI_ENCODERS:
+        names = [str(c) for c in AI_ENCODERS.keys()]
+        if names:
+            return names, len(names), "encoder_keys_fallback"
+
+    # Count-only fallback
+    if AI_MODEL is not None and hasattr(AI_MODEL, "n_features_in_"):
+        try:
+            return [], int(AI_MODEL.n_features_in_), "model.n_features_in_"
+        except Exception:
+            pass
+
+    return [], None, "unknown"
+
+
+def _align_features_for_inference(
+    df: pd.DataFrame,
+    expected_cols: List[str],
+    expected_count: Optional[int],
+    symbol: str,
+) -> Tuple[pd.DataFrame, List[str], List[str]]:
+    """
+    Align live feature frame to model input shape.
+
+    - If feature names are known: strict reindex by name (drop extras, add missing as 0.0).
+    - If only count is known: trim/pad by position.
+    """
+    live_cols = list(df.columns)
+
+    # Best path: align by exact feature names
+    if expected_cols:
+        dropped_cols = [c for c in live_cols if c not in expected_cols]
+        missing_cols = [c for c in expected_cols if c not in live_cols]
+
+        if dropped_cols:
+            logger.warning(
+                "ML inference alignment for %s: dropping %d unexpected columns (live=%d expected=%d): %s",
+                symbol,
+                len(dropped_cols),
+                len(live_cols),
+                len(expected_cols),
+                dropped_cols,
+            )
+        if missing_cols:
+            logger.warning(
+                "ML inference alignment for %s: adding %d missing columns as 0.0: %s",
+                symbol,
+                len(missing_cols),
+                missing_cols,
+            )
+
+        aligned = df.reindex(columns=expected_cols, fill_value=0.0)
+        return aligned, dropped_cols, missing_cols
+
+    # Fallback path: align by count only
+    dropped_cols: List[str] = []
+    missing_cols: List[str] = []
+    if expected_count is not None:
+        live_count = len(live_cols)
+        if live_count > expected_count:
+            dropped_cols = live_cols[expected_count:]
+            logger.warning(
+                "ML inference alignment for %s: dropping %d overflow columns by position "
+                "(live=%d expected=%d): %s",
+                symbol,
+                live_count - expected_count,
+                live_count,
+                expected_count,
+                dropped_cols,
+            )
+            df = df.iloc[:, :expected_count]
+        elif live_count < expected_count:
+            pad = expected_count - live_count
+            missing_cols = [f"__pad_{i}" for i in range(pad)]
+            logger.warning(
+                "ML inference alignment for %s: padding %d missing columns as 0.0 "
+                "(live=%d expected=%d)",
+                symbol,
+                pad,
+                live_count,
+                expected_count,
+            )
+            for c in missing_cols:
+                df[c] = 0.0
+
+    return df, dropped_cols, missing_cols
+
+
 def load_brain() -> None:
     """
     Load ML model, encoders, and scaler once at startup.
@@ -270,25 +421,14 @@ def get_prediction(payload: Dict[str, Any]) -> Tuple[float, str, Dict[str, Any]]
     try:
         symbol = payload.get("symbol", "UNKNOWN")
 
-        # Get feature names based on model type
-        if AI_MODEL_TYPE == "lightgbm_native":
-            # LightGBM native format doesn't have feature_names_in_
-            # Load from model metadata file instead
-            import json
-            metadata_path = _ROOT / "ml" / "model_metadata_v3.json"
-            if metadata_path.exists():
-                with open(metadata_path, 'r') as f:
-                    metadata = json.load(f)
-                    feature_names = metadata.get('features', [])
-                logger.info(f"Loaded {len(feature_names)} feature names from metadata")
-            else:
-                logger.error("model_metadata_v3.json not found!")
-                feature_names = []
-        elif hasattr(AI_MODEL, 'feature_names_in_'):
-            feature_names = list(AI_MODEL.feature_names_in_)
-        else:
-            logger.warning("Model has no feature_names_in_, using encoders")
-            feature_names = list(AI_ENCODERS.keys()) if AI_ENCODERS else []
+        feature_names, expected_feature_count, spec_source = _get_expected_feature_spec()
+        logger.debug(
+            "ML expected feature spec for %s: source=%s names=%d expected_count=%s",
+            symbol,
+            spec_source,
+            len(feature_names),
+            expected_feature_count,
+        )
 
         features = build_feature_frame(payload, feature_names, AI_ENCODERS or {})
         asset_id = encode_asset_id(symbol, AI_ENCODERS or {})
@@ -300,30 +440,24 @@ def get_prediction(payload: Dict[str, Any]) -> Tuple[float, str, Dict[str, Any]]
         # Engineer features (same as training script)
         df = _engineer_features_for_prediction(df)
 
-        # Enforce exact model feature shape/order.
-        # This protects inference when live payloads evolve (e.g. new 5m trigger fields)
-        # and prevents shape mismatch errors like: data has N features, model expects M.
-        expected_cols = list(feature_names or [])
-        if expected_cols:
-            dropped_cols = [c for c in df.columns if c not in expected_cols]
-            missing_cols = [c for c in expected_cols if c not in df.columns]
-
-            if dropped_cols:
-                logger.warning(
-                    "Dropping %d unexpected live features for %s: %s",
-                    len(dropped_cols),
-                    symbol,
-                    dropped_cols,
-                )
-            if missing_cols:
-                logger.warning(
-                    "Filling %d missing model features for %s with 0.0: %s",
-                    len(missing_cols),
-                    symbol,
-                    missing_cols,
-                )
-
-            df = df.reindex(columns=expected_cols, fill_value=0.0)
+        # Hard alignment gate before predict()/predict_proba().
+        # Prevents crashes when live payload evolves and introduces extra columns.
+        original_feature_count = len(df.columns)
+        df, dropped_cols, missing_cols = _align_features_for_inference(
+            df,
+            expected_cols=feature_names,
+            expected_count=expected_feature_count,
+            symbol=symbol,
+        )
+        if dropped_cols or missing_cols:
+            logger.info(
+                "ML feature alignment summary for %s: live=%d aligned=%d dropped=%d missing_filled=%d",
+                symbol,
+                original_feature_count,
+                len(df.columns),
+                len(dropped_cols),
+                len(missing_cols),
+            )
 
         # Different prediction logic based on model type
         if AI_MODEL_TYPE == "lightgbm_native":
