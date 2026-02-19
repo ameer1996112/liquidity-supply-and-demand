@@ -222,11 +222,11 @@ export default function BacktestPage() {
         </div>
         <div className='grid grid-cols-2 md:grid-cols-4 gap-4'>
           <div>
-            <label className='block text-sm text-gray-400 mb-2'>Symbol</label>
+            <label className='mb-2 block text-sm text-slate-400'>Symbol</label>
             <select
               value={config.symbol}
               onChange={(e) => setConfig({ ...config, symbol: e.target.value })}
-              className='w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md'
+              className='w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-slate-200'
             >
               <optgroup label='Forex - Majors'>
                 <option value='EURUSD'>EUR/USD - Euro vs US Dollar</option>
@@ -276,7 +276,7 @@ export default function BacktestPage() {
           </div>
 
           <div>
-            <label className='block text-sm text-gray-400 mb-2'>
+            <label className='mb-2 block text-sm text-slate-400'>
               Start Date
             </label>
             <input
@@ -285,24 +285,26 @@ export default function BacktestPage() {
               onChange={(e) =>
                 setConfig({ ...config, start_date: e.target.value })
               }
-              className='w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md'
+              className='w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-slate-200'
             />
           </div>
 
           <div>
-            <label className='block text-sm text-gray-400 mb-2'>End Date</label>
+            <label className='mb-2 block text-sm text-slate-400'>
+              End Date
+            </label>
             <input
               type='date'
               value={config.end_date}
               onChange={(e) =>
                 setConfig({ ...config, end_date: e.target.value })
               }
-              className='w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md'
+              className='w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-slate-200'
             />
           </div>
 
           <div>
-            <label className='block text-sm text-gray-400 mb-2'>
+            <label className='mb-2 block text-sm text-slate-400'>
               Timeframe
             </label>
             <select
@@ -310,7 +312,7 @@ export default function BacktestPage() {
               onChange={(e) =>
                 setConfig({ ...config, timeframe: e.target.value })
               }
-              className='w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md'
+              className='w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-slate-200'
             >
               <option value='5m'>5 Minutes</option>
               <option value='15m'>15 Minutes</option>
@@ -324,7 +326,7 @@ export default function BacktestPage() {
         {/* Risk & Strategy Parameters */}
         <div className='mt-4 grid grid-cols-2 md:grid-cols-3 gap-4'>
           <div>
-            <label className='block text-sm text-gray-400 mb-2'>
+            <label className='mb-2 block text-sm text-slate-400'>
               Risk Per Trade (%)
             </label>
             <input
@@ -339,12 +341,12 @@ export default function BacktestPage() {
               min='0.1'
               max='5.0'
               step='0.1'
-              className='w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md'
+              className='w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-slate-200'
             />
           </div>
 
           <div>
-            <label className='block text-sm text-gray-400 mb-2'>
+            <label className='mb-2 block text-sm text-slate-400'>
               Min R:R Ratio
             </label>
             <input
@@ -359,12 +361,12 @@ export default function BacktestPage() {
               min='0.5'
               max='10.0'
               step='0.1'
-              className='w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md'
+              className='w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-slate-200'
             />
           </div>
 
           <div>
-            <label className='block text-sm text-gray-400 mb-2'>
+            <label className='mb-2 block text-sm text-slate-400'>
               Zone Lookback (bars)
             </label>
             <input
@@ -379,12 +381,12 @@ export default function BacktestPage() {
               min='5'
               max='50'
               step='1'
-              className='w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md'
+              className='w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-slate-200'
             />
           </div>
 
           <div>
-            <label className='block text-sm text-gray-400 mb-2'>
+            <label className='mb-2 block text-sm text-slate-400'>
               SL Buffer (pips)
             </label>
             <input
@@ -399,12 +401,12 @@ export default function BacktestPage() {
               min='0'
               max='10.0'
               step='0.1'
-              className='w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md'
+              className='w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-slate-200'
             />
           </div>
 
           <div>
-            <label className='block text-sm text-gray-400 mb-2'>
+            <label className='mb-2 block text-sm text-slate-400'>
               Initial Cash ($)
             </label>
             <input
@@ -418,12 +420,12 @@ export default function BacktestPage() {
               }
               min='100'
               step='1000'
-              className='w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md'
+              className='w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-slate-200'
             />
           </div>
 
           <div>
-            <label className='block text-sm text-gray-400 mb-2'>
+            <label className='mb-2 block text-sm text-slate-400'>
               Commission
             </label>
             <input
@@ -438,7 +440,7 @@ export default function BacktestPage() {
               min='0'
               max='0.01'
               step='0.0001'
-              className='w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md'
+              className='w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-slate-200'
             />
           </div>
         </div>
@@ -493,12 +495,12 @@ export default function BacktestPage() {
 
         {/* Advanced Liquidity & Quality Settings */}
         <div className='mt-4'>
-          <h3 className='text-sm font-semibold text-gray-300 mb-3'>
+          <h3 className='mb-3 text-sm font-semibold text-slate-300'>
             Advanced Settings (Liquidity & AI Quality)
           </h3>
           <div className='grid grid-cols-2 md:grid-cols-4 gap-4'>
             <div>
-              <label className='block text-sm text-gray-400 mb-2'>
+              <label className='mb-2 block text-sm text-slate-400'>
                 Max Liquidity Distance (pips)
               </label>
               <input
@@ -513,15 +515,15 @@ export default function BacktestPage() {
                 min='10'
                 max='1000'
                 step='10'
-                className='w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md'
+                className='w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-slate-200'
               />
-              <p className='text-xs text-gray-500 mt-1'>
+              <p className='mt-1 text-xs text-slate-500'>
                 Max distance from zone to liquidity level
               </p>
             </div>
 
             <div>
-              <label className='block text-sm text-gray-400 mb-2'>
+              <label className='mb-2 block text-sm text-slate-400'>
                 AI Quality Threshold (0-100)
               </label>
               <input
@@ -536,15 +538,15 @@ export default function BacktestPage() {
                 min='0'
                 max='100'
                 step='5'
-                className='w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md'
+                className='w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-slate-200'
               />
-              <p className='text-xs text-gray-500 mt-1'>
+              <p className='mt-1 text-xs text-slate-500'>
                 Minimum AI quality score to enter trade
               </p>
             </div>
 
             <div>
-              <label className='block text-sm text-gray-400 mb-2'>
+              <label className='mb-2 block text-sm text-slate-400'>
                 Minimum Entry Grade
               </label>
               <select
@@ -552,7 +554,7 @@ export default function BacktestPage() {
                 onChange={(e) =>
                   setConfig({ ...config, min_entry_grade: e.target.value })
                 }
-                className='w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md'
+                className='w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-slate-200'
               >
                 <option value='A+'>A+ (90-100)</option>
                 <option value='A'>A (80-89)</option>
@@ -561,13 +563,13 @@ export default function BacktestPage() {
                 <option value='C+'>C+ (50-59)</option>
                 <option value='C'>C (0-49)</option>
               </select>
-              <p className='text-xs text-gray-500 mt-1'>
+              <p className='mt-1 text-xs text-slate-500'>
                 Minimum zone grade to enter trade
               </p>
             </div>
 
             <div>
-              <label className='block text-sm text-gray-400 mb-2'>
+              <label className='mb-2 block text-sm text-slate-400'>
                 Max Bars in Trade
               </label>
               <input
@@ -582,9 +584,9 @@ export default function BacktestPage() {
                 min='0'
                 max='500'
                 step='10'
-                className='w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md'
+                className='w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-slate-200'
               />
-              <p className='text-xs text-gray-500 mt-1'>
+              <p className='mt-1 text-xs text-slate-500'>
                 Auto-exit after N bars (0=disabled)
               </p>
             </div>
@@ -675,7 +677,7 @@ export default function BacktestPage() {
             </TabsList>
 
             <TabsContent value='chart' className='mt-4'>
-              <Card className='p-6'>
+              <Card className='tv-card p-6'>
                 <div className='flex justify-between items-center mb-4'>
                   <h2 className='text-xl font-semibold'>Backtest Chart</h2>
                   <Button
@@ -714,14 +716,14 @@ export default function BacktestPage() {
             </TabsContent>
 
             <TabsContent value='trades' className='mt-4'>
-              <Card className='p-6'>
+              <Card className='tv-card p-6'>
                 <h2 className='text-xl font-semibold mb-4'>
                   Trade List ({visibleTrades.length} trades)
                 </h2>
                 <div className='overflow-x-auto'>
                   <table className='w-full text-sm'>
-                    <thead className='border-b border-gray-800'>
-                      <tr className='text-gray-400'>
+                    <thead className='border-b border-slate-700'>
+                      <tr className='text-slate-400'>
                         <th className='text-left py-3 px-2'>#</th>
                         <th className='text-left py-3 px-2'>Type</th>
                         <th className='text-left py-3 px-2'>Entry Date</th>
@@ -749,9 +751,9 @@ export default function BacktestPage() {
                         return (
                           <tr
                             key={index}
-                            className='border-b border-gray-800 hover:bg-gray-900/50 transition-colors'
+                            className='border-b border-slate-700 hover:bg-slate-800/50 transition-colors'
                           >
-                            <td className='py-3 px-2 text-gray-300'>
+                            <td className='py-3 px-2 text-slate-300'>
                               {index + 1}
                             </td>
                             <td className='py-3 px-2'>
@@ -766,7 +768,7 @@ export default function BacktestPage() {
                                 {trade.side === 'long' ? 'LONG' : 'SHORT'}
                               </Badge>
                             </td>
-                            <td className='py-3 px-2 text-gray-400 text-xs'>
+                            <td className='py-3 px-2 text-slate-400 text-xs'>
                               {new Date(trade.entry_time * 1000).toLocaleString(
                                 'en-US',
                                 {
@@ -777,7 +779,7 @@ export default function BacktestPage() {
                                 }
                               )}
                             </td>
-                            <td className='py-3 px-2 text-gray-400 text-xs'>
+                            <td className='py-3 px-2 text-slate-400 text-xs'>
                               {new Date(trade.exit_time * 1000).toLocaleString(
                                 'en-US',
                                 {
@@ -788,16 +790,16 @@ export default function BacktestPage() {
                                 }
                               )}
                             </td>
-                            <td className='py-3 px-2 text-right text-gray-400 text-xs'>
+                            <td className='py-3 px-2 text-right text-slate-400 text-xs'>
                               {durationText}
                             </td>
-                            <td className='py-3 px-2 text-right text-gray-300'>
+                            <td className='py-3 px-2 text-right text-slate-300'>
                               {trade.entry_price.toFixed(5)}
                             </td>
-                            <td className='py-3 px-2 text-right text-gray-300'>
+                            <td className='py-3 px-2 text-right text-slate-300'>
                               {trade.exit_price.toFixed(5)}
                             </td>
-                            <td className='py-3 px-2 text-right text-gray-400'>
+                            <td className='py-3 px-2 text-right text-slate-400'>
                               {trade.size.toFixed(2)}
                             </td>
                             <td
@@ -837,7 +839,7 @@ export default function BacktestPage() {
                   </table>
 
                   {visibleTrades.length === 0 && (
-                    <div className='text-center py-8 text-gray-500'>
+                    <div className='py-8 text-center text-slate-500'>
                       No trades yet. Run a backtest to see results.
                     </div>
                   )}

@@ -25,7 +25,11 @@ export default function AccountDetailPage() {
   const queryClient = useQueryClient();
 
   // Fetch account details
-  const { data: account, isLoading, error } = useQuery({
+  const {
+    data: account,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ['account-detail', accountName],
     queryFn: () => fetchAccountDetail(accountName),
     staleTime: 30_000,
@@ -35,8 +39,12 @@ export default function AccountDetailPage() {
   const syncMutation = useMutation({
     mutationFn: () => syncAccount(accountName),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['account-detail', accountName] });
-      queryClient.invalidateQueries({ queryKey: ['portfolio-control', 'accounts', 'comparison'] });
+      queryClient.invalidateQueries({
+        queryKey: ['account-detail', accountName],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['portfolio-control', 'accounts', 'comparison'],
+      });
       addToast({
         title: 'Account synced',
         message: `${accountName} synced successfully with MetaAPI`,
@@ -54,12 +62,16 @@ export default function AccountDetailPage() {
     },
   });
 
-  const connectionStatus = (account?.connection_status || 'not_configured') as 'connected' | 'disconnected' | 'error' | 'not_configured';
+  const connectionStatus = (account?.connection_status || 'not_configured') as
+    | 'connected'
+    | 'disconnected'
+    | 'error'
+    | 'not_configured';
   const connectionColor = {
     connected: 'text-emerald-500',
     disconnected: 'text-amber-500',
     error: 'text-red-500',
-    not_configured: 'text-zinc-500',
+    not_configured: 'text-slate-500',
   }[connectionStatus];
 
   const connectionLabel = {
@@ -71,17 +83,17 @@ export default function AccountDetailPage() {
 
   if (error) {
     return (
-      <div className="space-y-4">
+      <div className='space-y-4'>
         <Button
-          variant="ghost"
-          size="sm"
-          className="text-zinc-400 hover:text-zinc-200"
+          variant='ghost'
+          size='sm'
+          className='text-slate-400 hover:text-slate-200'
           onClick={() => router.push('/accounts')}
         >
-          <ArrowLeft className="h-4 w-4 mr-2" />
+          <ArrowLeft className='mr-2 h-4 w-4' />
           Back to Accounts
         </Button>
-        <div className="rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm text-red-600">
+        <div className='rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300'>
           Failed to load account details: {(error as Error).message}
         </div>
       </div>
@@ -89,41 +101,61 @@ export default function AccountDetailPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className='space-y-4'>
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className='flex items-center justify-between'>
+        <div className='flex items-center gap-4'>
           <Button
-            variant="ghost"
-            size="sm"
-            className="text-zinc-400 hover:text-zinc-200"
+            variant='ghost'
+            size='sm'
+            className='text-slate-400 hover:text-slate-200'
             onClick={() => router.push('/accounts')}
           >
-            <ArrowLeft className="h-4 w-4 mr-2" />
+            <ArrowLeft className='mr-2 h-4 w-4' />
             Back
           </Button>
 
           <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-lg font-semibold text-zinc-100">
-                {isLoading ? <Skeleton className="h-6 w-48 bg-[#1e222d]" /> : accountName}
+            <div className='flex items-center gap-3'>
+              <h1 className='page-title text-lg font-semibold'>
+                {isLoading ? (
+                  <Skeleton className='h-6 w-48 bg-slate-800/60' />
+                ) : (
+                  accountName
+                )}
               </h1>
               {!isLoading && account && (
                 <>
                   {account.account_type && (
-                    <span className="px-2 py-0.5 text-xs font-mono rounded bg-[#2a2e39] text-zinc-400">
+                    <span className='rounded bg-slate-700 px-2 py-0.5 text-xs font-mono text-slate-300'>
                       {account.account_type}
                     </span>
                   )}
                   {account.provider && account.provider !== 'Personal' && (
-                    <span className="px-2 py-0.5 text-xs font-mono rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                    <span className='rounded border border-indigo-500/20 bg-indigo-500/10 px-2 py-0.5 text-xs font-mono text-indigo-300'>
                       {account.provider}
                     </span>
                   )}
-                  <span className={`flex items-center gap-1.5 text-xs font-mono ${connectionColor}`}>
-                    <span className="relative flex h-2 w-2">
-                      <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${connectionStatus === 'connected' ? 'bg-emerald-500' : 'bg-amber-500'} opacity-75`}></span>
-                      <span className={`relative inline-flex rounded-full h-2 w-2 ${connectionStatus === 'connected' ? 'bg-emerald-500' : connectionStatus === 'error' ? 'bg-red-500' : 'bg-amber-500'}`}></span>
+                  <span
+                    className={`flex items-center gap-1.5 text-xs font-mono ${connectionColor}`}
+                  >
+                    <span className='relative flex h-2 w-2'>
+                      <span
+                        className={`animate-ping absolute inline-flex h-full w-full rounded-full ${
+                          connectionStatus === 'connected'
+                            ? 'bg-emerald-500'
+                            : 'bg-amber-500'
+                        } opacity-75`}
+                      ></span>
+                      <span
+                        className={`relative inline-flex rounded-full h-2 w-2 ${
+                          connectionStatus === 'connected'
+                            ? 'bg-emerald-500'
+                            : connectionStatus === 'error'
+                            ? 'bg-red-500'
+                            : 'bg-amber-500'
+                        }`}
+                      ></span>
                     </span>
                     {connectionLabel}
                   </span>
@@ -133,27 +165,44 @@ export default function AccountDetailPage() {
 
             {/* Key Metrics Row */}
             {!isLoading && account && (
-              <div className="flex items-center gap-4 mt-2 text-sm">
-                <div className="flex items-center gap-2">
-                  <span className="text-zinc-500 text-xs">Balance:</span>
-                  <span className="font-mono font-semibold text-zinc-200">
-                    ${account.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              <div className='mt-2 flex items-center gap-4 text-sm'>
+                <div className='flex items-center gap-2'>
+                  <span className='text-xs text-slate-500'>Balance:</span>
+                  <span className='font-mono font-semibold text-slate-200'>
+                    $
+                    {account.balance.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                    })}
                   </span>
                 </div>
-                <div className="h-3 w-px bg-zinc-700"></div>
-                <div className="flex items-center gap-2">
-                  <span className="text-zinc-500 text-xs">Equity:</span>
-                  <span className="font-mono font-semibold text-zinc-200">
-                    ${account.equity?.toLocaleString(undefined, { minimumFractionDigits: 2 }) || account.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                <div className='h-3 w-px bg-slate-700'></div>
+                <div className='flex items-center gap-2'>
+                  <span className='text-xs text-slate-500'>Equity:</span>
+                  <span className='font-mono font-semibold text-slate-200'>
+                    $
+                    {account.equity?.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                    }) ||
+                      account.balance.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                      })}
                   </span>
                 </div>
-                <div className="h-3 w-px bg-zinc-700"></div>
-                <div className="flex items-center gap-2">
-                  <span className="text-zinc-500 text-xs">Today:</span>
-                  <span className={`font-mono font-semibold ${account.daily_pnl >= 0 ? 'text-[#26a69a]' : 'text-[#ef5350]'}`}>
-                    {account.daily_pnl >= 0 ? '+' : ''}${account.daily_pnl.toFixed(2)}
-                    <span className="text-xs ml-1 opacity-80">
-                      ({account.daily_pnl >= 0 ? '+' : ''}{account.daily_pnl_pct.toFixed(2)}%)
+                <div className='h-3 w-px bg-slate-700'></div>
+                <div className='flex items-center gap-2'>
+                  <span className='text-xs text-slate-500'>Today:</span>
+                  <span
+                    className={`font-mono font-semibold ${
+                      account.daily_pnl >= 0
+                        ? 'text-emerald-400'
+                        : 'text-red-400'
+                    }`}
+                  >
+                    {account.daily_pnl >= 0 ? '+' : ''}$
+                    {account.daily_pnl.toFixed(2)}
+                    <span className='ml-1 text-xs opacity-80'>
+                      ({account.daily_pnl >= 0 ? '+' : ''}
+                      {account.daily_pnl_pct.toFixed(2)}%)
                     </span>
                   </span>
                 </div>
@@ -163,29 +212,42 @@ export default function AccountDetailPage() {
         </div>
 
         <Button
-          variant="outline"
-          size="sm"
-          className="border-[#2a2e39] text-zinc-400 hover:bg-[#2a2e39] hover:text-zinc-200"
+          variant='outline'
+          size='sm'
+          className='border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-slate-200'
           onClick={() => syncMutation.mutate()}
           disabled={syncMutation.isPending}
         >
-          <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
+          <RefreshCw
+            className={`mr-1.5 h-3.5 w-3.5 ${
+              syncMutation.isPending ? 'animate-spin' : ''
+            }`}
+          />
           Refresh Now
         </Button>
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-[#2a2e39]">
-        <nav className="flex gap-6">
-          {(['overview', 'positions', 'history', 'analytics', 'journal'] as Tab[]).map((tab) => (
+      <div className='border-b border-slate-700'>
+        <nav className='flex gap-6'>
+          {(
+            [
+              'overview',
+              'positions',
+              'history',
+              'analytics',
+              'journal',
+            ] as Tab[]
+          ).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={`
                 px-1 py-2 text-sm font-medium border-b-2 transition-colors
-                ${activeTab === tab
-                  ? 'border-emerald-500 text-emerald-500'
-                  : 'border-transparent text-zinc-500 hover:text-zinc-300 hover:border-zinc-700'
+                ${
+                  activeTab === tab
+                    ? 'border-indigo-400 text-indigo-300'
+                    : 'border-transparent text-slate-500 hover:text-slate-300 hover:border-slate-700'
                 }
               `}
             >
@@ -196,19 +258,27 @@ export default function AccountDetailPage() {
       </div>
 
       {/* Tab Content */}
-      <div>
+      <div className='tv-card p-3'>
         {isLoading ? (
-          <div className="space-y-4">
-            <Skeleton className="h-24 bg-[#1e222d]" />
-            <Skeleton className="h-48 bg-[#1e222d]" />
+          <div className='space-y-4'>
+            <Skeleton className='h-24 bg-slate-800/60' />
+            <Skeleton className='h-48 bg-slate-800/60' />
           </div>
         ) : account ? (
           <>
             {activeTab === 'overview' && <OverviewTab account={account} />}
-            {activeTab === 'positions' && <PositionsTab accountName={accountName} />}
-            {activeTab === 'history' && <HistoryTab accountName={accountName} />}
-            {activeTab === 'analytics' && <AnalyticsTab accountName={accountName} />}
-            {activeTab === 'journal' && <JournalTab accountName={accountName} />}
+            {activeTab === 'positions' && (
+              <PositionsTab accountName={accountName} />
+            )}
+            {activeTab === 'history' && (
+              <HistoryTab accountName={accountName} />
+            )}
+            {activeTab === 'analytics' && (
+              <AnalyticsTab accountName={accountName} />
+            )}
+            {activeTab === 'journal' && (
+              <JournalTab accountName={accountName} />
+            )}
           </>
         ) : null}
       </div>

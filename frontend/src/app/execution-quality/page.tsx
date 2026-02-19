@@ -54,20 +54,20 @@ export default function ExecutionQualityPage() {
   const hasHighSlippage = tcaSummary && tcaSummary.avg_slippage_pips < -2.0;
 
   return (
-    <div className="space-y-6 p-6">
+    <div className='space-y-4'>
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className='flex items-center justify-between'>
         <div>
-          <h1 className="text-lg font-semibold text-zinc-100">
+          <h1 className='page-title text-lg font-semibold'>
             Execution Quality
           </h1>
-          <p className="text-xs text-zinc-500 mt-1">
+          <p className='page-subtitle mt-0.5 text-xs'>
             Transaction Cost Analysis & Execution Metrics
           </p>
         </div>
 
         {/* Period Selector */}
-        <div className="flex items-center gap-1 bg-[#1e222d] border border-[#2a2e39] rounded-md p-1">
+        <div className='surface-soft flex items-center gap-1 rounded-md p-1'>
           {PERIODS.map((p) => (
             <button
               key={p}
@@ -75,8 +75,8 @@ export default function ExecutionQualityPage() {
               className={cn(
                 'font-mono text-[11px] px-2.5 py-1 rounded transition-colors',
                 period === p
-                  ? 'bg-[#2a2e39] text-zinc-200'
-                  : 'text-zinc-500 hover:text-zinc-300',
+                  ? 'bg-indigo-600/20 text-indigo-300'
+                  : 'text-slate-500 hover:text-slate-300'
               )}
             >
               {p}
@@ -86,28 +86,28 @@ export default function ExecutionQualityPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="bg-[#1e222d] border-[#2a2e39]">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs text-zinc-500 flex items-center gap-1.5">
-              <TrendingDown className="h-3.5 w-3.5" />
+      <div className='grid grid-cols-1 gap-4 md:grid-cols-4'>
+        <Card className='tv-card'>
+          <CardHeader className='pb-2'>
+            <CardTitle className='flex items-center gap-1.5 text-xs text-slate-500'>
+              <TrendingDown className='h-3.5 w-3.5' />
               Avg Slippage
             </CardTitle>
           </CardHeader>
           <CardContent>
             {summaryLoading ? (
-              <Skeleton className="h-6 w-20" />
+              <Skeleton className='h-6 w-20 bg-slate-800/60' />
             ) : (
               <div>
                 <div
                   className={cn(
                     'text-2xl font-bold',
-                    hasHighSlippage ? 'text-red-500' : 'text-zinc-100',
+                    hasHighSlippage ? 'text-red-400' : 'text-slate-100'
                   )}
                 >
                   {tcaSummary?.avg_slippage_pips.toFixed(2) ?? '0.00'} pips
                 </div>
-                <div className="text-xs text-zinc-500 mt-1">
+                <div className='mt-1 text-xs text-slate-500'>
                   ${tcaSummary?.total_slippage_cost_usd.toFixed(2) ?? '0.00'}{' '}
                   total cost
                 </div>
@@ -116,43 +116,43 @@ export default function ExecutionQualityPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-[#1e222d] border-[#2a2e39]">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs text-zinc-500 flex items-center gap-1.5">
-              <DollarSign className="h-3.5 w-3.5" />
+        <Card className='tv-card'>
+          <CardHeader className='pb-2'>
+            <CardTitle className='flex items-center gap-1.5 text-xs text-slate-500'>
+              <DollarSign className='h-3.5 w-3.5' />
               Avg Spread Cost
             </CardTitle>
           </CardHeader>
           <CardContent>
             {summaryLoading ? (
-              <Skeleton className="h-6 w-20" />
+              <Skeleton className='h-6 w-20 bg-slate-800/60' />
             ) : (
               <div>
-                <div className="text-2xl font-bold text-zinc-100">
+                <div className='text-2xl font-bold text-slate-100'>
                   ${tcaSummary?.avg_spread_cost_usd.toFixed(2) ?? '0.00'}
                 </div>
-                <div className="text-xs text-zinc-500 mt-1">Per trade</div>
+                <div className='mt-1 text-xs text-slate-500'>Per trade</div>
               </div>
             )}
           </CardContent>
         </Card>
 
-        <Card className="bg-[#1e222d] border-[#2a2e39]">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs text-zinc-500 flex items-center gap-1.5">
-              <Clock className="h-3.5 w-3.5" />
+        <Card className='tv-card'>
+          <CardHeader className='pb-2'>
+            <CardTitle className='flex items-center gap-1.5 text-xs text-slate-500'>
+              <Clock className='h-3.5 w-3.5' />
               Avg Execution Time
             </CardTitle>
           </CardHeader>
           <CardContent>
             {summaryLoading ? (
-              <Skeleton className="h-6 w-20" />
+              <Skeleton className='h-6 w-20 bg-slate-800/60' />
             ) : (
               <div>
-                <div className="text-2xl font-bold text-zinc-100">
+                <div className='text-2xl font-bold text-slate-100'>
                   {tcaSummary?.avg_execution_time_ms.toFixed(0) ?? '0'}ms
                 </div>
-                <div className="text-xs text-zinc-500 mt-1">
+                <div className='mt-1 text-xs text-slate-500'>
                   Signal to fill
                 </div>
               </div>
@@ -160,22 +160,22 @@ export default function ExecutionQualityPage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-[#1e222d] border-[#2a2e39]">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs text-zinc-500 flex items-center gap-1.5">
-              <AlertTriangle className="h-3.5 w-3.5" />
+        <Card className='tv-card'>
+          <CardHeader className='pb-2'>
+            <CardTitle className='flex items-center gap-1.5 text-xs text-slate-500'>
+              <AlertTriangle className='h-3.5 w-3.5' />
               Total Trades
             </CardTitle>
           </CardHeader>
           <CardContent>
             {summaryLoading ? (
-              <Skeleton className="h-6 w-20" />
+              <Skeleton className='h-6 w-20 bg-slate-800/60' />
             ) : (
               <div>
-                <div className="text-2xl font-bold text-zinc-100">
+                <div className='text-2xl font-bold text-slate-100'>
                   {tcaSummary?.total_trades ?? 0}
                 </div>
-                <div className="text-xs text-zinc-500 mt-1">
+                <div className='mt-1 text-xs text-slate-500'>
                   Last {days} days
                 </div>
               </div>
@@ -185,22 +185,22 @@ export default function ExecutionQualityPage() {
       </div>
 
       {/* Slippage by Symbol Chart */}
-      <Card className="bg-[#1e222d] border-[#2a2e39]">
+      <Card className='tv-card'>
         <CardHeader>
-          <CardTitle className="text-sm font-medium text-zinc-100">
+          <CardTitle className='text-sm font-medium text-slate-100'>
             Slippage by Symbol (Last 30 Days)
           </CardTitle>
         </CardHeader>
         <CardContent>
           {symbolLoading ? (
-            <Skeleton className="h-[300px] w-full" />
+            <Skeleton className='h-[300px] w-full bg-slate-800/60' />
           ) : (
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width='100%' height={300}>
               <BarChart data={slippageBySymbol}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#2a2e39" />
+                <CartesianGrid strokeDasharray='3 3' stroke='#334155' />
                 <XAxis
-                  dataKey="symbol"
-                  stroke="#6b7280"
+                  dataKey='symbol'
+                  stroke='#64748b'
                   style={{ fontSize: 11 }}
                 />
                 <YAxis
@@ -208,22 +208,22 @@ export default function ExecutionQualityPage() {
                     value: 'Avg Slippage (pips)',
                     angle: -90,
                     position: 'insideLeft',
-                    style: { fontSize: 11, fill: '#6b7280' },
+                    style: { fontSize: 11, fill: '#64748b' },
                   }}
-                  stroke="#6b7280"
+                  stroke='#64748b'
                   style={{ fontSize: 11 }}
                 />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: '#131722',
-                    border: '1px solid #2a2e39',
+                    backgroundColor: '#0f172a',
+                    border: '1px solid #334155',
                     borderRadius: '4px',
                     fontSize: 11,
                   }}
                 />
                 <Bar
-                  dataKey="avg_slippage_pips"
-                  fill="#26a69a"
+                  dataKey='avg_slippage_pips'
+                  fill='#10b981'
                   radius={[4, 4, 0, 0]}
                 />
               </BarChart>
@@ -232,50 +232,50 @@ export default function ExecutionQualityPage() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
         {/* Slippage by Hour */}
-        <Card className="bg-[#1e222d] border-[#2a2e39]">
+        <Card className='tv-card'>
           <CardHeader>
-            <CardTitle className="text-sm font-medium text-zinc-100">
+            <CardTitle className='text-sm font-medium text-slate-100'>
               Slippage by Hour (UTC)
             </CardTitle>
           </CardHeader>
           <CardContent>
             {hourLoading ? (
-              <Skeleton className="h-[250px] w-full" />
+              <Skeleton className='h-[250px] w-full bg-slate-800/60' />
             ) : (
-              <ResponsiveContainer width="100%" height={250}>
+              <ResponsiveContainer width='100%' height={250}>
                 <LineChart data={slippageByHour}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#2a2e39" />
+                  <CartesianGrid strokeDasharray='3 3' stroke='#334155' />
                   <XAxis
-                    dataKey="hour"
-                    stroke="#6b7280"
+                    dataKey='hour'
+                    stroke='#64748b'
                     style={{ fontSize: 11 }}
                   />
                   <YAxis
-                    stroke="#6b7280"
+                    stroke='#64748b'
                     style={{ fontSize: 11 }}
                     label={{
                       value: 'Slippage (pips)',
                       angle: -90,
                       position: 'insideLeft',
-                      style: { fontSize: 11, fill: '#6b7280' },
+                      style: { fontSize: 11, fill: '#64748b' },
                     }}
                   />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: '#131722',
-                      border: '1px solid #2a2e39',
+                      backgroundColor: '#0f172a',
+                      border: '1px solid #334155',
                       borderRadius: '4px',
                       fontSize: 11,
                     }}
                   />
                   <Line
-                    type="monotone"
-                    dataKey="avg_slippage_pips"
-                    stroke="#26a69a"
+                    type='monotone'
+                    dataKey='avg_slippage_pips'
+                    stroke='#10b981'
                     strokeWidth={2}
-                    dot={{ fill: '#26a69a', r: 3 }}
+                    dot={{ fill: '#10b981', r: 3 }}
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -284,49 +284,49 @@ export default function ExecutionQualityPage() {
         </Card>
 
         {/* Latency Breakdown */}
-        <Card className="bg-[#1e222d] border-[#2a2e39]">
+        <Card className='tv-card'>
           <CardHeader>
-            <CardTitle className="text-sm font-medium text-zinc-100">
+            <CardTitle className='text-sm font-medium text-slate-100'>
               Latency Breakdown (Last 7 Days)
             </CardTitle>
           </CardHeader>
           <CardContent>
             {latencyLoading ? (
-              <Skeleton className="h-[250px] w-full" />
+              <Skeleton className='h-[250px] w-full bg-slate-800/60' />
             ) : (
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-zinc-500">
+              <div className='space-y-4'>
+                <div className='flex items-center justify-between'>
+                  <span className='text-xs text-slate-500'>
                     Signal → Submit
                   </span>
-                  <span className="text-sm font-mono text-zinc-100">
+                  <span className='text-sm font-mono text-slate-100'>
                     {latencyBreakdown?.avg_signal_to_submit_ms.toFixed(0) ?? 0}
                     ms
                   </span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-zinc-500">Submit → Fill</span>
-                  <span className="text-sm font-mono text-zinc-100">
+                <div className='flex items-center justify-between'>
+                  <span className='text-xs text-slate-500'>Submit → Fill</span>
+                  <span className='text-sm font-mono text-slate-100'>
                     {latencyBreakdown?.avg_submit_to_fill_ms.toFixed(0) ?? 0}ms
                   </span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-xs text-zinc-500">Total</span>
-                  <span className="text-sm font-mono text-zinc-100 font-bold">
+                <div className='flex items-center justify-between'>
+                  <span className='text-xs text-slate-500'>Total</span>
+                  <span className='text-sm font-mono font-bold text-slate-100'>
                     {latencyBreakdown?.avg_total_execution_ms.toFixed(0) ?? 0}
                     ms
                   </span>
                 </div>
-                <div className="border-t border-[#2a2e39] pt-4 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-zinc-500">P95 Latency</span>
-                    <span className="text-xs font-mono text-zinc-400">
+                <div className='space-y-2 border-t border-slate-700 pt-4'>
+                  <div className='flex items-center justify-between'>
+                    <span className='text-xs text-slate-500'>P95 Latency</span>
+                    <span className='text-xs font-mono text-slate-400'>
                       {latencyBreakdown?.p95_latency_ms.toFixed(0) ?? 0}ms
                     </span>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-zinc-500">P99 Latency</span>
-                    <span className="text-xs font-mono text-zinc-400">
+                  <div className='flex items-center justify-between'>
+                    <span className='text-xs text-slate-500'>P99 Latency</span>
+                    <span className='text-xs font-mono text-slate-400'>
                       {latencyBreakdown?.p99_latency_ms.toFixed(0) ?? 0}ms
                     </span>
                   </div>
@@ -338,44 +338,46 @@ export default function ExecutionQualityPage() {
       </div>
 
       {/* TCA Alerts */}
-      <Card className="bg-[#1e222d] border-[#2a2e39]">
+      <Card className='tv-card'>
         <CardHeader>
-          <CardTitle className="text-sm font-medium text-zinc-100">
+          <CardTitle className='text-sm font-medium text-slate-100'>
             Recent TCA Alerts (Last 7 Days)
           </CardTitle>
         </CardHeader>
         <CardContent>
           {alertsLoading ? (
-            <Skeleton className="h-[200px] w-full" />
+            <Skeleton className='h-[200px] w-full bg-slate-800/60' />
           ) : tcaAlerts && tcaAlerts.length > 0 ? (
-            <div className="space-y-2">
+            <div className='space-y-2'>
               {tcaAlerts.slice(0, 10).map((alert) => (
                 <div
                   key={alert.id}
-                  className="flex items-center justify-between p-2 bg-[#131722] rounded border border-[#2a2e39]"
+                  className='flex items-center justify-between rounded border border-slate-700 bg-slate-900 p-2'
                 >
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                  <div className='flex items-center gap-2'>
+                    <AlertTriangle className='h-4 w-4 text-amber-400' />
                     <div>
-                      <div className="text-xs text-zinc-300">
+                      <div className='text-xs text-slate-300'>
                         {alert.alert_type === 'high_slippage' &&
-                          `High slippage: ${alert.slippage_pips?.toFixed(1)} pips`}
+                          `High slippage: ${alert.slippage_pips?.toFixed(
+                            1
+                          )} pips`}
                         {alert.alert_type === 'high_latency' &&
                           `High latency: ${alert.total_execution_ms}ms`}
                       </div>
-                      <div className="text-[10px] text-zinc-600 font-mono">
+                      <div className='font-mono text-[10px] text-slate-500'>
                         Signal #{alert.signal_id}
                       </div>
                     </div>
                   </div>
-                  <div className="text-[10px] text-zinc-600 font-mono">
+                  <div className='font-mono text-[10px] text-slate-500'>
                     {new Date(alert.created_at).toLocaleString()}
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="text-center py-8 text-zinc-500 text-sm">
+            <div className='py-8 text-center text-sm text-slate-500'>
               No TCA alerts in the last 7 days
             </div>
           )}
