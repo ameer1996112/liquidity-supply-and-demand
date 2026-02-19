@@ -40,6 +40,21 @@ type QueuedRealtimeEvent = {
   signal: TradingSignal;
 };
 
+function hasSignalMeaningfulChanges(
+  prev: TradingSignal,
+  next: TradingSignal
+): boolean {
+  return !(
+    prev.updated_at === next.updated_at &&
+    prev.status === next.status &&
+    prev.pnl === next.pnl &&
+    prev.closed_at === next.closed_at &&
+    prev.exit_price === next.exit_price &&
+    prev.mode === next.mode &&
+    prev.run_mode === next.run_mode
+  );
+}
+
 // =============================================================================
 // DEBUG UTILITIES
 // =============================================================================
@@ -143,6 +158,8 @@ export function useTradingSignals(mode?: TradingMode) {
     }
     const batchedEvents = Array.from(latestById.values());
 
+    let didMutateList = false;
+
     queryClient.setQueryData<TradingSignal[]>(
       signalKeys.list(mode),
       (old = []) => {
@@ -150,7 +167,11 @@ export function useTradingSignals(mode?: TradingMode) {
 
         for (const evt of batchedEvents) {
           if (evt.eventType === 'DELETE') {
+            const hadSignal = next.some(
+              (signal) => signal.id === evt.signal.id
+            );
             next = next.filter((signal) => signal.id !== evt.signal.id);
+            didMutateList = didMutateList || hadSignal;
             continue;
           }
 
@@ -163,11 +184,15 @@ export function useTradingSignals(mode?: TradingMode) {
 
           const idx = next.findIndex((signal) => signal.id === evt.signal.id);
           if (idx >= 0) {
-            const copy = [...next];
-            copy[idx] = evt.signal;
-            next = copy;
+            if (hasSignalMeaningfulChanges(next[idx], evt.signal)) {
+              const copy = [...next];
+              copy[idx] = evt.signal;
+              next = copy;
+              didMutateList = true;
+            }
           } else {
             next = [evt.signal, ...next].slice(0, CONFIG.SIGNAL_LIMIT);
+            didMutateList = true;
           }
         }
 
@@ -175,8 +200,10 @@ export function useTradingSignals(mode?: TradingMode) {
       }
     );
 
-    // Invalidate derived stats once per batch instead of once per event.
-    queryClient.invalidateQueries({ queryKey: signalKeys.stats });
+    if (didMutateList) {
+      // Invalidate derived stats once per effective batch change.
+      queryClient.invalidateQueries({ queryKey: signalKeys.stats });
+    }
   }, [mode, queryClient]);
 
   const enqueueRealtimeEvent = useCallback(

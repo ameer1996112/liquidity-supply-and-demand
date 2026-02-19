@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { SignalInspector } from '@/components/SignalInspector';
 import { ActiveTradesPanel } from '@/components/dashboard/ActiveTradesPanel';
 import { RecentSignalsPanel } from '@/components/dashboard/RecentSignalsPanel';
@@ -20,10 +20,10 @@ export default function DashboardPage() {
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const { mode: activeMode } = useTradingMode();
 
-  const handleSelectSignal = (signal: TradingSignal) => {
+  const handleSelectSignal = useCallback((signal: TradingSignal) => {
     setSelectedSignal(signal);
     setInspectorOpen(true);
-  };
+  }, []);
 
   return (
     <div className='flex h-full min-h-0 flex-col gap-3'>

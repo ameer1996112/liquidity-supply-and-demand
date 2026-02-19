@@ -1,7 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { safeFloat } from '@/lib/format';
+import { normalizeSignedZero, safeFloat } from '@/lib/format';
 
 interface PnLDisplayProps {
   pnl: number | null;
@@ -19,7 +19,9 @@ const SIZE_CLASSES = {
  * Used across SignalFeed, SignalCard, and RecentSignalsPanel.
  */
 export function PnLDisplay({ pnl, size = 'md' }: PnLDisplayProps) {
-  if (pnl === null || pnl === undefined) {
+  const normalizedPnl = normalizeSignedZero(pnl);
+
+  if (normalizedPnl === null) {
     return (
       <span
         className={cn('font-mono font-bold text-zinc-600', SIZE_CLASSES[size])}
@@ -29,17 +31,23 @@ export function PnLDisplay({ pnl, size = 'md' }: PnLDisplayProps) {
     );
   }
 
-  const isPositive = pnl >= 0;
+  const isPositive = normalizedPnl > 0;
+  const isNegative = normalizedPnl < 0;
+
   return (
     <span
       className={cn(
         'font-mono font-bold tabular-nums',
         SIZE_CLASSES[size],
-        isPositive ? 'text-emerald-400' : 'text-rose-400',
+        isPositive
+          ? 'text-emerald-400'
+          : isNegative
+          ? 'text-rose-400'
+          : 'text-slate-300'
       )}
     >
       {isPositive ? '+' : ''}
-      {safeFloat(pnl, 2)}
+      {safeFloat(normalizedPnl, 2)}
     </span>
   );
 }

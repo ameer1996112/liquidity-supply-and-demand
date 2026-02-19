@@ -4,10 +4,11 @@ import { TradingSignal, getSymbol, getSide, getPnl } from '@/types/trading';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { TrendingUp, TrendingDown } from 'lucide-react';
+import { normalizeSignedZero, safeFloat } from '@/lib/format';
 
 interface ActiveTradeRowProps {
   signal: TradingSignal;
-  onClick: () => void;
+  onSelectSignal: (signal: TradingSignal) => void;
 }
 
 // Derive trigger label from signal fields
@@ -26,10 +27,13 @@ function getTriggerLabel(signal: TradingSignal): string | null {
   return null;
 }
 
-export function ActiveTradeRow({ signal, onClick }: ActiveTradeRowProps) {
+export function ActiveTradeRow({
+  signal,
+  onSelectSignal,
+}: ActiveTradeRowProps) {
   const symbol = getSymbol(signal);
   const side = getSide(signal);
-  const pnl = getPnl(signal);
+  const pnl = normalizeSignedZero(getPnl(signal));
   const isBuy = side === 'buy';
   const entry = signal.price ?? signal.entry;
   const rr = signal.rr_ratio;
@@ -40,7 +44,7 @@ export function ActiveTradeRow({ signal, onClick }: ActiveTradeRowProps) {
 
   return (
     <button
-      onClick={onClick}
+      onClick={() => onSelectSignal(signal)}
       className={cn(
         'w-full flex items-center gap-2 px-2.5 py-2 rounded-lg',
         'border-l-2 border-l-indigo-500/60 bg-slate-800/40',
@@ -140,8 +144,8 @@ export function ActiveTradeRow({ signal, onClick }: ActiveTradeRowProps) {
             )}
             style={{ fontFamily: 'var(--font-mono)' }}
           >
-            {pnl >= 0 ? '+' : ''}
-            {pnl.toFixed(2)}
+            {pnl > 0 ? '+' : ''}
+            {safeFloat(pnl, 2)}
           </span>
         ) : (
           <span

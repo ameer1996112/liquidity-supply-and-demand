@@ -1,16 +1,9 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import {
-  useSignalStats,
-  useRefreshSignals,
-  useTradingSignals,
-} from '@/hooks/useTradingSignals';
+import { useState } from 'react';
+import { useSignalStats, useRefreshSignals } from '@/hooks/useTradingSignals';
 import { useTradingMode } from '@/providers/TradingModeProvider';
-import {
-  computeTradeKpis,
-  formatWinRate,
-} from '@/domain/metrics/tradingMetrics';
+import { formatWinRate } from '@/domain/metrics/tradingMetrics';
 import { Button } from '@/components/ui/button';
 import { RiskBar } from '@/components/risk/RiskBar';
 import {
@@ -29,6 +22,7 @@ import { useTheme } from '@/providers/ThemeProvider';
 import { useRiskStatus, useKillSwitchMutation } from '@/hooks/useRiskStatus';
 import { useQuery } from '@tanstack/react-query';
 import { getApiUrl } from '@/lib/api';
+import { formatSignedCurrency } from '@/lib/format';
 
 interface MetricProps {
   label: string;
@@ -38,16 +32,16 @@ interface MetricProps {
 
 function Metric({ label, value, trend }: MetricProps) {
   return (
-    <div className='flex min-w-[100px] flex-col gap-0.5 border-r border-slate-800 px-3 last:border-r-0'>
+    <div className='flex min-w-[110px] flex-col gap-0.5 border-r border-slate-800 px-3.5 last:border-r-0'>
       <span
-        className='text-[9px] font-medium uppercase tracking-[0.12em] text-slate-500'
+        className='text-[10px] font-medium uppercase tracking-[0.12em] text-slate-500'
         style={{ fontFamily: 'var(--font-sans)' }}
       >
         {label}
       </span>
       <span
         className={cn(
-          'text-[13px] font-semibold tabular-nums',
+          'text-[14px] font-semibold tabular-nums leading-tight',
           trend === 'up' && 'text-emerald-400',
           trend === 'down' && 'text-red-400',
           !trend && 'text-slate-200'
@@ -64,7 +58,6 @@ export function TopBar() {
   const { mode, setMode } = useTradingMode();
   const { theme, toggleTheme } = useTheme();
   const { data: stats, isLoading } = useSignalStats();
-  const { data: signals = [] } = useTradingSignals(mode);
   const { data: risk } = useRiskStatus();
   const killMutation = useKillSwitchMutation();
   const refreshSignals = useRefreshSignals();
@@ -83,8 +76,8 @@ export function TopBar() {
         status: 'healthy' | 'degraded' | 'offline';
       }>;
     },
-    refetchInterval: 10_000,
-    staleTime: 5_000,
+    refetchInterval: 30_000,
+    staleTime: 15_000,
   });
 
   const handleRefresh = async () => {
@@ -93,20 +86,22 @@ export function TopBar() {
     setTimeout(() => setIsRefreshing(false), 500);
   };
 
-  const tradeKpis = useMemo(() => computeTradeKpis(signals), [signals]);
-  const winRateNumeric = tradeKpis.winRatePct ?? 0;
-  const winRateLabel = formatWinRate(
-    tradeKpis.winRatePct,
-    tradeKpis.totalTrades,
-    'dash'
-  );
+  const modeWinRate =
+    mode === 'LIVE' ? stats?.live_win_rate ?? stats?.win_rate : stats?.win_rate;
+  const executedCount = stats?.executed_count ?? 0;
+  const winRateNumeric =
+    modeWinRate != null && Number.isFinite(modeWinRate) ? modeWinRate : null;
+  const winRateLabel = formatWinRate(winRateNumeric, executedCount, 'dash');
 
   const dailyPnl =
     mode === 'PAPER'
       ? stats?.paper_daily_pnl ?? stats?.paper_pnl_24h ?? 0
       : stats?.live_daily_pnl ?? stats?.live_pnl_24h ?? 0;
 
-  const totalPnl = tradeKpis.totalPnl;
+  const totalPnl =
+    mode === 'PAPER'
+      ? stats?.paper_total_pnl ?? stats?.paper_pnl_24h ?? 0
+      : stats?.live_total_pnl ?? stats?.total_pnl ?? stats?.live_pnl_24h ?? 0;
   const isConnected = health?.status && health.status !== 'offline';
 
   const toggleKillSwitch = () => {
@@ -138,18 +133,24 @@ export function TopBar() {
             <Metric
               label='Win Rate'
               value={winRateLabel}
-              trend={winRateNumeric >= 50 ? 'up' : 'down'}
+              trend={
+                winRateNumeric == null
+                  ? undefined
+                  : winRateNumeric >= 50
+                  ? 'up'
+                  : 'down'
+              }
             />
             <Metric label='Active' value={stats?.active_trades ?? 0} />
             <Metric
-              label='Daily PnL'
-              value={`${dailyPnl >= 0 ? '+' : ''}$${dailyPnl.toFixed(2)}`}
-              trend={dailyPnl >= 0 ? 'up' : 'down'}
+              label='Today PnL'
+              value={formatSignedCurrency(dailyPnl)}
+              trend={dailyPnl === 0 ? undefined : dailyPnl > 0 ? 'up' : 'down'}
             />
             <Metric
               label='Total PnL'
-              value={`${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(2)}`}
-              trend={totalPnl >= 0 ? 'up' : 'down'}
+              value={formatSignedCurrency(totalPnl)}
+              trend={totalPnl === 0 ? undefined : totalPnl > 0 ? 'up' : 'down'}
             />
           </div>
         )}

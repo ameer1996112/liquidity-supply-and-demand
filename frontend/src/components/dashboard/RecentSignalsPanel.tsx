@@ -24,7 +24,8 @@ import {
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNowStrict } from 'date-fns';
-import { TrendingUp, TrendingDown, Zap } from 'lucide-react';
+import { TrendingUp, TrendingDown, Zap, Search, FilterX } from 'lucide-react';
+import { PanelEmptyState } from '@/components/shared/PanelEmptyState';
 
 type FilterTab = 'all' | 'active' | 'wins' | 'losses' | 'rejects';
 
@@ -82,12 +83,12 @@ function TriggerBadge({ signal }: { signal: TradingSignal }) {
 
 interface SignalRowProps {
   signal: TradingSignal;
-  onClick: () => void;
+  onSelectSignal: (signal: TradingSignal) => void;
 }
 
 const SignalRowMemo = memo(function SignalRow({
   signal,
-  onClick,
+  onSelectSignal,
 }: SignalRowProps) {
   const symbol = getSymbol(signal);
   const side = getSide(signal);
@@ -97,7 +98,7 @@ const SignalRowMemo = memo(function SignalRow({
 
   return (
     <TableRow
-      onClick={onClick}
+      onClick={() => onSelectSignal(signal)}
       className={cn(
         'cursor-pointer border-b border-slate-800/60 transition-colors data-row',
         isActive && 'border-l-2 border-l-indigo-500'
@@ -165,6 +166,20 @@ const SignalRowMemo = memo(function SignalRow({
       {/* PnL */}
       <TableCell className='px-2 py-1.5 text-right'>
         <PnLDisplay pnl={pnl} size='sm' />
+      </TableCell>
+
+      <TableCell className='px-2 py-1.5 text-right'>
+        <button
+          type='button'
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelectSignal(signal);
+          }}
+          className='rounded-md border border-slate-700 px-2 py-0.5 text-[9px] font-medium text-slate-300 hover:border-indigo-500/50 hover:text-indigo-300'
+          style={{ fontFamily: 'var(--font-mono)' }}
+        >
+          Inspect
+        </button>
       </TableCell>
     </TableRow>
   );
@@ -254,19 +269,23 @@ export function RecentSignalsPanel({
               ))}
             </div>
           ) : filtered.length === 0 ? (
-            <div className='empty-state py-12'>
-              <span className='empty-state-text'>[ AWAITING 5M SIGNAL ]</span>
-              <span
-                className='mt-1 text-[10px] text-slate-700'
-                style={{ fontFamily: 'var(--font-mono)' }}
-              >
-                {activeFilter !== 'all'
-                  ? `no ${activeFilter} signals`
-                  : 'no signals match filter'}
-              </span>
-            </div>
+            <PanelEmptyState
+              icon={
+                activeFilter === 'all' ? (
+                  <Search className='h-4 w-4' />
+                ) : (
+                  <FilterX className='h-4 w-4' />
+                )
+              }
+              title={
+                activeFilter === 'all'
+                  ? 'No signals yet'
+                  : `No ${activeFilter} signals`
+              }
+              description='Signals will appear here as soon as they are generated'
+            />
           ) : (
-            <Table className='table-dense table-fixed min-w-[560px]'>
+            <Table className='table-dense table-fixed min-w-[640px]'>
               <TableHeader>
                 <TableRow className='tv-divider border-b hover:bg-transparent'>
                   <TableHead
@@ -305,6 +324,12 @@ export function RecentSignalsPanel({
                   >
                     PnL
                   </TableHead>
+                  <TableHead
+                    className='w-[12%] px-2 py-1.5 text-right text-[9px] uppercase tracking-wider text-slate-600'
+                    style={{ fontFamily: 'var(--font-mono)' }}
+                  >
+                    Action
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -312,7 +337,7 @@ export function RecentSignalsPanel({
                   <SignalRowMemo
                     key={signal.id}
                     signal={signal}
-                    onClick={() => onSelectSignal(signal)}
+                    onSelectSignal={onSelectSignal}
                   />
                 ))}
               </TableBody>

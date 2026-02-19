@@ -10,12 +10,36 @@ import { formatDistanceToNowStrict } from 'date-fns';
  */
 export function safeFloat(
   val: number | null | undefined,
-  decimals: number = 2,
+  decimals: number = 2
 ): string {
   if (val === null || val === undefined || Number.isNaN(val)) {
     return '--';
   }
   return val.toFixed(decimals);
+}
+
+/**
+ * Treat tiny floating-point values as zero to avoid UI noise like "-0.00".
+ */
+export function normalizeSignedZero(
+  val: number | null | undefined,
+  epsilon: number = 0.0005
+): number | null {
+  if (val === null || val === undefined || Number.isNaN(val)) return null;
+  return Math.abs(val) < epsilon ? 0 : val;
+}
+
+/**
+ * Currency formatter for compact dashboard KPIs with stable sign handling.
+ */
+export function formatSignedCurrency(
+  val: number | null | undefined,
+  decimals: number = 2
+): string {
+  const normalized = normalizeSignedZero(val);
+  if (normalized === null) return '—';
+  const sign = normalized > 0 ? '+' : normalized < 0 ? '-' : '';
+  return `${sign}$${Math.abs(normalized).toFixed(decimals)}`;
 }
 
 /**
@@ -27,7 +51,7 @@ export function safeFloat(
  */
 export function truncateText(
   text: string | null | undefined,
-  maxLength: number = 40,
+  maxLength: number = 40
 ): string {
   if (!text) return '';
   if (text.length <= maxLength) return text;

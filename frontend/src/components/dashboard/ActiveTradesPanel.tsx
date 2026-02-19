@@ -7,8 +7,9 @@ import { ActiveTradeRow } from './ActiveTradeRow';
 import { isSignalOpen } from '@/domain/metrics/tradingMetrics';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Radio } from 'lucide-react';
+import { Radio, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PanelEmptyState } from '@/components/shared/PanelEmptyState';
 
 interface ActiveTradesPanelProps {
   mode?: TradingMode;
@@ -61,22 +62,18 @@ export function ActiveTradesPanel({
             ))}
           </div>
         ) : activeTrades.length === 0 ? (
-          <div className='empty-state py-12'>
-            <span className='empty-state-text'>[ NO ACTIVE DATA ]</span>
-            <span
-              className='mt-1 text-[10px] text-slate-700'
-              style={{ fontFamily: 'var(--font-mono)' }}
-            >
-              awaiting 5m zone entry
-            </span>
-          </div>
+          <PanelEmptyState
+            icon={<Activity className='h-4 w-4' />}
+            title='No active positions'
+            description='Waiting for valid 5m entry confirmations'
+          />
         ) : (
           <div className='space-y-1'>
             {activeTrades.map((signal) => (
               <ActiveTradeRow
                 key={signal.id}
                 signal={signal}
-                onClick={() => onSelectSignal(signal)}
+                onSelectSignal={onSelectSignal}
               />
             ))}
           </div>

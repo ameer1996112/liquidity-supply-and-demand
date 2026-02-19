@@ -409,17 +409,17 @@
 
 .status-dot-active {
   background-color: #10b981;
-  box-shadow: 0 0 5px #10b981;
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.25);
 }
 
 .status-dot-warning {
   background-color: #f59e0b;
-  box-shadow: 0 0 5px #f59e0b;
+  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.25);
 }
 
 .status-dot-error {
   background-color: #ef4444;
-  box-shadow: 0 0 5px #ef4444;
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.25);
 }
 
 /* ── PnL colors ───────────────────────────────────────────────────────────── */
@@ -441,16 +441,16 @@
 
 /* ── Animations ───────────────────────────────────────────────────────────── */
 .pulse-active {
-  animation: pulse-green 2s infinite;
+  animation: pulse-green 2.2s infinite;
 }
 
 @keyframes pulse-green {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+    opacity: 1;
   }
   50% {
-    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0);
+    opacity: 0.7;
   }
 }
 
