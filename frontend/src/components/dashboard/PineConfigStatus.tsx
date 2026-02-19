@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase, isSupabaseAvailable } from '@/lib/supabase';
 import { API_BASE_URL } from '@/lib/api';
-import { Settings } from 'lucide-react';
+import { Cpu } from 'lucide-react';
 
 interface PineConfig {
   account_balance: number;
@@ -25,7 +25,6 @@ export function PineConfigStatus() {
   const backendBalanceRef = useRef<number | null>(null);
 
   useEffect(() => {
-    // Fallback: fetch backend config (ACCOUNT_BALANCE env) so 50k shows even before next signal
     const fetchBackendConfig = async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/config/ai`);
@@ -50,9 +49,7 @@ export function PineConfigStatus() {
     };
     fetchBackendConfig();
 
-    if (!isSupabaseAvailable() || !supabase) {
-      return;
-    }
+    if (!isSupabaseAvailable() || !supabase) return;
 
     const client = supabase;
 
@@ -85,11 +82,7 @@ export function PineConfigStatus() {
       .channel('pine-config-updates')
       .on(
         'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'trading_signals',
-        },
+        { event: 'INSERT', schema: 'public', table: 'trading_signals' },
         (payload: any) => {
           if (
             payload.new?.account_balance != null &&
@@ -113,22 +106,29 @@ export function PineConfigStatus() {
   if (!config) return null;
 
   return (
-    <div className='flex items-center gap-3 rounded-xl border border-[rgba(107,128,168,0.35)] bg-[rgba(21,31,51,0.78)] px-3 py-2.5'>
-      <Settings className='h-3.5 w-3.5 text-[#95a7cd]' />
-      <span className='status-dot status-dot-active pulse-active' />
-      <span className='font-mono text-[10px] uppercase tracking-[0.14em] text-[#95a7cd]'>
-        Pine Account Size
+    <div className='flex items-center gap-2.5 rounded-lg border border-slate-700/60 bg-slate-800/50 px-3 py-2'>
+      <Cpu className='h-3.5 w-3.5 shrink-0 text-slate-500' />
+      <span className='status-dot status-dot-active pulse-active shrink-0' />
+      <span
+        className='text-[10px] uppercase tracking-[0.12em] text-slate-500'
+        style={{ fontFamily: 'var(--font-sans)' }}
+      >
+        Account Size
       </span>
-      <span className='ml-auto font-mono text-sm font-semibold tabular-nums text-[#3fc7ad]'>
+      <span
+        className='ml-auto text-sm font-semibold tabular-nums text-emerald-400'
+        style={{ fontFamily: 'var(--font-mono)' }}
+      >
         $
         {config.account_balance.toLocaleString('en-US', {
           minimumFractionDigits: 2,
         })}
       </span>
-      <span className='font-mono text-[10px] text-[#7f93bc]'>
-        {config.source === 'tradingview'
-          ? '(from TradingView)'
-          : '(from backend config)'}
+      <span
+        className='text-[9px] text-slate-600'
+        style={{ fontFamily: 'var(--font-mono)' }}
+      >
+        {config.source === 'tradingview' ? 'TV' : 'CFG'}
       </span>
     </div>
   );

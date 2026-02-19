@@ -15,7 +15,6 @@ import {
   Gauge,
   Users,
   LineChart,
-  Monitor,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSidebar } from '@/providers/SidebarProvider';
@@ -26,9 +25,9 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
+// Terminal removed — Galil terminal view is deprecated
 const NAV_ITEMS = [
   { label: 'Dashboard', icon: LayoutDashboard, path: '/' },
-  { label: 'Terminal', icon: Monitor, path: '/terminal' },
   { label: 'Positions', icon: Crosshair, path: '/positions' },
   { label: 'Risk Monitor', icon: Gauge, path: '/risk' },
   { label: 'Accounts', icon: Users, path: '/accounts' },
@@ -48,40 +47,49 @@ export function Sidebar() {
       <aside
         className={cn(
           'fixed left-0 top-0 bottom-0 z-40 flex flex-col',
-          'border-r border-[rgba(100,124,167,0.36)]',
-          'bg-[linear-gradient(180deg,rgba(10,17,35,0.98)_0%,rgba(8,13,25,0.98)_100%)]',
-          'shadow-[8px_0_34px_rgba(2,5,14,0.5)]',
+          'border-r border-slate-800',
+          'bg-[#0F172A]',
           'transition-all duration-200 ease-in-out',
-          isCollapsed ? 'w-16' : 'w-60'
+          isCollapsed ? 'w-14' : 'w-56'
         )}
       >
-        {/* Header */}
+        {/* ── Brand header ─────────────────────────────────────────── */}
         <div
           className={cn(
-            'flex h-14 items-center border-b border-[rgba(90,113,154,0.28)] px-4',
+            'flex h-12 items-center border-b border-slate-800 px-3',
             isCollapsed ? 'justify-center' : 'justify-between'
           )}
         >
           {!isCollapsed && (
-            <div className='flex items-center gap-2.5'>
-              <div className='flex h-8 w-8 items-center justify-center rounded-xl border border-[rgba(112,137,188,0.42)] bg-[rgba(28,42,69,0.84)] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]'>
-                <Activity className='h-[18px] w-[18px] text-[#3fc7ad]' />
+            <div className='flex items-center gap-2'>
+              <div className='flex h-7 w-7 items-center justify-center rounded-md bg-indigo-600/20 border border-indigo-500/30'>
+                <Activity className='h-4 w-4 text-indigo-400' />
               </div>
               <div className='flex flex-col leading-tight'>
-                <span className='text-[13px] font-semibold tracking-tight text-[#edf3fd]'>
+                <span
+                  className='text-[13px] font-semibold tracking-tight text-slate-100'
+                  style={{ fontFamily: 'var(--font-sans)' }}
+                >
                   TradeOps
                 </span>
-                <span className='text-[10px] uppercase tracking-[0.16em] text-[#8e9dbf]'>
-                  Command
+                <span
+                  className='text-[9px] uppercase tracking-[0.18em] text-slate-500'
+                  style={{ fontFamily: 'var(--font-mono)' }}
+                >
+                  5M · LIVE
                 </span>
               </div>
             </div>
           )}
-          {isCollapsed && <Activity className='h-5 w-5 text-[#3fc7ad]' />}
+          {isCollapsed && (
+            <div className='flex h-7 w-7 items-center justify-center rounded-md bg-indigo-600/20 border border-indigo-500/30'>
+              <Activity className='h-4 w-4 text-indigo-400' />
+            </div>
+          )}
         </div>
 
-        {/* Navigation */}
-        <nav className='flex-1 space-y-1.5 px-2 py-4'>
+        {/* ── Navigation ───────────────────────────────────────────── */}
+        <nav className='flex-1 space-y-0.5 px-2 py-3'>
           {NAV_ITEMS.map((item) => {
             const isActive =
               item.path === '/'
@@ -93,28 +101,31 @@ export function Sidebar() {
                 key={item.path}
                 href={item.path}
                 className={cn(
-                  'group relative flex items-center gap-3 rounded-xl px-3 py-2.5',
-                  'transition-all duration-150',
+                  'group relative flex items-center gap-2.5 rounded-lg px-2.5 py-2',
+                  'transition-colors duration-100',
                   isActive
-                    ? 'border border-[rgba(126,150,198,0.5)] bg-[linear-gradient(135deg,rgba(110,141,255,0.2)_0%,rgba(63,199,173,0.12)_100%)] text-[#f3f7ff] shadow-[0_8px_20px_rgba(7,13,25,0.4)]'
-                    : 'border border-transparent text-[#aebbd8] hover:border-[rgba(109,132,176,0.3)] hover:bg-[rgba(24,36,59,0.72)] hover:text-[#eef3fb]',
+                    ? 'bg-indigo-600/15 text-indigo-300 border border-indigo-500/20'
+                    : 'border border-transparent text-slate-400 hover:bg-slate-800 hover:text-slate-200',
                   isCollapsed && 'justify-center px-0'
                 )}
               >
-                {/* Active indicator bar */}
+                {/* Active indicator */}
                 {isActive && (
-                  <div className='absolute -left-[1px] top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-r bg-[#7d9cff]' />
+                  <div className='absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r bg-indigo-400' />
                 )}
                 <item.icon
                   className={cn(
-                    'w-[18px] h-[18px] shrink-0',
+                    'h-4 w-4 shrink-0',
                     isActive
-                      ? 'text-[#a8bcff]'
-                      : 'text-[#94a5c9] group-hover:text-[#dbe5fa]'
+                      ? 'text-indigo-400'
+                      : 'text-slate-500 group-hover:text-slate-300'
                   )}
                 />
                 {!isCollapsed && (
-                  <span className='text-[13px] font-medium tracking-[0.01em]'>
+                  <span
+                    className='text-[12.5px] font-medium'
+                    style={{ fontFamily: 'var(--font-sans)' }}
+                  >
                     {item.label}
                   </span>
                 )}
@@ -136,33 +147,39 @@ export function Sidebar() {
           })}
         </nav>
 
-        {/* Footer */}
-        <div className='space-y-2 border-t border-[rgba(90,113,154,0.2)] px-2 pb-3 pt-3'>
-          {/* Collapse toggle */}
+        {/* ── Footer ───────────────────────────────────────────────── */}
+        <div className='border-t border-slate-800 px-2 pb-3 pt-2 space-y-1'>
           <button
             onClick={toggleCollapse}
             className={cn(
-              'flex w-full items-center gap-3 rounded-xl px-3 py-2',
-              'border border-transparent text-[#aebbd8] transition-colors duration-150',
-              'hover:border-[rgba(109,132,176,0.3)] hover:bg-[rgba(24,36,59,0.72)] hover:text-[#eef3fb]',
+              'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2',
+              'border border-transparent text-slate-500 transition-colors duration-100',
+              'hover:bg-slate-800 hover:text-slate-300',
               isCollapsed && 'justify-center px-0'
             )}
           >
             {isCollapsed ? (
-              <PanelLeft className='h-[18px] w-[18px]' />
+              <PanelLeft className='h-4 w-4' />
             ) : (
               <>
-                <PanelLeftClose className='h-[18px] w-[18px]' />
-                <span className='text-[13px] font-medium'>Collapse</span>
+                <PanelLeftClose className='h-4 w-4' />
+                <span
+                  className='text-[12px] font-medium'
+                  style={{ fontFamily: 'var(--font-sans)' }}
+                >
+                  Collapse
+                </span>
               </>
             )}
           </button>
 
-          {/* Version */}
           {!isCollapsed && (
-            <div className='px-3 py-1'>
-              <span className='font-mono text-[10px] text-[#7d8db2]'>
-                v3.1 • refined UI
+            <div className='px-2.5 py-1'>
+              <span
+                className='text-[10px] text-slate-600'
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                v3.2 · TradeOps
               </span>
             </div>
           )}

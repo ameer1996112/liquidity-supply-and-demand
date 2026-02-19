@@ -1,18 +1,29 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { BacktestChart, Trade, Zone } from "@/components/backtest/BacktestChart";
-import { FXReplayController } from "@/components/backtest/FXReplayController";
-import { BacktestPerformanceTab } from "@/components/backtest/BacktestPerformanceTab";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Play, TrendingUp, TrendingDown, DollarSign, Target, AlertCircle } from "lucide-react";
-import { CandlestickData, Time } from "lightweight-charts";
-import { backtestAPI } from "@/lib/api";
+import { useState } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import {
+  BacktestChart,
+  Trade,
+  Zone,
+} from '@/components/backtest/BacktestChart';
+import { FXReplayController } from '@/components/backtest/FXReplayController';
+import { BacktestPerformanceTab } from '@/components/backtest/BacktestPerformanceTab';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Play,
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+  Target,
+  AlertCircle,
+} from 'lucide-react';
+import { CandlestickData, Time } from 'lightweight-charts';
+import { backtestAPI } from '@/lib/api';
 
 // API Types
 interface BacktestRequest {
@@ -70,15 +81,17 @@ interface BacktestResponse {
 
 export default function BacktestPage() {
   const [currentCandleIndex, setCurrentCandleIndex] = useState(0);
-  const [backtestResult, setBacktestResult] = useState<BacktestResponse | null>(null);
+  const [backtestResult, setBacktestResult] = useState<BacktestResponse | null>(
+    null
+  );
   const [replayMode, setReplayMode] = useState(false); // Replay mode OFF by default
 
   // Backtest configuration (matches Pine Aggressive profile)
   const [config, setConfig] = useState<BacktestRequest>({
-    symbol: "XAUUSD",
-    start_date: "2026-01-01",
-    end_date: "2026-02-12",
-    timeframe: "5m",
+    symbol: 'XAUUSD',
+    start_date: '2026-01-01',
+    end_date: '2026-02-12',
+    timeframe: '5m',
     initial_cash: 10000,
     commission: 0.0002,
     risk_percent: 0.5,
@@ -91,7 +104,7 @@ export default function BacktestPage() {
     // Advanced liquidity & quality settings
     liq_entry_max_dist: 500.0, // Max liquidity distance (pips) - 500 for gold, 50 for forex
     ai_quality_threshold: 60, // Min AI quality score (0-100)
-    min_entry_grade: "C+", // Min zone grade (A+, A, B+, B, C+, C)
+    min_entry_grade: 'C+', // Min zone grade (A+, A, B+, B, C+, C)
     max_bars_in_trade: 0, // Max bars before auto-exit (0=disabled, Pine-style)
   });
 
@@ -131,7 +144,12 @@ export default function BacktestPage() {
       if (!lastCandleTime) return false;
       // In replay mode, filter by current candle time; otherwise show all trades
       if (replayMode) {
-        return trade.entry_time <= (typeof lastCandleTime === 'number' ? lastCandleTime : Number(lastCandleTime));
+        return (
+          trade.entry_time <=
+          (typeof lastCandleTime === 'number'
+            ? lastCandleTime
+            : Number(lastCandleTime))
+        );
       }
       return true; // Show all trades when not in replay mode
     }) || [];
@@ -139,23 +157,26 @@ export default function BacktestPage() {
   const stats = backtestResult?.stats;
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className='space-y-4'>
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className='flex items-start justify-between gap-3'>
         <div>
-          <h1 className="text-3xl font-bold">Backtest Lab 🧪</h1>
-          <p className="text-gray-400">TradingView-style backtest visualization with FX Replay</p>
+          <h1 className='page-title text-lg font-semibold'>Backtest Lab</h1>
+          <p className='page-subtitle mt-0.5 text-xs'>
+            5m zone strategy backtesting with FX Replay visualization
+          </p>
         </div>
+        <span className='tf-badge'>5M</span>
       </div>
 
       {/* Configuration Panel */}
-      <Card className="p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">Configuration</h2>
-          <div className="flex gap-2">
+      <div className='tv-card'>
+        <div className='tv-divider flex items-center justify-between border-b px-3 py-2'>
+          <span className='panel-label'>Configuration</span>
+          <div className='flex gap-2'>
             <Button
-              variant={config.min_rr_ratio === 2.0 ? "default" : "outline"}
-              size="sm"
+              variant={config.min_rr_ratio === 2.0 ? 'default' : 'outline'}
+              size='sm'
               onClick={() =>
                 setConfig({
                   ...config,
@@ -168,7 +189,7 @@ export default function BacktestPage() {
                   require_structure_break: false,
                   liq_entry_max_dist: 50.0,
                   ai_quality_threshold: 70,
-                  min_entry_grade: "B+",
+                  min_entry_grade: 'B+',
                   max_bars_in_trade: 100,
                 })
               }
@@ -176,8 +197,8 @@ export default function BacktestPage() {
               Balanced
             </Button>
             <Button
-              variant={config.min_rr_ratio === 1.5 ? "default" : "outline"}
-              size="sm"
+              variant={config.min_rr_ratio === 1.5 ? 'default' : 'outline'}
+              size='sm'
               onClick={() =>
                 setConfig({
                   ...config,
@@ -190,7 +211,7 @@ export default function BacktestPage() {
                   require_structure_break: false,
                   liq_entry_max_dist: 500.0,
                   ai_quality_threshold: 60,
-                  min_entry_grade: "C+",
+                  min_entry_grade: 'C+',
                   max_bars_in_trade: 200,
                 })
               }
@@ -199,263 +220,373 @@ export default function BacktestPage() {
             </Button>
           </div>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className='grid grid-cols-2 md:grid-cols-4 gap-4'>
           <div>
-            <label className="block text-sm text-gray-400 mb-2">Symbol</label>
+            <label className='block text-sm text-gray-400 mb-2'>Symbol</label>
             <select
               value={config.symbol}
               onChange={(e) => setConfig({ ...config, symbol: e.target.value })}
-              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md"
+              className='w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md'
             >
-              <optgroup label="Forex - Majors">
-                <option value="EURUSD">EUR/USD - Euro vs US Dollar</option>
-                <option value="GBPUSD">GBP/USD - British Pound vs US Dollar</option>
-                <option value="USDJPY">USD/JPY - US Dollar vs Japanese Yen</option>
-                <option value="USDCHF">USD/CHF - US Dollar vs Swiss Franc</option>
-                <option value="AUDUSD">AUD/USD - Australian Dollar vs US Dollar</option>
-                <option value="NZDUSD">NZD/USD - New Zealand Dollar vs US Dollar</option>
-                <option value="USDCAD">USD/CAD - US Dollar vs Canadian Dollar</option>
+              <optgroup label='Forex - Majors'>
+                <option value='EURUSD'>EUR/USD - Euro vs US Dollar</option>
+                <option value='GBPUSD'>
+                  GBP/USD - British Pound vs US Dollar
+                </option>
+                <option value='USDJPY'>
+                  USD/JPY - US Dollar vs Japanese Yen
+                </option>
+                <option value='USDCHF'>
+                  USD/CHF - US Dollar vs Swiss Franc
+                </option>
+                <option value='AUDUSD'>
+                  AUD/USD - Australian Dollar vs US Dollar
+                </option>
+                <option value='NZDUSD'>
+                  NZD/USD - New Zealand Dollar vs US Dollar
+                </option>
+                <option value='USDCAD'>
+                  USD/CAD - US Dollar vs Canadian Dollar
+                </option>
               </optgroup>
-              <optgroup label="Forex - Crosses">
-                <option value="EURGBP">EUR/GBP - Euro vs British Pound</option>
-                <option value="EURJPY">EUR/JPY - Euro vs Japanese Yen</option>
-                <option value="GBPJPY">GBP/JPY - British Pound vs Japanese Yen</option>
-                <option value="AUDJPY">AUD/JPY - Australian Dollar vs Japanese Yen</option>
+              <optgroup label='Forex - Crosses'>
+                <option value='EURGBP'>EUR/GBP - Euro vs British Pound</option>
+                <option value='EURJPY'>EUR/JPY - Euro vs Japanese Yen</option>
+                <option value='GBPJPY'>
+                  GBP/JPY - British Pound vs Japanese Yen
+                </option>
+                <option value='AUDJPY'>
+                  AUD/JPY - Australian Dollar vs Japanese Yen
+                </option>
               </optgroup>
-              <optgroup label="Metals">
-                <option value="XAUUSD">XAU/USD - Gold vs US Dollar</option>
-                <option value="XAGUSD">XAG/USD - Silver vs US Dollar</option>
+              <optgroup label='Metals'>
+                <option value='XAUUSD'>XAU/USD - Gold vs US Dollar</option>
+                <option value='XAGUSD'>XAG/USD - Silver vs US Dollar</option>
               </optgroup>
-              <optgroup label="Indices">
-                <option value="NAS100">NAS100 - NASDAQ 100</option>
-                <option value="US30">US30 - Dow Jones 30</option>
-                <option value="SPX500">SPX500 - S&P 500</option>
+              <optgroup label='Indices'>
+                <option value='NAS100'>NAS100 - NASDAQ 100</option>
+                <option value='US30'>US30 - Dow Jones 30</option>
+                <option value='SPX500'>SPX500 - S&P 500</option>
               </optgroup>
-              <optgroup label="Crypto">
-                <option value="BTCUSD">BTC/USD - Bitcoin vs US Dollar</option>
-                <option value="ETHUSD">ETH/USD - Ethereum vs US Dollar</option>
+              <optgroup label='Crypto'>
+                <option value='BTCUSD'>BTC/USD - Bitcoin vs US Dollar</option>
+                <option value='ETHUSD'>ETH/USD - Ethereum vs US Dollar</option>
               </optgroup>
             </select>
           </div>
 
           <div>
-            <label className="block text-sm text-gray-400 mb-2">Start Date</label>
+            <label className='block text-sm text-gray-400 mb-2'>
+              Start Date
+            </label>
             <input
-              type="date"
+              type='date'
               value={config.start_date}
-              onChange={(e) => setConfig({ ...config, start_date: e.target.value })}
-              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md"
+              onChange={(e) =>
+                setConfig({ ...config, start_date: e.target.value })
+              }
+              className='w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md'
             />
           </div>
 
           <div>
-            <label className="block text-sm text-gray-400 mb-2">End Date</label>
+            <label className='block text-sm text-gray-400 mb-2'>End Date</label>
             <input
-              type="date"
+              type='date'
               value={config.end_date}
-              onChange={(e) => setConfig({ ...config, end_date: e.target.value })}
-              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md"
+              onChange={(e) =>
+                setConfig({ ...config, end_date: e.target.value })
+              }
+              className='w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md'
             />
           </div>
 
           <div>
-            <label className="block text-sm text-gray-400 mb-2">Timeframe</label>
+            <label className='block text-sm text-gray-400 mb-2'>
+              Timeframe
+            </label>
             <select
               value={config.timeframe}
-              onChange={(e) => setConfig({ ...config, timeframe: e.target.value })}
-              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md"
+              onChange={(e) =>
+                setConfig({ ...config, timeframe: e.target.value })
+              }
+              className='w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md'
             >
-              <option value="5m">5 Minutes</option>
-              <option value="15m">15 Minutes</option>
-              <option value="1h">1 Hour</option>
-              <option value="4h">4 Hours</option>
-              <option value="1d">1 Day</option>
+              <option value='5m'>5 Minutes</option>
+              <option value='15m'>15 Minutes</option>
+              <option value='1h'>1 Hour</option>
+              <option value='4h'>4 Hours</option>
+              <option value='1d'>1 Day</option>
             </select>
           </div>
         </div>
 
         {/* Risk & Strategy Parameters */}
-        <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-4">
+        <div className='mt-4 grid grid-cols-2 md:grid-cols-3 gap-4'>
           <div>
-            <label className="block text-sm text-gray-400 mb-2">Risk Per Trade (%)</label>
+            <label className='block text-sm text-gray-400 mb-2'>
+              Risk Per Trade (%)
+            </label>
             <input
-              type="number"
+              type='number'
               value={config.risk_percent}
-              onChange={(e) => setConfig({ ...config, risk_percent: parseFloat(e.target.value) || 0.5 })}
-              min="0.1"
-              max="5.0"
-              step="0.1"
-              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md"
+              onChange={(e) =>
+                setConfig({
+                  ...config,
+                  risk_percent: parseFloat(e.target.value) || 0.5,
+                })
+              }
+              min='0.1'
+              max='5.0'
+              step='0.1'
+              className='w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md'
             />
           </div>
 
           <div>
-            <label className="block text-sm text-gray-400 mb-2">Min R:R Ratio</label>
+            <label className='block text-sm text-gray-400 mb-2'>
+              Min R:R Ratio
+            </label>
             <input
-              type="number"
+              type='number'
               value={config.min_rr_ratio}
-              onChange={(e) => setConfig({ ...config, min_rr_ratio: parseFloat(e.target.value) || 1.5 })}
-              min="0.5"
-              max="10.0"
-              step="0.1"
-              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md"
+              onChange={(e) =>
+                setConfig({
+                  ...config,
+                  min_rr_ratio: parseFloat(e.target.value) || 1.5,
+                })
+              }
+              min='0.5'
+              max='10.0'
+              step='0.1'
+              className='w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md'
             />
           </div>
 
           <div>
-            <label className="block text-sm text-gray-400 mb-2">Zone Lookback (bars)</label>
+            <label className='block text-sm text-gray-400 mb-2'>
+              Zone Lookback (bars)
+            </label>
             <input
-              type="number"
+              type='number'
               value={config.zone_lookback}
-              onChange={(e) => setConfig({ ...config, zone_lookback: parseInt(e.target.value) || 20 })}
-              min="5"
-              max="50"
-              step="1"
-              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md"
+              onChange={(e) =>
+                setConfig({
+                  ...config,
+                  zone_lookback: parseInt(e.target.value) || 20,
+                })
+              }
+              min='5'
+              max='50'
+              step='1'
+              className='w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md'
             />
           </div>
 
           <div>
-            <label className="block text-sm text-gray-400 mb-2">SL Buffer (pips)</label>
+            <label className='block text-sm text-gray-400 mb-2'>
+              SL Buffer (pips)
+            </label>
             <input
-              type="number"
+              type='number'
               value={config.stop_buffer_pips}
-              onChange={(e) => setConfig({ ...config, stop_buffer_pips: parseFloat(e.target.value) || 1.0 })}
-              min="0"
-              max="10.0"
-              step="0.1"
-              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md"
+              onChange={(e) =>
+                setConfig({
+                  ...config,
+                  stop_buffer_pips: parseFloat(e.target.value) || 1.0,
+                })
+              }
+              min='0'
+              max='10.0'
+              step='0.1'
+              className='w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md'
             />
           </div>
 
           <div>
-            <label className="block text-sm text-gray-400 mb-2">Initial Cash ($)</label>
+            <label className='block text-sm text-gray-400 mb-2'>
+              Initial Cash ($)
+            </label>
             <input
-              type="number"
+              type='number'
               value={config.initial_cash}
-              onChange={(e) => setConfig({ ...config, initial_cash: parseFloat(e.target.value) || 10000 })}
-              min="100"
-              step="1000"
-              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md"
+              onChange={(e) =>
+                setConfig({
+                  ...config,
+                  initial_cash: parseFloat(e.target.value) || 10000,
+                })
+              }
+              min='100'
+              step='1000'
+              className='w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md'
             />
           </div>
 
           <div>
-            <label className="block text-sm text-gray-400 mb-2">Commission</label>
+            <label className='block text-sm text-gray-400 mb-2'>
+              Commission
+            </label>
             <input
-              type="number"
+              type='number'
               value={config.commission}
-              onChange={(e) => setConfig({ ...config, commission: parseFloat(e.target.value) || 0.0002 })}
-              min="0"
-              max="0.01"
-              step="0.0001"
-              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md"
+              onChange={(e) =>
+                setConfig({
+                  ...config,
+                  commission: parseFloat(e.target.value) || 0.0002,
+                })
+              }
+              min='0'
+              max='0.01'
+              step='0.0001'
+              className='w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md'
             />
           </div>
         </div>
 
         {/* AI Guardian Filters */}
-        <div className="mt-4 flex gap-4">
-          <label className="flex items-center gap-2 cursor-pointer">
+        <div className='mt-4 flex gap-4'>
+          <label className='flex items-center gap-2 cursor-pointer'>
             <input
-              type="checkbox"
+              type='checkbox'
               checked={config.require_liquidity_sweep || false}
-              onChange={(e) => setConfig({ ...config, require_liquidity_sweep: e.target.checked })}
-              className="rounded cursor-pointer"
+              onChange={(e) =>
+                setConfig({
+                  ...config,
+                  require_liquidity_sweep: e.target.checked,
+                })
+              }
+              className='rounded cursor-pointer'
             />
-            <span className="text-sm">Require Liquidity Sweep</span>
+            <span className='text-sm'>Require Liquidity Sweep</span>
           </label>
 
-          <label className="flex items-center gap-2 cursor-pointer">
+          <label className='flex items-center gap-2 cursor-pointer'>
             <input
-              type="checkbox"
+              type='checkbox'
               checked={config.reject_compression_arrival || false}
-              onChange={(e) => setConfig({ ...config, reject_compression_arrival: e.target.checked })}
-              className="rounded cursor-pointer"
+              onChange={(e) =>
+                setConfig({
+                  ...config,
+                  reject_compression_arrival: e.target.checked,
+                })
+              }
+              className='rounded cursor-pointer'
             />
-            <span className="text-sm">Reject Compression</span>
+            <span className='text-sm'>Reject Compression</span>
           </label>
 
-          <label className="flex items-center gap-2 cursor-pointer">
+          <label className='flex items-center gap-2 cursor-pointer'>
             <input
-              type="checkbox"
+              type='checkbox'
               checked={config.require_structure_break || false}
-              onChange={(e) => setConfig({ ...config, require_structure_break: e.target.checked })}
-              className="rounded cursor-pointer"
+              onChange={(e) =>
+                setConfig({
+                  ...config,
+                  require_structure_break: e.target.checked,
+                })
+              }
+              className='rounded cursor-pointer'
             />
-            <span className="text-sm">Require Structure Break</span>
+            <span className='text-sm'>Require Structure Break</span>
           </label>
         </div>
 
         {/* Advanced Liquidity & Quality Settings */}
-        <div className="mt-4">
-          <h3 className="text-sm font-semibold text-gray-300 mb-3">Advanced Settings (Liquidity & AI Quality)</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className='mt-4'>
+          <h3 className='text-sm font-semibold text-gray-300 mb-3'>
+            Advanced Settings (Liquidity & AI Quality)
+          </h3>
+          <div className='grid grid-cols-2 md:grid-cols-4 gap-4'>
             <div>
-              <label className="block text-sm text-gray-400 mb-2">
+              <label className='block text-sm text-gray-400 mb-2'>
                 Max Liquidity Distance (pips)
               </label>
               <input
-                type="number"
+                type='number'
                 value={config.liq_entry_max_dist}
-                onChange={(e) => setConfig({ ...config, liq_entry_max_dist: parseFloat(e.target.value) || 500.0 })}
-                min="10"
-                max="1000"
-                step="10"
-                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md"
+                onChange={(e) =>
+                  setConfig({
+                    ...config,
+                    liq_entry_max_dist: parseFloat(e.target.value) || 500.0,
+                  })
+                }
+                min='10'
+                max='1000'
+                step='10'
+                className='w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md'
               />
-              <p className="text-xs text-gray-500 mt-1">Max distance from zone to liquidity level</p>
+              <p className='text-xs text-gray-500 mt-1'>
+                Max distance from zone to liquidity level
+              </p>
             </div>
 
             <div>
-              <label className="block text-sm text-gray-400 mb-2">
+              <label className='block text-sm text-gray-400 mb-2'>
                 AI Quality Threshold (0-100)
               </label>
               <input
-                type="number"
+                type='number'
                 value={config.ai_quality_threshold}
-                onChange={(e) => setConfig({ ...config, ai_quality_threshold: parseInt(e.target.value) || 60 })}
-                min="0"
-                max="100"
-                step="5"
-                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md"
+                onChange={(e) =>
+                  setConfig({
+                    ...config,
+                    ai_quality_threshold: parseInt(e.target.value) || 60,
+                  })
+                }
+                min='0'
+                max='100'
+                step='5'
+                className='w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md'
               />
-              <p className="text-xs text-gray-500 mt-1">Minimum AI quality score to enter trade</p>
+              <p className='text-xs text-gray-500 mt-1'>
+                Minimum AI quality score to enter trade
+              </p>
             </div>
 
             <div>
-              <label className="block text-sm text-gray-400 mb-2">
+              <label className='block text-sm text-gray-400 mb-2'>
                 Minimum Entry Grade
               </label>
               <select
                 value={config.min_entry_grade}
-                onChange={(e) => setConfig({ ...config, min_entry_grade: e.target.value })}
-                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md"
+                onChange={(e) =>
+                  setConfig({ ...config, min_entry_grade: e.target.value })
+                }
+                className='w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md'
               >
-                <option value="A+">A+ (90-100)</option>
-                <option value="A">A (80-89)</option>
-                <option value="B+">B+ (70-79)</option>
-                <option value="B">B (60-69)</option>
-                <option value="C+">C+ (50-59)</option>
-                <option value="C">C (0-49)</option>
+                <option value='A+'>A+ (90-100)</option>
+                <option value='A'>A (80-89)</option>
+                <option value='B+'>B+ (70-79)</option>
+                <option value='B'>B (60-69)</option>
+                <option value='C+'>C+ (50-59)</option>
+                <option value='C'>C (0-49)</option>
               </select>
-              <p className="text-xs text-gray-500 mt-1">Minimum zone grade to enter trade</p>
+              <p className='text-xs text-gray-500 mt-1'>
+                Minimum zone grade to enter trade
+              </p>
             </div>
 
             <div>
-              <label className="block text-sm text-gray-400 mb-2">
+              <label className='block text-sm text-gray-400 mb-2'>
                 Max Bars in Trade
               </label>
               <input
-                type="number"
+                type='number'
                 value={config.max_bars_in_trade}
-                onChange={(e) => setConfig({ ...config, max_bars_in_trade: parseInt(e.target.value) || 0 })}
-                min="0"
-                max="500"
-                step="10"
-                className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md"
+                onChange={(e) =>
+                  setConfig({
+                    ...config,
+                    max_bars_in_trade: parseInt(e.target.value) || 0,
+                  })
+                }
+                min='0'
+                max='500'
+                step='10'
+                className='w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-md'
               />
-              <p className="text-xs text-gray-500 mt-1">Auto-exit after N bars (0=disabled)</p>
+              <p className='text-xs text-gray-500 mt-1'>
+                Auto-exit after N bars (0=disabled)
+              </p>
             </div>
           </div>
         </div>
@@ -463,73 +594,93 @@ export default function BacktestPage() {
         <Button
           onClick={handleRunBacktest}
           disabled={runBacktestMutation.isPending}
-          className="mt-4"
-          size="lg"
+          className='mt-4'
+          size='lg'
         >
-          <Play className="h-4 w-4 mr-2" />
-          {runBacktestMutation.isPending ? "Running Backtest..." : "Run Backtest"}
+          <Play className='h-4 w-4 mr-2' />
+          {runBacktestMutation.isPending
+            ? 'Running Backtest...'
+            : 'Run Backtest'}
         </Button>
-      </Card>
+      </div>
 
       {/* Results */}
       {backtestResult && (
         <>
           {/* Stats Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card className="p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <Target className="h-4 w-4 text-blue-500" />
-                <p className="text-sm text-gray-400">Total Trades</p>
-              </div>
-              <p className="text-2xl font-bold">{stats?.total_trades}</p>
-            </Card>
-
-            <Card className="p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <TrendingUp className="h-4 w-4 text-green-500" />
-                <p className="text-sm text-gray-400">Win Rate</p>
-              </div>
-              <p className="text-2xl font-bold text-green-500">{stats?.win_rate.toFixed(1)}%</p>
-            </Card>
-
-            <Card className="p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <DollarSign className="h-4 w-4 text-yellow-500" />
-                <p className="text-sm text-gray-400">Total Return</p>
+          <div className='grid grid-cols-2 md:grid-cols-4 gap-3'>
+            <div className='tv-card p-3'>
+              <div className='flex items-center gap-1.5 mb-1.5'>
+                <Target className='h-3.5 w-3.5 text-indigo-400' />
+                <span className='panel-label'>Total Trades</span>
               </div>
               <p
-                className={`text-2xl font-bold ${
-                  (stats?.total_return || 0) >= 0 ? "text-green-500" : "text-red-500"
+                className='text-xl font-bold tabular-nums text-slate-200'
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                {stats?.total_trades}
+              </p>
+            </div>
+
+            <div className='tv-card p-3'>
+              <div className='flex items-center gap-1.5 mb-1.5'>
+                <TrendingUp className='h-3.5 w-3.5 text-emerald-400' />
+                <span className='panel-label'>Win Rate</span>
+              </div>
+              <p
+                className='text-xl font-bold tabular-nums text-emerald-400'
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                {stats?.win_rate.toFixed(1)}%
+              </p>
+            </div>
+
+            <div className='tv-card p-3'>
+              <div className='flex items-center gap-1.5 mb-1.5'>
+                <DollarSign className='h-3.5 w-3.5 text-amber-400' />
+                <span className='panel-label'>Total Return</span>
+              </div>
+              <p
+                className={`text-xl font-bold tabular-nums ${
+                  (stats?.total_return || 0) >= 0
+                    ? 'text-emerald-400'
+                    : 'text-red-400'
                 }`}
+                style={{ fontFamily: 'var(--font-mono)' }}
               >
                 {stats?.total_return.toFixed(2)}%
               </p>
-            </Card>
+            </div>
 
-            <Card className="p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <TrendingDown className="h-4 w-4 text-red-500" />
-                <p className="text-sm text-gray-400">Max Drawdown</p>
+            <div className='tv-card p-3'>
+              <div className='flex items-center gap-1.5 mb-1.5'>
+                <TrendingDown className='h-3.5 w-3.5 text-red-400' />
+                <span className='panel-label'>Max Drawdown</span>
               </div>
-              <p className="text-2xl font-bold text-red-500">{stats?.max_drawdown.toFixed(2)}%</p>
-            </Card>
+              <p
+                className='text-xl font-bold tabular-nums text-red-400'
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                {stats?.max_drawdown.toFixed(2)}%
+              </p>
+            </div>
           </div>
 
           {/* Chart, Trades, Performance Tabs */}
-          <Tabs defaultValue="chart" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="chart">Chart</TabsTrigger>
-              <TabsTrigger value="trades">Trade List</TabsTrigger>
-              <TabsTrigger value="performance">Performance</TabsTrigger>
+          <Tabs defaultValue='chart' className='w-full'>
+            <TabsList className='grid w-full grid-cols-3'>
+              <TabsTrigger value='chart'>Chart</TabsTrigger>
+              <TabsTrigger value='trades'>Trade List</TabsTrigger>
+              <TabsTrigger value='performance'>Performance</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="chart" className="mt-4">
-              <Card className="p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-semibold">Backtest Chart</h2>
+            <TabsContent value='chart' className='mt-4'>
+              <Card className='p-6'>
+                <div className='flex justify-between items-center mb-4'>
+                  <h2 className='text-xl font-semibold'>Backtest Chart</h2>
                   <Button
-                    variant={replayMode ? "default" : "outline"}
-                    size="sm"
+                    variant={replayMode ? 'default' : 'outline'}
+                    size='sm'
                     onClick={() => {
                       setReplayMode(!replayMode);
                       if (!replayMode) {
@@ -537,17 +688,23 @@ export default function BacktestPage() {
                       }
                     }}
                   >
-                    <Play className="h-4 w-4 mr-2" />
-                    {replayMode ? "Exit Replay Mode" : "Enable FX Replay"}
+                    <Play className='h-4 w-4 mr-2' />
+                    {replayMode ? 'Exit Replay Mode' : 'Enable FX Replay'}
                   </Button>
                 </div>
 
-                <BacktestChart candles={chartCandles} trades={visibleTrades} height={600} />
+                <BacktestChart
+                  candles={chartCandles}
+                  trades={visibleTrades}
+                  height={600}
+                />
 
                 {replayMode && (
-                  <div className="mt-4">
+                  <div className='mt-4'>
                     <FXReplayController
-                      candles={backtestResult.candles as unknown as CandlestickData<Time>[]}
+                      candles={
+                        backtestResult.candles as unknown as CandlestickData<Time>[]
+                      }
                       currentIndex={currentCandleIndex}
                       onCandleIndexChange={setCurrentCandleIndex}
                     />
@@ -556,92 +713,139 @@ export default function BacktestPage() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="trades" className="mt-4">
-              <Card className="p-6">
-                <h2 className="text-xl font-semibold mb-4">Trade List ({visibleTrades.length} trades)</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="border-b border-gray-800">
-                  <tr className="text-gray-400">
-                    <th className="text-left py-3 px-2">#</th>
-                    <th className="text-left py-3 px-2">Type</th>
-                    <th className="text-left py-3 px-2">Entry Date</th>
-                    <th className="text-left py-3 px-2">Exit Date</th>
-                    <th className="text-right py-3 px-2">Duration</th>
-                    <th className="text-right py-3 px-2">Entry Price</th>
-                    <th className="text-right py-3 px-2">Exit Price</th>
-                    <th className="text-right py-3 px-2">Size</th>
-                    <th className="text-right py-3 px-2">Profit $</th>
-                    <th className="text-right py-3 px-2">Profit %</th>
-                    <th className="text-right py-3 px-2">Return %</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visibleTrades.map((trade, index) => {
-                    const duration = (trade.exit_time - trade.entry_time) / 60; // minutes
-                    const durationText = duration < 60
-                      ? `${Math.floor(duration)}m`
-                      : `${Math.floor(duration / 60)}h ${Math.floor(duration % 60)}m`;
-
-                    return (
-                      <tr
-                        key={index}
-                        className="border-b border-gray-800 hover:bg-gray-900/50 transition-colors"
-                      >
-                        <td className="py-3 px-2 text-gray-300">{index + 1}</td>
-                        <td className="py-3 px-2">
-                          <Badge
-                            variant={trade.side === "long" ? "default" : "destructive"}
-                            className="text-xs"
-                          >
-                            {trade.side === "long" ? "LONG" : "SHORT"}
-                          </Badge>
-                        </td>
-                        <td className="py-3 px-2 text-gray-400 text-xs">
-                          {new Date(trade.entry_time * 1000).toLocaleString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </td>
-                        <td className="py-3 px-2 text-gray-400 text-xs">
-                          {new Date(trade.exit_time * 1000).toLocaleString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </td>
-                        <td className="py-3 px-2 text-right text-gray-400 text-xs">{durationText}</td>
-                        <td className="py-3 px-2 text-right text-gray-300">{trade.entry_price.toFixed(5)}</td>
-                        <td className="py-3 px-2 text-right text-gray-300">{trade.exit_price.toFixed(5)}</td>
-                        <td className="py-3 px-2 text-right text-gray-400">{trade.size.toFixed(2)}</td>
-                        <td className={`py-3 px-2 text-right font-semibold ${trade.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                          {trade.pnl >= 0 ? '+' : ''}{trade.pnl.toFixed(2)}
-                        </td>
-                        <td className={`py-3 px-2 text-right font-semibold ${trade.pnl_percent >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                          {trade.pnl_percent >= 0 ? '+' : ''}{trade.pnl_percent.toFixed(2)}%
-                        </td>
-                        <td className={`py-3 px-2 text-right font-semibold ${trade.return_pct >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                          {trade.return_pct >= 0 ? '+' : ''}{trade.return_pct.toFixed(2)}%
-                        </td>
+            <TabsContent value='trades' className='mt-4'>
+              <Card className='p-6'>
+                <h2 className='text-xl font-semibold mb-4'>
+                  Trade List ({visibleTrades.length} trades)
+                </h2>
+                <div className='overflow-x-auto'>
+                  <table className='w-full text-sm'>
+                    <thead className='border-b border-gray-800'>
+                      <tr className='text-gray-400'>
+                        <th className='text-left py-3 px-2'>#</th>
+                        <th className='text-left py-3 px-2'>Type</th>
+                        <th className='text-left py-3 px-2'>Entry Date</th>
+                        <th className='text-left py-3 px-2'>Exit Date</th>
+                        <th className='text-right py-3 px-2'>Duration</th>
+                        <th className='text-right py-3 px-2'>Entry Price</th>
+                        <th className='text-right py-3 px-2'>Exit Price</th>
+                        <th className='text-right py-3 px-2'>Size</th>
+                        <th className='text-right py-3 px-2'>Profit $</th>
+                        <th className='text-right py-3 px-2'>Profit %</th>
+                        <th className='text-right py-3 px-2'>Return %</th>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                    </thead>
+                    <tbody>
+                      {visibleTrades.map((trade, index) => {
+                        const duration =
+                          (trade.exit_time - trade.entry_time) / 60; // minutes
+                        const durationText =
+                          duration < 60
+                            ? `${Math.floor(duration)}m`
+                            : `${Math.floor(duration / 60)}h ${Math.floor(
+                                duration % 60
+                              )}m`;
 
-              {visibleTrades.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  No trades yet. Run a backtest to see results.
+                        return (
+                          <tr
+                            key={index}
+                            className='border-b border-gray-800 hover:bg-gray-900/50 transition-colors'
+                          >
+                            <td className='py-3 px-2 text-gray-300'>
+                              {index + 1}
+                            </td>
+                            <td className='py-3 px-2'>
+                              <Badge
+                                variant={
+                                  trade.side === 'long'
+                                    ? 'default'
+                                    : 'destructive'
+                                }
+                                className='text-xs'
+                              >
+                                {trade.side === 'long' ? 'LONG' : 'SHORT'}
+                              </Badge>
+                            </td>
+                            <td className='py-3 px-2 text-gray-400 text-xs'>
+                              {new Date(trade.entry_time * 1000).toLocaleString(
+                                'en-US',
+                                {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                }
+                              )}
+                            </td>
+                            <td className='py-3 px-2 text-gray-400 text-xs'>
+                              {new Date(trade.exit_time * 1000).toLocaleString(
+                                'en-US',
+                                {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                }
+                              )}
+                            </td>
+                            <td className='py-3 px-2 text-right text-gray-400 text-xs'>
+                              {durationText}
+                            </td>
+                            <td className='py-3 px-2 text-right text-gray-300'>
+                              {trade.entry_price.toFixed(5)}
+                            </td>
+                            <td className='py-3 px-2 text-right text-gray-300'>
+                              {trade.exit_price.toFixed(5)}
+                            </td>
+                            <td className='py-3 px-2 text-right text-gray-400'>
+                              {trade.size.toFixed(2)}
+                            </td>
+                            <td
+                              className={`py-3 px-2 text-right font-semibold ${
+                                trade.pnl >= 0
+                                  ? 'text-green-500'
+                                  : 'text-red-500'
+                              }`}
+                            >
+                              {trade.pnl >= 0 ? '+' : ''}
+                              {trade.pnl.toFixed(2)}
+                            </td>
+                            <td
+                              className={`py-3 px-2 text-right font-semibold ${
+                                trade.pnl_percent >= 0
+                                  ? 'text-green-500'
+                                  : 'text-red-500'
+                              }`}
+                            >
+                              {trade.pnl_percent >= 0 ? '+' : ''}
+                              {trade.pnl_percent.toFixed(2)}%
+                            </td>
+                            <td
+                              className={`py-3 px-2 text-right font-semibold ${
+                                trade.return_pct >= 0
+                                  ? 'text-green-500'
+                                  : 'text-red-500'
+                              }`}
+                            >
+                              {trade.return_pct >= 0 ? '+' : ''}
+                              {trade.return_pct.toFixed(2)}%
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+
+                  {visibleTrades.length === 0 && (
+                    <div className='text-center py-8 text-gray-500'>
+                      No trades yet. Run a backtest to see results.
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </Card>
+              </Card>
             </TabsContent>
 
-            <TabsContent value="performance" className="mt-4">
+            <TabsContent value='performance' className='mt-4'>
               <BacktestPerformanceTab
                 trades={visibleTrades}
                 stats={
@@ -658,7 +862,7 @@ export default function BacktestPage() {
                     avg_loss: 0,
                     largest_win: 0,
                     largest_loss: 0,
-                    avg_trade_duration: "0m",
+                    avg_trade_duration: '0m',
                     exposure_time: 0,
                   }
                 }
@@ -672,12 +876,14 @@ export default function BacktestPage() {
 
       {/* Error State */}
       {runBacktestMutation.isError && (
-        <Card className="p-6 bg-red-900/20 border-red-800">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="h-5 w-5 text-red-500" />
-            <p className="text-red-500">Backtest failed: {runBacktestMutation.error?.message}</p>
+        <div className='rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2.5'>
+          <div className='flex items-center gap-2'>
+            <AlertCircle className='h-3.5 w-3.5 text-red-400' />
+            <p className='text-xs text-red-400'>
+              Backtest failed: {runBacktestMutation.error?.message}
+            </p>
           </div>
-        </Card>
+        </div>
       )}
     </div>
   );

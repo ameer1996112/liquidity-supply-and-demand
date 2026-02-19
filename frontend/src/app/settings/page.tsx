@@ -5,7 +5,26 @@ import { ConfigDisplay } from '@/components/settings/ConfigDisplay';
 import { AiConfigPanel } from '@/components/settings/AiConfigPanel';
 import { SystemHealthPanel } from '@/components/settings/SystemHealthPanel';
 import { AlertRulesPanel } from '@/components/settings/AlertRulesPanel';
-import { Info, Layers } from 'lucide-react';
+import { Info, Layers, Settings } from 'lucide-react';
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className='flex items-center justify-between border-b border-slate-800 px-3 py-2 last:border-0'>
+      <span
+        className='text-[10px] uppercase tracking-wider text-slate-500'
+        style={{ fontFamily: 'var(--font-mono)' }}
+      >
+        {label}
+      </span>
+      <span
+        className='text-xs text-slate-300'
+        style={{ fontFamily: 'var(--font-mono)' }}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
 
 export default function SettingsPage() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -13,9 +32,17 @@ export default function SettingsPage() {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
 
   return (
-    <div className="space-y-6">
+    <div className='space-y-4'>
       {/* Header */}
-      <h1 className="text-lg font-semibold text-zinc-100">Settings</h1>
+      <div>
+        <div className='flex items-center gap-2'>
+          <Settings className='h-4 w-4 text-slate-400' />
+          <h1 className='page-title text-lg font-semibold'>Settings</h1>
+        </div>
+        <p className='page-subtitle mt-0.5 text-xs'>
+          System configuration, connections, and infrastructure.
+        </p>
+      </div>
 
       {/* Connection Status */}
       <ConnectionStatus />
@@ -23,7 +50,7 @@ export default function SettingsPage() {
       {/* AI / ML / RAG Configuration */}
       <AiConfigPanel />
 
-      {/* System Health (DLQ, Queue, Redis) */}
+      {/* System Health */}
       <SystemHealthPanel />
 
       {/* Alert Rules */}
@@ -31,7 +58,7 @@ export default function SettingsPage() {
 
       {/* Environment Config */}
       <ConfigDisplay
-        title="Environment"
+        title='Environment'
         items={[
           { key: 'SUPABASE_URL', value: supabaseUrl, sensitive: true },
           { key: 'SUPABASE_KEY', value: supabaseKey, sensitive: true },
@@ -41,66 +68,41 @@ export default function SettingsPage() {
       />
 
       {/* Infrastructure */}
-      <div className="tv-card">
-        <div className="px-4 py-3 border-b border-[#2a2e39]">
-          <div className="flex items-center gap-2">
-            <Layers className="w-4 h-4 text-zinc-500" />
-            <span className="font-mono text-xs text-zinc-400 uppercase tracking-wider">
-              Infrastructure
-            </span>
-          </div>
+      <div className='tv-card'>
+        <div className='tv-divider flex items-center gap-2 border-b px-3 py-2'>
+          <Layers className='h-3.5 w-3.5 text-indigo-400' />
+          <span
+            className='panel-label'
+            style={{ fontFamily: 'var(--font-sans)' }}
+          >
+            Infrastructure
+          </span>
         </div>
-        <div className="divide-y divide-[#2a2e39]">
-          <div className="px-4 py-2.5 flex items-center justify-between">
-            <span className="text-[11px] text-zinc-500 uppercase tracking-wider font-mono">Hosting</span>
-            <span className="font-mono text-xs text-zinc-300">Railway</span>
-          </div>
-          <div className="px-4 py-2.5 flex items-center justify-between">
-            <span className="text-[11px] text-zinc-500 uppercase tracking-wider font-mono">Broker</span>
-            <span className="font-mono text-xs text-zinc-300">MetaAPI (MT5)</span>
-          </div>
-          <div className="px-4 py-2.5 flex items-center justify-between">
-            <span className="text-[11px] text-zinc-500 uppercase tracking-wider font-mono">Database</span>
-            <span className="font-mono text-xs text-zinc-300">Supabase (PostgreSQL)</span>
-          </div>
-          <div className="px-4 py-2.5 flex items-center justify-between">
-            <span className="text-[11px] text-zinc-500 uppercase tracking-wider font-mono">Realtime</span>
-            <span className="font-mono text-xs text-zinc-300">Supabase Realtime (WebSocket)</span>
-          </div>
+        <div>
+          <InfoRow label='Hosting' value='Railway' />
+          <InfoRow label='Broker' value='MetaAPI (MT5)' />
+          <InfoRow label='Database' value='Supabase (PostgreSQL)' />
+          <InfoRow label='Realtime' value='Supabase Realtime (WebSocket)' />
         </div>
       </div>
 
       {/* Tech Stack */}
-      <div className="tv-card">
-        <div className="px-4 py-3 border-b border-[#2a2e39]">
-          <div className="flex items-center gap-2">
-            <Info className="w-4 h-4 text-zinc-500" />
-            <span className="font-mono text-xs text-zinc-400 uppercase tracking-wider">
-              Tech Stack
-            </span>
-          </div>
+      <div className='tv-card'>
+        <div className='tv-divider flex items-center gap-2 border-b px-3 py-2'>
+          <Info className='h-3.5 w-3.5 text-indigo-400' />
+          <span
+            className='panel-label'
+            style={{ fontFamily: 'var(--font-sans)' }}
+          >
+            Tech Stack
+          </span>
         </div>
-        <div className="divide-y divide-[#2a2e39]">
-          <div className="px-4 py-2.5 flex items-center justify-between">
-            <span className="text-[11px] text-zinc-500 uppercase tracking-wider font-mono">Frontend</span>
-            <span className="font-mono text-xs text-zinc-300">Next.js 16 + React 19</span>
-          </div>
-          <div className="px-4 py-2.5 flex items-center justify-between">
-            <span className="text-[11px] text-zinc-500 uppercase tracking-wider font-mono">Backend</span>
-            <span className="font-mono text-xs text-zinc-300">Python FastAPI + Redis</span>
-          </div>
-          <div className="px-4 py-2.5 flex items-center justify-between">
-            <span className="text-[11px] text-zinc-500 uppercase tracking-wider font-mono">UI</span>
-            <span className="font-mono text-xs text-zinc-300">Tailwind CSS v4 + Shadcn/ui</span>
-          </div>
-          <div className="px-4 py-2.5 flex items-center justify-between">
-            <span className="text-[11px] text-zinc-500 uppercase tracking-wider font-mono">Charts</span>
-            <span className="font-mono text-xs text-zinc-300">Recharts v3</span>
-          </div>
-          <div className="px-4 py-2.5 flex items-center justify-between">
-            <span className="text-[11px] text-zinc-500 uppercase tracking-wider font-mono">Execution</span>
-            <span className="font-mono text-xs text-zinc-300">MetaAPI REST (MT5 Bridge)</span>
-          </div>
+        <div>
+          <InfoRow label='Frontend' value='Next.js 16 + React 19' />
+          <InfoRow label='Backend' value='Python FastAPI + Redis' />
+          <InfoRow label='UI' value='Tailwind CSS v4 + Shadcn/ui' />
+          <InfoRow label='Charts' value='Recharts v3' />
+          <InfoRow label='Execution' value='MetaAPI REST (MT5 Bridge)' />
         </div>
       </div>
     </div>

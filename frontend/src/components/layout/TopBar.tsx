@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   useSignalStats,
   useRefreshSignals,
@@ -8,67 +8,52 @@ import {
 } from '@/hooks/useTradingSignals';
 import { useTradingMode } from '@/providers/TradingModeProvider';
 import { getPnl } from '@/types/trading';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { RiskBar } from '@/components/risk/RiskBar';
 import {
-  Activity,
   TrendingUp,
   TrendingDown,
   Zap,
   DollarSign,
   RefreshCw,
+  Radio,
+  FlaskConical,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useState } from 'react';
 import { AlertBell } from '@/components/alerts/AlertBell';
 
 interface MetricProps {
   label: string;
   value: string | number;
-  icon: React.ReactNode;
   trend?: 'up' | 'down';
 }
 
-function Metric({ label, value, icon, trend }: MetricProps) {
+function Metric({ label, value, trend }: MetricProps) {
   return (
-    <div className='flex min-w-[120px] items-center gap-2 rounded-xl border border-[rgba(110,131,170,0.34)] bg-[rgba(16,24,42,0.88)] px-2.5 py-1.5'>
-      <div className='flex h-7 w-7 items-center justify-center rounded-lg border border-[rgba(112,136,182,0.42)] bg-[rgba(31,47,76,0.82)] text-[#a8bde2]'>
-        {icon}
-      </div>
-      <div className='flex flex-col'>
-        <span className='text-[10px] font-medium leading-none tracking-wider text-[#94a4c3] uppercase'>
-          {label}
-        </span>
-        <span
-          className={cn(
-            'text-sm font-semibold leading-tight tabular-nums',
-            trend === 'up' && 'text-[#3fc7ad]',
-            trend === 'down' && 'text-[#ff7e92]',
-            !trend && 'text-[#eaf0fb]'
-          )}
-        >
-          {value}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function MetricSkeleton() {
-  return (
-    <div className='flex min-w-[120px] items-center gap-2 rounded-xl border border-[rgba(110,131,170,0.34)] bg-[rgba(16,24,42,0.88)] px-2.5 py-1.5'>
-      <Skeleton className='h-7 w-7 rounded-lg bg-[rgba(30,45,72,0.8)]' />
-      <div className='flex flex-col gap-1'>
-        <Skeleton className='h-2.5 w-14 bg-[rgba(30,45,72,0.8)]' />
-        <Skeleton className='h-3.5 w-10 bg-[rgba(30,45,72,0.8)]' />
-      </div>
+    <div className='flex min-w-[100px] flex-col gap-0.5 border-r border-slate-800 px-3 last:border-r-0'>
+      <span
+        className='text-[9px] font-medium uppercase tracking-[0.12em] text-slate-500'
+        style={{ fontFamily: 'var(--font-sans)' }}
+      >
+        {label}
+      </span>
+      <span
+        className={cn(
+          'text-[13px] font-semibold tabular-nums',
+          trend === 'up' && 'text-emerald-400',
+          trend === 'down' && 'text-red-400',
+          !trend && 'text-slate-200'
+        )}
+        style={{ fontFamily: 'var(--font-mono)' }}
+      >
+        {value}
+      </span>
     </div>
   );
 }
 
 export function TopBar() {
-  const { mode } = useTradingMode();
+  const { mode, setMode } = useTradingMode();
   const { data: stats, isLoading } = useSignalStats();
   const { data: signals = [] } = useTradingSignals(mode);
   const refreshSignals = useRefreshSignals();
@@ -80,7 +65,6 @@ export function TopBar() {
     setTimeout(() => setIsRefreshing(false), 500);
   };
 
-  // Win rate: compute from closed signals for current mode (same source as Total PnL)
   const winRate = useMemo(() => {
     const closed = signals.filter((s) => {
       const st = s.status?.toLowerCase();
@@ -97,7 +81,6 @@ export function TopBar() {
       ? stats?.paper_daily_pnl ?? stats?.paper_pnl_24h ?? 0
       : stats?.live_daily_pnl ?? stats?.live_pnl_24h ?? 0;
 
-  // Total PnL: use same source as Equity Curve (closed signals for current mode) for consistency
   const totalPnl = useMemo(() => {
     const closed = signals.filter((s) => {
       const st = s.status?.toLowerCase();
@@ -108,83 +91,100 @@ export function TopBar() {
   }, [signals]);
 
   return (
-    <header className='flex h-14 items-center justify-between gap-3 border-b border-[rgba(110,131,170,0.3)] bg-[rgba(10,16,31,0.88)] px-3 backdrop-blur-md sm:px-4'>
-      {/* Left: Metrics */}
-      <div className='scrollbar-thin flex items-center gap-2 overflow-x-auto pr-1'>
+    <header className='flex h-12 shrink-0 items-center justify-between border-b border-slate-800 bg-[#0F172A] px-3'>
+      {/* ── Left: metrics strip ─────────────────────────────────── */}
+      <div className='flex items-center overflow-x-auto scrollbar-thin'>
         {isLoading ? (
-          <>
-            <MetricSkeleton />
-            <MetricSkeleton />
-            <MetricSkeleton />
-            <MetricSkeleton />
-          </>
+          <div className='flex items-center gap-0'>
+            {[...Array(4)].map((_, i) => (
+              <div
+                key={i}
+                className='flex min-w-[100px] flex-col gap-1 border-r border-slate-800 px-3 last:border-r-0'
+              >
+                <div className='h-2 w-12 rounded bg-slate-800 animate-pulse' />
+                <div className='h-3 w-16 rounded bg-slate-800 animate-pulse' />
+              </div>
+            ))}
+          </div>
         ) : (
-          <>
+          <div className='flex items-center'>
             <Metric
               label='Win Rate'
               value={`${winRate.toFixed(1)}%`}
-              icon={
-                winRate >= 50 ? (
-                  <TrendingUp className='w-3.5 h-3.5' />
-                ) : (
-                  <TrendingDown className='w-3.5 h-3.5' />
-                )
-              }
               trend={winRate >= 50 ? 'up' : 'down'}
             />
-            <Metric
-              label='Active'
-              value={stats?.active_trades || 0}
-              icon={<Zap className='w-3.5 h-3.5' />}
-            />
+            <Metric label='Active' value={stats?.active_trades ?? 0} />
             <Metric
               label='Daily PnL'
               value={`${dailyPnl >= 0 ? '+' : ''}$${dailyPnl.toFixed(2)}`}
-              icon={<DollarSign className='w-3.5 h-3.5' />}
               trend={dailyPnl >= 0 ? 'up' : 'down'}
             />
             <Metric
               label='Total PnL'
               value={`${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(2)}`}
-              icon={<Activity className='w-3.5 h-3.5' />}
               trend={totalPnl >= 0 ? 'up' : 'down'}
             />
-          </>
+          </div>
         )}
       </div>
 
-      {/* Center: Risk Cockpit */}
+      {/* ── Center: Risk Cockpit ─────────────────────────────────── */}
       <div className='hidden xl:flex xl:flex-1 xl:justify-center'>
         <RiskBar />
       </div>
 
-      {/* Right: Actions */}
-      <div className='flex items-center gap-2 sm:gap-3'>
-        {/* Alerts */}
+      {/* ── Right: mode toggle + actions ────────────────────────── */}
+      <div className='flex items-center gap-2'>
         <AlertBell />
 
-        {/* Connection indicator / mode badge */}
-        <div className='flex items-center gap-1.5 rounded-lg border border-[rgba(110,131,170,0.34)] bg-[rgba(16,24,42,0.88)] px-2.5 py-1'>
-          <div
+        {/* Mode toggle */}
+        <div className='flex items-center rounded-lg border border-slate-800 bg-slate-900 p-0.5'>
+          <button
+            onClick={() => setMode('LIVE')}
             className={cn(
-              'h-1.5 w-1.5 rounded-full animate-pulse',
-              mode === 'PAPER' ? 'bg-[#ffb14f]' : 'bg-[#2ec9aa]'
+              'flex items-center gap-1.5 rounded-md px-2.5 py-1 transition-colors',
+              mode === 'LIVE'
+                ? 'bg-emerald-500/15 text-emerald-400'
+                : 'text-slate-500 hover:text-slate-300'
             )}
-          />
-          <span className='text-[10px] uppercase tracking-wider text-[#9eaed0]'>
-            {mode}
-          </span>
+          >
+            <Radio className='h-3 w-3' />
+            <span
+              className='text-[10px] font-semibold uppercase tracking-wider'
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >
+              Live
+            </span>
+          </button>
+          <button
+            onClick={() => setMode('PAPER')}
+            className={cn(
+              'flex items-center gap-1.5 rounded-md px-2.5 py-1 transition-colors',
+              mode === 'PAPER'
+                ? 'bg-amber-500/15 text-amber-400'
+                : 'text-slate-500 hover:text-slate-300'
+            )}
+          >
+            <FlaskConical className='h-3 w-3' />
+            <span
+              className='text-[10px] font-semibold uppercase tracking-wider'
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >
+              Paper
+            </span>
+          </button>
         </div>
 
+        {/* Refresh */}
         <Button
           variant='ghost'
           size='sm'
           onClick={handleRefresh}
           disabled={isRefreshing}
-          className='h-8 w-8 rounded-lg border border-transparent p-0 text-[#9eaed0] hover:border-[rgba(110,131,170,0.34)] hover:bg-[rgba(16,24,42,0.88)] hover:text-[#eef3fb]'
+          className='h-7 w-7 rounded-lg border border-transparent p-0 text-slate-500 hover:border-slate-700 hover:bg-slate-800 hover:text-slate-300'
         >
           <RefreshCw
-            className={cn('w-3.5 h-3.5', isRefreshing && 'animate-spin')}
+            className={cn('h-3.5 w-3.5', isRefreshing && 'animate-spin')}
           />
         </Button>
       </div>

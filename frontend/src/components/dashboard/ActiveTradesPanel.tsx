@@ -32,20 +32,24 @@ export function ActiveTradesPanel({
   return (
     <div className='tv-card flex h-full min-h-0 flex-col overflow-hidden'>
       {/* Header */}
-      <div className='tv-divider flex items-center justify-between border-b px-3 py-2'>
+      <div className='tv-divider flex shrink-0 items-center justify-between border-b px-3 py-2'>
         <div className='flex items-center gap-2'>
-          <Radio className='h-3.5 w-3.5 text-[#8ca5ff]' />
-          <span className='text-[11px] font-semibold uppercase tracking-[0.12em] text-[#c7d4ed]'>
+          <Radio className='h-3.5 w-3.5 text-indigo-400' />
+          <span
+            className='panel-label'
+            style={{ fontFamily: 'var(--font-sans)' }}
+          >
             Active Positions
           </span>
         </div>
         <span
           className={cn(
-            'rounded px-2 py-0.5 font-mono text-[10px] font-bold',
+            'rounded px-2 py-0.5 text-[10px] font-bold tabular-nums',
             activeTrades.length > 0
-              ? 'bg-[#6e8dff] text-white'
-              : 'bg-[rgba(30,44,71,0.85)] text-[#8ea0c3]'
+              ? 'bg-indigo-600/20 text-indigo-300'
+              : 'bg-slate-800 text-slate-500'
           )}
+          style={{ fontFamily: 'var(--font-mono)' }}
         >
           {activeTrades.length}
         </span>
@@ -58,22 +62,22 @@ export function ActiveTradesPanel({
             {[...Array(3)].map((_, i) => (
               <Skeleton
                 key={i}
-                className='h-10 w-full rounded-md bg-[rgba(31,45,74,0.55)]'
+                className='h-10 w-full rounded-md bg-slate-800/60'
               />
             ))}
           </div>
         ) : activeTrades.length === 0 ? (
-          <div className='flex flex-col items-center justify-center py-10 text-center'>
-            <div className='radar-scan mb-3' />
-            <span className='font-mono text-[11px] text-[#a1b1cf]'>
-              Scanning market
-            </span>
-            <span className='mt-1 text-[10px] text-[#7b8cb0]'>
-              No active positions
+          <div className='empty-state py-12'>
+            <span className='empty-state-text'>[ NO ACTIVE DATA ]</span>
+            <span
+              className='mt-1 text-[10px] text-slate-700'
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >
+              awaiting 5m zone entry
             </span>
           </div>
         ) : (
-          <div className='space-y-1.5'>
+          <div className='space-y-1'>
             {activeTrades.map((signal) => (
               <ActiveTradeRow
                 key={signal.id}

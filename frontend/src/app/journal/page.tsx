@@ -2,7 +2,14 @@
 
 import { useState, useMemo } from 'react';
 import { useJournalSignals } from '@/hooks/useJournalSignals';
-import { TradingSignal, TradingMode, SignalStatus, getSymbol, getSide, getNotes } from '@/types/trading';
+import {
+  TradingSignal,
+  TradingMode,
+  SignalStatus,
+  getSymbol,
+  getSide,
+  getNotes,
+} from '@/types/trading';
 import { JournalFilters } from '@/components/journal/JournalFilters';
 import { TradeTable } from '@/components/journal/TradeTable';
 import { SignalInspector } from '@/components/SignalInspector';
@@ -17,7 +24,9 @@ export default function JournalPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [modeFilter, setModeFilter] = useState<ModeFilter>('ALL');
-  const [inspectSignal, setInspectSignal] = useState<TradingSignal | null>(null);
+  const [inspectSignal, setInspectSignal] = useState<TradingSignal | null>(
+    null
+  );
   const [inspectorOpen, setInspectorOpen] = useState(false);
 
   const queryMode = modeFilter === 'ALL' ? undefined : modeFilter;
@@ -25,12 +34,9 @@ export default function JournalPage() {
 
   const filtered = useMemo(() => {
     if (!signals) return [];
-
     return signals.filter((s) => {
-      // Status filter
-      if (statusFilter !== 'ALL' && s.status?.toLowerCase() !== statusFilter) return false;
-
-      // Search
+      if (statusFilter !== 'ALL' && s.status?.toLowerCase() !== statusFilter)
+        return false;
       if (search) {
         const q = search.toLowerCase();
         const sym = getSymbol(s).toLowerCase();
@@ -52,7 +58,6 @@ export default function JournalPage() {
           return false;
         }
       }
-
       return true;
     });
   }, [signals, statusFilter, search]);
@@ -63,16 +68,20 @@ export default function JournalPage() {
   };
 
   const handleExport = () => {
-    if (filtered.length > 0) {
-      exportTradesToCsv(filtered);
-    }
+    if (filtered.length > 0) exportTradesToCsv(filtered);
   };
 
   return (
-    <div className="space-y-4">
+    <div className='space-y-4'>
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-semibold text-zinc-100">Trade Journal</h1>
+      <div>
+        <div className='flex items-center gap-2'>
+          <BookOpen className='h-4 w-4 text-slate-400' />
+          <h1 className='page-title text-lg font-semibold'>Trade Journal</h1>
+        </div>
+        <p className='page-subtitle mt-0.5 text-xs'>
+          Full history of signals, executions, and outcomes.
+        </p>
       </div>
 
       {/* Filters */}
@@ -89,25 +98,33 @@ export default function JournalPage() {
 
       {/* Table */}
       {isLoading ? (
-        <div className="space-y-2">
+        <div className='space-y-1.5'>
           {[...Array(8)].map((_, i) => (
-            <Skeleton key={i} className="h-10 rounded bg-[#1e222d]" />
+            <Skeleton key={i} className='h-9 rounded-lg bg-slate-800/60' />
           ))}
         </div>
       ) : filtered.length > 0 ? (
         <TradeTable signals={filtered} onInspect={handleInspect} />
       ) : (
-        <div className="tv-card p-12 flex flex-col items-center justify-center">
-          <BookOpen className="w-10 h-10 text-zinc-700 mb-3" />
-          <span className="text-sm text-zinc-500">
-            {signals && signals.length > 0
-              ? 'No trades match your filters'
-              : 'No trade data available'}
-          </span>
+        <div className='tv-card'>
+          <div className='empty-state py-14'>
+            <span className='empty-state-text'>
+              {signals && signals.length > 0
+                ? '[ NO MATCHING TRADES ]'
+                : '[ NO TRADE DATA ]'}
+            </span>
+            <span
+              className='mt-1 text-[10px] text-slate-700'
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >
+              {signals && signals.length > 0
+                ? 'adjust filters to see results'
+                : 'trades will appear here after execution'}
+            </span>
+          </div>
         </div>
       )}
 
-      {/* Signal Inspector Sheet */}
       <SignalInspector
         signal={inspectSignal}
         open={inspectorOpen}

@@ -45,14 +45,14 @@ export default function AccountsPage() {
               : body?.detail?.join?.(' ') ?? body?.message;
           if (detail) message = detail;
         } catch {
-          // response not JSON (e.g. HTML error page)
+          // response not JSON
         }
         throw new Error(message);
       }
 
       return response.json();
     },
-    onSuccess: (data, accountName) => {
+    onSuccess: (_data, accountName) => {
       queryClient.invalidateQueries({
         queryKey: ['portfolio-control', 'accounts', 'comparison'],
       });
@@ -63,10 +63,10 @@ export default function AccountsPage() {
         duration: 5000,
       });
     },
-    onError: (error: Error, accountName) => {
+    onError: (err: Error, accountName) => {
       addToast({
         title: 'Delete failed',
-        message: error.message || `Failed to delete ${accountName}`,
+        message: err.message || `Failed to delete ${accountName}`,
         severity: 'critical',
         duration: 8000,
       });
@@ -78,55 +78,63 @@ export default function AccountsPage() {
   };
 
   return (
-    <div className='space-y-6'>
+    <div className='space-y-4'>
+      {/* Header */}
       <div>
-        <h1 className='page-title text-xl font-semibold'>
+        <h1 className='page-title text-lg font-semibold'>
           Multi-Account Manager
         </h1>
-        <p className='page-subtitle mt-1 text-sm'>
+        <p className='page-subtitle mt-0.5 text-xs'>
           Manage multiple broker accounts (Funded, Eval, Personal) and copy
           trading.
         </p>
       </div>
 
+      {/* Error banner */}
       {error && (
-        <div className='rounded-xl border border-[rgba(255,177,79,0.42)] bg-[rgba(255,177,79,0.1)] px-4 py-3 text-sm text-[#ffd495]'>
-          Failed to load accounts. Ensure the backend API is running, migrations
-          are applied, and <code className='text-xs'>account_strategies</code>{' '}
-          or <code className='text-xs'>broker_profiles</code> has data.
+        <div className='rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-300'>
+          Failed to load accounts. Ensure the backend API is running and
+          migrations are applied.
         </div>
       )}
 
       {/* Account Comparison */}
       <section>
         <div className='mb-3 flex items-center justify-between'>
-          <h2 className='flex items-center gap-2 text-sm font-medium text-[#dce6fb]'>
-            <Users className='h-4 w-4 text-[#2ec9aa]' />
-            Account Comparison
-          </h2>
           <div className='flex items-center gap-2'>
-            {/* View Toggle */}
-            <div className='surface-soft flex items-center gap-1 rounded-xl border border-[rgba(95,119,163,0.34)] p-0.5'>
+            <Users className='h-3.5 w-3.5 text-slate-400' />
+            <h2
+              className='text-sm font-medium text-slate-300'
+              style={{ fontFamily: 'var(--font-sans)' }}
+            >
+              Account Comparison
+            </h2>
+          </div>
+          <div className='flex items-center gap-2'>
+            {/* View toggle */}
+            <div className='surface-soft flex items-center gap-0.5 rounded-lg p-0.5'>
               <button
                 onClick={() => setViewMode('table')}
-                className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs transition-colors ${
+                className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] transition-colors ${
                   viewMode === 'table'
-                    ? 'bg-[rgba(46,201,170,0.2)] text-[#2ec9aa]'
-                    : 'text-[#9cafd4] hover:text-[#ecf2ff]'
+                    ? 'bg-indigo-600/20 text-indigo-300'
+                    : 'text-slate-500 hover:text-slate-300'
                 }`}
+                style={{ fontFamily: 'var(--font-sans)' }}
               >
-                <Table2 className='h-3.5 w-3.5' />
+                <Table2 className='h-3 w-3' />
                 Table
               </button>
               <button
                 onClick={() => setViewMode('cards')}
-                className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs transition-colors ${
+                className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] transition-colors ${
                   viewMode === 'cards'
-                    ? 'bg-[rgba(46,201,170,0.2)] text-[#2ec9aa]'
-                    : 'text-[#9cafd4] hover:text-[#ecf2ff]'
+                    ? 'bg-indigo-600/20 text-indigo-300'
+                    : 'text-slate-500 hover:text-slate-300'
                 }`}
+                style={{ fontFamily: 'var(--font-sans)' }}
               >
-                <LayoutGrid className='h-3.5 w-3.5' />
+                <LayoutGrid className='h-3 w-3' />
                 Cards
               </button>
             </div>
@@ -134,17 +142,17 @@ export default function AccountsPage() {
             <Button
               variant='outline'
               size='sm'
-              className='border-[rgba(95,119,163,0.4)] bg-[rgba(17,26,44,0.9)] text-[#d4e0f9] hover:bg-[rgba(30,45,72,0.9)] hover:text-[#f5f8ff]'
+              className='h-7 border-slate-700 bg-slate-800/60 text-slate-300 hover:bg-slate-800 hover:text-slate-100 text-xs'
               onClick={() => setShowAddForm(!showAddForm)}
             >
-              <Plus className='mr-1.5 h-3.5 w-3.5' />
+              <Plus className='mr-1 h-3 w-3' />
               Add account
             </Button>
           </div>
         </div>
 
         {showAddForm && (
-          <div className='mb-4'>
+          <div className='mb-3'>
             <AddAccountForm
               onSuccess={() => setShowAddForm(false)}
               onCancel={() => setShowAddForm(false)}
@@ -155,26 +163,28 @@ export default function AccountsPage() {
         {isLoading ? (
           <div className='space-y-2'>
             {[1, 2, 3].map((i) => (
-              <Skeleton
-                key={i}
-                className='h-16 rounded-xl bg-[rgba(30,45,72,0.72)]'
-              />
+              <Skeleton key={i} className='h-14 rounded-lg bg-slate-800/60' />
             ))}
           </div>
         ) : accounts.length === 0 ? (
-          <div className='tv-card flex flex-col items-center justify-center py-12 text-[#a9b8d9]'>
-            <Users className='mb-3 h-10 w-10 opacity-60' />
-            <p className='font-mono text-sm'>No accounts configured</p>
-            <p className='mt-1 max-w-md text-center text-xs text-[#8193b9]'>
-              Click &quot;Add account&quot; above to create one, or add rows to{' '}
-              <code className='text-[10px]'>account_strategies</code> in
-              Supabase. Run migration 009 if needed.
-            </p>
+          <div className='tv-card'>
+            <div className='empty-state py-14'>
+              <span className='empty-state-text'>
+                [ NO ACCOUNTS CONFIGURED ]
+              </span>
+              <span
+                className='mt-1 text-[10px] text-slate-700'
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                click &quot;Add account&quot; above or add rows to
+                account_strategies
+              </span>
+            </div>
           </div>
         ) : viewMode === 'table' ? (
           <AccountsTable accounts={accounts} onDelete={handleDeleteAccount} />
         ) : (
-          <div className='grid gap-4 sm:grid-cols-2 lg:grid-cols-3'>
+          <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-3'>
             {accounts.map((account: AccountDetailApi) => (
               <EnhancedAccountCard
                 key={account.account_name}
@@ -187,7 +197,7 @@ export default function AccountsPage() {
       </section>
 
       {/* Copy Configurator & Capital Allocator */}
-      <div className='grid gap-6 md:grid-cols-2'>
+      <div className='grid gap-4 md:grid-cols-2'>
         <CopyConfigurator />
         <CapitalAllocator />
       </div>

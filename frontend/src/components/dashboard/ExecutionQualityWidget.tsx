@@ -2,7 +2,7 @@
 
 import { useTCASummary } from '@/hooks/useExecutionQuality';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertTriangle, TrendingDown, Clock, DollarSign } from 'lucide-react';
+import { AlertTriangle, TrendingDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
@@ -13,83 +13,116 @@ export function ExecutionQualityWidget() {
   const hasHighLatency = data && data.avg_execution_time_ms > 5000;
   const hasAlert = hasHighSlippage || hasHighLatency;
 
-  if (error || !data) {
-    return null; // Silently hide if TCA not available
-  }
+  if (error || !data) return null;
 
   return (
-    <Link href="/execution-quality" className="tv-card block hover:border-[#26a69a]/30 transition-colors">
-      <div className="flex flex-col h-full p-4">
+    <Link
+      href='/execution-quality'
+      className='tv-card block transition-colors hover:border-slate-600'
+    >
+      <div className='flex flex-col h-full p-3'>
         {/* Header */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <TrendingDown className="w-4 h-4 text-[#26a69a]" />
-            <span className="font-mono text-xs font-semibold text-zinc-300 uppercase tracking-wider">
+        <div className='flex items-center justify-between mb-2.5'>
+          <div className='flex items-center gap-1.5'>
+            <TrendingDown className='h-3.5 w-3.5 text-indigo-400' />
+            <span
+              className='panel-label'
+              style={{ fontFamily: 'var(--font-sans)' }}
+            >
               Execution Quality
             </span>
           </div>
           {hasAlert && (
-            <AlertTriangle className="w-4 h-4 text-yellow-500 animate-pulse" />
+            <AlertTriangle className='h-3.5 w-3.5 text-amber-400 animate-pulse' />
           )}
         </div>
 
         {/* Metrics */}
-        <div className="space-y-3">
+        <div className='space-y-2'>
           {isLoading ? (
             <>
-              <Skeleton className="h-12 w-full bg-[#1e222d]" />
-              <Skeleton className="h-12 w-full bg-[#1e222d]" />
-              <Skeleton className="h-12 w-full bg-[#1e222d]" />
+              <Skeleton className='h-8 w-full bg-slate-800/60' />
+              <Skeleton className='h-8 w-full bg-slate-800/60' />
+              <Skeleton className='h-8 w-full bg-slate-800/60' />
             </>
           ) : (
             <>
               {/* Slippage */}
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-zinc-500">Avg Slippage (24h)</span>
-                <div className="text-right">
+              <div className='flex items-center justify-between'>
+                <span
+                  className='text-[10px] text-slate-500'
+                  style={{ fontFamily: 'var(--font-sans)' }}
+                >
+                  Avg Slippage (24h)
+                </span>
+                <div className='text-right'>
                   <div
                     className={cn(
-                      'text-sm font-mono font-bold',
-                      hasHighSlippage ? 'text-red-500' : 'text-zinc-200',
+                      'text-xs font-semibold tabular-nums',
+                      hasHighSlippage ? 'text-red-400' : 'text-slate-200'
                     )}
+                    style={{ fontFamily: 'var(--font-mono)' }}
                   >
                     {data.avg_slippage_pips.toFixed(2)} pips
                   </div>
-                  <div className="text-[10px] text-zinc-600">
+                  <div
+                    className='text-[9px] text-slate-600'
+                    style={{ fontFamily: 'var(--font-mono)' }}
+                  >
                     ${data.total_slippage_cost_usd.toFixed(2)} cost
                   </div>
                 </div>
               </div>
 
               {/* Execution Time */}
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-zinc-500">Avg Execution</span>
-                <div className="text-right">
+              <div className='flex items-center justify-between'>
+                <span
+                  className='text-[10px] text-slate-500'
+                  style={{ fontFamily: 'var(--font-sans)' }}
+                >
+                  Avg Execution
+                </span>
+                <div className='text-right'>
                   <div
                     className={cn(
-                      'text-sm font-mono font-bold',
-                      hasHighLatency ? 'text-yellow-500' : 'text-zinc-200',
+                      'text-xs font-semibold tabular-nums',
+                      hasHighLatency ? 'text-amber-400' : 'text-slate-200'
                     )}
+                    style={{ fontFamily: 'var(--font-mono)' }}
                   >
                     {data.avg_execution_time_ms.toFixed(0)}ms
                   </div>
-                  <div className="text-[10px] text-zinc-600">
-                    Signal to fill
+                  <div
+                    className='text-[9px] text-slate-600'
+                    style={{ fontFamily: 'var(--font-mono)' }}
+                  >
+                    signal to fill
                   </div>
                 </div>
               </div>
 
               {/* Total Cost */}
-              <div className="flex items-center justify-between pt-2 border-t border-[#2a2e39]">
-                <span className="text-xs text-zinc-500">Total TX Cost</span>
-                <div className="text-right">
-                  <div className="text-sm font-mono font-bold text-red-400">
+              <div className='flex items-center justify-between border-t border-slate-800 pt-2'>
+                <span
+                  className='text-[10px] text-slate-500'
+                  style={{ fontFamily: 'var(--font-sans)' }}
+                >
+                  Total TX Cost
+                </span>
+                <div className='text-right'>
+                  <div
+                    className='text-xs font-semibold tabular-nums text-red-400'
+                    style={{ fontFamily: 'var(--font-mono)' }}
+                  >
                     -$
                     {(
                       data.total_slippage_cost_usd + data.total_spread_cost_usd
                     ).toFixed(2)}
                   </div>
-                  <div className="text-[10px] text-zinc-600">
+                  <div
+                    className='text-[9px] text-slate-600'
+                    style={{ fontFamily: 'var(--font-mono)' }}
+                  >
                     {data.total_trades} trades
                   </div>
                 </div>
@@ -98,11 +131,14 @@ export function ExecutionQualityWidget() {
           )}
         </div>
 
-        {/* Footer hint */}
+        {/* Footer */}
         {!isLoading && (
-          <div className="mt-3 pt-3 border-t border-[#2a2e39]">
-            <div className="text-[10px] text-zinc-600 text-center">
-              Click to view detailed TCA metrics →
+          <div className='mt-2.5 border-t border-slate-800 pt-2'>
+            <div
+              className='text-center text-[9px] text-slate-600'
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >
+              view detailed TCA →
             </div>
           </div>
         )}
