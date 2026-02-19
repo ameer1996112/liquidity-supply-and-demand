@@ -300,6 +300,31 @@ def get_prediction(payload: Dict[str, Any]) -> Tuple[float, str, Dict[str, Any]]
         # Engineer features (same as training script)
         df = _engineer_features_for_prediction(df)
 
+        # Enforce exact model feature shape/order.
+        # This protects inference when live payloads evolve (e.g. new 5m trigger fields)
+        # and prevents shape mismatch errors like: data has N features, model expects M.
+        expected_cols = list(feature_names or [])
+        if expected_cols:
+            dropped_cols = [c for c in df.columns if c not in expected_cols]
+            missing_cols = [c for c in expected_cols if c not in df.columns]
+
+            if dropped_cols:
+                logger.warning(
+                    "Dropping %d unexpected live features for %s: %s",
+                    len(dropped_cols),
+                    symbol,
+                    dropped_cols,
+                )
+            if missing_cols:
+                logger.warning(
+                    "Filling %d missing model features for %s with 0.0: %s",
+                    len(missing_cols),
+                    symbol,
+                    missing_cols,
+                )
+
+            df = df.reindex(columns=expected_cols, fill_value=0.0)
+
         # Different prediction logic based on model type
         if AI_MODEL_TYPE == "lightgbm_native":
             # LightGBM native Booster.predict() returns raw scores

@@ -14,7 +14,6 @@ import {
 } from 'recharts';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { WaitingPlaceholder } from '@/components/shared';
 
 interface MiniEquityChartProps {
   mode?: TradingMode;
@@ -33,7 +32,7 @@ export function MiniEquityChart({ mode }: MiniEquityChartProps) {
       })
       .sort(
         (a, b) =>
-          new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
       );
 
     if (closed.length === 0) {
@@ -62,7 +61,15 @@ export function MiniEquityChart({ mode }: MiniEquityChartProps) {
   if (chartData.length < 2) {
     return (
       <div className='tv-card min-h-[140px] flex items-center justify-center'>
-        <WaitingPlaceholder message='Waiting for First Trade...' />
+        <div className='empty-state py-12'>
+          <span className='empty-state-text'>[ NO ACTIVE DATA ]</span>
+          <span
+            className='mt-1 text-[10px] text-slate-700'
+            style={{ fontFamily: 'var(--font-mono)' }}
+          >
+            awaiting 5m zone entry
+          </span>
+        </div>
       </div>
     );
   }
@@ -83,7 +90,7 @@ export function MiniEquityChart({ mode }: MiniEquityChartProps) {
           <span
             className={cn(
               'font-mono text-xs font-bold tabular-nums',
-              isPositive ? 'text-[#26a69a]' : 'text-[#ef5350]',
+              isPositive ? 'text-[#26a69a]' : 'text-[#ef5350]'
             )}
           >
             {isPositive ? '+' : ''}${totalPnl.toFixed(2)}
