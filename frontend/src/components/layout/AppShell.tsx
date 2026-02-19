@@ -1,12 +1,22 @@
 'use client';
 
+import { usePathname } from 'next/navigation';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { useSidebar } from '@/providers/SidebarProvider';
 import { cn } from '@/lib/utils';
 
+// Routes that render full-screen without the AppShell chrome
+const FULLSCREEN_ROUTES = ['/terminal'];
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { isCollapsed } = useSidebar();
+  const pathname = usePathname();
+
+  // Full-screen routes bypass sidebar/topbar entirely
+  if (FULLSCREEN_ROUTES.some((r) => pathname.startsWith(r))) {
+    return <>{children}</>;
+  }
 
   return (
     <div className='relative min-h-screen bg-grid-overlay'>

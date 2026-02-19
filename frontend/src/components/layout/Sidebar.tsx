@@ -15,6 +15,7 @@ import {
   Gauge,
   Users,
   LineChart,
+  Monitor,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSidebar } from '@/providers/SidebarProvider';
@@ -27,6 +28,7 @@ import {
 
 const NAV_ITEMS = [
   { label: 'Dashboard', icon: LayoutDashboard, path: '/' },
+  { label: 'Terminal', icon: Monitor, path: '/terminal' },
   { label: 'Positions', icon: Crosshair, path: '/positions' },
   { label: 'Risk Monitor', icon: Gauge, path: '/risk' },
   { label: 'Accounts', icon: Users, path: '/accounts' },
