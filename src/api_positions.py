@@ -91,7 +91,7 @@ def get_active_positions():
                 "id, symbol, side, entry, sl, tp, size, broker_order_id, "
                 "created_at, zone_type, entry_model, rr_ratio"
             )
-            .in_("status", ["active", "executed"])
+            .in_("status", ["OPEN", "active", "executed"])
             .execute()
         )
         rows = resp.data or []
@@ -175,7 +175,7 @@ def close_position(signal_id: int, body: ClosePositionRequest):
             sb.table("trading_signals")
             .select("*")
             .eq("id", signal_id)
-            .in_("status", ["active", "executed"])
+            .in_("status", ["OPEN", "active", "executed"])
             .single()
             .execute()
         )
@@ -207,7 +207,7 @@ def close_position(signal_id: int, body: ClosePositionRequest):
     try:
         sb.table("trading_signals").update(
             {
-                "status": "closed",
+                "status": "CLOSED",
                 "closed_at": now_iso,
                 "exit_type": "MANUAL",
             }
@@ -247,7 +247,7 @@ def modify_sl_tp(signal_id: int, body: ModifySLTPRequest):
             sb.table("trading_signals")
             .select("id, broker_order_id, sl, tp")
             .eq("id", signal_id)
-            .in_("status", ["active", "executed"])
+            .in_("status", ["OPEN", "active", "executed"])
             .single()
             .execute()
         )
@@ -315,7 +315,7 @@ def partial_close(signal_id: int, body: PartialCloseRequest):
             sb.table("trading_signals")
             .select("*")
             .eq("id", signal_id)
-            .in_("status", ["active", "executed"])
+            .in_("status", ["OPEN", "active", "executed"])
             .single()
             .execute()
         )
@@ -357,7 +357,7 @@ def partial_close(signal_id: int, body: PartialCloseRequest):
         if remaining <= 0:
             sb.table("trading_signals").update(
                 {
-                    "status": "closed",
+                    "status": "CLOSED",
                     "closed_at": datetime.now(timezone.utc).isoformat(),
                     "size": 0,
                     "exit_type": "MANUAL",
@@ -422,7 +422,7 @@ def get_account_status():
         resp = (
             sb.table("trading_signals")
             .select("id", count="exact")
-            .in_("status", ["active", "executed"])
+            .in_("status", ["OPEN", "active", "executed"])
             .execute()
         )
         active_count = resp.count or 0

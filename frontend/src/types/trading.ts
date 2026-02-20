@@ -10,7 +10,12 @@ export type SignalStatus =
   | 'model_error' // ML model unavailable/invalid inference
   | 'executed' // Legacy: filled
   | 'pending' // Awaiting execution
-  | 'failed'; // Execution failed
+  | 'failed' // Execution failed
+  | 'PENDING'
+  | 'OPEN'
+  | 'CLOSED'
+  | 'CANCELLED'
+  | 'ERROR';
 
 export type TradingMode = 'LIVE' | 'PAPER';
 
@@ -155,6 +160,12 @@ export interface TradingSignal {
   closed_at?: string;
   exit_price?: number;
   exit_type?: 'TP_HIT' | 'SL_HIT' | 'MANUAL' | 'TIME_STOP' | string;
+
+  // New execution source and timestamps
+  execution_source?: 'metaapi' | 'paper' | 'signal_only';
+  broker_position_id?: string;
+  opened_at?: string;
+  last_broker_sync_at?: string;
 }
 
 export interface SignalStats {
@@ -207,7 +218,7 @@ export interface RealtimePayload<T> {
 
 // Helper type guards and normalizers
 export function normalizeSignal(
-  raw: Partial<TradingSignal> & { run_mode?: string }
+  raw: Partial<TradingSignal> & { run_mode?: string },
 ): TradingSignal {
   // IMPORTANT: Prioritize run_mode over mode since backend uses run_mode as the canonical field
   const rawMode = (raw as { run_mode?: string }).run_mode ?? raw.mode;

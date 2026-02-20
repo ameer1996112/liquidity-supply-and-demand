@@ -341,13 +341,31 @@ class AccountSyncService:
                 reconciliation_status = "orphaned"
                 reconciliation_note = None
 
-                # Try to match by broker_order_id first
-                if broker_pos.get("comment"):
+                # Try to match by broker_order_id or broker_position_id
+                if broker_pos.get("comment") or True:
                     for db_pos in db_pos_list:
-                        if db_pos.get("broker_order_id") == str(broker_pos.get("broker_position_id")):
+                        # Match if the DB record knows about this exact broker id
+                        if db_pos.get("broker_order_id") == str(broker_pos.get("broker_position_id")) \
+                           or db_pos.get("broker_position_id") == str(broker_pos.get("broker_position_id")):
                             matched_signal_id = db_pos["id"]
                             reconciliation_status = "matched"
-                            reconciliation_note = "Matched by broker_order_id"
+                            reconciliation_note = "Matched by broker_order_id or broker_position_id"
+                            
+                            # Clean state transition: If DB thinks it's PENDING, but MetaAPI has it, it is OPEN
+                            if db_pos.get("status", "").upper() == "PENDING":
+                                self.client.table("trading_signals").update({
+                                    "status": "OPEN",
+                                    "broker_position_id": str(broker_pos.get("broker_position_id")),
+                                    "opened_at": datetime.now(timezone.utc).isoformat(),
+                                    "last_broker_sync_at": datetime.now(timezone.utc).isoformat()
+                                }).eq("id", matched_signal_id).execute()
+                            else:
+                                # Just update sync time
+                                self.client.table("trading_signals").update({
+                                    "last_broker_sync_at": datetime.now(timezone.utc).isoformat(),
+                                    "broker_position_id": str(broker_pos.get("broker_position_id"))
+                                }).eq("id", matched_signal_id).execute()
+                                
                             break
 
                 # Try fuzzy match by symbol + side + open_price (±1 pip)
@@ -365,9 +383,20 @@ class AccountSyncService:
                             tolerance = 0.01 if "JPY" in broker_symbol else 0.0001
 
                             if abs(broker_open - db_entry) <= tolerance:
-                                matched_signal_id = db_pos["id"]
-                                reconciliation_status = "matched"
-                                reconciliation_note = f"Matched by fuzzy (symbol+side+price within {tolerance})"
+                                # Handle PENDING to OPEN transition for fuzzy matches too
+                                if db_pos.get("status", "").upper() == "PENDING":
+                                    self.client.table("trading_signals").update({
+                                        "status": "OPEN",
+                                        "broker_position_id": str(broker_pos.get("broker_position_id")),
+                                        "opened_at": datetime.now(timezone.utc).isoformat(),
+                                        "last_broker_sync_at": datetime.now(timezone.utc).isoformat()
+                                    }).eq("id", matched_signal_id).execute()
+                                else:
+                                    self.client.table("trading_signals").update({
+                                        "last_broker_sync_at": datetime.now(timezone.utc).isoformat(),
+                                        "broker_position_id": str(broker_pos.get("broker_position_id"))
+                                    }).eq("id", matched_signal_id).execute()
+                                    
                                 break
 
                 # Update position_snapshot with reconciliation result
@@ -377,6 +406,26 @@ class AccountSyncService:
                     "reconciliation_note": reconciliation_note,
                 }).eq("id", broker_pos["id"]).execute()
 
+            # Now find GHOST positions: DB says it's OPEN and metaapi, but it's not in the broker_pos_list
+            broker_pos_ids = {str(p.get("broker_position_id")) for p in broker_pos_list if p.get("broker_position_id")}
+            for db_pos in db_pos_list:
+                status = db_pos.get("status", "").upper()
+                exec_source = db_pos.get("execution_source", "signal_only")
+                db_broker_pos_id = str(db_pos.get("broker_position_id")) if db_pos.get("broker_position_id") else None
+                db_broker_order_id = str(db_pos.get("broker_order_id")) if db_pos.get("broker_order_id") else None
+
+                # It's a MetaAPI trade that we think is OPEN
+                if status in ("OPEN", "ACTIVATED", "ACTIVE", "EXECUTED") and exec_source == "metaapi":
+                    # If we have an ID for it and it's missing from broker snapshot, it's CLOSED/GHOST
+                    if (db_broker_pos_id and db_broker_pos_id not in broker_pos_ids) or \
+                       (db_broker_order_id and db_broker_order_id not in broker_pos_ids):
+                        logger.warning(f"Ghost position detected: {db_pos['id']} missing from broker. Marking CLOSED.")
+                        self.client.table("trading_signals").update({
+                            "status": "CLOSED",
+                            "closed_at": datetime.now(timezone.utc).isoformat(),
+                            "notes": f"Auto-closed by reconciliation: Ghost position missing from broker."
+                        }).eq("id", db_pos["id"]).execute()
+                        
             logger.info(
                 f"Reconciled {len(broker_pos_list)} broker positions for {account_name}"
             )

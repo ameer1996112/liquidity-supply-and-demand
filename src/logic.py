@@ -189,9 +189,10 @@ def process_trade(
             client = supabase_module.supabase
             if client:
                 paper_update = {
-                    "status": "executed",
+                    "status": "OPEN",
                     "broker_order_id": mock_broker_id,
                     "entry_time": datetime.now(timezone.utc).isoformat(),
+                    "opened_at": datetime.now(timezone.utc).isoformat(),
                 }
                 if profile and profile.get("name"):
                     paper_update["account_name"] = profile["name"]
@@ -394,10 +395,11 @@ def process_trade(
                                 exec_result, "account_name", None
                             ) or (profile.get("name") if profile else None)
                             update_payload = {
-                                "status": "executed",
+                                "status": "OPEN",
                                 "broker_order_id": str(exec_result.broker_order_id),
                                 "filled_entry_price": float(data.get("entry", 0.0)),
                                 "entry_time": datetime.now(timezone.utc).isoformat(),
+                                "opened_at": datetime.now(timezone.utc).isoformat(),
                             }
                             if account_name:
                                 update_payload["account_name"] = account_name
@@ -430,7 +432,7 @@ def process_trade(
                         )
                 elif exec_result.status == "submitted":
                     # Mark as executed; PnL/outcome updated later on exit webhook
-                    update_alert_status(alert_id, "executed")
+                    update_alert_status(alert_id, "OPEN")
             except Exception as e:  # noqa: BLE001
                 logger.error("Execution adapter error for alert #%s: %s", alert_id, e)
                 log_event(alert_id, "execution_failed", "logic", {"error": str(e)[:200]})

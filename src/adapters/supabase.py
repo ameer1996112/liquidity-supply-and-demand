@@ -90,6 +90,12 @@ def save_alert(
     run_id = data.get('run_id', 'live-default')
     trade_key = data.get('trade_key', '')
 
+    execution_source = 'signal_only'
+    if run_mode == 'LIVE':
+        execution_source = 'metaapi'
+    elif run_mode == 'PAPER':
+        execution_source = 'paper'
+
     # Extract entry_time from bar_time (or fallback to server time)
     entry_time = data.get('bar_time', datetime.utcnow().isoformat())
 
@@ -113,7 +119,8 @@ def save_alert(
         'caused_sweep': bool(data.get('caused_sweep', False)),
         'is_accuracy': bool(data.get('is_accuracy', False)),
         'mode': mode,
-        'status': 'active',
+        'status': 'PENDING',
+        'execution_source': execution_source,
         # V7.1 AI Features
         'score': data.get('score'),
         'freshness': data.get('freshness'),
@@ -183,7 +190,8 @@ def update_alert_exit(zone_id: int, exit_data: dict, trade_key: str = None) -> b
     exit_time = exit_data.get('exit_time') or exit_data.get('close_time') or datetime.utcnow().isoformat()
 
     update_data = {
-        'status': 'closed',
+        'status': 'CLOSED',
+        'closed_at': exit_time,
         'outcome': exit_data.get('outcome'),
         'bars_held': exit_data.get('bars_held'),
         'pnl_r': exit_data.get('pnl_r'),
@@ -358,7 +366,7 @@ def log_execution_failure(data: dict, error: str) -> None:
 
     try:
         alert_id = save_alert(entry_data, mode='manual', filter_reasons=None)
-        update_alert_status(alert_id, 'execution_failed', notes=f"EXECUTION_FAILED: {error}")
+        update_alert_status(alert_id, 'ERROR', notes=f"EXECUTION_FAILED: {error}")
         logger.warning(f"EXECUTION_FAILED logged: alert_id={alert_id}, error={error[:200]}")
     except Exception as e:
         logger.error(f"❌ Failed to log execution failure to Supabase: {e}")
