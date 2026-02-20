@@ -55,6 +55,7 @@ const FILTER_TABS: { key: FilterTab; label: string }[] = [
 interface RecentSignalsPanelProps {
   mode?: TradingMode;
   onSelectSignal: (signal: TradingSignal) => void;
+  detailsMode?: 'drawer' | 'legacy';
 }
 
 // ── Derive trigger type from signal fields ────────────────────────────────────
@@ -101,7 +102,6 @@ interface SignalRowProps {
   isReviewed: boolean;
   onToggleReviewed: (id: string) => void;
   onOpenDetails: (signal: TradingSignal) => void;
-  onSelectSignal: (signal: TradingSignal) => void;
 }
 
 const SignalRowMemo = memo(function SignalRow({
@@ -109,7 +109,6 @@ const SignalRowMemo = memo(function SignalRow({
   isReviewed,
   onToggleReviewed,
   onOpenDetails,
-  onSelectSignal,
 }: SignalRowProps) {
   const symbol = getSymbol(signal);
   const side = getSide(signal);
@@ -177,7 +176,6 @@ const SignalRowMemo = memo(function SignalRow({
             type='button'
             onClick={() => {
               onOpenDetails(signal);
-              onSelectSignal(signal);
             }}
             className='flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-slate-200 hover:bg-slate-800'
           >
@@ -221,6 +219,7 @@ const SignalRowMemo = memo(function SignalRow({
 export function RecentSignalsPanel({
   mode,
   onSelectSignal,
+  detailsMode = 'drawer',
 }: RecentSignalsPanelProps) {
   const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
   const [selectedSignal, setSelectedSignal] = useState<TradingSignal | null>(
@@ -233,8 +232,12 @@ export function RecentSignalsPanel({
   const PAGE_SIZE = 25;
 
   const openDetails = (signal: TradingSignal) => {
-    setSelectedSignal(signal);
-    setDetailsOpen(true);
+    if (detailsMode === 'legacy') {
+      setSelectedSignal(signal);
+      setDetailsOpen(true);
+      return;
+    }
+
     onSelectSignal(signal);
   };
 
@@ -348,7 +351,6 @@ export function RecentSignalsPanel({
                   isReviewed={reviewedIds.includes(signal.id)}
                   onToggleReviewed={toggleReviewed}
                   onOpenDetails={openDetails}
-                  onSelectSignal={onSelectSignal}
                 />
               ))}
             </div>
@@ -382,108 +384,111 @@ export function RecentSignalsPanel({
         </div>
       )}
 
-      <Sheet open={detailsOpen} onOpenChange={setDetailsOpen}>
-        <SheetContent
-          side='right'
-          className='w-full border-slate-800 bg-slate-950 p-0 sm:max-w-lg'
-        >
-          <SheetHeader className='space-y-2 border-b border-slate-800 px-5 py-4 text-left'>
-            <SheetTitle className='text-base font-semibold text-slate-100'>
-              Signal details
-            </SheetTitle>
-            <SheetDescription className='text-xs text-slate-400'>
-              {selectedSignal
-                ? `${getSymbol(selectedSignal)} · ${selectedSignal.status}`
-                : 'No signal selected'}
-            </SheetDescription>
-          </SheetHeader>
+      {detailsMode === 'legacy' && (
+        <Sheet open={detailsOpen} onOpenChange={setDetailsOpen}>
+          <SheetContent
+            side='right'
+            data-testid='legacy-signal-details-panel'
+            className='w-full border-slate-800 bg-slate-950 p-0 sm:max-w-lg'
+          >
+            <SheetHeader className='space-y-2 border-b border-slate-800 px-5 py-4 text-left'>
+              <SheetTitle className='text-base font-semibold text-slate-100'>
+                Signal details
+              </SheetTitle>
+              <SheetDescription className='text-xs text-slate-400'>
+                {selectedSignal
+                  ? `${getSymbol(selectedSignal)} · ${selectedSignal.status}`
+                  : 'No signal selected'}
+              </SheetDescription>
+            </SheetHeader>
 
-          {selectedSignal && (
-            <ScrollArea className='h-[calc(100vh-88px)]'>
-              <div className='space-y-5 px-5 py-4 text-sm text-slate-200'>
-                <div className='rounded-lg border border-slate-800 bg-slate-900/40 p-3'>
-                  <div className='flex flex-wrap items-center justify-between gap-3'>
-                    <div>
-                      <p className='text-[11px] uppercase tracking-wide text-slate-500'>
-                        Instrument
+            {selectedSignal && (
+              <ScrollArea className='h-[calc(100vh-88px)]'>
+                <div className='space-y-5 px-5 py-4 text-sm text-slate-200'>
+                  <div className='rounded-lg border border-slate-800 bg-slate-900/40 p-3'>
+                    <div className='flex flex-wrap items-center justify-between gap-3'>
+                      <div>
+                        <p className='text-[11px] uppercase tracking-wide text-slate-500'>
+                          Instrument
+                        </p>
+                        <p className='mt-1 text-lg font-semibold tracking-wide text-slate-100'>
+                          {getSymbol(selectedSignal)}
+                        </p>
+                      </div>
+                      <div className='flex items-center gap-2'>
+                        <StatusBadge
+                          status={selectedSignal.status}
+                          pnl={getPnl(selectedSignal)}
+                          compact
+                        />
+                        <TriggerBadge signal={selectedSignal} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className='grid grid-cols-2 gap-3'>
+                    <div className='rounded-lg border border-slate-800/90 bg-slate-900/25 p-3'>
+                      <p className='text-[10px] uppercase tracking-wide text-slate-500'>
+                        Direction
                       </p>
-                      <p className='mt-1 text-lg font-semibold tracking-wide text-slate-100'>
-                        {getSymbol(selectedSignal)}
+                      <p className='mt-1 font-mono text-sm text-slate-100'>
+                        {getSide(selectedSignal).toUpperCase()}
                       </p>
                     </div>
-                    <div className='flex items-center gap-2'>
-                      <StatusBadge
-                        status={selectedSignal.status}
-                        pnl={getPnl(selectedSignal)}
-                        compact
-                      />
-                      <TriggerBadge signal={selectedSignal} />
+                    <div className='rounded-lg border border-slate-800/90 bg-slate-900/25 p-3'>
+                      <p className='text-[10px] uppercase tracking-wide text-slate-500'>
+                        Trigger
+                      </p>
+                      <p className='mt-1 font-mono text-sm text-slate-100'>
+                        {getTrigger(selectedSignal) ?? EMPTY_VALUE}
+                      </p>
+                    </div>
+                    <div className='rounded-lg border border-slate-800/90 bg-slate-900/25 p-3'>
+                      <p className='text-[10px] uppercase tracking-wide text-slate-500'>
+                        Risk:Reward
+                      </p>
+                      <p className='mt-1 font-mono text-sm text-slate-100'>
+                        {selectedSignal.rr_ratio
+                          ? `1:${formatNumber(selectedSignal.rr_ratio, {
+                              decimals: 1,
+                            })}`
+                          : EMPTY_VALUE}
+                      </p>
+                    </div>
+                    <div className='rounded-lg border border-slate-800/90 bg-slate-900/25 p-3'>
+                      <p className='text-[10px] uppercase tracking-wide text-slate-500'>
+                        PnL
+                      </p>
+                      <div className='mt-1 font-mono text-sm text-slate-100'>
+                        <PnLDisplay pnl={getPnl(selectedSignal)} size='md' />
+                      </div>
+                    </div>
+                    <div className='col-span-2 rounded-lg border border-slate-800/90 bg-slate-900/25 p-3'>
+                      <p className='text-[10px] uppercase tracking-wide text-slate-500'>
+                        Timestamp
+                      </p>
+                      <p className='mt-1 font-mono text-sm text-slate-200'>
+                        {new Date(selectedSignal.created_at).toLocaleString()}
+                      </p>
                     </div>
                   </div>
-                </div>
 
-                <div className='grid grid-cols-2 gap-3'>
-                  <div className='rounded-lg border border-slate-800/90 bg-slate-900/25 p-3'>
+                  <div className='rounded-lg border border-slate-800 bg-slate-900/25 p-3'>
                     <p className='text-[10px] uppercase tracking-wide text-slate-500'>
-                      Direction
+                      Rationale
                     </p>
-                    <p className='mt-1 font-mono text-sm text-slate-100'>
-                      {getSide(selectedSignal).toUpperCase()}
-                    </p>
-                  </div>
-                  <div className='rounded-lg border border-slate-800/90 bg-slate-900/25 p-3'>
-                    <p className='text-[10px] uppercase tracking-wide text-slate-500'>
-                      Trigger
-                    </p>
-                    <p className='mt-1 font-mono text-sm text-slate-100'>
-                      {getTrigger(selectedSignal) ?? EMPTY_VALUE}
-                    </p>
-                  </div>
-                  <div className='rounded-lg border border-slate-800/90 bg-slate-900/25 p-3'>
-                    <p className='text-[10px] uppercase tracking-wide text-slate-500'>
-                      Risk:Reward
-                    </p>
-                    <p className='mt-1 font-mono text-sm text-slate-100'>
-                      {selectedSignal.rr_ratio
-                        ? `1:${formatNumber(selectedSignal.rr_ratio, {
-                            decimals: 1,
-                          })}`
-                        : EMPTY_VALUE}
-                    </p>
-                  </div>
-                  <div className='rounded-lg border border-slate-800/90 bg-slate-900/25 p-3'>
-                    <p className='text-[10px] uppercase tracking-wide text-slate-500'>
-                      PnL
-                    </p>
-                    <div className='mt-1 font-mono text-sm text-slate-100'>
-                      <PnLDisplay pnl={getPnl(selectedSignal)} size='md' />
-                    </div>
-                  </div>
-                  <div className='col-span-2 rounded-lg border border-slate-800/90 bg-slate-900/25 p-3'>
-                    <p className='text-[10px] uppercase tracking-wide text-slate-500'>
-                      Timestamp
-                    </p>
-                    <p className='mt-1 font-mono text-sm text-slate-200'>
-                      {new Date(selectedSignal.created_at).toLocaleString()}
+                    <p className='mt-2 leading-6 text-slate-300'>
+                      {selectedSignal.notes ||
+                        selectedSignal.filter_reason ||
+                        EMPTY_VALUE}
                     </p>
                   </div>
                 </div>
-
-                <div className='rounded-lg border border-slate-800 bg-slate-900/25 p-3'>
-                  <p className='text-[10px] uppercase tracking-wide text-slate-500'>
-                    Rationale
-                  </p>
-                  <p className='mt-2 leading-6 text-slate-300'>
-                    {selectedSignal.notes ||
-                      selectedSignal.filter_reason ||
-                      EMPTY_VALUE}
-                  </p>
-                </div>
-              </div>
-            </ScrollArea>
-          )}
-        </SheetContent>
-      </Sheet>
+              </ScrollArea>
+            )}
+          </SheetContent>
+        </Sheet>
+      )}
     </div>
   );
 }
