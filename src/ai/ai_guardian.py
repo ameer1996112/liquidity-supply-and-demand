@@ -352,10 +352,25 @@ class AIGuardian:
         # Set default models
         if model:
             self.model = model
-        elif provider == "openai":
-            self.model = "gpt-4o-mini"  # Fast and cheap
         else:
-            self.model = "claude-3-haiku-20240307"  # Fast and cheap
+            # Config-driven fallback; avoid hardcoded model ids.
+            try:
+                from config import get_settings
+
+                settings = get_settings()
+                resolved = (
+                    str(getattr(settings, "ai_model", "") or "").strip()
+                    or str(getattr(settings, "llm_model_primary", "") or "").strip()
+                )
+            except Exception:
+                resolved = ""
+
+            if not resolved:
+                raise AIGuardianError(
+                    "No AI model configured. Set AI_MODEL or LLM_MODEL_PRIMARY."
+                )
+
+            self.model = resolved
 
         self._client = None
 

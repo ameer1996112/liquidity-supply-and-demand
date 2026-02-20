@@ -97,6 +97,102 @@ class BrainDecisionTests(unittest.TestCase):
         self.assertEqual(result["decision"], "NO_GO")
         self.assertEqual(result["decision_trace"]["rejected_rule"]["rule_id"], "rf_threshold")
 
+    def test_llm_primary_404_retries_fallback_and_succeeds(self):
+        settings = SimpleNamespace(
+            enable_llm_filter=True,
+            llm_model_primary="bad-model",
+            llm_model_fallback="good-model",
+            ml_min_confidence=0.60,
+            ml_use_adaptive_threshold=False,
+            ml_adaptive_threshold_floor=0.30,
+            ml_adaptive_threshold_margin=0.08,
+            ml_flip_threshold_offset=-0.03,
+            ml_break_candle_threshold_offset=0.0,
+            ml_dir_close_threshold_offset=-0.01,
+        )
+
+        class _Resp:
+            def __init__(self, text: str):
+                self.choices = [
+                    SimpleNamespace(message=SimpleNamespace(content=text))
+                ]
+
+        class _Client:
+            def __init__(self):
+                self.calls = []
+                self.chat = SimpleNamespace(
+                    completions=SimpleNamespace(create=self._create)
+                )
+
+            def _create(self, model, **kwargs):
+                self.calls.append(model)
+                if model == "bad-model":
+                    err = Exception("Error code: 404 - model not found")
+                    err.status_code = 404
+                    raise err
+                return _Resp('{"decision":"GO","reason":"fallback ok"}')
+
+        client = _Client()
+
+        with patch("src.ai.brain.get_settings", return_value=settings), patch(
+            "src.ai.brain.get_prediction",
+            return_value=(0.72, "AI Confidence: 72.0%", {}),
+        ), patch("src.ai.brain.get_market_narrative", return_value="test narrative"), patch(
+            "src.ai.brain._get_rag_engine", return_value=None
+        ), patch("src.ai.brain._get_llm_client", return_value=client):
+            result = brain.ensemble_decision(
+                {"symbol": "XAUUSD", "entry_model": "FLIP", "zone_grade": "A", "score": 85}
+            )
+
+        self.assertEqual(result["decision"], "GO")
+        self.assertEqual(result["llm_status"], "ok")
+        self.assertEqual(result["llm_model_used"], "good-model")
+        self.assertEqual(client.calls, ["bad-model", "good-model"])
+
+    def test_llm_both_models_fail_marks_non_blocking_error(self):
+        settings = SimpleNamespace(
+            enable_llm_filter=True,
+            llm_model_primary="bad-model",
+            llm_model_fallback="also-bad-model",
+            ml_min_confidence=0.60,
+            ml_use_adaptive_threshold=False,
+            ml_adaptive_threshold_floor=0.30,
+            ml_adaptive_threshold_margin=0.08,
+            ml_flip_threshold_offset=-0.03,
+            ml_break_candle_threshold_offset=0.0,
+            ml_dir_close_threshold_offset=-0.01,
+        )
+
+        class _Client:
+            def __init__(self):
+                self.calls = []
+                self.chat = SimpleNamespace(
+                    completions=SimpleNamespace(create=self._create)
+                )
+
+            def _create(self, model, **kwargs):
+                self.calls.append(model)
+                err = Exception("Error code: 404 - model not found")
+                err.status_code = 404
+                raise err
+
+        client = _Client()
+
+        with patch("src.ai.brain.get_settings", return_value=settings), patch(
+            "src.ai.brain.get_prediction",
+            return_value=(0.72, "AI Confidence: 72.0%", {}),
+        ), patch("src.ai.brain.get_market_narrative", return_value="test narrative"), patch(
+            "src.ai.brain._get_rag_engine", return_value=None
+        ), patch("src.ai.brain._get_llm_client", return_value=client):
+            result = brain.ensemble_decision(
+                {"symbol": "XAUUSD", "entry_model": "FLIP", "zone_grade": "A", "score": 85}
+            )
+
+        self.assertEqual(result["decision"], "GO")
+        self.assertEqual(result["llm_status"], "error")
+        self.assertIn("treated as neutral", result["reason"].lower())
+        self.assertEqual(client.calls, ["bad-model", "also-bad-model"])
+
 
 if __name__ == "__main__":
     unittest.main()

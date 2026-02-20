@@ -50,6 +50,11 @@ export interface AIReasoning {
   rf_note?: string;
   narrative?: string; // Market narrative from adapters/market_data
   rules?: string[]; // RAG-retrieved rule strings
+  llm_status?: 'ok' | 'skipped' | 'error';
+  llm_model_used?: string | null;
+  llm_error_code?: string | null;
+  llm_error_message_short?: string | null;
+  llm_error_raw?: string | null;
   decision_trace?: {
     rf_probability_raw?: number;
     rf_probability_pct?: number;
@@ -58,7 +63,14 @@ export interface AIReasoning {
     predicted_class?: string | number;
     class_mapping?: Record<string, unknown>;
     features_snapshot?: Record<string, unknown>;
-    rules?: Array<Record<string, unknown>>;
+    rules?: Array<{
+      rule_id?: string;
+      passed?: boolean;
+      status?: string;
+      non_blocking?: boolean;
+      message?: string;
+      [key: string]: unknown;
+    }>;
     rejected_rule?: Record<string, unknown> | null;
     [key: string]: unknown;
   };

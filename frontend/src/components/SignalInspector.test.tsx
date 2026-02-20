@@ -1,7 +1,7 @@
 /** @vitest-environment jsdom */
 
 import { createRoot, Root } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
+import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { SignalInspector } from './SignalInspector';
 import type { TradingSignal } from '@/types/trading';
@@ -60,10 +60,77 @@ describe('SignalInspector decision summary', () => {
       );
     });
 
+    const aiTab = Array.from(document.querySelectorAll('button')).find((el) =>
+      el.textContent?.includes('AI Brain')
+    );
+    expect(aiTab).toBeTruthy();
+    act(() => {
+      aiTab?.dispatchEvent(
+        new MouseEvent('mousedown', { bubbles: true, button: 0 })
+      );
+      aiTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
     expect(document.body.textContent).toContain('Decision Summary');
     expect(document.body.textContent).toContain('NO_GO');
     expect(document.body.textContent).toContain('Decision Breakdown');
     expect(document.body.textContent).toContain('RF Gate:');
     expect(document.body.textContent).toContain('Show Debug');
+  });
+
+  it('renders llm_context as SKIPPED (non-blocking) instead of PASS', () => {
+    const signal: TradingSignal = {
+      id: 'sig-2',
+      created_at: '2026-02-20T10:00:00.000Z',
+      symbol: 'XAUUSD',
+      side: 'buy',
+      status: 'active',
+      price: 2942.1,
+      ai_reasoning: {
+        decision: 'GO',
+        reason: 'RF pass; Context unavailable — treated as neutral.',
+        llm_status: 'skipped',
+        decision_trace: {
+          rf_probability_pct: 72,
+          threshold_pct: 60,
+          rules: [
+            {
+              rule_id: 'rf_threshold',
+              passed: true,
+              message: 'RF probability 72.0% >= 60% threshold',
+            },
+            {
+              rule_id: 'llm_context',
+              status: 'skipped',
+              passed: false,
+              non_blocking: true,
+              message: 'Context unavailable — treated as neutral.',
+            },
+          ],
+        },
+      },
+    };
+
+    act(() => {
+      root.render(
+        <SignalInspector signal={signal} open={true} onOpenChange={() => {}} />
+      );
+    });
+
+    const aiTab = Array.from(document.querySelectorAll('button')).find((el) =>
+      el.textContent?.includes('AI Brain')
+    );
+    expect(aiTab).toBeTruthy();
+    act(() => {
+      aiTab?.dispatchEvent(
+        new MouseEvent('mousedown', { bubbles: true, button: 0 })
+      );
+      aiTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(document.body.textContent).toContain('LLM Context:');
+    expect(document.body.textContent).toContain('SKIPPED');
+    expect(document.body.textContent).toContain('llm_context');
+    expect(document.body.textContent).not.toContain('llm_error');
   });
 });

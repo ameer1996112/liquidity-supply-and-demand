@@ -142,6 +142,17 @@ class Settings(BaseSettings):
 
     # Ensemble brain / LLM filter
     enable_llm_filter: bool = True
+    llm_model_primary: str = Field(
+        default="llama-3.3-70b-versatile",
+        min_length=1,
+        description="Primary LLM model id for ensemble decision calls.",
+        validation_alias=AliasChoices("LLM_MODEL_PRIMARY", "LLM_MODEL"),
+    )
+    llm_model_fallback: str = Field(
+        default="llama-3.1-8b-instant",
+        description="Fallback LLM model id used when primary is unavailable (e.g., 404 model not found).",
+        validation_alias=AliasChoices("LLM_MODEL_FALLBACK", "LLM_FALLBACK_MODEL"),
+    )
 
     # Pine-matching deterministic pre-filters (mirror SND_Strategy.pine Balanced profile)
     pine_min_score: float = Field(default=60.0, ge=0.0, le=100.0, description="Min zone score (Pine ai_quality_threshold). 60=Balanced, 70=Conservative.")

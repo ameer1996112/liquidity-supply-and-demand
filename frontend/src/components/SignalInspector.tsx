@@ -253,6 +253,52 @@ function parseAIReasoning(signal: TradingSignal): AIReasoning | null {
   return ai;
 }
 
+function getRuleBadge(rule: Record<string, unknown>, ai: AIReasoning | null) {
+  const ruleId = String(rule?.rule_id || '').toLowerCase();
+  const explicitStatus = String(rule?.status || '').toLowerCase();
+
+  if (ruleId === 'llm_context' || ruleId === 'llm_error') {
+    const llmStatus =
+      explicitStatus || String(ai?.llm_status || '').toLowerCase() || 'skipped';
+    if (llmStatus === 'ok') {
+      return {
+        label: 'OK',
+        rowClass: 'border-emerald-500/20 bg-emerald-500/5',
+        textClass: 'text-emerald-400',
+      };
+    }
+    if (llmStatus === 'error') {
+      return {
+        label: 'ERROR (NON-BLOCKING)',
+        rowClass: 'border-amber-500/25 bg-amber-500/5',
+        textClass: 'text-amber-400',
+      };
+    }
+    return {
+      label: 'SKIPPED',
+      rowClass: 'border-amber-500/25 bg-amber-500/5',
+      textClass: 'text-amber-400',
+    };
+  }
+
+  const passed = rule?.passed === true;
+  return {
+    label: passed ? 'PASS' : 'FAIL',
+    rowClass: passed
+      ? 'border-emerald-500/20 bg-emerald-500/5'
+      : 'border-rose-500/20 bg-rose-500/5',
+    textClass: passed ? 'text-emerald-400' : 'text-rose-400',
+  };
+}
+
+function getRuleDisplayId(rule: Record<string, unknown>): string {
+  const rawRuleId = String(rule?.rule_id || 'rule');
+  if (rawRuleId.toLowerCase() === 'llm_error') {
+    return 'llm_context';
+  }
+  return rawRuleId;
+}
+
 export function SignalInspector({
   signal,
   open,
@@ -266,8 +312,19 @@ export function SignalInspector({
   const side = getSide(signal);
   const score = getScore(signal);
   const pnl = getPnl(signal);
-  const notes = getNotes(signal);
   const ai = parseAIReasoning(signal);
+  const notes = (() => {
+    const raw = getNotes(signal);
+    if (!raw) return null;
+    const trimmed = raw.trim();
+    if (
+      (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
+      trimmed.includes('"error":')
+    ) {
+      return null;
+    }
+    return raw;
+  })();
   const isBuy = side === 'buy';
   const hasLegacyMetrics =
     !!ai &&
@@ -302,6 +359,9 @@ export function SignalInspector({
     ai?.reason ||
     notes ||
     'No explicit rejection reason was provided.';
+  const llmStatus = String(ai?.llm_status || '').toLowerCase();
+  const llmContextMessage =
+    llmStatus === 'ok' ? null : 'Context unavailable — treated as neutral.';
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -604,6 +664,32 @@ export function SignalInspector({
                             </div>
                           )}
 
+                        {(llmStatus ||
+                          traceRules.some(
+                            (r) => r?.rule_id === 'llm_context'
+                          )) && (
+                          <div className='text-xs text-muted-foreground'>
+                            LLM Context:{' '}
+                            <span
+                              className={cn(
+                                'font-semibold',
+                                llmStatus === 'ok' && 'text-emerald-400',
+                                llmStatus === 'skipped' && 'text-amber-400',
+                                llmStatus === 'error' && 'text-amber-400'
+                              )}
+                            >
+                              {llmStatus === 'ok'
+                                ? 'OK'
+                                : llmStatus === 'error'
+                                ? 'ERROR (NON-BLOCKING)'
+                                : 'SKIPPED'}
+                            </span>
+                            {llmContextMessage && (
+                              <span className='ml-2'>{llmContextMessage}</span>
+                            )}
+                          </div>
+                        )}
+
                         {traceRules.length > 0 && (
                           <div className='space-y-2'>
                             <div className='text-[11px] text-muted-foreground uppercase tracking-wider'>
@@ -614,7 +700,10 @@ export function SignalInspector({
                               ? failingRules
                               : traceRules
                             ).map((rule, idx) => {
-                              const passed = rule?.passed === true;
+                              const badge = getRuleBadge(
+                                rule as Record<string, unknown>,
+                                ai
+                              );
                               const ruleMessage =
                                 rule?.message != null
                                   ? String(rule.message)
@@ -622,19 +711,19 @@ export function SignalInspector({
                               return (
                                 // eslint-disable-next-line react/no-array-index-key
                                 <div
-                                  key={`${String(
-                                    rule?.rule_id || 'rule'
+                                  key={`${getRuleDisplayId(
+                                    rule as Record<string, unknown>
                                   )}-${idx}`}
                                   className={cn(
                                     'text-xs rounded border px-2.5 py-2 flex items-start justify-between gap-3',
-                                    passed
-                                      ? 'border-emerald-500/20 bg-emerald-500/5'
-                                      : 'border-rose-500/20 bg-rose-500/5'
+                                    badge.rowClass
                                   )}
                                 >
                                   <div>
                                     <div className='font-mono text-foreground/90'>
-                                      {String(rule?.rule_id || 'rule')}
+                                      {getRuleDisplayId(
+                                        rule as Record<string, unknown>
+                                      )}
                                     </div>
                                     {ruleMessage && (
                                       <div className='text-muted-foreground mt-0.5'>
@@ -644,13 +733,11 @@ export function SignalInspector({
                                   </div>
                                   <div
                                     className={cn(
-                                      'text-[10px] font-semibold uppercase',
-                                      passed
-                                        ? 'text-emerald-400'
-                                        : 'text-rose-400'
+                                      'text-[10px] font-semibold uppercase whitespace-nowrap',
+                                      badge.textClass
                                     )}
                                   >
-                                    {passed ? 'pass' : 'fail'}
+                                    {badge.label}
                                   </div>
                                 </div>
                               );
@@ -700,10 +787,21 @@ export function SignalInspector({
                               data={{
                                 rf_prob: ai.rf_prob,
                                 rf_threshold: ai.rf_threshold,
+                                llm_status: ai.llm_status,
+                                llm_model_used: ai.llm_model_used,
+                                llm_error_code: ai.llm_error_code,
+                                llm_error_message_short:
+                                  ai.llm_error_message_short,
                                 decision_trace: ai.decision_trace,
                               }}
                               title='Model Output'
                             />
+                            {ai.llm_error_raw && (
+                              <JsonViewer
+                                data={ai.llm_error_raw}
+                                title='LLM Raw Error (Debug Only)'
+                              />
+                            )}
                             <JsonViewer
                               data={ai.decision_trace?.features_snapshot || {}}
                               title='Feature Snapshot'

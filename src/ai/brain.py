@@ -3,6 +3,8 @@
 import json
 import logging
 import pickle
+import re
+import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -151,6 +153,197 @@ AI_MODEL_TYPE = None  # "lightgbm" or "sklearn"
 AI_MODEL_METADATA: Dict[str, Any] = {}
 _RAG_ENGINE: Optional[RagEngine] = None
 _LLM_CLIENT: Optional[OpenAI] = None
+_LLM_MODEL_CONFIG_LOGGED = False
+_LLM_MODEL_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{1,127}$")
+_LLM_ENDPOINT = "chat.completions"
+_LLM_NEUTRAL_MESSAGE = "Context unavailable — treated as neutral."
+
+
+def _shorten(text: Any, limit: int = 140) -> str:
+    value = str(text or "").strip()
+    if len(value) <= limit:
+        return value
+    return value[: max(0, limit - 1)] + "…"
+
+
+def _monitor_llm_failure(event_type: str, payload: Dict[str, Any]) -> None:
+    try:
+        from src.services.trade_events import log_event
+
+        log_event(None, event_type, "brain", payload)
+    except Exception:
+        pass
+
+
+def _extract_llm_error_meta(exc: Exception) -> Dict[str, Any]:
+    status_code = getattr(exc, "status_code", None)
+    code = getattr(exc, "code", None)
+    body = getattr(exc, "body", None)
+    if isinstance(body, dict):
+        err = body.get("error", {}) if isinstance(body.get("error"), dict) else body
+        status_code = status_code or err.get("status")
+        code = code or err.get("code")
+    status_code_int = None
+    try:
+        if status_code is not None:
+            status_code_int = int(status_code)
+    except Exception:
+        status_code_int = None
+
+    raw = str(exc)
+    message_short = _shorten(raw, 120)
+    return {
+        "status_code": status_code_int,
+        "code": str(code) if code is not None else None,
+        "message_short": message_short,
+        "raw": _shorten(raw, 2000),
+    }
+
+
+def _is_model_not_found_error(err: Dict[str, Any]) -> bool:
+    status_code = err.get("status_code")
+    code = str(err.get("code") or "").lower()
+    msg = str(err.get("message_short") or "").lower()
+    return bool(
+        status_code == 404
+        and (
+            "model" in msg
+            or "not found" in msg
+            or code in {"model_not_found", "not_found", "invalid_model"}
+        )
+    )
+
+
+def _validate_llm_model_id(model_id: str, field_name: str) -> str:
+    candidate = str(model_id or "").strip()
+    if not candidate:
+        raise ValueError(f"{field_name} is empty. Set a valid model id.")
+    if not _LLM_MODEL_ID_PATTERN.match(candidate):
+        raise ValueError(
+            f"{field_name}='{candidate}' has invalid format. "
+            "Use letters/numbers and . _ : - only."
+        )
+    return candidate
+
+
+def _resolve_llm_models(settings) -> tuple[str, Optional[str]]:
+    global _LLM_MODEL_CONFIG_LOGGED
+    primary = _validate_llm_model_id(
+        getattr(settings, "llm_model_primary", ""),
+        "LLM_MODEL_PRIMARY",
+    )
+
+    fallback_raw = str(getattr(settings, "llm_model_fallback", "") or "").strip()
+    fallback = None
+    if fallback_raw:
+        fallback = _validate_llm_model_id(fallback_raw, "LLM_MODEL_FALLBACK")
+        if fallback == primary:
+            fallback = None
+
+    if not _LLM_MODEL_CONFIG_LOGGED:
+        logger.info(
+            "LLM model configuration resolved: endpoint=%s model_primary=%s model_fallback=%s",
+            _LLM_ENDPOINT,
+            primary,
+            fallback or "none",
+        )
+        _LLM_MODEL_CONFIG_LOGGED = True
+
+    return primary, fallback
+
+
+def _call_llm_with_fallback(
+    client: OpenAI,
+    prompt: str,
+    primary_model: str,
+    fallback_model: Optional[str],
+    symbol: str,
+) -> Dict[str, Any]:
+    request_id = uuid.uuid4().hex[:12]
+    logger.info(
+        "LLM request start request_id=%s endpoint=%s symbol=%s model_primary=%s model_fallback=%s",
+        request_id,
+        _LLM_ENDPOINT,
+        symbol,
+        primary_model,
+        fallback_model or "none",
+    )
+
+    attempted_models = [primary_model]
+    if fallback_model:
+        attempted_models.append(fallback_model)
+
+    errors: List[Dict[str, Any]] = []
+    for index, model_id in enumerate(attempted_models):
+        try:
+            chat = client.chat.completions.create(
+                model=model_id,
+                messages=[
+                    {"role": "system", "content": "You are a strict trading risk co-pilot."},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.1,
+                response_format={"type": "json_object"},
+                max_tokens=256,
+            )
+            content = chat.choices[0].message.content or "{}"
+            llm_json = json.loads(content)
+            if not isinstance(llm_json, dict):
+                raise ValueError("LLM response is not a JSON object")
+            return {
+                "ok": True,
+                "request_id": request_id,
+                "model_used": model_id,
+                "llm_json": llm_json,
+            }
+        except Exception as exc:
+            err = _extract_llm_error_meta(exc)
+            err["model"] = model_id
+            errors.append(err)
+            logger.warning(
+                "LLM request failure request_id=%s model=%s status=%s code=%s message=%s",
+                request_id,
+                model_id,
+                err.get("status_code"),
+                err.get("code"),
+                err.get("message_short"),
+            )
+            _monitor_llm_failure(
+                "llm_failure",
+                {
+                    "request_id": request_id,
+                    "symbol": symbol,
+                    "endpoint": _LLM_ENDPOINT,
+                    "model_primary": primary_model,
+                    "model_fallback": fallback_model,
+                    "model_attempted": model_id,
+                    "status_code": err.get("status_code"),
+                    "error_code": err.get("code"),
+                    "error_message": err.get("message_short"),
+                },
+            )
+
+            should_retry_fallback = (
+                index == 0
+                and fallback_model is not None
+                and _is_model_not_found_error(err)
+            )
+            if should_retry_fallback:
+                logger.warning(
+                    "LLM primary model unavailable (request_id=%s model=%s). Retrying fallback model=%s",
+                    request_id,
+                    model_id,
+                    fallback_model,
+                )
+                continue
+            break
+
+    return {
+        "ok": False,
+        "request_id": request_id,
+        "model_used": errors[-1].get("model") if errors else primary_model,
+        "errors": errors,
+    }
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
@@ -467,6 +660,12 @@ def load_brain() -> None:
     global AI_MODEL, AI_ENCODERS, AI_SCALER, AI_MODEL_TYPE, AI_MODEL_METADATA
 
     try:
+        # Validate LLM model IDs early so configuration issues are visible at startup.
+        try:
+            _resolve_llm_models(get_settings())
+        except Exception as e:
+            logger.error("Invalid LLM model configuration: %s", e)
+
         # Try v3 LightGBM first (preferred)
         if MODEL_V3_LGBM_PATH.exists() or MODEL_V3_PKL_PATH.exists():
             try:
@@ -799,6 +998,11 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
         "features": features,
         "decision_trace": decision_trace,
         "rf_threshold": threshold,
+        "llm_status": "skipped",
+        "llm_model_used": None,
+        "llm_error_code": None,
+        "llm_error_message_short": None,
+        "llm_error_raw": None,
     }
 
     symbol = payload.get("symbol", "UNKNOWN")
@@ -925,10 +1129,14 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
     if not getattr(settings, "enable_llm_filter", True):
         result["decision"] = "GO"
         result["reason"] = "RF pass and LLM filter disabled."
+        result["llm_status"] = "skipped"
+        result["llm_error_message_short"] = "LLM filter disabled"
         decision_trace["rules"].append({
-            "rule_id": "llm_filter",
-            "passed": True,
-            "message": "LLM filter disabled",
+            "rule_id": "llm_context",
+            "status": "skipped",
+            "non_blocking": True,
+            "passed": False,
+            "message": "LLM filter disabled — treated as neutral.",
         })
         _log_brain_decision(symbol, result)
         return result
@@ -937,11 +1145,26 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
     client = _get_llm_client()
     if client is None:
         result["decision"] = "GO"
-        result["reason"] = "RF pass; LLM unavailable, defaulting to GO."
+        result["reason"] = f"RF pass; {_LLM_NEUTRAL_MESSAGE}"
+        result["llm_status"] = "skipped"
+        result["llm_error_code"] = "client_unavailable"
+        result["llm_error_message_short"] = "LLM client unavailable"
+        _monitor_llm_failure(
+            "llm_failure",
+            {
+                "request_id": None,
+                "symbol": symbol,
+                "endpoint": _LLM_ENDPOINT,
+                "error_code": "client_unavailable",
+                "error_message": "LLM client unavailable",
+            },
+        )
         decision_trace["rules"].append({
-            "rule_id": "llm_availability",
-            "passed": True,
-            "message": "LLM unavailable; fail-open after RF pass",
+            "rule_id": "llm_context",
+            "status": "skipped",
+            "non_blocking": True,
+            "passed": False,
+            "message": _LLM_NEUTRAL_MESSAGE,
         })
         _log_brain_decision(symbol, result)
         return result
@@ -965,50 +1188,101 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
     )
 
     try:
-        chat = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You are a strict trading risk co-pilot."},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.1,
-            response_format={"type": "json_object"},
-            max_tokens=256,
-        )
-        content = chat.choices[0].message.content or "{}"
-        llm_json = json.loads(content)
-        result["llm_raw"] = llm_json
-
-        decision = str(llm_json.get("decision", "NO_GO")).upper()
-        reason = str(llm_json.get("reason", "")).strip()
-
-        if decision == "GO":
-            result["decision"] = "GO"
-            result["reason"] = reason or "LLM approved trade."
-            decision_trace["rules"].append({
-                "rule_id": "llm_decision",
-                "passed": True,
-                "message": result["reason"],
-            })
-        else:
-            result["decision"] = "NO_GO"
-            result["reason"] = reason or "LLM rejected trade."
-            decision_trace["rules"].append({
-                "rule_id": "llm_decision",
-                "passed": False,
-                "message": result["reason"],
-            })
-            decision_trace["rejected_rule"] = {"rule_id": "llm_decision", "message": result["reason"]}
+        model_primary, model_fallback = _resolve_llm_models(settings)
     except Exception as e:
-        logger.error("LLM ensemble decision failed: %s", e)
-        # Fail-open: RF already passed, so if LLM is down we allow the trade
+        logger.error("LLM configuration error: %s", e)
         result["decision"] = "GO"
-        result["reason"] = f"RF pass; LLM error (fail-open): {str(e)[:60]}"
+        result["reason"] = f"RF pass; {_LLM_NEUTRAL_MESSAGE}"
+        result["llm_status"] = "error"
+        result["llm_error_code"] = "invalid_model_config"
+        result["llm_error_message_short"] = _shorten(e, 140)
+        result["llm_error_raw"] = str(e)
         decision_trace["rules"].append({
-            "rule_id": "llm_error",
+            "rule_id": "llm_context",
+            "status": "error",
+            "non_blocking": True,
+            "passed": False,
+            "message": _LLM_NEUTRAL_MESSAGE,
+        })
+        _monitor_llm_failure(
+            "llm_failure",
+            {
+                "request_id": None,
+                "symbol": symbol,
+                "endpoint": _LLM_ENDPOINT,
+                "error_code": "invalid_model_config",
+                "error_message": _shorten(e, 180),
+            },
+        )
+        _log_brain_decision(symbol, result)
+        return result
+
+    llm_call = _call_llm_with_fallback(
+        client=client,
+        prompt=prompt,
+        primary_model=model_primary,
+        fallback_model=model_fallback,
+        symbol=symbol,
+    )
+
+    if not llm_call.get("ok"):
+        errors = llm_call.get("errors") or []
+        last_error = errors[-1] if errors else {}
+        result["decision"] = "GO"
+        result["reason"] = f"RF pass; {_LLM_NEUTRAL_MESSAGE}"
+        result["llm_status"] = "error"
+        result["llm_model_used"] = llm_call.get("model_used")
+        result["llm_error_code"] = (
+            last_error.get("code")
+            or (
+                str(last_error.get("status_code"))
+                if last_error.get("status_code") is not None
+                else None
+            )
+        )
+        result["llm_error_message_short"] = last_error.get("message_short")
+        result["llm_error_raw"] = last_error.get("raw")
+        decision_trace["rules"].append({
+            "rule_id": "llm_context",
+            "status": "error",
+            "non_blocking": True,
+            "passed": False,
+            "message": _LLM_NEUTRAL_MESSAGE,
+        })
+        _log_brain_decision(symbol, result)
+        return result
+
+    llm_json = llm_call.get("llm_json") or {}
+    result["llm_raw"] = llm_json
+    result["llm_status"] = "ok"
+    result["llm_model_used"] = llm_call.get("model_used")
+    decision_trace["rules"].append({
+        "rule_id": "llm_context",
+        "status": "ok",
+        "passed": True,
+        "message": f"LLM context loaded ({result['llm_model_used']})",
+    })
+
+    decision = str(llm_json.get("decision", "NO_GO")).upper()
+    reason = str(llm_json.get("reason", "")).strip()
+
+    if decision == "GO":
+        result["decision"] = "GO"
+        result["reason"] = reason or "LLM approved trade."
+        decision_trace["rules"].append({
+            "rule_id": "llm_decision",
             "passed": True,
             "message": result["reason"],
         })
+    else:
+        result["decision"] = "NO_GO"
+        result["reason"] = reason or "LLM rejected trade."
+        decision_trace["rules"].append({
+            "rule_id": "llm_decision",
+            "passed": False,
+            "message": result["reason"],
+        })
+        decision_trace["rejected_rule"] = {"rule_id": "llm_decision", "message": result["reason"]}
 
     _log_brain_decision(symbol, result)
     return result
