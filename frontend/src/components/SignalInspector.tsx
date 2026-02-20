@@ -615,6 +615,10 @@ export function SignalInspector({
                               : traceRules
                             ).map((rule, idx) => {
                               const passed = rule?.passed === true;
+                              const ruleMessage =
+                                rule?.message != null
+                                  ? String(rule.message)
+                                  : '';
                               return (
                                 // eslint-disable-next-line react/no-array-index-key
                                 <div
@@ -632,9 +636,9 @@ export function SignalInspector({
                                     <div className='font-mono text-foreground/90'>
                                       {String(rule?.rule_id || 'rule')}
                                     </div>
-                                    {rule?.message && (
+                                    {ruleMessage && (
                                       <div className='text-muted-foreground mt-0.5'>
-                                        {String(rule.message)}
+                                        {ruleMessage}
                                       </div>
                                     )}
                                   </div>
