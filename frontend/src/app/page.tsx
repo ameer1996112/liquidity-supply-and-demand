@@ -22,7 +22,10 @@ import {
 } from '@/lib/formatters';
 import { TradingSignal } from '@/types/trading';
 import { CandlestickChart, Server, Radio } from 'lucide-react';
-import { isSignalRejected } from '@/domain/metrics/tradingMetrics';
+import {
+  isSignalOpen,
+  isSignalRejected,
+} from '@/domain/metrics/tradingMetrics';
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
@@ -39,7 +42,7 @@ function StatCard({ label, value }: { label: string; value: string }) {
 
 export default function DashboardPage() {
   const [selectedSignal, setSelectedSignal] = useState<TradingSignal | null>(
-    null
+    null,
   );
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const { mode: activeMode } = useTradingMode();
@@ -64,8 +67,10 @@ export default function DashboardPage() {
   });
 
   const isConnected = health?.status != null && health.status !== 'offline';
-  const activePositionsCount =
-    risk?.active_positions ?? stats?.active_trades ?? 0;
+  const activePositionsCount = useMemo(
+    () => signals.filter(isSignalOpen).length,
+    [signals],
+  );
   const tradesToday = useMemo(() => {
     const start = new Date();
     start.setHours(0, 0, 0, 0);
@@ -75,13 +80,13 @@ export default function DashboardPage() {
   const latestSignal = signals[0] ?? null;
   const lastRejectSignal = useMemo(
     () => signals.find((s) => isSignalRejected(s)),
-    [signals]
+    [signals],
   );
   const noData = signals.length === 0 && activePositionsCount === 0;
 
   const lastUpdated = latestSignal
     ? new Date(
-        latestSignal.updated_at ?? latestSignal.created_at
+        latestSignal.updated_at ?? latestSignal.created_at,
       ).toLocaleTimeString()
     : new Date().toLocaleTimeString();
 
@@ -91,12 +96,12 @@ export default function DashboardPage() {
 
   const todayPnl =
     activeMode === 'PAPER'
-      ? stats?.paper_daily_pnl ?? stats?.paper_pnl_24h
-      : stats?.live_daily_pnl ?? stats?.live_pnl_24h;
+      ? (stats?.paper_daily_pnl ?? stats?.paper_pnl_24h)
+      : (stats?.live_daily_pnl ?? stats?.live_pnl_24h);
   const totalPnl =
     activeMode === 'PAPER'
-      ? stats?.paper_total_pnl ?? stats?.paper_pnl_24h
-      : stats?.live_total_pnl ?? stats?.total_pnl;
+      ? (stats?.paper_total_pnl ?? stats?.paper_pnl_24h)
+      : (stats?.live_total_pnl ?? stats?.total_pnl);
 
   const kpis = [
     { label: 'Today PnL', value: formatCurrency(todayPnl, { signed: true }) },

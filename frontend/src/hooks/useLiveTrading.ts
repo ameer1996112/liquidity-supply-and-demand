@@ -21,6 +21,7 @@ import { useTradingMode } from '@/providers/TradingModeProvider';
 import {
   computeTodayPnl,
   computeTradeKpis,
+  isSignalOpen,
 } from '@/domain/metrics/tradingMetrics';
 
 // ══════════════════════════════════════════════════════════
@@ -143,7 +144,7 @@ export function useLiveTrading(): LiveTradingData {
         winRate: 0,
         netPnL: 0,
         totalTrades: 0,
-        activeTrades: positionsData?.count || 0,
+        activeTrades: signals ? signals.filter(isSignalOpen).length : 0,
         todayPnL: 0,
       };
     }
@@ -157,7 +158,7 @@ export function useLiveTrading(): LiveTradingData {
       winRate: Math.round(winRate * 10) / 10, // Round to 1 decimal
       netPnL: Math.round(netPnL * 100) / 100, // Round to 2 decimals
       totalTrades: kpis.totalTrades,
-      activeTrades: positionsData?.count || 0,
+      activeTrades: signals.filter(isSignalOpen).length,
       todayPnL: Math.round(todayPnL * 100) / 100,
     };
   };
