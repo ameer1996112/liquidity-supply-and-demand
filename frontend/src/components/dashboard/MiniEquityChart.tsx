@@ -14,6 +14,11 @@ import {
 } from 'recharts';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  EMPTY_VALUE,
+  formatCurrency,
+  normalizeNegativeZero,
+} from '@/lib/formatters';
 
 interface MiniEquityChartProps {
   mode?: TradingMode;
@@ -42,7 +47,7 @@ export function MiniEquityChart({ mode }: MiniEquityChartProps) {
     // Build cumulative PnL series
     let cumPnl = 0;
     const data = closed.map((s) => {
-      const pnl = getPnl(s) ?? 0;
+      const pnl = normalizeNegativeZero(getPnl(s) ?? 0) ?? 0;
       cumPnl += pnl;
       return {
         time: new Date(s.created_at).toLocaleDateString('en-US', {
@@ -53,7 +58,7 @@ export function MiniEquityChart({ mode }: MiniEquityChartProps) {
       };
     });
 
-    return { chartData: data, totalPnl: cumPnl };
+    return { chartData: data, totalPnl: normalizeNegativeZero(cumPnl) ?? 0 };
   }, [signals]);
 
   const isPositive = totalPnl >= 0;
@@ -93,7 +98,7 @@ export function MiniEquityChart({ mode }: MiniEquityChartProps) {
               isPositive ? 'text-[#26a69a]' : 'text-[#ef5350]'
             )}
           >
-            {isPositive ? '+' : ''}${totalPnl.toFixed(2)}
+            {formatCurrency(totalPnl, { signed: true })}
           </span>
         </div>
       </div>
@@ -127,7 +132,7 @@ export function MiniEquityChart({ mode }: MiniEquityChartProps) {
               color: '#d1d4dc',
             }}
             formatter={(value: number | undefined) => [
-              `$${(value ?? 0).toFixed(2)}`,
+              formatCurrency(value ?? null) || EMPTY_VALUE,
               'PnL',
             ]}
           />
