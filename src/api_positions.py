@@ -26,6 +26,26 @@ def _get_adapter():
     return get_adapter(run_mode=s.run_mode, settings=s)
 
 
+def _is_signal_closed(r: Dict[str, Any]) -> bool:
+    status = str(r.get("status") or "").strip().lower()
+    if status == "closed":
+        return True
+    if status not in ("executed", "open"):
+        return False
+    if r.get("closed_at") is not None or r.get("exit_price") is not None or r.get("pnl") is not None:
+        return True
+    return False
+
+
+def _is_signal_open_strict(r: Dict[str, Any]) -> bool:
+    status = str(r.get("status") or "").strip().lower()
+    if status == "open" and r.get("execution_source") == "metaapi" and r.get("broker_position_id") is not None:
+        return True
+    if status in ("active", "pending", "executed") and not _is_signal_closed(r):
+        return r.get("broker_position_id") is not None
+    return False
+
+
 # ── Request / Response Models ────────────────────────────────
 
 
@@ -89,12 +109,14 @@ def get_active_positions():
             sb.table("trading_signals")
             .select(
                 "id, symbol, side, entry, sl, tp, size, broker_order_id, "
-                "created_at, zone_type, entry_model, rr_ratio"
+                "created_at, zone_type, entry_model, rr_ratio, "
+                "status, execution_source, broker_position_id, closed_at, exit_price, pnl"
             )
-            .in_("status", ["OPEN", "active", "executed"])
+            .in_("status", ["OPEN", "open", "active", "executed", "PENDING", "pending"])
             .execute()
         )
-        rows = resp.data or []
+        raw_rows = resp.data or []
+        rows = [r for r in raw_rows if _is_signal_open_strict(r)]
     except Exception as exc:
         logger.error("Failed to fetch active positions: %s", exc)
         rows = []
@@ -421,12 +443,13 @@ def get_account_status():
     try:
         resp = (
             sb.table("trading_signals")
-            .select("id", count="exact")
-            .in_("status", ["OPEN", "active", "executed"])
+            .select("status, execution_source, broker_position_id, closed_at, exit_price, pnl")
+            .in_("status", ["OPEN", "open", "active", "executed", "PENDING", "pending"])
             .execute()
         )
-        active_count = resp.count or 0
-    except Exception:
+        active_count = sum(1 for r in (resp.data or []) if _is_signal_open_strict(r))
+    except Exception as exc:
+        logger.error("Failed to fetch count of active positions: %s", exc)
         active_count = 0
 
     return AccountStatusResponse(
