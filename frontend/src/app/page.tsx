@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { SignalInspector } from '@/components/SignalInspector';
 import { ActiveTradesPanel } from '@/components/dashboard/ActiveTradesPanel';
 import { RecentSignalsPanel } from '@/components/dashboard/RecentSignalsPanel';
@@ -10,6 +10,14 @@ import { PortfolioRiskWidget } from '@/components/dashboard/PortfolioRiskWidget'
 import { EvaluationDashboard } from '@/components/evaluation/EvaluationDashboard';
 import { PineConfigStatus } from '@/components/dashboard/PineConfigStatus';
 import { useTradingMode } from '@/providers/TradingModeProvider';
+import { useSignalStats, useTradingSignals } from '@/hooks/useTradingSignals';
+import { useRiskStatus } from '@/hooks/useRiskStatus';
+import {
+  formatCurrency,
+  formatNumber,
+  formatPercent,
+  EMPTY_VALUE,
+} from '@/lib/formatters';
 import { TradingSignal } from '@/types/trading';
 import { CandlestickChart, Server, Radio } from 'lucide-react';
 

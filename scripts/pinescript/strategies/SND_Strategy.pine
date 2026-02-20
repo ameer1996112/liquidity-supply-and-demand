@@ -2779,7 +2779,7 @@ is_late_friday() =>
 // Flip entries only valid on these exact candle opens
 is_htf_candle_open() =>
     int currentMinute = minute(time)
-    currentMinute == 0 or currentMinute == 15 or currentMinute == 30 or currentMinute == 45
+    currentMinute % 15 == 0
 
 // Helper function to get readable dead zone status for debugging
 getDeadZoneStatus() =>
@@ -3807,14 +3807,16 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
 
         // === STEP 2: ENTER ON BULLISH CLOSE (if zone is primed) ===
         if z.active and z.primed
-            // 2. ENTRY MODEL SELECTION (Priority: Flip > Directional Close > Break of Candle)
+            // 2. ENTRY MODEL SELECTION (STRICT Priority: Time Gate -> Flip -> BoC -> Dir Close)
             string chosenModel = "NONE"
 
             // (a) FLIP: Bearish to Bullish reversal (Engulfing-like behavior)
-            // Definition: Previous candle was bearish, current is bullish (close > open)
-            // HTF-Aware: When require_htf_flip is ON, only valid near 30m/1H candle opens
+            // STRICT TIME GATE: Flip can ONLY be evaluated on 15m boundaries (xx:00/:15/:30/:45)
             bool basic_flip = close > open and close[1] < open[1]
-            bool is_flip = require_htf_flip ? (basic_flip and is_htf_candle_open()) : basic_flip
+            bool is_flip_time = is_htf_candle_open()
+            bool is_flip = false
+            if is_flip_time
+                is_flip := basic_flip
 
             // (b) DIRECTIONAL CLOSE: Bullish close (no zone touch required - already primed)
             // Requires: close > open OR Bullish Hammer (Strict: Must be Green)
@@ -3833,7 +3835,9 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
             if hasValidPrimedRef and not is_flip
                 is_break := (open > z.primedRefClose or high > z.primedRefHigh) and close > open
 
-            // Priority: Flip (reversal) > Break of Candle (continuation gap) > Dir Close (catch-all)
+            // Priority:
+            // 1) If on 15m boundary and Flip pattern exists -> FLIP
+            // 2) Otherwise -> fallback immediately to BoC, then Dir Close
             if is_flip
                 chosenModel := "FLIP"
             else if is_break
@@ -4253,14 +4257,16 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
 
         // === STEP 2: ENTER ON BEARISH CLOSE (if zone is primed) ===
         if z.active and z.primed
-            // 2. ENTRY MODEL SELECTION (Priority: Flip > Directional Close > Break of Candle)
+            // 2. ENTRY MODEL SELECTION (STRICT Priority: Time Gate -> Flip -> BoC -> Dir Close)
             string chosenModel = "NONE"
 
             // (a) FLIP: Bullish to Bearish reversal
-            // Definition: Previous candle was bullish, current is bearish (close < open)
-            // HTF-Aware: When require_htf_flip is ON, only valid near 30m/1H candle opens
+            // STRICT TIME GATE: Flip can ONLY be evaluated on 15m boundaries (xx:00/:15/:30/:45)
             bool basic_flip = close < open and close[1] > open[1]
-            bool is_flip = require_htf_flip ? (basic_flip and is_htf_candle_open()) : basic_flip
+            bool is_flip_time = is_htf_candle_open()
+            bool is_flip = false
+            if is_flip_time
+                is_flip := basic_flip
 
             // (b) DIRECTIONAL CLOSE: Bearish close (no zone touch required - already primed)
             // Requires: close < open OR Bearish Inverted Hammer (Strict: Must be Red)
@@ -4279,7 +4285,9 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
             if hasValidPrimedRef and not is_flip
                 is_break := (open < z.primedRefClose or low < z.primedRefLow) and close < open
 
-            // Priority: Flip (reversal) > Break of Candle (continuation gap) > Dir Close (catch-all)
+            // Priority:
+            // 1) If on 15m boundary and Flip pattern exists -> FLIP
+            // 2) Otherwise -> fallback immediately to BoC, then Dir Close
             if is_flip
                 chosenModel := "FLIP"
             else if is_break

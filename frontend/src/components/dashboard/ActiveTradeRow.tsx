@@ -4,7 +4,11 @@ import { TradingSignal, getSymbol, getSide, getPnl } from '@/types/trading';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { TrendingUp, TrendingDown } from 'lucide-react';
-import { normalizeSignedZero, safeFloat } from '@/lib/format';
+import {
+  EMPTY_VALUE,
+  formatNumber,
+  normalizeNegativeZero,
+} from '@/lib/formatters';
 
 interface ActiveTradeRowProps {
   signal: TradingSignal;
@@ -33,7 +37,7 @@ export function ActiveTradeRow({
 }: ActiveTradeRowProps) {
   const symbol = getSymbol(signal);
   const side = getSide(signal);
-  const pnl = normalizeSignedZero(getPnl(signal));
+  const pnl = normalizeNegativeZero(getPnl(signal));
   const isBuy = side === 'buy';
   const entry = signal.price ?? signal.entry;
   const rr = signal.rr_ratio;
@@ -104,7 +108,7 @@ export function ActiveTradeRow({
         >
           {entry != null
             ? Number(entry).toFixed(symbol.includes('JPY') ? 3 : 5)
-            : '—'}
+            : EMPTY_VALUE}
         </span>
       </div>
 
@@ -120,7 +124,7 @@ export function ActiveTradeRow({
           className='text-[11px] text-slate-400 tabular-nums'
           style={{ fontFamily: 'var(--font-mono)' }}
         >
-          {rr ? `1:${rr.toFixed(1)}` : '—'}
+          {rr ? `1:${formatNumber(rr, { decimals: 1 })}` : EMPTY_VALUE}
         </span>
       </div>
 
@@ -145,14 +149,14 @@ export function ActiveTradeRow({
             style={{ fontFamily: 'var(--font-mono)' }}
           >
             {pnl > 0 ? '+' : ''}
-            {safeFloat(pnl, 2)}
+            {formatNumber(pnl, { decimals: 2 })}
           </span>
         ) : (
           <span
             className='text-xs text-slate-600'
             style={{ fontFamily: 'var(--font-mono)' }}
           >
-            —
+            {EMPTY_VALUE}
           </span>
         )}
       </div>

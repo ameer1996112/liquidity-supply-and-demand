@@ -14,11 +14,13 @@ import { PanelEmptyState } from '@/components/shared/PanelEmptyState';
 interface ActiveTradesPanelProps {
   mode?: TradingMode;
   onSelectSignal: (signal: TradingSignal) => void;
+  compact?: boolean;
 }
 
 export function ActiveTradesPanel({
   mode,
   onSelectSignal,
+  compact = false,
 }: ActiveTradesPanelProps) {
   const { data: signals = [], isLoading } = useTradingSignals(mode);
 
@@ -51,7 +53,9 @@ export function ActiveTradesPanel({
       </div>
 
       {/* Content */}
-      <ScrollArea className='min-h-0 flex-1 px-2 py-2'>
+      <ScrollArea
+        className={cn('min-h-0 flex-1 px-2 py-2', compact && 'py-1.5')}
+      >
         {isLoading ? (
           <div className='space-y-1.5 px-1'>
             {[...Array(3)].map((_, i) => (
@@ -65,7 +69,11 @@ export function ActiveTradesPanel({
           <PanelEmptyState
             icon={<Activity className='h-4 w-4' />}
             title='No active positions'
-            description='Waiting for valid 5m entry confirmations'
+            description={
+              compact
+                ? 'Waiting for the next valid setup'
+                : 'Waiting for valid 5m entry confirmations'
+            }
           />
         ) : (
           <div className='space-y-1'>

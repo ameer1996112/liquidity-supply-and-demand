@@ -1,7 +1,11 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { normalizeSignedZero, safeFloat } from '@/lib/format';
+import {
+  EMPTY_VALUE,
+  formatNumber,
+  normalizeNegativeZero,
+} from '@/lib/formatters';
 
 interface PnLDisplayProps {
   pnl: number | null;
@@ -19,14 +23,14 @@ const SIZE_CLASSES = {
  * Used across SignalFeed, SignalCard, and RecentSignalsPanel.
  */
 export function PnLDisplay({ pnl, size = 'md' }: PnLDisplayProps) {
-  const normalizedPnl = normalizeSignedZero(pnl);
+  const normalizedPnl = normalizeNegativeZero(pnl);
 
   if (normalizedPnl === null) {
     return (
       <span
         className={cn('font-mono font-bold text-zinc-600', SIZE_CLASSES[size])}
       >
-        --
+        {EMPTY_VALUE}
       </span>
     );
   }
@@ -47,7 +51,7 @@ export function PnLDisplay({ pnl, size = 'md' }: PnLDisplayProps) {
       )}
     >
       {isPositive ? '+' : ''}
-      {safeFloat(normalizedPnl, 2)}
+      {formatNumber(normalizedPnl, { decimals: 2 })}
     </span>
   );
 }

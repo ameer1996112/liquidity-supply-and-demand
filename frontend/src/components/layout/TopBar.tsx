@@ -1,67 +1,16 @@
 'use client';
 
-import { useState } from 'react';
-import { useSignalStats, useRefreshSignals } from '@/hooks/useTradingSignals';
 import { useTradingMode } from '@/providers/TradingModeProvider';
-import { formatWinRate } from '@/domain/metrics/tradingMetrics';
-import { Button } from '@/components/ui/button';
-import { RiskBar } from '@/components/risk/RiskBar';
-import {
-  RefreshCw,
-  Radio,
-  FlaskConical,
-  Moon,
-  Sun,
-  Wifi,
-  WifiOff,
-  Power,
-} from 'lucide-react';
+import { Radio, FlaskConical, Wifi, WifiOff, Power } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { AlertBell } from '@/components/alerts/AlertBell';
-import { useTheme } from '@/providers/ThemeProvider';
 import { useRiskStatus, useKillSwitchMutation } from '@/hooks/useRiskStatus';
 import { useQuery } from '@tanstack/react-query';
 import { getApiUrl } from '@/lib/api';
-import { formatSignedCurrency } from '@/lib/format';
-
-interface MetricProps {
-  label: string;
-  value: string | number;
-  trend?: 'up' | 'down';
-}
-
-function Metric({ label, value, trend }: MetricProps) {
-  return (
-    <div className='flex min-w-[110px] flex-col gap-0.5 border-r border-slate-800 px-3.5 last:border-r-0'>
-      <span
-        className='text-[10px] font-medium uppercase tracking-[0.12em] text-slate-500'
-        style={{ fontFamily: 'var(--font-sans)' }}
-      >
-        {label}
-      </span>
-      <span
-        className={cn(
-          'text-[14px] font-semibold tabular-nums leading-tight',
-          trend === 'up' && 'text-emerald-400',
-          trend === 'down' && 'text-red-400',
-          !trend && 'text-slate-200'
-        )}
-        style={{ fontFamily: 'var(--font-mono)' }}
-      >
-        {value}
-      </span>
-    </div>
-  );
-}
 
 export function TopBar() {
   const { mode, setMode } = useTradingMode();
-  const { theme, toggleTheme } = useTheme();
-  const { data: stats, isLoading } = useSignalStats();
   const { data: risk } = useRiskStatus();
   const killMutation = useKillSwitchMutation();
-  const refreshSignals = useRefreshSignals();
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const { data: health } = useQuery({
     queryKey: ['topbar-health'],
@@ -79,30 +28,7 @@ export function TopBar() {
     refetchInterval: 30_000,
     staleTime: 15_000,
   });
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    await refreshSignals();
-    setTimeout(() => setIsRefreshing(false), 500);
-  };
-
-  const modeWinRate =
-    mode === 'LIVE' ? stats?.live_win_rate ?? stats?.win_rate : stats?.win_rate;
-  const executedCount = stats?.executed_count ?? 0;
-  const winRateNumeric =
-    modeWinRate != null && Number.isFinite(modeWinRate) ? modeWinRate : null;
-  const winRateLabel = formatWinRate(winRateNumeric, executedCount, 'dash');
-
-  const dailyPnl =
-    mode === 'PAPER'
-      ? stats?.paper_daily_pnl ?? stats?.paper_pnl_24h ?? 0
-      : stats?.live_daily_pnl ?? stats?.live_pnl_24h ?? 0;
-
-  const totalPnl =
-    mode === 'PAPER'
-      ? stats?.paper_total_pnl ?? stats?.paper_pnl_24h ?? 0
-      : stats?.live_total_pnl ?? stats?.total_pnl ?? stats?.live_pnl_24h ?? 0;
-  const isConnected = health?.status && health.status !== 'offline';
+  const isConnected = health?.status != null && health.status !== 'offline';
 
   const toggleKillSwitch = () => {
     const enabled = !risk?.kill_switch_active;
@@ -114,54 +40,8 @@ export function TopBar() {
 
   return (
     <header className='flex h-12 shrink-0 items-center justify-between border-b border-[var(--to-border)] bg-[var(--to-bg)] px-3'>
-      {/* ── Left: metrics strip ─────────────────────────────────── */}
-      <div className='flex items-center overflow-x-auto scrollbar-thin'>
-        {isLoading ? (
-          <div className='flex items-center gap-0'>
-            {[...Array(4)].map((_, i) => (
-              <div
-                key={i}
-                className='flex min-w-[100px] flex-col gap-1 border-r border-slate-800 px-3 last:border-r-0'
-              >
-                <div className='h-2 w-12 rounded bg-slate-800 animate-pulse' />
-                <div className='h-3 w-16 rounded bg-slate-800 animate-pulse' />
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className='flex items-center'>
-            <Metric
-              label='Win Rate'
-              value={winRateLabel}
-              trend={
-                winRateNumeric == null
-                  ? undefined
-                  : winRateNumeric >= 50
-                  ? 'up'
-                  : 'down'
-              }
-            />
-            <Metric label='Active' value={stats?.active_trades ?? 0} />
-            <Metric
-              label='Today PnL'
-              value={formatSignedCurrency(dailyPnl)}
-              trend={dailyPnl === 0 ? undefined : dailyPnl > 0 ? 'up' : 'down'}
-            />
-            <Metric
-              label='Total PnL'
-              value={formatSignedCurrency(totalPnl)}
-              trend={totalPnl === 0 ? undefined : totalPnl > 0 ? 'up' : 'down'}
-            />
-          </div>
-        )}
-      </div>
+      <div />
 
-      {/* ── Center: Risk Cockpit ─────────────────────────────────── */}
-      <div className='hidden xl:flex xl:flex-1 xl:justify-center'>
-        <RiskBar />
-      </div>
-
-      {/* ── Right: mode toggle + actions ────────────────────────── */}
       <div className='flex items-center gap-2'>
         <div
           className={cn(
@@ -177,10 +57,8 @@ export function TopBar() {
           ) : (
             <WifiOff className='h-3 w-3' />
           )}
-          {isConnected ? 'Connected' : 'Offline'}
+          {isConnected ? 'Connected' : 'Reconnecting'}
         </div>
-
-        <AlertBell />
 
         {/* Mode toggle */}
         <div className='flex items-center rounded-lg border border-slate-800 bg-slate-900 p-0.5'>
@@ -219,33 +97,6 @@ export function TopBar() {
             </span>
           </button>
         </div>
-
-        {/* Refresh */}
-        <Button
-          variant='ghost'
-          size='sm'
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-          className='h-7 w-7 rounded-lg border border-transparent p-0 text-slate-500 hover:border-slate-700 hover:bg-slate-800 hover:text-slate-300'
-        >
-          <RefreshCw
-            className={cn('h-3.5 w-3.5', isRefreshing && 'animate-spin')}
-          />
-        </Button>
-
-        <Button
-          variant='ghost'
-          size='sm'
-          onClick={toggleTheme}
-          className='h-7 w-7 rounded-lg border border-transparent p-0 text-slate-500 hover:border-slate-700 hover:bg-slate-800 hover:text-slate-300'
-          title='Toggle theme'
-        >
-          {theme === 'dark' ? (
-            <Sun className='h-3.5 w-3.5' />
-          ) : (
-            <Moon className='h-3.5 w-3.5' />
-          )}
-        </Button>
 
         <button
           onClick={toggleKillSwitch}

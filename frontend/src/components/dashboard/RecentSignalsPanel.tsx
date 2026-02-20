@@ -15,17 +15,32 @@ import { PnLDisplay } from '@/components/shared/PnLDisplay';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNowStrict } from 'date-fns';
-import { TrendingUp, TrendingDown, Zap, Search, FilterX } from 'lucide-react';
+import {
+  TrendingUp,
+  TrendingDown,
+  Zap,
+  Search,
+  FilterX,
+  Ellipsis,
+  Copy,
+  Eye,
+  Check,
+} from 'lucide-react';
 import { PanelEmptyState } from '@/components/shared/PanelEmptyState';
+import { EMPTY_VALUE, formatNumber } from '@/lib/formatters';
 
 type FilterTab = 'all' | 'active' | 'wins' | 'losses' | 'rejects';
 
@@ -83,11 +98,17 @@ function TriggerBadge({ signal }: { signal: TradingSignal }) {
 
 interface SignalRowProps {
   signal: TradingSignal;
+  isReviewed: boolean;
+  onToggleReviewed: (id: string) => void;
+  onOpenDetails: (signal: TradingSignal) => void;
   onSelectSignal: (signal: TradingSignal) => void;
 }
 
 const SignalRowMemo = memo(function SignalRow({
   signal,
+  isReviewed,
+  onToggleReviewed,
+  onOpenDetails,
   onSelectSignal,
 }: SignalRowProps) {
   const symbol = getSymbol(signal);
@@ -97,31 +118,16 @@ const SignalRowMemo = memo(function SignalRow({
   const isActive = signal.status?.toLowerCase() === 'active';
 
   return (
-    <TableRow
-      onClick={() => onSelectSignal(signal)}
+    <div
+      onClick={() => onOpenDetails(signal)}
       className={cn(
-        'cursor-pointer border-b border-slate-800/60 transition-colors data-row',
-        isActive && 'border-l-2 border-l-indigo-500'
+        'group flex cursor-pointer items-center gap-3 border-b border-slate-800/60 px-3 py-3.5 transition-colors data-row',
+        isActive && 'border-l-2 border-l-indigo-500',
+        isReviewed && 'opacity-70'
       )}
     >
-      {/* Time */}
-      <TableCell className='px-2 py-1.5'>
-        <span
-          className='text-[10px] text-slate-600 tabular-nums'
-          style={{ fontFamily: 'var(--font-mono)' }}
-        >
-          {formatDistanceToNowStrict(new Date(signal.created_at), {
-            addSuffix: true,
-          })}
-        </span>
-      </TableCell>
-
-      {/* Symbol + side */}
-      <TableCell className='px-2 py-1.5'>
-        <div className='flex items-center gap-1.5'>
-          {isActive && (
-            <span className='status-dot status-dot-active pulse-active' />
-          )}
+      <div className='min-w-0 flex-1'>
+        <div className='flex items-center gap-2'>
           <span
             className='text-xs font-bold text-slate-200'
             style={{ fontFamily: 'var(--font-mono)' }}
@@ -129,8 +135,16 @@ const SignalRowMemo = memo(function SignalRow({
             {symbol}
           </span>
           <span
+            className='text-[10px] text-slate-500 tabular-nums'
+            style={{ fontFamily: 'var(--font-mono)' }}
+          >
+            {formatDistanceToNowStrict(new Date(signal.created_at), {
+              addSuffix: true,
+            })}
+          </span>
+          <span
             className={cn(
-              'text-[9px] font-bold',
+              'inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold',
               isBuy ? 'text-emerald-400' : 'text-red-400'
             )}
           >
@@ -140,48 +154,65 @@ const SignalRowMemo = memo(function SignalRow({
               <TrendingDown className='inline h-3 w-3' />
             )}
           </span>
+          <TriggerBadge signal={signal} />
         </div>
-      </TableCell>
+        <div className='mt-1'>
+          <StatusBadge status={signal.status} pnl={pnl} compact />
+        </div>
+      </div>
 
-      {/* Trigger */}
-      <TableCell className='px-2 py-1.5'>
-        <TriggerBadge signal={signal} />
-      </TableCell>
-
-      {/* Status */}
-      <TableCell className='px-2 py-1.5'>
-        <StatusBadge status={signal.status} pnl={pnl} compact />
-      </TableCell>
-
-      {/* R:R */}
-      <TableCell className='px-2 py-1.5 text-right'>
-        <span
-          className='text-[10px] text-slate-500 tabular-nums'
-          style={{ fontFamily: 'var(--font-mono)' }}
-        >
-          {signal.rr_ratio ? `1:${signal.rr_ratio.toFixed(1)}` : '—'}
-        </span>
-      </TableCell>
-
-      {/* PnL */}
-      <TableCell className='px-2 py-1.5 text-right'>
+      <div className='text-right'>
         <PnLDisplay pnl={pnl} size='sm' />
-      </TableCell>
+      </div>
 
-      <TableCell className='px-2 py-1.5 text-right'>
-        <button
-          type='button'
-          onClick={(e) => {
-            e.stopPropagation();
-            onSelectSignal(signal);
-          }}
-          className='rounded-md border border-slate-700 px-2 py-0.5 text-[9px] font-medium text-slate-300 hover:border-indigo-500/50 hover:text-indigo-300'
-          style={{ fontFamily: 'var(--font-mono)' }}
+      <Popover>
+        <PopoverTrigger
+          onClick={(e) => e.stopPropagation()}
+          className='rounded-md p-1 text-slate-500 opacity-0 transition-opacity hover:bg-slate-800 hover:text-slate-200 group-hover:opacity-100'
         >
-          Inspect
-        </button>
-      </TableCell>
-    </TableRow>
+          <Ellipsis className='h-4 w-4' />
+        </PopoverTrigger>
+        <PopoverContent className='w-44 border-slate-800 bg-slate-900 p-1.5'>
+          <button
+            type='button'
+            onClick={() => {
+              onOpenDetails(signal);
+              onSelectSignal(signal);
+            }}
+            className='flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-slate-200 hover:bg-slate-800'
+          >
+            <Eye className='h-3.5 w-3.5' />
+            View details
+          </button>
+          <button
+            type='button'
+            onClick={() => navigator.clipboard?.writeText(symbol)}
+            className='flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-slate-200 hover:bg-slate-800'
+          >
+            <Copy className='h-3.5 w-3.5' />
+            Copy symbol
+          </button>
+          <button
+            type='button'
+            onClick={() =>
+              navigator.clipboard?.writeText(JSON.stringify(signal, null, 2))
+            }
+            className='flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-slate-200 hover:bg-slate-800'
+          >
+            <Copy className='h-3.5 w-3.5' />
+            Copy payload
+          </button>
+          <button
+            type='button'
+            onClick={() => onToggleReviewed(signal.id)}
+            className='flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-slate-200 hover:bg-slate-800'
+          >
+            <Check className='h-3.5 w-3.5' />
+            {isReviewed ? 'Dismiss review' : 'Mark reviewed'}
+          </button>
+        </PopoverContent>
+      </Popover>
+    </div>
   );
 });
 
@@ -192,7 +223,26 @@ export function RecentSignalsPanel({
   onSelectSignal,
 }: RecentSignalsPanelProps) {
   const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
+  const [selectedSignal, setSelectedSignal] = useState<TradingSignal | null>(
+    null
+  );
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [reviewedIds, setReviewedIds] = useState<string[]>([]);
+  const [page, setPage] = useState(1);
   const { data: signals = [], isLoading } = useTradingSignals(mode);
+  const PAGE_SIZE = 25;
+
+  const openDetails = (signal: TradingSignal) => {
+    setSelectedSignal(signal);
+    setDetailsOpen(true);
+    onSelectSignal(signal);
+  };
+
+  const toggleReviewed = (id: string) => {
+    setReviewedIds((prev) =>
+      prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]
+    );
+  };
 
   const filtered = useMemo(() => {
     switch (activeFilter) {
@@ -217,6 +267,12 @@ export function RecentSignalsPanel({
         return signals;
     }
   }, [signals, activeFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pagedSignals = useMemo(
+    () => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [filtered, page]
+  );
 
   return (
     <div className='tv-card flex h-full min-w-0 flex-col overflow-hidden'>
@@ -259,7 +315,6 @@ export function RecentSignalsPanel({
         ))}
       </div>
 
-      {/* Table */}
       <div className='min-h-0 flex-1 overflow-hidden'>
         <ScrollArea className='h-full'>
           {isLoading ? (
@@ -285,66 +340,127 @@ export function RecentSignalsPanel({
               description='Signals will appear here as soon as they are generated'
             />
           ) : (
-            <Table className='table-dense table-fixed min-w-[640px]'>
-              <TableHeader>
-                <TableRow className='tv-divider border-b hover:bg-transparent'>
-                  <TableHead
-                    className='w-[18%] px-2 py-1.5 text-[9px] uppercase tracking-wider text-slate-600'
-                    style={{ fontFamily: 'var(--font-mono)' }}
-                  >
-                    Time
-                  </TableHead>
-                  <TableHead
-                    className='w-[18%] px-2 py-1.5 text-[9px] uppercase tracking-wider text-slate-600'
-                    style={{ fontFamily: 'var(--font-mono)' }}
-                  >
-                    Signal
-                  </TableHead>
-                  <TableHead
-                    className='w-[16%] px-2 py-1.5 text-[9px] uppercase tracking-wider text-slate-600'
-                    style={{ fontFamily: 'var(--font-mono)' }}
-                  >
-                    Trigger
-                  </TableHead>
-                  <TableHead
-                    className='w-[18%] px-2 py-1.5 text-[9px] uppercase tracking-wider text-slate-600'
-                    style={{ fontFamily: 'var(--font-mono)' }}
-                  >
-                    Status
-                  </TableHead>
-                  <TableHead
-                    className='w-[14%] px-2 py-1.5 text-right text-[9px] uppercase tracking-wider text-slate-600'
-                    style={{ fontFamily: 'var(--font-mono)' }}
-                  >
-                    R:R
-                  </TableHead>
-                  <TableHead
-                    className='w-[16%] px-2 py-1.5 text-right text-[9px] uppercase tracking-wider text-slate-600'
-                    style={{ fontFamily: 'var(--font-mono)' }}
-                  >
-                    PnL
-                  </TableHead>
-                  <TableHead
-                    className='w-[12%] px-2 py-1.5 text-right text-[9px] uppercase tracking-wider text-slate-600'
-                    style={{ fontFamily: 'var(--font-mono)' }}
-                  >
-                    Action
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filtered.map((signal) => (
-                  <SignalRowMemo
-                    key={signal.id}
-                    signal={signal}
-                    onSelectSignal={onSelectSignal}
-                  />
-                ))}
-              </TableBody>
-            </Table>
+            <div className='divide-y divide-slate-800/60'>
+              {pagedSignals.map((signal) => (
+                <SignalRowMemo
+                  key={signal.id}
+                  signal={signal}
+                  isReviewed={reviewedIds.includes(signal.id)}
+                  onToggleReviewed={toggleReviewed}
+                  onOpenDetails={openDetails}
+                  onSelectSignal={onSelectSignal}
+                />
+              ))}
+            </div>
           )}
         </ScrollArea>
       </div>
+
+      {!isLoading && filtered.length > PAGE_SIZE && (
+        <div className='tv-divider flex items-center justify-between border-t px-3 py-2'>
+          <span className='text-[10px] text-slate-500'>
+            Page {page}/{totalPages}
+          </span>
+          <div className='flex items-center gap-1'>
+            <button
+              type='button'
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className='rounded border border-slate-700 px-2 py-0.5 text-[10px] text-slate-300 disabled:opacity-40'
+            >
+              Prev
+            </button>
+            <button
+              type='button'
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              className='rounded border border-slate-700 px-2 py-0.5 text-[10px] text-slate-300 disabled:opacity-40'
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+
+      <Sheet open={detailsOpen} onOpenChange={setDetailsOpen}>
+        <SheetContent
+          side='right'
+          className='border-slate-800 bg-slate-950 p-0'
+        >
+          <SheetHeader className='border-b border-slate-800'>
+            <SheetTitle className='text-slate-100'>Signal details</SheetTitle>
+            <SheetDescription className='text-slate-500'>
+              {selectedSignal
+                ? `${getSymbol(selectedSignal)} · ${selectedSignal.status}`
+                : 'No signal selected'}
+            </SheetDescription>
+          </SheetHeader>
+
+          {selectedSignal && (
+            <div className='space-y-4 p-4 text-xs text-slate-300'>
+              <div className='grid grid-cols-2 gap-3'>
+                <div>
+                  <p className='text-[10px] uppercase text-slate-500'>Symbol</p>
+                  <p className='mt-1 font-mono text-slate-100'>
+                    {getSymbol(selectedSignal)}
+                  </p>
+                </div>
+                <div>
+                  <p className='text-[10px] uppercase text-slate-500'>
+                    Direction
+                  </p>
+                  <p className='mt-1 font-mono text-slate-100'>
+                    {getSide(selectedSignal).toUpperCase()}
+                  </p>
+                </div>
+                <div>
+                  <p className='text-[10px] uppercase text-slate-500'>
+                    Trigger
+                  </p>
+                  <p className='mt-1 font-mono text-slate-100'>
+                    {getTrigger(selectedSignal) ?? EMPTY_VALUE}
+                  </p>
+                </div>
+                <div>
+                  <p className='text-[10px] uppercase text-slate-500'>R:R</p>
+                  <p className='mt-1 font-mono text-slate-100'>
+                    {selectedSignal.rr_ratio
+                      ? `1:${formatNumber(selectedSignal.rr_ratio, {
+                          decimals: 1,
+                        })}`
+                      : EMPTY_VALUE}
+                  </p>
+                </div>
+                <div>
+                  <p className='text-[10px] uppercase text-slate-500'>
+                    Timestamp
+                  </p>
+                  <p className='mt-1 font-mono text-slate-100'>
+                    {new Date(selectedSignal.created_at).toLocaleString()}
+                  </p>
+                </div>
+                <div>
+                  <p className='text-[10px] uppercase text-slate-500'>PnL</p>
+                  <p className='mt-1 font-mono text-slate-100'>
+                    <PnLDisplay pnl={getPnl(selectedSignal)} size='md' />
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <p className='text-[10px] uppercase text-slate-500'>
+                  Rationale
+                </p>
+                <p className='mt-1 leading-5 text-slate-300'>
+                  {selectedSignal.notes ||
+                    selectedSignal.filter_reason ||
+                    EMPTY_VALUE}
+                </p>
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
