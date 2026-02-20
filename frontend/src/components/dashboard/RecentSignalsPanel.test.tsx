@@ -90,9 +90,14 @@ describe('RecentSignalsPanel drawer behavior', () => {
       row?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
 
-    expect(
-      document.querySelector('[data-testid="signal-inspector-drawer"]')
-    ).not.toBeNull();
+    const inspectorDrawer = document.querySelector(
+      '[data-testid="signal-inspector-drawer"]'
+    );
+
+    expect(inspectorDrawer).not.toBeNull();
+    expect(inspectorDrawer?.className).toContain('bg-background');
+    expect(inspectorDrawer?.className).toContain('border-border');
+    expect(inspectorDrawer?.className).not.toContain('bg-zinc-950');
     expect(
       document.querySelector('[data-testid="legacy-signal-details-panel"]')
     ).toBeNull();
