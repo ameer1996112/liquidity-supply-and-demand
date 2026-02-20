@@ -385,11 +385,13 @@ export function RecentSignalsPanel({
       <Sheet open={detailsOpen} onOpenChange={setDetailsOpen}>
         <SheetContent
           side='right'
-          className='border-slate-800 bg-slate-950 p-0'
+          className='w-full border-slate-800 bg-slate-950 p-0 sm:max-w-lg'
         >
-          <SheetHeader className='border-b border-slate-800'>
-            <SheetTitle className='text-slate-100'>Signal details</SheetTitle>
-            <SheetDescription className='text-slate-500'>
+          <SheetHeader className='space-y-2 border-b border-slate-800 px-5 py-4 text-left'>
+            <SheetTitle className='text-base font-semibold text-slate-100'>
+              Signal details
+            </SheetTitle>
+            <SheetDescription className='text-xs text-slate-400'>
               {selectedSignal
                 ? `${getSymbol(selectedSignal)} · ${selectedSignal.status}`
                 : 'No signal selected'}
@@ -397,67 +399,88 @@ export function RecentSignalsPanel({
           </SheetHeader>
 
           {selectedSignal && (
-            <div className='space-y-4 p-4 text-xs text-slate-300'>
-              <div className='grid grid-cols-2 gap-3'>
-                <div>
-                  <p className='text-[10px] uppercase text-slate-500'>Symbol</p>
-                  <p className='mt-1 font-mono text-slate-100'>
-                    {getSymbol(selectedSignal)}
-                  </p>
+            <ScrollArea className='h-[calc(100vh-88px)]'>
+              <div className='space-y-5 px-5 py-4 text-sm text-slate-200'>
+                <div className='rounded-lg border border-slate-800 bg-slate-900/40 p-3'>
+                  <div className='flex flex-wrap items-center justify-between gap-3'>
+                    <div>
+                      <p className='text-[11px] uppercase tracking-wide text-slate-500'>
+                        Instrument
+                      </p>
+                      <p className='mt-1 text-lg font-semibold tracking-wide text-slate-100'>
+                        {getSymbol(selectedSignal)}
+                      </p>
+                    </div>
+                    <div className='flex items-center gap-2'>
+                      <StatusBadge
+                        status={selectedSignal.status}
+                        pnl={getPnl(selectedSignal)}
+                        compact
+                      />
+                      <TriggerBadge signal={selectedSignal} />
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <p className='text-[10px] uppercase text-slate-500'>
-                    Direction
-                  </p>
-                  <p className='mt-1 font-mono text-slate-100'>
-                    {getSide(selectedSignal).toUpperCase()}
-                  </p>
-                </div>
-                <div>
-                  <p className='text-[10px] uppercase text-slate-500'>
-                    Trigger
-                  </p>
-                  <p className='mt-1 font-mono text-slate-100'>
-                    {getTrigger(selectedSignal) ?? EMPTY_VALUE}
-                  </p>
-                </div>
-                <div>
-                  <p className='text-[10px] uppercase text-slate-500'>R:R</p>
-                  <p className='mt-1 font-mono text-slate-100'>
-                    {selectedSignal.rr_ratio
-                      ? `1:${formatNumber(selectedSignal.rr_ratio, {
-                          decimals: 1,
-                        })}`
-                      : EMPTY_VALUE}
-                  </p>
-                </div>
-                <div>
-                  <p className='text-[10px] uppercase text-slate-500'>
-                    Timestamp
-                  </p>
-                  <p className='mt-1 font-mono text-slate-100'>
-                    {new Date(selectedSignal.created_at).toLocaleString()}
-                  </p>
-                </div>
-                <div>
-                  <p className='text-[10px] uppercase text-slate-500'>PnL</p>
-                  <p className='mt-1 font-mono text-slate-100'>
-                    <PnLDisplay pnl={getPnl(selectedSignal)} size='md' />
-                  </p>
-                </div>
-              </div>
 
-              <div>
-                <p className='text-[10px] uppercase text-slate-500'>
-                  Rationale
-                </p>
-                <p className='mt-1 leading-5 text-slate-300'>
-                  {selectedSignal.notes ||
-                    selectedSignal.filter_reason ||
-                    EMPTY_VALUE}
-                </p>
+                <div className='grid grid-cols-2 gap-3'>
+                  <div className='rounded-lg border border-slate-800/90 bg-slate-900/25 p-3'>
+                    <p className='text-[10px] uppercase tracking-wide text-slate-500'>
+                      Direction
+                    </p>
+                    <p className='mt-1 font-mono text-sm text-slate-100'>
+                      {getSide(selectedSignal).toUpperCase()}
+                    </p>
+                  </div>
+                  <div className='rounded-lg border border-slate-800/90 bg-slate-900/25 p-3'>
+                    <p className='text-[10px] uppercase tracking-wide text-slate-500'>
+                      Trigger
+                    </p>
+                    <p className='mt-1 font-mono text-sm text-slate-100'>
+                      {getTrigger(selectedSignal) ?? EMPTY_VALUE}
+                    </p>
+                  </div>
+                  <div className='rounded-lg border border-slate-800/90 bg-slate-900/25 p-3'>
+                    <p className='text-[10px] uppercase tracking-wide text-slate-500'>
+                      Risk:Reward
+                    </p>
+                    <p className='mt-1 font-mono text-sm text-slate-100'>
+                      {selectedSignal.rr_ratio
+                        ? `1:${formatNumber(selectedSignal.rr_ratio, {
+                            decimals: 1,
+                          })}`
+                        : EMPTY_VALUE}
+                    </p>
+                  </div>
+                  <div className='rounded-lg border border-slate-800/90 bg-slate-900/25 p-3'>
+                    <p className='text-[10px] uppercase tracking-wide text-slate-500'>
+                      PnL
+                    </p>
+                    <div className='mt-1 font-mono text-sm text-slate-100'>
+                      <PnLDisplay pnl={getPnl(selectedSignal)} size='md' />
+                    </div>
+                  </div>
+                  <div className='col-span-2 rounded-lg border border-slate-800/90 bg-slate-900/25 p-3'>
+                    <p className='text-[10px] uppercase tracking-wide text-slate-500'>
+                      Timestamp
+                    </p>
+                    <p className='mt-1 font-mono text-sm text-slate-200'>
+                      {new Date(selectedSignal.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+
+                <div className='rounded-lg border border-slate-800 bg-slate-900/25 p-3'>
+                  <p className='text-[10px] uppercase tracking-wide text-slate-500'>
+                    Rationale
+                  </p>
+                  <p className='mt-2 leading-6 text-slate-300'>
+                    {selectedSignal.notes ||
+                      selectedSignal.filter_reason ||
+                      EMPTY_VALUE}
+                  </p>
+                </div>
               </div>
-            </div>
+            </ScrollArea>
           )}
         </SheetContent>
       </Sheet>
