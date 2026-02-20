@@ -7,6 +7,7 @@ export type SignalStatus =
   | 'closed' // Trade completed
   | 'filtered' // Pre-execution filter
   | 'ai_rejected' // AI veto
+  | 'model_error' // ML model unavailable/invalid inference
   | 'executed' // Legacy: filled
   | 'pending' // Awaiting execution
   | 'failed'; // Execution failed
@@ -45,9 +46,22 @@ export interface AIReasoning {
   decision?: string; // "GO" | "NO_GO"
   reason?: string;
   rf_prob?: number; // 0–1 from RF model
+  rf_threshold?: number; // 0-1 effective threshold used by RF gate
   rf_note?: string;
   narrative?: string; // Market narrative from adapters/market_data
   rules?: string[]; // RAG-retrieved rule strings
+  decision_trace?: {
+    rf_probability_raw?: number;
+    rf_probability_pct?: number;
+    threshold_raw?: number;
+    threshold_pct?: number;
+    predicted_class?: string | number;
+    class_mapping?: Record<string, unknown>;
+    features_snapshot?: Record<string, unknown>;
+    rules?: Array<Record<string, unknown>>;
+    rejected_rule?: Record<string, unknown> | null;
+    [key: string]: unknown;
+  };
   // Allow arbitrary additional fields
   [key: string]: unknown;
 }
@@ -136,11 +150,11 @@ export interface SignalStats {
   executed_count: number;
   filtered_count: number;
   failed_count: number;
-  win_rate: number;        // Backwards-compatible overall win rate (defaults to live)
-  live_win_rate?: number;  // Live-only win rate
+  win_rate: number; // Backwards-compatible overall win rate (defaults to live)
+  live_win_rate?: number; // Live-only win rate
   ai_reject_rate: number;
   active_trades: number;
-  total_pnl_24h: number;   // Backwards-compatible PnL (defaults to live)
+  total_pnl_24h: number; // Backwards-compatible PnL (defaults to live)
   live_pnl_24h?: number;
   paper_pnl_24h?: number;
   /** PnL for today only (resets at midnight UTC) - mixed LIVE+PAPER for backward compat */
@@ -181,7 +195,7 @@ export interface RealtimePayload<T> {
 
 // Helper type guards and normalizers
 export function normalizeSignal(
-  raw: Partial<TradingSignal> & { run_mode?: string },
+  raw: Partial<TradingSignal> & { run_mode?: string }
 ): TradingSignal {
   // IMPORTANT: Prioritize run_mode over mode since backend uses run_mode as the canonical field
   const rawMode = (raw as { run_mode?: string }).run_mode ?? raw.mode;

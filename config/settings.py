@@ -80,6 +80,40 @@ class Settings(BaseSettings):
 
     ml_guardian_enabled: bool = Field(default=True, description="Enable ML Guardian.")
     ml_min_confidence: float = Field(default=0.60, ge=0.0, le=1.0, description="Minimum ML win probability (0-1).")
+    ml_use_adaptive_threshold: bool = Field(
+        default=True,
+        description="Use model win-rate aware adaptive RF threshold.",
+    )
+    ml_adaptive_threshold_floor: float = Field(
+        default=0.30,
+        ge=0.0,
+        le=1.0,
+        description="Minimum RF threshold floor after adaptive tuning.",
+    )
+    ml_adaptive_threshold_margin: float = Field(
+        default=0.08,
+        ge=0.0,
+        le=1.0,
+        description="Added margin over model base win-rate when adaptive threshold is enabled.",
+    )
+    ml_flip_threshold_offset: float = Field(
+        default=-0.03,
+        ge=-0.5,
+        le=0.5,
+        description="Threshold offset for FLIP entry model.",
+    )
+    ml_break_candle_threshold_offset: float = Field(
+        default=0.00,
+        ge=-0.5,
+        le=0.5,
+        description="Threshold offset for BREAK_CANDLE entry model.",
+    )
+    ml_dir_close_threshold_offset: float = Field(
+        default=-0.01,
+        ge=-0.5,
+        le=0.5,
+        description="Threshold offset for DIR_CLOSE entry model.",
+    )
 
     trinity_enabled: bool = Field(default=True, description="Enable Trinity Engine.")
     trinity_max_daily_loss_pct: float = Field(default=4.0, ge=0.1, le=10.0)

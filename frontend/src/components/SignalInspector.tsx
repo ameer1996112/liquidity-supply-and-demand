@@ -39,6 +39,8 @@ import {
   FileText,
   Copy,
   CheckCircle2,
+  Bug,
+  AlertTriangle,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -256,6 +258,8 @@ export function SignalInspector({
   open,
   onOpenChange,
 }: SignalInspectorProps) {
+  const [showDebug, setShowDebug] = useState(false);
+
   if (!signal) return null;
 
   const symbol = getSymbol(signal);
@@ -283,6 +287,21 @@ export function SignalInspector({
   const entryPrice = signal.price ?? signal.entry;
   const stopLoss = signal.stop_loss ?? signal.sl;
   const takeProfit = signal.take_profit ?? signal.tp;
+
+  const decisionValue = String(
+    ai?.decision || signal.status || 'unknown'
+  ).toUpperCase();
+  const decisionTrace = ai?.decision_trace;
+  const traceRules = Array.isArray(decisionTrace?.rules)
+    ? decisionTrace?.rules
+    : [];
+  const failingRules = traceRules.filter((rule) => rule?.passed === false);
+  const rejectedRuleMessage =
+    (decisionTrace?.rejected_rule as { message?: string } | undefined)
+      ?.message ||
+    ai?.reason ||
+    notes ||
+    'No explicit rejection reason was provided.';
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -542,43 +561,96 @@ export function SignalInspector({
                           Ensemble Decision
                         </span>
                       </div>
-                      <div className='p-4 space-y-3'>
-                        <div className='flex items-center justify-between'>
-                          <span className='text-[11px] text-muted-foreground uppercase tracking-wider'>
-                            Decision
-                          </span>
+                      <div className='p-4 space-y-4'>
+                        <div className='flex items-start justify-between gap-3'>
+                          <div>
+                            <div className='text-[11px] text-muted-foreground uppercase tracking-wider mb-1'>
+                              Decision Summary
+                            </div>
+                            <div className='text-sm text-foreground/90'>
+                              {decisionValue === 'GO'
+                                ? 'Approved: all active gates passed.'
+                                : decisionValue === 'MODEL_ERROR'
+                                ? `Model error: ${rejectedRuleMessage}`
+                                : `Rejected: ${rejectedRuleMessage}`}
+                            </div>
+                          </div>
                           <span
                             className={cn(
-                              'font-mono text-sm font-bold px-2 py-0.5 rounded',
-                              ai.decision === 'GO' &&
+                              'font-mono text-sm font-bold px-2.5 py-1 rounded',
+                              decisionValue === 'GO' &&
                                 'bg-emerald-500/20 text-emerald-400',
-                              ai.decision === 'NO_GO' &&
+                              decisionValue === 'NO_GO' &&
                                 'bg-rose-500/20 text-rose-400',
-                              !ai.decision ||
-                                (ai.decision !== 'GO' &&
-                                  ai.decision !== 'NO_GO')
-                                ? 'bg-muted text-muted-foreground'
-                                : ''
+                              decisionValue === 'MODEL_ERROR' &&
+                                'bg-amber-500/20 text-amber-400',
+                              !['GO', 'NO_GO', 'MODEL_ERROR'].includes(
+                                decisionValue
+                              ) && 'bg-muted text-muted-foreground'
                             )}
                           >
-                            {(ai.decision ?? signal.status ?? 'unknown')
-                              .toString()
-                              .toUpperCase()}
+                            {decisionValue}
                           </span>
                         </div>
 
-                        {/* RF / AI confidence bar (reuses main score) */}
-                        {score !== null && (
-                          <ScoreBar
-                            label='AI Confidence'
-                            value={score}
-                            icon={<Gauge className='w-3 h-3' />}
-                          />
-                        )}
+                        {decisionTrace?.rf_probability_pct != null &&
+                          decisionTrace?.threshold_pct != null && (
+                            <div className='text-xs text-muted-foreground'>
+                              RF Gate:{' '}
+                              {formatNum(decisionTrace.rf_probability_pct, 1)}%
+                              {' vs '}
+                              {formatNum(decisionTrace.threshold_pct, 1)}%
+                              threshold
+                            </div>
+                          )}
 
-                        {ai.reason && (
-                          <div className='text-sm text-foreground/90 leading-relaxed'>
-                            {ai.reason}
+                        {traceRules.length > 0 && (
+                          <div className='space-y-2'>
+                            <div className='text-[11px] text-muted-foreground uppercase tracking-wider'>
+                              Decision Breakdown
+                            </div>
+                            {(decisionValue === 'NO_GO' &&
+                            failingRules.length > 0
+                              ? failingRules
+                              : traceRules
+                            ).map((rule, idx) => {
+                              const passed = rule?.passed === true;
+                              return (
+                                // eslint-disable-next-line react/no-array-index-key
+                                <div
+                                  key={`${String(
+                                    rule?.rule_id || 'rule'
+                                  )}-${idx}`}
+                                  className={cn(
+                                    'text-xs rounded border px-2.5 py-2 flex items-start justify-between gap-3',
+                                    passed
+                                      ? 'border-emerald-500/20 bg-emerald-500/5'
+                                      : 'border-rose-500/20 bg-rose-500/5'
+                                  )}
+                                >
+                                  <div>
+                                    <div className='font-mono text-foreground/90'>
+                                      {String(rule?.rule_id || 'rule')}
+                                    </div>
+                                    {rule?.message && (
+                                      <div className='text-muted-foreground mt-0.5'>
+                                        {String(rule.message)}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div
+                                    className={cn(
+                                      'text-[10px] font-semibold uppercase',
+                                      passed
+                                        ? 'text-emerald-400'
+                                        : 'text-rose-400'
+                                    )}
+                                  >
+                                    {passed ? 'pass' : 'fail'}
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
 
@@ -602,6 +674,36 @@ export function SignalInspector({
                                 <li key={idx}>{String(rule)}</li>
                               ))}
                             </ul>
+                          </div>
+                        )}
+
+                        <button
+                          type='button'
+                          onClick={() => setShowDebug((v) => !v)}
+                          className='inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors'
+                        >
+                          <Bug className='w-3.5 h-3.5' />
+                          {showDebug ? 'Hide Debug' : 'Show Debug'}
+                        </button>
+
+                        {showDebug && (
+                          <div className='space-y-2 rounded border border-border bg-background/50 p-3'>
+                            <div className='inline-flex items-center gap-1.5 text-[11px] uppercase tracking-wider text-amber-400'>
+                              <AlertTriangle className='w-3 h-3' />
+                              Debug View (Dev)
+                            </div>
+                            <JsonViewer
+                              data={{
+                                rf_prob: ai.rf_prob,
+                                rf_threshold: ai.rf_threshold,
+                                decision_trace: ai.decision_trace,
+                              }}
+                              title='Model Output'
+                            />
+                            <JsonViewer
+                              data={ai.decision_trace?.features_snapshot || {}}
+                              title='Feature Snapshot'
+                            />
                           </div>
                         )}
                       </div>

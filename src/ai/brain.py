@@ -148,8 +148,127 @@ AI_MODEL = None
 AI_ENCODERS = None
 AI_SCALER = None  # ✅ v5.1: StandardScaler for feature normalization (not used with LightGBM v3)
 AI_MODEL_TYPE = None  # "lightgbm" or "sklearn"
+AI_MODEL_METADATA: Dict[str, Any] = {}
 _RAG_ENGINE: Optional[RagEngine] = None
 _LLM_CLIENT: Optional[OpenAI] = None
+
+
+def _safe_float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _normalize_probability(value: Any) -> float:
+    """Normalize probabilities to [0, 1], accepting either 0-1 or 0-100 inputs."""
+    v = _safe_float(value, 0.0)
+    if v > 1.0:
+        v = v / 100.0
+    return max(0.0, min(1.0, v))
+
+
+def _resolve_positive_class_index(model: Any) -> tuple[int, Dict[str, Any]]:
+    """Resolve the probability column representing a positive/winning outcome."""
+    classes = list(getattr(model, "classes_", []) or [])
+    class_mapping = {
+        "classes": classes,
+        "positive_class": None,
+        "positive_index": 1,
+        "resolution": "default_index_1",
+    }
+
+    if not classes:
+        return 1, class_mapping
+
+    # Most sklearn binary models are [0, 1] where 1=positive class.
+    if 1 in classes:
+        idx = classes.index(1)
+        class_mapping.update({
+            "positive_class": 1,
+            "positive_index": idx,
+            "resolution": "numeric_class_1",
+        })
+        return idx, class_mapping
+
+    lower_map = {str(c).strip().lower(): i for i, c in enumerate(classes)}
+    for candidate in ("win", "good", "go", "approved", "true"):
+        if candidate in lower_map:
+            idx = lower_map[candidate]
+            class_mapping.update({
+                "positive_class": classes[idx],
+                "positive_index": idx,
+                "resolution": f"label_{candidate}",
+            })
+            return idx, class_mapping
+
+    idx = min(1, len(classes) - 1)
+    class_mapping.update({
+        "positive_class": classes[idx],
+        "positive_index": idx,
+        "resolution": "fallback_second_class",
+    })
+    return idx, class_mapping
+
+
+def _compute_dynamic_rf_threshold(payload: Dict[str, Any], settings) -> tuple[float, Dict[str, Any]]:
+    """Compute effective RF threshold with adaptive baseline + entry-model offsets."""
+    base_threshold = _normalize_probability(getattr(settings, "ml_min_confidence", 0.60))
+
+    # Adaptive baseline: respect configured threshold cap but avoid unrealistic thresholds
+    # for low-base-rate models.
+    model_win_rate = _safe_float(AI_MODEL_METADATA.get("win_rate"), -1.0)
+    adaptive_floor = _normalize_probability(getattr(settings, "ml_adaptive_threshold_floor", 0.30))
+    adaptive_margin = _normalize_probability(getattr(settings, "ml_adaptive_threshold_margin", 0.08))
+    use_adaptive = bool(getattr(settings, "ml_use_adaptive_threshold", True))
+
+    adaptive_threshold = base_threshold
+    if use_adaptive and 0.0 <= model_win_rate <= 1.0:
+        adaptive_threshold = min(base_threshold, max(adaptive_floor, model_win_rate + adaptive_margin))
+
+    zone_score = _safe_float(payload.get("score"), 0.0)
+    zone_grade = str(payload.get("zone_grade", "")).strip().upper()
+    entry_model = str(payload.get("entry_model", "")).strip().upper()
+
+    grade_adjustments = {
+        "A+": -0.05, "A": -0.04,
+        "B+": -0.03, "B": -0.02,
+        "C+": -0.01, "C": 0.00,
+        "D": 0.00, "F": 0.00,
+    }
+    grade_adj = grade_adjustments.get(zone_grade, 0.00)
+
+    if zone_score >= 80:
+        score_adj = -0.03
+    elif zone_score >= 70:
+        score_adj = -0.02
+    elif zone_score >= 60:
+        score_adj = -0.01
+    else:
+        score_adj = 0.00
+
+    entry_model_offsets = {
+        "FLIP": _safe_float(getattr(settings, "ml_flip_threshold_offset", -0.03), -0.03),
+        "BREAK_CANDLE": _safe_float(getattr(settings, "ml_break_candle_threshold_offset", 0.0), 0.0),
+        "DIR_CLOSE": _safe_float(getattr(settings, "ml_dir_close_threshold_offset", -0.01), -0.01),
+    }
+    entry_model_adj = entry_model_offsets.get(entry_model, 0.0)
+
+    threshold = adaptive_threshold + grade_adj + score_adj + entry_model_adj
+    threshold = max(adaptive_floor, min(0.95, threshold))
+
+    meta = {
+        "base_threshold": base_threshold,
+        "adaptive_threshold": adaptive_threshold,
+        "model_win_rate": model_win_rate if 0.0 <= model_win_rate <= 1.0 else None,
+        "use_adaptive_threshold": use_adaptive,
+        "grade_adj": grade_adj,
+        "score_adj": score_adj,
+        "entry_model": entry_model,
+        "entry_model_adj": entry_model_adj,
+        "final_threshold": threshold,
+    }
+    return threshold, meta
 
 
 def _load_feature_names_from_metadata(path: Path, key: str) -> List[str]:
@@ -303,6 +422,39 @@ def _align_features_for_inference(
     return df, dropped_cols, missing_cols
 
 
+def _load_model_metadata_for_current_model() -> Dict[str, Any]:
+    """Best-effort metadata load for the currently selected model version."""
+    candidates: list[Path] = []
+    if AI_MODEL_TYPE in {"lightgbm_native", "lightgbm"}:
+        candidates.append(_ROOT / "ml" / "model_metadata_v3.json")
+    if AI_MODEL_TYPE == "sklearn":
+        candidates.extend([
+            _ROOT / "ml" / "model_metadata_v2.json",
+            _ROOT / "ml" / "model_metadata.json",
+        ])
+    # Fallback order
+    candidates.extend([
+        _ROOT / "ml" / "model_metadata_v3.json",
+        _ROOT / "ml" / "model_metadata_v2.json",
+        _ROOT / "ml" / "model_metadata.json",
+    ])
+
+    seen: set[str] = set()
+    for path in candidates:
+        key = str(path)
+        if key in seen or not path.exists():
+            continue
+        seen.add(key)
+        try:
+            with open(path, "r") as f:
+                meta = json.load(f)
+            logger.info("Loaded model metadata: %s", path.name)
+            return meta if isinstance(meta, dict) else {}
+        except Exception as e:
+            logger.warning("Failed loading metadata %s: %s", path.name, e)
+    return {}
+
+
 def load_brain() -> None:
     """
     Load ML model, encoders, and scaler once at startup.
@@ -312,7 +464,7 @@ def load_brain() -> None:
     2. v2 RandomForest (legacy, high memory)
     3. v1 legacy models
     """
-    global AI_MODEL, AI_ENCODERS, AI_SCALER, AI_MODEL_TYPE
+    global AI_MODEL, AI_ENCODERS, AI_SCALER, AI_MODEL_TYPE, AI_MODEL_METADATA
 
     try:
         # Try v3 LightGBM first (preferred)
@@ -341,6 +493,7 @@ def load_brain() -> None:
 
                 # v3 doesn't use StandardScaler (LightGBM handles raw features)
                 AI_SCALER = None
+                AI_MODEL_METADATA = _load_model_metadata_for_current_model()
                 logger.info("🚀 Brain v3 online (LightGBM, 10x faster, 90%% less RAM)")
                 return
 
@@ -369,6 +522,8 @@ def load_brain() -> None:
                 with open(SCALER_V2_PATH, "rb") as f:
                     AI_SCALER = pickle.load(f)
 
+            AI_MODEL_METADATA = _load_model_metadata_for_current_model()
+
             logger.info(
                 "✅ Brain v2 online (RandomForest). "
                 "💡 Upgrade to v3 for 10x faster: python ml/train_ai_guardian_v3_lightgbm.py"
@@ -390,6 +545,8 @@ def load_brain() -> None:
                 with open(SCALER_PATH, "rb") as f:
                     scaler_data = pickle.load(f)
                     AI_SCALER = scaler_data.get('scaler') if isinstance(scaler_data, dict) else scaler_data
+
+            AI_MODEL_METADATA = _load_model_metadata_for_current_model()
 
             logger.info(
                 "✅ Brain v1 online (legacy). "
@@ -459,20 +616,49 @@ def get_prediction(payload: Dict[str, Any]) -> Tuple[float, str, Dict[str, Any]]
                 len(missing_cols),
             )
 
+        # Fail loudly on invalid values instead of silently producing bad probabilities.
+        invalid_cols: list[str] = []
+        for col in df.columns:
+            val = df.iloc[0][col]
+            if not isinstance(val, (int, float, np.floating, np.integer)):
+                invalid_cols.append(str(col))
+                continue
+            if not np.isfinite(float(val)):
+                invalid_cols.append(str(col))
+        if invalid_cols:
+            raise ValueError(f"Invalid feature values (NaN/Inf/non-numeric): {invalid_cols[:10]}")
+
+        class_mapping: Dict[str, Any] = {
+            "classes": None,
+            "positive_class": 1,
+            "positive_index": 1,
+            "resolution": "default_index_1",
+        }
+
         # Different prediction logic based on model type
         if AI_MODEL_TYPE == "lightgbm_native":
             # LightGBM native Booster.predict() returns raw scores
             # No scaling needed - LightGBM handles raw features
             prob = float(AI_MODEL.predict(df.values)[0])
+            prob = _normalize_probability(prob)
+            class_mapping = {
+                "classes": [0, 1],
+                "positive_class": 1,
+                "positive_index": 1,
+                "resolution": "lightgbm_native_default",
+            }
             logger.debug(f"Prediction for {symbol}: {prob:.2%} (LightGBM native)")
 
         elif AI_MODEL_TYPE == "lightgbm":
             # LightGBM sklearn wrapper
             # No scaling needed - LightGBM handles raw features
-            prob = float(AI_MODEL.predict_proba(df)[0][1])
+            positive_idx, class_mapping = _resolve_positive_class_index(AI_MODEL)
+            prob = float(AI_MODEL.predict_proba(df)[0][positive_idx])
+            prob = _normalize_probability(prob)
             logger.debug(f"Prediction for {symbol}: {prob:.2%} (LightGBM sklearn)")
 
         elif AI_MODEL_TYPE == "sklearn":
+            positive_idx, class_mapping = _resolve_positive_class_index(AI_MODEL)
             # RandomForest v2 - use scaling if available
             if AI_SCALER is not None:
                 # Identify categorical vs numerical columns
@@ -484,17 +670,25 @@ def get_prediction(payload: Dict[str, Any]) -> Tuple[float, str, Dict[str, Any]]
                 if numerical_cols:
                     df_scaled[numerical_cols] = AI_SCALER.transform(df[numerical_cols])
 
-                prob = float(AI_MODEL.predict_proba(df_scaled)[0][1])
+                prob = float(AI_MODEL.predict_proba(df_scaled)[0][positive_idx])
+                prob = _normalize_probability(prob)
                 logger.debug(f"Prediction for {symbol}: {prob:.2%} (RandomForest WITH scaling)")
             else:
                 # No scaling (legacy behavior)
-                prob = float(AI_MODEL.predict_proba(df)[0][1])
+                prob = float(AI_MODEL.predict_proba(df)[0][positive_idx])
+                prob = _normalize_probability(prob)
                 logger.debug(f"Prediction for {symbol}: {prob:.2%} (RandomForest NO scaling)")
         else:
             # Unknown model type - try sklearn API
-            prob = float(AI_MODEL.predict_proba(df)[0][1])
+            positive_idx, class_mapping = _resolve_positive_class_index(AI_MODEL)
+            prob = float(AI_MODEL.predict_proba(df)[0][positive_idx])
+            prob = _normalize_probability(prob)
             logger.warning(f"Unknown model type: {AI_MODEL_TYPE}, using sklearn API")
 
+        # Attach decision-trace metadata to features payload for downstream persistence.
+        features["_trace_class_mapping"] = class_mapping
+        features["_trace_feature_spec_source"] = spec_source
+        features["_trace_model_type"] = AI_MODEL_TYPE
         return prob, f"AI Confidence: {prob:.1%}", features
 
     except Exception as e:
@@ -562,6 +756,38 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
     # Step 1: RF model – always run, but don't return early so we can still
     # observe RAG and market narrative even when RF is skeptical.
     rf_prob, rf_note, features = get_prediction(payload)
+    rf_prob = _normalize_probability(rf_prob)
+    threshold, threshold_meta = _compute_dynamic_rf_threshold(payload, settings)
+
+    class_mapping = {}
+    if isinstance(features, dict):
+        class_mapping = features.get("_trace_class_mapping", {}) or {}
+
+    feature_snapshot: Dict[str, Any] = {}
+    if isinstance(features, dict):
+        numeric_items = [
+            (k, float(v))
+            for k, v in features.items()
+            if not str(k).startswith("_trace_") and isinstance(v, (int, float, np.floating, np.integer))
+        ]
+        numeric_items.sort(key=lambda kv: abs(kv[1]), reverse=True)
+        feature_snapshot = {k: round(v, 6) for k, v in numeric_items[:10]}
+
+    decision_trace: Dict[str, Any] = {
+        "rf_probability_raw": rf_prob,
+        "rf_probability_pct": round(rf_prob * 100.0, 2),
+        "threshold_raw": threshold,
+        "threshold_pct": round(threshold * 100.0, 2),
+        "predicted_class": class_mapping.get("positive_class", 1),
+        "class_mapping": class_mapping,
+        "feature_spec_source": (features or {}).get("_trace_feature_spec_source") if isinstance(features, dict) else None,
+        "model_type": (features or {}).get("_trace_model_type") if isinstance(features, dict) else AI_MODEL_TYPE,
+        "model_win_rate": AI_MODEL_METADATA.get("win_rate") if isinstance(AI_MODEL_METADATA, dict) else None,
+        "threshold_meta": threshold_meta,
+        "features_snapshot": feature_snapshot,
+        "rules": [],
+        "rejected_rule": None,
+    }
     result: Dict[str, Any] = {
         "decision": "NO_GO",
         "reason": "",
@@ -571,6 +797,8 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
         "rules": [],
         "llm_raw": None,
         "features": features,
+        "decision_trace": decision_trace,
+        "rf_threshold": threshold,
     }
 
     symbol = payload.get("symbol", "UNKNOWN")
@@ -622,54 +850,74 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
     # Step 4: Late RF rejection - after we have narrative & RAG context
     # Log feature values for debugging (helps verify Pine Script data)
     if features:
-        _nonzero = {k: round(v, 3) for k, v in features.items() if v != 0.0}
-        _zero_keys = [k for k, v in features.items() if v == 0.0]
+        _nonzero = {
+            k: round(float(v), 3)
+            for k, v in features.items()
+            if isinstance(v, (int, float, np.floating, np.integer)) and float(v) != 0.0
+        }
+        _zero_keys = [
+            k
+            for k, v in features.items()
+            if isinstance(v, (int, float, np.floating, np.integer)) and float(v) == 0.0
+        ]
         logger.info(
             "RF features for %s: non-zero=%s | zero_keys=%s",
             symbol, _nonzero, _zero_keys,
         )
 
-    # ✅ Dynamic threshold: Lower threshold for high-quality zones
-    # This allows strong setups to pass even if RF is slightly skeptical
-    base_threshold = getattr(settings, "ml_min_confidence", 0.60)
-    zone_score = float(payload.get("score", 0))
-    zone_grade = payload.get("zone_grade", "")
-
-    # Grade multipliers: A+ = -0.05, A = -0.04, B+ = -0.03, B = -0.02, C+ = -0.01, C/lower = 0
-    grade_adjustments = {
-        "A+": -0.05, "A": -0.04,
-        "B+": -0.03, "B": -0.02,
-        "C+": -0.01, "C": 0.00,
-        "D": 0.00, "F": 0.00
-    }
-    grade_adj = grade_adjustments.get(zone_grade, 0.00)
-
-    # Score bonus: 80+ = -0.03, 70-80 = -0.02, 60-70 = -0.01
-    if zone_score >= 80:
-        score_adj = -0.03
-    elif zone_score >= 70:
-        score_adj = -0.02
-    elif zone_score >= 60:
-        score_adj = -0.01
-    else:
-        score_adj = 0.00
-
-    # Combine adjustments (max -0.08 reduction for perfect zones)
-    rf_threshold = max(0.50, base_threshold + grade_adj + score_adj)
-
     logger.debug(
-        f"RF threshold for {symbol}: base={base_threshold:.0%}, "
-        f"grade_adj={grade_adj:+.0%} ({zone_grade}), score_adj={score_adj:+.0%} ({zone_score:.0f}), "
-        f"final={rf_threshold:.0%}"
+        "RF threshold for %s: base=%.0f%% adaptive=%.0f%% grade_adj=%+.0f%% score_adj=%+.0f%% entry_adj=%+.0f%% final=%.0f%%",
+        symbol,
+        threshold_meta.get("base_threshold", 0.0) * 100,
+        threshold_meta.get("adaptive_threshold", 0.0) * 100,
+        threshold_meta.get("grade_adj", 0.0) * 100,
+        threshold_meta.get("score_adj", 0.0) * 100,
+        threshold_meta.get("entry_model_adj", 0.0) * 100,
+        threshold * 100,
     )
-    if rf_prob < rf_threshold:
-        # When RF returns 0.5, it's usually model missing or prediction error – show real cause
-        if rf_prob == 0.5 and ("Disabled" in rf_note or "Error" in rf_note):
-            result["reason"] = rf_note
-        else:
-            result["reason"] = (
-                f"RF probability {rf_prob:.1%} below {rf_threshold:.0%} threshold."
-            )
+
+    # Rule: model health
+    model_error = ("Disabled" in rf_note) or ("AI Error" in rf_note)
+    decision_trace["rules"].append({
+        "rule_id": "model_health",
+        "passed": not model_error,
+        "message": rf_note if model_error else "Model inference healthy",
+    })
+    if model_error:
+        result["decision"] = "MODEL_ERROR"
+        result["reason"] = rf_note
+        decision_trace["rejected_rule"] = {"rule_id": "model_health", "message": rf_note}
+        _log_brain_decision(symbol, result)
+        return result
+
+    # Rule: RF threshold gate
+    rf_pass = rf_prob >= threshold
+    rf_rule_message = (
+        f"RF probability {rf_prob:.1%} {'>=' if rf_pass else '<'} {threshold:.0%} threshold"
+    )
+    decision_trace["rules"].append({
+        "rule_id": "rf_threshold",
+        "passed": rf_pass,
+        "value_raw": rf_prob,
+        "value_pct": round(rf_prob * 100.0, 2),
+        "threshold_raw": threshold,
+        "threshold_pct": round(threshold * 100.0, 2),
+        "message": rf_rule_message,
+    })
+
+    # Rule: entry model visibility (required for explainability)
+    entry_model = str(payload.get("entry_model", "")).strip().upper()
+    entry_model_present = bool(entry_model)
+    decision_trace["rules"].append({
+        "rule_id": "entry_model_present",
+        "passed": entry_model_present,
+        "value": entry_model or None,
+        "message": "Entry model provided" if entry_model_present else "Entry model missing",
+    })
+
+    if not rf_pass:
+        result["reason"] = rf_rule_message + "."
+        decision_trace["rejected_rule"] = {"rule_id": "rf_threshold", "message": rf_rule_message}
         _log_brain_decision(symbol, result)
         return result
 
@@ -677,6 +925,11 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
     if not getattr(settings, "enable_llm_filter", True):
         result["decision"] = "GO"
         result["reason"] = "RF pass and LLM filter disabled."
+        decision_trace["rules"].append({
+            "rule_id": "llm_filter",
+            "passed": True,
+            "message": "LLM filter disabled",
+        })
         _log_brain_decision(symbol, result)
         return result
 
@@ -685,6 +938,11 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
     if client is None:
         result["decision"] = "GO"
         result["reason"] = "RF pass; LLM unavailable, defaulting to GO."
+        decision_trace["rules"].append({
+            "rule_id": "llm_availability",
+            "passed": True,
+            "message": "LLM unavailable; fail-open after RF pass",
+        })
         _log_brain_decision(symbol, result)
         return result
 
@@ -727,14 +985,30 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
         if decision == "GO":
             result["decision"] = "GO"
             result["reason"] = reason or "LLM approved trade."
+            decision_trace["rules"].append({
+                "rule_id": "llm_decision",
+                "passed": True,
+                "message": result["reason"],
+            })
         else:
             result["decision"] = "NO_GO"
             result["reason"] = reason or "LLM rejected trade."
+            decision_trace["rules"].append({
+                "rule_id": "llm_decision",
+                "passed": False,
+                "message": result["reason"],
+            })
+            decision_trace["rejected_rule"] = {"rule_id": "llm_decision", "message": result["reason"]}
     except Exception as e:
         logger.error("LLM ensemble decision failed: %s", e)
         # Fail-open: RF already passed, so if LLM is down we allow the trade
         result["decision"] = "GO"
         result["reason"] = f"RF pass; LLM error (fail-open): {str(e)[:60]}"
+        decision_trace["rules"].append({
+            "rule_id": "llm_error",
+            "passed": True,
+            "message": result["reason"],
+        })
 
     _log_brain_decision(symbol, result)
     return result
@@ -747,9 +1021,11 @@ def _log_brain_decision(symbol: str, result: Dict[str, Any]) -> None:
         meta = {
             "decision": result.get("decision", ""),
             "rf_prob": result.get("rf_prob"),
+            "rf_threshold": result.get("rf_threshold"),
             "reason": (result.get("reason") or "")[:300],
             "symbol": symbol,
             "num_rules": len(result.get("rules") or []),
+            "decision_trace": result.get("decision_trace"),
         }
         log_event(None, "brain_prediction", "brain", meta)
     except Exception:

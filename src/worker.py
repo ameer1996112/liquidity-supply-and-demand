@@ -971,21 +971,33 @@ def process_trade(payload: Dict[str, Any]):
     decision = str(ai_result.get("decision", "NO_GO")).upper()
     shadow_mode = bool(getattr(s, "run_shadow_mode", False))
 
-    if decision == "NO_GO":
+    if decision in {"NO_GO", "MODEL_ERROR"}:
         if shadow_mode:
-            logger.warning("SHADOW MODE: Executing trade despite AI rejection.")
+            logger.warning("SHADOW MODE: Executing trade despite AI decision=%s.", decision)
         else:
             reason = ai_result.get("reason", "AI ensemble rejected trade.")
+            status = "ai_rejected" if decision == "NO_GO" else "model_error"
             save_result(
                 payload,
-                "ai_rejected",
+                status,
                 reason,
                 float(ai_result.get("rf_prob", 0.0)),
                 ai_reasoning=ai_result,
                 account_name=account_name,
             )
-            log_event(None, "ai_rejected", "worker", {"symbol": symbol, "reason": reason[:200]})
-            log_guard_decision("ai_ensemble", "rejected", reason, symbol, {"rf_prob": ai_result.get("rf_prob")})
+            log_event(
+                None,
+                "ai_rejected" if decision == "NO_GO" else "model_error",
+                "worker",
+                {"symbol": symbol, "reason": reason[:200]},
+            )
+            log_guard_decision(
+                "ai_ensemble",
+                "rejected" if decision == "NO_GO" else "model_error",
+                reason,
+                symbol,
+                {"rf_prob": ai_result.get("rf_prob"), "decision": decision},
+            )
             return
 
     log_event(None, "ai_approved", "worker", {"symbol": symbol, "rf_prob": ai_result.get("rf_prob")})
