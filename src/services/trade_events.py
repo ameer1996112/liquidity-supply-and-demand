@@ -22,7 +22,11 @@ def _get_client():
         from supabase import create_client
 
         s = get_settings()
-        key = (s.supabase_service_role_key or s.supabase_key or "").strip().strip('"\'')
+        raw_key = s.supabase_service_role_key or s.supabase_key or ""
+        key = raw_key.strip().strip('"\'').strip()
+        if key.upper().startswith("SUPA") and "=" in key[:50]:
+            key = key.split("=", 1)[-1].strip().strip('"\'').strip()
+            
         if s.supabase_url and key:
             _supabase = create_client(s.supabase_url, key)
     except Exception as exc:

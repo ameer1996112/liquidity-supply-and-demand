@@ -95,8 +95,13 @@ def init_connections():
     r = get_redis()
     s = get_settings()
     settings = s  # Store in global for use in save_result
-    key = (s.supabase_service_role_key or s.supabase_key).strip().strip('"\'')
+    raw_key = s.supabase_service_role_key or s.supabase_key or ""
+    key = raw_key.strip().strip('"\'').strip()
+    if key.upper().startswith("SUPA") and "=" in key[:50]:
+        key = key.split("=", 1)[-1].strip().strip('"\'').strip()
+        
     if s.supabase_url and key:
+        logger.info(f"Supabase Auth Initializing | Key Length: {len(key)} | Prefix: '{key[:10]}'")
         from supabase import create_client
         supabase = create_client(s.supabase_url, key)
         logger.info("Supabase connected")

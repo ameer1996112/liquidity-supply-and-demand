@@ -139,7 +139,11 @@ class RagEngine:
         """Factory that builds RagEngine from config Settings."""
         s = get_settings()
         url = s.supabase_url
-        key = (s.supabase_service_role_key or s.supabase_key).strip().strip('"\'')
+        raw_key = s.supabase_service_role_key or s.supabase_key or ""
+        key = raw_key.strip().strip('"\'').strip()
+        if key.upper().startswith("SUPA") and "=" in key[:50]:
+            key = key.split("=", 1)[-1].strip().strip('"\'').strip()
+            
         if not url or not key:
             raise RuntimeError("Supabase URL/key missing in settings.")
 

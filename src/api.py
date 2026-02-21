@@ -98,7 +98,11 @@ def _fail_fast_config():
         from src.services.background_sync_worker import initialize_background_worker
 
         # Get supabase client
-        key = (settings.supabase_service_role_key or settings.supabase_key or "").strip().strip('"\'')
+        raw_key = settings.supabase_service_role_key or settings.supabase_key or ""
+        key = raw_key.strip().strip('"\'').strip()
+        if key.upper().startswith("SUPA") and "=" in key[:50]:
+            key = key.split("=", 1)[-1].strip().strip('"\'').strip()
+            
         if settings.supabase_url and key:
             sb_client = create_client(settings.supabase_url, key)
 
