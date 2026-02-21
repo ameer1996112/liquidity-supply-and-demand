@@ -95,7 +95,7 @@ def init_connections():
     r = get_redis()
     s = get_settings()
     settings = s  # Store in global for use in save_result
-    key = (s.supabase_service_role_key or s.supabase_key).strip()
+    key = (s.supabase_service_role_key or s.supabase_key).strip().strip('"\'')
     if s.supabase_url and key:
         from supabase import create_client
         supabase = create_client(s.supabase_url, key)

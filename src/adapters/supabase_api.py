@@ -36,7 +36,7 @@ def get_api_supabase():
     from fastapi import HTTPException
 
     s = get_settings()
-    key = (s.supabase_service_role_key or s.supabase_key or "").strip()
+    key = (s.supabase_service_role_key or s.supabase_key or "").strip().strip('"\'')
     if not s.supabase_url or not key:
         raise HTTPException(status_code=503, detail="Supabase not configured")
 

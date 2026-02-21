@@ -37,8 +37,8 @@ def init_supabase() -> Client:
     global supabase, SUPABASE_URL, SUPABASE_KEY
 
     # Forcefully re-read from environment at init time to bypass any early-binding issues
-    url = os.environ.get('SUPABASE_URL') or SUPABASE_URL
-    key = os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or os.environ.get('SUPABASE_ANON_KEY') or os.environ.get('SUPABASE_KEY') or SUPABASE_KEY
+    url = (os.environ.get('SUPABASE_URL') or SUPABASE_URL or "").strip('"\'')
+    key = (os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or os.environ.get('SUPABASE_ANON_KEY') or os.environ.get('SUPABASE_KEY') or SUPABASE_KEY or "").strip('"\'')
     
     if not url or not key:
         raise ValueError("SUPABASE_URL and SUPABASE_KEY (or ANON_KEY/SERVICE_ROLE_KEY) must be set in environment variables")

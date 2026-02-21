@@ -30,7 +30,7 @@ def get_active_profiles() -> List[Dict[str, Any]]:
     # 1) Try DB table broker_profiles
     try:
         from supabase import create_client
-        key = (s.supabase_service_role_key or s.supabase_key or "").strip()
+        key = (s.supabase_service_role_key or s.supabase_key or "").strip().strip('"\'')
         if s.supabase_url and key:
             client = create_client(s.supabase_url, key)
             r = (
