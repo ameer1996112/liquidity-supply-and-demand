@@ -34,7 +34,7 @@ supabase: Optional[Client] = None
 
 def init_supabase() -> Client:
     """Initialize Supabase client"""
-    global supabase
+    global supabase, SUPABASE_URL, SUPABASE_KEY
 
     if not SUPABASE_URL or not SUPABASE_KEY:
         # Try fetching again during init in case env was loaded late
@@ -44,7 +44,6 @@ def init_supabase() -> Client:
         if not url or not key:
             raise ValueError("SUPABASE_URL and SUPABASE_KEY (or ANON_KEY/SERVICE_ROLE_KEY) must be set in environment variables")
             
-        global SUPABASE_URL, SUPABASE_KEY
         SUPABASE_URL = url
         SUPABASE_KEY = key
 
