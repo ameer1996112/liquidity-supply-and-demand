@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 # Supabase credentials
 SUPABASE_URL = os.getenv('SUPABASE_URL')
-SUPABASE_KEY = os.getenv('SUPABASE_ANON_KEY')
+SUPABASE_KEY = os.getenv('SUPABASE_KEY') or os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_ANON_KEY')
 
 # Initialize Supabase client
 supabase: Optional[Client] = None
@@ -37,7 +37,16 @@ def init_supabase() -> Client:
     global supabase
 
     if not SUPABASE_URL or not SUPABASE_KEY:
-        raise ValueError("SUPABASE_URL and SUPABASE_ANON_KEY must be set in environment variables")
+        # Try fetching again during init in case env was loaded late
+        url = os.getenv('SUPABASE_URL', SUPABASE_URL)
+        key = os.getenv('SUPABASE_KEY') or os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_ANON_KEY') or SUPABASE_KEY
+        
+        if not url or not key:
+            raise ValueError("SUPABASE_URL and SUPABASE_KEY (or ANON_KEY/SERVICE_ROLE_KEY) must be set in environment variables")
+            
+        global SUPABASE_URL, SUPABASE_KEY
+        SUPABASE_URL = url
+        SUPABASE_KEY = key
 
     try:
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)

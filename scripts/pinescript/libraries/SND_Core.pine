@@ -197,13 +197,14 @@ export calculate_zone_score(bool isDemand, float top, float bottom, int baseIdx,
         score += 10
 
     // 5. TIME & FRESHNESS (20 pts)
-    // Bonus for high volatility sessions (London/NY)
+    // Bonus for high volatility sessions (London/NY) + JPY volume (Asian)
     // Use baseIdx to ensure it's referenced (multiply by 0 to not affect result)
     int zoneHour = hour(zone_time, "UTC")
     bool isLondon = zoneHour >= 7 and zoneHour <= 10
     bool isNY = zoneHour >= 13 and zoneHour <= 16
+    bool isAsian = zoneHour >= 0 and zoneHour <= 6
 
-    if isLondon or isNY
+    if isLondon or isNY or isAsian
         score += 10
     else
         score += 5
@@ -247,7 +248,7 @@ export calculate_ai_quality_score(Zone z, bool isDemand, float feature_rvol, int
     if feature_session == 2 or feature_session == 3  // London (2) or NY (3)
         quality_score += 12.0
     else if feature_session == 1 // Asian
-        quality_score += 5.0
+        quality_score += 12.0
     else
         quality_score += 2.0
 

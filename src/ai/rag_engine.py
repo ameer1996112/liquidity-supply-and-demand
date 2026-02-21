@@ -108,6 +108,16 @@ class OpenAIEmbeddingAdapter(Embeddings):
         return resp.data[0].embedding
 
 
+class CustomSupabaseVectorStore(SupabaseVectorStore):
+    def match_args(
+        self, query: List[float], filter: Optional[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        ret: Dict[str, Any] = dict(query_embedding=query)
+        # Force the filter parameter to be included (even if empty) to resolve Supabase RPC overloads
+        ret["filter"] = filter if filter is not None else {}
+        return ret
+
+
 @dataclass
 class RagEngine:
     """RAG wrapper over SupabaseVectorStore (pgvector).
@@ -137,7 +147,7 @@ class RagEngine:
         embeddings = OpenAIEmbeddingAdapter(model=embedding_model)
 
         # Vector store handle – assumes `documents` + `match_documents` already exist
-        vector_store = SupabaseVectorStore(
+        vector_store = CustomSupabaseVectorStore(
             client=client,
             embedding=embeddings,
             table_name=table_name,
@@ -204,7 +214,7 @@ class RagEngine:
         if not context or not context.strip():
             return []
 
-        search_kwargs = {}
+        search_kwargs = {"filter": {}}
         if filter:
             # SupabaseVectorStore passes these to the match function as metadata filter
             search_kwargs["filter"] = filter
