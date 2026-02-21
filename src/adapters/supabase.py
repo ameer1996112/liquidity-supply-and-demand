@@ -36,16 +36,15 @@ def init_supabase() -> Client:
     """Initialize Supabase client"""
     global supabase, SUPABASE_URL, SUPABASE_KEY
 
-    if not SUPABASE_URL or not SUPABASE_KEY:
-        # Try fetching again during init in case env was loaded late
-        url = os.getenv('SUPABASE_URL', SUPABASE_URL)
-        key = os.getenv('SUPABASE_KEY') or os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_ANON_KEY') or SUPABASE_KEY
+    # Forcefully re-read from environment at init time to bypass any early-binding issues
+    url = os.environ.get('SUPABASE_URL') or SUPABASE_URL
+    key = os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or os.environ.get('SUPABASE_ANON_KEY') or os.environ.get('SUPABASE_KEY') or SUPABASE_KEY
+    
+    if not url or not key:
+        raise ValueError("SUPABASE_URL and SUPABASE_KEY (or ANON_KEY/SERVICE_ROLE_KEY) must be set in environment variables")
         
-        if not url or not key:
-            raise ValueError("SUPABASE_URL and SUPABASE_KEY (or ANON_KEY/SERVICE_ROLE_KEY) must be set in environment variables")
-            
-        SUPABASE_URL = url
-        SUPABASE_KEY = key
+    SUPABASE_URL = url
+    SUPABASE_KEY = key
 
     try:
         supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
