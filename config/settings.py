@@ -73,7 +73,7 @@ class Settings(BaseSettings):
         default=SecretStr(""),
         validation_alias=AliasChoices("AI_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"),
     )
-    ai_base_url: str = Field(default="https://api.groq.com/openai/v1", description="AI API base URL.")
+    ai_base_url: str = Field(default="", description="AI API base URL (empty uses provider default).")
     ai_min_confidence: int = Field(default=75, ge=0, le=100, description="Minimum AI confidence (0-100).")
     ai_timeout_seconds: float = Field(default=5.0, gt=0, le=30, description="AI API timeout (seconds).")
     ai_model: str = Field(default="llama-3.3-70b-versatile", description="AI model name.")
