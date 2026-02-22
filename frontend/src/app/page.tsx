@@ -33,7 +33,10 @@ function StatCard({ label, value }: { label: string; value: string }) {
       <p className='text-[10px] uppercase tracking-wider text-slate-500'>
         {label}
       </p>
-      <p className='mt-1 text-sm font-semibold tabular-nums text-slate-100'>
+      <p
+        suppressHydrationWarning
+        className='mt-1 text-sm font-semibold tabular-nums text-slate-100'
+      >
         {value}
       </p>
     </div>
@@ -158,8 +161,8 @@ export default function DashboardPage() {
           <p className='text-[11px] font-medium uppercase tracking-[0.12em] text-slate-500'>
             Session KPIs
           </p>
-          <p suppressHydrationWarning className='text-[10px] text-slate-500'>
-            Last updated {lastUpdated}
+          <p className='text-[10px] text-slate-500'>
+            Last updated <span suppressHydrationWarning>{lastUpdated}</span>
           </p>
         </div>
         <div className='grid grid-cols-2 gap-2 lg:grid-cols-6'>
@@ -182,11 +185,13 @@ export default function DashboardPage() {
               <p>
                 <span className='text-slate-500'>Timeframe:</span> {timeframe}
               </p>
-              <p suppressHydrationWarning>
+              <p>
                 <span className='text-slate-500'>Last signal:</span>{' '}
-                {latestSignal
-                  ? new Date(latestSignal.created_at).toLocaleString()
-                  : EMPTY_VALUE}
+                <span suppressHydrationWarning>
+                  {latestSignal
+                    ? new Date(latestSignal.created_at).toLocaleString()
+                    : EMPTY_VALUE}
+                </span>
               </p>
               <p>
                 <span className='text-slate-500'>Last reject reason:</span>{' '}

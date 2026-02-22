@@ -76,7 +76,7 @@ export default function ExecutionQualityPage() {
                 'font-mono text-[11px] px-2.5 py-1 rounded transition-colors',
                 period === p
                   ? 'bg-indigo-600/20 text-indigo-300'
-                  : 'text-slate-500 hover:text-slate-300'
+                  : 'text-slate-500 hover:text-slate-300',
               )}
             >
               {p}
@@ -102,7 +102,7 @@ export default function ExecutionQualityPage() {
                 <div
                   className={cn(
                     'text-2xl font-bold',
-                    hasHighSlippage ? 'text-red-400' : 'text-slate-100'
+                    hasHighSlippage ? 'text-red-400' : 'text-slate-100',
                   )}
                 >
                   {tcaSummary?.avg_slippage_pips?.toFixed(2) ?? '0.00'} pips
@@ -361,7 +361,7 @@ export default function ExecutionQualityPage() {
                       <div className='text-xs text-slate-300'>
                         {alert.alert_type === 'high_slippage' &&
                           `High slippage: ${alert.slippage_pips?.toFixed(
-                            1
+                            1,
                           )} pips`}
                         {alert.alert_type === 'high_latency' &&
                           `High latency: ${alert.total_execution_ms}ms`}
@@ -371,7 +371,10 @@ export default function ExecutionQualityPage() {
                       </div>
                     </div>
                   </div>
-                  <div className='font-mono text-[10px] text-slate-500'>
+                  <div
+                    className='font-mono text-[10px] text-slate-500'
+                    suppressHydrationWarning
+                  >
                     {new Date(alert.created_at).toLocaleString()}
                   </div>
                 </div>

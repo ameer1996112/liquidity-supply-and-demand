@@ -71,11 +71,13 @@ export default function RiskMonitorPage() {
             <SymbolOverridesCard data={data.symbol_overrides} />
           )}
           <div
-            suppressHydrationWarning
             className='text-right text-[10px] text-slate-600'
             style={{ fontFamily: 'var(--font-mono)' }}
           >
-            updated {new Date(data.last_updated).toLocaleTimeString()}
+            updated{' '}
+            <span suppressHydrationWarning>
+              {new Date(data.last_updated).toLocaleTimeString()}
+            </span>
           </div>
         </>
       ) : null}
