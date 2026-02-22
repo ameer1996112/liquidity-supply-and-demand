@@ -74,6 +74,9 @@ class AlertEngine:
             except Exception as exc:
                 logger.error("AlertEngine: rule %s failed: %s", rule.get("id"), exc)
 
+        # Cleanup resolved position_age alerts
+        self._cleanup_resolved_alerts()
+
     # ── Alert creation with deduplication ────────────────────
 
     def _create_alert(
@@ -119,6 +122,54 @@ class AlertEngine:
                 )
             else:
                 logger.error("AlertEngine: failed to create alert: %s", exc)
+
+    def _cleanup_resolved_alerts(self) -> None:
+        """
+        Auto-acknowledges alerts when their condition is no longer true
+        (e.g. 'position_age' alerts when the corresponding trade is closed).
+        """
+        try:
+            # 1. Fetch unacknowledged position_age alerts
+            resp = (
+                self.supabase.table("trading_alerts")
+                .select("id, signal_id")
+                .eq("alert_type", "position_age")
+                .is_("acknowledged_at", "null")
+                .execute()
+            )
+            alerts = resp.data or []
+            if not alerts:
+                return
+
+            # Note: filtering out alerts without a signal_id
+            signal_ids = [a["signal_id"] for a in alerts if a.get("signal_id")]
+            if not signal_ids:
+                return
+
+            # 2. Check the status of these signals
+            signals_resp = (
+                self.supabase.table("trading_signals")
+                .select("id, status")
+                .in_("id", signal_ids)
+                .execute()
+            )
+            signals = signals_resp.data or []
+            closed_signal_ids = {s["id"] for s in signals if s.get("status") in ("closed", "rejected", "execution_failed", "filtered")}
+
+            # 3. Mark the corresponding alerts as acknowledged
+            alerts_to_close = [a["id"] for a in alerts if a.get("signal_id") in closed_signal_ids]
+            
+            if alerts_to_close:
+                self.supabase.table("trading_alerts").update(
+                    {"acknowledged_at": datetime.now(timezone.utc).isoformat()}
+                ).in_("id", alerts_to_close).execute()
+                
+                logger.info(f"Auto-resolved {len(alerts_to_close)} position_age alerts because trades are closed.")
+                
+        except Exception as exc:
+            if _is_table_missing(exc):
+                return
+            logger.error("AlertEngine: failed to cleanup resolved alerts: %s", exc)
 
     # ── Rule checks ──────────────────────────────────────────
 
