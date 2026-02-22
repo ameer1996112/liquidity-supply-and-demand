@@ -50,14 +50,14 @@ export function Sidebar() {
           'border-r border-[var(--to-border)]',
           'bg-[var(--to-bg)]',
           'transition-all duration-200 ease-in-out',
-          isCollapsed ? 'w-14' : 'w-56'
+          isCollapsed ? 'w-14' : 'w-56',
         )}
       >
         {/* ── Brand header ─────────────────────────────────────────── */}
         <div
           className={cn(
             'flex h-12 items-center border-b border-[var(--to-border)] px-3',
-            isCollapsed ? 'justify-center' : 'justify-between'
+            isCollapsed ? 'justify-center' : 'justify-between',
           )}
         >
           {!isCollapsed && (
@@ -73,6 +73,7 @@ export function Sidebar() {
                   TradeOps
                 </span>
                 <span
+                  suppressHydrationWarning
                   className='text-[9px] uppercase tracking-[0.18em] text-slate-500'
                   style={{ fontFamily: 'var(--font-mono)' }}
                 >
@@ -106,19 +107,19 @@ export function Sidebar() {
                   isActive
                     ? 'bg-indigo-600/15 text-indigo-300 border border-indigo-500/20'
                     : 'border border-transparent text-[var(--to-text-secondary)] hover:bg-[var(--to-surface)] hover:text-[var(--to-text-primary)]',
-                  isCollapsed && 'justify-center px-0'
+                  isCollapsed && 'justify-center px-0',
                 )}
               >
                 {/* Active indicator */}
                 {isActive && (
-                  <div className='absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r bg-indigo-400' />
+                  <span className='absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r bg-indigo-400' />
                 )}
                 <item.icon
                   className={cn(
                     'h-4 w-4 shrink-0',
                     isActive
                       ? 'text-indigo-400'
-                      : 'text-[var(--to-text-dim)] group-hover:text-[var(--to-text-secondary)]'
+                      : 'text-[var(--to-text-dim)] group-hover:text-[var(--to-text-secondary)]',
                   )}
                 />
                 {!isCollapsed && (
@@ -155,7 +156,7 @@ export function Sidebar() {
               'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2',
               'border border-transparent text-[var(--to-text-dim)] transition-colors duration-100',
               'hover:bg-[var(--to-surface)] hover:text-[var(--to-text-secondary)]',
-              isCollapsed && 'justify-center px-0'
+              isCollapsed && 'justify-center px-0',
             )}
           >
             {isCollapsed ? (
