@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { SignalInspector } from '@/components/SignalInspector';
 import { ActiveTradesPanel } from '@/components/dashboard/ActiveTradesPanel';
@@ -48,6 +48,13 @@ export default function DashboardPage() {
     null,
   );
   const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    // eslint-disable-next-line
+    setMounted(true);
+  }, []);
+
   const { mode: activeMode } = useTradingMode();
   const { data: stats } = useSignalStats();
   const { data: risk } = useRiskStatus();
@@ -92,6 +99,8 @@ export default function DashboardPage() {
         latestSignal.updated_at ?? latestSignal.created_at,
       ).toLocaleTimeString()
     : new Date().toLocaleTimeString();
+
+  const displayLastUpdated = mounted ? lastUpdated : 'Loading...';
 
   const strategyName =
     latestSignal?.entry_model || latestSignal?.zone_type || 'Liquidity S&D';
@@ -162,7 +171,7 @@ export default function DashboardPage() {
             Session KPIs
           </p>
           <p className='text-[10px] text-slate-500'>
-            Last updated <span suppressHydrationWarning>{lastUpdated}</span>
+            Last updated <span>{displayLastUpdated}</span>
           </p>
         </div>
         <div className='grid grid-cols-2 gap-2 lg:grid-cols-6'>
@@ -187,10 +196,12 @@ export default function DashboardPage() {
               </p>
               <p>
                 <span className='text-slate-500'>Last signal:</span>{' '}
-                <span suppressHydrationWarning>
-                  {latestSignal
-                    ? new Date(latestSignal.created_at).toLocaleString()
-                    : EMPTY_VALUE}
+                <span>
+                  {mounted
+                    ? latestSignal
+                      ? new Date(latestSignal.created_at).toLocaleString()
+                      : EMPTY_VALUE
+                    : 'Loading...'}
                 </span>
               </p>
               <p>
