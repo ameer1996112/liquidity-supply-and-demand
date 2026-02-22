@@ -111,7 +111,7 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
           type='text'
           value={accountName}
           onChange={(e) => setAccountName(e.target.value)}
-          placeholder='e.g. FTMO Challenge, MyFundedFX'
+          placeholder='e.g. ACG Stage 1, FTMO Challenge'
           className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm text-zinc-200 font-mono placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500'
           required
         />
@@ -147,6 +147,7 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
           >
             <option value='Personal'>Personal</option>
             <option value='FTMO'>FTMO</option>
+            <option value='ACG'>Alpha Capital Group</option>
             <option value='MyFundedFX'>MyFundedFX</option>
             <option value='TFT'>The Funded Trader</option>
             <option value='E8'>E8 Funding</option>
