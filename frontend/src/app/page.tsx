@@ -158,7 +158,7 @@ export default function DashboardPage() {
           <p className='text-[11px] font-medium uppercase tracking-[0.12em] text-slate-500'>
             Session KPIs
           </p>
-          <p className='text-[10px] text-slate-500'>
+          <p suppressHydrationWarning className='text-[10px] text-slate-500'>
             Last updated {lastUpdated}
           </p>
         </div>
@@ -182,7 +182,7 @@ export default function DashboardPage() {
               <p>
                 <span className='text-slate-500'>Timeframe:</span> {timeframe}
               </p>
-              <p>
+              <p suppressHydrationWarning>
                 <span className='text-slate-500'>Last signal:</span>{' '}
                 {latestSignal
                   ? new Date(latestSignal.created_at).toLocaleString()

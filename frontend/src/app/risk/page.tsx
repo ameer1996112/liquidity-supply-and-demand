@@ -71,6 +71,7 @@ export default function RiskMonitorPage() {
             <SymbolOverridesCard data={data.symbol_overrides} />
           )}
           <div
+            suppressHydrationWarning
             className='text-right text-[10px] text-slate-600'
             style={{ fontFamily: 'var(--font-mono)' }}
           >
@@ -113,8 +114,8 @@ function DailyRiskCard({ data }: { data: any }) {
     data.loss_pct > 80
       ? 'bg-red-500'
       : data.loss_pct > 50
-      ? 'bg-amber-500'
-      : 'bg-emerald-500';
+        ? 'bg-amber-500'
+        : 'bg-emerald-500';
 
   return (
     <PanelCard
@@ -253,8 +254,8 @@ function DrawdownCard({ data }: { data: any }) {
     data.dd_utilization_pct > 80
       ? 'bg-red-500'
       : data.dd_utilization_pct > 50
-      ? 'bg-amber-500'
-      : 'bg-emerald-500';
+        ? 'bg-amber-500'
+        : 'bg-emerald-500';
 
   return (
     <PanelCard
@@ -431,7 +432,7 @@ function SymbolOverridesCard({ data }: { data: any[] }) {
                   >
                     {h}
                   </th>
-                )
+                ),
               )}
             </tr>
           </thead>
@@ -498,7 +499,7 @@ function StatusBadge({ severity }: { severity: string }) {
     <span
       className={cn(
         'rounded px-1.5 py-0.5 text-[9px] font-bold',
-        styles[severity] ?? styles.info
+        styles[severity] ?? styles.info,
       )}
       style={{ fontFamily: 'var(--font-mono)' }}
     >

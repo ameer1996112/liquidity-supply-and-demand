@@ -61,7 +61,7 @@ export function EnhancedAccountCard({
       className={cn(
         'tv-card flex flex-col overflow-hidden',
         isPaused && 'opacity-60 border-amber-500/20',
-        className
+        className,
       )}
     >
       {/* Header */}
@@ -144,7 +144,7 @@ export function EnhancedAccountCard({
             <span
               className={cn(
                 'font-mono text-sm font-semibold tabular-nums',
-                dailyPositive ? 'text-[#26a69a]' : 'text-[#ef5350]'
+                dailyPositive ? 'text-[#26a69a]' : 'text-[#ef5350]',
               )}
             >
               {dailyPositive ? '+' : ''}${(account.daily_pnl ?? 0).toFixed(2)}
@@ -185,8 +185,8 @@ export function EnhancedAccountCard({
                 account.profit_factor >= 1.5
                   ? 'text-[#26a69a]'
                   : account.profit_factor >= 1
-                  ? 'text-zinc-400'
-                  : 'text-[#ef5350]'
+                    ? 'text-zinc-400'
+                    : 'text-[#ef5350]'
               }
             />
           )}
@@ -292,7 +292,7 @@ export function EnhancedAccountCard({
                     <Calendar className='h-3 w-3' />
                     Created
                   </span>
-                  <span className='font-mono'>
+                  <span suppressHydrationWarning className='font-mono'>
                     {new Date(account.created_at).toLocaleDateString()}
                   </span>
                 </div>
@@ -375,7 +375,7 @@ function MetricItem({
       <span
         className={cn(
           'font-mono text-xs font-semibold tabular-nums',
-          valueColor
+          valueColor,
         )}
       >
         {value}
