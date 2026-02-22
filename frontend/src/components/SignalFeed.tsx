@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { safeFloat, getDisplayReason, formatRelativeTime } from '@/lib/format';
+import { ClientDate } from '@/components/ui/ClientDate';
 import { Activity, AlertCircle, Zap } from 'lucide-react';
 
 // =============================================================================
@@ -143,12 +144,10 @@ function SignalRow({ signal, onClick }: SignalRowProps) {
     >
       {/* Column 1: Time - Relative "2m ago" */}
       <TableCell className='py-2 px-3 w-[90px]'>
-        <span
+        <ClientDate
           className='font-mono text-[11px] text-zinc-500 tabular-nums whitespace-nowrap'
-          suppressHydrationWarning
-        >
-          {formatRelativeTime(new Date(signal.created_at))}
-        </span>
+          render={() => formatRelativeTime(new Date(signal.created_at))}
+        />
       </TableCell>
 
       {/* Column 2: Signal - Symbol + Side Badge */}

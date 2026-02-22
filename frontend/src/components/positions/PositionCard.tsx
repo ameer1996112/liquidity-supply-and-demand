@@ -10,6 +10,7 @@ import {
 import { ModifySLTPDialog } from './ModifySLTPDialog';
 import { X, Pencil, Scissors, Loader2 } from 'lucide-react';
 import { formatDistanceToNowStrict } from 'date-fns';
+import { ClientDate } from '@/components/ui/ClientDate';
 
 function PriceLabel({ label, value }: { label: string; value: number | null }) {
   return (
@@ -32,12 +33,6 @@ export function PositionCard({ position }: { position: ActivePosition }) {
 
   const isBuy = position.side.toLowerCase() === 'buy';
   const pnlPositive = (position.live_pnl ?? 0) >= 0;
-
-  const holdTime = position.created_at
-    ? formatDistanceToNowStrict(new Date(position.created_at), {
-        addSuffix: false,
-      })
-    : '—';
 
   const handleClose = () => {
     if (!confirmClose) {
@@ -112,7 +107,15 @@ export function PositionCard({ position }: { position: ActivePosition }) {
             {position.rr_ratio && (
               <span>R:R 1:{position.rr_ratio.toFixed(1)}</span>
             )}
-            <span suppressHydrationWarning>Hold: {holdTime}</span>
+            {position.created_at ? (
+              <ClientDate
+                render={() =>
+                  `Hold: ${formatDistanceToNowStrict(new Date(position.created_at!), { addSuffix: false })}`
+                }
+              />
+            ) : (
+              <span>Hold: —</span>
+            )}
             {position.entry_model && <span>{position.entry_model}</span>}
           </div>
 

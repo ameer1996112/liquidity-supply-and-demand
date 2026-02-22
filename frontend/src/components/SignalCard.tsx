@@ -13,6 +13,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 import { SideBadge } from '@/components/shared/SideBadge';
 import { PnLDisplay } from '@/components/shared/PnLDisplay';
 import { formatDistanceToNow, format } from 'date-fns';
+import { ClientDate } from '@/components/ui/ClientDate';
 import { Sparkles } from 'lucide-react';
 
 // ============================================================================
@@ -341,20 +342,18 @@ export function SignalCard({ signal, onInspect }: SignalCardProps) {
 
         {/* Timestamp Footer */}
         <div className='flex items-center justify-between pt-2 border-t border-zinc-800/40'>
-          <span
+          <ClientDate
             className='font-mono text-[10px] text-zinc-600'
-            suppressHydrationWarning
-          >
-            {formatDistanceToNow(new Date(signal.created_at), {
-              addSuffix: true,
-            })}
-          </span>
-          <span
+            render={() =>
+              formatDistanceToNow(new Date(signal.created_at), {
+                addSuffix: true,
+              })
+            }
+          />
+          <ClientDate
             className='font-mono text-[10px] text-zinc-700'
-            suppressHydrationWarning
-          >
-            {format(new Date(signal.created_at), 'HH:mm:ss')}
-          </span>
+            render={() => format(new Date(signal.created_at), 'HH:mm:ss')}
+          />
         </div>
       </div>
 

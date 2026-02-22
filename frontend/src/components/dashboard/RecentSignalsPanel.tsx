@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNowStrict } from 'date-fns';
+import { ClientDate } from '@/components/ui/ClientDate';
 import {
   TrendingUp,
   TrendingDown,
@@ -133,15 +134,14 @@ const SignalRowMemo = memo(function SignalRow({
           >
             {symbol}
           </span>
-          <span
+          <ClientDate
             className='text-[10px] text-slate-500 tabular-nums'
-            style={{ fontFamily: 'var(--font-mono)' }}
-            suppressHydrationWarning
-          >
-            {formatDistanceToNowStrict(new Date(signal.created_at), {
-              addSuffix: true,
-            })}
-          </span>
+            render={() =>
+              formatDistanceToNowStrict(new Date(signal.created_at), {
+                addSuffix: true,
+              })
+            }
+          />
           <span
             className={cn(
               'inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold',
@@ -468,12 +468,12 @@ export function RecentSignalsPanel({
                       <p className='text-[10px] uppercase tracking-wide text-slate-500'>
                         Timestamp
                       </p>
-                      <p
-                        className='mt-1 font-mono text-sm text-slate-200'
-                        suppressHydrationWarning
-                      >
-                        {new Date(selectedSignal.created_at).toLocaleString()}
-                      </p>
+                      <ClientDate
+                        className='mt-1 font-mono text-sm text-slate-200 block'
+                        render={() =>
+                          new Date(selectedSignal.created_at).toLocaleString()
+                        }
+                      />
                     </div>
                   </div>
 

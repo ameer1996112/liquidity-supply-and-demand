@@ -3,6 +3,7 @@
 import { TradingSignal, getSymbol, getSide, getPnl } from '@/types/trading';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNowStrict } from 'date-fns';
+import { ClientDate } from '@/components/ui/ClientDate';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 import {
   EMPTY_VALUE,
@@ -41,9 +42,6 @@ export function ActiveTradeRow({
   const isBuy = side === 'buy';
   const entry = signal.price ?? signal.entry;
   const rr = signal.rr_ratio;
-  const timeHeld = formatDistanceToNowStrict(new Date(signal.created_at), {
-    addSuffix: false,
-  });
   const trigger = getTriggerLabel(signal);
 
   return (
@@ -130,13 +128,14 @@ export function ActiveTradeRow({
 
       {/* Time held */}
       <div className='flex-1 text-right'>
-        <span
+        <ClientDate
           className='text-[10px] text-slate-600'
-          style={{ fontFamily: 'var(--font-mono)' }}
-          suppressHydrationWarning
-        >
-          {timeHeld}
-        </span>
+          render={() =>
+            formatDistanceToNowStrict(new Date(signal.created_at), {
+              addSuffix: false,
+            })
+          }
+        />
       </div>
 
       {/* PnL */}
