@@ -142,11 +142,15 @@ class AccountOrchestrator:
 
             # Daily PnL (handle None values from database)
             today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
-            daily_pnl = sum(
-                float(t.get("pnl_usd") or 0)
-                for t in trades
-                if t.get("created_at", "") >= today_start
-            )
+            try:
+                daily_pnl = sum(
+                    float(t.get("pnl_usd") or 0)
+                    for t in trades
+                    if (t.get("created_at") or "") >= today_start
+                )
+            except Exception as e:
+                logger.error(f"Error calculating daily_pnl: {e}")
+                daily_pnl = 0.0
 
             # Get real balance and live data from broker (not static allocated capital)
             balance = float(account_data.get("allocated_capital_usd") or 0)  # Fallback
@@ -218,10 +222,14 @@ class AccountOrchestrator:
             if len(trades) > 5:
                 returns = [float(t.get("pnl_r") or 0) for t in trades if t.get("pnl_r")]
                 if returns:
-                    import numpy as np
-                    mean_return = np.mean(returns)
-                    std_return = np.std(returns)
-                    sharpe_ratio = (mean_return / std_return) if std_return > 0 else 0.0
+                    try:
+                        import numpy as np
+                        mean_return = float(np.mean(returns))
+                        std_return = float(np.std(returns))
+                        sharpe_ratio = (mean_return / std_return) if std_return > 0 else 0.0
+                    except (ImportError, Exception) as e:
+                        logger.warning(f"Sharpe calc failed: {e}")
+                        sharpe_ratio = 0.0
                 else:
                     sharpe_ratio = 0.0
             else:
@@ -285,7 +293,7 @@ class AccountOrchestrator:
             )
 
         except Exception as e:
-            logger.error(f"Failed to get account performance for {account_name}: {e}")
+            logger.exception(f"Failed to get account performance for {account_name}: {e}")
             return None
 
     def suggest_capital_allocation(
