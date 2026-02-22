@@ -410,15 +410,7 @@ class AccountSyncService:
                             if db_pos.get("status", "").upper() == "PENDING":
                                 self.client.table("trading_signals").update({
                                     "status": "OPEN",
-                                    "broker_position_id": str(broker_pos.get("broker_position_id")),
-                                    "opened_at": datetime.now(timezone.utc).isoformat(),
-                                    "last_broker_sync_at": datetime.now(timezone.utc).isoformat()
-                                }).eq("id", matched_signal_id).execute()
-                            else:
-                                # Just update sync time
-                                self.client.table("trading_signals").update({
-                                    "last_broker_sync_at": datetime.now(timezone.utc).isoformat(),
-                                    "broker_position_id": str(broker_pos.get("broker_position_id"))
+                                    "opened_at": datetime.now(timezone.utc).isoformat()
                                 }).eq("id", matched_signal_id).execute()
                                 
                             break
@@ -442,14 +434,7 @@ class AccountSyncService:
                                 if db_pos.get("status", "").upper() == "PENDING":
                                     self.client.table("trading_signals").update({
                                         "status": "OPEN",
-                                        "broker_position_id": str(broker_pos.get("broker_position_id")),
-                                        "opened_at": datetime.now(timezone.utc).isoformat(),
-                                        "last_broker_sync_at": datetime.now(timezone.utc).isoformat()
-                                    }).eq("id", matched_signal_id).execute()
-                                else:
-                                    self.client.table("trading_signals").update({
-                                        "last_broker_sync_at": datetime.now(timezone.utc).isoformat(),
-                                        "broker_position_id": str(broker_pos.get("broker_position_id"))
+                                        "opened_at": datetime.now(timezone.utc).isoformat()
                                     }).eq("id", matched_signal_id).execute()
                                     
                                 break
@@ -461,25 +446,23 @@ class AccountSyncService:
                     "reconciliation_note": reconciliation_note,
                 }).eq("id", broker_pos["id"]).execute()
 
-            # Now find GHOST positions: DB says it's OPEN and metaapi, but it's not in the broker_pos_list
+            # Now find GHOST positions: DB says it's OPEN, but it's not in the broker_pos_list
             broker_pos_ids = {str(p.get("broker_position_id")) for p in broker_pos_list if p.get("broker_position_id")}
             for db_pos in db_pos_list:
                 status = db_pos.get("status", "").upper()
-                exec_source = db_pos.get("execution_source", "signal_only")
-                db_broker_pos_id = str(db_pos.get("broker_position_id")) if db_pos.get("broker_position_id") else None
-                db_broker_order_id = str(db_pos.get("broker_order_id")) if db_pos.get("broker_order_id") else None
+                db_broker_order_id = str(db_pos.get("broker_order_id", "")) if db_pos.get("broker_order_id") else ""
 
-                # It's a MetaAPI trade that we think is OPEN
-                if status in ("OPEN", "ACTIVATED", "ACTIVE", "EXECUTED") and exec_source == "metaapi":
-                    # If we have an ID for it and it's missing from broker snapshot, it's CLOSED/GHOST
-                    if (db_broker_pos_id and db_broker_pos_id not in broker_pos_ids) or \
-                       (db_broker_order_id and db_broker_order_id not in broker_pos_ids):
-                        logger.warning(f"Ghost position detected: {db_pos['id']} missing from broker. Marking CLOSED.")
-                        self.client.table("trading_signals").update({
-                            "status": "CLOSED",
-                            "closed_at": datetime.now(timezone.utc).isoformat(),
-                            "notes": f"Auto-closed by reconciliation: Ghost position missing from broker."
-                        }).eq("id", db_pos["id"]).execute()
+                # Target actively tracked MetaAPI trades (exclude paper trades which start with 'paper_')
+                if status in ("OPEN", "ACTIVATED", "ACTIVE", "EXECUTED"):
+                    if db_broker_order_id and not db_broker_order_id.startswith("paper_"):
+                        # If we have an ID for it and it's missing from broker snapshot, it's CLOSED/GHOST
+                        if db_broker_order_id not in broker_pos_ids:
+                            logger.warning(f"Ghost position detected: {db_pos['id']} missing from broker. Marking CLOSED.")
+                            self.client.table("trading_signals").update({
+                                "status": "CLOSED",
+                                "closed_at": datetime.now(timezone.utc).isoformat(),
+                                "notes": f"Auto-closed by reconciliation: Ghost position missing from broker."
+                            }).eq("id", db_pos["id"]).execute()
                         
             logger.info(
                 f"Reconciled {len(broker_pos_list)} broker positions for {account_name}"
