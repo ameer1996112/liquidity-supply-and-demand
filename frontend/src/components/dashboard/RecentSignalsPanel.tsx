@@ -60,7 +60,7 @@ interface RecentSignalsPanelProps {
 
 // ── Derive trigger type from signal fields ────────────────────────────────────
 function getTrigger(
-  signal: TradingSignal
+  signal: TradingSignal,
 ): 'FLIP' | 'BoC' | 'DIR_CLOSE' | null {
   const entryModel = (signal.entry_model ?? '').toLowerCase();
   const exitType = (signal.exit_type ?? '').toLowerCase();
@@ -122,7 +122,7 @@ const SignalRowMemo = memo(function SignalRow({
       className={cn(
         'group flex cursor-pointer items-center gap-3 border-b border-slate-800/60 px-3 py-3.5 transition-colors data-row',
         isActive && 'border-l-2 border-l-indigo-500',
-        isReviewed && 'opacity-70'
+        isReviewed && 'opacity-70',
       )}
     >
       <div className='min-w-0 flex-1'>
@@ -136,6 +136,7 @@ const SignalRowMemo = memo(function SignalRow({
           <span
             className='text-[10px] text-slate-500 tabular-nums'
             style={{ fontFamily: 'var(--font-mono)' }}
+            suppressHydrationWarning
           >
             {formatDistanceToNowStrict(new Date(signal.created_at), {
               addSuffix: true,
@@ -144,7 +145,7 @@ const SignalRowMemo = memo(function SignalRow({
           <span
             className={cn(
               'inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold',
-              isBuy ? 'text-emerald-400' : 'text-red-400'
+              isBuy ? 'text-emerald-400' : 'text-red-400',
             )}
           >
             {isBuy ? (
@@ -223,7 +224,7 @@ export function RecentSignalsPanel({
 }: RecentSignalsPanelProps) {
   const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
   const [selectedSignal, setSelectedSignal] = useState<TradingSignal | null>(
-    null
+    null,
   );
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [reviewedIds, setReviewedIds] = useState<string[]>([]);
@@ -243,7 +244,7 @@ export function RecentSignalsPanel({
 
   const toggleReviewed = (id: string) => {
     setReviewedIds((prev) =>
-      prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id],
     );
   };
 
@@ -274,7 +275,7 @@ export function RecentSignalsPanel({
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const pagedSignals = useMemo(
     () => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
-    [filtered, page]
+    [filtered, page],
   );
 
   return (
@@ -309,7 +310,7 @@ export function RecentSignalsPanel({
               'text-[10px] font-medium',
               activeFilter === tab.key
                 ? 'bg-indigo-600/20 text-indigo-300'
-                : 'text-slate-500 hover:bg-slate-800 hover:text-slate-300'
+                : 'text-slate-500 hover:bg-slate-800 hover:text-slate-300',
             )}
             style={{ fontFamily: 'var(--font-mono)' }}
           >
@@ -467,7 +468,10 @@ export function RecentSignalsPanel({
                       <p className='text-[10px] uppercase tracking-wide text-slate-500'>
                         Timestamp
                       </p>
-                      <p className='mt-1 font-mono text-sm text-slate-200'>
+                      <p
+                        className='mt-1 font-mono text-sm text-slate-200'
+                        suppressHydrationWarning
+                      >
                         {new Date(selectedSignal.created_at).toLocaleString()}
                       </p>
                     </div>

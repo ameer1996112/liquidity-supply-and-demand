@@ -143,7 +143,10 @@ function SignalRow({ signal, onClick }: SignalRowProps) {
     >
       {/* Column 1: Time - Relative "2m ago" */}
       <TableCell className='py-2 px-3 w-[90px]'>
-        <span className='font-mono text-[11px] text-zinc-500 tabular-nums whitespace-nowrap'>
+        <span
+          className='font-mono text-[11px] text-zinc-500 tabular-nums whitespace-nowrap'
+          suppressHydrationWarning
+        >
           {formatRelativeTime(new Date(signal.created_at))}
         </span>
       </TableCell>

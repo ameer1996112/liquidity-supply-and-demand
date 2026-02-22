@@ -341,12 +341,18 @@ export function SignalCard({ signal, onInspect }: SignalCardProps) {
 
         {/* Timestamp Footer */}
         <div className='flex items-center justify-between pt-2 border-t border-zinc-800/40'>
-          <span className='font-mono text-[10px] text-zinc-600'>
+          <span
+            className='font-mono text-[10px] text-zinc-600'
+            suppressHydrationWarning
+          >
             {formatDistanceToNow(new Date(signal.created_at), {
               addSuffix: true,
             })}
           </span>
-          <span className='font-mono text-[10px] text-zinc-700'>
+          <span
+            className='font-mono text-[10px] text-zinc-700'
+            suppressHydrationWarning
+          >
             {format(new Date(signal.created_at), 'HH:mm:ss')}
           </span>
         </div>

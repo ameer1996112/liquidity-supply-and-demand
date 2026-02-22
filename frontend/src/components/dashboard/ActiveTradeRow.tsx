@@ -52,7 +52,7 @@ export function ActiveTradeRow({
       className={cn(
         'w-full flex items-center gap-2 px-2.5 py-2 rounded-lg',
         'border-l-2 border-l-indigo-500/60 bg-slate-800/40',
-        'hover:bg-slate-800/70 transition-colors cursor-pointer text-left'
+        'hover:bg-slate-800/70 transition-colors cursor-pointer text-left',
       )}
     >
       {/* Symbol + direction */}
@@ -68,7 +68,7 @@ export function ActiveTradeRow({
             'flex items-center gap-0.5 rounded px-1 py-0 text-[9px] font-bold',
             isBuy
               ? 'bg-emerald-500/15 text-emerald-400'
-              : 'bg-red-500/15 text-red-400'
+              : 'bg-red-500/15 text-red-400',
           )}
         >
           {isBuy ? (
@@ -87,7 +87,7 @@ export function ActiveTradeRow({
             'shrink-0 rounded px-1.5 py-0 text-[9px] font-bold',
             trigger === 'FLIP' && 'trigger-flip',
             trigger === 'BoC' && 'trigger-boc',
-            trigger === 'DIR CLOSE' && 'trigger-dir-close'
+            trigger === 'DIR CLOSE' && 'trigger-dir-close',
           )}
         >
           {trigger}
@@ -133,6 +133,7 @@ export function ActiveTradeRow({
         <span
           className='text-[10px] text-slate-600'
           style={{ fontFamily: 'var(--font-mono)' }}
+          suppressHydrationWarning
         >
           {timeHeld}
         </span>
@@ -144,7 +145,7 @@ export function ActiveTradeRow({
           <span
             className={cn(
               'text-xs font-bold tabular-nums',
-              pnl >= 0 ? 'text-emerald-400' : 'text-red-400'
+              pnl >= 0 ? 'text-emerald-400' : 'text-red-400',
             )}
             style={{ fontFamily: 'var(--font-mono)' }}
           >
