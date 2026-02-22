@@ -646,6 +646,145 @@ def get_account_comparison():
 
 
 
+@router.get("/accounts/allocation-suggest", response_model=AllocationPlanResponse)
+@router.post("/accounts/allocation/suggest", response_model=AllocationPlanResponse)
+def suggest_capital_allocation(
+    total_capital: float,
+    goal: str = "maximize_sharpe",
+):
+    """
+    Suggest optimal capital allocation across all accounts.
+
+    Args:
+        total_capital: Total available capital to allocate
+        optimization_goal: maximize_sharpe, maximize_return, minimize_risk
+    """
+    from src.services.account_orchestrator import AccountOrchestrator
+
+    sb = _get_supabase()
+    orchestrator = AccountOrchestrator(sb)
+
+    plan = orchestrator.suggest_capital_allocation(total_capital, goal)
+
+    return AllocationPlanResponse(
+        total_capital=plan.total_capital,
+        total_allocated=plan.total_allocated,
+        unallocated=plan.unallocated,
+        recommendations=[
+            AllocationRecommendationResponse(
+                account_name=r.account_name,
+                current_balance=r.current_balance,
+                suggested_allocation_usd=r.suggested_allocation_usd,
+                change_usd=r.change_usd,
+                change_pct=r.change_pct,
+                reason=r.reason,
+            )
+            for r in plan.recommendations
+        ],
+        expected_portfolio_sharpe=plan.expected_portfolio_sharpe,
+    )
+
+
+@router.post("/accounts/allocation/execute/{account_name}")
+def execute_allocation(account_name: str, allocation_usd: float):
+    """Execute capital allocation for a specific account."""
+    from src.services.account_orchestrator import AccountOrchestrator, AllocationRecommendation
+
+    sb = _get_supabase()
+    orchestrator = AccountOrchestrator(sb)
+
+    # Get current balance
+    current_balance = 0.0
+    try:
+        account = sb.table("account_strategies").select("allocated_capital_usd").eq(
+            "account_name", account_name
+        ).single().execute()
+
+        current_balance = account.data.get("allocated_capital_usd", 0)
+    except Exception:
+        pass
+
+    # Create recommendation
+    recommendation = AllocationRecommendation(
+        account_name=account_name,
+        current_balance=current_balance,
+        suggested_allocation_usd=allocation_usd,
+        change_usd=allocation_usd - current_balance,
+        change_pct=(allocation_usd - current_balance) / current_balance * 100 if current_balance > 0 else 0,
+        reason="Manual allocation via UI",
+        performance_score=0.0,
+    )
+
+    success = orchestrator.execute_allocation(recommendation)
+
+    if not success:
+        raise HTTPException(500, detail="Failed to execute allocation")
+
+    return {"status": "ok", "account_name": account_name, "new_allocation": allocation_usd}
+
+
+@router.get("/accounts/trade-copy-rules")
+def get_trade_copy_rules():
+    """Get all trade copy rules."""
+    for attempt in range(2):
+        try:
+            sb = _get_supabase()
+            result = sb.table("trade_copy_rules").select("*").order("id").execute()
+            return {"rules": result.data or []}
+        except Exception as e:
+            if attempt == 0 and _is_connection_error(e):
+                logger.warning("Supabase connection error in trade-copy-rules, retrying: %s", e)
+                reset_api_supabase()
+                continue
+            raise HTTPException(500, detail=f"Failed to fetch trade copy rules: {e}")
+
+
+@router.post("/accounts/trade-copy-rules")
+def create_trade_copy_rule(body: TradeCopyRuleRequest):
+    """Create a new trade copy rule."""
+    sb = _get_supabase()
+
+    try:
+        data = body.model_dump()
+        result = sb.table("trade_copy_rules").insert(data).execute()
+
+        if result.data:
+            return {"status": "ok", "rule": result.data[0]}
+
+        raise HTTPException(500, detail="Failed to create rule")
+
+    except Exception as e:
+        raise HTTPException(500, detail=f"Failed to create trade copy rule: {e}")
+
+
+@router.patch("/accounts/trade-copy-rules/{rule_id}/toggle")
+def toggle_trade_copy_rule(rule_id: int, enabled: bool):
+    """Enable/disable a trade copy rule."""
+    sb = _get_supabase()
+
+    try:
+        sb.table("trade_copy_rules").update({"enabled": enabled}).eq("id", rule_id).execute()
+        return {"status": "ok", "rule_id": rule_id, "enabled": enabled}
+    except Exception as e:
+        raise HTTPException(500, detail=f"Failed to toggle rule: {e}")
+
+
+@router.get("/accounts/trade-copy-log")
+def get_trade_copy_log(limit: int = 50):
+    """Get recent trade copy operations."""
+    sb = _get_supabase()
+
+    try:
+        result = sb.table("trade_copy_log").select("*").order(
+            "copied_at", desc=True
+        ).limit(limit).execute()
+
+        return {"log": result.data or []}
+    except Exception as e:
+        raise HTTPException(500, detail=f"Failed to fetch trade copy log: {e}")
+
+
+
 @router.get("/accounts/{account_name}")
 def get_account_detail(account_name: str):
     """Get detail for a single account by name."""
@@ -1748,144 +1887,6 @@ def delete_journal_entry_endpoint(journal_id: int):
     except Exception as e:
         logger.error(f"Failed to delete journal entry {journal_id}: {e}")
         raise HTTPException(500, detail=f"Failed to delete journal entry: {str(e)}")
-
-
-@router.get("/accounts/allocation-suggest", response_model=AllocationPlanResponse)
-@router.post("/accounts/allocation/suggest", response_model=AllocationPlanResponse)
-def suggest_capital_allocation(
-    total_capital: float,
-    goal: str = "maximize_sharpe",
-):
-    """
-    Suggest optimal capital allocation across all accounts.
-
-    Args:
-        total_capital: Total available capital to allocate
-        optimization_goal: maximize_sharpe, maximize_return, minimize_risk
-    """
-    from src.services.account_orchestrator import AccountOrchestrator
-
-    sb = _get_supabase()
-    orchestrator = AccountOrchestrator(sb)
-
-    plan = orchestrator.suggest_capital_allocation(total_capital, goal)
-
-    return AllocationPlanResponse(
-        total_capital=plan.total_capital,
-        total_allocated=plan.total_allocated,
-        unallocated=plan.unallocated,
-        recommendations=[
-            AllocationRecommendationResponse(
-                account_name=r.account_name,
-                current_balance=r.current_balance,
-                suggested_allocation_usd=r.suggested_allocation_usd,
-                change_usd=r.change_usd,
-                change_pct=r.change_pct,
-                reason=r.reason,
-            )
-            for r in plan.recommendations
-        ],
-        expected_portfolio_sharpe=plan.expected_portfolio_sharpe,
-    )
-
-
-@router.post("/accounts/allocation/execute/{account_name}")
-def execute_allocation(account_name: str, allocation_usd: float):
-    """Execute capital allocation for a specific account."""
-    from src.services.account_orchestrator import AccountOrchestrator, AllocationRecommendation
-
-    sb = _get_supabase()
-    orchestrator = AccountOrchestrator(sb)
-
-    # Get current balance
-    current_balance = 0.0
-    try:
-        account = sb.table("account_strategies").select("allocated_capital_usd").eq(
-            "account_name", account_name
-        ).single().execute()
-
-        current_balance = account.data.get("allocated_capital_usd", 0)
-    except Exception:
-        pass
-
-    # Create recommendation
-    recommendation = AllocationRecommendation(
-        account_name=account_name,
-        current_balance=current_balance,
-        suggested_allocation_usd=allocation_usd,
-        change_usd=allocation_usd - current_balance,
-        change_pct=(allocation_usd - current_balance) / current_balance * 100 if current_balance > 0 else 0,
-        reason="Manual allocation via UI",
-        performance_score=0.0,
-    )
-
-    success = orchestrator.execute_allocation(recommendation)
-
-    if not success:
-        raise HTTPException(500, detail="Failed to execute allocation")
-
-    return {"status": "ok", "account_name": account_name, "new_allocation": allocation_usd}
-
-
-@router.get("/accounts/trade-copy-rules")
-def get_trade_copy_rules():
-    """Get all trade copy rules."""
-    for attempt in range(2):
-        try:
-            sb = _get_supabase()
-            result = sb.table("trade_copy_rules").select("*").order("id").execute()
-            return {"rules": result.data or []}
-        except Exception as e:
-            if attempt == 0 and _is_connection_error(e):
-                logger.warning("Supabase connection error in trade-copy-rules, retrying: %s", e)
-                reset_api_supabase()
-                continue
-            raise HTTPException(500, detail=f"Failed to fetch trade copy rules: {e}")
-
-
-@router.post("/accounts/trade-copy-rules")
-def create_trade_copy_rule(body: TradeCopyRuleRequest):
-    """Create a new trade copy rule."""
-    sb = _get_supabase()
-
-    try:
-        data = body.model_dump()
-        result = sb.table("trade_copy_rules").insert(data).execute()
-
-        if result.data:
-            return {"status": "ok", "rule": result.data[0]}
-
-        raise HTTPException(500, detail="Failed to create rule")
-
-    except Exception as e:
-        raise HTTPException(500, detail=f"Failed to create trade copy rule: {e}")
-
-
-@router.patch("/accounts/trade-copy-rules/{rule_id}/toggle")
-def toggle_trade_copy_rule(rule_id: int, enabled: bool):
-    """Enable/disable a trade copy rule."""
-    sb = _get_supabase()
-
-    try:
-        sb.table("trade_copy_rules").update({"enabled": enabled}).eq("id", rule_id).execute()
-        return {"status": "ok", "rule_id": rule_id, "enabled": enabled}
-    except Exception as e:
-        raise HTTPException(500, detail=f"Failed to toggle rule: {e}")
-
-
-@router.get("/accounts/trade-copy-log")
-def get_trade_copy_log(limit: int = 50):
-    """Get recent trade copy operations."""
-    sb = _get_supabase()
-
-    try:
-        result = sb.table("trade_copy_log").select("*").order(
-            "copied_at", desc=True
-        ).limit(limit).execute()
-
-        return {"log": result.data or []}
-    except Exception as e:
-        raise HTTPException(500, detail=f"Failed to fetch trade copy log: {e}")
 
 
 # ══════════════════════════════════════════════════════════════════
