@@ -117,6 +117,28 @@ class AccountSyncService:
 
             return True
 
+        except ValueError as ve:
+            if str(ve) == "METAAPI_TOKEN_MISSING":
+                logger.warning(f"Skipping sync for {account_name}: MetaAPI token is missing")
+                try:
+                    self.client.table("account_strategies").update({
+                        "connection_status": "METAAPI_TOKEN_MISSING",
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    }).eq("account_name", account_name).execute()
+                except Exception:
+                    pass
+            return False
+        except PermissionError as pe:
+            if str(pe) == "METAAPI_AUTH_FAILED":
+                logger.error(f"Authentication failed for {account_name}. Token may be invalid or expired.")
+                try:
+                    self.client.table("account_strategies").update({
+                        "connection_status": "METAAPI_AUTH_FAILED",
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    }).eq("account_name", account_name).execute()
+                except Exception:
+                    pass
+            return False
         except Exception as e:
             logger.exception(f"Failed to sync account status for {account_name}: {e}")
             # Update connection status to error
@@ -210,6 +232,28 @@ class AccountSyncService:
 
             return True
 
+        except ValueError as ve:
+            if str(ve) == "METAAPI_TOKEN_MISSING":
+                logger.warning(f"Skipping positions sync for {account_name}: MetaAPI token missing")
+                try:
+                    self.client.table("account_strategies").update({
+                        "connection_status": "METAAPI_TOKEN_MISSING",
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    }).eq("account_name", account_name).execute()
+                except Exception:
+                    pass
+            return False
+        except PermissionError as pe:
+            if str(pe) == "METAAPI_AUTH_FAILED":
+                logger.error(f"Authentication failed for {account_name} during positions sync. Token may be invalid or expired.")
+                try:
+                    self.client.table("account_strategies").update({
+                        "connection_status": "METAAPI_AUTH_FAILED",
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    }).eq("account_name", account_name).execute()
+                except Exception:
+                    pass
+            return False
         except Exception as e:
             logger.exception(f"Failed to sync positions for {account_name}: {e}")
             return False
@@ -276,11 +320,22 @@ class AccountSyncService:
 
         # Get token from env
         token_env_key = account_data.get("meta_api_token_env_key", "META_API_TOKEN")
-        token = os.getenv(token_env_key, "")
+        token = os.getenv(token_env_key, "").strip()
+
+        # Safe diagnostics string
+        token_present = bool(token)
+        token_length = len(token)
+        token_prefix = token[:3] + "..." if token_present else "None"
+        
+        logger.info(
+            f"MetaAPI Auth Check | Account: {account_data.get('account_name')} | "
+            f"EnvKey: {token_env_key} | Present: {token_present} | "
+            f"Length: {token_length} | Prefix: {token_prefix}"
+        )
 
         if not token:
-            logger.warning(f"MetaAPI token not found in env var {token_env_key}")
-            return None
+            logger.warning(f"MetaAPI token not found or empty in env var {token_env_key}")
+            raise ValueError("METAAPI_TOKEN_MISSING")
 
         # Get account ID (prefer meta_api_account_id, fallback to broker_profile lookup)
         account_id = meta_api_account_id

@@ -98,7 +98,10 @@ class MetaApiAdapter:
                     pass
                 logger.warning("MetaApi rate limited (429); circuit breaker opened, sleeping %ss", RATE_LIMIT_SLEEP)
                 time.sleep(RATE_LIMIT_SLEEP)
-                return None
+            if resp.status_code == 401:
+                logger.error("MetaApi authentication failed (401 Unauthorized for account %s). Check MetaAPI token.", self.account_id)
+                raise PermissionError("METAAPI_AUTH_FAILED")
+                
             if 500 <= resp.status_code < 600 and attempt < MAX_RETRIES:
                 logger.warning("MetaApi %s %s HTTP %s; retrying in %.1fs", method, url[:80], resp.status_code, RETRY_BACKOFF[attempt] if attempt < len(RETRY_BACKOFF) else 2)
                 time.sleep(RETRY_BACKOFF[attempt] if attempt < len(RETRY_BACKOFF) else 2)

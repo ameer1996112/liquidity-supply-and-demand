@@ -1115,6 +1115,54 @@ def recalculate_all_evaluations():
 
 
 # ══════════════════════════════════════════════════════════════════
+# METAAPI DIAGNOSTICS
+# ══════════════════════════════════════════════════════════════════
+
+@router.post("/accounts/{account_name}/metaapi/test-connection")
+def test_metaapi_connection(account_name: str):
+    """
+    Manually test the MetaAPI connection for a specific account.
+    Returns explicit token presence and authentication status.
+    """
+    from src.services.account_sync_service import AccountSyncService
+    
+    # 1. We instantiate the service to grab the adapter safely.
+    sb = _get_supabase()
+    service = AccountSyncService(sb)
+    
+    try:
+        account_req = sb.table("account_strategies").select("*").eq("account_name", account_name).single().execute()
+        if not account_req.data:
+            raise HTTPException(404, detail=f"Account {account_name} not found")
+            
+        adapter = service._get_adapter_for_account(account_req.data)
+        if not adapter:
+            return {"status": "error", "message": "MetaAPI is not configured or token is completely missing."}
+            
+        # 2. Force an Account Info fetch. This triggers the 401 interceptor.
+        info = adapter.get_account_information()
+        return {
+            "status": "success", 
+            "message": "Connected successfully.",
+            "diagnostics": {
+                "balance": info.get("balance"),
+                "equity": info.get("equity")
+            }
+        }
+        
+    except ValueError as ve:
+        if str(ve) == "METAAPI_TOKEN_MISSING":
+            return {"status": "error", "code": "METAAPI_TOKEN_MISSING", "message": "The environment variable holds an empty string."}
+        raise HTTPException(500, detail=str(ve))
+    except PermissionError as pe:
+        if str(pe) == "METAAPI_AUTH_FAILED":
+            return {"status": "error", "code": "METAAPI_AUTH_FAILED", "message": "MetaAPI rejected the token (401 Unauthorized)."}
+        raise HTTPException(401, detail=str(pe))
+    except Exception as e:
+        logger.exception("Failed to test MetaAPI connection")
+        return {"status": "error", "message": str(e)}
+
+# ══════════════════════════════════════════════════════════════════
 # ANALYTICS & JOURNAL ENDPOINTS
 # ══════════════════════════════════════════════════════════════════
 
