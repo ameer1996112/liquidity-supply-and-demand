@@ -2,6 +2,7 @@ import os
 import json
 from supabase import create_client
 from dotenv import load_dotenv
+from datetime import datetime, timezone
 
 load_dotenv()
 url = os.getenv("SUPABASE_URL")
@@ -12,7 +13,9 @@ if key and key.upper().startswith("SUPA") and "=" in key[:50]:
 
 sb = create_client(url, key)
 
-res = sb.table("trading_signals").select("id, symbol, created_at, status").in_("status", ["executed"]).execute()
-print(f"Number of active/executed trades in DB: {len(res.data)}")
-for t in res.data[:5]:
-    print(t)
+res = sb.table("trading_signals").update({
+    "status": "closed",
+    "closed_at": datetime.now(timezone.utc).isoformat()
+}).eq("id", 55).execute()
+
+print(f"Trade 55 forced closed: {res.data[0]['status']}")

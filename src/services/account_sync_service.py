@@ -446,24 +446,51 @@ class AccountSyncService:
                     "reconciliation_note": reconciliation_note,
                 }).eq("id", broker_pos["id"]).execute()
 
-            # Now find GHOST positions: DB says it's OPEN, but it's not in the broker_pos_list
+            # Now find GHOST positions: DB says it's OPEN/EXECUTED, but it's not in the broker_pos_list
             broker_pos_ids = {str(p.get("broker_position_id")) for p in broker_pos_list if p.get("broker_position_id")}
+            fuzzy_broker_identities = {f"{p.get('symbol')}_{p.get('side')}" for p in broker_pos_list}
+
             for db_pos in db_pos_list:
                 status = db_pos.get("status", "").upper()
                 db_broker_order_id = str(db_pos.get("broker_order_id", "")) if db_pos.get("broker_order_id") else ""
-
-                # Target actively tracked MetaAPI trades (exclude paper trades which start with 'paper_')
+                
                 if status in ("OPEN", "ACTIVATED", "ACTIVE", "EXECUTED"):
-                    if db_broker_order_id and not db_broker_order_id.startswith("paper_"):
-                        # If we have an ID for it and it's missing from broker snapshot, it's CLOSED/GHOST
+                    if db_broker_order_id.startswith("paper_"):
+                        continue  # Skip paper trades
+
+                    is_ghost = False
+
+                    if db_broker_order_id:
+                        # We have a broker ID, but it's missing from current broker open positions
                         if db_broker_order_id not in broker_pos_ids:
-                            logger.warning(f"Ghost position detected: {db_pos['id']} missing from broker. Marking CLOSED.")
-                            self.client.table("trading_signals").update({
-                                "status": "CLOSED",
-                                "closed_at": datetime.now(timezone.utc).isoformat(),
-                                "notes": f"Auto-closed by reconciliation: Ghost position missing from broker."
-                            }).eq("id", db_pos["id"]).execute()
-                        
+                            is_ghost = True
+                    else:
+                        # We DONT have a broker ID (e.g., initial execution). 
+                        # If there isn't even a fuzzy match for this symbol/side, it's a ghost.
+                        db_identity = f"{db_pos.get('symbol')}_{db_pos.get('side')}"
+                        if db_identity not in fuzzy_broker_identities:
+                            # To be safe, wait until the trade is at least 3 minutes old before calling it a ghost
+                            # to avoid closing a trade that is just being opened right now.
+                            created_at_str = db_pos.get("created_at")
+                            if created_at_str:
+                                try:
+                                    from dateutil.parser import isoparse
+                                    dt = isoparse(created_at_str)
+                                    if (datetime.now(timezone.utc) - dt).total_seconds() > 180:
+                                        is_ghost = True
+                                except Exception:
+                                    pass
+
+                    if is_ghost:
+                        logger.warning(f"Ghost position detected: DB id {db_pos['id']} ({db_pos.get('symbol')}) missing from broker. Marking CLOSED.")
+                        self.client.table("trading_signals").update({
+                            "status": "CLOSED",
+                            "closed_at": datetime.now(timezone.utc).isoformat(),
+                            "notes": "Auto-closed by reconciliation: Ghost position missing from broker."
+                        }).eq("id", db_pos["id"]).execute()
+                    else:
+                        logger.debug(f"DB position {db_pos['id']} evaluation: is_ghost=False, db_broker_order_id='{db_broker_order_id}', status={status}")
+
             logger.info(
                 f"Reconciled {len(broker_pos_list)} broker positions for {account_name}"
             )

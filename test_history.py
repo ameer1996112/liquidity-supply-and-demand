@@ -12,7 +12,5 @@ if key and key.upper().startswith("SUPA") and "=" in key[:50]:
 
 sb = create_client(url, key)
 
-res = sb.table("trading_signals").select("id, symbol, created_at, status").in_("status", ["executed"]).execute()
-print(f"Number of active/executed trades in DB: {len(res.data)}")
-for t in res.data[:5]:
-    print(t)
+res = sb.table("trading_signals").select("id, symbol, created_at, status, updated_at").eq("id", 55).execute()
+print(json.dumps(res.data, indent=2))

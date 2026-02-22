@@ -105,7 +105,21 @@ def process_trade(
         # 2) Broker close: only for LIVE signals with live_trading_enabled
         exit_run_mode = str(data.get("run_mode", "PAPER")).upper()
         if exit_run_mode == "PAPER":
-            logger.info("PAPER exit — skipping broker close for zone_id=%s", data["zone_id"])
+            logger.info("PAPER exit — updating DB to CLOSED for zone_id=%s", data["zone_id"])
+            try:
+                # Mark the paper trade as closed in DB directly
+                client = supabase_module.supabase
+                if client:
+                    close_payload = {
+                        "status": "CLOSED",
+                        "closed_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                    if trade_key:
+                        client.table("trading_signals").update(close_payload).eq("trade_key", trade_key).execute()
+                    else:
+                        client.table("trading_signals").update(close_payload).eq("zone_id", data["zone_id"]).execute()
+            except Exception as e:
+                logger.error("Failed to close paper trade in DB for zone_id=%s: %s", data["zone_id"], e)
         elif getattr(s, "live_trading_enabled", False):
             try:
                 # Use profile-specific adapter when available (multi-account)
