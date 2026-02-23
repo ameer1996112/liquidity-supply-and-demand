@@ -2427,11 +2427,8 @@ validate_entry_conditions(bool isDemand, int idx) =>
         if z.touchedPreSweep
             canEnter := false
             reason := "Start Freshness Failed (Touched Pre-Sweep)"
-            
-        // Zone must have caused sweep & not be historical
-        if canEnter and not z.causedSweep
-            canEnter := false
-            reason := isDemand ? "Waiting for Inducement Sweep (Demand)" : "Waiting for Inducement Sweep (Supply)"
+
+        // Historical zones are invalid (created during backfill)
         if canEnter and z.isHistorical
             canEnter := false
             reason := isDemand ? "Demand zone created in historical backfill" : "Supply zone created in historical backfill"
