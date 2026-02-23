@@ -1706,10 +1706,28 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
             z.liqLowPrice := bestLiqPrice
             z.liqLowBar := bestLiqBar
 
-            // Reset inducement sweep if it changed (force re-validation)
+            // Reset inducement sweep if it changed - BUT check historical bars!
             if inductionChanged
-                z.liquiditySwept := false
-                z.liquiditySweptBarIndex := na
+                // Check if the NEW inducement was already swept by any bar since zone creation
+                bool historicalSweep = false
+                int sweepBar = na
+                float sweepTol = pip_size * 0.5
+                int lookbackBars = bar_index - z.createdBarIndex
+
+                // Scan backwards from current bar to zone creation
+                for j = 0 to math.min(lookbackBars, 200)  // Limit to 200 bars for performance
+                    if low[j] <= bestLiqPrice + sweepTol
+                        historicalSweep := true
+                        sweepBar := bar_index - j
+                        break
+
+                if historicalSweep
+                    z.liquiditySwept := true
+                    z.liquiditySweptBarIndex := sweepBar
+                    z.causedSweep := true
+                else
+                    z.liquiditySwept := false
+                    z.liquiditySweptBarIndex := na
 
             // === STEP B: STRICT TARGET SCAN (ABSOLUTE HIGHEST price BEFORE inducement) ===
             // CRITICAL FIX: Find the ABSOLUTE HIGHEST high in the strict range:
@@ -1843,10 +1861,28 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
             z.liqHighPrice := bestLiqPrice
             z.liqHighBar := bestLiqBar
 
-            // Reset inducement sweep if it changed (force re-validation)
+            // Reset inducement sweep if it changed - BUT check historical bars!
             if inductionChanged
-                z.liquiditySwept := false
-                z.liquiditySweptBarIndex := na
+                // Check if the NEW inducement was already swept by any bar since zone creation
+                bool historicalSweep = false
+                int sweepBar = na
+                float sweepTol = pip_size * 0.5
+                int lookbackBars = bar_index - z.createdBarIndex
+
+                // Scan backwards from current bar to zone creation
+                for j = 0 to math.min(lookbackBars, 200)  // Limit to 200 bars for performance
+                    if high[j] >= bestLiqPrice - sweepTol
+                        historicalSweep := true
+                        sweepBar := bar_index - j
+                        break
+
+                if historicalSweep
+                    z.liquiditySwept := true
+                    z.liquiditySweptBarIndex := sweepBar
+                    z.causedSweep := true
+                else
+                    z.liquiditySwept := false
+                    z.liquiditySweptBarIndex := na
 
             // === STEP B: STRICT TARGET SCAN (ABSOLUTE LOWEST price BEFORE inducement) ===
             // CRITICAL FIX: Find the ABSOLUTE LOWEST low in the strict range:
