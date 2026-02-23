@@ -974,9 +974,9 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     decision_trace: Dict[str, Any] = {
         "rf_probability_raw": rf_prob,
-        "rf_probability_pct": round(rf_prob * 100.0, 2),
+        "rf_probability_pct": round(rf_prob * 100.0, 4),
         "threshold_raw": threshold,
-        "threshold_pct": round(threshold * 100.0, 2),
+        "threshold_pct": round(threshold * 100.0, 4),
         "predicted_class": class_mapping.get("positive_class", 1),
         "class_mapping": class_mapping,
         "feature_spec_source": (features or {}).get("_trace_feature_spec_source") if isinstance(features, dict) else None,
@@ -1097,15 +1097,15 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
     # Rule: RF threshold gate
     rf_pass = rf_prob >= threshold
     rf_rule_message = (
-        f"RF probability {rf_prob:.1%} {'>=' if rf_pass else '<'} {threshold:.0%} threshold"
+        f"RF probability {rf_prob:.1%} {'>=' if rf_pass else '<'} {threshold:.1%} threshold"
     )
     decision_trace["rules"].append({
         "rule_id": "rf_threshold",
         "passed": rf_pass,
         "value_raw": rf_prob,
-        "value_pct": round(rf_prob * 100.0, 2),
+        "value_pct": round(rf_prob * 100.0, 4),
         "threshold_raw": threshold,
-        "threshold_pct": round(threshold * 100.0, 2),
+        "threshold_pct": round(threshold * 100.0, 4),
         "message": rf_rule_message,
     })
 
