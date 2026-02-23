@@ -114,17 +114,33 @@ export default function DashboardPage() {
       : (stats?.live_total_pnl ?? stats?.total_pnl);
 
   const kpis = [
-    { label: 'Today PnL', value: formatCurrency(todayPnl, { signed: true }) },
-    { label: 'Total PnL', value: formatCurrency(totalPnl, { signed: true }) },
-    { label: 'Drawdown', value: formatPercent(risk?.drawdown_pct) },
-    { label: 'Daily DD', value: formatPercent(stats?.daily_drawdown_pct) },
+    {
+      label: 'Today PnL',
+      value: mounted ? formatCurrency(todayPnl, { signed: true }) : '—',
+    },
+    {
+      label: 'Total PnL',
+      value: mounted ? formatCurrency(totalPnl, { signed: true }) : '—',
+    },
+    {
+      label: 'Drawdown',
+      value: mounted ? formatPercent(risk?.drawdown_pct) : '—',
+    },
+    {
+      label: 'Daily DD',
+      value: mounted ? formatPercent(stats?.daily_drawdown_pct) : '—',
+    },
     {
       label: 'Active Positions',
-      value: formatNumber(activePositionsCount, { decimals: 0, empty: '0' }),
+      value: mounted
+        ? formatNumber(activePositionsCount, { decimals: 0, empty: '0' })
+        : '—',
     },
     {
       label: 'Trades Today',
-      value: formatNumber(tradesToday, { decimals: 0, empty: '0' }),
+      value: mounted
+        ? formatNumber(tradesToday, { decimals: 0, empty: '0' })
+        : '—',
     },
   ];
 

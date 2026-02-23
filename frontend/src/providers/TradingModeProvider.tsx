@@ -4,6 +4,7 @@ import {
   createContext,
   useContext,
   useState,
+  useEffect,
   useCallback,
   type ReactNode,
 } from 'react';
@@ -22,11 +23,14 @@ const TradingModeContext = createContext<TradingModeContextValue>({
 const STORAGE_KEY = 'trading-mode';
 
 export function TradingModeProvider({ children }: { children: ReactNode }) {
-  const [mode, setModeState] = useState<TradingMode>(() => {
-    if (typeof window === 'undefined') return 'LIVE';
+  const [mode, setModeState] = useState<TradingMode>('LIVE');
+
+  useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
-    return stored === 'PAPER' ? 'PAPER' : 'LIVE';
-  });
+    if (stored === 'PAPER' || stored === 'BACKTEST') {
+      setModeState(stored as TradingMode);
+    }
+  }, []);
 
   const setMode = useCallback((m: TradingMode) => {
     setModeState(m);
