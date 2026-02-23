@@ -115,8 +115,10 @@ var bool is_gold = str.contains(syminfo.ticker, "XAU") or str.contains(syminfo.t
 var bool is_silver = str.contains(syminfo.ticker, "XAG") or str.contains(syminfo.ticker, "SILVER")
 var bool is_crypto = str.contains(syminfo.ticker, "BTC") or str.contains(syminfo.ticker, "ETH")
 var bool is_index = str.contains(syminfo.ticker, "NAS") or str.contains(syminfo.ticker, "US100") or str.contains(syminfo.ticker, "NDX") or str.contains(syminfo.ticker, "SPX") or str.contains(syminfo.ticker, "US500") or str.contains(syminfo.ticker, "US30") or str.contains(syminfo.ticker, "DJI")
+var bool is_futures = syminfo.type == "futures"
+var bool is_xpt = str.contains(syminfo.ticker, "XPTUSD") or str.contains(syminfo.ticker, "PLATINUM") or str.contains(syminfo.ticker, "XPT")
 var bool is_usd_base = str.startswith(syminfo.ticker, "USD") and not str.endswith(syminfo.ticker, "USD")
-var bool is_usd_quote = (str.contains(syminfo.ticker, "USD") and not is_usd_base) or is_gold or is_silver or is_crypto
+var bool is_usd_quote = (str.contains(syminfo.ticker, "USD") and not is_usd_base) or is_gold or is_silver or is_crypto or is_xpt
 
 // ========================================
 // === OPTIMIZATION: USDJPY RATE CACHE ===
@@ -345,8 +347,8 @@ use_break_even     = input.bool(false, "Break-Even Mode", group = "⚙️ Advanc
 max_bars_held = input.int(36, "Time-Based Exit (Bars)", minval=1, group = "⚙️ Advanced / Manual Tweaks", tooltip="Close trade after X bars regardless of P/L. 36 bars on M5 = 3 hours max hold time.")
 enable_double_tp = input.bool(false, "Double TP Mode", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Double all TP targets. Example: 1:2 becomes 1:4. For trending markets.")
 use_fvg_confirmation = input.bool(false, "Require FVG (Imbalance)", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Only create zones that have a Fair Value Gap. Reduces zones but improves quality.")
-enable_accuracy_zones = input.bool(true, "Accuracy Zones", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Detect high-precision zones. Auto-disabled for Gold/Indices.")
-should_use_accuracy_zones = enable_accuracy_zones and not (is_gold or is_index)
+enable_accuracy_zones = input.bool(true, "Accuracy Zones", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Detect high-precision zones. Auto-disabled for Gold/Indices/Futures/Platinum.")
+should_use_accuracy_zones = enable_accuracy_zones and not (is_gold or is_index or is_futures or is_xpt)
 
 // Webhook Integration (for live trading)
 enable_webhook_alerts = true  // Always enabled
