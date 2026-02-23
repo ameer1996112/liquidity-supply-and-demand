@@ -1171,14 +1171,23 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     rules_block = "\n\n".join(f"- {r}" for r in rules_texts) if rules_texts else "No explicit rules found."
 
+    trade_context = (
+        f"Trade Direction: {payload.get('side', 'UNKNOWN').upper()}\n"
+        f"Entry Model Used: {payload.get('entry_model', 'UNKNOWN').upper()}\n"
+        f"Zone Type: {payload.get('zone_type', 'UNKNOWN').upper()}\n"
+        f"Liquidity Swept: {'Yes' if payload.get('liq_swept') else 'No'}\n"
+    )
+
     prompt = (
         "You are a strict trading risk gatekeeper.\n\n"
+        f"Trade Parameters (From Trading Engine):\n{trade_context}\n"
         f"Context (Market Narrative):\n{narrative}\n\n"
         f"Strategy Rules (from knowledge base):\n{rules_block}\n\n"
         f"RF Model Score: {rf_prob:.4f}\n\n"
         "Task: Decide if this trade is valid and should be executed.\n"
         "Constraints:\n"
         "- Only approve trades that clearly align with the rules and context.\n"
+        "- Take the 'Trade Parameters' as ground truth. If the Trade Parameters state the entry model is FLIP, assume a candlestick flip pattern occurred even if the general Market Narrative missed it.\n"
         "- Be conservative if context or rules are ambiguous.\n\n"
         "Response: Return ONLY a valid JSON object of the form:\n"
         "{\n"
