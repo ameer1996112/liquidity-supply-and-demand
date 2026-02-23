@@ -31,6 +31,7 @@ class EntryWebhookPayload(BaseModel):
     tp: float = Field(..., description="Take profit price")
     size: float = Field(..., description="Position size")
     event_type: str | None = Field(None, description="If 'exit', use exit payload instead")
+    signal_time: str | None = Field(None, description="Original signal generation time (UTC)")
 
     @model_validator(mode="after")
     def side_must_be_buy_or_sell(self) -> "EntryWebhookPayload":

@@ -281,7 +281,8 @@ export build_webhook_payload(
      float pip_size, bool include_zone_id,
      bool _liquidity_sweep, string _arrival_type, bool _structure_break,
      float _account_balance = 50000,
-     float _liq_distance_pips = na, float _liq_spread_pips = na) =>
+     float _liq_distance_pips = na, float _liq_spread_pips = na,
+     int current_time = na) =>
 
     string payload = '{"symbol":"' + _symbol + '"'
     payload := payload + ',"side":"' + _side + '"'
@@ -344,6 +345,9 @@ export build_webhook_payload(
     payload := payload + ',"liquidity_sweep":' + (_liquidity_sweep ? "true" : "false")
     payload := payload + ',"arrival_type":"' + _arrival_type + '"'
     payload := payload + ',"market_structure_break":' + (_structure_break ? "true" : "false")
+
+    if not na(current_time)
+        payload := payload + ',"signal_time":"' + str.format("{0,date,yyyy-MM-dd HH:mm:ss}", current_time) + '"'
 
     payload := payload + '}'
     payload

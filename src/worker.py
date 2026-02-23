@@ -295,6 +295,15 @@ def save_result(
     extra_columns, zone_reason = _payload_zone_and_metrics(payload)
     data.update(extra_columns)
 
+    signal_time_str = payload.get("signal_time")
+    if signal_time_str:
+        try:
+            from datetime import datetime, timezone
+            dt = datetime.strptime(signal_time_str, "%Y-%m-%d %H:%M:%S")
+            data["created_at"] = dt.replace(tzinfo=timezone.utc).isoformat()
+        except Exception as e:
+            logger.warning("Failed to parse signal_time '%s': %s", signal_time_str, e)
+
     # ai_reasoning: merge zone/metrics with optional caller-provided (e.g. ensemble)
     merged_reason = {**zone_reason}
     if ai_reasoning:
