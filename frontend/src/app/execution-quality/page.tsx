@@ -23,6 +23,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertTriangle, Clock, TrendingDown, DollarSign } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ClientDate } from '@/components/ui/ClientDate';
 
 const PERIODS = ['1d', '7d', '30d'] as const;
 
@@ -371,12 +372,10 @@ export default function ExecutionQualityPage() {
                       </div>
                     </div>
                   </div>
-                  <div
+                  <ClientDate
                     className='font-mono text-[10px] text-slate-500'
-                    suppressHydrationWarning
-                  >
-                    {new Date(alert.created_at).toLocaleString()}
-                  </div>
+                    render={() => new Date(alert.created_at).toLocaleString()}
+                  />
                 </div>
               ))}
             </div>

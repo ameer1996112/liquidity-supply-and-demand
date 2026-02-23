@@ -3,6 +3,7 @@
 import { useRiskMonitor, type GuardRailStatus } from '@/hooks/useRiskMonitor';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { ClientDate } from '@/components/ui/ClientDate';
 import {
   Shield,
   TrendingDown,
@@ -75,9 +76,9 @@ export default function RiskMonitorPage() {
             style={{ fontFamily: 'var(--font-mono)' }}
           >
             updated{' '}
-            <span suppressHydrationWarning>
-              {new Date(data.last_updated).toLocaleTimeString()}
-            </span>
+            <ClientDate
+              render={() => new Date(data.last_updated).toLocaleTimeString()}
+            />
           </div>
         </>
       ) : null}

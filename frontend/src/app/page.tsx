@@ -33,10 +33,7 @@ function StatCard({ label, value }: { label: string; value: string }) {
       <p className='text-[10px] uppercase tracking-wider text-slate-500'>
         {label}
       </p>
-      <p
-        suppressHydrationWarning
-        className='mt-1 text-sm font-semibold tabular-nums text-slate-100'
-      >
+      <p className='mt-1 text-sm font-semibold tabular-nums text-slate-100'>
         {value}
       </p>
     </div>
@@ -82,10 +79,11 @@ export default function DashboardPage() {
     [signals],
   );
   const tradesToday = useMemo(() => {
+    if (!mounted) return 0;
     const start = new Date();
     start.setHours(0, 0, 0, 0);
     return signals.filter((s) => new Date(s.created_at) >= start).length;
-  }, [signals]);
+  }, [signals, mounted]);
 
   const latestSignal = signals[0] ?? null;
   const lastRejectSignal = useMemo(
