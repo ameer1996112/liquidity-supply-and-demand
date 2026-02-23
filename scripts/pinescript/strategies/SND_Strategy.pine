@@ -30,7 +30,7 @@
 
 // === LIBRARY IMPORTS ===
 // Import helper functions from external libraries to reduce script size
-import ameer_1996112/SND_Utils/11 as Utils
+import ameer_1996112/SND_Utils/12 as Utils
 import ameer_1996112/SND_Core/5 as Core
 
 strategy("Institutional Liquidity Protocol [Pro]",
@@ -4063,7 +4063,7 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     account_size_usd,        // account_balance (so dashboard shows your TradingView Account Size)
                     na,                      // liq_distance_pips
                     na,                      // liq_spread_pips
-                    time                     // current_time
+                    time[1]                  // current_time (use the closed bar's open time instead of current bar's open time)
                 ) : ""
 
                 if dry_run_mode
@@ -4516,7 +4516,7 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     account_size_usd,              // account_balance (so dashboard shows your TradingView Account Size)
                     na,                            // liq_distance_pips
                     na,                            // liq_spread_pips
-                    time                           // current_time
+                    time[1]                        // current_time (use the closed bar's open time instead of current bar's open time)
                 ) : ""
 
                 if dry_run_mode

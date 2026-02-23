@@ -347,7 +347,7 @@ export build_webhook_payload(
     payload := payload + ',"market_structure_break":' + (_structure_break ? "true" : "false")
 
     if not na(current_time)
-        payload := payload + ',"signal_time":"' + str.format("{0,date,yyyy-MM-dd HH:mm:ss}", current_time) + '"'
+        payload := payload + ',"signal_time":"' + str.format("{0,date,yyyy-MM-dd HH:mm:ss}", current_time, "Etc/UTC") + '"'
 
     payload := payload + '}'
     payload
@@ -377,6 +377,6 @@ export build_exit_webhook_payload(
     payload := payload + ',"pnl_usd":' + to_json_num(_pnl_usd, "#.##")
     payload := payload + ',"exit_type":"' + _exit_type + '"'
     payload := payload + ',"mae_pips":' + to_json_num(_mae_pips, "#.#")
-    payload := payload + ',"close_time":"' + str.format("{0,date,yyyy-MM-dd HH:mm:ss}", current_time) + '"'
+    payload := payload + ',"close_time":"' + str.format("{0,date,yyyy-MM-dd HH:mm:ss}", current_time, "Etc/UTC") + '"'
     payload := payload + '}'
     payload
