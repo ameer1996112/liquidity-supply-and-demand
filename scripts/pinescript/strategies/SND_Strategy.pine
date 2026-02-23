@@ -2412,12 +2412,8 @@ validate_entry_conditions(bool isDemand, int idx) =>
             canEnter := false
             reason := isDemand ? "Demand zone inactive" : "Supply zone inactive"
 
-    // === TIME DEAD ZONE FILTER (Arger FX Rule) ===
-    // Block entries in the last 10 minutes of each hour (xx:50 - xx:00)
-    // Check this EARLY so user sees clear timing message
-    if canEnter and is_time_dead_zone()
-        canEnter := false
-        reason := "Dead Zone: Blocked at " + str.tostring(minute(time)) + "m (avoid xx:50-xx:00)"
+    // NOTE: Dead zone filter moved to AFTER entry model determination (line ~3905)
+    // This allows FLIP entries (which happen at 15m boundaries) to bypass the dead zone
 
     // === TRADING HOURS FILTER (Israel Time) ===
     // Block entries outside allowed trading window (09:00-17:00 Israel Time)
@@ -3901,6 +3897,16 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
             if chosenModel == "NONE"
                 continue  // No valid entry pattern yet, keep zone primed
 
+            // === TIME DEAD ZONE FILTER (Arger FX Rule) ===
+            // Block BREAK_CANDLE and DIR_CLOSE entries during dead zone (xx:50-xx:59)
+            // FLIP entries are allowed because they happen at 15m boundaries (xx:00/:15/:30/:45)
+            // which naturally fall outside the dead zone
+            if is_time_dead_zone()
+                if chosenModel == "BREAK_CANDLE" or chosenModel == "DIR_CLOSE"
+                    z.inactiveReason := "BLOCKED - Dead Zone: " + chosenModel + " at " + str.tostring(minute(time)) + "m (avoid xx:50-xx:00)"
+                    continue  // Block this entry, keep zone primed for next bar
+                // If chosenModel is "FLIP", allow it to proceed (no continue)
+
             // Store model for Inspector/Debug
             z.inactiveReason := "Model: " + chosenModel
 
@@ -4371,6 +4377,16 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
 
             if chosenModel == "NONE"
                 continue  // No valid entry pattern yet, keep zone primed
+
+            // === TIME DEAD ZONE FILTER (Arger FX Rule) ===
+            // Block BREAK_CANDLE and DIR_CLOSE entries during dead zone (xx:50-xx:59)
+            // FLIP entries are allowed because they happen at 15m boundaries (xx:00/:15/:30/:45)
+            // which naturally fall outside the dead zone
+            if is_time_dead_zone()
+                if chosenModel == "BREAK_CANDLE" or chosenModel == "DIR_CLOSE"
+                    z.inactiveReason := "BLOCKED - Dead Zone: " + chosenModel + " at " + str.tostring(minute(time)) + "m (avoid xx:50-xx:00)"
+                    continue  // Block this entry, keep zone primed for next bar
+                // If chosenModel is "FLIP", allow it to proceed (no continue)
 
             // Store model for Inspector/Debug
             z.inactiveReason := "Model: " + chosenModel
