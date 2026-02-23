@@ -329,8 +329,8 @@ max_trades_per_day = input.int(2, "   └─ Max Trades/Day", minval = 1, maxval
 // Time Filters
 filter_dead_zone = input.bool(true, "Block Dead Zone (xx:50-xx:00)", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: No entries in last 10 minutes of each hour. These periods have erratic price action.")
 filter_trading_hours = input.bool(true, "Trading Hours Only", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Only trade during active market hours. OFF: Trade 24/7.")
-trading_start_hour = input.int(7, "   └─ Start Hour (UTC)", minval = 0, maxval = 23, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Hour to start trading (0-23). 7 = 7:00 AM UTC.")
-trading_end_hour = input.int(22, "   └─ End Hour (UTC)", minval = 0, maxval = 23, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Hour to stop trading (0-23). 22 = 10:00 PM UTC.")
+trading_start_hour = input.int(9, "   └─ Start Hour (IST)", minval = 0, maxval = 23, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Hour to start trading (0-23). 9 = 9:00 AM IST (7 AM UK).")
+trading_end_hour = input.int(17, "   └─ End Hour (IST)", minval = 0, maxval = 23, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Hour to stop trading (0-23). 17 = 5:00 PM IST (3 PM UK).")
 require_htf_flip = input.bool(true, "HTF Flip Context", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Flip entries only valid near 30m/1H candle opens for better timing.")
 
 // AI & Quality Filters
@@ -705,10 +705,10 @@ get_gold_tp_rules_aggressive(sl_pips) =>
 // === INDEX TP RULES (NAS100, SPX, etc.) ===
 // Fixed 1:4 ratio for all index trades regardless of SL size
 get_index_tp_rules(sl_pips) =>
-    float tp_ratio = 4.0           // Fixed 1:4 for all indices
-    float be_trigger_rr = 2.0      // Move to BE at 1:2
-    float be_sl_pips_min = 2.0     // Lock in 2 points (200 pips)
-    bool move_to_be = true
+    float tp_ratio = 3.0           // Fixed 1:3 for all indices (Arger FX 2026)
+    float be_trigger_rr = na
+    float be_sl_pips_min = na
+    bool move_to_be = false
     
     [tp_ratio, be_trigger_rr, be_sl_pips_min, move_to_be]
 
@@ -726,13 +726,19 @@ get_tp_ratio(symbol_type, sl_pips) =>
         be_trig := na
         be_sl := na
         move_be := false
-    // 1. Check for Indices first (NAS100, SPX, etc.) - Fixed 1:4
-    else if is_index
+    // 1. Check for Indices first (NAS100, SPX, etc.) & Oil - Fixed 1:3
+    else if is_index or syminfo.ticker == "USOIL" or syminfo.ticker == "USOIL.cash" or syminfo.ticker == "CL" or syminfo.ticker == "CL1!"
         [i_tp, i_bet, i_bes, i_mbe] = get_index_tp_rules(sl_pips)
         base_ratio := i_tp
         be_trig := i_bet
         be_sl := i_bes
         move_be := i_mbe
+    // 1b. Check for Gold - Fixed 1:4 (Arger FX 2026)
+    else if is_gold
+        base_ratio := 4.0
+        be_trig := na
+        be_sl := na
+        move_be := false
     // 2. Aggressive profile: Gold / JPY&Forex SL-based rules; 1:4 for other (e.g. silver, crypto)
     else if is_aggressive and use_profile_defaults
         if is_gold
@@ -2119,23 +2125,27 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
 
         // Only calculate coordinates if proceeding
         if proceed_creation
+            // Wick Exception Rule (Arger FX 2026): Encompass explosive candle extreme wick if needed
+            float extremeLow = reactionIdx >= 0 ? math.min(baseLow, low[reactionIdx]) : baseLow
+            float extremeHigh = reactionIdx >= 0 ? math.max(baseHigh, high[reactionIdx]) : baseHigh
+
             if isAccuracy
                 if isDemand
                     // Demand Accuracy: Ignore Top Wick
                     // Top = OPEN (Body Top)
-                    // Bottom = LOW (Extreme)
+                    // Bottom = LOW or EXTREME (Wick Exception)
                     zTop := baseOpen
-                    zBottom := baseLow
+                    zBottom := extremeLow
                 else
                     // Supply Accuracy: Ignore Bottom Wick
-                    // Top = HIGH (Extreme)
+                    // Top = HIGH or EXTREME (Wick Exception)
                     // Bottom = OPEN (Body Bottom)
-                    zTop := baseHigh
+                    zTop := extremeHigh
                     zBottom := baseOpen
             else
-                // Normal zones: Full candle range
-                zTop := baseHigh
-                zBottom := baseLow
+                // Normal zones: Full candle range + Wick Exception
+                zTop := isDemand ? baseHigh : extremeHigh
+                zBottom := isDemand ? extremeLow : baseLow
         
             // Cap zone size to avoid overly large zones
             max_zone_size = 50.0 * pip_size
@@ -2479,6 +2489,13 @@ validate_entry_conditions(bool isDemand, int idx) =>
             if not wickIntoZone
                 canEnter := false
                 reason := isDemand ? "No wick INTO demand zone" : "No wick INTO supply zone"
+
+            // STRICT ENTRY INVALIDATION ("Close Inside" Rule - Arger FX 2026)
+            if canEnter
+                bool closed_inside = close <= z.top and close >= z.bottom
+                if closed_inside
+                    canEnter := false
+                    reason := "⛔ Closed inside zone (Invalid)"
 
         // Zone not used yet
         bool zone_already_used = not na(z.lastEntryBar)
