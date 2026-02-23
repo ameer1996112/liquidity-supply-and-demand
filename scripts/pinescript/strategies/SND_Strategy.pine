@@ -115,7 +115,8 @@ var bool is_gold = str.contains(syminfo.ticker, "XAU") or str.contains(syminfo.t
 var bool is_silver = str.contains(syminfo.ticker, "XAG") or str.contains(syminfo.ticker, "SILVER")
 var bool is_crypto = str.contains(syminfo.ticker, "BTC") or str.contains(syminfo.ticker, "ETH")
 var bool is_index = str.contains(syminfo.ticker, "NAS") or str.contains(syminfo.ticker, "US100") or str.contains(syminfo.ticker, "NDX") or str.contains(syminfo.ticker, "SPX") or str.contains(syminfo.ticker, "US500") or str.contains(syminfo.ticker, "US30") or str.contains(syminfo.ticker, "DJI")
-var bool is_futures = syminfo.type == "futures"
+var bool is_oil = str.contains(syminfo.ticker, "USOIL") or str.contains(syminfo.ticker, "CL") or str.contains(syminfo.ticker, "XTIUSD")
+var bool is_futures = syminfo.type == "futures" or is_oil
 var bool is_xpt = str.contains(syminfo.ticker, "XPTUSD") or str.contains(syminfo.ticker, "PLATINUM") or str.contains(syminfo.ticker, "XPT")
 var bool is_usd_base = str.startswith(syminfo.ticker, "USD") and not str.endswith(syminfo.ticker, "USD")
 var bool is_usd_quote = (str.contains(syminfo.ticker, "USD") and not is_usd_base) or is_gold or is_silver or is_crypto or is_xpt
@@ -330,9 +331,9 @@ max_trades_per_day = input.int(2, "   └─ Max Trades/Day", minval = 1, maxval
 
 // Time Filters
 filter_dead_zone = input.bool(true, "Block Dead Zone (xx:50-xx:00)", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: No entries in last 10 minutes of each hour. These periods have erratic price action.")
-filter_trading_hours = input.bool(true, "Trading Hours Only", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Only trade during active market hours. OFF: Trade 24/7.")
-trading_start_hour = input.int(7, "   └─ Start Hour (UTC)", minval = 0, maxval = 23, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Hour to start trading (0-23). 7 = 7:00 AM UTC.")
-trading_end_hour = input.int(22, "   └─ End Hour (UTC)", minval = 0, maxval = 23, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Hour to stop trading (0-23). 22 = 10:00 PM UTC.")
+filter_trading_hours = input.bool(true, "Trading Hours Only (09:00-17:00 Israel Time)", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Only trade during institutional hours (09:00-17:00 Israel Time = London Open to NY Morning). OFF: Trade 24/7.")
+trading_start_hour = input.int(9, "   └─ Start Hour (Israel Time) [FIXED]", minval = 9, maxval = 9, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Fixed at 09:00 Israel Time (matches 07:00 UK = London Open).")
+trading_end_hour = input.int(17, "   └─ End Hour (Israel Time) [FIXED]", minval = 17, maxval = 17, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Fixed at 17:00 Israel Time (matches 15:00 UK = NY Morning).")
 require_htf_flip = input.bool(true, "HTF Flip Context", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Flip entries only valid near 30m/1H candle opens for better timing.")
 
 // AI & Quality Filters
@@ -714,6 +715,27 @@ get_index_tp_rules(sl_pips) =>
     
     [tp_ratio, be_trigger_rr, be_sl_pips_min, move_to_be]
 
+// === INSTRUMENT-SPECIFIC RR (Futures Optimization) ===
+// Returns the fixed RR ratio based on instrument type for Futures Trading
+// Video Reference: 11:55 - Fixed RR ratios for specific instruments
+get_instrument_rr() =>
+    float fixed_rr = na
+
+    // Gold (GC/XAUUSD): Force 1:4 RR
+    if is_gold
+        fixed_rr := 4.0
+    // Indices (NQ, ES, NAS100, US30): Force 1:3 RR
+    else if is_index
+        fixed_rr := 3.0
+    // Crude Oil (CL/USOIL): Force 1:3 RR
+    else if is_oil
+        fixed_rr := 3.0
+    // For other pairs, return na to use dynamic RR (minimum 1:2)
+    else
+        fixed_rr := na
+
+    fixed_rr
+
 // === 2025 TP LOOKUP DICTIONARIES ===
 get_tp_ratio(symbol_type, sl_pips) =>
     // Default variables
@@ -722,34 +744,24 @@ get_tp_ratio(symbol_type, sl_pips) =>
     float be_sl = na
     bool move_be = false
 
-    // CHECK: If custom RR override is enabled, use fixed ratio for everything except indices
-    if use_custom_rr and not is_index
+    // === PRIORITY 1: Instrument-Specific Fixed RR (Futures Optimization) ===
+    // Check for fixed RR requirements FIRST before any other logic
+    float instrument_rr = get_instrument_rr()
+    if not na(instrument_rr)
+        base_ratio := instrument_rr
+        be_trig := na  // No break-even for indices/gold/oil
+        be_sl := na
+        move_be := false
+    // CHECK: If custom RR override is enabled, use fixed ratio for everything except instruments with fixed RR
+    else if use_custom_rr and na(instrument_rr)
         base_ratio := risk_reward_ratio
         be_trig := na
         be_sl := na
         move_be := false
-    // 1. Check for Indices (NAS100, SPX, etc.) & Oil - Fixed 1:3
-    else if is_index or syminfo.ticker == "USOIL" or syminfo.ticker == "USOIL.cash" or syminfo.ticker == "CL" or syminfo.ticker == "CL1!"
-        [i_tp, i_bet, i_bes, i_mbe] = get_index_tp_rules(sl_pips)
-        base_ratio := i_tp
-        be_trig := i_bet
-        be_sl := i_bes
-        move_be := i_mbe
-    // 1b. Check for Gold - Fixed 1:4
-    else if is_gold
-        base_ratio := 4.0
-        be_trig := na
-        be_sl := na
-        move_be := false
-    // 2. Aggressive profile: Gold / JPY&Forex SL-based rules; 1:4 for other (e.g. silver, crypto)
+    // 2. Aggressive profile: JPY&Forex SL-based rules; 1:4 for other (e.g. silver, crypto)
+    // Note: Gold, indices, and oil are handled above and won't reach here
     else if is_aggressive and use_profile_defaults
-        if is_gold
-            [g_tp, g_bet, g_bes, g_mbe] = get_gold_tp_rules_aggressive(sl_pips)
-            base_ratio := g_tp
-            be_trig := g_bet
-            be_sl := g_bes
-            move_be := g_mbe
-        else if is_jpy_pair or (not is_silver and not is_crypto)
+        if is_jpy_pair or (not is_silver and not is_crypto)
             // JPY and Forex: same aggressive SL-based rules
             [f_tp, f_bet, f_bes, f_mbe] = get_jpy_tp_rules_aggressive(sl_pips)
             base_ratio := f_tp
@@ -762,13 +774,8 @@ get_tp_ratio(symbol_type, sl_pips) =>
             be_trig := na
             be_sl := na
             move_be := false
-    // 3. Conservative/Balanced/Custom: existing rules
-    else if is_gold
-        [g_tp, g_bet, g_bes, g_mbe] = get_gold_tp_rules(sl_pips)
-        base_ratio := g_tp
-        be_trig := g_bet
-        be_sl := g_bes
-        move_be := g_mbe
+    // 3. Conservative/Balanced/Custom: existing dynamic rules for forex pairs
+    // Note: Gold, indices, and oil are handled above with fixed RR
     else
         [f_tp, f_bet, f_bes, f_mbe] = get_forex_tp_rules(sl_pips)
         base_ratio := f_tp
@@ -2056,12 +2063,31 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
             trimBaseTimeArrays()
             
     if not alreadyUsed
-        // Calculate Zone Coordinates
+        // Calculate Zone Coordinates from Base Candle
         float baseHigh = high[baseIdx]
         float baseLow  = low[baseIdx]
         float baseOpen = open[baseIdx]
         float baseClose = close[baseIdx]
-        
+
+        // === WICK EXTENSION RULE (Video 03:00) ===
+        // Check if the explosive candle (the move after the base) has a longer wick
+        // If yes, extend the zone to include that wick for more accurate SL placement
+        int explosiveIdx = baseIdx - 1  // The explosive candle is one bar after base
+        if explosiveIdx >= 0
+            float explosiveHigh = high[explosiveIdx]
+            float explosiveLow = low[explosiveIdx]
+
+            if isDemand
+                // DEMAND: If explosive candle's lower wick is lower than base low,
+                // use explosive candle's low as zone bottom
+                if explosiveLow < baseLow
+                    baseLow := explosiveLow
+            else
+                // SUPPLY: If explosive candle's upper wick is higher than base high,
+                // use explosive candle's high as zone top
+                if explosiveHigh > baseHigh
+                    baseHigh := explosiveHigh
+
         // === FVG / IMBALANCE CHECK ===
         // If FVG Confluence is enabled, only create zone if displacement left an FVG/Imbalance
         // Imbalance is between the BASE candle and the 2nd candle after it (Candle C)
@@ -2349,20 +2375,18 @@ is_time_dead_zone() =>
         currentMinute >= 50
 
 // === TRADING HOURS FILTER (Israel Time) ===
-// Block entries outside of 07:00-22:00 Israel time (GMT+2/GMT+3 depending on DST)
-// This avoids:
-// - Swap hour (around 00:00)
-// - Low-liquidity Asian session hours (late night/early morning)
-// - Late-night volatility spikes
+// Block entries outside of 09:00-17:00 Israel time (high volume institutional hours)
+// Video Reference: Session Filter requirement
+// This matches London Open (07:00 UK) to NY Morning (15:00 UK) in Israel Time
 is_outside_trading_hours() =>
     if not filter_trading_hours
         false  // Filter disabled, allow all entries
     else
-        // Israel timezone: Use "Asia/Jerusalem" which handles DST automatically
-        int israelHour = hour(time, "Asia/Jerusalem")
-        // Block if hour is before start or at/after end
-        // Example: start=7, end=22 means allow 07:00-21:59, block 22:00-06:59
-        israelHour < trading_start_hour or israelHour >= trading_end_hour
+        // Use time() function with session specification and Asia/Jerusalem timezone
+        // This method is more reliable as it checks if current bar falls within the session
+        // The time() function returns na when outside the specified session
+        int t = time(timeframe.period, "0900-1700", "Asia/Jerusalem")
+        na(t)  // If time() returns na, we're outside trading hours
 
 // Unified Entry Validation
 validate_entry_conditions(bool isDemand, int idx) =>
@@ -2396,11 +2420,11 @@ validate_entry_conditions(bool isDemand, int idx) =>
         reason := "Dead Zone: Blocked at " + str.tostring(minute(time)) + "m (avoid xx:50-xx:00)"
 
     // === TRADING HOURS FILTER (Israel Time) ===
-    // Block entries outside allowed trading window (default: 07:00-22:00)
+    // Block entries outside allowed trading window (09:00-17:00 Israel Time)
     if canEnter and is_outside_trading_hours()
         canEnter := false
         int israelHour = hour(time, "Asia/Jerusalem")
-        reason := "Outside Trading Hours: " + str.tostring(israelHour) + ":00 (allowed: " + str.tostring(trading_start_hour) + ":00-" + str.tostring(trading_end_hour) + ":00)"
+        reason := "Outside Trading Hours: " + str.tostring(israelHour) + ":00 (allowed: 09:00-17:00 Israel Time)"
 
     if canEnter
         // Zone must not have been touched BEFORE sweep
@@ -3456,27 +3480,24 @@ if array.size(demandZones) > 0 and barstate.isconfirmed
             // Update demand liquidity visuals (connector + label)
             updateDemandLiquidityVisual(i)
             
-            if current_close > z.top and not z.leftZone
-                z.leftZone := true
-                z.leftWithBearish := current_close < current_open
-
             // === STRICT MITIGATION CHECK (DEMAND) ===
             // Zone is killed on ANY wick touch BEFORE liquidity sweep to enforce "Fresh Zone Only"
             // Conditions for mitigation:
-            // 1) Price CLOSES inside the zone, OR
+            // 1) Price CLOSES inside the zone AFTER leaving, OR
             // 2) Price wicks THROUGH the entire zone (breach - low goes below zone bottom), OR
-            // 3) Price wicks INTO zone (fresh touch before setup ready) - STRICT RULE
+            // 3) Price wicks INTO zone (fresh touch before setup ready) AFTER leaving
             if not z.mitigated
                 bool is_future_bar = not na(z.createdBarIndex) and bar_index > z.createdBarIndex
 
-                // Close inside zone (bearish invalidation)
-                bool closes_inside = close <= z.top and close >= z.bottom
+                // Close inside zone (bearish invalidation) - Only counts if we officially left it
+                bool closes_inside = z.leftZone and (close <= z.top and close >= z.bottom)
 
                 // Breach - price wicks through entire zone (wick below zone bottom)
                 bool breaches_zone = low < z.bottom
 
                 // Wick INTO zone (touch) - STRICT RULE: Kill zone before setup is ready
-                bool wicks_into_zone = low <= z.top and low >= z.bottom
+                // Only evaluate wicks INTO the zone AFTER the price has successfully left the zone!
+                bool wicks_into_zone = z.leftZone and (low <= z.top and low >= z.bottom)
 
                 // SIMULTANEOUS SWEEP: If current bar sweeps target, allow entry (exception to strict rule)
                 bool current_bar_sweeping = not na(z.structureSweepLevel) and high > z.structureSweepLevel
@@ -3490,6 +3511,11 @@ if array.size(demandZones) > 0 and barstate.isconfirmed
                     if not na(z.boxId)
                         box.set_bgcolor(z.boxId, color.new(color.gray, 85))
                         box.set_border_color(z.boxId, color.gray)
+
+            // Update z.leftZone AFTER the mitigation check, so it reflects true departure
+            if current_close > z.top and not z.leftZone
+                z.leftZone := true
+                z.leftWithBearish := current_close < current_open
 
 // === TRACK LIQUIDITY AND ZONE STATUS (SUPPLY) ===
 // CRITICAL: Only validate liquidity sweeps for LIVE zones (not historical backfill)
@@ -3563,28 +3589,24 @@ if array.size(supplyZones) > 0 and barstate.isconfirmed
             // Update supply liquidity visuals
             updateSupplyLiquidityVisual(i)
 
-            if current_close < z.bottom and not z.leftZone
-                z.leftZone := true
-
-
-            
             // === STRICT MITIGATION CHECK (SUPPLY) ===
             // Zone is killed on ANY wick touch BEFORE liquidity sweep to enforce "Fresh Zone Only"
             // Conditions for mitigation:
-            // 1) Price CLOSES inside the zone, OR
+            // 1) Price CLOSES inside the zone AFTER leaving, OR
             // 2) Price wicks THROUGH the entire zone (breach - high goes above zone top), OR
-            // 3) Price wicks INTO zone (fresh touch before setup ready) - STRICT RULE
+            // 3) Price wicks INTO zone (fresh touch before setup ready) AFTER leaving
             if not z.mitigated
                 bool is_future_bar = not na(z.createdBarIndex) and bar_index > z.createdBarIndex
 
-                // Close inside zone (bullish invalidation)
-                bool closes_inside = close >= z.bottom and close <= z.top
+                // Close inside zone (bullish invalidation) - Only counts if we officially left it
+                bool closes_inside = z.leftZone and (close >= z.bottom and close <= z.top)
 
                 // Breach - price wicks through entire zone (wick above zone top)
                 bool breaches_zone = high > z.top
 
                 // Wick INTO zone (touch) - STRICT RULE: Kill zone before setup is ready
-                bool wicks_into_zone = high >= z.bottom and high <= z.top
+                // Only evaluate wicks INTO the zone AFTER the price has successfully left the zone!
+                bool wicks_into_zone = z.leftZone and (high >= z.bottom and high <= z.top)
 
                 // SIMULTANEOUS SWEEP: If current bar sweeps target, allow entry (exception to strict rule)
                 bool current_bar_sweeping = not na(z.structureSweepLevel) and low < z.structureSweepLevel
@@ -3592,11 +3614,16 @@ if array.size(supplyZones) > 0 and barstate.isconfirmed
                 // STRICT MITIGATION: Kill zone on ANY touch if liquidity NOT yet swept AND not simultaneously sweeping
                 if is_future_bar and not z.liquiditySwept and (closes_inside or breaches_zone or wicks_into_zone) and not current_bar_sweeping
                     z.mitigated := true
+                    z.touchedPreSweep := true
                     z.mitigationTime := time
                     z.inactiveReason := closes_inside ? "Close inside zone" : (breaches_zone ? "Price breached zone" : "Zone touched before setup (Fresh)")
                     if not na(z.boxId)
                         box.set_bgcolor(z.boxId, color.new(color.gray, 85))
                         box.set_border_color(z.boxId, color.gray)
+
+            // Update z.leftZone AFTER the mitigation check, so it reflects true departure
+            if current_close < z.bottom and not z.leftZone
+                z.leftZone := true
 
 
 // === ZONE INVALIDATION (DEMAND) ===
@@ -3815,6 +3842,24 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
 
         // === STEP 2: ENTER ON BULLISH CLOSE (if zone is primed) ===
         if z.active and z.primed
+            // === "CLOSE INSIDE" INVALIDATION (Video 08:21) ===
+            // If ANY candle closes INSIDE the zone box, invalidate the setup immediately
+            // This is the most statistically safe entry validation
+            bool closeInsideZone = close > z.bottom and close < z.top
+
+            if closeInsideZone
+                // INVALIDATE THE ZONE - Close happened inside the box
+                z.active := false
+                z.primed := false
+                z.inactiveReason := "INVALIDATED - Close Inside Zone (Video 08:21)"
+
+                // Visual feedback: Change zone color to indicate invalidation
+                if not na(z.boxId)
+                    box.set_bgcolor(z.boxId, color.new(color.gray, 90))
+                    box.set_border_color(z.boxId, color.new(color.gray, 70))
+
+                continue  // Skip to next zone
+
             // 2. ENTRY MODEL SELECTION (STRICT Priority: Time Gate -> Flip -> BoC -> Dir Close)
             string chosenModel = "NONE"
 
@@ -4268,6 +4313,24 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
 
         // === STEP 2: ENTER ON BEARISH CLOSE (if zone is primed) ===
         if z.active and z.primed
+            // === "CLOSE INSIDE" INVALIDATION (Video 08:21) ===
+            // If ANY candle closes INSIDE the zone box, invalidate the setup immediately
+            // This is the most statistically safe entry validation
+            bool closeInsideZone = close > z.bottom and close < z.top
+
+            if closeInsideZone
+                // INVALIDATE THE ZONE - Close happened inside the box
+                z.active := false
+                z.primed := false
+                z.inactiveReason := "INVALIDATED - Close Inside Zone (Video 08:21)"
+
+                // Visual feedback: Change zone color to indicate invalidation
+                if not na(z.boxId)
+                    box.set_bgcolor(z.boxId, color.new(color.gray, 90))
+                    box.set_border_color(z.boxId, color.new(color.gray, 70))
+
+                continue  // Skip to next zone
+
             // 2. ENTRY MODEL SELECTION (STRICT Priority: Time Gate -> Flip -> BoC -> Dir Close)
             string chosenModel = "NONE"
 
