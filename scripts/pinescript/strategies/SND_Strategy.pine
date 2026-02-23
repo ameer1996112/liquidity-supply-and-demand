@@ -2412,49 +2412,54 @@ validate_entry_conditions(bool isDemand, int idx) =>
             canEnter := false
             reason := isDemand ? "Demand zone inactive" : "Supply zone inactive"
 
-    // ---------------------------------------------------------
-    // 1. FORCE CHECK: Simultaneous Sweep (Run this FIRST)
-    // ---------------------------------------------------------
-    if canEnter and not z.liquiditySwept
+    // =============================================================
+    // MASTER BOOLEAN PATTERN: Detect simultaneous sweeps ONCE,
+    // then use local bools for ALL downstream checks.
+    // This guarantees same-bar sweep detection is never stale.
+    // =============================================================
+    bool active_sweep_now = false
+    bool active_tgt_sweep_now = false
+    bool final_sweep_status = canEnter ? z.liquiditySwept : false
+    bool final_tgt_status = canEnter ? z.targetSwept : false
+    bool final_caused_sweep = canEnter ? z.causedSweep : false
+
+    // --- 1. Inducement Sweep (Simultaneous Check) ---
+    if canEnter and not final_sweep_status
         float sweepTol = pip_size * 0.5
-        bool is_sweeping_now = false
-
         if isDemand
-            // Check if Current Low sweeps the Inducement Low
             if not na(z.liqLowPrice) and low <= (z.liqLowPrice + sweepTol)
-                is_sweeping_now := true
+                active_sweep_now := true
         else
-            // Check if Current High sweeps the Inducement High
             if not na(z.liqHighPrice) and high >= (z.liqHighPrice - sweepTol)
-                is_sweeping_now := true
+                active_sweep_now := true
 
-        // If sweeping now, UPDATE FLAGS IMMEDIATELY
-        if is_sweeping_now
+        if active_sweep_now
+            final_sweep_status := true
+            final_caused_sweep := true
+            // Persist to object for future bars
             z.liquiditySwept := true
             z.causedSweep := true
             z.liquiditySweptBarIndex := bar_index
 
-    // Check Target Sweep (Simultaneous)
-    if canEnter and not z.targetSwept
-        float sweepTol = pip_size * 0.5
-        bool tgt_sweeping_now = false
-
+    // --- 2. Target Sweep (Simultaneous Check) ---
+    if canEnter and not final_tgt_status
+        float sweepTol2 = pip_size * 0.5
         if isDemand
-            // Demand Target is HIGH
-            if not na(z.liqHighPrice) and high >= (z.liqHighPrice - sweepTol)
-                tgt_sweeping_now := true
+            if not na(z.liqHighPrice) and high >= (z.liqHighPrice - sweepTol2)
+                active_tgt_sweep_now := true
         else
-            // Supply Target is LOW
-            if not na(z.liqLowPrice) and low <= (z.liqLowPrice + sweepTol)
-                tgt_sweeping_now := true
+            if not na(z.liqLowPrice) and low <= (z.liqLowPrice + sweepTol2)
+                active_tgt_sweep_now := true
 
-        // If sweeping now, UPDATE FLAGS IMMEDIATELY
-        if tgt_sweeping_now
+        if active_tgt_sweep_now
+            final_tgt_status := true
+            // Persist to object for future bars
             z.targetSwept := true
             z.targetSweptBarIndex := bar_index
-            if not z.causedSweep
+            if not final_caused_sweep
+                final_caused_sweep := true
                 z.causedSweep := true
-    // ---------------------------------------------------------
+    // =============================================================
 
     // NOTE: Dead zone filter moved to AFTER entry model determination (line ~3905)
     // This allows FLIP entries (which happen at 15m boundaries) to bypass the dead zone
@@ -2483,12 +2488,11 @@ validate_entry_conditions(bool isDemand, int idx) =>
                 canEnter := false
                 reason := isDemand ? "Demand liquidity invalid" : "Supply liquidity invalid"
             else
-                // === FINAL VALIDATION ===
-                // Check the flags (which are now TRUE if we just swept in the block above)
-                if not z.liquiditySwept
+                // === FINAL VALIDATION (uses MASTER booleans, never stale) ===
+                if not final_sweep_status
                     canEnter := false
                     reason := isDemand ? "Waiting for Inducement Sweep" : "Waiting for Inducement Sweep"
-                else if not z.targetSwept
+                else if not final_tgt_status
                     canEnter := false
                     reason := isDemand ? "Waiting for Target HIGH Sweep" : "Waiting for Target LOW Sweep"
                 else if na(z.liquiditySweptBarIndex)
