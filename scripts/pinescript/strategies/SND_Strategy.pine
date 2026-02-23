@@ -2440,34 +2440,77 @@ validate_entry_conditions(bool isDemand, int idx) =>
         if canEnter and require_liquidity_sweep
             if not z.liquidityValid
                 canEnter := false
-                reason := isDemand ? "Demand liquidity invalid (candle-count rule failed)" : "Supply liquidity invalid (candle-count rule failed)"
-            else if not z.liquiditySwept
-                canEnter := false
-                reason := isDemand ? "Waiting for Inducement Sweep (Demand)" : "Waiting for Inducement Sweep (Supply)"
-            else if not z.targetSwept
-                canEnter := false
-                reason := isDemand ? "Waiting for Target HIGH Sweep (Demand)" : "Waiting for Target LOW Sweep (Supply)"
-            else if na(z.liquiditySweptBarIndex) or bar_index < z.liquiditySweptBarIndex
-                canEnter := false
-                reason := isDemand ? "Demand entry before liquidity sweep bar" : "Supply entry before liquidity sweep bar"
-            // DOUBLE SWEEP GATE: Both Target and Inducement must be swept
-            // NOTE: Target can be swept BEFORE Inducement in the "Double Sweep" model
-            // (The rally that creates the Inducement Low often sweeps the Target High first)
-            // Only require that both bar indices are set (both sweeps occurred)
-            else if na(z.targetSweptBarIndex)
-                canEnter := false
-                reason := "Target sweep bar index not set"
+                reason := isDemand ? "Demand liquidity invalid" : "Supply liquidity invalid"
             else
-                // Check liquidity distance from zone boundary (using helper function)
-                // For Supply: liqHighPrice to zone top
-                // For Demand: liqLowPrice to zone bottom
-                // Skip check if effective_liq_entry_max_dist is 0 (no limit)
-                // SKIP FOR INDICES: NAS100 liquidity works differently, distance check not applicable
-                if not is_index and effective_liq_entry_max_dist > 0.0 and not checkLiquidityDistance(z, not isDemand)
-                    float liqDist = not na(z.liquidityDistance) ? z.liquidityDistance : 999.0
-                    // Only reject if strictly worse (allow small tolerance)
+                // === SIMULTANEOUS SWEEP FIX (FORCE UPDATE) ===
+                float sweepTol = pip_size * 0.5
+
+                // 1. Check Inducement Sweep (Simultaneous)
+                bool ind_sweeping_now = false
+                if not z.liquiditySwept
+                    if isDemand
+                        // Demand: Check if LOW touches Inducement Price
+                        if not na(z.liqLowPrice) and low <= (z.liqLowPrice + sweepTol)
+                            ind_sweeping_now := true
+                    else
+                        // Supply: Check if HIGH touches Inducement Price
+                        if not na(z.liqHighPrice) and high >= (z.liqHighPrice - sweepTol)
+                            ind_sweeping_now := true
+
+                    // CRITICAL: If sweeping now, FORCE UPDATE the zone status immediately
+                    if ind_sweeping_now
+                        z.liquiditySwept := true
+                        z.causedSweep := true  // Mark that this zone caused the sweep
+                        z.liquiditySweptBarIndex := bar_index
+
+                // 2. Check Target Sweep (Simultaneous)
+                bool tgt_sweeping_now = false
+                if not z.targetSwept
+                    if isDemand
+                        // Demand Target is HIGH
+                        if not na(z.liqHighPrice) and high >= (z.liqHighPrice - sweepTol)
+                            tgt_sweeping_now := true
+                    else
+                        // Supply Target is LOW
+                        if not na(z.liqLowPrice) and low <= (z.liqLowPrice + sweepTol)
+                            tgt_sweeping_now := true
+
+                    // CRITICAL: If sweeping now, FORCE UPDATE the zone status immediately
+                    if tgt_sweeping_now
+                        z.targetSwept := true
+                        z.targetSweptBarIndex := bar_index
+                        if not z.causedSweep
+                            z.causedSweep := true
+
+                // === FINAL VALIDATION ===
+                // Now check the flags (which are now TRUE if we just swept)
+                if not z.liquiditySwept
                     canEnter := false
-                    reason := "Liq distance too far (" + str.tostring(liqDist, "#.#") + " pips > " + str.tostring(effective_liq_entry_max_dist, "#.#") + ")"
+                    reason := isDemand ? "Waiting for Inducement Sweep" : "Waiting for Inducement Sweep"
+                else if not z.targetSwept
+                    canEnter := false
+                    reason := isDemand ? "Waiting for Target HIGH Sweep" : "Waiting for Target LOW Sweep"
+                else if na(z.liquiditySweptBarIndex)
+                    // If index is missing but flag is true, patch it to current bar
+                    z.liquiditySweptBarIndex := bar_index
+                // DOUBLE SWEEP GATE: Both Target and Inducement must be swept
+                // NOTE: Target can be swept BEFORE Inducement in the "Double Sweep" model
+                // (The rally that creates the Inducement Low often sweeps the Target High first)
+                // Only require that both bar indices are set (both sweeps occurred)
+                else if na(z.targetSweptBarIndex)
+                    canEnter := false
+                    reason := "Target sweep bar index not set"
+                else
+                    // Check liquidity distance from zone boundary (using helper function)
+                    // For Supply: liqHighPrice to zone top
+                    // For Demand: liqLowPrice to zone bottom
+                    // Skip check if effective_liq_entry_max_dist is 0 (no limit)
+                    // SKIP FOR INDICES: NAS100 liquidity works differently, distance check not applicable
+                    if not is_index and effective_liq_entry_max_dist > 0.0 and not checkLiquidityDistance(z, not isDemand)
+                        float liqDist = not na(z.liquidityDistance) ? z.liquidityDistance : 999.0
+                        // Only reject if strictly worse (allow small tolerance)
+                        canEnter := false
+                        reason := "Liq distance too far (" + str.tostring(liqDist, "#.#") + " pips > " + str.tostring(effective_liq_entry_max_dist, "#.#") + ")"
         else if canEnter and not require_liquidity_sweep
             if not z.liquidityValid
                 // Liquidity not strictly required, but we still report it for transparency
