@@ -1,14 +1,15 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --font-sans: 'Inter', 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue',
-    Arial, ui-sans-serif, system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', 'Roboto Mono', ui-monospace, SFMono-Regular,
-    'SF Mono', Menlo, Consolas, monospace;
+  --font-sans:
+    'Inter', 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    ui-sans-serif, system-ui, sans-serif;
+  --font-mono:
+    'JetBrains Mono', 'Roboto Mono', ui-monospace, SFMono-Regular, 'SF Mono',
+    Menlo, Consolas, monospace;
   --font-geist-sans: var(--font-sans);
   --font-geist-mono: var(--font-mono);
 }
@@ -181,7 +182,9 @@
     background-color: var(--to-bg);
     color: var(--to-text-primary);
     font-family: var(--font-sans);
-    font-feature-settings: 'rlig' 1, 'calt' 1;
+    font-feature-settings:
+      'rlig' 1,
+      'calt' 1;
     letter-spacing: 0.005em;
     line-height: 1.5;
   }
