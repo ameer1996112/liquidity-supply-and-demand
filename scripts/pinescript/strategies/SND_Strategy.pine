@@ -481,7 +481,8 @@ if use_profile_defaults
     structure_mode := is_conservative ? "Standard (Bodies)" : "Relaxed (Wicks)"
     enable_grade_filter := is_conservative or is_balanced
     filter_dead_zone := is_conservative or is_balanced or is_aggressive
-    filter_trading_hours := is_conservative or is_balanced or is_aggressive
+    // NOTE: filter_trading_hours is NO LONGER overridden here.
+    // It respects the user's input.bool toggle directly.
     require_htf_flip := is_conservative or is_balanced
     stop_loss_buffer_pips := 1.0
 
@@ -2579,14 +2580,18 @@ validate_entry_conditions(bool isDemand, int idx) =>
             // If current bar touches, mark zone as touched (persistent)
             if currentTouch
                 z.wasTouched := true
-            
-            // STRICT VALIDATION: Ignore persistent history.
-            // Require the touch to happen on the current trigger candle OR the setup candle (bar index - 1).
-            bool prevTouch = isDemand ? (low[1] <= z.top + touchTolerance) : (high[1] >= z.bottom - touchTolerance)
-            
-            // Entry is valid only if we are touching NOW or just touched on the PREVIOUS bar
-            wickIntoZone := currentTouch or prevTouch
-            
+
+            // === FLIP ENTRY FIX: Use persistent touch flag for primed zones ===
+            // For primed zones (waiting for entry pattern), trust the wasTouched flag
+            // This allows FLIP entries to work even if touch was 1-2 bars ago
+            if z.primed and z.wasTouched
+                // Zone was already touched during priming - trust the persistent flag
+                wickIntoZone := true
+            else
+                // For non-primed zones: strict validation (current or previous bar only)
+                bool prevTouch = isDemand ? (low[1] <= z.top + touchTolerance) : (high[1] >= z.bottom - touchTolerance)
+                wickIntoZone := currentTouch or prevTouch
+
             // STRICT CHECK: The zone MUST be touched. No exceptions.
             if not wickIntoZone
                 canEnter := false
