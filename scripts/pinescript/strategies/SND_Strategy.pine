@@ -279,7 +279,9 @@ use_stop_loss         = true  // Always use SL
 use_take_profit       = true  // Always use TP
 require_liquidity_sweep = true  // Always require liquidity sweep
 min_position_size_units = 1000  // Min position size
-max_position_size_lots = 10.0  // Max position size
+max_position_size_lots = input.float(100.0, "Absolute Max Position Size (Lots)", minval = 0.1, step = 1.0, group = "🛡️ Prop Firm / Risk Safety", tooltip = "HARD LIMIT: The absolute maximum lot size allowed for ANY trade, regardless of account size.")
+max_lots_per_10k       = input.float(10.0, "Relative Max Lots (Per $10k)", minval = 0.1, step = 1.0, group = "🛡️ Prop Firm / Risk Safety", tooltip = "DYNAMIC LIMIT: Caps lots relative to your account equity. \n\nExample (10 lots per $10k):\n• $50k account = 50 lots max\n• $100k account = 100 lots max\n\nPrevents over-leveraging on tight stops while scaling with your balance.")
+max_usd_risk_cap      = input.float(0.0, "Max USD Risk Cap ($)", minval = 0.0, step = 50.0, group = "🛡️ Prop Firm / Risk Safety", tooltip = "HARD RISK LIMIT: Maximum USD amount to risk per trade. Set to 0 to disable.\n\nExample: If your Risk% calculation results in $1000, but you set this to $500, the trade will use $500 instead. Prevents single large losses on account spikes.")
 dry_run_mode          = false  // Dry run disabled by default
 
 // Debug & Display (visual only - no impact on backtest results)
@@ -1044,14 +1046,10 @@ calc_pos_size(entry, stop, balance, risk_pct) =>
 // For USD Base pairs (USDCAD): Use pip-based calculation
 // @param entry: Entry price
 // @param stop: Stop loss price
-// @param balance: Account balance in USD
-// @param risk_pct: Risk percentage per trade
+// @param risk_usd: Total USD amount to risk on this trade
 // @param is_short: true for short, false for long
 // @returns: Position size in UNITS (not lots)
-calc_pos_size_units(entry, stop, balance, risk_pct, is_short) =>
-    // Step 1: Calculate risk amount in USD
-    float risk_usd = balance * (risk_pct / 100)
-    
+calc_pos_size_units(entry, stop, risk_usd, is_short) =>
     // Step 2: Calculate price distance (absolute)
     float price_distance = math.abs(entry - stop)
     
@@ -1230,10 +1228,16 @@ validate_position_size(entry_price, stop_loss_price, balance, risk_pct, is_short
             error_msg := val_usdjpy_error_result
             validation_details := "USDJPY rate unavailable for JPY pairs"
     
-    // Step 5: Calculate position size
+    // Step 5: Calculate position size with USD CAP logic
     float qty_units_raw = na
     if is_valid
-        qty_units_raw := calc_pos_size_units(entry_price, sl_fixed, balance, risk_pct, is_short)
+        // Calculate Target Risk
+        float target_risk_usd = balance * (risk_pct / 100.0)
+        
+        // Apply USD Risk Cap if enabled (max_usd_risk_cap > 0)
+        float effective_risk_usd = (max_usd_risk_cap > 0) ? math.min(target_risk_usd, max_usd_risk_cap) : target_risk_usd
+        
+        qty_units_raw := calc_pos_size_units(entry_price, sl_fixed, effective_risk_usd, is_short)
         
         if na(qty_units_raw) or qty_units_raw <= 0
             is_valid := false
@@ -1270,11 +1274,21 @@ validate_position_size(entry_price, stop_loss_price, balance, risk_pct, is_short
                 error_msg := "Position size below minimum"
                 validation_details := "Units: " + str.tostring(qty_units) + " (min: " + str.tostring(effective_min_units) + ")"
             
-            // Step 7: Maximum position size check
+            // Step 7: Maximum position size checks (Static + Dynamic)
+            // A) Calculate Dynamic Limit (Lots per $10k)
+            float dynamic_max_lots = (balance / 10000.0) * max_lots_per_10k
+            
+            // B) Absolute Hard Limit Check
             if is_valid and qty_lots > max_position_size_lots
                 is_valid := false
-                error_msg := "Position size exceeds maximum"
-                validation_details := "Lots: " + str.tostring(qty_lots, "#.####") + " (max: " + str.tostring(max_position_size_lots) + ")"
+                error_msg := "Position size exceeds absolute maximum"
+                validation_details := "Lots: " + str.tostring(qty_lots, "#.####") + " (hard max: " + str.tostring(max_position_size_lots) + ")"
+            
+            // C) Relative Dynamic Limit Check
+            if is_valid and qty_lots > dynamic_max_lots
+                is_valid := false
+                error_msg := "Position size exceeds relative leverage limit"
+                validation_details := "Lots: " + str.tostring(qty_lots, "#.####") + " (dynamic max: " + str.tostring(dynamic_max_lots, "#.####") + " @ " + str.tostring(max_lots_per_10k) + " lots/$10k)"
             
             // Step 8: Final validation - ensure qty_units is positive and not na
             if is_valid and (na(qty_units) or qty_units <= 0)
@@ -4044,6 +4058,10 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                 // Structure break: Did price break above recent structure high? (bullish confirmation)
                 bool guardian_structure_break = Utils.detect_structure_break(close, structure_high_20[1], true)
 
+                // Human-readable pip metrics for payload & debug
+                float f_liq_dist_pips = getLiquidityDistance(z, false)
+                float f_liq_spread_pips = na(z.liqHighPrice) or na(z.liqLowPrice) ? na : math.abs(z.liqHighPrice - z.liqLowPrice) / pip_size
+                
                 string webhook_payload = enable_webhook_alerts ? Utils.build_webhook_payload(
                     syminfo.ticker,
                     "buy",
@@ -4084,10 +4102,9 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     guardian_liq_sweep,      // liquidity_sweep
                     guardian_arrival,        // arrival_type
                     guardian_structure_break, // market_structure_break
-                    account_size_usd,        // account_balance (so dashboard shows your TradingView Account Size)
-                    na,                      // liq_distance_pips
-                    na,                      // liq_spread_pips
-                    time                     // current_time (barstate.isconfirmed executes on the current closing bar, so time equals the exact open of the trigger bar)
+                    f_liq_dist_pips,         // liq_distance_pips (Populated)
+                    f_liq_spread_pips,       // liq_spread_pips (Populated)
+                    time                     // current_time
                 ) : ""
 
                 if dry_run_mode
@@ -4100,9 +4117,6 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     float f_atr_ratio = atr14 > 0 ? zone_range / atr14 : 0.0
                     int f_zone_type = 0  // 0 = Demand
                     int f_is_accuracy = z.isAccuracy ? 1 : 0
-                    // Human-readable pip metrics for label/debug
-                    float f_liq_dist_pips = getLiquidityDistance(z, false)
-                    float f_liq_spread_pips = na(z.liqHighPrice) or na(z.liqLowPrice) ? na : math.abs(z.liqHighPrice - z.liqLowPrice) / pip_size
                     // Build debug string in steps (Pine v6-safe)
                     string ai_features = " | F:score=" + str.tostring(z.score, "#.##")
                     ai_features += " | F:fresh=" + str.tostring(f_fresh)
@@ -4497,6 +4511,10 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                 // Structure break: Did price break below recent structure low? (bearish confirmation)
                 bool guardian_structure_break_short = Utils.detect_structure_break(close, structure_low_20[1], false)
 
+                // Human-readable pip metrics for payload & debug
+                float f_liq_dist_pips_short = getLiquidityDistance(z, true)
+                float f_liq_spread_pips_short = na(z.liqLowPrice) or na(z.liqHighPrice) ? na : math.abs(z.liqLowPrice - z.liqHighPrice) / pip_size
+
                 string webhook_payload_short = enable_webhook_alerts ? Utils.build_webhook_payload(
                     syminfo.ticker,
                     "sell",
@@ -4537,10 +4555,9 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     guardian_liq_sweep_short,      // liquidity_sweep
                     guardian_arrival_short,        // arrival_type
                     guardian_structure_break_short, // market_structure_break
-                    account_size_usd,              // account_balance (so dashboard shows your TradingView Account Size)
-                    na,                            // liq_distance_pips
-                    na,                            // liq_spread_pips
-                    time                           // current_time (barstate.isconfirmed executes on the current closing bar, so time equals the exact open of the trigger bar)
+                    f_liq_dist_pips_short,   // liq_distance_pips (Populated)
+                    f_liq_spread_pips_short, // liq_spread_pips (Populated)
+                    time                     // current_time
                 ) : ""
 
                 if dry_run_mode
@@ -4553,9 +4570,6 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     float f_atr_ratio = atr14 > 0 ? zone_range / atr14 : 0.0
                     int f_zone_type = 1  // 1 = Supply
                     int f_is_accuracy = z.isAccuracy ? 1 : 0
-                    // Human-readable pip metrics for label/debug
-                    float f_liq_dist_pips_short = getLiquidityDistance(z, true)
-                    float f_liq_spread_pips_short = na(z.liqLowPrice) or na(z.liqHighPrice) ? na : math.abs(z.liqLowPrice - z.liqHighPrice) / pip_size
                     // Build debug string in steps (Pine v6-safe)
                     string ai_features = " | F:score=" + str.tostring(z.score, "#.##")
                     ai_features += " | F:fresh=" + str.tostring(f_fresh)
