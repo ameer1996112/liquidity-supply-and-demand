@@ -2409,9 +2409,13 @@ validate_entry_conditions(bool isDemand, int idx) =>
     if canEnter
         // Zone must not have been touched BEFORE sweep (Freshness)
         // RELAXED: Allow same-bar mitigations for Flip entries
-        if z.touchedPreSweep and z.lastTouchBar != bar_index
+        // RELAXED FRESHNESS:
+        // Block ONLY if the zone was touched long ago (more than 3 bars ago).
+        // This allows the touch to happen on the current bar OR previous bars (active setup).
+        int barsSinceTouch = bar_index - z.lastTouchBar
+        if z.touchedPreSweep and barsSinceTouch > 3
             canEnter := false
-            reason := "Start Freshness Failed (Touched Pre-Sweep)"
+            reason := "Start Freshness Failed (Touched " + str.tostring(barsSinceTouch) + " bars ago)"
             
         // Zone must have caused sweep & not be historical
         if canEnter and not z.causedSweep
@@ -3486,15 +3490,20 @@ if array.size(demandZones) > 0 and barstate.isconfirmed
                 // SIMULTANEOUS SWEEP: If current bar sweeps target, allow entry (exception to strict rule)
                 bool current_bar_sweeping = not na(z.structureSweepLevel) and high > z.structureSweepLevel
 
-                // STRICT MITIGATION: Kill zone on ANY touch if liquidity NOT yet swept AND not simultaneously sweeping
-                // MUST require z.leftZone so base-building candles don't kill the zone
-                if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or breaches_zone or wicks_into_zone) and not current_bar_sweeping
-                    z.mitigated := true
-                    z.touchedPreSweep := true
-                    z.mitigationTime := time
+                // UPDATED: Separate Touch from Mitigation
+                // Preserve Touch Data: Update flags but don't kill the zone yet
+                if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or wicks_into_zone or breaches_zone)
                     z.lastTouchBar := bar_index
                     z.wasTouched := true
-                    z.inactiveReason := closes_inside ? "Close inside zone" : (breaches_zone ? "Price breached zone" : "Zone touched before setup (Fresh)")
+                    z.touchedPreSweep := true
+
+                // MITIGATION (KILL): Only kill zone if it is FULLY BREACHED (Broken Structure)
+                // Closing inside is fine (it's just a deep test/wick creation).
+                if is_future_bar and z.leftZone and not z.liquiditySwept and breaches_zone and not current_bar_sweeping
+                    z.mitigated := true
+                    z.active := false // Kill it
+                    z.mitigationTime := time
+                    z.inactiveReason := "Price breached zone"
                     if not na(z.boxId)
                         box.set_bgcolor(z.boxId, color.new(color.gray, 85))
                         box.set_border_color(z.boxId, color.gray)
@@ -3597,15 +3606,20 @@ if array.size(supplyZones) > 0 and barstate.isconfirmed
                 // SIMULTANEOUS SWEEP: If current bar sweeps target, allow entry (exception to strict rule)
                 bool current_bar_sweeping = not na(z.structureSweepLevel) and low < z.structureSweepLevel
 
-                // STRICT MITIGATION: Kill zone on ANY touch if liquidity NOT yet swept AND not simultaneously sweeping
-                // MUST require z.leftZone so base-building candles don't kill the zone
-                if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or breaches_zone or wicks_into_zone) and not current_bar_sweeping
-                    z.mitigated := true
-                    z.touchedPreSweep := true
-                    z.mitigationTime := time
+                // UPDATED: Separate Touch from Mitigation
+                // Preserve Touch Data: Update flags but don't kill the zone yet
+                if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or wicks_into_zone or breaches_zone)
                     z.lastTouchBar := bar_index
                     z.wasTouched := true
-                    z.inactiveReason := closes_inside ? "Close inside zone" : (breaches_zone ? "Price breached zone" : "Zone touched before setup (Fresh)")
+                    z.touchedPreSweep := true
+
+                // MITIGATION (KILL): Only kill zone if it is FULLY BREACHED (Broken Structure)
+                // Closing inside is fine (it's just a deep test/wick creation).
+                if is_future_bar and z.leftZone and not z.liquiditySwept and breaches_zone and not current_bar_sweeping
+                    z.mitigated := true
+                    z.active := false // Kill it
+                    z.mitigationTime := time
+                    z.inactiveReason := "Price breached zone"
                     if not na(z.boxId)
                         box.set_bgcolor(z.boxId, color.new(color.gray, 85))
                         box.set_border_color(z.boxId, color.gray)
