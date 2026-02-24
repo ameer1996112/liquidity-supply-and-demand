@@ -289,6 +289,19 @@ var int last_htf_boundary_bar = na
 var bool in_flip_prep_window = false
 var bool htf_just_opened = false
 var int htf_open_bar_index = na
+var int htf_start_time = na  // NEW: Store HTF candle open time
+
+// === REAL-TIME HTF DATA FETCH (NO LAG) ===
+// Fetch developing HTF candle data with lookahead_on to avoid lag
+// This allows us to see the 10:00 HTF candle immediately at 10:00, not at 10:05
+string htf_timeframe = htf_period_minutes == 60 ? "60" : str.tostring(htf_period_minutes)
+// Only htf_time is needed for boundary detection; others are unused but required for tuple
+[_htf_open, _htf_high, _htf_low, _htf_close, htf_time] = request.security(
+     syminfo.tickerid,
+     htf_timeframe,
+     [open, high, low, close, time],
+     lookahead = barmerge.lookahead_on
+)
 
 // Detect if we're in the pre-HTF flip-only preparation window
 f_is_pre_htf_flip_window() =>
@@ -300,10 +313,11 @@ f_is_pre_htf_flip_window() =>
         int minutesUntilNext = htf_period_minutes - minutesIntoHTF
         minutesUntilNext > 0 and minutesUntilNext <= flip_prep_window_minutes
 
-// Detect HTF boundary crossing (xx:00 for 1H, xx:00/15/30/45 for 15m, etc.)
+// Detect HTF boundary crossing - FIXED to use real HTF time
+// Now correctly identifies 10:00 as HTF start, not 10:05
 f_is_htf_boundary() =>
-    int currentMinute = minute(time)
-    (currentMinute % htf_period_minutes) == 0
+    // True when current 5m bar's time matches the HTF candle's open time
+    htf_time == time
 
 // Update HTF state at start of each bar
 if barstate.isconfirmed
@@ -313,6 +327,7 @@ if barstate.isconfirmed
         if na(last_htf_boundary_bar) or bar_index > last_htf_boundary_bar
             last_htf_boundary_bar := bar_index
             htf_open_bar_index := bar_index
+            htf_start_time := htf_time  // Store HTF open time for inspector
             htf_just_opened := true
     else
         htf_just_opened := false
@@ -4065,13 +4080,28 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
             // === FLIP-ONLY MODE ENFORCEMENT ===
             // During flip prep window: ONLY evaluate FLIP model
             // Block BoC and Directional Close until after HTF opens
+            //
+            // NOTE: HTF boundary detection works correctly for 10:00 AM entries
+            // because barstate.isconfirmed runs when the bar CLOSES. At 10:00
+            // on a 5m chart, we're evaluating the COMPLETED 09:55-10:00 bar,
+            // which has full wicks and can show a valid flip pattern.
             bool allow_flip = true
             bool allow_boc = not in_flip_prep_window
             bool allow_directional = not in_flip_prep_window
 
             // (a) FLIP: Bearish to Bullish reversal (Engulfing-like behavior)
             // STRICT TIME GATE: Flip can ONLY be evaluated on HTF boundaries
-            bool basic_flip = close > open and close[1] < open[1]
+            // === ENHANCED: Flexible 3-Bar Flip Detection ===
+            // Allows Red → Doji → Green transitions (catches more valid flips)
+            // Requirements:
+            //   1. Current candle is bullish (close > open)
+            //   2. Had bearish context in last 2 bars (close[1] < open[1] OR close[2] < open[2])
+            //   3. Engulfing: current close above previous high (shows strength)
+            bool current_bullish = close > open
+            bool had_bearish = close[1] < open[1] or close[2] < open[2]
+            bool engulfing = close > high[1]
+            bool basic_flip = current_bullish and had_bearish and engulfing
+
             bool is_flip_time = f_is_htf_boundary()  // Use HTF boundary detection
             bool is_flip = false
             if is_flip_time and allow_flip
@@ -4612,13 +4642,28 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
             // === FLIP-ONLY MODE ENFORCEMENT ===
             // During flip prep window: ONLY evaluate FLIP model
             // Block BoC and Directional Close until after HTF opens
+            //
+            // NOTE: HTF boundary detection works correctly for 10:00 AM entries
+            // because barstate.isconfirmed runs when the bar CLOSES. At 10:00
+            // on a 5m chart, we're evaluating the COMPLETED 09:55-10:00 bar,
+            // which has full wicks and can show a valid flip pattern.
             bool allow_flip = true
             bool allow_boc = not in_flip_prep_window
             bool allow_directional = not in_flip_prep_window
 
             // (a) FLIP: Bullish to Bearish reversal
             // STRICT TIME GATE: Flip can ONLY be evaluated on HTF boundaries
-            bool basic_flip = close < open and close[1] > open[1]
+            // === ENHANCED: Flexible 3-Bar Flip Detection ===
+            // Allows Green → Doji → Red transitions (catches more valid flips)
+            // Requirements:
+            //   1. Current candle is bearish (close < open)
+            //   2. Had bullish context in last 2 bars (close[1] > open[1] OR close[2] > open[2])
+            //   3. Engulfing: current close below previous low (shows strength)
+            bool current_bearish = close < open
+            bool had_bullish = close[1] > open[1] or close[2] > open[2]
+            bool engulfing = close < low[1]
+            bool basic_flip = current_bearish and had_bullish and engulfing
+
             bool is_flip_time = f_is_htf_boundary()  // Use HTF boundary detection
             bool is_flip = false
             if is_flip_time and allow_flip
@@ -5525,11 +5570,13 @@ var table zoneInspector = na
 
 if showZoneInspector and debug_enabled and isRecentBarForDebug()
     if na(zoneInspector)
-        zoneInspector := table.new(position.bottom_right, 2, 45, 
-             bgcolor = color.new(color.rgb(20, 25, 30), 10), 
-             frame_color = color.new(color.rgb(100, 110, 120), 80), frame_width = 1, 
+        zoneInspector := table.new(position.bottom_right, 2, 60,
+             bgcolor = color.new(color.rgb(20, 25, 30), 10),
+             frame_color = color.new(color.rgb(100, 110, 120), 80), frame_width = 1,
              border_color = color.new(color.rgb(60, 70, 80), 50), border_width = 1)
-    if barstate.isconfirmed and not na(zoneInspector)
+    // REAL-TIME UPDATES: Removed barstate.isconfirmed to show HTF timing instantly
+    // Inspector updates on every tick for live HTF boundary detection
+    if not na(zoneInspector)
         // Get additional zone details for inspector
         string zoneInspectorType = "None"
         int zoneInspectorIdx = na
@@ -6134,12 +6181,34 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
         table.cell(zoneInspector, 1, nextRow, htfBoundaryStatus, text_color = htfBoundaryColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         nextRow += 1
 
-        // Next HTF Boundary Time
-        int minutesIntoHTF = minute(time) % htf_period_minutes
-        int minutesUntilNext = htf_period_minutes - minutesIntoHTF
-        string nextHTFStr = "In " + str.tostring(minutesUntilNext) + "m (:" + str.tostring((minute(time) + minutesUntilNext) % 60, "00") + ")"
+        // HTF Candle Open Time (Real-Time)
+        int htfHour = hour(htf_time)
+        int htfMin = minute(htf_time)
+        string htfTimeStr = str.tostring(htfHour, "00") + ":" + str.tostring(htfMin, "00")
+        string htfLabel = isHTFBoundary ? ("🎯 " + htfTimeStr + " (NOW)") : htfTimeStr
+        color htfTimeColor = isHTFBoundary ? color.lime : color.rgb(200, 200, 200)
+        table.cell(zoneInspector, 0, nextRow, "HTF Candle", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
+        table.cell(zoneInspector, 1, nextRow, htfLabel, text_color = htfTimeColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
+        nextRow += 1
+
+        // Next HTF Boundary Time - FIXED to detect when we're at the boundary
+        bool currentlyAtHTFBoundary = f_is_htf_boundary()
+        string nextHTFStr = ""
+        color nextHTFColor = color.rgb(200, 200, 200)
+
+        if currentlyAtHTFBoundary
+            // We're at the HTF boundary right now (e.g., 10:00 on a 1H chart)
+            nextHTFStr := "HTF NOW! (:" + str.tostring(minute(time), "00") + ")"
+            nextHTFColor := color.lime
+        else
+            // Calculate time until next boundary
+            int minutesIntoHTF = minute(time) % htf_period_minutes
+            int minutesUntilNext = htf_period_minutes - minutesIntoHTF
+            nextHTFStr := "In " + str.tostring(minutesUntilNext) + "m (:" + str.tostring((minute(time) + minutesUntilNext) % 60, "00") + ")"
+            nextHTFColor := minutesUntilNext <= flip_prep_window_minutes ? color.yellow : color.rgb(200, 200, 200)
+
         table.cell(zoneInspector, 0, nextRow, "Next HTF", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
-        table.cell(zoneInspector, 1, nextRow, nextHTFStr, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
+        table.cell(zoneInspector, 1, nextRow, nextHTFStr, text_color = nextHTFColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         nextRow += 1
 
         // === MODEL SELECTION DEBUG ROWS (NEW) ===
