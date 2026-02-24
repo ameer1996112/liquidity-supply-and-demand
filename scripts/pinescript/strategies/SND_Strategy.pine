@@ -92,9 +92,6 @@ const float MIN_DISTANCE_PIPS = 2.0
 const float SWEEP_TOLERANCE_PIPS = 0.5
 const float SWEEP_TOLERANCE_TICKS = 0.1
 
-// Touch detection
-const int TOUCH_MEMORY_BARS = 10  // How many bars a touch remains valid for entry
-
 // Time constants
 const int HOURS_24_MS = 86400000
 
@@ -118,8 +115,7 @@ var bool is_gold = str.contains(syminfo.ticker, "XAU") or str.contains(syminfo.t
 var bool is_silver = str.contains(syminfo.ticker, "XAG") or str.contains(syminfo.ticker, "SILVER")
 var bool is_crypto = str.contains(syminfo.ticker, "BTC") or str.contains(syminfo.ticker, "ETH")
 var bool is_index = str.contains(syminfo.ticker, "NAS") or str.contains(syminfo.ticker, "US100") or str.contains(syminfo.ticker, "NDX") or str.contains(syminfo.ticker, "SPX") or str.contains(syminfo.ticker, "US500") or str.contains(syminfo.ticker, "US30") or str.contains(syminfo.ticker, "DJI")
-var bool is_oil = str.contains(syminfo.ticker, "USOIL") or str.contains(syminfo.ticker, "CL") or str.contains(syminfo.ticker, "XTIUSD")
-var bool is_futures = syminfo.type == "futures" or is_oil
+var bool is_futures = syminfo.type == "futures"
 var bool is_xpt = str.contains(syminfo.ticker, "XPTUSD") or str.contains(syminfo.ticker, "PLATINUM") or str.contains(syminfo.ticker, "XPT")
 var bool is_usd_base = str.startswith(syminfo.ticker, "USD") and not str.endswith(syminfo.ticker, "USD")
 var bool is_usd_quote = (str.contains(syminfo.ticker, "USD") and not is_usd_base) or is_gold or is_silver or is_crypto or is_xpt
@@ -278,62 +274,6 @@ risk_reward_ratio     = input.float(2.0, "   └─ Custom R:R Ratio", minval = 
 liq_entry_max_dist = input.float(50.0, "Max Zone-to-Liq Distance (Pips)", minval = 0.0, step = 1.0, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Block trades if zone is too far from liquidity. 50 pips = zone must be within 50 pips of swept liquidity.")
 min_tp_distance_pips = input.float(5.0, "Min TP Distance (Pips)", minval = 1.0, step = 1.0, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Minimum take profit distance. Prevents tiny TP that would be eaten by spread. 5 pips = TP must be at least 5 pips away.")
 
-// === HTF FLIP-ONLY MODE CONFIGURATION ===
-// Configures the flip-only preparation window before HTF boundaries
-htf_period_minutes = input.int(60, "HTF Period (Minutes)", minval = 5, maxval = 240, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Higher timeframe period for flip entries. 60 = 1H boundaries (xx:00), 15 = 15m boundaries (xx:00, xx:15, xx:30, xx:45)")
-flip_prep_window_minutes = input.int(10, "Flip Prep Window (Minutes)", minval = 0, maxval = 30, group = "⚙️ Advanced / Manual Tweaks", tooltip = "How many minutes before HTF boundary to enter flip-only mode. 10 = Enter flip-only mode at xx:50 and xx:55 (for 1H HTF on 5m chart). Set to 0 to disable flip-only gating.")
-enable_flip_only_mode = input.bool(true, "Enable Flip-Only Prep Mode", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Enforce flip-only mode in pre-HTF window (blocks directional/BoC entries). OFF: Allow all entry models at any time.")
-
-// Global HTF state tracking
-var int last_htf_boundary_bar = na
-var bool in_flip_prep_window = false
-var bool htf_just_opened = false
-var int htf_open_bar_index = na
-var int htf_start_time = na  // NEW: Store HTF candle open time
-
-// === REAL-TIME HTF DATA FETCH (NO LAG) ===
-// Fetch developing HTF candle data with lookahead_on to avoid lag
-// This allows us to see the 10:00 HTF candle immediately at 10:00, not at 10:05
-string htf_timeframe = htf_period_minutes == 60 ? "60" : str.tostring(htf_period_minutes)
-// Only htf_time is needed for boundary detection; others are unused but required for tuple
-// htf_open / htf_dclose: real-time OHLC of the developing HTF candle
-// Used for boundary detection AND live HTF candle color check in flip validation
-[htf_open, _htf_high, _htf_low, htf_dclose, htf_time] = request.security(
-     syminfo.tickerid,
-     htf_timeframe,
-     [open, high, low, close, time],
-     lookahead = barmerge.lookahead_on
-)
-
-// Detect if we're in the pre-HTF flip-only preparation window
-f_is_pre_htf_flip_window() =>
-    if not enable_flip_only_mode or flip_prep_window_minutes <= 0
-        false  // Feature disabled
-    else
-        int currentMinute = minute(time)
-        int minutesIntoHTF = currentMinute % htf_period_minutes
-        int minutesUntilNext = htf_period_minutes - minutesIntoHTF
-        minutesUntilNext > 0 and minutesUntilNext <= flip_prep_window_minutes
-
-// Detect HTF boundary crossing - FIXED to use real HTF time
-// Now correctly identifies 10:00 as HTF start, not 10:05
-f_is_htf_boundary() =>
-    // True when current 5m bar's time matches the HTF candle's open time
-    htf_time == time
-
-// Update HTF state at start of each bar
-if barstate.isconfirmed
-    in_flip_prep_window := f_is_pre_htf_flip_window()
-
-    if f_is_htf_boundary()
-        if na(last_htf_boundary_bar) or bar_index > last_htf_boundary_bar
-            last_htf_boundary_bar := bar_index
-            htf_open_bar_index := bar_index
-            htf_start_time := htf_time  // Store HTF open time for inspector
-            htf_just_opened := true
-    else
-        htf_just_opened := false
-
 // Advanced Settings (normally leave as defaults)
 use_stop_loss         = true  // Always use SL
 use_take_profit       = true  // Always use TP
@@ -390,9 +330,9 @@ max_trades_per_day = input.int(2, "   └─ Max Trades/Day", minval = 1, maxval
 
 // Time Filters
 filter_dead_zone = input.bool(true, "Block Dead Zone (xx:50-xx:00)", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: No entries in last 10 minutes of each hour. These periods have erratic price action.")
-filter_trading_hours = input.bool(true, "Trading Hours Only (09:00-17:00 Israel Time)", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Only trade during institutional hours (09:00-17:00 Israel Time = London Open to NY Morning). OFF: Trade 24/7.")
-trading_start_hour = input.int(9, "   └─ Start Hour (Israel Time) [FIXED]", minval = 9, maxval = 9, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Fixed at 09:00 Israel Time (matches 07:00 UK = London Open).")
-trading_end_hour = input.int(17, "   └─ End Hour (Israel Time) [FIXED]", minval = 17, maxval = 17, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Fixed at 17:00 Israel Time (matches 15:00 UK = NY Morning).")
+filter_trading_hours = input.bool(true, "Trading Hours Only", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Only trade during active market hours. OFF: Trade 24/7.")
+trading_start_hour = input.int(7, "   └─ Start Hour (UTC)", minval = 0, maxval = 23, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Hour to start trading (0-23). 7 = 7:00 AM UTC.")
+trading_end_hour = input.int(22, "   └─ End Hour (UTC)", minval = 0, maxval = 23, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Hour to stop trading (0-23). 22 = 10:00 PM UTC.")
 require_htf_flip = input.bool(true, "HTF Flip Context", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Flip entries only valid near 30m/1H candle opens for better timing.")
 
 // AI & Quality Filters
@@ -540,8 +480,7 @@ if use_profile_defaults
     structure_mode := is_conservative ? "Standard (Bodies)" : "Relaxed (Wicks)"
     enable_grade_filter := is_conservative or is_balanced
     filter_dead_zone := is_conservative or is_balanced or is_aggressive
-    // NOTE: filter_trading_hours is NO LONGER overridden here.
-    // It respects the user's input.bool toggle directly.
+    filter_trading_hours := is_conservative or is_balanced or is_aggressive
     require_htf_flip := is_conservative or is_balanced
     stop_loss_buffer_pips := 1.0
 
@@ -775,27 +714,6 @@ get_index_tp_rules(sl_pips) =>
     
     [tp_ratio, be_trigger_rr, be_sl_pips_min, move_to_be]
 
-// === INSTRUMENT-SPECIFIC RR (Futures Optimization) ===
-// Returns the fixed RR ratio based on instrument type for Futures Trading
-// Video Reference: 11:55 - Fixed RR ratios for specific instruments
-get_instrument_rr() =>
-    float fixed_rr = na
-
-    // Gold (GC/XAUUSD): Force 1:4 RR
-    if is_gold
-        fixed_rr := 4.0
-    // Indices (NQ, ES, NAS100, US30): Force 1:3 RR
-    else if is_index
-        fixed_rr := 3.0
-    // Crude Oil (CL/USOIL): Force 1:3 RR
-    else if is_oil
-        fixed_rr := 3.0
-    // For other pairs, return na to use dynamic RR (minimum 1:2)
-    else
-        fixed_rr := na
-
-    fixed_rr
-
 // === 2025 TP LOOKUP DICTIONARIES ===
 get_tp_ratio(symbol_type, sl_pips) =>
     // Default variables
@@ -804,24 +722,34 @@ get_tp_ratio(symbol_type, sl_pips) =>
     float be_sl = na
     bool move_be = false
 
-    // === PRIORITY 1: Instrument-Specific Fixed RR (Futures Optimization) ===
-    // Check for fixed RR requirements FIRST before any other logic
-    float instrument_rr = get_instrument_rr()
-    if not na(instrument_rr)
-        base_ratio := instrument_rr
-        be_trig := na  // No break-even for indices/gold/oil
-        be_sl := na
-        move_be := false
-    // CHECK: If custom RR override is enabled, use fixed ratio for everything except instruments with fixed RR
-    else if use_custom_rr and na(instrument_rr)
+    // CHECK: If custom RR override is enabled, use fixed ratio for everything except indices
+    if use_custom_rr and not is_index
         base_ratio := risk_reward_ratio
         be_trig := na
         be_sl := na
         move_be := false
-    // 2. Aggressive profile: JPY&Forex SL-based rules; 1:4 for other (e.g. silver, crypto)
-    // Note: Gold, indices, and oil are handled above and won't reach here
+    // 1. Check for Indices (NAS100, SPX, etc.) & Oil - Fixed 1:3
+    else if is_index or syminfo.ticker == "USOIL" or syminfo.ticker == "USOIL.cash" or syminfo.ticker == "CL" or syminfo.ticker == "CL1!"
+        [i_tp, i_bet, i_bes, i_mbe] = get_index_tp_rules(sl_pips)
+        base_ratio := i_tp
+        be_trig := i_bet
+        be_sl := i_bes
+        move_be := i_mbe
+    // 1b. Check for Gold - Fixed 1:4
+    else if is_gold
+        base_ratio := 4.0
+        be_trig := na
+        be_sl := na
+        move_be := false
+    // 2. Aggressive profile: Gold / JPY&Forex SL-based rules; 1:4 for other (e.g. silver, crypto)
     else if is_aggressive and use_profile_defaults
-        if is_jpy_pair or (not is_silver and not is_crypto)
+        if is_gold
+            [g_tp, g_bet, g_bes, g_mbe] = get_gold_tp_rules_aggressive(sl_pips)
+            base_ratio := g_tp
+            be_trig := g_bet
+            be_sl := g_bes
+            move_be := g_mbe
+        else if is_jpy_pair or (not is_silver and not is_crypto)
             // JPY and Forex: same aggressive SL-based rules
             [f_tp, f_bet, f_bes, f_mbe] = get_jpy_tp_rules_aggressive(sl_pips)
             base_ratio := f_tp
@@ -834,8 +762,13 @@ get_tp_ratio(symbol_type, sl_pips) =>
             be_trig := na
             be_sl := na
             move_be := false
-    // 3. Conservative/Balanced/Custom: existing dynamic rules for forex pairs
-    // Note: Gold, indices, and oil are handled above with fixed RR
+    // 3. Conservative/Balanced/Custom: existing rules
+    else if is_gold
+        [g_tp, g_bet, g_bes, g_mbe] = get_gold_tp_rules(sl_pips)
+        base_ratio := g_tp
+        be_trig := g_bet
+        be_sl := g_bes
+        move_be := g_mbe
     else
         [f_tp, f_bet, f_bes, f_mbe] = get_forex_tp_rules(sl_pips)
         base_ratio := f_tp
@@ -877,8 +810,8 @@ int feature_session = f_get_session_id()
 // === V3 FEATURES: HTF Trend & RVOL ===
 // 1. HTF Trend (1 Hour EMA 200)
 // Get 60m data. If we are on > 60m chart, specific logic applies, but assuming < 60m execution:
-float htf_ema200 = request.security(syminfo.tickerid, "60", ta.ema(close, 200), lookahead = barmerge.lookahead_on)
-float htf_close  = request.security(syminfo.tickerid, "60", close, lookahead = barmerge.lookahead_on)
+float htf_ema200 = request.security(syminfo.tickerid, "60", ta.ema(close, 200))
+float htf_close = request.security(syminfo.tickerid, "60", close)
 int feature_htf_trend = htf_close > htf_ema200 ? 1 : 0
 
 // 2. Relative Volume (RVOL)
@@ -1766,28 +1699,10 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
             z.liqLowPrice := bestLiqPrice
             z.liqLowBar := bestLiqBar
 
-            // Reset inducement sweep if it changed - BUT check historical bars!
+            // Reset inducement sweep if it changed (force re-validation)
             if inductionChanged
-                // Check if the NEW inducement was already swept by any bar since zone creation
-                bool historicalSweep = false
-                int sweepBar = na
-                float sweepTol = pip_size * 0.5
-                int lookbackBars = bar_index - z.createdBarIndex
-
-                // Scan backwards from current bar to zone creation
-                for j = 0 to math.min(lookbackBars, 200)  // Limit to 200 bars for performance
-                    if low[j] <= bestLiqPrice + sweepTol
-                        historicalSweep := true
-                        sweepBar := bar_index - j
-                        break
-
-                if historicalSweep
-                    z.liquiditySwept := true
-                    z.liquiditySweptBarIndex := sweepBar
-                    z.causedSweep := true
-                else
-                    z.liquiditySwept := false
-                    z.liquiditySweptBarIndex := na
+                z.liquiditySwept := false
+                z.liquiditySweptBarIndex := na
 
             // === STEP B: STRICT TARGET SCAN (ABSOLUTE HIGHEST price BEFORE inducement) ===
             // CRITICAL FIX: Find the ABSOLUTE HIGHEST high in the strict range:
@@ -1921,28 +1836,10 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
             z.liqHighPrice := bestLiqPrice
             z.liqHighBar := bestLiqBar
 
-            // Reset inducement sweep if it changed - BUT check historical bars!
+            // Reset inducement sweep if it changed (force re-validation)
             if inductionChanged
-                // Check if the NEW inducement was already swept by any bar since zone creation
-                bool historicalSweep = false
-                int sweepBar = na
-                float sweepTol = pip_size * 0.5
-                int lookbackBars = bar_index - z.createdBarIndex
-
-                // Scan backwards from current bar to zone creation
-                for j = 0 to math.min(lookbackBars, 200)  // Limit to 200 bars for performance
-                    if high[j] >= bestLiqPrice - sweepTol
-                        historicalSweep := true
-                        sweepBar := bar_index - j
-                        break
-
-                if historicalSweep
-                    z.liquiditySwept := true
-                    z.liquiditySweptBarIndex := sweepBar
-                    z.causedSweep := true
-                else
-                    z.liquiditySwept := false
-                    z.liquiditySweptBarIndex := na
+                z.liquiditySwept := false
+                z.liquiditySweptBarIndex := na
 
             // === STEP B: STRICT TARGET SCAN (ABSOLUTE LOWEST price BEFORE inducement) ===
             // CRITICAL FIX: Find the ABSOLUTE LOWEST low in the strict range:
@@ -2159,31 +2056,12 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
             trimBaseTimeArrays()
             
     if not alreadyUsed
-        // Calculate Zone Coordinates from Base Candle
+        // Calculate Zone Coordinates
         float baseHigh = high[baseIdx]
         float baseLow  = low[baseIdx]
         float baseOpen = open[baseIdx]
         float baseClose = close[baseIdx]
-
-        // === WICK EXTENSION RULE (Video 03:00) ===
-        // Check if the explosive candle (the move after the base) has a longer wick
-        // If yes, extend the zone to include that wick for more accurate SL placement
-        int explosiveIdx = baseIdx - 1  // The explosive candle is one bar after base
-        if explosiveIdx >= 0
-            float explosiveHigh = high[explosiveIdx]
-            float explosiveLow = low[explosiveIdx]
-
-            if isDemand
-                // DEMAND: If explosive candle's lower wick is lower than base low,
-                // use explosive candle's low as zone bottom
-                if explosiveLow < baseLow
-                    baseLow := explosiveLow
-            else
-                // SUPPLY: If explosive candle's upper wick is higher than base high,
-                // use explosive candle's high as zone top
-                if explosiveHigh > baseHigh
-                    baseHigh := explosiveHigh
-
+        
         // === FVG / IMBALANCE CHECK ===
         // If FVG Confluence is enabled, only create zone if displacement left an FVG/Imbalance
         // Imbalance is between the BASE candle and the 2nd candle after it (Candle C)
@@ -2471,27 +2349,20 @@ is_time_dead_zone() =>
         currentMinute >= 50
 
 // === TRADING HOURS FILTER (Israel Time) ===
-// Block entries outside of 09:00-17:00 Israel time (high volume institutional hours)
-// Video Reference: Session Filter requirement
-// This matches London Open (07:00 UK) to NY Morning (15:00 UK) in Israel Time
+// Block entries outside of 07:00-22:00 Israel time (GMT+2/GMT+3 depending on DST)
+// This avoids:
+// - Swap hour (around 00:00)
+// - Low-liquidity Asian session hours (late night/early morning)
+// - Late-night volatility spikes
 is_outside_trading_hours() =>
     if not filter_trading_hours
         false  // Filter disabled, allow all entries
     else
-        // Use time() function with session specification and Asia/Jerusalem timezone
-        // This method is more reliable as it checks if current bar falls within the session
-        // The time() function returns na when outside the specified session
-        int t = time(timeframe.period, "0900-1700", "Asia/Jerusalem")
-        na(t)  // If time() returns na, we're outside trading hours
-
-// === UNIFIED ZONE TOUCH DETECTION ===
-// Single source of truth: does the bar [barLow, barHigh] intersect the zone [zBottom, zTop]?
-// Catches: wick into zone, wick through zone, bar engulfs zone, bar inside zone.
-// Used by: validate_entry_conditions, touch tracking (demand+supply), Inspector.
-// IMPORTANT: Uses 1 pip tolerance to handle floating point precision and near-misses
-zoneTouchedThisBar(float zTop, float zBottom, float barHigh, float barLow) =>
-    float tolerance = pip_size * 1.0  // Same as entry tolerance (line 111)
-    barHigh >= zBottom - tolerance and barLow <= zTop + tolerance
+        // Israel timezone: Use "Asia/Jerusalem" which handles DST automatically
+        int israelHour = hour(time, "Asia/Jerusalem")
+        // Block if hour is before start or at/after end
+        // Example: start=7, end=22 means allow 07:00-21:59, block 22:00-06:59
+        israelHour < trading_start_hour or israelHour >= trading_end_hour
 
 // Unified Entry Validation
 validate_entry_conditions(bool isDemand, int idx) =>
@@ -2517,72 +2388,30 @@ validate_entry_conditions(bool isDemand, int idx) =>
             canEnter := false
             reason := isDemand ? "Demand zone inactive" : "Supply zone inactive"
 
-    // =============================================================
-    // MASTER BOOLEAN PATTERN: Detect simultaneous sweeps ONCE,
-    // then use local bools for ALL downstream checks.
-    // This guarantees same-bar sweep detection is never stale.
-    // =============================================================
-    bool active_sweep_now = false
-    bool active_tgt_sweep_now = false
-    bool final_sweep_status = canEnter ? z.liquiditySwept : false
-    bool final_tgt_status = canEnter ? z.targetSwept : false
-    bool final_caused_sweep = canEnter ? z.causedSweep : false
-
-    // --- 1. Inducement Sweep (Simultaneous Check) ---
-    if canEnter and not final_sweep_status
-        float sweepTol = pip_size * 0.5
-        if isDemand
-            if not na(z.liqLowPrice) and low <= (z.liqLowPrice + sweepTol)
-                active_sweep_now := true
-        else
-            if not na(z.liqHighPrice) and high >= (z.liqHighPrice - sweepTol)
-                active_sweep_now := true
-
-        if active_sweep_now
-            final_sweep_status := true
-            final_caused_sweep := true
-            // Persist to object for future bars
-            z.liquiditySwept := true
-            z.causedSweep := true
-            z.liquiditySweptBarIndex := bar_index
-
-    // --- 2. Target Sweep (Simultaneous Check) ---
-    if canEnter and not final_tgt_status
-        float sweepTol2 = pip_size * 0.5
-        if isDemand
-            if not na(z.liqHighPrice) and high >= (z.liqHighPrice - sweepTol2)
-                active_tgt_sweep_now := true
-        else
-            if not na(z.liqLowPrice) and low <= (z.liqLowPrice + sweepTol2)
-                active_tgt_sweep_now := true
-
-        if active_tgt_sweep_now
-            final_tgt_status := true
-            // Persist to object for future bars
-            z.targetSwept := true
-            z.targetSweptBarIndex := bar_index
-            if not final_caused_sweep
-                final_caused_sweep := true
-                z.causedSweep := true
-    // =============================================================
-
-    // NOTE: Dead zone filter moved to AFTER entry model determination (line ~3905)
-    // This allows FLIP entries (which happen at 15m boundaries) to bypass the dead zone
+    // === TIME DEAD ZONE FILTER (Arger FX Rule) ===
+    // Block entries in the last 10 minutes of each hour (xx:50 - xx:00)
+    // Check this EARLY so user sees clear timing message
+    if canEnter and is_time_dead_zone()
+        canEnter := false
+        reason := "Dead Zone: Blocked at " + str.tostring(minute(time)) + "m (avoid xx:50-xx:00)"
 
     // === TRADING HOURS FILTER (Israel Time) ===
-    // Block entries outside allowed trading window (09:00-17:00 Israel Time)
+    // Block entries outside allowed trading window (default: 07:00-22:00)
     if canEnter and is_outside_trading_hours()
         canEnter := false
         int israelHour = hour(time, "Asia/Jerusalem")
-        reason := "Outside Trading Hours: " + str.tostring(israelHour) + ":00 (allowed: 09:00-17:00 Israel Time)"
+        reason := "Outside Trading Hours: " + str.tostring(israelHour) + ":00 (allowed: " + str.tostring(trading_start_hour) + ":00-" + str.tostring(trading_end_hour) + ":00)"
 
     if canEnter
         // Zone must not have been touched BEFORE sweep
         if z.touchedPreSweep
             canEnter := false
             reason := "Start Freshness Failed (Touched Pre-Sweep)"
-
-        // Historical zones are invalid (created during backfill)
+            
+        // Zone must have caused sweep & not be historical
+        if canEnter and not z.causedSweep
+            canEnter := false
+            reason := isDemand ? "Waiting for Inducement Sweep (Demand)" : "Waiting for Inducement Sweep (Supply)"
         if canEnter and z.isHistorical
             canEnter := false
             reason := isDemand ? "Demand zone created in historical backfill" : "Supply zone created in historical backfill"
@@ -2591,36 +2420,34 @@ validate_entry_conditions(bool isDemand, int idx) =>
         if canEnter and require_liquidity_sweep
             if not z.liquidityValid
                 canEnter := false
-                reason := isDemand ? "Demand liquidity invalid" : "Supply liquidity invalid"
+                reason := isDemand ? "Demand liquidity invalid (candle-count rule failed)" : "Supply liquidity invalid (candle-count rule failed)"
+            else if not z.liquiditySwept
+                canEnter := false
+                reason := isDemand ? "Waiting for Inducement Sweep (Demand)" : "Waiting for Inducement Sweep (Supply)"
+            else if not z.targetSwept
+                canEnter := false
+                reason := isDemand ? "Waiting for Target HIGH Sweep (Demand)" : "Waiting for Target LOW Sweep (Supply)"
+            else if na(z.liquiditySweptBarIndex) or bar_index < z.liquiditySweptBarIndex
+                canEnter := false
+                reason := isDemand ? "Demand entry before liquidity sweep bar" : "Supply entry before liquidity sweep bar"
+            // DOUBLE SWEEP GATE: Both Target and Inducement must be swept
+            // NOTE: Target can be swept BEFORE Inducement in the "Double Sweep" model
+            // (The rally that creates the Inducement Low often sweeps the Target High first)
+            // Only require that both bar indices are set (both sweeps occurred)
+            else if na(z.targetSweptBarIndex)
+                canEnter := false
+                reason := "Target sweep bar index not set"
             else
-                // === FINAL VALIDATION (uses MASTER booleans, never stale) ===
-                if not final_sweep_status
+                // Check liquidity distance from zone boundary (using helper function)
+                // For Supply: liqHighPrice to zone top
+                // For Demand: liqLowPrice to zone bottom
+                // Skip check if effective_liq_entry_max_dist is 0 (no limit)
+                // SKIP FOR INDICES: NAS100 liquidity works differently, distance check not applicable
+                if not is_index and effective_liq_entry_max_dist > 0.0 and not checkLiquidityDistance(z, not isDemand)
+                    float liqDist = not na(z.liquidityDistance) ? z.liquidityDistance : 999.0
+                    // Only reject if strictly worse (allow small tolerance)
                     canEnter := false
-                    reason := isDemand ? "Waiting for Inducement Sweep" : "Waiting for Inducement Sweep"
-                else if not final_tgt_status
-                    canEnter := false
-                    reason := isDemand ? "Waiting for Target HIGH Sweep" : "Waiting for Target LOW Sweep"
-                else if na(z.liquiditySweptBarIndex)
-                    // If index is missing but flag is true, patch it to current bar
-                    z.liquiditySweptBarIndex := bar_index
-                // DOUBLE SWEEP GATE: Both Target and Inducement must be swept
-                // NOTE: Target can be swept BEFORE Inducement in the "Double Sweep" model
-                // (The rally that creates the Inducement Low often sweeps the Target High first)
-                // Only require that both bar indices are set (both sweeps occurred)
-                else if na(z.targetSweptBarIndex)
-                    canEnter := false
-                    reason := "Target sweep bar index not set"
-                else
-                    // Check liquidity distance from zone boundary (using helper function)
-                    // For Supply: liqHighPrice to zone top
-                    // For Demand: liqLowPrice to zone bottom
-                    // Skip check if effective_liq_entry_max_dist is 0 (no limit)
-                    // SKIP FOR INDICES: NAS100 liquidity works differently, distance check not applicable
-                    if not is_index and effective_liq_entry_max_dist > 0.0 and not checkLiquidityDistance(z, not isDemand)
-                        float liqDist = not na(z.liquidityDistance) ? z.liquidityDistance : 999.0
-                        // Only reject if strictly worse (allow small tolerance)
-                        canEnter := false
-                        reason := "Liq distance too far (" + str.tostring(liqDist, "#.#") + " pips > " + str.tostring(effective_liq_entry_max_dist, "#.#") + ")"
+                    reason := "Liq distance too far (" + str.tostring(liqDist, "#.#") + " pips > " + str.tostring(effective_liq_entry_max_dist, "#.#") + ")"
         else if canEnter and not require_liquidity_sweep
             if not z.liquidityValid
                 // Liquidity not strictly required, but we still report it for transparency
@@ -2629,45 +2456,34 @@ validate_entry_conditions(bool isDemand, int idx) =>
         // LIQUIDITY SWEPT GATE (simplified): Just check if pivot was swept
         // No separate Target vs Inducement check needed with 3-candle logic
 
-        // TOUCH CHECK - Uses unified zoneTouchedThisBar() helper
-        // Bar range must intersect zone range (catches: into, through, engulf)
+        // STRICT TOUCH CHECK - No tolerance buffer
+        // For Demand: LOW must be inside zone (exact touch)
+        // For Supply: HIGH must be inside zone (exact touch)
+        float touchTolerance = 0.0  // Strict touch required
         bool wickIntoZone = false
-
+        
         if canEnter
-            // Check current bar with unified helper (same logic everywhere)
-            bool currentTouch = zoneTouchedThisBar(z.top, z.bottom, high, low)
-
-            // === CRITICAL FIX: Persist touch state changes back to array ===
-            // Pine Script UDTs are passed by value, so we must explicitly write back
-            bool touchStateChanged = false
-            if currentTouch and (not z.wasTouched or na(z.lastTouchBar) or z.lastTouchBar != bar_index)
-                z.wasTouched := true
-                z.lastTouchBar := bar_index
-                touchStateChanged := true
-
-            // Write updated zone back to array if state changed
-            if touchStateChanged
-                if isDemand and idx >= 0 and idx < array.size(demandZones)
-                    array.set(demandZones, idx, z)
-                else if not isDemand and idx >= 0 and idx < array.size(supplyZones)
-                    array.set(supplyZones, idx, z)
-
-            // === RELAXED VALIDATION: Trust wasTouched flag if touch was recent ===
-            // Allow entry if zone was touched within TOUCH_MEMORY_BARS (covers all entry models)
-            bool recentTouch = z.wasTouched and not na(z.lastTouchBar) and (bar_index - z.lastTouchBar) <= TOUCH_MEMORY_BARS
-
-            if recentTouch
-                // Zone was touched within recent bars - trust the persistent flag
-                wickIntoZone := true
-            else if z.primed and z.wasTouched
-                // Zone is primed and was touched - allow entry (backward compatibility)
-                wickIntoZone := true
+            // Check current bar for new touch
+            bool currentTouch = false
+            if isDemand
+                // Demand: require LOW (wick down) to enter zone
+                currentTouch := low <= (z.top + touchTolerance) and low >= (z.bottom - touchTolerance)
             else
-                // Standard validation: check previous bar with same unified helper
-                bool prevTouch = zoneTouchedThisBar(z.top, z.bottom, high[1], low[1])
-                wickIntoZone := currentTouch or prevTouch
-
-            // The zone MUST be touched. No exceptions.
+                // Supply: require HIGH (wick up) to enter zone
+                currentTouch := high >= (z.bottom - touchTolerance) and high <= (z.top + touchTolerance)
+            
+            // If current bar touches, mark zone as touched (persistent)
+            if currentTouch
+                z.wasTouched := true
+            
+            // STRICT VALIDATION: Ignore persistent history.
+            // Require the touch to happen on the current trigger candle OR the setup candle (bar index - 1).
+            bool prevTouch = isDemand ? (low[1] <= z.top + touchTolerance) : (high[1] >= z.bottom - touchTolerance)
+            
+            // Entry is valid only if we are touching NOW or just touched on the PREVIOUS bar
+            wickIntoZone := currentTouch or prevTouch
+            
+            // STRICT CHECK: The zone MUST be touched. No exceptions.
             if not wickIntoZone
                 canEnter := false
                 reason := isDemand ? "No wick INTO demand zone" : "No wick INTO supply zone"
@@ -2705,50 +2521,6 @@ validate_entry_conditions(bool isDemand, int idx) =>
                 reason := "AI Quality: " + str.tostring(ai_score, "#.0") + " < " + str.tostring(ai_quality_threshold) + " [" + ai_breakdown + "]"
 
     [canEnter, reason, z]
-
-// === DECISION SNAPSHOT FOR ZONE INSPECTOR ===
-// Captures exact state used by entry engine for accurate inspector display
-var int snap_zone_id = na
-var string snap_zone_type = na  // "Demand" or "Supply"
-var int snap_bar_index = na
-var bool snap_prereqs_pass = false
-var bool snap_flip_only_mode = false
-var bool snap_allow_flip = false
-var bool snap_allow_boc = false
-var bool snap_allow_directional = false
-var bool snap_htf_boundary = false
-var bool snap_current_touch = false
-var bool snap_recent_touch = false
-var bool snap_primed = false
-var bool snap_flip_pattern = false
-var bool snap_boc_pattern = false
-var bool snap_dir_pattern = false
-var string snap_selected_model = "NONE"
-var bool snap_entry_allowed = false
-var string snap_entry_reason = ""
-var string snap_model_reason = ""  // Model-specific blocking reason
-
-// Reset snapshot at start of each bar
-if barstate.isconfirmed[1] or barstate.isfirst
-    snap_zone_id := na
-    snap_zone_type := na
-    snap_bar_index := bar_index
-    snap_prereqs_pass := false
-    snap_flip_only_mode := in_flip_prep_window
-    snap_allow_flip := true
-    snap_allow_boc := not in_flip_prep_window
-    snap_allow_directional := not in_flip_prep_window
-    snap_htf_boundary := f_is_htf_boundary()
-    snap_current_touch := false
-    snap_recent_touch := false
-    snap_primed := false
-    snap_flip_pattern := false
-    snap_boc_pattern := false
-    snap_dir_pattern := false
-    snap_selected_model := "NONE"
-    snap_entry_allowed := false
-    snap_entry_reason := ""
-    snap_model_reason := ""
 
 // === TRADE TRACKING VARIABLES ===
 var float trade_entry_price      = na
@@ -3563,35 +3335,29 @@ isValidEntry(isDemand, idx) =>
 
 
     if canEnter
-        // === MODEL-SPECIFIC DIRECTIONAL VALIDATION ===
-        // Skip directional validation during flip-only prep window
-        // This allows zones to be primed even when candles aren't directional,
-        // so they can be evaluated for FLIP entries after HTF opens
-        if not in_flip_prep_window
-            // Directional candle check with hammer/inverted hammer support
-            float bodySize = math.abs(close - open)
-            float candleRange = high - low
-            float lowerWick = math.min(open, close) - low
-            float upperWick = high - math.max(open, close)
-
-            // Hammer detection: Long lower wick (>= 60% of range), small body
-            bool isHammer = lowerWick >= candleRange * 0.6 and bodySize <= candleRange * 0.3
-
-            // Inverted hammer: Long upper wick (>= 60% of range), small body
-            bool isInvertedHammer = upperWick >= candleRange * 0.6 and bodySize <= candleRange * 0.3
-
-            bool correct_direction = false
-            if isDemand
-                // For demand: Standard bullish OR hammer (even if slightly bearish)
-                correct_direction := (close > open) or isHammer
-            else
-                // For supply: Standard bearish OR inverted hammer
-                correct_direction := (close < open) or isInvertedHammer
-
-            if not correct_direction
-                canEnter := false
-                reason := isDemand ? "Waiting for Bullish Close or Hammer" : "Waiting for Bearish Close or Inv. Hammer"
-        // else: in flip prep window, skip directional check (allow priming for flip entries)
+        // Directional candle check with hammer/inverted hammer support
+        float bodySize = math.abs(close - open)
+        float candleRange = high - low
+        float lowerWick = math.min(open, close) - low
+        float upperWick = high - math.max(open, close)
+        
+        // Hammer detection: Long lower wick (>= 60% of range), small body
+        bool isHammer = lowerWick >= candleRange * 0.6 and bodySize <= candleRange * 0.3
+        
+        // Inverted hammer: Long upper wick (>= 60% of range), small body
+        bool isInvertedHammer = upperWick >= candleRange * 0.6 and bodySize <= candleRange * 0.3
+        
+        bool correct_direction = false
+        if isDemand
+            // For demand: Standard bullish OR hammer (even if slightly bearish)
+            correct_direction := (close > open) or isHammer
+        else
+            // For supply: Standard bearish OR inverted hammer
+            correct_direction := (close < open) or isInvertedHammer
+        
+        if not correct_direction
+            canEnter := false
+            reason := isDemand ? "Waiting for Bullish Close or Hammer" : "Waiting for Bearish Close or Inv. Hammer"
 
     if canEnter
 
@@ -3690,24 +3456,27 @@ if array.size(demandZones) > 0 and barstate.isconfirmed
             // Update demand liquidity visuals (connector + label)
             updateDemandLiquidityVisual(i)
             
+            if current_close > z.top and not z.leftZone
+                z.leftZone := true
+                z.leftWithBearish := current_close < current_open
+
             // === STRICT MITIGATION CHECK (DEMAND) ===
             // Zone is killed on ANY wick touch BEFORE liquidity sweep to enforce "Fresh Zone Only"
             // Conditions for mitigation:
-            // 1) Price CLOSES inside the zone AFTER leaving, OR
+            // 1) Price CLOSES inside the zone, OR
             // 2) Price wicks THROUGH the entire zone (breach - low goes below zone bottom), OR
-            // 3) Price wicks INTO zone (fresh touch before setup ready) AFTER leaving
+            // 3) Price wicks INTO zone (fresh touch before setup ready) - STRICT RULE
             if not z.mitigated
                 bool is_future_bar = not na(z.createdBarIndex) and bar_index > z.createdBarIndex
 
-                // Close inside zone (bearish invalidation) - Only counts if we officially left it
-                bool closes_inside = z.leftZone and (close <= z.top and close >= z.bottom)
+                // Close inside zone (bearish invalidation)
+                bool closes_inside = close <= z.top and close >= z.bottom
 
                 // Breach - price wicks through entire zone (wick below zone bottom)
                 bool breaches_zone = low < z.bottom
 
                 // Wick INTO zone (touch) - STRICT RULE: Kill zone before setup is ready
-                // Only evaluate wicks INTO the zone AFTER the price has successfully left the zone!
-                bool wicks_into_zone = z.leftZone and (low <= z.top and low >= z.bottom)
+                bool wicks_into_zone = low <= z.top and low >= z.bottom
 
                 // SIMULTANEOUS SWEEP: If current bar sweeps target, allow entry (exception to strict rule)
                 bool current_bar_sweeping = not na(z.structureSweepLevel) and high > z.structureSweepLevel
@@ -3721,11 +3490,6 @@ if array.size(demandZones) > 0 and barstate.isconfirmed
                     if not na(z.boxId)
                         box.set_bgcolor(z.boxId, color.new(color.gray, 85))
                         box.set_border_color(z.boxId, color.gray)
-
-            // Update z.leftZone AFTER the mitigation check, so it reflects true departure
-            if current_close > z.top and not z.leftZone
-                z.leftZone := true
-                z.leftWithBearish := current_close < current_open
 
 // === TRACK LIQUIDITY AND ZONE STATUS (SUPPLY) ===
 // CRITICAL: Only validate liquidity sweeps for LIVE zones (not historical backfill)
@@ -3799,24 +3563,28 @@ if array.size(supplyZones) > 0 and barstate.isconfirmed
             // Update supply liquidity visuals
             updateSupplyLiquidityVisual(i)
 
+            if current_close < z.bottom and not z.leftZone
+                z.leftZone := true
+
+
+            
             // === STRICT MITIGATION CHECK (SUPPLY) ===
             // Zone is killed on ANY wick touch BEFORE liquidity sweep to enforce "Fresh Zone Only"
             // Conditions for mitigation:
-            // 1) Price CLOSES inside the zone AFTER leaving, OR
+            // 1) Price CLOSES inside the zone, OR
             // 2) Price wicks THROUGH the entire zone (breach - high goes above zone top), OR
-            // 3) Price wicks INTO zone (fresh touch before setup ready) AFTER leaving
+            // 3) Price wicks INTO zone (fresh touch before setup ready) - STRICT RULE
             if not z.mitigated
                 bool is_future_bar = not na(z.createdBarIndex) and bar_index > z.createdBarIndex
 
-                // Close inside zone (bullish invalidation) - Only counts if we officially left it
-                bool closes_inside = z.leftZone and (close >= z.bottom and close <= z.top)
+                // Close inside zone (bullish invalidation)
+                bool closes_inside = close >= z.bottom and close <= z.top
 
                 // Breach - price wicks through entire zone (wick above zone top)
                 bool breaches_zone = high > z.top
 
                 // Wick INTO zone (touch) - STRICT RULE: Kill zone before setup is ready
-                // Only evaluate wicks INTO the zone AFTER the price has successfully left the zone!
-                bool wicks_into_zone = z.leftZone and (high >= z.bottom and high <= z.top)
+                bool wicks_into_zone = high >= z.bottom and high <= z.top
 
                 // SIMULTANEOUS SWEEP: If current bar sweeps target, allow entry (exception to strict rule)
                 bool current_bar_sweeping = not na(z.structureSweepLevel) and low < z.structureSweepLevel
@@ -3824,16 +3592,11 @@ if array.size(supplyZones) > 0 and barstate.isconfirmed
                 // STRICT MITIGATION: Kill zone on ANY touch if liquidity NOT yet swept AND not simultaneously sweeping
                 if is_future_bar and not z.liquiditySwept and (closes_inside or breaches_zone or wicks_into_zone) and not current_bar_sweeping
                     z.mitigated := true
-                    z.touchedPreSweep := true
                     z.mitigationTime := time
                     z.inactiveReason := closes_inside ? "Close inside zone" : (breaches_zone ? "Price breached zone" : "Zone touched before setup (Fresh)")
                     if not na(z.boxId)
                         box.set_bgcolor(z.boxId, color.new(color.gray, 85))
                         box.set_border_color(z.boxId, color.gray)
-
-            // Update z.leftZone AFTER the mitigation check, so it reflects true departure
-            if current_close < z.bottom and not z.leftZone
-                z.leftZone := true
 
 
 // === ZONE INVALIDATION (DEMAND) ===
@@ -3983,29 +3746,23 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
     for i = 0 to array.size(demandZones) - 1
         Core.Zone z = array.get(demandZones, i)
 
-        // Declare variables at loop level so they're accessible in both STEP 1 and STEP 2
-        bool currentTouch = false
-        bool can_enter = false
-        string entryReason = ""
-
         // === STEP 1: PRIME ZONE (when touched with valid setup) ===
         if z.active and not z.primed
             // === TRACK TOUCHES INDEPENDENTLY OF VALIDITY ===
-            // Uses unified helper: bar range intersects zone range
-            currentTouch := zoneTouchedThisBar(z.top, z.bottom, high, low)
-
+            // Ensure first touch is recorded even if entry is blocked (e.g. Dead Zone)
+            float touchTolerance = 0.0
+            bool currentTouch = low <= (z.top + touchTolerance)
+            
             if currentTouch
                 bool isContinuous = not na(z.lastTouchBar) and (bar_index - z.lastTouchBar) <= 1
                 if not isContinuous
                     z.touchCount := z.touchCount + 1
-
+                
                 z.lastTouchBar := bar_index
                 z.wasTouched := true
-
+                
             // Unified demand entry validation (shared with flip entries)
-            [can_enter_result, entryReason_result] = isValidDemandEntry(i)
-            can_enter := can_enter_result
-            entryReason := entryReason_result
+            [can_enter, entryReason] = isValidDemandEntry(i)
 
             // === PERFORMANCE STATS: ENTRY CHECKS (DEMAND) ===
             stat_total_entry_checks += 1
@@ -4058,57 +3815,15 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
 
         // === STEP 2: ENTER ON BULLISH CLOSE (if zone is primed) ===
         if z.active and z.primed
-            // === "CLOSE INSIDE" INVALIDATION (Video 08:21) ===
-            // If ANY candle closes INSIDE the zone box, invalidate the setup immediately
-            // This is the most statistically safe entry validation
-            bool closeInsideZone = close > z.bottom and close < z.top
-
-            if closeInsideZone
-                // INVALIDATE THE ZONE - Close happened inside the box
-                z.active := false
-                z.primed := false
-                z.inactiveReason := "INVALIDATED - Close Inside Zone (Video 08:21)"
-
-                // Visual feedback: Change zone color to indicate invalidation
-                if not na(z.boxId)
-                    box.set_bgcolor(z.boxId, color.new(color.gray, 90))
-                    box.set_border_color(z.boxId, color.new(color.gray, 70))
-
-                continue  // Skip to next zone
-
-            // 2. ENTRY MODEL SELECTION (Time-Window Aware Gating)
+            // 2. ENTRY MODEL SELECTION (STRICT Priority: Time Gate -> Flip -> BoC -> Dir Close)
             string chosenModel = "NONE"
 
-            // === FLIP-ONLY MODE ENFORCEMENT ===
-            // During flip prep window: ONLY evaluate FLIP model
-            // Block BoC and Directional Close until after HTF opens
-            //
-            // NOTE: HTF boundary detection works correctly for 10:00 AM entries
-            // because barstate.isconfirmed runs when the bar CLOSES. At 10:00
-            // on a 5m chart, we're evaluating the COMPLETED 09:55-10:00 bar,
-            // which has full wicks and can show a valid flip pattern.
-            bool allow_flip = true
-            bool allow_boc = not in_flip_prep_window
-            bool allow_directional = not in_flip_prep_window
-
             // (a) FLIP: Bearish to Bullish reversal (Engulfing-like behavior)
-            // STRICT TIME GATE: Flip can ONLY be evaluated on HTF boundaries
-            // === ENHANCED: Flexible 3-Bar Flip Detection ===
-            // Allows Red → Doji → Green transitions (catches more valid flips)
-            // Requirements:
-            //   1. Current candle is bullish (close > open)
-            //   2. Had bearish context in last 2 bars (close[1] < open[1] OR close[2] < open[2])
-            //   3. Engulfing: current close above previous high (shows strength)
-            bool current_bullish = close > open
-            bool had_bearish = close[1] < open[1] or close[2] < open[2]
-            bool engulfing = close > high[1]
-            // HTF color confirmation: developing HTF candle must be green (or flat at open)
-            bool htf_is_bullish = htf_dclose >= htf_open
-            bool basic_flip = current_bullish and had_bearish and engulfing and htf_is_bullish
-
-            bool is_flip_time = f_is_htf_boundary()  // Use HTF boundary detection
+            // STRICT TIME GATE: Flip can ONLY be evaluated on 15m boundaries (xx:00/:15/:30/:45)
+            bool basic_flip = close > open and close[1] < open[1]
+            bool is_flip_time = is_htf_candle_open()
             bool is_flip = false
-            if is_flip_time and allow_flip
+            if is_flip_time
                 is_flip := basic_flip
 
             // (b) DIRECTIONAL CLOSE: Bullish close (no zone touch required - already primed)
@@ -4118,19 +3833,19 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
             float lowerWick = math.min(open, close) - low
             bool isHammer = candleRange > 0 ? (lowerWick >= candleRange * 0.6 and bodySize <= candleRange * 0.3) : false
 
-            bool is_dir_close = allow_directional ? ((close > open) or (isHammer and close > open)) : false
+            bool is_dir_close = (close > open) or (isHammer and close > open)
 
             // (c) BREAK OF CANDLE: Gap or Break High relative to PRIMED CANDLE + Bullish Close
             // Definition: (open > primedRefClose OR high > primedRefHigh) AND close > open
             // AND is NOT a flip pattern (flip = reversal, break = continuation)
             bool hasValidPrimedRef = not na(z.primedRefClose) and not na(z.primedRefHigh)
             bool is_break = false
-            if allow_boc and hasValidPrimedRef and not is_flip
+            if hasValidPrimedRef and not is_flip
                 is_break := (open > z.primedRefClose or high > z.primedRefHigh) and close > open
 
-            // Priority (with flip-only gating):
-            // 1) If at HTF boundary and Flip pattern exists -> FLIP
-            // 2) Otherwise (if not in flip-only mode) -> BoC, then Dir Close
+            // Priority:
+            // 1) If on 15m boundary and Flip pattern exists -> FLIP
+            // 2) Otherwise -> fallback immediately to BoC, then Dir Close
             if is_flip
                 chosenModel := "FLIP"
             else if is_break
@@ -4138,66 +3853,11 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
             else if is_dir_close
                 chosenModel := "DIR_CLOSE"
 
-            // === DECISION SNAPSHOT: Populate for inspected zone ===
-            // This captures exact state used for entry decision
-            if z.id == snap_zone_id or (na(snap_zone_id) and str.length(manual_zone_id_input) == 0 and i == 0)
-                snap_zone_id := z.id
-                snap_zone_type := "Demand"
-                snap_bar_index := bar_index
-                snap_prereqs_pass := can_enter  // From validation earlier
-                snap_flip_only_mode := in_flip_prep_window
-                snap_allow_flip := allow_flip
-                snap_allow_boc := allow_boc
-                snap_allow_directional := allow_directional
-                snap_htf_boundary := is_flip_time
-                snap_current_touch := currentTouch
-                snap_recent_touch := z.wasTouched and not na(z.lastTouchBar) and (bar_index - z.lastTouchBar) <= TOUCH_MEMORY_BARS
-                snap_primed := z.primed
-                snap_flip_pattern := is_flip
-                snap_boc_pattern := is_break
-                snap_dir_pattern := is_dir_close
-                snap_selected_model := chosenModel
-
-            // Model-aware rejection reason
-            string model_blocking_reason = ""
             if chosenModel == "NONE"
-                if in_flip_prep_window
-                    model_blocking_reason := "FLIP PREP MODE - Waiting for HTF boundary at :" + str.tostring((minute(time) / htf_period_minutes + 1) * htf_period_minutes % 60, "00")
-                else
-                    model_blocking_reason := "No valid entry pattern (Flip/BoC/DirClose)"
-                z.inactiveReason := model_blocking_reason
-
-                // Update snapshot reason
-                if z.id == snap_zone_id
-                    snap_model_reason := model_blocking_reason
-                    snap_entry_allowed := false
-                    snap_entry_reason := model_blocking_reason
-
-                continue  // Keep zone primed, wait for valid model
-
-            // === TIME DEAD ZONE FILTER (Arger FX Rule) ===
-            // Block BREAK_CANDLE and DIR_CLOSE entries during dead zone (xx:50-xx:59)
-            // FLIP entries are allowed because they happen at 15m boundaries (xx:00/:15/:30/:45)
-            // which naturally fall outside the dead zone
-            if is_time_dead_zone()
-                if chosenModel == "BREAK_CANDLE" or chosenModel == "DIR_CLOSE"
-                    string dead_zone_reason = "BLOCKED - Dead Zone: " + chosenModel + " at " + str.tostring(minute(time)) + "m (avoid xx:50-xx:00)"
-                    z.inactiveReason := dead_zone_reason
-
-                    // Update snapshot
-                    if z.id == snap_zone_id
-                        snap_entry_allowed := false
-                        snap_entry_reason := dead_zone_reason
-                        snap_model_reason := dead_zone_reason
-
-                    continue  // Block this entry, keep zone primed for next bar
-                // If chosenModel is "FLIP", allow it to proceed (no continue)
+                continue  // No valid entry pattern yet, keep zone primed
 
             // Store model for Inspector/Debug
             z.inactiveReason := "Model: " + chosenModel
-
-            // Persist zone changes immediately (CRITICAL for inspector)
-            array.set(demandZones, i, z)
 
             bool in_date_range = not enable_date_filter or (time >= start_date and time <= end_date)
             if not in_date_range
@@ -4318,14 +3978,6 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     label.new(x = bar_index, y = high, text = "⚠️ Position Size Invalid\n" + pos_error_msg,
                               style = label.style_label_down, color = color.new(color.red, 0),
                               textcolor = color.white, size = size.normal)
-
-            // === FINAL ENTRY DECISION: Update snapshot ===
-            if z.id == snap_zone_id
-                snap_entry_allowed := pos_is_valid
-                if pos_is_valid
-                    snap_entry_reason := "Model: " + chosenModel + " | Entry Permitted"
-                else
-                    snap_entry_reason := pos_error_msg
 
             // === IMMEDIATE LONG ENTRY EXECUTION ===
             // Entry will execute immediately on this bar (no delay)
@@ -4547,29 +4199,23 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
     for i = 0 to array.size(supplyZones) - 1
         Core.Zone z = array.get(supplyZones, i)
 
-        // Declare variables at loop level so they're accessible in both STEP 1 and STEP 2
-        bool currentTouch = false
-        bool can_enter = false
-        string entryReason = ""
-
         // === STEP 1: PRIME ZONE (when touched with valid setup) ===
         if z.active and not z.primed
             // === TRACK TOUCHES INDEPENDENTLY OF VALIDITY ===
-            // Uses unified helper: bar range intersects zone range
-            currentTouch := zoneTouchedThisBar(z.top, z.bottom, high, low)
-
+            // Ensure first touch is recorded even if entry is blocked (e.g. Dead Zone)
+            float touchTolerance = 0.0
+            bool currentTouch = high >= (z.bottom - touchTolerance)
+            
             if currentTouch
                 bool isContinuous = not na(z.lastTouchBar) and (bar_index - z.lastTouchBar) <= 1
                 if not isContinuous
                     z.touchCount := z.touchCount + 1
-
+                
                 z.lastTouchBar := bar_index
                 z.wasTouched := true
 
             // Unified supply entry validation (shared with flip entries)
-            [can_enter_result, entryReason_result] = isValidSupplyEntry(i)
-            can_enter := can_enter_result
-            entryReason := entryReason_result
+            [can_enter, entryReason] = isValidSupplyEntry(i)
 
             // === PERFORMANCE STATS: ENTRY CHECKS (SUPPLY) ===
             stat_total_entry_checks += 1
@@ -4622,57 +4268,15 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
 
         // === STEP 2: ENTER ON BEARISH CLOSE (if zone is primed) ===
         if z.active and z.primed
-            // === "CLOSE INSIDE" INVALIDATION (Video 08:21) ===
-            // If ANY candle closes INSIDE the zone box, invalidate the setup immediately
-            // This is the most statistically safe entry validation
-            bool closeInsideZone = close > z.bottom and close < z.top
-
-            if closeInsideZone
-                // INVALIDATE THE ZONE - Close happened inside the box
-                z.active := false
-                z.primed := false
-                z.inactiveReason := "INVALIDATED - Close Inside Zone (Video 08:21)"
-
-                // Visual feedback: Change zone color to indicate invalidation
-                if not na(z.boxId)
-                    box.set_bgcolor(z.boxId, color.new(color.gray, 90))
-                    box.set_border_color(z.boxId, color.new(color.gray, 70))
-
-                continue  // Skip to next zone
-
-            // 2. ENTRY MODEL SELECTION (Time-Window Aware Gating)
+            // 2. ENTRY MODEL SELECTION (STRICT Priority: Time Gate -> Flip -> BoC -> Dir Close)
             string chosenModel = "NONE"
 
-            // === FLIP-ONLY MODE ENFORCEMENT ===
-            // During flip prep window: ONLY evaluate FLIP model
-            // Block BoC and Directional Close until after HTF opens
-            //
-            // NOTE: HTF boundary detection works correctly for 10:00 AM entries
-            // because barstate.isconfirmed runs when the bar CLOSES. At 10:00
-            // on a 5m chart, we're evaluating the COMPLETED 09:55-10:00 bar,
-            // which has full wicks and can show a valid flip pattern.
-            bool allow_flip = true
-            bool allow_boc = not in_flip_prep_window
-            bool allow_directional = not in_flip_prep_window
-
             // (a) FLIP: Bullish to Bearish reversal
-            // STRICT TIME GATE: Flip can ONLY be evaluated on HTF boundaries
-            // === ENHANCED: Flexible 3-Bar Flip Detection ===
-            // Allows Green → Doji → Red transitions (catches more valid flips)
-            // Requirements:
-            //   1. Current candle is bearish (close < open)
-            //   2. Had bullish context in last 2 bars (close[1] > open[1] OR close[2] > open[2])
-            //   3. Engulfing: current close below previous low (shows strength)
-            bool current_bearish = close < open
-            bool had_bullish = close[1] > open[1] or close[2] > open[2]
-            bool engulfing = close < low[1]
-            // HTF color confirmation: developing HTF candle must be red (or flat at open)
-            bool htf_is_bearish = htf_dclose <= htf_open
-            bool basic_flip = current_bearish and had_bullish and engulfing and htf_is_bearish
-
-            bool is_flip_time = f_is_htf_boundary()  // Use HTF boundary detection
+            // STRICT TIME GATE: Flip can ONLY be evaluated on 15m boundaries (xx:00/:15/:30/:45)
+            bool basic_flip = close < open and close[1] > open[1]
+            bool is_flip_time = is_htf_candle_open()
             bool is_flip = false
-            if is_flip_time and allow_flip
+            if is_flip_time
                 is_flip := basic_flip
 
             // (b) DIRECTIONAL CLOSE: Bearish close (no zone touch required - already primed)
@@ -4682,19 +4286,19 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
             float upperWick = high - math.max(open, close)
             bool isInvertedHammer = candleRange > 0 ? (upperWick >= candleRange * 0.6 and bodySize <= candleRange * 0.3) : false
 
-            bool is_dir_close = allow_directional ? ((close < open) or (isInvertedHammer and close < open)) : false
+            bool is_dir_close = (close < open) or (isInvertedHammer and close < open)
 
             // (c) BREAK OF CANDLE: Gap or Break Low relative to PRIMED CANDLE + Bearish Close
             // Definition: (open < primedRefClose OR low < primedRefLow) AND close < open
             // AND is NOT a flip pattern (flip = reversal, break = continuation)
             bool hasValidPrimedRef = not na(z.primedRefClose) and not na(z.primedRefLow)
             bool is_break = false
-            if allow_boc and hasValidPrimedRef and not is_flip
+            if hasValidPrimedRef and not is_flip
                 is_break := (open < z.primedRefClose or low < z.primedRefLow) and close < open
 
-            // Priority (with flip-only gating):
-            // 1) If at HTF boundary and Flip pattern exists -> FLIP
-            // 2) Otherwise (if not in flip-only mode) -> BoC, then Dir Close
+            // Priority:
+            // 1) If on 15m boundary and Flip pattern exists -> FLIP
+            // 2) Otherwise -> fallback immediately to BoC, then Dir Close
             if is_flip
                 chosenModel := "FLIP"
             else if is_break
@@ -4702,66 +4306,11 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
             else if is_dir_close
                 chosenModel := "DIR_CLOSE"
 
-            // === DECISION SNAPSHOT: Populate for inspected zone ===
-            // This captures exact state used for entry decision
-            if z.id == snap_zone_id or (na(snap_zone_id) and str.length(manual_zone_id_input) == 0 and i == 0)
-                snap_zone_id := z.id
-                snap_zone_type := "Supply"
-                snap_bar_index := bar_index
-                snap_prereqs_pass := can_enter  // From validation earlier
-                snap_flip_only_mode := in_flip_prep_window
-                snap_allow_flip := allow_flip
-                snap_allow_boc := allow_boc
-                snap_allow_directional := allow_directional
-                snap_htf_boundary := is_flip_time
-                snap_current_touch := currentTouch
-                snap_recent_touch := z.wasTouched and not na(z.lastTouchBar) and (bar_index - z.lastTouchBar) <= TOUCH_MEMORY_BARS
-                snap_primed := z.primed
-                snap_flip_pattern := is_flip
-                snap_boc_pattern := is_break
-                snap_dir_pattern := is_dir_close
-                snap_selected_model := chosenModel
-
-            // Model-aware rejection reason
-            string model_blocking_reason = ""
             if chosenModel == "NONE"
-                if in_flip_prep_window
-                    model_blocking_reason := "FLIP PREP MODE - Waiting for HTF boundary at :" + str.tostring((minute(time) / htf_period_minutes + 1) * htf_period_minutes % 60, "00")
-                else
-                    model_blocking_reason := "No valid entry pattern (Flip/BoC/DirClose)"
-                z.inactiveReason := model_blocking_reason
-
-                // Update snapshot reason
-                if z.id == snap_zone_id
-                    snap_model_reason := model_blocking_reason
-                    snap_entry_allowed := false
-                    snap_entry_reason := model_blocking_reason
-
-                continue  // Keep zone primed, wait for valid model
-
-            // === TIME DEAD ZONE FILTER (Arger FX Rule) ===
-            // Block BREAK_CANDLE and DIR_CLOSE entries during dead zone (xx:50-xx:59)
-            // FLIP entries are allowed because they happen at 15m boundaries (xx:00/:15/:30/:45)
-            // which naturally fall outside the dead zone
-            if is_time_dead_zone()
-                if chosenModel == "BREAK_CANDLE" or chosenModel == "DIR_CLOSE"
-                    string dead_zone_reason = "BLOCKED - Dead Zone: " + chosenModel + " at " + str.tostring(minute(time)) + "m (avoid xx:50-xx:00)"
-                    z.inactiveReason := dead_zone_reason
-
-                    // Update snapshot
-                    if z.id == snap_zone_id
-                        snap_entry_allowed := false
-                        snap_entry_reason := dead_zone_reason
-                        snap_model_reason := dead_zone_reason
-
-                    continue  // Block this entry, keep zone primed for next bar
-                // If chosenModel is "FLIP", allow it to proceed (no continue)
+                continue  // No valid entry pattern yet, keep zone primed
 
             // Store model for Inspector/Debug
             z.inactiveReason := "Model: " + chosenModel
-
-            // Persist zone changes immediately (CRITICAL for inspector)
-            array.set(supplyZones, i, z)
 
             bool in_date_range = not enable_date_filter or (time >= start_date and time <= end_date)
             if not in_date_range
@@ -4882,14 +4431,6 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     label.new(x = bar_index, y = low, text = "⚠️ Position Size Invalid\n" + pos_error_msg,
                               style = label.style_label_up, color = color.new(color.red, 0),
                               textcolor = color.white, size = size.normal)
-
-            // === FINAL ENTRY DECISION: Update snapshot ===
-            if z.id == snap_zone_id
-                snap_entry_allowed := pos_is_valid
-                if pos_is_valid
-                    snap_entry_reason := "Model: " + chosenModel + " | Entry Permitted"
-                else
-                    snap_entry_reason := pos_error_msg
 
             // === IMMEDIATE SHORT ENTRY EXECUTION ===
             // Entry will execute immediately on this bar (no delay)
@@ -5576,13 +5117,11 @@ var table zoneInspector = na
 
 if showZoneInspector and debug_enabled and isRecentBarForDebug()
     if na(zoneInspector)
-        zoneInspector := table.new(position.bottom_right, 2, 60,
-             bgcolor = color.new(color.rgb(20, 25, 30), 10),
-             frame_color = color.new(color.rgb(100, 110, 120), 80), frame_width = 1,
+        zoneInspector := table.new(position.bottom_right, 2, 35, 
+             bgcolor = color.new(color.rgb(20, 25, 30), 10), 
+             frame_color = color.new(color.rgb(100, 110, 120), 80), frame_width = 1, 
              border_color = color.new(color.rgb(60, 70, 80), 50), border_width = 1)
-    // REAL-TIME UPDATES: Removed barstate.isconfirmed to show HTF timing instantly
-    // Inspector updates on every tick for live HTF boundary detection
-    if not na(zoneInspector)
+    if barstate.isconfirmed and not na(zoneInspector)
         // Get additional zone details for inspector
         string zoneInspectorType = "None"
         int zoneInspectorIdx = na
@@ -5734,15 +5273,6 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
         
         bool allowInactiveInspector = true
 
-        // === DECLARE TOUCH DEBUG VARIABLES (must be in outer scope for debug rows) ===
-        bool inspCurrentTouch = false
-        bool inspRecentTouch = false
-        bool inspPrimed = false
-        int inspTouchAge = -1
-
-        // === DECLARE SNAPSHOT VARIABLE (must be in outer scope for debug rows) ===
-        bool useSnapshot = false
-
         // Populate inspector fields if zone found in live arrays
         // === CONSOLIDATED: Common fields calculated once, directional logic uses ternary ===
         if not na(inspectorZone) and (inspectorZoneActive or allowInactiveInspector)
@@ -5807,38 +5337,23 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
             // Not Closed In (same for both)
             notClosedIn := (close < zoneInspectorLow or close > zoneInspectorHigh) ? "Yes" : "No"
             
-            // === WICK IN ZONE (unified helper - same logic as validation) ===
-            // Update touch debug variables (already declared in outer scope)
-            inspCurrentTouch := zoneTouchedThisBar(inspectorZone.top, inspectorZone.bottom, high, low)
-            inspTouchAge := not na(inspectorZone.lastTouchBar) ? (bar_index - inspectorZone.lastTouchBar) : -1
-            inspRecentTouch := inspectorZone.wasTouched and not na(inspectorZone.lastTouchBar) and inspTouchAge >= 0 and inspTouchAge <= TOUCH_MEMORY_BARS
-            inspPrimed := inspectorZone.primed and inspectorZone.wasTouched
-
-            bool inspWickOK = inspCurrentTouch or inspRecentTouch or inspPrimed
-            wickInZone := inspWickOK ? ("Yes" + (inspCurrentTouch ? " (NOW)" : (inspRecentTouch ? " (Recent:" + str.tostring(inspTouchAge) + ")" : " (Primed)"))) : ("No" + (not na(inspectorZone) and inspectorZone.wasTouched ? " [stale:" + str.tostring(inspTouchAge) + "]" : " [never]"))
-
-            // === USE DECISION SNAPSHOT FOR ACCURATE DISPLAY ===
-            // Inspector reads exact state from entry engine instead of re-computing
-            useSnapshot := not na(snap_zone_id) and not na(zoneInspectorUZID) and snap_zone_id == zoneInspectorUZID and snap_bar_index == bar_index
-
+            // === DIRECTIONAL LOGIC: Wick In Zone (using persistent wasTouched) ===
+            // Check if zone was ever touched (persists until entry/mitigation)
+            bool zoneTouched = not na(inspectorZone) and inspectorZone.wasTouched
+            wickInZone := zoneTouched ? "Yes (Touched)" : "No"
+            
+            // === UNIFIED ENTRY VALIDATION (using if/else for tuple return) ===
             bool entryAllowedInspectorBool = false
             string validationReason = ""
-
-            if useSnapshot
-                // Use snapshot data (accurate, model-aware)
-                entryAllowedInspectorBool := snap_entry_allowed
-                validationReason := snap_entry_reason
+            if isInspectorDemand
+                [canEnterDemand, reasonDemand] = isValidDemandEntry(zoneInspectorIdx)
+                entryAllowedInspectorBool := canEnterDemand
+                validationReason := reasonDemand
             else
-                // Fallback: generic validation (may be stale/generic)
-                if isInspectorDemand
-                    [canEnterDemand, reasonDemand] = isValidDemandEntry(zoneInspectorIdx)
-                    entryAllowedInspectorBool := canEnterDemand
-                    validationReason := reasonDemand
-                else
-                    [canEnterSupply, reasonSupply] = isValidSupplyEntry(zoneInspectorIdx)
-                    entryAllowedInspectorBool := canEnterSupply
-                    validationReason := reasonSupply
-
+                [canEnterSupply, reasonSupply] = isValidSupplyEntry(zoneInspectorIdx)
+                entryAllowedInspectorBool := canEnterSupply
+                validationReason := reasonSupply
+            
             // Handle supply shorts disabled case
             if not isInspectorDemand and not allow_short_trades
                 entryAllowedInspector := "Shorts Disabled"
@@ -6151,147 +5666,7 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
         table.cell(zoneInspector, 0, nextRow, "Inactive Reason", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         inactiveColor = zoneInactiveReason != "N/A" ? color.orange : color.rgb(150, 150, 150)
         table.cell(zoneInspector, 1, nextRow, zoneInactiveReason, text_color = inactiveColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
-        nextRow += 1
-
-        // === HTF FLIP MODE DEBUG ROWS (NEW) ===
-        // Show current timing state and entry model availability
-
-        // Bar Open Time (Full Timestamp: HH:MM:SS)
-        int currentHour = hour(time)
-        int currentMin = minute(time)
-        int currentSec = second(time)
-        string currentTimeStr = str.tostring(currentHour, "00") + ":" + str.tostring(currentMin, "00") + ":" + str.tostring(currentSec, "00")
-        table.cell(zoneInspector, 0, nextRow, "Bar Open Time", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
-        table.cell(zoneInspector, 1, nextRow, currentTimeStr, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
-        nextRow += 1
-
-        // Flip Prep Mode Status
-        string flipPrepStatus = in_flip_prep_window ? "YES (Flip-Only)" : "NO (All Models)"
-        color flipPrepColor = in_flip_prep_window ? color.yellow : color.rgb(150, 150, 150)
-        table.cell(zoneInspector, 0, nextRow, "Flip Prep Mode", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
-        table.cell(zoneInspector, 1, nextRow, flipPrepStatus, text_color = flipPrepColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
-        nextRow += 1
-
-        // Allowed Entry Models
-        string allowedModels = in_flip_prep_window ? "FLIP only" : "Flip / BoC / Directional"
-        color allowedModelsColor = in_flip_prep_window ? color.yellow : color.green
-        table.cell(zoneInspector, 0, nextRow, "Allowed Models", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
-        table.cell(zoneInspector, 1, nextRow, allowedModels, text_color = allowedModelsColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
-        nextRow += 1
-
-        // HTF Boundary Status
-        bool isHTFBoundary = f_is_htf_boundary()
-        string htfBoundaryStatus = isHTFBoundary ? "YES (HTF Just Opened)" : "NO"
-        color htfBoundaryColor = isHTFBoundary ? color.lime : color.rgb(150, 150, 150)
-        table.cell(zoneInspector, 0, nextRow, "At HTF Boundary", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
-        table.cell(zoneInspector, 1, nextRow, htfBoundaryStatus, text_color = htfBoundaryColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
-        nextRow += 1
-
-        // HTF Candle Open Time (Real-Time)
-        int htfHour = hour(htf_time)
-        int htfMin = minute(htf_time)
-        string htfTimeStr = str.tostring(htfHour, "00") + ":" + str.tostring(htfMin, "00")
-        string htfLabel = isHTFBoundary ? ("🎯 " + htfTimeStr + " (NOW)") : htfTimeStr
-        color htfTimeColor = isHTFBoundary ? color.lime : color.rgb(200, 200, 200)
-        table.cell(zoneInspector, 0, nextRow, "HTF Candle", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
-        table.cell(zoneInspector, 1, nextRow, htfLabel, text_color = htfTimeColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
-        nextRow += 1
-
-        // Next HTF Boundary Time - FIXED to detect when we're at the boundary
-        bool currentlyAtHTFBoundary = f_is_htf_boundary()
-        string nextHTFStr = ""
-        color nextHTFColor = color.rgb(200, 200, 200)
-
-        if currentlyAtHTFBoundary
-            // We're at the HTF boundary right now (e.g., 10:00 on a 1H chart)
-            nextHTFStr := "HTF NOW! (:" + str.tostring(minute(time), "00") + ")"
-            nextHTFColor := color.lime
-        else
-            // Calculate time until next boundary
-            int minutesIntoHTF = minute(time) % htf_period_minutes
-            int minutesUntilNext = htf_period_minutes - minutesIntoHTF
-            nextHTFStr := "In " + str.tostring(minutesUntilNext) + "m (:" + str.tostring((minute(time) + minutesUntilNext) % 60, "00") + ")"
-            nextHTFColor := minutesUntilNext <= flip_prep_window_minutes ? color.yellow : color.rgb(200, 200, 200)
-
-        table.cell(zoneInspector, 0, nextRow, "Next HTF", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
-        table.cell(zoneInspector, 1, nextRow, nextHTFStr, text_color = nextHTFColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
-        nextRow += 1
-
-        // === MODEL SELECTION DEBUG ROWS (NEW) ===
-        // Show exact model gating state from decision snapshot
-        if useSnapshot
-            // Model Snapshot Indicator
-            table.cell(zoneInspector, 0, nextRow, "⚡ Snapshot", text_color = color.lime, bgcolor = color.new(color.rgb(20, 22, 25), 5), text_halign = text.align_right, text_size = size.tiny)
-            string snapStatus = "Bar:" + str.tostring(snap_bar_index) + " ID:" + str.tostring(snap_zone_id)
-            table.cell(zoneInspector, 1, nextRow, snapStatus, text_color = color.lime, bgcolor = color.new(color.rgb(20, 22, 25), 5), text_halign = text.align_left, text_size = size.tiny)
-            nextRow += 1
-
-            // Flip-Only Mode Status (from snapshot)
-            string snapFlipMode = snap_flip_only_mode ? "YES (Blocks BoC/Dir)" : "NO (All Models)"
-            color snapFlipColor = snap_flip_only_mode ? color.yellow : color.rgb(150, 150, 150)
-            table.cell(zoneInspector, 0, nextRow, "Flip-Only Mode", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
-            table.cell(zoneInspector, 1, nextRow, snapFlipMode, text_color = snapFlipColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
-            nextRow += 1
-
-            // Allowed Models Bitmask
-            string snapModels = (snap_allow_flip ? "F" : "-") + "/" + (snap_allow_boc ? "B" : "-") + "/" + (snap_allow_directional ? "D" : "-")
-            table.cell(zoneInspector, 0, nextRow, "Allow (F/B/D)", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
-            table.cell(zoneInspector, 1, nextRow, snapModels, text_color = color.rgb(200, 200, 200), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
-            nextRow += 1
-
-            // HTF Boundary Status (from snapshot)
-            string snapHTF = snap_htf_boundary ? "YES" : "NO"
-            color snapHTFColor = snap_htf_boundary ? color.lime : color.rgb(150, 150, 150)
-            table.cell(zoneInspector, 0, nextRow, "At HTF Boundary", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
-            table.cell(zoneInspector, 1, nextRow, snapHTF, text_color = snapHTFColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
-            nextRow += 1
-
-            // Touch State (from snapshot)
-            string snapTouch = (snap_current_touch ? "cur " : "") + (snap_recent_touch ? "recent " : "") + (snap_primed ? "primed" : "")
-            if str.length(snapTouch) == 0
-                snapTouch := "none"
-            table.cell(zoneInspector, 0, nextRow, "Touch State", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
-            color snapTouchColor = snap_current_touch or snap_recent_touch or snap_primed ? color.green : color.rgb(150, 150, 150)
-            table.cell(zoneInspector, 1, nextRow, snapTouch, text_color = snapTouchColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
-            nextRow += 1
-
-            // Pattern Detection (from snapshot)
-            string snapPatterns = (snap_flip_pattern ? "FLIP " : "") + (snap_boc_pattern ? "BoC " : "") + (snap_dir_pattern ? "Dir" : "")
-            if str.length(snapPatterns) == 0
-                snapPatterns := "none"
-            table.cell(zoneInspector, 0, nextRow, "Patterns", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
-            color snapPatternsColor = snap_flip_pattern or snap_boc_pattern or snap_dir_pattern ? color.green : color.rgb(150, 150, 150)
-            table.cell(zoneInspector, 1, nextRow, snapPatterns, text_color = snapPatternsColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
-            nextRow += 1
-
-            // Selected Model (from snapshot)
-            table.cell(zoneInspector, 0, nextRow, "Selected Model", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
-            color snapModelColor = snap_selected_model != "NONE" ? color.lime : color.orange
-            table.cell(zoneInspector, 1, nextRow, snap_selected_model, text_color = snapModelColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
-            nextRow += 1
-
-            // Compact Debug String
-            string compactDebug = "mode=" + (snap_flip_only_mode ? "flipOnly" : "all") + " | allow=" + snapModels + " | touch=" + (snap_current_touch ? "1" : "0") + " recent=" + (snap_recent_touch ? "1" : "0") + " | flip=" + (snap_flip_pattern ? "1" : "0") + " | sel=" + snap_selected_model + " | entry=" + (snap_entry_allowed ? "YES" : "NO")
-            table.cell(zoneInspector, 0, nextRow, "🔍 Debug", text_color = color.rgb(120, 120, 120), bgcolor = color.new(color.rgb(20, 22, 25), 5), text_halign = text.align_right, text_size = size.tiny)
-            table.cell(zoneInspector, 1, nextRow, compactDebug, text_color = color.rgb(120, 120, 120), bgcolor = color.new(color.rgb(20, 22, 25), 5), text_halign = text.align_left, text_size = size.tiny)
-            nextRow += 1
-
-        // === TOUCH DEBUG ROWS (temporary - proves fix) ===
-        if not na(inspectorZone)
-            string touchDebugStr = "cur=" + str.tostring(inspCurrentTouch) + " recent=" + str.tostring(inspRecentTouch) + " primed=" + str.tostring(inspPrimed)
-            table.cell(zoneInspector, 0, nextRow, "Touch Debug", text_color = color.rgb(120, 120, 120), bgcolor = color.new(color.rgb(20, 22, 25), 5), text_halign = text.align_right, text_size = size.tiny)
-            table.cell(zoneInspector, 1, nextRow, touchDebugStr, text_color = color.rgb(120, 120, 120), bgcolor = color.new(color.rgb(20, 22, 25), 5), text_halign = text.align_left, text_size = size.tiny)
-            nextRow += 1
-
-            string touchStateStr = "wasTouched=" + str.tostring(inspectorZone.wasTouched) + " lastBar=" + (na(inspectorZone.lastTouchBar) ? "na" : str.tostring(inspectorZone.lastTouchBar)) + " age=" + str.tostring(inspTouchAge)
-            table.cell(zoneInspector, 0, nextRow, "Touch State", text_color = color.rgb(120, 120, 120), bgcolor = color.new(color.rgb(20, 22, 25), 5), text_halign = text.align_right, text_size = size.tiny)
-            table.cell(zoneInspector, 1, nextRow, touchStateStr, text_color = color.rgb(120, 120, 120), bgcolor = color.new(color.rgb(20, 22, 25), 5), text_halign = text.align_left, text_size = size.tiny)
-            nextRow += 1
-
-            string barRangeStr = "H=" + str.tostring(high, format.mintick) + " L=" + str.tostring(low, format.mintick) + " zT=" + str.tostring(inspectorZone.top, format.mintick) + " zB=" + str.tostring(inspectorZone.bottom, format.mintick)
-            table.cell(zoneInspector, 0, nextRow, "Bar/Zone", text_color = color.rgb(120, 120, 120), bgcolor = color.new(color.rgb(20, 22, 25), 5), text_halign = text.align_right, text_size = size.tiny)
-            table.cell(zoneInspector, 1, nextRow, barRangeStr, text_color = color.rgb(120, 120, 120), bgcolor = color.new(color.rgb(20, 22, 25), 5), text_halign = text.align_left, text_size = size.tiny)
-
+        
         // === DEBUG LABEL: Visualize Target/Inducement position using TIME for multi-TF alignment ===
         // Only draw on barstate.islastconfirmedhistory and when inspecting a demand zone with valid values
         if barstate.islastconfirmedhistory and isInspectorDemand and not na(inspectorZone)
