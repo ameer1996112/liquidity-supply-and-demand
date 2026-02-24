@@ -3454,8 +3454,8 @@ if array.size(demandZones) > 0 and barstate.isconfirmed
                 z.structureSweepLevel := na
                 z.inactiveReason := "Ghost Data Cleared"
 
-            // Scan if invalid, cleared, or not swept
-            if not z.liquidityValid or not z.liquiditySwept
+            // Scan if invalid, cleared, or not yet used for entry (allows finding better inducements until entry)
+            if not z.liquidityValid or na(z.lastEntryBar)
                 f_scan_demand_liquidity(i)
             
             // === DEMAND SWEEP DETECTION (via modular function) ===
@@ -3565,8 +3565,8 @@ if array.size(supplyZones) > 0 and barstate.isconfirmed
                 z.structureSweepLevel := na
                 z.inactiveReason := "Ghost Data Cleared"
 
-            // Scan if invalid, cleared, or not swept
-            if not z.liquidityValid or not z.liquiditySwept
+            // Scan if invalid, cleared, or not yet used for entry (allows finding better inducements until entry)
+            if not z.liquidityValid or na(z.lastEntryBar)
                 f_scan_supply_liquidity(i)
             
             // === SUPPLY SWEEP DETECTION (via modular function) ===
@@ -5130,6 +5130,8 @@ if plotLiq and barstate.isconfirmed
 
 // 2. Zone Inspector (Bottom Right) — lazy init, delete when disabled to avoid leftover artifacts
 var table zoneInspector = na
+var label inspectorIndLabel = na
+var label inspectorTgtLabel = na
 
 if showZoneInspector and debug_enabled and isRecentBarForDebug()
     if na(zoneInspector)
@@ -5696,31 +5698,38 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
         table.cell(zoneInspector, 1, nextRow, zoneInactiveReason, text_color = inactiveColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         
         // === DEBUG LABEL: Visualize Target/Inducement position using TIME for multi-TF alignment ===
-        // Only draw on barstate.islastconfirmedhistory and when inspecting a demand zone with valid values
-        if barstate.islastconfirmedhistory and isInspectorDemand and not na(inspectorZone)
-            int targetTime = inspectorZone.liqHighTime
-            int indTime = inspectorZone.liqLowTime
-            if not na(targetTime) and not na(targetPrice) and not na(indTime) and not na(inducementPrice)
-                // Draw label at the Target using xloc.bar_time for accurate multi-TF positioning
-                label.new(
-                    x = targetTime, 
-                    y = targetPrice, 
-                    xloc = xloc.bar_time,
-                    text = "🎯 TARGET\nT:" + str.tostring(targetTime) + "\nB:" + str.tostring(targetBar),
-                    style = label.style_label_down,
-                    color = color.new(color.purple, 20),
-                    textcolor = color.white,
-                    size = size.small)
-                // Also draw a label at inducement for comparison
-                label.new(
-                    x = indTime, 
-                    y = inducementPrice, 
-                    xloc = xloc.bar_time,
-                    text = "📍 IND\nT:" + str.tostring(indTime) + "\nB:" + str.tostring(inducementBar),
-                    style = label.style_label_up,
-                    color = color.new(color.orange, 20),
-                    textcolor = color.white,
-                    size = size.small)
+        // We use persistent labels (var label) updated on the last bar
+        if barstate.islastconfirmedhistory and not na(inspectorZone)
+            int indTime = isInspectorDemand ? inspectorZone.liqLowTime : inspectorZone.liqHighTime
+            int targetTime = isInspectorDemand ? inspectorZone.liqHighTime : inspectorZone.liqLowTime
+            
+            if not na(indTime) and not na(inducementPrice)
+                string indFormat = (isInspectorDemand ? "📍 IND (L): " : "📍 IND (H): ") + str.tostring(inducementPrice, format.mintick) + " @ " + str.tostring(inducementBar)
+                if na(inspectorIndLabel)
+                    inspectorIndLabel := label.new(indTime, inducementPrice, indFormat, xloc=xloc.bar_time, style=label.style_label_up, color=color.new(color.orange, 20), textcolor=color.white, size=size.small)
+                else
+                    label.set_xy(inspectorIndLabel, indTime, inducementPrice)
+                    label.set_text(inspectorIndLabel, indFormat)
+            else
+                label.delete(inspectorIndLabel)
+                inspectorIndLabel := na
+
+            if not na(targetTime) and not na(targetPrice)
+                string tgtFormat = (isInspectorDemand ? "🎯 TARGET (H): " : "🎯 TARGET (L): ") + str.tostring(targetPrice, format.mintick) + " @ " + str.tostring(targetBar)
+                if na(inspectorTgtLabel)
+                    inspectorTgtLabel := label.new(targetTime, targetPrice, tgtFormat, xloc=xloc.bar_time, style=label.style_label_down, color=color.new(color.purple, 20), textcolor=color.white, size=size.small)
+                else
+                    label.set_xy(inspectorTgtLabel, targetTime, targetPrice)
+                    label.set_text(inspectorTgtLabel, tgtFormat)
+            else
+                label.delete(inspectorTgtLabel)
+                inspectorTgtLabel := na
+        else
+            // Delete labels if not inspecting or not on last bar
+            label.delete(inspectorIndLabel)
+            label.delete(inspectorTgtLabel)
+            inspectorIndLabel := na
+            inspectorTgtLabel := na
 else
     if not na(zoneInspector)
         table.delete(zoneInspector)
