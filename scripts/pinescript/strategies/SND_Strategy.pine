@@ -296,7 +296,9 @@ var int htf_start_time = na  // NEW: Store HTF candle open time
 // This allows us to see the 10:00 HTF candle immediately at 10:00, not at 10:05
 string htf_timeframe = htf_period_minutes == 60 ? "60" : str.tostring(htf_period_minutes)
 // Only htf_time is needed for boundary detection; others are unused but required for tuple
-[_htf_open, _htf_high, _htf_low, _htf_close, htf_time] = request.security(
+// htf_open / htf_dclose: real-time OHLC of the developing HTF candle
+// Used for boundary detection AND live HTF candle color check in flip validation
+[htf_open, _htf_high, _htf_low, htf_dclose, htf_time] = request.security(
      syminfo.tickerid,
      htf_timeframe,
      [open, high, low, close, time],
@@ -875,8 +877,8 @@ int feature_session = f_get_session_id()
 // === V3 FEATURES: HTF Trend & RVOL ===
 // 1. HTF Trend (1 Hour EMA 200)
 // Get 60m data. If we are on > 60m chart, specific logic applies, but assuming < 60m execution:
-float htf_ema200 = request.security(syminfo.tickerid, "60", ta.ema(close, 200))
-float htf_close = request.security(syminfo.tickerid, "60", close)
+float htf_ema200 = request.security(syminfo.tickerid, "60", ta.ema(close, 200), lookahead = barmerge.lookahead_on)
+float htf_close  = request.security(syminfo.tickerid, "60", close, lookahead = barmerge.lookahead_on)
 int feature_htf_trend = htf_close > htf_ema200 ? 1 : 0
 
 // 2. Relative Volume (RVOL)
@@ -4100,7 +4102,9 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
             bool current_bullish = close > open
             bool had_bearish = close[1] < open[1] or close[2] < open[2]
             bool engulfing = close > high[1]
-            bool basic_flip = current_bullish and had_bearish and engulfing
+            // HTF color confirmation: developing HTF candle must be green (or flat at open)
+            bool htf_is_bullish = htf_dclose >= htf_open
+            bool basic_flip = current_bullish and had_bearish and engulfing and htf_is_bullish
 
             bool is_flip_time = f_is_htf_boundary()  // Use HTF boundary detection
             bool is_flip = false
@@ -4662,7 +4666,9 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
             bool current_bearish = close < open
             bool had_bullish = close[1] > open[1] or close[2] > open[2]
             bool engulfing = close < low[1]
-            bool basic_flip = current_bearish and had_bullish and engulfing
+            // HTF color confirmation: developing HTF candle must be red (or flat at open)
+            bool htf_is_bearish = htf_dclose <= htf_open
+            bool basic_flip = current_bearish and had_bullish and engulfing and htf_is_bearish
 
             bool is_flip_time = f_is_htf_boundary()  // Use HTF boundary detection
             bool is_flip = false
