@@ -1916,10 +1916,11 @@ f_check_demand_sweeps(int zoneArrayIndex) =>
     // === INDUCEMENT SWEEP CHECK ===
     // Inducement Low for Demand: price drops to/below liqLowPrice
     if not na(z.liqLowPrice) and not z.liquiditySwept
-        float sweepTolerance = pip_size * 0.5
+        float sweepTolerance = syminfo.mintick * 20
         float sweepLevel = z.liqLowPrice + sweepTolerance
+        bool is_sweeping_now = low <= sweepLevel
         
-        if low <= sweepLevel
+        if is_sweeping_now
             z.liquiditySwept := true
             z.liquiditySweptBarIndex := bar_index
             z.causedSweep := true
@@ -1930,10 +1931,11 @@ f_check_demand_sweeps(int zoneArrayIndex) =>
     // CRITICAL: Only check AFTER liquidityValid is true (proper pivot scan completed)
     // This ensures liqHighPrice is correctly set before we check for sweep
     if z.liquidityValid and not na(z.liqHighPrice) and not na(z.liqHighBar) and not z.targetSwept
-        float targetSweepTolerance = pip_size * 0.5
+        float targetSweepTolerance = syminfo.mintick * 20
         float targetSweepLevel = z.liqHighPrice - targetSweepTolerance
+        bool is_tgt_sweeping_now = high >= targetSweepLevel
         
-        if high >= targetSweepLevel
+        if is_tgt_sweeping_now
             z.targetSwept := true
             z.targetSweptBarIndex := bar_index
             // Only set causedSweep if not already set by inducement
@@ -1957,10 +1959,11 @@ f_check_supply_sweeps(int zoneArrayIndex) =>
     // === INDUCEMENT SWEEP CHECK ===
     // Inducement High for Supply: price rises to/above liqHighPrice
     if not na(z.liqHighPrice) and not z.liquiditySwept
-        float sweepTolerance = pip_size * 0.5
+        float sweepTolerance = syminfo.mintick * 20
         float sweepLevel = z.liqHighPrice - sweepTolerance
+        bool is_sweeping_now = high >= sweepLevel
         
-        if high >= sweepLevel
+        if is_sweeping_now
             z.liquiditySwept := true
             z.liquiditySweptBarIndex := bar_index
             z.causedSweep := true
@@ -1971,10 +1974,11 @@ f_check_supply_sweeps(int zoneArrayIndex) =>
     // CRITICAL: Only check AFTER liquidityValid is true (proper pivot scan completed)
     // This ensures liqLowPrice is correctly set before we check for sweep
     if z.liquidityValid and not na(z.liqLowPrice) and not na(z.liqLowBar) and not z.targetSwept
-        float targetSweepTolerance = pip_size * 0.5
+        float targetSweepTolerance = syminfo.mintick * 20
         float targetSweepLevel = z.liqLowPrice + targetSweepTolerance
+        bool is_tgt_sweeping_now = low <= targetSweepLevel
         
-        if low <= targetSweepLevel
+        if is_tgt_sweeping_now
             z.targetSwept := true
             z.targetSweptBarIndex := bar_index
             // Only set causedSweep if not already set by inducement
@@ -2403,8 +2407,9 @@ validate_entry_conditions(bool isDemand, int idx) =>
         reason := "Outside Trading Hours: " + str.tostring(israelHour) + ":00 (allowed: " + str.tostring(trading_start_hour) + ":00-" + str.tostring(trading_end_hour) + ":00)"
 
     if canEnter
-        // Zone must not have been touched BEFORE sweep
-        if z.touchedPreSweep
+        // Zone must not have been touched BEFORE sweep (Freshness)
+        // RELAXED: Allow same-bar mitigations for Flip entries
+        if z.touchedPreSweep and z.lastTouchBar != bar_index
             canEnter := false
             reason := "Start Freshness Failed (Touched Pre-Sweep)"
             
@@ -3487,6 +3492,8 @@ if array.size(demandZones) > 0 and barstate.isconfirmed
                     z.mitigated := true
                     z.touchedPreSweep := true
                     z.mitigationTime := time
+                    z.lastTouchBar := bar_index
+                    z.wasTouched := true
                     z.inactiveReason := closes_inside ? "Close inside zone" : (breaches_zone ? "Price breached zone" : "Zone touched before setup (Fresh)")
                     if not na(z.boxId)
                         box.set_bgcolor(z.boxId, color.new(color.gray, 85))
@@ -3594,7 +3601,10 @@ if array.size(supplyZones) > 0 and barstate.isconfirmed
                 // MUST require z.leftZone so base-building candles don't kill the zone
                 if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or breaches_zone or wicks_into_zone) and not current_bar_sweeping
                     z.mitigated := true
+                    z.touchedPreSweep := true
                     z.mitigationTime := time
+                    z.lastTouchBar := bar_index
+                    z.wasTouched := true
                     z.inactiveReason := closes_inside ? "Close inside zone" : (breaches_zone ? "Price breached zone" : "Zone touched before setup (Fresh)")
                     if not na(z.boxId)
                         box.set_bgcolor(z.boxId, color.new(color.gray, 85))
@@ -5303,7 +5313,7 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
             liqExistsInspector := liqExistsBool ? "✓ Valid" : "✗ Invalid"
             
             // Liquidity Swept & Sweep Bar (Check current bar high/low for real-time feedback)
-            float sweepTol = pip_size * 0.5
+            float sweepTol = syminfo.mintick * 20
             bool currentBarIndSweep = isInspectorDemand ? (low <= inspectorZone.liqLowPrice + sweepTol) : (high >= inspectorZone.liqHighPrice - sweepTol)
             bool currentBarTgtSweep = isInspectorDemand ? (high >= inspectorZone.liqHighPrice - sweepTol) : (low <= inspectorZone.liqLowPrice + sweepTol)
 
@@ -5622,7 +5632,7 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
             
             // --- LIVE SWEEP CHECK (for active unconfirmed candles) ---
             if not liqSwept
-                float sweepTolerance = pip_size * 0.5
+                float sweepTolerance = syminfo.mintick * 20
                 if isInspectorDemand and not na(inspectorZone.liqLowPrice)
                     if low <= inspectorZone.liqLowPrice + sweepTolerance
                         liqSwept := true
@@ -5635,20 +5645,6 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
             liqSwept := dbEntry.liquiditySwept
             liqSweptStr := liqSwept ? "YES (DB)" : "NO (DB)"
             
-        // --- ADD DEBUG ROW FOR SWEEP DIAGNOSTICS ---
-        string dbgStr = "N/A"
-        if not na(inspectorZone)
-            float liqSrc = isInspectorDemand ? inspectorZone.liqLowPrice : inspectorZone.liqHighPrice
-            float sweepLvl = isInspectorDemand ? (liqSrc + pip_size * 0.5) : (liqSrc - pip_size * 0.5)
-            dbgStr := "L[1]: " + str.tostring(low[1], format.mintick) + " | SwpLvl: " + str.tostring(sweepLvl, format.mintick) + " | Swept: " + (inspectorZone.liquiditySwept ? "T" : "F")
-        else if foundInDB and not na(dbEntry)
-            float liqSrc = isInspectorDemand ? dbEntry.liqLowPrice : dbEntry.liqHighPrice
-            float sweepLvl = isInspectorDemand ? (liqSrc + pip_size * 0.5) : (liqSrc - pip_size * 0.5)
-            dbgStr := "DB L[1]: " + str.tostring(low[1], format.mintick) + " | SwpLvl: " + str.tostring(sweepLvl, format.mintick) + " | Swept: " + (dbEntry.liquiditySwept ? "T" : "F")
-            
-        table.cell(zoneInspector, 0, nextRow, "Debug Data", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
-        table.cell(zoneInspector, 1, nextRow, dbgStr, text_color = color.yellow, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
-        nextRow += 1
         table.cell(zoneInspector, 0, nextRow, "Liq Swept", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         liqSweptColor := liqSweptStr == "YES" ? color.green : (liqSweptStr == "NO" ? color.orange : color.rgb(150, 150, 150))
         table.cell(zoneInspector, 1, nextRow, liqSweptStr, text_color = liqSweptColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
