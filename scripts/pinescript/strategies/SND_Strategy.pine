@@ -3497,8 +3497,9 @@ if array.size(demandZones) > 0 and barstate.isconfirmed
                     z.wasTouched := true
                     z.touchedPreSweep := true
 
-                // MITIGATION (KILL): Only kill zone if it is FULLY BREACHED (Broken Structure)
-                if is_future_bar and z.leftZone and not z.liquiditySwept and breaches_zone and not current_bar_sweeping
+                // MITIGATION (VANISH): Kill zone if CLOSED INSIDE or FULLY BREACHED
+                // This restores strict strategy behavior. Wick touches still survive (recording touchedPreSweep).
+                if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or breaches_zone) and not current_bar_sweeping
                     remove_zone_all_arrays(true, i)
                     continue // Skip to next zone since this one is gone
 
@@ -3607,8 +3608,9 @@ if array.size(supplyZones) > 0 and barstate.isconfirmed
                     z.wasTouched := true
                     z.touchedPreSweep := true
 
-                // MITIGATION (KILL): Only kill zone if it is FULLY BREACHED (Broken Structure)
-                if is_future_bar and z.leftZone and not z.liquiditySwept and breaches_zone and not current_bar_sweeping
+                // MITIGATION (VANISH): Kill zone if CLOSED INSIDE or FULLY BREACHED
+                // This restores strict strategy behavior. Wick touches still survive (recording touchedPreSweep).
+                if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or breaches_zone) and not current_bar_sweeping
                     remove_zone_all_arrays(false, i)
                     continue // Skip to next zone since this one is gone
 
@@ -3644,7 +3646,7 @@ if array.size(demandZones) > 0
             // 4. Wick below zone (optional via input)
             bool wick_below_zone = current_low < z.bottom
 
-            if close_below_zone or isTooOld or (invalidate_on_wick and wick_below_zone)
+            if bearish_close_inside or close_below_zone or isTooOld or (invalidate_on_wick and wick_below_zone)
                 remove_zone_all_arrays(true, i)
 
 // === ZONE INVALIDATION (SUPPLY) ===
@@ -3667,7 +3669,7 @@ if array.size(supplyZones) > 0
             // 3. Wick above zone (optional via input)
             bool wick_above_zone = current_high > z.top
 
-            if close_above_zone or isTooOld or (invalidate_on_wick and wick_above_zone)
+            if bullish_close_inside or close_above_zone or isTooOld or (invalidate_on_wick and wick_above_zone)
                 remove_zone_all_arrays(false, i)
 
 // === UPDATE ZONE BOXES AND LABELS (Dynamic Extension + UZID) ===
