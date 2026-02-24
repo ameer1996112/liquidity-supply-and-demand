@@ -3498,15 +3498,9 @@ if array.size(demandZones) > 0 and barstate.isconfirmed
                     z.touchedPreSweep := true
 
                 // MITIGATION (KILL): Only kill zone if it is FULLY BREACHED (Broken Structure)
-                // Closing inside is fine (it's just a deep test/wick creation).
                 if is_future_bar and z.leftZone and not z.liquiditySwept and breaches_zone and not current_bar_sweeping
-                    z.mitigated := true
-                    z.active := false // Kill it
-                    z.mitigationTime := time
-                    z.inactiveReason := "Price breached zone"
-                    if not na(z.boxId)
-                        box.set_bgcolor(z.boxId, color.new(color.gray, 85))
-                        box.set_border_color(z.boxId, color.gray)
+                    remove_zone_all_arrays(true, i)
+                    continue // Skip to next zone since this one is gone
 
 // === TRACK LIQUIDITY AND ZONE STATUS (SUPPLY) ===
 // CRITICAL: Only validate liquidity sweeps for LIVE zones (not historical backfill)
@@ -3614,15 +3608,9 @@ if array.size(supplyZones) > 0 and barstate.isconfirmed
                     z.touchedPreSweep := true
 
                 // MITIGATION (KILL): Only kill zone if it is FULLY BREACHED (Broken Structure)
-                // Closing inside is fine (it's just a deep test/wick creation).
                 if is_future_bar and z.leftZone and not z.liquiditySwept and breaches_zone and not current_bar_sweeping
-                    z.mitigated := true
-                    z.active := false // Kill it
-                    z.mitigationTime := time
-                    z.inactiveReason := "Price breached zone"
-                    if not na(z.boxId)
-                        box.set_bgcolor(z.boxId, color.new(color.gray, 85))
-                        box.set_border_color(z.boxId, color.gray)
+                    remove_zone_all_arrays(false, i)
+                    continue // Skip to next zone since this one is gone
 
 
 // === ZONE INVALIDATION (DEMAND) ===
@@ -3656,7 +3644,7 @@ if array.size(demandZones) > 0
             // 4. Wick below zone (optional via input)
             bool wick_below_zone = current_low < z.bottom
 
-            if bearish_close_inside or close_below_zone or isTooOld or (invalidate_on_wick and wick_below_zone)
+            if close_below_zone or isTooOld or (invalidate_on_wick and wick_below_zone)
                 remove_zone_all_arrays(true, i)
 
 // === ZONE INVALIDATION (SUPPLY) ===
@@ -3679,7 +3667,7 @@ if array.size(supplyZones) > 0
             // 3. Wick above zone (optional via input)
             bool wick_above_zone = current_high > z.top
 
-            if bullish_close_inside or close_above_zone or isTooOld or (invalidate_on_wick and wick_above_zone)
+            if close_above_zone or isTooOld or (invalidate_on_wick and wick_above_zone)
                 remove_zone_all_arrays(false, i)
 
 // === UPDATE ZONE BOXES AND LABELS (Dynamic Extension + UZID) ===
