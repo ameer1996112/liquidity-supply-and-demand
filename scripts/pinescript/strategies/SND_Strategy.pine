@@ -5639,10 +5639,12 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
         string dbgStr = "N/A"
         if not na(inspectorZone)
             float liqSrc = isInspectorDemand ? inspectorZone.liqLowPrice : inspectorZone.liqHighPrice
-            dbgStr := "Liq: " + str.tostring(liqSrc, format.mintick) + " | Swept: " + (inspectorZone.liquiditySwept ? "T" : "F") + " | Val: " + (inspectorZone.liquidityValid ? "T" : "F")
+            float sweepLvl = isInspectorDemand ? (liqSrc + pip_size * 0.5) : (liqSrc - pip_size * 0.5)
+            dbgStr := "L[1]: " + str.tostring(low[1], format.mintick) + " | SwpLvl: " + str.tostring(sweepLvl, format.mintick) + " | Swept: " + (inspectorZone.liquiditySwept ? "T" : "F")
         else if foundInDB and not na(dbEntry)
             float liqSrc = isInspectorDemand ? dbEntry.liqLowPrice : dbEntry.liqHighPrice
-            dbgStr := "DBLiq: " + str.tostring(liqSrc, format.mintick) + " | Swept: " + (dbEntry.liquiditySwept ? "T" : "F")
+            float sweepLvl = isInspectorDemand ? (liqSrc + pip_size * 0.5) : (liqSrc - pip_size * 0.5)
+            dbgStr := "DB L[1]: " + str.tostring(low[1], format.mintick) + " | SwpLvl: " + str.tostring(sweepLvl, format.mintick) + " | Swept: " + (dbEntry.liquiditySwept ? "T" : "F")
             
         table.cell(zoneInspector, 0, nextRow, "Debug Data", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         table.cell(zoneInspector, 1, nextRow, dbgStr, text_color = color.yellow, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
