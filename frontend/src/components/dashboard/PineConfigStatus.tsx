@@ -5,6 +5,9 @@ import { supabase, isSupabaseAvailable } from '@/lib/supabase';
 import { API_BASE_URL } from '@/lib/api';
 import { Cpu } from 'lucide-react';
 
+/** Below this (USD), TradingView value is treated as implausible and backend config is shown instead. */
+const MIN_PLAUSIBLE_ACCOUNT_USD = 100;
+
 interface PineConfig {
   account_balance: number;
   updated_at: string;
@@ -34,7 +37,10 @@ export function PineConfigStatus() {
           if (typeof balance === 'number' && balance > 0) {
             backendBalanceRef.current = balance;
             setConfig((prev) => {
-              if (prev?.source === 'tradingview') return prev;
+              const keepTv =
+                prev?.source === 'tradingview' &&
+                (prev?.account_balance ?? 0) >= MIN_PLAUSIBLE_ACCOUNT_USD;
+              if (keepTv) return prev;
               return {
                 account_balance: balance,
                 updated_at: '',
@@ -62,11 +68,27 @@ export function PineConfigStatus() {
         .maybeSingle<SignalData>();
 
       if (data?.account_balance != null && data.account_balance > 0) {
-        setConfig({
-          account_balance: data.account_balance,
-          updated_at: data.created_at,
-          source: 'tradingview',
-        });
+        const plausible =
+          data.account_balance >= MIN_PLAUSIBLE_ACCOUNT_USD;
+        if (plausible) {
+          setConfig({
+            account_balance: data.account_balance,
+            updated_at: data.created_at,
+            source: 'tradingview',
+          });
+        } else if (backendBalanceRef.current != null) {
+          setConfig({
+            account_balance: backendBalanceRef.current,
+            updated_at: '',
+            source: 'backend',
+          });
+        } else {
+          setConfig({
+            account_balance: data.account_balance,
+            updated_at: data.created_at,
+            source: 'tradingview',
+          });
+        }
       } else if (backendBalanceRef.current != null) {
         setConfig({
           account_balance: backendBalanceRef.current,
@@ -88,11 +110,27 @@ export function PineConfigStatus() {
             payload.new?.account_balance != null &&
             payload.new.account_balance > 0
           ) {
-            setConfig({
-              account_balance: payload.new.account_balance,
-              updated_at: payload.new.created_at,
-              source: 'tradingview',
-            });
+            const fromTv = payload.new.account_balance as number;
+            const plausible = fromTv >= MIN_PLAUSIBLE_ACCOUNT_USD;
+            if (plausible) {
+              setConfig({
+                account_balance: fromTv,
+                updated_at: payload.new.created_at,
+                source: 'tradingview',
+              });
+            } else if (backendBalanceRef.current != null) {
+              setConfig({
+                account_balance: backendBalanceRef.current,
+                updated_at: '',
+                source: 'backend',
+              });
+            } else {
+              setConfig({
+                account_balance: fromTv,
+                updated_at: payload.new.created_at,
+                source: 'tradingview',
+              });
+            }
           }
         }
       )
