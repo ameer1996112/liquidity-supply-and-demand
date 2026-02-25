@@ -4098,12 +4098,13 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     z.returnStrength,        // return_strength
                     pip_size,
                     webhook_include_zone_id,
-                    // === AI GUARDIAN METRICS ===
+                    // === AI GUARDIAN METRICSxq ===
                     guardian_liq_sweep,      // liquidity_sweep
                     guardian_arrival,        // arrival_type
                     guardian_structure_break, // market_structure_break
-                    f_liq_dist_pips,         // liq_distance_pips (Populated)
-                    f_liq_spread_pips,       // liq_spread_pips (Populated)
+                    account_size_usd,         // _account_balance (Corrected)
+                    f_liq_dist_pips,         // liq_distance_pips
+                    f_liq_spread_pips,       // liq_spread_pips
                     time                     // current_time
                 ) : ""
 
@@ -4555,9 +4556,10 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     guardian_liq_sweep_short,      // liquidity_sweep
                     guardian_arrival_short,        // arrival_type
                     guardian_structure_break_short, // market_structure_break
-                    f_liq_dist_pips_short,   // liq_distance_pips (Populated)
-                    f_liq_spread_pips_short, // liq_spread_pips (Populated)
-                    time                     // current_time
+                    account_size_usd,               // _account_balance (Corrected)
+                    f_liq_dist_pips_short,         // liq_distance_pips
+                    f_liq_spread_pips_short,       // liq_spread_pips
+                    time                           // current_time
                 ) : ""
 
                 if dry_run_mode
