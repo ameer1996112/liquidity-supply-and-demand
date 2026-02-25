@@ -64,7 +64,7 @@ class Settings(BaseSettings):
     risk_percent: float = 0.5  # Aligned with Pine Balanced profile
     min_rr_ratio: float = 0.0  # Disabled: Pine Script handles SL/TP rules. Set > 0 to enable backend R:R filter.
     stop_loss_buffer_pips: float = Field(default=1.0, ge=0.0, le=5.0, description="Extra pips added to SL beyond zone boundary (Pine: 1.0)")
-    max_lot_size: float = Field(default=10.0, ge=0.1, le=100.0, description="Maximum position size in lots (Pine: 10.0)")
+    max_lot_size: float = Field(default=100.0, ge=0.1, le=1000.0, description="Maximum position size in lots (Pine: 100.0)")
     gold_pip_divisor: float = 0.1
 
     ai_filter_enabled: bool = Field(default=True, description="Enable AI Guardian validation layer.")
