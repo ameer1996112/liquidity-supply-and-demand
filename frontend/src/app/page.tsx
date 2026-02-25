@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState, useEffect } from 'react';
+import { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { SignalInspector } from '@/components/SignalInspector';
 import { ActiveTradesPanel } from '@/components/dashboard/ActiveTradesPanel';
@@ -10,6 +10,9 @@ import { ExecutionQualityWidget } from '@/components/dashboard/ExecutionQualityW
 import { PortfolioRiskWidget } from '@/components/dashboard/PortfolioRiskWidget';
 import { EvaluationDashboard } from '@/components/evaluation/EvaluationDashboard';
 import { PineConfigStatus } from '@/components/dashboard/PineConfigStatus';
+import { StatCard } from '@/components/dashboard/StatCard';
+import { SignalTable } from '@/components/dashboard/SignalTable';
+import { LiveLog, type LogEntry } from '@/components/dashboard/LiveLog';
 import { useTradingMode } from '@/providers/TradingModeProvider';
 import { useSignalStats, useTradingSignals } from '@/hooks/useTradingSignals';
 import { useRiskStatus } from '@/hooks/useRiskStatus';
@@ -21,24 +24,21 @@ import {
   EMPTY_VALUE,
 } from '@/lib/formatters';
 import { TradingSignal } from '@/types/trading';
-import { CandlestickChart, Server, Radio } from 'lucide-react';
+import {
+  CandlestickChart,
+  Server,
+  Radio,
+  Wallet,
+  TrendingUp,
+  Activity,
+  BarChart3,
+  Crosshair,
+  Clock,
+} from 'lucide-react';
 import {
   isSignalOpen,
   isSignalRejected,
 } from '@/domain/metrics/tradingMetrics';
-
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className='rounded-lg border border-slate-800 bg-slate-900/70 px-3 py-2'>
-      <p className='text-[10px] uppercase tracking-wider text-slate-500'>
-        {label}
-      </p>
-      <p className='mt-1 text-sm font-semibold tabular-nums text-slate-100'>
-        {value}
-      </p>
-    </div>
-  );
-}
 
 export default function DashboardPage() {
   const [selectedSignal, setSelectedSignal] = useState<TradingSignal | null>(
@@ -46,9 +46,10 @@ export default function DashboardPage() {
   );
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
+  const logIdRef = useRef(0);
 
   useEffect(() => {
-    // eslint-disable-next-line
     setMounted(true);
   }, []);
 
@@ -113,54 +114,78 @@ export default function DashboardPage() {
       ? (stats?.paper_total_pnl ?? stats?.paper_pnl_24h)
       : (stats?.live_total_pnl ?? stats?.total_pnl);
 
-  const kpis = [
-    {
-      label: 'Today PnL',
-      value: mounted ? formatCurrency(todayPnl, { signed: true }) : '—',
-    },
-    {
-      label: 'Total PnL',
-      value: mounted ? formatCurrency(totalPnl, { signed: true }) : '—',
-    },
-    {
-      label: 'Drawdown',
-      value: mounted ? formatPercent(risk?.drawdown_pct) : '—',
-    },
-    {
-      label: 'Daily DD',
-      value: mounted ? formatPercent(stats?.daily_drawdown_pct) : '—',
-    },
-    {
-      label: 'Active Positions',
-      value: mounted
-        ? formatNumber(activePositionsCount, { decimals: 0, empty: '0' })
-        : '—',
-    },
-    {
-      label: 'Trades Today',
-      value: mounted
-        ? formatNumber(tradesToday, { decimals: 0, empty: '0' })
-        : '—',
-    },
-  ];
+  // Generate live log entries from signal activity
+  const prevSignalCountRef = useRef(signals.length);
+  useEffect(() => {
+    if (!mounted) return;
+    if (signals.length > prevSignalCountRef.current) {
+      const newSignals = signals.slice(
+        0,
+        signals.length - prevSignalCountRef.current,
+      );
+      const newEntries: LogEntry[] = newSignals.map((s) => ({
+        id: String(++logIdRef.current),
+        timestamp: s.created_at,
+        level: s.status === 'active' || s.status === 'executed' ? 'success' : s.status === 'filtered' || s.status === 'ai_rejected' ? 'warn' : 'info',
+        message: `${s.symbol} ${s.side.toUpperCase()} @ ${s.entry ?? s.price ?? '?'} — ${s.status}`,
+        source: 'SIGNAL',
+      }));
+      setLogEntries((prev) => [...prev, ...newEntries]);
+    }
+    prevSignalCountRef.current = signals.length;
+  }, [signals, mounted]);
+
+  // Seed initial log entries on mount
+  useEffect(() => {
+    if (!mounted) return;
+    const now = new Date().toISOString();
+    setLogEntries([
+      {
+        id: String(++logIdRef.current),
+        timestamp: now,
+        level: 'info',
+        message: `Dashboard initialized — mode: ${activeMode}`,
+        source: 'SYSTEM',
+      },
+      {
+        id: String(++logIdRef.current),
+        timestamp: now,
+        level: isConnected ? 'success' : 'error',
+        message: isConnected
+          ? 'API connection established'
+          : 'API unreachable — signals via Supabase only',
+        source: 'HEALTH',
+      },
+      {
+        id: String(++logIdRef.current),
+        timestamp: now,
+        level: 'info',
+        message: `Strategy: ${strategyName} | Timeframe: ${timeframe}`,
+        source: 'CONFIG',
+      },
+    ]);
+    // Only run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted]);
 
   const handleSelectSignal = useCallback((signal: TradingSignal) => {
     setSelectedSignal(signal);
     setInspectorOpen(true);
   }, []);
 
+  const handleClearLog = useCallback(() => setLogEntries([]), []);
+
   return (
-    <div className='flex h-full min-h-0 flex-col gap-3'>
+    <div className='flex h-full min-h-0 flex-col gap-2'>
       {/* ── Header ──────────────────────────────────────────────── */}
       <div className='flex shrink-0 items-center justify-between gap-3'>
         <div>
-          <h1 className='page-title text-lg font-semibold'>Dashboard</h1>
-          <p className='page-subtitle text-xs'>
+          <h1 className='page-title text-base font-semibold'>Dashboard</h1>
+          <p className='page-subtitle text-[11px]'>
             Live command center · market orders · 5-minute zones
           </p>
         </div>
 
-        {/* 5m Timeframe badge — always visible */}
         <div className='flex items-center gap-2'>
           <span className='tf-badge'>
             <Radio className='h-3 w-3' />
@@ -169,8 +194,8 @@ export default function DashboardPage() {
           <span
             className={
               activeMode === 'LIVE'
-                ? 'flex items-center gap-1.5 rounded-md border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-emerald-400'
-                : 'flex items-center gap-1.5 rounded-md border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-amber-400'
+                ? 'flex items-center gap-1.5 rounded border border-[var(--to-long)]/20 bg-[var(--to-long)]/8 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-[var(--to-long)]'
+                : 'flex items-center gap-1.5 rounded border border-[var(--to-warning)]/20 bg-[var(--to-warning)]/8 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-[var(--to-warning)]'
             }
           >
             <span className='status-dot status-dot-active pulse-active' />
@@ -179,37 +204,82 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <section className='tv-card shrink-0 p-3'>
-        <div className='mb-2 flex items-center justify-between'>
-          <p className='text-[11px] font-medium uppercase tracking-[0.12em] text-slate-500'>
+      {/* ── KPI Bar ─────────────────────────────────────────────── */}
+      <section className='shrink-0'>
+        <div className='mb-1.5 flex items-center justify-between px-0.5'>
+          <p
+            className='text-[9px] font-semibold uppercase tracking-[0.14em] text-[var(--to-text-dim)]'
+            style={{ fontFamily: 'var(--font-mono)' }}
+          >
             Session KPIs
           </p>
-          <p className='text-[10px] text-slate-500'>
-            Last updated <span>{displayLastUpdated}</span>
+          <p
+            className='text-[9px] tabular-nums text-[var(--to-text-dim)]'
+            style={{ fontFamily: 'var(--font-mono)' }}
+          >
+            {displayLastUpdated}
           </p>
         </div>
-        <div className='grid grid-cols-2 gap-2 lg:grid-cols-6'>
-          {kpis.map((kpi) => (
-            <StatCard key={kpi.label} label={kpi.label} value={kpi.value} />
-          ))}
+        <div className='grid grid-cols-2 gap-1.5 md:grid-cols-3 xl:grid-cols-6'>
+          <StatCard
+            label='Today PnL'
+            value={mounted ? formatCurrency(todayPnl, { signed: true }) : '—'}
+            icon={Wallet}
+          />
+          <StatCard
+            label='Total PnL'
+            value={mounted ? formatCurrency(totalPnl, { signed: true }) : '—'}
+            icon={TrendingUp}
+          />
+          <StatCard
+            label='Drawdown'
+            value={mounted ? formatPercent(risk?.drawdown_pct) : '—'}
+            icon={Activity}
+            variant='loss'
+          />
+          <StatCard
+            label='Daily DD'
+            value={mounted ? formatPercent(stats?.daily_drawdown_pct) : '—'}
+            icon={BarChart3}
+          />
+          <StatCard
+            label='Active Positions'
+            value={
+              mounted
+                ? formatNumber(activePositionsCount, { decimals: 0, empty: '0' })
+                : '—'
+            }
+            icon={Crosshair}
+          />
+          <StatCard
+            label='Trades Today'
+            value={
+              mounted
+                ? formatNumber(tradesToday, { decimals: 0, empty: '0' })
+                : '—'
+            }
+            icon={Clock}
+          />
         </div>
       </section>
 
       {noData && (
-        <section className='tv-card shrink-0 border border-indigo-500/25 bg-indigo-950/20 p-4'>
-          <h2 className='text-sm font-semibold text-indigo-200'>
+        <section className='to-panel shrink-0 border-[var(--to-warning)]/15 bg-[var(--to-warning)]/5 p-3'>
+          <h2 className='text-sm font-semibold text-[var(--to-warning)]'>
             Bot is waiting for…
           </h2>
-          <div className='mt-3 grid gap-3 md:grid-cols-2'>
-            <div className='space-y-1 text-xs text-slate-300'>
+          <div className='mt-2 grid gap-3 md:grid-cols-2'>
+            <div className='space-y-1 text-xs text-[var(--to-text-secondary)]'>
               <p>
-                <span className='text-slate-500'>Strategy:</span> {strategyName}
+                <span className='text-[var(--to-text-dim)]'>Strategy:</span>{' '}
+                {strategyName}
               </p>
               <p>
-                <span className='text-slate-500'>Timeframe:</span> {timeframe}
+                <span className='text-[var(--to-text-dim)]'>Timeframe:</span>{' '}
+                {timeframe}
               </p>
               <p>
-                <span className='text-slate-500'>Last signal:</span>{' '}
+                <span className='text-[var(--to-text-dim)]'>Last signal:</span>{' '}
                 <span>
                   {mounted
                     ? latestSignal
@@ -219,44 +289,69 @@ export default function DashboardPage() {
                 </span>
               </p>
               <p>
-                <span className='text-slate-500'>Last reject reason:</span>{' '}
+                <span className='text-[var(--to-text-dim)]'>
+                  Last reject reason:
+                </span>{' '}
                 {lastRejectSignal?.filter_reason ||
                   lastRejectSignal?.notes ||
                   EMPTY_VALUE}
               </p>
             </div>
-            <div className='rounded-lg border border-slate-800 bg-slate-900/70 p-3 text-xs text-slate-300'>
-              <p>Connected {isConnected ? '✅' : '❌'}</p>
-              <p>Config loaded {stats ? '✅' : '❌'}</p>
-              <p>Risk guard {risk ? '✅' : '❌'}</p>
-              <p>Market open {isConnected ? '✅' : '—'}</p>
+            <div className='rounded border border-[var(--to-border)] bg-[var(--to-surface)] p-3 text-xs text-[var(--to-text-secondary)]'>
+              <p>
+                Connected{' '}
+                {isConnected ? (
+                  <span className='text-[var(--to-long)]'>●</span>
+                ) : (
+                  <span className='text-[var(--to-short)]'>●</span>
+                )}
+              </p>
+              <p>
+                Config loaded{' '}
+                {stats ? (
+                  <span className='text-[var(--to-long)]'>●</span>
+                ) : (
+                  <span className='text-[var(--to-short)]'>●</span>
+                )}
+              </p>
+              <p>
+                Risk guard{' '}
+                {risk ? (
+                  <span className='text-[var(--to-long)]'>●</span>
+                ) : (
+                  <span className='text-[var(--to-short)]'>●</span>
+                )}
+              </p>
+              <p>
+                Market open{' '}
+                {isConnected ? (
+                  <span className='text-[var(--to-long)]'>●</span>
+                ) : (
+                  <span className='text-[var(--to-text-dim)]'>—</span>
+                )}
+              </p>
             </div>
           </div>
         </section>
       )}
 
       {/* ── Main grid: 50 / 25 / 25 ─────────────────────────────── */}
-      <div className='grid min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-4'>
-        {/* ── Col 1-2: Technical Analysis (50%) ─────────────────── */}
+      <div className='grid min-h-0 flex-1 grid-cols-1 gap-2 xl:grid-cols-4'>
+        {/* ── Col 1-2: Charts + Signal Table (50%) ──────────────── */}
         <section
-          className={`tv-card col-span-1 flex min-h-0 flex-col overflow-hidden xl:col-span-2 ${
+          className={`to-panel col-span-1 flex min-h-0 flex-col overflow-hidden xl:col-span-2 ${
             noData ? 'max-h-[220px]' : ''
           }`}
         >
-          <div className='tv-divider flex shrink-0 items-center justify-between border-b px-3 py-2'>
+          <div className='to-panel-header'>
             <div className='flex items-center gap-2'>
-              <CandlestickChart className='h-3.5 w-3.5 text-indigo-400' />
-              <span
-                className='panel-label'
-                style={{ fontFamily: 'var(--font-sans)' }}
-              >
-                Technical Analysis
-              </span>
+              <CandlestickChart className='h-3.5 w-3.5 text-[var(--to-accent-blue)]' />
+              <span className='panel-label'>Technical Analysis</span>
             </div>
             <div className='flex items-center gap-1.5'>
               <span className='status-dot status-dot-active pulse-active' />
               <span
-                className='text-[9px] text-slate-500'
+                className='text-[9px] text-[var(--to-text-dim)]'
                 style={{ fontFamily: 'var(--font-mono)' }}
               >
                 LIVE FEED
@@ -264,16 +359,36 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className='scrollbar-thin flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3'>
+          <div className='scrollbar-thin flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2'>
             <div className={noData ? 'min-h-[120px]' : 'min-h-[180px]'}>
               <MiniEquityChart mode={activeMode} />
             </div>
             {!noData && (
               <>
-                <div className='grid grid-cols-1 gap-3 lg:grid-cols-2'>
+                <div className='grid grid-cols-1 gap-2 lg:grid-cols-2'>
                   <ExecutionQualityWidget />
                   <PortfolioRiskWidget />
                 </div>
+
+                {/* Signal Table — sortable data grid */}
+                <div className='to-panel'>
+                  <div className='to-panel-header'>
+                    <span className='panel-label'>Signal Book</span>
+                    <span
+                      className='text-[9px] tabular-nums text-[var(--to-text-dim)]'
+                      style={{ fontFamily: 'var(--font-mono)' }}
+                    >
+                      {signals.length} signals
+                    </span>
+                  </div>
+                  <SignalTable
+                    signals={signals}
+                    onSelectSignal={handleSelectSignal}
+                    maxRows={30}
+                    className='max-h-[280px]'
+                  />
+                </div>
+
                 <EvaluationDashboard />
               </>
             )}
@@ -289,23 +404,18 @@ export default function DashboardPage() {
           />
         </section>
 
-        {/* ── Col 4: Bot Config + Signal Log (25%) ──────────────── */}
-        <section className='col-span-1 flex min-h-0 flex-col gap-3 overflow-hidden'>
+        {/* ── Col 4: Bot Config + Signal Log + Live Log (25%) ──── */}
+        <section className='col-span-1 flex min-h-0 flex-col gap-2 overflow-hidden'>
           {/* Bot Runtime panel */}
-          <div className='tv-card shrink-0'>
-            <div className='tv-divider flex items-center justify-between border-b px-3 py-2'>
+          <div className='to-panel shrink-0'>
+            <div className='to-panel-header'>
               <div className='flex items-center gap-2'>
-                <Server className='h-3.5 w-3.5 text-indigo-400' />
-                <span
-                  className='panel-label'
-                  style={{ fontFamily: 'var(--font-sans)' }}
-                >
-                  Bot Runtime
-                </span>
+                <Server className='h-3.5 w-3.5 text-[var(--to-accent-blue)]' />
+                <span className='panel-label'>Bot Runtime</span>
               </div>
               <span className='status-dot status-dot-active pulse-active' />
             </div>
-            <div className='p-3'>
+            <div className='p-2'>
               <PineConfigStatus />
             </div>
           </div>
@@ -317,6 +427,13 @@ export default function DashboardPage() {
               onSelectSignal={handleSelectSignal}
             />
           </div>
+
+          {/* Live Log terminal */}
+          <LiveLog
+            entries={logEntries}
+            onClear={handleClearLog}
+            className='h-[200px] shrink-0'
+          />
         </section>
       </div>
 

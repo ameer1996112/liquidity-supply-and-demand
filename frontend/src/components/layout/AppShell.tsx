@@ -21,7 +21,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div
       className='relative min-h-screen'
-      style={{ backgroundColor: '#0F172A' }}
+      style={{ backgroundColor: 'var(--to-bg)' }}
     >
       <Sidebar />
       <div

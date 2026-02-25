@@ -58,104 +58,69 @@
   --radius-4xl: calc(var(--radius) + 16px);
 }
 
-/* ── TradeOps Design System — Deep Navy/Slate ─────────────────────────────── */
+/* ── TradeOps Design System — Binance/TradingView Terminal ────────────────── */
 :root {
-  --radius: 0.5rem; /* rounded-lg = 8px — consistent across all panels */
+  --radius: 0.375rem; /* tighter radius for terminal feel */
 
-  /* Core palette */
-  --background: #0f172a;
-  --foreground: #e2e8f0;
-  --card: #1e293b;
-  --card-foreground: #e2e8f0;
-  --popover: #1e293b;
-  --popover-foreground: #e2e8f0;
-  --primary: #6366f1;
-  --primary-foreground: #ffffff;
-  --secondary: #1e293b;
-  --secondary-foreground: #cbd5e1;
-  --muted: #1e293b;
-  --muted-foreground: #64748b;
-  --accent: #334155;
-  --accent-foreground: #e2e8f0;
-  --destructive: #ef4444;
-  --border: #1e293b;
-  --input: #1e293b;
-  --ring: #6366f1;
+  /* Core palette — ultra-dark zinc base (Binance-inspired) */
+  --background: #0b0e11;
+  --foreground: #eaecef;
+  --card: #12161c;
+  --card-foreground: #eaecef;
+  --popover: #12161c;
+  --popover-foreground: #eaecef;
+  --primary: #f0b90b;
+  --primary-foreground: #0b0e11;
+  --secondary: #1e2329;
+  --secondary-foreground: #b7bdc6;
+  --muted: #1e2329;
+  --muted-foreground: #5e6673;
+  --accent: #2b3139;
+  --accent-foreground: #eaecef;
+  --destructive: #f6465d;
+  --border: #1e2329;
+  --input: #1e2329;
+  --ring: #f0b90b;
 
-  /* Chart colors */
-  --chart-1: #10b981;
-  --chart-2: #ef4444;
-  --chart-3: #f59e0b;
-  --chart-4: #6366f1;
-  --chart-5: #8b5cf6;
+  /* Chart colors — trading standard */
+  --chart-1: #0ecb81;
+  --chart-2: #f6465d;
+  --chart-3: #f0b90b;
+  --chart-4: #3b82f6;
+  --chart-5: #a78bfa;
 
   /* Sidebar */
-  --sidebar: #0f172a;
-  --sidebar-foreground: #cbd5e1;
-  --sidebar-primary: #6366f1;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #1e293b;
-  --sidebar-accent-foreground: #e2e8f0;
-  --sidebar-border: #1e293b;
-  --sidebar-ring: #6366f1;
+  --sidebar: #0b0e11;
+  --sidebar-foreground: #b7bdc6;
+  --sidebar-primary: #f0b90b;
+  --sidebar-primary-foreground: #0b0e11;
+  --sidebar-accent: #1e2329;
+  --sidebar-accent-foreground: #eaecef;
+  --sidebar-border: #1e2329;
+  --sidebar-ring: #f0b90b;
 
   /* TradeOps semantic tokens */
-  --to-bg: #0f172a;
-  --to-surface: #1e293b;
-  --to-surface-raised: #263348;
-  --to-border: #334155;
-  --to-border-subtle: #1e293b;
-  --to-text-primary: #e2e8f0;
-  --to-text-secondary: #94a3b8;
-  --to-text-dim: #475569;
-  --to-accent-blue: #6366f1;
-  --to-accent-green: #10b981;
-  --to-accent-red: #ef4444;
-  --to-accent-amber: #f59e0b;
+  --to-bg: #0b0e11;
+  --to-surface: #12161c;
+  --to-surface-raised: #1e2329;
+  --to-border: #2b3139;
+  --to-border-subtle: #1e2329;
+  --to-text-primary: #eaecef;
+  --to-text-secondary: #848e9c;
+  --to-text-dim: #5e6673;
+  --to-accent-blue: #3b82f6;
+  --to-accent-green: #0ecb81;
+  --to-accent-red: #f6465d;
+  --to-accent-amber: #f0b90b;
+
+  /* Trading-specific semantic colors */
+  --to-long: #0ecb81;
+  --to-short: #f6465d;
+  --to-neutral: #848e9c;
+  --to-warning: #f0b90b;
 }
 
-:root[data-theme='light'] {
-  --background: #f8fafc;
-  --foreground: #0f172a;
-  --card: #ffffff;
-  --card-foreground: #0f172a;
-  --popover: #ffffff;
-  --popover-foreground: #0f172a;
-  --primary: #4f46e5;
-  --primary-foreground: #ffffff;
-  --secondary: #e2e8f0;
-  --secondary-foreground: #0f172a;
-  --muted: #f1f5f9;
-  --muted-foreground: #475569;
-  --accent: #e2e8f0;
-  --accent-foreground: #1e293b;
-  --destructive: #dc2626;
-  --border: #cbd5e1;
-  --input: #cbd5e1;
-  --ring: #4f46e5;
-
-  --sidebar: #f8fafc;
-  --sidebar-foreground: #1e293b;
-  --sidebar-primary: #4f46e5;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #e2e8f0;
-  --sidebar-accent-foreground: #1e293b;
-  --sidebar-border: #cbd5e1;
-  --sidebar-ring: #4f46e5;
-
-  --to-bg: #f8fafc;
-  --to-surface: #ffffff;
-  --to-surface-raised: #f1f5f9;
-  --to-border: #cbd5e1;
-  --to-border-subtle: #e2e8f0;
-  --to-text-primary: #0f172a;
-  --to-text-secondary: #475569;
-  --to-text-dim: #64748b;
-  --to-accent-blue: #4f46e5;
-  --to-accent-green: #059669;
-  --to-accent-red: #dc2626;
-  --to-accent-amber: #d97706;
-}
+/* Light theme intentionally omitted — terminal is dark-only */
 
 /* ── Base styles ──────────────────────────────────────────────────────────── */
 @layer base {
@@ -411,35 +376,35 @@
 }
 
 .status-dot-active {
-  background-color: #10b981;
-  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.25);
+  background-color: var(--to-long);
+  box-shadow: 0 0 6px rgba(14, 203, 129, 0.4);
 }
 
 .status-dot-warning {
-  background-color: #f59e0b;
-  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.25);
+  background-color: var(--to-warning);
+  box-shadow: 0 0 6px rgba(240, 185, 11, 0.4);
 }
 
 .status-dot-error {
-  background-color: #ef4444;
-  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.25);
+  background-color: var(--to-short);
+  box-shadow: 0 0 6px rgba(246, 70, 93, 0.4);
 }
 
-/* ── PnL colors ───────────────────────────────────────────────────────────── */
+/* ── PnL colors — Binance green/red ──────────────────────────────────────── */
 .text-profit {
-  color: #10b981;
+  color: var(--to-long);
 }
 
 .text-loss {
-  color: #ef4444;
+  color: var(--to-short);
 }
 
 .bg-profit {
-  background-color: #10b981;
+  background-color: var(--to-long);
 }
 
 .bg-loss {
-  background-color: #ef4444;
+  background-color: var(--to-short);
 }
 
 /* ── Animations ───────────────────────────────────────────────────────────── */
