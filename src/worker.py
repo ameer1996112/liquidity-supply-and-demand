@@ -308,6 +308,15 @@ def save_result(
     merged_reason = {**zone_reason}
     if ai_reasoning:
         merged_reason.update(ai_reasoning)
+
+    # Transparency: Ensure decision_trace exists for frontend "Debug View"
+    # This ensures "Feature Snapshot" tab is populated even for early guard rejections.
+    if "decision_trace" not in merged_reason:
+        merged_reason["decision_trace"] = {
+            "features_snapshot": {**zone_reason},
+            "interpretation": "Trade rejected by internal guard before reaching AI ensemble processing."
+        }
+
     if merged_reason:
         merged_reason.setdefault("decision", status)
         merged_reason.setdefault("reason", note)
