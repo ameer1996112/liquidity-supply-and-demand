@@ -1,11 +1,57 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useTradingMode } from '@/providers/TradingModeProvider';
-import { Radio, FlaskConical, Wifi, WifiOff, Power } from 'lucide-react';
+import { Radio, FlaskConical, Wifi, WifiOff, Power, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRiskStatus, useKillSwitchMutation } from '@/hooks/useRiskStatus';
 import { useQuery } from '@tanstack/react-query';
 import { getApiUrl } from '@/lib/api';
+
+function DualClock() {
+  const [now, setNow] = useState<Date | null>(null);
+
+  useEffect(() => {
+    setNow(new Date());
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (!now) return null;
+
+  const utc = now.toLocaleTimeString('en-GB', {
+    timeZone: 'UTC',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+  const israel = now.toLocaleTimeString('en-GB', {
+    timeZone: 'Asia/Jerusalem',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+
+  return (
+    <div
+      className='hidden items-center gap-3 text-[10px] tabular-nums sm:flex'
+      style={{ fontFamily: 'var(--font-mono)' }}
+    >
+      <div className='flex items-center gap-1.5 text-[var(--to-text-dim)]'>
+        <Clock className='h-3 w-3' />
+        <span className='text-[var(--to-text-secondary)]'>{utc}</span>
+        <span className='text-[var(--to-text-dim)]'>UTC</span>
+      </div>
+      <span className='text-[var(--to-border)]'>|</span>
+      <div className='flex items-center gap-1.5 text-[var(--to-text-dim)]'>
+        <span className='text-[var(--to-text-secondary)]'>{israel}</span>
+        <span className='text-[var(--to-text-dim)]'>IL</span>
+      </div>
+    </div>
+  );
+}
 
 export function TopBar() {
   const { mode, setMode } = useTradingMode();
@@ -39,17 +85,19 @@ export function TopBar() {
   };
 
   return (
-    <header className='flex h-12 shrink-0 items-center justify-between border-b border-[var(--to-border)] bg-[var(--to-bg)] px-3'>
-      <div />
+    <header className='flex h-10 shrink-0 items-center justify-between border-b border-[var(--to-border)] bg-[var(--to-bg)] px-3'>
+      {/* Left: Clock */}
+      <DualClock />
 
-      <div className='flex items-center gap-2'>
+      <div className='flex items-center gap-1.5'>
+        {/* Connection indicator */}
         <div
           suppressHydrationWarning
           className={cn(
-            'hidden items-center gap-1.5 rounded-md border px-2 py-1 text-[10px] font-semibold uppercase tracking-wider sm:flex',
+            'hidden items-center gap-1.5 rounded border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider sm:flex',
             isConnected
-              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
-              : 'border-red-500/30 bg-red-500/10 text-red-400',
+              ? 'border-[var(--to-long)]/25 bg-[var(--to-long)]/8 text-[var(--to-long)]'
+              : 'border-[var(--to-short)]/25 bg-[var(--to-short)]/8 text-[var(--to-short)]',
           )}
           style={{ fontFamily: 'var(--font-mono)' }}
         >
@@ -58,18 +106,18 @@ export function TopBar() {
           ) : (
             <WifiOff className='h-3 w-3' />
           )}
-          {isConnected ? 'Connected' : 'Reconnecting'}
+          {isConnected ? 'Connected' : 'Offline'}
         </div>
 
         {/* Mode toggle */}
-        <div className='flex items-center rounded-lg border border-slate-800 bg-slate-900 p-0.5'>
+        <div className='flex items-center rounded border border-[var(--to-border)] bg-[var(--to-surface)] p-0.5'>
           <button
             onClick={() => setMode('LIVE')}
             className={cn(
-              'flex items-center gap-1.5 rounded-md px-2.5 py-1 transition-colors',
+              'flex items-center gap-1 rounded px-2 py-0.5 transition-colors',
               mode === 'LIVE'
-                ? 'bg-emerald-500/15 text-emerald-400'
-                : 'text-slate-500 hover:text-slate-300',
+                ? 'bg-[var(--to-long)]/12 text-[var(--to-long)]'
+                : 'text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]',
             )}
           >
             <Radio className='h-3 w-3' />
@@ -83,10 +131,10 @@ export function TopBar() {
           <button
             onClick={() => setMode('PAPER')}
             className={cn(
-              'flex items-center gap-1.5 rounded-md px-2.5 py-1 transition-colors',
+              'flex items-center gap-1 rounded px-2 py-0.5 transition-colors',
               mode === 'PAPER'
-                ? 'bg-amber-500/15 text-amber-400'
-                : 'text-slate-500 hover:text-slate-300',
+                ? 'bg-[var(--to-warning)]/12 text-[var(--to-warning)]'
+                : 'text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]',
             )}
           >
             <FlaskConical className='h-3 w-3' />
@@ -99,20 +147,21 @@ export function TopBar() {
           </button>
         </div>
 
+        {/* Kill switch */}
         <button
           onClick={toggleKillSwitch}
           disabled={killMutation.isPending}
           className={cn(
-            'flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider transition-all',
+            'flex items-center gap-1 rounded border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider transition-all',
             risk?.kill_switch_active
-              ? 'animate-pulse border-red-500 bg-red-500/20 text-red-300'
-              : 'border-slate-700 bg-slate-800/60 text-slate-300 hover:border-red-500/50 hover:text-red-300',
+              ? 'animate-pulse border-[var(--to-short)] bg-[var(--to-short)]/20 text-[var(--to-short)]'
+              : 'border-[var(--to-border)] bg-[var(--to-surface)] text-[var(--to-text-dim)] hover:border-[var(--to-short)]/50 hover:text-[var(--to-short)]',
           )}
           style={{ fontFamily: 'var(--font-mono)' }}
           title='Emergency trading kill switch'
         >
           <Power className='h-3 w-3' />
-          {risk?.kill_switch_active ? 'Kill Active' : 'Kill'}
+          {risk?.kill_switch_active ? 'KILL ON' : 'Kill'}
         </button>
       </div>
     </header>
