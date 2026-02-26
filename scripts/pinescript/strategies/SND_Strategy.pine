@@ -285,11 +285,11 @@ max_usd_risk_cap      = input.float(0.0, "Max USD Risk Cap ($)", minval = 0.0, s
 dry_run_mode          = false  // Dry run disabled by default
 
 // Debug & Display (visual only - no impact on backtest results)
-debug_mode            = false
-debug_entry_labels    = false
-show_zone_debug_labels = false
-show_debug_labels      = false
-zone_label_size       = "Tiny"
+debug_mode             = false
+debug_entry_labels     = false
+show_zone_debug_labels = input.bool(false, "Show Block Reason Labels", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Draw small red labels on the chart explaining why a zone entry was blocked (e.g. liquidity, timing, AI filter). OFF: Hide these labels for a clean chart. Does not affect trade logic.")
+show_debug_labels      = show_zone_debug_labels
+zone_label_size        = "Tiny"
 debug_level           = input.string("None", "Debug Level", options = ["None", "Basic", "Full"], group = "⚙️ Advanced / Manual Tweaks", tooltip = "None = Clean chart. Basic = Key info. Full = All debug data.")
 debug_last_bars       = 200
 showZoneInspector     = input.bool(true, "Zone Inspector Panel", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Show detailed zone info panel on chart.")
@@ -1986,11 +1986,11 @@ f_check_demand_sweeps(int zoneArrayIndex) =>
             needsPersist := true
     
     // === TARGET SWEEP CHECK ===
-    // Target High for Demand: price rises to/above liqHighPrice
+    // Target High for Demand: price must strictly tag or exceed liqHighPrice
     // CRITICAL: Only check AFTER liquidityValid is true (proper pivot scan completed)
     // This ensures liqHighPrice is correctly set before we check for sweep
     if z.liquidityValid and not na(z.liqHighPrice) and not na(z.liqHighBar) and not z.targetSwept
-        float targetSweepTolerance = syminfo.mintick * 20
+        float targetSweepTolerance = 0.0
         float targetSweepLevel = z.liqHighPrice - targetSweepTolerance
         bool is_tgt_sweeping_now = high >= targetSweepLevel
         
@@ -2029,11 +2029,11 @@ f_check_supply_sweeps(int zoneArrayIndex) =>
             needsPersist := true
     
     // === TARGET SWEEP CHECK ===
-    // Target Low for Supply: price drops to/below liqLowPrice
+    // Target Low for Supply: price must strictly tag or break below liqLowPrice
     // CRITICAL: Only check AFTER liquidityValid is true (proper pivot scan completed)
     // This ensures liqLowPrice is correctly set before we check for sweep
     if z.liquidityValid and not na(z.liqLowPrice) and not na(z.liqLowBar) and not z.targetSwept
-        float targetSweepTolerance = syminfo.mintick * 20
+        float targetSweepTolerance = 0.0
         float targetSweepLevel = z.liqLowPrice + targetSweepTolerance
         bool is_tgt_sweeping_now = low <= targetSweepLevel
         
@@ -3871,8 +3871,8 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     stat_entries_blocked_by_liquidity += 1
 
             // [optimization/ai-overhaul] DEBUG LABEL: Show exactly why this demand zone was blocked
-            // Visible whenever Debug Level != None (and for Shadow Mode skips too)
-            if not can_enter and debug_level != "None" and isRecentBarForDebug()
+            // Visible only when Debug Level is not None AND Show Block Reason Labels is enabled.
+            if not can_enter and debug_level != "None" and show_zone_debug_labels and isRecentBarForDebug()
                 bool isAiBlock = str.contains(entryReason, "AI Quality") or str.contains(entryReason, "[SHADOW]")
                 color blockCol = isAiBlock ? color.orange : color.new(color.red, 20)
                 string blockTag = isAiBlock ? "🤖 " : "🚫 "
@@ -4363,7 +4363,7 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     stat_entries_blocked_by_liquidity += 1
 
             // [optimization/ai-overhaul] DEBUG LABEL: Show exactly why this supply zone was blocked
-            if not can_enter and debug_level != "None" and isRecentBarForDebug()
+            if not can_enter and debug_level != "None" and show_zone_debug_labels and isRecentBarForDebug()
                 bool isAiBlock = str.contains(entryReason, "AI Quality") or str.contains(entryReason, "[SHADOW]")
                 color blockCol = isAiBlock ? color.orange : color.new(color.red, 20)
                 string blockTag = isAiBlock ? "🤖 " : "🚫 "
