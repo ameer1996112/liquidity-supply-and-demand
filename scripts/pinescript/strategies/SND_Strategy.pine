@@ -4221,7 +4221,32 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     ai_features += " | F:liquidity_distance_score=" + str.tostring(z.liquidityDistance, "#.##")
                     ai_features += " | F:liquidity_spread_score=" + str.tostring(z.liquiditySpread, "#.##")
                     ai_features += " | F:return_strength=" + str.tostring(z.returnStrength, "#.##")
-                    string entryComment = (show_entry_labels ? "" : typeTag) + (show_ai_debug_comment ? ai_features : "")
+                    // === AI DATA HARVESTER (compact DNA for Strategy Tester export) ===
+                    // Maps user pseudocode variables to real Pine names:
+                    //   rvol_value        → feature_rvol
+                    //   chosenModel       → chosenModel string (FLIP/BOC/DIR)
+                    //   liquidityType     → z.liqSource (PIVOT/FALLBACK_SCAN/...)
+                    //   heightPips        → zone height in pips
+                    //   arrival_type      → guardian_arrival (aggressive/compressed/unknown)
+                    //   session_name      → mapped from feature_session int (0-3)
+                    //   trend_aligned     → feature_trend == 1 for demand
+                    //   htf_trend_aligned → feature_htf_trend == 1 for demand
+                    float zone_height_pips = pip_size > 0 ? (z.top - z.bottom) / pip_size : 0.0
+                    string dna_session = feature_session == 0 ? "As" : (feature_session == 1 ? "Ld" : (feature_session == 2 ? "NY" : "Of"))
+                    string dna_model   = chosenModel == "FLIP" ? "Flp" : (chosenModel == "BOC" ? "BoC" : "Dir")
+                    string dna_liq     = str.contains(z.liqSource, "PIVOT") ? "Pv" : "Fb"
+                    string dna_arrival = guardian_arrival == "aggressive" ? "Imp" : (guardian_arrival == "compressed" ? "Cor" : "Unk")
+                    string ai_dna = "S:"  + str.tostring(z.score, "#")
+                                  + "|V:" + str.tostring(feature_rvol, "#.1")
+                                  + "|M:" + dna_model
+                                  + "|L:" + dna_liq
+                                  + "|W:" + str.tostring(zone_height_pips, "#.0")
+                                  + "|A:" + str.tostring(bar_index - z.createdBarIndex, "#")
+                                  + "|Ar:" + dna_arrival
+                                  + "|Sn:" + dna_session
+                                  + "|T:"  + (feature_trend == 1 ? "1" : "0")
+                                  + "|H:"  + (feature_htf_trend == 1 ? "1" : "0")
+                    string entryComment = (show_entry_labels ? "" : typeTag) + ai_dna + (show_ai_debug_comment ? ai_features : "")
 
                     // Include webhook alert_message for TradingView webhook integration
                     if enable_webhook_alerts
@@ -4687,7 +4712,23 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     ai_features += " | F:liquidity_distance_score=" + str.tostring(z.liquidityDistance, "#.##")
                     ai_features += " | F:liquidity_spread_score=" + str.tostring(z.liquiditySpread, "#.##")
                     ai_features += " | F:return_strength=" + str.tostring(z.returnStrength, "#.##")
-                    string entryComment = (show_entry_labels ? "" : typeTag) + (show_ai_debug_comment ? ai_features : "")
+                    // === AI DATA HARVESTER (compact DNA for Strategy Tester export) ===
+                    float zone_height_pips = pip_size > 0 ? (z.top - z.bottom) / pip_size : 0.0
+                    string dna_session = feature_session == 0 ? "As" : (feature_session == 1 ? "Ld" : (feature_session == 2 ? "NY" : "Of"))
+                    string dna_model   = chosenModel == "FLIP" ? "Flp" : (chosenModel == "BOC" ? "BoC" : "Dir")
+                    string dna_liq     = str.contains(z.liqSource, "PIVOT") ? "Pv" : "Fb"
+                    string dna_arrival = guardian_arrival_short == "aggressive" ? "Imp" : (guardian_arrival_short == "compressed" ? "Cor" : "Unk")
+                    string ai_dna = "S:"  + str.tostring(z.score, "#")
+                                  + "|V:" + str.tostring(feature_rvol, "#.1")
+                                  + "|M:" + dna_model
+                                  + "|L:" + dna_liq
+                                  + "|W:" + str.tostring(zone_height_pips, "#.0")
+                                  + "|A:" + str.tostring(bar_index - z.createdBarIndex, "#")
+                                  + "|Ar:" + dna_arrival
+                                  + "|Sn:" + dna_session
+                                  + "|T:"  + (feature_trend == 1 ? "1" : "0")
+                                  + "|H:"  + (feature_htf_trend == 1 ? "1" : "0")
+                    string entryComment = (show_entry_labels ? "" : typeTag) + ai_dna + (show_ai_debug_comment ? ai_features : "")
 
                     // Include webhook alert_message for TradingView webhook integration
                     if enable_webhook_alerts
