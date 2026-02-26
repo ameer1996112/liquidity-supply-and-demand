@@ -2459,15 +2459,11 @@ validate_entry_conditions(bool isDemand, int idx) =>
         reason := "Outside Trading Hours: " + str.tostring(israelHour) + ":00 (allowed: " + str.tostring(trading_start_hour) + ":00-" + str.tostring(trading_end_hour) + ":00)"
 
     if canEnter
-        // Zone must not have been touched BEFORE sweep (Freshness)
-        // RELAXED: Allow same-bar mitigations for Flip entries
-        // RELAXED FRESHNESS:
-        // Block ONLY if the zone was touched long ago (more than 10 bars ago).
-        // This allows the touch to happen on the current bar OR recent previous bars (active setup).
-        int barsSinceTouch = not na(z.lastTouchBar) ? (bar_index - z.lastTouchBar) : 0
-        if z.touchedPreSweep and barsSinceTouch > 10
+        // Zone must not have been touched BEFORE liquidity/target sweeps.
+        // STRICT: Any pre‑sweep mitigation (wick or close into the zone) permanently disqualifies the zone.
+        if z.touchedPreSweep
             canEnter := false
-            reason := "Start Freshness Failed (Touched " + str.tostring(barsSinceTouch) + " bars ago)"
+            reason := "Start Freshness Failed (Zone touched before liquidity sweep)"
             
         // Zone must have caused sweep & not be historical
         if canEnter and not z.causedSweep
@@ -3543,11 +3539,23 @@ if array.size(demandZones) > 0 and barstate.isconfirmed
                 bool current_bar_sweeping = not na(z.structureSweepLevel) and high > z.structureSweepLevel
 
                 // UPDATED: Separate Touch from Mitigation
-                // Preserve Touch Data: Update flags but don't kill the zone yet
+                // Preserve touch data for inspector, but only flag "touchedPreSweep"
+                // when the LIQUIDITY candle itself mitigates the zone.
                 if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or wicks_into_zone or breaches_zone)
                     z.lastTouchBar := bar_index
                     z.wasTouched := true
-                    z.touchedPreSweep := true
+
+                    // Only count as pre-sweep mitigation if this bar is the liquidity bar
+                    bool is_liq_bar = false
+                    if not na(z.liquidityBarIndex) and bar_index == z.liquidityBarIndex
+                        is_liq_bar := true
+                    else if not na(z.liqLowBar) and bar_index == z.liqLowBar
+                        is_liq_bar := true
+                    else if not na(z.liqHighBar) and bar_index == z.liqHighBar
+                        is_liq_bar := true
+
+                    if is_liq_bar
+                        z.touchedPreSweep := true
 
                 // MITIGATION (VANISH): Kill zone if CLOSED INSIDE or FULLY BREACHED
                 // This restores strict strategy behavior. Wick touches still survive (recording touchedPreSweep).
