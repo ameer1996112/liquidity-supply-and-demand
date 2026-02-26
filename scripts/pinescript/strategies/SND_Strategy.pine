@@ -1756,11 +1756,30 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
                 z.targetSwept := false
                 z.targetSweptBarIndex := na
 
-            // Mark zone as liquidity valid
-            z.liquidityValid := true
-            z.inactiveReason := na
-            z.liquidityCandleCount := 3  // 3-candle pivot by definition
-            z.legCandleCount := 3
+            // ── Liquidity / Leg Candles (Demand) ───────────────────────────────
+            // Definition: number of BEARISH candles between the liquidity LOW
+            // and the target HIGH. This matches the visual "leg" between the
+            // Liq band and the Target label in the Zone Inspector.
+            int demandLegStart = na
+            int demandLegEnd   = na
+            int demandLegCount = 0
+
+            if not na(z.liqLowBar) and not na(z.liqHighBar)
+                demandLegStart := math.min(z.liqLowBar, z.liqHighBar)
+                demandLegEnd   := math.max(z.liqLowBar, z.liqHighBar)
+                // For demand, count BEARISH candles (close < open)
+                demandLegCount := countOppCandlesInLiquidityRange(
+                     demandLegStart, demandLegEnd, true, z.liqLowPrice, z.liqHighPrice)
+
+            z.liquidityCandleCount := demandLegCount
+            z.legCandleCount := demandLegCount
+            
+            // Enforce candle-count rule for liquidity validity
+            int minLegCandles = useOneCandleLiquidity ? 1 : 2
+            bool hasStrongLeg = demandLegCount >= minLegCandles
+            z.liquidityValid := hasStrongLeg
+            z.inactiveReason := hasStrongLeg ? na : "WAITING_STRONG_LIQUIDITY"
+
             z.liqSource := "MAKUCHAKU_PIVOT"
 
             // Set structure sweep level (the target that must be swept)
@@ -1893,11 +1912,30 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
                 z.targetSwept := false
                 z.targetSweptBarIndex := na
 
-            // Mark zone as liquidity valid
-            z.liquidityValid := true
-            z.inactiveReason := na
-            z.liquidityCandleCount := 3  // 3-candle pivot by definition
-            z.legCandleCount := 3
+            // ── Liquidity / Leg Candles (Supply) ───────────────────────────────
+            // Definition: number of BULLISH candles between the liquidity HIGH
+            // and the target LOW. This matches the visual "leg" between the
+            // Liq band and the Target label in the Zone Inspector.
+            int supplyLegStart = na
+            int supplyLegEnd   = na
+            int supplyLegCount = 0
+
+            if not na(z.liqLowBar) and not na(z.liqHighBar)
+                supplyLegStart := math.min(z.liqLowBar, z.liqHighBar)
+                supplyLegEnd   := math.max(z.liqLowBar, z.liqHighBar)
+                // For supply, count BULLISH candles (close > open)
+                supplyLegCount := countOppCandlesInLiquidityRange(
+                     supplyLegStart, supplyLegEnd, false, z.liqLowPrice, z.liqHighPrice)
+
+            z.liquidityCandleCount := supplyLegCount
+            z.legCandleCount := supplyLegCount
+            
+            // Enforce candle-count rule for liquidity validity
+            int minLegCandles = useOneCandleLiquidity ? 1 : 2
+            bool hasStrongLeg = supplyLegCount >= minLegCandles
+            z.liquidityValid := hasStrongLeg
+            z.inactiveReason := hasStrongLeg ? na : "WAITING_STRONG_LIQUIDITY"
+
             z.liqSource := "MAKUCHAKU_PIVOT"
 
             // Set structure sweep level (the target that must be swept)
