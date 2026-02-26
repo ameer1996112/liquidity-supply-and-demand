@@ -31,7 +31,7 @@
 // === LIBRARY IMPORTS ===
 // Import helper functions from external libraries to reduce script size
 import ameer_1996112/SND_Utils/12 as Utils
-import ameer_1996112/SND_Core/5 as Core
+import ameer_1996112/SND_Core/6 as Core
 
 strategy("Institutional Liquidity Protocol [Pro]",
      shorttitle = "S&D Algo [Pro]",
