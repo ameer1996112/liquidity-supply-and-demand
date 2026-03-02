@@ -31,7 +31,7 @@
 // === LIBRARY IMPORTS ===
 // Import helper functions from external libraries to reduce script size
 import ameer_1996112/SND_Utils/12 as Utils
-import ameer_1996112/SND_Core/5 as Core
+import ameer_1996112/SND_Core/6 as Core
 
 strategy("Institutional Liquidity Protocol [Pro]",
      shorttitle = "S&D Algo [Pro]",
@@ -285,11 +285,11 @@ max_usd_risk_cap      = input.float(0.0, "Max USD Risk Cap ($)", minval = 0.0, s
 dry_run_mode          = false  // Dry run disabled by default
 
 // Debug & Display (visual only - no impact on backtest results)
-debug_mode            = false
-debug_entry_labels    = false
-show_zone_debug_labels = false
-show_debug_labels      = false
-zone_label_size       = "Tiny"
+debug_mode             = false
+debug_entry_labels     = false
+show_zone_debug_labels = input.bool(false, "Show Block Reason Labels", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Draw small red labels on the chart explaining why a zone entry was blocked (e.g. liquidity, timing, AI filter). OFF: Hide these labels for a clean chart. Does not affect trade logic.")
+show_debug_labels      = show_zone_debug_labels
+zone_label_size        = "Tiny"
 debug_level           = input.string("None", "Debug Level", options = ["None", "Basic", "Full"], group = "⚙️ Advanced / Manual Tweaks", tooltip = "None = Clean chart. Basic = Key info. Full = All debug data.")
 debug_last_bars       = 200
 showZoneInspector     = input.bool(true, "Zone Inspector Panel", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Show detailed zone info panel on chart.")
@@ -340,6 +340,13 @@ require_htf_flip = input.bool(true, "HTF Flip Context", group = "⚙️ Advanced
 // AI & Quality Filters
 enable_ai_quality_filter = input.bool(true, "AI Quality Filter", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Block low-quality setups using AI scoring. Improves win rate.")
 ai_quality_threshold = input.int(60, "   └─ Min Score (0-100)", minval = 0, maxval = 100, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Minimum quality score to take trade. 60 = ~60% expected win rate. Higher = fewer but better trades.")
+// [optimization/ai-overhaul] AI Lite Mode: only blocks obviously bad trades (Score < 30)
+// Use this when the normal threshold is too aggressive and reducing trade frequency to near zero.
+// Score < 30 means ALL of: wrong trend, bad session, choppy base, no liquidity, stale zone.
+enable_ai_lite_mode = input.bool(false, "   └─ Lite Mode (Block Only Score<30)", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Ignores the Min Score threshold above and only blocks trades with Score < 30 (obviously bad setups). Use when normal filter is too strict.")
+// [optimization/ai-overhaul] AI Shadow Mode: logs what the filter WOULD have done without blocking
+// Enable this to collect calibration data without losing trades.
+enable_ai_shadow_mode = input.bool(false, "   └─ Shadow Mode (Never Blocks)", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: AI filter runs but NEVER blocks trades. Blocked reason is shown in debug labels only. Use to measure how often the filter would reject without losing real trades.")
 enable_grade_filter = input.bool(false, "Grade Filter", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Filter by zone grade (A+, A, B+, etc). OFF: Use score filter instead.")
 min_entry_grade     = input.string("C", "   └─ Min Grade", options=["A+", "A", "B+", "B", "C+", "C"], group = "⚙️ Advanced / Manual Tweaks", tooltip="Minimum zone grade required. A+ = Best quality, C = Lowest.")
 min_return_strength = input.int(0, "Return Speed Filter", minval = 0, maxval = 100, group = "⚙️ Advanced / Manual Tweaks", tooltip = "How fast price returned after sweep. 0 = OFF. 30 = Block slow returns. 70 = Only sharp V-reversals.")
@@ -1979,11 +1986,11 @@ f_check_demand_sweeps(int zoneArrayIndex) =>
             needsPersist := true
     
     // === TARGET SWEEP CHECK ===
-    // Target High for Demand: price rises to/above liqHighPrice
+    // Target High for Demand: price must strictly tag or exceed liqHighPrice
     // CRITICAL: Only check AFTER liquidityValid is true (proper pivot scan completed)
     // This ensures liqHighPrice is correctly set before we check for sweep
     if z.liquidityValid and not na(z.liqHighPrice) and not na(z.liqHighBar) and not z.targetSwept
-        float targetSweepTolerance = syminfo.mintick * 20
+        float targetSweepTolerance = 0.0
         float targetSweepLevel = z.liqHighPrice - targetSweepTolerance
         bool is_tgt_sweeping_now = high >= targetSweepLevel
         
@@ -2022,11 +2029,11 @@ f_check_supply_sweeps(int zoneArrayIndex) =>
             needsPersist := true
     
     // === TARGET SWEEP CHECK ===
-    // Target Low for Supply: price drops to/below liqLowPrice
+    // Target Low for Supply: price must strictly tag or break below liqLowPrice
     // CRITICAL: Only check AFTER liquidityValid is true (proper pivot scan completed)
     // This ensures liqLowPrice is correctly set before we check for sweep
     if z.liquidityValid and not na(z.liqLowPrice) and not na(z.liqLowBar) and not z.targetSwept
-        float targetSweepTolerance = syminfo.mintick * 20
+        float targetSweepTolerance = 0.0
         float targetSweepLevel = z.liqLowPrice + targetSweepTolerance
         bool is_tgt_sweeping_now = low <= targetSweepLevel
         
@@ -2568,14 +2575,29 @@ validate_entry_conditions(bool isDemand, int idx) =>
             canEnter := false
             reason := "Zone created before min bar index"
 
-        // === AI QUALITY FILTER ===
-        // Apply AI-based quality scoring to filter low-probability setups
-        // This mirrors the backend Random Forest model (60% win rate threshold)
+        // === AI QUALITY FILTER [optimization/ai-overhaul] ===
+        // Apply AI-based quality scoring to filter low-probability setups.
+        //
+        // Effective threshold logic:
+        //   • Shadow Mode ON  → never blocks (logs what would have been rejected)
+        //   • Lite Mode ON    → threshold = 30  (only obvious failures)
+        //   • Normal          → threshold = ai_quality_threshold (default 60)
+        //
+        // The RVOL floor fix in SND_Core raises typical Forex score by ~5–8 pts,
+        // so the effective pass-rate at threshold=60 will increase meaningfully.
+        int effective_ai_threshold = enable_ai_lite_mode ? 30 : ai_quality_threshold
+
         if canEnter and enable_ai_quality_filter
             [ai_score, ai_breakdown] = Core.calculate_ai_quality_score(z, isDemand, feature_rvol, feature_session, feature_trend, feature_adx, feature_htf_trend, feature_rsi, (z.top - z.bottom) / atr14)
-            if ai_score < ai_quality_threshold
-                canEnter := false
-                reason := "AI Quality: " + str.tostring(ai_score, "#.0") + " < " + str.tostring(ai_quality_threshold) + " [" + ai_breakdown + "]"
+            bool ai_would_block = ai_score < effective_ai_threshold
+            if ai_would_block
+                string ai_reason = "AI Quality: " + str.tostring(ai_score, "#.0") + " < " + str.tostring(effective_ai_threshold) + " [" + ai_breakdown + "]"
+                if enable_ai_shadow_mode
+                    // Shadow mode: log but do NOT block — trade proceeds
+                    reason := "[SHADOW] " + ai_reason
+                else
+                    canEnter := false
+                    reason := ai_reason
 
     [canEnter, reason, z]
 
@@ -3848,6 +3870,19 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                 if str.contains(entryReason, "liquidity") or str.contains(entryReason, "Liq ")
                     stat_entries_blocked_by_liquidity += 1
 
+            // [optimization/ai-overhaul] DEBUG LABEL: Show exactly why this demand zone was blocked
+            // Visible only when Debug Level is not None AND Show Block Reason Labels is enabled.
+            if not can_enter and debug_level != "None" and show_zone_debug_labels and isRecentBarForDebug()
+                bool isAiBlock = str.contains(entryReason, "AI Quality") or str.contains(entryReason, "[SHADOW]")
+                color blockCol = isAiBlock ? color.orange : color.new(color.red, 20)
+                string blockTag = isAiBlock ? "🤖 " : "🚫 "
+                label.new(bar_index, high + atr14 * 0.3,
+                    text = blockTag + "Blocked: " + entryReason,
+                    style = label.style_label_down,
+                    color = blockCol,
+                    textcolor = color.white,
+                    size = size.tiny)
+
             if can_enter
                 if currentTouch
                     // FIRST-TOUCH-ONLY RULE: Block retrace entries (zones already touched)
@@ -4186,7 +4221,32 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     ai_features += " | F:liquidity_distance_score=" + str.tostring(z.liquidityDistance, "#.##")
                     ai_features += " | F:liquidity_spread_score=" + str.tostring(z.liquiditySpread, "#.##")
                     ai_features += " | F:return_strength=" + str.tostring(z.returnStrength, "#.##")
-                    string entryComment = (show_entry_labels ? "" : typeTag) + (show_ai_debug_comment ? ai_features : "")
+                    // === AI DATA HARVESTER (compact DNA for Strategy Tester export) ===
+                    // Maps user pseudocode variables to real Pine names:
+                    //   rvol_value        → feature_rvol
+                    //   chosenModel       → chosenModel string (FLIP/BOC/DIR)
+                    //   liquidityType     → z.liqSource (PIVOT/FALLBACK_SCAN/...)
+                    //   heightPips        → zone height in pips
+                    //   arrival_type      → guardian_arrival (aggressive/compressed/unknown)
+                    //   session_name      → mapped from feature_session int (0-3)
+                    //   trend_aligned     → feature_trend == 1 for demand
+                    //   htf_trend_aligned → feature_htf_trend == 1 for demand
+                    float zone_height_pips = pip_size > 0 ? (z.top - z.bottom) / pip_size : 0.0
+                    string dna_session = feature_session == 0 ? "As" : (feature_session == 1 ? "Ld" : (feature_session == 2 ? "NY" : "Of"))
+                    string dna_model   = chosenModel == "FLIP" ? "Flp" : (chosenModel == "BOC" ? "BoC" : "Dir")
+                    string dna_liq     = str.contains(z.liqSource, "PIVOT") ? "Pv" : "Fb"
+                    string dna_arrival = guardian_arrival == "aggressive" ? "Imp" : (guardian_arrival == "compressed" ? "Cor" : "Unk")
+                    string ai_dna = "S:"  + str.tostring(z.score, "#")
+                                  + "|V:" + str.tostring(feature_rvol, "#.1")
+                                  + "|M:" + dna_model
+                                  + "|L:" + dna_liq
+                                  + "|W:" + str.tostring(zone_height_pips, "#.0")
+                                  + "|A:" + str.tostring(bar_index - z.createdBarIndex, "#")
+                                  + "|Ar:" + dna_arrival
+                                  + "|Sn:" + dna_session
+                                  + "|T:"  + (feature_trend == 1 ? "1" : "0")
+                                  + "|H:"  + (feature_htf_trend == 1 ? "1" : "0")
+                    string entryComment = (show_entry_labels ? "" : typeTag) + ai_dna + (show_ai_debug_comment ? ai_features : "")
 
                     // Include webhook alert_message for TradingView webhook integration
                     if enable_webhook_alerts
@@ -4301,6 +4361,18 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     stat_entries_blocked_by_timing += 1
                 if str.contains(entryReason, "liquidity") or str.contains(entryReason, "Liq ")
                     stat_entries_blocked_by_liquidity += 1
+
+            // [optimization/ai-overhaul] DEBUG LABEL: Show exactly why this supply zone was blocked
+            if not can_enter and debug_level != "None" and show_zone_debug_labels and isRecentBarForDebug()
+                bool isAiBlock = str.contains(entryReason, "AI Quality") or str.contains(entryReason, "[SHADOW]")
+                color blockCol = isAiBlock ? color.orange : color.new(color.red, 20)
+                string blockTag = isAiBlock ? "🤖 " : "🚫 "
+                label.new(bar_index, low - atr14 * 0.3,
+                    text = blockTag + "Blocked: " + entryReason,
+                    style = label.style_label_up,
+                    color = blockCol,
+                    textcolor = color.white,
+                    size = size.tiny)
 
             if can_enter
                 if currentTouch
@@ -4640,7 +4712,23 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     ai_features += " | F:liquidity_distance_score=" + str.tostring(z.liquidityDistance, "#.##")
                     ai_features += " | F:liquidity_spread_score=" + str.tostring(z.liquiditySpread, "#.##")
                     ai_features += " | F:return_strength=" + str.tostring(z.returnStrength, "#.##")
-                    string entryComment = (show_entry_labels ? "" : typeTag) + (show_ai_debug_comment ? ai_features : "")
+                    // === AI DATA HARVESTER (compact DNA for Strategy Tester export) ===
+                    float zone_height_pips = pip_size > 0 ? (z.top - z.bottom) / pip_size : 0.0
+                    string dna_session = feature_session == 0 ? "As" : (feature_session == 1 ? "Ld" : (feature_session == 2 ? "NY" : "Of"))
+                    string dna_model   = chosenModel == "FLIP" ? "Flp" : (chosenModel == "BOC" ? "BoC" : "Dir")
+                    string dna_liq     = str.contains(z.liqSource, "PIVOT") ? "Pv" : "Fb"
+                    string dna_arrival = guardian_arrival_short == "aggressive" ? "Imp" : (guardian_arrival_short == "compressed" ? "Cor" : "Unk")
+                    string ai_dna = "S:"  + str.tostring(z.score, "#")
+                                  + "|V:" + str.tostring(feature_rvol, "#.1")
+                                  + "|M:" + dna_model
+                                  + "|L:" + dna_liq
+                                  + "|W:" + str.tostring(zone_height_pips, "#.0")
+                                  + "|A:" + str.tostring(bar_index - z.createdBarIndex, "#")
+                                  + "|Ar:" + dna_arrival
+                                  + "|Sn:" + dna_session
+                                  + "|T:"  + (feature_trend == 1 ? "1" : "0")
+                                  + "|H:"  + (feature_htf_trend == 1 ? "1" : "0")
+                    string entryComment = (show_entry_labels ? "" : typeTag) + ai_dna + (show_ai_debug_comment ? ai_features : "")
 
                     // Include webhook alert_message for TradingView webhook integration
                     if enable_webhook_alerts

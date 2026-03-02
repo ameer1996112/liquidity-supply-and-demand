@@ -609,13 +609,26 @@ def create_ai_guardian_from_settings() -> Optional[AIGuardian]:
         logger.warning("AI Guardian enabled but no API key configured - disabling")
         return None
 
-    return AIGuardian(
+    guardian = AIGuardian(
         provider=settings.ai_provider,
         api_key=api_key,
         model=settings.ai_model or None,
         timeout=settings.ai_timeout_seconds,
         base_url=settings.ai_base_url,
     )
+
+    # [optimization/ai-overhaul] Attach shadow mode flag so callers can check it.
+    # When shadow_mode=True, a REJECT decision should be LOGGED but not enforced.
+    # Usage in caller:
+    #   result = await guardian.analyze_signal(context)
+    #   if result.decision == AIDecision.REJECT and not guardian.shadow_mode:
+    #       # block trade
+    guardian.shadow_mode = getattr(settings, 'ai_shadow_mode', False)
+    if guardian.shadow_mode:
+        logger.info("[optimization/ai-overhaul] AI Guardian running in SHADOW MODE — decisions logged, trades NOT blocked")
+
+    return guardian
+
 
 
 def build_trade_context(data: Dict[str, Any]) -> TradeContext:

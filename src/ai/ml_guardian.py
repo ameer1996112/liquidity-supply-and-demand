@@ -28,7 +28,12 @@ logger = logging.getLogger(__name__)
 
 # Path to model artifacts: project root ml/ (src/ai -> src -> project root -> ml)
 ML_DIR = Path(__file__).resolve().parent.parent.parent / "ml"
-MODEL_PATH = ML_DIR / "model.pkl"
+
+# [optimization/ai-overhaul] Default to v3 LightGBM (7,924 samples, 39 features, ROC-AUC 0.55)
+# v1 RF (model.pkl): 41 samples, 5 features — effectively random for any unseen symbol.
+# v3 LightGBM (model_v3_lgbm.txt): 7,924 synthetic samples, 39 rich features.
+MODEL_PATH = ML_DIR / "model_v3_lgbm.txt"   # v3 LightGBM (was: model.pkl)
+MODEL_PATH_LEGACY = ML_DIR / "model.pkl"     # v1 RF fallback (rarely useful)
 ENCODERS_PATH = ML_DIR / "encoders.pkl"
 
 
@@ -63,18 +68,30 @@ class MLGuardian:
         model_path: Optional[Path] = None,
         encoders_path: Optional[Path] = None,
         min_confidence: float = 0.60,
+        hard_reject_threshold: float = 0.10,
+        warning_only_mode: bool = True,
     ):
         """
         Initialize ML Guardian.
 
         Args:
-            model_path: Path to model.pkl (default: ml/model.pkl)
+            model_path: Path to model file (default: ml/model_v3_lgbm.txt)
             encoders_path: Path to encoders.pkl (default: ml/encoders.pkl)
-            min_confidence: Minimum win probability to approve trade (0-1)
+            min_confidence: Minimum win probability to APPROVE the trade (0-1)
+            hard_reject_threshold: Only REJECT if win_probability < this (0-1).
+                                   Trades between hard_reject_threshold and min_confidence
+                                   get a WARNING decision (allowed, but logged).
+                                   Only applies when warning_only_mode=True.
+            warning_only_mode: When True, mid-confidence trades are WARNING (allowed),
+                               not REJECT. Only probabilities < hard_reject_threshold
+                               are hard-rejected. Defaults to True.
+                               [optimization/ai-overhaul]
         """
         self.model_path = model_path or MODEL_PATH
         self.encoders_path = encoders_path or ENCODERS_PATH
         self.min_confidence = min_confidence
+        self.hard_reject_threshold = hard_reject_threshold
+        self.warning_only_mode = warning_only_mode
 
         # Lazy-loaded artifacts
         self._model = None
@@ -94,27 +111,48 @@ class MLGuardian:
 
         self._loaded = True
 
-        try:
-            import joblib
-        except ImportError:
+        # [optimization/ai-overhaul] Support both LightGBM text format and legacy sklearn pickle
+        is_lgbm_text = str(self.model_path).endswith(".txt")
+
+        if is_lgbm_text:
             try:
-                import pickle as joblib
-                logger.warning("joblib not found, falling back to pickle")
-            except Exception:
-                logger.error("Neither joblib nor pickle available")
+                import lightgbm as lgb
+                logger.info(f"Loading LightGBM model from {self.model_path}")
+                self._model = lgb.Booster(model_file=str(self.model_path))
+                self._model_type = "lightgbm"
+                logger.info("LightGBM model loaded successfully")
+            except ImportError:
+                logger.error("LightGBM not installed. Run: pip install lightgbm")
+                # Fallback to legacy RF model
+                logger.warning(f"Falling back to legacy model at {MODEL_PATH_LEGACY}")
+                self.model_path = MODEL_PATH_LEGACY
+                is_lgbm_text = False
+            except Exception as e:
+                logger.error(f"Failed to load LightGBM model: {e}")
                 return False
 
-        # Load model
-        if not self.model_path.exists():
-            logger.error(f"Model file not found: {self.model_path}")
-            return False
+        if not is_lgbm_text:
+            try:
+                import joblib
+            except ImportError:
+                try:
+                    import pickle as joblib
+                    logger.warning("joblib not found, falling back to pickle")
+                except Exception:
+                    logger.error("Neither joblib nor pickle available")
+                    return False
 
-        try:
-            self._model = joblib.load(self.model_path)
-            logger.info(f"Loaded model from {self.model_path}")
-        except Exception as e:
-            logger.error(f"Failed to load model: {e}")
-            return False
+            if not self.model_path.exists():
+                logger.error(f"Model file not found: {self.model_path}")
+                return False
+
+            try:
+                self._model = joblib.load(self.model_path)
+                self._model_type = "sklearn"
+                logger.info(f"Loaded sklearn model from {self.model_path}")
+            except Exception as e:
+                logger.error(f"Failed to load model: {e}")
+                return False
 
         # Load encoders
         if not self.encoders_path.exists():
@@ -327,13 +365,21 @@ class MLGuardian:
         details["features"] = features.tolist()[0]
         details["feature_names"] = self._feature_names
 
-        # Run prediction
+        # [optimization/ai-overhaul] Run prediction — support both LightGBM and sklearn
         try:
-            proba = self._model.predict_proba(features)
-            # Class 1 = Win, Class 0 = Loss
-            win_probability = float(proba[0][1])
+            model_type = getattr(self, "_model_type", "sklearn")
+            if model_type == "lightgbm":
+                # LightGBM Booster.predict returns raw probabilities for binary classification
+                raw = self._model.predict(features)
+                win_probability = float(raw[0])
+            else:
+                # sklearn RandomForest / compatible
+                proba = self._model.predict_proba(features)
+                # Class 1 = Win, Class 0 = Loss
+                win_probability = float(proba[0][1])
+
             details["win_probability"] = win_probability
-            details["loss_probability"] = float(proba[0][0])
+            details["loss_probability"] = 1.0 - win_probability
 
         except Exception as e:
             logger.error(f"Prediction error: {e} - allowing trade (fail-open)")
@@ -341,7 +387,12 @@ class MLGuardian:
             details["reason"] = str(e)[:100]
             return True, 0.5, details
 
-        # Apply threshold
+        # [optimization/ai-overhaul] Apply Warning-Only threshold semantics:
+        # - APPROVE  : win_probability >= min_confidence (default 0.60)
+        # - WARNING  : hard_reject_threshold <= win_probability < min_confidence
+        #              Trade is ALLOWED but logged as a caution (warning_only_mode=True)
+        # - REJECT   : win_probability < hard_reject_threshold (default 0.10)
+        #              Only truly terrible predictions are blocked outright.
         if win_probability >= self.min_confidence:
             details["decision"] = "APPROVE"
             logger.info(
@@ -349,11 +400,23 @@ class MLGuardian:
                 f"(win_prob={win_probability:.1%} >= {self.min_confidence:.1%})"
             )
             return True, win_probability, details
+
+        elif self.warning_only_mode and win_probability >= self.hard_reject_threshold:
+            # Mid-confidence: allow trade but flag as WARNING
+            details["decision"] = "WARNING"
+            logger.warning(
+                f"ML Guardian WARNING: {signal.get('symbol')} "
+                f"(win_prob={win_probability:.1%}, below threshold {self.min_confidence:.1%} "
+                f"but above hard-reject floor {self.hard_reject_threshold:.1%}) — trade ALLOWED"
+            )
+            return True, win_probability, details
+
         else:
             details["decision"] = "REJECT"
+            extra = "" if not self.warning_only_mode else f" (hard-reject floor {self.hard_reject_threshold:.1%})"
             logger.info(
                 f"ML Guardian REJECTED: {signal.get('symbol')} "
-                f"(win_prob={win_probability:.1%} < {self.min_confidence:.1%})"
+                f"(win_prob={win_probability:.1%} < threshold{extra})"
             )
             return False, win_probability, details
 
@@ -363,7 +426,7 @@ class MLGuardian:
 # ══════════════════════════════════════════════════════════
 
 
-def create_ml_guardian_from_settings() -> Optional[MLGuardian]:
+def create_ml_guardian_from_settings() -> Optional["MLGuardian"]:
     """
     Factory function to create MLGuardian from config settings.
 
@@ -374,10 +437,14 @@ def create_ml_guardian_from_settings() -> Optional[MLGuardian]:
 
     settings = get_settings()
 
-    # Check if model files exist
-    if not MODEL_PATH.exists():
-        logger.warning(f"ML Guardian disabled: model not found at {MODEL_PATH}")
-        return None
+    # [optimization/ai-overhaul] Prefer v3 LightGBM, fall back to legacy RF if not found
+    model_path = MODEL_PATH
+    if not model_path.exists():
+        logger.warning(f"v3 LightGBM model not found at {model_path}, trying legacy fallback {MODEL_PATH_LEGACY}")
+        model_path = MODEL_PATH_LEGACY
+        if not model_path.exists():
+            logger.warning(f"ML Guardian disabled: no model found at {model_path}")
+            return None
 
     if not ENCODERS_PATH.exists():
         logger.warning(f"ML Guardian disabled: encoders not found at {ENCODERS_PATH}")
@@ -385,9 +452,14 @@ def create_ml_guardian_from_settings() -> Optional[MLGuardian]:
 
     # Get min confidence from settings (convert from 0-100 to 0-1)
     min_confidence = getattr(settings, 'ml_min_confidence', 0.60)
+    # [optimization/ai-overhaul] New threshold semantics from settings
+    warning_only_mode = getattr(settings, 'ml_warning_only_mode', True)
+    hard_reject_threshold = 0.10  # Only trades with <10% win probability are hard-blocked
 
     return MLGuardian(
-        model_path=MODEL_PATH,
+        model_path=model_path,
         encoders_path=ENCODERS_PATH,
         min_confidence=min_confidence,
+        hard_reject_threshold=hard_reject_threshold,
+        warning_only_mode=warning_only_mode,
     )

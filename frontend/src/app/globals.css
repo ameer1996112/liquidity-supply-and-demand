@@ -62,8 +62,8 @@
 :root {
   --radius: 0.375rem; /* tighter radius for terminal feel */
 
-  /* Core palette — ultra-dark zinc base (Binance-inspired) */
-  --background: #0b0e11;
+  /* Core palette — Deep Zinc base (#09090b prop-trading standard) */
+  --background: #09090b;
   --foreground: #eaecef;
   --card: #12161c;
   --card-foreground: #eaecef;
@@ -100,7 +100,7 @@
   --sidebar-ring: #f0b90b;
 
   /* TradeOps semantic tokens */
-  --to-bg: #0b0e11;
+  --to-bg: #09090b;
   --to-surface: #12161c;
   --to-surface-raised: #1e2329;
   --to-border: #2b3139;
@@ -444,4 +444,41 @@
 [data-state='open'] > [data-radix-dialog-overlay] {
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
+}
+
+/* ── Mode badge variants ──────────────────────────────────────────────────── */
+/* Eliminates repeated long Tailwind chains for the LIVE/PAPER badge           */
+.mode-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.25rem;
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mode-badge-live {
+  border: 1px solid rgba(14, 203, 129, 0.2);
+  background: rgba(14, 203, 129, 0.08);
+  color: var(--to-long);
+}
+
+.mode-badge-paper {
+  border: 1px solid rgba(240, 185, 11, 0.2);
+  background: rgba(240, 185, 11, 0.08);
+  color: var(--to-warning);
+}
+
+/* ── KPI sublabel row ─────────────────────────────────────────────────────── */
+.kpi-meta {
+  font-family: var(--font-mono);
+  font-size: 0.5625rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--to-text-dim);
 }

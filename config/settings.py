@@ -68,6 +68,11 @@ class Settings(BaseSettings):
     gold_pip_divisor: float = 0.1
 
     ai_filter_enabled: bool = Field(default=True, description="Enable AI Guardian validation layer.")
+    # [optimization/ai-overhaul] Shadow Mode: AI runs and logs decisions but NEVER blocks trades.
+    # Set AI_SHADOW_MODE=true to collect calibration data without losing any signals.
+    ai_shadow_mode: bool = Field(default=False, description="AI Shadow Mode: log AI decisions but never block trades. Env: AI_SHADOW_MODE.")
+    # [optimization/ai-overhaul] ML Warning Mode: RF confidence 10%-60% becomes WARNING, only <10% is hard REJECT.
+    ml_warning_only_mode: bool = Field(default=True, description="RF gate: <10% = REJECT, 10-60% = WARNING (allow), >=60% = APPROVE. Env: ML_WARNING_ONLY_MODE.")
     ai_provider: Literal["openai", "anthropic"] = Field(default="anthropic", description="AI provider.")
     ai_api_key: SecretStr = Field(
         default=SecretStr(""),

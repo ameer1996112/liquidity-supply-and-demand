@@ -235,14 +235,19 @@ export calculate_ai_quality_score(Zone z, bool isDemand, float feature_rvol, int
     float quality_score = 0.0
 
     // 1. RVOL (20%) - Volume Strength
+    // FIX [optimization/ai-overhaul]: Raised floor from +5 → +10.
+    // Pine Script uses TICK volume for Forex, not real transactional volume.
+    // Forex tick RVOL rarely exceeds 1.5x, so the old +5 floor applied to
+    // almost every Forex trade, costing 10–15 pts vs crypto/equities.
+    // New tiers treat ≥ 1.0x as "normal" instead of penalizing it.
     if feature_rvol >= 2.0
         quality_score += 20.0
     else if feature_rvol >= 1.5
-        quality_score += 15.0
+        quality_score += 16.0
     else if feature_rvol >= 1.0
-        quality_score += 10.0
+        quality_score += 12.0
     else
-        quality_score += 5.0
+        quality_score += 10.0  // was 5 — baseline raised so Forex is not handicapped
 
     // 2. Session (12%) - Time of Day
     if feature_session == 2 or feature_session == 3  // London (2) or NY (3)
