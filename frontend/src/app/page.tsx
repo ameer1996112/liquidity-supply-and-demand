@@ -23,7 +23,7 @@ import {
   formatPercent,
   EMPTY_VALUE,
 } from '@/lib/formatters';
-import { TradingSignal } from '@/types/trading';
+import { TradingSignal, TradingMode } from '@/types/trading';
 import {
   CandlestickChart,
   Server,
@@ -40,18 +40,97 @@ import {
   isSignalRejected,
 } from '@/domain/metrics/tradingMetrics';
 
-export default function DashboardPage() {
-  const [selectedSignal, setSelectedSignal] = useState<TradingSignal | null>(
-    null,
+// ── Local sub-components ──────────────────────────────────────────────────────
+
+function ModeBadge({ mode }: { mode: TradingMode }) {
+  return (
+    <span className={mode === 'LIVE' ? 'mode-badge mode-badge-live' : 'mode-badge mode-badge-paper'}>
+      <span className='status-dot status-dot-active pulse-active' />
+      {mode}
+    </span>
   );
+}
+
+interface WaitingBannerProps {
+  strategyName: string;
+  timeframe: string;
+  latestSignalTime: string | null;
+  lastRejectReason: string;
+  isConnected: boolean;
+  hasStats: boolean;
+  hasRisk: boolean;
+  mounted: boolean;
+}
+
+function WaitingBanner({
+  strategyName,
+  timeframe,
+  latestSignalTime,
+  lastRejectReason,
+  isConnected,
+  hasStats,
+  hasRisk,
+  mounted,
+}: WaitingBannerProps) {
+  return (
+    <section className='to-panel shrink-0 border-[var(--to-warning)]/15 bg-[var(--to-warning)]/5 p-3'>
+      <h2 className='text-sm font-semibold text-[var(--to-warning)]'>
+        Bot is waiting for…
+      </h2>
+      <div className='mt-2 grid gap-3 md:grid-cols-2'>
+        <dl className='space-y-1 text-xs text-[var(--to-text-secondary)]'>
+          <div className='flex gap-1.5'>
+            <dt className='text-[var(--to-text-dim)]'>Strategy:</dt>
+            <dd>{strategyName}</dd>
+          </div>
+          <div className='flex gap-1.5'>
+            <dt className='text-[var(--to-text-dim)]'>Timeframe:</dt>
+            <dd>{timeframe}</dd>
+          </div>
+          <div className='flex gap-1.5'>
+            <dt className='text-[var(--to-text-dim)]'>Last signal:</dt>
+            <dd className='font-mono tabular-nums'>
+              {mounted ? (latestSignalTime ?? EMPTY_VALUE) : 'Loading…'}
+            </dd>
+          </div>
+          <div className='flex gap-1.5'>
+            <dt className='text-[var(--to-text-dim)]'>Last reject:</dt>
+            <dd>{lastRejectReason || EMPTY_VALUE}</dd>
+          </div>
+        </dl>
+
+        <div className='rounded border border-[var(--to-border)] bg-[var(--to-surface)] p-3'>
+          <ul className='space-y-1 text-xs text-[var(--to-text-secondary)]'>
+            {(
+              [
+                ['Connected', isConnected],
+                ['Config loaded', hasStats],
+                ['Risk guard', hasRisk],
+                ['Market open', isConnected],
+              ] as [string, boolean][]
+            ).map(([label, ok]) => (
+              <li key={label} className='flex items-center justify-between'>
+                <span>{label}</span>
+                <span className={ok ? 'text-[var(--to-long)]' : 'text-[var(--to-short)]'}>●</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ── Dashboard page ────────────────────────────────────────────────────────────
+
+export default function DashboardPage() {
+  const [selectedSignal, setSelectedSignal] = useState<TradingSignal | null>(null);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
   const logIdRef = useRef(0);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  useEffect(() => { setMounted(true); }, []);
 
   const { mode: activeMode } = useTradingMode();
   const { data: stats } = useSignalStats();
@@ -63,22 +142,20 @@ export default function DashboardPage() {
     queryFn: async () => {
       const base = getApiUrl();
       if (!base) return { status: 'offline' as const };
-      const res = await fetch(`${base}/health`, {
-        signal: AbortSignal.timeout(3000),
-      });
+      const res = await fetch(`${base}/health`, { signal: AbortSignal.timeout(3000) });
       if (!res.ok) return { status: 'offline' as const };
-      return res.json() as Promise<{
-        status: 'healthy' | 'degraded' | 'offline';
-      }>;
+      return res.json() as Promise<{ status: 'healthy' | 'degraded' | 'offline' }>;
     },
     refetchInterval: 30_000,
   });
 
   const isConnected = health?.status != null && health.status !== 'offline';
+
   const activePositionsCount = useMemo(
     () => signals.filter(isSignalOpen).length,
     [signals],
   );
+
   const tradesToday = useMemo(() => {
     if (!mounted) return 0;
     const start = new Date();
@@ -94,77 +171,51 @@ export default function DashboardPage() {
   const noData = signals.length === 0 && activePositionsCount === 0;
 
   const lastUpdated = latestSignal
-    ? new Date(
-        latestSignal.updated_at ?? latestSignal.created_at,
-      ).toLocaleTimeString()
+    ? new Date(latestSignal.updated_at ?? latestSignal.created_at).toLocaleTimeString()
     : new Date().toLocaleTimeString();
 
-  const displayLastUpdated = mounted ? lastUpdated : 'Loading...';
-
-  const strategyName =
-    latestSignal?.entry_model || latestSignal?.zone_type || 'Liquidity S&D';
+  const strategyName = latestSignal?.entry_model || latestSignal?.zone_type || 'Liquidity S&D';
   const timeframe = '5M';
 
-  const todayPnl =
-    activeMode === 'PAPER'
-      ? (stats?.paper_daily_pnl ?? stats?.paper_pnl_24h)
-      : (stats?.live_daily_pnl ?? stats?.live_pnl_24h);
-  const totalPnl =
-    activeMode === 'PAPER'
-      ? (stats?.paper_total_pnl ?? stats?.paper_pnl_24h)
-      : (stats?.live_total_pnl ?? stats?.total_pnl);
+  const todayPnl = activeMode === 'PAPER'
+    ? (stats?.paper_daily_pnl ?? stats?.paper_pnl_24h)
+    : (stats?.live_daily_pnl ?? stats?.live_pnl_24h);
+  const totalPnl = activeMode === 'PAPER'
+    ? (stats?.paper_total_pnl ?? stats?.paper_pnl_24h)
+    : (stats?.live_total_pnl ?? stats?.total_pnl);
 
-  // Generate live log entries from signal activity
+  // Append live-log entries when new signals arrive
   const prevSignalCountRef = useRef(signals.length);
   useEffect(() => {
     if (!mounted) return;
     if (signals.length > prevSignalCountRef.current) {
-      const newSignals = signals.slice(
-        0,
-        signals.length - prevSignalCountRef.current,
-      );
-      const newEntries: LogEntry[] = newSignals.map((s) => ({
-        id: String(++logIdRef.current),
-        timestamp: s.created_at,
-        level: s.status === 'active' || s.status === 'executed' ? 'success' : s.status === 'filtered' || s.status === 'ai_rejected' ? 'warn' : 'info',
-        message: `${s.symbol} ${s.side.toUpperCase()} @ ${s.entry ?? s.price ?? '?'} — ${s.status}`,
-        source: 'SIGNAL',
-      }));
-      setLogEntries((prev) => [...prev, ...newEntries]);
+      const newSignals = signals.slice(0, signals.length - prevSignalCountRef.current);
+      setLogEntries((prev) => [
+        ...prev,
+        ...newSignals.map((s) => ({
+          id: String(++logIdRef.current),
+          timestamp: s.created_at,
+          level: (
+            s.status === 'active' || s.status === 'executed' ? 'success' :
+            s.status === 'filtered' || s.status === 'ai_rejected' ? 'warn' : 'info'
+          ) as LogEntry['level'],
+          message: `${s.symbol} ${s.side.toUpperCase()} @ ${s.entry ?? s.price ?? '?'} — ${s.status}`,
+          source: 'SIGNAL',
+        })),
+      ]);
     }
     prevSignalCountRef.current = signals.length;
   }, [signals, mounted]);
 
-  // Seed initial log entries on mount
+  // Seed initial log entries on first mount
   useEffect(() => {
     if (!mounted) return;
     const now = new Date().toISOString();
     setLogEntries([
-      {
-        id: String(++logIdRef.current),
-        timestamp: now,
-        level: 'info',
-        message: `Dashboard initialized — mode: ${activeMode}`,
-        source: 'SYSTEM',
-      },
-      {
-        id: String(++logIdRef.current),
-        timestamp: now,
-        level: isConnected ? 'success' : 'error',
-        message: isConnected
-          ? 'API connection established'
-          : 'API unreachable — signals via Supabase only',
-        source: 'HEALTH',
-      },
-      {
-        id: String(++logIdRef.current),
-        timestamp: now,
-        level: 'info',
-        message: `Strategy: ${strategyName} | Timeframe: ${timeframe}`,
-        source: 'CONFIG',
-      },
+      { id: String(++logIdRef.current), timestamp: now, level: 'info', message: `Dashboard initialized — mode: ${activeMode}`, source: 'SYSTEM' },
+      { id: String(++logIdRef.current), timestamp: now, level: isConnected ? 'success' : 'error', message: isConnected ? 'API connection established' : 'API unreachable — signals via Supabase only', source: 'HEALTH' },
+      { id: String(++logIdRef.current), timestamp: now, level: 'info', message: `Strategy: ${strategyName} | Timeframe: ${timeframe}`, source: 'CONFIG' },
     ]);
-    // Only run once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted]);
 
@@ -177,8 +228,9 @@ export default function DashboardPage() {
 
   return (
     <div className='flex h-full min-h-0 flex-col gap-2'>
+
       {/* ── Header ──────────────────────────────────────────────── */}
-      <div className='flex shrink-0 items-center justify-between gap-3'>
+      <header className='flex shrink-0 items-center justify-between gap-3'>
         <div>
           <h1 className='page-title text-base font-semibold'>Dashboard</h1>
           <p className='page-subtitle text-[11px]'>
@@ -191,158 +243,47 @@ export default function DashboardPage() {
             <Radio className='h-3 w-3' />
             5M
           </span>
-          <span
-            className={
-              activeMode === 'LIVE'
-                ? 'flex items-center gap-1.5 rounded border border-[var(--to-long)]/20 bg-[var(--to-long)]/8 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-[var(--to-long)]'
-                : 'flex items-center gap-1.5 rounded border border-[var(--to-warning)]/20 bg-[var(--to-warning)]/8 px-2 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-[var(--to-warning)]'
-            }
-          >
-            <span className='status-dot status-dot-active pulse-active' />
-            {activeMode}
-          </span>
+          <ModeBadge mode={activeMode} />
         </div>
-      </div>
+      </header>
 
       {/* ── KPI Bar ─────────────────────────────────────────────── */}
       <section className='shrink-0'>
         <div className='mb-1.5 flex items-center justify-between px-0.5'>
-          <p
-            className='text-[9px] font-semibold uppercase tracking-[0.14em] text-[var(--to-text-dim)]'
-            style={{ fontFamily: 'var(--font-mono)' }}
-          >
-            Session KPIs
-          </p>
-          <p
-            className='text-[9px] tabular-nums text-[var(--to-text-dim)]'
-            style={{ fontFamily: 'var(--font-mono)' }}
-          >
-            {displayLastUpdated}
+          <p className='kpi-meta'>Session KPIs</p>
+          <p className='kpi-meta font-mono tabular-nums'>
+            {mounted ? lastUpdated : '—'}
           </p>
         </div>
         <div className='grid grid-cols-2 gap-1.5 md:grid-cols-3 xl:grid-cols-6'>
-          <StatCard
-            label='Today PnL'
-            value={mounted ? formatCurrency(todayPnl, { signed: true }) : '—'}
-            icon={Wallet}
-          />
-          <StatCard
-            label='Total PnL'
-            value={mounted ? formatCurrency(totalPnl, { signed: true }) : '—'}
-            icon={TrendingUp}
-          />
-          <StatCard
-            label='Drawdown'
-            value={mounted ? formatPercent(risk?.drawdown_pct) : '—'}
-            icon={Activity}
-            variant='loss'
-          />
-          <StatCard
-            label='Daily DD'
-            value={mounted ? formatPercent(stats?.daily_drawdown_pct) : '—'}
-            icon={BarChart3}
-          />
-          <StatCard
-            label='Active Positions'
-            value={
-              mounted
-                ? formatNumber(activePositionsCount, { decimals: 0, empty: '0' })
-                : '—'
-            }
-            icon={Crosshair}
-          />
-          <StatCard
-            label='Trades Today'
-            value={
-              mounted
-                ? formatNumber(tradesToday, { decimals: 0, empty: '0' })
-                : '—'
-            }
-            icon={Clock}
-          />
+          <StatCard label='Today PnL'         value={mounted ? formatCurrency(todayPnl, { signed: true }) : '—'} icon={Wallet} />
+          <StatCard label='Total PnL'         value={mounted ? formatCurrency(totalPnl, { signed: true }) : '—'} icon={TrendingUp} />
+          <StatCard label='Drawdown'          value={mounted ? formatPercent(risk?.drawdown_pct) : '—'} icon={Activity} variant='loss' />
+          <StatCard label='Daily DD'          value={mounted ? formatPercent(stats?.daily_drawdown_pct) : '—'} icon={BarChart3} />
+          <StatCard label='Active Positions'  value={mounted ? formatNumber(activePositionsCount, { decimals: 0, empty: '0' }) : '—'} icon={Crosshair} />
+          <StatCard label='Trades Today'      value={mounted ? formatNumber(tradesToday, { decimals: 0, empty: '0' }) : '—'} icon={Clock} />
         </div>
       </section>
 
+      {/* ── Waiting banner (no data) ─────────────────────────────── */}
       {noData && (
-        <section className='to-panel shrink-0 border-[var(--to-warning)]/15 bg-[var(--to-warning)]/5 p-3'>
-          <h2 className='text-sm font-semibold text-[var(--to-warning)]'>
-            Bot is waiting for…
-          </h2>
-          <div className='mt-2 grid gap-3 md:grid-cols-2'>
-            <div className='space-y-1 text-xs text-[var(--to-text-secondary)]'>
-              <p>
-                <span className='text-[var(--to-text-dim)]'>Strategy:</span>{' '}
-                {strategyName}
-              </p>
-              <p>
-                <span className='text-[var(--to-text-dim)]'>Timeframe:</span>{' '}
-                {timeframe}
-              </p>
-              <p>
-                <span className='text-[var(--to-text-dim)]'>Last signal:</span>{' '}
-                <span>
-                  {mounted
-                    ? latestSignal
-                      ? new Date(latestSignal.created_at).toLocaleString()
-                      : EMPTY_VALUE
-                    : 'Loading...'}
-                </span>
-              </p>
-              <p>
-                <span className='text-[var(--to-text-dim)]'>
-                  Last reject reason:
-                </span>{' '}
-                {lastRejectSignal?.filter_reason ||
-                  lastRejectSignal?.notes ||
-                  EMPTY_VALUE}
-              </p>
-            </div>
-            <div className='rounded border border-[var(--to-border)] bg-[var(--to-surface)] p-3 text-xs text-[var(--to-text-secondary)]'>
-              <p>
-                Connected{' '}
-                {isConnected ? (
-                  <span className='text-[var(--to-long)]'>●</span>
-                ) : (
-                  <span className='text-[var(--to-short)]'>●</span>
-                )}
-              </p>
-              <p>
-                Config loaded{' '}
-                {stats ? (
-                  <span className='text-[var(--to-long)]'>●</span>
-                ) : (
-                  <span className='text-[var(--to-short)]'>●</span>
-                )}
-              </p>
-              <p>
-                Risk guard{' '}
-                {risk ? (
-                  <span className='text-[var(--to-long)]'>●</span>
-                ) : (
-                  <span className='text-[var(--to-short)]'>●</span>
-                )}
-              </p>
-              <p>
-                Market open{' '}
-                {isConnected ? (
-                  <span className='text-[var(--to-long)]'>●</span>
-                ) : (
-                  <span className='text-[var(--to-text-dim)]'>—</span>
-                )}
-              </p>
-            </div>
-          </div>
-        </section>
+        <WaitingBanner
+          strategyName={strategyName}
+          timeframe={timeframe}
+          latestSignalTime={latestSignal ? new Date(latestSignal.created_at).toLocaleString() : null}
+          lastRejectReason={lastRejectSignal?.filter_reason || lastRejectSignal?.notes || ''}
+          isConnected={isConnected}
+          hasStats={!!stats}
+          hasRisk={!!risk}
+          mounted={mounted}
+        />
       )}
 
       {/* ── Main grid: 50 / 25 / 25 ─────────────────────────────── */}
       <div className='grid min-h-0 flex-1 grid-cols-1 gap-2 xl:grid-cols-4'>
-        {/* ── Col 1-2: Charts + Signal Table (50%) ──────────────── */}
-        <section
-          className={`to-panel col-span-1 flex min-h-0 flex-col overflow-hidden xl:col-span-2 ${
-            noData ? 'max-h-[220px]' : ''
-          }`}
-        >
+
+        {/* Col 1–2: Charts + Signal Table (50%) */}
+        <section className={`to-panel col-span-1 flex min-h-0 flex-col overflow-hidden xl:col-span-2 ${noData ? 'max-h-[220px]' : ''}`}>
           <div className='to-panel-header'>
             <div className='flex items-center gap-2'>
               <CandlestickChart className='h-3.5 w-3.5 text-[var(--to-accent-blue)]' />
@@ -350,12 +291,7 @@ export default function DashboardPage() {
             </div>
             <div className='flex items-center gap-1.5'>
               <span className='status-dot status-dot-active pulse-active' />
-              <span
-                className='text-[9px] text-[var(--to-text-dim)]'
-                style={{ fontFamily: 'var(--font-mono)' }}
-              >
-                LIVE FEED
-              </span>
+              <span className='kpi-meta'>LIVE FEED</span>
             </div>
           </div>
 
@@ -370,14 +306,10 @@ export default function DashboardPage() {
                   <PortfolioRiskWidget />
                 </div>
 
-                {/* Signal Table — sortable data grid */}
                 <div className='to-panel'>
                   <div className='to-panel-header'>
                     <span className='panel-label'>Signal Book</span>
-                    <span
-                      className='text-[9px] tabular-nums text-[var(--to-text-dim)]'
-                      style={{ fontFamily: 'var(--font-mono)' }}
-                    >
+                    <span className='kpi-meta font-mono tabular-nums'>
                       {signals.length} signals
                     </span>
                   </div>
@@ -395,7 +327,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* ── Col 3: Active Positions (25%) ─────────────────────── */}
+        {/* Col 3: Active Positions (25%) */}
         <section className='col-span-1 min-h-0 overflow-hidden'>
           <ActiveTradesPanel
             mode={activeMode}
@@ -404,9 +336,8 @@ export default function DashboardPage() {
           />
         </section>
 
-        {/* ── Col 4: Bot Config + Signal Log + Live Log (25%) ──── */}
+        {/* Col 4: Bot Config + Signal Log + Live Log (25%) */}
         <section className='col-span-1 flex min-h-0 flex-col gap-2 overflow-hidden'>
-          {/* Bot Runtime panel */}
           <div className='to-panel shrink-0'>
             <div className='to-panel-header'>
               <div className='flex items-center gap-2'>
@@ -420,15 +351,10 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Recent Signals */}
           <div className='min-h-0 flex-1 overflow-hidden'>
-            <RecentSignalsPanel
-              mode={activeMode}
-              onSelectSignal={handleSelectSignal}
-            />
+            <RecentSignalsPanel mode={activeMode} onSelectSignal={handleSelectSignal} />
           </div>
 
-          {/* Live Log terminal */}
           <LiveLog
             entries={logEntries}
             onClear={handleClearLog}
@@ -437,7 +363,6 @@ export default function DashboardPage() {
         </section>
       </div>
 
-      {/* Signal Inspector Sheet */}
       <SignalInspector
         signal={selectedSignal}
         open={inspectorOpen}
