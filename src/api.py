@@ -82,10 +82,19 @@ def _fail_fast_config():
     # ══════════════════════════════════════════════════════════
     # If Redis is down, the API cannot queue webhooks. Crash immediately
     # rather than accepting requests that can't be processed.
+    import time as _time
     from src.adapters.redis_queue import ping_redis
-    
-    if not ping_redis():
-        logger.critical("❌ FATAL: Redis unreachable. Check REDIS_URL environment variable.")
+
+    _redis_ok = False
+    for _attempt in range(1, 6):
+        if ping_redis():
+            _redis_ok = True
+            break
+        logger.warning("⏳ Redis not ready (attempt %d/5) — retrying in 3s...", _attempt)
+        _time.sleep(3)
+
+    if not _redis_ok:
+        logger.critical("❌ FATAL: Redis unreachable after 5 attempts. Check REDIS_URL environment variable.")
         logger.critical("API will not start until Redis is available.")
         raise RuntimeError("Redis connection failed at startup. Cannot accept webhooks without queue.")
     
