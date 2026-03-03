@@ -42,15 +42,15 @@ echo "[start.sh] PYTHONPATH=$PYTHONPATH"
 echo "[start.sh] PORT=$PORT"
 echo "[start.sh] Mode: $([ "$FULL_STACK" = "1" ] && echo 'Full Stack (frontend + backend)' || echo 'Backend Only')"
 
-# Use virtual environment if it exists (Railway deployment)
+# Use virtual environment if present (nixpacks legacy path)
 if [ -d "/app/venv" ]; then
   export PATH="/app/venv/bin:$PATH"
   echo "[start.sh] Using venv at /app/venv"
 fi
 
-# Verify config and src are importable
-python3 -c "from config import get_settings; from src.api import app; from src import worker; print('[start.sh] Import check: OK')" || {
-  echo "[start.sh] FATAL: Cannot import config/src - check PYTHONPATH"
+# Quick import-only smoke test (API only — avoids module-level side effects in worker)
+python3 -c "from config import get_settings; print('[start.sh] Config import: OK')" || {
+  echo "[start.sh] FATAL: Cannot import config - check PYTHONPATH and dependencies"
   exit 1
 }
 
@@ -84,14 +84,14 @@ if [ "$FULL_STACK" = "1" ]; then
   fi
 fi
 
-echo "[start.sh] Starting API (Producer)..."
-python3 -m uvicorn src.api:app --host 0.0.0.0 --port "$PORT" &
-UVICORN_PID=$!
-
-echo "[start.sh] Starting Worker (Consumer)..."
+echo "[start.sh] Starting Worker (Consumer) in background..."
 python3 -m src.worker &
 WORKER_PID=$!
+echo "[start.sh] Worker PID=$WORKER_PID"
 
-# Wait for uvicorn (primary); if it exits, bring down worker and frontend too
-wait $UVICORN_PID
-shutdown
+echo "[start.sh] Starting API (Producer) on port $PORT..."
+# Run uvicorn in foreground so Railway sees it as the main process
+exec python3 -m uvicorn src.api:app \
+  --host 0.0.0.0 \
+  --port "$PORT" \
+  --log-level info
