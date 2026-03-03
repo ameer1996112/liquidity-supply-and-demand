@@ -946,11 +946,12 @@ def process_trade(payload: Dict[str, Any]):
             logger.error("Staleness guard crashed: %s", e, exc_info=True)
 
     # ══════════════════════════════════════════════════════════════════
-    # AI ENSEMBLE DECISION (global — same decision for all accounts)
-    # Pine pre-filters REMOVED: Pine Script handles entry rules directly.
-    # The AI ensemble adds ML-based optimization on top of Pine signals.
+    # MAS COUNCIL DECISION (Supervisor → Quant Agent → Risk Agent)
+    # Debate is streamed live to /ws/debate via Redis pub/sub.
     # ══════════════════════════════════════════════════════════════════
-    ai_result = ensemble_decision(payload)
+    from src.agents.supervisor import Supervisor as _Supervisor
+    _supervisor = _Supervisor(supabase_client=supabase, redis_client=get_redis())
+    ai_result = _supervisor.evaluate(payload)
 
     # Enrich AI result with zone/sweep/metrics from original payload
     _ZONE_FIELD_MAP = {

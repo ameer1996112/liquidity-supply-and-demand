@@ -2,318 +2,286 @@
 
 import { useState, useEffect, useRef } from 'react';
 
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+type Level = 'INFO' | 'EXEC' | 'WARN' | 'ERR' | 'SYS';
+
 interface LogEntry {
   id: number;
   ts: string;
-  level: 'INFO' | 'EXEC' | 'WARN' | 'ERR' | 'SYS';
+  level: Level;
+  agent: string;        // raw agent name, e.g. "quant_agent"
   msg: string;
 }
 
-const LEVEL_COLOR: Record<LogEntry['level'], string> = {
-  INFO: '#2a2a2a',
-  EXEC: '#1E90FF',
-  WARN: '#FFB300',
-  ERR: '#FF3B47',
-  SYS: '#333',
+// ── Agent config ──────────────────────────────────────────────────────────────
+
+const AGENT_META: Record<string, { label: string; color: string; level: Level }> = {
+  supervisor:  { label: 'SUPERVISOR',  color: '#A0C4FF', level: 'INFO' },
+  quant_agent: { label: 'QUANT',       color: '#00E5A0', level: 'EXEC' },
+  risk_agent:  { label: 'RISK',        color: '#FFB300', level: 'WARN' },
+  system:      { label: 'SYS',         color: '#555',    level: 'SYS'  },
 };
 
-const LEVEL_LABEL_COLOR: Record<LogEntry['level'], string> = {
-  INFO: '#333',
-  EXEC: '#1E90FF',
+const DEFAULT_AGENT = { label: 'SYS', color: '#666', level: 'INFO' as Level };
+
+function agentMeta(name: string) {
+  return AGENT_META[name] ?? DEFAULT_AGENT;
+}
+
+// ── Level badge colours ───────────────────────────────────────────────────────
+
+const LEVEL_COLOR: Record<Level, string> = {
+  INFO: '#A0C4FF',
+  EXEC: '#00E5A0',
   WARN: '#FFB300',
-  ERR: '#FF3B47',
-  SYS: '#2a2a2a',
+  ERR:  '#FF4757',
+  SYS:  '#555',
 };
 
-const SEED_LOGS: Omit<LogEntry, 'id'>[] = [
-  { ts: '09:14:02', level: 'SYS', msg: 'System boot — all modules nominal' },
-  { ts: '09:14:03', level: 'SYS', msg: 'WebSocket connected → broker feed' },
-  { ts: '09:14:05', level: 'INFO', msg: 'Strategy LSND_v3 loaded · XAUUSD M5' },
-  { ts: '09:14:07', level: 'INFO', msg: 'Strategy LSND_v3 loaded · GBPJPY M5' },
-  {
-    ts: '09:15:00',
-    level: 'INFO',
-    msg: 'Candle close XAUUSD M5 · O:2338.4 C:2339.1',
-  },
-  {
-    ts: '09:15:01',
-    level: 'EXEC',
-    msg: 'SIGNAL BUY XAUUSD · conf=0.87 · lot=0.50',
-  },
-  {
-    ts: '09:15:02',
-    level: 'EXEC',
-    msg: 'ORDER SENT #P001 · XAUUSD BUY 0.50 @ 2338.40',
-  },
-  {
-    ts: '09:15:02',
-    level: 'EXEC',
-    msg: 'ORDER FILLED #P001 · slippage=0.1pip',
-  },
-  {
-    ts: '09:16:00',
-    level: 'INFO',
-    msg: 'Candle close GBPJPY M5 · O:196.82 C:196.71',
-  },
-  {
-    ts: '09:16:01',
-    level: 'EXEC',
-    msg: 'SIGNAL SELL GBPJPY · conf=0.81 · lot=0.30',
-  },
-  {
-    ts: '09:16:02',
-    level: 'EXEC',
-    msg: 'ORDER SENT #P002 · GBPJPY SELL 0.30 @ 196.82',
-  },
-  {
-    ts: '09:16:02',
-    level: 'EXEC',
-    msg: 'ORDER FILLED #P002 · slippage=0.2pip',
-  },
-  { ts: '09:20:00', level: 'INFO', msg: 'Risk check passed · drawdown=1.2%' },
-  {
-    ts: '09:22:15',
-    level: 'WARN',
-    msg: 'Spread widening EURUSD · 2.1pip > threshold',
-  },
-  {
-    ts: '09:25:00',
-    level: 'INFO',
-    msg: 'Candle close NAS100 M5 · O:18150 C:18162',
-  },
-  {
-    ts: '09:25:01',
-    level: 'EXEC',
-    msg: 'SIGNAL BUY NAS100 · conf=0.92 · lot=0.10',
-  },
-  {
-    ts: '09:25:02',
-    level: 'EXEC',
-    msg: 'ORDER SENT #P003 · NAS100 BUY 0.10 @ 18150.0',
-  },
-  {
-    ts: '09:25:02',
-    level: 'EXEC',
-    msg: 'ORDER FILLED #P003 · slippage=0.5pip',
-  },
-  { ts: '09:30:00', level: 'INFO', msg: 'Heartbeat OK · latency=4ms' },
-  {
-    ts: '09:31:44',
-    level: 'EXEC',
-    msg: 'SL MOVED #P001 · 2330.0 → 2334.0 (breakeven+)',
-  },
-  {
-    ts: '09:35:00',
-    level: 'INFO',
-    msg: 'Candle close EURUSD M5 · O:1.0882 C:1.0871',
-  },
-  {
-    ts: '09:35:01',
-    level: 'EXEC',
-    msg: 'SIGNAL BUY EURUSD · conf=0.74 · lot=1.00',
-  },
-  {
-    ts: '09:35:02',
-    level: 'EXEC',
-    msg: 'ORDER SENT #P004 · EURUSD BUY 1.00 @ 1.08820',
-  },
-  {
-    ts: '09:35:02',
-    level: 'EXEC',
-    msg: 'ORDER FILLED #P004 · slippage=0.1pip',
-  },
-  { ts: '09:40:00', level: 'INFO', msg: 'Heartbeat OK · latency=3ms' },
-  {
-    ts: '09:42:10',
-    level: 'WARN',
-    msg: 'P004 EURUSD drawdown -$110 · monitoring',
-  },
+// ── WebSocket URL (env-aware) ─────────────────────────────────────────────────
+
+function getWsUrl(): string {
+  const raw =
+    process.env.NEXT_PUBLIC_API_URL ||
+    (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:8000` : 'http://localhost:8000');
+
+  // http → ws  |  https → wss
+  const wsBase = raw.replace(/^http/, 'ws').replace(/\/$/, '');
+  return `${wsBase}/ws/debate`;
+}
+
+// ── Seed logs (shown before WebSocket connects) ───────────────────────────────
+
+const SEED: Omit<LogEntry, 'id'>[] = [
+  { ts: '00:00:00', level: 'SYS',  agent: 'system',      msg: 'Council Room online — awaiting signals.' },
+  { ts: '00:00:01', level: 'INFO', agent: 'supervisor',  msg: 'MAS v2 booted · Quant + Risk agents ready.' },
+  { ts: '00:00:02', level: 'EXEC', agent: 'quant_agent', msg: 'LightGBM model loaded · features=21.' },
+  { ts: '00:00:03', level: 'WARN', agent: 'risk_agent',  msg: 'Supabase connected · drawdown tracking active.' },
 ];
 
-const LIVE_TEMPLATES: Omit<LogEntry, 'id' | 'ts'>[] = [
-  { level: 'INFO', msg: 'Heartbeat OK · latency=3ms' },
-  { level: 'INFO', msg: 'Candle close XAUUSD M5 · price update' },
-  { level: 'EXEC', msg: 'TP PARTIAL #P003 · NAS100 +$272 locked' },
-  { level: 'INFO', msg: 'Risk check passed · drawdown=1.4%' },
-  { level: 'EXEC', msg: 'SL TRAIL #P002 · GBPJPY adjusted' },
-  { level: 'WARN', msg: 'High volatility detected · XAUUSD' },
-  { level: 'INFO', msg: 'Candle close GBPJPY M5 · price update' },
-  { level: 'EXEC', msg: 'SIGNAL SCAN complete · 0 new setups' },
-  { level: 'INFO', msg: 'Portfolio snapshot saved' },
-  { level: 'EXEC', msg: 'ORDER MODIFIED #P005 · TP adjusted' },
-];
+let _nextId = SEED.length + 1;
 
 function nowTs() {
   const d = new Date();
-  return `${String(d.getHours()).padStart(2, '0')}:${String(
-    d.getMinutes()
-  ).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+  return [d.getHours(), d.getMinutes(), d.getSeconds()]
+    .map((n) => String(n).padStart(2, '0'))
+    .join(':');
 }
 
-let _id = SEED_LOGS.length + 1;
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export function ExecutionLog() {
   const [logs, setLogs] = useState<LogEntry[]>(() =>
-    SEED_LOGS.map((l, i) => ({ ...l, id: i + 1 }))
+    SEED.map((l, i) => ({ ...l, id: i + 1 }))
   );
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const [connected, setConnected] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const wsRef     = useRef<WebSocket | null>(null);
+  const retryRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Append live log entries
+  // WebSocket → Council Room debate stream
   useEffect(() => {
-    const id = setInterval(() => {
-      const tmpl =
-        LIVE_TEMPLATES[Math.floor(Math.random() * LIVE_TEMPLATES.length)];
-      const entry: LogEntry = { ...tmpl, id: _id++, ts: nowTs() };
-      setLogs((prev) => [...prev.slice(-200), entry]);
-    }, 2200);
-    return () => clearInterval(id);
+    const wsUrl = getWsUrl();
+
+    const connect = () => {
+      try {
+        const ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
+
+        ws.onopen = () => {
+          setConnected(true);
+          setLogs((prev) => [
+            ...prev,
+            {
+              id:    _nextId++,
+              ts:    nowTs(),
+              level: 'SYS',
+              agent: 'system',
+              msg:   `Connected to Council Room (${wsUrl})`,
+            },
+          ]);
+        };
+
+        ws.onmessage = (ev) => {
+          try {
+            const data = JSON.parse(ev.data as string) as {
+              agent?: string;
+              message?: string;
+              level?: string;
+            };
+            const agentName = (data.agent || 'system').toLowerCase();
+            const meta = agentMeta(agentName);
+            const levelMap: Record<string, Level> = {
+              INFO: 'INFO', EXEC: 'EXEC', WARN: 'WARN', ERR: 'ERR', SYS: 'SYS',
+            };
+            const level: Level =
+              levelMap[(data.level ?? '').toUpperCase()] ?? meta.level;
+
+            setLogs((prev) => [
+              ...prev.slice(-300),
+              {
+                id:    _nextId++,
+                ts:    nowTs(),
+                level,
+                agent: agentName,
+                msg:   data.message ?? '',
+              },
+            ]);
+          } catch { /* skip non-JSON */ }
+        };
+
+        ws.onerror = () => setConnected(false);
+
+        ws.onclose = () => {
+          setConnected(false);
+          retryRef.current = setTimeout(connect, 4000);
+        };
+      } catch {
+        retryRef.current = setTimeout(connect, 4000);
+      }
+    };
+
+    connect();
+
+    return () => {
+      if (retryRef.current) clearTimeout(retryRef.current);
+      wsRef.current?.close();
+    };
   }, []);
 
-  // Auto-scroll to bottom
+  // Auto-scroll
   useEffect(() => {
-    if (autoScroll && bottomRef.current) {
-      bottomRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
+    if (autoScroll) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [logs, autoScroll]);
 
   return (
-    <div style={styles.wrapper}>
+    <div style={S.wrapper}>
+
+      {/* ── Status bar ── */}
+      <div style={S.statusBar}>
+        <span style={{ ...S.dot, background: connected ? '#00E5A0' : '#FFB300' }} />
+        <span style={{ ...S.statusText, color: connected ? '#00E5A0' : '#FFB300' }}>
+          {connected ? 'COUNCIL ROOM LIVE' : 'RECONNECTING…'}
+        </span>
+        <span style={S.statusSep} />
+        <span style={S.statusText}>MAS v2 · Quant ⟶ Risk ⟶ Supervisor</span>
+      </div>
+
+      {/* ── Log body ── */}
       <div
-        style={styles.logBody}
+        style={S.body}
         onScroll={(e) => {
           const el = e.currentTarget;
-          const atBottom =
-            el.scrollHeight - el.scrollTop - el.clientHeight < 40;
-          setAutoScroll(atBottom);
+          setAutoScroll(el.scrollHeight - el.scrollTop - el.clientHeight < 40);
         }}
       >
-        {logs.map((entry) => (
-          <div key={entry.id} style={styles.logRow}>
-            <span style={styles.logTs}>{entry.ts}</span>
-            <span
-              style={{
-                ...styles.logLevel,
-                color: LEVEL_LABEL_COLOR[entry.level],
-              }}
-            >
-              {entry.level.padEnd(4)}
-            </span>
-            <span
-              style={{
-                ...styles.logMsg,
-                color:
-                  LEVEL_COLOR[entry.level] === '#2a2a2a'
-                    ? '#3a3a3a'
-                    : LEVEL_COLOR[entry.level],
-              }}
-            >
-              {entry.msg}
-            </span>
-          </div>
-        ))}
+        {logs.map((entry) => {
+          const meta  = agentMeta(entry.agent);
+          const lc    = LEVEL_COLOR[entry.level];
+          return (
+            <div key={entry.id} style={S.row}>
+              {/* timestamp */}
+              <span style={S.ts}>{entry.ts}</span>
+
+              {/* level badge */}
+              <span style={{ ...S.badge, color: lc, borderColor: lc + '44' }}>
+                {entry.level}
+              </span>
+
+              {/* agent name */}
+              {entry.agent !== 'system' && (
+                <span style={{ ...S.agentTag, color: meta.color }}>
+                  {meta.label}
+                </span>
+              )}
+
+              {/* message */}
+              <span style={{ ...S.msg, color: entry.level === 'SYS' ? '#444' : '#D0D0D0' }}>
+                {entry.msg}
+              </span>
+            </div>
+          );
+        })}
         <div ref={bottomRef} />
       </div>
 
-      {/* Bottom bar */}
-      <div style={styles.logFooter}>
-        <span style={styles.logFooterText}>{logs.length} ENTRIES</span>
-        <span style={styles.logFooterSep} />
+      {/* ── Footer ── */}
+      <div style={S.footer}>
+        <span style={S.footerText}>{logs.length} ENTRIES</span>
+        <span style={S.sep} />
         <button
-          style={{
-            ...styles.logFooterBtn,
-            color: autoScroll ? '#1E90FF' : '#333',
-          }}
+          style={{ ...S.btn, color: autoScroll ? '#00E5A0' : '#555' }}
           onClick={() => setAutoScroll((v) => !v)}
         >
           {autoScroll ? '▼ AUTO' : '⏸ PAUSED'}
         </button>
-        <span style={styles.logFooterSep} />
-        <button style={styles.logFooterBtn} onClick={() => setLogs([])}>
-          CLR
-        </button>
+        <span style={S.sep} />
+        <button style={S.btn} onClick={() => setLogs([])}>CLR</button>
       </div>
     </div>
   );
 }
 
-const BORDER = '1px solid #141414';
+// ── Styles ────────────────────────────────────────────────────────────────────
 
-const styles: Record<string, React.CSSProperties> = {
+const BORDER = '1px solid #1a1a1a';
+
+const S: Record<string, React.CSSProperties> = {
   wrapper: {
-    display: 'flex',
-    flexDirection: 'column',
-    height: '100%',
-    overflow: 'hidden',
-    background: '#0A0A0A',
-  },
-  logBody: {
-    flex: 1,
-    overflowY: 'auto',
-    overflowX: 'hidden',
-    padding: '4px 0',
-    scrollbarWidth: 'thin',
-    scrollbarColor: '#1a1a1a transparent',
-  },
-  logRow: {
-    display: 'flex',
-    alignItems: 'baseline',
-    gap: 6,
-    padding: '1px 10px',
-    minHeight: 18,
-  },
-  logTs: {
-    fontFamily: 'monospace',
-    fontSize: 9,
-    color: '#222',
-    flexShrink: 0,
-    letterSpacing: '0.04em',
-  },
-  logLevel: {
-    fontFamily: 'monospace',
-    fontSize: 9,
-    fontWeight: 700,
-    flexShrink: 0,
-    letterSpacing: '0.06em',
-    width: 32,
-  },
-  logMsg: {
-    fontFamily: 'monospace',
-    fontSize: 9,
-    lineHeight: 1.5,
-    wordBreak: 'break-all',
-  },
-  logFooter: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    height: 24,
-    minHeight: 24,
-    borderTop: BORDER,
+    display: 'flex', flexDirection: 'column',
+    height: '100%', overflow: 'hidden',
     background: '#080808',
-    paddingLeft: 10,
-    flexShrink: 0,
+    fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", monospace',
   },
-  logFooterText: {
-    fontFamily: 'monospace',
-    fontSize: 8,
-    color: '#222',
-    letterSpacing: '0.08em',
+
+  // status bar
+  statusBar: {
+    display: 'flex', alignItems: 'center', gap: 8,
+    padding: '4px 12px', borderBottom: BORDER,
+    background: '#060606', flexShrink: 0,
   },
-  logFooterSep: {
-    width: 1,
-    height: 10,
-    background: '#1a1a1a',
-    display: 'inline-block',
+  dot: { width: 6, height: 6, borderRadius: '50%', flexShrink: 0 },
+  statusText: { fontSize: 9, letterSpacing: '0.12em', color: '#555' },
+  statusSep: { width: 1, height: 10, background: '#1e1e1e', display: 'inline-block' },
+
+  // log body
+  body: {
+    flex: 1, overflowY: 'auto', overflowX: 'hidden',
+    padding: '6px 0',
+    scrollbarWidth: 'thin', scrollbarColor: '#1a1a1a transparent',
   },
-  logFooterBtn: {
-    background: 'transparent',
-    border: 'none',
-    fontFamily: 'monospace',
-    fontSize: 8,
-    color: '#333',
-    cursor: 'pointer',
-    letterSpacing: '0.08em',
-    padding: 0,
+
+  // single row
+  row: {
+    display: 'flex', alignItems: 'baseline',
+    gap: 7, padding: '1.5px 12px', minHeight: 20,
+  },
+  ts: { fontSize: 9, color: '#2e2e2e', flexShrink: 0, letterSpacing: '0.04em', minWidth: 54 },
+  badge: {
+    fontSize: 8, fontWeight: 700, letterSpacing: '0.1em',
+    border: '1px solid', borderRadius: 2,
+    padding: '0 3px', flexShrink: 0, minWidth: 32, textAlign: 'center',
+  },
+  agentTag: {
+    fontSize: 8, fontWeight: 700, letterSpacing: '0.12em',
+    flexShrink: 0, minWidth: 68,
+  },
+  msg: { fontSize: 10, lineHeight: 1.55, wordBreak: 'break-word' },
+
+  // footer
+  footer: {
+    display: 'flex', alignItems: 'center',
+    gap: 8, height: 26, minHeight: 26,
+    borderTop: BORDER, background: '#060606',
+    paddingLeft: 12, flexShrink: 0,
+  },
+  footerText: { fontSize: 8, color: '#333', letterSpacing: '0.1em' },
+  sep: { width: 1, height: 10, background: '#1e1e1e', display: 'inline-block' },
+  btn: {
+    background: 'transparent', border: 'none', cursor: 'pointer',
+    fontSize: 8, color: '#444', letterSpacing: '0.1em', padding: 0,
+    fontFamily: 'inherit',
   },
 };

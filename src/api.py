@@ -9,7 +9,7 @@ import os
 import re
 from typing import Any
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, WebSocket
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -279,6 +279,39 @@ def get_ai_config():
             "risk_mode": s.risk_mode,
         },
     }
+
+
+@app.websocket("/ws/debate")
+async def debate_ws(websocket: WebSocket):
+    """
+    Stream MAS Council Room debate logs to the frontend AI Terminal.
+
+    The worker Supervisor publishes each step (quant score, risk check,
+    final decision) to Redis pub/sub channel `trading:debate_logs`.
+    This endpoint subscribes and forwards every message to connected clients.
+    """
+    from fastapi import WebSocket as _WS
+    await websocket.accept()
+    logger.info("[WS] /ws/debate client connected: %s", websocket.client)
+    try:
+        import redis.asyncio as aioredis
+        from config import get_settings as _gs
+        _r = aioredis.from_url(_gs().redis_url, decode_responses=True)
+        pubsub = _r.pubsub()
+        await pubsub.subscribe("trading:debate_logs")
+        async for raw in pubsub.listen():
+            if raw["type"] != "message":
+                continue
+            try:
+                await websocket.send_text(raw["data"])
+            except Exception:
+                break
+        await pubsub.unsubscribe("trading:debate_logs")
+        await _r.aclose()
+    except Exception as exc:
+        logger.warning("[WS] /ws/debate error: %s", exc)
+    finally:
+        logger.info("[WS] /ws/debate client disconnected")
 
 
 @app.post("/webhook")
