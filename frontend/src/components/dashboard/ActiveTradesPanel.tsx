@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   createColumnHelper,
   flexRender,
@@ -9,20 +9,27 @@ import {
   useReactTable,
   type SortingState,
 } from '@tanstack/react-table';
-import { useState } from 'react';
+import {
+  Radio,
+  Activity,
+  ChevronUp,
+  ChevronDown,
+  ChevronsUpDown,
+  TrendingUp,
+  TrendingDown,
+} from 'lucide-react';
+import { formatDistanceToNowStrict } from 'date-fns';
+
 import { useTradingSignals } from '@/hooks/useTradingSignals';
 import { TradingSignal, TradingMode, getSymbol, getSide, getPnl } from '@/types/trading';
 import { isSignalOpen } from '@/domain/metrics/tradingMetrics';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Radio, Activity, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { PanelEmptyState } from '@/components/shared/PanelEmptyState';
-import { EMPTY_VALUE, formatNumber, normalizeNegativeZero } from '@/lib/formatters';
 import { ClientDate } from '@/components/ui/ClientDate';
-import { formatDistanceToNowStrict } from 'date-fns';
-import { TrendingUp, TrendingDown } from 'lucide-react';
+import { EMPTY_VALUE, formatNumber, normalizeNegativeZero } from '@/lib/formatters';
+import { cn } from '@/lib/utils';
 
-// ── Interfaces ────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface ActiveTradesPanelProps {
   mode?: TradingMode;
@@ -30,24 +37,20 @@ interface ActiveTradesPanelProps {
   compact?: boolean;
 }
 
-// ── Column definitions ────────────────────────────────────────────────────────
-
-const col = createColumnHelper<TradingSignal>();
+// ── Cell components ───────────────────────────────────────────────────────────
 
 function SideCell({ signal }: { signal: TradingSignal }) {
   const side = getSide(signal);
   const isBuy = side === 'buy';
   return (
     <div className='flex items-center gap-1.5'>
-      <span className='font-mono text-xs font-bold text-[var(--to-text-primary)]'>
+      <span className='font-mono text-xs font-bold text-text-primary'>
         {getSymbol(signal)}
       </span>
       <span
         className={cn(
           'inline-flex items-center gap-0.5 rounded px-1 py-0 font-mono text-[9px] font-bold',
-          isBuy
-            ? 'bg-[var(--to-long)]/15 text-[var(--to-long)]'
-            : 'bg-[var(--to-short)]/15 text-[var(--to-short)]',
+          isBuy ? 'bg-long/15 text-long' : 'bg-short/15 text-short',
         )}
       >
         {isBuy ? <TrendingUp className='h-2.5 w-2.5' /> : <TrendingDown className='h-2.5 w-2.5' />}
@@ -63,11 +66,18 @@ function TriggerCell({ signal }: { signal: TradingSignal }) {
   let label: string | null = null;
   let cls = '';
 
-  if (exitType.includes('dir') || entryModel.includes('dir')) { label = 'DIR'; cls = 'trigger-dir-close'; }
-  else if (entryModel.includes('boc') || entryModel.includes('break')) { label = 'BoC'; cls = 'trigger-boc'; }
-  else if (entryModel.includes('flip') || entryModel.includes('zone') || signal.zone_type) { label = 'FLIP'; cls = 'trigger-flip'; }
+  if (exitType.includes('dir') || entryModel.includes('dir')) {
+    label = 'DIR';
+    cls = 'trigger-dir-close';
+  } else if (entryModel.includes('boc') || entryModel.includes('break')) {
+    label = 'BoC';
+    cls = 'trigger-boc';
+  } else if (entryModel.includes('flip') || entryModel.includes('zone') || signal.zone_type) {
+    label = 'FLIP';
+    cls = 'trigger-flip';
+  }
 
-  if (!label) return <span className='text-[var(--to-text-dim)]'>—</span>;
+  if (!label) return <span className='text-text-dim'>—</span>;
   return <span className={cn('rounded px-1.5 py-0 text-[9px] font-bold', cls)}>{label}</span>;
 }
 
@@ -75,7 +85,7 @@ function EntryCell({ signal }: { signal: TradingSignal }) {
   const entry = signal.price ?? signal.entry;
   const symbol = getSymbol(signal);
   return (
-    <span className='font-mono text-[11px] tabular-nums text-[var(--to-text-secondary)]'>
+    <span className='font-mono text-[11px] tabular-nums text-text-secondary'>
       {entry != null ? Number(entry).toFixed(symbol.includes('JPY') ? 3 : 5) : EMPTY_VALUE}
     </span>
   );
@@ -83,7 +93,7 @@ function EntryCell({ signal }: { signal: TradingSignal }) {
 
 function RrCell({ signal }: { signal: TradingSignal }) {
   return (
-    <span className='font-mono text-[11px] tabular-nums text-[var(--to-text-dim)]'>
+    <span className='font-mono text-[11px] tabular-nums text-text-dim'>
       {signal.rr_ratio ? `1:${formatNumber(signal.rr_ratio, { decimals: 1 })}` : EMPTY_VALUE}
     </span>
   );
@@ -92,7 +102,7 @@ function RrCell({ signal }: { signal: TradingSignal }) {
 function AgeCell({ signal }: { signal: TradingSignal }) {
   return (
     <ClientDate
-      className='font-mono text-[10px] tabular-nums text-[var(--to-text-dim)]'
+      className='font-mono text-[10px] tabular-nums text-text-dim'
       render={() =>
         formatDistanceToNowStrict(new Date(signal.created_at), { addSuffix: false })
       }
@@ -103,19 +113,24 @@ function AgeCell({ signal }: { signal: TradingSignal }) {
 function PnlCell({ signal }: { signal: TradingSignal }) {
   const pnl = normalizeNegativeZero(getPnl(signal));
   if (pnl == null) {
-    return <span className='font-mono text-xs text-[var(--to-text-dim)]'>{EMPTY_VALUE}</span>;
+    return <span className='font-mono text-xs text-text-dim'>{EMPTY_VALUE}</span>;
   }
   return (
     <span
       className={cn(
         'font-mono text-xs font-bold tabular-nums',
-        pnl >= 0 ? 'text-[var(--to-long)]' : 'text-[var(--to-short)]',
+        pnl >= 0 ? 'text-long' : 'text-short',
       )}
     >
-      {pnl > 0 ? '+' : ''}{formatNumber(pnl, { decimals: 2 })}
+      {pnl > 0 ? '+' : ''}
+      {formatNumber(pnl, { decimals: 2 })}
     </span>
   );
 }
+
+// ── Column definitions ────────────────────────────────────────────────────────
+
+const col = createColumnHelper<TradingSignal>();
 
 const COLUMNS = [
   col.display({
@@ -150,7 +165,7 @@ const COLUMNS = [
   }),
 ];
 
-// ── Sort icon helper ──────────────────────────────────────────────────────────
+// ── Sort icon ─────────────────────────────────────────────────────────────────
 
 function SortIcon({ isSorted }: { isSorted: false | 'asc' | 'desc' }) {
   if (isSorted === 'asc') return <ChevronUp className='h-3 w-3' />;
@@ -160,7 +175,11 @@ function SortIcon({ isSorted }: { isSorted: false | 'asc' | 'desc' }) {
 
 // ── Panel ─────────────────────────────────────────────────────────────────────
 
-export function ActiveTradesPanel({ mode, onSelectSignal, compact = false }: ActiveTradesPanelProps) {
+export function ActiveTradesPanel({
+  mode,
+  onSelectSignal,
+  compact = false,
+}: ActiveTradesPanelProps) {
   const { data: signals = [], isLoading } = useTradingSignals(mode);
   const [sorting, setSorting] = useState<SortingState>([]);
 
@@ -177,19 +196,18 @@ export function ActiveTradesPanel({ mode, onSelectSignal, compact = false }: Act
 
   return (
     <div className='to-panel flex h-full min-h-0 flex-col overflow-hidden'>
-
       {/* Header */}
       <div className='to-panel-header'>
         <div className='flex items-center gap-2'>
-          <Radio className='h-3.5 w-3.5 text-[var(--to-accent-blue)]' />
+          <Radio className='h-3.5 w-3.5 text-blue-accent' />
           <span className='panel-label'>Active Positions</span>
         </div>
         <span
           className={cn(
             'rounded px-2 py-0.5 font-mono text-[10px] font-bold tabular-nums',
             activeTrades.length > 0
-              ? 'bg-[var(--to-accent-blue)]/15 text-[var(--to-accent-blue)]'
-              : 'bg-[var(--to-surface-raised)] text-[var(--to-text-dim)]',
+              ? 'bg-blue-accent/15 text-blue-accent'
+              : 'bg-surface-raised text-text-dim',
           )}
         >
           {activeTrades.length}
@@ -201,7 +219,7 @@ export function ActiveTradesPanel({ mode, onSelectSignal, compact = false }: Act
         {isLoading ? (
           <div className='space-y-1.5 p-2'>
             {Array.from({ length: 3 }, (_, i) => (
-              <Skeleton key={i} className='h-8 w-full rounded bg-[var(--to-surface-raised)]/60' />
+              <Skeleton key={i} className='h-8 w-full rounded bg-surface-raised/60' />
             ))}
           </div>
         ) : activeTrades.length === 0 ? (
@@ -218,15 +236,15 @@ export function ActiveTradesPanel({ mode, onSelectSignal, compact = false }: Act
           <table className='w-full'>
             <thead>
               {table.getHeaderGroups().map((hg) => (
-                <tr key={hg.id} className='border-b border-[var(--to-border)]'>
+                <tr key={hg.id} className='border-b border-panel-border'>
                   {hg.headers.map((header) => (
                     <th
                       key={header.id}
                       onClick={header.column.getToggleSortingHandler()}
                       className={cn(
-                        'px-2 py-1 text-left',
-                        'kpi-meta select-none',
-                        header.column.getCanSort() && 'cursor-pointer hover:text-[var(--to-text-secondary)]',
+                        'px-2 py-1 text-left kpi-meta select-none',
+                        header.column.getCanSort() &&
+                          'cursor-pointer hover:text-text-secondary',
                       )}
                     >
                       <span className='inline-flex items-center gap-1'>
@@ -246,10 +264,10 @@ export function ActiveTradesPanel({ mode, onSelectSignal, compact = false }: Act
                   key={row.id}
                   onClick={() => onSelectSignal(row.original)}
                   className={cn(
-                    'border-b border-[var(--to-border-subtle)] last:border-0',
+                    'border-b border-panel-border-subtle last:border-0',
                     'cursor-pointer transition-colors duration-100',
-                    'hover:bg-[var(--to-surface-raised)]',
-                    'border-l-2 border-l-[var(--to-accent-blue)]/30',
+                    'hover:bg-surface-raised',
+                    'border-l-2 border-l-blue-accent/30',
                   )}
                 >
                   {row.getVisibleCells().map((cell) => (

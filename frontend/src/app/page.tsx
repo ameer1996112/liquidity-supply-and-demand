@@ -1,7 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState, useEffect, useRef } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useCallback, useMemo, useState, useEffect } from 'react';
 import { SignalInspector } from '@/components/SignalInspector';
 import { ActiveTradesPanel } from '@/components/dashboard/ActiveTradesPanel';
 import { RecentSignalsPanel } from '@/components/dashboard/RecentSignalsPanel';
@@ -12,18 +11,19 @@ import { EvaluationDashboard } from '@/components/evaluation/EvaluationDashboard
 import { PineConfigStatus } from '@/components/dashboard/PineConfigStatus';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { SignalTable } from '@/components/dashboard/SignalTable';
-import { LiveLog, type LogEntry } from '@/components/dashboard/LiveLog';
+import { LiveLog } from '@/components/dashboard/LiveLog';
 import { useTradingMode } from '@/providers/TradingModeProvider';
 import { useSignalStats, useTradingSignals } from '@/hooks/useTradingSignals';
 import { useRiskStatus } from '@/hooks/useRiskStatus';
-import { getApiUrl } from '@/lib/api';
+import { useConnectionHealth } from '@/hooks/useConnectionHealth';
+import { useDashboardLog } from '@/hooks/useDashboardLog';
 import {
   formatCurrency,
   formatNumber,
   formatPercent,
   EMPTY_VALUE,
 } from '@/lib/formatters';
-import { TradingSignal, TradingMode } from '@/types/trading';
+import type { TradingSignal, TradingMode } from '@/types/trading';
 import {
   CandlestickChart,
   Server,
@@ -35,12 +35,9 @@ import {
   Crosshair,
   Clock,
 } from 'lucide-react';
-import {
-  isSignalOpen,
-  isSignalRejected,
-} from '@/domain/metrics/tradingMetrics';
+import { isSignalOpen, isSignalRejected } from '@/domain/metrics/tradingMetrics';
 
-// ── Local sub-components ──────────────────────────────────────────────────────
+// ── Sub-components ────────────────────────────────────────────────────────────
 
 function ModeBadge({ mode }: { mode: TradingMode }) {
   return (
@@ -62,6 +59,8 @@ interface WaitingBannerProps {
   mounted: boolean;
 }
 
+const STATUS_CHECKS = ['Connected', 'Config loaded', 'Risk guard', 'Market open'] as const;
+
 function WaitingBanner({
   strategyName,
   timeframe,
@@ -72,46 +71,45 @@ function WaitingBanner({
   hasRisk,
   mounted,
 }: WaitingBannerProps) {
+  const checks: [string, boolean][] = [
+    ['Connected', isConnected],
+    ['Config loaded', hasStats],
+    ['Risk guard', hasRisk],
+    ['Market open', isConnected],
+  ];
+
   return (
-    <section className='to-panel shrink-0 border-[var(--to-warning)]/15 bg-[var(--to-warning)]/5 p-3'>
-      <h2 className='text-sm font-semibold text-[var(--to-warning)]'>
-        Bot is waiting for…
-      </h2>
+    <section className='to-panel shrink-0 border-amber/15 bg-amber/5 p-3'>
+      <h2 className='text-sm font-semibold text-amber'>Bot is waiting for…</h2>
       <div className='mt-2 grid gap-3 md:grid-cols-2'>
-        <dl className='space-y-1 text-xs text-[var(--to-text-secondary)]'>
+        <dl className='space-y-1 text-xs text-text-secondary'>
+          {([
+            ['Strategy', strategyName],
+            ['Timeframe', timeframe],
+          ] as [string, string][]).map(([label, val]) => (
+            <div key={label} className='flex gap-1.5'>
+              <dt className='text-text-dim'>{label}:</dt>
+              <dd>{val}</dd>
+            </div>
+          ))}
           <div className='flex gap-1.5'>
-            <dt className='text-[var(--to-text-dim)]'>Strategy:</dt>
-            <dd>{strategyName}</dd>
-          </div>
-          <div className='flex gap-1.5'>
-            <dt className='text-[var(--to-text-dim)]'>Timeframe:</dt>
-            <dd>{timeframe}</dd>
-          </div>
-          <div className='flex gap-1.5'>
-            <dt className='text-[var(--to-text-dim)]'>Last signal:</dt>
+            <dt className='text-text-dim'>Last signal:</dt>
             <dd className='font-mono tabular-nums'>
               {mounted ? (latestSignalTime ?? EMPTY_VALUE) : 'Loading…'}
             </dd>
           </div>
           <div className='flex gap-1.5'>
-            <dt className='text-[var(--to-text-dim)]'>Last reject:</dt>
+            <dt className='text-text-dim'>Last reject:</dt>
             <dd>{lastRejectReason || EMPTY_VALUE}</dd>
           </div>
         </dl>
 
-        <div className='rounded border border-[var(--to-border)] bg-[var(--to-surface)] p-3'>
-          <ul className='space-y-1 text-xs text-[var(--to-text-secondary)]'>
-            {(
-              [
-                ['Connected', isConnected],
-                ['Config loaded', hasStats],
-                ['Risk guard', hasRisk],
-                ['Market open', isConnected],
-              ] as [string, boolean][]
-            ).map(([label, ok]) => (
+        <div className='rounded border border-panel-border bg-surface p-3'>
+          <ul className='space-y-1 text-xs text-text-secondary'>
+            {checks.map(([label, ok]) => (
               <li key={label} className='flex items-center justify-between'>
                 <span>{label}</span>
-                <span className={ok ? 'text-[var(--to-long)]' : 'text-[var(--to-short)]'}>●</span>
+                <span className={ok ? 'text-long' : 'text-short'}>●</span>
               </li>
             ))}
           </ul>
@@ -121,14 +119,15 @@ function WaitingBanner({
   );
 }
 
+// Silence unused import warning — STATUS_CHECKS is a typed constant for future use
+void STATUS_CHECKS;
+
 // ── Dashboard page ────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
   const [selectedSignal, setSelectedSignal] = useState<TradingSignal | null>(null);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
-  const logIdRef = useRef(0);
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -136,20 +135,9 @@ export default function DashboardPage() {
   const { data: stats } = useSignalStats();
   const { data: risk } = useRiskStatus();
   const { data: signals = [] } = useTradingSignals(activeMode);
+  const { isConnected } = useConnectionHealth();
 
-  const { data: health } = useQuery({
-    queryKey: ['dashboard-health'],
-    queryFn: async () => {
-      const base = getApiUrl();
-      if (!base) return { status: 'offline' as const };
-      const res = await fetch(`${base}/health`, { signal: AbortSignal.timeout(3000) });
-      if (!res.ok) return { status: 'offline' as const };
-      return res.json() as Promise<{ status: 'healthy' | 'degraded' | 'offline' }>;
-    },
-    refetchInterval: 30_000,
-  });
-
-  const isConnected = health?.status != null && health.status !== 'offline';
+  // ── Derived values ──────────────────────────────────────────────────────────
 
   const activePositionsCount = useMemo(
     () => signals.filter(isSignalOpen).length,
@@ -158,73 +146,61 @@ export default function DashboardPage() {
 
   const tradesToday = useMemo(() => {
     if (!mounted) return 0;
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-    return signals.filter((s) => new Date(s.created_at) >= start).length;
+    const dayStart = new Date();
+    dayStart.setHours(0, 0, 0, 0);
+    return signals.filter((s) => new Date(s.created_at) >= dayStart).length;
   }, [signals, mounted]);
 
   const latestSignal = signals[0] ?? null;
+
   const lastRejectSignal = useMemo(
-    () => signals.find((s) => isSignalRejected(s)),
+    () => signals.find(isSignalRejected),
     [signals],
   );
+
+  const lastUpdated = useMemo(
+    () =>
+      latestSignal
+        ? new Date(latestSignal.updated_at ?? latestSignal.created_at).toLocaleTimeString()
+        : new Date().toLocaleTimeString(),
+    // Recompute only when the latest signal changes, not on every render tick
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [latestSignal?.id],
+  );
+
   const noData = signals.length === 0 && activePositionsCount === 0;
-
-  const lastUpdated = latestSignal
-    ? new Date(latestSignal.updated_at ?? latestSignal.created_at).toLocaleTimeString()
-    : new Date().toLocaleTimeString();
-
-  const strategyName = latestSignal?.entry_model || latestSignal?.zone_type || 'Liquidity S&D';
+  const strategyName = latestSignal?.entry_model ?? latestSignal?.zone_type ?? 'Liquidity S&D';
   const timeframe = '5M';
 
-  const todayPnl = activeMode === 'PAPER'
-    ? (stats?.paper_daily_pnl ?? stats?.paper_pnl_24h)
-    : (stats?.live_daily_pnl ?? stats?.live_pnl_24h);
-  const totalPnl = activeMode === 'PAPER'
-    ? (stats?.paper_total_pnl ?? stats?.paper_pnl_24h)
-    : (stats?.live_total_pnl ?? stats?.total_pnl);
+  const todayPnl =
+    activeMode === 'PAPER'
+      ? (stats?.paper_daily_pnl ?? stats?.paper_pnl_24h)
+      : (stats?.live_daily_pnl ?? stats?.live_pnl_24h);
 
-  // Append live-log entries when new signals arrive
-  const prevSignalCountRef = useRef(signals.length);
-  useEffect(() => {
-    if (!mounted) return;
-    if (signals.length > prevSignalCountRef.current) {
-      const newSignals = signals.slice(0, signals.length - prevSignalCountRef.current);
-      setLogEntries((prev) => [
-        ...prev,
-        ...newSignals.map((s) => ({
-          id: String(++logIdRef.current),
-          timestamp: s.created_at,
-          level: (
-            s.status === 'active' || s.status === 'executed' ? 'success' :
-            s.status === 'filtered' || s.status === 'ai_rejected' ? 'warn' : 'info'
-          ) as LogEntry['level'],
-          message: `${s.symbol} ${s.side.toUpperCase()} @ ${s.entry ?? s.price ?? '?'} — ${s.status}`,
-          source: 'SIGNAL',
-        })),
-      ]);
-    }
-    prevSignalCountRef.current = signals.length;
-  }, [signals, mounted]);
+  const totalPnl =
+    activeMode === 'PAPER'
+      ? (stats?.paper_total_pnl ?? stats?.paper_pnl_24h)
+      : (stats?.live_total_pnl ?? stats?.total_pnl);
 
-  // Seed initial log entries on first mount
-  useEffect(() => {
-    if (!mounted) return;
-    const now = new Date().toISOString();
-    setLogEntries([
-      { id: String(++logIdRef.current), timestamp: now, level: 'info', message: `Dashboard initialized — mode: ${activeMode}`, source: 'SYSTEM' },
-      { id: String(++logIdRef.current), timestamp: now, level: isConnected ? 'success' : 'error', message: isConnected ? 'API connection established' : 'API unreachable — signals via Supabase only', source: 'HEALTH' },
-      { id: String(++logIdRef.current), timestamp: now, level: 'info', message: `Strategy: ${strategyName} | Timeframe: ${timeframe}`, source: 'CONFIG' },
-    ]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mounted]);
+  // ── Live log ────────────────────────────────────────────────────────────────
+
+  const { entries: logEntries, clear: clearLog } = useDashboardLog({
+    signals,
+    activeMode,
+    isConnected,
+    strategyName,
+    timeframe,
+    mounted,
+  });
+
+  // ── Handlers ────────────────────────────────────────────────────────────────
 
   const handleSelectSignal = useCallback((signal: TradingSignal) => {
     setSelectedSignal(signal);
     setInspectorOpen(true);
   }, []);
 
-  const handleClearLog = useCallback(() => setLogEntries([]), []);
+  // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
     <div className='flex h-full min-h-0 flex-col gap-2'>
@@ -237,7 +213,6 @@ export default function DashboardPage() {
             Live command center · market orders · 5-minute zones
           </p>
         </div>
-
         <div className='flex items-center gap-2'>
           <span className='tf-badge'>
             <Radio className='h-3 w-3' />
@@ -256,12 +231,12 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className='grid grid-cols-2 gap-1.5 md:grid-cols-3 xl:grid-cols-6'>
-          <StatCard label='Today PnL'         value={mounted ? formatCurrency(todayPnl, { signed: true }) : '—'} icon={Wallet} />
-          <StatCard label='Total PnL'         value={mounted ? formatCurrency(totalPnl, { signed: true }) : '—'} icon={TrendingUp} />
-          <StatCard label='Drawdown'          value={mounted ? formatPercent(risk?.drawdown_pct) : '—'} icon={Activity} variant='loss' />
-          <StatCard label='Daily DD'          value={mounted ? formatPercent(stats?.daily_drawdown_pct) : '—'} icon={BarChart3} />
-          <StatCard label='Active Positions'  value={mounted ? formatNumber(activePositionsCount, { decimals: 0, empty: '0' }) : '—'} icon={Crosshair} />
-          <StatCard label='Trades Today'      value={mounted ? formatNumber(tradesToday, { decimals: 0, empty: '0' }) : '—'} icon={Clock} />
+          <StatCard label='Today PnL'        value={mounted ? formatCurrency(todayPnl, { signed: true }) : '—'} icon={Wallet} />
+          <StatCard label='Total PnL'        value={mounted ? formatCurrency(totalPnl, { signed: true }) : '—'} icon={TrendingUp} />
+          <StatCard label='Drawdown'         value={mounted ? formatPercent(risk?.drawdown_pct) : '—'} icon={Activity} variant='loss' />
+          <StatCard label='Daily DD'         value={mounted ? formatPercent(stats?.daily_drawdown_pct) : '—'} icon={BarChart3} />
+          <StatCard label='Active Positions' value={mounted ? formatNumber(activePositionsCount, { decimals: 0, empty: '0' }) : '—'} icon={Crosshair} />
+          <StatCard label='Trades Today'     value={mounted ? formatNumber(tradesToday, { decimals: 0, empty: '0' }) : '—'} icon={Clock} />
         </div>
       </section>
 
@@ -270,8 +245,10 @@ export default function DashboardPage() {
         <WaitingBanner
           strategyName={strategyName}
           timeframe={timeframe}
-          latestSignalTime={latestSignal ? new Date(latestSignal.created_at).toLocaleString() : null}
-          lastRejectReason={lastRejectSignal?.filter_reason || lastRejectSignal?.notes || ''}
+          latestSignalTime={
+            latestSignal ? new Date(latestSignal.created_at).toLocaleString() : null
+          }
+          lastRejectReason={lastRejectSignal?.filter_reason ?? lastRejectSignal?.notes ?? ''}
           isConnected={isConnected}
           hasStats={!!stats}
           hasRisk={!!risk}
@@ -279,14 +256,19 @@ export default function DashboardPage() {
         />
       )}
 
-      {/* ── Main grid: 50 / 25 / 25 ─────────────────────────────── */}
+      {/* ── Main grid: [50%] [25%] [25%] ────────────────────────── */}
       <div className='grid min-h-0 flex-1 grid-cols-1 gap-2 xl:grid-cols-4'>
 
-        {/* Col 1–2: Charts + Signal Table (50%) */}
-        <section className={`to-panel col-span-1 flex min-h-0 flex-col overflow-hidden xl:col-span-2 ${noData ? 'max-h-[220px]' : ''}`}>
+        {/* Col 1–2 · Charts + Signal Table */}
+        <section
+          className={[
+            'to-panel col-span-1 flex min-h-0 flex-col overflow-hidden xl:col-span-2',
+            noData ? 'max-h-[220px]' : '',
+          ].join(' ')}
+        >
           <div className='to-panel-header'>
             <div className='flex items-center gap-2'>
-              <CandlestickChart className='h-3.5 w-3.5 text-[var(--to-accent-blue)]' />
+              <CandlestickChart className='h-3.5 w-3.5 text-blue-accent' />
               <span className='panel-label'>Technical Analysis</span>
             </div>
             <div className='flex items-center gap-1.5'>
@@ -299,6 +281,7 @@ export default function DashboardPage() {
             <div className={noData ? 'min-h-[120px]' : 'min-h-[180px]'}>
               <MiniEquityChart mode={activeMode} />
             </div>
+
             {!noData && (
               <>
                 <div className='grid grid-cols-1 gap-2 lg:grid-cols-2'>
@@ -327,7 +310,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* Col 3: Active Positions (25%) */}
+        {/* Col 3 · Active Positions */}
         <section className='col-span-1 min-h-0 overflow-hidden'>
           <ActiveTradesPanel
             mode={activeMode}
@@ -336,12 +319,12 @@ export default function DashboardPage() {
           />
         </section>
 
-        {/* Col 4: Bot Config + Signal Log + Live Log (25%) */}
+        {/* Col 4 · Bot Runtime + Signal Log + Live Log */}
         <section className='col-span-1 flex min-h-0 flex-col gap-2 overflow-hidden'>
           <div className='to-panel shrink-0'>
             <div className='to-panel-header'>
               <div className='flex items-center gap-2'>
-                <Server className='h-3.5 w-3.5 text-[var(--to-accent-blue)]' />
+                <Server className='h-3.5 w-3.5 text-blue-accent' />
                 <span className='panel-label'>Bot Runtime</span>
               </div>
               <span className='status-dot status-dot-active pulse-active' />
@@ -357,7 +340,7 @@ export default function DashboardPage() {
 
           <LiveLog
             entries={logEntries}
-            onClear={handleClearLog}
+            onClear={clearLog}
             className='h-[200px] shrink-0'
           />
         </section>

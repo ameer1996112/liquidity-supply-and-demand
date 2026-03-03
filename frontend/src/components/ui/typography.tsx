@@ -3,8 +3,9 @@
  * and provides a consistent panel-label pattern across the design system.
  *
  * Usage:
- *   <Mono size="lg" className="text-[var(--to-long)]">+$1,240.00</Mono>
+ *   <Mono size="lg" className="text-long">+$1,240.00</Mono>
  *   <PanelLabel>Signal Book</PanelLabel>
+ *   <KpiMeta>Session KPIs</KpiMeta>
  *   <DataField label="Entry" value="1.08543" />
  */
 
@@ -84,9 +85,25 @@ export function DataField({ label, value, className, valueClassName }: DataField
   return (
     <div className={cn('flex flex-col', className)}>
       <span className='kpi-meta'>{label}</span>
-      <span className={cn('font-mono text-[11px] tabular-nums text-[var(--to-text-secondary)]', valueClassName)}>
+      <span className={cn('font-mono text-[11px] tabular-nums text-text-secondary', valueClassName)}>
         {value}
       </span>
     </div>
+  );
+}
+
+// ── KpiMeta — uppercase micro-label ──────────────────────────────────────────
+
+interface KpiMetaProps extends HTMLAttributes<HTMLSpanElement> {}
+
+/**
+ * Renders a KPI sub-label — uppercase, tracked, dim. Replaces every
+ * `<p className="kpi-meta">` / `<span className="kpi-meta">` in page code.
+ */
+export function KpiMeta({ className, children, ...props }: KpiMetaProps) {
+  return (
+    <span className={cn('kpi-meta', className)} {...props}>
+      {children}
+    </span>
   );
 }

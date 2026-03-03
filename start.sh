@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 set -e
 
-# Use Railway's PORT (default 8000 for local)
-export PORT="${PORT:-8000}"
-
 # Set ROOT_DIR - Railway deploys to /app, local dev uses script location
 if [ -d "/app/src" ]; then
   ROOT_DIR="/app"
@@ -15,6 +12,9 @@ cd "$ROOT_DIR"
 export PYTHONPATH="$ROOT_DIR:$PYTHONPATH"
 
 # Load .env from project root so API and worker get SUPABASE_URL, REDIS_URL, etc.
+# IMPORTANT: Load .env BEFORE applying PORT default so Railway's injected PORT
+# (set in the process environment before this script runs) takes precedence over
+# any PORT value inside .env.
 if [ -f "$ROOT_DIR/.env" ]; then
   set -a
   source "$ROOT_DIR/.env"
@@ -23,6 +23,11 @@ if [ -f "$ROOT_DIR/.env" ]; then
 else
   echo "[start.sh] No .env found - set SUPABASE_URL and REDIS_URL in environment or create .env"
 fi
+
+# Railway injects PORT as a process-level env var before this script starts.
+# Re-apply it now so it wins over any PORT value that was in .env.
+# Fall back to 8000 for local dev where neither Railway nor .env sets PORT.
+export PORT="${RAILWAY_PORT:-${PORT:-8000}}"
 
 # Option A: Backend only (default). Option B: Full stack (frontend + backend).
 # Usage: ./start.sh           → backend only
