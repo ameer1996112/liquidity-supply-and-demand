@@ -17,7 +17,8 @@ from pydantic import ValidationError
 from urllib.parse import parse_qs
 
 from config import get_settings
-from src.adapters.redis_queue import QUEUE_NAME, get_redis, push_payload
+from src.adapters.redis_queue import get_redis
+from src.core.transport import get_transport
 from src.core.signal import EntryWebhookPayload, ExitWebhookPayload
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -78,27 +79,26 @@ def _fail_fast_config():
     settings = get_settings()
     
     # ══════════════════════════════════════════════════════════
-    # CRITICAL: Redis Health Check (Fail-Fast)
+    # CRITICAL: Transport Health Check (Fail-Fast)
     # ══════════════════════════════════════════════════════════
-    # If Redis is down, the API cannot queue webhooks. Crash immediately
-    # rather than accepting requests that can't be processed.
+    # If the signal transport is down, the API cannot queue webhooks.
+    # Crash immediately rather than accepting requests that can't be processed.
     import time as _time
-    from src.adapters.redis_queue import ping_redis
 
-    _redis_ok = False
+    transport = get_transport()
+    _transport_ok = False
     for _attempt in range(1, 6):
-        if ping_redis():
-            _redis_ok = True
+        if transport.ping():
+            _transport_ok = True
             break
-        logger.warning("⏳ Redis not ready (attempt %d/5) — retrying in 3s...", _attempt)
+        logger.warning("Transport not ready (attempt %d/5) — retrying in 3s...", _attempt)
         _time.sleep(3)
 
-    if not _redis_ok:
-        logger.critical("❌ FATAL: Redis unreachable after 5 attempts. Check REDIS_URL environment variable.")
-        logger.critical("API will not start until Redis is available.")
-        raise RuntimeError("Redis connection failed at startup. Cannot accept webhooks without queue.")
-    
-    logger.info("✅ Redis connection verified - Queue operational")
+    if not _transport_ok:
+        logger.critical("FATAL: Signal transport unreachable after 5 attempts.")
+        raise RuntimeError("Signal transport connection failed at startup. Cannot accept webhooks without queue.")
+
+    logger.info("Signal transport verified - Queue operational (%s)", type(transport).__name__)
     redis_client = get_redis()
 
     # Initialize background sync worker if enabled
@@ -322,6 +322,6 @@ async def webhook(payload: dict[str, Any] = Depends(get_webhook_payload)):
     run_mode = payload["run_mode"]
     logger.info("Signal: %s | Mode: %s", symbol, run_mode)
     payload_str = json.dumps(payload)
-    push_payload(payload_str)
+    get_transport().enqueue(payload_str)
     logger.info("Queued payload (len=%d)", len(payload_str))
     return JSONResponse(status_code=200, content={"status": "queued"})

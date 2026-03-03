@@ -23,7 +23,9 @@ _root = Path(__file__).resolve().parent.parent
 load_dotenv(_root / ".env")
 
 from config import get_settings
-from src.adapters.redis_queue import QUEUE_NAME, get_redis, push_dead_letter, reset_redis_client
+from src.adapters.redis_queue import get_redis
+from src.core.transport import SignalTransport, get_transport
+from src.core.consumer_validator import validate_dequeued_message
 from src.ai.brain import ensemble_decision, get_prediction, load_brain
 from src.core.risk_engine import calculate_max_position_size as _calculate_max_position_size_impl
 from src.core.guard_rails.correlation import (
@@ -1085,10 +1087,12 @@ def run():
     init_connections()
     load_brain()
     s = get_settings()
+    transport = get_transport()
     kill_sw = getattr(s, "trading_kill_switch", False)
     live = getattr(s, "live_trading_enabled", False)
     logger.info("=" * 60)
     logger.info("WORKER v2 (MULTI-ACCOUNT ISOLATED) STARTED")
+    logger.info("Transport: %s", type(transport).__name__)
     logger.info("Account Balance: $%s", f"{s.account_balance:,.0f}")
     logger.info("Risk Per Trade: %s%%", s.risk_percent)
     logger.info("Correlation Limit: %s positions", s.trinity_max_positions)
@@ -1114,7 +1118,7 @@ def run():
         try:
             from src.services.daily_reset_scheduler import DailyResetScheduler
             daily_reset_scheduler = DailyResetScheduler(supabase, s)
-            logger.info("📊 Daily reset scheduler initialized for prop firm tracking")
+            logger.info("Daily reset scheduler initialized for prop firm tracking")
         except Exception as exc:
             logger.warning("Daily reset scheduler init failed: %s", exc)
 
@@ -1123,7 +1127,6 @@ def run():
         task = None
         payload_str = None
         try:
-            redis_client = get_redis()
             # Periodic tasks: every 60 seconds (watchdog, alerts, trailing stops, config refresh)
             now = time.time()
             if now - last_watchdog_ts >= 60:
@@ -1158,22 +1161,21 @@ def run():
 
                 last_watchdog_ts = now
 
-            task = redis_client.blpop(QUEUE_NAME, timeout=5)
+            task = transport.dequeue(timeout=5)
             backoff = 5
             if task is None:
                 continue
             _key, payload_str = task
-            payload = json.loads(payload_str)
+            payload = validate_dequeued_message(payload_str, transport)
+            if payload is None:
+                continue  # dead-lettered and audited inside validator
             if payload.get("event_type") == "exit":
                 logger.info("Exit event for zone_id=%s - processing", payload.get("zone_id"))
             process_trade(payload)
-        except json.JSONDecodeError as e:
-            logger.error("Invalid JSON from queue: %s", e)
-            continue
         except (ConnectionError, OSError) as e:
-            logger.error("Redis connection error: %s (reconnecting)", e)
+            logger.error("Transport connection error: %s (reconnecting)", e)
             try:
-                reset_redis_client()
+                transport.reset()
             except Exception:
                 pass
             time.sleep(backoff)
@@ -1182,12 +1184,12 @@ def run():
             logger.error("Loop error: %s", e)
             try:
                 if "redis" in type(e).__module__.lower() or "ConnectionError" in type(e).__name__:
-                    reset_redis_client()
+                    transport.reset()
             except Exception:
                 pass
             try:
                 if task is not None and payload_str is not None:
-                    push_dead_letter(payload_str, str(e))
+                    transport.dead_letter(payload_str, str(e))
                     log_event(None, "dead_lettered", "worker", {"error": str(e)[:200]})
             except Exception:
                 pass

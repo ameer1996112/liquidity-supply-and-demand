@@ -263,6 +263,13 @@ class Settings(BaseSettings):
     consistency_enabled: bool = Field(default=True, description="Enable consistency analyzer (FTMO 40% rule)")
     consistency_limit_pct: float = Field(default=40.0, ge=20.0, le=60.0, description="Max % of total profit from single day (FTMO: 40%)")
 
+    # ── Signal Transport ──────────────────────────────────────────────────────
+    signal_transport: Literal["redis", "memory"] = Field(
+        default="redis",
+        description="Signal queue backend: 'redis' (production) or 'memory' (tests).",
+        validation_alias="SIGNAL_TRANSPORT",
+    )
+
 
 @lru_cache
 def get_settings() -> Settings:
