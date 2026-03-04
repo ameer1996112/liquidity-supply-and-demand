@@ -74,3 +74,41 @@ export function useRetryDeadLetter() {
     },
   });
 }
+
+export function useDiscardDeadLetter() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (dlId: string) => {
+      const base = getApiUrl();
+      if (!base) throw new Error('API URL not configured');
+      const res = await fetch(`${base}/admin/dead-letters/${dlId}/discard`, {
+        method: 'POST',
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.deadLetters });
+      queryClient.invalidateQueries({ queryKey: adminKeys.health });
+    },
+  });
+}
+
+export function useClearDeadLetters() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const base = getApiUrl();
+      if (!base) throw new Error('API URL not configured');
+      const res = await fetch(`${base}/admin/dead-letters/clear`, {
+        method: 'POST',
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: adminKeys.deadLetters });
+      queryClient.invalidateQueries({ queryKey: adminKeys.health });
+    },
+  });
+}

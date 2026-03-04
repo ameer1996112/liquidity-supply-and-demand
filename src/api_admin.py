@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException
 
 from src.adapters.redis_queue import (
     DEAD_LETTER_QUEUE,
+    clear_all_dead_letters,
     get_dead_letters,
     get_redis,
     pop_dead_letter_by_id,
@@ -46,6 +47,25 @@ def retry_dead_letter(dl_id: str):
     push_payload(json.dumps(payload))
     log_event(None, "dead_letter_retried", "admin", {"dl_id": dl_id})
     return {"status": "requeued", "dl_id": dl_id}
+
+
+@router.post("/dead-letters/{dl_id}/discard")
+def discard_dead_letter(dl_id: str):
+    """Remove a dead-letter item without retrying (permanent discard)."""
+    item = pop_dead_letter_by_id(dl_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="Dead letter not found")
+
+    log_event(None, "dead_letter_discarded", "admin", {"dl_id": dl_id})
+    return {"status": "discarded", "dl_id": dl_id}
+
+
+@router.post("/dead-letters/clear")
+def clear_dead_letters():
+    """Remove all items from the dead-letter queue."""
+    count = clear_all_dead_letters()
+    log_event(None, "dead_letters_cleared", "admin", {"count": count})
+    return {"status": "cleared", "count": count}
 
 
 @router.get("/health")

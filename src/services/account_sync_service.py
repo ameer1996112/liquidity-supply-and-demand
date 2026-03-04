@@ -122,7 +122,7 @@ class AccountSyncService:
                 logger.warning(f"Skipping sync for {account_name}: MetaAPI token is missing")
                 try:
                     self.client.table("account_strategies").update({
-                        "connection_status": "METAAPI_TOKEN_MISSING",
+                        "connection_status": "not_configured",
                         "updated_at": datetime.now(timezone.utc).isoformat(),
                     }).eq("account_name", account_name).execute()
                 except Exception:
@@ -133,7 +133,7 @@ class AccountSyncService:
                 logger.error(f"Authentication failed for {account_name}. Token may be invalid or expired.")
                 try:
                     self.client.table("account_strategies").update({
-                        "connection_status": "METAAPI_AUTH_FAILED",
+                        "connection_status": "error",
                         "updated_at": datetime.now(timezone.utc).isoformat(),
                     }).eq("account_name", account_name).execute()
                 except Exception:
@@ -237,7 +237,7 @@ class AccountSyncService:
                 logger.warning(f"Skipping positions sync for {account_name}: MetaAPI token missing")
                 try:
                     self.client.table("account_strategies").update({
-                        "connection_status": "METAAPI_TOKEN_MISSING",
+                        "connection_status": "not_configured",
                         "updated_at": datetime.now(timezone.utc).isoformat(),
                     }).eq("account_name", account_name).execute()
                 except Exception:
@@ -248,7 +248,7 @@ class AccountSyncService:
                 logger.error(f"Authentication failed for {account_name} during positions sync. Token may be invalid or expired.")
                 try:
                     self.client.table("account_strategies").update({
-                        "connection_status": "METAAPI_AUTH_FAILED",
+                        "connection_status": "error",
                         "updated_at": datetime.now(timezone.utc).isoformat(),
                     }).eq("account_name", account_name).execute()
                 except Exception:

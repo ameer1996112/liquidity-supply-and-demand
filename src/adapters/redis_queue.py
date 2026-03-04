@@ -98,3 +98,13 @@ def pop_dead_letter_by_id(dl_id: str):
             r.lrem(DEAD_LETTER_QUEUE, 1, raw)
             return parsed
     return None
+
+
+def clear_all_dead_letters() -> int:
+    """Remove all items from the dead-letter queue. Returns count of items cleared."""
+    r = get_redis()
+    count = r.llen(DEAD_LETTER_QUEUE)
+    r.delete(DEAD_LETTER_QUEUE)
+    if count > 0:
+        logger.info("Cleared %d dead-letter items", count)
+    return count

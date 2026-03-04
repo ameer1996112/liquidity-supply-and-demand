@@ -4,14 +4,18 @@ import {
   useSystemHealth,
   useDeadLetters,
   useRetryDeadLetter,
+  useDiscardDeadLetter,
+  useClearDeadLetters,
 } from '@/hooks/useSystemHealth';
-import { Activity, Inbox, RefreshCw } from 'lucide-react';
+import { Activity, Inbox, RefreshCw, Trash2, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function SystemHealthPanel() {
   const { data: health } = useSystemHealth();
   const { data: dlData } = useDeadLetters();
   const retryMutation = useRetryDeadLetter();
+  const discardMutation = useDiscardDeadLetter();
+  const clearMutation = useClearDeadLetters();
 
   return (
     <div className='space-y-4'>
@@ -70,13 +74,22 @@ export function SystemHealthPanel() {
       {/* Dead Letter Inspector */}
       {(dlData?.count ?? 0) > 0 && (
         <div className='to-panel'>
-          <div className='to-panel-header'>
+          <div className='to-panel-header flex items-center justify-between'>
             <div className='flex items-center gap-2'>
               <Inbox className='w-4 h-4 text-[var(--to-short)]' />
               <span className='font-mono text-[11px] uppercase tracking-[0.18em] text-text-muted'>
                 Dead Letter Queue ({dlData?.count})
               </span>
             </div>
+            <button
+              onClick={() => clearMutation.mutate()}
+              disabled={clearMutation.isPending}
+              className='flex items-center gap-1 px-2 py-1 rounded text-[10px] font-mono text-text-muted hover:text-text-secondary bg-surface-raised hover:bg-surface-raised/90'
+              title='Clear all dead letters'
+            >
+              <Trash2 className='w-3 h-3' />
+              Clear All
+            </button>
           </div>
           <div className='divide-y divide-panel-border-subtle max-h-64 overflow-y-auto'>
             {dlData?.items.map((item) => (
@@ -98,14 +111,26 @@ export function SystemHealthPanel() {
                     {new Date(item.failed_at * 1000).toLocaleTimeString()}
                   </div>
                 </div>
-                <button
-                  onClick={() => retryMutation.mutate(item.id)}
-                  disabled={retryMutation.isPending}
-                  className='flex items-center gap-1 px-2 py-1 rounded text-[10px] font-mono text-text-secondary bg-surface-raised hover:bg-surface-raised/90 shrink-0'
-                >
-                  <RefreshCw className='w-3 h-3' />
-                  Retry
-                </button>
+                <div className='flex items-center gap-1 shrink-0'>
+                  <button
+                    onClick={() => retryMutation.mutate(item.id)}
+                    disabled={retryMutation.isPending}
+                    className='flex items-center gap-1 px-2 py-1 rounded text-[10px] font-mono text-text-secondary bg-surface-raised hover:bg-surface-raised/90'
+                    title='Re-queue for processing'
+                  >
+                    <RefreshCw className='w-3 h-3' />
+                    Retry
+                  </button>
+                  <button
+                    onClick={() => discardMutation.mutate(item.id)}
+                    disabled={discardMutation.isPending}
+                    className='flex items-center gap-1 px-2 py-1 rounded text-[10px] font-mono text-text-muted hover:text-text-secondary bg-surface-raised hover:bg-surface-raised/90'
+                    title='Discard permanently'
+                  >
+                    <X className='w-3 h-3' />
+                    Discard
+                  </button>
+                </div>
               </div>
             ))}
           </div>
