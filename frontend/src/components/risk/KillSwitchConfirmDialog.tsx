@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/sheet';
 import { AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTwoStepConfirm } from '@/hooks/useTwoStepConfirm';
 
 export type KillSwitchMode = 'engage' | 'reset';
 
@@ -31,6 +32,7 @@ export function KillSwitchConfirmDialog({
 }: KillSwitchConfirmDialogProps) {
   const [phrase, setPhrase] = useState('');
   const [reason, setReason] = useState('');
+  const confirmState = useTwoStepConfirm();
 
   useEffect(() => {
     if (open) {
@@ -124,16 +126,21 @@ export function KillSwitchConfirmDialog({
           </button>
           <button
             type="button"
-            onClick={handleConfirm}
+            onClick={() => confirmState.requestConfirm(handleConfirm)}
             disabled={!phraseOk || !!isPending}
             className={cn(
               'flex items-center gap-1.5 rounded px-3 py-1.5 text-[10px] font-mono font-semibold uppercase tracking-wider transition-colors',
               engaging
                 ? 'border-red-500 bg-red-600 text-white hover:bg-red-500 disabled:border-red-900 disabled:bg-red-900 disabled:text-red-500'
                 : 'border-emerald-500 bg-emerald-600 text-white hover:bg-emerald-500 disabled:border-emerald-900 disabled:bg-emerald-900 disabled:text-emerald-500',
+              confirmState.armed && 'ring-2 ring-red-400/60',
             )}
           >
-            {engaging ? 'Engage Kill Switch' : 'Reset Kill Switch'}
+            {confirmState.armed
+              ? `Confirm (${confirmState.secondsRemaining ?? 2}s)`
+              : engaging
+                ? 'Engage Kill Switch'
+                : 'Reset Kill Switch'}
           </button>
         </SheetFooter>
       </SheetContent>

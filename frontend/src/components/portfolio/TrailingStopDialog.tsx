@@ -12,6 +12,8 @@ import { Button } from '@/components/ui/button';
 import { useAddTrailingStop } from '@/hooks/useOptimizer';
 import type { ActivePosition } from '@/hooks/usePositions';
 import { Loader2 } from 'lucide-react';
+import { useConnectionHealth } from '@/hooks/useConnectionHealth';
+import { useTwoStepConfirm } from '@/hooks/useTwoStepConfirm';
 
 const MIN_PIPS = 5;
 const MAX_PIPS = 200;
@@ -32,14 +34,17 @@ export function TrailingStopDialog({
   const [trailPips, setTrailPips] = useState(DEFAULT_PIPS);
   const [waitForBreakeven, setWaitForBreakeven] = useState(true);
   const addTrailing = useAddTrailingStop();
+  const { isConnected } = useConnectionHealth();
+  const { armed, secondsRemaining, requestConfirm, reset } = useTwoStepConfirm();
 
   useEffect(() => {
     if (open) {
       setSignalId(initialSignalId ?? (positions[0]?.id ?? 0));
       setTrailPips(DEFAULT_PIPS);
       setWaitForBreakeven(true);
+      reset();
     }
-  }, [open, initialSignalId, positions]);
+  }, [open, initialSignalId, positions, reset]);
 
   const handleSubmit = () => {
     if (!signalId) return;
@@ -129,14 +134,16 @@ export function TrailingStopDialog({
           </Button>
           <Button
             size="sm"
-            onClick={handleSubmit}
-            disabled={!signalId || addTrailing.isPending}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white"
+            onClick={() => requestConfirm(handleSubmit)}
+            disabled={!signalId || addTrailing.isPending || !isConnected}
+            className="bg-emerald-600 hover:bg-emerald-500 text-white disabled:bg-[#2a2e39] disabled:text-zinc-600"
           >
             {addTrailing.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              'Add trailing stop'
+              armed
+                ? `Confirm (${secondsRemaining ?? 2}s)`
+                : 'Add trailing stop'
             )}
           </Button>
         </SheetFooter>

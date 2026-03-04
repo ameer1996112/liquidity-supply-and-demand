@@ -10,6 +10,8 @@ import {
 } from '@/components/ui/sheet';
 import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useConnectionHealth } from '@/hooks/useConnectionHealth';
+import { useTwoStepConfirm } from '@/hooks/useTwoStepConfirm';
 
 export function ModifySLTPDialog({
   open,
@@ -27,13 +29,16 @@ export function ModifySLTPDialog({
   const [sl, setSl] = useState('');
   const [tp, setTp] = useState('');
   const modifySLTP = useModifySLTP();
+  const { isConnected } = useConnectionHealth();
+  const { armed, secondsRemaining, requestConfirm, reset } = useTwoStepConfirm();
 
   useEffect(() => {
     if (open) {
       setSl(currentSL != null ? String(currentSL) : '');
       setTp(currentTP != null ? String(currentTP) : '');
+      reset();
     }
-  }, [open, currentSL, currentTP]);
+  }, [open, currentSL, currentTP, reset]);
 
   const handleSubmit = () => {
     const newSL = sl ? parseFloat(sl) : undefined;
@@ -88,18 +93,25 @@ export function ModifySLTPDialog({
           </div>
 
           <button
-            onClick={handleSubmit}
-            disabled={modifySLTP.isPending}
+            onClick={() => requestConfirm(handleSubmit)}
+            disabled={modifySLTP.isPending || !isConnected}
             className={cn(
               'w-full flex items-center justify-center gap-2 py-2 rounded-md',
               'font-mono text-xs font-semibold uppercase tracking-wider transition-colors',
               modifySLTP.isPending
                 ? 'bg-[#2a2e39] text-zinc-500 cursor-not-allowed'
-                : 'bg-blue-500 text-white hover:bg-blue-500/90',
+                : !isConnected
+                  ? 'bg-[#2a2e39] text-zinc-600 cursor-not-allowed'
+                  : 'bg-blue-500 text-white hover:bg-blue-500/90',
+              armed && 'ring-2 ring-blue-300/60',
             )}
           >
             {modifySLTP.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-            {modifySLTP.isPending ? 'Updating...' : 'Update SL/TP'}
+            {modifySLTP.isPending
+              ? 'Updating...'
+              : armed
+                ? `Confirm (${secondsRemaining ?? 2}s)`
+                : 'Update SL/TP'}
           </button>
         </div>
       </SheetContent>

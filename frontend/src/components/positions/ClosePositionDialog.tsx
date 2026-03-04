@@ -12,6 +12,7 @@ import {
 import { AlertTriangle, X } from 'lucide-react';
 import { type ActivePosition } from '@/hooks/usePositions';
 import { cn } from '@/lib/utils';
+import { useTwoStepConfirm } from '@/hooks/useTwoStepConfirm';
 
 interface ClosePositionDialogProps {
   open: boolean;
@@ -29,12 +30,14 @@ export function ClosePositionDialog({
   isSubmitting,
 }: ClosePositionDialogProps) {
   const [reason, setReason] = useState('');
+  const { armed, secondsRemaining, requestConfirm, reset } = useTwoStepConfirm();
 
   useEffect(() => {
     if (open) {
       setReason('');
+      reset();
     }
-  }, [open]);
+  }, [open, reset]);
 
   const handleConfirm = () => {
     if (isSubmitting) return;
@@ -158,14 +161,17 @@ export function ClosePositionDialog({
           </button>
           <button
             type="button"
-            onClick={handleConfirm}
+            onClick={() => requestConfirm(handleConfirm)}
             disabled={!!isSubmitting}
             className={cn(
               'inline-flex items-center gap-1 rounded px-3 py-1.5 text-[10px] font-mono font-semibold uppercase tracking-wider transition-colors',
               'border-red-500 bg-red-600 text-white hover:bg-red-500 disabled:border-red-900 disabled:bg-red-900 disabled:text-red-500',
+              armed && 'ring-2 ring-red-400/60',
             )}
           >
-            Close Position
+            {armed
+              ? `Confirm (${secondsRemaining ?? 2}s)`
+              : 'Close Position'}
           </button>
         </SheetFooter>
       </SheetContent>

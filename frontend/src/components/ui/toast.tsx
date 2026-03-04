@@ -40,27 +40,27 @@ const SEVERITY_STYLES: Record<
   { bg: string; border: string; text: string; icon: React.ElementType }
 > = {
   critical: {
-    bg: 'bg-[#ef5350]/10',
-    border: 'border-[#ef5350]/30',
-    text: 'text-[#ef5350]',
+    bg: 'bg-[var(--to-short)]/10',
+    border: 'border-[var(--to-short)]/30',
+    text: 'text-[var(--to-short)]',
     icon: AlertCircle,
   },
   warning: {
-    bg: 'bg-amber-500/10',
-    border: 'border-amber-500/30',
-    text: 'text-amber-400',
+    bg: 'bg-[var(--to-warning)]/10',
+    border: 'border-[var(--to-warning)]/30',
+    text: 'text-[var(--to-warning)]',
     icon: AlertTriangle,
   },
   info: {
-    bg: 'bg-blue-500/10',
-    border: 'border-blue-500/30',
-    text: 'text-blue-400',
+    bg: 'bg-[var(--to-accent-blue)]/10',
+    border: 'border-[var(--to-accent-blue)]/30',
+    text: 'text-[var(--to-accent-blue)]',
     icon: Info,
   },
   success: {
-    bg: 'bg-[#26a69a]/10',
-    border: 'border-[#26a69a]/30',
-    text: 'text-[#26a69a]',
+    bg: 'bg-[var(--to-long)]/10',
+    border: 'border-[var(--to-long)]/30',
+    text: 'text-[var(--to-long)]',
     icon: CheckCircle2,
   },
 };

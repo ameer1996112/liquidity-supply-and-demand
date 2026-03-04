@@ -421,15 +421,19 @@ export function TopBar() {
         {/* Kill switch */}
         <button
           onClick={openKillDialog}
-          disabled={killMutation.isPending}
+          disabled={killMutation.isPending || !isApiUp}
           className={cn(
             'flex items-center gap-1 rounded border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider transition-all',
             risk?.kill_switch_active
               ? 'animate-pulse border-[var(--to-short)] bg-[var(--to-short)]/20 text-[var(--to-short)]'
-              : 'border-[var(--to-border)] bg-[var(--to-surface)] text-[var(--to-text-dim)] hover:border-[var(--to-short)]/50 hover:text-[var(--to-short)]',
+              : 'border-[var(--to-border)] bg-[var(--to-surface)] text-[var(--to-text-dim)] hover:border-[var(--to-short)]/50 hover:text-[var(--to-short)] disabled:opacity-60 disabled:cursor-not-allowed',
           )}
           style={{ fontFamily: 'var(--font-mono)' }}
-          title='Emergency trading kill switch'
+          title={
+            !isApiUp
+              ? 'Emergency trading kill switch (disabled while API is offline)'
+              : 'Emergency trading kill switch'
+          }
         >
           <Power className='h-3 w-3' />
           {risk?.kill_switch_active ? 'KILL ON' : 'Kill'}

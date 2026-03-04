@@ -13,6 +13,7 @@ import { X, Pencil, Scissors, Loader2 } from 'lucide-react';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { ClientDate } from '@/components/ui/ClientDate';
 import { PnLText } from '@/components/ui/typography';
+import { useConnectionHealth } from '@/hooks/useConnectionHealth';
 
 function PriceLabel({ label, value }: { label: string; value: number | null }) {
   return (
@@ -32,6 +33,7 @@ export function PositionCard({ position }: { position: ActivePosition }) {
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const closePosition = useClosePosition();
   const partialClose = usePartialClose();
+  const { isConnected } = useConnectionHealth();
 
   const isBuy = position.side.toLowerCase() === 'buy';
   const pnlPositive = (position.live_pnl ?? 0) >= 0;
@@ -114,10 +116,10 @@ export function PositionCard({ position }: { position: ActivePosition }) {
           <div className='flex items-center gap-2 pt-1 border-t border-panel-border-subtle'>
             <button
               onClick={handleClose}
-              disabled={closePosition.isPending}
+              disabled={closePosition.isPending || !isConnected}
               className={cn(
                 'flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-mono font-semibold uppercase tracking-wider transition-colors',
-                'bg-[var(--to-short)]/15 text-[var(--to-short)] hover:bg-[var(--to-short)]/25',
+                'bg-[var(--to-short)]/15 text-[var(--to-short)] hover:bg-[var(--to-short)]/25 disabled:opacity-60 disabled:cursor-not-allowed',
               )}
             >
               {closePosition.isPending ? (
@@ -130,7 +132,8 @@ export function PositionCard({ position }: { position: ActivePosition }) {
 
             <button
               onClick={() => setShowModify(true)}
-              className='flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-mono font-semibold uppercase tracking-wider bg-[var(--to-accent-blue)]/15 text-[var(--to-accent-blue)] hover:bg-[var(--to-accent-blue)]/25 transition-colors'
+              disabled={!isConnected}
+              className='flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-mono font-semibold uppercase tracking-wider bg-[var(--to-accent-blue)]/15 text-[var(--to-accent-blue)] hover:bg-[var(--to-accent-blue)]/25 transition-colors disabled:opacity-60 disabled:cursor-not-allowed'
             >
               <Pencil className='w-3 h-3' />
               SL/TP
@@ -138,7 +141,7 @@ export function PositionCard({ position }: { position: ActivePosition }) {
 
             <button
               onClick={handlePartialClose}
-              disabled={partialClose.isPending}
+              disabled={partialClose.isPending || !isConnected}
               className='flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-mono font-semibold uppercase tracking-wider bg-[var(--to-warning)]/15 text-[var(--to-warning)] hover:bg-[var(--to-warning)]/25 transition-colors'
             >
               {partialClose.isPending ? (

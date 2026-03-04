@@ -73,19 +73,6 @@ export function RiskBar() {
         100
       : 0;
 
-  const handleToggle = () => {
-    if (risk.kill_switch_active) {
-      setShowConfirm(true);
-    } else {
-      killMutation.mutate({ enabled: true, reason: 'Manual UI toggle' });
-    }
-  };
-
-  const confirmDisengage = () => {
-    killMutation.mutate({ enabled: false, reason: 'Manual UI reset' });
-    setShowConfirm(false);
-  };
-
   const drawdownDanger = risk.drawdown_pct > risk.max_drawdown_pct * 0.7;
   const dailyDrawdownDanger =
     dailyPnlPctForDanger > risk.max_daily_loss_pct * 0.7;
