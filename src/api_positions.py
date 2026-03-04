@@ -58,6 +58,7 @@ class ActivePosition(BaseModel):
     tp: Optional[float] = None
     size: float = 0.0
     broker_order_id: Optional[str] = None
+    zone_id: Optional[int] = None
     current_price: Optional[float] = None
     live_pnl: Optional[float] = None
     hold_duration_seconds: int = 0
@@ -116,7 +117,7 @@ def get_active_positions(
         q = (
             sb.table("trading_signals")
             .select(
-                "id, symbol, side, entry, sl, tp, size, broker_order_id, "
+                "id, symbol, side, entry, sl, tp, size, broker_order_id, zone_id, "
                 "created_at, zone_type, entry_model, rr_ratio, "
                 "status, execution_source, broker_position_id, closed_at, exit_price, pnl"
             )
@@ -183,6 +184,7 @@ def get_active_positions(
                 tp=r.get("tp"),
                 size=size,
                 broker_order_id=r.get("broker_order_id"),
+                zone_id=r.get("zone_id"),
                 current_price=current_price,
                 live_pnl=live_pnl,
                 hold_duration_seconds=hold_seconds,

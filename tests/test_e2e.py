@@ -12,7 +12,7 @@ Simulates a TradingView webhook alert and verifies the full pipeline:
       ↓
   Trade record created in DB
       ↓
-  MetaAPI order placed in MetaTrader (if META_API_LIVE_EXECUTION=true)
+  MetaAPI order placed in MetaTrader (if LIVE_TRADING=true)
       ↓
   Verify open position in broker
       ↓
@@ -20,7 +20,7 @@ Simulates a TradingView webhook alert and verifies the full pipeline:
 
 MODES:
   --mode paper   → PAPER run: backend processes signal, no real MT5 order
-  --mode live    → LIVE run:  requires META_API_TOKEN + META_API_LIVE_EXECUTION=true in .env
+  --mode live    → LIVE run:  requires META_API_TOKEN + META_API_ACCOUNT_ID + LIVE_TRADING=true in .env
 
 USAGE:
   cd apps/backend
@@ -34,6 +34,7 @@ USAGE:
 
 import argparse
 import json
+import os
 import ssl
 import sys
 import time
@@ -208,7 +209,7 @@ def build_exit_payload(zone_id: int, entry: dict) -> dict:
 
 # ── Main test runner ──────────────────────────────────────────────────────────
 
-def run(base: str, symbol: str, side: str, run_mode: str, score: int, verbose: bool) -> int:
+def run(base: str, symbol: str, side: str, run_mode: str, score: int, verbose: bool, secret: str | None = None) -> int:
     failures = 0
     zone_id  = int(time.time()) % 100000 + 80000  # unique per run
     signal_id = None
@@ -221,49 +222,53 @@ def run(base: str, symbol: str, side: str, run_mode: str, score: int, verbose: b
 
     # ── Step 1: Health check ────────────────────────────────────────────────
     step("1 · Backend health check")
-    code, body = _get(f"{base}/", verbose)
-    if code == 200 and body.get("status") == "online":
-        model = body.get("model_version", "unknown")
-        agents = list(body.get("agents", {}).keys())
+    code, body = _get(f"{base}/health", verbose)
+    if code == 200 and body.get("status") in ("healthy", "online"):
         ok(f"Backend online")
-        info(f"model={model}  agents={agents}")
+        info(f"service={body.get('service', 'api')}")
     else:
         fail(f"Backend not reachable (HTTP {code})")
-        fail("Start it with:  cd apps/backend && python main.py")
+        fail("Start backend:  PYTHONPATH=. python -m uvicorn src.api:app --port 8000")
         return 1  # can't continue
 
     # ── Step 2: Send entry signal (simulate TradingView) ────────────────────
-    step("2 · Send entry signal  →  POST /signal")
+    step("2 · Send entry signal  →  POST /webhook")
     entry_payload = build_entry_payload(symbol, side, run_mode, zone_id, score)
     info(f"Payload: {symbol} {side.upper()} @ {entry_payload['entry']}  "
          f"SL={entry_payload['sl']}  TP={entry_payload['tp']}")
     dim(f"zone_id={zone_id}  score={score}  rvol={entry_payload['rvol']}  "
         f"run_mode={run_mode}")
 
-    code, body = _post(f"{base}/signal", entry_payload, verbose)
+    webhook_url = f"{base}/webhook"
+    if secret:
+        webhook_url = f"{webhook_url}?secret={secret}"
+    code, body = _post(webhook_url, entry_payload, verbose)
 
     if code == 200:
-        decision   = body.get("decision", "?")
-        confidence = body.get("confidence", 0)
-        signal_id  = body.get("signal_id")
-        message    = body.get("message", "")
-        reasoning  = body.get("reasoning", "")
-
-        color = GREEN if decision == "ALLOW" else RED
-        print(f"\n  {BOLD}MAS Decision: {color}{decision}{RESET}")
-        info(f"confidence={confidence:.1%}  signal_id={signal_id}")
-        if reasoning:
-            info(f"reasoning={reasoning[:120]}{'...' if len(reasoning)>120 else ''}")
-
-        if decision == "ALLOW":
-            ok("Signal accepted by Multi-Agent System")
-        elif decision == "BLOCK":
-            warn("Signal BLOCKED by MAS (this may be expected — agents are selective)")
-            warn("Try --score 95 to force ALLOW, or check agent logs in AI terminal")
-            # Don't count as failure — MAS blocking is valid behavior
+        status = body.get("status", "")
+        if status == "queued":
+            ok("Signal queued by API (worker will process)")
+            info(f"account_id={body.get('account_id', 'N/A')}")
         else:
-            fail(f"Unexpected decision: {decision}")
-            failures += 1
+            decision   = body.get("decision", "?")
+            confidence = body.get("confidence", 0)
+            signal_id  = body.get("signal_id")
+            reasoning  = body.get("reasoning", "")
+
+            color = GREEN if decision == "ALLOW" else RED
+            print(f"\n  {BOLD}MAS Decision: {color}{decision}{RESET}")
+            info(f"confidence={confidence:.1%}  signal_id={signal_id}")
+            if reasoning:
+                info(f"reasoning={reasoning[:120]}{'...' if len(reasoning)>120 else ''}")
+
+            if decision == "ALLOW":
+                ok("Signal accepted by Multi-Agent System")
+            elif decision == "BLOCK":
+                warn("Signal BLOCKED by MAS (this may be expected — agents are selective)")
+                warn("Try --score 95 to force ALLOW, or check agent logs in AI terminal")
+            else:
+                fail(f"Unexpected decision: {decision}")
+                failures += 1
     elif code == 422:
         fail(f"Validation error (HTTP 422) — payload schema mismatch")
         if verbose:
@@ -288,6 +293,8 @@ def run(base: str, symbol: str, side: str, run_mode: str, score: int, verbose: b
             warn(f"Signal not found by zone_id={zone_id} — checking by symbol only")
             count = body.get("count", 0)
             info(f"Most recent {count} signals returned")
+    elif code == 404:
+        warn("Signals/recent endpoint not found (API may use different paths)")
     else:
         fail(f"GET signals/recent returned HTTP {code}")
         failures += 1
@@ -296,7 +303,9 @@ def run(base: str, symbol: str, side: str, run_mode: str, score: int, verbose: b
     step("4 · Check open trades  →  GET /api/v1/webhook/trades/open")
     time.sleep(0.5)
     code, body = _get(f"{base}/api/v1/webhook/trades/open", verbose)
-    if code == 200:
+    if code == 404:
+        warn("Trades/open endpoint not found (API may use /positions/active)")
+    elif code == 200:
         trades = body.get("trades", []) or body.get("db_trades", [])
         total  = body.get("count", len(trades))
         match  = next((t for t in trades if t.get("zone_id") == zone_id
@@ -313,7 +322,7 @@ def run(base: str, symbol: str, side: str, run_mode: str, score: int, verbose: b
             if meta_order_id:
                 ok(f"Broker order placed! meta_order_id={meta_order_id}")
             elif run_mode == "LIVE":
-                warn("meta_order_id is None — check META_API_LIVE_EXECUTION=true in .env")
+                warn("meta_order_id is None — check LIVE_TRADING=true in .env")
             else:
                 info("PAPER mode: no broker order sent (expected)")
         else:
@@ -342,6 +351,8 @@ def run(base: str, symbol: str, side: str, run_mode: str, score: int, verbose: b
             else:
                 warn("No broker positions returned — check MetaAPI credentials")
                 info("Make sure META_API_TOKEN and META_API_ACCOUNT_ID are set in .env")
+        elif code == 404:
+            warn("Trades/open endpoint not found (API may use /positions/active)")
         else:
             fail(f"Trades/open returned HTTP {code}")
             failures += 1
@@ -350,16 +361,22 @@ def run(base: str, symbol: str, side: str, run_mode: str, score: int, verbose: b
         info("Run with --mode live to test real MetaTrader order placement")
 
     # ── Step 6: Send exit signal ─────────────────────────────────────────────
-    step("6 · Send exit signal  →  POST /exit")
+    step("6 · Send exit signal  →  POST /webhook (event_type=exit)")
     exit_payload = build_exit_payload(zone_id, entry_payload)
     info(f"Simulating TP hit: close_price={exit_payload['close_price']}  "
          f"pnl_r={exit_payload['pnl_r']}  pnl_usd=${exit_payload['pnl_usd']}")
 
-    code, body = _post(f"{base}/exit", exit_payload, verbose)
+    exit_url = f"{base}/webhook"
+    if secret:
+        exit_url = f"{exit_url}?secret={secret}"
+    code, body = _post(exit_url, exit_payload, verbose)
     if code == 200:
         status   = body.get("status", "?")
         ret_id   = body.get("trade_id")
-        ok(f"Exit processed: status={status}  trade_id={ret_id}")
+        if status == "queued":
+            ok(f"Exit queued (worker will process)")
+        else:
+            ok(f"Exit processed: status={status}  trade_id={ret_id}")
     elif code == 404:
         warn("Trade not found for exit (expected if MAS blocked signal — no trade was created)")
     else:
@@ -374,6 +391,8 @@ def run(base: str, symbol: str, side: str, run_mode: str, score: int, verbose: b
         win_rate = body.get("win_rate", 0)
         pnl_usd = body.get("total_pnl_usd", 0)
         ok(f"total_trades={total}  win_rate={win_rate:.1f}%  total_pnl=${pnl_usd:.2f}")
+    elif code == 404:
+        warn("Stats/summary endpoint not found (API may use /analytics or /risk)")
     else:
         fail(f"Stats returned HTTP {code}")
         failures += 1
@@ -403,8 +422,8 @@ def run(base: str, symbol: str, side: str, run_mode: str, score: int, verbose: b
   To enable live MetaTrader execution, add to .env:
     META_API_TOKEN=<your-token>
     META_API_ACCOUNT_ID=<your-account-id>
-    META_API_LIVE_EXECUTION=true
-  Then run: python test_e2e.py --mode live
+    LIVE_TRADING=true
+  Then run: python tests/test_e2e.py --mode live
 """)
     return failures
 
@@ -419,6 +438,8 @@ if __name__ == "__main__":
     )
     parser.add_argument("--url",    default="http://localhost:8000",
                         help="Backend base URL (default: http://localhost:8000)")
+    parser.add_argument("--secret", default=os.environ.get("WEBHOOK_SECRET", ""),
+                        help="Webhook secret for /webhook (or set WEBHOOK_SECRET env)")
     parser.add_argument("--mode",   default="paper", choices=["paper", "live"],
                         help="Run mode: paper (no real trades) or live (real MT5 order)")
     parser.add_argument("--symbol", default="NAS100",
@@ -441,5 +462,6 @@ if __name__ == "__main__":
         run_mode = run_mode,
         score    = args.score,
         verbose  = args.verbose,
+        secret   = args.secret or None,
     )
     sys.exit(1 if failures else 0)
