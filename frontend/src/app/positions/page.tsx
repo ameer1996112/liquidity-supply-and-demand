@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { Suspense, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useActivePositions } from '@/hooks/usePositions';
 import { AccountBar } from '@/components/positions/AccountBar';
@@ -10,7 +10,7 @@ import { Crosshair } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PanelEmptyState } from '@/components/shared/PanelEmptyState';
 
-export default function PositionsPage() {
+function PositionsPageContent() {
   const { data, isLoading } = useActivePositions();
   const searchParams = useSearchParams();
   const highlightTicket = searchParams.get('order_id');
@@ -73,5 +73,19 @@ export default function PositionsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function PositionsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className='p-4 text-xs text-slate-500'>
+          Loading positions dashboard...
+        </div>
+      }
+    >
+      <PositionsPageContent />
+    </SuspENSE>
   );
 }
