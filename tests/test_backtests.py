@@ -268,3 +268,139 @@ class BacktestAPITests(unittest.TestCase):
         client = TestClient(app)
         r = client.get("/api/backtests/99999/stream")
         self.assertEqual(r.status_code, 404)
+
+
+class BacktestJobIntegrationTests(unittest.TestCase):
+    """Sprint 4.1: Backtest job orchestration + SSE progress."""
+
+    @patch("src.services.backtest_engine.run_backtest")
+    @patch("src.api_backtests._get_supabase")
+    def test_backtest_job_completes_and_updates_db(self, mock_get_sb, mock_run_backtest):
+        """Background job marks row completed and emits final metrics."""
+        import queue as queue_mod
+
+        from src.api_backtests import _progress_queues, _run_backtest_job
+
+        mock_sb = MagicMock()
+        # SELECT config_snapshot
+        mock_sb.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(
+            data={"config_snapshot": {"symbol": "XAUUSD"}}
+        )
+        mock_get_sb.return_value = mock_sb
+
+        metrics = {
+            "win_rate": 55.0,
+            "avg_r": 1.5,
+            "max_drawdown_pct": 10.0,
+            "total_trades": 10,
+        }
+
+        def _fake_run(backtest_id, config, supabase, on_progress=None):
+            if on_progress:
+                on_progress(50, "Halfway", {"symbol": config.get("symbol")})
+            return metrics
+
+        mock_run_backtest.side_effect = _fake_run
+
+        job_id = 123
+        q = queue_mod.Queue()
+        _progress_queues[job_id] = q
+
+        _run_backtest_job(job_id)
+
+        # DB was updated to completed with metrics_json
+        updates = [call[0][0] for call in mock_sb.table.return_value.update.call_args_list]
+        self.assertTrue(any(u.get("status") == "completed" for u in updates))
+        self.assertTrue(any(u.get("metrics_json") == metrics for u in updates))
+
+        # Progress events flowed through queue, including final 100% Done
+        seen_done = False
+        while not q.empty():
+            ev = q.get_nowait()
+            if ev and ev.get("percent") == 100 and ev.get("message") == "Done":
+                seen_done = True
+        self.assertTrue(seen_done)
+
+    @patch("src.api_backtests._get_supabase")
+    def test_stream_emits_progress_events(self, mock_get_sb):
+        """SSE endpoint streams queued progress events for existing job."""
+        import queue as queue_mod
+
+        from fastapi.testclient import TestClient
+        from src.api import app
+        from src.api_backtests import _progress_queues
+
+        mock_sb = MagicMock()
+        # Job exists
+        mock_sb.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = MagicMock(
+            data={"id": 1}
+        )
+        mock_get_sb.return_value = mock_sb
+
+        job_id = 1
+        q = queue_mod.Queue()
+        _progress_queues[job_id] = q
+
+        # Pre-seed queue so generator has data immediately
+        q.put_nowait({"percent": 10, "message": "Boot", "extra": {}})
+        q.put_nowait({"percent": 100, "message": "Done", "extra": {}})
+        q.put_nowait(None)
+
+        client = TestClient(app)
+        with client.stream("GET", f"/api/backtests/{job_id}/stream") as response:
+            body = b"".join(chunk for chunk in response.iter_bytes())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'"percent": 10', body)
+        self.assertIn(b'"percent": 100', body)
+
+
+class BacktestCacheIntegrationTests(unittest.TestCase):
+    """Sprint 4.1: AI decision cache integration with backtest engine."""
+
+    @patch("src.services.ai_decision_cache.cache_get")
+    @patch("src.services.ai_decision_cache.cache_set")
+    @patch("src.agents.supervisor.Supervisor")
+    def test_rerun_hits_cache_no_second_ai_call(
+        self,
+        MockSupervisor,
+        mock_cache_set,
+        mock_cache_get,
+    ):
+        """Second evaluation for same payload/context should use cache."""
+        from src.services.backtest_engine import _evaluate_with_cache
+
+        supabase = MagicMock()
+        payload = {
+            "symbol": "XAUUSD",
+            "side": "buy",
+            "entry": 2650,
+            "sl": 2640,
+            "tp": 2670,
+            "size": 0.1,
+            "zone_id": 123,
+            "score": 70,
+            "entry_model": "FLIP",
+        }
+        config = {
+            "candles": [
+                {"open": 2645, "high": 2655, "low": 2640, "close": 2650},
+                {"open": 2650, "high": 2660, "low": 2645, "close": 2655},
+            ],
+            "timeframe": "5m",
+        }
+
+        ai_result = {"decision": "GO", "rf_prob": 0.72}
+        mock_cache_get.side_effect = [None, ai_result]
+        MockSupervisor.return_value.evaluate.return_value = ai_result
+
+        # First call should miss cache and invoke Supervisor.evaluate once
+        out1 = _evaluate_with_cache(supabase, payload, config)
+        # Second call should hit cache and not call evaluate again
+        out2 = _evaluate_with_cache(supabase, payload, config)
+
+        self.assertEqual(out1, ai_result)
+        self.assertEqual(out2, ai_result)
+        self.assertEqual(MockSupervisor.return_value.evaluate.call_count, 1)
+        self.assertGreaterEqual(mock_cache_set.call_count, 1)
+
