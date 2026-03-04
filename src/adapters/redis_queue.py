@@ -5,7 +5,7 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-QUEUE_NAME = "trading_queue"
+QUEUE_NAME = "signals:default"
 _redis: Any = None
 
 
