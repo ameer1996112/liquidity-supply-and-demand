@@ -263,7 +263,7 @@ function DrawdownHistoryChart({ snapshots, dailyLimit, trailingLimit }: {
         <RechartsTooltip
           contentStyle={{ backgroundColor: '#12161c', border: '1px solid #2b3139', borderRadius: 6, fontSize: 12 }}
           labelStyle={{ color: '#848e9c' }}
-          formatter={(val: number, name: string) => [`${val}%`, name === 'daily' ? 'Daily DD' : 'Trailing DD']}
+          formatter={(val, name) => [`${val ?? 0}%`, name === 'daily' ? 'Daily DD' : 'Trailing DD']}
         />
         <ReferenceLine y={dailyLimit} stroke='#f6465d' strokeDasharray='4 4' strokeOpacity={0.6} label={{ value: `DD ${dailyLimit}%`, fill: '#f6465d', fontSize: 10 }} />
         <ReferenceLine y={trailingLimit} stroke='#f0b90b' strokeDasharray='4 4' strokeOpacity={0.6} />
