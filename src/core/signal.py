@@ -55,6 +55,10 @@ class EntryWebhookPayload(BaseModel):
         default=None,
         description="Partial close percentage 0-100 (optional)",
     )
+    force_live_override: bool = Field(
+        default=False,
+        description="Set true to allow live MetaTrader execution from non-TradingView sources (manual override)",
+    )
 
     event_type: str | None = Field(None, description="If 'exit', use exit payload instead")
     signal_time: str | None = Field(None, description="Original signal generation time (UTC)")

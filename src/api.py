@@ -484,9 +484,25 @@ async def debate_ws(websocket: WebSocket):
 
 
 @app.post("/webhook")
-async def webhook(payload: dict[str, Any] = Depends(get_webhook_payload)):
-    # Safety default: treat signals without explicit run_mode as PAPER
-    payload.setdefault("run_mode", "PAPER")
+async def webhook(request: Request, payload: dict[str, Any] = Depends(get_webhook_payload)):
+    # Detect signal source from User-Agent header.
+    # TradingView sends "TradingView" in the User-Agent automatically — no Pine changes needed.
+    user_agent = request.headers.get("User-Agent", "")
+    is_tradingview = "TradingView" in user_agent
+
+    if is_tradingview:
+        # TradingView webhooks: default to LIVE and open MetaTrader positions.
+        payload.setdefault("run_mode", "LIVE")
+        payload["_signal_source"] = "tradingview"
+    else:
+        # Manual sources (curl, bash, scripts): force PAPER unless the caller
+        # explicitly sets force_live_override=true to acknowledge the override.
+        if not payload.get("force_live_override"):
+            payload["run_mode"] = "PAPER"
+        else:
+            payload.setdefault("run_mode", "LIVE")
+        payload["_signal_source"] = "manual"
+
     symbol = payload.get("symbol", payload.get("zone_id", "N/A"))
     run_mode = payload["run_mode"]
 
@@ -536,3 +552,75 @@ async def webhook(payload: dict[str, Any] = Depends(get_webhook_payload)):
     get_transport().enqueue(payload_str, queue_key=queue_key)
     logger.info("Queued payload (len=%d)", len(payload_str))
     return JSONResponse(status_code=200, content={"status": "queued", "account_id": account_id})
+
+
+@app.post("/api/backtest/import")
+async def backtest_import(
+    request: Request,
+    x_webhook_secret: str | None = Header(None),
+):
+    """
+    Import historical backtest results from TradingView Strategy Tester (CSV/JSON export).
+
+    Accepts a JSON array of trade records. Each record is saved to trading_signals
+    with run_mode='BACKTEST' and status='backtest' — no MetaTrader orders are placed.
+
+    Required header: X-Webhook-Secret (same secret as /webhook)
+
+    Example body:
+    [
+      {"symbol": "EURUSD", "side": "buy", "entry": 1.18573, "sl": 1.17273,
+       "tp": 1.20573, "size": 0.5, "signal_time": "2026-01-15T10:00:00Z",
+       "outcome": "win", "pnl_usd": 125.00}
+    ]
+    """
+    validate_webhook_secret(request, x_webhook_secret)
+
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body")
+
+    if not isinstance(body, list):
+        raise HTTPException(status_code=400, detail="Body must be a JSON array of trade records")
+
+    if not body:
+        return JSONResponse(status_code=200, content={"imported": 0})
+
+    from src.adapters.supabase import get_supabase
+    sb = get_supabase()
+    rows = []
+    for record in body:
+        if not isinstance(record, dict):
+            continue
+        row = {
+            "symbol": str(record.get("symbol", "UNKNOWN")).upper(),
+            "side": str(record.get("side", "buy")).lower(),
+            "size": float(record.get("size", 0.01)),
+            "entry": float(record["entry"]) if record.get("entry") else None,
+            "sl": float(record["sl"]) if record.get("sl") else None,
+            "tp": float(record["tp"]) if record.get("tp") else None,
+            "run_mode": "BACKTEST",
+            "status": "backtest",
+            "account_name": "Backtest",
+            "notes": f"Imported via backtest export. outcome={record.get('outcome', 'unknown')}",
+        }
+        if record.get("signal_time"):
+            row["signal_time"] = str(record["signal_time"])
+        if record.get("pnl_usd") is not None:
+            row["pnl_usd"] = float(record["pnl_usd"])
+        if record.get("trade_key"):
+            row["trade_key"] = str(record["trade_key"])
+        rows.append(row)
+
+    if not rows:
+        return JSONResponse(status_code=200, content={"imported": 0})
+
+    try:
+        sb.table("trading_signals").insert(rows).execute()
+        logger.info("Backtest import: inserted %d records", len(rows))
+    except Exception as e:
+        logger.error("Backtest import DB insert failed: %s", e)
+        raise HTTPException(status_code=500, detail=f"DB insert failed: {e}")
+
+    return JSONResponse(status_code=200, content={"imported": len(rows)})
