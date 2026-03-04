@@ -145,7 +145,7 @@ export function LiveLog({
                   </span>
                 )}
                 <span
-                  className='min-w-0 shrink-0 break-words text-[var(--to-text-secondary)]'
+                  className='shrink-0 whitespace-nowrap text-[var(--to-text-secondary)]'
                   title={entry.message}
                 >
                   {entry.message}
