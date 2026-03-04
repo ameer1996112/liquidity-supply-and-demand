@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   useTCASummary,
   useSlippageBySymbol,
@@ -102,6 +103,13 @@ export default function ExecutionQualityPage() {
   const [activeTab, setActiveTab] = useState<'tca' | 'traces'>('traces');
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
   const days = periodToDays(period);
+
+  const searchParams = useSearchParams();
+  const signalIdParam = searchParams.get('signal_id');
+  const initialSignalId =
+    signalIdParam && !Number.isNaN(Number(signalIdParam))
+      ? Number(signalIdParam)
+      : null;
 
   // TCA data
   const { data: tcaSummary, isLoading: summaryLoading } = useTCASummary(days);
@@ -252,6 +260,7 @@ export default function ExecutionQualityPage() {
             traces={traces}
             isLoading={tracesLoading}
             error={tracesError}
+            initialSignalId={initialSignalId}
           />
 
           <p className='text-[10px] text-slate-700'>

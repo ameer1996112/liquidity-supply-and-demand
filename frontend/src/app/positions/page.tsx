@@ -1,5 +1,7 @@
 'use client';
 
+import { useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useActivePositions } from '@/hooks/usePositions';
 import { AccountBar } from '@/components/positions/AccountBar';
 import { PositionCard } from '@/components/positions/PositionCard';
@@ -9,7 +11,19 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export default function PositionsPage() {
   const { data, isLoading } = useActivePositions();
-  const positions = data?.positions || [];
+  const searchParams = useSearchParams();
+  const highlightTicket = searchParams.get('order_id');
+  const rawPositions = data?.positions || [];
+
+  const positions = useMemo(() => {
+    if (!highlightTicket) return rawPositions;
+    return [...rawPositions].sort((a, b) => {
+      const aMatch = a.broker_order_id === highlightTicket;
+      const bMatch = b.broker_order_id === highlightTicket;
+      if (aMatch === bMatch) return 0;
+      return aMatch ? -1 : 1;
+    });
+  }, [rawPositions, highlightTicket]);
 
   return (
     <div className='space-y-4'>

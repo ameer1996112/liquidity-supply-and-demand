@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -126,9 +126,15 @@ interface TraceTableProps {
   traces: TraceSummary[] | undefined;
   isLoading: boolean;
   error?: Error | null;
+  initialSignalId?: number | null;
 }
 
-export function TraceTable({ traces, isLoading, error }: TraceTableProps) {
+export function TraceTable({
+  traces,
+  isLoading,
+  error,
+  initialSignalId,
+}: TraceTableProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -136,6 +142,15 @@ export function TraceTable({ traces, isLoading, error }: TraceTableProps) {
     setSelectedId(correlationId);
     setDrawerOpen(true);
   }
+
+  useEffect(() => {
+    if (!initialSignalId || !traces || traces.length === 0) return;
+    const match = traces.find((t) => t.signal_id === initialSignalId);
+    if (match) {
+      setSelectedId(match.correlation_id);
+      setDrawerOpen(true);
+    }
+  }, [initialSignalId, traces]);
 
   return (
     <>
