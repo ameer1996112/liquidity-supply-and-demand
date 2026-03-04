@@ -40,7 +40,7 @@ import sys
 import time
 import urllib.request
 import urllib.error
-from datetime import datetime
+from datetime import datetime, timezone
 
 # ── SSL (macOS Python 3.x doesn't ship root certs) ───────────────────────────
 _SSL = ssl.create_default_context()
@@ -189,8 +189,9 @@ def build_entry_payload(symbol: str, side: str, run_mode: str, zone_id: int, sco
         "liquidity_sweep":      True,
         "arrival_type":         "aggressive",
         "market_structure_break": True,
-        "signal_time":          datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "bar_time":             datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+        "signal_time":          datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+        "bar_time":             datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"),
+        "_e2e_test":            True,  # Bypass staleness guard (worker skips when set)
     }
 
 

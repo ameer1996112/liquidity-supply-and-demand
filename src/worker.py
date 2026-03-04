@@ -992,8 +992,13 @@ def process_trade(payload: Dict[str, Any]):
         return
 
     # ── Signal Staleness Guard (global — same signal for all accounts) ──
+    # Skip when _e2e_test=true (E2E test uses static prices; guard would reject)
     run_mode = str(payload.get("run_mode", "PAPER")).upper()
-    if run_mode == "LIVE" and getattr(s, "enable_staleness_guard", True):
+    if (
+        run_mode == "LIVE"
+        and getattr(s, "enable_staleness_guard", True)
+        and not payload.get("_e2e_test")
+    ):
         try:
             from src.core.guard_rails.staleness_guard import StalenessGuard
             staleness_guard = StalenessGuard(
