@@ -19,7 +19,6 @@ import {
   FlaskConical,
   SlidersHorizontal,
   Bell,
-  Search,
   Trophy,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -65,6 +64,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: 'Risk Monitor', icon: Gauge, path: '/risk' },
       { label: 'Alerts', icon: Bell, path: '/alerts' },
+      { label: 'Prop Firm', icon: Trophy, path: '/prop-firm' },
     ],
   },
   {
@@ -89,8 +89,6 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Ops',
     items: [
       { label: 'Journal', icon: BookOpen, path: '/journal' },
-      { label: 'Scanner', icon: Search, path: '/scanner' },
-      { label: 'Prop Firm', icon: Trophy, path: '/prop-firm' },
       { label: 'Settings', icon: Settings, path: '/settings' },
     ],
   },
