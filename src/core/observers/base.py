@@ -22,7 +22,11 @@ import time
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # AccountRouter imported only for type-checking to avoid circular imports.
+    from src.core.account_router import AccountRouter
 
 logger = logging.getLogger(__name__)
 
@@ -105,9 +109,11 @@ class WorkerSubject:
         self,
         process_fn: Callable[[Dict[str, Any]], None],
         observers: Optional[List[Observer]] = None,
+        account_router: Optional[Any] = None,  # AccountRouter — typed loosely to avoid circular import
     ) -> None:
         self._process_fn = process_fn
         self._observers: List[Observer] = list(observers or [])
+        self._account_router = account_router
 
     def attach(self, observer: Observer) -> None:
         self._observers.append(observer)
@@ -121,8 +127,18 @@ class WorkerSubject:
         """Emit SIGNAL_RECEIVED, run process_fn, emit ORDER_SUBMITTED or ERROR."""
         correlation_id = uuid.uuid4().hex
 
-        # Attach correlation_id to the payload so downstream code can reference it
+        # Attach correlation_id to the payload so downstream code can reference it.
         payload["_correlation_id"] = correlation_id
+
+        # Account routing: stamp _account_id onto the live payload (defence-in-depth:
+        # the API already stamps it before enqueue, but legacy/direct-Redis messages
+        # may not have it).
+        if self._account_router is not None:
+            try:
+                account_id = self._account_router.resolve_account_id(payload)
+                payload["_account_id"] = account_id
+            except Exception as acc_exc:  # noqa: BLE001
+                logger.warning("AccountRouter.resolve_account_id failed: %s", acc_exc)
 
         self._emit(TradeEvent(
             event_type=SIGNAL_RECEIVED,

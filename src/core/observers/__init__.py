@@ -13,8 +13,9 @@ from src.core.observers.base import (
 )
 from src.core.observers.auditor import AuditorObserver
 from src.core.observers.executor import ExecutorObserver
-from src.core.observers.metrics import MetricsObserver
+from src.core.observers.metrics import MetricsObserver, TraceObserver
 from src.core.observers.risk_observer import RiskObserver
+from src.core.observers.account_router_observer import AccountRouterObserver
 
 __all__ = [
     "TradeEvent",
@@ -30,4 +31,6 @@ __all__ = [
     "RiskObserver",
     "ExecutorObserver",
     "MetricsObserver",
+    "TraceObserver",
+    "AccountRouterObserver",
 ]

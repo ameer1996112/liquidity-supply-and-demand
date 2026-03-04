@@ -32,7 +32,9 @@ from src.core.observers import (
     RiskObserver,
     ExecutorObserver,
     MetricsObserver,
+    AccountRouterObserver,
 )
+from src.core.account_router import AccountRouter  # no observers dependency
 from src.ai.brain import ensemble_decision, get_prediction, load_brain
 from src.core.risk_engine import calculate_max_position_size as _calculate_max_position_size_impl
 from src.core.guard_rails.correlation import (
@@ -1115,12 +1117,16 @@ def run():
     logger.info("=" * 60)
 
     # ── Observer pipeline ──────────────────────────────────────────────────
-    subject = WorkerSubject(process_fn=process_trade)
+    subject = WorkerSubject(process_fn=process_trade, account_router=AccountRouter())
     subject.attach(AuditorObserver())
     subject.attach(RiskObserver())
     subject.attach(ExecutorObserver())
+    subject.attach(AccountRouterObserver())
     subject.attach(MetricsObserver())
-    logger.info("Observer pipeline: %s", ["AuditorObserver", "RiskObserver", "ExecutorObserver", "MetricsObserver"])
+    logger.info(
+        "Observer pipeline: %s",
+        ["AuditorObserver", "RiskObserver", "ExecutorObserver", "AccountRouterObserver", "MetricsObserver"],
+    )
 
     backoff = 5
     watchdog = TradeWatchdog(supabase_client=supabase)

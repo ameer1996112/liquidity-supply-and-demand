@@ -50,6 +50,8 @@ from src.api_execution import router as execution_router
 from src.api_portfolio import router as portfolio_router
 from src.api_portfolio_control import router as portfolio_control_router
 from src.api_prop_firm import router as prop_firm_router  # NEW: Prop firm metrics
+from src.api_traces import router as traces_router       # Sprint 2.1: latency traces
+from src.api_accounts import router as accounts_router   # Sprint 2.3: multi-account
 app = FastAPI(title="Trading Webhook API", version="1.0.0")
 app.include_router(rules_router)
 app.include_router(risk_router)
@@ -63,6 +65,8 @@ app.include_router(execution_router)
 app.include_router(portfolio_router)
 app.include_router(portfolio_control_router)  # Portfolio Command Center V2.0
 app.include_router(prop_firm_router)  # Prop firm metrics
+app.include_router(traces_router)     # Sprint 2.1: pipeline latency traces
+app.include_router(accounts_router)  # Sprint 2.3: multi-account routing
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_build_cors_origins(),
@@ -320,8 +324,17 @@ async def webhook(payload: dict[str, Any] = Depends(get_webhook_payload)):
     payload.setdefault("run_mode", "PAPER")
     symbol = payload.get("symbol", payload.get("zone_id", "N/A"))
     run_mode = payload["run_mode"]
-    logger.info("Signal: %s | Mode: %s", symbol, run_mode)
+
+    # Account routing: resolve target account + queue key, stamp onto payload
+    # before serialisation so the worker can read them without extra lookups.
+    from src.core.account_router import AccountRouter as _AccountRouter
+    _router = _AccountRouter()
+    account_id = _router.resolve_account_id(payload)
+    payload["_account_id"] = account_id
+    queue_key = _router.queue_key_for(account_id)
+
+    logger.info("Signal: %s | Mode: %s | Account: %s | Queue: %s", symbol, run_mode, account_id, queue_key)
     payload_str = json.dumps(payload)
-    get_transport().enqueue(payload_str)
+    get_transport().enqueue(payload_str, queue_key=queue_key)
     logger.info("Queued payload (len=%d)", len(payload_str))
-    return JSONResponse(status_code=200, content={"status": "queued"})
+    return JSONResponse(status_code=200, content={"status": "queued", "account_id": account_id})
