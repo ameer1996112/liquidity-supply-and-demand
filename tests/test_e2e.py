@@ -124,6 +124,14 @@ _PRICES = {
 def build_entry_payload(symbol: str, side: str, run_mode: str, zone_id: int, score: int) -> dict:
     p = _PRICES.get(symbol, _PRICES["EURUSD"])
     entry = p["entry"]
+    # Use live price when available so Staleness Guard passes (entry ≈ current price)
+    try:
+        from src.adapters.market_data import get_current_price
+        live = get_current_price(symbol)
+        if live and live > 0:
+            entry = round(live, 5)
+    except Exception:
+        pass
     sl_dist = p["sl_pips"] * p["pip"]
     tp_dist = sl_dist * p["tp_mult"]
 
@@ -182,6 +190,7 @@ def build_entry_payload(symbol: str, side: str, run_mode: str, zone_id: int, sco
         "arrival_type":         "aggressive",
         "market_structure_break": True,
         "signal_time":          datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "bar_time":             datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
 
 

@@ -853,6 +853,12 @@ def _execute_for_profile(
 
 
 def process_trade(payload: Dict[str, Any]):
+    # Exit events: route directly to logic (no entry guards)
+    if payload.get("event_type") == "exit":
+        logger.info("Exit event for zone_id=%s — routing to logic.process_trade", payload.get("zone_id"))
+        logic.process_trade(payload)
+        return
+
     symbol = payload.get("symbol", "UNKNOWN")
     side = payload.get("side", "buy")
     size = float(payload.get("size", 0.01))
