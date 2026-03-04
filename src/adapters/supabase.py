@@ -226,6 +226,16 @@ def update_alert_exit(zone_id: int, exit_data: dict, trade_key: str = None) -> b
 
         if response.data:
             logger.info(f"✅ Alert exit updated: {match_type}, outcome={exit_data.get('outcome')}, pnl_usd={exit_data.get('pnl_usd')}")
+            # Sprint 4.3: Create reflection on close (when MEMORY_ENABLED)
+            try:
+                from src.services.reflection_service import create_reflection_on_close_safe
+                row = response.data[0] if isinstance(response.data, list) else response.data
+                merged = {**row, **exit_data} if isinstance(row, dict) else None
+                trade_id = row.get("id") if isinstance(row, dict) else None
+                if trade_id and merged:
+                    create_reflection_on_close_safe(supabase, trade_id, merged)
+            except Exception:
+                pass
             return True
         else:
             logger.warning(f"⚠️  No alert found with {match_type}")

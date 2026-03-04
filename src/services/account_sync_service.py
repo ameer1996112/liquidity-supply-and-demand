@@ -483,11 +483,18 @@ class AccountSyncService:
 
                     if is_ghost:
                         logger.warning(f"Ghost position detected: DB id {db_pos['id']} ({db_pos.get('symbol')}) missing from broker. Marking CLOSED.")
-                        self.client.table("trading_signals").update({
+                        close_data = {
                             "status": "CLOSED",
                             "closed_at": datetime.now(timezone.utc).isoformat(),
                             "notes": "Auto-closed by reconciliation: Ghost position missing from broker."
-                        }).eq("id", db_pos["id"]).execute()
+                        }
+                        self.client.table("trading_signals").update(close_data).eq("id", db_pos["id"]).execute()
+                        try:
+                            from src.services.reflection_service import create_reflection_on_close_safe
+                            merged = {**db_pos, **close_data}
+                            create_reflection_on_close_safe(self.client, db_pos["id"], merged)
+                        except Exception:
+                            pass
                     else:
                         logger.debug(f"DB position {db_pos['id']} evaluation: is_ghost=False, db_broker_order_id='{db_broker_order_id}', status={status}")
 

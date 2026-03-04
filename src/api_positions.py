@@ -237,13 +237,18 @@ def close_position(signal_id: int, body: ClosePositionRequest):
     # Update DB regardless of broker result (manual close = intent to close)
     now_iso = datetime.now(timezone.utc).isoformat()
     try:
-        sb.table("trading_signals").update(
-            {
-                "status": "CLOSED",
-                "closed_at": now_iso,
-                "exit_type": "MANUAL",
-            }
-        ).eq("id", signal_id).execute()
+        update_data = {
+            "status": "CLOSED",
+            "closed_at": now_iso,
+            "exit_type": "MANUAL",
+        }
+        sb.table("trading_signals").update(update_data).eq("id", signal_id).execute()
+        try:
+            from src.services.reflection_service import create_reflection_on_close_safe
+            merged = {**signal, **update_data}
+            create_reflection_on_close_safe(sb, signal_id, merged)
+        except Exception:
+            pass
     except Exception as exc:
         logger.error("Failed to update signal %s after close: %s", signal_id, exc)
 

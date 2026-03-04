@@ -274,6 +274,20 @@ def run_debate(
             client = None
 
     trade_ctx = _build_trade_context(payload)
+    # Sprint 4.3: Add similar past situations when MEMORY_ENABLED
+    if supabase and getattr(settings, "memory_enabled", False):
+        try:
+            from src.services.memory_retrieval import (
+                retrieve_similar_reflections,
+                format_reflections_for_prompt,
+            )
+            k = getattr(settings, "memory_top_k", 3)
+            reflections = retrieve_similar_reflections(supabase, payload, k=k)
+            if reflections:
+                trade_ctx += "\n\n" + format_reflections_for_prompt(reflections)
+        except Exception as e:
+            logger.debug("Memory retrieval skipped: %s", e)
+
     transcript: List[Dict[str, str]] = []
 
     # 1. Bull

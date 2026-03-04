@@ -321,6 +321,13 @@ class TradeWatchdog:
                 total_pnl,
                 outcome,
             )
+            # Sprint 4.3: Create reflection on close (when MEMORY_ENABLED)
+            try:
+                from src.services.reflection_service import create_reflection_on_close_safe
+                merged = {**trade, **update_data}
+                create_reflection_on_close_safe(self.supabase, alert_id, merged)
+            except Exception:  # noqa: BLE001
+                pass
         except Exception as exc:  # noqa: BLE001
             logger.error(
                 "TradeWatchdog: Supabase update failed for alert #%s: %s",

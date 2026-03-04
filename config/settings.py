@@ -205,6 +205,19 @@ class Settings(BaseSettings):
         description="Min win-rate edge (allowed - blocked) % to enable enforce.",
         validation_alias="AI_GRADUATION_MIN_EDGE_PCT",
     )
+    # Sprint 4.3: Reflection + Memory loop (optional, default off)
+    memory_enabled: bool = Field(
+        default=False,
+        description="Enable trade reflections and memory-augmented AI context. Creates post-mortem on close, retrieves similar past situations for new signals.",
+        validation_alias="MEMORY_ENABLED",
+    )
+    memory_top_k: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        description="Number of similar past reflections to feed into AI Guardian.",
+        validation_alias="MEMORY_TOP_K",
+    )
 
     # Pine-matching deterministic pre-filters (mirror SND_Strategy.pine Balanced profile)
     pine_min_score: float = Field(default=60.0, ge=0.0, le=100.0, description="Min zone score (Pine ai_quality_threshold). 60=Balanced, 70=Conservative.")
