@@ -119,7 +119,7 @@ export function LiveLog({
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className='flex-1 overflow-y-auto px-2.5 py-1.5 scrollbar-thin'
+        className='flex-1 overflow-x-auto overflow-y-auto px-2.5 py-1.5 scrollbar-thin'
         style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', lineHeight: '1.6' }}
       >
         {visibleEntries.length === 0 ? (
@@ -144,7 +144,10 @@ export function LiveLog({
                     {entry.source}
                   </span>
                 )}
-                <span className='min-w-0 break-words text-[var(--to-text-secondary)]'>
+                <span
+                  className='min-w-0 shrink-0 break-words text-[var(--to-text-secondary)]'
+                  title={entry.message}
+                >
                   {entry.message}
                 </span>
               </div>
