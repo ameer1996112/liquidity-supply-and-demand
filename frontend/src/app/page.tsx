@@ -14,6 +14,7 @@ import { useRiskStatus } from '@/hooks/useRiskStatus';
 import { useConnectionHealth } from '@/hooks/useConnectionHealth';
 import { useDashboardLog } from '@/hooks/useDashboardLog';
 import { PageStatusBanner } from '@/components/shared/PageStatusBanner';
+import { TableSkeleton } from '@/components/shared/TableStates';
 import {
   formatCurrency,
   formatNumber,
@@ -372,16 +373,7 @@ export default function DashboardPage() {
 
           <div className='scrollbar-thin min-h-0 flex-1 overflow-y-auto p-2'>
             {signalsLoading && signals.length === 0 ? (
-              <div className='space-y-1.5'>
-                <Skeleton className='h-5 w-1/2 rounded bg-[var(--to-surface-raised)]' />
-                {Array.from({ length: 8 }).map((_, idx) => (
-                  // eslint-disable-next-line react/no-array-index-key
-                  <Skeleton
-                    key={idx}
-                    className='h-6 w-full rounded bg-[var(--to-surface-raised)]/80'
-                  />
-                ))}
-              </div>
+              <TableSkeleton rowCount={8} columnCount={6} />
             ) : (
               <SignalTable
                 signals={signals}
