@@ -402,7 +402,7 @@ class AIGuardian:
         return self._client
 
     def _build_user_message(self, context: TradeContext) -> str:
-        """Build user message with trade context."""
+        """Build user message with trade context (optionally memory-augmented)."""
         arrival_type = context.get_arrival_type()
 
         # Build structured context
@@ -442,10 +442,49 @@ class AIGuardian:
             "touch_count": context.touch_count,
         }
 
+        # Sprint 4.3: Optional memory-augmented context.
+        # When MEMORY_ENABLED is true, retrieve top-k similar past reflections
+        # and append a compact summary to the prompt for the LLM.
+        memory_block = ""
+        try:
+            from config import get_settings
+            settings = get_settings()
+            if getattr(settings, "memory_enabled", False):
+                try:
+                    from src.adapters.supabase import get_supabase
+                    from src.services.memory_retrieval import (
+                        retrieve_similar_reflections,
+                        format_reflections_for_prompt,
+                    )
+
+                    supabase = get_supabase()
+                    if supabase:
+                        payload = {
+                            "symbol": context.symbol,
+                            "side": context.side,
+                            "zone_type": context.zone_type,
+                            "entry_model": context.entry_model,
+                            "score": context.score,
+                        }
+                        top_k = getattr(settings, "memory_top_k", 3)
+                        reflections = retrieve_similar_reflections(
+                            supabase,
+                            payload,
+                            k=top_k,
+                        )
+                        formatted = format_reflections_for_prompt(reflections)
+                        if formatted:
+                            memory_block = f"\n\n{formatted}"
+                except Exception as mem_exc:  # noqa: BLE001
+                    logger.debug("AI Guardian memory retrieval skipped: %s", mem_exc)
+        except Exception:
+            # Settings failure should not block AI Guardian.
+            pass
+
         return f"""Analyze this trade signal and return your decision as JSON:
 
 TRADE CONTEXT:
-{json.dumps(data, indent=2)}
+{json.dumps(data, indent=2)}{memory_block}
 
 Remember: ONLY return valid JSON, no other text."""
 
