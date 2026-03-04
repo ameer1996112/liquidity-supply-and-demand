@@ -35,6 +35,8 @@ import {
 import { cn } from '@/lib/utils';
 import { ClientDate } from '@/components/ui/ClientDate';
 import { TraceTable } from '@/components/execution/TraceTable';
+import { useConnectionHealth } from '@/hooks/useConnectionHealth';
+import { PageStatusBanner } from '@/components/shared/PageStatusBanner';
 
 // ── Period selector ───────────────────────────────────────────────────────────
 
@@ -126,6 +128,7 @@ function ExecutionQualityContent() {
   const { data: accounts = [] } = useTraceAccounts();
 
   const hasHighSlippage = tcaSummary && tcaSummary.avg_slippage_pips < -2.0;
+  const { status } = useConnectionHealth();
 
   return (
     <div className='space-y-4'>
@@ -178,6 +181,8 @@ function ExecutionQualityContent() {
           )}
         </div>
       </div>
+
+      <PageStatusBanner status={status} surfaceLabel="Execution logs & traces" />
 
       {/* ── Tabs ────────────────────────────────────────────────────── */}
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'tca' | 'traces')}>

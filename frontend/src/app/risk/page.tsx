@@ -12,9 +12,13 @@ import {
   AlertCircle,
   Info,
 } from 'lucide-react';
+import { useConnectionHealth } from '@/hooks/useConnectionHealth';
+import { PageStatusBanner } from '@/components/shared/PageStatusBanner';
 
 export default function RiskMonitorPage() {
   const { data, isLoading, error } = useRiskMonitor();
+
+  const { status } = useConnectionHealth();
 
   if (error) {
     return (
@@ -25,9 +29,7 @@ export default function RiskMonitorPage() {
             Real-time risk state from Pine Script
           </p>
         </div>
-        <div className='rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-xs text-amber-300'>
-          Failed to load risk monitor data. Ensure the backend API is running.
-        </div>
+        <PageStatusBanner status={status} surfaceLabel="Risk decisions" />
       </div>
     );
   }
@@ -41,6 +43,8 @@ export default function RiskMonitorPage() {
           Real-time risk state from Pine Script · read-only
         </p>
       </div>
+
+      <PageStatusBanner status={status} surfaceLabel="Risk decisions" />
 
       {/* Info banner */}
       <div className='flex items-start gap-2.5 rounded-lg border border-indigo-500/20 bg-indigo-500/8 px-3 py-2.5'>

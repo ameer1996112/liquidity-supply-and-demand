@@ -15,6 +15,7 @@ import { SummaryCards } from '@/components/analytics/SummaryCards';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { Target, TrendingUp, BarChart3, Hash } from 'lucide-react';
+import { PanelEmptyState } from '@/components/shared/PanelEmptyState';
 
 const EquityCurveChart = dynamic(
   () =>
@@ -240,18 +241,11 @@ export default function AnalyticsPage() {
                 </div>
               </>
             ) : (
-              <div className='tv-card flex-1'>
-                <div className='empty-state py-16'>
-                  <span className='empty-state-text'>
-                    [ NO ANALYTICS DATA ]
-                  </span>
-                  <span
-                    className='mt-1 text-[10px] text-slate-700'
-                    style={{ fontFamily: 'var(--font-mono)' }}
-                  >
-                    execute trades to generate performance data
-                  </span>
-                </div>
+              <div className='tv-card flex-1 p-4'>
+                <PanelEmptyState
+                  title='No analytics data'
+                  description='Execute trades to generate performance data.'
+                />
               </div>
             )}
           </div>
@@ -308,12 +302,11 @@ export default function AnalyticsPage() {
                 />
               </div>
             ) : (
-              <div className='tv-card'>
-                <div className='empty-state py-16'>
-                  <span className='empty-state-text'>
-                    [ NO BREAKDOWN DATA ]
-                  </span>
-                </div>
+              <div className='tv-card p-4'>
+                <PanelEmptyState
+                  title='No breakdown data'
+                  description='Not enough trades yet to compute breakdown analytics.'
+                />
               </div>
             )}
           </>
@@ -363,10 +356,11 @@ export default function AnalyticsPage() {
                 currentStreakType={streaksData.current_streak_type}
               />
             ) : (
-              <div className='tv-card'>
-                <div className='empty-state py-16'>
-                  <span className='empty-state-text'>[ NO STREAK DATA ]</span>
-                </div>
+              <div className='tv-card p-4'>
+                <PanelEmptyState
+                  title='No streak data'
+                  description='Execute more trades to see win/loss streaks.'
+                />
               </div>
             )}
           </>
