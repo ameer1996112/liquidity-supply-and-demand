@@ -12,6 +12,12 @@ from typing import Any, Callable, Dict, List, Optional
 
 from config import get_settings
 
+from src.services.lookahead_bias_detector import (
+    LookAheadBiasError,
+    filter_candles_to_time,
+    get_decision_ts_from_signal,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -52,8 +58,11 @@ def run_backtest(
             emit(pct, f"Processing {i + 1}/{len(signals)}", {"symbol": sig.get("symbol")})
 
             payload = _signal_to_payload(sig)
+            decision_ts = get_decision_ts_from_signal(sig)
+            eval_config = _build_eval_config(config, sig, decision_ts)
+
             t0 = time.perf_counter()
-            ai_result = _evaluate_with_cache(supabase, payload, config)
+            ai_result = _evaluate_with_cache(supabase, payload, eval_config)
             lat_ms = (time.perf_counter() - t0) * 1000
             latencies.append(lat_ms)
 
@@ -141,6 +150,26 @@ def _signal_to_payload(sig: Dict) -> Dict:
         "entry_model": sig.get("entry_model"),
         "run_mode": "PAPER",
     }
+
+
+def _build_eval_config(config: Dict, sig: Dict, decision_ts: float) -> Dict:
+    """
+    Build config for evaluation with candles filtered to decision time.
+    Candles with timestamp > decision_ts cause LookAheadBiasError (strict mode).
+    """
+    out = dict(config)
+    candles = config.get("candles") or []
+    if not candles:
+        return out
+    timeframe = config.get("timeframe", "5m")
+    out["candles"] = filter_candles_to_time(
+        candles,
+        decision_ts,
+        timeframe=timeframe,
+        time_key="time",
+        strict=True,
+    )
+    return out
 
 
 def _evaluate_with_cache(supabase: Any, payload: Dict, config: Dict) -> Optional[Dict]:

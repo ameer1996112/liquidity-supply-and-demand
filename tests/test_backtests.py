@@ -1,5 +1,6 @@
 """
 Sprint 4.1: Backtest Lab tests.
+Sprint 4.2: Look-ahead bias detection tests.
 """
 
 from __future__ import annotations
@@ -8,6 +9,13 @@ import json
 import unittest
 from unittest.mock import MagicMock, patch
 
+from src.services.lookahead_bias_detector import (
+    LookAheadBiasError,
+    check_future_timestamp,
+    check_htf_alignment,
+    filter_candles_to_time,
+    get_decision_ts_from_signal,
+)
 from src.services.ai_decision_cache import (
     build_cache_key,
     cache_get,
@@ -19,6 +27,7 @@ from src.services.backtest_engine import (
     _compute_metrics,
     _paper_fill_from_signal,
     _signal_to_payload,
+    run_backtest,
 )
 
 
@@ -63,6 +72,64 @@ class AiDecisionCacheTests(unittest.TestCase):
         result = cache_get(mock_sb, "hit_key")
         self.assertIsNotNone(result)
         self.assertEqual(result["decision"], "GO")
+
+
+class LookaheadBiasDetectorTests(unittest.TestCase):
+    """Sprint 4.2: Look-ahead bias detection."""
+
+    def test_check_future_timestamp_raises(self):
+        with self.assertRaises(LookAheadBiasError) as ctx:
+            check_future_timestamp(1000.0, 500.0, label="candle")
+        self.assertIn("Look-ahead bias", str(ctx.exception))
+        self.assertIn("1000", str(ctx.exception))
+        self.assertIn("500", str(ctx.exception))
+
+    def test_check_future_timestamp_ok(self):
+        check_future_timestamp(500.0, 1000.0, label="candle")
+        check_future_timestamp(500.0, 500.0, label="candle")
+
+    def test_check_htf_alignment_raises(self):
+        # Bar closes at 1000, decision at 999 - bar not yet closed
+        with self.assertRaises(LookAheadBiasError) as ctx:
+            check_htf_alignment(1000.0, "5m", 999.0)
+        self.assertIn("HTF alignment", str(ctx.exception))
+
+    def test_check_htf_alignment_ok(self):
+        check_htf_alignment(1000.0, "5m", 1000.0)
+        check_htf_alignment(1000.0, "5m", 1001.0)
+
+    def test_filter_candles_to_time_strict_raises_on_future(self):
+        decision_ts = 1000.0
+        candles = [
+            {"time": 998, "open": 1, "high": 2, "low": 0.5, "close": 1.5},
+            {"time": 1005, "open": 1, "high": 2, "low": 0.5, "close": 1.5},  # future
+        ]
+        with self.assertRaises(LookAheadBiasError) as ctx:
+            filter_candles_to_time(candles, decision_ts, strict=True)
+        self.assertIn("Look-ahead bias", str(ctx.exception))
+        self.assertIn("1005", str(ctx.exception))
+
+    def test_filter_candles_to_time_returns_valid_only(self):
+        decision_ts = 1000.0
+        candles = [
+            {"time": 990, "open": 1, "high": 2, "low": 0.5, "close": 1.5},
+            {"time": 995, "open": 1, "high": 2, "low": 0.5, "close": 1.5},
+            {"time": 1000, "open": 1, "high": 2, "low": 0.5, "close": 1.5},
+        ]
+        out = filter_candles_to_time(candles, decision_ts, strict=True)
+        self.assertEqual(len(out), 3)
+
+    def test_get_decision_ts_from_signal_iso(self):
+        sig = {"created_at": "2025-01-15T10:00:00Z"}
+        ts = get_decision_ts_from_signal(sig)
+        self.assertIsInstance(ts, float)
+        self.assertGreater(ts, 1736930000)  # ~2025-01-15
+        self.assertLess(ts, 1737020000)
+
+    def test_get_decision_ts_from_signal_unix(self):
+        sig = {"created_at": 1736931600}  # 2025-01-15 10:00 UTC
+        ts = get_decision_ts_from_signal(sig)
+        self.assertEqual(ts, 1736931600.0)
 
 
 class BacktestEngineTests(unittest.TestCase):
@@ -110,6 +177,50 @@ class BacktestEngineTests(unittest.TestCase):
         self.assertEqual(m["losing_trades"], 1)
         self.assertAlmostEqual(m["win_rate"], 66.67, places=1)
         self.assertGreater(m["avg_latency_ms"], 0)
+
+    @patch("src.services.backtest_engine._load_signals")
+    @patch("src.services.backtest_engine._evaluate_with_cache")
+    def test_backtest_fails_on_future_candle_data(self, mock_eval, mock_load):
+        """Sprint 4.2: Deliberately injected future data causes backtest failure with clear error."""
+        decision_ts = 1736931600  # 2025-01-15 10:00 UTC (unix)
+        future_ts = 1736935200   # 2025-01-15 11:00 UTC (future bar)
+
+        mock_load.return_value = [
+            {
+                "id": 1,
+                "symbol": "XAUUSD",
+                "side": "buy",
+                "entry": 2650,
+                "sl": 2640,
+                "tp": 2670,
+                "size": 0.01,
+                "created_at": decision_ts,  # Use unix to avoid timezone parsing variance
+                "pnl_usd": 100,
+                "outcome": "win",
+                "exit_price": 2670,
+                "closed_at": "2025-01-15T12:00:00Z",
+            }
+        ]
+        mock_eval.return_value = {"decision": "GO", "rf_prob": 0.7}
+
+        config = {
+            "start_date": "2025-01-01",
+            "end_date": "2025-12-31",
+            "initial_cash": 10000,
+            "candles": [
+                {"time": decision_ts - 300, "open": 2645, "high": 2655, "low": 2640, "close": 2650},
+                {"time": future_ts, "open": 2650, "high": 2670, "low": 2648, "close": 2670},
+            ],
+            "timeframe": "5m",
+        }
+
+        with self.assertRaises(LookAheadBiasError) as ctx:
+            run_backtest(1, config, MagicMock(), on_progress=None)
+
+        err = ctx.exception
+        self.assertIn("Look-ahead bias", str(err))
+        self.assertIn(str(future_ts), str(err))
+        self.assertIn(str(decision_ts), str(err))
 
 
 class BacktestAPITests(unittest.TestCase):
