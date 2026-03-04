@@ -81,6 +81,27 @@ export function useDashboardLog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted]);
 
+  // Update HEALTH entry when connection status changes (health check may complete after initial seed)
+  useEffect(() => {
+    if (!mounted) return;
+    setEntries((prev) => {
+      const healthIdx = prev.findIndex((e) => e.source === 'HEALTH');
+      if (healthIdx === -1) return prev;
+      const updated = [...prev];
+      updated[healthIdx] = {
+        ...updated[healthIdx],
+        id: nextId(),
+        timestamp: new Date().toISOString(),
+        level: isConnected ? 'success' : 'error',
+        message: isConnected
+          ? 'API connection established'
+          : 'API unreachable — signals via Supabase only',
+      };
+      return updated;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted, isConnected]);
+
   useEffect(() => {
     if (!mounted) return;
     const newCount = signals.length - prevCountRef.current;
