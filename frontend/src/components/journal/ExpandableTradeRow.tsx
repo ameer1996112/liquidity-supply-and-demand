@@ -1,33 +1,11 @@
-'use client';
-
-import { useState } from 'react';
-import { TradingSignal, getSymbol, getSide, getScore, getPnl, getNotes, AIReasoning } from '@/types/trading';
-import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
-import { ChevronDown, ExternalLink } from 'lucide-react';
+"'use client';\n+\n+import { useState } from 'react';\n+import { TradingSignal, getSymbol, getSide, getScore, getPnl, getNotes, AIReasoning } from '@/types/trading';\n+import { cn } from '@/lib/utils';\n+import { format } from 'date-fns';\n+import { ChevronDown, ExternalLink } from 'lucide-react';\n+import { PnLText } from '@/components/ui/typography';"
 
 interface ExpandableTradeRowProps {
   signal: TradingSignal;
   onInspect: (signal: TradingSignal) => void;
 }
 
-const statusColors: Record<string, string> = {
-  active: 'text-blue-400 bg-blue-500/10',
-  closed: 'text-zinc-300 bg-zinc-700/30',
-  executed: 'text-emerald-400 bg-emerald-500/10',
-  ai_rejected: 'text-rose-400 bg-rose-500/10',
-  filtered: 'text-amber-400 bg-amber-500/10',
-  pending: 'text-zinc-400 bg-zinc-700/30',
-  failed: 'text-red-400 bg-red-500/10',
-};
-
-const SESSION_LABELS: Record<number, string> = { 0: 'Asia', 1: 'LDN', 2: 'NY', 3: 'Off' };
-const SESSION_COLORS: Record<number, string> = {
-  0: 'text-purple-400 bg-purple-500/10',
-  1: 'text-blue-400 bg-blue-500/10',
-  2: 'text-amber-400 bg-amber-500/10',
-  3: 'text-zinc-500 bg-zinc-700/30',
-};
+const statusColors: Record<string, string> = {\n+  active: 'text-long bg-long/10',\n+  closed: 'text-text-secondary bg-surface-raised/40',\n+  executed: 'text-long bg-long/10',\n+  ai_rejected: 'text-short bg-short/10',\n+  filtered: 'text-text-dim bg-surface-raised/40',\n+  pending: 'text-warning bg-warning/10',\n+  failed: 'text-short bg-short/10',\n+};\n+\n+const SESSION_LABELS: Record<number, string> = { 0: 'Asia', 1: 'LDN', 2: 'NY', 3: 'Off' };\n+const SESSION_COLORS: Record<number, string> = {\n+  0: 'text-blue-accent bg-blue-accent/10',\n+  1: 'text-long bg-long/10',\n+  2: 'text-amber bg-amber/10',\n+  3: 'text-text-dim bg-surface-raised/40',\n+};"
 
 function parseAI(signal: TradingSignal): AIReasoning | null {
   if (!signal.ai_reasoning) return null;
@@ -72,28 +50,15 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
         <td className="py-2.5 px-3">
           <span className="font-mono text-xs font-semibold text-zinc-200">{symbol}</span>
           {(() => {
-            const runMode = (signal.run_mode || signal.mode || '').toUpperCase();
-            if (runMode === 'LIVE') return (
-              <span className="ml-1.5 font-mono text-[9px] font-bold px-1 py-0.5 rounded bg-rose-500/15 text-rose-400">LIVE</span>
-            );
-            if (runMode === 'PAPER') return (
-              <span className="ml-1.5 font-mono text-[9px] font-bold px-1 py-0.5 rounded bg-blue-500/15 text-blue-400">PAPER</span>
-            );
+            const runMode = (signal.run_mode || signal.mode || '').toUpperCase();\n+            if (runMode === 'LIVE') return (\n+              <span className=\"ml-1.5 font-mono text-[9px] font-bold px-1 py-0.5 rounded bg-short/15 text-short\">LIVE</span>\n+            );\n+            if (runMode === 'PAPER') return (\n+              <span className=\"ml-1.5 font-mono text-[9px] font-bold px-1 py-0.5 rounded bg-blue-accent/15 text-blue-accent\">PAPER</span>\n+            );"
             return null;
           })()}
         </td>
-        <td className="py-2.5 px-3">
-          <span
-            className={cn(
-              'font-mono text-[10px] font-bold px-1.5 py-0.5 rounded',
-              side === 'buy' ? 'text-emerald-400 bg-emerald-500/10' : 'text-rose-400 bg-rose-500/10'
-            )}
-          >
+        <td className="py-2.5 px-3">\n+          <span\n+            className={cn(\n+              'font-mono text-[10px] font-bold px-1.5 py-0.5 rounded',\n+              side === 'buy' ? 'text-long bg-long/10' : 'text-short bg-short/10',\n+            )}\n+          >"
             {side.toUpperCase()}
           </span>
         </td>
-        <td className="py-2.5 px-3">
-          <span className={cn('font-mono text-[10px] px-1.5 py-0.5 rounded', statusClass)}>
+        <td className="py-2.5 px-3">\n+          <span className={cn('font-mono text-[10px] px-1.5 py-0.5 rounded', statusClass)}>
             {(signal.status || '').toUpperCase().replace('_', ' ')}
           </span>
         </td>
@@ -107,11 +72,7 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
 
         {/* Zone (type + grade) */}
         <td className="py-2.5 px-3">
-          {zoneType ? (
-            <span className={cn(
-              'font-mono text-[10px] px-1.5 py-0.5 rounded',
-              zoneType.toLowerCase() === 'demand' ? 'text-emerald-400 bg-emerald-500/10' : 'text-rose-400 bg-rose-500/10'
-            )}>
+          {zoneType ? (\n+            <span className={cn(\n+              'font-mono text-[10px] px-1.5 py-0.5 rounded',\n+              zoneType.toLowerCase() === 'demand' ? 'text-long bg-long/10' : 'text-short bg-short/10',\n+            )}>"
               {zoneType.toUpperCase().slice(0, 1)}{zoneGrade ? ` ${zoneGrade}` : ''}
             </span>
           ) : (
@@ -121,8 +82,7 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
 
         {/* Entry Model */}
         <td className="py-2.5 px-3">
-          {entryModel ? (
-            <span className="font-mono text-[10px] text-zinc-300 px-1.5 py-0.5 rounded bg-zinc-700/40">
+          {entryModel ? (\n+            <span className="font-mono text-[10px] text-text-secondary px-1.5 py-0.5 rounded bg-surface-raised/40">
               {entryModel.toUpperCase()}
             </span>
           ) : (
@@ -132,8 +92,7 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
 
         {/* Session */}
         <td className="py-2.5 px-3">
-          {session != null ? (
-            <span className={cn('font-mono text-[10px] px-1.5 py-0.5 rounded', SESSION_COLORS[session] || SESSION_COLORS[3])}>
+          {session != null ? (\n+            <span className={cn('font-mono text-[10px] px-1.5 py-0.5 rounded', SESSION_COLORS[session] || SESSION_COLORS[3])}>
               {SESSION_LABELS[session] || '--'}
             </span>
           ) : (
@@ -154,13 +113,7 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
         </td>
 
         <td className="py-2.5 px-3">
-          {score != null ? (
-            <span
-              className={cn(
-                'font-mono text-[11px] font-semibold',
-                score >= 70 ? 'text-emerald-400' : score >= 50 ? 'text-amber-400' : 'text-rose-400'
-              )}
-            >
+          {score != null ? (\n+            <span\n+              className={cn(\n+                'font-mono text-[11px] font-semibold',\n+                score >= 70 ? 'text-long' : score >= 50 ? 'text-amber' : 'text-short',\n+              )}\n+            >"
               {score}
             </span>
           ) : (
@@ -170,20 +123,7 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
         <td className="py-2.5 px-3 font-mono text-[11px] text-zinc-400">
           {signal.rr_ratio != null ? `1:${signal.rr_ratio.toFixed(1)}` : '--'}
         </td>
-        <td className="py-2.5 px-3">
-          {pnl != null ? (
-            <span
-              className={cn(
-                'font-mono text-[11px] font-semibold',
-                pnl > 0 ? 'text-emerald-400' : pnl < 0 ? 'text-rose-400' : 'text-zinc-400'
-              )}
-            >
-              {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
-            </span>
-          ) : (
-            <span className="text-zinc-600 text-[11px]">--</span>
-          )}
-        </td>
+        <td className="py-2.5 px-3">\n+          {pnl != null ? (\n+            <PnLText\n+              value={pnl}\n+              variant=\"currency\"\n+              size=\"sm\"\n+            />\n+          ) : (\n+            <span className=\"text-zinc-600 text-[11px]\">--</span>\n+          )}\n+        </td>"
         <td className="py-2.5 px-3">
           <ChevronDown
             className={cn(
@@ -195,27 +135,16 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
       </tr>
 
       {/* Expanded Detail Row */}
-      {expanded && (
-        <tr className="border-b border-[#2a2e39] bg-[#1a1e28]">
+      {expanded && (\n+        <tr className="border-b border-panel-border bg-[var(--to-surface)]/80">
           <td colSpan={15} className="p-4">
             <div className="grid grid-cols-3 gap-6">
               {/* Technical Setup */}
               <div className="space-y-2">
-                <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-medium">
+                <span className="text-[10px] text-text-dim uppercase tracking-wider font-medium">
                   Technical Setup
                 </span>
                 <div className="space-y-1.5 text-[11px]">
-                  <div className="flex justify-between">
-                    <span className="text-zinc-500">Entry</span>
-                    <span className="font-mono text-zinc-300">{entry != null ? `$${entry}` : '--'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-zinc-500">Stop Loss</span>
-                    <span className="font-mono text-rose-400">{sl != null ? `$${sl}` : '--'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-zinc-500">Take Profit</span>
-                    <span className="font-mono text-emerald-400">{tp != null ? `$${tp}` : '--'}</span>
+                  <div className="flex justify-between">\n+                    <span className="text-zinc-500">Entry</span>\n+                    <span className="font-mono text-zinc-300">\n+                      <PnLText\n+                        value={entry ?? null}\n+                        variant=\"currency\"\n+                        size=\"sm\"\n+                      />\n+                    </span>\n+                  </div>\n+                  <div className="flex justify-between">\n+                    <span className="text-zinc-500">Stop Loss</span>\n+                    <span className="font-mono text-short">\n+                      <PnLText\n+                        value={sl ?? null}\n+                        variant=\"currency\"\n+                        size=\"sm\"\n+                      />\n+                    </span>\n+                  </div>\n+                  <div className="flex justify-between\">\n+                    <span className="text-zinc-500">Take Profit</span>\n+                    <span className="font-mono text-long\">\n+                      <PnLText\n+                        value={tp ?? null}\n+                        variant=\"currency\"\n+                        size=\"sm\"\n+                      />\n+                    </span>\n+                  </div>"
                   </div>
                   <div className="flex justify-between">
                     <span className="text-zinc-500">Position Size</span>
@@ -246,14 +175,14 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
 
               {/* AI Analysis */}
               <div className="space-y-2">
-                <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-medium">
+                <span className="text-[10px] text-text-dim uppercase tracking-wider font-medium">
                   AI Analysis
                 </span>
                 <div className="space-y-1.5 text-[11px]">
                   {zoneType && (
                     <div className="flex justify-between">
                       <span className="text-zinc-500">Zone</span>
-                      <span className={cn('font-mono', zoneType.toLowerCase() === 'demand' ? 'text-emerald-400' : 'text-rose-400')}>
+                      <span className={cn('font-mono', zoneType.toLowerCase() === 'demand' ? 'text-long' : 'text-short')}>
                         {zoneType.toUpperCase()} {zoneGrade || ''}
                       </span>
                     </div>
@@ -267,7 +196,7 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
                   {ai?.decision && (
                     <div className="flex justify-between">
                       <span className="text-zinc-500">Decision</span>
-                      <span className={cn('font-mono font-semibold', ai.decision === 'GO' ? 'text-emerald-400' : 'text-rose-400')}>
+                      <span className={cn('font-mono font-semibold', ai.decision === 'GO' ? 'text-long' : 'text-short')}>
                         {ai.decision}
                       </span>
                     </div>
@@ -275,10 +204,7 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
                   {ai?.rf_prob != null && (
                     <div className="flex justify-between">
                       <span className="text-zinc-500">RF Prob</span>
-                      <span className={cn(
-                        'font-mono font-semibold',
-                        ai.rf_prob >= 0.7 ? 'text-emerald-400' : ai.rf_prob >= 0.5 ? 'text-amber-400' : 'text-rose-400'
-                      )}>
+                      <span className={cn(\n+                        'font-mono font-semibold',\n+                        ai.rf_prob >= 0.7 ? 'text-long' : ai.rf_prob >= 0.5 ? 'text-amber' : 'text-short',\n+                      )}>
                         {(ai.rf_prob * 100).toFixed(1)}%
                       </span>
                     </div>
@@ -286,7 +212,7 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
                   {(signal.liq_swept != null || ai?.liquidity_swept != null) && (
                     <div className="flex justify-between">
                       <span className="text-zinc-500">Liq Swept</span>
-                      <span className={cn('font-mono', (signal.liq_swept ?? ai?.liquidity_swept) ? 'text-emerald-400' : 'text-rose-400')}>
+                      <span className={cn('font-mono', (signal.liq_swept ?? ai?.liquidity_swept) ? 'text-long' : 'text-short')}>
                         {(signal.liq_swept ?? ai?.liquidity_swept) ? 'YES' : 'NO'}
                       </span>
                     </div>
@@ -294,7 +220,7 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
                   {trend != null && (
                     <div className="flex justify-between">
                       <span className="text-zinc-500">Trend</span>
-                      <span className={cn('font-mono', trend === 1 ? 'text-emerald-400' : 'text-rose-400')}>
+                      <span className={cn('font-mono', trend === 1 ? 'text-long' : 'text-short')}>
                         {trend === 1 ? 'BULL' : 'BEAR'}
                       </span>
                     </div>
@@ -302,10 +228,7 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
                   {signal.rsi != null && (
                     <div className="flex justify-between">
                       <span className="text-zinc-500">RSI</span>
-                      <span className={cn(
-                        'font-mono text-zinc-300',
-                        signal.rsi > 70 ? 'text-rose-400' : signal.rsi < 30 ? 'text-emerald-400' : ''
-                      )}>{signal.rsi.toFixed(1)}</span>
+                      <span className={cn(\n+                        'font-mono text-zinc-300',\n+                        signal.rsi > 70 ? 'text-short' : signal.rsi < 30 ? 'text-long' : '',\n+                      )}>{signal.rsi.toFixed(1)}</span>"
                     </div>
                   )}
                   {notes && (
@@ -318,7 +241,7 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
 
               {/* Execution */}
               <div className="space-y-2">
-                <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-medium">
+                <span className="text-[10px] text-text-dim uppercase tracking-wider font-medium">
                   Execution
                 </span>
                 <div className="space-y-1.5 text-[11px]">
@@ -336,22 +259,7 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
                       </span>
                     </div>
                   )}
-                  {pnl != null && (
-                    <div className="flex justify-between">
-                      <span className="text-zinc-500">PnL</span>
-                      <span className={cn('font-mono font-semibold', pnl >= 0 ? 'text-emerald-400' : 'text-rose-400')}>
-                        {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
-                      </span>
-                    </div>
-                  )}
-                  {signal.pnl_percentage != null && (
-                    <div className="flex justify-between">
-                      <span className="text-zinc-500">PnL %</span>
-                      <span className={cn('font-mono', signal.pnl_percentage >= 0 ? 'text-emerald-400' : 'text-rose-400')}>
-                        {signal.pnl_percentage >= 0 ? '+' : ''}{signal.pnl_percentage.toFixed(2)}%
-                      </span>
-                    </div>
-                  )}
+                  {pnl != null && (\n+                    <div className=\"flex justify-between\">\n+                      <span className=\"text-zinc-500\">PnL</span>\n+                      <span className=\"font-mono font-semibold\">\n+                        <PnLText\n+                          value={pnl}\n+                          variant=\"currency\"\n+                          size=\"sm\"\n+                        />\n+                      </span>\n+                    </div>\n+                  )}\n+                  {signal.pnl_percentage != null && (\n+                    <div className=\"flex justify-between\">\n+                      <span className=\"text-zinc-500\">PnL %</span>\n+                      <span className={cn('font-mono', signal.pnl_percentage >= 0 ? 'text-long' : 'text-short')}>\n+                        {signal.pnl_percentage >= 0 ? '+' : ''}{signal.pnl_percentage.toFixed(2)}%\n+                      </span>\n+                    </div>\n+                  )}"
                 </div>
                 <button
                   onClick={(e) => { e.stopPropagation(); onInspect(signal); }}

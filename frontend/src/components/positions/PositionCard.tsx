@@ -12,6 +12,7 @@ import { ClosePositionDialog } from './ClosePositionDialog';
 import { X, Pencil, Scissors, Loader2 } from 'lucide-react';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { ClientDate } from '@/components/ui/ClientDate';
+import { PnLText } from '@/components/ui/typography';
 
 function PriceLabel({ label, value }: { label: string; value: number | null }) {
   return (
@@ -48,7 +49,7 @@ export function PositionCard({ position }: { position: ActivePosition }) {
       <div
         className={cn(
           'tv-card border-l-2 transition-colors',
-          pnlPositive ? 'border-l-[#26a69a]' : 'border-l-[#ef5350]',
+          pnlPositive ? 'border-l-[var(--to-long)]' : 'border-l-[var(--to-short)]',
         )}
       >
         <div className='p-4 space-y-3'>
@@ -62,29 +63,24 @@ export function PositionCard({ position }: { position: ActivePosition }) {
                 className={cn(
                   'font-mono text-[10px] px-1.5 py-0.5 rounded font-semibold uppercase',
                   isBuy
-                    ? 'bg-[#26a69a]/15 text-[#26a69a]'
-                    : 'bg-[#ef5350]/15 text-[#ef5350]',
+                    ? 'bg-[var(--to-long)]/15 text-[var(--to-long)]'
+                    : 'bg-[var(--to-short)]/15 text-[var(--to-short)]',
                 )}
               >
                 {position.side}
               </span>
               {position.zone_type && (
-                <span className='font-mono text-[9px] px-1 py-0.5 rounded bg-[#2a2e39] text-zinc-500 uppercase'>
+                <span className='font-mono text-[9px] px-1 py-0.5 rounded bg-[var(--to-surface-raised)] text-[var(--to-text-secondary)] uppercase'>
                   {position.zone_type}
                 </span>
               )}
             </div>
             <div className='text-right'>
-              <span
-                className={cn(
-                  'font-mono text-lg font-bold tabular-nums',
-                  pnlPositive ? 'text-[#26a69a]' : 'text-[#ef5350]',
-                )}
-              >
-                {position.live_pnl != null
-                  ? `${position.live_pnl >= 0 ? '+' : ''}$${position.live_pnl.toFixed(2)}`
-                  : '—'}
-              </span>
+              <PnLText
+                value={position.live_pnl}
+                variant='currency'
+                size='xl'
+              />
             </div>
           </div>
 
@@ -115,13 +111,13 @@ export function PositionCard({ position }: { position: ActivePosition }) {
           </div>
 
           {/* Action buttons */}
-          <div className='flex items-center gap-2 pt-1 border-t border-[#2a2e39]'>
+          <div className='flex items-center gap-2 pt-1 border-t border-panel-border-subtle'>
             <button
               onClick={handleClose}
               disabled={closePosition.isPending}
               className={cn(
                 'flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-mono font-semibold uppercase tracking-wider transition-colors',
-                'bg-[#ef5350]/15 text-[#ef5350] hover:bg-[#ef5350]/25',
+                'bg-[var(--to-short)]/15 text-[var(--to-short)] hover:bg-[var(--to-short)]/25',
               )}
             >
               {closePosition.isPending ? (
@@ -134,7 +130,7 @@ export function PositionCard({ position }: { position: ActivePosition }) {
 
             <button
               onClick={() => setShowModify(true)}
-              className='flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-mono font-semibold uppercase tracking-wider bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 transition-colors'
+              className='flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-mono font-semibold uppercase tracking-wider bg-[var(--to-accent-blue)]/15 text-[var(--to-accent-blue)] hover:bg-[var(--to-accent-blue)]/25 transition-colors'
             >
               <Pencil className='w-3 h-3' />
               SL/TP
@@ -143,7 +139,7 @@ export function PositionCard({ position }: { position: ActivePosition }) {
             <button
               onClick={handlePartialClose}
               disabled={partialClose.isPending}
-              className='flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-mono font-semibold uppercase tracking-wider bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 transition-colors'
+              className='flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-mono font-semibold uppercase tracking-wider bg-[var(--to-warning)]/15 text-[var(--to-warning)] hover:bg-[var(--to-warning)]/25 transition-colors'
             >
               {partialClose.isPending ? (
                 <Loader2 className='w-3 h-3 animate-spin' />

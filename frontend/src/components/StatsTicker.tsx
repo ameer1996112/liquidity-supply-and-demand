@@ -11,10 +11,11 @@ import {
   DollarSign,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { PnLText } from '@/components/ui/typography';
 
 interface StatItemProps {
   label: string;
-  value: string | number;
+  value: React.ReactNode;
   icon: React.ReactNode;
   trend?: 'up' | 'down' | 'neutral';
   highlight?: boolean;
@@ -27,22 +28,22 @@ function StatItem({ label, value, icon, trend, highlight }: StatItemProps) {
         className={cn(
           'flex items-center justify-center w-8 h-8 rounded-md',
           highlight
-            ? 'bg-emerald-500/20 text-emerald-400'
-            : 'bg-zinc-800 text-zinc-400'
+            ? 'bg-[var(--to-long)]/20 text-[var(--to-long)]'
+            : 'bg-surface-raised text-text-secondary',
         )}
       >
         {icon}
       </div>
       <div className="flex flex-col">
-        <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-medium">
+        <span className="text-[10px] uppercase tracking-wider text-text-dim font-medium">
           {label}
         </span>
         <span
           className={cn(
             'font-mono text-sm font-semibold',
-            trend === 'up' && 'text-emerald-400',
-            trend === 'down' && 'text-red-400',
-            !trend && 'text-zinc-100'
+            trend === 'up' && 'text-long',
+            trend === 'down' && 'text-short',
+            !trend && 'text-text-secondary',
           )}
         >
           {value}
@@ -76,20 +77,20 @@ export function StatsTicker() {
   }
 
   return (
-    <div className="flex items-center justify-between h-14 bg-zinc-950/80 backdrop-blur-sm border-b border-zinc-800/50 px-2">
+    <div className="flex items-center justify-between h-14 bg-[var(--to-bg)]/95 backdrop-blur-sm border-b border-panel-border-subtle px-2">
       {/* Left Section - Logo/Title */}
       <div className="flex items-center gap-3 pl-2">
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="font-mono text-sm font-bold text-zinc-100 tracking-tight">
+          <div className="w-2 h-2 rounded-full bg-long animate-pulse" />
+          <span className="font-mono text-sm font-bold text-text-primary tracking-tight">
             MISSION CONTROL
           </span>
         </div>
-        <div className="h-6 w-px bg-zinc-800" />
+        <div className="h-6 w-px bg-panel-border" />
       </div>
 
       {/* Center Section - Stats */}
-      <div className="flex items-center divide-x divide-zinc-800/50">
+      <div className="flex items-center divide-x divide-panel-border-subtle/60">
         {isLoading ? (
           <>
             <StatItemSkeleton />
@@ -102,7 +103,7 @@ export function StatsTicker() {
           <>
             <StatItem
               label="24h Volume"
-              value={stats?.total_signals_24h || 0}
+              value={<span>{stats?.total_signals_24h || 0}</span>}
               icon={<Activity className="w-4 h-4" />}
             />
             <StatItem
@@ -119,7 +120,7 @@ export function StatsTicker() {
             />
             <StatItem
               label="Active"
-              value={stats?.active_trades || 0}
+              value={<span>{stats?.active_trades || 0}</span>}
               icon={<Zap className="w-4 h-4" />}
               highlight={(stats?.active_trades || 0) > 0}
             />
@@ -130,13 +131,25 @@ export function StatsTicker() {
             />
             <StatItem
               label="Live 24h PnL"
-              value={`${(stats?.live_pnl_24h ?? stats?.total_pnl_24h ?? 0) >= 0 ? '+' : ''}$${(stats?.live_pnl_24h ?? stats?.total_pnl_24h ?? 0).toFixed(2)}`}
+              value={
+                <PnLText
+                  value={stats?.live_pnl_24h ?? stats?.total_pnl_24h ?? 0}
+                  variant="currency"
+                  size="lg"
+                />
+              }
               icon={<DollarSign className="w-4 h-4" />}
               trend={(stats?.live_pnl_24h ?? stats?.total_pnl_24h ?? 0) >= 0 ? 'up' : 'down'}
             />
             <StatItem
               label="Paper PnL"
-              value={`${(stats?.paper_pnl_24h ?? 0) >= 0 ? '+' : ''}$${(stats?.paper_pnl_24h ?? 0).toFixed(2)}`}
+              value={
+                <PnLText
+                  value={stats?.paper_pnl_24h ?? 0}
+                  variant="currency"
+                  size="lg"
+                />
+              }
               icon={<DollarSign className="w-4 h-4" />}
             />
           </>
@@ -145,10 +158,10 @@ export function StatsTicker() {
 
       {/* Right Section - Connection Status */}
       <div className="flex items-center gap-2 pr-2">
-        <div className="h-6 w-px bg-zinc-800" />
-        <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-zinc-900 border border-zinc-800/50">
-          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="text-[10px] uppercase tracking-wider text-zinc-400 font-medium font-mono">
+        <div className="h-6 w-px bg-panel-border" />
+        <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-surface border border-panel-border-subtle/70">
+          <div className="w-1.5 h-1.5 rounded-full bg-long animate-pulse" />
+          <span className="text-[10px] uppercase tracking-wider text-text-secondary font-medium font-mono">
             Live
           </span>
         </div>

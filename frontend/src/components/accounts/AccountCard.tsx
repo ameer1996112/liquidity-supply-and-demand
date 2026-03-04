@@ -3,6 +3,7 @@
 import { type AccountComparisonApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { TrendingUp, TrendingDown, BarChart3 } from 'lucide-react';
+import { PnLText } from '@/components/ui/typography';
 
 interface AccountCardProps {
   account: AccountComparisonApi;
@@ -25,7 +26,7 @@ export function AccountCard({ account, className }: AccountCardProps) {
           {account.account_name}
         </span>
         {account.strategy_type && (
-          <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-[#2a2e39] text-zinc-500">
+          <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-surface-raised text-text-secondary">
             {account.strategy_type}
           </span>
         )}
@@ -43,17 +44,16 @@ export function AccountCard({ account, className }: AccountCardProps) {
           <span className="text-[10px] text-zinc-600 font-mono">Daily PnL</span>
           <div className="flex items-center gap-1">
             {dailyPositive ? (
-              <TrendingUp className="w-3 h-3 text-[#26a69a]" />
+              <TrendingUp className="w-3 h-3 text-long" />
             ) : (
-              <TrendingDown className="w-3 h-3 text-[#ef5350]" />
+              <TrendingDown className="w-3 h-3 text-short" />
             )}
-            <span
-              className={cn(
-                'font-mono text-xs font-semibold tabular-nums',
-                dailyPositive ? 'text-[#26a69a]' : 'text-[#ef5350]'
-              )}
-            >
-              {dailyPositive ? '+' : ''}${(account.daily_pnl ?? 0).toFixed(2)}
+            <span className="font-mono text-xs font-semibold tabular-nums text-text-secondary">
+              <PnLText
+                value={account.daily_pnl ?? 0}
+                variant="currency"
+                size="sm"
+              />
               <span className="text-[10px] ml-0.5 opacity-80">
                 ({dailyPositive ? '+' : ''}{(account.daily_pnl_pct ?? 0).toFixed(2)}%)
               </span>
@@ -80,7 +80,7 @@ export function AccountCard({ account, className }: AccountCardProps) {
           </div>
         )}
 
-        <div className="flex justify-between items-center pt-1 border-t border-[#2a2e39]">
+        <div className="flex justify-between items-center pt-1 border-t border-panel-border-subtle">
           <span className="text-[10px] text-zinc-600 font-mono">Positions</span>
           <span className="font-mono text-xs text-zinc-400 tabular-nums">
             {account.active_positions}

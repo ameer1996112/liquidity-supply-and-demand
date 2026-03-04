@@ -32,29 +32,24 @@ const CONFIGS: Record<
     label: 'LIVE',
     className: (_w, _l, compact) =>
       cn(
-        'bg-[var(--to-accent-blue)]/15 text-[var(--to-accent-blue)] border-[var(--to-accent-blue)]/40',
+        // Success semantics for active/live status
+        'bg-[var(--to-long)]/15 text-[var(--to-long)] border-[var(--to-long)]/40',
         !compact && 'shadow-[0_0_12px_rgba(59,130,246,0.3)] animate-pulse',
       ),
   },
   closed: {
     icon: () => <CheckCircle2 className='w-3 h-3' />,
     label: 'CLOSED',
-    className: (isWin, isLoss) =>
-      isWin
-        ? 'bg-[var(--to-long)]/15 text-[var(--to-long)] border-[var(--to-long)]/40'
-        : isLoss
-          ? 'bg-[var(--to-short)]/15 text-[var(--to-short)] border-[var(--to-short)]/40'
-          : 'bg-[var(--to-surface-raised)] text-[var(--to-text-secondary)] border-[var(--to-border-subtle)]',
+    // Neutral semantics for closed trades regardless of PnL
+    className: () =>
+      'bg-[var(--to-surface-raised)] text-[var(--to-text-secondary)] border-[var(--to-border-subtle)]',
   },
   executed: {
     icon: () => <CheckCircle2 className='w-3 h-3' />,
     label: 'FILLED',
-    className: (isWin, isLoss) =>
-      isWin
-        ? 'bg-[var(--to-long)]/15 text-[var(--to-long)] border-[var(--to-long)]/40'
-        : isLoss
-          ? 'bg-[var(--to-short)]/15 text-[var(--to-short)] border-[var(--to-short)]/40'
-          : 'bg-[var(--to-surface-raised)] text-[var(--to-text-secondary)] border-[var(--to-border-subtle)]',
+    // Treat filled orders as success/open
+    className: () =>
+      'bg-[var(--to-long)]/15 text-[var(--to-long)] border-[var(--to-long)]/40',
   },
   ai_rejected: {
     icon: () => <ShieldX className='w-3 h-3' />,

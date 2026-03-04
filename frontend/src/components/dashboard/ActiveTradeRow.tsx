@@ -13,6 +13,7 @@ import { formatDistanceToNowStrict } from 'date-fns';
 import { ClientDate } from '@/components/ui/ClientDate';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 import { EMPTY_VALUE, formatNumber, normalizeNegativeZero } from '@/lib/formatters';
+import { PnLText } from '@/components/ui/typography';
 
 interface ActiveTradeRowProps {
   signal: TradingSignal;
@@ -109,15 +110,11 @@ export function ActiveTradeRow({ signal, onSelectSignal }: ActiveTradeRowProps) 
       {/* PnL */}
       <div className='min-w-[52px] text-right'>
         {pnl != null ? (
-          <span
-            className={cn(
-              'font-mono text-xs font-bold tabular-nums',
-              pnl >= 0 ? 'text-[var(--to-long)]' : 'text-[var(--to-short)]',
-            )}
-          >
-            {pnl > 0 ? '+' : ''}
-            {formatNumber(pnl, { decimals: 2 })}
-          </span>
+          <PnLText
+            value={pnl}
+            variant='raw'
+            size='sm'
+          />
         ) : (
           <span className='font-mono text-xs text-[var(--to-text-dim)]'>{EMPTY_VALUE}</span>
         )}
