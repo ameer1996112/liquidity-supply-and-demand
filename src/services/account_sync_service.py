@@ -363,24 +363,20 @@ class AccountSyncService:
 
     def _reconcile_positions(self, account_name: str, snapshot_time: str):
         """
-        Reconcile broker positions with DB positions.
+        Reconcile broker positions with DB positions for a single account snapshot.
 
-        Matches positions from position_snapshots with trading_signals.
-        Detects orphaned positions (broker only) and ghost positions (DB only).
-
-        Args:
-            account_name: Account name
-            snapshot_time: Snapshot timestamp to reconcile
+        Drift types:
+          - DB ACTIVE but broker missing   → MISSING_ON_BROKER
+          - Broker position not in DB     → EXTERNAL
+          - Broker order exists but DB missing → EXTERNAL_ORDER (reserved for future order-level checks)
         """
         try:
-            # Get broker positions from latest snapshot
             broker_positions = self.client.table("position_snapshots").select(
                 "*, id"
             ).eq("account_name", account_name).eq(
                 "snapshot_time", snapshot_time
             ).execute()
 
-            # Get DB positions from trading_signals
             db_positions = self.client.table("trading_signals").select(
                 "*, id"
             ).eq("account_name", account_name).in_(
@@ -390,116 +386,159 @@ class AccountSyncService:
             broker_pos_list = broker_positions.data or []
             db_pos_list = db_positions.data or []
 
-            # Match positions
+            drift_count = 0
+
+            # Broker → DB: classify EXTERNAL vs matched
             for broker_pos in broker_pos_list:
                 matched_signal_id = None
                 reconciliation_status = "orphaned"
                 reconciliation_note = None
 
-                # Try to match by broker_order_id or broker_position_id
-                if broker_pos.get("comment") or True:
-                    for db_pos in db_pos_list:
-                        # Match if the DB record knows about this exact broker id
-                        if db_pos.get("broker_order_id") == str(broker_pos.get("broker_position_id")) \
-                           or db_pos.get("broker_position_id") == str(broker_pos.get("broker_position_id")):
-                            matched_signal_id = db_pos["id"]
-                            reconciliation_status = "matched"
-                            reconciliation_note = "Matched by broker_order_id or broker_position_id"
-                            
-                            # Clean state transition: If DB thinks it's PENDING, but MetaAPI has it, it is OPEN
-                            if db_pos.get("status", "").upper() == "PENDING":
-                                self.client.table("trading_signals").update({
-                                    "status": "OPEN",
-                                    "opened_at": datetime.now(timezone.utc).isoformat()
-                                }).eq("id", matched_signal_id).execute()
-                                
-                            break
+                for db_pos in db_pos_list:
+                    if db_pos.get("broker_order_id") == str(broker_pos.get("broker_position_id")) \
+                       or db_pos.get("broker_position_id") == str(broker_pos.get("broker_position_id")):
+                        matched_signal_id = db_pos["id"]
+                        reconciliation_status = "matched"
+                        reconciliation_note = "Matched by broker_order_id or broker_position_id"
 
-                # Try fuzzy match by symbol + side + open_price (±1 pip)
+                        if db_pos.get("status", "").upper() == "PENDING":
+                            self.client.table("trading_signals").update({
+                                "status": "OPEN",
+                                "opened_at": datetime.now(timezone.utc).isoformat(),
+                            }).eq("id", matched_signal_id).execute()
+                        break
+
                 if not matched_signal_id:
                     broker_symbol = broker_pos.get("symbol")
                     broker_side = broker_pos.get("side")
-                    broker_open = broker_pos.get("open_price", 0)
+                    broker_open = float(broker_pos.get("open_price", 0) or 0)
 
                     for db_pos in db_pos_list:
-                        if (db_pos.get("symbol") == broker_symbol and
-                            db_pos.get("side") == broker_side):
-
-                            db_entry = db_pos.get("entry", 0)
-                            # Allow 1 pip tolerance (0.0001 for most pairs, 0.01 for JPY)
-                            tolerance = 0.01 if "JPY" in broker_symbol else 0.0001
+                        if db_pos.get("symbol") == broker_symbol and db_pos.get("side") == broker_side:
+                            db_entry = float(db_pos.get("entry", 0) or 0)
+                            tolerance = 0.01 if "JPY" in (broker_symbol or "") else 0.0001
 
                             if abs(broker_open - db_entry) <= tolerance:
-                                # Handle PENDING to OPEN transition for fuzzy matches too
+                                matched_signal_id = db_pos["id"]
+                                reconciliation_status = "matched"
+                                reconciliation_note = "Fuzzy matched by symbol/side/entry"
                                 if db_pos.get("status", "").upper() == "PENDING":
                                     self.client.table("trading_signals").update({
                                         "status": "OPEN",
-                                        "opened_at": datetime.now(timezone.utc).isoformat()
+                                        "opened_at": datetime.now(timezone.utc).isoformat(),
                                     }).eq("id", matched_signal_id).execute()
-                                    
                                 break
 
-                # Update position_snapshot with reconciliation result
+                if matched_signal_id is None:
+                    reconciliation_status = "orphaned"
+                    reconciliation_note = "EXTERNAL: broker position not found in trading_signals"
+                    drift_count += 1
+                    try:
+                        from src.services.trade_events import log_event
+                        log_event(
+                            None,
+                            "reconcile_external_position",
+                            "reconciler",
+                            {
+                                "account_name": account_name,
+                                "symbol": broker_pos.get("symbol"),
+                                "broker_position_id": broker_pos.get("broker_position_id"),
+                                "drift_type": "EXTERNAL",
+                            },
+                        )
+                    except Exception:
+                        pass
+
                 self.client.table("position_snapshots").update({
                     "matched_signal_id": matched_signal_id,
                     "reconciliation_status": reconciliation_status,
                     "reconciliation_note": reconciliation_note,
                 }).eq("id", broker_pos["id"]).execute()
 
-            # Now find GHOST positions: DB says it's OPEN/EXECUTED, but it's not in the broker_pos_list
-            broker_pos_ids = {str(p.get("broker_position_id")) for p in broker_pos_list if p.get("broker_position_id")}
-            fuzzy_broker_identities = {f"{p.get('symbol')}_{p.get('side')}" for p in broker_pos_list}
+            # DB → Broker: classify MISSING_ON_BROKER
+            broker_pos_ids = {
+                str(p.get("broker_position_id"))
+                for p in broker_pos_list
+                if p.get("broker_position_id")
+            }
+            fuzzy_broker_identities = {
+                f"{p.get('symbol')}_{p.get('side')}" for p in broker_pos_list
+            }
 
             for db_pos in db_pos_list:
-                status = db_pos.get("status", "").upper()
-                db_broker_order_id = str(db_pos.get("broker_order_id", "")) if db_pos.get("broker_order_id") else ""
-                
+                status = (db_pos.get("status") or "").upper()
+                db_broker_order_id = (
+                    str(db_pos.get("broker_order_id", "")) if db_pos.get("broker_order_id") else ""
+                )
+
                 if status in ("OPEN", "ACTIVATED", "ACTIVE", "EXECUTED"):
                     if db_broker_order_id.startswith("paper_"):
-                        continue  # Skip paper trades
+                        continue
 
-                    is_ghost = False
+                    is_missing_on_broker = False
 
                     if db_broker_order_id:
-                        # We have a broker ID, but it's missing from current broker open positions
                         if db_broker_order_id not in broker_pos_ids:
-                            is_ghost = True
+                            is_missing_on_broker = True
                     else:
-                        # We DONT have a broker ID (e.g., initial execution). 
-                        # If there isn't even a fuzzy match for this symbol/side, it's a ghost.
                         db_identity = f"{db_pos.get('symbol')}_{db_pos.get('side')}"
                         if db_identity not in fuzzy_broker_identities:
-                            # To be safe, wait until the trade is at least 3 minutes old before calling it a ghost
-                            # to avoid closing a trade that is just being opened right now.
                             created_at_str = db_pos.get("created_at")
                             if created_at_str:
                                 try:
                                     from dateutil.parser import isoparse
                                     dt = isoparse(created_at_str)
                                     if (datetime.now(timezone.utc) - dt).total_seconds() > 180:
-                                        is_ghost = True
+                                        is_missing_on_broker = True
                                 except Exception:
                                     pass
 
-                    if is_ghost:
-                        logger.warning(f"Ghost position detected: DB id {db_pos['id']} ({db_pos.get('symbol')}) missing from broker. Marking CLOSED.")
-                        close_data = {
-                            "status": "CLOSED",
-                            "closed_at": datetime.now(timezone.utc).isoformat(),
-                            "notes": "Auto-closed by reconciliation: Ghost position missing from broker."
-                        }
-                        self.client.table("trading_signals").update(close_data).eq("id", db_pos["id"]).execute()
+                    if is_missing_on_broker:
+                        drift_count += 1
+                        reason = "MISSING_ON_BROKER: DB shows open position but broker snapshot has no matching position"
+                        logger.warning(
+                            "Reconcile drift MISSING_ON_BROKER: db_id=%s symbol=%s account=%s",
+                            db_pos["id"],
+                            db_pos.get("symbol"),
+                            account_name,
+                        )
                         try:
-                            from src.services.reflection_service import create_reflection_on_close_safe
-                            merged = {**db_pos, **close_data}
-                            create_reflection_on_close_safe(self.client, db_pos["id"], merged)
+                            from src.services.trade_events import log_event
+                            log_event(
+                                db_pos.get("id"),
+                                "reconcile_missing_on_broker",
+                                "reconciler",
+                                {
+                                    "account_name": account_name,
+                                    "symbol": db_pos.get("symbol"),
+                                    "drift_type": "MISSING_ON_BROKER",
+                                    "status": status,
+                                },
+                            )
                         except Exception:
                             pass
-                    else:
-                        logger.debug(f"DB position {db_pos['id']} evaluation: is_ghost=False, db_broker_order_id='{db_broker_order_id}', status={status}")
+
+                        self.client.table("trading_signals").update({
+                            "status": "MISSING_ON_BROKER",
+                            "notes": reason,
+                        }).eq("id", db_pos["id"]).execute()
+
+            # Persist per-account reconciliation metadata
+            try:
+                now_iso = datetime.now(timezone.utc).isoformat()
+                self.client.table("account_strategies").update({
+                    "last_reconcile_time": now_iso,
+                    "last_reconcile_drift_count": drift_count,
+                    "updated_at": now_iso,
+                }).eq("account_name", account_name).execute()
+            except Exception:
+                pass
 
             logger.info(
-                f"Reconciled {len(broker_pos_list)} broker positions for {account_name}"
+                "Reconciled %d broker positions for %s (drift_count=%d)",
+                len(broker_pos_list),
+                account_name,
+                drift_count,
             )
 
         except Exception as e:

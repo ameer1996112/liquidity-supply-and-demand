@@ -291,6 +291,22 @@ export async function fetchAccountPositions(accountName: string): Promise<{
   );
 }
 
+export interface ReconcileStatusAccount {
+  account_name: string;
+  last_reconcile_time?: string | null;
+  last_reconcile_drift_count: number;
+  connection_status?: string | null;
+  last_sync_time?: string | null;
+}
+
+export interface ReconcileStatusResponse {
+  accounts: ReconcileStatusAccount[];
+}
+
+export async function fetchReconcileStatus(): Promise<ReconcileStatusResponse> {
+  return apiFetch<ReconcileStatusResponse>('/api/portfolio-control/reconcile/status');
+}
+
 /**
  * AI Configuration
  */

@@ -217,6 +217,18 @@ class JournalEntryRequest(BaseModel):
     emotional_state: Optional[str] = None
 
 
+class ReconcileStatusRow(BaseModel):
+    account_name: str
+    last_reconcile_time: Optional[str] = None
+    last_reconcile_drift_count: int = 0
+    connection_status: Optional[str] = None
+    last_sync_time: Optional[str] = None
+
+
+class ReconcileStatusResponse(BaseModel):
+    accounts: List[ReconcileStatusRow]
+
+
 # ══════════════════════════════════════════════════════════════════
 # LIVE RISK CONTROLS ENDPOINTS
 # ══════════════════════════════════════════════════════════════════
@@ -874,6 +886,49 @@ def sync_all_accounts():
         "failed_count": len(results) - success_count,
         "results": results,
     }
+
+
+@router.get("/reconcile/status", response_model=ReconcileStatusResponse)
+def get_reconcile_status():
+    """
+    Reconciliation status per account.
+
+    Returns:
+      - last_reconcile_time per account
+      - last_reconcile_drift_count per account
+      - connection_status (broker health)
+      - last_sync_time (MetaAPI sync recency)
+    """
+    sb = _get_supabase()
+    try:
+        resp = (
+            sb.table("account_strategies")
+            .select(
+                "account_name, connection_status, last_sync_time, last_reconcile_time, last_reconcile_drift_count"
+            )
+            .eq("is_active", True)
+            .order("account_name", desc=False)
+            .execute()
+        )
+        rows = resp.data or []
+        accounts: List[ReconcileStatusRow] = []
+        for r in rows:
+            accounts.append(
+                ReconcileStatusRow(
+                    account_name=r.get("account_name"),
+                    last_reconcile_time=r.get("last_reconcile_time"),
+                    last_reconcile_drift_count=int(
+                        r.get("last_reconcile_drift_count") or 0
+                    ),
+                    connection_status=r.get("connection_status"),
+                    last_sync_time=r.get("last_sync_time") or r.get("last_sync_time")
+                    or r.get("last_sync_time"),
+                )
+            )
+        return ReconcileStatusResponse(accounts=accounts)
+    except Exception as e:
+        logger.error("Failed to fetch reconcile status: %s", e)
+        raise HTTPException(500, detail=f"Failed to fetch reconcile status: {e}")
 
 
 @router.get("/accounts/{account_name}/positions")
