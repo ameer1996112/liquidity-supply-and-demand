@@ -159,6 +159,28 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("LLM_MODEL_FALLBACK", "LLM_FALLBACK_MODEL"),
     )
 
+    # ── Sprint 3.1: Two-tier LLM allocation ───────────────────────────────────
+    ai_enabled: bool = Field(
+        default=True,
+        description="Enable AI/LLM layer. When False, LLM is skipped entirely.",
+        validation_alias="AI_ENABLED",
+    )
+    ai_mode: Literal["shadow", "enforce"] = Field(
+        default="shadow",
+        description="shadow=log-only, never block; enforce=LLM NO_GO blocks execution.",
+        validation_alias="AI_MODE",
+    )
+    ai_quick_model: str = Field(
+        default="llama-3.1-8b-instant",
+        description="Fast/cheap model for first-tier LLM call.",
+        validation_alias="AI_QUICK_MODEL",
+    )
+    ai_deep_model: str = Field(
+        default="llama-3.3-70b-versatile",
+        description="Heavy model for escalation (second-tier) when rules trigger.",
+        validation_alias="AI_DEEP_MODEL",
+    )
+
     # Pine-matching deterministic pre-filters (mirror SND_Strategy.pine Balanced profile)
     pine_min_score: float = Field(default=60.0, ge=0.0, le=100.0, description="Min zone score (Pine ai_quality_threshold). 60=Balanced, 70=Conservative.")
     pine_min_grade: str = Field(default="C+", description="Min zone grade. A+/A/B+/B/C+/C. C+=Balanced, B+=Conservative.")

@@ -261,6 +261,10 @@ def get_ai_config():
         "ensemble": {
             "enable_llm_filter": s.enable_llm_filter,
             "run_shadow_mode": s.run_shadow_mode,
+            "ai_enabled": getattr(s, "ai_enabled", True),
+            "ai_mode": getattr(s, "ai_mode", "shadow"),
+            "ai_quick_model": getattr(s, "ai_quick_model", ""),
+            "ai_deep_model": getattr(s, "ai_deep_model", ""),
         },
         "execution": {
             "execution_mode": s.execution_mode,

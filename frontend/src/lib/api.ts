@@ -311,6 +311,10 @@ export interface AiConfigResponse {
   ensemble: {
     enable_llm_filter: boolean;
     run_shadow_mode: boolean;
+    ai_enabled?: boolean;
+    ai_mode?: 'shadow' | 'enforce';
+    ai_quick_model?: string;
+    ai_deep_model?: string;
   };
   execution: {
     execution_mode: string;

@@ -4,6 +4,7 @@ import json
 import logging
 import pickle
 import re
+import time
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -343,6 +344,197 @@ def _call_llm_with_fallback(
         "request_id": request_id,
         "model_used": errors[-1].get("model") if errors else primary_model,
         "errors": errors,
+    }
+
+
+# ── Sprint 3.1: Two-tier LLM allocation ───────────────────────────────────────
+
+def _call_llm_single(
+    client: OpenAI,
+    prompt: str,
+    model_id: str,
+) -> Dict[str, Any]:
+    """Call a single LLM model. Returns ok, llm_json, model_used, latency_ms, usage."""
+    t0 = time.perf_counter()
+    try:
+        chat = client.chat.completions.create(
+            model=model_id,
+            messages=[
+                {"role": "system", "content": "You are a strict trading risk co-pilot."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.1,
+            response_format={"type": "json_object"},
+            max_tokens=256,
+        )
+        latency_ms = (time.perf_counter() - t0) * 1000
+        content = chat.choices[0].message.content or "{}"
+        llm_json = json.loads(content)
+        if not isinstance(llm_json, dict):
+            raise ValueError("LLM response is not a JSON object")
+        usage = getattr(chat, "usage", None)
+        token_estimate = None
+        if usage:
+            token_estimate = getattr(usage, "total_tokens", None) or (
+                (getattr(usage, "prompt_tokens", 0) or 0) + (getattr(usage, "completion_tokens", 0) or 0)
+            )
+        return {
+            "ok": True,
+            "llm_json": llm_json,
+            "model_used": model_id,
+            "latency_ms": round(latency_ms, 2),
+            "token_estimate": token_estimate,
+            "cost_estimate": None,  # Placeholder for future per-model cost lookup
+        }
+    except Exception as exc:
+        latency_ms = (time.perf_counter() - t0) * 1000
+        return {
+            "ok": False,
+            "llm_json": None,
+            "model_used": model_id,
+            "latency_ms": round(latency_ms, 2),
+            "token_estimate": None,
+            "cost_estimate": None,
+            "error": exc,
+        }
+
+
+def _should_escalate_to_deep(
+    quick_json: Dict[str, Any],
+    rf_prob: float,
+) -> Tuple[bool, str]:
+    """
+    Escalation rules: when to call the deep model for a second opinion.
+    Returns (should_escalate, reason).
+    """
+    decision = str(quick_json.get("decision", "NO_GO")).upper()
+    reason = str(quick_json.get("reason", "")).strip()
+
+    # Rule 1: Quick returns NO_GO → escalate (deep may override)
+    if decision == "NO_GO":
+        return True, "quick_rejected"
+
+    # Rule 2: RF prob in gray zone [0.55, 0.72] → escalate
+    if 0.55 <= rf_prob <= 0.72:
+        return True, "rf_gray_zone"
+
+    # Rule 3: Quick GO but reason very short → low confidence
+    if len(reason) < 25:
+        return True, "quick_reason_too_short"
+
+    return False, ""
+
+
+def _call_llm_two_tier(
+    client: OpenAI,
+    prompt: str,
+    quick_model: str,
+    deep_model: str,
+    rf_prob: float,
+    symbol: str,
+) -> Dict[str, Any]:
+    """
+    Two-tier router: quick model first, escalate to deep only when rules trigger.
+    Returns dict with keys: ok, llm_json, model_used, escalated, escalation_reason,
+    latency_ms, token_estimate, cost_estimate, quick_result (for metadata).
+    """
+    request_id = uuid.uuid4().hex[:12]
+    logger.info(
+        "LLM two-tier start request_id=%s symbol=%s quick=%s deep=%s",
+        request_id, symbol, quick_model, deep_model,
+    )
+
+    # Tier 1: Quick model
+    quick_res = _call_llm_single(client, prompt, quick_model)
+    if not quick_res.get("ok"):
+        # Fallback: if quick fails with model-not-found (404), try deep
+        err = quick_res.get("error")
+        err_meta = _extract_llm_error_meta(err) if isinstance(err, Exception) else {}
+        if _is_model_not_found_error(err_meta) and quick_model != deep_model:
+            logger.warning(
+                "LLM quick model unavailable (model=%s). Retrying with deep model=%s",
+                quick_model, deep_model,
+            )
+            deep_res = _call_llm_single(client, prompt, deep_model)
+            if deep_res.get("ok"):
+                return {
+                    "ok": True,
+                    "llm_json": deep_res.get("llm_json"),
+                    "model_used": deep_model,
+                    "escalated": False,
+                    "escalation_reason": "quick_404_fallback",
+                    "latency_ms": (quick_res.get("latency_ms") or 0) + (deep_res.get("latency_ms") or 0),
+                    "token_estimate": deep_res.get("token_estimate"),
+                    "cost_estimate": None,
+                    "quick_result": quick_res,
+                    "deep_result": deep_res,
+                }
+        return {
+            "ok": False,
+            "llm_json": None,
+            "model_used": quick_model,
+            "escalated": False,
+            "escalation_reason": None,
+            "latency_ms": quick_res.get("latency_ms"),
+            "token_estimate": quick_res.get("token_estimate"),
+            "cost_estimate": quick_res.get("cost_estimate"),
+            "quick_result": quick_res,
+            "errors": [{"model": quick_model, "error": str(quick_res.get("error", ""))}],
+        }
+
+    quick_json = quick_res.get("llm_json") or {}
+    should_escalate, esc_reason = _should_escalate_to_deep(quick_json, rf_prob)
+
+    if not should_escalate:
+        return {
+            "ok": True,
+            "llm_json": quick_json,
+            "model_used": quick_model,
+            "escalated": False,
+            "escalation_reason": None,
+            "latency_ms": quick_res.get("latency_ms"),
+            "token_estimate": quick_res.get("token_estimate"),
+            "cost_estimate": quick_res.get("cost_estimate"),
+            "quick_result": quick_res,
+        }
+
+    # Tier 2: Deep model
+    logger.info(
+        "LLM escalation request_id=%s symbol=%s reason=%s",
+        request_id, symbol, esc_reason,
+    )
+    deep_res = _call_llm_single(client, prompt, deep_model)
+    if not deep_res.get("ok"):
+        # Fall back to quick result on deep failure
+        logger.warning(
+            "LLM deep model failed request_id=%s, using quick result",
+            request_id,
+        )
+        return {
+            "ok": True,
+            "llm_json": quick_json,
+            "model_used": quick_model,
+            "escalated": True,
+            "escalation_reason": esc_reason,
+            "latency_ms": (quick_res.get("latency_ms") or 0) + (deep_res.get("latency_ms") or 0),
+            "token_estimate": (quick_res.get("token_estimate") or 0) + (deep_res.get("token_estimate") or 0),
+            "cost_estimate": None,
+            "quick_result": quick_res,
+            "deep_attempted": True,
+            "deep_error": str(deep_res.get("error", "")),
+        }
+
+    return {
+        "ok": True,
+        "llm_json": deep_res.get("llm_json"),
+        "model_used": deep_model,
+        "escalated": True,
+        "escalation_reason": esc_reason,
+        "latency_ms": (quick_res.get("latency_ms") or 0) + (deep_res.get("latency_ms") or 0),
+        "token_estimate": (quick_res.get("token_estimate") or 0) + (deep_res.get("token_estimate") or 0),
+        "cost_estimate": None,
+        "quick_result": quick_res,
+        "deep_result": deep_res,
     }
 
 
@@ -1125,12 +1317,14 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
         _log_brain_decision(symbol, result)
         return result
 
-    # If LLM filter disabled, accept RF decision (but still include RAG/narrative)
-    if not getattr(settings, "enable_llm_filter", True):
+    # If LLM filter disabled or AI disabled, accept RF decision (but still include RAG/narrative)
+    enable_llm = getattr(settings, "enable_llm_filter", True)
+    ai_enabled = getattr(settings, "ai_enabled", True)
+    if not enable_llm or not ai_enabled:
         result["decision"] = "GO"
         result["reason"] = "RF pass and LLM filter disabled."
         result["llm_status"] = "skipped"
-        result["llm_error_message_short"] = "LLM filter disabled"
+        result["llm_error_message_short"] = "LLM filter disabled" if not enable_llm else "AI disabled"
         decision_trace["rules"].append({
             "rule_id": "llm_context",
             "status": "skipped",
@@ -1141,7 +1335,7 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
         _log_brain_decision(symbol, result)
         return result
 
-    # Step 5: LLM wisdom
+    # Step 5: LLM wisdom (two-tier: quick first, escalate to deep when rules trigger)
     client = _get_llm_client()
     if client is None:
         result["decision"] = "GO"
@@ -1196,51 +1390,53 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
         "}\n"
     )
 
-    try:
-        model_primary, model_fallback = _resolve_llm_models(settings)
-    except Exception as e:
-        logger.error("LLM configuration error: %s", e)
-        result["decision"] = "GO"
-        result["reason"] = f"RF pass; {_LLM_NEUTRAL_MESSAGE}"
-        result["llm_status"] = "error"
-        result["llm_error_code"] = "invalid_model_config"
-        result["llm_error_message_short"] = _shorten(e, 140)
-        result["llm_error_raw"] = str(e)
-        decision_trace["rules"].append({
-            "rule_id": "llm_context",
-            "status": "error",
-            "non_blocking": True,
-            "passed": False,
-            "message": _LLM_NEUTRAL_MESSAGE,
-        })
-        _monitor_llm_failure(
-            "llm_failure",
-            {
-                "request_id": None,
-                "symbol": symbol,
-                "endpoint": _LLM_ENDPOINT,
-                "error_code": "invalid_model_config",
-                "error_message": _shorten(e, 180),
-            },
-        )
-        _log_brain_decision(symbol, result)
-        return result
+    # Resolve two-tier models (Sprint 3.1) or legacy primary/fallback
+    quick_model = getattr(settings, "ai_quick_model", "") or ""
+    deep_model = getattr(settings, "ai_deep_model", "") or ""
+    if not quick_model:
+        try:
+            quick_model, _ = _resolve_llm_models(settings)
+        except Exception:
+            quick_model = getattr(settings, "llm_model_primary", "llama-3.1-8b-instant")
+    if not deep_model:
+        try:
+            _, deep_model = _resolve_llm_models(settings)
+            deep_model = deep_model or getattr(settings, "llm_model_primary", "llama-3.3-70b-versatile")
+        except Exception:
+            deep_model = getattr(settings, "llm_model_primary", "llama-3.3-70b-versatile")
 
-    llm_call = _call_llm_with_fallback(
+    llm_call = _call_llm_two_tier(
         client=client,
         prompt=prompt,
-        primary_model=model_primary,
-        fallback_model=model_fallback,
+        quick_model=quick_model,
+        deep_model=deep_model,
+        rf_prob=rf_prob,
         symbol=symbol,
     )
+
+    # Persist decision metadata (Sprint 3.1)
+    result["llm_model_used"] = llm_call.get("model_used")
+    result["llm_escalated"] = llm_call.get("escalated", False)
+    result["llm_escalation_reason"] = llm_call.get("escalation_reason")
+    result["llm_latency_ms"] = llm_call.get("latency_ms")
+    result["llm_token_estimate"] = llm_call.get("token_estimate")
+    result["llm_cost_estimate"] = llm_call.get("cost_estimate")
+    decision_trace["llm_metadata"] = {
+        "model_used": llm_call.get("model_used"),
+        "escalated": llm_call.get("escalated", False),
+        "escalation_reason": llm_call.get("escalation_reason"),
+        "latency_ms": llm_call.get("latency_ms"),
+        "token_estimate": llm_call.get("token_estimate"),
+        "cost_estimate": llm_call.get("cost_estimate"),
+    }
 
     if not llm_call.get("ok"):
         errors = llm_call.get("errors") or []
         last_error = errors[-1] if errors else {}
+        err_msg = last_error.get("message_short") or last_error.get("error") or ""
         result["decision"] = "GO"
         result["reason"] = f"RF pass; {_LLM_NEUTRAL_MESSAGE}"
         result["llm_status"] = "error"
-        result["llm_model_used"] = llm_call.get("model_used")
         result["llm_error_code"] = (
             last_error.get("code")
             or (
@@ -1248,9 +1444,10 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
                 if last_error.get("status_code") is not None
                 else None
             )
+            or ("quick_model_failed" if last_error.get("error") else None)
         )
-        result["llm_error_message_short"] = last_error.get("message_short")
-        result["llm_error_raw"] = last_error.get("raw")
+        result["llm_error_message_short"] = _shorten(err_msg, 140)
+        result["llm_error_raw"] = last_error.get("raw") or err_msg
         decision_trace["rules"].append({
             "rule_id": "llm_context",
             "status": "error",
@@ -1264,7 +1461,6 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
     llm_json = llm_call.get("llm_json") or {}
     result["llm_raw"] = llm_json
     result["llm_status"] = "ok"
-    result["llm_model_used"] = llm_call.get("model_used")
     decision_trace["rules"].append({
         "rule_id": "llm_context",
         "status": "ok",
@@ -1292,6 +1488,17 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
             "message": result["reason"],
         })
         decision_trace["rejected_rule"] = {"rule_id": "llm_decision", "message": result["reason"]}
+
+    # AI_MODE=shadow: log-only, never block execution
+    ai_mode = getattr(settings, "ai_mode", "shadow")
+    if ai_mode == "shadow" and result["decision"] == "NO_GO":
+        result["decision"] = "GO"
+        result["reason"] = f"[SHADOW] Would have blocked: {result['reason']}"
+        decision_trace["rules"].append({
+            "rule_id": "ai_shadow_override",
+            "passed": True,
+            "message": "AI_MODE=shadow: NO_GO overridden to GO (log-only)",
+        })
 
     _log_brain_decision(symbol, result)
     return result
