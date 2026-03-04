@@ -69,14 +69,16 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="tv-card">
-      <div className="px-4 py-3 border-b border-[#2a2e39]">
+    <div className="to-panel">
+      <div className="to-panel-header">
         <div className="flex items-center gap-2">
-          <div className="text-zinc-500">{icon}</div>
-          <span className="font-mono text-xs text-zinc-400 uppercase tracking-wider">{title}</span>
+          <div className="text-text-dim">{icon}</div>
+          <span className="font-mono text-[11px] text-text-muted uppercase tracking-[0.18em]">
+            {title}
+          </span>
         </div>
       </div>
-      <div className="px-4 py-2 divide-y divide-[#2a2e39]">{children}</div>
+      <div className="px-4 py-2 divide-y divide-panel-border-subtle">{children}</div>
     </div>
   );
 }
@@ -152,25 +154,28 @@ export function AiConfigPanel() {
 
   if (state === 'loading') {
     return (
-      <div className="tv-card p-8 flex items-center justify-center">
-        <Loader2 className="w-5 h-5 text-zinc-500 animate-spin" />
-        <span className="ml-2 text-sm text-zinc-500 font-mono">Loading AI configuration...</span>
+      <div className="to-panel p-8 flex items-center justify-center">
+        <Loader2 className="w-5 h-5 text-text-muted animate-spin" />
+        <span className="ml-2 text-sm text-text-muted font-mono">
+          Loading AI configuration...
+        </span>
       </div>
     );
   }
 
   if (state === 'error') {
     return (
-      <div className="tv-card p-6 flex flex-col items-center justify-center gap-3">
-        <AlertTriangle className="w-8 h-8 text-amber-500" />
-        <span className="text-sm text-zinc-400 font-mono">{error}</span>
-        <p className="text-[11px] text-zinc-600 text-center max-w-md">
-          Cannot reach backend API. Make sure NEXT_PUBLIC_API_URL is set and the Railway backend is running.
-          AI/ML settings are configured via Railway environment variables.
+      <div className="to-panel p-6 flex flex-col items-center justify-center gap-3">
+        <AlertTriangle className="w-8 h-8 text-amber-400" />
+        <span className="text-sm text-text-secondary font-mono">{error}</span>
+        <p className="text-[11px] text-text-muted text-center max-w-md">
+          Cannot reach backend API. Make sure NEXT_PUBLIC_API_URL is set and the Railway
+          backend is running. AI/ML settings are configured via Railway environment
+          variables.
         </p>
         <button
           onClick={load}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#2a2e39] rounded text-xs text-zinc-300 hover:bg-[#363a45] transition-colors font-mono"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono bg-surface-raised text-text-secondary hover:bg-surface-raised/90 transition-colors"
         >
           <RefreshCw className="w-3 h-3" />
           Retry
@@ -187,12 +192,12 @@ export function AiConfigPanel() {
     <div className="space-y-4">
       {/* Header with refresh */}
       <div className="flex items-center justify-between">
-        <span className="font-mono text-xs text-zinc-400 uppercase tracking-wider">
+        <span className="font-mono text-[11px] text-text-muted uppercase tracking-[0.18em]">
           Live Configuration from Railway
         </span>
         <button
           onClick={load}
-          className="flex items-center gap-1.5 text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors font-mono"
+          className="flex items-center gap-1.5 text-[10px] font-mono text-text-muted hover:text-text-secondary transition-colors"
         >
           <RefreshCw className="w-3 h-3" />
           Refresh
@@ -418,8 +423,8 @@ export function AiConfigPanel() {
       </SectionCard>
 
       {/* Hint */}
-      <div className="px-4 py-3 bg-[#1e222d] border border-[#2a2e39] rounded-lg">
-        <p className="text-[11px] text-zinc-500 leading-relaxed">
+      <div className="px-4 py-3 bg-surface border border-panel-border-subtle rounded-lg">
+        <p className="text-[11px] text-text-muted leading-relaxed">
           These settings are read from your Railway environment variables.
           To change them, update the environment variables in your Railway project dashboard and redeploy.
         </p>

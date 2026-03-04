@@ -8,6 +8,10 @@ interface ConfigItem {
   key: string;
   value: string;
   sensitive?: boolean;
+  /**
+   * Mark critical envs (API URLs, keys) for stronger danger styling when missing.
+   */
+  critical?: boolean;
 }
 
 interface ConfigDisplayProps {
@@ -19,39 +23,61 @@ export function ConfigDisplay({ title, items }: ConfigDisplayProps) {
   const [showSensitive, setShowSensitive] = useState(false);
 
   return (
-    <div className="tv-card">
-      <div className="px-4 py-3 border-b border-[#2a2e39] flex items-center justify-between">
+    <div className="to-panel">
+      <div className="to-panel-header flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Cog className="w-4 h-4 text-zinc-500" />
-          <span className="font-mono text-xs text-zinc-400 uppercase tracking-wider">
+          <Cog className="w-4 h-4 text-text-dim" />
+          <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-text-muted">
             {title}
           </span>
         </div>
         {items.some((i) => i.sensitive) && (
           <button
             onClick={() => setShowSensitive(!showSensitive)}
-            className="flex items-center gap-1.5 text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors font-mono"
+            className="flex items-center gap-1.5 text-[10px] font-mono text-text-muted hover:text-text-secondary transition-colors"
           >
             {showSensitive ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
             {showSensitive ? 'Hide' : 'Show'}
           </button>
         )}
       </div>
-      <div className="divide-y divide-[#2a2e39]">
-        {items.map((item) => (
-          <div key={item.key} className="px-4 py-2.5 flex items-center justify-between">
-            <span className="text-[11px] text-zinc-500 uppercase tracking-wider font-mono">
-              {item.key}
-            </span>
-            <span className={cn('font-mono text-xs', item.value ? 'text-zinc-300' : 'text-zinc-600')}>
-              {item.sensitive && !showSensitive
-                ? item.value
-                  ? `${item.value.slice(0, 8)}${'*'.repeat(Math.max(0, item.value.length - 8))}`
-                  : 'Not set'
-                : item.value || 'Not set'}
-            </span>
-          </div>
-        ))}
+      <div className="divide-y divide-panel-border-subtle">
+        {items.map((item) => {
+          const isMissing = !item.value;
+          const tone = isMissing
+            ? item.critical
+              ? 'bg-[var(--to-short)]/8 border-l-2 border-[var(--to-short)]/50'
+              : 'bg-amber-500/5 border-l-2 border-amber-500/40'
+            : '';
+
+          return (
+            <div
+              key={item.key}
+              className={cn(
+                'px-4 py-2.5 flex items-center justify-between',
+                tone,
+              )}
+            >
+              <span className="text-[11px] text-text-muted uppercase tracking-wider font-mono">
+                {item.key}
+              </span>
+              <span
+                className={cn(
+                  'font-mono text-xs',
+                  item.value ? 'text-text-secondary' : 'text-text-dim',
+                )}
+              >
+                {item.sensitive && !showSensitive
+                  ? item.value
+                    ? `${item.value.slice(0, 8)}${'*'.repeat(
+                        Math.max(0, item.value.length - 8),
+                      )}`
+                    : 'Not set'
+                  : item.value || 'Not set'}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

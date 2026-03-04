@@ -113,17 +113,17 @@ export function AlertRulesPanel() {
   };
 
   return (
-    <div className='tv-card'>
-      <div className='px-4 py-3 border-b border-[#2a2e39] flex items-center justify-between'>
+    <div className='to-panel'>
+      <div className='to-panel-header flex items-center justify-between'>
         <div className='flex items-center gap-2'>
-          <Bell className='w-4 h-4 text-zinc-500' />
-          <span className='font-mono text-xs text-zinc-400 uppercase tracking-wider'>
+          <Bell className='w-4 h-4 text-text-dim' />
+          <span className='font-mono text-[11px] text-text-muted uppercase tracking-[0.18em]'>
             Alert Rules
           </span>
         </div>
         <button
           onClick={() => setShowAdd(!showAdd)}
-          className='flex items-center gap-1 text-[10px] font-mono text-zinc-500 hover:text-zinc-300 transition-colors'
+          className='flex items-center gap-1 text-[10px] font-mono text-text-muted hover:text-text-secondary transition-colors'
         >
           <Plus className='w-3 h-3' />
           Add Rule
@@ -131,26 +131,26 @@ export function AlertRulesPanel() {
       </div>
 
       {showAdd && (
-        <div className='px-4 py-3 border-b border-[#2a2e39] space-y-2'>
+        <div className='px-4 py-3 border-b border-panel-border-subtle space-y-2'>
           <div className='grid grid-cols-3 gap-2'>
             <input
               type='text'
               placeholder='Rule type'
               value={newType}
               onChange={(e) => setNewType(e.target.value)}
-              className='bg-[#1e222d] border border-[#2a2e39] rounded px-2 py-1 text-xs font-mono text-zinc-300 focus:outline-none focus:border-[#26a69a]'
+              className='bg-surface border border-panel-border-subtle rounded px-2 py-1 text-xs font-mono text-text-secondary focus:outline-none focus:border-[var(--to-accent-green)]'
             />
             <input
               type='number'
               placeholder='Threshold'
               value={newThreshold}
               onChange={(e) => setNewThreshold(e.target.value)}
-              className='bg-[#1e222d] border border-[#2a2e39] rounded px-2 py-1 text-xs font-mono text-zinc-300 focus:outline-none focus:border-[#26a69a]'
+              className='bg-surface border border-panel-border-subtle rounded px-2 py-1 text-xs font-mono text-text-secondary focus:outline-none focus:border-[var(--to-accent-green)]'
             />
             <select
               value={newSeverity}
               onChange={(e) => setNewSeverity(e.target.value)}
-              className='bg-[#1e222d] border border-[#2a2e39] rounded px-2 py-1 text-xs font-mono text-zinc-300 focus:outline-none focus:border-[#26a69a]'
+              className='bg-surface border border-panel-border-subtle rounded px-2 py-1 text-xs font-mono text-text-secondary focus:outline-none focus:border-[var(--to-accent-green)]'
             >
               <option value='info'>Info</option>
               <option value='warning'>Warning</option>
@@ -160,7 +160,7 @@ export function AlertRulesPanel() {
           <button
             onClick={handleAdd}
             disabled={createRule.isPending}
-            className='flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-mono font-semibold uppercase tracking-wider bg-[#26a69a]/15 text-[#26a69a] hover:bg-[#26a69a]/25 transition-colors'
+            className='flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-mono font-semibold uppercase tracking-wider bg-[var(--to-accent-green)]/15 text-[var(--to-accent-green)] hover:bg-[var(--to-accent-green)]/25 transition-colors'
           >
             {createRule.isPending && (
               <Loader2 className='w-3 h-3 animate-spin' />
@@ -170,14 +170,14 @@ export function AlertRulesPanel() {
         </div>
       )}
 
-      <div className='divide-y divide-[#2a2e39]'>
+      <div className='divide-y divide-panel-border-subtle'>
         {isLoading && (
-          <div className='px-4 py-6 text-center text-xs text-zinc-500 font-mono'>
+          <div className='px-4 py-6 text-center text-xs font-mono text-text-muted'>
             Loading rules...
           </div>
         )}
         {!isLoading && rules.length === 0 && (
-          <div className='px-4 py-6 text-center text-xs text-zinc-500 font-mono'>
+          <div className='px-4 py-6 text-center text-xs font-mono text-text-muted'>
             No alert rules configured
           </div>
         )}
@@ -187,10 +187,10 @@ export function AlertRulesPanel() {
             className='px-4 py-2.5 flex items-center justify-between'
           >
             <div className='flex items-center gap-3'>
-              <span className='font-mono text-xs text-zinc-300'>
+              <span className='font-mono text-xs text-text-secondary'>
                 {rule.rule_type}
               </span>
-              <span className='font-mono text-[10px] text-zinc-500'>
+              <span className='font-mono text-[10px] text-text-muted'>
                 {formatCondition(rule.condition)}
               </span>
               <span
@@ -206,7 +206,7 @@ export function AlertRulesPanel() {
             <button
               onClick={() => deleteRule.mutate(rule.id)}
               disabled={deleteRule.isPending}
-              className='text-zinc-600 hover:text-[#ef5350] transition-colors'
+              className='text-text-muted hover:text-[var(--to-short)] transition-colors'
             >
               <Trash2 className='w-3.5 h-3.5' />
             </button>

@@ -115,29 +115,61 @@ export function ConnectionStatus() {
     }
   };
 
+  const rowTone = (service: ServiceStatus) => {
+    // Highlight obvious misconfigurations (missing env / URL) with semantic tones
+    const detail = service.detail.toLowerCase();
+    const isMissingEnv =
+      detail.includes('not configured') || detail.includes('missing env');
+    const isCritical =
+      isMissingEnv && (detail.includes('supabase') || detail.includes('api_url'));
+
+    if (!isMissingEnv) return '';
+    if (isCritical) {
+      return 'bg-[var(--to-short)]/8 border-l-2 border-[var(--to-short)]/50';
+    }
+    return 'bg-amber-500/5 border-l-2 border-amber-500/40';
+  };
+
   return (
-    <div className="tv-card">
-      <div className="px-4 py-3 border-b border-[#2a2e39]">
+    <div className="to-panel">
+      <div className="to-panel-header">
         <div className="flex items-center gap-2">
-          <Wifi className="w-4 h-4 text-zinc-500" />
-          <span className="font-mono text-xs text-zinc-400 uppercase tracking-wider">
+          <Wifi className="w-4 h-4 text-text-dim" />
+          <span
+            className="font-mono text-[11px] uppercase tracking-[0.18em] text-text-muted"
+          >
             Connection Status
           </span>
         </div>
       </div>
-      <div className="divide-y divide-[#2a2e39]">
+      <div className="divide-y divide-panel-border-subtle">
         {services.map((service) => (
-          <div key={service.name} className="px-4 py-3 flex items-center justify-between">
+          <div
+            key={service.name}
+            className={cn(
+              'px-4 py-3 flex items-center justify-between',
+              rowTone(service),
+            )}
+          >
             <div className="flex items-center gap-3">
-              <div className="text-zinc-500">{service.icon}</div>
+              <div className="text-text-muted">{service.icon}</div>
               <div>
-                <span className="text-sm text-zinc-200 font-medium">{service.name}</span>
-                <p className="text-[11px] text-zinc-500 font-mono mt-0.5">{service.detail}</p>
+                <span className="text-[13px] text-text-primary font-medium">
+                  {service.name}
+                </span>
+                <p className="mt-0.5 font-mono text-[11px] text-text-secondary">
+                  {service.detail}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <div className={cn('w-2 h-2 rounded-full', statusDot(service.status))} />
-              <span className={cn('font-mono text-[11px] uppercase', statusColor(service.status))}>
+              <span
+                className={cn(
+                  'font-mono text-[11px] uppercase',
+                  statusColor(service.status),
+                )}
+              >
                 {service.status}
               </span>
             </div>

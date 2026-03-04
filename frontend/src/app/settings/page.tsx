@@ -60,25 +60,27 @@ export default function SettingsPage() {
       <ConfigDisplay
         title='Environment'
         items={[
-          { key: 'SUPABASE_URL', value: supabaseUrl, sensitive: true },
-          { key: 'SUPABASE_KEY', value: supabaseKey, sensitive: true },
-          { key: 'API_URL', value: apiUrl },
+          { key: 'SUPABASE_URL', value: supabaseUrl, sensitive: true, critical: true },
+          { key: 'SUPABASE_KEY', value: supabaseKey, sensitive: true, critical: true },
+          { key: 'API_URL', value: apiUrl, critical: true },
           { key: 'NODE_ENV', value: process.env.NODE_ENV || 'development' },
         ]}
       />
 
       {/* Infrastructure */}
-      <div className='tv-card'>
-        <div className='tv-divider flex items-center gap-2 border-b px-3 py-2'>
-          <Layers className='h-3.5 w-3.5 text-indigo-400' />
-          <span
-            className='panel-label'
-            style={{ fontFamily: 'var(--font-sans)' }}
-          >
-            Infrastructure
-          </span>
+      <div className='to-panel'>
+        <div className='to-panel-header'>
+          <div className='flex items-center gap-2'>
+            <Layers className='h-3.5 w-3.5 text-text-dim' />
+            <span
+              className='panel-label'
+              style={{ fontFamily: 'var(--font-sans)' }}
+            >
+              Infrastructure
+            </span>
+          </div>
         </div>
-        <div>
+        <div className='divide-y divide-panel-border-subtle'>
           <InfoRow label='Hosting' value='Railway' />
           <InfoRow label='Broker' value='MetaAPI (MT5)' />
           <InfoRow label='Database' value='Supabase (PostgreSQL)' />
@@ -87,17 +89,19 @@ export default function SettingsPage() {
       </div>
 
       {/* Tech Stack */}
-      <div className='tv-card'>
-        <div className='tv-divider flex items-center gap-2 border-b px-3 py-2'>
-          <Info className='h-3.5 w-3.5 text-indigo-400' />
-          <span
-            className='panel-label'
-            style={{ fontFamily: 'var(--font-sans)' }}
-          >
-            Tech Stack
-          </span>
+      <div className='to-panel'>
+        <div className='to-panel-header'>
+          <div className='flex items-center gap-2'>
+            <Info className='h-3.5 w-3.5 text-text-dim' />
+            <span
+              className='panel-label'
+              style={{ fontFamily: 'var(--font-sans)' }}
+            >
+              Tech Stack
+            </span>
+          </div>
         </div>
-        <div>
+        <div className='divide-y divide-panel-border-subtle'>
           <InfoRow label='Frontend' value='Next.js 16 + React 19' />
           <InfoRow label='Backend' value='Python FastAPI + Redis' />
           <InfoRow label='UI' value='Tailwind CSS v4 + Shadcn/ui' />
