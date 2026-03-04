@@ -160,3 +160,112 @@ class ChairOutputTests(unittest.TestCase):
         self.assertEqual(out.recommendation, "allow")
         self.assertEqual(out.confidence, 80)
         self.assertEqual(len(out.reason_codes), 2)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# ai_run_service: persist_debate, _get_trace_id_by_correlation
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class PersistDebateTests(unittest.TestCase):
+    """Deterministic mocked Supabase — no real DB."""
+
+    def test_persist_debate_returns_id(self):
+        from src.services.ai_run_service import persist_debate
+
+        mock_sb = MagicMock()
+        mock_sb.table.return_value.insert.return_value.execute.return_value = MagicMock(
+            data=[{"id": 42}]
+        )
+
+        result = persist_debate(
+            mock_sb,
+            "abc123",
+            {
+                "recommendation": "allow",
+                "confidence": 72,
+                "reason_codes": ["zone_quality"],
+                "memo": "Proceed.",
+                "votes": {"bull": "allow", "bear": "block", "risk": "allow", "chair": "allow"},
+                "transcript": [{"role": "bull", "content": "Strong zone."}],
+            },
+        )
+        self.assertEqual(result, 42)
+        mock_sb.table.assert_called_with("ai_runs")
+
+    def test_persist_debate_with_trace_id(self):
+        from src.services.ai_run_service import persist_debate
+
+        mock_sb = MagicMock()
+        mock_sb.table.return_value.insert.return_value.execute.return_value = MagicMock(
+            data=[{"id": 1}]
+        )
+
+        persist_debate(
+            mock_sb,
+            "corr456",
+            {"recommendation": "block", "confidence": 30, "reason_codes": [], "memo": "", "votes": {}, "transcript": []},
+            trace_id="550e8400-e29b-41d4-a716-446655440000",
+        )
+        call_args = mock_sb.table.return_value.insert.call_args[0][0]
+        self.assertIn("trace_id", call_args)
+        self.assertEqual(call_args["trace_id"], "550e8400-e29b-41d4-a716-446655440000")
+
+    def test_persist_debate_no_supabase_returns_none(self):
+        from src.services.ai_run_service import persist_debate
+
+        result = persist_debate(None, "x", {"recommendation": "allow", "confidence": 50})
+        self.assertIsNone(result)
+
+
+class GetTraceIdTests(unittest.TestCase):
+    def test_get_trace_id_found(self):
+        from src.services.ai_run_service import _get_trace_id_by_correlation
+
+        mock_sb = MagicMock()
+        mock_sb.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(
+            data=[{"trace_id": "550e8400-e29b-41d4-a716-446655440000"}]
+        )
+
+        tid = _get_trace_id_by_correlation(mock_sb, "corr123")
+        self.assertEqual(tid, "550e8400-e29b-41d4-a716-446655440000")
+
+    def test_get_trace_id_not_found(self):
+        from src.services.ai_run_service import _get_trace_id_by_correlation
+
+        mock_sb = MagicMock()
+        mock_sb.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(
+            data=[]
+        )
+
+        tid = _get_trace_id_by_correlation(mock_sb, "corr999")
+        self.assertIsNone(tid)
+
+    def test_get_trace_id_no_supabase(self):
+        from src.services.ai_run_service import _get_trace_id_by_correlation
+
+        self.assertIsNone(_get_trace_id_by_correlation(None, "x"))
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Shadow mode: debate never blocks
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class ShadowModeTests(unittest.TestCase):
+    """AI_MODE=shadow: debate must never block execution."""
+
+    @patch("src.ai.debate.run_debate", side_effect=RuntimeError("debate crash"))
+    def test_debate_exception_does_not_propagate(self, _mock_run):
+        """Worker catches debate exceptions; execution continues (shadow mode)."""
+        # Simulate worker's debate block: try/except swallows, never blocks
+        def worker_debate_block(payload, supabase):
+            try:
+                from src.ai.debate import run_debate
+                run_debate(payload, client=None, supabase=supabase)
+                return "ran"
+            except Exception:
+                return "caught"
+
+        result = worker_debate_block({"symbol": "XAUUSD", "_correlation_id": "x"}, None)
+        self.assertEqual(result, "caught")

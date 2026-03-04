@@ -8,6 +8,26 @@ from typing import Any, Dict, Optional
 logger = logging.getLogger(__name__)
 
 
+def _get_trace_id_by_correlation(supabase: Any, correlation_id: str) -> Optional[str]:
+    """Fetch trace_id from pipeline_traces by correlation_id. Returns None if not found."""
+    if not supabase or not correlation_id:
+        return None
+    try:
+        resp = (
+            supabase.table("pipeline_traces")
+            .select("trace_id")
+            .eq("correlation_id", correlation_id)
+            .limit(1)
+            .execute()
+        )
+        if resp.data and len(resp.data) > 0:
+            tid = resp.data[0].get("trace_id")
+            return str(tid) if tid else None
+    except Exception as e:
+        logger.debug("Failed to fetch trace_id for %s: %s", correlation_id, e)
+    return None
+
+
 def persist_debate(
     supabase: Any,
     correlation_id: str,

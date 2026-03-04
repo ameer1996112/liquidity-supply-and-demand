@@ -975,14 +975,16 @@ def process_trade(payload: Dict[str, Any]):
     ai_result = _supervisor.evaluate(payload)
 
     # Sprint 3.3: Debate guardrail (Bull vs Bear) — SHADOW MODE only, never blocks
+    # AI_MODE=shadow: debate recommendation is logged only, NEVER blocks execution.
     if getattr(s, "ai_debate_enabled", True):
         try:
             from src.ai.debate import run_debate
-            from src.services.ai_run_service import persist_debate
+            from src.services.ai_run_service import persist_debate, _get_trace_id_by_correlation
             debate_result = run_debate(payload, client=None, supabase=supabase)
             corr = payload.get("_correlation_id")
             if corr:
-                persist_debate(supabase, corr, debate_result)
+                trace_id = _get_trace_id_by_correlation(supabase, corr) if supabase else None
+                persist_debate(supabase, corr, debate_result, trace_id=trace_id)
             # Shadow: debate recommendation never blocks execution
             logger.info(
                 "Debate (shadow): recommendation=%s confidence=%d memo=%s",
