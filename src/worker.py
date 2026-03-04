@@ -337,16 +337,49 @@ def save_result(
         merged_reason.setdefault("reason", note)
         data["ai_reasoning"] = json.dumps(merged_reason)
 
+    receipt_id = (payload.get("_webhook_receipt_id") or "").strip()
     try:
-        resp = supabase.table("trading_signals").insert(data).execute()
-        if resp.data and len(resp.data) > 0:
-            sig_id = int(resp.data[0]["id"])
-            payload["_signal_id"] = sig_id
-            corr = payload.get("_correlation_id")
-            if corr:
-                from src.services.ai_run_service import link_ai_run_to_signal
-                link_ai_run_to_signal(supabase, corr, sig_id)
-        logger.info("Saved: %s | %s", status, note)
+        if receipt_id:
+            # API pre-inserted; update existing row instead of inserting
+            existing = (
+                supabase.table("trading_signals")
+                .select("id")
+                .eq("webhook_receipt_id", receipt_id)
+                .limit(1)
+                .execute()
+            )
+            if existing.data and len(existing.data) > 0:
+                sig_id = int(existing.data[0]["id"])
+                # Don't overwrite created_at; remove it from data if present
+                data.pop("created_at", None)
+                supabase.table("trading_signals").update(data).eq("id", sig_id).execute()
+                payload["_signal_id"] = sig_id
+                corr = payload.get("_correlation_id")
+                if corr:
+                    from src.services.ai_run_service import link_ai_run_to_signal
+                    link_ai_run_to_signal(supabase, corr, sig_id)
+                logger.info("Updated: %s | %s (receipt_id=%s)", status, note, receipt_id[:8])
+            else:
+                # Receipt not found (e.g. migration not run); fall back to insert
+                resp = supabase.table("trading_signals").insert(data).execute()
+                if resp.data and len(resp.data) > 0:
+                    sig_id = int(resp.data[0]["id"])
+                    payload["_signal_id"] = sig_id
+                    corr = payload.get("_correlation_id")
+                    if corr:
+                        from src.services.ai_run_service import link_ai_run_to_signal
+                        link_ai_run_to_signal(supabase, corr, sig_id)
+                logger.info("Saved: %s | %s", status, note)
+        else:
+            resp = supabase.table("trading_signals").insert(data).execute()
+            if resp.data and len(resp.data) > 0:
+                sig_id = int(resp.data[0]["id"])
+                payload["_signal_id"] = sig_id
+                corr = payload.get("_correlation_id")
+                if corr:
+                    from src.services.ai_run_service import link_ai_run_to_signal
+                    link_ai_run_to_signal(supabase, corr, sig_id)
+            logger.info("Saved: %s | %s", status, note)
     except Exception as e:
         logger.error("DB write failed: %s", e)
 

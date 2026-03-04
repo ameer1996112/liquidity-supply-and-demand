@@ -265,7 +265,15 @@ export function RecentSignalsPanel({
       case 'rejects':
         return signals.filter((s) => {
           const st = s.status?.toLowerCase();
-          return st === 'ai_rejected' || st === 'filtered';
+          return (
+            st === 'ai_rejected' ||
+            st === 'filtered' ||
+            st === 'symbol_blacklisted' ||
+            st === 'risk_rejected' ||
+            st === 'kill_switch_blocked' ||
+            st === 'staleness_rejected' ||
+            st === 'received'
+          );
         });
       default:
         return signals;

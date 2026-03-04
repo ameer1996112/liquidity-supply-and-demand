@@ -63,6 +63,18 @@ const CONFIGS: Record<
     className: () =>
       'bg-[var(--to-surface-raised)] text-[var(--to-text-dim)] border-[var(--to-border-subtle)]',
   },
+  symbol_blacklisted: {
+    icon: () => <ShieldX className='w-3 h-3' />,
+    label: 'BLACKLIST',
+    className: () =>
+      'bg-[var(--to-short)]/15 text-[var(--to-short)] border-[var(--to-short)]/40',
+  },
+  received: {
+    icon: () => <Clock className='w-3 h-3' />,
+    label: 'RECEIVED',
+    className: () =>
+      'bg-[var(--to-warning)]/15 text-[var(--to-warning)] border-[var(--to-warning)]/40',
+  },
   failed: {
     icon: () => <XCircle className='w-3 h-3' />,
     label: 'FAILED',

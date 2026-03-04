@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import re
+import uuid
 from typing import Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, WebSocket
@@ -484,6 +485,39 @@ async def webhook(payload: dict[str, Any] = Depends(get_webhook_payload)):
     account_id = _router.resolve_account_id(payload)
     payload["_account_id"] = account_id
     queue_key = _router.queue_key_for(account_id)
+
+    # Persist at API level so signal appears in frontend even if worker never processes it (entry only)
+    event_type = (payload.get("event_type") or "").strip().lower()
+    action = (str(payload.get("action") or "")).strip().lower()
+    is_exit = event_type == "exit" or action == "exit"
+    receipt_id = str(uuid.uuid4())
+    payload["_webhook_receipt_id"] = receipt_id
+    if not is_exit:
+        try:
+            from src.adapters.supabase import get_supabase
+            from config import get_settings as _gs
+            s = _gs()
+            sb = get_supabase()
+            row = {
+                "symbol": payload.get("symbol", "UNKNOWN"),
+                "side": payload.get("side", "buy"),
+                "size": float(payload.get("size", 0.01)),
+                "entry": float(payload.get("entry", 0)) if payload.get("entry") else None,
+                "sl": float(payload.get("sl", 0)) if payload.get("sl") else None,
+                "tp": float(payload.get("tp", 0)) if payload.get("tp") else None,
+                "status": "received",
+                "notes": "Received by API, awaiting worker",
+                "run_mode": run_mode,
+                "account_id": account_id,
+                "webhook_receipt_id": receipt_id,
+                "account_balance": float(payload.get("account_balance", s.account_balance)),
+            }
+            if payload.get("trade_key"):
+                row["trade_key"] = payload["trade_key"]
+            sb.table("trading_signals").insert(row).execute()
+            logger.info("API persisted signal (receipt_id=%s) for frontend visibility", receipt_id[:8])
+        except Exception as e:
+            logger.warning("API persist failed (non-fatal): %s", e)
 
     logger.info("Signal: %s | Mode: %s | Account: %s | Queue: %s", symbol, run_mode, account_id, queue_key)
     payload_str = json.dumps(payload)

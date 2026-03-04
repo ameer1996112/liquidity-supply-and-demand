@@ -12,6 +12,11 @@ export function isSignalRejected(signal: TradingSignal): boolean {
   return (
     status === 'ai_rejected' ||
     status === 'filtered' ||
+    status === 'symbol_blacklisted' ||
+    status === 'risk_rejected' ||
+    status === 'kill_switch_blocked' ||
+    status === 'staleness_rejected' ||
+    status === 'received' ||
     status === 'failed' ||
     status === 'cancelled' ||
     status === 'error'
