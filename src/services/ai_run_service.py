@@ -5,6 +5,8 @@ Sprint 3.3: Persist and link ai_run records (debate guardrail).
 import logging
 from typing import Any, Dict, Optional
 
+from src.services.strategy_config import get_active_strategy
+
 logger = logging.getLogger(__name__)
 
 
@@ -65,6 +67,18 @@ def persist_debate(
             "votes": votes,
             "transcript": transcript,
         }
+        # Snapshot current active strategy (if any) onto this ai_run
+        try:
+            active = get_active_strategy(supabase)
+        except Exception as strat_exc:  # noqa: BLE001
+            active = None
+            logger.debug("ai_runs: active strategy lookup failed: %s", strat_exc)
+
+        if active:
+            row["strategy_id"] = active.get("id")
+            row["strategy_version"] = active.get("version")
+            cfg = active.get("config") or {}
+            row["strategy_config_snapshot"] = cfg
         if trace_id:
             row["trace_id"] = trace_id
 

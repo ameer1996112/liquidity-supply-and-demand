@@ -427,6 +427,20 @@ export function getRulesStrategyUrl(): string {
   return `${API_BASE_URL}/api/rules/strategy`;
 }
 
+// Sprint 4.4: Strategy Studio API helpers
+
+export function getStrategiesUrl(): string {
+  return `${API_BASE_URL}/api/strategies`;
+}
+
+export function getStrategyDetailUrl(id: number): string {
+  return `${API_BASE_URL}/api/strategies/${id}`;
+}
+
+export function getStrategyActivateUrl(id: number, active: boolean): string {
+  return `${API_BASE_URL}/api/strategies/${id}/activate?active=${active}`;
+}
+
 export function getAlertsActiveUrl(): string {
   return `${API_BASE_URL}/api/alerts/active`;
 }

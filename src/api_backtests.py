@@ -15,6 +15,8 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from src.services.strategy_config import get_active_strategy
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/backtests", tags=["backtests"])
@@ -137,12 +139,30 @@ def start_backtest(body: BacktestStartBody, background_tasks: BackgroundTasks):
         "initial_cash": body.initial_cash,
         "daily_loss_limit": body.daily_loss_limit,
     }
+
+    # Snapshot current active strategy (if any) onto this backtest job
+    active_strategy = None
     try:
-        resp = sb.table("backtests").insert({
+        active_strategy = get_active_strategy(sb)
+    except Exception:
+        active_strategy = None
+    if active_strategy:
+        config["strategy"] = {
+            "id": active_strategy.get("id"),
+            "version": active_strategy.get("version"),
+            "config": active_strategy.get("config") or {},
+        }
+    try:
+        insert_payload: Dict[str, Any] = {
             "status": "pending",
             "progress": 0,
             "config_snapshot": config,
-        }).execute()
+        }
+        if active_strategy:
+            insert_payload["strategy_id"] = active_strategy.get("id")
+            insert_payload["strategy_version"] = active_strategy.get("version")
+
+        resp = sb.table("backtests").insert(insert_payload).execute()
         if not resp.data or len(resp.data) == 0:
             raise HTTPException(status_code=500, detail="Failed to create job")
         job_id = int(resp.data[0]["id"])
