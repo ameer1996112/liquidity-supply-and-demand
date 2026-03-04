@@ -132,19 +132,19 @@ export function LiveLog({
           visibleEntries.map((entry) => {
             const style = LEVEL_STYLES[entry.level];
             return (
-              <div key={entry.id} className='flex gap-2 whitespace-nowrap'>
-                <span className='shrink-0 tabular-nums text-[var(--to-text-dim)]'>
+              <div key={entry.id} className='flex gap-2'>
+                <span className='shrink-0 tabular-nums text-[var(--to-text-dim)] whitespace-nowrap'>
                   {formatTimestamp(entry.timestamp)}
                 </span>
-                <span className={cn('shrink-0 font-bold', style.color)}>
+                <span className={cn('shrink-0 font-bold whitespace-nowrap', style.color)}>
                   [{style.prefix}]
                 </span>
                 {entry.source && (
-                  <span className='shrink-0 text-[var(--to-accent-blue)]/60'>
+                  <span className='shrink-0 whitespace-nowrap text-[var(--to-accent-blue)]/60'>
                     {entry.source}
                   </span>
                 )}
-                <span className='truncate text-[var(--to-text-secondary)]'>
+                <span className='min-w-0 break-words text-[var(--to-text-secondary)]'>
                   {entry.message}
                 </span>
               </div>
