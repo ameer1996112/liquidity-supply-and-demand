@@ -1,0 +1,41 @@
+name: Backend Safety & Reliability Tests
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+  pull_request:
+    paths:
+      - "src/**"
+      - "tests/**"
+      - "requirements.txt"
+      - ".github/workflows/backend-tests.yml"
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest
+
+      - name: Run backend safety & reliability tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+          TRINITY_ENV: test
+        run: |
+          pytest tests/test_sprint55_reliability.py -v
+

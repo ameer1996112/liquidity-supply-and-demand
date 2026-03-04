@@ -2,6 +2,14 @@
 // CRITICAL: These field names must match the database schema exactly
 
 export type SignalSide = 'buy' | 'sell' | 'BUY' | 'SELL';
+
+// High-level action coming from TradingView / backend
+export type SignalActionType =
+  | 'entry'
+  | 'exit'
+  | 'close_all'
+  | 'modify'
+  | 'cancel';
 export type SignalStatus =
   | 'active' // Live trade
   | 'closed' // Trade completed
@@ -95,7 +103,31 @@ export interface TradingSignal {
 
   // Direction
   side: SignalSide; // "buy" or "sell"
-  action?: SignalSide; // Legacy alias for side
+  action?: SignalSide; // Legacy alias for side (backwards-compatible)
+
+  // High-level intent & execution hints (Sprint 6.2)
+  /**
+   * Normalized webhook / DB action: entry|exit|close_all|modify|cancel.
+   * Stored in trading_signals.signal_action (see migrations/037_signal_actions.sql).
+   */
+  signal_action?: SignalActionType | string | null;
+  /**
+   * Order type hint from webhook: market|limit|stop.
+   */
+  order_type?: 'market' | 'limit' | 'stop' | string | null;
+  /**
+   * Optional trailing stop configuration emitted by strategy.
+   * May be a simple flag, distance in pips, or structured JSON (frontend treats as opaque metadata).
+   */
+  trailing_stop?: unknown;
+  /**
+   * Optional additional TP levels (prices) provided by strategy.
+   */
+  multi_tp?: number[] | null;
+  /**
+   * Optional partial close percentage requested by strategy (0-100).
+   */
+  partial_close_percent?: number | null;
 
   // Entry parameters
   price?: number; // Entry price
@@ -223,6 +255,13 @@ export function normalizeSignal(
   // IMPORTANT: Prioritize run_mode over mode since backend uses run_mode as the canonical field
   const rawMode = (raw as { run_mode?: string }).run_mode ?? raw.mode;
   const rawStatus = raw.status || 'pending';
+
+  // Normalize high-level action when present, but keep unknown values for debugging.
+  const rawSignalAction = (raw as { signal_action?: string }).signal_action;
+  const normalizedSignalAction =
+    typeof rawSignalAction === 'string'
+      ? (rawSignalAction.toLowerCase() as SignalActionType | string)
+      : rawSignalAction ?? undefined;
   return {
     id: raw.id || '',
     created_at: raw.created_at || new Date().toISOString(),
@@ -283,6 +322,11 @@ export function normalizeSignal(
     closed_at: raw.closed_at,
     exit_price: raw.exit_price,
     exit_type: raw.exit_type,
+    signal_action: normalizedSignalAction,
+    order_type: raw.order_type,
+    trailing_stop: raw.trailing_stop,
+    multi_tp: (raw.multi_tp as number[] | null) ?? null,
+    partial_close_percent: raw.partial_close_percent ?? null,
   };
 }
 

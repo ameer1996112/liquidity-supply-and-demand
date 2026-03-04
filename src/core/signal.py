@@ -30,6 +30,32 @@ class EntryWebhookPayload(BaseModel):
     sl: float = Field(..., description="Stop loss price")
     tp: float = Field(..., description="Take profit price")
     size: float = Field(..., description="Position size")
+
+    # Sprint 6.2: Advanced TradingView strategy vocabulary
+    # Optional high-level action and execution hints. These are intentionally
+    # loose (str/Any) to remain backwards compatible with older alerts and to
+    # allow future Pine Script variants without breaking validation.
+    action: str | None = Field(
+        default=None,
+        description="High-level intent: entry|exit|close_all|modify|cancel (optional)",
+    )
+    order_type: str | None = Field(
+        default=None,
+        description="Order type hint: market|limit|stop (optional)",
+    )
+    trailing_stop: Any | None = Field(
+        default=None,
+        description="Trailing stop configuration or flag (optional)",
+    )
+    multi_tp: list[float] | None = Field(
+        default=None,
+        description="Additional take profit levels (optional)",
+    )
+    partial_close_percent: float | None = Field(
+        default=None,
+        description="Partial close percentage 0-100 (optional)",
+    )
+
     event_type: str | None = Field(None, description="If 'exit', use exit payload instead")
     signal_time: str | None = Field(None, description="Original signal generation time (UTC)")
 
@@ -47,8 +73,13 @@ def validate_webhook_payload(data: dict[str, Any]) -> dict[str, Any]:
     """
     if not data or not isinstance(data, dict):
         raise ValueError("Empty or invalid body")
-    event_type = data.get("event_type")
-    if event_type == "exit":
+
+    event_type = (data.get("event_type") or "").strip().lower()
+    action = (str(data.get("action") or "")).strip().lower()
+
+    # Sprint 6.2: allow either legacy event_type="exit" or new action="exit"
+    # to route into the ExitWebhookPayload, keeping backwards compatibility.
+    if event_type == "exit" or action == "exit":
         ExitWebhookPayload.model_validate(data)
     else:
         EntryWebhookPayload.model_validate(data)

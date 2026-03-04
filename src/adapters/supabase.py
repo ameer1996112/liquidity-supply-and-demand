@@ -156,6 +156,21 @@ def save_alert(
         'trade_key': trade_key,
         'entry_time': entry_time,
     }
+
+    # Sprint 6.2: Persist advanced strategy vocabulary hints when present.
+    # These columns are optional and added via migrations/037_signal_actions.sql.
+    action = data.get('action')
+    if action is not None:
+        insert_data['signal_action'] = str(action)
+    order_type = data.get('order_type')
+    if order_type is not None:
+        insert_data['order_type'] = str(order_type)
+    if 'trailing_stop' in data:
+        insert_data['trailing_stop'] = data.get('trailing_stop')
+    if 'multi_tp' in data:
+        insert_data['multi_tp'] = data.get('multi_tp')
+    if 'partial_close_percent' in data:
+        insert_data['partial_close_percent'] = data.get('partial_close_percent')
     if broker_profile_id is not None:
         insert_data['broker_profile_id'] = broker_profile_id
 
@@ -212,6 +227,8 @@ def update_alert_exit(zone_id: int, exit_data: dict, trade_key: str = None) -> b
         'close_price': exit_data.get('close_price'),
         'close_time': exit_data.get('close_time', datetime.utcnow().isoformat()),
         'exit_time': exit_time,
+        # Mark the high-level action explicitly for UI consumers (Signals drawer)
+        'signal_action': 'exit',
     }
 
     try:

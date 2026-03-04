@@ -133,4 +133,51 @@ describe('SignalInspector decision summary', () => {
     expect(document.body.textContent).toContain('llm_context');
     expect(document.body.textContent).not.toContain('llm_error');
   });
+
+  it('shows execution plan for entry via MetaApi bridge', () => {
+    const signal: TradingSignal = {
+      id: 'sig-entry',
+      created_at: '2026-02-20T10:00:00.000Z',
+      symbol: 'NAS100',
+      side: 'buy',
+      status: 'active',
+      price: 21500,
+      execution_source: 'metaapi',
+      run_mode: 'LIVE',
+    } as TradingSignal;
+
+    act(() => {
+      root.render(
+        <SignalInspector signal={signal} open={true} onOpenChange={() => {}} />
+      );
+    });
+
+    expect(document.body.textContent).toContain('Execution Plan');
+    expect(document.body.textContent).toContain('ENTRY');
+    expect(document.body.textContent).toContain('MetaApi MT5 bridge');
+  });
+
+  it('shows execution plan for close_all action', () => {
+    const signal: TradingSignal = {
+      id: 'sig-close-all',
+      created_at: '2026-02-20T10:00:00.000Z',
+      symbol: 'XAUUSD',
+      side: 'sell',
+      status: 'active',
+      price: 2942.1,
+      execution_source: 'metaapi',
+      run_mode: 'LIVE',
+      signal_action: 'close_all',
+    } as TradingSignal;
+
+    act(() => {
+      root.render(
+        <SignalInspector signal={signal} open={true} onOpenChange={() => {}} />
+      );
+    });
+
+    expect(document.body.textContent).toContain('Execution Plan');
+    expect(document.body.textContent).toContain('CLOSE_ALL');
+    expect(document.body.textContent).toContain('close all open positions');
+  });
 });

@@ -194,6 +194,69 @@ function JsonViewer({ data, title }: { data: unknown; title: string }) {
   );
 }
 
+// Derive high-level execution plan (action + intended broker behaviour)
+// for display in the Signals drawer header.
+function deriveExecutionPlan(signal: TradingSignal): {
+  actionLabel: string;
+  brokerLabel: string;
+  description: string;
+} {
+  const rawAction =
+    (signal.signal_action as string | undefined) ??
+    (signal.status?.toLowerCase() === 'closed' || signal.exit_type
+      ? 'exit'
+      : undefined);
+
+  const action = (rawAction || 'entry').toLowerCase();
+
+  const execSource = signal.execution_source || 'signal_only';
+  const runMode = (signal.run_mode || signal.mode || '').toString().toUpperCase();
+
+  let brokerLabel = 'Signal-only (no broker execution)';
+  if (execSource === 'paper') {
+    brokerLabel = 'Paper simulator';
+  } else if (execSource === 'metaapi') {
+    brokerLabel = 'MetaApi MT5 bridge';
+  }
+
+  let description: string;
+  switch (action) {
+    case 'exit':
+      description =
+        'Exit → close the existing position on the broker (reduce-only equivalent where supported).';
+      break;
+    case 'close_all':
+      description =
+        'Close all → close all open positions for this account and symbol on the active broker.';
+      break;
+    case 'modify':
+      description =
+        'Modify → update stop-loss / take-profit on the broker position or cancel+replace where direct modification is unavailable.';
+      break;
+    case 'cancel':
+      description =
+        'Cancel → cancel any pending or open position associated with this signal on the broker.';
+      break;
+    default:
+      description =
+        'Entry → create a new position via the active execution adapter (market by default).';
+      break;
+  }
+
+  const modePrefix =
+    runMode === 'LIVE'
+      ? 'LIVE'
+      : runMode === 'PAPER'
+        ? 'PAPER'
+        : runMode || 'AUTO';
+
+  return {
+    actionLabel: action.toUpperCase(),
+    brokerLabel: `${modePrefix} · ${brokerLabel}`,
+    description,
+  };
+}
+
 // Parse AI reasoning - handle both string and object, then merge
 // signal-level zone fields as fallbacks (save_alert stores them as
 // top-level DB columns, not inside ai_reasoning).
@@ -379,6 +442,8 @@ export function SignalInspector({
   const llmContextMessage =
     llmStatus === 'ok' ? null : 'Context unavailable — treated as neutral.';
 
+  const executionPlan = deriveExecutionPlan(signal);
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -444,6 +509,26 @@ export function SignalInspector({
                 {format(new Date(signal.created_at), 'PPpp')}
               </p>
             </SheetHeader>
+
+            {/* Execution plan summary */}
+            <div className='mb-4 rounded-lg bg-card border border-border px-4 py-3 space-y-1.5'>
+              <div className='flex items-center justify-between gap-2'>
+                <span className='text-[11px] text-muted-foreground uppercase tracking-wider'>
+                  Execution Plan
+                </span>
+                <Badge className='text-[10px] px-2 py-0.5 border-0 bg-muted text-muted-foreground'>
+                  {executionPlan.brokerLabel}
+                </Badge>
+              </div>
+              <div className='flex items-center justify-between gap-2'>
+                <span className='font-mono text-xs font-semibold text-foreground'>
+                  {executionPlan.actionLabel}
+                </span>
+              </div>
+              <p className='text-[11px] text-muted-foreground leading-relaxed'>
+                {executionPlan.description}
+              </p>
+            </div>
 
             {/* Tabs */}
             <Tabs defaultValue='overview' className='w-full'>

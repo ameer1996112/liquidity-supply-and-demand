@@ -19,7 +19,7 @@ from urllib.parse import parse_qs
 from config import get_settings
 from src.adapters.redis_queue import get_redis
 from src.core.transport import get_transport
-from src.core.signal import EntryWebhookPayload, ExitWebhookPayload
+from src.core.signal import EntryWebhookPayload, ExitWebhookPayload, validate_webhook_payload
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -212,20 +212,40 @@ def parse_body(raw: bytes) -> dict[str, Any]:
 
 
 def _validate_webhook_payload(data: dict[str, Any]) -> dict[str, Any]:
+    """
+    FastAPI-specific wrapper around the core webhook validator.
+
+    Converts pydantic.ValidationError / ValueError into FastAPI's
+    RequestValidationError while delegating the actual schema logic to
+    src.core.signal.validate_webhook_payload so the API and worker share
+    identical rules (Sprint 6.2).
+    """
     if not data or not isinstance(data, dict):
-        raise RequestValidationError(errors=[{"type": "value_error", "loc": ("body",), "msg": "Empty or invalid body"}])
-    event_type = data.get("event_type")
-    if event_type == "exit":
-        try:
-            ExitWebhookPayload.model_validate(data)
-        except ValidationError as e:
-            raise RequestValidationError(errors=e.errors()) from e
-    else:
-        try:
-            EntryWebhookPayload.model_validate(data)
-        except ValidationError as e:
-            raise RequestValidationError(errors=e.errors()) from e
-    return data
+        raise RequestValidationError(
+            errors=[
+                {
+                    "type": "value_error",
+                    "loc": ("body",),
+                    "msg": "Empty or invalid body",
+                }
+            ]
+        )
+    try:
+        return validate_webhook_payload(data)
+    except ValidationError as e:
+        # Pydantic-style validation error → FastAPI wrapper
+        raise RequestValidationError(errors=e.errors()) from e
+    except ValueError as e:
+        # Non-pydantic value errors (e.g. type guards in core validator)
+        raise RequestValidationError(
+            errors=[
+                {
+                    "type": "value_error",
+                    "loc": ("body",),
+                    "msg": str(e),
+                }
+            ]
+        ) from e
 
 
 async def get_webhook_payload(
