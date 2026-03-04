@@ -123,9 +123,11 @@ export function PropFirmWidget() {
 
   const { metrics } = data;
   const isDangerZone =
-    metrics.drawdown.daily_pct > 3.5 || metrics.drawdown.trailing_pct > 7.0;
+    (metrics.drawdown?.daily_pct ?? 0) > 3.5 ||
+    (metrics.drawdown?.trailing_pct ?? 0) > 7.0;
   const isWarningZone =
-    metrics.drawdown.daily_pct > 2.5 || metrics.drawdown.trailing_pct > 5.0;
+    (metrics.drawdown?.daily_pct ?? 0) > 2.5 ||
+    (metrics.drawdown?.trailing_pct ?? 0) > 5.0;
 
   // Determine overall status
   let overallStatus: 'danger' | 'warning' | 'ok' = 'ok';
@@ -171,7 +173,7 @@ export function PropFirmWidget() {
             <AlertTriangle className='h-4 w-4' />
             <AlertDescription>
               ⚠️ DANGER ZONE: Approaching daily limit (
-              {metrics.drawdown.daily_pct.toFixed(2)}%)
+              {(metrics.drawdown?.daily_pct ?? 0).toFixed(2)}%)
             </AlertDescription>
           </Alert>
         )}
@@ -191,7 +193,7 @@ export function PropFirmWidget() {
             <p className='text-sm text-muted-foreground'>Starting Balance</p>
             <p className='text-xl font-bold'>
               $
-              {metrics.equity.daily_start_balance.toLocaleString('en-US', {
+              {(metrics.equity?.daily_start_balance ?? 0).toLocaleString('en-US', {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}
@@ -201,7 +203,7 @@ export function PropFirmWidget() {
             <p className='text-sm text-muted-foreground'>Current Equity</p>
             <p className='text-xl font-bold'>
               $
-              {metrics.equity.current_equity.toLocaleString('en-US', {
+              {(metrics.equity?.current_equity ?? 0).toLocaleString('en-US', {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}
@@ -210,17 +212,17 @@ export function PropFirmWidget() {
           <div>
             <p className='text-sm text-muted-foreground'>Daily PnL</p>
             <p
-              className={`text-xl font-bold ${metrics.daily_pnl.total >= 0 ? 'text-green-500' : 'text-red-500'}`}
+              className={`text-xl font-bold ${(metrics.daily_pnl?.total ?? 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}
             >
-              {metrics.daily_pnl.total >= 0 ? '+' : ''}$
-              {metrics.daily_pnl.total.toLocaleString('en-US', {
+              {(metrics.daily_pnl?.total ?? 0) >= 0 ? '+' : ''}$
+              {(metrics.daily_pnl?.total ?? 0).toLocaleString('en-US', {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}
             </p>
             <p className='text-xs text-muted-foreground'>
-              Closed: ${metrics.daily_pnl.closed.toFixed(2)} | Floating: $
-              {metrics.daily_pnl.floating.toFixed(2)}
+              Closed: ${(metrics.daily_pnl?.closed ?? 0).toFixed(2)} | Floating: $
+              {(metrics.daily_pnl?.floating ?? 0).toFixed(2)}
             </p>
           </div>
           {metrics.days_remaining !== null && (
@@ -241,29 +243,29 @@ export function PropFirmWidget() {
             <div className='flex justify-between text-sm mb-1'>
               <span className='font-medium'>Daily Drawdown</span>
               <span className='font-bold'>
-                {metrics.drawdown.daily_pct.toFixed(2)}% /{' '}
-                {metrics.drawdown.daily_limit_pct}%
+                {(metrics.drawdown?.daily_pct ?? 0).toFixed(2)}% /{' '}
+                {metrics.drawdown?.daily_limit_pct ?? 0}%
               </span>
             </div>
             <div className='w-full bg-gray-200 rounded-full h-4 overflow-hidden'>
               <div
                 className={`h-4 rounded-full transition-all duration-300 ${
-                  metrics.drawdown.daily_pct > 4.0
+                  (metrics.drawdown?.daily_pct ?? 0) > 4.0
                     ? 'bg-red-500'
-                    : metrics.drawdown.daily_pct > 3.0
+                    : (metrics.drawdown?.daily_pct ?? 0) > 3.0
                       ? 'bg-orange-500'
-                      : metrics.drawdown.daily_pct > 2.0
+                      : (metrics.drawdown?.daily_pct ?? 0) > 2.0
                         ? 'bg-yellow-500'
                         : 'bg-green-500'
                 }`}
                 style={{
-                  width: `${Math.min((metrics.drawdown.daily_pct / metrics.drawdown.daily_limit_pct) * 100, 100)}%`,
+                  width: `${Math.min(((metrics.drawdown?.daily_pct ?? 0) / (metrics.drawdown?.daily_limit_pct ?? 1)) * 100, 100)}%`,
                 }}
               />
             </div>
             <p className='text-xs text-muted-foreground mt-1'>
               $
-              {metrics.drawdown.daily_remaining_usd.toLocaleString('en-US', {
+              {(metrics.drawdown?.daily_remaining_usd ?? 0).toLocaleString('en-US', {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}{' '}
@@ -276,23 +278,23 @@ export function PropFirmWidget() {
             <div className='flex justify-between text-sm mb-1'>
               <span className='font-medium'>Trailing Drawdown</span>
               <span className='font-bold'>
-                {metrics.drawdown.trailing_pct.toFixed(2)}% /{' '}
-                {metrics.drawdown.trailing_limit_pct}%
+                {(metrics.drawdown?.trailing_pct ?? 0).toFixed(2)}% /{' '}
+                {metrics.drawdown?.trailing_limit_pct ?? 0}%
               </span>
             </div>
             <div className='w-full bg-gray-200 rounded-full h-4 overflow-hidden'>
               <div
                 className={`h-4 rounded-full transition-all duration-300 ${
-                  metrics.drawdown.trailing_pct > 8.0
+                  (metrics.drawdown?.trailing_pct ?? 0) > 8.0
                     ? 'bg-red-500'
-                    : metrics.drawdown.trailing_pct > 6.0
+                    : (metrics.drawdown?.trailing_pct ?? 0) > 6.0
                       ? 'bg-orange-500'
-                      : metrics.drawdown.trailing_pct > 4.0
+                      : (metrics.drawdown?.trailing_pct ?? 0) > 4.0
                         ? 'bg-yellow-500'
                         : 'bg-green-500'
                 }`}
                 style={{
-                  width: `${Math.min((metrics.drawdown.trailing_pct / metrics.drawdown.trailing_limit_pct) * 100, 100)}%`,
+                  width: `${Math.min(((metrics.drawdown?.trailing_pct ?? 0) / (metrics.drawdown?.trailing_limit_pct ?? 1)) * 100, 100)}%`,
                 }}
               />
             </div>
@@ -303,23 +305,23 @@ export function PropFirmWidget() {
             <div className='flex justify-between text-sm mb-1'>
               <span className='font-medium'>Consistency (Best Day %)</span>
               <span className='font-bold'>
-                {metrics.consistency.best_day_pct.toFixed(1)}% /{' '}
-                {metrics.consistency.limit_pct}%
+                {(metrics.consistency?.best_day_pct ?? 0).toFixed(1)}% /{' '}
+                {metrics.consistency?.limit_pct ?? 0}%
               </span>
             </div>
             <div className='w-full bg-gray-200 rounded-full h-4 overflow-hidden'>
               <div
                 className={`h-4 rounded-full transition-all duration-300 ${
-                  metrics.consistency.status === 'violated'
+                  (metrics.consistency?.status ?? 'safe') === 'violated'
                     ? 'bg-red-500'
-                    : metrics.consistency.status === 'danger'
+                    : (metrics.consistency?.status ?? 'safe') === 'danger'
                       ? 'bg-orange-500'
-                      : metrics.consistency.status === 'warning'
+                      : (metrics.consistency?.status ?? 'safe') === 'warning'
                         ? 'bg-yellow-500'
                         : 'bg-green-500'
                 }`}
                 style={{
-                  width: `${Math.min((metrics.consistency.best_day_pct / metrics.consistency.limit_pct) * 100, 100)}%`,
+                  width: `${Math.min(((metrics.consistency?.best_day_pct ?? 0) / (metrics.consistency?.limit_pct ?? 1)) * 100, 100)}%`,
                 }}
               />
             </div>

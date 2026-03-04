@@ -340,7 +340,7 @@ function PayoutProjection({
             className='text-[16px] font-bold font-mono'
             style={{ color: dailyNeeded > 0 ? '#f0b90b' : '#0ecb81' }}
           >
-            ${dailyNeeded > 0 ? dailyNeeded.toFixed(0) : '0'}
+            ${dailyNeeded > 0 ? (dailyNeeded ?? 0).toFixed(0) : '0'}
           </div>
         </div>
       </div>
@@ -358,8 +358,8 @@ function PayoutProjection({
         )}
         <span>
           {onTrack
-            ? `On track — ${currentProfitPct.toFixed(2)}% of ${targetPct}% target achieved.`
-            : `Behind target — currently at ${currentProfitPct.toFixed(2)}% of ${targetPct}% goal.`}
+            ? `On track — ${(currentProfitPct ?? 0).toFixed(2)}% of ${targetPct}% target achieved.`
+            : `Behind target — currently at ${(currentProfitPct ?? 0).toFixed(2)}% of ${targetPct}% goal.`}
         </span>
       </div>
     </div>
@@ -436,7 +436,7 @@ function CircularGauge({
             className='text-xl font-bold tabular-nums'
             style={{ color, fontFamily: 'var(--font-mono)' }}
           >
-            {value.toFixed(2)}
+            {(value ?? 0).toFixed(2)}
             {unit}
           </span>
           <span className='text-[10px] text-[var(--to-text-dim)] mt-0.5'>
@@ -620,8 +620,8 @@ function DrawdownHistoryChart({
 
   const data = snapshots.map((s) => ({
     time: format(parseISO(s.snapshot_time), 'MMM d HH:mm'),
-    daily: parseFloat(s.daily_drawdown_pct.toFixed(2)),
-    trailing: parseFloat(s.trailing_drawdown_pct.toFixed(2)),
+    daily: parseFloat((s.daily_drawdown_pct ?? 0).toFixed(2)),
+    trailing: parseFloat((s.trailing_drawdown_pct ?? 0).toFixed(2)),
   }));
 
   return (
@@ -761,11 +761,11 @@ function MtmPositionRow({ pos }: { pos: MtmPos }) {
           className='text-[13px] font-semibold tabular-nums'
           style={{ color: pnlColor, fontFamily: 'var(--font-mono)' }}
         >
-          {pos.floating_pnl >= 0 ? '+' : ''}${pos.floating_pnl.toFixed(2)}
+          {(pos.floating_pnl ?? 0) >= 0 ? '+' : ''}${(pos.floating_pnl ?? 0).toFixed(2)}
         </div>
         {pos.pct_to_sl !== undefined && (
           <div className='text-[10px] text-[var(--to-text-dim)]'>
-            {pos.pct_to_sl.toFixed(0)}% to SL
+            {(pos.pct_to_sl ?? 0).toFixed(0)}% to SL
           </div>
         )}
       </div>
@@ -831,25 +831,49 @@ export default function PropFirmPage() {
   const { equity, daily_pnl, drawdown, status, consistency, days_remaining } =
     metrics;
 
+  // Defensive defaults for API values that may be undefined/null
+  const safeEquity = {
+    daily_start_balance: equity?.daily_start_balance ?? 0,
+    current_equity: equity?.current_equity ?? 0,
+    daily_high_water_mark: equity?.daily_high_water_mark ?? 0,
+  };
+  const safeDailyPnl = {
+    closed: daily_pnl?.closed ?? 0,
+    floating: daily_pnl?.floating ?? 0,
+    total: daily_pnl?.total ?? 0,
+  };
+  const safeDrawdown = {
+    daily_pct: drawdown?.daily_pct ?? 0,
+    daily_limit_pct: drawdown?.daily_limit_pct ?? 0,
+    daily_remaining_usd: drawdown?.daily_remaining_usd ?? 0,
+    trailing_pct: drawdown?.trailing_pct ?? 0,
+    trailing_limit_pct: drawdown?.trailing_limit_pct ?? 0,
+  };
+  const safeConsistency = {
+    best_day_pct: consistency?.best_day_pct ?? 0,
+    limit_pct: consistency?.limit_pct ?? 0,
+    status: consistency?.status ?? 'safe',
+  };
+
   const dailyColorZones = [
     { at: 0, color: '#0ecb81' },
-    { at: drawdown.daily_limit_pct * 0.5, color: '#3b82f6' },
-    { at: drawdown.daily_limit_pct * 0.7, color: '#f0b90b' },
-    { at: drawdown.daily_limit_pct * 0.9, color: '#f6465d' },
+    { at: safeDrawdown.daily_limit_pct * 0.5, color: '#3b82f6' },
+    { at: safeDrawdown.daily_limit_pct * 0.7, color: '#f0b90b' },
+    { at: safeDrawdown.daily_limit_pct * 0.9, color: '#f6465d' },
   ];
 
   const trailingColorZones = [
     { at: 0, color: '#0ecb81' },
-    { at: drawdown.trailing_limit_pct * 0.5, color: '#3b82f6' },
-    { at: drawdown.trailing_limit_pct * 0.7, color: '#f0b90b' },
-    { at: drawdown.trailing_limit_pct * 0.9, color: '#f6465d' },
+    { at: safeDrawdown.trailing_limit_pct * 0.5, color: '#3b82f6' },
+    { at: safeDrawdown.trailing_limit_pct * 0.7, color: '#f0b90b' },
+    { at: safeDrawdown.trailing_limit_pct * 0.9, color: '#f6465d' },
   ];
 
   const consistencyColorZones = [
     { at: 0, color: '#0ecb81' },
-    { at: consistency.limit_pct * 0.6, color: '#3b82f6' },
-    { at: consistency.limit_pct * 0.8, color: '#f0b90b' },
-    { at: consistency.limit_pct * 0.95, color: '#f6465d' },
+    { at: safeConsistency.limit_pct * 0.6, color: '#3b82f6' },
+    { at: safeConsistency.limit_pct * 0.8, color: '#f0b90b' },
+    { at: safeConsistency.limit_pct * 0.95, color: '#f6465d' },
   ];
 
   return (
@@ -914,8 +938,8 @@ export default function PropFirmPage() {
         safeToTrade={status.safe_to_trade}
         dailyBreach={status.daily_loss_breach}
         drawdownBreach={status.drawdown_breach}
-        dailyPct={drawdown.daily_pct}
-        dailyLimit={drawdown.daily_limit_pct}
+        dailyPct={safeDrawdown.daily_pct}
+        dailyLimit={safeDrawdown.daily_limit_pct}
       />
 
       {/* ── Top Row: 3 Gauges + Equity Summary ── */}
@@ -923,17 +947,17 @@ export default function PropFirmPage() {
         {/* Daily Drawdown Gauge */}
         <div className='rounded-xl border border-[var(--to-border)] bg-[var(--to-surface)] p-5 flex flex-col items-center gap-3'>
           <CircularGauge
-            value={drawdown.daily_pct}
-            limit={drawdown.daily_limit_pct}
+            value={safeDrawdown.daily_pct}
+            limit={safeDrawdown.daily_limit_pct}
             label='Daily Drawdown'
-            sublabel={`$${drawdown.daily_remaining_usd.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} remaining`}
+            sublabel={`$${safeDrawdown.daily_remaining_usd.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} remaining`}
             colorZones={dailyColorZones}
           />
           <div className='w-full pt-2 border-t border-[var(--to-border)]'>
             <div className='flex justify-between text-[11px] text-[var(--to-text-dim)]'>
               <span>Limit</span>
               <span style={{ fontFamily: 'var(--font-mono)' }}>
-                {drawdown.daily_limit_pct}%
+                {safeDrawdown.daily_limit_pct}%
               </span>
             </div>
           </div>
@@ -942,8 +966,8 @@ export default function PropFirmPage() {
         {/* Trailing Drawdown Gauge */}
         <div className='rounded-xl border border-[var(--to-border)] bg-[var(--to-surface)] p-5 flex flex-col items-center gap-3'>
           <CircularGauge
-            value={drawdown.trailing_pct}
-            limit={drawdown.trailing_limit_pct}
+            value={safeDrawdown.trailing_pct}
+            limit={safeDrawdown.trailing_limit_pct}
             label='Trailing Drawdown'
             sublabel='From peak equity'
             colorZones={trailingColorZones}
@@ -952,7 +976,7 @@ export default function PropFirmPage() {
             <div className='flex justify-between text-[11px] text-[var(--to-text-dim)]'>
               <span>Limit</span>
               <span style={{ fontFamily: 'var(--font-mono)' }}>
-                {drawdown.trailing_limit_pct}%
+                {safeDrawdown.trailing_limit_pct}%
               </span>
             </div>
           </div>
@@ -961,8 +985,8 @@ export default function PropFirmPage() {
         {/* Consistency Gauge */}
         <div className='rounded-xl border border-[var(--to-border)] bg-[var(--to-surface)] p-5 flex flex-col items-center gap-3'>
           <CircularGauge
-            value={consistency.best_day_pct}
-            limit={consistency.limit_pct}
+            value={safeConsistency.best_day_pct}
+            limit={safeConsistency.limit_pct}
             label='Consistency Rule'
             sublabel='Best day / total profit'
             colorZones={consistencyColorZones}
@@ -975,14 +999,14 @@ export default function PropFirmPage() {
               <span
                 className={cn(
                   'text-[10px] px-1.5 py-0.5 rounded font-semibold',
-                  consistency.status === 'safe'
+                  safeConsistency.status === 'safe'
                     ? 'bg-[#0ecb8118] text-[#0ecb81]'
-                    : consistency.status === 'warning'
+                    : safeConsistency.status === 'warning'
                       ? 'bg-[#f0b90b18] text-[#f0b90b]'
                       : 'bg-[#f6465d18] text-[#f6465d]',
                 )}
               >
-                {consistency.status.toUpperCase()}
+                {safeConsistency.status.toUpperCase()}
               </span>
             </div>
           </div>
@@ -1006,7 +1030,7 @@ export default function PropFirmPage() {
                 style={{ fontFamily: 'var(--font-mono)' }}
               >
                 $
-                {equity.daily_start_balance.toLocaleString('en-US', {
+                {safeEquity.daily_start_balance.toLocaleString('en-US', {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
                 })}
@@ -1021,13 +1045,13 @@ export default function PropFirmPage() {
                 style={{
                   fontFamily: 'var(--font-mono)',
                   color:
-                    equity.current_equity >= equity.daily_start_balance
+                    safeEquity.current_equity >= safeEquity.daily_start_balance
                       ? '#0ecb81'
                       : '#f6465d',
                 }}
               >
                 $
-                {equity.current_equity.toLocaleString('en-US', {
+                {safeEquity.current_equity.toLocaleString('en-US', {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
                 })}
@@ -1040,13 +1064,13 @@ export default function PropFirmPage() {
                 </div>
                 <div
                   className='text-[13px] font-semibold tabular-nums'
-                  style={{
-                    fontFamily: 'var(--font-mono)',
-                    color: daily_pnl.closed >= 0 ? '#0ecb81' : '#f6465d',
-                  }}
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  color: safeDailyPnl.closed >= 0 ? '#0ecb81' : '#f6465d',
+                }}
                 >
-                  {daily_pnl.closed >= 0 ? '+' : ''}$
-                  {daily_pnl.closed.toFixed(2)}
+                  {safeDailyPnl.closed >= 0 ? '+' : ''}$
+                  {safeDailyPnl.closed.toFixed(2)}
                 </div>
               </div>
               <div>
@@ -1055,13 +1079,13 @@ export default function PropFirmPage() {
                 </div>
                 <div
                   className='text-[13px] font-semibold tabular-nums'
-                  style={{
-                    fontFamily: 'var(--font-mono)',
-                    color: daily_pnl.floating >= 0 ? '#0ecb81' : '#f6465d',
-                  }}
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  color: safeDailyPnl.floating >= 0 ? '#0ecb81' : '#f6465d',
+                }}
                 >
-                  {daily_pnl.floating >= 0 ? '+' : ''}$
-                  {daily_pnl.floating.toFixed(2)}
+                  {safeDailyPnl.floating >= 0 ? '+' : ''}$
+                  {safeDailyPnl.floating.toFixed(2)}
                 </div>
               </div>
               <div>
@@ -1070,12 +1094,12 @@ export default function PropFirmPage() {
                 </div>
                 <div
                   className='text-[13px] font-semibold tabular-nums'
-                  style={{
-                    fontFamily: 'var(--font-mono)',
-                    color: daily_pnl.total >= 0 ? '#0ecb81' : '#f6465d',
-                  }}
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  color: safeDailyPnl.total >= 0 ? '#0ecb81' : '#f6465d',
+                }}
                 >
-                  {daily_pnl.total >= 0 ? '+' : ''}${daily_pnl.total.toFixed(2)}
+                  {safeDailyPnl.total >= 0 ? '+' : ''}${safeDailyPnl.total.toFixed(2)}
                 </div>
               </div>
             </div>
@@ -1101,12 +1125,12 @@ export default function PropFirmPage() {
               >
                 Floating:{' '}
                 <span
-                  style={{
-                    color: mtmData.floating_pnl >= 0 ? '#0ecb81' : '#f6465d',
-                  }}
-                >
-                  {mtmData.floating_pnl >= 0 ? '+' : ''}$
-                  {mtmData.floating_pnl.toFixed(2)}
+                style={{
+                  color: (mtmData.floating_pnl ?? 0) >= 0 ? '#0ecb81' : '#f6465d',
+                }}
+              >
+                {(mtmData.floating_pnl ?? 0) >= 0 ? '+' : ''}$
+                {(mtmData.floating_pnl ?? 0).toFixed(2)}
                 </span>
               </span>
             )}
@@ -1147,29 +1171,29 @@ export default function PropFirmPage() {
             {[
               {
                 label: 'Daily Loss Limit',
-                detail: `${drawdown.daily_pct.toFixed(2)}% of ${drawdown.daily_limit_pct}% used`,
+                detail: `${safeDrawdown.daily_pct.toFixed(2)}% of ${safeDrawdown.daily_limit_pct}% used`,
                 ok:
                   !status.daily_loss_breach &&
-                  drawdown.daily_pct < drawdown.daily_limit_pct * 0.7,
+                  safeDrawdown.daily_pct < safeDrawdown.daily_limit_pct * 0.7,
                 warn:
                   !status.daily_loss_breach &&
-                  drawdown.daily_pct >= drawdown.daily_limit_pct * 0.7,
+                  safeDrawdown.daily_pct >= safeDrawdown.daily_limit_pct * 0.7,
               },
               {
                 label: 'Max Drawdown',
-                detail: `${drawdown.trailing_pct.toFixed(2)}% of ${drawdown.trailing_limit_pct}% used`,
+                detail: `${safeDrawdown.trailing_pct.toFixed(2)}% of ${safeDrawdown.trailing_limit_pct}% used`,
                 ok:
                   !status.drawdown_breach &&
-                  drawdown.trailing_pct < drawdown.trailing_limit_pct * 0.7,
+                  safeDrawdown.trailing_pct < safeDrawdown.trailing_limit_pct * 0.7,
                 warn:
                   !status.drawdown_breach &&
-                  drawdown.trailing_pct >= drawdown.trailing_limit_pct * 0.7,
+                  safeDrawdown.trailing_pct >= safeDrawdown.trailing_limit_pct * 0.7,
               },
               {
                 label: 'Consistency Rule (40%)',
-                detail: `Best day is ${consistency.best_day_pct.toFixed(1)}% of total profit`,
-                ok: status.consistency_ok && consistency.status === 'safe',
-                warn: status.consistency_ok && consistency.status !== 'safe',
+                detail: `Best day is ${safeConsistency.best_day_pct.toFixed(1)}% of total profit`,
+                ok: status.consistency_ok && safeConsistency.status === 'safe',
+                warn: status.consistency_ok && safeConsistency.status !== 'safe',
               },
               {
                 label: 'Safe to Trade',
@@ -1280,8 +1304,8 @@ export default function PropFirmPage() {
         ) : (
           <DrawdownHistoryChart
             snapshots={historyData?.snapshots ?? []}
-            dailyLimit={drawdown.daily_limit_pct}
-            trailingLimit={drawdown.trailing_limit_pct}
+            dailyLimit={safeDrawdown.daily_limit_pct}
+            trailingLimit={safeDrawdown.trailing_limit_pct}
           />
         )}
       </div>
@@ -1293,11 +1317,11 @@ export default function PropFirmPage() {
       <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
         <CountdownTimer daysRemaining={days_remaining} />
         <PayoutProjection
-          accountBalance={equity.daily_start_balance}
+          accountBalance={safeEquity.daily_start_balance}
           currentProfitPct={
-            equity.current_equity > equity.daily_start_balance
-              ? ((equity.current_equity - equity.daily_start_balance) /
-                  equity.daily_start_balance) *
+            safeEquity.current_equity > safeEquity.daily_start_balance
+              ? ((safeEquity.current_equity - safeEquity.daily_start_balance) /
+                  safeEquity.daily_start_balance) *
                 100
               : 0
           }
