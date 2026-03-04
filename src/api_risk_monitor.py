@@ -256,24 +256,24 @@ async def get_risk_monitor():
         try:
             latest_snapshot = (
                 supabase.table("portfolio_snapshots")
-                .select("var_95_1d, portfolio_max_var_usd")
+                .select("var_95_1d, var_limit_usd")
                 .order("snapshot_time", desc=True)
                 .limit(1)
                 .execute()
             )
             if latest_snapshot.data:
                 var_current = latest_snapshot.data[0].get("var_95_1d", 0)
-                var_limit = latest_snapshot.data[0].get("portfolio_max_var_usd", settings.portfolio_max_var_usd)
+                var_limit = latest_snapshot.data[0].get("var_limit_usd", settings.portfolio_max_var_usd)
                 var_pct = (var_current / var_limit * 100) if var_limit > 0 else 0
 
                 guard_rails.append(GuardRailStatus(
                     name="Portfolio VaR",
                     status="critical" if var_pct > 100 else ("warning" if var_pct > 80 else "passed"),
                     severity="critical" if var_pct > 100 else ("warning" if var_pct > 80 else "success"),
-                    message=f"${var_current:.0f} / ${var_limit:.0f} limit ({var_pct:.0f}%)"
+                    message=f\"${var_current:.0f} / ${var_limit:.0f} limit ({var_pct:.0f}%)\"
                 ))
         except Exception as e:
-            logger.warning(f"VaR check failed: {e}")
+            logger.warning(f\"VaR check failed: {e}\")
 
     # Correlation Limits
     guard_rails.append(GuardRailStatus(
