@@ -43,3 +43,6 @@ plotly>=5.18.0  # Analytics heatmaps and visualizations
 optuna>=3.5.0  # Bayesian optimization
 youtube-transcript-api
 scrapetube
+
+# Trading Council (multi-agent debate — TradingAgents architecture)
+rank-bm25>=0.2

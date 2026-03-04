@@ -979,26 +979,33 @@ def process_trade(payload: Dict[str, Any]):
     _supervisor = _Supervisor(supabase_client=supabase, redis_client=get_redis())
     ai_result = _supervisor.evaluate(payload)
 
-    # Sprint 3.3: Debate guardrail (Bull vs Bear) — SHADOW MODE only, never blocks
-    # AI_MODE=shadow: debate recommendation is logged only, NEVER blocks execution.
+    # Trading Council — 9-stage multi-agent pipeline (SHADOW MODE, never blocks)
+    # Replaces the old 4-agent Bull/Bear/Risk/Chair debate.
+    # Stages: Market Analyst → Setup Analyst → Bull/Bear Researchers →
+    #         Research Manager → Aggressive/Conservative/Neutral Debaters → Risk Judge
     if getattr(s, "ai_debate_enabled", True):
         try:
-            from src.ai.debate import run_debate
+            from src.ai.trading_council import run_trading_council
             from src.services.ai_run_service import persist_debate, _get_trace_id_by_correlation
-            debate_result = run_debate(payload, client=None, supabase=supabase)
+            council_result = run_trading_council(
+                payload,
+                supabase=supabase,
+                redis_client=get_redis(),
+            )
             corr = payload.get("_correlation_id")
             if corr:
                 trace_id = _get_trace_id_by_correlation(supabase, corr) if supabase else None
-                persist_debate(supabase, corr, debate_result, trace_id=trace_id)
-            # Shadow: debate recommendation never blocks execution
+                persist_debate(supabase, corr, council_result, trace_id=trace_id)
+            # Shadow: council recommendation is logged only, NEVER blocks execution
             logger.info(
-                "Debate (shadow): recommendation=%s confidence=%d memo=%s",
-                debate_result.get("recommendation"),
-                debate_result.get("confidence", 0),
-                (debate_result.get("memo") or "")[:80],
+                "Trading Council (shadow): decision=%s confidence=%d memo=%s votes=%s",
+                council_result.get("council_decision"),
+                council_result.get("council_confidence", 0),
+                (council_result.get("memo") or "")[:80],
+                council_result.get("votes_tally", ""),
             )
         except Exception as deb_err:
-            logger.warning("Debate pipeline failed (non-blocking): %s", deb_err)
+            logger.warning("Trading Council failed (non-blocking): %s", deb_err)
 
     # Enrich AI result with zone/sweep/metrics from original payload
     _ZONE_FIELD_MAP = {
@@ -1132,6 +1139,17 @@ def run():
     init_connections()
     load_brain()
     s = get_settings()
+
+    # Hydrate Trading Council BM25 memory from Supabase (non-blocking)
+    if getattr(s, "memory_enabled", False):
+        try:
+            from src.ai.trading_council import load_council_memories_from_supabase
+            from src.adapters.supabase import get_supabase
+            _supabase = get_supabase()
+            if _supabase:
+                load_council_memories_from_supabase(_supabase)
+        except Exception as _mem_err:
+            logger.debug("Council memory hydration skipped: %s", _mem_err)
     transport = get_transport()
     kill_sw = getattr(s, "trading_kill_switch", False)
     live = getattr(s, "live_trading_enabled", False)
