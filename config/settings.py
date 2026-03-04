@@ -190,6 +190,21 @@ class Settings(BaseSettings):
         description="Run Bull/Bear/Risk/Chair debate and persist to ai_runs. Never blocks.",
         validation_alias="AI_DEBATE_ENABLED",
     )
+    # Sprint 3.4: Strategy graduation — cannot enable enforce unless thresholds met
+    ai_graduation_min_sample_size: int = Field(
+        default=50,
+        ge=10,
+        le=500,
+        description="Min closed trades in shadow before enabling enforce.",
+        validation_alias="AI_GRADUATION_MIN_SAMPLE_SIZE",
+    )
+    ai_graduation_min_edge_pct: float = Field(
+        default=5.0,
+        ge=0.0,
+        le=50.0,
+        description="Min win-rate edge (allowed - blocked) % to enable enforce.",
+        validation_alias="AI_GRADUATION_MIN_EDGE_PCT",
+    )
 
     # Pine-matching deterministic pre-filters (mirror SND_Strategy.pine Balanced profile)
     pine_min_score: float = Field(default=60.0, ge=0.0, le=100.0, description="Min zone score (Pine ai_quality_threshold). 60=Balanced, 70=Conservative.")

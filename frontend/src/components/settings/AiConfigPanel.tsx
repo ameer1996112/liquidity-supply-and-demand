@@ -1,7 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { AiConfigResponse, fetchAiConfig } from '@/lib/api';
+import {
+  AiConfigResponse,
+  fetchAiConfig,
+  fetchGraduationStatus,
+  fetchAiModeToggles,
+  setAiMode,
+  GraduationReadiness,
+} from '@/lib/api';
 import { cn } from '@/lib/utils';
 import {
   Brain,
@@ -13,6 +20,8 @@ import {
   Check,
   X,
   Loader2,
+  GraduationCap,
+  History,
 } from 'lucide-react';
 
 type LoadState = 'loading' | 'loaded' | 'error';
@@ -72,21 +81,59 @@ function SectionCard({
 
 export function AiConfigPanel() {
   const [config, setConfig] = useState<AiConfigResponse | null>(null);
+  const [graduation, setGraduation] = useState<GraduationReadiness | null>(null);
   const [state, setState] = useState<LoadState>('loading');
   const [error, setError] = useState('');
+  const [modeChanging, setModeChanging] = useState(false);
+  const [showEnforceConfirm, setShowEnforceConfirm] = useState(false);
+  const [toggles, setToggles] = useState<Array<{ from_mode: string; to_mode: string; reason: string | null; created_at: string }>>([]);
+  const [showToggles, setShowToggles] = useState(false);
 
   const load = () => {
     setState('loading');
     setError('');
-    fetchAiConfig()
-      .then((data) => {
+    Promise.all([fetchAiConfig(), fetchGraduationStatus()])
+      .then(([data, grad]) => {
         setConfig(data);
+        setGraduation(grad);
         setState('loaded');
       })
       .catch((err) => {
         setError(err instanceof Error ? err.message : 'Failed to load');
         setState('error');
       });
+  };
+
+  const handleSetEnforce = async () => {
+    if (!graduation?.ready) return;
+    setModeChanging(true);
+    try {
+      await setAiMode('enforce', 'graduation_ready');
+      setShowEnforceConfirm(false);
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to set enforce');
+    } finally {
+      setModeChanging(false);
+    }
+  };
+
+  const loadToggles = () => {
+    fetchAiModeToggles(20)
+      .then((r) => setToggles(r.toggles || []))
+      .catch(() => setToggles([]));
+  };
+
+  const handleSetShadow = async () => {
+    setModeChanging(true);
+    try {
+      await setAiMode('shadow', 'manual');
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to set shadow');
+    } finally {
+      setModeChanging(false);
+    }
   };
 
   useEffect(() => {
@@ -171,6 +218,109 @@ export function AiConfigPanel() {
         <ConfigRow label="RAG Engine" value="Supabase pgvector" />
         <ConfigRow label="Embeddings" value="text-embedding-3-small" />
         <ConfigRow label="RAG Top-K" value="4 rules" />
+      </SectionCard>
+
+      {/* Sprint 3.4: Strategy Graduation */}
+      <SectionCard title="Strategy Graduation" icon={<GraduationCap className="w-4 h-4" />}>
+        <ConfigRow
+          label="AI Mode"
+          value={
+            <div className="flex items-center gap-2">
+              <StatusBadge
+                enabled={ensemble.ai_mode === 'enforce'}
+                label={ensemble.ai_mode === 'enforce' ? 'ENFORCE' : 'SHADOW'}
+              />
+              {ensemble.ai_mode === 'shadow' && graduation?.ready && (
+                <>
+                  {!showEnforceConfirm ? (
+                    <button
+                      onClick={() => setShowEnforceConfirm(true)}
+                      disabled={modeChanging}
+                      className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 font-mono"
+                    >
+                      Enable Enforce
+                    </button>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={handleSetEnforce}
+                        disabled={modeChanging}
+                        className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/30 text-emerald-400 font-mono"
+                      >
+                        {modeChanging ? '…' : 'Confirm'}
+                      </button>
+                      <button
+                        onClick={() => setShowEnforceConfirm(false)}
+                        disabled={modeChanging}
+                        className="text-[10px] px-2 py-0.5 rounded bg-zinc-600 text-zinc-300 font-mono"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+              {ensemble.ai_mode === 'enforce' && (
+                <button
+                  onClick={handleSetShadow}
+                  disabled={modeChanging}
+                  className="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 font-mono"
+                >
+                  {modeChanging ? '…' : 'Revert to Shadow'}
+                </button>
+              )}
+            </div>
+          }
+        />
+        {graduation && (
+          <>
+            <ConfigRow
+              label="Readiness"
+              value={
+                <span
+                  className={cn(
+                    'font-mono text-[10px]',
+                    graduation.ready ? 'text-emerald-400' : 'text-amber-400'
+                  )}
+                >
+                  {graduation.ready ? 'READY' : 'NOT READY'}
+                </span>
+              }
+            />
+            <ConfigRow label="Sample Size" value={`${graduation.metrics.sample_size} / ${graduation.thresholds.min_sample_size}`} />
+            <ConfigRow label="Win-Rate Edge" value={`${graduation.metrics.edge_pct.toFixed(1)}% / ${graduation.thresholds.min_edge_pct}%`} />
+            <ConfigRow label="AI Blocked (executed)" value={graduation.metrics.sample_size_ai_blocked} />
+            <ConfigRow label="AI Allowed" value={graduation.metrics.sample_size_ai_allowed} />
+            {!graduation.ready && graduation.reason && (
+              <div className="py-2">
+                <span className="text-[10px] text-amber-400 font-mono">{graduation.reason}</span>
+              </div>
+            )}
+            <div className="pt-2 border-t border-[#2a2e39]">
+              <button
+                onClick={() => {
+                  setShowToggles(!showToggles);
+                  if (!showToggles && toggles.length === 0) loadToggles();
+                }}
+                className="flex items-center gap-1.5 text-[10px] text-zinc-500 hover:text-zinc-300 font-mono"
+              >
+                <History className="w-3 h-3" />
+                Toggle History ({toggles.length})
+              </button>
+              {showToggles && toggles.length > 0 && (
+                <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
+                  {toggles.map((t, i) => (
+                    <div key={i} className="text-[10px] font-mono text-zinc-500">
+                      {t.from_mode} → {t.to_mode}
+                      {t.reason && ` (${t.reason})`}{' '}
+                      <span className="text-zinc-600">{new Date(t.created_at).toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </SectionCard>
 
       {/* Execution */}

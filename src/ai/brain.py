@@ -1490,10 +1490,17 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
         decision_trace["rejected_rule"] = {"rule_id": "llm_decision", "message": result["reason"]}
 
     # AI_MODE=shadow: log-only, never block execution
-    ai_mode = getattr(settings, "ai_mode", "shadow")
+    # Sprint 3.4: DB override takes precedence over env
+    try:
+        from src.services.ai_mode_override import get_ai_mode_override
+        override = get_ai_mode_override()
+        ai_mode = override if override else getattr(settings, "ai_mode", "shadow")
+    except Exception:
+        ai_mode = getattr(settings, "ai_mode", "shadow")
     if ai_mode == "shadow" and result["decision"] == "NO_GO":
         result["decision"] = "GO"
         result["reason"] = f"[SHADOW] Would have blocked: {result['reason']}"
+        result["ai_would_have_blocked"] = True  # Sprint 3.4: for graduation metrics
         decision_trace["rules"].append({
             "rule_id": "ai_shadow_override",
             "passed": True,

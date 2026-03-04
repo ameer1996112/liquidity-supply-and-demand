@@ -13,7 +13,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request, WebSocket
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from urllib.parse import parse_qs
 
 from config import get_settings
@@ -242,6 +242,18 @@ def health():
 # AI / ML Configuration endpoint
 # ---------------------------------------------------------------------------
 
+def _get_effective_ai_mode():
+    """Sprint 3.4: DB override takes precedence over env."""
+    try:
+        from src.services.ai_mode_override import get_ai_mode_override
+        override = get_ai_mode_override()
+        if override:
+            return override
+    except Exception:
+        pass
+    return getattr(get_settings(), "ai_mode", "shadow")
+
+
 @app.get("/config/ai")
 def get_ai_config():
     """Return current AI/ML/RAG configuration (read-only)."""
@@ -264,7 +276,7 @@ def get_ai_config():
             "enable_llm_filter": s.enable_llm_filter,
             "run_shadow_mode": s.run_shadow_mode,
             "ai_enabled": getattr(s, "ai_enabled", True),
-            "ai_mode": getattr(s, "ai_mode", "shadow"),
+            "ai_mode": _get_effective_ai_mode(),
             "ai_quick_model": getattr(s, "ai_quick_model", ""),
             "ai_deep_model": getattr(s, "ai_deep_model", ""),
         },
@@ -289,6 +301,106 @@ def get_ai_config():
             "risk_mode": s.risk_mode,
         },
     }
+
+
+# ---------------------------------------------------------------------------
+# Sprint 3.4: Strategy graduation pipeline
+# ---------------------------------------------------------------------------
+
+@app.get("/config/ai/graduation")
+def get_graduation_status():
+    """Return shadow vs actual metrics and readiness to enable enforce."""
+    from src.services.graduation_service import (
+        compute_shadow_metrics,
+        check_graduation_readiness,
+    )
+    from src.adapters.supabase import supabase
+
+    s = get_settings()
+    min_sample = getattr(s, "ai_graduation_min_sample_size", 50)
+    min_edge = getattr(s, "ai_graduation_min_edge_pct", 5.0)
+
+    metrics = compute_shadow_metrics(supabase, min_days=30)
+    readiness = check_graduation_readiness(metrics, min_sample, min_edge)
+    return readiness
+
+
+class SetAiModeBody(BaseModel):
+    mode: str
+    reason: str = ""
+    created_by: str = ""
+
+
+@app.patch("/config/ai/mode")
+def set_ai_mode_endpoint(body: SetAiModeBody):
+    """
+    Set AI mode (shadow | enforce). Enforce only allowed when graduation ready.
+    Full audit log in ai_mode_toggles.
+    """
+    from fastapi import HTTPException
+    from src.services.ai_mode_override import set_ai_mode, invalidate_cache
+    from src.services.graduation_service import (
+        compute_shadow_metrics,
+        check_graduation_readiness,
+    )
+    from src.adapters.supabase import supabase
+
+    to_mode = (body.mode or "").strip().lower()
+    if to_mode not in ("shadow", "enforce"):
+        raise HTTPException(status_code=400, detail="mode must be 'shadow' or 'enforce'")
+
+    current = _get_effective_ai_mode()
+    if to_mode == current:
+        return {"status": "ok", "mode": to_mode, "message": "Already in this mode"}
+
+    if to_mode == "enforce":
+        s = get_settings()
+        min_sample = getattr(s, "ai_graduation_min_sample_size", 50)
+        min_edge = getattr(s, "ai_graduation_min_edge_pct", 5.0)
+        metrics = compute_shadow_metrics(supabase, min_days=30)
+        readiness = check_graduation_readiness(metrics, min_sample, min_edge)
+        if not readiness["ready"]:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "message": "Cannot enable enforce: graduation not ready",
+                    "reason": readiness["reason"],
+                    "readiness": readiness,
+                },
+            )
+
+    ok = set_ai_mode(
+        to_mode,
+        supabase=supabase,
+        from_mode=current,
+        reason=body.reason or "api",
+        created_by=body.created_by or "",
+    )
+    if not ok:
+        raise HTTPException(status_code=500, detail="Failed to update ai_mode")
+    invalidate_cache()
+    return {"status": "ok", "mode": to_mode}
+
+
+@app.get("/config/ai/mode-toggles")
+def get_ai_mode_toggles(limit: int = 50):
+    """Full audit log of AI mode toggles."""
+    from fastapi import HTTPException
+    from src.adapters.supabase import supabase
+
+    if not supabase:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    try:
+        resp = (
+            supabase.table("ai_mode_toggles")
+            .select("*")
+            .order("created_at", desc=True)
+            .limit(min(limit, 200))
+            .execute()
+        )
+        return {"toggles": resp.data or []}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.websocket("/ws/debate")

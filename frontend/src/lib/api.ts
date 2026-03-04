@@ -340,6 +340,54 @@ export async function fetchAiConfig(): Promise<AiConfigResponse> {
 }
 
 /**
+ * Sprint 3.4: Strategy graduation — shadow vs actual metrics + readiness
+ */
+export interface GraduationReadiness {
+  ready: boolean;
+  reason: string;
+  metrics: {
+    sample_size: number;
+    sample_size_ai_blocked: number;
+    sample_size_ai_allowed: number;
+    win_rate_actual: number;
+    win_rate_if_blocked: number;
+    win_rate_if_allowed: number;
+    edge_pct: number;
+    pnl_edge_usd: number;
+  };
+  thresholds: {
+    min_sample_size: number;
+    min_edge_pct: number;
+  };
+}
+
+export async function fetchGraduationStatus(): Promise<GraduationReadiness> {
+  return apiFetch<GraduationReadiness>('/config/ai/graduation');
+}
+
+export async function setAiMode(mode: 'shadow' | 'enforce', reason?: string): Promise<{ status: string; mode: string }> {
+  return apiFetch<{ status: string; mode: string }>('/config/ai/mode', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode, reason: reason || 'ui' }),
+  });
+}
+
+export interface AiModeToggle {
+  id: number;
+  from_mode: string;
+  to_mode: string;
+  reason: string | null;
+  created_at: string;
+  created_by: string | null;
+}
+
+export async function fetchAiModeToggles(limit?: number): Promise<{ toggles: AiModeToggle[] }> {
+  const q = limit != null ? `?limit=${limit}` : '';
+  return apiFetch<{ toggles: AiModeToggle[] }>(`/config/ai/mode-toggles${q}`);
+}
+
+/**
  * Sprint 3.3: AI Run (Debate transcript + votes) for a signal
  */
 export interface AiRunResponse {
