@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Sparkles, X, Send, RotateCcw } from 'lucide-react';
+import { Sparkles, X, Send, RotateCcw, Brain } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
 import { fetchSignals } from '@/lib/supabase';
 import { queryCopilot, QUICK_ACTIONS, CopilotMessage } from './copilotEngine';
+import { fetchCopilotAnswer, type CopilotHistoryMessage } from '@/lib/api';
 import { TradingSignal, getPnl, getSymbol, getSide } from '@/types/trading';
 import { format } from 'date-fns';
 import { PnLText } from '@/components/ui/typography';

@@ -746,3 +746,26 @@ export async function fetchPropFirmMtm(accountName = 'default'): Promise<MtmResp
 export async function resetPropFirmDaily(accountName = 'default'): Promise<{ status: string }> {
   return apiFetch<{ status: string }>(`/api/prop-firm/reset?account_name=${encodeURIComponent(accountName)}`, { method: 'POST' });
 }
+
+// ── AI Copilot API ─────────────────────────────────────────────────────────
+
+export interface CopilotHistoryMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface CopilotChatResponse {
+  answer: string;
+  context_used: string[];
+  model_used?: string;
+}
+
+export async function fetchCopilotAnswer(
+  question: string,
+  history: CopilotHistoryMessage[] = [],
+): Promise<CopilotChatResponse> {
+  return apiFetch<CopilotChatResponse>('/api/copilot/chat', {
+    method: 'POST',
+    body: JSON.stringify({ question, history }),
+  });
+}

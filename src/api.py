@@ -57,6 +57,7 @@ from src.api_ai_runs import router as ai_runs_router     # Sprint 3.3: debate ai
 from src.api_backtests import router as backtests_router # Sprint 4.1: Backtest Lab
 from src.api_strategies import router as strategies_router # Sprint 4.4: Strategy configs
 from src.api_webhook_read import router as webhook_read_router  # E2E: signals/recent, trades/open, stats/summary
+from src.api_copilot import router as copilot_router           # AI Copilot: natural language queries
 
 app = FastAPI(title="Trading Webhook API", version="1.0.0")
 app.include_router(rules_router)
@@ -77,6 +78,7 @@ app.include_router(ai_runs_router)   # Sprint 3.3: debate ai_run
 app.include_router(backtests_router) # Sprint 4.1: Backtest Lab
 app.include_router(strategies_router) # Sprint 4.4: Strategy-as-data configs
 app.include_router(webhook_read_router)  # E2E: /api/v1/webhook/signals/recent, trades/open, stats/summary
+app.include_router(copilot_router)       # AI Copilot: /api/copilot/chat
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_build_cors_origins(),
