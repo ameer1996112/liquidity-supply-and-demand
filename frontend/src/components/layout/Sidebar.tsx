@@ -15,6 +15,7 @@ import {
   Gauge,
   Users,
   LineChart,
+  Timer,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSidebar } from '@/providers/SidebarProvider';
@@ -31,6 +32,7 @@ const NAV_ITEMS = [
   { label: 'Positions', icon: Crosshair, path: '/positions' },
   { label: 'Risk Monitor', icon: Gauge, path: '/risk' },
   { label: 'Accounts', icon: Users, path: '/accounts' },
+  { label: 'Exec Quality', icon: Timer, path: '/execution-quality' },
   { label: 'Analytics', icon: BarChart3, path: '/analytics' },
   { label: 'Backtest', icon: LineChart, path: '/backtest' },
   { label: 'Rules', icon: ShieldCheck, path: '/rules' },
