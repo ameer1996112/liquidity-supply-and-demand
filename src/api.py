@@ -192,6 +192,13 @@ def validate_webhook_secret(request: Request, secret: str | None) -> None:
         raise HTTPException(status_code=401, detail="Invalid webhook secret")
 
 
+# TradingView {{time}} outputs ISO date like 2026-03-04T15:55:54Z; unquoted it breaks JSON.
+# Quote unquoted ISO date values so parse succeeds.
+_ISO_DATE_PATTERN = re.compile(
+    r'(:\s*)(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)(\s*[,}\]])'
+)
+
+
 def parse_body(raw: bytes) -> dict[str, Any]:
     raw_str = raw.decode("utf-8", errors="replace")
     try:
@@ -206,6 +213,8 @@ def parse_body(raw: bytes) -> dict[str, Any]:
     candidate = candidate.replace('"', '"').replace('"', '"')
     candidate = re.sub(r"\{\{.*?\}\}", "null", candidate, flags=re.DOTALL)
     candidate = re.sub(r",\s*([}\]])", r"\1", candidate)
+    # Fix unquoted TradingView {{time}} (ISO date) so JSON parses
+    candidate = _ISO_DATE_PATTERN.sub(r'\1"\2"\3', candidate)
     try:
         return json.loads(candidate, strict=False)
     except json.JSONDecodeError as e:
