@@ -631,3 +631,118 @@ export async function deleteSymbolRiskRule(symbol: string) {
   console.warn(`deleteSymbolRiskRule not implemented for ${symbol}`);
   return {};
 }
+
+// ── Prop Firm API ──────────────────────────────────────────────────────────
+
+export interface PropFirmEquity {
+  daily_start_balance: number;
+  current_equity: number;
+  daily_high_water_mark: number;
+}
+
+export interface PropFirmDailyPnl {
+  closed: number;
+  floating: number;
+  total: number;
+}
+
+export interface PropFirmDrawdown {
+  daily_pct: number;
+  daily_limit_pct: number;
+  daily_remaining_usd: number;
+  trailing_pct: number;
+  trailing_limit_pct: number;
+}
+
+export interface PropFirmStatus {
+  daily_loss_breach: boolean;
+  drawdown_breach: boolean;
+  safe_to_trade: boolean;
+  consistency_ok: boolean;
+}
+
+export interface PropFirmConsistency {
+  best_day_pct: number;
+  limit_pct: number;
+  status: 'safe' | 'warning' | 'danger' | 'violated';
+}
+
+export interface PropFirmMetrics {
+  equity: PropFirmEquity;
+  daily_pnl: PropFirmDailyPnl;
+  drawdown: PropFirmDrawdown;
+  status: PropFirmStatus;
+  consistency: PropFirmConsistency;
+  days_remaining: number | null;
+}
+
+export interface PropFirmMetricsResponse {
+  status: string;
+  account_name: string;
+  evaluation_phase: string;
+  metrics: PropFirmMetrics;
+}
+
+export interface PropFirmSnapshot {
+  snapshot_time: string;
+  daily_drawdown_pct: number;
+  trailing_drawdown_pct: number;
+  daily_pnl_total: number;
+  current_equity: number;
+  daily_loss_breach: boolean;
+  drawdown_breach: boolean;
+}
+
+export interface PropFirmHistoryResponse {
+  account_name: string;
+  days: number;
+  snapshots: PropFirmSnapshot[];
+}
+
+export interface ConsistencyDetail {
+  net_profit: number;
+  best_day_pct: number;
+  limit_pct: number;
+  consistency_ok: boolean;
+  daily_profits: Record<string, number>;
+}
+
+export interface MtmPosition {
+  symbol: string;
+  side: string;
+  lots: number;
+  open_price: number;
+  current_price: number;
+  floating_pnl: number;
+  pct_to_sl?: number;
+  at_risk?: boolean;
+}
+
+export interface MtmResponse {
+  current_equity: number;
+  starting_balance: number;
+  closed_pnl: number;
+  floating_pnl: number;
+  daily_drawdown_pct: number;
+  positions: MtmPosition[];
+}
+
+export async function fetchPropFirmMetrics(accountName = 'default'): Promise<PropFirmMetricsResponse> {
+  return apiFetch<PropFirmMetricsResponse>(`/api/prop-firm/metrics?account_name=${encodeURIComponent(accountName)}`);
+}
+
+export async function fetchPropFirmHistory(accountName = 'default', days = 7): Promise<PropFirmHistoryResponse> {
+  return apiFetch<PropFirmHistoryResponse>(`/api/prop-firm/history?account_name=${encodeURIComponent(accountName)}&days=${days}`);
+}
+
+export async function fetchPropFirmConsistency(accountName = 'default'): Promise<ConsistencyDetail> {
+  return apiFetch<ConsistencyDetail>(`/api/prop-firm/consistency?account_name=${encodeURIComponent(accountName)}`);
+}
+
+export async function fetchPropFirmMtm(accountName = 'default'): Promise<MtmResponse> {
+  return apiFetch<MtmResponse>(`/api/prop-firm/mtm?account_name=${encodeURIComponent(accountName)}`);
+}
+
+export async function resetPropFirmDaily(accountName = 'default'): Promise<{ status: string }> {
+  return apiFetch<{ status: string }>(`/api/prop-firm/reset?account_name=${encodeURIComponent(accountName)}`, { method: 'POST' });
+}
