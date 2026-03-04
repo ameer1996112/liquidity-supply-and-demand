@@ -19,6 +19,7 @@ import { BookOpen } from 'lucide-react';
 import { useConnectionHealth } from '@/hooks/useConnectionHealth';
 import { PageStatusBanner } from '@/components/shared/PageStatusBanner';
 import { PanelEmptyState } from '@/components/shared/PanelEmptyState';
+import { PatternAnalysis } from '@/components/journal/PatternAnalysis';
 
 type StatusFilter = 'ALL' | SignalStatus;
 type ModeFilter = 'ALL' | TradingMode;
@@ -28,7 +29,7 @@ export default function JournalPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [modeFilter, setModeFilter] = useState<ModeFilter>('ALL');
   const [inspectSignal, setInspectSignal] = useState<TradingSignal | null>(
-    null
+    null,
   );
   const [inspectorOpen, setInspectorOpen] = useState(false);
 
@@ -89,7 +90,7 @@ export default function JournalPage() {
         </p>
       </div>
 
-      <PageStatusBanner status={status} surfaceLabel="Signals & journal" />
+      <PageStatusBanner status={status} surfaceLabel='Signals & journal' />
 
       {/* Filters */}
       <JournalFilters
@@ -102,6 +103,9 @@ export default function JournalPage() {
         onExport={handleExport}
         resultCount={filtered.length}
       />
+
+      {/* Pattern Analysis Insights */}
+      {signals && signals.length >= 3 && <PatternAnalysis signals={signals} />}
 
       {/* Table */}
       {isLoading ? (

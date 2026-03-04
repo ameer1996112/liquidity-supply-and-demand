@@ -1,9 +1,12 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { CommandPalette } from './CommandPalette';
+import { AICopilot } from '@/components/copilot/AICopilot';
+import { LiveMarketPanel } from '@/components/market/LiveMarketPanel';
 import { useSidebar } from '@/providers/SidebarProvider';
 import { cn } from '@/lib/utils';
 import { useConnectionHealth } from '@/hooks/useConnectionHealth';
@@ -26,6 +29,34 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { status } = useConnectionHealth();
   const isOffline = status === 'offline';
+  const [copilotOpen, setCopilotOpen] = useState(false);
+  const [marketOpen, setMarketOpen] = useState(false);
+
+  // ⌘/ to toggle AI Copilot
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === '/') {
+        e.preventDefault();
+        setCopilotOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  // Expose setter for TopBar button
+  useEffect(() => {
+    const w = window as typeof window & {
+      __openCopilot?: () => void;
+      __openMarket?: () => void;
+    };
+    w.__openCopilot = () => setCopilotOpen(true);
+    w.__openMarket = () => setMarketOpen((p) => !p);
+    return () => {
+      delete w.__openCopilot;
+      delete w.__openMarket;
+    };
+  }, []);
 
   if (FULLSCREEN_ROUTES.some((r) => pathname.startsWith(r))) {
     return <>{children}</>;
@@ -34,6 +65,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <CommandPalette />
+      <AICopilot open={copilotOpen} onClose={() => setCopilotOpen(false)} />
+      <LiveMarketPanel open={marketOpen} onClose={() => setMarketOpen(false)} />
       <div className='relative min-h-screen bg-background'>
         <Sidebar />
 
@@ -56,10 +89,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               >
                 <div className='flex items-center gap-2'>
                   <WifiOff className='h-3 w-3 text-[var(--to-short)]' />
-                  <span className='font-semibold'>Offline / API unreachable</span>
+                  <span className='font-semibold'>
+                    Offline / API unreachable
+                  </span>
                   <span className='hidden text-[10px] text-[var(--to-text-dim)] sm:inline'>
-                    Using last known data. Automatic retries will continue in the
-                    background.
+                    Using last known data. Automatic retries will continue in
+                    the background.
                   </span>
                 </div>
                 <span

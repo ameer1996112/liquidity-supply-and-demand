@@ -11,6 +11,8 @@ import {
   Power,
   Clock,
   Activity,
+  Sparkles,
+  Globe,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTradingMode } from '@/providers/TradingModeProvider';
@@ -202,7 +204,8 @@ export function TopBar() {
   const { data: risk } = useRiskStatus();
   const killMutation = useKillSwitchMutation();
   const [killDialogOpen, setKillDialogOpen] = useState(false);
-  const [killDialogMode, setKillDialogMode] = useState<KillSwitchMode>('engage');
+  const [killDialogMode, setKillDialogMode] =
+    useState<KillSwitchMode>('engage');
 
   const { data: accounts = [] } = useAccountsComparison();
   const { isApiUp, healthStatus, hasDrift, brokerOk, lastReconcileAt } =
@@ -228,10 +231,8 @@ export function TopBar() {
 
   const todayPnl =
     selectedAccount != null
-      ? selectedAccount.daily_pnl ??
-        selectedAccount.realized_pnl_today ??
-        0
-      : risk?.live_daily_pnl ?? risk?.daily_pnl ?? 0;
+      ? (selectedAccount.daily_pnl ?? selectedAccount.realized_pnl_today ?? 0)
+      : (risk?.live_daily_pnl ?? risk?.daily_pnl ?? 0);
 
   const todayPnlColor =
     todayPnl == null
@@ -422,6 +423,34 @@ export function TopBar() {
           </button>
         </div>
 
+        {/* Markets Panel trigger */}
+        <button
+          onClick={() =>
+            (
+              window as typeof window & { __openMarket?: () => void }
+            ).__openMarket?.()
+          }
+          className='flex items-center gap-1.5 rounded border border-[var(--to-border)] bg-[var(--to-surface)] px-2 py-0.5 text-[10px] text-[var(--to-text-dim)] hover:border-[#0ecb81]/50 hover:text-[#0ecb81] hover:bg-[#0ecb81]/8 transition-all group'
+          title='Live Markets Panel'
+        >
+          <Globe className='h-3 w-3 text-[#0ecb81]/60 group-hover:text-[#0ecb81] transition-colors' />
+          <span style={{ fontFamily: 'var(--font-mono)' }}>Markets</span>
+        </button>
+
+        {/* AI Copilot trigger */}
+        <button
+          onClick={() =>
+            (
+              window as typeof window & { __openCopilot?: () => void }
+            ).__openCopilot?.()
+          }
+          className='flex items-center gap-1.5 rounded border border-[var(--to-border)] bg-[var(--to-surface)] px-2 py-0.5 text-[10px] text-[var(--to-text-dim)] hover:border-[#6366f1]/50 hover:text-[var(--to-text-primary)] hover:bg-[#6366f1]/8 transition-all group'
+          title='AI Copilot (⌘/)'
+        >
+          <Sparkles className='h-3 w-3 text-[#6366f1] group-hover:text-[#8b5cf6] transition-colors' />
+          <span style={{ fontFamily: 'var(--font-mono)' }}>Copilot</span>
+        </button>
+
         {/* Alert bell */}
         <AlertBell />
 
@@ -461,4 +490,3 @@ export function TopBar() {
     </header>
   );
 }
-

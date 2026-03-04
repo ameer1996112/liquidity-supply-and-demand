@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Trophy,
   AlertTriangle,
@@ -34,13 +34,343 @@ import {
   usePropFirmMtm,
   useResetPropFirmDaily,
 } from '@/hooks/usePropFirm';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, differenceInSeconds } from 'date-fns';
+
+// ── Phase Stepper ─────────────────────────────────────────────────────────────────────────────────
+
+const PHASES = [
+  {
+    key: 'phase1',
+    label: 'Phase 1',
+    desc: 'Initial evaluation',
+    color: '#3b82f6',
+  },
+  { key: 'phase2', label: 'Phase 2', desc: 'Verification', color: '#a78bfa' },
+  { key: 'funded', label: 'Funded', desc: 'Live account', color: '#0ecb81' },
+];
+
+function PhaseStepper({ currentPhase }: { currentPhase: string }) {
+  const currentIdx = PHASES.findIndex((p) => p.key === currentPhase);
+
+  return (
+    <div className='rounded-xl border border-[var(--to-border)] bg-[var(--to-surface)] p-5'>
+      <div className='flex items-center gap-2 mb-4'>
+        <Trophy className='h-4 w-4 text-[var(--to-warning)]' />
+        <span className='text-[12px] font-semibold text-[var(--to-text-secondary)] uppercase tracking-wider'>
+          Challenge Progress
+        </span>
+      </div>
+      <div className='flex items-center gap-0'>
+        {PHASES.map((phase, idx) => {
+          const isCompleted = idx < currentIdx;
+          const isCurrent = idx === currentIdx;
+          const isUpcoming = idx > currentIdx;
+          const color = isCurrent || isCompleted ? phase.color : '#2b3139';
+          return (
+            <div key={phase.key} className='flex items-center flex-1'>
+              <div className='flex flex-col items-center gap-1.5'>
+                <div
+                  className='flex h-9 w-9 items-center justify-center rounded-full border-2 transition-all'
+                  style={{
+                    borderColor: color,
+                    backgroundColor: isCompleted
+                      ? color
+                      : isCurrent
+                        ? `${color}20`
+                        : 'transparent',
+                  }}
+                >
+                  {isCompleted ? (
+                    <CheckCircle2 className='h-4 w-4 text-white' />
+                  ) : isCurrent ? (
+                    <span className='text-[11px] font-bold' style={{ color }}>
+                      {idx + 1}
+                    </span>
+                  ) : (
+                    <span className='text-[11px] font-bold text-[var(--to-text-dim)]'>
+                      {idx + 1}
+                    </span>
+                  )}
+                </div>
+                <div className='text-center'>
+                  <div
+                    className='text-[11px] font-semibold'
+                    style={{
+                      color:
+                        isCurrent || isCompleted
+                          ? phase.color
+                          : 'var(--to-text-dim)',
+                    }}
+                  >
+                    {phase.label}
+                  </div>
+                  <div className='text-[9px] text-[var(--to-text-dim)] mt-0.5'>
+                    {phase.desc}
+                  </div>
+                </div>
+              </div>
+              {idx < PHASES.length - 1 && (
+                <div
+                  className='flex-1 h-0.5 mb-6 mx-2'
+                  style={{
+                    backgroundColor: isCompleted
+                      ? PHASES[idx].color
+                      : '#2b3139',
+                  }}
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Countdown Timer ──────────────────────────────────────────────────────────────────
+
+function useCountdown(targetDate: Date | null) {
+  const [remaining, setRemaining] = useState<number>(0);
+  useEffect(() => {
+    if (!targetDate) return;
+    const tick = () => {
+      setRemaining(Math.max(0, differenceInSeconds(targetDate, new Date())));
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [targetDate]);
+  return remaining;
+}
+
+function CountdownTimer({ daysRemaining }: { daysRemaining: number | null }) {
+  // Always compute target (may be null) — hooks must be called unconditionally
+  const targetDate: Date | null =
+    daysRemaining != null
+      ? (() => {
+          const d = new Date();
+          d.setDate(d.getDate() + daysRemaining);
+          d.setHours(23, 59, 59, 999);
+          return d;
+        })()
+      : null;
+
+  const remaining = useCountdown(targetDate);
+
+  if (daysRemaining == null) return null;
+
+  const days = Math.floor(remaining / 86400);
+  const hours = Math.floor((remaining % 86400) / 3600);
+  const mins = Math.floor((remaining % 3600) / 60);
+  const secs = remaining % 60;
+
+  const urgentColor = days <= 3 ? '#f6465d' : days <= 7 ? '#f0b90b' : '#0ecb81';
+
+  return (
+    <div className='rounded-xl border border-[var(--to-border)] bg-[var(--to-surface)] p-5'>
+      <div className='flex items-center gap-2 mb-4'>
+        <Clock className='h-4 w-4 text-[var(--to-warning)]' />
+        <span className='text-[12px] font-semibold text-[var(--to-text-secondary)] uppercase tracking-wider'>
+          Challenge Deadline
+        </span>
+      </div>
+      <div className='flex items-center gap-3 justify-center'>
+        {[
+          { value: days, label: 'Days' },
+          { value: hours, label: 'Hours' },
+          { value: mins, label: 'Mins' },
+          { value: secs, label: 'Secs' },
+        ].map(({ value, label }, i) => (
+          <div key={label} className='flex items-center gap-3'>
+            <div className='flex flex-col items-center gap-1'>
+              <div
+                className='flex h-14 w-14 items-center justify-center rounded-xl border-2 text-xl font-bold tabular-nums'
+                style={{
+                  borderColor: `${urgentColor}40`,
+                  backgroundColor: `${urgentColor}10`,
+                  color: urgentColor,
+                  fontFamily: 'var(--font-mono)',
+                }}
+              >
+                {String(value).padStart(2, '0')}
+              </div>
+              <span className='text-[10px] text-[var(--to-text-dim)] uppercase tracking-wider'>
+                {label}
+              </span>
+            </div>
+            {i < 3 && (
+              <span className='text-lg font-bold text-[var(--to-text-dim)] mb-4'>
+                :
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+      {days <= 3 && (
+        <div
+          className='mt-3 flex items-center gap-2 rounded-lg px-3 py-2 text-[11px]'
+          style={{ backgroundColor: '#f6465d10', color: '#f6465d' }}
+        >
+          <AlertTriangle className='h-3.5 w-3.5 shrink-0' />
+          <span>
+            Deadline approaching — only{' '}
+            <strong>
+              {days}d {hours}h
+            </strong>{' '}
+            remaining!
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Payout Projection ───────────────────────────────────────────────────────────────
+
+function PayoutProjection({
+  accountBalance,
+  currentProfitPct,
+}: {
+  accountBalance: number;
+  currentProfitPct: number;
+}) {
+  const [targetPct, setTargetPct] = useState(10);
+  const [payoutPct, setPayoutPct] = useState(80);
+  const [daysLeft, setDaysLeft] = useState(15);
+
+  const targetProfit = (accountBalance * targetPct) / 100;
+  const payout = (targetProfit * payoutPct) / 100;
+  const dailyNeeded =
+    daysLeft > 0
+      ? (targetProfit - (accountBalance * currentProfitPct) / 100) / daysLeft
+      : 0;
+  const onTrack = currentProfitPct / targetPct >= 0.5; // halfway there or more
+
+  return (
+    <div className='rounded-xl border border-[var(--to-border)] bg-[var(--to-surface)] p-5'>
+      <div className='flex items-center gap-2 mb-4'>
+        <TrendingUp className='h-4 w-4 text-[var(--to-warning)]' />
+        <span className='text-[12px] font-semibold text-[var(--to-text-secondary)] uppercase tracking-wider'>
+          Payout Projection
+        </span>
+      </div>
+      <div className='grid grid-cols-3 gap-3 mb-4'>
+        <div>
+          <label className='text-[10px] text-[var(--to-text-dim)]'>
+            Target Profit %
+          </label>
+          <div className='flex items-center gap-1 mt-1'>
+            <input
+              type='number'
+              value={targetPct}
+              onChange={(e) => setTargetPct(Number(e.target.value))}
+              min={1}
+              max={20}
+              className='w-full rounded border border-[var(--to-border)] bg-[var(--to-surface-raised)] px-2 py-1 text-[12px] text-[var(--to-text-primary)] outline-none focus:border-[var(--to-warning)]/50 font-mono'
+            />
+            <span className='text-[11px] text-[var(--to-text-dim)]'>%</span>
+          </div>
+        </div>
+        <div>
+          <label className='text-[10px] text-[var(--to-text-dim)]'>
+            Payout Split %
+          </label>
+          <div className='flex items-center gap-1 mt-1'>
+            <input
+              type='number'
+              value={payoutPct}
+              onChange={(e) => setPayoutPct(Number(e.target.value))}
+              min={50}
+              max={100}
+              className='w-full rounded border border-[var(--to-border)] bg-[var(--to-surface-raised)] px-2 py-1 text-[12px] text-[var(--to-text-primary)] outline-none focus:border-[var(--to-warning)]/50 font-mono'
+            />
+            <span className='text-[11px] text-[var(--to-text-dim)]'>%</span>
+          </div>
+        </div>
+        <div>
+          <label className='text-[10px] text-[var(--to-text-dim)]'>
+            Days Remaining
+          </label>
+          <input
+            type='number'
+            value={daysLeft}
+            onChange={(e) => setDaysLeft(Number(e.target.value))}
+            min={1}
+            max={60}
+            className='w-full mt-1 rounded border border-[var(--to-border)] bg-[var(--to-surface-raised)] px-2 py-1 text-[12px] text-[var(--to-text-primary)] outline-none focus:border-[var(--to-warning)]/50 font-mono'
+          />
+        </div>
+      </div>
+      <div className='grid grid-cols-3 gap-3 pt-3 border-t border-[var(--to-border)]'>
+        <div>
+          <div className='text-[10px] text-[var(--to-text-dim)]'>
+            Target Profit
+          </div>
+          <div
+            className='text-[16px] font-bold font-mono'
+            style={{ color: '#3b82f6' }}
+          >
+            $
+            {targetProfit.toLocaleString('en-US', {
+              minimumFractionDigits: 0,
+              maximumFractionDigits: 0,
+            })}
+          </div>
+        </div>
+        <div>
+          <div className='text-[10px] text-[var(--to-text-dim)]'>
+            Proj. Payout
+          </div>
+          <div
+            className='text-[16px] font-bold font-mono'
+            style={{ color: '#0ecb81' }}
+          >
+            $
+            {payout.toLocaleString('en-US', {
+              minimumFractionDigits: 0,
+              maximumFractionDigits: 0,
+            })}
+          </div>
+        </div>
+        <div>
+          <div className='text-[10px] text-[var(--to-text-dim)]'>
+            Daily Needed
+          </div>
+          <div
+            className='text-[16px] font-bold font-mono'
+            style={{ color: dailyNeeded > 0 ? '#f0b90b' : '#0ecb81' }}
+          >
+            ${dailyNeeded > 0 ? dailyNeeded.toFixed(0) : '0'}
+          </div>
+        </div>
+      </div>
+      <div
+        className='mt-3 flex items-center gap-2 rounded-lg px-3 py-2 text-[11px]'
+        style={{
+          backgroundColor: onTrack ? '#0ecb8110' : '#f0b90b10',
+          color: onTrack ? '#0ecb81' : '#f0b90b',
+        }}
+      >
+        {onTrack ? (
+          <CheckCircle2 className='h-3.5 w-3.5 shrink-0' />
+        ) : (
+          <AlertTriangle className='h-3.5 w-3.5 shrink-0' />
+        )}
+        <span>
+          {onTrack
+            ? `On track — ${currentProfitPct.toFixed(2)}% of ${targetPct}% target achieved.`
+            : `Behind target — currently at ${currentProfitPct.toFixed(2)}% of ${targetPct}% goal.`}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 // ── Circular SVG Gauge ────────────────────────────────────────────────────────
 
 interface GaugeProps {
-  value: number;       // current value (e.g. 2.1)
-  limit: number;       // max value (e.g. 5.0)
+  value: number; // current value (e.g. 2.1)
+  limit: number; // max value (e.g. 5.0)
   label: string;
   sublabel?: string;
   size?: number;
@@ -95,23 +425,34 @@ function CircularGauge({
             strokeLinecap='round'
             strokeDasharray={`${fillLength} ${circumference - fillLength}`}
             strokeDashoffset={circumference * 0.25}
-            style={{ transition: 'stroke-dasharray 0.6s ease, stroke 0.4s ease' }}
+            style={{
+              transition: 'stroke-dasharray 0.6s ease, stroke 0.4s ease',
+            }}
           />
         </svg>
         {/* Center text */}
         <div className='absolute inset-0 flex flex-col items-center justify-center'>
-          <span className='text-xl font-bold tabular-nums' style={{ color, fontFamily: 'var(--font-mono)' }}>
-            {value.toFixed(2)}{unit}
+          <span
+            className='text-xl font-bold tabular-nums'
+            style={{ color, fontFamily: 'var(--font-mono)' }}
+          >
+            {value.toFixed(2)}
+            {unit}
           </span>
           <span className='text-[10px] text-[var(--to-text-dim)] mt-0.5'>
-            / {limit}{unit}
+            / {limit}
+            {unit}
           </span>
         </div>
       </div>
       <div className='text-center'>
-        <div className='text-[13px] font-semibold text-[var(--to-text-primary)]'>{label}</div>
+        <div className='text-[13px] font-semibold text-[var(--to-text-primary)]'>
+          {label}
+        </div>
         {sublabel && (
-          <div className='text-[11px] text-[var(--to-text-dim)] mt-0.5'>{sublabel}</div>
+          <div className='text-[11px] text-[var(--to-text-dim)] mt-0.5'>
+            {sublabel}
+          </div>
         )}
       </div>
     </div>
@@ -126,7 +467,10 @@ function PhaseBadge({ phase }: { phase: string }) {
     phase2: { label: 'Phase 2', color: '#a78bfa' },
     funded: { label: 'Funded', color: '#0ecb81' },
   };
-  const meta = labels[phase] ?? { label: phase.toUpperCase(), color: '#848e9c' };
+  const meta = labels[phase] ?? {
+    label: phase.toUpperCase(),
+    color: '#848e9c',
+  };
   return (
     <span
       className='inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-semibold uppercase tracking-wider'
@@ -145,7 +489,13 @@ function PhaseBadge({ phase }: { phase: string }) {
 
 // ── Status Alert Banner ───────────────────────────────────────────────────────
 
-function StatusBanner({ safeToTrade, dailyBreach, drawdownBreach, dailyPct, dailyLimit }: {
+function StatusBanner({
+  safeToTrade,
+  dailyBreach,
+  drawdownBreach,
+  dailyPct,
+  dailyLimit,
+}: {
   safeToTrade: boolean;
   dailyBreach: boolean;
   drawdownBreach: boolean;
@@ -157,17 +507,23 @@ function StatusBanner({ safeToTrade, dailyBreach, drawdownBreach, dailyPct, dail
 
   if (!safeToTrade) {
     return (
-      <div className='flex items-center gap-3 rounded-lg px-4 py-3 border' style={{
-        backgroundColor: '#f6465d18',
-        borderColor: '#f6465d40',
-      }}>
+      <div
+        className='flex items-center gap-3 rounded-lg px-4 py-3 border'
+        style={{
+          backgroundColor: '#f6465d18',
+          borderColor: '#f6465d40',
+        }}
+      >
         <XCircle className='h-5 w-5 shrink-0' style={{ color: '#f6465d' }} />
         <div>
           <div className='text-sm font-semibold' style={{ color: '#f6465d' }}>
-            {drawdownBreach ? 'Challenge Failed — Max Drawdown Breached' : 'Trading Halted — Daily Loss Limit Breached'}
+            {drawdownBreach
+              ? 'Challenge Failed — Max Drawdown Breached'
+              : 'Trading Halted — Daily Loss Limit Breached'}
           </div>
           <div className='text-[12px] text-[var(--to-text-secondary)] mt-0.5'>
-            All trading has been automatically stopped. Review your risk settings before resuming.
+            All trading has been automatically stopped. Review your risk
+            settings before resuming.
           </div>
         </div>
       </div>
@@ -176,14 +532,21 @@ function StatusBanner({ safeToTrade, dailyBreach, drawdownBreach, dailyPct, dail
 
   if (danger) {
     return (
-      <div className='flex items-center gap-3 rounded-lg px-4 py-3 border' style={{
-        backgroundColor: '#f0b90b18',
-        borderColor: '#f0b90b40',
-      }}>
-        <AlertTriangle className='h-5 w-5 shrink-0' style={{ color: '#f0b90b' }} />
+      <div
+        className='flex items-center gap-3 rounded-lg px-4 py-3 border'
+        style={{
+          backgroundColor: '#f0b90b18',
+          borderColor: '#f0b90b40',
+        }}
+      >
+        <AlertTriangle
+          className='h-5 w-5 shrink-0'
+          style={{ color: '#f0b90b' }}
+        />
         <div>
           <div className='text-sm font-semibold' style={{ color: '#f0b90b' }}>
-            Danger Zone — {dailyPct.toFixed(2)}% of {dailyLimit}% daily limit used
+            Danger Zone — {dailyPct.toFixed(2)}% of {dailyLimit}% daily limit
+            used
           </div>
           <div className='text-[12px] text-[var(--to-text-secondary)] mt-0.5'>
             Consider reducing exposure. Bot will auto-pause at {dailyLimit}%.
@@ -195,13 +558,21 @@ function StatusBanner({ safeToTrade, dailyBreach, drawdownBreach, dailyPct, dail
 
   if (warning) {
     return (
-      <div className='flex items-center gap-3 rounded-lg px-4 py-3 border' style={{
-        backgroundColor: '#3b82f618',
-        borderColor: '#3b82f640',
-      }}>
-        <AlertTriangle className='h-5 w-5 shrink-0' style={{ color: '#3b82f6' }} />
+      <div
+        className='flex items-center gap-3 rounded-lg px-4 py-3 border'
+        style={{
+          backgroundColor: '#3b82f618',
+          borderColor: '#3b82f640',
+        }}
+      >
+        <AlertTriangle
+          className='h-5 w-5 shrink-0'
+          style={{ color: '#3b82f6' }}
+        />
         <div className='text-sm text-[var(--to-text-secondary)]'>
-          <span style={{ color: '#3b82f6' }} className='font-semibold'>Warning:</span>{' '}
+          <span style={{ color: '#3b82f6' }} className='font-semibold'>
+            Warning:
+          </span>{' '}
           {dailyPct.toFixed(2)}% daily drawdown — approaching limit.
         </div>
       </div>
@@ -209,10 +580,13 @@ function StatusBanner({ safeToTrade, dailyBreach, drawdownBreach, dailyPct, dail
   }
 
   return (
-    <div className='flex items-center gap-3 rounded-lg px-4 py-3 border' style={{
-      backgroundColor: '#0ecb8118',
-      borderColor: '#0ecb8140',
-    }}>
+    <div
+      className='flex items-center gap-3 rounded-lg px-4 py-3 border'
+      style={{
+        backgroundColor: '#0ecb8118',
+        borderColor: '#0ecb8140',
+      }}
+    >
       <CheckCircle2 className='h-5 w-5 shrink-0' style={{ color: '#0ecb81' }} />
       <div className='text-sm font-medium' style={{ color: '#0ecb81' }}>
         All systems green — safe to trade
@@ -223,8 +597,16 @@ function StatusBanner({ safeToTrade, dailyBreach, drawdownBreach, dailyPct, dail
 
 // ── Drawdown History Chart ────────────────────────────────────────────────────
 
-function DrawdownHistoryChart({ snapshots, dailyLimit, trailingLimit }: {
-  snapshots: Array<{ snapshot_time: string; daily_drawdown_pct: number; trailing_drawdown_pct: number }>;
+function DrawdownHistoryChart({
+  snapshots,
+  dailyLimit,
+  trailingLimit,
+}: {
+  snapshots: Array<{
+    snapshot_time: string;
+    daily_drawdown_pct: number;
+    trailing_drawdown_pct: number;
+  }>;
   dailyLimit: number;
   trailingLimit: number;
 }) {
@@ -244,31 +626,75 @@ function DrawdownHistoryChart({ snapshots, dailyLimit, trailingLimit }: {
 
   return (
     <ResponsiveContainer width='100%' height={180}>
-      <LineChart data={data} margin={{ top: 4, right: 16, left: -10, bottom: 0 }}>
+      <LineChart
+        data={data}
+        margin={{ top: 4, right: 16, left: -10, bottom: 0 }}
+      >
         <CartesianGrid strokeDasharray='3 3' stroke='#1e2329' />
         <XAxis
           dataKey='time'
-          tick={{ fill: '#5e6673', fontSize: 10, fontFamily: 'var(--font-mono)' }}
+          tick={{
+            fill: '#5e6673',
+            fontSize: 10,
+            fontFamily: 'var(--font-mono)',
+          }}
           tickLine={false}
           axisLine={{ stroke: '#1e2329' }}
           interval='preserveStartEnd'
         />
         <YAxis
-          tick={{ fill: '#5e6673', fontSize: 10, fontFamily: 'var(--font-mono)' }}
+          tick={{
+            fill: '#5e6673',
+            fontSize: 10,
+            fontFamily: 'var(--font-mono)',
+          }}
           tickLine={false}
           axisLine={false}
           tickFormatter={(v) => `${v}%`}
           domain={[0, Math.max(dailyLimit, trailingLimit) * 1.1]}
         />
         <RechartsTooltip
-          contentStyle={{ backgroundColor: '#12161c', border: '1px solid #2b3139', borderRadius: 6, fontSize: 12 }}
+          contentStyle={{
+            backgroundColor: '#12161c',
+            border: '1px solid #2b3139',
+            borderRadius: 6,
+            fontSize: 12,
+          }}
           labelStyle={{ color: '#848e9c' }}
-          formatter={(val, name) => [`${val ?? 0}%`, name === 'daily' ? 'Daily DD' : 'Trailing DD']}
+          formatter={(val, name) => [
+            `${val ?? 0}%`,
+            name === 'daily' ? 'Daily DD' : 'Trailing DD',
+          ]}
         />
-        <ReferenceLine y={dailyLimit} stroke='#f6465d' strokeDasharray='4 4' strokeOpacity={0.6} label={{ value: `DD ${dailyLimit}%`, fill: '#f6465d', fontSize: 10 }} />
-        <ReferenceLine y={trailingLimit} stroke='#f0b90b' strokeDasharray='4 4' strokeOpacity={0.6} />
-        <Line type='monotone' dataKey='daily' stroke='#3b82f6' strokeWidth={2} dot={false} name='daily' />
-        <Line type='monotone' dataKey='trailing' stroke='#f0b90b' strokeWidth={2} dot={false} name='trailing' />
+        <ReferenceLine
+          y={dailyLimit}
+          stroke='#f6465d'
+          strokeDasharray='4 4'
+          strokeOpacity={0.6}
+          label={{ value: `DD ${dailyLimit}%`, fill: '#f6465d', fontSize: 10 }}
+        />
+        <ReferenceLine
+          y={trailingLimit}
+          stroke='#f0b90b'
+          strokeDasharray='4 4'
+          strokeOpacity={0.6}
+        />
+        <Line
+          type='monotone'
+          dataKey='daily'
+          stroke='#3b82f6'
+          strokeWidth={2}
+          dot={false}
+          name='daily'
+        />
+        <Line
+          type='monotone'
+          dataKey='trailing'
+          stroke='#f0b90b'
+          strokeWidth={2}
+          dot={false}
+          name='trailing'
+        />
       </LineChart>
     </ResponsiveContainer>
   );
@@ -290,18 +716,28 @@ interface MtmPos {
 function MtmPositionRow({ pos }: { pos: MtmPos }) {
   const isLong = pos.side?.toLowerCase() === 'buy';
   const pnlColor = pos.floating_pnl >= 0 ? '#0ecb81' : '#f6465d';
-  const atRisk = pos.at_risk || (pos.pct_to_sl !== undefined && pos.pct_to_sl > 50);
+  const atRisk =
+    pos.at_risk || (pos.pct_to_sl !== undefined && pos.pct_to_sl > 50);
 
   return (
-    <div className={cn(
-      'flex items-center justify-between px-3 py-2 rounded',
-      atRisk ? 'border border-[#f6465d]/30 bg-[#f6465d]/5' : 'border border-[var(--to-border)] bg-[var(--to-surface-raised)]'
-    )}>
+    <div
+      className={cn(
+        'flex items-center justify-between px-3 py-2 rounded',
+        atRisk
+          ? 'border border-[#f6465d]/30 bg-[#f6465d]/5'
+          : 'border border-[var(--to-border)] bg-[var(--to-surface-raised)]',
+      )}
+    >
       <div className='flex items-center gap-2.5'>
-        {atRisk && <AlertTriangle className='h-3.5 w-3.5 text-[#f6465d] shrink-0' />}
+        {atRisk && (
+          <AlertTriangle className='h-3.5 w-3.5 text-[#f6465d] shrink-0' />
+        )}
         <div>
           <div className='flex items-center gap-2'>
-            <span className='text-[13px] font-semibold text-[var(--to-text-primary)]' style={{ fontFamily: 'var(--font-mono)' }}>
+            <span
+              className='text-[13px] font-semibold text-[var(--to-text-primary)]'
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >
               {pos.symbol}
             </span>
             <span
@@ -321,7 +757,10 @@ function MtmPositionRow({ pos }: { pos: MtmPos }) {
         </div>
       </div>
       <div className='text-right'>
-        <div className='text-[13px] font-semibold tabular-nums' style={{ color: pnlColor, fontFamily: 'var(--font-mono)' }}>
+        <div
+          className='text-[13px] font-semibold tabular-nums'
+          style={{ color: pnlColor, fontFamily: 'var(--font-mono)' }}
+        >
           {pos.floating_pnl >= 0 ? '+' : ''}${pos.floating_pnl.toFixed(2)}
         </div>
         {pos.pct_to_sl !== undefined && (
@@ -340,8 +779,16 @@ export default function PropFirmPage() {
   const [historyDays, setHistoryDays] = useState(7);
   const accountName = 'default';
 
-  const { data: metricsData, isLoading: metricsLoading, error: metricsError, dataUpdatedAt } = usePropFirmMetrics(accountName);
-  const { data: historyData, isLoading: historyLoading } = usePropFirmHistory(accountName, historyDays);
+  const {
+    data: metricsData,
+    isLoading: metricsLoading,
+    error: metricsError,
+    dataUpdatedAt,
+  } = usePropFirmMetrics(accountName);
+  const { data: historyData, isLoading: historyLoading } = usePropFirmHistory(
+    accountName,
+    historyDays,
+  );
   const { data: mtmData, isLoading: mtmLoading } = usePropFirmMtm(accountName);
   const resetMutation = useResetPropFirmDaily(accountName);
 
@@ -352,7 +799,9 @@ export default function PropFirmPage() {
       <div className='flex-1 flex items-center justify-center min-h-[60vh]'>
         <div className='flex flex-col items-center gap-3'>
           <div className='h-8 w-8 rounded-full border-2 border-[var(--to-warning)] border-t-transparent animate-spin' />
-          <span className='text-sm text-[var(--to-text-dim)]'>Loading challenge data…</span>
+          <span className='text-sm text-[var(--to-text-dim)]'>
+            Loading challenge data…
+          </span>
         </div>
       </div>
     );
@@ -364,9 +813,13 @@ export default function PropFirmPage() {
         <div className='rounded-lg border border-[#f6465d]/40 bg-[#f6465d]/8 p-6 flex items-start gap-3'>
           <XCircle className='h-5 w-5 text-[#f6465d] mt-0.5 shrink-0' />
           <div>
-            <div className='font-semibold text-[#f6465d]'>Failed to load prop firm metrics</div>
+            <div className='font-semibold text-[#f6465d]'>
+              Failed to load prop firm metrics
+            </div>
             <div className='text-sm text-[var(--to-text-secondary)] mt-1'>
-              {metricsError instanceof Error ? metricsError.message : 'Backend may be offline or prop firm tracker not configured.'}
+              {metricsError instanceof Error
+                ? metricsError.message
+                : 'Backend may be offline or prop firm tracker not configured.'}
             </div>
           </div>
         </div>
@@ -375,7 +828,8 @@ export default function PropFirmPage() {
   }
 
   const { metrics, evaluation_phase, account_name } = metricsData;
-  const { equity, daily_pnl, drawdown, status, consistency, days_remaining } = metrics;
+  const { equity, daily_pnl, drawdown, status, consistency, days_remaining } =
+    metrics;
 
   const dailyColorZones = [
     { at: 0, color: '#0ecb81' },
@@ -400,7 +854,6 @@ export default function PropFirmPage() {
 
   return (
     <div className='flex-1 space-y-5 p-6'>
-
       {/* ── Page Header ── */}
       <div className='flex items-start justify-between'>
         <div>
@@ -409,9 +862,14 @@ export default function PropFirmPage() {
               <Trophy className='h-5 w-5 text-[var(--to-warning)]' />
             </div>
             <div>
-              <h1 className='text-lg font-semibold text-[var(--to-text-primary)]'>Prop Firm Hub</h1>
+              <h1 className='text-lg font-semibold text-[var(--to-text-primary)]'>
+                Prop Firm Hub
+              </h1>
               <div className='flex items-center gap-2 mt-0.5'>
-                <span className='text-[12px] text-[var(--to-text-dim)]' style={{ fontFamily: 'var(--font-mono)' }}>
+                <span
+                  className='text-[12px] text-[var(--to-text-dim)]'
+                  style={{ fontFamily: 'var(--font-mono)' }}
+                >
                   {account_name}
                 </span>
                 <ChevronRight className='h-3 w-3 text-[var(--to-text-dim)]' />
@@ -428,7 +886,10 @@ export default function PropFirmPage() {
         </div>
         <div className='flex items-center gap-2'>
           {lastUpdated && (
-            <span className='text-[11px] text-[var(--to-text-dim)]' style={{ fontFamily: 'var(--font-mono)' }}>
+            <span
+              className='text-[11px] text-[var(--to-text-dim)]'
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >
               Updated {format(lastUpdated, 'HH:mm:ss')}
             </span>
           )}
@@ -437,7 +898,12 @@ export default function PropFirmPage() {
             disabled={resetMutation.isPending}
             className='flex items-center gap-1.5 px-3 py-1.5 rounded border border-[var(--to-border)] text-[12px] text-[var(--to-text-secondary)] hover:bg-[var(--to-surface-raised)] hover:text-[var(--to-text-primary)] transition-colors disabled:opacity-50'
           >
-            <RefreshCw className={cn('h-3.5 w-3.5', resetMutation.isPending && 'animate-spin')} />
+            <RefreshCw
+              className={cn(
+                'h-3.5 w-3.5',
+                resetMutation.isPending && 'animate-spin',
+              )}
+            />
             Reset Daily
           </button>
         </div>
@@ -454,7 +920,6 @@ export default function PropFirmPage() {
 
       {/* ── Top Row: 3 Gauges + Equity Summary ── */}
       <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4'>
-
         {/* Daily Drawdown Gauge */}
         <div className='rounded-xl border border-[var(--to-border)] bg-[var(--to-surface)] p-5 flex flex-col items-center gap-3'>
           <CircularGauge
@@ -467,7 +932,9 @@ export default function PropFirmPage() {
           <div className='w-full pt-2 border-t border-[var(--to-border)]'>
             <div className='flex justify-between text-[11px] text-[var(--to-text-dim)]'>
               <span>Limit</span>
-              <span style={{ fontFamily: 'var(--font-mono)' }}>{drawdown.daily_limit_pct}%</span>
+              <span style={{ fontFamily: 'var(--font-mono)' }}>
+                {drawdown.daily_limit_pct}%
+              </span>
             </div>
           </div>
         </div>
@@ -484,7 +951,9 @@ export default function PropFirmPage() {
           <div className='w-full pt-2 border-t border-[var(--to-border)]'>
             <div className='flex justify-between text-[11px] text-[var(--to-text-dim)]'>
               <span>Limit</span>
-              <span style={{ fontFamily: 'var(--font-mono)' }}>{drawdown.trailing_limit_pct}%</span>
+              <span style={{ fontFamily: 'var(--font-mono)' }}>
+                {drawdown.trailing_limit_pct}%
+              </span>
             </div>
           </div>
         </div>
@@ -500,13 +969,19 @@ export default function PropFirmPage() {
           />
           <div className='w-full pt-2 border-t border-[var(--to-border)]'>
             <div className='flex items-center justify-between'>
-              <span className='text-[11px] text-[var(--to-text-dim)]'>FTMO 40% rule</span>
-              <span className={cn(
-                'text-[10px] px-1.5 py-0.5 rounded font-semibold',
-                consistency.status === 'safe' ? 'bg-[#0ecb8118] text-[#0ecb81]' :
-                consistency.status === 'warning' ? 'bg-[#f0b90b18] text-[#f0b90b]' :
-                'bg-[#f6465d18] text-[#f6465d]',
-              )}>
+              <span className='text-[11px] text-[var(--to-text-dim)]'>
+                FTMO 40% rule
+              </span>
+              <span
+                className={cn(
+                  'text-[10px] px-1.5 py-0.5 rounded font-semibold',
+                  consistency.status === 'safe'
+                    ? 'bg-[#0ecb8118] text-[#0ecb81]'
+                    : consistency.status === 'warning'
+                      ? 'bg-[#f0b90b18] text-[#f0b90b]'
+                      : 'bg-[#f6465d18] text-[#f6465d]',
+                )}
+              >
                 {consistency.status.toUpperCase()}
               </span>
             </div>
@@ -517,37 +992,89 @@ export default function PropFirmPage() {
         <div className='rounded-xl border border-[var(--to-border)] bg-[var(--to-surface)] p-5 space-y-4'>
           <div className='flex items-center gap-2'>
             <BarChart2 className='h-4 w-4 text-[var(--to-warning)]' />
-            <span className='text-[12px] font-semibold text-[var(--to-text-secondary)] uppercase tracking-wider'>Equity Today</span>
+            <span className='text-[12px] font-semibold text-[var(--to-text-secondary)] uppercase tracking-wider'>
+              Equity Today
+            </span>
           </div>
           <div className='space-y-3'>
             <div>
-              <div className='text-[11px] text-[var(--to-text-dim)]'>Starting Balance</div>
-              <div className='text-[18px] font-bold text-[var(--to-text-primary)] tabular-nums' style={{ fontFamily: 'var(--font-mono)' }}>
-                ${equity.daily_start_balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              <div className='text-[11px] text-[var(--to-text-dim)]'>
+                Starting Balance
+              </div>
+              <div
+                className='text-[18px] font-bold text-[var(--to-text-primary)] tabular-nums'
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                $
+                {equity.daily_start_balance.toLocaleString('en-US', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
               </div>
             </div>
             <div>
-              <div className='text-[11px] text-[var(--to-text-dim)]'>Current Equity</div>
-              <div className='text-[18px] font-bold tabular-nums' style={{ fontFamily: 'var(--font-mono)', color: equity.current_equity >= equity.daily_start_balance ? '#0ecb81' : '#f6465d' }}>
-                ${equity.current_equity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              <div className='text-[11px] text-[var(--to-text-dim)]'>
+                Current Equity
+              </div>
+              <div
+                className='text-[18px] font-bold tabular-nums'
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  color:
+                    equity.current_equity >= equity.daily_start_balance
+                      ? '#0ecb81'
+                      : '#f6465d',
+                }}
+              >
+                $
+                {equity.current_equity.toLocaleString('en-US', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
               </div>
             </div>
             <div className='flex justify-between pt-2 border-t border-[var(--to-border)]'>
               <div>
-                <div className='text-[10px] text-[var(--to-text-dim)]'>Closed</div>
-                <div className='text-[13px] font-semibold tabular-nums' style={{ fontFamily: 'var(--font-mono)', color: daily_pnl.closed >= 0 ? '#0ecb81' : '#f6465d' }}>
-                  {daily_pnl.closed >= 0 ? '+' : ''}${daily_pnl.closed.toFixed(2)}
+                <div className='text-[10px] text-[var(--to-text-dim)]'>
+                  Closed
+                </div>
+                <div
+                  className='text-[13px] font-semibold tabular-nums'
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    color: daily_pnl.closed >= 0 ? '#0ecb81' : '#f6465d',
+                  }}
+                >
+                  {daily_pnl.closed >= 0 ? '+' : ''}$
+                  {daily_pnl.closed.toFixed(2)}
                 </div>
               </div>
               <div>
-                <div className='text-[10px] text-[var(--to-text-dim)]'>Floating</div>
-                <div className='text-[13px] font-semibold tabular-nums' style={{ fontFamily: 'var(--font-mono)', color: daily_pnl.floating >= 0 ? '#0ecb81' : '#f6465d' }}>
-                  {daily_pnl.floating >= 0 ? '+' : ''}${daily_pnl.floating.toFixed(2)}
+                <div className='text-[10px] text-[var(--to-text-dim)]'>
+                  Floating
+                </div>
+                <div
+                  className='text-[13px] font-semibold tabular-nums'
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    color: daily_pnl.floating >= 0 ? '#0ecb81' : '#f6465d',
+                  }}
+                >
+                  {daily_pnl.floating >= 0 ? '+' : ''}$
+                  {daily_pnl.floating.toFixed(2)}
                 </div>
               </div>
               <div>
-                <div className='text-[10px] text-[var(--to-text-dim)]'>Total P&L</div>
-                <div className='text-[13px] font-semibold tabular-nums' style={{ fontFamily: 'var(--font-mono)', color: daily_pnl.total >= 0 ? '#0ecb81' : '#f6465d' }}>
+                <div className='text-[10px] text-[var(--to-text-dim)]'>
+                  Total P&L
+                </div>
+                <div
+                  className='text-[13px] font-semibold tabular-nums'
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    color: daily_pnl.total >= 0 ? '#0ecb81' : '#f6465d',
+                  }}
+                >
                   {daily_pnl.total >= 0 ? '+' : ''}${daily_pnl.total.toFixed(2)}
                 </div>
               </div>
@@ -558,18 +1085,28 @@ export default function PropFirmPage() {
 
       {/* ── Middle Row: MTM Positions + Status Checklist ── */}
       <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
-
         {/* Live MTM Positions */}
         <div className='rounded-xl border border-[var(--to-border)] bg-[var(--to-surface)] p-5 space-y-4'>
           <div className='flex items-center justify-between'>
             <div className='flex items-center gap-2'>
               <Activity className='h-4 w-4 text-[var(--to-warning)]' />
-              <span className='text-[12px] font-semibold text-[var(--to-text-secondary)] uppercase tracking-wider'>Live MTM Positions</span>
+              <span className='text-[12px] font-semibold text-[var(--to-text-secondary)] uppercase tracking-wider'>
+                Live MTM Positions
+              </span>
             </div>
             {mtmData && (
-              <span className='text-[11px] text-[var(--to-text-dim)]' style={{ fontFamily: 'var(--font-mono)' }}>
-                Floating: <span style={{ color: mtmData.floating_pnl >= 0 ? '#0ecb81' : '#f6465d' }}>
-                  {mtmData.floating_pnl >= 0 ? '+' : ''}${mtmData.floating_pnl.toFixed(2)}
+              <span
+                className='text-[11px] text-[var(--to-text-dim)]'
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                Floating:{' '}
+                <span
+                  style={{
+                    color: mtmData.floating_pnl >= 0 ? '#0ecb81' : '#f6465d',
+                  }}
+                >
+                  {mtmData.floating_pnl >= 0 ? '+' : ''}$
+                  {mtmData.floating_pnl.toFixed(2)}
                 </span>
               </span>
             )}
@@ -578,7 +1115,10 @@ export default function PropFirmPage() {
           {mtmLoading ? (
             <div className='space-y-2'>
               {[1, 2].map((i) => (
-                <div key={i} className='h-12 rounded bg-[var(--to-surface-raised)] animate-pulse' />
+                <div
+                  key={i}
+                  className='h-12 rounded bg-[var(--to-surface-raised)] animate-pulse'
+                />
               ))}
             </div>
           ) : mtmData?.positions && mtmData.positions.length > 0 ? (
@@ -599,21 +1139,31 @@ export default function PropFirmPage() {
         <div className='rounded-xl border border-[var(--to-border)] bg-[var(--to-surface)] p-5 space-y-4'>
           <div className='flex items-center gap-2'>
             <Shield className='h-4 w-4 text-[var(--to-warning)]' />
-            <span className='text-[12px] font-semibold text-[var(--to-text-secondary)] uppercase tracking-wider'>Challenge Rules</span>
+            <span className='text-[12px] font-semibold text-[var(--to-text-secondary)] uppercase tracking-wider'>
+              Challenge Rules
+            </span>
           </div>
           <div className='space-y-3'>
             {[
               {
                 label: 'Daily Loss Limit',
                 detail: `${drawdown.daily_pct.toFixed(2)}% of ${drawdown.daily_limit_pct}% used`,
-                ok: !status.daily_loss_breach && drawdown.daily_pct < drawdown.daily_limit_pct * 0.7,
-                warn: !status.daily_loss_breach && drawdown.daily_pct >= drawdown.daily_limit_pct * 0.7,
+                ok:
+                  !status.daily_loss_breach &&
+                  drawdown.daily_pct < drawdown.daily_limit_pct * 0.7,
+                warn:
+                  !status.daily_loss_breach &&
+                  drawdown.daily_pct >= drawdown.daily_limit_pct * 0.7,
               },
               {
                 label: 'Max Drawdown',
                 detail: `${drawdown.trailing_pct.toFixed(2)}% of ${drawdown.trailing_limit_pct}% used`,
-                ok: !status.drawdown_breach && drawdown.trailing_pct < drawdown.trailing_limit_pct * 0.7,
-                warn: !status.drawdown_breach && drawdown.trailing_pct >= drawdown.trailing_limit_pct * 0.7,
+                ok:
+                  !status.drawdown_breach &&
+                  drawdown.trailing_pct < drawdown.trailing_limit_pct * 0.7,
+                warn:
+                  !status.drawdown_breach &&
+                  drawdown.trailing_pct >= drawdown.trailing_limit_pct * 0.7,
               },
               {
                 label: 'Consistency Rule (40%)',
@@ -623,21 +1173,41 @@ export default function PropFirmPage() {
               },
               {
                 label: 'Safe to Trade',
-                detail: status.safe_to_trade ? 'No active breaches' : 'Trading paused',
+                detail: status.safe_to_trade
+                  ? 'No active breaches'
+                  : 'Trading paused',
                 ok: status.safe_to_trade,
                 warn: false,
               },
             ].map((rule) => {
               const failed = !rule.ok && !rule.warn;
-              const iconColor = rule.ok ? '#0ecb81' : rule.warn ? '#f0b90b' : '#f6465d';
-              const Icon = rule.ok ? CheckCircle2 : rule.warn ? AlertTriangle : XCircle;
+              const iconColor = rule.ok
+                ? '#0ecb81'
+                : rule.warn
+                  ? '#f0b90b'
+                  : '#f6465d';
+              const Icon = rule.ok
+                ? CheckCircle2
+                : rule.warn
+                  ? AlertTriangle
+                  : XCircle;
               return (
-                <div key={rule.label} className='flex items-center justify-between py-2 border-b border-[var(--to-border)] last:border-0'>
+                <div
+                  key={rule.label}
+                  className='flex items-center justify-between py-2 border-b border-[var(--to-border)] last:border-0'
+                >
                   <div className='flex items-center gap-2.5'>
-                    <Icon className='h-4 w-4 shrink-0' style={{ color: iconColor }} />
+                    <Icon
+                      className='h-4 w-4 shrink-0'
+                      style={{ color: iconColor }}
+                    />
                     <div>
-                      <div className='text-[13px] font-medium text-[var(--to-text-primary)]'>{rule.label}</div>
-                      <div className='text-[11px] text-[var(--to-text-dim)]'>{rule.detail}</div>
+                      <div className='text-[13px] font-medium text-[var(--to-text-primary)]'>
+                        {rule.label}
+                      </div>
+                      <div className='text-[11px] text-[var(--to-text-dim)]'>
+                        {rule.detail}
+                      </div>
                     </div>
                   </div>
                   <span
@@ -662,7 +1232,9 @@ export default function PropFirmPage() {
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-2'>
             <TrendingDown className='h-4 w-4 text-[var(--to-warning)]' />
-            <span className='text-[12px] font-semibold text-[var(--to-text-secondary)] uppercase tracking-wider'>Drawdown History</span>
+            <span className='text-[12px] font-semibold text-[var(--to-text-secondary)] uppercase tracking-wider'>
+              Drawdown History
+            </span>
           </div>
           <div className='flex items-center gap-1'>
             {[3, 7, 14, 30].map((d) => (
@@ -683,11 +1255,17 @@ export default function PropFirmPage() {
         </div>
         <div className='flex items-center gap-4 text-[11px]'>
           <span className='flex items-center gap-1.5'>
-            <span className='inline-block w-4 h-0.5 rounded' style={{ backgroundColor: '#3b82f6' }} />
+            <span
+              className='inline-block w-4 h-0.5 rounded'
+              style={{ backgroundColor: '#3b82f6' }}
+            />
             <span className='text-[var(--to-text-dim)]'>Daily DD</span>
           </span>
           <span className='flex items-center gap-1.5'>
-            <span className='inline-block w-4 h-0.5 rounded' style={{ backgroundColor: '#f0b90b' }} />
+            <span
+              className='inline-block w-4 h-0.5 rounded'
+              style={{ backgroundColor: '#f0b90b' }}
+            />
             <span className='text-[var(--to-text-dim)]'>Trailing DD</span>
           </span>
           <span className='flex items-center gap-1.5'>
@@ -708,6 +1286,23 @@ export default function PropFirmPage() {
         )}
       </div>
 
+      {/* ── Phase Stepper ── */}
+      <PhaseStepper currentPhase={evaluation_phase} />
+
+      {/* ── Bottom Row: Countdown + Payout Projection ── */}
+      <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
+        <CountdownTimer daysRemaining={days_remaining} />
+        <PayoutProjection
+          accountBalance={equity.daily_start_balance}
+          currentProfitPct={
+            equity.current_equity > equity.daily_start_balance
+              ? ((equity.current_equity - equity.daily_start_balance) /
+                  equity.daily_start_balance) *
+                100
+              : 0
+          }
+        />
+      </div>
     </div>
   );
 }

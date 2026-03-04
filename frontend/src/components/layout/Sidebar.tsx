@@ -19,6 +19,8 @@ import {
   FlaskConical,
   SlidersHorizontal,
   Bell,
+  Search,
+  Trophy,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSidebar } from '@/providers/SidebarProvider';
@@ -87,6 +89,8 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Ops',
     items: [
       { label: 'Journal', icon: BookOpen, path: '/journal' },
+      { label: 'Scanner', icon: Search, path: '/scanner' },
+      { label: 'Prop Firm', icon: Trophy, path: '/prop-firm' },
       { label: 'Settings', icon: Settings, path: '/settings' },
     ],
   },
