@@ -31,11 +31,17 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pytest
-
-      - name: Run backend safety & reliability tests
+      - name: Run unit + integration tests
         env:
           PYTHONPATH: ${{ github.workspace }}
           TRINITY_ENV: test
         run: |
-          pytest tests/test_sprint55_reliability.py -v
+          pytest tests -v --tb=short --ignore=tests/test_sprint55_reliability.py
+
+      - name: Run chaos / reliability tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+          TRINITY_ENV: test
+        run: |
+          pytest tests/test_sprint55_reliability.py -v --tb=short
 

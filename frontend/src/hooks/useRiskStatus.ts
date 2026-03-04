@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getApiUrl } from '@/lib/api';
+import { useToast } from '@/components/ui/toast';
 
 export interface RiskStatus {
   kill_switch_active: boolean;
@@ -25,6 +26,15 @@ export interface RiskStatus {
   risk_label: string;
 }
 
+interface KillSwitchResponse {
+  status: string;
+  kill_switch_active: boolean;
+  action: 'engage' | 'reset';
+  reason: string;
+  // Optional correlation identifier for linking to traces / audit.
+  correlation_id?: string;
+}
+
 export const riskKeys = {
   status: ['risk-status'] as const,
 };
@@ -41,7 +51,7 @@ async function fetchRiskStatus(): Promise<RiskStatus> {
 async function toggleKillSwitch(
   enabled: boolean,
   reason: string,
-): Promise<void> {
+): Promise<KillSwitchResponse> {
   const base = getApiUrl();
   const url = base ? `${base}/risk/kill-switch` : '';
   if (!url) throw new Error('API URL not configured');
@@ -51,6 +61,7 @@ async function toggleKillSwitch(
     body: JSON.stringify({ enabled, reason }),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
 }
 
 export function useRiskStatus() {
@@ -65,6 +76,7 @@ export function useRiskStatus() {
 
 export function useKillSwitchMutation() {
   const queryClient = useQueryClient();
+  const { addToast } = useToast();
   return useMutation({
     mutationFn: ({
       enabled,
@@ -73,8 +85,28 @@ export function useKillSwitchMutation() {
       enabled: boolean;
       reason: string;
     }) => toggleKillSwitch(enabled, reason),
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: riskKeys.status });
+      const resp = data as KillSwitchResponse;
+      const engaging = resp.action === 'engage';
+      const correlationId = resp.correlation_id ?? undefined;
+      addToast({
+        title: engaging ? 'Global kill switch engaged' : 'Global kill switch reset',
+        message: engaging
+          ? 'All accounts halted. New trade execution is blocked.'
+          : 'Kill switch reset. New execution may resume subject to guard rails.',
+        severity: engaging ? 'critical' : 'success',
+        duration: 8000,
+        ...(correlationId ? { correlationId } : {}),
+      });
+    },
+    onError: (error: Error) => {
+      addToast({
+        title: 'Kill switch toggle failed',
+        message: error.message,
+        severity: 'critical',
+        duration: 8000,
+      });
     },
   });
 }

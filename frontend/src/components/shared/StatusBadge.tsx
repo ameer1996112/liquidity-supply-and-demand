@@ -32,7 +32,7 @@ const CONFIGS: Record<
     label: 'LIVE',
     className: (_w, _l, compact) =>
       cn(
-        'bg-blue-500/20 text-blue-400 border-blue-500/40',
+        'bg-[var(--to-accent-blue)]/15 text-[var(--to-accent-blue)] border-[var(--to-accent-blue)]/40',
         !compact && 'shadow-[0_0_12px_rgba(59,130,246,0.3)] animate-pulse',
       ),
   },
@@ -41,48 +41,52 @@ const CONFIGS: Record<
     label: 'CLOSED',
     className: (isWin, isLoss) =>
       isWin
-        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+        ? 'bg-[var(--to-long)]/15 text-[var(--to-long)] border-[var(--to-long)]/40'
         : isLoss
-          ? 'bg-rose-500/20 text-rose-400 border-rose-500/40'
-          : 'bg-zinc-500/20 text-zinc-400 border-zinc-500/40',
+          ? 'bg-[var(--to-short)]/15 text-[var(--to-short)] border-[var(--to-short)]/40'
+          : 'bg-[var(--to-surface-raised)] text-[var(--to-text-secondary)] border-[var(--to-border-subtle)]',
   },
   executed: {
     icon: () => <CheckCircle2 className='w-3 h-3' />,
     label: 'FILLED',
     className: (isWin, isLoss) =>
       isWin
-        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+        ? 'bg-[var(--to-long)]/15 text-[var(--to-long)] border-[var(--to-long)]/40'
         : isLoss
-          ? 'bg-rose-500/20 text-rose-400 border-rose-500/40'
-          : 'bg-zinc-500/20 text-zinc-400 border-zinc-500/40',
+          ? 'bg-[var(--to-short)]/15 text-[var(--to-short)] border-[var(--to-short)]/40'
+          : 'bg-[var(--to-surface-raised)] text-[var(--to-text-secondary)] border-[var(--to-border-subtle)]',
   },
   ai_rejected: {
     icon: () => <ShieldX className='w-3 h-3' />,
     label: 'VETO',
     className: () =>
-      'bg-rose-500/20 text-rose-400 border-rose-500/40 shadow-[0_0_8px_rgba(244,63,94,0.2)]',
+      'bg-[var(--to-short)]/15 text-[var(--to-short)] border-[var(--to-short)]/40 shadow-[0_0_8px_rgba(244,63,94,0.2)]',
   },
   filtered: {
     icon: () => <Filter className='w-3 h-3' />,
     label: 'FILTER',
-    className: () => 'bg-zinc-500/20 text-zinc-400 border-zinc-500/40',
+    className: () =>
+      'bg-[var(--to-surface-raised)] text-[var(--to-text-dim)] border-[var(--to-border-subtle)]',
   },
   failed: {
     icon: () => <XCircle className='w-3 h-3' />,
     label: 'FAILED',
-    className: () => 'bg-rose-500/20 text-rose-400 border-rose-500/40',
+    className: () =>
+      'bg-[var(--to-short)]/15 text-[var(--to-short)] border-[var(--to-short)]/40',
   },
   pending: {
     icon: () => <Clock className='w-3 h-3' />,
     label: 'PENDING',
-    className: () => 'bg-amber-500/20 text-amber-400 border-amber-500/40',
+    className: () =>
+      'bg-[var(--to-warning)]/15 text-[var(--to-warning)] border-[var(--to-warning)]/40',
   },
 };
 
 const DEFAULT_CONFIG = {
   icon: () => <Clock className='w-3 h-3' />,
   label: 'UNKNOWN',
-  className: () => 'bg-zinc-500/20 text-zinc-500 border-zinc-500/40',
+  className: () =>
+    'bg-[var(--to-surface-raised)] text-[var(--to-text-dim)] border-[var(--to-border-subtle)]',
 };
 
 /**

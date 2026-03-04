@@ -258,6 +258,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Generic helper for any numeric span using JetBrains Mono + tabular-nums. */
+.mono-num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ── Trigger badges (FLIP / BoC / DIR CLOSE) ─────────────────────────────── */
 .trigger-flip {
   display: inline-flex;

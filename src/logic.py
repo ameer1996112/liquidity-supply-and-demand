@@ -403,7 +403,9 @@ def process_trade(
                 )
 
                 # CRITICAL: Force update broker_order_id when filled so exit logic can close it later
-                if exec_result.status == "filled":
+                broker_order_id = getattr(exec_result, "broker_order_id", None)
+
+                if exec_result.status == "filled" and broker_order_id:
                     try:
                         supabase_module.init_supabase()
                         client = supabase_module.supabase
@@ -418,7 +420,7 @@ def process_trade(
                             ) or (profile.get("name") if profile else None)
                             update_payload = {
                                 "status": "OPEN",
-                                "broker_order_id": str(exec_result.broker_order_id),
+                                "broker_order_id": str(broker_order_id),
                                 "filled_entry_price": float(data.get("entry", 0.0)),
                                 "entry_time": datetime.now(timezone.utc).isoformat(),
                                 "opened_at": datetime.now(timezone.utc).isoformat(),
@@ -439,12 +441,12 @@ def process_trade(
                                 ).execute()
 
                             log_event(alert_id, "execution_filled", "logic", {
-                                "broker_order_id": str(exec_result.broker_order_id),
+                                "broker_order_id": str(broker_order_id),
                             })
                             logger.info(
                                 "✅ Database Synced: Alert #%s linked to Ticket #%s",
                                 alert_id,
-                                exec_result.broker_order_id,
+                                broker_order_id,
                             )
                     except Exception as db_err:  # noqa: BLE001
                         logger.error(
@@ -452,9 +454,15 @@ def process_trade(
                             alert_id,
                             db_err,
                         )
-                elif exec_result.status == "submitted":
+                elif exec_result.status == "submitted" and broker_order_id:
                     # Mark as executed; PnL/outcome updated later on exit webhook
                     update_alert_status(alert_id, "OPEN")
+                elif exec_result.status in ("filled", "submitted") and not broker_order_id:
+                    logger.warning(
+                        "Execution for alert #%s returned status=%s but no broker_order_id; leaving status non-OPEN.",
+                        alert_id,
+                        exec_result.status,
+                    )
             except Exception as e:  # noqa: BLE001
                 logger.error("Execution adapter error for alert #%s: %s", alert_id, e)
                 log_event(alert_id, "execution_failed", "logic", {"error": str(e)[:200]})

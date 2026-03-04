@@ -28,7 +28,10 @@ export function PnLDisplay({ pnl, size = 'md' }: PnLDisplayProps) {
   if (normalizedPnl === null) {
     return (
       <span
-        className={cn('font-mono font-bold text-zinc-600', SIZE_CLASSES[size])}
+        className={cn(
+          'font-mono font-bold tabular-nums text-[var(--to-text-secondary)]',
+          SIZE_CLASSES[size],
+        )}
       >
         {EMPTY_VALUE}
       </span>
@@ -44,10 +47,10 @@ export function PnLDisplay({ pnl, size = 'md' }: PnLDisplayProps) {
         'font-mono font-bold tabular-nums',
         SIZE_CLASSES[size],
         isPositive
-          ? 'text-emerald-400'
+          ? 'text-profit'
           : isNegative
-          ? 'text-rose-400'
-          : 'text-slate-300'
+            ? 'text-loss'
+            : 'text-[var(--to-text-secondary)]',
       )}
     >
       {isPositive ? '+' : ''}

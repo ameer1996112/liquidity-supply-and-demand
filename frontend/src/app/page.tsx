@@ -3,15 +3,11 @@
 import { useCallback, useMemo, useState, useEffect } from 'react';
 import { SignalInspector } from '@/components/SignalInspector';
 import { ActiveTradesPanel } from '@/components/dashboard/ActiveTradesPanel';
-import { RecentSignalsPanel } from '@/components/dashboard/RecentSignalsPanel';
-import { MiniEquityChart } from '@/components/dashboard/MiniEquityChart';
-import { ExecutionQualityWidget } from '@/components/dashboard/ExecutionQualityWidget';
-import { PortfolioRiskWidget } from '@/components/dashboard/PortfolioRiskWidget';
-import { EvaluationDashboard } from '@/components/evaluation/EvaluationDashboard';
-import { PineConfigStatus } from '@/components/dashboard/PineConfigStatus';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { SignalTable } from '@/components/dashboard/SignalTable';
 import { LiveLog } from '@/components/dashboard/LiveLog';
+import { RiskBar } from '@/components/risk/RiskBar';
+import { Skeleton } from '@/components/ui/skeleton';
 import { useTradingMode } from '@/providers/TradingModeProvider';
 import { useSignalStats, useTradingSignals } from '@/hooks/useTradingSignals';
 import { useRiskStatus } from '@/hooks/useRiskStatus';
@@ -25,8 +21,6 @@ import {
 } from '@/lib/formatters';
 import type { TradingSignal, TradingMode } from '@/types/trading';
 import {
-  CandlestickChart,
-  Server,
   Radio,
   Wallet,
   TrendingUp,
@@ -95,7 +89,11 @@ function WaitingBanner({
           <div className='flex gap-1.5'>
             <dt className='text-text-dim'>Last signal:</dt>
             <dd className='font-mono tabular-nums'>
-              {mounted ? (latestSignalTime ?? EMPTY_VALUE) : 'Loading…'}
+              {mounted ? (
+                latestSignalTime ?? EMPTY_VALUE
+              ) : (
+                <Skeleton className='h-3 w-28 bg-[var(--to-surface-raised)]' />
+              )}
             </dd>
           </div>
           <div className='flex gap-1.5'>
@@ -132,9 +130,12 @@ export default function DashboardPage() {
   useEffect(() => { setMounted(true); }, []);
 
   const { mode: activeMode } = useTradingMode();
-  const { data: stats } = useSignalStats();
-  const { data: risk } = useRiskStatus();
-  const { data: signals = [] } = useTradingSignals(activeMode);
+  const { data: stats, isLoading: statsLoading } = useSignalStats();
+  const { data: risk, isLoading: riskLoading } = useRiskStatus();
+  const {
+    data: signals = [],
+    isLoading: signalsLoading,
+  } = useTradingSignals(activeMode);
   const { isConnected } = useConnectionHealth();
 
   // ── Derived values ──────────────────────────────────────────────────────────
@@ -182,6 +183,24 @@ export default function DashboardPage() {
       ? (stats?.paper_total_pnl ?? stats?.paper_pnl_24h)
       : (stats?.live_total_pnl ?? stats?.total_pnl);
 
+  // Deltas: approximate today vs prior 24h window
+  const baseDailyPnl =
+    activeMode === 'PAPER'
+      ? stats?.paper_daily_pnl ?? stats?.daily_pnl
+      : stats?.live_daily_pnl ?? stats?.daily_pnl;
+
+  const priorWindowPnl =
+    activeMode === 'PAPER'
+      ? stats && stats.paper_pnl_24h != null
+        ? stats.paper_pnl_24h - (stats.paper_daily_pnl ?? 0)
+        : null
+      : stats && stats.live_pnl_24h != null
+        ? stats.live_pnl_24h - (stats.live_daily_pnl ?? 0)
+        : null;
+
+  const todayPnlDelta =
+    baseDailyPnl != null && priorWindowPnl != null ? baseDailyPnl - priorWindowPnl : null;
+
   // ── Live log ────────────────────────────────────────────────────────────────
 
   const { entries: logEntries, clear: clearLog } = useDashboardLog({
@@ -204,13 +223,12 @@ export default function DashboardPage() {
 
   return (
     <div className='flex h-full min-h-0 flex-col gap-2'>
-
       {/* ── Header ──────────────────────────────────────────────── */}
       <header className='flex shrink-0 items-center justify-between gap-3'>
         <div>
           <h1 className='page-title text-base font-semibold'>Dashboard</h1>
           <p className='page-subtitle text-[11px]'>
-            Live command center · market orders · 5-minute zones
+            Live command center · telemetry first · 5-minute zones
           </p>
         </div>
         <div className='flex items-center gap-2'>
@@ -222,22 +240,92 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {/* ── KPI Bar ─────────────────────────────────────────────── */}
+      {/* ── Top row · Stat bento ───────────────────────────────── */}
       <section className='shrink-0'>
         <div className='mb-1.5 flex items-center justify-between px-0.5'>
           <p className='kpi-meta'>Session KPIs</p>
-          <p className='kpi-meta font-mono tabular-nums'>
-            {mounted ? lastUpdated : '—'}
+          <p
+            className='kpi-meta font-mono tabular-nums'
+            style={{ fontFamily: 'var(--font-mono)' }}
+          >
+            Last updated&nbsp;{mounted ? lastUpdated : '—'}
           </p>
         </div>
-        <div className='grid grid-cols-2 gap-1.5 md:grid-cols-3 xl:grid-cols-6'>
-          <StatCard label='Today PnL'        value={mounted ? formatCurrency(todayPnl, { signed: true }) : '—'} icon={Wallet} />
-          <StatCard label='Total PnL'        value={mounted ? formatCurrency(totalPnl, { signed: true }) : '—'} icon={TrendingUp} />
-          <StatCard label='Drawdown'         value={mounted ? formatPercent(risk?.drawdown_pct) : '—'} icon={Activity} variant='loss' />
-          <StatCard label='Daily DD'         value={mounted ? formatPercent(stats?.daily_drawdown_pct) : '—'} icon={BarChart3} />
-          <StatCard label='Active Positions' value={mounted ? formatNumber(activePositionsCount, { decimals: 0, empty: '0' }) : '—'} icon={Crosshair} />
-          <StatCard label='Trades Today'     value={mounted ? formatNumber(tradesToday, { decimals: 0, empty: '0' }) : '—'} icon={Clock} />
-        </div>
+        {(!mounted || statsLoading || riskLoading || signalsLoading) ? (
+          <div className='grid grid-cols-2 gap-1.5 md:grid-cols-3 xl:grid-cols-6'>
+            {Array.from({ length: 6 }).map((_, idx) => (
+              <Skeleton
+                // eslint-disable-next-line react/no-array-index-key
+                key={idx}
+                className='h-[60px] rounded border border-[var(--to-border)] bg-[var(--to-surface-raised)]'
+              />
+            ))}
+          </div>
+        ) : (
+          <div className='grid grid-cols-2 gap-1.5 md:grid-cols-3 xl:grid-cols-6'>
+            <StatCard
+              label='Today PnL'
+              value={formatCurrency(todayPnl, { signed: true })}
+              subValue={
+                todayPnlDelta != null
+                  ? `Δ vs prev 24h ${formatCurrency(todayPnlDelta, { signed: true })}`
+                  : EMPTY_VALUE
+              }
+              icon={Wallet}
+            />
+            <StatCard
+              label='Total PnL'
+              value={formatCurrency(totalPnl, { signed: true })}
+              subValue={
+                stats?.total_pnl_24h != null
+                  ? `24h ${formatCurrency(stats.total_pnl_24h, { signed: true })}`
+                  : EMPTY_VALUE
+              }
+              icon={TrendingUp}
+            />
+            <StatCard
+              label='Drawdown'
+              value={formatPercent(risk?.drawdown_pct)}
+              subValue={
+                risk?.max_drawdown_pct != null
+                  ? `Max ${formatPercent(risk.max_drawdown_pct)}`
+                  : EMPTY_VALUE
+              }
+              icon={Activity}
+              variant='loss'
+            />
+            <StatCard
+              label='Daily DD'
+              value={formatPercent(stats?.daily_drawdown_pct)}
+              subValue={
+                risk?.max_daily_loss_pct != null
+                  ? `Limit ${formatPercent(risk.max_daily_loss_pct)}`
+                  : EMPTY_VALUE
+              }
+              icon={BarChart3}
+            />
+            <StatCard
+              label='Active Positions'
+              value={formatNumber(activePositionsCount, { decimals: 0, empty: '0' })}
+              subValue={
+                risk?.max_positions != null
+                  ? `Max ${formatNumber(risk.max_positions, { decimals: 0 })}`
+                  : EMPTY_VALUE
+              }
+              icon={Crosshair}
+            />
+            <StatCard
+              label='Trades Today'
+              value={formatNumber(tradesToday, { decimals: 0, empty: '0' })}
+              subValue={
+                stats?.total_signals_24h != null
+                  ? `24h ${formatNumber(stats.total_signals_24h, { decimals: 0 })}`
+                  : EMPTY_VALUE
+              }
+              icon={Clock}
+            />
+          </div>
+        )}
       </section>
 
       {/* ── Waiting banner (no data) ─────────────────────────────── */}
@@ -256,95 +344,95 @@ export default function DashboardPage() {
         />
       )}
 
-      {/* ── Main grid: [50%] [25%] [25%] ────────────────────────── */}
-      <div className='grid min-h-0 flex-1 grid-cols-1 gap-2 xl:grid-cols-4'>
-
-        {/* Col 1–2 · Charts + Signal Table */}
-        <section
-          className={[
-            'to-panel col-span-1 flex min-h-0 flex-col overflow-hidden xl:col-span-2',
-            noData ? 'max-h-[220px]' : '',
-          ].join(' ')}
-        >
+      {/* ── Middle · Bento grid: latest signals + risk side rail ── */}
+      <div className='flex min-h-0 flex-1 flex-col gap-2 xl:flex-row'>
+        {/* Middle · Latest Signals table */}
+        <section className='to-panel flex min-h-0 flex-1 flex-col overflow-hidden'>
           <div className='to-panel-header'>
             <div className='flex items-center gap-2'>
-              <CandlestickChart className='h-3.5 w-3.5 text-blue-accent' />
-              <span className='panel-label'>Technical Analysis</span>
+              <span className='panel-label'>Latest Signals</span>
+              <span
+                className='kpi-meta font-mono text-[10px] tabular-nums'
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                {signals.length} total
+              </span>
             </div>
-            <div className='flex items-center gap-1.5'>
-              <span className='status-dot status-dot-active pulse-active' />
-              <span className='kpi-meta'>LIVE FEED</span>
-            </div>
+            <span
+              className='kpi-meta font-mono text-[10px] tabular-nums text-[var(--to-text-dim)]'
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >
+              Last updated&nbsp;{lastUpdated}
+            </span>
           </div>
 
-          <div className='scrollbar-thin flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2'>
-            <div className={noData ? 'min-h-[120px]' : 'min-h-[180px]'}>
-              <MiniEquityChart mode={activeMode} />
-            </div>
-
-            {!noData && (
-              <>
-                <div className='grid grid-cols-1 gap-2 lg:grid-cols-2'>
-                  <ExecutionQualityWidget />
-                  <PortfolioRiskWidget />
-                </div>
-
-                <div className='to-panel'>
-                  <div className='to-panel-header'>
-                    <span className='panel-label'>Signal Book</span>
-                    <span className='kpi-meta font-mono tabular-nums'>
-                      {signals.length} signals
-                    </span>
-                  </div>
-                  <SignalTable
-                    signals={signals}
-                    onSelectSignal={handleSelectSignal}
-                    maxRows={30}
-                    className='max-h-[280px]'
+          <div className='scrollbar-thin min-h-0 flex-1 overflow-y-auto p-2'>
+            {signalsLoading && signals.length === 0 ? (
+              <div className='space-y-1.5'>
+                <Skeleton className='h-5 w-1/2 rounded bg-[var(--to-surface-raised)]' />
+                {Array.from({ length: 8 }).map((_, idx) => (
+                  // eslint-disable-next-line react/no-array-index-key
+                  <Skeleton
+                    key={idx}
+                    className='h-6 w-full rounded bg-[var(--to-surface-raised)]/80'
                   />
-                </div>
-
-                <EvaluationDashboard />
-              </>
+                ))}
+              </div>
+            ) : (
+              <SignalTable
+                signals={signals}
+                onSelectSignal={handleSelectSignal}
+                maxRows={30}
+                className='max-h-[320px]'
+              />
             )}
           </div>
         </section>
 
-        {/* Col 3 · Active Positions */}
-        <section className='col-span-1 min-h-0 overflow-hidden'>
-          <ActiveTradesPanel
-            mode={activeMode}
-            onSelectSignal={handleSelectSignal}
-            compact={noData}
-          />
-        </section>
-
-        {/* Col 4 · Bot Runtime + Signal Log + Live Log */}
-        <section className='col-span-1 flex min-h-0 flex-col gap-2 overflow-hidden'>
-          <div className='to-panel shrink-0'>
+        {/* Side rail · Risk status + Live log */}
+        <aside className='flex min-h-0 w-full flex-col gap-2 xl:w-[360px]'>
+          <section className='to-panel shrink-0'>
             <div className='to-panel-header'>
               <div className='flex items-center gap-2'>
-                <Server className='h-3.5 w-3.5 text-blue-accent' />
-                <span className='panel-label'>Bot Runtime</span>
+                <span className='panel-label'>Risk status</span>
               </div>
-              <span className='status-dot status-dot-active pulse-active' />
+              <span
+                className='kpi-meta font-mono text-[10px] tabular-nums text-[var(--to-text-dim)]'
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                Last updated&nbsp;{lastUpdated}
+              </span>
             </div>
             <div className='p-2'>
-              <PineConfigStatus />
+              {riskLoading ? (
+                <div className='space-y-2'>
+                  <Skeleton className='h-4 w-full rounded bg-[var(--to-surface-raised)]' />
+                  <Skeleton className='h-4 w-4/5 rounded bg-[var(--to-surface-raised)]' />
+                </div>
+              ) : (
+                <RiskBar />
+              )}
             </div>
-          </div>
+          </section>
 
-          <div className='min-h-0 flex-1 overflow-hidden'>
-            <RecentSignalsPanel mode={activeMode} onSelectSignal={handleSelectSignal} />
-          </div>
-
-          <LiveLog
-            entries={logEntries}
-            onClear={clearLog}
-            className='h-[200px] shrink-0'
-          />
-        </section>
+          <section className='min-h-0 flex-1 overflow-hidden'>
+            <LiveLog
+              entries={logEntries}
+              onClear={clearLog}
+              className='h-full'
+            />
+          </section>
+        </aside>
       </div>
+
+      {/* ── Bottom · Open positions snapshot ────────────────────── */}
+      <section className='mt-1 min-h-[180px]'>
+        <ActiveTradesPanel
+          mode={activeMode}
+          onSelectSignal={handleSelectSignal}
+          compact
+        />
+      </section>
 
       <SignalInspector
         signal={selectedSignal}

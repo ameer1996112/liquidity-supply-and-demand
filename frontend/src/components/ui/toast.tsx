@@ -17,6 +17,8 @@ export interface Toast {
   message?: string;
   severity: 'critical' | 'warning' | 'info' | 'success';
   duration?: number;
+  /** Optional correlation id to link to pipeline traces / audit logs. */
+  correlationId?: string;
 }
 
 interface ToastContextValue {
@@ -90,6 +92,11 @@ function ToastItem({
         {toast.message && (
           <p className="font-mono text-[10px] text-zinc-400 mt-0.5 line-clamp-2">
             {toast.message}
+          </p>
+        )}
+        {toast.correlationId && (
+          <p className="mt-1 font-mono text-[9px] text-zinc-500">
+            CID: <span className="text-zinc-400">{toast.correlationId.slice(0, 12)}…</span>
           </p>
         )}
       </div>

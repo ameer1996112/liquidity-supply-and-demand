@@ -903,6 +903,7 @@ def process_trade(payload: Dict[str, Any]):
             0.0,
             account_name=account_name,
         )
+        log_guard_decision("size_guard", "rejected", rejection_reason, symbol)
         logger.warning(
             "SIZE REJECTED: size=%s (must be > 0). Reason: %s",
             payload.get("size"),
@@ -913,14 +914,18 @@ def process_trade(payload: Dict[str, Any]):
     # ── Max Lot Size Guard ────────────────────────────────────
     max_lot_size = s.max_lot_size if hasattr(s, 'max_lot_size') else 10.0
     if size > max_lot_size:
+        reason = (
+            f"Position size {size} lots exceeds max_lot_size={max_lot_size}. "
+            f"Check TradingView Pine initial_capital vs actual account balance."
+        )
         save_result(
             payload,
             "filtered",
-            f"Position size {size} lots exceeds max_lot_size={max_lot_size}. "
-            f"Check TradingView Pine initial_capital vs actual account balance.",
+            reason,
             0.0,
             account_name=account_name,
         )
+        log_guard_decision("max_lot_size", "rejected", reason, symbol)
         logger.warning(
             "MAX LOT SIZE REJECTED: size=%s > max=%s lots.",
             size,

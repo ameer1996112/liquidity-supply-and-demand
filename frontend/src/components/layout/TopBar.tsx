@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { useRiskStatus, useKillSwitchMutation } from '@/hooks/useRiskStatus';
 import { useQuery } from '@tanstack/react-query';
 import { getApiUrl } from '@/lib/api';
+import { KillSwitchConfirmDialog, type KillSwitchMode } from '@/components/risk/KillSwitchConfirmDialog';
 
 function DualClock() {
   const [now, setNow] = useState<Date | null>(null);
@@ -57,6 +58,8 @@ export function TopBar() {
   const { mode, setMode } = useTradingMode();
   const { data: risk } = useRiskStatus();
   const killMutation = useKillSwitchMutation();
+  const [killDialogOpen, setKillDialogOpen] = useState(false);
+  const [killDialogMode, setKillDialogMode] = useState<KillSwitchMode>('engage');
 
   const { data: health } = useQuery({
     queryKey: ['topbar-health'],
@@ -76,12 +79,11 @@ export function TopBar() {
   });
   const isConnected = health?.status != null && health.status !== 'offline';
 
-  const toggleKillSwitch = () => {
-    const enabled = !risk?.kill_switch_active;
-    killMutation.mutate({
-      enabled,
-      reason: enabled ? 'TopBar emergency stop' : 'TopBar manual resume',
-    });
+  const openKillDialog = () => {
+    if (!risk) return;
+    const mode: KillSwitchMode = risk.kill_switch_active ? 'reset' : 'engage';
+    setKillDialogMode(mode);
+    setKillDialogOpen(true);
   };
 
   return (
@@ -149,7 +151,7 @@ export function TopBar() {
 
         {/* Kill switch */}
         <button
-          onClick={toggleKillSwitch}
+          onClick={openKillDialog}
           disabled={killMutation.isPending}
           className={cn(
             'flex items-center gap-1 rounded border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider transition-all',
@@ -164,6 +166,18 @@ export function TopBar() {
           {risk?.kill_switch_active ? 'KILL ON' : 'Kill'}
         </button>
       </div>
+
+      <KillSwitchConfirmDialog
+        open={killDialogOpen}
+        mode={killDialogMode}
+        onOpenChange={setKillDialogOpen}
+        isPending={killMutation.isPending}
+        onConfirm={(reason) => {
+          const enabled = killDialogMode === 'engage';
+          killMutation.mutate({ enabled, reason });
+          setKillDialogOpen(false);
+        }}
+      />
     </header>
   );
 }
