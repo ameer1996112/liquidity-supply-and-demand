@@ -73,7 +73,11 @@ class Settings(BaseSettings):
     ai_shadow_mode: bool = Field(default=False, description="AI Shadow Mode: log AI decisions but never block trades. Env: AI_SHADOW_MODE.")
     # [optimization/ai-overhaul] ML Warning Mode: RF confidence 10%-60% becomes WARNING, only <10% is hard REJECT.
     ml_warning_only_mode: bool = Field(default=True, description="RF gate: <10% = REJECT, 10-60% = WARNING (allow), >=60% = APPROVE. Env: ML_WARNING_ONLY_MODE.")
-    ai_provider: Literal["openai", "anthropic"] = Field(default="anthropic", description="AI provider.")
+    ai_provider: Literal["anthropic", "openai", "gemini", "local"] = Field(
+        default="anthropic",
+        description="AI provider for unified client. anthropic|openai|gemini|local.",
+        validation_alias=AliasChoices("AI_PROVIDER", "ai_provider"),
+    )
     ai_api_key: SecretStr = Field(
         default=SecretStr(""),
         validation_alias=AliasChoices("AI_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"),
