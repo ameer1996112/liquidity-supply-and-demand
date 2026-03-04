@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   useTCASummary,
@@ -96,9 +96,9 @@ function AccountSwitcher({ accounts, selected, onChange }: AccountSwitcherProps)
   );
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
+// ── Page content (uses search params) ─────────────────────────────────────────
 
-export default function ExecutionQualityPage() {
+function ExecutionQualityContent() {
   const [period, setPeriod] = useState<Period>('7d');
   const [activeTab, setActiveTab] = useState<'tca' | 'traces'>('traces');
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
@@ -528,6 +528,22 @@ export default function ExecutionQualityPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+// ── Page wrapper with Suspense (required for useSearchParams) ────────────────
+
+export default function ExecutionQualityPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className='p-4 text-xs text-slate-500'>
+          Loading execution quality analytics...
+        </div>
+      }
+    >
+      <ExecutionQualityContent />
+    </Suspense>
   );
 }
 
