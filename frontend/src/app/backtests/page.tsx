@@ -162,16 +162,16 @@ export default function BacktestsPage() {
                 {job.status === 'completed' && job.metrics_json && (
                   <div className='flex gap-4 text-[11px] font-mono'>
                     <span className='text-slate-400'>
-                      WR: {(job.metrics_json as Record<string, unknown>).win_rate}%
+                      WR: {(job.metrics_json as Record<string, number | string>).win_rate ?? '—'}%
                     </span>
                     <span className='text-slate-400'>
-                      Trades: {(job.metrics_json as Record<string, unknown>).total_trades}
+                      Trades: {(job.metrics_json as Record<string, number | string>).total_trades ?? '—'}
                     </span>
                     <span className='text-slate-400'>
-                      MaxDD: {(job.metrics_json as Record<string, unknown>).max_drawdown_pct}%
+                      MaxDD: {(job.metrics_json as Record<string, number | string>).max_drawdown_pct ?? '—'}%
                     </span>
                     <span className='text-slate-400'>
-                      Avg R: {(job.metrics_json as Record<string, unknown>).avg_r}
+                      Avg R: {(job.metrics_json as Record<string, number | string>).avg_r ?? '—'}
                     </span>
                   </div>
                 )}
