@@ -7,9 +7,9 @@ AccountRouter
   - resolve_account_id: _account_id field takes priority
   - resolve_account_id: account_id field used if _account_id absent
   - resolve_account_id: defaults to "default" when neither field present
-  - queue_key_for: "default" → "trading_queue" (backward compat)
-  - queue_key_for: other → "trading_queue:<account_id>"
-  - queue_key_for: None / empty → "trading_queue"
+  - queue_key_for: "default" → "signals:default"
+  - queue_key_for: other → "signals:<account_id>"
+  - queue_key_for: None / empty → "signals:default"
   - resolve_queue_key: end-to-end convenience method
 
 AccountRouterObserver
@@ -110,18 +110,18 @@ class AccountRouterQueueKeyTests(unittest.TestCase):
     def setUp(self):
         self.router = AccountRouter()
 
-    def test_default_account_returns_trading_queue(self):
+    def test_default_account_returns_signals_default(self):
         self.assertEqual(self.router.queue_key_for("default"), DEFAULT_QUEUE_KEY)
-        self.assertEqual(DEFAULT_QUEUE_KEY, "trading_queue")
+        self.assertEqual(DEFAULT_QUEUE_KEY, "signals:default")
 
     def test_named_account_returns_partitioned_key(self):
-        self.assertEqual(self.router.queue_key_for("prop-1"), "trading_queue:prop-1")
-        self.assertEqual(self.router.queue_key_for("abc123"), "trading_queue:abc123")
+        self.assertEqual(self.router.queue_key_for("prop-1"), "signals:prop-1")
+        self.assertEqual(self.router.queue_key_for("abc123"), "signals:abc123")
 
-    def test_none_returns_trading_queue(self):
+    def test_none_returns_default_queue(self):
         self.assertEqual(self.router.queue_key_for(None), DEFAULT_QUEUE_KEY)
 
-    def test_empty_string_returns_trading_queue(self):
+    def test_empty_string_returns_default_queue(self):
         self.assertEqual(self.router.queue_key_for(""), DEFAULT_QUEUE_KEY)
 
     def test_resolve_queue_key_end_to_end_default(self):
@@ -130,7 +130,7 @@ class AccountRouterQueueKeyTests(unittest.TestCase):
 
     def test_resolve_queue_key_end_to_end_named(self):
         p = _payload(_account_id="prop-1")
-        self.assertEqual(self.router.resolve_queue_key(p), "trading_queue:prop-1")
+        self.assertEqual(self.router.resolve_queue_key(p), "signals:prop-1")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -222,46 +222,47 @@ class InMemoryTransportMultiQueueTests(unittest.TestCase):
         self.t = InMemoryTransport()
 
     def test_enqueue_and_dequeue_named_queue(self):
-        self.t.enqueue('{"a":1}', queue_key="trading_queue:acc-1")
-        result = self.t.dequeue(queue_keys=["trading_queue:acc-1"])
+        self.t.enqueue('{"a":1}', queue_key="signals:acc-1")
+        result = self.t.dequeue(queue_keys=["signals:acc-1"])
         self.assertIsNotNone(result)
         key, data = result
-        self.assertEqual(key, "trading_queue:acc-1")
+        self.assertEqual(key, "signals:acc-1")
         self.assertEqual(data, '{"a":1}')
 
     def test_default_queue_does_not_leak_to_named_queue(self):
-        self.t.enqueue('{"default":1}')  # goes to trading_queue (default)
-        result = self.t.dequeue(queue_keys=["trading_queue:acc-1"])
+        self.t.enqueue('{"default":1}')  # goes to internal default queue
+        result = self.t.dequeue(queue_keys=["signals:acc-1"])
         self.assertIsNone(result)
 
     def test_named_queue_does_not_leak_to_default(self):
-        self.t.enqueue('{"named":1}', queue_key="trading_queue:acc-1")
+        self.t.enqueue('{"named":1}', queue_key="signals:acc-1")
         result = self.t.dequeue()  # polls default queue only
         self.assertIsNone(result)
 
     def test_queue_size_for_named(self):
-        self.t.enqueue('{"a":1}', queue_key="trading_queue:acc-1")
-        self.t.enqueue('{"b":2}', queue_key="trading_queue:acc-1")
-        self.assertEqual(self.t.queue_size_for("trading_queue:acc-1"), 2)
+        self.t.enqueue('{"a":1}', queue_key="signals:acc-1")
+        self.t.enqueue('{"b":2}', queue_key="signals:acc-1")
+        self.assertEqual(self.t.queue_size_for("signals:acc-1"), 2)
+        # Internal default queue remains separate
         self.assertEqual(self.t.queue_size_for("trading_queue"), 0)
 
     def test_queue_size_totals_across_queues(self):
         self.t.enqueue('{"a":1}')
-        self.t.enqueue('{"b":2}', queue_key="trading_queue:acc-1")
-        self.t.enqueue('{"c":3}', queue_key="trading_queue:acc-2")
+        self.t.enqueue('{"b":2}', queue_key="signals:acc-1")
+        self.t.enqueue('{"c":3}', queue_key="signals:acc-2")
         self.assertEqual(self.t.queue_size, 3)
 
     def test_queue_names_lists_nonempty_queues(self):
-        self.t.enqueue('{"x":1}', queue_key="trading_queue:acc-x")
+        self.t.enqueue('{"x":1}', queue_key="signals:acc-x")
         names = self.t.queue_names()
-        self.assertIn("trading_queue:acc-x", names)
+        self.assertIn("signals:acc-x", names)
         self.assertNotIn("trading_queue", names)
 
     def test_dequeue_polls_multiple_keys_fifo_per_key(self):
-        self.t.enqueue('{"a":1}', queue_key="trading_queue:acc-a")
-        self.t.enqueue('{"b":2}', queue_key="trading_queue:acc-b")
-        r1 = self.t.dequeue(queue_keys=["trading_queue:acc-a", "trading_queue:acc-b"])
-        r2 = self.t.dequeue(queue_keys=["trading_queue:acc-a", "trading_queue:acc-b"])
+        self.t.enqueue('{"a":1}', queue_key="signals:acc-a")
+        self.t.enqueue('{"b":2}', queue_key="signals:acc-b")
+        r1 = self.t.dequeue(queue_keys=["signals:acc-a", "signals:acc-b"])
+        r2 = self.t.dequeue(queue_keys=["signals:acc-a", "signals:acc-b"])
         self.assertIsNotNone(r1)
         self.assertIsNotNone(r2)
         payloads = {json.loads(r1[1])["a"], json.loads(r2[1])["b"]}
@@ -293,15 +294,19 @@ class AccountRoutingIntegrationTests(unittest.TestCase):
         queue_key = router.queue_key_for(account_id)
         transport.enqueue(json.dumps(p), queue_key=queue_key)
 
-        # Should be in default queue (trading_queue)
-        self.assertEqual(transport.queue_size_for("trading_queue"), 1)
-        # Named queues should be empty
-        self.assertEqual(transport.queue_size_for("trading_queue:any"), 0)
+        # Should be in default account queue (signals:default)
+        self.assertEqual(transport.queue_size_for("signals:default"), 1)
+        # Other queues should be empty
+        self.assertEqual(transport.queue_size_for("signals:any"), 0)
 
-        # Dequeue from default
+        # Dequeue from default internal queue should see nothing (partitioned queue used)
         result = transport.dequeue()
-        self.assertIsNotNone(result)
-        data = json.loads(result[1])
+        self.assertIsNone(result)
+
+        # Dequeue from the account-specific queue
+        result2 = transport.dequeue(queue_keys=[queue_key])
+        self.assertIsNotNone(result2)
+        data = json.loads(result2[1])
         self.assertEqual(data["_account_id"], DEFAULT_ACCOUNT_ID)
 
     def test_signal_with_explicit_account_routes_to_named_queue(self):
@@ -314,8 +319,8 @@ class AccountRoutingIntegrationTests(unittest.TestCase):
         queue_key = router.queue_key_for(account_id)
         transport.enqueue(json.dumps(p), queue_key=queue_key)
 
-        self.assertEqual(transport.queue_size_for("trading_queue:prop-1"), 1)
-        self.assertEqual(transport.queue_size_for("trading_queue"), 0)  # default empty
+        self.assertEqual(transport.queue_size_for("signals:prop-1"), 1)
+        self.assertEqual(transport.queue_size_for("signals:default"), 0)
 
     def test_two_accounts_are_isolated(self):
         transport = InMemoryTransport()
@@ -327,9 +332,9 @@ class AccountRoutingIntegrationTests(unittest.TestCase):
                 account_id = router.resolve_account_id(p)
                 transport.enqueue(json.dumps(p), queue_key=router.queue_key_for(account_id))
 
-        self.assertEqual(transport.queue_size_for("trading_queue:acc-a"), 3)
-        self.assertEqual(transport.queue_size_for("trading_queue:acc-b"), 3)
-        self.assertEqual(transport.queue_size_for("trading_queue"), 0)
+        self.assertEqual(transport.queue_size_for("signals:acc-a"), 3)
+        self.assertEqual(transport.queue_size_for("signals:acc-b"), 3)
+        self.assertEqual(transport.queue_size_for("signals:default"), 0)
 
     def test_worker_subject_stamps_account_id_on_live_payload(self):
         """WorkerSubject with AccountRouter stamps _account_id before SIGNAL_RECEIVED."""
@@ -364,7 +369,7 @@ def _account_row(**overrides):
         "risk_limits": {},
         "metaapi_account_id": None,
         "tags": [],
-        "queue_key": "trading_queue",
+        "queue_key": "signals:default",
         "created_at": "2025-01-01T00:00:00+00:00",
         "updated_at": "2025-01-01T00:00:00+00:00",
     }
@@ -396,13 +401,13 @@ class ApiAccountsListTests(unittest.TestCase):
         data = resp.json()
         self.assertEqual(len(data), 1)
         self.assertEqual(data[0]["account_id"], "default")
-        self.assertEqual(data[0]["queue_key"], "trading_queue")
+        self.assertEqual(data[0]["queue_key"], "signals:default")
 
     def test_list_multiple_accounts(self):
         import src.api_accounts as mod
         rows = [
             _account_row(),
-            _account_row(account_id="prop-1", name="Prop Account", queue_key="trading_queue:prop-1"),
+            _account_row(account_id="prop-1", name="Prop Account", queue_key="signals:prop-1"),
         ]
         with patch.object(mod, "_get_supabase", return_value=self._client(rows)):
             from fastapi import FastAPI

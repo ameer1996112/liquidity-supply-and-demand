@@ -36,6 +36,8 @@ logger = logging.getLogger(__name__)
 DEFAULT_ACCOUNT_ID: str = "default"
 # Sprint 5.1: partition transport by account_id using signals:{account_id}
 DEFAULT_QUEUE_PREFIX: str = "signals"
+# Convenience constant for the default account's queue key, used in tests and API responses.
+DEFAULT_QUEUE_KEY: str = f"{DEFAULT_QUEUE_PREFIX}:{DEFAULT_ACCOUNT_ID}"
 
 
 # ── AccountRouter ─────────────────────────────────────────────────────────────
