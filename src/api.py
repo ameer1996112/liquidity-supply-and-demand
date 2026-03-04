@@ -269,7 +269,7 @@ async def get_webhook_payload(
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "api"}
+    return {"status": "healthy", "service": "api"}
 
 
 # ---------------------------------------------------------------------------
