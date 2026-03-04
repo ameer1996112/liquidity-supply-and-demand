@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
-import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { ArrowUpDown, ArrowUp, ArrowDown, Brain } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { TradingSignal, SignalStatus } from '@/types/trading';
+import type { CouncilSummary } from '@/lib/api';
 import {
   DataTable,
   type DataTableColumn,
@@ -16,9 +17,48 @@ type SortDir = 'asc' | 'desc';
 
 interface SignalTableProps {
   signals: TradingSignal[];
+  councilMap?: Record<string, CouncilSummary>;
   onSelectSignal?: (signal: TradingSignal) => void;
   maxRows?: number;
   className?: string;
+}
+
+function CouncilBadge({ summary }: { summary: CouncilSummary | undefined }) {
+  if (!summary) return <span className='font-mono text-[10px] text-[var(--to-text-dim)]/40'>—</span>;
+
+  const isAllow = summary.recommendation === 'allow';
+  const conf = summary.confidence;
+  const confColor = conf >= 70 ? 'text-[var(--to-long)]' : conf >= 50 ? 'text-[var(--to-warning)]' : 'text-[var(--to-short)]';
+
+  // Count bull/bear/risk votes from the votes dict
+  const voteEntries = Object.entries(summary.votes || {});
+  const allowCount = voteEntries.filter(([, v]) => v === 'allow').length;
+  const blockCount = voteEntries.filter(([, v]) => v === 'block').length;
+
+  return (
+    <div className='flex flex-col items-end gap-0.5'>
+      <div className='flex items-center gap-1'>
+        <Brain
+          className={cn('h-3 w-3', isAllow ? 'text-[var(--to-long)]/60' : 'text-[var(--to-short)]/60')}
+          strokeWidth={1.5}
+        />
+        <span
+          className={cn('font-mono text-[10px] font-bold tabular-nums', confColor)}
+          style={{ fontFamily: 'var(--font-mono)' }}
+        >
+          {conf}%
+        </span>
+      </div>
+      {voteEntries.length > 0 && (
+        <span
+          className='font-mono text-[9px] tabular-nums text-[var(--to-text-dim)]/60'
+          style={{ fontFamily: 'var(--font-mono)' }}
+        >
+          {allowCount}✓ {blockCount}✗
+        </span>
+      )}
+    </div>
+  );
 }
 
 const STATUS_STYLES: Record<
@@ -122,6 +162,7 @@ function getSortValue(signal: TradingSignal, field: SortField): string | number 
 
 export function SignalTable({
   signals,
+  councilMap = {},
   onSelectSignal,
   maxRows = 50,
   className,
@@ -329,6 +370,21 @@ export function SignalTable({
           variant='currency'
           size='sm'
         />
+      ),
+    },
+    {
+      id: 'council',
+      align: 'right',
+      isNumeric: true,
+      width: 'w-[70px]',
+      header: (
+        <span className='inline-flex items-center justify-end gap-1 w-full'>
+          <Brain className='h-2.5 w-2.5' strokeWidth={1.5} />
+          <span>Council</span>
+        </span>
+      ),
+      render: (signal) => (
+        <CouncilBadge summary={councilMap[String(signal.id)]} />
       ),
     },
     {

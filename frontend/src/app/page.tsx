@@ -9,7 +9,7 @@ import { LiveLog } from '@/components/dashboard/LiveLog';
 import { RiskBar } from '@/components/risk/RiskBar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useTradingMode } from '@/providers/TradingModeProvider';
-import { useSignalStats, useTradingSignals } from '@/hooks/useTradingSignals';
+import { useSignalStats, useTradingSignals, useCouncilSummaries } from '@/hooks/useTradingSignals';
 import { useRiskStatus } from '@/hooks/useRiskStatus';
 import { useConnectionHealth } from '@/hooks/useConnectionHealth';
 import { useDashboardLog } from '@/hooks/useDashboardLog';
@@ -139,6 +139,9 @@ export default function DashboardPage() {
     isLoading: signalsLoading,
   } = useTradingSignals(activeMode);
   const { status, isConnected } = useConnectionHealth();
+
+  const signalIds = useMemo(() => signals.map((s) => s.id), [signals]);
+  const councilMap = useCouncilSummaries(signalIds);
 
   // ── Derived values ──────────────────────────────────────────────────────────
 
@@ -377,6 +380,7 @@ export default function DashboardPage() {
             ) : (
               <SignalTable
                 signals={signals}
+                councilMap={councilMap}
                 onSelectSignal={handleSelectSignal}
                 maxRows={30}
                 className='max-h-[320px]'

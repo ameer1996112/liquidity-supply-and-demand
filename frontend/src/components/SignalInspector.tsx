@@ -1209,20 +1209,20 @@ export function SignalInspector({
                         {Object.keys(aiRun.votes || {}).length > 0 && (
                           <div className='text-xs'>
                             <span className='text-muted-foreground uppercase tracking-wider'>
-                              Votes
+                              Agent Votes
                             </span>
                             <div className='mt-1.5 flex flex-wrap gap-2'>
                               {Object.entries(aiRun.votes).map(([agent, vote]) => (
                                 <span
                                   key={agent}
                                   className={cn(
-                                    'font-mono px-2 py-0.5 rounded',
+                                    'font-mono px-2 py-0.5 rounded border text-[10px]',
                                     vote === 'allow'
-                                      ? 'bg-emerald-500/20 text-emerald-400'
-                                      : 'bg-rose-500/20 text-rose-400'
+                                      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
+                                      : 'border-rose-500/30 bg-rose-500/10 text-rose-400'
                                   )}
                                 >
-                                  {agent}: {vote}
+                                  {agent.replace(/_/g, ' ')}: {vote}
                                 </span>
                               ))}
                             </div>
@@ -1242,14 +1242,25 @@ export function SignalInspector({
                             key={i}
                             className={cn(
                               'rounded border px-3 py-2 text-sm',
+                              // Legacy debate roles
                               msg.role === 'bull' && 'border-emerald-500/30 bg-emerald-500/5',
                               msg.role === 'bear' && 'border-rose-500/30 bg-rose-500/5',
                               msg.role === 'risk' && 'border-amber-500/30 bg-amber-500/5',
-                              msg.role === 'chair' && 'border-blue-500/30 bg-blue-500/5'
+                              msg.role === 'chair' && 'border-blue-500/30 bg-blue-500/5',
+                              // Trading Council roles
+                              msg.role === 'market_analyst' && 'border-sky-500/30 bg-sky-500/5',
+                              msg.role === 'setup_analyst' && 'border-cyan-500/30 bg-cyan-500/5',
+                              msg.role === 'bull_researcher' && 'border-emerald-500/30 bg-emerald-500/5',
+                              msg.role === 'bear_researcher' && 'border-rose-500/30 bg-rose-500/5',
+                              msg.role === 'research_manager' && 'border-purple-500/30 bg-purple-500/5',
+                              msg.role === 'aggressive_debater' && 'border-orange-500/30 bg-orange-500/5',
+                              msg.role === 'conservative_debater' && 'border-blue-500/30 bg-blue-500/5',
+                              msg.role === 'neutral_debater' && 'border-zinc-500/30 bg-zinc-500/5',
+                              msg.role === 'risk_judge' && 'border-amber-500/30 bg-amber-500/5',
                             )}
                           >
-                            <div className='text-[10px] font-mono uppercase text-muted-foreground mb-1'>
-                              {msg.role}
+                            <div className='text-[10px] font-mono uppercase text-muted-foreground mb-1 tracking-wider'>
+                              {msg.role.replace(/_/g, ' ')}
                             </div>
                             <p className='text-foreground/90 leading-relaxed'>
                               {msg.content}

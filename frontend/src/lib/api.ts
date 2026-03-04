@@ -439,6 +439,28 @@ export async function fetchAiRunBySignal(signalId: number): Promise<AiRunRespons
   return apiFetch<AiRunResponse>(`/api/ai-runs?signal_id=${signalId}`);
 }
 
+/** Lightweight council summary for a single signal (from bulk endpoint) */
+export interface CouncilSummary {
+  recommendation: 'allow' | 'block';
+  confidence: number;
+  votes: Record<string, string>;
+}
+
+/**
+ * Fetch council summaries for multiple signals at once.
+ * Returns a map of signal_id (string) → CouncilSummary.
+ */
+export async function fetchAiRunsBulk(
+  signalIds: (string | number)[],
+): Promise<Record<string, CouncilSummary>> {
+  if (signalIds.length === 0) return {};
+  const ids = signalIds.join(',');
+  const resp = await apiFetch<{ runs: Record<string, CouncilSummary> }>(
+    `/api/ai-runs/bulk?signal_ids=${ids}`,
+  );
+  return resp.runs ?? {};
+}
+
 /**
  * URL Helper Functions
  */

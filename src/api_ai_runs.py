@@ -2,7 +2,7 @@
 Sprint 3.3: API for ai_run records (debate transcript + votes).
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -79,5 +79,48 @@ def get_ai_run_by_signal(signal_id: int = Query(..., description="Trading signal
         }
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/bulk", response_model=Dict[str, Any])
+def get_ai_runs_bulk(signal_ids: str = Query(..., description="Comma-separated signal IDs")):
+    """
+    Fetch council summary (recommendation, confidence, votes) for multiple signals at once.
+    Returns a dict keyed by signal_id (as string) → {recommendation, confidence, votes}.
+    Missing signals are omitted from the response.
+    """
+    sb = _get_supabase()
+    if not sb:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    try:
+        raw_ids = [x.strip() for x in signal_ids.split(",") if x.strip()]
+        int_ids: List[int] = []
+        for x in raw_ids:
+            try:
+                int_ids.append(int(x))
+            except ValueError:
+                pass
+        if not int_ids:
+            return {"runs": {}}
+
+        resp = (
+            sb.table("ai_runs")
+            .select("signal_id, recommendation, confidence, votes")
+            .in_("signal_id", int_ids)
+            .execute()
+        )
+        runs: Dict[str, Any] = {}
+        if resp.data:
+            # Keep only the latest row per signal_id (data comes unordered)
+            for row in resp.data:
+                sid = str(row.get("signal_id"))
+                if sid not in runs:
+                    runs[sid] = {
+                        "recommendation": row.get("recommendation", "allow"),
+                        "confidence": row.get("confidence", 0),
+                        "votes": row.get("votes") or {},
+                    }
+        return {"runs": runs}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

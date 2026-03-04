@@ -15,6 +15,7 @@ import {
   RealtimePayload,
   normalizeSignal,
 } from '@/types/trading';
+import { fetchAiRunsBulk, type CouncilSummary } from '@/lib/api';
 
 // =============================================================================
 // CONFIGURATION
@@ -401,6 +402,28 @@ export function useRefreshSignals() {
     queryClient.invalidateQueries({ queryKey: signalKeys.all });
     queryClient.invalidateQueries({ queryKey: signalKeys.stats });
   }, [queryClient]);
+}
+
+// =============================================================================
+// HOOK: useCouncilSummaries
+// =============================================================================
+
+/**
+ * Fetches Trading Council summaries (recommendation, confidence, votes) for
+ * a list of signal IDs. Returns a stable map keyed by signal ID string.
+ * Refreshes every 60 s so newly processed signals pick up council data.
+ */
+export function useCouncilSummaries(
+  signalIds: string[],
+): Record<string, CouncilSummary> {
+  const { data = {} } = useQuery({
+    queryKey: ['council-summaries', signalIds.slice().sort().join(',')],
+    queryFn: () => fetchAiRunsBulk(signalIds),
+    enabled: signalIds.length > 0,
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+  });
+  return data;
 }
 
 // =============================================================================
