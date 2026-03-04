@@ -17,11 +17,11 @@ stamping of ``_account_id`` onto the *live* payload dict happens earlier, in
 
 Queue partitioning
 ──────────────────
-  "default" account → queue key "trading_queue"   (unchanged behaviour)
-  any other account → queue key "trading_queue:<account_id>"
+  Queue/stream naming pattern (Sprint 5.1):
+    signals:{account_id}
 
-Single-account deployments always resolve to "default", so they see zero
-behavioural change.
+Single-account deployments always resolve to "default" (queue ``signals:default``),
+so they see zero behavioural change.
 """
 
 from __future__ import annotations
@@ -34,7 +34,8 @@ logger = logging.getLogger(__name__)
 # ── Constants ─────────────────────────────────────────────────────────────────
 
 DEFAULT_ACCOUNT_ID: str = "default"
-DEFAULT_QUEUE_KEY:  str = "trading_queue"
+# Sprint 5.1: partition transport by account_id using signals:{account_id}
+DEFAULT_QUEUE_PREFIX: str = "signals"
 
 
 # ── AccountRouter ─────────────────────────────────────────────────────────────
@@ -61,14 +62,13 @@ class AccountRouter:
         )
 
     def queue_key_for(self, account_id: str) -> str:
-        """Return the Redis queue key for the given account_id.
+        """Return the transport queue key for the given account_id.
 
-        The default account uses the legacy ``trading_queue`` key so that
-        single-account deployments require no configuration change.
+        Naming pattern (Sprint 5.1):
+          signals:{account_id}
         """
-        if not account_id or account_id == DEFAULT_ACCOUNT_ID:
-            return DEFAULT_QUEUE_KEY
-        return f"{DEFAULT_QUEUE_KEY}:{account_id}"
+        acct = account_id or DEFAULT_ACCOUNT_ID
+        return f"{DEFAULT_QUEUE_PREFIX}:{acct}"
 
     def resolve_queue_key(self, payload: Dict[str, Any]) -> str:
         """Convenience: resolve account_id then return its queue key."""
