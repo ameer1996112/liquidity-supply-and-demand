@@ -8,6 +8,7 @@ import { PositionCard } from '@/components/positions/PositionCard';
 import { OptimizerPanel } from '@/components/portfolio/OptimizerPanel';
 import { Crosshair } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { PanelEmptyState } from '@/components/shared/PanelEmptyState';
 
 export default function PositionsPage() {
   const { data, isLoading } = useActivePositions();
@@ -64,16 +65,11 @@ export default function PositionsPage() {
           ))}
         </div>
       ) : (
-        <div className='tv-card'>
-          <div className='empty-state py-14'>
-            <span className='empty-state-text'>[ NO ACTIVE POSITIONS ]</span>
-            <span
-              className='mt-1 text-[10px] text-slate-700'
-              style={{ fontFamily: 'var(--font-mono)' }}
-            >
-              positions appear here when 5m zones are triggered
-            </span>
-          </div>
+        <div className='tv-card p-4'>
+          <PanelEmptyState
+            title='No active positions'
+            description='Positions appear here when 5m zones are triggered.'
+          />
         </div>
       )}
     </div>

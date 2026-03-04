@@ -6,22 +6,38 @@ import { Badge } from '@/components/ui/badge';
 import { AlertCircle, CheckCircle2, TrendingUp, Calendar, Target } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { PnLText } from '@/components/ui/typography';
+import { Skeleton } from '@/components/ui/skeleton';
+import { PanelEmptyState } from '@/components/shared/PanelEmptyState';
 
 export function EvaluationDashboard() {
   const { data: evaluation, isLoading, error } = useEvaluationStats();
 
   if (isLoading) {
     return (
-      <div className='tv-card p-6'>
-        <div className='flex items-center justify-center h-32'>
-          <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--to-accent-blue)]' />
+      <div className='tv-card p-6 space-y-4'>
+        <div className='flex items-center justify-between'>
+          <div className='flex items-center gap-3'>
+            <Skeleton className='h-5 w-5 rounded-full bg-slate-800/60' />
+            <Skeleton className='h-4 w-40 bg-slate-800/60' />
+          </div>
+          <Skeleton className='h-6 w-24 bg-slate-800/60' />
         </div>
+        <Skeleton className='h-4 w-32 bg-slate-800/60' />
+        <Skeleton className='h-3 w-full bg-slate-800/60' />
+        <Skeleton className='h-3 w-3/4 bg-slate-800/60' />
       </div>
     );
   }
 
   if (error || !evaluation?.evaluation_mode) {
-    return null; // Don't show if evaluation mode is off
+    return (
+      <div className='tv-card p-6'>
+        <PanelEmptyState
+          title='Evaluation disabled or offline'
+          description='Connect an evaluation account or try again when the backend is reachable.'
+        />
+      </div>
+    );
   }
 
   const phaseLabel = {

@@ -16,6 +16,9 @@ import { SignalInspector } from '@/components/SignalInspector';
 import { exportTradesToCsv } from '@/lib/exportCsv';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BookOpen } from 'lucide-react';
+import { useConnectionHealth } from '@/hooks/useConnectionHealth';
+import { PageStatusBanner } from '@/components/shared/PageStatusBanner';
+import { PanelEmptyState } from '@/components/shared/PanelEmptyState';
 
 type StatusFilter = 'ALL' | SignalStatus;
 type ModeFilter = 'ALL' | TradingMode;
@@ -71,6 +74,8 @@ export default function JournalPage() {
     if (filtered.length > 0) exportTradesToCsv(filtered);
   };
 
+  const { status } = useConnectionHealth();
+
   return (
     <div className='space-y-4'>
       {/* Header */}
@@ -83,6 +88,8 @@ export default function JournalPage() {
           Full history of signals, executions, and outcomes.
         </p>
       </div>
+
+      <PageStatusBanner status={status} surfaceLabel="Signals & journal" />
 
       {/* Filters */}
       <JournalFilters
@@ -106,22 +113,19 @@ export default function JournalPage() {
       ) : filtered.length > 0 ? (
         <TradeTable signals={filtered} onInspect={handleInspect} />
       ) : (
-        <div className='tv-card'>
-          <div className='empty-state py-14'>
-            <span className='empty-state-text'>
-              {signals && signals.length > 0
-                ? '[ NO MATCHING TRADES ]'
-                : '[ NO TRADE DATA ]'}
-            </span>
-            <span
-              className='mt-1 text-[10px] text-slate-700'
-              style={{ fontFamily: 'var(--font-mono)' }}
-            >
-              {signals && signals.length > 0
-                ? 'adjust filters to see results'
-                : 'trades will appear here after execution'}
-            </span>
-          </div>
+        <div className='tv-card p-4'>
+          <PanelEmptyState
+            title={
+              signals && signals.length > 0
+                ? 'No matching trades'
+                : 'No trade data'
+            }
+            description={
+              signals && signals.length > 0
+                ? 'Adjust filters to see results.'
+                : 'Trades will appear here after execution.'
+            }
+          />
         </div>
       )}
 

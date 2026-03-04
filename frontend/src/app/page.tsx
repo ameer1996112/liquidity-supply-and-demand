@@ -13,6 +13,7 @@ import { useSignalStats, useTradingSignals } from '@/hooks/useTradingSignals';
 import { useRiskStatus } from '@/hooks/useRiskStatus';
 import { useConnectionHealth } from '@/hooks/useConnectionHealth';
 import { useDashboardLog } from '@/hooks/useDashboardLog';
+import { PageStatusBanner } from '@/components/shared/PageStatusBanner';
 import {
   formatCurrency,
   formatNumber,
@@ -136,7 +137,7 @@ export default function DashboardPage() {
     data: signals = [],
     isLoading: signalsLoading,
   } = useTradingSignals(activeMode);
-  const { isConnected } = useConnectionHealth();
+  const { status, isConnected } = useConnectionHealth();
 
   // ── Derived values ──────────────────────────────────────────────────────────
 
@@ -239,6 +240,9 @@ export default function DashboardPage() {
           <ModeBadge mode={activeMode} />
         </div>
       </header>
+
+      {/* ── Page-level health banner ────────────────────────────── */}
+      <PageStatusBanner status={status} surfaceLabel="Dashboard" />
 
       {/* ── Top row · Stat bento ───────────────────────────────── */}
       <section className='shrink-0'>
