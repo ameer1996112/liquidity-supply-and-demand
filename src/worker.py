@@ -79,6 +79,7 @@ PROFITABLE_SYMBOLS = {
     "EURGBP",     # 28.4% WR, EV +0.137
     "NZDUSD",     # 28.3% WR, EV +0.132
     "EURUSD",     # 27.6% WR, EV +0.103
+    "GBPUSD",     # Forex major
     "GBPJPY",     # 27.3% WR, EV +0.090
     "BTCUSD",     # 26.9% WR, EV +0.076
     "EURJPY",     # 26.8% WR, EV +0.073
