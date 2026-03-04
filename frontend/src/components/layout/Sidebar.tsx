@@ -18,6 +18,7 @@ import {
   Timer,
   FlaskConical,
   SlidersHorizontal,
+  Bell,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSidebar } from '@/providers/SidebarProvider';
@@ -59,7 +60,10 @@ const NAV_GROUPS: NavGroup[] = [
   {
     id: 'monitoring',
     label: 'Monitoring',
-    items: [{ label: 'Risk Monitor', icon: Gauge, path: '/risk' }],
+    items: [
+      { label: 'Risk Monitor', icon: Gauge, path: '/risk' },
+      { label: 'Alerts', icon: Bell, path: '/alerts' },
+    ],
   },
   {
     id: 'analytics',

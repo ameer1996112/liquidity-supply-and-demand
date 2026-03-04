@@ -26,6 +26,7 @@ import {
   KillSwitchConfirmDialog,
   type KillSwitchMode,
 } from '@/components/risk/KillSwitchConfirmDialog';
+import { AlertBell } from '@/components/alerts/AlertBell';
 
 function DualClock() {
   const [now, setNow] = useState<Date | null>(null);
@@ -186,6 +187,9 @@ function derivePageMeta(pathname: string): { section: string; title: string } {
   }
   if (pathname.startsWith('/portfolio-risk')) {
     return { section: 'Monitoring', title: 'Portfolio Risk' };
+  }
+  if (pathname.startsWith('/alerts')) {
+    return { section: 'Monitoring', title: 'Alerts' };
   }
   return { section: 'App', title: 'TradeOps' };
 }
@@ -417,6 +421,9 @@ export function TopBar() {
             </span>
           </button>
         </div>
+
+        {/* Alert bell */}
+        <AlertBell />
 
         {/* Kill switch */}
         <button
