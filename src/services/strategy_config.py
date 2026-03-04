@@ -267,11 +267,15 @@ def validate_active_strategies_startup(supabase: Any) -> None:
     """
     Validate all active strategies at startup.
 
-    If a config is invalid, it will be deactivated and a warning logged,
-    but startup will not fail.
+    If any active strategy has an invalid config, startup should fail-fast so
+    the system does not run with unsafe or inconsistent strategy-as-data.
+
+    Raises:
+        RuntimeError: if validation of one or more active strategies fails.
     """
     if not supabase:
         return
+
     try:
         resp = (
             supabase.table("strategy_configs")
@@ -284,6 +288,8 @@ def validate_active_strategies_startup(supabase: Any) -> None:
         logger.warning("Strategy config validation skipped (query failed): %s", e)
         return
 
+    invalid: list[dict[str, Any]] = []
+
     for row in rows:
         sid = row.get("id")
         name = row.get("name", f"strategy-{sid}")
@@ -293,24 +299,27 @@ def validate_active_strategies_startup(supabase: Any) -> None:
             logger.info("Strategy '%s' (id=%s) validated successfully.", name, sid)
         except ValidationError as ve:
             errs = format_validation_errors(ve)
-            logger.warning(
-                "Deactivating invalid strategy '%s' (id=%s): %s",
+            logger.error(
+                "Invalid strategy config at startup for '%s' (id=%s): %s",
                 name,
                 sid,
                 errs,
             )
-            try:
-                supabase.table("strategy_configs").update(
-                    {
-                        "is_active": False,
-                        "updated_at": "now()",
-                    }
-                ).eq("id", sid).execute()
-            except Exception as e:  # noqa: BLE001
-                logger.warning(
-                    "Failed to deactivate invalid strategy '%s' (id=%s): %s",
-                    name,
-                    sid,
-                    e,
-                )
+            invalid.append(
+                {
+                    "id": sid,
+                    "name": name,
+                    "errors": errs,
+                }
+            )
+
+    if invalid:
+        summary = "; ".join(
+            f"id={item['id']} name={item['name']} errors={item['errors']!r}"
+            for item in invalid
+        )
+        raise RuntimeError(
+            f"Strategy config startup validation failed for {len(invalid)} "
+            f"active strateg(ies): {summary}"
+        )
 

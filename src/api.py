@@ -121,24 +121,25 @@ def _fail_fast_config():
         key = raw_key.strip().strip('"\'').strip()
         if key.upper().startswith("SUPA") and "=" in key[:50]:
             key = key.split("=", 1)[-1].strip().strip('"\'').strip()
-            
+
         if settings.supabase_url and key:
             sb_client = create_client(settings.supabase_url, key)
 
-            # Validate active strategy configs (Sprint 4.4)
-            try:
-                from src.services.strategy_config import validate_active_strategies_startup
+            # Validate active strategy configs (Sprint 4.4).
+            # Any invalid active strategy should hard-fail startup so we never
+            # run with unsafe strategy-as-data.
+            from src.services.strategy_config import validate_active_strategies_startup
 
-                validate_active_strategies_startup(sb_client)
-            except Exception as cfg_exc:  # noqa: BLE001
-                logger.error("Strategy config startup validation failed: %s", cfg_exc)
+            validate_active_strategies_startup(sb_client)
 
             # Initialize worker
-            sync_enabled = getattr(settings, 'account_sync_enabled', False)
-            sync_interval = getattr(settings, 'account_sync_interval_seconds', 60)
+            sync_enabled = getattr(settings, "account_sync_enabled", False)
+            sync_interval = getattr(settings, "account_sync_interval_seconds", 60)
 
             if sync_enabled:
-                logger.info(f"Initializing background sync worker (interval: {sync_interval}s)...")
+                logger.info(
+                    f"Initializing background sync worker (interval: {sync_interval}s)..."
+                )
                 initialize_background_worker(
                     supabase_client=sb_client,
                     sync_enabled=sync_enabled,
@@ -152,8 +153,9 @@ def _fail_fast_config():
             logger.warning("Supabase not configured, background sync disabled")
 
     except Exception as e:
-        logger.error(f"Failed to initialize background sync worker: {e}")
-        # Don't fail startup if worker init fails
+        logger.error(f"Failed to initialize background sync worker or strategy validation: {e}")
+        # Don't fail startup if background worker init fails, but let explicit
+        # strategy validation RuntimeError bubble up before this handler.
 
 
 @app.on_event("shutdown")
