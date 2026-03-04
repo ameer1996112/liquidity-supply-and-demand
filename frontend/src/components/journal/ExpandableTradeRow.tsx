@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { ChevronDown, ExternalLink } from 'lucide-react';
 import { PnLText } from '@/components/ui/typography';
+import { TradeNoteEditor, TradeNoteIndicator } from './TradeNoteEditor';
 
 interface ExpandableTradeRowProps {
   signal: TradingSignal;
@@ -246,6 +247,11 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
           )}
         </td>
 
+        {/* Note indicators */}
+        <td className="py-2.5 px-2">
+          <TradeNoteIndicator signalId={signal.id} />
+        </td>
+
         {/* Expand chevron */}
         <td className="py-2.5 px-3">
           <ChevronDown
@@ -260,8 +266,8 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
       {/* Expanded Detail Row */}
       {expanded && (
         <tr className="border-b border-panel-border bg-[var(--to-surface)]/80">
-          <td colSpan={15} className="p-4">
-            <div className="grid grid-cols-3 gap-6">
+          <td colSpan={16} className="p-4">
+            <div className="grid grid-cols-4 gap-6">
               {/* Technical Setup */}
               <div className="space-y-2">
                 <span className="text-[10px] text-text-dim uppercase tracking-wider font-medium">
@@ -483,6 +489,15 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
                   Full Inspector
                 </button>
               </div>
+
+              {/* My Notes — TradeNoteEditor */}
+              <div
+                className="rounded-xl border border-[var(--to-border)] bg-[var(--to-surface-raised)] overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <TradeNoteEditor signal={signal} compact />
+              </div>
+
             </div>
           </td>
         </tr>

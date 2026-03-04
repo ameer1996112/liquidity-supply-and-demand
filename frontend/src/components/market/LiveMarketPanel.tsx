@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { API_BASE_URL } from '@/lib/api';
 
 // ── Price Ticker ──────────────────────────────────────────────────────────────
 
@@ -50,38 +51,30 @@ function usePriceFeed() {
 
   const fetchPrices = useCallback(async () => {
     try {
-      const results = await Promise.allSettled(
-        WATCH_SYMBOLS.map(async (sym) => {
-          const url = `https://query1.finance.yahoo.com/v8/finance/chart/${sym.yahooId}?interval=1d&range=1d`;
-          const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
-          const json = await res.json();
-          const meta = json.chart?.result?.[0]?.meta;
-          if (!meta) return sym;
+      const symbols = WATCH_SYMBOLS.map((s) => s.yahooId).join(',');
+      const res = await fetch(
+        `${API_BASE_URL}/api/market/prices?symbols=${encodeURIComponent(symbols)}&interval=1d&range=1d`,
+        { signal: AbortSignal.timeout(10000) },
+      );
+      if (!res.ok) throw new Error('Market data unavailable');
+      const data = (await res.json()) as Array<{
+        symbol: string;
+        price: number | null;
+        change: number | null;
+        changePct: number | null;
+      }>;
+      const byYahooId = Object.fromEntries(data.map((d) => [d.symbol, d]));
+      setPrices(
+        WATCH_SYMBOLS.map((sym) => {
+          const row = byYahooId[sym.yahooId];
           return {
             ...sym,
-            price: meta.regularMarketPrice ?? null,
-            change: (meta.regularMarketPrice ?? 0) - (meta.previousClose ?? 0),
-            changePct: meta.previousClose
-              ? (((meta.regularMarketPrice ?? 0) - meta.previousClose) /
-                  meta.previousClose) *
-                100
-              : null,
+            price: row?.price ?? null,
+            change: row?.change ?? null,
+            changePct: row?.changePct ?? null,
             lastUpdated: new Date(),
           };
         }),
-      );
-      setPrices(
-        results.map((r, i) =>
-          r.status === 'fulfilled'
-            ? (r.value as PriceData)
-            : {
-                ...WATCH_SYMBOLS[i],
-                price: null,
-                change: null,
-                changePct: null,
-                lastUpdated: new Date(),
-              },
-        ),
       );
       setLastRefresh(new Date());
     } catch {
