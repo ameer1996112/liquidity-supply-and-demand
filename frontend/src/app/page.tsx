@@ -186,17 +186,18 @@ export default function DashboardPage() {
     [signals],
   );
 
-  const lastUpdated = useMemo(
-    () =>
+  const [lastUpdated, setLastUpdated] = useState('—');
+  useEffect(() => {
+    setLastUpdated(
       latestSignal
         ? new Date(
             latestSignal.updated_at ?? latestSignal.created_at,
           ).toLocaleTimeString()
         : new Date().toLocaleTimeString(),
-    // Recompute only when the latest signal changes, not on every render tick
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [latestSignal?.id],
-  );
+    );
+  // Recompute only when the latest signal changes, not on every render tick
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [latestSignal?.id]);
 
   const noData = signals.length === 0 && activePositionsCount === 0;
   const strategyName =
@@ -434,7 +435,7 @@ export default function DashboardPage() {
                 className='kpi-meta font-mono text-[10px] tabular-nums text-[var(--to-text-dim)]'
                 style={{ fontFamily: 'var(--font-mono)' }}
               >
-                Last updated&nbsp;{lastUpdated}
+                Last updated&nbsp;{mounted ? lastUpdated : '—'}
               </span>
             </div>
             <div className='p-2'>
