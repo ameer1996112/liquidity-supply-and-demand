@@ -30,17 +30,18 @@ fi
 export PORT="${RAILWAY_PORT:-${PORT:-8000}}"
 
 # Option A: Backend only (default). Option B: Full stack (frontend + backend).
-# Usage: ./start.sh           → backend only
-#        ./start.sh fullstack  → frontend (npm run dev) + backend
-FULL_STACK="${FULL_STACK:-0}"
-if [ "$1" = "fullstack" ] || [ "$1" = "full" ]; then
-  FULL_STACK=1
-fi
+# Option C: Selective Mode (api, worker)
+# Usage: ./start.sh [api|worker|full|both]
+#        ./start.sh           → starts both API + Worker (backwards compat)
+#        ./start.sh api       → starts ONLY API (foreground)
+#        ./start.sh worker    → starts ONLY Worker (foreground)
+
+MODE="${1:-both}"
 
 echo "[start.sh] ROOT_DIR=$ROOT_DIR"
 echo "[start.sh] PYTHONPATH=$PYTHONPATH"
 echo "[start.sh] PORT=$PORT"
-echo "[start.sh] Mode: $([ "$FULL_STACK" = "1" ] && echo 'Full Stack (frontend + backend)' || echo 'Backend Only')"
+echo "[start.sh] MODE=$MODE"
 
 # Use virtual environment if present (nixpacks legacy path)
 if [ -d "/app/venv" ]; then
@@ -48,7 +49,7 @@ if [ -d "/app/venv" ]; then
   echo "[start.sh] Using venv at /app/venv"
 fi
 
-# Quick import-only smoke test (API only — avoids module-level side effects in worker)
+# Quick import-only smoke test
 python3 -c "from config import get_settings; print('[start.sh] Config import: OK')" || {
   echo "[start.sh] FATAL: Cannot import config - check PYTHONPATH and dependencies"
   exit 1
@@ -71,27 +72,36 @@ shutdown() {
 
 trap shutdown SIGTERM SIGINT
 
-# Start frontend (Next.js) in background if fullstack mode
-if [ "$FULL_STACK" = "1" ]; then
-  if [ -d "$ROOT_DIR/frontend" ] && [ -f "$ROOT_DIR/frontend/package.json" ]; then
-    echo "[start.sh] Starting Frontend (Next.js) on port 3000..."
-    (cd "$ROOT_DIR/frontend" && npm run dev) &
-    FRONTEND_PID=$!
-    echo "[start.sh] Frontend PID=$FRONTEND_PID"
-    sleep 2
-  else
-    echo "[start.sh] WARN: frontend/ not found - skipping frontend"
-  fi
+# 1. Handle Full Stack / Frontend
+if [ "$MODE" = "full" ] || [ "$MODE" = "fullstack" ] || [ "$MODE" = "both" ]; then
+    if [ "$MODE" != "both" ] || [ "${FULL_STACK:-0}" = "1" ]; then
+        if [ -d "$ROOT_DIR/frontend" ] && [ -f "$ROOT_DIR/frontend/package.json" ]; then
+            echo "[start.sh] Starting Frontend (Next.js) in background..."
+            (cd "$ROOT_DIR/frontend" && npm run dev) &
+            FRONTEND_PID=$!
+            sleep 2
+        fi
+    fi
 fi
 
-echo "[start.sh] Starting Worker (Consumer) in background..."
-python3 -m src.worker &
-WORKER_PID=$!
-echo "[start.sh] Worker PID=$WORKER_PID"
+# 2. Start Worker
+if [ "$MODE" = "worker" ]; then
+    echo "[start.sh] Starting Worker (Consumer) in FOREGROUND..."
+    exec python3 -m src.worker
+elif [ "$MODE" = "both" ]; then
+    echo "[start.sh] Starting Worker (Consumer) in background..."
+    python3 -m src.worker &
+    WORKER_PID=$!
+fi
 
-echo "[start.sh] Starting API (Producer) on port $PORT..."
-# Run uvicorn in foreground so Railway sees it as the main process
-exec python3 -m uvicorn src.api:app \
-  --host 0.0.0.0 \
-  --port "$PORT" \
-  --log-level info
+# 3. Start API
+if [ "$MODE" = "api" ] || [ "$MODE" = "both" ]; then
+    echo "[start.sh] Starting API (Producer) on port $PORT..."
+    # If we are in 'both' mode, this runs in foreground. 
+    # If we are in 'api' mode, this also runs in foreground.
+    exec python3 -m uvicorn src.api:app \
+      --host 0.0.0.0 \
+      --port "$PORT" \
+      --log-level info
+fi
+

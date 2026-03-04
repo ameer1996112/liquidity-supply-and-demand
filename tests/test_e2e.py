@@ -115,7 +115,7 @@ def _get(url: str, verbose: bool = False) -> tuple[int, dict]:
 _PRICES = {
     "NAS100": dict(entry=21500.0, sl_pips=30, tp_mult=3.0, pip=1.0),
     "XAUUSD": dict(entry=3220.0,  sl_pips=80, tp_mult=4.0, pip=0.1),
-    "EURUSD": dict(entry=1.0850,  sl_pips=20, tp_mult=2.0, pip=0.0001),
+    "EURUSD": dict(entry=1.1645,  sl_pips=20, tp_mult=2.0, pip=0.0001),
     "GBPUSD": dict(entry=1.2700,  sl_pips=25, tp_mult=2.0, pip=0.0001),
     "GBPJPY": dict(entry=190.00,  sl_pips=15, tp_mult=3.0, pip=0.01),
     "USDJPY": dict(entry=150.00,  sl_pips=15, tp_mult=2.5, pip=0.01),
