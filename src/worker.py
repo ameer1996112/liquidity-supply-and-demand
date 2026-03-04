@@ -293,6 +293,9 @@ def save_result(
         "ml_win_probability": prob,
         "run_mode": payload.get("run_mode", "PAPER"),
         "account_balance": float(payload.get("account_balance", default_balance)),
+        # Sprint 2.3: stamp the routing account_id so signals can be filtered
+        # per-account. Defaults to "default" for single-account deployments.
+        "account_id": payload.get("_account_id") or "default",
     }
     tk = (payload.get("trade_key") or "").strip()
     if tk:

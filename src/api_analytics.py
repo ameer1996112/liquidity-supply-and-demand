@@ -31,8 +31,12 @@ PERIOD_MAP = {
 DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
 
-def _fetch_closed_signals(period: str, mode: Optional[str]) -> list:
-    """Fetch closed signals from Supabase with optional period/mode filters."""
+def _fetch_closed_signals(
+    period: str,
+    mode: Optional[str],
+    account_id: Optional[str] = None,
+) -> list:
+    """Fetch closed signals from Supabase with optional period/mode/account filters."""
     sb = _get_supabase()
 
     query = (
@@ -48,6 +52,11 @@ def _fetch_closed_signals(period: str, mode: Optional[str]) -> list:
 
     if mode and mode != "ALL":
         query = query.eq("run_mode", mode)
+
+    # Sprint 2.3: per-account filtering.  Omitting account_id (or passing None)
+    # returns all accounts — identical to pre-Sprint-2.3 behaviour.
+    if account_id:
+        query = query.eq("account_id", account_id)
 
     td = PERIOD_MAP.get(period)
     if td:
@@ -151,9 +160,10 @@ class SummaryResponse(BaseModel):
 def get_breakdown(
     period: str = Query("7d", pattern="^(24h|7d|30d|all)$"),
     mode: str = Query("LIVE"),
+    account_id: Optional[str] = Query(None, description="Filter to a specific account_id"),
 ):
     """Multi-dimensional performance breakdown."""
-    signals = _fetch_closed_signals(period, mode)
+    signals = _fetch_closed_signals(period, mode, account_id=account_id)
 
     def hour_key(s):
         try:
@@ -204,9 +214,12 @@ def get_breakdown(
 
 
 @router.get("/streaks", response_model=StreaksResponse)
-def get_streaks(mode: str = Query("LIVE")):
+def get_streaks(
+    mode: str = Query("LIVE"),
+    account_id: Optional[str] = Query(None, description="Filter to a specific account_id"),
+):
     """Consecutive win/loss streaks analysis."""
-    signals = _fetch_closed_signals("all", mode)
+    signals = _fetch_closed_signals("all", mode, account_id=account_id)
 
     streaks: List[Streak] = []
     max_win = 0
@@ -275,10 +288,13 @@ def get_streaks(mode: str = Query("LIVE")):
 
 
 @router.get("/drawdown", response_model=DrawdownResponse)
-def get_drawdown(mode: str = Query("LIVE")):
+def get_drawdown(
+    mode: str = Query("LIVE"),
+    account_id: Optional[str] = Query(None, description="Filter to a specific account_id"),
+):
     """Equity curve with underwater (drawdown) plot data."""
     s = get_settings()
-    signals = _fetch_closed_signals("all", mode)
+    signals = _fetch_closed_signals("all", mode, account_id=account_id)
 
     equity = s.account_balance
     peak = equity
@@ -320,10 +336,13 @@ def get_drawdown(mode: str = Query("LIVE")):
 
 
 @router.get("/summary", response_model=SummaryResponse)
-def get_summary(mode: str = Query("LIVE")):
+def get_summary(
+    mode: str = Query("LIVE"),
+    account_id: Optional[str] = Query(None, description="Filter to a specific account_id"),
+):
     """Rolling performance metrics: Sharpe, Sortino, expectancy."""
     s = get_settings()
-    signals = _fetch_closed_signals("all", mode)
+    signals = _fetch_closed_signals("all", mode, account_id=account_id)
 
     if not signals:
         return SummaryResponse(

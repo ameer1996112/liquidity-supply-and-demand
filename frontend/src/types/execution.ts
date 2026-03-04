@@ -54,3 +54,57 @@ export interface TCASettings {
   latency_threshold_ms: number;
   spread_threshold_pips: number;
 }
+
+// ── Pipeline Traces (Sprint 2.1 / 2.4) ────────────────────────────────────
+
+/** Timestamps for each hop in the execution pipeline */
+export interface TraceHops {
+  received_at?: string | null;
+  enqueued_at?: string | null;
+  dequeued_at?: string | null;
+  validated_at?: string | null;
+  risk_started_at?: string | null;
+  risk_finished_at?: string | null;
+  exec_started_at?: string | null;
+  exec_submitted_at?: string | null;
+  broker_ack_at?: string | null;
+  broker_confirmed_at?: string | null;
+  reconciled_at?: string | null;
+  error_at?: string | null;
+}
+
+/** Lightweight row returned by GET /api/traces */
+export interface TraceSummary {
+  trace_id?: string | null;
+  correlation_id: string;
+  signal_id?: number | null;
+  account_id?: string | null;
+  symbol?: string | null;
+  run_mode?: string | null;
+  received_at?: string | null;
+  total_ms?: number | null;
+  error_type?: string | null;
+  created_at?: string | null;
+}
+
+/** Full detail returned by GET /api/traces/{correlation_id} */
+export interface TraceDetail extends TraceSummary {
+  hops: TraceHops;
+  error_message?: string | null;
+}
+
+/** Derived badge status for a single trace */
+export interface TraceBrokerStatus {
+  broker_connected: boolean;  // has broker_ack_at
+  broker_confirmed: boolean;  // has broker_confirmed_at
+  missing_on_broker: boolean; // submitted but no broker_ack, no error
+}
+
+/** Account row from GET /api/accounts */
+export interface AccountRow {
+  account_id: string;
+  name: string;
+  broker_type: string;
+  status: string;
+  queue_key?: string | null;
+}

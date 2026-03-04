@@ -4,7 +4,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from config import get_settings
@@ -99,13 +99,21 @@ class AccountStatusResponse(BaseModel):
 
 
 @router.get("/active", response_model=ActivePositionsResponse)
-def get_active_positions():
+def get_active_positions(
+    account_id: Optional[str] = Query(
+        None,
+        description=(
+            "Filter positions to a specific account (e.g. 'default', 'prop-1'). "
+            "Omit to return all accounts."
+        ),
+    ),
+):
     """List active positions enriched with live prices and PnL."""
     sb = _get_supabase()
     now = datetime.now(timezone.utc)
 
     try:
-        resp = (
+        q = (
             sb.table("trading_signals")
             .select(
                 "id, symbol, side, entry, sl, tp, size, broker_order_id, "
@@ -113,8 +121,10 @@ def get_active_positions():
                 "status, execution_source, broker_position_id, closed_at, exit_price, pnl"
             )
             .in_("status", ["OPEN", "open", "active", "executed", "PENDING", "pending"])
-            .execute()
         )
+        if account_id:
+            q = q.eq("account_id", account_id)
+        resp = q.execute()
         raw_rows = resp.data or []
         rows = [r for r in raw_rows if _is_signal_open_strict(r)]
     except Exception as exc:
