@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { ClientDate } from '@/components/ui/ClientDate';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Play,
@@ -27,31 +28,31 @@ const BacktestChart = dynamic(
     loading: () => (
       <Skeleton className='h-[600px] w-full rounded-lg bg-slate-800/60' />
     ),
-  }
+  },
 );
 
 const FXReplayController = dynamic(
   () =>
     import('@/components/backtest/FXReplayController').then(
-      (m) => m.FXReplayController
+      (m) => m.FXReplayController,
     ),
   {
     loading: () => (
       <Skeleton className='h-24 w-full rounded-lg bg-slate-800/60 mt-4' />
     ),
-  }
+  },
 );
 
 const BacktestPerformanceTab = dynamic(
   () =>
     import('@/components/backtest/BacktestPerformanceTab').then(
-      (m) => m.BacktestPerformanceTab
+      (m) => m.BacktestPerformanceTab,
     ),
   {
     loading: () => (
       <Skeleton className='h-80 w-full rounded-lg bg-slate-800/60' />
     ),
-  }
+  },
 );
 
 // API Types
@@ -111,7 +112,7 @@ interface BacktestResponse {
 export default function BacktestPage() {
   const [currentCandleIndex, setCurrentCandleIndex] = useState(0);
   const [backtestResult, setBacktestResult] = useState<BacktestResponse | null>(
-    null
+    null,
   );
   const [replayMode, setReplayMode] = useState(false); // Replay mode OFF by default
 
@@ -774,7 +775,7 @@ export default function BacktestPage() {
                           duration < 60
                             ? `${Math.floor(duration)}m`
                             : `${Math.floor(duration / 60)}h ${Math.floor(
-                                duration % 60
+                                duration % 60,
                               )}m`;
 
                         return (
@@ -798,26 +799,32 @@ export default function BacktestPage() {
                               </Badge>
                             </td>
                             <td className='py-3 px-2 text-slate-400 text-xs'>
-                              {new Date(trade.entry_time * 1000).toLocaleString(
-                                'en-US',
-                                {
-                                  month: 'short',
-                                  day: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit',
+                              <ClientDate
+                                render={() =>
+                                  new Date(
+                                    trade.entry_time * 1000,
+                                  ).toLocaleString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })
                                 }
-                              )}
+                              />
                             </td>
                             <td className='py-3 px-2 text-slate-400 text-xs'>
-                              {new Date(trade.exit_time * 1000).toLocaleString(
-                                'en-US',
-                                {
-                                  month: 'short',
-                                  day: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit',
+                              <ClientDate
+                                render={() =>
+                                  new Date(
+                                    trade.exit_time * 1000,
+                                  ).toLocaleString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })
                                 }
-                              )}
+                              />
                             </td>
                             <td className='py-3 px-2 text-right text-slate-400 text-xs'>
                               {durationText}

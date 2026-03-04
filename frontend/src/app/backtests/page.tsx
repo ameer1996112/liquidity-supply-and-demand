@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Play, RefreshCw, Loader2, Check, X } from 'lucide-react';
 import { API_BASE_URL } from '@/lib/api';
+import { ClientDate } from '@/components/ui/ClientDate';
 
 interface BacktestJob {
   id: number;
@@ -59,11 +60,16 @@ export default function BacktestsPage() {
       if (data.id) {
         setStreamingId(data.id);
         setStreamLog([]);
-        const es = new EventSource(`${API_BASE_URL}/api/backtests/${data.id}/stream`);
+        const es = new EventSource(
+          `${API_BASE_URL}/api/backtests/${data.id}/stream`,
+        );
         es.onmessage = (e) => {
           try {
             const ev = JSON.parse(e.data);
-            setStreamLog((prev) => [...prev.slice(-50), `${ev.percent}%: ${ev.message}`]);
+            setStreamLog((prev) => [
+              ...prev.slice(-50),
+              `${ev.percent}%: ${ev.message}`,
+            ]);
             if (ev.percent >= 100) es.close();
           } catch {}
         };
@@ -99,7 +105,11 @@ export default function BacktestsPage() {
             disabled={starting}
             className='flex items-center gap-1.5 px-4 py-1.5 rounded bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50 text-sm font-mono'
           >
-            {starting ? <Loader2 className='w-4 h-4 animate-spin' /> : <Play className='w-4 h-4' />}
+            {starting ? (
+              <Loader2 className='w-4 h-4 animate-spin' />
+            ) : (
+              <Play className='w-4 h-4' />
+            )}
             Start Backtest
           </button>
         </div>
@@ -107,7 +117,9 @@ export default function BacktestsPage() {
 
       {streamingId && streamLog.length > 0 && (
         <div className='tv-card p-4'>
-          <div className='text-[11px] text-slate-500 font-mono mb-2'>Stream #{streamingId}</div>
+          <div className='text-[11px] text-slate-500 font-mono mb-2'>
+            Stream #{streamingId}
+          </div>
           <div className='max-h-32 overflow-y-auto font-mono text-xs text-slate-300 space-y-0.5'>
             {streamLog.map((line, i) => (
               <div key={i}>{line}</div>
@@ -118,7 +130,9 @@ export default function BacktestsPage() {
 
       <div className='tv-card overflow-hidden'>
         <div className='px-4 py-3 border-b border-slate-800'>
-          <span className='font-mono text-xs text-slate-500 uppercase tracking-wider'>Jobs</span>
+          <span className='font-mono text-xs text-slate-500 uppercase tracking-wider'>
+            Jobs
+          </span>
         </div>
         {loading ? (
           <div className='p-8 flex justify-center'>
@@ -136,42 +150,60 @@ export default function BacktestsPage() {
                 className='px-4 py-3 flex items-center justify-between gap-4 hover:bg-slate-800/30'
               >
                 <div className='flex items-center gap-3'>
-                  <span className='font-mono text-sm text-slate-400'>#{job.id}</span>
+                  <span className='font-mono text-sm text-slate-400'>
+                    #{job.id}
+                  </span>
                   <span
                     className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono ${
                       job.status === 'completed'
                         ? 'bg-emerald-500/20 text-emerald-400'
                         : job.status === 'failed'
-                        ? 'bg-rose-500/20 text-rose-400'
-                        : job.status === 'running'
-                        ? 'bg-amber-500/20 text-amber-400'
-                        : 'bg-slate-600/30 text-slate-400'
+                          ? 'bg-rose-500/20 text-rose-400'
+                          : job.status === 'running'
+                            ? 'bg-amber-500/20 text-amber-400'
+                            : 'bg-slate-600/30 text-slate-400'
                     }`}
                   >
-                    {job.status === 'completed' && <Check className='w-3 h-3' />}
+                    {job.status === 'completed' && (
+                      <Check className='w-3 h-3' />
+                    )}
                     {job.status === 'failed' && <X className='w-3 h-3' />}
                     {job.status}
                   </span>
                   {job.status === 'running' && (
-                    <span className='text-xs text-slate-500'>{job.progress}%</span>
+                    <span className='text-xs text-slate-500'>
+                      {job.progress}%
+                    </span>
                   )}
                 </div>
                 <div className='text-xs text-slate-500'>
-                  {new Date(job.created_at).toLocaleString()}
+                  <ClientDate
+                    render={() => new Date(job.created_at).toLocaleString()}
+                  />
                 </div>
                 {job.status === 'completed' && job.metrics_json && (
                   <div className='flex gap-4 text-[11px] font-mono'>
                     <span className='text-slate-400'>
-                      WR: {(job.metrics_json as Record<string, number | string>).win_rate ?? '—'}%
+                      WR:{' '}
+                      {(job.metrics_json as Record<string, number | string>)
+                        .win_rate ?? '—'}
+                      %
                     </span>
                     <span className='text-slate-400'>
-                      Trades: {(job.metrics_json as Record<string, number | string>).total_trades ?? '—'}
+                      Trades:{' '}
+                      {(job.metrics_json as Record<string, number | string>)
+                        .total_trades ?? '—'}
                     </span>
                     <span className='text-slate-400'>
-                      MaxDD: {(job.metrics_json as Record<string, number | string>).max_drawdown_pct ?? '—'}%
+                      MaxDD:{' '}
+                      {(job.metrics_json as Record<string, number | string>)
+                        .max_drawdown_pct ?? '—'}
+                      %
                     </span>
                     <span className='text-slate-400'>
-                      Avg R: {(job.metrics_json as Record<string, number | string>).avg_r ?? '—'}
+                      Avg R:{' '}
+                      {(job.metrics_json as Record<string, number | string>)
+                        .avg_r ?? '—'}
                     </span>
                   </div>
                 )}

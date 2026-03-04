@@ -9,7 +9,11 @@ import { LiveLog } from '@/components/dashboard/LiveLog';
 import { RiskBar } from '@/components/risk/RiskBar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useTradingMode } from '@/providers/TradingModeProvider';
-import { useSignalStats, useTradingSignals, useCouncilSummaries } from '@/hooks/useTradingSignals';
+import {
+  useSignalStats,
+  useTradingSignals,
+  useCouncilSummaries,
+} from '@/hooks/useTradingSignals';
 import { useRiskStatus } from '@/hooks/useRiskStatus';
 import { useConnectionHealth } from '@/hooks/useConnectionHealth';
 import { useDashboardLog } from '@/hooks/useDashboardLog';
@@ -31,13 +35,22 @@ import {
   Crosshair,
   Clock,
 } from 'lucide-react';
-import { isSignalOpen, isSignalRejected } from '@/domain/metrics/tradingMetrics';
+import {
+  isSignalOpen,
+  isSignalRejected,
+} from '@/domain/metrics/tradingMetrics';
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function ModeBadge({ mode }: { mode: TradingMode }) {
   return (
-    <span className={mode === 'LIVE' ? 'mode-badge mode-badge-live' : 'mode-badge mode-badge-paper'}>
+    <span
+      className={
+        mode === 'LIVE'
+          ? 'mode-badge mode-badge-live'
+          : 'mode-badge mode-badge-paper'
+      }
+    >
       <span className='status-dot status-dot-active pulse-active' />
       {mode}
     </span>
@@ -55,7 +68,12 @@ interface WaitingBannerProps {
   mounted: boolean;
 }
 
-const STATUS_CHECKS = ['Connected', 'Config loaded', 'Risk guard', 'Market open'] as const;
+const STATUS_CHECKS = [
+  'Connected',
+  'Config loaded',
+  'Risk guard',
+  'Market open',
+] as const;
 
 function WaitingBanner({
   strategyName,
@@ -79,10 +97,12 @@ function WaitingBanner({
       <h2 className='text-sm font-semibold text-amber'>Bot is waiting for…</h2>
       <div className='mt-2 grid gap-3 md:grid-cols-2'>
         <dl className='space-y-1 text-xs text-text-secondary'>
-          {([
-            ['Strategy', strategyName],
-            ['Timeframe', timeframe],
-          ] as [string, string][]).map(([label, val]) => (
+          {(
+            [
+              ['Strategy', strategyName],
+              ['Timeframe', timeframe],
+            ] as [string, string][]
+          ).map(([label, val]) => (
             <div key={label} className='flex gap-1.5'>
               <dt className='text-text-dim'>{label}:</dt>
               <dd>{val}</dd>
@@ -92,7 +112,7 @@ function WaitingBanner({
             <dt className='text-text-dim'>Last signal:</dt>
             <dd className='font-mono tabular-nums'>
               {mounted ? (
-                latestSignalTime ?? EMPTY_VALUE
+                (latestSignalTime ?? EMPTY_VALUE)
               ) : (
                 <Skeleton className='h-3 w-28 bg-[var(--to-surface-raised)]' />
               )}
@@ -125,19 +145,21 @@ void STATUS_CHECKS;
 // ── Dashboard page ────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const [selectedSignal, setSelectedSignal] = useState<TradingSignal | null>(null);
+  const [selectedSignal, setSelectedSignal] = useState<TradingSignal | null>(
+    null,
+  );
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const { mode: activeMode } = useTradingMode();
   const { data: stats, isLoading: statsLoading } = useSignalStats();
   const { data: risk, isLoading: riskLoading } = useRiskStatus();
-  const {
-    data: signals = [],
-    isLoading: signalsLoading,
-  } = useTradingSignals(activeMode);
+  const { data: signals = [], isLoading: signalsLoading } =
+    useTradingSignals(activeMode);
   const { status, isConnected } = useConnectionHealth();
 
   const signalIds = useMemo(() => signals.map((s) => s.id), [signals]);
@@ -167,7 +189,9 @@ export default function DashboardPage() {
   const lastUpdated = useMemo(
     () =>
       latestSignal
-        ? new Date(latestSignal.updated_at ?? latestSignal.created_at).toLocaleTimeString()
+        ? new Date(
+            latestSignal.updated_at ?? latestSignal.created_at,
+          ).toLocaleTimeString()
         : new Date().toLocaleTimeString(),
     // Recompute only when the latest signal changes, not on every render tick
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -175,7 +199,8 @@ export default function DashboardPage() {
   );
 
   const noData = signals.length === 0 && activePositionsCount === 0;
-  const strategyName = latestSignal?.entry_model ?? latestSignal?.zone_type ?? 'Liquidity S&D';
+  const strategyName =
+    latestSignal?.entry_model ?? latestSignal?.zone_type ?? 'Liquidity S&D';
   const timeframe = '5M';
 
   const todayPnl =
@@ -191,8 +216,8 @@ export default function DashboardPage() {
   // Deltas: approximate today vs prior 24h window
   const baseDailyPnl =
     activeMode === 'PAPER'
-      ? stats?.paper_daily_pnl ?? stats?.daily_pnl
-      : stats?.live_daily_pnl ?? stats?.daily_pnl;
+      ? (stats?.paper_daily_pnl ?? stats?.daily_pnl)
+      : (stats?.live_daily_pnl ?? stats?.daily_pnl);
 
   const priorWindowPnl =
     activeMode === 'PAPER'
@@ -204,7 +229,9 @@ export default function DashboardPage() {
         : null;
 
   const todayPnlDelta =
-    baseDailyPnl != null && priorWindowPnl != null ? baseDailyPnl - priorWindowPnl : null;
+    baseDailyPnl != null && priorWindowPnl != null
+      ? baseDailyPnl - priorWindowPnl
+      : null;
 
   // ── Live log ────────────────────────────────────────────────────────────────
 
@@ -246,7 +273,7 @@ export default function DashboardPage() {
       </header>
 
       {/* ── Page-level health banner ────────────────────────────── */}
-      <PageStatusBanner status={status} surfaceLabel="Dashboard" />
+      <PageStatusBanner status={status} surfaceLabel='Dashboard' />
 
       {/* ── Top row · Stat bento ───────────────────────────────── */}
       <section className='shrink-0'>
@@ -259,7 +286,7 @@ export default function DashboardPage() {
             Last updated&nbsp;{mounted ? lastUpdated : '—'}
           </p>
         </div>
-        {(!mounted || statsLoading || riskLoading || signalsLoading) ? (
+        {!mounted || statsLoading || riskLoading || signalsLoading ? (
           <div className='grid grid-cols-2 gap-1.5 md:grid-cols-3 xl:grid-cols-6'>
             {Array.from({ length: 6 }).map((_, idx) => (
               <Skeleton
@@ -314,7 +341,10 @@ export default function DashboardPage() {
             />
             <StatCard
               label='Active Positions'
-              value={formatNumber(activePositionsCount, { decimals: 0, empty: '0' })}
+              value={formatNumber(activePositionsCount, {
+                decimals: 0,
+                empty: '0',
+              })}
               subValue={
                 risk?.max_positions != null
                   ? `Max ${formatNumber(risk.max_positions, { decimals: 0 })}`
@@ -342,9 +372,13 @@ export default function DashboardPage() {
           strategyName={strategyName}
           timeframe={timeframe}
           latestSignalTime={
-            latestSignal ? new Date(latestSignal.created_at).toLocaleString() : null
+            latestSignal
+              ? new Date(latestSignal.created_at).toLocaleString()
+              : null
           }
-          lastRejectReason={lastRejectSignal?.filter_reason ?? lastRejectSignal?.notes ?? ''}
+          lastRejectReason={
+            lastRejectSignal?.filter_reason ?? lastRejectSignal?.notes ?? ''
+          }
           isConnected={isConnected}
           hasStats={!!stats}
           hasRisk={!!risk}
@@ -370,7 +404,7 @@ export default function DashboardPage() {
               className='kpi-meta font-mono text-[10px] tabular-nums text-[var(--to-text-dim)]'
               style={{ fontFamily: 'var(--font-mono)' }}
             >
-              Last updated&nbsp;{lastUpdated}
+              Last updated&nbsp;{mounted ? lastUpdated : '—'}
             </span>
           </div>
 
