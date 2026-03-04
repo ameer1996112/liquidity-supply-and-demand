@@ -184,6 +184,12 @@ class Settings(BaseSettings):
         description="Heavy model for escalation (second-tier) when rules trigger.",
         validation_alias="AI_DEEP_MODEL",
     )
+    # Sprint 3.3: Debate guardrail (Bull vs Bear) — shadow mode only
+    ai_debate_enabled: bool = Field(
+        default=True,
+        description="Run Bull/Bear/Risk/Chair debate and persist to ai_runs. Never blocks.",
+        validation_alias="AI_DEBATE_ENABLED",
+    )
 
     # Pine-matching deterministic pre-filters (mirror SND_Strategy.pine Balanced profile)
     pine_min_score: float = Field(default=60.0, ge=0.0, le=100.0, description="Min zone score (Pine ai_quality_threshold). 60=Balanced, 70=Conservative.")

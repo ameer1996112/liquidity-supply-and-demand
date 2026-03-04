@@ -41,8 +41,11 @@ import {
   CheckCircle2,
   Bug,
   AlertTriangle,
+  MessageSquare,
 } from 'lucide-react';
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { fetchAiRunBySignal } from '@/lib/api';
 
 interface SignalInspectorProps {
   signal: TradingSignal | null;
@@ -305,6 +308,19 @@ export function SignalInspector({
   onOpenChange,
 }: SignalInspectorProps) {
   const [showDebug, setShowDebug] = useState(false);
+  const signalId = signal?.id ? parseInt(String(signal.id), 10) : null;
+  const { data: aiRun, isLoading: aiRunLoading } = useQuery({
+    queryKey: ['ai-run', signalId],
+    queryFn: async () => {
+      try {
+        return await fetchAiRunBySignal(signalId!);
+      } catch (e) {
+        if (e instanceof Error && e.message.includes('404')) return null;
+        throw e;
+      }
+    },
+    enabled: !!signalId && open && !Number.isNaN(signalId),
+  });
 
   if (!signal) return null;
 
@@ -445,6 +461,13 @@ export function SignalInspector({
                 >
                   <Brain className='w-3 h-3 mr-1.5' />
                   AI Brain
+                </TabsTrigger>
+                <TabsTrigger
+                  value='ai-memo'
+                  className='flex-1 data-[state=active]:bg-muted text-xs font-mono uppercase'
+                >
+                  <MessageSquare className='w-3 h-3 mr-1.5' />
+                  AI Memo
                 </TabsTrigger>
                 <TabsTrigger
                   value='raw'
@@ -1046,6 +1069,115 @@ export function SignalInspector({
                     <p className='text-sm text-muted-foreground'>
                       No AI reasoning data available
                     </p>
+                  </div>
+                )}
+              </TabsContent>
+
+              {/* AI Memo Tab — Sprint 3.3: Debate transcript + final vote */}
+              <TabsContent value='ai-memo' className='space-y-4 mt-0'>
+                {aiRunLoading ? (
+                  <div className='p-4 text-sm text-muted-foreground'>
+                    Loading AI Memo…
+                  </div>
+                ) : aiRun ? (
+                  <>
+                    <div className='rounded-lg bg-card border border-border overflow-hidden'>
+                      <div className='px-4 py-2.5 border-b border-border flex items-center justify-between'>
+                        <span className='text-[11px] text-muted-foreground uppercase tracking-wider'>
+                          Final Vote
+                        </span>
+                        <div className='flex items-center gap-2'>
+                          <Badge
+                            className={cn(
+                              'text-xs font-bold',
+                              aiRun.recommendation === 'allow'
+                                ? 'bg-emerald-500/20 text-emerald-400'
+                                : 'bg-rose-500/20 text-rose-400'
+                            )}
+                          >
+                            {aiRun.recommendation.toUpperCase()}
+                          </Badge>
+                          <span className='font-mono text-sm text-foreground'>
+                            {aiRun.confidence}%
+                          </span>
+                        </div>
+                      </div>
+                      <div className='p-4 space-y-3'>
+                        {aiRun.memo && (
+                          <p className='text-sm text-foreground/90 leading-relaxed'>
+                            {aiRun.memo}
+                          </p>
+                        )}
+                        {aiRun.reason_codes?.length > 0 && (
+                          <div className='flex flex-wrap gap-1'>
+                            {aiRun.reason_codes.map((code, i) => (
+                              <Badge
+                                key={i}
+                                variant='outline'
+                                className='text-[10px] font-mono'
+                              >
+                                {code}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                        {Object.keys(aiRun.votes || {}).length > 0 && (
+                          <div className='text-xs'>
+                            <span className='text-muted-foreground uppercase tracking-wider'>
+                              Votes
+                            </span>
+                            <div className='mt-1.5 flex flex-wrap gap-2'>
+                              {Object.entries(aiRun.votes).map(([agent, vote]) => (
+                                <span
+                                  key={agent}
+                                  className={cn(
+                                    'font-mono px-2 py-0.5 rounded',
+                                    vote === 'allow'
+                                      ? 'bg-emerald-500/20 text-emerald-400'
+                                      : 'bg-rose-500/20 text-rose-400'
+                                  )}
+                                >
+                                  {agent}: {vote}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className='rounded-lg bg-card border border-border overflow-hidden'>
+                      <div className='px-4 py-2.5 border-b border-border'>
+                        <span className='text-[11px] text-muted-foreground uppercase tracking-wider'>
+                          Debate Transcript
+                        </span>
+                      </div>
+                      <div className='p-4 space-y-3'>
+                        {(aiRun.transcript || []).map((msg, i) => (
+                          <div
+                            key={i}
+                            className={cn(
+                              'rounded border px-3 py-2 text-sm',
+                              msg.role === 'bull' && 'border-emerald-500/30 bg-emerald-500/5',
+                              msg.role === 'bear' && 'border-rose-500/30 bg-rose-500/5',
+                              msg.role === 'risk' && 'border-amber-500/30 bg-amber-500/5',
+                              msg.role === 'chair' && 'border-blue-500/30 bg-blue-500/5'
+                            )}
+                          >
+                            <div className='text-[10px] font-mono uppercase text-muted-foreground mb-1'>
+                              {msg.role}
+                            </div>
+                            <p className='text-foreground/90 leading-relaxed'>
+                              {msg.content}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className='p-4 text-sm text-muted-foreground'>
+                    No AI Memo for this signal. Debate runs in shadow mode for
+                    signals processed after Sprint 3.3.
                   </div>
                 )}
               </TabsContent>

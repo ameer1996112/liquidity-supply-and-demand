@@ -52,6 +52,7 @@ from src.api_portfolio_control import router as portfolio_control_router
 from src.api_prop_firm import router as prop_firm_router  # NEW: Prop firm metrics
 from src.api_traces import router as traces_router       # Sprint 2.1: latency traces
 from src.api_accounts import router as accounts_router   # Sprint 2.3: multi-account
+from src.api_ai_runs import router as ai_runs_router     # Sprint 3.3: debate ai_run
 app = FastAPI(title="Trading Webhook API", version="1.0.0")
 app.include_router(rules_router)
 app.include_router(risk_router)
@@ -67,6 +68,7 @@ app.include_router(portfolio_control_router)  # Portfolio Command Center V2.0
 app.include_router(prop_firm_router)  # Prop firm metrics
 app.include_router(traces_router)     # Sprint 2.1: pipeline latency traces
 app.include_router(accounts_router)  # Sprint 2.3: multi-account routing
+app.include_router(ai_runs_router)   # Sprint 3.3: debate ai_run
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_build_cors_origins(),

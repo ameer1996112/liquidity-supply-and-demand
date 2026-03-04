@@ -337,7 +337,14 @@ def save_result(
         data["ai_reasoning"] = json.dumps(merged_reason)
 
     try:
-        supabase.table("trading_signals").insert(data).execute()
+        resp = supabase.table("trading_signals").insert(data).execute()
+        if resp.data and len(resp.data) > 0:
+            sig_id = int(resp.data[0]["id"])
+            payload["_signal_id"] = sig_id
+            corr = payload.get("_correlation_id")
+            if corr:
+                from src.services.ai_run_service import link_ai_run_to_signal
+                link_ai_run_to_signal(supabase, corr, sig_id)
         logger.info("Saved: %s | %s", status, note)
     except Exception as e:
         logger.error("DB write failed: %s", e)
@@ -966,6 +973,25 @@ def process_trade(payload: Dict[str, Any]):
     from src.agents.supervisor import Supervisor as _Supervisor
     _supervisor = _Supervisor(supabase_client=supabase, redis_client=get_redis())
     ai_result = _supervisor.evaluate(payload)
+
+    # Sprint 3.3: Debate guardrail (Bull vs Bear) — SHADOW MODE only, never blocks
+    if getattr(s, "ai_debate_enabled", True):
+        try:
+            from src.ai.debate import run_debate
+            from src.services.ai_run_service import persist_debate
+            debate_result = run_debate(payload, client=None, supabase=supabase)
+            corr = payload.get("_correlation_id")
+            if corr:
+                persist_debate(supabase, corr, debate_result)
+            # Shadow: debate recommendation never blocks execution
+            logger.info(
+                "Debate (shadow): recommendation=%s confidence=%d memo=%s",
+                debate_result.get("recommendation"),
+                debate_result.get("confidence", 0),
+                (debate_result.get("memo") or "")[:80],
+            )
+        except Exception as deb_err:
+            logger.warning("Debate pipeline failed (non-blocking): %s", deb_err)
 
     # Enrich AI result with zone/sweep/metrics from original payload
     _ZONE_FIELD_MAP = {

@@ -340,6 +340,27 @@ export async function fetchAiConfig(): Promise<AiConfigResponse> {
 }
 
 /**
+ * Sprint 3.3: AI Run (Debate transcript + votes) for a signal
+ */
+export interface AiRunResponse {
+  id: number;
+  correlation_id?: string;
+  signal_id?: number;
+  run_type: string;
+  recommendation: 'allow' | 'block';
+  confidence: number;
+  reason_codes: string[];
+  memo: string;
+  votes: Record<string, string>;
+  transcript: Array<{ role: string; content: string }>;
+  created_at?: string;
+}
+
+export async function fetchAiRunBySignal(signalId: number): Promise<AiRunResponse> {
+  return apiFetch<AiRunResponse>(`/api/ai-runs?signal_id=${signalId}`);
+}
+
+/**
  * URL Helper Functions
  */
 export function getApiUrl(): string {

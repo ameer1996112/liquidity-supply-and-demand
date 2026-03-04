@@ -186,6 +186,14 @@ def process_trade(
         filter_reasons=filter_reasons if not should_forward else None,
         broker_profile_id=broker_profile_id,
     )
+    data["_signal_id"] = alert_id
+    corr = data.get("_correlation_id")
+    if corr and supabase_module.supabase:
+        try:
+            from src.services.ai_run_service import link_ai_run_to_signal
+            link_ai_run_to_signal(supabase_module.supabase, corr, alert_id)
+        except Exception:
+            pass
     log_event(alert_id, "alert_saved", "logic", {"symbol": symbol, "mode": mode, "broker_profile_id": broker_profile_id})
 
     if not should_forward:
