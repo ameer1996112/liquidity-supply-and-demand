@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getApiUrl } from '@/lib/api';
+import { useToast } from '@/components/ui/toast';
 
 export interface ActivePosition {
   id: number;
@@ -73,6 +74,7 @@ export function useAccountStatus() {
 
 export function useClosePosition() {
   const queryClient = useQueryClient();
+  const { addToast } = useToast();
   return useMutation({
     mutationFn: async ({
       signalId,
@@ -91,9 +93,26 @@ export function useClosePosition() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: positionKeys.active });
       queryClient.invalidateQueries({ queryKey: positionKeys.account });
+      const correlationId =
+        (data as { correlation_id?: string } | undefined)?.correlation_id ?? undefined;
+      addToast({
+        title: 'Position close requested',
+        message: `Manual close requested for signal #${variables.signalId}.`,
+        severity: 'success',
+        duration: 6000,
+        ...(correlationId ? { correlationId } : {}),
+      });
+    },
+    onError: (error: Error, variables) => {
+      addToast({
+        title: 'Failed to close position',
+        message: `Signal #${variables.signalId}: ${error.message}`,
+        severity: 'critical',
+        duration: 8000,
+      });
     },
   });
 }
@@ -128,6 +147,7 @@ export function useModifySLTP() {
 
 export function usePartialClose() {
   const queryClient = useQueryClient();
+  const { addToast } = useToast();
   return useMutation({
     mutationFn: async ({
       signalId,
@@ -146,9 +166,27 @@ export function usePartialClose() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: positionKeys.active });
       queryClient.invalidateQueries({ queryKey: positionKeys.account });
+      const correlationId =
+        (data as { correlation_id?: string } | undefined)?.correlation_id ?? undefined;
+      addToast({
+        title: 'Partial close executed',
+        message: `Closed ${variables.closePercent}% of signal #${variables.signalId}.`,
+        severity: 'success',
+        duration: 6000,
+        ...(correlationId ? { correlationId } : {}),
+      });
+    },
+    onError: (error: Error, variables) => {
+      addToast({
+        title: 'Partial close failed',
+        message: `Signal #${variables.signalId}: ${error.message}`,
+        severity: 'critical',
+        duration: 8000,
+      });
     },
   });
 }
+

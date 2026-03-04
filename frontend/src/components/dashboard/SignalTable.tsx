@@ -4,6 +4,12 @@ import { useState, useMemo, useCallback } from 'react';
 import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { TradingSignal, SignalStatus } from '@/types/trading';
+import {
+  DataTable,
+  type DataTableColumn,
+} from '@/components/shared/DataTable';
+import { TableEmptyState } from '@/components/shared/TableStates';
+import { Mono, PnLText, Number as MonoNumber } from '@/components/ui/typography';
 
 type SortField = 'created_at' | 'symbol' | 'side' | 'entry' | 'pnl' | 'status';
 type SortDir = 'asc' | 'desc';
@@ -15,14 +21,45 @@ interface SignalTableProps {
   className?: string;
 }
 
-const STATUS_STYLES: Record<string, { label: string; bg: string; text: string }> = {
-  active: { label: 'OPEN', bg: 'bg-[var(--to-long)]/12', text: 'text-[var(--to-long)]' },
-  executed: { label: 'OPEN', bg: 'bg-[var(--to-long)]/12', text: 'text-[var(--to-long)]' },
-  pending: { label: 'PENDING', bg: 'bg-[var(--to-warning)]/12', text: 'text-[var(--to-warning)]' },
-  closed: { label: 'CLOSED', bg: 'bg-[var(--to-text-dim)]/12', text: 'text-[var(--to-text-dim)]' },
-  filtered: { label: 'FILTERED', bg: 'bg-[var(--to-short)]/8', text: 'text-[var(--to-short)]/70' },
-  ai_rejected: { label: 'REJECTED', bg: 'bg-[var(--to-short)]/12', text: 'text-[var(--to-short)]' },
-  failed: { label: 'FAILED', bg: 'bg-[var(--to-short)]/12', text: 'text-[var(--to-short)]' },
+const STATUS_STYLES: Record<
+  string,
+  { label: string; bg: string; text: string }
+> = {
+  active: {
+    label: 'OPEN',
+    bg: 'bg-[var(--to-long)]/12',
+    text: 'text-[var(--to-long)]',
+  },
+  executed: {
+    label: 'OPEN',
+    bg: 'bg-[var(--to-long)]/12',
+    text: 'text-[var(--to-long)]',
+  },
+  pending: {
+    label: 'PENDING',
+    bg: 'bg-[var(--to-warning)]/12',
+    text: 'text-[var(--to-warning)]',
+  },
+  closed: {
+    label: 'CLOSED',
+    bg: 'bg-[var(--to-text-dim)]/12',
+    text: 'text-[var(--to-text-dim)]',
+  },
+  filtered: {
+    label: 'FILTERED',
+    bg: 'bg-[var(--to-short)]/8',
+    text: 'text-[var(--to-short)]/70',
+  },
+  ai_rejected: {
+    label: 'REJECTED',
+    bg: 'bg-[var(--to-short)]/12',
+    text: 'text-[var(--to-short)]',
+  },
+  failed: {
+    label: 'FAILED',
+    bg: 'bg-[var(--to-short)]/12',
+    text: 'text-[var(--to-short)]',
+  },
 };
 
 function StatusBadge({ status }: { status: SignalStatus }) {
@@ -63,22 +100,6 @@ function SideBadge({ side }: { side: string }) {
     </span>
   );
 }
-
-type Column = {
-  key: SortField;
-  label: string;
-  align?: 'left' | 'right';
-  width?: string;
-};
-
-const COLUMNS: Column[] = [
-  { key: 'created_at', label: 'Time', width: 'w-[80px]' },
-  { key: 'symbol', label: 'Pair', width: 'w-[80px]' },
-  { key: 'side', label: 'Side', width: 'w-[60px]' },
-  { key: 'entry', label: 'Entry', align: 'right', width: 'w-[80px]' },
-  { key: 'pnl', label: 'P&L', align: 'right', width: 'w-[80px]' },
-  { key: 'status', label: 'Status', width: 'w-[80px]' },
-];
 
 function getSortValue(signal: TradingSignal, field: SortField): string | number {
   switch (field) {
@@ -141,112 +162,210 @@ export function SignalTable({
   };
 
   const formatPrice = (v?: number) => {
-    if (v == null) return '—';
-    return v >= 100 ? v.toFixed(2) : v.toFixed(5);
+    if (v == null) return null;
+    return v >= 100 ? Number(v.toFixed(2)) : Number(v.toFixed(5));
   };
 
   const formatPnl = (v?: number | null) => {
-    if (v == null) return '—';
-    const sign = v >= 0 ? '+' : '';
-    return `${sign}$${v.toFixed(2)}`;
+    if (v == null) return null;
+    return v;
   };
 
   if (signals.length === 0) {
     return (
-      <div className={cn('flex flex-col items-center justify-center py-8', className)}>
-        <p
-          className='text-[11px] text-[var(--to-text-dim)]'
-          style={{ fontFamily: 'var(--font-mono)' }}
-        >
-          No signals yet
-        </p>
-      </div>
+      <TableEmptyState
+        title='No signals yet'
+        description='Waiting for the next trading signal from the bot.'
+      />
     );
   }
 
+  const columns: DataTableColumn<TradingSignal>[] = [
+    {
+      id: 'created_at',
+      align: 'left',
+      width: 'w-[80px]',
+      header: (
+        <button
+          type='button'
+          className='inline-flex items-center gap-1'
+          onClick={() => handleSort('created_at')}
+        >
+          <span>Time</span>
+          {sortField === 'created_at' ? (
+            sortDir === 'asc' ? (
+              <ArrowUp className='h-2.5 w-2.5' />
+            ) : (
+              <ArrowDown className='h-2.5 w-2.5' />
+            )
+          ) : (
+            <ArrowUpDown className='h-2.5 w-2.5 opacity-30' />
+          )}
+        </button>
+      ),
+      render: (signal) => (
+        <Mono
+          size='sm'
+          className='text-text-secondary'
+        >
+          {formatTime(signal.created_at)}
+        </Mono>
+      ),
+    },
+    {
+      id: 'symbol',
+      align: 'left',
+      width: 'w-[80px]',
+      header: (
+        <button
+          type='button'
+          className='inline-flex items-center gap-1'
+          onClick={() => handleSort('symbol')}
+        >
+          <span>Pair</span>
+          {sortField === 'symbol' ? (
+            sortDir === 'asc' ? (
+              <ArrowUp className='h-2.5 w-2.5' />
+            ) : (
+              <ArrowDown className='h-2.5 w-2.5' />
+            )
+          ) : (
+            <ArrowUpDown className='h-2.5 w-2.5 opacity-30' />
+          )}
+        </button>
+      ),
+      render: (signal) => (
+        <Mono
+          size='lg'
+          bold
+          className='text-text-primary'
+        >
+          {signal.symbol}
+        </Mono>
+      ),
+    },
+    {
+      id: 'side',
+      align: 'left',
+      width: 'w-[60px]',
+      header: (
+        <button
+          type='button'
+          className='inline-flex items-center gap-1'
+          onClick={() => handleSort('side')}
+        >
+          <span>Side</span>
+          {sortField === 'side' ? (
+            sortDir === 'asc' ? (
+              <ArrowUp className='h-2.5 w-2.5' />
+            ) : (
+              <ArrowDown className='h-2.5 w-2.5' />
+            )
+          ) : (
+            <ArrowUpDown className='h-2.5 w-2.5 opacity-30' />
+          )}
+        </button>
+      ),
+      render: (signal) => <SideBadge side={signal.side} />,
+    },
+    {
+      id: 'entry',
+      align: 'right',
+      isNumeric: true,
+      width: 'w-[80px]',
+      header: (
+        <button
+          type='button'
+          className='inline-flex items-center justify-end gap-1 w-full'
+          onClick={() => handleSort('entry')}
+        >
+          <span>Entry</span>
+          {sortField === 'entry' ? (
+            sortDir === 'asc' ? (
+              <ArrowUp className='h-2.5 w-2.5' />
+            ) : (
+              <ArrowDown className='h-2.5 w-2.5' />
+            )
+          ) : (
+            <ArrowUpDown className='h-2.5 w-2.5 opacity-30' />
+          )}
+        </button>
+      ),
+      render: (signal) => (
+        <MonoNumber
+          value={formatPrice(signal.entry ?? signal.price)}
+          decimals={signal.symbol.includes('JPY') ? 3 : 5}
+          size='sm'
+          className='text-text-secondary'
+        />
+      ),
+    },
+    {
+      id: 'pnl',
+      align: 'right',
+      isNumeric: true,
+      width: 'w-[80px]',
+      header: (
+        <button
+          type='button'
+          className='inline-flex items-center justify-end gap-1 w-full'
+          onClick={() => handleSort('pnl')}
+        >
+          <span>P&amp;L</span>
+          {sortField === 'pnl' ? (
+            sortDir === 'asc' ? (
+              <ArrowUp className='h-2.5 w-2.5' />
+            ) : (
+              <ArrowDown className='h-2.5 w-2.5' />
+            )
+          ) : (
+            <ArrowUpDown className='h-2.5 w-2.5 opacity-30' />
+          )}
+        </button>
+      ),
+      render: (signal) => (
+        <PnLText
+          value={formatPnl(signal.pnl ?? signal.pnl_usd ?? null)}
+          variant='currency'
+          size='sm'
+        />
+      ),
+    },
+    {
+      id: 'status',
+      align: 'left',
+      width: 'w-[80px]',
+      header: (
+        <button
+          type='button'
+          className='inline-flex items-center gap-1'
+          onClick={() => handleSort('status')}
+        >
+          <span>Status</span>
+          {sortField === 'status' ? (
+            sortDir === 'asc' ? (
+              <ArrowUp className='h-2.5 w-2.5' />
+            ) : (
+              <ArrowDown className='h-2.5 w-2.5' />
+            )
+          ) : (
+            <ArrowUpDown className='h-2.5 w-2.5 opacity-30' />
+          )}
+        </button>
+      ),
+      render: (signal) => <StatusBadge status={signal.status} />,
+    },
+  ];
+
   return (
-    <div className={cn('overflow-auto scrollbar-thin', className)}>
-      <table className='w-full table-dense'>
-        <thead>
-          <tr className='border-b border-[var(--to-border)]'>
-            {COLUMNS.map((col) => (
-              <th
-                key={col.key}
-                className={cn(
-                  'cursor-pointer select-none whitespace-nowrap px-2 py-1.5 text-[9px] font-semibold uppercase tracking-wider text-[var(--to-text-dim)]',
-                  col.align === 'right' ? 'text-right' : 'text-left',
-                  col.width,
-                )}
-                style={{ fontFamily: 'var(--font-mono)' }}
-                onClick={() => handleSort(col.key)}
-              >
-                <span className='inline-flex items-center gap-1'>
-                  {col.label}
-                  {sortField === col.key ? (
-                    sortDir === 'asc' ? (
-                      <ArrowUp className='h-2.5 w-2.5' />
-                    ) : (
-                      <ArrowDown className='h-2.5 w-2.5' />
-                    )
-                  ) : (
-                    <ArrowUpDown className='h-2.5 w-2.5 opacity-30' />
-                  )}
-                </span>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((signal) => {
-            const pnlVal = signal.pnl ?? signal.pnl_usd ?? null;
-            return (
-              <tr
-                key={signal.id}
-                className='data-row cursor-pointer border-b border-[var(--to-border-subtle)]'
-                onClick={() => onSelectSignal?.(signal)}
-              >
-                <td
-                  className='whitespace-nowrap px-2 py-1.5 text-[11px] tabular-nums text-[var(--to-text-secondary)]'
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                >
-                  {formatTime(signal.created_at)}
-                </td>
-                <td
-                  className='whitespace-nowrap px-2 py-1.5 text-[11px] font-semibold text-[var(--to-text-primary)]'
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                >
-                  {signal.symbol}
-                </td>
-                <td className='px-2 py-1.5'>
-                  <SideBadge side={signal.side} />
-                </td>
-                <td
-                  className='whitespace-nowrap px-2 py-1.5 text-right text-[11px] tabular-nums text-[var(--to-text-secondary)]'
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                >
-                  {formatPrice(signal.entry ?? signal.price)}
-                </td>
-                <td
-                  className={cn(
-                    'whitespace-nowrap px-2 py-1.5 text-right text-[11px] font-semibold tabular-nums',
-                    pnlVal != null && pnlVal > 0
-                      ? 'text-[var(--to-long)]'
-                      : pnlVal != null && pnlVal < 0
-                        ? 'text-[var(--to-short)]'
-                        : 'text-[var(--to-text-dim)]',
-                  )}
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                >
-                  {formatPnl(pnlVal)}
-                </td>
-                <td className='px-2 py-1.5'>
-                  <StatusBadge status={signal.status} />
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+    <DataTable
+      columns={columns}
+      data={sorted}
+      compact
+      stickyHeader={false}
+      className={className}
+      getRowId={(signal) => signal.id}
+      onRowClick={(signal) => onSelectSignal?.(signal)}
+    />
   );
 }

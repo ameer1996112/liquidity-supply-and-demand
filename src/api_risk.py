@@ -218,7 +218,16 @@ def toggle_kill_switch(body: KillSwitchRequest):
     try:
         from src.services.trade_events import log_event
 
-        log_event(None, f"kill_switch_{action}", "api", {"reason": body.reason})
+        log_event(
+            None,
+            f"kill_switch_{action}",
+            "api",
+            {
+                "reason": body.reason,
+                "who": "ui",
+                "what": f"kill_switch_{action}",
+            },
+        )
     except Exception:
         pass
 
@@ -228,6 +237,33 @@ def toggle_kill_switch(body: KillSwitchRequest):
         "action": action,
         "reason": body.reason,
     }
+
+
+@router.get("/kill-switch/log")
+def get_kill_switch_log(limit: int = 50):
+    """
+    Return recent kill switch toggles for audit UI.
+
+    Each row includes:
+    - action: engage | reset
+    - reason: free-form text from operator
+    - toggled_by: who initiated the toggle (ui/api/etc)
+    - created_at: timestamp
+    """
+    sb = _get_supabase()
+    try:
+        resp = (
+            sb.table("kill_switch_log")
+            .select("*")
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        rows = resp.data or []
+        return {"events": rows, "count": len(rows)}
+    except Exception as exc:
+        logger.error("Failed to fetch kill_switch_log: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to fetch kill switch log")
 
 
 @router.post("/circuit-breaker/reset")

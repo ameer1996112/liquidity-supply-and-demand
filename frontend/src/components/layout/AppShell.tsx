@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
+import { CommandPalette } from './CommandPalette';
 import { useSidebar } from '@/providers/SidebarProvider';
 import { cn } from '@/lib/utils';
 import { useConnectionHealth } from '@/hooks/useConnectionHealth';
@@ -31,49 +32,58 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className='relative min-h-screen bg-background'>
-      <Sidebar />
+    <>
+      <CommandPalette />
+      <div className='relative min-h-screen bg-background'>
+        <Sidebar />
 
-      <div
-        className={cn(
-          'relative flex min-h-screen flex-col',
-          'transition-[margin-left] duration-200 ease-out',
-          isCollapsed ? SIDEBAR_WIDTH.collapsed : SIDEBAR_WIDTH.expanded,
-        )}
-      >
-        <TopBar />
+        <div
+          className={cn(
+            'relative flex min-h-screen flex-col',
+            'transition-[margin-left] duration-200 ease-out',
+            isCollapsed ? SIDEBAR_WIDTH.collapsed : SIDEBAR_WIDTH.expanded,
+          )}
+        >
+          <TopBar />
 
-        {isOffline && (
-          <div className='border-b border-[var(--to-border)] bg-[var(--to-surface)] px-3 py-1.5 text-[11px] text-[var(--to-text-secondary)]'>
-            <div className={cn('mx-auto flex w-full items-center justify-between gap-2', CONTENT_MAX_W)}>
-              <div className='flex items-center gap-2'>
-                <WifiOff className='h-3 w-3 text-[var(--to-short)]' />
-                <span className='font-semibold'>Offline / API unreachable</span>
-                <span className='hidden text-[10px] text-[var(--to-text-dim)] sm:inline'>
-                  Using last known data. Automatic retries will continue in the background.
+          {isOffline && (
+            <div className='border-b border-[var(--to-border)] bg-[var(--to-surface)] px-3 py-1.5 text-[11px] text-[var(--to-text-secondary)]'>
+              <div
+                className={cn(
+                  'mx-auto flex w-full items-center justify-between gap-2',
+                  CONTENT_MAX_W,
+                )}
+              >
+                <div className='flex items-center gap-2'>
+                  <WifiOff className='h-3 w-3 text-[var(--to-short)]' />
+                  <span className='font-semibold'>Offline / API unreachable</span>
+                  <span className='hidden text-[10px] text-[var(--to-text-dim)] sm:inline'>
+                    Using last known data. Automatic retries will continue in the
+                    background.
+                  </span>
+                </div>
+                <span
+                  className='hidden font-mono text-[10px] tabular-nums text-[var(--to-text-dim)] sm:inline'
+                  suppressHydrationWarning
+                >
+                  {new Date().toLocaleTimeString('en-GB', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false,
+                  })}
                 </span>
               </div>
-              <span
-                className='hidden font-mono text-[10px] tabular-nums text-[var(--to-text-dim)] sm:inline'
-                suppressHydrationWarning
-              >
-                {new Date().toLocaleTimeString('en-GB', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  second: '2-digit',
-                  hour12: false,
-                })}
-              </span>
             </div>
-          </div>
-        )}
+          )}
 
-        <main className='flex-1 overflow-hidden p-3 sm:p-4'>
-          <div className={cn('mx-auto h-full w-full', CONTENT_MAX_W)}>
-            {children}
-          </div>
-        </main>
+          <main className='flex-1 overflow-hidden p-3 sm:p-4'>
+            <div className={cn('mx-auto h-full w-full', CONTENT_MAX_W)}>
+              {children}
+            </div>
+          </main>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

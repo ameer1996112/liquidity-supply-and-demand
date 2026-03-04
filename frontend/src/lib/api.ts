@@ -403,6 +403,21 @@ export async function fetchAiModeToggles(limit?: number): Promise<{ toggles: AiM
   return apiFetch<{ toggles: AiModeToggle[] }>(`/config/ai/mode-toggles${q}`);
 }
 
+export interface KillSwitchLogEntry {
+  id: number;
+  action: 'engage' | 'reset';
+  reason: string | null;
+  toggled_by: string | null;
+  created_at: string;
+}
+
+export async function fetchKillSwitchLog(
+  limit?: number,
+): Promise<{ events: KillSwitchLogEntry[] }> {
+  const q = limit != null ? `?limit=${limit}` : '';
+  return apiFetch<{ events: KillSwitchLogEntry[] }>(`/risk/kill-switch/log${q}`);
+}
+
 /**
  * Sprint 3.3: AI Run (Debate transcript + votes) for a signal
  */

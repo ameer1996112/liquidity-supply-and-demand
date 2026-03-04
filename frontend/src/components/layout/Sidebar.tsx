@@ -28,20 +28,64 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
+type NavItem = {
+  label: string;
+  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+  path: string;
+};
+
+type NavGroup = {
+  id: string;
+  label: string;
+  items: NavItem[];
+};
+
 // Terminal removed — Galil terminal view is deprecated
-const NAV_ITEMS = [
-  { label: 'Dashboard', icon: LayoutDashboard, path: '/' },
-  { label: 'Positions', icon: Crosshair, path: '/positions' },
-  { label: 'Risk Monitor', icon: Gauge, path: '/risk' },
-  { label: 'Accounts', icon: Users, path: '/accounts' },
-  { label: 'Exec Quality', icon: Timer, path: '/execution-quality' },
-  { label: 'Analytics', icon: BarChart3, path: '/analytics' },
-  { label: 'Backtest', icon: LineChart, path: '/backtest' },
-  { label: 'Backtests', icon: FlaskConical, path: '/backtests' },
-  { label: 'Strategies', icon: SlidersHorizontal, path: '/strategies' },
-  { label: 'Rules', icon: ShieldCheck, path: '/rules' },
-  { label: 'Journal', icon: BookOpen, path: '/journal' },
-  { label: 'Settings', icon: Settings, path: '/settings' },
+const NAV_GROUPS: NavGroup[] = [
+  {
+    id: 'overview',
+    label: 'Overview',
+    items: [{ label: 'Dashboard', icon: LayoutDashboard, path: '/' }],
+  },
+  {
+    id: 'trading',
+    label: 'Trading',
+    items: [
+      { label: 'Positions', icon: Crosshair, path: '/positions' },
+      { label: 'Accounts', icon: Users, path: '/accounts' },
+      { label: 'Exec Quality', icon: Timer, path: '/execution-quality' },
+    ],
+  },
+  {
+    id: 'monitoring',
+    label: 'Monitoring',
+    items: [{ label: 'Risk Monitor', icon: Gauge, path: '/risk' }],
+  },
+  {
+    id: 'analytics',
+    label: 'Analytics',
+    items: [
+      { label: 'Analytics', icon: BarChart3, path: '/analytics' },
+      { label: 'Backtest', icon: LineChart, path: '/backtest' },
+      { label: 'Backtests', icon: FlaskConical, path: '/backtests' },
+    ],
+  },
+  {
+    id: 'strategy',
+    label: 'Strategy',
+    items: [
+      { label: 'Strategies', icon: SlidersHorizontal, path: '/strategies' },
+      { label: 'Rules', icon: ShieldCheck, path: '/rules' },
+    ],
+  },
+  {
+    id: 'ops',
+    label: 'Ops',
+    items: [
+      { label: 'Journal', icon: BookOpen, path: '/journal' },
+      { label: 'Settings', icon: Settings, path: '/settings' },
+    ],
+  },
 ] as const;
 
 export function Sidebar() {
@@ -96,62 +140,75 @@ export function Sidebar() {
         </div>
 
         {/* ── Navigation ───────────────────────────────────────────── */}
-        <nav className='flex-1 space-y-0.5 px-2 py-3'>
-          {NAV_ITEMS.map((item) => {
-            const isActive =
-              item.path === '/'
-                ? pathname === '/'
-                : pathname.startsWith(item.path);
+        <nav className='flex-1 space-y-3 px-2 py-3'>
+          {NAV_GROUPS.map((group) => (
+            <div key={group.id} className='space-y-1.5'>
+              {!isCollapsed && (
+                <div
+                  className='px-2.5 text-[10px] uppercase tracking-[0.18em] text-[var(--to-text-dim)]'
+                  style={{ fontFamily: 'var(--font-mono)' }}
+                >
+                  {group.label}
+                </div>
+              )}
+              <div className='space-y-0.5'>
+                {group.items.map((item) => {
+                  const isActive =
+                    item.path === '/'
+                      ? pathname === '/'
+                      : pathname.startsWith(item.path);
 
-            const linkContent = (
-              <Link
-                key={item.path}
-                href={item.path}
-                className={cn(
-                  'group relative flex items-center gap-2.5 rounded-lg px-2.5 py-2',
-                  'transition-colors duration-100',
-                  isActive
-                    ? 'bg-[var(--to-warning)]/10 text-[var(--to-warning)] border border-[var(--to-warning)]/20'
-                    : 'border border-transparent text-[var(--to-text-secondary)] hover:bg-[var(--to-surface-raised)] hover:text-[var(--to-text-primary)]',
-                  isCollapsed && 'justify-center px-0',
-                )}
-              >
-                {/* Active indicator */}
-                {isActive && (
-                  <span className='absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r bg-[var(--to-warning)]' />
-                )}
-                <item.icon
-                  className={cn(
-                    'h-4 w-4 shrink-0',
-                    isActive
-                      ? 'text-[var(--to-warning)]'
-                      : 'text-[var(--to-text-dim)] group-hover:text-[var(--to-text-secondary)]',
-                  )}
-                />
-                {!isCollapsed && (
-                  <span
-                    className='text-[12.5px] font-medium'
-                    style={{ fontFamily: 'var(--font-sans)' }}
-                  >
-                    {item.label}
-                  </span>
-                )}
-              </Link>
-            );
+                  const linkContent = (
+                    <Link
+                      key={item.path}
+                      href={item.path}
+                      className={cn(
+                        'group relative flex items-center gap-2.5 rounded-lg px-2.5 py-1.5',
+                        'transition-colors duration-100',
+                        isActive
+                          ? 'bg-[var(--to-warning)]/12 text-[var(--to-warning)] border border-[var(--to-warning)]/30'
+                          : 'border border-transparent text-[var(--to-text-secondary)] hover:bg-[var(--to-surface-raised)] hover:text-[var(--to-text-primary)]',
+                        isCollapsed && 'justify-center px-0',
+                      )}
+                    >
+                      {isActive && (
+                        <span className='absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r bg-[var(--to-warning)]' />
+                      )}
+                      <item.icon
+                        className={cn(
+                          'h-4 w-4 shrink-0',
+                          isActive
+                            ? 'text-[var(--to-warning)]'
+                            : 'text-[var(--to-text-dim)] group-hover:text-[var(--to-text-secondary)]',
+                        )}
+                      />
+                      {!isCollapsed && (
+                        <span
+                          className='text-[12px] font-medium'
+                          style={{ fontFamily: 'var(--font-sans)' }}
+                        >
+                          {item.label}
+                        </span>
+                      )}
+                    </Link>
+                  );
 
-            if (isCollapsed) {
-              return (
-                <Tooltip key={item.path}>
-                  <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
-                  <TooltipContent side='right' sideOffset={8}>
-                    {item.label}
-                  </TooltipContent>
-                </Tooltip>
-              );
-            }
+                  if (isCollapsed) {
+                    return (
+                      <Tooltip key={item.path}>
+                        <TooltipTrigger asChild>{linkContent}</TooltipTrigger>
+                        <TooltipContent side='right' sideOffset={8}>
+                          {item.label}
+                        </TooltipContent>
+                      </Tooltip>
+                    );
+                  }
 
-            return linkContent;
-          })}
+                  return linkContent;
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
 
         {/* ── Footer ───────────────────────────────────────────────── */}

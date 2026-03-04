@@ -6,8 +6,10 @@ import {
   fetchAiConfig,
   fetchGraduationStatus,
   fetchAiModeToggles,
+  fetchKillSwitchLog,
   setAiMode,
   GraduationReadiness,
+  KillSwitchLogEntry,
 } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import {
@@ -88,6 +90,8 @@ export function AiConfigPanel() {
   const [showEnforceConfirm, setShowEnforceConfirm] = useState(false);
   const [toggles, setToggles] = useState<Array<{ from_mode: string; to_mode: string; reason: string | null; created_at: string }>>([]);
   const [showToggles, setShowToggles] = useState(false);
+  const [killEvents, setKillEvents] = useState<KillSwitchLogEntry[]>([]);
+  const [showKillEvents, setShowKillEvents] = useState(false);
 
   const load = () => {
     setState('loading');
@@ -122,6 +126,12 @@ export function AiConfigPanel() {
     fetchAiModeToggles(20)
       .then((r) => setToggles(r.toggles || []))
       .catch(() => setToggles([]));
+  };
+
+  const loadKillLog = () => {
+    fetchKillSwitchLog(20)
+      .then((r) => setKillEvents(r.events || []))
+      .catch(() => setKillEvents([]));
   };
 
   const handleSetShadow = async () => {
@@ -334,6 +344,55 @@ export function AiConfigPanel() {
             />
           }
         />
+        <div className="flex items-center justify-between py-2">
+          <span className="text-[11px] text-zinc-500 uppercase tracking-wider font-mono">
+            Kill Switch History
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              const next = !showKillEvents;
+              setShowKillEvents(next);
+              if (next && killEvents.length === 0) {
+                loadKillLog();
+              }
+            }}
+            className="flex items-center gap-1.5 text-[10px] text-zinc-500 hover:text-zinc-300 font-mono"
+          >
+            <History className="w-3 h-3" />
+            {showKillEvents ? 'Hide' : 'Show'} ({killEvents.length})
+          </button>
+        </div>
+        {showKillEvents && killEvents.length > 0 && (
+          <div className="mb-2 max-h-32 space-y-1 overflow-y-auto px-1">
+            {killEvents.map((ev) => (
+              <div key={ev.id} className="text-[10px] font-mono text-zinc-500">
+                <span className="text-zinc-600">
+                  {new Date(ev.created_at).toLocaleString()}
+                </span>
+                {' · '}
+                <span
+                  className={cn(
+                    'font-semibold',
+                    ev.action === 'engage' ? 'text-red-400' : 'text-emerald-400',
+                  )}
+                >
+                  {ev.action === 'engage' ? 'HALT' : 'RESET'}
+                </span>
+                {' by '}
+                <span className="text-zinc-300">
+                  {ev.toggled_by || 'unknown'}
+                </span>
+                {ev.reason && (
+                  <>
+                    {' — '}
+                    <span className="text-zinc-400">{ev.reason}</span>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
         <ConfigRow label="Run Mode" value={execution.run_mode} valueClass={
           execution.run_mode === 'LIVE' ? 'text-emerald-400' :
           execution.run_mode === 'PAPER' ? 'text-amber-400' : 'text-zinc-500'
