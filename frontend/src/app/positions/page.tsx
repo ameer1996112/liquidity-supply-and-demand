@@ -7,8 +7,8 @@ import { AccountBar } from '@/components/positions/AccountBar';
 import { PositionCard } from '@/components/positions/PositionCard';
 import { OptimizerPanel } from '@/components/portfolio/OptimizerPanel';
 import { Crosshair } from 'lucide-react';
-import { Skeleton } from '@/components/ui/skeleton';
 import { PanelEmptyState } from '@/components/shared/PanelEmptyState';
+import { TableSkeleton } from '@/components/shared/TableStates';
 
 function PositionsPageContent() {
   const { data, isLoading } = useActivePositions();
@@ -53,10 +53,8 @@ function PositionsPageContent() {
 
       {/* Positions grid */}
       {isLoading ? (
-        <div className='grid grid-cols-1 gap-3 lg:grid-cols-2'>
-          {[...Array(3)].map((_, i) => (
-            <Skeleton key={i} className='h-44 rounded-lg bg-slate-800/60' />
-          ))}
+        <div className='tv-card p-3'>
+          <TableSkeleton rowCount={4} columnCount={4} />
         </div>
       ) : positions.length > 0 ? (
         <div className='grid grid-cols-1 gap-3 lg:grid-cols-2'>
@@ -86,6 +84,6 @@ export default function PositionsPage() {
       }
     >
       <PositionsPageContent />
-    </SuspENSE>
+    </Suspense>
   );
 }
