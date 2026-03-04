@@ -20,8 +20,18 @@ HTF_MINUTES = {"1m": 1, "5m": 5, "15m": 15, "1h": 60, "4h": 240, "1d": 1440}
 class LookAheadBiasError(Exception):
     """Raised when look-ahead bias is detected. Backtest must fail with clear error."""
 
-    def __init__(self, message: str, *, future_ts: Optional[float] = None, decision_ts: Optional[float] = None):
-        super().__init__(message)
+    def __init__(
+        self,
+        message: str,
+        *,
+        error_code: str = "",
+        future_ts: Optional[float] = None,
+        decision_ts: Optional[float] = None,
+    ):
+        # Attach a machine-readable error code for logs / API error_message.
+        full_message = f"[{error_code}] {message}" if error_code else message
+        super().__init__(full_message)
+        self.error_code = error_code
         self.future_ts = future_ts
         self.decision_ts = decision_ts
 
@@ -66,6 +76,7 @@ def check_future_timestamp(
         raise LookAheadBiasError(
             f"Look-ahead bias: {label} timestamp {data_ts} is after decision time {decision_ts}. "
             "Candles/features at time T must have timestamp <= T.",
+            error_code="LOOKAHEAD_BIAS_FUTURE_TIMESTAMP",
             future_ts=data_ts,
             decision_ts=decision_ts,
         )
@@ -87,6 +98,7 @@ def check_htf_alignment(
         raise LookAheadBiasError(
             f"HTF alignment: {timeframe} bar closing at {candle_close_ts} not yet closed at decision time {decision_ts}. "
             "Cannot use HTF candle until it has closed.",
+            error_code="LOOKAHEAD_BIAS_HTF_ALIGNMENT",
             future_ts=candle_close_ts,
             decision_ts=decision_ts,
         )
@@ -149,6 +161,7 @@ def filter_candles_to_time(
                 raise LookAheadBiasError(
                     f"Look-ahead bias: candle[{i}] has timestamp {ts} > decision time {decision_ts}. "
                     "Forbid using future bars.",
+                    error_code="LOOKAHEAD_BIAS_FUTURE_CANDLE",
                     future_ts=ts,
                     decision_ts=decision_ts,
                 )
@@ -164,6 +177,7 @@ def get_decision_ts_from_signal(sig: Dict[str, Any]) -> float:
     ts = _parse_ts(created)
     if ts is None:
         raise LookAheadBiasError(
-            "Signal has no valid timestamp (created_at/bar_time). Cannot enforce look-ahead checks."
+            "Signal has no valid timestamp (created_at/bar_time). Cannot enforce look-ahead checks.",
+            error_code="LOOKAHEAD_BIAS_SIGNAL_NO_TIMESTAMP",
         )
     return ts

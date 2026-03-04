@@ -83,6 +83,7 @@ class LookaheadBiasDetectorTests(unittest.TestCase):
         self.assertIn("Look-ahead bias", str(ctx.exception))
         self.assertIn("1000", str(ctx.exception))
         self.assertIn("500", str(ctx.exception))
+        self.assertIn("LOOKAHEAD_BIAS_FUTURE_TIMESTAMP", str(ctx.exception))
 
     def test_check_future_timestamp_ok(self):
         check_future_timestamp(500.0, 1000.0, label="candle")
@@ -93,6 +94,7 @@ class LookaheadBiasDetectorTests(unittest.TestCase):
         with self.assertRaises(LookAheadBiasError) as ctx:
             check_htf_alignment(1000.0, "5m", 999.0)
         self.assertIn("HTF alignment", str(ctx.exception))
+        self.assertIn("LOOKAHEAD_BIAS_HTF_ALIGNMENT", str(ctx.exception))
 
     def test_check_htf_alignment_ok(self):
         check_htf_alignment(1000.0, "5m", 1000.0)
@@ -108,6 +110,7 @@ class LookaheadBiasDetectorTests(unittest.TestCase):
             filter_candles_to_time(candles, decision_ts, strict=True)
         self.assertIn("Look-ahead bias", str(ctx.exception))
         self.assertIn("1005", str(ctx.exception))
+        self.assertIn("LOOKAHEAD_BIAS_FUTURE_CANDLE", str(ctx.exception))
 
     def test_filter_candles_to_time_returns_valid_only(self):
         decision_ts = 1000.0
@@ -130,6 +133,12 @@ class LookaheadBiasDetectorTests(unittest.TestCase):
         sig = {"created_at": 1736931600}  # 2025-01-15 10:00 UTC
         ts = get_decision_ts_from_signal(sig)
         self.assertEqual(ts, 1736931600.0)
+
+    def test_get_decision_ts_from_signal_missing_timestamp(self):
+        with self.assertRaises(LookAheadBiasError) as ctx:
+            get_decision_ts_from_signal({})
+        self.assertIn("LOOKAHEAD_BIAS_SIGNAL_NO_TIMESTAMP", str(ctx.exception))
+        self.assertIn("no valid timestamp", str(ctx.exception))
 
 
 class BacktestEngineTests(unittest.TestCase):
@@ -221,6 +230,7 @@ class BacktestEngineTests(unittest.TestCase):
         self.assertIn("Look-ahead bias", str(err))
         self.assertIn(str(future_ts), str(err))
         self.assertIn(str(decision_ts), str(err))
+        self.assertIn("LOOKAHEAD_BIAS_FUTURE_CANDLE", str(err))
 
 
 class BacktestAPITests(unittest.TestCase):
