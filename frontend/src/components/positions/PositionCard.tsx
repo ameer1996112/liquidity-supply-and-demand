@@ -8,6 +8,7 @@ import {
   usePartialClose,
 } from '@/hooks/usePositions';
 import { ModifySLTPDialog } from './ModifySLTPDialog';
+import { ClosePositionDialog } from './ClosePositionDialog';
 import { X, Pencil, Scissors, Loader2 } from 'lucide-react';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { ClientDate } from '@/components/ui/ClientDate';
@@ -27,7 +28,7 @@ function PriceLabel({ label, value }: { label: string; value: number | null }) {
 
 export function PositionCard({ position }: { position: ActivePosition }) {
   const [showModify, setShowModify] = useState(false);
-  const [confirmClose, setConfirmClose] = useState(false);
+  const [showCloseDialog, setShowCloseDialog] = useState(false);
   const closePosition = useClosePosition();
   const partialClose = usePartialClose();
 
@@ -35,13 +36,7 @@ export function PositionCard({ position }: { position: ActivePosition }) {
   const pnlPositive = (position.live_pnl ?? 0) >= 0;
 
   const handleClose = () => {
-    if (!confirmClose) {
-      setConfirmClose(true);
-      setTimeout(() => setConfirmClose(false), 3000);
-      return;
-    }
-    closePosition.mutate({ signalId: position.id });
-    setConfirmClose(false);
+    setShowCloseDialog(true);
   };
 
   const handlePartialClose = () => {
@@ -126,9 +121,7 @@ export function PositionCard({ position }: { position: ActivePosition }) {
               disabled={closePosition.isPending}
               className={cn(
                 'flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-mono font-semibold uppercase tracking-wider transition-colors',
-                confirmClose
-                  ? 'bg-[#ef5350] text-white'
-                  : 'bg-[#ef5350]/15 text-[#ef5350] hover:bg-[#ef5350]/25',
+                'bg-[#ef5350]/15 text-[#ef5350] hover:bg-[#ef5350]/25',
               )}
             >
               {closePosition.isPending ? (
@@ -136,7 +129,7 @@ export function PositionCard({ position }: { position: ActivePosition }) {
               ) : (
                 <X className='w-3 h-3' />
               )}
-              {confirmClose ? 'Confirm' : 'Close'}
+              Close
             </button>
 
             <button
@@ -169,6 +162,17 @@ export function PositionCard({ position }: { position: ActivePosition }) {
         signalId={position.id}
         currentSL={position.sl}
         currentTP={position.tp}
+      />
+
+      <ClosePositionDialog
+        open={showCloseDialog}
+        onOpenChange={setShowCloseDialog}
+        position={position}
+        isSubmitting={closePosition.isPending}
+        onConfirm={(reason) => {
+          closePosition.mutate({ signalId: position.id, reason });
+          setShowCloseDialog(false);
+        }}
       />
     </>
   );
