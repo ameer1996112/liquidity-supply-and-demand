@@ -26,7 +26,7 @@ function RiskGauge({
   const pct = max > 0 ? Math.min((Math.abs(numericValue) / max) * 100, 100) : 0;
 
   return (
-    <div className='flex min-w-[110px] flex-col gap-1'>
+    <div className='flex min-w-[110px] flex-1 flex-col gap-1'>
       <div className='flex items-center justify-between'>
         <span
           className='text-[9px] uppercase tracking-[0.12em] text-slate-500'
@@ -85,7 +85,7 @@ export function RiskBar() {
   };
 
   return (
-    <div className='relative flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-900/80 px-3 py-2'>
+    <div className='relative flex flex-wrap items-center gap-3 rounded-lg border border-slate-800 bg-slate-900/80 px-3 py-2'>
       {/* Gauges */}
       <RiskGauge
         label='Drawdown'
