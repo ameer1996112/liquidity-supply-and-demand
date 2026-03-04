@@ -111,6 +111,17 @@ class MLGuardian:
 
         self._loaded = True
 
+        # Ensure joblib/pickle for loading encoders (needed for both LightGBM and sklearn paths)
+        try:
+            import joblib
+        except ImportError:
+            try:
+                import pickle as joblib
+                logger.warning("joblib not found, falling back to pickle")
+            except Exception:
+                logger.error("Neither joblib nor pickle available")
+                return False
+
         # [optimization/ai-overhaul] Support both LightGBM text format and legacy sklearn pickle
         is_lgbm_text = str(self.model_path).endswith(".txt")
 
@@ -132,16 +143,6 @@ class MLGuardian:
                 return False
 
         if not is_lgbm_text:
-            try:
-                import joblib
-            except ImportError:
-                try:
-                    import pickle as joblib
-                    logger.warning("joblib not found, falling back to pickle")
-                except Exception:
-                    logger.error("Neither joblib nor pickle available")
-                    return False
-
             if not self.model_path.exists():
                 logger.error(f"Model file not found: {self.model_path}")
                 return False
