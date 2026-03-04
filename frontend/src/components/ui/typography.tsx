@@ -4,6 +4,8 @@
  *
  * Usage:
  *   <Mono size="lg" className="text-long">+$1,240.00</Mono>
+ *   <PnLText value={123.45} />
+ *   <Number value={12345.678} />
  *   <PanelLabel>Signal Book</PanelLabel>
  *   <KpiMeta>Session KPIs</KpiMeta>
  *   <DataField label="Entry" value="1.08543" />
@@ -11,6 +13,13 @@
 
 import { cn } from '@/lib/utils';
 import { HTMLAttributes } from 'react';
+import {
+  EMPTY_VALUE,
+  formatCurrency,
+  formatNumber,
+  formatPercent,
+  normalizeNegativeZero,
+} from '@/lib/formatters';
 
 // ── Size scale ────────────────────────────────────────────────────────────────
 
@@ -107,3 +116,160 @@ export function KpiMeta({ className, children, ...props }: KpiMetaProps) {
     </span>
   );
 }
+
+// ── PnLText — semantic profit/loss number with sign & color ────────────────────
+
+type PnLVariant = 'raw' | 'currency' | 'percent';
+
+interface PnLTextProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'children'> {
+  value: number | null | undefined;
+  variant?: PnLVariant;
+  decimals?: number;
+  size?: MonoSize;
+  /**
+   * When true, adds a "+" prefix for positive values.
+   * For currency/percent variants this is handled by the formatter.
+   */
+  signed?: boolean;
+  empty?: string;
+}
+
+/**
+ * Design-system PnL atom:
+ * - JetBrains Mono with tabular-nums
+ * - Color-coded via semantic tokens (text-profit / text-loss)
+ * - Stable sign handling with tiny values normalized to zero
+ */
+export function PnLText({
+  value,
+  variant = 'raw',
+  decimals = 2,
+  size = 'base',
+  signed = true,
+  empty = EMPTY_VALUE,
+  className,
+  ...props
+}: PnLTextProps) {
+  const normalized = normalizeNegativeZero(value);
+
+  if (normalized == null) {
+    return (
+      <Mono
+        size={size}
+        bold
+        className={cn('text-text-secondary/70', className)}
+        {...props}
+      >
+        {empty}
+      </Mono>
+    );
+  }
+
+  const isPositive = normalized > 0;
+  const isNegative = normalized < 0;
+
+  const baseClasses = cn(
+    'tabular-nums',
+    isPositive ? 'text-profit' : isNegative ? 'text-loss' : 'text-text-secondary',
+    className,
+  );
+
+  let formatted: string;
+  switch (variant) {
+    case 'currency':
+      formatted = formatCurrency(normalized, {
+        decimals,
+        signed,
+        empty,
+      });
+      break;
+    case 'percent':
+      formatted = formatPercent(normalized, {
+        decimals,
+        signed,
+        empty,
+      });
+      break;
+    case 'raw':
+    default: {
+      const prefix =
+        signed && (isPositive || isNegative)
+          ? isPositive
+            ? '+'
+            : '-'
+          : '';
+      formatted = `${prefix}${Math.abs(normalized).toFixed(decimals)}`;
+      break;
+    }
+  }
+
+  return (
+    <Mono size={size} bold className={baseClasses} {...props}>
+      {formatted}
+    </Mono>
+  );
+}
+
+// ── Number — locale-aware numeric output using JetBrains Mono ──────────────────
+
+interface NumberProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'children'> {
+  value: number | null | undefined;
+  decimals?: number;
+  locale?: string;
+  empty?: string;
+  size?: MonoSize;
+  bold?: boolean;
+}
+
+/**
+ * Locale-aware numeric formatter that:
+ * - Normalizes tiny values to zero (no "-0.00")
+ * - Uses JetBrains Mono + tabular-nums
+ * - Respects the user’s locale by default
+ */
+function NumberComponent({
+  value,
+  decimals = 2,
+  locale,
+  empty = EMPTY_VALUE,
+  size = 'base',
+  bold = false,
+  className,
+  ...props
+}: NumberProps) {
+  const normalized = normalizeNegativeZero(value);
+
+  if (normalized == null) {
+    return (
+      <Mono
+        size={size}
+        bold={bold}
+        className={cn('text-text-secondary/70', className)}
+        {...props}
+      >
+        {empty}
+      </Mono>
+    );
+  }
+
+  const formatter = new Intl.NumberFormat(locale ?? undefined, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+
+  const formatted = formatter.format(normalized);
+
+  return (
+    <Mono
+      size={size}
+      bold={bold}
+      className={cn('tabular-nums text-text-secondary', className)}
+      {...props}
+    >
+      {formatted}
+    </Mono>
+  );
+}
+
+// Avoid shadowing the global Number constructor while still exporting <Number />
+export { NumberComponent as Number };

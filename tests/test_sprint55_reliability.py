@@ -15,6 +15,7 @@ Scenarios covered
 
 from __future__ import annotations
 
+import json
 import unittest
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -23,7 +24,7 @@ import requests
 
 from src.adapters.execution.interfaces import ExecutionResult
 from src.adapters.execution.meta_api_adapter import MetaApiAdapter
-from src.core.transport import RedisTransport
+from src.core.transport import InMemoryTransport, RedisTransport
 
 
 class RedisChaosTests(unittest.TestCase):
@@ -37,6 +38,54 @@ class RedisChaosTests(unittest.TestCase):
         t.reset()
 
         mock_reset.assert_called_once_with()
+
+
+class WorkerQueueChaosTests(unittest.TestCase):
+    """Chaos scenario: worker crash/restart while queue still has messages."""
+
+    def test_worker_restart_drains_remaining_messages_without_duplicates(self):
+        """Simulate crash after first message; restarted worker must process the rest exactly once."""
+        from src.core.observers.base import WorkerSubject
+
+        transport = InMemoryTransport()
+
+        # Enqueue three distinct payloads identified by trade_key.
+        payloads = [
+            {"symbol": "XAUUSD", "side": "buy", "size": 0.1, "trade_key": "tk-1"},
+            {"symbol": "XAUUSD", "side": "buy", "size": 0.1, "trade_key": "tk-2"},
+            {"symbol": "XAUUSD", "side": "buy", "size": 0.1, "trade_key": "tk-3"},
+        ]
+        for p in payloads:
+            transport.enqueue(json.dumps(p))
+
+        processed_keys: list[str] = []
+
+        def _process(payload):
+            processed_keys.append(payload.get("trade_key"))
+
+        # First "worker" processes a single message then "crashes".
+        subject1 = WorkerSubject(process_fn=_process)
+        task = transport.dequeue(timeout=0)
+        self.assertIsNotNone(task)
+        _key, payload_str = task
+        subject1.process_signal(json.loads(payload_str))
+        self.assertEqual(processed_keys, ["tk-1"])
+
+        # Simulate crash by discarding subject1 and starting a fresh worker instance.
+        subject2 = WorkerSubject(process_fn=_process)
+
+        # Second worker drains the remaining messages from the same transport.
+        while True:
+            task = transport.dequeue(timeout=0)
+            if task is None:
+                break
+            _key, payload_str = task
+            subject2.process_signal(json.loads(payload_str))
+
+        # All messages were processed exactly once; queue is empty.
+        self.assertCountEqual(processed_keys, ["tk-1", "tk-2", "tk-3"])
+        self.assertEqual(len(processed_keys), 3)
+        self.assertEqual(transport.queue_size, 0)
 
     @patch("src.adapters.redis_queue.blpop_queue")
     def test_redis_transport_recovers_after_temporary_error(self, mock_blpop):
@@ -261,10 +310,12 @@ class GuardAuditInvariantTests(unittest.TestCase):
         self.assertIsInstance(reason, str)
         self.assertTrue(reason.strip())
 
+    @patch("src.worker.log_guard_decision")
     @patch("src.worker.save_result")
     def test_zero_size_rejection_has_detailed_reason(
         self,
         mock_save_result: MagicMock,
+        mock_log_guard: MagicMock,
     ):
         """Size <= 0 must be rejected with an explanatory, non-empty note."""
         import src.worker as worker_mod
@@ -289,6 +340,64 @@ class GuardAuditInvariantTests(unittest.TestCase):
         self.assertIn("size", note_arg)
         self.assertTrue(note_arg.strip())
         self.assertEqual(prob_arg, 0.0)
+        # Audit hook must record the guard decision.
+        mock_log_guard.assert_called_once()
+        guard_name, result, reason, symbol = mock_log_guard.call_args[0][:4]
+        self.assertEqual(guard_name, "size_guard")
+        self.assertEqual(result, "rejected")
+        self.assertEqual(symbol, payload["symbol"])
+        self.assertIn("size", reason)
+
+    @patch("src.adapters.execution.router.get_adapter")
+    @patch("src.logic.update_alert_status")
+    def test_open_status_not_set_when_submitted_without_broker_id(
+        self,
+        mock_update_status: MagicMock,
+        mock_get_adapter: MagicMock,
+    ):
+        """Submitted execution without broker_order_id must not mark trade as OPEN."""
+        from src import logic
+
+        class AdapterWithoutTicket:
+            def submit_order(self, request):
+                return ExecutionResult(
+                    status="submitted",
+                    broker_order_id=None,
+                    client_order_id=request.client_order_id,
+                    message="pending broker confirmation",
+                )
+
+        mock_get_adapter.return_value = AdapterWithoutTicket()
+
+        payload = {
+            "symbol": "XAUUSD",
+            "side": "buy",
+            "entry": 2500.0,
+            "sl": 2490.0,
+            "tp": 2530.0,
+            "size": 0.1,
+            "run_mode": "LIVE",
+        }
+
+        with patch("config.get_settings") as mock_settings, patch(
+            "src.logic.save_alert", return_value=1
+        ), patch("src.logic.init_supabase"):
+            mock_settings.return_value = SimpleNamespace(
+                run_mode="LIVE",
+                live_trading_enabled=True,
+                account_balance=50_000,
+                risk_percent=1.0,
+                tca_enabled=False,
+                kelly_enabled=False,
+                min_rr_ratio=0.0,
+            )
+
+            logic.process_trade(payload, dry_run=False, ai_result=None, profile=None)
+
+        # update_alert_status must never be called with status="OPEN" without broker confirmation.
+        for call in mock_update_status.call_args_list:
+            _alert_id, status_arg = call[0][:2]
+            self.assertNotEqual(status_arg, "OPEN")
 
     @patch("src.adapters.execution.router.get_adapter")
     def test_no_open_position_when_execution_fails(
