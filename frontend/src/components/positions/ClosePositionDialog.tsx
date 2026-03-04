@@ -30,7 +30,8 @@ export function ClosePositionDialog({
   isSubmitting,
 }: ClosePositionDialogProps) {
   const [reason, setReason] = useState('');
-  const { armed, secondsRemaining, requestConfirm, reset } = useTwoStepConfirm();
+  const { armed, secondsRemaining, requestConfirm, reset } =
+    useTwoStepConfirm();
 
   useEffect(() => {
     if (open) {
@@ -51,25 +52,26 @@ export function ClosePositionDialog({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
-        side="right"
-        className="bg-[#131722] border-l border-[#2a2e39] sm:max-w-md"
+        side='right'
+        className='bg-[#131722] border-l border-[#2a2e39] sm:max-w-md'
       >
         <SheetHeader>
-          <SheetTitle className="flex items-center gap-2 font-mono text-sm text-zinc-100">
-            <AlertTriangle className="h-4 w-4 text-amber-400" />
+          <SheetTitle className='flex items-center gap-2 font-mono text-sm text-zinc-100'>
+            <AlertTriangle className='h-4 w-4 text-amber-400' />
             Confirm Manual Close
           </SheetTitle>
-          <SheetDescription className="mt-1 text-[11px] text-zinc-400 font-mono leading-relaxed">
-            This will send a CLOSE order to the broker and mark this trade as manually closed.
-            Open PnL will be realized at the current market price.
+          <SheetDescription className='mt-1 text-[11px] text-zinc-400 font-mono leading-relaxed'>
+            This will send a CLOSE order to the broker and mark this trade as
+            manually closed. Open PnL will be realized at the current market
+            price.
           </SheetDescription>
         </SheetHeader>
 
-        <div className="mt-4 space-y-4 px-4">
-          <div className="rounded-md border border-[#2a2e39] bg-[#1b202b] p-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-sm font-bold text-zinc-100">
+        <div className='mt-4 space-y-4 px-4'>
+          <div className='rounded-md border border-[#2a2e39] bg-[#1b202b] p-3'>
+            <div className='flex items-center justify-between'>
+              <div className='flex items-center gap-2'>
+                <span className='font-mono text-sm font-bold text-zinc-100'>
                   {position.symbol}
                 </span>
                 <span
@@ -83,12 +85,12 @@ export function ClosePositionDialog({
                   {position.side}
                 </span>
                 {position.zone_type && (
-                  <span className="font-mono text-[9px] px-1 py-0.5 rounded bg-[#2a2e39] text-zinc-500 uppercase">
+                  <span className='font-mono text-[9px] px-1 py-0.5 rounded bg-[#2a2e39] text-zinc-500 uppercase'>
                     {position.zone_type}
                   </span>
                 )}
               </div>
-              <div className="text-right">
+              <div className='text-right'>
                 <span
                   className={cn(
                     'font-mono text-lg font-bold tabular-nums',
@@ -102,65 +104,66 @@ export function ClosePositionDialog({
               </div>
             </div>
 
-            <div className="mt-3 grid grid-cols-2 gap-3 text-[11px] font-mono text-zinc-300">
+            <div className='mt-3 grid grid-cols-2 gap-3 text-[11px] font-mono text-zinc-300'>
               <div>
-                <div className="text-[9px] uppercase tracking-[0.14em] text-zinc-500">
+                <div className='text-[9px] uppercase tracking-[0.14em] text-zinc-500'>
                   Entry
                 </div>
-                <div className="tabular-nums">
+                <div className='tabular-nums'>
                   {position.entry != null ? position.entry : '—'}
                 </div>
               </div>
               <div>
-                <div className="text-[9px] uppercase tracking-[0.14em] text-zinc-500">
+                <div className='text-[9px] uppercase tracking-[0.14em] text-zinc-500'>
                   Size (lots)
                 </div>
-                <div className="tabular-nums">{position.size}</div>
+                <div className='tabular-nums'>{position.size}</div>
               </div>
               <div>
-                <div className="text-[9px] uppercase tracking-[0.14em] text-zinc-500">
+                <div className='text-[9px] uppercase tracking-[0.14em] text-zinc-500'>
                   Stop Loss
                 </div>
-                <div className="tabular-nums">
+                <div className='tabular-nums'>
                   {position.sl != null ? position.sl : '—'}
                 </div>
               </div>
               <div>
-                <div className="text-[9px] uppercase tracking-[0.14em] text-zinc-500">
+                <div className='text-[9px] uppercase tracking-[0.14em] text-zinc-500'>
                   Take Profit
                 </div>
-                <div className="tabular-nums">
+                <div className='tabular-nums'>
                   {position.tp != null ? position.tp : '—'}
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="block text-[10px] font-mono uppercase tracking-[0.14em] text-zinc-500">
+          <div className='space-y-2'>
+            <label className='block text-[10px] font-mono uppercase tracking-[0.14em] text-zinc-500'>
               Reason (optional)
             </label>
             <textarea
+              id='close-position-reason'
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               rows={3}
-              placeholder="Why are you closing this trade? (e.g., risk management, news, deviation from plan)"
-              className="w-full rounded border border-[#2a2e39] bg-[#1e222d] px-3 py-1.5 text-xs font-mono text-zinc-100 placeholder:text-zinc-600 focus:border-amber-500 focus:outline-none"
+              placeholder='Why are you closing this trade? (e.g., risk management, news, deviation from plan)'
+              className='w-full rounded border border-[#2a2e39] bg-[#1e222d] px-3 py-1.5 text-xs font-mono text-zinc-100 placeholder:text-zinc-600 focus:border-amber-500 focus:outline-none'
             />
           </div>
         </div>
 
-        <SheetFooter className="mt-auto flex flex-row items-center justify-end gap-2 border-t border-[#2a2e39] bg-[#0f131c]/80 px-4 py-3">
+        <SheetFooter className='mt-auto flex flex-row items-center justify-end gap-2 border-t border-[#2a2e39] bg-[#0f131c]/80 px-4 py-3'>
           <button
-            type="button"
+            type='button'
             onClick={() => onOpenChange(false)}
-            className="inline-flex items-center gap-1 rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-[10px] font-mono text-zinc-300 hover:bg-zinc-700"
+            className='inline-flex items-center gap-1 rounded border border-zinc-700 bg-zinc-800 px-3 py-1.5 text-[10px] font-mono text-zinc-300 hover:bg-zinc-700'
           >
-            <X className="h-3 w-3" />
+            <X className='h-3 w-3' />
             Cancel
           </button>
           <button
-            type="button"
+            type='button'
             onClick={() => requestConfirm(handleConfirm)}
             disabled={!!isSubmitting}
             className={cn(
@@ -169,13 +172,10 @@ export function ClosePositionDialog({
               armed && 'ring-2 ring-red-400/60',
             )}
           >
-            {armed
-              ? `Confirm (${secondsRemaining ?? 2}s)`
-              : 'Close Position'}
+            {armed ? `Confirm (${secondsRemaining ?? 2}s)` : 'Close Position'}
           </button>
         </SheetFooter>
       </SheetContent>
     </Sheet>
   );
 }
-

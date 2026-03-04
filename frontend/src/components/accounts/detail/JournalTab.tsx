@@ -217,6 +217,7 @@ export function JournalTab({ accountName }: JournalTabProps) {
           <div>
             <label className='block text-xs text-zinc-500 mb-2'>Note</label>
             <textarea
+              id='journal-note-text'
               value={noteText}
               onChange={(e) => setNoteText(e.target.value)}
               placeholder='What did you learn from this trade? What went well? What could improve?'
@@ -230,6 +231,7 @@ export function JournalTab({ accountName }: JournalTabProps) {
               <label className='block text-xs text-zinc-500 mb-2'>Tags</label>
               <div className='flex gap-2'>
                 <input
+                  id='journal-tag-input'
                   type='text'
                   value={tagInput}
                   onChange={(e) => setTagInput(e.target.value)}
@@ -294,6 +296,7 @@ export function JournalTab({ accountName }: JournalTabProps) {
               Emotional State (Optional)
             </label>
             <select
+              id='journal-emotional-state'
               value={emotionalState}
               onChange={(e) => setEmotionalState(e.target.value)}
               className='w-full px-3 py-1.5 text-sm rounded border border-[#2a2e39] bg-[#1e222d] text-zinc-300 focus:outline-none focus:border-emerald-500'

@@ -30,7 +30,8 @@ export function ModifySLTPDialog({
   const [tp, setTp] = useState('');
   const modifySLTP = useModifySLTP();
   const { isConnected } = useConnectionHealth();
-  const { armed, secondsRemaining, requestConfirm, reset } = useTwoStepConfirm();
+  const { armed, secondsRemaining, requestConfirm, reset } =
+    useTwoStepConfirm();
 
   useEffect(() => {
     if (open) {
@@ -56,39 +57,41 @@ export function ModifySLTPDialog({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="bg-[#131722] border-l border-[#2a2e39]">
+      <SheetContent className='bg-[#131722] border-l border-[#2a2e39]'>
         <SheetHeader>
-          <SheetTitle className="font-mono text-sm text-zinc-200">
+          <SheetTitle className='font-mono text-sm text-zinc-200'>
             Modify SL / TP
           </SheetTitle>
         </SheetHeader>
 
-        <div className="mt-6 space-y-4">
-          <div className="space-y-1">
-            <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-mono">
+        <div className='mt-6 space-y-4'>
+          <div className='space-y-1'>
+            <label className='text-[10px] uppercase tracking-wider text-zinc-500 font-mono'>
               Stop Loss
             </label>
             <input
-              type="number"
-              step="any"
+              id='modify-stop-loss'
+              type='number'
+              step='any'
               value={sl}
               onChange={(e) => setSl(e.target.value)}
               placeholder={currentSL != null ? String(currentSL) : 'Enter SL'}
-              className="w-full bg-[#1e222d] border border-[#2a2e39] rounded px-2.5 py-1.5 text-xs font-mono text-zinc-300 focus:outline-none focus:border-[#26a69a] transition-colors"
+              className='w-full bg-[#1e222d] border border-[#2a2e39] rounded px-2.5 py-1.5 text-xs font-mono text-zinc-300 focus:outline-none focus:border-[#26a69a] transition-colors'
             />
           </div>
 
-          <div className="space-y-1">
-            <label className="text-[10px] uppercase tracking-wider text-zinc-500 font-mono">
+          <div className='space-y-1'>
+            <label className='text-[10px] uppercase tracking-wider text-zinc-500 font-mono'>
               Take Profit
             </label>
             <input
-              type="number"
-              step="any"
+              id='modify-take-profit'
+              type='number'
+              step='any'
               value={tp}
               onChange={(e) => setTp(e.target.value)}
               placeholder={currentTP != null ? String(currentTP) : 'Enter TP'}
-              className="w-full bg-[#1e222d] border border-[#2a2e39] rounded px-2.5 py-1.5 text-xs font-mono text-zinc-300 focus:outline-none focus:border-[#26a69a] transition-colors"
+              className='w-full bg-[#1e222d] border border-[#2a2e39] rounded px-2.5 py-1.5 text-xs font-mono text-zinc-300 focus:outline-none focus:border-[#26a69a] transition-colors'
             />
           </div>
 
@@ -106,7 +109,9 @@ export function ModifySLTPDialog({
               armed && 'ring-2 ring-blue-300/60',
             )}
           >
-            {modifySLTP.isPending && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+            {modifySLTP.isPending && (
+              <Loader2 className='w-3.5 h-3.5 animate-spin' />
+            )}
             {modifySLTP.isPending
               ? 'Updating...'
               : armed

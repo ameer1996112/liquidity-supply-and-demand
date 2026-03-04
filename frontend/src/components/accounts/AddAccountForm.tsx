@@ -108,6 +108,7 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
           Account name *
         </label>
         <input
+          id='account-name'
           type='text'
           value={accountName}
           onChange={(e) => setAccountName(e.target.value)}
@@ -124,6 +125,7 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
             Account type
           </label>
           <select
+            id='account-type'
             value={accountType}
             onChange={(e) => {
               setAccountType(e.target.value);
@@ -141,6 +143,7 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
             Provider
           </label>
           <select
+            id='account-provider'
             value={provider}
             onChange={(e) => setProvider(e.target.value)}
             className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm text-zinc-200 font-mono'
@@ -163,6 +166,7 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
             Strategy type
           </label>
           <select
+            id='account-strategy-type'
             value={strategyType}
             onChange={(e) => setStrategyType(e.target.value)}
             className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm text-zinc-200 font-mono'
@@ -178,6 +182,7 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
             Risk %
           </label>
           <input
+            id='account-risk-percent'
             type='number'
             min={0.1}
             max={5}
@@ -196,6 +201,7 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
             Max positions
           </label>
           <input
+            id='account-max-positions'
             type='number'
             min={1}
             max={10}
@@ -209,6 +215,7 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
             Starting capital ($)
           </label>
           <input
+            id='account-allocated-capital'
             type='number'
             min={0}
             step={100}
@@ -227,6 +234,7 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
           MetaAPI Account ID
         </label>
         <input
+          id='account-metaapi-id'
           type='text'
           value={metaApiAccountId}
           onChange={(e) => setMetaApiAccountId(e.target.value)}
@@ -259,6 +267,7 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
               Token env key
             </label>
             <input
+              id='account-metaapi-token-key'
               type='text'
               value={metaApiTokenKey}
               onChange={(e) => setMetaApiTokenKey(e.target.value)}

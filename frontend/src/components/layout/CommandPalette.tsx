@@ -102,7 +102,8 @@ export function CommandPalette() {
   // Keyboard shortcut: ⌘K / Ctrl+K
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      const isModK = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k';
+      const isModK =
+        (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k';
       if (isModK) {
         event.preventDefault();
         setOpen((prev) => !prev);
@@ -186,6 +187,7 @@ export function CommandPalette() {
             <Command className='h-3.5 w-3.5' />
           </div>
           <input
+            id='command-palette-search'
             autoFocus
             placeholder='Jump to page or search #signal / ticket…'
             value={query}
@@ -281,7 +283,8 @@ export function CommandPalette() {
             className='text-[9px] text-[var(--to-text-dim)]'
             style={{ fontFamily: 'var(--font-mono)' }}
           >
-            Tip: type <span className='text-[var(--to-text-secondary)]'>#12345</span> to
+            Tip: type{' '}
+            <span className='text-[var(--to-text-secondary)]'>#12345</span> to
             jump to a signal, or a broker ticket ID to jump to positions.
           </span>
         </div>
@@ -289,4 +292,3 @@ export function CommandPalette() {
     </div>
   );
 }
-

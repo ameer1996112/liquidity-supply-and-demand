@@ -44,33 +44,34 @@ export function JournalFilters({
   resultCount,
 }: JournalFiltersProps) {
   return (
-    <div className="space-y-3">
+    <div className='space-y-3'>
       {/* Top row: Search + Export */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+      <div className='flex items-center gap-3'>
+        <div className='relative flex-1'>
+          <Search className='absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500' />
           <input
-            type="text"
-            placeholder="Search by symbol, status, notes..."
+            id='journal-search'
+            type='text'
+            placeholder='Search by symbol, status, notes...'
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded-md text-sm text-zinc-200 placeholder:text-zinc-600 font-mono focus:outline-none focus:border-zinc-600 transition-colors"
+            className='w-full pl-9 pr-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded-md text-sm text-zinc-200 placeholder:text-zinc-600 font-mono focus:outline-none focus:border-zinc-600 transition-colors'
           />
         </div>
         <button
           onClick={onExport}
-          className="flex items-center gap-2 px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded-md text-xs text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 transition-colors font-mono"
+          className='flex items-center gap-2 px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded-md text-xs text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 transition-colors font-mono'
         >
-          <Download className="w-3.5 h-3.5" />
+          <Download className='w-3.5 h-3.5' />
           CSV
         </button>
       </div>
 
       {/* Bottom row: Status + Mode filters + Count */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className='flex items-center justify-between'>
+        <div className='flex items-center gap-4'>
           {/* Status Filter */}
-          <div className="flex items-center gap-1 bg-[#1e222d] border border-[#2a2e39] rounded-md p-0.5">
+          <div className='flex items-center gap-1 bg-[#1e222d] border border-[#2a2e39] rounded-md p-0.5'>
             {STATUS_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
@@ -79,7 +80,7 @@ export function JournalFilters({
                   'font-mono text-[10px] px-2 py-1 rounded transition-colors',
                   statusFilter === opt.value
                     ? 'bg-[#2a2e39] text-zinc-200'
-                    : 'text-zinc-500 hover:text-zinc-300'
+                    : 'text-zinc-500 hover:text-zinc-300',
                 )}
               >
                 {opt.label}
@@ -88,7 +89,7 @@ export function JournalFilters({
           </div>
 
           {/* Mode Filter */}
-          <div className="flex items-center gap-1 bg-[#1e222d] border border-[#2a2e39] rounded-md p-0.5">
+          <div className='flex items-center gap-1 bg-[#1e222d] border border-[#2a2e39] rounded-md p-0.5'>
             {MODE_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
@@ -97,7 +98,7 @@ export function JournalFilters({
                   'font-mono text-[10px] px-2 py-1 rounded transition-colors',
                   modeFilter === opt.value
                     ? 'bg-[#2a2e39] text-zinc-200'
-                    : 'text-zinc-500 hover:text-zinc-300'
+                    : 'text-zinc-500 hover:text-zinc-300',
                 )}
               >
                 {opt.label}
@@ -106,7 +107,7 @@ export function JournalFilters({
           </div>
         </div>
 
-        <span className="font-mono text-[10px] text-zinc-600">
+        <span className='font-mono text-[10px] text-zinc-600'>
           {resultCount} trade{resultCount !== 1 ? 's' : ''}
         </span>
       </div>

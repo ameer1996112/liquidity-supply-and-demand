@@ -134,6 +134,7 @@ export function AlertRulesPanel() {
         <div className='px-4 py-3 border-b border-panel-border-subtle space-y-2'>
           <div className='grid grid-cols-3 gap-2'>
             <input
+              id='alert-rule-type'
               type='text'
               placeholder='Rule type'
               value={newType}
@@ -141,6 +142,7 @@ export function AlertRulesPanel() {
               className='bg-surface border border-panel-border-subtle rounded px-2 py-1 text-xs font-mono text-text-secondary focus:outline-none focus:border-[var(--to-accent-green)]'
             />
             <input
+              id='alert-rule-threshold'
               type='number'
               placeholder='Threshold'
               value={newThreshold}
@@ -148,6 +150,7 @@ export function AlertRulesPanel() {
               className='bg-surface border border-panel-border-subtle rounded px-2 py-1 text-xs font-mono text-text-secondary focus:outline-none focus:border-[var(--to-accent-green)]'
             />
             <select
+              id='alert-rule-severity'
               value={newSeverity}
               onChange={(e) => setNewSeverity(e.target.value)}
               className='bg-surface border border-panel-border-subtle rounded px-2 py-1 text-xs font-mono text-text-secondary focus:outline-none focus:border-[var(--to-accent-green)]'
