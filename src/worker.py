@@ -26,6 +26,13 @@ from config import get_settings
 from src.adapters.redis_queue import get_redis
 from src.core.transport import SignalTransport, get_transport
 from src.core.consumer_validator import validate_dequeued_message
+from src.core.observers import (
+    WorkerSubject,
+    AuditorObserver,
+    RiskObserver,
+    ExecutorObserver,
+    MetricsObserver,
+)
 from src.ai.brain import ensemble_decision, get_prediction, load_brain
 from src.core.risk_engine import calculate_max_position_size as _calculate_max_position_size_impl
 from src.core.guard_rails.correlation import (
@@ -1107,6 +1114,14 @@ def run():
     logger.info("R:R filter: %s", f"ON (min={s.min_rr_ratio})" if s.min_rr_ratio > 0 else "OFF (Pine handles SL/TP)")
     logger.info("=" * 60)
 
+    # ── Observer pipeline ──────────────────────────────────────────────────
+    subject = WorkerSubject(process_fn=process_trade)
+    subject.attach(AuditorObserver())
+    subject.attach(RiskObserver())
+    subject.attach(ExecutorObserver())
+    subject.attach(MetricsObserver())
+    logger.info("Observer pipeline: %s", ["AuditorObserver", "RiskObserver", "ExecutorObserver", "MetricsObserver"])
+
     backoff = 5
     watchdog = TradeWatchdog(supabase_client=supabase)
     from src.services.alert_engine import AlertEngine
@@ -1171,7 +1186,7 @@ def run():
                 continue  # dead-lettered and audited inside validator
             if payload.get("event_type") == "exit":
                 logger.info("Exit event for zone_id=%s - processing", payload.get("zone_id"))
-            process_trade(payload)
+            subject.process_signal(payload)
         except (ConnectionError, OSError) as e:
             logger.error("Transport connection error: %s (reconnecting)", e)
             try:
