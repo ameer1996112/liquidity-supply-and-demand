@@ -64,7 +64,7 @@ class SymbolMapper:
         "XAGUSD": "XAGUSD",     # Silver (usually same, some: SILVER)
 
         # ── Forex (usually identical, but some brokers add suffixes) ──
-        "EURUSD": "EURUSD",
+        "EURUSD": "EURUSD.raw",
         "GBPUSD": "GBPUSD",
         "USDJPY": "USDJPY",
         "GBPJPY": "GBPJPY",
