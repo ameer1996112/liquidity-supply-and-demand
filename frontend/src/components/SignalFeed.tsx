@@ -25,14 +25,99 @@ import { cn } from '@/lib/utils';
 import { safeFloat, getDisplayReason, formatRelativeTime } from '@/lib/format';
 import { ClientDate } from '@/components/ui/ClientDate';
 import { Activity, AlertCircle, Zap } from 'lucide-react';
-import {
-  DataTable,
-  type DataTableColumn,
-} from '@/components/shared/DataTable';
+import { DataTable, type DataTableColumn } from '@/components/shared/DataTable';
 import {
   TableEmptyState,
   TableSkeleton,
 } from '@/components/shared/TableStates';
+
+const columns: DataTableColumn<TradingSignal>[] = [
+  {
+    id: 'time',
+    header: 'Time',
+    width: 'w-[90px]',
+    render: (signal) => (
+      <ClientDate
+        className='font-mono text-[11px] text-zinc-500 tabular-nums whitespace-nowrap'
+        render={() => formatRelativeTime(new Date(signal.created_at))}
+      />
+    ),
+  },
+  {
+    id: 'signal',
+    header: 'Signal',
+    width: 'w-[140px]',
+    render: (signal) => (
+      <div className='flex items-center gap-2'>
+        <span className='font-mono text-sm font-bold text-zinc-100 tracking-tight'>
+          {getSymbol(signal)}
+        </span>
+        <SideBadge side={getSide(signal)} compact />
+      </div>
+    ),
+  },
+  {
+    id: 'ai_brain',
+    header: 'AI Brain',
+    width: 'w-[120px]',
+    render: (signal) => (
+      <div className='flex items-center gap-2'>
+        <ScoreRing score={getScore(signal)} size='sm' />
+        <StatusBadge status={signal.status} pnl={getPnl(signal)} compact />
+      </div>
+    ),
+  },
+  {
+    id: 'reason',
+    header: 'Reason',
+    render: (signal) => {
+      const reason = getDisplayReason(signal);
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className='font-mono text-[11px] text-zinc-500 line-clamp-1 cursor-help'>
+                {reason || (
+                  <span className='text-zinc-700 italic'>No reason</span>
+                )}
+              </span>
+            </TooltipTrigger>
+            {(signal.notes || signal.filter_reason) && (
+              <TooltipContent
+                side='bottom'
+                className='max-w-sm bg-zinc-900 border-zinc-700 text-zinc-300'
+              >
+                <p className='text-xs'>
+                  {signal.notes || signal.filter_reason}
+                </p>
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </TooltipProvider>
+      );
+    },
+  },
+  {
+    id: 'rr_ratio',
+    header: 'R:R',
+    width: 'w-[70px]',
+    align: 'right',
+    isNumeric: true,
+    render: (signal) => (
+      <span className='font-mono text-[11px] text-zinc-400 tabular-nums'>
+        {signal.rr_ratio ? `1:${safeFloat(signal.rr_ratio, 1)}` : '--'}
+      </span>
+    ),
+  },
+  {
+    id: 'pnl',
+    header: 'PnL',
+    width: 'w-[80px]',
+    align: 'right',
+    isNumeric: true,
+    render: (signal) => <PnLDisplay pnl={getPnl(signal)} size='sm' />,
+  },
+];
 
 function ErrorState() {
   return (
