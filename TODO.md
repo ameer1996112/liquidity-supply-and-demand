@@ -40,8 +40,8 @@
 
 - [x] 4.1 Create `src/services/redis_cache.py` — generic cache-aside helper ✅
 - [x] 4.2 Add cache invalidation to symbol rules CRUD in `api_rules.py` ✅
-- [ ] 4.3 Add Redis caching to `_lookup_symbol_overrides()` in worker
-- [ ] 4.4 Add Redis caching to daily trade count in `_validate_pine_filters()`
+- [x] 4.3 Add Redis caching to `_lookup_symbol_overrides()` in worker (TTL=60s) ✅
+- [x] 4.4 Add Redis caching to daily trade count in `_validate_pine_filters()` (TTL=30s) ✅
 - [x] 4.8 Migrate api.py on_event → lifespan context manager (eliminates deprecation warnings) ✅
 - [x] 4.5 Enhance `GET /api/v1/webhook/stats/summary` — rich KPIs + 30s Redis cache ✅
 - [x] 4.6 Rate limiting on `/webhook` endpoint (60/min per IP via slowapi) ✅
@@ -49,7 +49,7 @@
 
 ## Phase 5 — Deployment Preparation
 
-- [ ] 5.1 Verify `frontend/next.config.ts` security headers
+- [x] 5.1 Security headers added to `frontend/next.config.ts` (X-Frame-Options, HSTS, CSP, etc.) ✅
 - [ ] 5.2 Verify Railway configs
-- [ ] 5.3 Final build verification (`npm run build` + `pytest`) — build ✅
+- [x] 5.3 Final build verification — frontend build ✅ | pytest 254 passed ✅
 - [ ] 5.4 Deploy to Railway

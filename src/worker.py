@@ -172,8 +172,8 @@ def _lookup_symbol_overrides(symbol: str) -> Optional[Dict[str, Any]]:
     cache_key = f"symbol_rules:{symbol.upper()}"
     # Try Redis cache first
     try:
-        from src.services.redis_cache import get_cached, set_cached
-        cached = get_cached(cache_key)
+        from src.services.redis_cache import cache_get, cache_set
+        cached = cache_get(cache_key)
         if cached is not None:
             return cached if cached else None  # empty dict = "no rules" sentinel
     except Exception:
@@ -189,8 +189,8 @@ def _lookup_symbol_overrides(symbol: str) -> Optional[Dict[str, Any]]:
         )
         result = r.data[0] if r.data else {}
         try:
-            from src.services.redis_cache import set_cached
-            set_cached(cache_key, result, ttl=60)
+            from src.services.redis_cache import cache_set
+            cache_set(cache_key, result, ttl_seconds=60)
         except Exception:
             pass
         return result if result else None
@@ -619,8 +619,8 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
             today_count: Optional[int] = None
             cache_key = f"daily_trade_count:{today_start[:10]}"
             try:
-                from src.services.redis_cache import get_cached, set_cached
-                cached_count = get_cached(cache_key)
+                from src.services.redis_cache import cache_get, cache_set
+                cached_count = cache_get(cache_key)
                 if cached_count is not None:
                     today_count = int(cached_count)
             except Exception:
@@ -635,8 +635,8 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
                 )
                 today_count = len(result.data)
                 try:
-                    from src.services.redis_cache import set_cached
-                    set_cached(cache_key, today_count, ttl=30)
+                    from src.services.redis_cache import cache_set
+                    cache_set(cache_key, today_count, ttl_seconds=30)
                 except Exception:
                     pass
             if today_count >= s.pine_max_trades_per_day:
