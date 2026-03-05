@@ -34,6 +34,7 @@ import {
   BarChart3,
   Crosshair,
   Clock,
+  Target,
 } from 'lucide-react';
 import {
   isSignalOpen,
@@ -112,7 +113,7 @@ function WaitingBanner({
             <dt className='text-text-dim'>Last signal:</dt>
             <dd className='font-mono tabular-nums'>
               {mounted ? (
-                (latestSignalTime ?? EMPTY_VALUE)
+                latestSignalTime ?? EMPTY_VALUE
               ) : (
                 <Skeleton className='h-3 w-28 bg-[var(--to-surface-raised)]' />
               )}
@@ -146,7 +147,7 @@ void STATUS_CHECKS;
 
 export default function DashboardPage() {
   const [selectedSignal, setSelectedSignal] = useState<TradingSignal | null>(
-    null,
+    null
   );
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -169,7 +170,7 @@ export default function DashboardPage() {
 
   const activePositionsCount = useMemo(
     () => signals.filter(isSignalOpen).length,
-    [signals],
+    [signals]
   );
 
   const tradesToday = useMemo(() => {
@@ -183,7 +184,7 @@ export default function DashboardPage() {
 
   const lastRejectSignal = useMemo(
     () => signals.find(isSignalRejected),
-    [signals],
+    [signals]
   );
 
   const [lastUpdated, setLastUpdated] = useState('—');
@@ -191,12 +192,12 @@ export default function DashboardPage() {
     setLastUpdated(
       latestSignal
         ? new Date(
-            latestSignal.updated_at ?? latestSignal.created_at,
+            latestSignal.updated_at ?? latestSignal.created_at
           ).toLocaleTimeString()
-        : new Date().toLocaleTimeString(),
+        : new Date().toLocaleTimeString()
     );
-  // Recompute only when the latest signal changes, not on every render tick
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Recompute only when the latest signal changes, not on every render tick
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestSignal?.id]);
 
   const noData = signals.length === 0 && activePositionsCount === 0;
@@ -206,19 +207,19 @@ export default function DashboardPage() {
 
   const todayPnl =
     activeMode === 'PAPER'
-      ? (stats?.paper_daily_pnl ?? stats?.paper_pnl_24h)
-      : (stats?.live_daily_pnl ?? stats?.live_pnl_24h);
+      ? stats?.paper_daily_pnl ?? stats?.paper_pnl_24h
+      : stats?.live_daily_pnl ?? stats?.live_pnl_24h;
 
   const totalPnl =
     activeMode === 'PAPER'
-      ? (stats?.paper_total_pnl ?? stats?.paper_pnl_24h)
-      : (stats?.live_total_pnl ?? stats?.total_pnl);
+      ? stats?.paper_total_pnl ?? stats?.paper_pnl_24h
+      : stats?.live_total_pnl ?? stats?.total_pnl;
 
   // Deltas: approximate today vs prior 24h window
   const baseDailyPnl =
     activeMode === 'PAPER'
-      ? (stats?.paper_daily_pnl ?? stats?.daily_pnl)
-      : (stats?.live_daily_pnl ?? stats?.daily_pnl);
+      ? stats?.paper_daily_pnl ?? stats?.daily_pnl
+      : stats?.live_daily_pnl ?? stats?.daily_pnl;
 
   const priorWindowPnl =
     activeMode === 'PAPER'
@@ -226,8 +227,8 @@ export default function DashboardPage() {
         ? stats.paper_pnl_24h - (stats.paper_daily_pnl ?? 0)
         : null
       : stats && stats.live_pnl_24h != null
-        ? stats.live_pnl_24h - (stats.live_daily_pnl ?? 0)
-        : null;
+      ? stats.live_pnl_24h - (stats.live_daily_pnl ?? 0)
+      : null;
 
   const todayPnlDelta =
     baseDailyPnl != null && priorWindowPnl != null
@@ -288,40 +289,83 @@ export default function DashboardPage() {
           </p>
         </div>
         {!mounted || statsLoading || riskLoading || signalsLoading ? (
-          <div className='grid grid-cols-2 gap-1.5 md:grid-cols-3 xl:grid-cols-6'>
-            {Array.from({ length: 6 }).map((_, idx) => (
+          <div className='grid grid-cols-2 gap-1.5 md:grid-cols-4 xl:grid-cols-7'>
+            {Array.from({ length: 7 }).map((_, idx) => (
               <Skeleton
                 // eslint-disable-next-line react/no-array-index-key
                 key={idx}
-                className='h-[60px] rounded border border-[var(--to-border)] bg-[var(--to-surface-raised)]'
+                className='h-[72px] rounded-xl border border-[var(--to-border)] skeleton-shimmer'
               />
             ))}
           </div>
         ) : (
-          <div className='grid grid-cols-2 gap-1.5 md:grid-cols-3 xl:grid-cols-6'>
+          <div className='grid grid-cols-2 gap-1.5 md:grid-cols-4 xl:grid-cols-7 stagger-children'>
             <StatCard
               label='Today PnL'
               value={formatCurrency(todayPnl, { signed: true })}
+              numericValue={todayPnl ?? undefined}
+              numericFormat={(v) => formatCurrency(v, { signed: true })}
+              trend={
+                todayPnl != null ? (todayPnl >= 0 ? 'up' : 'down') : 'neutral'
+              }
               subValue={
                 todayPnlDelta != null
-                  ? `Δ vs prev 24h ${formatCurrency(todayPnlDelta, { signed: true })}`
+                  ? `Δ ${formatCurrency(todayPnlDelta, { signed: true })}`
                   : EMPTY_VALUE
               }
               icon={Wallet}
+              className='animate-fade-in-up'
             />
             <StatCard
               label='Total PnL'
               value={formatCurrency(totalPnl, { signed: true })}
+              numericValue={totalPnl ?? undefined}
+              numericFormat={(v) => formatCurrency(v, { signed: true })}
+              trend={
+                totalPnl != null ? (totalPnl >= 0 ? 'up' : 'down') : 'neutral'
+              }
               subValue={
                 stats?.total_pnl_24h != null
-                  ? `24h ${formatCurrency(stats.total_pnl_24h, { signed: true })}`
+                  ? `24h ${formatCurrency(stats.total_pnl_24h, {
+                      signed: true,
+                    })}`
                   : EMPTY_VALUE
               }
               icon={TrendingUp}
+              className='animate-fade-in-up'
+            />
+            <StatCard
+              label='Win Rate'
+              value={formatPercent(stats?.win_rate)}
+              numericValue={stats?.win_rate ?? undefined}
+              numericFormat={(v) => formatPercent(v)}
+              trend={
+                stats?.win_rate != null
+                  ? stats.win_rate >= 50
+                    ? 'up'
+                    : 'down'
+                  : 'neutral'
+              }
+              subValue={
+                stats?.executed_count != null
+                  ? `${stats.executed_count} trades`
+                  : EMPTY_VALUE
+              }
+              icon={Target}
+              className='animate-fade-in-up'
             />
             <StatCard
               label='Drawdown'
               value={formatPercent(risk?.drawdown_pct)}
+              numericValue={risk?.drawdown_pct ?? undefined}
+              numericFormat={(v) => formatPercent(v)}
+              trend={
+                risk?.drawdown_pct != null
+                  ? risk.drawdown_pct > 3
+                    ? 'down'
+                    : 'neutral'
+                  : 'neutral'
+              }
               subValue={
                 risk?.max_drawdown_pct != null
                   ? `Max ${formatPercent(risk.max_drawdown_pct)}`
@@ -329,39 +373,51 @@ export default function DashboardPage() {
               }
               icon={Activity}
               variant='loss'
+              className='animate-fade-in-up'
             />
             <StatCard
               label='Daily DD'
               value={formatPercent(stats?.daily_drawdown_pct)}
+              numericValue={stats?.daily_drawdown_pct ?? undefined}
+              numericFormat={(v) => formatPercent(v)}
               subValue={
                 risk?.max_daily_loss_pct != null
                   ? `Limit ${formatPercent(risk.max_daily_loss_pct)}`
                   : EMPTY_VALUE
               }
               icon={BarChart3}
+              className='animate-fade-in-up'
             />
             <StatCard
-              label='Active Positions'
+              label='Positions'
               value={formatNumber(activePositionsCount, {
                 decimals: 0,
                 empty: '0',
               })}
+              numericValue={activePositionsCount}
+              numericFormat={(v) => String(Math.round(v))}
               subValue={
                 risk?.max_positions != null
                   ? `Max ${formatNumber(risk.max_positions, { decimals: 0 })}`
                   : EMPTY_VALUE
               }
               icon={Crosshair}
+              className='animate-fade-in-up'
             />
             <StatCard
               label='Trades Today'
               value={formatNumber(tradesToday, { decimals: 0, empty: '0' })}
+              numericValue={tradesToday}
+              numericFormat={(v) => String(Math.round(v))}
               subValue={
                 stats?.total_signals_24h != null
-                  ? `24h ${formatNumber(stats.total_signals_24h, { decimals: 0 })}`
+                  ? `24h ${formatNumber(stats.total_signals_24h, {
+                      decimals: 0,
+                    })}`
                   : EMPTY_VALUE
               }
               icon={Clock}
+              className='animate-fade-in-up'
             />
           </div>
         )}
@@ -390,22 +446,22 @@ export default function DashboardPage() {
       {/* ── Middle · Bento grid: latest signals + risk side rail ── */}
       <div className='flex min-h-0 flex-1 flex-col gap-2 xl:flex-row'>
         {/* Middle · Latest Signals table */}
-        <section className='to-panel flex min-h-0 flex-1 flex-col overflow-hidden'>
+        <section className='glow-card flex min-h-0 flex-1 flex-col overflow-hidden'>
           <div className='to-panel-header'>
             <div className='flex items-center gap-2'>
               <span className='panel-label'>Latest Signals</span>
               <span
-                className='kpi-meta font-mono text-[10px] tabular-nums'
+                className='rounded-full bg-[var(--to-surface-raised)] border border-[var(--to-border)] px-2 py-0.5 font-mono text-[9px] tabular-nums text-[var(--to-text-dim)]'
                 style={{ fontFamily: 'var(--font-mono)' }}
               >
-                {signals.length} total
+                {signals.length}
               </span>
             </div>
             <span
               className='kpi-meta font-mono text-[10px] tabular-nums text-[var(--to-text-dim)]'
               style={{ fontFamily: 'var(--font-mono)' }}
             >
-              Last updated&nbsp;{mounted ? lastUpdated : '—'}
+              {mounted ? lastUpdated : '—'}
             </span>
           </div>
 
@@ -426,23 +482,28 @@ export default function DashboardPage() {
 
         {/* Side rail · Risk status + Live log */}
         <aside className='flex min-h-0 w-full flex-col gap-2 xl:w-[360px]'>
-          <section className='to-panel shrink-0'>
+          <section className='glow-card shrink-0'>
             <div className='to-panel-header'>
               <div className='flex items-center gap-2'>
-                <span className='panel-label'>Risk status</span>
+                <span className='panel-label'>Risk Status</span>
+                {risk?.kill_switch_active && (
+                  <span className='rounded-full bg-[var(--to-short)]/15 border border-[var(--to-short)]/30 px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest text-[var(--to-short)]'>
+                    KILL ON
+                  </span>
+                )}
               </div>
               <span
                 className='kpi-meta font-mono text-[10px] tabular-nums text-[var(--to-text-dim)]'
                 style={{ fontFamily: 'var(--font-mono)' }}
               >
-                Last updated&nbsp;{mounted ? lastUpdated : '—'}
+                {mounted ? lastUpdated : '—'}
               </span>
             </div>
             <div className='p-2'>
               {riskLoading ? (
                 <div className='space-y-2'>
-                  <Skeleton className='h-4 w-full rounded bg-[var(--to-surface-raised)]' />
-                  <Skeleton className='h-4 w-4/5 rounded bg-[var(--to-surface-raised)]' />
+                  <Skeleton className='h-4 w-full rounded skeleton-shimmer' />
+                  <Skeleton className='h-4 w-4/5 rounded skeleton-shimmer' />
                 </div>
               ) : (
                 <RiskBar />
