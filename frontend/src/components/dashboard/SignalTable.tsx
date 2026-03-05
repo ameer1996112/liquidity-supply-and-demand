@@ -1,18 +1,32 @@
 'use client';
 
 import { useState, useMemo, useCallback } from 'react';
-import { ArrowUpDown, ArrowUp, ArrowDown, Brain } from 'lucide-react';
+import {
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Brain,
+  TrendingUp,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { TradingSignal, SignalStatus } from '@/types/trading';
 import type { CouncilSummary } from '@/lib/api';
-import {
-  DataTable,
-  type DataTableColumn,
-} from '@/components/shared/DataTable';
+import { DataTable, type DataTableColumn } from '@/components/shared/DataTable';
 import { TableEmptyState } from '@/components/shared/TableStates';
-import { Mono, PnLText, Number as MonoNumber } from '@/components/ui/typography';
+import {
+  Mono,
+  PnLText,
+  Number as MonoNumber,
+} from '@/components/ui/typography';
 
-type SortField = 'created_at' | 'symbol' | 'side' | 'entry' | 'pnl' | 'status';
+type SortField =
+  | 'created_at'
+  | 'symbol'
+  | 'side'
+  | 'entry'
+  | 'pnl'
+  | 'status'
+  | 'score';
 type SortDir = 'asc' | 'desc';
 
 interface SignalTableProps {
@@ -23,12 +37,43 @@ interface SignalTableProps {
   className?: string;
 }
 
+/** Relative time: "2m ago", "1h ago", etc. */
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  if (diff < 60_000) return `${Math.floor(diff / 1000)}s`;
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h`;
+  return `${Math.floor(diff / 86_400_000)}d`;
+}
+
+/** Left-side row accent color based on status */
+function rowAccentColor(status: string): string {
+  const s = status.toLowerCase();
+  if (s === 'active' || s === 'executed' || s === 'open')
+    return 'bg-[var(--to-long)]';
+  if (s === 'closed') return 'bg-[var(--to-text-dim)]/40';
+  if (s === 'ai_rejected' || s === 'failed') return 'bg-[var(--to-short)]';
+  if (s === 'filtered') return 'bg-[var(--to-short)]/40';
+  if (s === 'pending') return 'bg-[var(--to-warning)]';
+  return 'bg-[var(--to-border)]';
+}
+
 function CouncilBadge({ summary }: { summary: CouncilSummary | undefined }) {
-  if (!summary) return <span className='font-mono text-[10px] text-[var(--to-text-dim)]/40'>—</span>;
+  if (!summary)
+    return (
+      <span className='font-mono text-[10px] text-[var(--to-text-dim)]/40'>
+        —
+      </span>
+    );
 
   const isAllow = summary.recommendation === 'allow';
   const conf = summary.confidence;
-  const confColor = conf >= 70 ? 'text-[var(--to-long)]' : conf >= 50 ? 'text-[var(--to-warning)]' : 'text-[var(--to-short)]';
+  const confColor =
+    conf >= 70
+      ? 'text-[var(--to-long)]'
+      : conf >= 50
+      ? 'text-[var(--to-warning)]'
+      : 'text-[var(--to-short)]';
 
   // Count bull/bear/risk votes from the votes dict
   const voteEntries = Object.entries(summary.votes || {});
@@ -39,11 +84,17 @@ function CouncilBadge({ summary }: { summary: CouncilSummary | undefined }) {
     <div className='flex flex-col items-end gap-0.5'>
       <div className='flex items-center gap-1'>
         <Brain
-          className={cn('h-3 w-3', isAllow ? 'text-[var(--to-long)]/60' : 'text-[var(--to-short)]/60')}
+          className={cn(
+            'h-3 w-3',
+            isAllow ? 'text-[var(--to-long)]/60' : 'text-[var(--to-short)]/60'
+          )}
           strokeWidth={1.5}
         />
         <span
-          className={cn('font-mono text-[10px] font-bold tabular-nums', confColor)}
+          className={cn(
+            'font-mono text-[10px] font-bold tabular-nums',
+            confColor
+          )}
           style={{ fontFamily: 'var(--font-mono)' }}
         >
           {conf}%
@@ -115,7 +166,7 @@ function StatusBadge({ status }: { status: SignalStatus }) {
       className={cn(
         'inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider',
         style.bg,
-        style.text,
+        style.text
       )}
       style={{ fontFamily: 'var(--font-mono)' }}
     >
@@ -132,7 +183,7 @@ function SideBadge({ side }: { side: string }) {
         'inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider',
         isBuy
           ? 'bg-[var(--to-long)]/12 text-[var(--to-long)]'
-          : 'bg-[var(--to-short)]/12 text-[var(--to-short)]',
+          : 'bg-[var(--to-short)]/12 text-[var(--to-short)]'
       )}
       style={{ fontFamily: 'var(--font-mono)' }}
     >
@@ -141,7 +192,10 @@ function SideBadge({ side }: { side: string }) {
   );
 }
 
-function getSortValue(signal: TradingSignal, field: SortField): string | number {
+function getSortValue(
+  signal: TradingSignal,
+  field: SortField
+): string | number {
   switch (field) {
     case 'created_at':
       return new Date(signal.created_at).getTime();
@@ -155,6 +209,8 @@ function getSortValue(signal: TradingSignal, field: SortField): string | number 
       return signal.pnl ?? signal.pnl_usd ?? 0;
     case 'status':
       return signal.status;
+    case 'score':
+      return signal.score ?? signal.ai_confidence ?? 0;
     default:
       return '';
   }
@@ -179,7 +235,7 @@ export function SignalTable({
         setSortDir('desc');
       }
     },
-    [sortField],
+    [sortField]
   );
 
   const sorted = useMemo(() => {
@@ -197,7 +253,6 @@ export function SignalTable({
     return d.toLocaleTimeString('en-GB', {
       hour: '2-digit',
       minute: '2-digit',
-      second: '2-digit',
       hour12: false,
     });
   };
@@ -223,9 +278,24 @@ export function SignalTable({
 
   const columns: DataTableColumn<TradingSignal>[] = [
     {
+      id: 'row_accent',
+      align: 'left',
+      width: 'w-[3px] p-0',
+      header: <span />,
+      render: (signal) => (
+        <span
+          className={cn(
+            'block h-full w-[3px] rounded-full',
+            rowAccentColor(signal.status)
+          )}
+          style={{ minHeight: 20 }}
+        />
+      ),
+    },
+    {
       id: 'created_at',
       align: 'left',
-      width: 'w-[80px]',
+      width: 'w-[72px]',
       header: (
         <button
           type='button'
@@ -245,12 +315,17 @@ export function SignalTable({
         </button>
       ),
       render: (signal) => (
-        <Mono
-          size='sm'
-          className='text-text-secondary'
-        >
-          {formatTime(signal.created_at)}
-        </Mono>
+        <div className='flex flex-col gap-0.5'>
+          <Mono size='sm' className='text-text-secondary'>
+            {formatTime(signal.created_at)}
+          </Mono>
+          <span
+            className='text-[9px] text-[var(--to-text-dim)]'
+            style={{ fontFamily: 'var(--font-mono)' }}
+          >
+            {relativeTime(signal.created_at)} ago
+          </span>
+        </div>
       ),
     },
     {
@@ -276,11 +351,7 @@ export function SignalTable({
         </button>
       ),
       render: (signal) => (
-        <Mono
-          size='lg'
-          bold
-          className='text-text-primary'
-        >
+        <Mono size='lg' bold className='text-text-primary'>
           {signal.symbol}
         </Mono>
       ),
@@ -371,6 +442,57 @@ export function SignalTable({
           size='sm'
         />
       ),
+    },
+    {
+      id: 'score',
+      align: 'right',
+      isNumeric: true,
+      width: 'w-[52px]',
+      header: (
+        <button
+          type='button'
+          className='inline-flex items-center justify-end gap-1 w-full'
+          onClick={() => handleSort('score')}
+        >
+          <TrendingUp className='h-2.5 w-2.5' strokeWidth={1.5} />
+          <span>Score</span>
+          {sortField === 'score' ? (
+            sortDir === 'asc' ? (
+              <ArrowUp className='h-2.5 w-2.5' />
+            ) : (
+              <ArrowDown className='h-2.5 w-2.5' />
+            )
+          ) : (
+            <ArrowUpDown className='h-2.5 w-2.5 opacity-30' />
+          )}
+        </button>
+      ),
+      render: (signal) => {
+        const score = signal.score ?? signal.ai_confidence;
+        if (score == null)
+          return (
+            <span className='font-mono text-[10px] text-[var(--to-text-dim)]/40'>
+              —
+            </span>
+          );
+        const color =
+          score >= 70
+            ? 'text-[var(--to-long)]'
+            : score >= 50
+            ? 'text-[var(--to-warning)]'
+            : 'text-[var(--to-short)]';
+        return (
+          <span
+            className={cn(
+              'font-mono text-[10px] font-bold tabular-nums',
+              color
+            )}
+            style={{ fontFamily: 'var(--font-mono)' }}
+          >
+            {Math.round(score)}
+          </span>
+        );
+      },
     },
     {
       id: 'council',
