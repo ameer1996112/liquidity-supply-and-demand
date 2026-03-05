@@ -1141,6 +1141,28 @@ def process_trade(payload: Dict[str, Any]):
     global_daily_pnl = _get_account_daily_pnl(None)
     current_equity_global = dynamic_account_balance + global_daily_pnl
 
+    # ── De-duplication: stamp _signal_id from the API-pre-inserted row so that
+    # logic.process_trade() → save_alert() can UPDATE it instead of INSERT a new row.
+    # Without this, every approved signal produces 2 rows: RECEIVED (API) + OPEN (logic).
+    receipt_id = (payload.get("_webhook_receipt_id") or "").strip()
+    if receipt_id and supabase and "_signal_id" not in payload:
+        try:
+            _existing = (
+                supabase.table("trading_signals")
+                .select("id")
+                .eq("webhook_receipt_id", receipt_id)
+                .limit(1)
+                .execute()
+            )
+            if _existing.data:
+                payload["_signal_id"] = int(_existing.data[0]["id"])
+                logger.info(
+                    "De-dup: stamped _signal_id=%s from receipt_id=%s",
+                    payload["_signal_id"], receipt_id[:8],
+                )
+        except Exception as _dedup_err:
+            logger.warning("De-dup lookup failed (non-fatal): %s", _dedup_err)
+
     # ══════════════════════════════════════════════════════════════════
     # MULTI-ACCOUNT EXECUTION (parallel — each account isolated)
     # Per-account guards (kill switch, circuit breaker, PropGuard,

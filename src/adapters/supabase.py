@@ -187,6 +187,25 @@ def save_alert(
         # Stored as numeric 0-100; frontend maps this into the AI confidence bar
         insert_data['ai_confidence'] = float(ai_conf)
 
+    # ── De-duplication: if the API already pre-inserted a 'received' row,
+    # update it in-place rather than inserting a second row.
+    # The worker stamps _signal_id onto the payload before calling logic.process_trade().
+    existing_id = data.get("_signal_id")
+    if existing_id:
+        try:
+            supabase.table("trading_signals").update(insert_data).eq("id", existing_id).execute()
+            logger.info(
+                "✅ save_alert: Updated existing row ID=%s (no duplicate insert), zone_id=%s, run_mode=%s",
+                existing_id, data.get("zone_id"), run_mode,
+            )
+            return int(existing_id)
+        except Exception as e:
+            logger.warning(
+                "save_alert: Update failed for id=%s, falling back to INSERT: %s",
+                existing_id, e,
+            )
+            # fall through to INSERT below
+
     try:
         response = supabase.table('trading_signals').insert(insert_data).execute()
         alert_id = response.data[0]['id']
