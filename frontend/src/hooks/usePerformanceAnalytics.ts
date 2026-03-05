@@ -70,8 +70,8 @@ export function useBreakdown(period: string, mode: string) {
       const base = getApiUrl();
       if (!base) throw new Error('API URL not configured');
       const res = await fetch(
-        `${base}/analytics/breakdown?period=${period}&mode=${mode}`,
-        { signal: AbortSignal.timeout(10_000) },
+        `${base}/api/analytics/breakdown?period=${period}&mode=${mode}`,
+        { signal: AbortSignal.timeout(10_000) }
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.json();
@@ -86,7 +86,7 @@ export function useStreaks(mode: string) {
     queryFn: async () => {
       const base = getApiUrl();
       if (!base) throw new Error('API URL not configured');
-      const res = await fetch(`${base}/analytics/streaks?mode=${mode}`, {
+      const res = await fetch(`${base}/api/analytics/streaks?mode=${mode}`, {
         signal: AbortSignal.timeout(10_000),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -102,7 +102,7 @@ export function useDrawdown(mode: string) {
     queryFn: async () => {
       const base = getApiUrl();
       if (!base) throw new Error('API URL not configured');
-      const res = await fetch(`${base}/analytics/drawdown?mode=${mode}`, {
+      const res = await fetch(`${base}/api/analytics/drawdown?mode=${mode}`, {
         signal: AbortSignal.timeout(10_000),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -118,7 +118,7 @@ export function useSummary(mode: string) {
     queryFn: async () => {
       const base = getApiUrl();
       if (!base) throw new Error('API URL not configured');
-      const res = await fetch(`${base}/analytics/summary?mode=${mode}`, {
+      const res = await fetch(`${base}/api/analytics/summary?mode=${mode}`, {
         signal: AbortSignal.timeout(10_000),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
