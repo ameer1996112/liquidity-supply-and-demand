@@ -262,9 +262,9 @@ export function TopBar() {
   };
 
   return (
-    <header className='topbar-glass flex h-11 shrink-0 items-center justify-between px-4'>
+    <header className='topbar-glass flex h-11 shrink-0 items-center justify-between gap-4 px-4'>
       {/* Left: Breadcrumb + title + clocks */}
-      <div className='flex min-w-0 items-center gap-4'>
+      <div className='flex min-w-0 flex-1 items-center gap-4'>
         <div className='min-w-0'>
           <div
             className='flex items-center gap-1 text-[9px] uppercase tracking-[0.2em] text-[var(--to-text-dim)]'
