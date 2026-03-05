@@ -44,12 +44,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === '/') {
         e.preventDefault();
-        openCopilot();
+        if (copilotOpen) {
+          closeCopilot();
+        } else {
+          openCopilot();
+        }
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [openCopilot]);
+  }, [copilotOpen, openCopilot, closeCopilot]);
 
   if (FULLSCREEN_ROUTES.some((r) => pathname.startsWith(r))) {
     return <>{children}</>;
