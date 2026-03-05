@@ -18,11 +18,12 @@ from pydantic import BaseModel, ValidationError
 from urllib.parse import parse_qs
 
 from config import get_settings
+from config.logging_config import configure_logging
 from src.adapters.redis_queue import get_redis
 from src.core.transport import get_transport
 from src.core.signal import EntryWebhookPayload, ExitWebhookPayload, validate_webhook_payload
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+configure_logging(level=logging.INFO, format_str="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
