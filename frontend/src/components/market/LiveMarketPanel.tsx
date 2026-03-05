@@ -44,7 +44,7 @@ function usePriceFeed() {
       change: null,
       changePct: null,
       lastUpdated: new Date(),
-    })),
+    }))
   );
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
@@ -53,8 +53,10 @@ function usePriceFeed() {
     try {
       const symbols = WATCH_SYMBOLS.map((s) => s.yahooId).join(',');
       const res = await fetch(
-        `${API_BASE_URL}/api/market/prices?symbols=${encodeURIComponent(symbols)}&interval=1d&range=1d`,
-        { signal: AbortSignal.timeout(10000) },
+        `${API_BASE_URL}/api/market/prices?symbols=${encodeURIComponent(
+          symbols
+        )}&interval=1d&range=1d`,
+        { signal: AbortSignal.timeout(10000) }
       );
       if (!res.ok) throw new Error('Market data unavailable');
       const data = (await res.json()) as Array<{
@@ -74,7 +76,7 @@ function usePriceFeed() {
             changePct: row?.changePct ?? null,
             lastUpdated: new Date(),
           };
-        }),
+        })
       );
       setLastRefresh(new Date());
     } catch {
@@ -128,10 +130,10 @@ function PriceTicker() {
                     p.symbol.includes('JPY')
                       ? 3
                       : p.symbol === 'XAUUSD' ||
-                          p.symbol === 'BTCUSD' ||
-                          p.symbol.includes('NAS')
-                        ? 2
-                        : 5,
+                        p.symbol === 'BTCUSD' ||
+                        p.symbol.includes('NAS')
+                      ? 2
+                      : 5
                   )
                 : '—'}
             </div>
@@ -200,8 +202,8 @@ function EconomicCalendar() {
           ev.impact === 'high'
             ? '#f6465d'
             : ev.impact === 'medium'
-              ? '#f0b90b'
-              : '#848e9c';
+            ? '#f0b90b'
+            : '#848e9c';
         return (
           <div
             key={i}
@@ -209,7 +211,7 @@ function EconomicCalendar() {
               'flex items-center gap-2.5 px-2.5 py-2 rounded-lg border transition-opacity',
               isPast
                 ? 'opacity-50 border-[var(--to-border)]'
-                : 'border-[var(--to-border)] bg-[var(--to-surface-raised)]',
+                : 'border-[var(--to-border)] bg-[var(--to-surface-raised)]'
             )}
           >
             <div className='text-[10px] font-mono text-[var(--to-text-dim)] w-10 shrink-0'>
@@ -264,7 +266,7 @@ function useNewsFeed() {
               source: (item.author as string) || 'MarketWatch',
               url: (item.link as string) || '#',
               pubDate: (item.pubDate as string) || '',
-            })),
+            }))
           );
         }
       } catch {
@@ -366,20 +368,18 @@ export function LiveMarketPanel({ open, onClose }: LiveMarketPanelProps) {
   return (
     <>
       {/* Backdrop */}
-      <div className='fixed inset-0 z-40 bg-black/20' onClick={onClose} />
+      <div className='fixed inset-0 z-40 bg-black/5' onClick={onClose} />
 
       {/* Panel */}
       <div
-        className='fixed left-14 top-0 bottom-0 z-50 flex flex-col'
+        className='fixed left-[72px] top-[76px] z-50 flex flex-col rounded-xl border border-[var(--to-border)] bg-[var(--to-bg)] shadow-[0_18px_55px_rgba(0,0,0,0.45)]'
         style={{
-          width: 300,
-          backgroundColor: 'var(--to-bg)',
-          borderRight: '1px solid var(--to-border)',
-          boxShadow: '4px 0 40px rgba(0,0,0,0.4)',
+          width: 320,
+          maxHeight: 'min(78vh, 760px)',
         }}
       >
         {/* Header */}
-        <div className='flex items-center justify-between px-4 py-3.5 border-b border-[var(--to-border)] shrink-0'>
+        <div className='flex items-center justify-between px-4 py-3 border-b border-[var(--to-border)] shrink-0'>
           <div className='flex items-center gap-2'>
             <Globe className='h-4 w-4 text-[#0ecb81]' />
             <span className='text-[13px] font-semibold text-[var(--to-text-primary)]'>
@@ -395,16 +395,16 @@ export function LiveMarketPanel({ open, onClose }: LiveMarketPanelProps) {
         </div>
 
         {/* Tab bar */}
-        <div className='flex border-b border-[var(--to-border)] shrink-0'>
+        <div className='flex border-b border-[var(--to-border)] shrink-0 px-1.5 py-1'>
           {tabs.map((t) => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
               className={cn(
-                'flex-1 flex items-center justify-center gap-1.5 py-2 text-[11px] font-medium transition-colors border-b-2',
+                'flex-1 flex items-center justify-center gap-1.5 rounded-md py-1.5 text-[11px] font-medium transition-colors border',
                 tab === t.key
-                  ? 'border-[#0ecb81] text-[#0ecb81]'
-                  : 'border-transparent text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]',
+                  ? 'border-[#0ecb81]/40 bg-[#0ecb81]/10 text-[#0ecb81]'
+                  : 'border-transparent text-[var(--to-text-dim)] hover:border-white/10 hover:bg-[var(--to-surface-raised)] hover:text-[var(--to-text-secondary)]'
               )}
             >
               {t.icon}
@@ -414,7 +414,7 @@ export function LiveMarketPanel({ open, onClose }: LiveMarketPanelProps) {
         </div>
 
         {/* Content */}
-        <div className='flex-1 overflow-y-auto p-3 scrollbar-thin'>
+        <div className='flex-1 overflow-y-auto p-3 scrollbar-thin min-h-0'>
           {tab === 'prices' && <PriceTicker />}
           {tab === 'calendar' && <EconomicCalendar />}
           {tab === 'news' && <NewsFeed />}
@@ -441,7 +441,7 @@ export function LiveMarketTrigger({
         'flex items-center gap-1.5 rounded border px-2 py-0.5 text-[10px] transition-all',
         active
           ? 'border-[#0ecb81]/50 bg-[#0ecb81]/10 text-[#0ecb81]'
-          : 'border-[var(--to-border)] bg-[var(--to-surface)] text-[var(--to-text-dim)] hover:border-[#0ecb81]/50 hover:text-[#0ecb81]',
+          : 'border-[var(--to-border)] bg-[var(--to-surface)] text-[var(--to-text-dim)] hover:border-[#0ecb81]/50 hover:text-[#0ecb81]'
       )}
       title='Live Market Panel'
     >
