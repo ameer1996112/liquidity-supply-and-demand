@@ -295,7 +295,7 @@ export function TopBar() {
         {/* System status pill */}
         <div
           className={cn(
-            'hidden items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[9px] uppercase tracking-[0.16em] sm:flex',
+            'hidden items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[9px] uppercase tracking-[0.16em] sm:flex',
             statusPillTone === 'healthy' &&
               'border-[var(--to-long)]/25 bg-[var(--to-long)]/5 text-[var(--to-long)]',
             statusPillTone === 'degraded' &&
