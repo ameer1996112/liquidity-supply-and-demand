@@ -43,15 +43,22 @@ def _fetch_closed_signals(
         sb.table("trading_signals")
         .select(
             "id, symbol, side, entry, sl, tp, size, pnl_usd, pnl_r, outcome, "
-            "zone_type, entry_model, ai_confidence, rr_ratio, "
+            "zone_type, entry_model, ai_confidence, rr_ratio, run_mode, "
             "created_at, closed_at, status"
         )
-        .eq("status", "closed")
+        # Include both 'closed' and 'executed' statuses to match frontend
+        # isSignalClosed() logic which treats executed+pnl as closed trades.
+        .in_("status", ["closed", "executed"])
         .order("created_at", desc=False)
     )
 
     if mode and mode != "ALL":
-        query = query.eq("run_mode", mode)
+        # Also include signals where run_mode IS NULL when filtering for LIVE,
+        # since legacy signals default to LIVE when run_mode is not set.
+        if mode == "LIVE":
+            query = query.or_("run_mode.eq.LIVE,run_mode.is.null")
+        else:
+            query = query.eq("run_mode", mode)
 
     # Sprint 2.3: per-account filtering.  Omitting account_id (or passing None)
     # returns all accounts — identical to pre-Sprint-2.3 behaviour.
@@ -64,7 +71,19 @@ def _fetch_closed_signals(
         query = query.gte("created_at", cutoff)
 
     resp = query.limit(5000).execute()
-    return resp.data or []
+    raw = resp.data or []
+
+    # Mirror frontend isSignalClosed(): for 'executed' signals, only include
+    # those that have pnl_usd or closed_at — i.e. truly completed trades.
+    # 'closed' status signals are always included.
+    def _is_truly_closed(s: dict) -> bool:
+        status = (s.get("status") or "").lower()
+        if status == "closed":
+            return True
+        # executed: must have pnl_usd or closed_at to count as a finished trade
+        return s.get("pnl_usd") is not None or bool(s.get("closed_at"))
+
+    return [s for s in raw if _is_truly_closed(s)]
 
 
 def _bucket(signals: list, key_fn) -> Dict[str, Dict[str, Any]]:
