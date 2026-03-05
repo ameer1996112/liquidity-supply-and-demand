@@ -86,17 +86,23 @@ export default function AnalyticsPage() {
   const [period, setPeriod] = useState<string>('7d');
 
   const mode = modeFilter === 'ALL' ? undefined : modeFilter;
-  const apiMode = modeFilter === 'ALL' ? 'LIVE' : modeFilter;
+  // Aggregation endpoints currently expect LIVE/PAPER semantics in production.
+  // Keep "ALL" for overview hook, but map analytics tabs to LIVE when ALL is selected.
+  const analyticsMode = modeFilter === 'ALL' ? 'LIVE' : modeFilter;
 
   const { data: analytics, isLoading } = useAnalytics(mode);
-  const { data: breakdown, isLoading: breakdownLoading } = useBreakdown(
-    period,
-    apiMode
-  );
-  const { data: streaksData, isLoading: streaksLoading } = useStreaks(apiMode);
+  const {
+    data: breakdown,
+    isLoading: breakdownLoading,
+    isError: breakdownError,
+    error: breakdownErrorObj,
+  } = useBreakdown(period, analyticsMode);
+  const { data: streaksData, isLoading: streaksLoading } =
+    useStreaks(analyticsMode);
   const { data: drawdownData, isLoading: drawdownLoading } =
-    useDrawdown(apiMode);
-  const { data: summaryData, isLoading: summaryLoading } = useSummary(apiMode);
+    useDrawdown(analyticsMode);
+  const { data: summaryData, isLoading: summaryLoading } =
+    useSummary(analyticsMode);
 
   return (
     <div className='flex h-full min-h-0 flex-col gap-3'>
@@ -258,6 +264,17 @@ export default function AnalyticsPage() {
               <div className='space-y-3'>
                 <Skeleton className='h-56 rounded-lg bg-slate-800/60' />
                 <Skeleton className='h-44 rounded-lg bg-slate-800/60' />
+              </div>
+            ) : breakdownError ? (
+              <div className='tv-card p-4'>
+                <PanelEmptyState
+                  title='Failed to load breakdown'
+                  description={
+                    breakdownErrorObj instanceof Error
+                      ? breakdownErrorObj.message
+                      : 'Unable to fetch breakdown analytics.'
+                  }
+                />
               </div>
             ) : breakdown ? (
               <div className='space-y-4'>
