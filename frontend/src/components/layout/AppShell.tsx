@@ -33,8 +33,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const {
     copilotOpen,
     marketOpen,
-    openCopilot,
     closeCopilot,
+    toggleCopilot,
     toggleMarket,
     closeMarket,
   } = useShellActions();
@@ -44,16 +44,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === '/') {
         e.preventDefault();
-        if (copilotOpen) {
-          closeCopilot();
-        } else {
-          openCopilot();
-        }
+        toggleCopilot();
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [copilotOpen, openCopilot, closeCopilot]);
+  }, [toggleCopilot]);
 
   if (FULLSCREEN_ROUTES.some((r) => pathname.startsWith(r))) {
     return <>{children}</>;

@@ -212,7 +212,7 @@ export function TopBar() {
   const [killDialogMode, setKillDialogMode] =
     useState<KillSwitchMode>('engage');
 
-  const { openCopilot, toggleMarket } = useShellActions();
+  const { toggleCopilot, toggleMarket } = useShellActions();
   const { data: accounts = [] } = useAccountsComparison();
   const { isApiUp, healthStatus, hasDrift, brokerOk, lastReconcileAt } =
     useSystemStatus();
@@ -448,7 +448,7 @@ export function TopBar() {
           </button>
 
           <button
-            onClick={openCopilot}
+            onClick={toggleCopilot}
             className='flex items-center justify-center p-2 rounded-lg text-zinc-400 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors tooltip-trigger'
             title='AI Copilot (⌘/)'
           >

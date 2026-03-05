@@ -13,6 +13,7 @@ interface ShellActionsContextValue {
   marketOpen: boolean;
   openCopilot: () => void;
   closeCopilot: () => void;
+  toggleCopilot: () => void;
   toggleMarket: () => void;
   closeMarket: () => void;
 }
@@ -27,6 +28,7 @@ export function ShellActionsProvider({ children }: { children: ReactNode }) {
 
   const openCopilot = useCallback(() => setCopilotOpen(true), []);
   const closeCopilot = useCallback(() => setCopilotOpen(false), []);
+  const toggleCopilot = useCallback(() => setCopilotOpen((p) => !p), []);
   const toggleMarket = useCallback(() => setMarketOpen((p) => !p), []);
   const closeMarket = useCallback(() => setMarketOpen(false), []);
 
@@ -37,6 +39,7 @@ export function ShellActionsProvider({ children }: { children: ReactNode }) {
         marketOpen,
         openCopilot,
         closeCopilot,
+        toggleCopilot,
         toggleMarket,
         closeMarket,
       }}
