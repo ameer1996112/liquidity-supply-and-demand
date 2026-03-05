@@ -507,13 +507,10 @@ async def webhook(request: Request, payload: dict[str, Any] = Depends(get_webhoo
     user_agent = request.headers.get("User-Agent", "")
     is_tradingview = "TradingView" in user_agent  # kept for logging only
 
-    explicit_run_mode = (payload.get("run_mode") or "").strip().upper()
-    if explicit_run_mode in ("LIVE", "PAPER", "BACKTEST"):
-        # Pine / caller set it explicitly — respect it
-        payload["run_mode"] = explicit_run_mode
-        payload["_signal_source"] = "tradingview" if is_tradingview else "manual"
-        logger.info("Run-mode: %s (explicit in payload, UA=%s)", explicit_run_mode, user_agent[:60] or "<empty>")
-    elif payload.get("force_paper"):
+    # We ignore the explicit payload "run_mode" because the Pine Script
+    # (SND_Utils) hardcodes `"run_mode":"PAPER"` in its webhook payload.
+    # Instead, we rely entirely on 'force_paper' for manual overrides.
+    if payload.get("force_paper"):
         payload["run_mode"] = "PAPER"
         payload["_signal_source"] = "manual"
         logger.info("Run-mode: PAPER (force_paper=true in payload)")
@@ -522,7 +519,7 @@ async def webhook(request: Request, payload: dict[str, Any] = Depends(get_webhoo
         # TradingView in production → LIVE.
         payload["run_mode"] = "LIVE"
         payload["_signal_source"] = "tradingview" if is_tradingview else "webhook"
-        logger.info("Run-mode: LIVE (default, UA=%s)", user_agent[:60] or "<empty>")
+        logger.info("Run-mode: LIVE (default, ignoring Pine payload, UA=%s)", user_agent[:60] or "<empty>")
 
     symbol = payload.get("symbol", payload.get("zone_id", "N/A"))
     run_mode = payload["run_mode"]
