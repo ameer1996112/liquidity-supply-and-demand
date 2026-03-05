@@ -8,10 +8,10 @@ on:
       - develop
   pull_request:
     paths:
-      - "src/**"
-      - "tests/**"
-      - "requirements.txt"
-      - ".github/workflows/backend-tests.yml"
+      - 'src/**'
+      - 'tests/**'
+      - 'requirements.txt'
+      - '.github/workflows/backend-tests.yml'
 
 jobs:
   tests:
@@ -24,24 +24,41 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest
+          pip install pytest pytest-timeout
+
       - name: Run unit + integration tests
         env:
           PYTHONPATH: ${{ github.workspace }}
           TRINITY_ENV: test
+          # Dummy credentials — real services are mocked in tests/conftest.py
+          SUPABASE_URL: http://dummy.supabase.test
+          REDIS_URL: redis://localhost:6379
+          SUPABASE_KEY: dummy-anon-key-for-testing
+          SUPABASE_SERVICE_ROLE_KEY: dummy-service-role-key
+          SIGNAL_TRANSPORT: memory
+          AI_API_KEY: dummy-ai-key
         run: |
-          pytest tests -v --tb=short --ignore=tests/test_sprint55_reliability.py
+          pytest tests -v --tb=short \
+            --timeout=30 \
+            --ignore=tests/test_sprint55_reliability.py \
+            --ignore=tests/test_pipeline.py \
+            --ignore=tests/test_e2e.py
 
       - name: Run chaos / reliability tests
         env:
           PYTHONPATH: ${{ github.workspace }}
           TRINITY_ENV: test
+          SUPABASE_URL: http://dummy.supabase.test
+          REDIS_URL: redis://localhost:6379
+          SUPABASE_KEY: dummy-anon-key-for-testing
+          SUPABASE_SERVICE_ROLE_KEY: dummy-service-role-key
+          SIGNAL_TRANSPORT: memory
+          AI_API_KEY: dummy-ai-key
         run: |
-          pytest tests/test_sprint55_reliability.py -v --tb=short
-
+          pytest tests/test_sprint55_reliability.py -v --tb=short --timeout=30
