@@ -162,7 +162,13 @@ export async function fetchSignalStats(): Promise<SignalStats> {
   const eligibleForPnl = signals.filter((s) => {
     const st = normalizeStatus(s.status);
     const hasPnl = s.pnl_usd != null || s.pnl != null;
-    return hasPnl && (st === 'closed' || st === 'executed');
+    return (
+      hasPnl &&
+      (st === 'closed' ||
+        st === 'executed' ||
+        st === 'CLOSED' ||
+        st === 'EXECUTED')
+    );
   });
 
   const liveClosed = eligibleForPnl.filter(isLive);
@@ -238,7 +244,9 @@ export async function fetchSignalStats(): Promise<SignalStats> {
 
       const { data: allClosed } = await supabase
         .from('trading_signals')
-        .select('pnl, pnl_usd, entry, exit_fill_price, size, side, run_mode')
+        .select(
+          'pnl, pnl_usd, entry, exit_fill_price, size, side, run_mode, status',
+        )
         .or(
           'status.eq.closed,status.eq.executed,status.eq.CLOSED,status.eq.EXECUTED',
         );
@@ -312,7 +320,10 @@ export async function fetchSignalStats(): Promise<SignalStats> {
   }
 
   // ── Daily Drawdown % ───────────────────────────────────────────────
-  const dailyDrawdownPct = dailyPnl < 0 ? Math.abs(dailyPnl) : 0;
+  // FIXED: Calculate as % of account balance, not absolute USD
+  const accountBalance = 50000; // Match config/settings.py default
+  const dailyDrawdownPct =
+    dailyPnl < 0 ? (Math.abs(dailyPnl) / accountBalance) * 100 : 0;
 
   return {
     total_signals_24h: signals.length,

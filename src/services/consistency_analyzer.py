@@ -87,7 +87,7 @@ class ConsistencyAnalyzer:
         try:
             query = self.supabase.table("trading_signals")\
                 .select("pnl_usd, created_at")\
-                .eq("status", "closed")\
+                .in_("status", ["closed", "CLOSED"])\
                 .gte("created_at", start_date)\
                 .order("created_at", desc=False)
             query = self._apply_account_filter(query, account_name, broker_profile_id)

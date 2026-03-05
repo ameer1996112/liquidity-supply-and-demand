@@ -92,7 +92,7 @@ class MTMGuardian:
         try:
             q = self.supabase.table("trading_signals")\
                 .select("pnl_usd")\
-                .eq("status", "closed")\
+                .in_("status", ["closed", "CLOSED", "executed", "EXECUTED"])\
                 .gte("created_at", today_start)
             q = self._apply_account_filter(q, account_name, broker_profile_id)
             closed_trades = q.execute()
