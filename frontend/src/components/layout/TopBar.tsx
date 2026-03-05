@@ -58,7 +58,7 @@ function DualClock() {
 
   return (
     <div
-      className='hidden items-center gap-3 text-[10px] tabular-nums sm:flex'
+      className='hidden items-center gap-3 text-[10px] tabular-nums xl:flex'
       style={{ fontFamily: 'var(--font-mono)' }}
     >
       <div className='flex items-center gap-1.5'>
@@ -265,7 +265,7 @@ export function TopBar() {
     <header className='topbar-glass flex h-11 shrink-0 items-center justify-between gap-4 px-4'>
       {/* Left: Breadcrumb + title + clocks */}
       <div className='flex min-w-0 flex-1 items-center gap-4'>
-        <div className='min-w-0'>
+        <div className='shrink-0'>
           <div
             className='flex items-center gap-1 text-[9px] uppercase tracking-[0.2em] text-[var(--to-text-dim)]'
             style={{ fontFamily: 'var(--font-mono)' }}
@@ -276,7 +276,7 @@ export function TopBar() {
           </div>
           <div className='flex items-center gap-1.5'>
             <span
-              className='truncate text-[13px] font-bold text-[var(--to-text-primary)]'
+              className='text-[13px] font-bold text-[var(--to-text-primary)]'
               style={{
                 fontFamily: 'var(--font-sans)',
                 letterSpacing: '-0.02em',
