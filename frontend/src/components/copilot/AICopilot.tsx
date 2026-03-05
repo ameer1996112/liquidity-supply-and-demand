@@ -146,15 +146,15 @@ function MessageBubble({ message }: { message: CopilotMessage }) {
     <div
       className={cn(
         'flex flex-col gap-1',
-        isUser ? 'items-end' : 'items-start',
+        isUser ? 'items-end' : 'items-start'
       )}
     >
       <div
         className={cn(
-          'max-w-[85%] rounded-2xl px-4 py-2.5 text-[12px] leading-relaxed',
+          'max-w-[85%] min-w-0 overflow-hidden rounded-2xl px-4 py-2.5 text-[12px] leading-relaxed',
           isUser
             ? 'rounded-br-sm bg-[#3b82f6] text-white'
-            : 'rounded-bl-sm bg-[var(--to-surface-raised)] border border-[var(--to-border)] text-[var(--to-text-secondary)]',
+            : 'rounded-bl-sm bg-[var(--to-surface-raised)] border border-[var(--to-border)] text-[var(--to-text-secondary)]'
         )}
       >
         <div className='whitespace-pre-line'>{renderText(message.content)}</div>
@@ -257,7 +257,7 @@ export function AICopilot({ open, onClose }: AICopilotProps) {
       setIsThinking(false);
       setMessages((prev) => [...prev, assistantMsg]);
     },
-    [signals],
+    [signals]
   );
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -288,9 +288,11 @@ export function AICopilot({ open, onClose }: AICopilotProps) {
 
       {/* Panel */}
       <div
-        className='fixed right-0 top-0 bottom-0 z-50 flex flex-col'
+        className='fixed right-0 top-0 bottom-0 z-50 flex min-h-0 flex-col overflow-hidden'
         style={{
           width: 'min(420px, 100vw)',
+          maxWidth: '100vw',
+          maxHeight: '100dvh',
           backgroundColor: 'var(--to-bg)',
           borderLeft: '1px solid var(--to-border)',
           boxShadow: '-20px 0 60px rgba(0,0,0,0.4)',
@@ -340,8 +342,8 @@ export function AICopilot({ open, onClose }: AICopilotProps) {
         </div>
 
         {/* Quick Actions */}
-        <div className='px-4 py-2.5 border-b border-[var(--to-border)] shrink-0'>
-          <div className='flex gap-1.5 overflow-x-auto scrollbar-none pb-0.5'>
+        <div className='px-4 py-2.5 border-b border-[var(--to-border)] shrink-0 overflow-hidden'>
+          <div className='flex gap-1.5 overflow-x-auto scrollbar-none pb-0.5 min-w-0'>
             {QUICK_ACTIONS.map((action) => (
               <button
                 key={action.query}
@@ -355,7 +357,7 @@ export function AICopilot({ open, onClose }: AICopilotProps) {
         </div>
 
         {/* Messages */}
-        <div className='flex-1 overflow-y-auto px-4 py-4 space-y-4 scrollbar-thin'>
+        <div className='flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 py-4 space-y-4 scrollbar-thin'>
           {messages.map((msg, i) => (
             <MessageBubble key={i} message={msg} />
           ))}
@@ -364,14 +366,14 @@ export function AICopilot({ open, onClose }: AICopilotProps) {
         </div>
 
         {/* Input */}
-        <div className='px-4 py-3.5 border-t border-[var(--to-border)] shrink-0'>
+        <div className='px-4 py-3.5 border-t border-[var(--to-border)] shrink-0 overflow-hidden'>
           <form onSubmit={handleSubmit} className='flex items-center gap-2'>
             <input
               ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder='Ask about your trades…'
-              className='flex-1 rounded-xl border border-[var(--to-border)] bg-[var(--to-surface-raised)] px-3.5 py-2.5 text-[12px] text-[var(--to-text-primary)] placeholder:text-[var(--to-text-dim)] outline-none focus:border-[#6366f1]/50 transition-colors'
+              className='flex-1 min-w-0 rounded-xl border border-[var(--to-border)] bg-[var(--to-surface-raised)] px-3.5 py-2.5 text-[12px] text-[var(--to-text-primary)] placeholder:text-[var(--to-text-dim)] outline-none focus:border-[#6366f1]/50 transition-colors'
               style={{ fontFamily: 'var(--font-sans)' }}
               disabled={isThinking}
             />
