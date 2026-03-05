@@ -122,12 +122,19 @@ class MTMGuardian:
             for pos in open_positions.data:
                 try:
                     current_price = get_current_price(pos["symbol"])
-                    if not current_price:
-                        logger.warning(f"No market data for {pos['symbol']}, skipping MTM")
-                        continue
-
                     entry = pos.get("filled_entry_price") or pos.get("entry", 0)
                     size = pos.get("size", 0)
+
+                    # ✅ Guard: Ensure both entry and current_price are valid (> 0)
+                    # This prevents massive phantom losses if yfinance returns 0 (market closed or error)
+                    # or if the entry price is missing from the signal payload.
+                    if current_price <= 0 or entry <= 0:
+                        logger.warning(
+                            "MTM SKIP: Invalid price for %s (entry=%s, current=%s). Skipping calculation.",
+                            pos["symbol"], entry, current_price
+                        )
+                        continue
+
                     side = pos["side"].lower()
                     symbol = pos["symbol"]
 

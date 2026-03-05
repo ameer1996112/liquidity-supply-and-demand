@@ -85,6 +85,7 @@ PROFITABLE_SYMBOLS = {
     "BTCUSD",     # 26.9% WR, EV +0.076
     "EURJPY",     # 26.8% WR, EV +0.073
     "ETHUSD",     # 26.2% WR, EV +0.047
+    "NZDJPY",     # 28.5% WR, EV +0.133 (added 2026-03-05)
 
     # Indices (add as you test them)
     "NAS100", "US100",  # Nasdaq
