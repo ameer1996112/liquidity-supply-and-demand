@@ -97,15 +97,35 @@ def get_stats_summary(
     run_mode: str = Query("LIVE"),
     account_id: Optional[str] = Query(None),
 ):
-    """Get performance summary (total_trades, win_rate, total_pnl_usd) for E2E and dashboards."""
+    """
+    Rich performance summary for dashboards and E2E tests.
+
+    Returns:
+    - total_trades, win_rate, total_pnl_usd (backward-compat)
+    - active_trades, executed_24h, filtered_24h
+    - daily_pnl_usd, best_trade_usd, worst_trade_usd
+    - avg_rr, profit_factor, max_consecutive_wins, max_consecutive_losses
+    - cached for 30s in Redis to reduce DB load
+    """
     sb = _get_supabase()
     if not sb:
-        return {"total_trades": 0, "win_rate": 0, "total_pnl_usd": 0}
+        return _empty_summary()
+
+    # Build cache key
+    cache_key = f"cache:stats_summary:{run_mode}:{account_id or 'all'}"
+    try:
+        from src.services.redis_cache import cache_get, cache_set
+        cached = cache_get(cache_key)
+        if cached is not None:
+            return cached
+    except Exception:
+        pass
 
     try:
+        # ── All closed trades ──────────────────────────────────────────
         q = (
             sb.table("trading_signals")
-            .select("pnl_usd, outcome")
+            .select("pnl_usd, outcome, rr_ratio, created_at, status, run_mode")
             .eq("status", "closed")
         )
         if run_mode and run_mode != "ALL":
@@ -113,18 +133,127 @@ def get_stats_summary(
         if account_id:
             q = q.eq("account_id", account_id)
         resp = q.execute()
-        rows = resp.data or []
+        closed = resp.data or []
 
-        total = len(rows)
-        wins = sum(1 for r in rows if (r.get("outcome") or "").lower() == "win")
-        total_pnl = sum(float(r.get("pnl_usd") or 0) for r in rows)
-        win_rate = (wins / total * 100) if total > 0 else 0
+        # ── Active / open trades ───────────────────────────────────────
+        aq = (
+            sb.table("trading_signals")
+            .select("id, run_mode")
+            .in_("status", ["active", "executed", "open"])
+        )
+        if run_mode and run_mode != "ALL":
+            aq = aq.eq("run_mode", run_mode)
+        if account_id:
+            aq = aq.eq("account_id", account_id)
+        active_resp = aq.execute()
+        active_trades = len(active_resp.data or [])
 
-        return {
+        # ── 24h signals (all statuses) ─────────────────────────────────
+        from datetime import date, timedelta
+        today_start = datetime.combine(date.today(), datetime.min.time()).isoformat()
+        dq = (
+            sb.table("trading_signals")
+            .select("id, status, run_mode")
+            .gte("created_at", today_start)
+        )
+        if run_mode and run_mode != "ALL":
+            dq = dq.eq("run_mode", run_mode)
+        if account_id:
+            dq = dq.eq("account_id", account_id)
+        day_resp = dq.execute()
+        day_rows = day_resp.data or []
+        executed_24h = sum(1 for r in day_rows if r.get("status") in ("executed", "closed", "active", "open"))
+        filtered_24h = sum(1 for r in day_rows if r.get("status") in ("filtered", "rejected", "ai_rejected", "risk_rejected"))
+
+        # ── Compute KPIs from closed trades ────────────────────────────
+        total = len(closed)
+        wins = [r for r in closed if (r.get("outcome") or "").lower() == "win"]
+        losses = [r for r in closed if (r.get("outcome") or "").lower() in ("loss", "lose")]
+        win_count = len(wins)
+        loss_count = len(losses)
+        win_rate = (win_count / total * 100) if total > 0 else 0.0
+
+        pnl_values = [float(r.get("pnl_usd") or 0) for r in closed]
+        total_pnl = sum(pnl_values)
+        best_trade = max(pnl_values, default=0.0)
+        worst_trade = min(pnl_values, default=0.0)
+
+        # Daily PnL (today's closed trades)
+        daily_pnl = sum(
+            float(r.get("pnl_usd") or 0)
+            for r in closed
+            if (r.get("created_at") or "") >= today_start
+        )
+
+        # Average R:R
+        rr_values = [float(r.get("rr_ratio") or 0) for r in closed if r.get("rr_ratio")]
+        avg_rr = (sum(rr_values) / len(rr_values)) if rr_values else 0.0
+
+        # Profit factor = gross_profit / abs(gross_loss)
+        gross_profit = sum(v for v in pnl_values if v > 0)
+        gross_loss = abs(sum(v for v in pnl_values if v < 0))
+        profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else (gross_profit if gross_profit > 0 else 0.0)
+
+        # Consecutive wins/losses
+        max_consec_wins = _max_consecutive(closed, "win")
+        max_consec_losses = _max_consecutive(closed, "loss")
+
+        result = {
+            # Backward-compat fields
             "total_trades": total,
             "win_rate": round(win_rate, 1),
             "total_pnl_usd": round(total_pnl, 2),
+            # Extended fields
+            "active_trades": active_trades,
+            "executed_24h": executed_24h,
+            "filtered_24h": filtered_24h,
+            "daily_pnl_usd": round(daily_pnl, 2),
+            "win_count": win_count,
+            "loss_count": loss_count,
+            "best_trade_usd": round(best_trade, 2),
+            "worst_trade_usd": round(worst_trade, 2),
+            "avg_rr": round(avg_rr, 2),
+            "profit_factor": round(profit_factor, 2),
+            "max_consecutive_wins": max_consec_wins,
+            "max_consecutive_losses": max_consec_losses,
+            "run_mode": run_mode,
+            "generated_at": datetime.now(timezone.utc).isoformat(),
         }
+
+        # Cache for 30s
+        try:
+            from src.services.redis_cache import cache_set
+            cache_set(cache_key, result, ttl_seconds=30)
+        except Exception:
+            pass
+
+        return result
+
     except Exception as e:
         logger.warning("Failed to fetch stats summary: %s", e)
-        return {"total_trades": 0, "win_rate": 0, "total_pnl_usd": 0}
+        return _empty_summary()
+
+
+def _empty_summary() -> Dict[str, Any]:
+    return {
+        "total_trades": 0, "win_rate": 0.0, "total_pnl_usd": 0.0,
+        "active_trades": 0, "executed_24h": 0, "filtered_24h": 0,
+        "daily_pnl_usd": 0.0, "win_count": 0, "loss_count": 0,
+        "best_trade_usd": 0.0, "worst_trade_usd": 0.0,
+        "avg_rr": 0.0, "profit_factor": 0.0,
+        "max_consecutive_wins": 0, "max_consecutive_losses": 0,
+    }
+
+
+def _max_consecutive(rows: List[Dict[str, Any]], outcome: str) -> int:
+    """Count the longest consecutive streak of a given outcome."""
+    max_streak = 0
+    current = 0
+    for r in rows:
+        o = (r.get("outcome") or "").lower()
+        if o == outcome or (outcome == "loss" and o in ("loss", "lose")):
+            current += 1
+            max_streak = max(max_streak, current)
+        else:
+            current = 0
+    return max_streak

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
@@ -8,6 +8,7 @@ import { CommandPalette } from './CommandPalette';
 import { AICopilot } from '@/components/copilot/AICopilot';
 import { LiveMarketPanel } from '@/components/market/LiveMarketPanel';
 import { useSidebar } from '@/providers/SidebarProvider';
+import { useShellActions } from '@/providers/ShellActionsProvider';
 import { cn } from '@/lib/utils';
 import { useConnectionHealth } from '@/hooks/useConnectionHealth';
 import { WifiOff } from 'lucide-react';
@@ -29,34 +30,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { status } = useConnectionHealth();
   const isOffline = status === 'offline';
-  const [copilotOpen, setCopilotOpen] = useState(false);
-  const [marketOpen, setMarketOpen] = useState(false);
+  const {
+    copilotOpen,
+    marketOpen,
+    openCopilot,
+    closeCopilot,
+    toggleMarket,
+    closeMarket,
+  } = useShellActions();
 
-  // ⌘/ to toggle AI Copilot
+  // ⌘/ to toggle AI Copilot — keyboard shortcut
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === '/') {
         e.preventDefault();
-        setCopilotOpen((prev) => !prev);
+        openCopilot();
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, []);
-
-  // Expose setter for TopBar button
-  useEffect(() => {
-    const w = window as typeof window & {
-      __openCopilot?: () => void;
-      __openMarket?: () => void;
-    };
-    w.__openCopilot = () => setCopilotOpen(true);
-    w.__openMarket = () => setMarketOpen((p) => !p);
-    return () => {
-      delete w.__openCopilot;
-      delete w.__openMarket;
-    };
-  }, []);
+  }, [openCopilot]);
 
   if (FULLSCREEN_ROUTES.some((r) => pathname.startsWith(r))) {
     return <>{children}</>;
@@ -65,8 +58,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <CommandPalette />
-      <AICopilot open={copilotOpen} onClose={() => setCopilotOpen(false)} />
-      <LiveMarketPanel open={marketOpen} onClose={() => setMarketOpen(false)} />
+      <AICopilot open={copilotOpen} onClose={closeCopilot} />
+      <LiveMarketPanel open={marketOpen} onClose={closeMarket} />
       <div className='relative min-h-screen bg-background'>
         <Sidebar />
 
@@ -74,7 +67,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           className={cn(
             'relative flex min-h-screen flex-col',
             'transition-[margin-left] duration-200 ease-out',
-            isCollapsed ? SIDEBAR_WIDTH.collapsed : SIDEBAR_WIDTH.expanded,
+            isCollapsed ? SIDEBAR_WIDTH.collapsed : SIDEBAR_WIDTH.expanded
           )}
         >
           <TopBar />
@@ -84,7 +77,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <div
                 className={cn(
                   'mx-auto flex w-full items-center justify-between gap-2',
-                  CONTENT_MAX_W,
+                  CONTENT_MAX_W
                 )}
               >
                 <div className='flex items-center gap-2'>
@@ -112,8 +105,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           )}
 
+          {/* Page content — keyed by pathname for fade-in-up transition on route change */}
           <main className='flex-1 overflow-hidden p-3 sm:p-4'>
-            <div className={cn('mx-auto h-full w-full', CONTENT_MAX_W)}>
+            <div
+              key={pathname}
+              className={cn(
+                'mx-auto h-full w-full animate-fade-in-up',
+                CONTENT_MAX_W
+              )}
+            >
               {children}
             </div>
           </main>

@@ -23,7 +23,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 if (!supabaseUrl || !supabaseAnonKey) {
   console.warn(
     '⚠️ Supabase credentials not found. Using mock data mode. ' +
-      'Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to connect.',
+      'Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to connect.'
   );
 }
 
@@ -49,11 +49,11 @@ export async function fetchSignals(
     limit?: number;
     offset?: number;
     runId?: string;
-  } = {},
+  } = {}
 ): Promise<TradingSignal[]> {
   if (!supabase) {
     return getMockSignals(
-      options.mode === 'BACKTEST' ? undefined : options.mode,
+      options.mode === 'BACKTEST' ? undefined : options.mode
     );
   }
 
@@ -83,7 +83,7 @@ export async function fetchSignals(
 
   // Normalize signals to handle both old and new field names
   return (data || []).map((row) =>
-    normalizeSignal(row as Partial<TradingSignal>),
+    normalizeSignal(row as Partial<TradingSignal>)
   );
 }
 
@@ -94,7 +94,7 @@ export async function fetchSignalStats(): Promise<SignalStats> {
 
   // Get signals from last 24 hours
   const twentyFourHoursAgo = new Date(
-    Date.now() - 24 * 60 * 60 * 1000,
+    Date.now() - 24 * 60 * 60 * 1000
   ).toISOString();
 
   const { data, error } = await supabase
@@ -108,7 +108,7 @@ export async function fetchSignalStats(): Promise<SignalStats> {
   }
 
   const signals: TradingSignal[] = (data || []).map((row) =>
-    normalizeSignal(row as Partial<TradingSignal>),
+    normalizeSignal(row as Partial<TradingSignal>)
   );
 
   const normalizeStatus = (status: string | undefined) => status?.toLowerCase();
@@ -126,16 +126,16 @@ export async function fetchSignalStats(): Promise<SignalStats> {
     normalizeMode(s.run_mode ?? s.mode) === 'PAPER';
 
   const executed = signals.filter(
-    (s) => normalizeStatus(s.status) === 'executed',
+    (s) => normalizeStatus(s.status) === 'executed'
   );
   const filtered = signals.filter(
     (s) =>
       normalizeStatus(s.status) === 'filtered' ||
-      normalizeStatus(s.status) === 'ai_rejected',
+      normalizeStatus(s.status) === 'ai_rejected'
   );
   const failed = signals.filter((s) => normalizeStatus(s.status) === 'failed');
   const activeSignals = signals.filter(
-    (s) => normalizeStatus(s.status) === 'active',
+    (s) => normalizeStatus(s.status) === 'active'
   );
 
   // Helper to get a consistent PnL in USD for a signal
@@ -191,7 +191,7 @@ export async function fetchSignalStats(): Promise<SignalStats> {
       'paperClosed=',
       paperClosed.length,
       'paperPnl=',
-      paperPnl.toFixed(2),
+      paperPnl.toFixed(2)
     );
   }
 
@@ -199,7 +199,7 @@ export async function fetchSignalStats(): Promise<SignalStats> {
   const active = [...activeSignals, ...executed.filter((s) => !s.closed_at)];
 
   const aiRejected = signals.filter(
-    (s) => normalizeStatus(s.status) === 'ai_rejected',
+    (s) => normalizeStatus(s.status) === 'ai_rejected'
   );
 
   // ── Daily PnL (today only, resets at midnight UTC) ──────────────────
@@ -215,11 +215,11 @@ export async function fetchSignalStats(): Promise<SignalStats> {
   const paperTodaySignals = todaySignals.filter(isPaper);
   const liveDailyPnl = liveTodaySignals.reduce(
     (sum, s) => sum + getPnlUsd(s),
-    0,
+    0
   );
   const paperDailyPnl = paperTodaySignals.reduce(
     (sum, s) => sum + getPnlUsd(s),
-    0,
+    0
   );
 
   // ── Total PnL (all-time) ────────────────────────────────────────────
@@ -245,10 +245,10 @@ export async function fetchSignalStats(): Promise<SignalStats> {
       const { data: allClosed } = await supabase
         .from('trading_signals')
         .select(
-          'pnl, pnl_usd, entry, exit_fill_price, size, side, run_mode, status',
+          'pnl, pnl_usd, entry, exit_fill_price, size, side, run_mode, status'
         )
         .or(
-          'status.eq.closed,status.eq.executed,status.eq.CLOSED,status.eq.EXECUTED',
+          'status.eq.closed,status.eq.executed,status.eq.CLOSED,status.eq.EXECUTED'
         );
 
       if (allClosed) {
@@ -296,7 +296,7 @@ export async function fetchSignalStats(): Promise<SignalStats> {
 
         paperTotalPnl = (allClosed as ClosedSignalRow[])
           .filter(
-            (s) => normalizeMode(s.run_mode ?? s.mode ?? undefined) === 'PAPER',
+            (s) => normalizeMode(s.run_mode ?? s.mode ?? undefined) === 'PAPER'
           )
           .reduce((sum, s) => {
             const pnlUsd = s.pnl_usd ?? s.pnl;
@@ -320,8 +320,16 @@ export async function fetchSignalStats(): Promise<SignalStats> {
   }
 
   // ── Daily Drawdown % ───────────────────────────────────────────────
-  // FIXED: Calculate as % of account balance, not absolute USD
-  const accountBalance = 50000; // Match config/settings.py default
+  // Use account balance from closed signals if available, fallback to 50000
+  const balanceSamples = eligibleForPnl
+    .map(
+      (s) => (s as TradingSignal & { account_balance?: number }).account_balance
+    )
+    .filter((v): v is number => typeof v === 'number' && v > 0);
+  const accountBalance =
+    balanceSamples.length > 0
+      ? balanceSamples[balanceSamples.length - 1]
+      : 50000;
   const dailyDrawdownPct =
     dailyPnl < 0 ? (Math.abs(dailyPnl) / accountBalance) * 100 : 0;
 

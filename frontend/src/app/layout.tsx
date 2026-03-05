@@ -4,6 +4,7 @@ import { QueryProvider } from '@/providers/QueryProvider';
 import { SidebarProvider } from '@/providers/SidebarProvider';
 import { TradingModeProvider } from '@/providers/TradingModeProvider';
 import { ThemeProvider } from '@/providers/ThemeProvider';
+import { ShellActionsProvider } from '@/providers/ShellActionsProvider';
 import { AppShell } from '@/components/layout/AppShell';
 import { ToastProvider } from '@/components/ui/toast';
 import { AlertProvider } from '@/components/alerts/AlertProvider';
@@ -41,7 +42,9 @@ export default function RootLayout({
               <ThemeProvider>
                 <SidebarProvider>
                   <TradingModeProvider>
-                    <AppShell>{children}</AppShell>
+                    <ShellActionsProvider>
+                      <AppShell>{children}</AppShell>
+                    </ShellActionsProvider>
                   </TradingModeProvider>
                 </SidebarProvider>
               </ThemeProvider>

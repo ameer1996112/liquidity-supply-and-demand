@@ -17,6 +17,18 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ValidationError
 from urllib.parse import parse_qs
 
+# ── Rate limiting (slowapi) ───────────────────────────────────────────────────
+try:
+    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi.util import get_remote_address
+    from slowapi.errors import RateLimitExceeded
+    _limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
+    _RATE_LIMIT_AVAILABLE = True
+except ImportError:
+    _limiter = None  # type: ignore[assignment]
+    _RATE_LIMIT_AVAILABLE = False
+    logging.getLogger(__name__).warning("slowapi not installed — rate limiting disabled")
+
 from config import get_settings
 from config.logging_config import configure_logging
 from src.adapters.redis_queue import get_redis
@@ -62,6 +74,12 @@ from src.api_copilot import router as copilot_router           # AI Copilot: nat
 from src.api_market import router as market_router             # Market data proxy (Yahoo Finance CORS bypass)
 
 app = FastAPI(title="Trading Webhook API", version="1.0.0")
+
+# Attach rate limiter state and error handler
+if _RATE_LIMIT_AVAILABLE and _limiter is not None:
+    app.state.limiter = _limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
+
 app.include_router(rules_router)
 app.include_router(risk_router)
 app.include_router(risk_monitor_router)  # Read-only risk monitor
@@ -488,8 +506,23 @@ async def debate_ws(websocket: WebSocket):
         logger.info("[WS] /ws/debate client disconnected")
 
 
+def _webhook_rate_limit(request: Request, payload: dict[str, Any] = Depends(get_webhook_payload)) -> dict[str, Any]:
+    """Dependency passthrough — exists so the rate-limit decorator has a sync target."""
+    return payload
+
+
+# Apply rate limit only when slowapi is available
+_webhook_limit = (_limiter.limit("60/minute") if _RATE_LIMIT_AVAILABLE and _limiter else lambda f: f)
+
+
 @app.post("/webhook")
+@_webhook_limit
 async def webhook(request: Request, payload: dict[str, Any] = Depends(get_webhook_payload)):
+    """
+    TradingView webhook receiver.
+    Rate limited to 60 requests/minute per IP (prevents replay/flood attacks).
+    The webhook secret provides authentication; rate limiting adds a second layer.
+    """
     # ── Run-mode resolution (in priority order) ──────────────────────────────
     #
     # 1. Payload explicitly contains run_mode → honour it (Pine/manual override)

@@ -4,12 +4,10 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --font-sans:
-    'Inter', 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
-    ui-sans-serif, system-ui, sans-serif;
-  --font-mono:
-    'JetBrains Mono', 'Roboto Mono', ui-monospace, SFMono-Regular, 'SF Mono',
-    Menlo, Consolas, monospace;
+  --font-sans: 'Inter', 'SF Pro Text', 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Roboto Mono', ui-monospace, SFMono-Regular,
+    'SF Mono', Menlo, Consolas, monospace;
   --font-geist-sans: var(--font-sans);
   --font-geist-mono: var(--font-mono);
 }
@@ -136,16 +134,15 @@
   --to-warning: #f0b90b;
 
   /* Glow shadows */
-  --glow-green:
-    0 0 12px rgba(14, 203, 129, 0.35), 0 0 24px rgba(14, 203, 129, 0.12);
-  --glow-red:
-    0 0 12px rgba(246, 70, 93, 0.35), 0 0 24px rgba(246, 70, 93, 0.12);
-  --glow-amber:
-    0 0 12px rgba(240, 185, 11, 0.35), 0 0 24px rgba(240, 185, 11, 0.12);
-  --glow-purple:
-    0 0 12px rgba(139, 92, 246, 0.35), 0 0 24px rgba(139, 92, 246, 0.12);
-  --glow-blue:
-    0 0 12px rgba(59, 130, 246, 0.35), 0 0 24px rgba(59, 130, 246, 0.12);
+  --glow-green: 0 0 12px rgba(14, 203, 129, 0.35),
+    0 0 24px rgba(14, 203, 129, 0.12);
+  --glow-red: 0 0 12px rgba(246, 70, 93, 0.35), 0 0 24px rgba(246, 70, 93, 0.12);
+  --glow-amber: 0 0 12px rgba(240, 185, 11, 0.35),
+    0 0 24px rgba(240, 185, 11, 0.12);
+  --glow-purple: 0 0 12px rgba(139, 92, 246, 0.35),
+    0 0 24px rgba(139, 92, 246, 0.12);
+  --glow-blue: 0 0 12px rgba(59, 130, 246, 0.35),
+    0 0 24px rgba(59, 130, 246, 0.12);
 
   /* Panel border gradient */
   --panel-border-gradient: linear-gradient(
@@ -177,9 +174,7 @@
     background-color: var(--to-bg);
     color: var(--to-text-primary);
     font-family: var(--font-sans);
-    font-feature-settings:
-      'rlig' 1,
-      'calt' 1;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
     letter-spacing: 0.005em;
     line-height: 1.5;
     /* Subtle dot-grid background */
@@ -511,6 +506,32 @@
   background-color: var(--to-short);
 }
 
+/* ── Flash value animations (AnimatedNumber) ─────────────────────────────── */
+@keyframes flash-pos {
+  0% {
+    background-color: rgba(14, 203, 129, 0.18);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+@keyframes flash-neg {
+  0% {
+    background-color: rgba(246, 70, 93, 0.18);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+.flash-positive {
+  animation: flash-pos 0.8s ease-out forwards;
+  border-radius: 3px;
+}
+.flash-negative {
+  animation: flash-neg 0.8s ease-out forwards;
+  border-radius: 3px;
+}
+
 /* ── Animations ───────────────────────────────────────────────────────────── */
 .pulse-active {
   animation: pulse-green 2.5s ease-in-out infinite;
@@ -648,9 +669,7 @@
   backdrop-filter: blur(16px) saturate(160%);
   -webkit-backdrop-filter: blur(16px) saturate(160%);
   border-bottom: 1px solid rgba(240, 185, 11, 0.07);
-  box-shadow:
-    0 1px 0 rgba(139, 92, 246, 0.05),
-    0 4px 16px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 1px 0 rgba(139, 92, 246, 0.05), 0 4px 16px rgba(0, 0, 0, 0.3);
 }
 
 /* ── Nav active glow ──────────────────────────────────────────────────────── */
@@ -664,4 +683,214 @@
   background: linear-gradient(to bottom, #f0b90b, #fcd34d);
   border-radius: 0 3px 3px 0;
   box-shadow: 0 0 8px rgba(240, 185, 11, 0.6);
+}
+
+/* ── GlowCard — premium elevated card with animated border glow ───────────── */
+.glow-card {
+  position: relative;
+  border-radius: 0.75rem;
+  border: 1px solid var(--to-border);
+  background: linear-gradient(
+    135deg,
+    var(--to-surface) 0%,
+    var(--to-surface-raised) 100%
+  );
+  overflow: hidden;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease,
+    transform 0.2s ease;
+}
+.glow-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    rgba(240, 185, 11, 0.04) 0%,
+    rgba(139, 92, 246, 0.02) 50%,
+    rgba(59, 130, 246, 0.03) 100%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+.glow-card:hover {
+  border-color: rgba(240, 185, 11, 0.18);
+  box-shadow: 0 4px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(240, 185, 11, 0.06);
+  transform: translateY(-1px);
+}
+.glow-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Variant: green accent */
+.glow-card-green:hover {
+  border-color: rgba(14, 203, 129, 0.22);
+  box-shadow: 0 4px 32px rgba(0, 0, 0, 0.5), var(--glow-green);
+}
+/* Variant: red accent */
+.glow-card-red:hover {
+  border-color: rgba(246, 70, 93, 0.22);
+  box-shadow: 0 4px 32px rgba(0, 0, 0, 0.5), var(--glow-red);
+}
+/* Variant: purple accent */
+.glow-card-purple:hover {
+  border-color: rgba(139, 92, 246, 0.22);
+  box-shadow: 0 4px 32px rgba(0, 0, 0, 0.5), var(--glow-purple);
+}
+
+/* ── Bento grid layout ────────────────────────────────────────────────────── */
+.bento-grid {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+}
+.bento-grid-4 {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(4, 1fr);
+}
+.bento-grid-3 {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(3, 1fr);
+}
+@media (max-width: 1024px) {
+  .bento-grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .bento-grid-3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 640px) {
+  .bento-grid-4,
+  .bento-grid-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Page transition animations ──────────────────────────────────────────── */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.35s ease-out both;
+}
+.animate-fade-in {
+  animation: fade-in 0.25s ease-out both;
+}
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s ease-out both;
+}
+
+/* Stagger children — add to parent, children get sequential delays */
+.stagger-children > *:nth-child(1) {
+  animation-delay: 0ms;
+}
+.stagger-children > *:nth-child(2) {
+  animation-delay: 40ms;
+}
+.stagger-children > *:nth-child(3) {
+  animation-delay: 80ms;
+}
+.stagger-children > *:nth-child(4) {
+  animation-delay: 120ms;
+}
+.stagger-children > *:nth-child(5) {
+  animation-delay: 160ms;
+}
+.stagger-children > *:nth-child(6) {
+  animation-delay: 200ms;
+}
+.stagger-children > *:nth-child(7) {
+  animation-delay: 240ms;
+}
+.stagger-children > *:nth-child(8) {
+  animation-delay: 280ms;
+}
+
+/* ── Number ticker (for live KPI updates) ────────────────────────────────── */
+@keyframes number-tick {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+.number-tick {
+  animation: number-tick 0.2s ease-out both;
+  display: inline-block;
+}
+
+/* ── Skeleton shimmer ─────────────────────────────────────────────────────── */
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: -400px 0;
+  }
+  100% {
+    background-position: 400px 0;
+  }
+}
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--to-surface-raised) 25%,
+    rgba(255, 255, 255, 0.04) 50%,
+    var(--to-surface-raised) 75%
+  );
+  background-size: 800px 100%;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
+
+/* ── Sidebar glassmorphism ────────────────────────────────────────────────── */
+.sidebar-glass {
+  background: rgba(8, 11, 16, 0.92);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-right: 1px solid rgba(240, 185, 11, 0.06);
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Active nav item ──────────────────────────────────────────────────────── */
+.nav-item-active {
+  background: linear-gradient(
+    90deg,
+    rgba(240, 185, 11, 0.1) 0%,
+    rgba(240, 185, 11, 0.04) 100%
+  );
+  border: 1px solid rgba(240, 185, 11, 0.12);
+  color: var(--to-warning);
+}
+.nav-item-active .nav-active-glow {
+  opacity: 1;
 }

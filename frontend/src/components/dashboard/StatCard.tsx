@@ -2,6 +2,7 @@
 
 import { cn } from '@/lib/utils';
 import type { LucideIcon } from 'lucide-react';
+import { AnimatedNumber, FlashValue } from '@/components/ui/AnimatedNumber';
 
 type Variant = 'default' | 'profit' | 'loss' | 'warning';
 
@@ -12,6 +13,12 @@ interface StatCardProps {
   subValue?: string;
   variant?: Variant;
   className?: string;
+  /** If provided, animates the number smoothly on change */
+  numericValue?: number;
+  /** Format function for numericValue */
+  numericFormat?: (v: number) => string;
+  /** Show a trend indicator arrow */
+  trend?: 'up' | 'down' | 'neutral';
 }
 
 // Detect sign from value string
@@ -73,6 +80,9 @@ export function StatCard({
   subValue,
   variant,
   className,
+  numericValue,
+  numericFormat,
+  trend,
 }: StatCardProps) {
   const resolvedVariant = variant ?? detectVariant(value);
   const cfg = VARIANT_CONFIG[resolvedVariant];
@@ -87,7 +97,7 @@ export function StatCard({
         'transition-all duration-200 ease-out',
         'hover:border-[var(--to-border-glow)] hover:-translate-y-[1px]',
         'hover:shadow-[0_4px_24px_rgba(0,0,0,0.4)]',
-        className,
+        className
       )}
     >
       {/* Shimmer scan line on hover */}
@@ -103,27 +113,51 @@ export function StatCard({
         >
           {label}
         </p>
-        {Icon && (
-          <div
-            className={cn(
-              'flex h-6 w-6 items-center justify-center rounded-md',
-              cfg.iconBg,
-            )}
-          >
-            <Icon className={cn('h-3.5 w-3.5', cfg.iconColor)} />
-          </div>
-        )}
+        <div className='flex items-center gap-1.5'>
+          {trend && trend !== 'neutral' && (
+            <span
+              className={cn(
+                'text-[9px] font-bold',
+                trend === 'up'
+                  ? 'text-[var(--to-long)]'
+                  : 'text-[var(--to-short)]'
+              )}
+            >
+              {trend === 'up' ? '▲' : '▼'}
+            </span>
+          )}
+          {Icon && (
+            <div
+              className={cn(
+                'flex h-6 w-6 items-center justify-center rounded-md',
+                cfg.iconBg
+              )}
+            >
+              <Icon className={cn('h-3.5 w-3.5', cfg.iconColor)} />
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Value */}
+      {/* Value — animated if numericValue provided */}
       <p
         className={cn(
           'text-[1.15rem] font-bold tabular-nums leading-none',
-          cfg.valueClass,
+          cfg.valueClass
         )}
         style={{ fontFamily: 'var(--font-mono)' }}
       >
-        {value}
+        {numericValue !== undefined ? (
+          <FlashValue value={numericValue}>
+            <AnimatedNumber
+              value={numericValue}
+              format={numericFormat}
+              duration={500}
+            />
+          </FlashValue>
+        ) : (
+          value
+        )}
       </p>
 
       {/* Sub-value */}
@@ -140,7 +174,7 @@ export function StatCard({
       <div
         className={cn(
           'absolute bottom-0 inset-x-0 h-[2px] opacity-0 group-hover:opacity-100 transition-opacity duration-300',
-          cfg.barColor,
+          cfg.barColor
         )}
       />
 

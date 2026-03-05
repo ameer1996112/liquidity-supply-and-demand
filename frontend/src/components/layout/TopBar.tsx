@@ -27,6 +27,7 @@ import {
   type KillSwitchMode,
 } from '@/components/risk/KillSwitchConfirmDialog';
 import { AlertBell } from '@/components/alerts/AlertBell';
+import { useShellActions } from '@/providers/ShellActionsProvider';
 
 function DualClock() {
   const [now, setNow] = useState<Date | null>(null);
@@ -141,7 +142,7 @@ function useSystemStatus() {
       ? reconcile.accounts.every(
           (a) =>
             (a.connection_status ?? 'online').toLowerCase() !== 'offline' &&
-            (a.last_reconcile_drift_count ?? 0) === 0,
+            (a.last_reconcile_drift_count ?? 0) === 0
         )
       : undefined;
 
@@ -211,12 +212,13 @@ export function TopBar() {
   const [killDialogMode, setKillDialogMode] =
     useState<KillSwitchMode>('engage');
 
+  const { openCopilot, toggleMarket } = useShellActions();
   const { data: accounts = [] } = useAccountsComparison();
   const { isApiUp, healthStatus, hasDrift, brokerOk, lastReconcileAt } =
     useSystemStatus();
 
   const [selectedAccountName, setSelectedAccountName] = useState<string | null>(
-    null,
+    null
   );
 
   const hasMultipleAccounts = accounts.length > 1;
@@ -226,7 +228,7 @@ export function TopBar() {
       selectedAccountName
         ? accounts.find((a) => a.account_name === selectedAccountName)
         : undefined,
-    [accounts, selectedAccountName],
+    [accounts, selectedAccountName]
   );
 
   const netLiq =
@@ -235,15 +237,15 @@ export function TopBar() {
 
   const todayPnl =
     selectedAccount != null
-      ? (selectedAccount.daily_pnl ?? selectedAccount.realized_pnl_today ?? 0)
-      : (risk?.live_daily_pnl ?? risk?.daily_pnl ?? 0);
+      ? selectedAccount.daily_pnl ?? selectedAccount.realized_pnl_today ?? 0
+      : risk?.live_daily_pnl ?? risk?.daily_pnl ?? 0;
 
   const todayPnlColor =
     todayPnl == null
       ? 'text-[var(--to-text-secondary)]'
       : todayPnl >= 0
-        ? 'text-[var(--to-long)]'
-        : 'text-[var(--to-short)]';
+      ? 'text-[var(--to-long)]'
+      : 'text-[var(--to-short)]';
 
   const statusPillTone = (() => {
     if (!isApiUp) return 'offline';
@@ -302,7 +304,7 @@ export function TopBar() {
             statusPillTone === 'degraded' &&
               'border-amber-500/30 bg-amber-500/10 text-amber-400',
             statusPillTone === 'offline' &&
-              'border-[#f23645]/30 bg-[#f23645]/10 text-[#f23645]',
+              'border-[#f23645]/30 bg-[#f23645]/10 text-[#f23645]'
           )}
           style={{ fontFamily: 'var(--font-mono)' }}
         >
@@ -320,10 +322,10 @@ export function TopBar() {
             {brokerOk == null
               ? 'BROKER —'
               : brokerOk
-                ? 'SYNCED'
-                : hasDrift
-                  ? 'DRIFT'
-                  : 'ERROR'}
+              ? 'SYNCED'
+              : hasDrift
+              ? 'DRIFT'
+              : 'ERROR'}
           </span>
         </div>
 
@@ -338,7 +340,7 @@ export function TopBar() {
                   'rounded-md px-3 py-1.5 text-[10px] uppercase font-bold tracking-widest transition-all',
                   selectedAccountName === null
                     ? 'bg-white/10 text-white shadow-sm'
-                    : 'text-zinc-500 hover:text-zinc-300',
+                    : 'text-zinc-500 hover:text-zinc-300'
                 )}
                 style={{ fontFamily: 'var(--font-mono)' }}
               >
@@ -353,7 +355,7 @@ export function TopBar() {
                     'rounded-md px-3 py-1.5 text-[10px] uppercase font-bold tracking-widest transition-all',
                     selectedAccountName === acc.account_name
                       ? 'bg-indigo-500/20 text-indigo-300 shadow-sm'
-                      : 'text-zinc-500 hover:text-zinc-300',
+                      : 'text-zinc-500 hover:text-zinc-300'
                   )}
                   style={{ fontFamily: 'var(--font-mono)' }}
                 >
@@ -374,7 +376,9 @@ export function TopBar() {
               </span>
               <span className='text-[13px] text-white font-semibold leading-none'>
                 {netLiq != null
-                  ? `$${netLiq.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                  ? `$${netLiq.toLocaleString(undefined, {
+                      maximumFractionDigits: 0,
+                    })}`
                   : '—'}
               </span>
             </div>
@@ -386,11 +390,13 @@ export function TopBar() {
               <span
                 className={cn(
                   'text-[13px] font-semibold leading-none tabular-nums',
-                  todayPnlColor,
+                  todayPnlColor
                 )}
               >
                 {todayPnl != null
-                  ? `${todayPnl >= 0 ? '+' : ''}$${Math.abs(todayPnl).toFixed(2)}`
+                  ? `${todayPnl >= 0 ? '+' : ''}$${Math.abs(todayPnl).toFixed(
+                      2
+                    )}`
                   : '—'}
               </span>
             </div>
@@ -407,7 +413,7 @@ export function TopBar() {
                 'flex items-center gap-1.5 rounded-md px-3 py-1.5 transition-all outline-none',
                 mode === 'LIVE'
                   ? 'bg-[#0ecb81]/15 text-[#0ecb81] shadow-[0_0_10px_rgba(14,203,129,0.15)] ring-1 ring-[#0ecb81]/30'
-                  : 'text-zinc-500 hover:text-zinc-300',
+                  : 'text-zinc-500 hover:text-zinc-300'
               )}
             >
               <Radio className='h-3.5 w-3.5' />
@@ -421,7 +427,7 @@ export function TopBar() {
                 'flex items-center gap-1.5 rounded-md px-3 py-1.5 transition-all outline-none',
                 mode === 'PAPER'
                   ? 'bg-amber-500/15 text-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.15)] ring-1 ring-amber-500/30'
-                  : 'text-zinc-500 hover:text-zinc-300',
+                  : 'text-zinc-500 hover:text-zinc-300'
               )}
             >
               <FlaskConical className='h-3.5 w-3.5' />
@@ -434,7 +440,7 @@ export function TopBar() {
           <div className='w-px h-6 bg-white/10 mx-1' />
 
           <button
-            onClick={() => (window as any).__openMarket?.()}
+            onClick={toggleMarket}
             className='flex items-center justify-center p-2 rounded-lg text-zinc-400 hover:text-[#0ecb81] hover:bg-[#0ecb81]/10 transition-colors tooltip-trigger'
             title='Live Markets Panel'
           >
@@ -442,7 +448,7 @@ export function TopBar() {
           </button>
 
           <button
-            onClick={() => (window as any).__openCopilot?.()}
+            onClick={openCopilot}
             className='flex items-center justify-center p-2 rounded-lg text-zinc-400 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors tooltip-trigger'
             title='AI Copilot (⌘/)'
           >
@@ -463,7 +469,7 @@ export function TopBar() {
               'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest transition-all',
               risk?.kill_switch_active
                 ? 'animate-pulse bg-[#f23645]/20 text-[#f23645] ring-1 ring-[#f23645]/50 shadow-[0_0_15px_rgba(242,54,69,0.3)]'
-                : 'bg-white/5 text-zinc-400 hover:bg-[#f23645]/15 hover:text-[#f23645] hover:ring-1 hover:ring-[#f23645]/30 disabled:opacity-50',
+                : 'bg-white/5 text-zinc-400 hover:bg-[#f23645]/15 hover:text-[#f23645] hover:ring-1 hover:ring-[#f23645]/30 disabled:opacity-50'
             )}
             style={{ fontFamily: 'var(--font-mono)' }}
             title={

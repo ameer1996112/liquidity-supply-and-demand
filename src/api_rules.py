@@ -65,6 +65,12 @@ def create_symbol_rule(body: SymbolRiskRuleCreate):
         if "duplicate" in str(e).lower() or "unique" in str(e).lower():
             raise HTTPException(status_code=409, detail=f"Symbol {data['symbol']} already exists")
         raise HTTPException(status_code=500, detail=str(e))
+    # Invalidate cache so worker picks up new rule immediately
+    try:
+        from src.services.redis_cache import invalidate_symbol_rules_cache
+        invalidate_symbol_rules_cache()
+    except Exception:
+        pass
     return {"rule": result.data[0] if result.data else data}
 
 
@@ -82,6 +88,12 @@ def update_symbol_rule(symbol: str, body: SymbolRiskRuleUpdate):
     )
     if not result.data:
         raise HTTPException(status_code=404, detail=f"Symbol {symbol} not found")
+    # Invalidate cache
+    try:
+        from src.services.redis_cache import invalidate_symbol_rules_cache
+        invalidate_symbol_rules_cache()
+    except Exception:
+        pass
     return {"rule": result.data[0]}
 
 
@@ -96,6 +108,12 @@ def delete_symbol_rule(symbol: str):
     )
     if not result.data:
         raise HTTPException(status_code=404, detail=f"Symbol {symbol} not found")
+    # Invalidate cache
+    try:
+        from src.services.redis_cache import invalidate_symbol_rules_cache
+        invalidate_symbol_rules_cache()
+    except Exception:
+        pass
     return {"status": "deleted", "symbol": symbol.upper().strip()}
 
 

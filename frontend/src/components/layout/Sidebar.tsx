@@ -1,5 +1,6 @@
 'use client';
 
+import type { ComponentType } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -23,6 +24,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSidebar } from '@/providers/SidebarProvider';
+import { useConnectionHealth } from '@/hooks/useConnectionHealth';
 import {
   Tooltip,
   TooltipContent,
@@ -30,9 +32,37 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 
+/** Small connection status pill shown at the bottom of the sidebar. */
+function ConnectionPill() {
+  const { status } = useConnectionHealth();
+  const isHealthy = status === 'healthy';
+  const isDegraded = status === 'degraded';
+
+  return (
+    <div className='mx-1 mb-1 flex items-center gap-2 rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)]/50 px-2.5 py-1.5'>
+      <span
+        className={cn(
+          'h-1.5 w-1.5 rounded-full flex-shrink-0',
+          isHealthy
+            ? 'bg-[var(--to-long)] shadow-[0_0_6px_rgba(14,203,129,0.7)] pulse-active'
+            : isDegraded
+            ? 'bg-[var(--to-warning)] badge-pulse'
+            : 'bg-[var(--to-short)]'
+        )}
+      />
+      <span
+        className='text-[10px] font-medium text-[var(--to-text-dim)]'
+        style={{ fontFamily: 'var(--font-mono)' }}
+      >
+        {isHealthy ? 'Connected' : isDegraded ? 'Degraded' : 'Offline'}
+      </span>
+    </div>
+  );
+}
+
 type NavItem = {
   label: string;
-  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+  icon: ComponentType<{ className?: string }>;
   path: string;
 };
 
@@ -102,23 +132,16 @@ export function Sidebar() {
     <TooltipProvider delayDuration={0}>
       <aside
         className={cn(
-          'fixed left-0 top-0 bottom-0 z-40 flex flex-col',
-          'border-r border-[var(--to-border)]',
+          'fixed left-0 top-0 bottom-0 z-40 flex flex-col sidebar-glass',
           'transition-all duration-200 ease-in-out',
-          isCollapsed ? 'w-14' : 'w-56',
+          isCollapsed ? 'w-14' : 'w-56'
         )}
-        style={{
-          background:
-            'linear-gradient(180deg, #0b0e14 0%, #080b10 60%, #0a0d12 100%)',
-          boxShadow:
-            '1px 0 0 rgba(240,185,11,0.04), 4px 0 20px rgba(0,0,0,0.4)',
-        }}
       >
         {/* ── Brand header ─────────────────────────────────────────── */}
         <div
           className={cn(
             'flex h-12 items-center border-b border-[var(--to-border)] px-3',
-            isCollapsed ? 'justify-center' : 'justify-between',
+            isCollapsed ? 'justify-center' : 'justify-between'
           )}
         >
           {!isCollapsed && (
@@ -190,7 +213,7 @@ export function Sidebar() {
                         isActive
                           ? 'bg-[var(--to-warning)]/10 text-[var(--to-warning)] border border-[var(--to-warning)]/20'
                           : 'border border-transparent text-[var(--to-text-secondary)] hover:bg-[var(--to-surface-raised)]/60 hover:text-[var(--to-text-primary)]',
-                        isCollapsed && 'justify-center px-0',
+                        isCollapsed && 'justify-center px-0'
                       )}
                     >
                       {isActive && <span className='nav-active-glow' />}
@@ -199,7 +222,7 @@ export function Sidebar() {
                           'h-4 w-4 shrink-0',
                           isActive
                             ? 'text-[var(--to-warning)]'
-                            : 'text-[var(--to-text-dim)] group-hover:text-[var(--to-text-secondary)]',
+                            : 'text-[var(--to-text-dim)] group-hover:text-[var(--to-text-secondary)]'
                         )}
                       />
                       {!isCollapsed && (
@@ -233,13 +256,16 @@ export function Sidebar() {
 
         {/* ── Footer ───────────────────────────────────────────────── */}
         <div className='border-t border-[var(--to-border)] px-2 pb-3 pt-2 space-y-1'>
+          {/* Connection status pill */}
+          {!isCollapsed && <ConnectionPill />}
+
           <button
             onClick={toggleCollapse}
             className={cn(
               'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2',
               'border border-transparent text-[var(--to-text-dim)] transition-colors duration-100',
               'hover:bg-[var(--to-surface)] hover:text-[var(--to-text-secondary)]',
-              isCollapsed && 'justify-center px-0',
+              isCollapsed && 'justify-center px-0'
             )}
           >
             {isCollapsed ? (
