@@ -490,26 +490,43 @@ async def debate_ws(websocket: WebSocket):
 
 @app.post("/webhook")
 async def webhook(request: Request, payload: dict[str, Any] = Depends(get_webhook_payload)):
-    # Detect signal source from User-Agent header.
-    # TradingView sends "TradingView" in the User-Agent automatically — no Pine changes needed.
-    user_agent = request.headers.get("User-Agent", "")
-    is_tradingview = "TradingView" in user_agent
+    # ── Run-mode resolution (in priority order) ──────────────────────────────
+    #
+    # 1. Payload explicitly contains run_mode → honour it (Pine/manual override)
+    # 2. Payload contains force_paper=true    → force PAPER (manual debug)
+    # 3. Otherwise                            → default to LIVE
+    #
+    # NOTE: We no longer rely on the User-Agent header to detect TradingView
+    # because Railway's reverse proxy rewrites / strips it, making "TradingView"
+    # undetectable and causing every signal to be forced into PAPER mode.
+    #
+    # The webhook endpoint is only reachable with the correct webhook secret, so
+    # defaulting to LIVE here is safe — manual callers who want PAPER must send
+    # `force_paper: true` in the payload body.
 
-    if is_tradingview:
-        # TradingView webhooks: default to LIVE and open MetaTrader positions.
-        payload.setdefault("run_mode", "LIVE")
-        payload["_signal_source"] = "tradingview"
-    else:
-        # Manual sources (curl, bash, scripts): force PAPER unless the caller
-        # explicitly sets force_live_override=true to acknowledge the override.
-        if not payload.get("force_live_override"):
-            payload["run_mode"] = "PAPER"
-        else:
-            payload.setdefault("run_mode", "LIVE")
+    user_agent = request.headers.get("User-Agent", "")
+    is_tradingview = "TradingView" in user_agent  # kept for logging only
+
+    explicit_run_mode = (payload.get("run_mode") or "").strip().upper()
+    if explicit_run_mode in ("LIVE", "PAPER", "BACKTEST"):
+        # Pine / caller set it explicitly — respect it
+        payload["run_mode"] = explicit_run_mode
+        payload["_signal_source"] = "tradingview" if is_tradingview else "manual"
+        logger.info("Run-mode: %s (explicit in payload, UA=%s)", explicit_run_mode, user_agent[:60] or "<empty>")
+    elif payload.get("force_paper"):
+        payload["run_mode"] = "PAPER"
         payload["_signal_source"] = "manual"
+        logger.info("Run-mode: PAPER (force_paper=true in payload)")
+    else:
+        # Default: this endpoint is protected by webhook secret and is called by
+        # TradingView in production → LIVE.
+        payload["run_mode"] = "LIVE"
+        payload["_signal_source"] = "tradingview" if is_tradingview else "webhook"
+        logger.info("Run-mode: LIVE (default, UA=%s)", user_agent[:60] or "<empty>")
 
     symbol = payload.get("symbol", payload.get("zone_id", "N/A"))
     run_mode = payload["run_mode"]
+
 
     # Account routing: resolve target account + queue key, stamp onto payload
     # before serialisation so the worker can read them without extra lookups.
