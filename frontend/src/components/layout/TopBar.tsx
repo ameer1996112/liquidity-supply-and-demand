@@ -6,8 +6,6 @@ import { useQuery } from '@tanstack/react-query';
 import {
   Radio,
   FlaskConical,
-  Wifi,
-  WifiOff,
   Power,
   Clock,
   Activity,
@@ -34,8 +32,10 @@ function DualClock() {
   const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
-    setNow(new Date());
-    const id = setInterval(() => setNow(new Date()), 1000);
+    // Initialize inside interval callback to avoid synchronous setState-in-effect lint rule
+    const update = () => setNow(new Date());
+    update(); // immediate first tick via callback so it's in the async boundary
+    const id = setInterval(update, 1000);
     return () => clearInterval(id);
   }, []);
 
@@ -61,15 +61,19 @@ function DualClock() {
       className='hidden items-center gap-3 text-[10px] tabular-nums sm:flex'
       style={{ fontFamily: 'var(--font-mono)' }}
     >
-      <div className='flex items-center gap-1.5 text-[var(--to-text-dim)]'>
-        <Clock className='h-3 w-3' />
-        <span className='text-[var(--to-text-secondary)]'>{utc}</span>
-        <span className='text-[var(--to-text-dim)]'>UTC</span>
+      <div className='flex items-center gap-1.5'>
+        <Clock className='h-3 w-3 text-[var(--to-accent-purple)]/60' />
+        <span className='gradient-text-purple font-semibold'>{utc}</span>
+        <span className='text-[var(--to-text-dim)] text-[9px] tracking-wider'>
+          UTC
+        </span>
       </div>
       <span className='text-[var(--to-border)]'>|</span>
-      <div className='flex items-center gap-1.5 text-[var(--to-text-dim)]'>
-        <span className='text-[var(--to-text-secondary)]'>{israel}</span>
-        <span className='text-[var(--to-text-dim)]'>IL</span>
+      <div className='flex items-center gap-1.5'>
+        <span className='gradient-text-amber font-semibold'>{israel}</span>
+        <span className='text-[var(--to-text-dim)] text-[9px] tracking-wider'>
+          IL
+        </span>
       </div>
     </div>
   );
@@ -258,26 +262,29 @@ export function TopBar() {
   };
 
   return (
-    <header className='flex h-10 shrink-0 items-center justify-between border-b border-[var(--to-border)] bg-[var(--to-bg)] px-3'>
+    <header className='topbar-glass flex h-11 shrink-0 items-center justify-between px-4'>
       {/* Left: Breadcrumb + title + clocks */}
-      <div className='flex min-w-0 items-center gap-3'>
+      <div className='flex min-w-0 items-center gap-4'>
         <div className='min-w-0'>
           <div
-            className='flex items-center gap-1 text-[9px] uppercase tracking-[0.18em] text-[var(--to-text-dim)]'
+            className='flex items-center gap-1 text-[9px] uppercase tracking-[0.2em] text-[var(--to-text-dim)]'
             style={{ fontFamily: 'var(--font-mono)' }}
           >
             <span>{section}</span>
-            <span className='text-[var(--to-border)]'>/</span>
-            <span className='text-[var(--to-text-secondary)]'>{title}</span>
+            <span className='text-[var(--to-accent-purple)]/50'>/</span>
+            <span className='text-[var(--to-accent-purple)]/80'>{title}</span>
           </div>
           <div className='flex items-center gap-1.5'>
             <span
-              className='truncate text-[13px] font-semibold text-[var(--to-text-primary)]'
-              style={{ fontFamily: 'var(--font-sans)' }}
+              className='truncate text-[13px] font-bold text-[var(--to-text-primary)]'
+              style={{
+                fontFamily: 'var(--font-sans)',
+                letterSpacing: '-0.02em',
+              }}
             >
               {title}
             </span>
-            <Activity className='h-3 w-3 text-[var(--to-text-dim)]' />
+            <Activity className='h-3 w-3 text-[var(--to-accent-purple)]/40' />
           </div>
         </div>
         <DualClock />

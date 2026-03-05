@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 _client = None
 _created_at: float = 0.0
-_MAX_AGE_SECONDS = 300  # Recreate client every 5 minutes to avoid stale HTTP/2 connections
+_MAX_AGE_SECONDS = 90  # Recreate client every 90s to avoid stale HTTP/2 connections
 
 
 def get_api_supabase():
@@ -56,6 +56,18 @@ def reset_api_supabase():
     _created_at = 0.0
 
 
+def is_supabase_connection_error(exc: BaseException) -> bool:
+    """True if the exception indicates a transient Supabase/HTTP connection error worth retrying."""
+    err_str = str(exc).lower()
+    return (
+        "connectionterminated" in err_str
+        or "remoteprotocolerror" in err_str
+        or "server disconnected" in err_str
+        or "disconnect" in err_str
+        or "connection" in err_str
+    )
+
+
 def supabase_query(fn):
     """Decorator that retries Supabase queries once on connection errors.
 
@@ -73,8 +85,9 @@ def supabase_query(fn):
             return fn(*args, **kwargs)
         except Exception as e:
             err_str = str(e).lower()
-            # Retry on HTTP/2 connection errors
-            if "connectionterminated" in err_str or "remoteprotocolerror" in err_str or "connection" in err_str:
+            # Retry on HTTP/2 connection errors (RemoteProtocolError, Server disconnected, etc.)
+            retryable = is_supabase_connection_error(e)
+            if retryable:
                 logger.warning("Supabase connection error in %s, reconnecting: %s", fn.__name__, type(e).__name__)
                 reset_api_supabase()
                 return fn(*args, **kwargs)

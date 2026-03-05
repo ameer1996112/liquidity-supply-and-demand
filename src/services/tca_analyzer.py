@@ -322,6 +322,11 @@ class TCAAnalyzer:
             return results
 
         except Exception as e:
+            from src.adapters.supabase_api import is_supabase_connection_error, reset_api_supabase
+            if is_supabase_connection_error(e):
+                logger.warning("Supabase connection error in get_slippage_by_symbol, re-raising for retry")
+                reset_api_supabase()
+                raise
             logger.error(f"Failed to get slippage by symbol: {e}")
             return []
 
@@ -444,6 +449,11 @@ class TCAAnalyzer:
             )
 
         except Exception as e:
+            from src.adapters.supabase_api import is_supabase_connection_error, reset_api_supabase
+            if is_supabase_connection_error(e):
+                logger.warning("Supabase connection error in get_latency_breakdown, re-raising for retry")
+                reset_api_supabase()
+                raise
             logger.error(f"Failed to get latency breakdown: {e}")
             return LatencyBreakdown(
                 avg_signal_to_submit_ms=0.0,

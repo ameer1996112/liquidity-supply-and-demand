@@ -57,11 +57,6 @@
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
 
-  /* ── TradeOps semantic tokens → Tailwind color utilities ─────────────────
-   * Enables: text-long  bg-short  border-panel-border  bg-surface-raised
-   * text-text-dim  bg-surface  text-amber  text-blue-accent  etc.
-   * All support opacity modifiers: text-long/70  bg-surface/50
-   * ─────────────────────────────────────────────────────────────────────── */
   --color-long: var(--to-long);
   --color-short: var(--to-short);
   --color-neutral: var(--to-neutral);
@@ -76,31 +71,31 @@
   --color-text-dim: var(--to-text-dim);
 }
 
-/* ── TradeOps Design System — Binance/TradingView Terminal ────────────────── */
+/* ── TradeOps Design System — Premium Dark Terminal ───────────────────────── */
 :root {
-  --radius: 0.375rem; /* tighter radius for terminal feel */
+  --radius: 0.5rem;
 
-  /* Core palette — Deep Zinc base (#09090b prop-trading standard) */
-  --background: #09090b;
-  --foreground: #eaecef;
-  --card: #12161c;
-  --card-foreground: #eaecef;
-  --popover: #12161c;
-  --popover-foreground: #eaecef;
+  /* Core palette — deep obsidian base */
+  --background: #080b10;
+  --foreground: #e6eaf0;
+  --card: #0d1117;
+  --card-foreground: #e6eaf0;
+  --popover: #0d1117;
+  --popover-foreground: #e6eaf0;
   --primary: #f0b90b;
-  --primary-foreground: #0b0e11;
-  --secondary: #1e2329;
-  --secondary-foreground: #b7bdc6;
-  --muted: #1e2329;
-  --muted-foreground: #5e6673;
-  --accent: #2b3139;
-  --accent-foreground: #eaecef;
+  --primary-foreground: #080b10;
+  --secondary: #161b22;
+  --secondary-foreground: #b0bac8;
+  --muted: #161b22;
+  --muted-foreground: #5a6474;
+  --accent: #21262d;
+  --accent-foreground: #e6eaf0;
   --destructive: #f6465d;
-  --border: #1e2329;
-  --input: #1e2329;
+  --border: #21262d;
+  --input: #161b22;
   --ring: #f0b90b;
 
-  /* Chart colors — trading standard */
+  /* Chart colors */
   --chart-1: #0ecb81;
   --chart-2: #f6465d;
   --chart-3: #f0b90b;
@@ -108,37 +103,58 @@
   --chart-5: #a78bfa;
 
   /* Sidebar */
-  --sidebar: #0b0e11;
-  --sidebar-foreground: #b7bdc6;
+  --sidebar: #080b10;
+  --sidebar-foreground: #b0bac8;
   --sidebar-primary: #f0b90b;
-  --sidebar-primary-foreground: #0b0e11;
-  --sidebar-accent: #1e2329;
-  --sidebar-accent-foreground: #eaecef;
-  --sidebar-border: #1e2329;
+  --sidebar-primary-foreground: #080b10;
+  --sidebar-accent: #161b22;
+  --sidebar-accent-foreground: #e6eaf0;
+  --sidebar-border: #21262d;
   --sidebar-ring: #f0b90b;
 
   /* TradeOps semantic tokens */
-  --to-bg: #09090b;
-  --to-surface: #12161c;
-  --to-surface-raised: #1e2329;
-  --to-border: #2b3139;
-  --to-border-subtle: #1e2329;
-  --to-text-primary: #eaecef;
-  --to-text-secondary: #848e9c;
-  --to-text-dim: #5e6673;
+  --to-bg: #080b10;
+  --to-surface: #0d1117;
+  --to-surface-raised: #161b22;
+  --to-surface-overlay: #1c2230;
+  --to-border: #21262d;
+  --to-border-subtle: #161b22;
+  --to-border-glow: rgba(240, 185, 11, 0.15);
+  --to-text-primary: #e6eaf0;
+  --to-text-secondary: #8b95a5;
+  --to-text-dim: #4d5666;
   --to-accent-blue: #3b82f6;
   --to-accent-green: #0ecb81;
   --to-accent-red: #f6465d;
   --to-accent-amber: #f0b90b;
+  --to-accent-purple: #8b5cf6;
 
-  /* Trading-specific semantic colors */
+  /* Trading semantic */
   --to-long: #0ecb81;
   --to-short: #f6465d;
-  --to-neutral: #848e9c;
+  --to-neutral: #8b95a5;
   --to-warning: #f0b90b;
-}
 
-/* Light theme intentionally omitted — terminal is dark-only */
+  /* Glow shadows */
+  --glow-green:
+    0 0 12px rgba(14, 203, 129, 0.35), 0 0 24px rgba(14, 203, 129, 0.12);
+  --glow-red:
+    0 0 12px rgba(246, 70, 93, 0.35), 0 0 24px rgba(246, 70, 93, 0.12);
+  --glow-amber:
+    0 0 12px rgba(240, 185, 11, 0.35), 0 0 24px rgba(240, 185, 11, 0.12);
+  --glow-purple:
+    0 0 12px rgba(139, 92, 246, 0.35), 0 0 24px rgba(139, 92, 246, 0.12);
+  --glow-blue:
+    0 0 12px rgba(59, 130, 246, 0.35), 0 0 24px rgba(59, 130, 246, 0.12);
+
+  /* Panel border gradient */
+  --panel-border-gradient: linear-gradient(
+    135deg,
+    rgba(240, 185, 11, 0.08) 0%,
+    rgba(139, 92, 246, 0.04) 50%,
+    rgba(59, 130, 246, 0.06) 100%
+  );
+}
 
 /* ── Base styles ──────────────────────────────────────────────────────────── */
 @layer base {
@@ -156,10 +172,6 @@
     scroll-behavior: smooth;
   }
 
-  html[data-theme='light'] {
-    color-scheme: light;
-  }
-
   body {
     @apply antialiased;
     background-color: var(--to-bg);
@@ -170,9 +182,16 @@
       'calt' 1;
     letter-spacing: 0.005em;
     line-height: 1.5;
+    /* Subtle dot-grid background */
+    background-image: radial-gradient(
+      circle,
+      rgba(255, 255, 255, 0.025) 1px,
+      transparent 1px
+    );
+    background-size: 28px 28px;
+    background-attachment: fixed;
   }
 
-  /* Monospace for all numeric/data elements */
   .font-mono,
   [class*='tabular-nums'],
   code,
@@ -182,7 +201,7 @@
   }
 
   ::selection {
-    background: rgba(99, 102, 241, 0.3);
+    background: rgba(139, 92, 246, 0.3);
     color: #f1f5f9;
   }
 
@@ -191,49 +210,129 @@
   }
 }
 
-/* ── TradeOps Panel System ────────────────────────────────────────────────── */
+/* ── Panel System ─────────────────────────────────────────────────────────── */
 
-/* Every dashboard panel uses this class — consistent bg, border-radius, border */
 .to-panel {
   background-color: var(--to-surface);
-  border-radius: 0.5rem; /* rounded-lg */
+  border-radius: 0.625rem;
   border: 1px solid var(--to-border);
+  position: relative;
+}
+
+/* Premium glass panel — used for elevated cards */
+.glass-panel {
+  background: linear-gradient(
+    135deg,
+    rgba(13, 17, 23, 0.95) 0%,
+    rgba(22, 27, 34, 0.9) 100%
+  );
+  border-radius: 0.75rem;
+  border: 1px solid var(--to-border);
+  backdrop-filter: blur(12px) saturate(150%);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Shimmer top-border for glass panels */
+.glass-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    rgba(240, 185, 11, 0.06) 0%,
+    rgba(139, 92, 246, 0.03) 40%,
+    rgba(59, 130, 246, 0.04) 100%
+  );
+  pointer-events: none;
 }
 
 .to-panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.5rem 0.75rem;
+  padding: 0.5rem 0.875rem;
   border-bottom: 1px solid var(--to-border);
 }
 
-/* Legacy tv-card — now maps to to-panel for backward compat */
+/* Legacy compat */
 .tv-card {
   background-color: var(--to-surface);
-  border-radius: 0.5rem;
+  border-radius: 0.625rem;
   border: 1px solid var(--to-border);
+  transition: border-color 0.2s ease;
 }
-
 .tv-card:hover {
-  border-color: color-mix(
-    in srgb,
-    var(--to-border) 70%,
-    var(--to-text-secondary) 30%
-  );
+  border-color: rgba(240, 185, 11, 0.2);
 }
-
 .tv-divider {
   border-color: var(--to-border) !important;
 }
 
-/* ── Typography helpers ───────────────────────────────────────────────────── */
+/* ── Glow utilities ───────────────────────────────────────────────────────── */
+.glow-green {
+  box-shadow: var(--glow-green);
+}
+.glow-red {
+  box-shadow: var(--glow-red);
+}
+.glow-amber {
+  box-shadow: var(--glow-amber);
+}
+.glow-purple {
+  box-shadow: var(--glow-purple);
+}
+.glow-blue {
+  box-shadow: var(--glow-blue);
+}
 
+.text-glow-green {
+  text-shadow: 0 0 10px rgba(14, 203, 129, 0.6);
+}
+.text-glow-red {
+  text-shadow: 0 0 10px rgba(246, 70, 93, 0.6);
+}
+.text-glow-amber {
+  text-shadow: 0 0 10px rgba(240, 185, 11, 0.6);
+}
+.text-glow-purple {
+  text-shadow: 0 0 10px rgba(139, 92, 246, 0.6);
+}
+
+/* ── Gradient text ────────────────────────────────────────────────────────── */
+.gradient-text-amber {
+  background: linear-gradient(135deg, #f0b90b 0%, #fcd34d 60%, #f0b90b 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.gradient-text-green {
+  background: linear-gradient(135deg, #0ecb81 0%, #34d399 60%, #0ecb81 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.gradient-text-red {
+  background: linear-gradient(135deg, #f6465d 0%, #fb7185 60%, #f6465d 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.gradient-text-purple {
+  background: linear-gradient(135deg, #8b5cf6 0%, #a78bfa 60%, #8b5cf6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Typography ───────────────────────────────────────────────────────────── */
 .page-title {
   font-family: var(--font-sans);
   color: var(--to-text-primary);
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .page-subtitle {
@@ -242,85 +341,80 @@
   font-size: 0.8125rem;
 }
 
-/* Panel section labels */
 .panel-label {
   font-family: var(--font-sans);
   font-size: 0.6875rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  font-weight: 700;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--to-text-secondary);
 }
 
-/* Monospace data values */
-.data-value {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-}
-
-/* Generic helper for any numeric span using JetBrains Mono + tabular-nums. */
+.data-value,
 .mono-num {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
-/* ── Trigger badges (FLIP / BoC / DIR CLOSE) ─────────────────────────────── */
+/* ── Trigger badges ───────────────────────────────────────────────────────── */
 .trigger-flip {
   display: inline-flex;
   align-items: center;
   padding: 1px 6px;
-  border-radius: 3px;
+  border-radius: 4px;
   font-family: var(--font-mono);
   font-size: 0.625rem;
   font-weight: 700;
   letter-spacing: 0.06em;
-  background: rgba(99, 102, 241, 0.15);
+  background: rgba(99, 102, 241, 0.12);
   color: #818cf8;
-  border: 1px solid rgba(99, 102, 241, 0.3);
+  border: 1px solid rgba(99, 102, 241, 0.25);
 }
-
 .trigger-boc {
   display: inline-flex;
   align-items: center;
   padding: 1px 6px;
-  border-radius: 3px;
+  border-radius: 4px;
   font-family: var(--font-mono);
   font-size: 0.625rem;
   font-weight: 700;
   letter-spacing: 0.06em;
-  background: rgba(16, 185, 129, 0.12);
+  background: rgba(16, 185, 129, 0.1);
   color: #34d399;
-  border: 1px solid rgba(16, 185, 129, 0.25);
+  border: 1px solid rgba(16, 185, 129, 0.22);
 }
-
 .trigger-dir-close {
   display: inline-flex;
   align-items: center;
   padding: 1px 6px;
-  border-radius: 3px;
+  border-radius: 4px;
   font-family: var(--font-mono);
   font-size: 0.625rem;
   font-weight: 700;
   letter-spacing: 0.06em;
-  background: rgba(245, 158, 11, 0.12);
+  background: rgba(245, 158, 11, 0.1);
   color: #fcd34d;
-  border: 1px solid rgba(245, 158, 11, 0.25);
+  border: 1px solid rgba(245, 158, 11, 0.22);
 }
 
-/* ── 5m Timeframe badge ───────────────────────────────────────────────────── */
+/* ── TF badge ─────────────────────────────────────────────────────────────── */
 .tf-badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: 5px;
   font-family: var(--font-mono);
   font-size: 0.6875rem;
   font-weight: 700;
   letter-spacing: 0.1em;
-  background: rgba(99, 102, 241, 0.15);
-  color: #a5b4fc;
-  border: 1px solid rgba(99, 102, 241, 0.35);
+  background: rgba(139, 92, 246, 0.12);
+  color: #a78bfa;
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  transition: box-shadow 0.2s ease;
+}
+.tf-badge:hover {
+  box-shadow: var(--glow-purple);
 }
 
 /* ── Empty state ──────────────────────────────────────────────────────────── */
@@ -332,21 +426,18 @@
   padding: 2rem 1rem;
   text-align: center;
 }
-
 .empty-state-text {
   font-family: var(--font-mono);
   font-size: 0.6875rem;
-  color: #475569;
+  color: #3d4656;
   letter-spacing: 0.06em;
 }
 
 /* ── Utility classes ──────────────────────────────────────────────────────── */
-
 .surface-soft {
   background: var(--to-surface);
   border: 1px solid var(--to-border);
 }
-
 .tv-chip {
   background: var(--to-surface);
   border: 1px solid var(--to-border);
@@ -354,102 +445,91 @@
   color: var(--to-text-secondary);
 }
 
+/* ── Scrollbar ────────────────────────────────────────────────────────────── */
 .scrollbar-thin {
   scrollbar-width: thin;
-  scrollbar-color: rgba(71, 85, 105, 0.5) transparent;
+  scrollbar-color: rgba(33, 38, 45, 0.8) transparent;
 }
-
 .scrollbar-thin::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 4px;
+  height: 4px;
 }
-
 .scrollbar-thin::-webkit-scrollbar-track {
   background: transparent;
 }
-
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background: rgba(71, 85, 105, 0.5);
-  border-radius: 3px;
+  background: rgba(139, 92, 246, 0.2);
+  border-radius: 4px;
 }
-
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 0.7);
+  background: rgba(139, 92, 246, 0.4);
 }
 
 /* ── Table density ────────────────────────────────────────────────────────── */
 .table-dense th,
 .table-dense td {
-  padding: 0.3rem 0.625rem; /* ~50% reduction from default */
+  padding: 0.3rem 0.625rem;
 }
-
 .data-row {
   transition: background-color 0.12s ease;
 }
-
 .data-row:hover {
-  background-color: rgba(51, 65, 85, 0.5);
+  background-color: rgba(22, 27, 34, 0.7);
 }
 
-/* ── Status indicators ────────────────────────────────────────────────────── */
+/* ── Status dots ──────────────────────────────────────────────────────────── */
 .status-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
 }
-
 .status-dot-active {
   background-color: var(--to-long);
-  box-shadow: 0 0 6px rgba(14, 203, 129, 0.4);
+  box-shadow: 0 0 8px rgba(14, 203, 129, 0.6);
 }
-
 .status-dot-warning {
   background-color: var(--to-warning);
-  box-shadow: 0 0 6px rgba(240, 185, 11, 0.4);
+  box-shadow: 0 0 8px rgba(240, 185, 11, 0.6);
 }
-
 .status-dot-error {
   background-color: var(--to-short);
-  box-shadow: 0 0 6px rgba(246, 70, 93, 0.4);
+  box-shadow: 0 0 8px rgba(246, 70, 93, 0.6);
 }
 
-/* ── PnL colors — Binance green/red ──────────────────────────────────────── */
+/* ── PnL colors ───────────────────────────────────────────────────────────── */
 .text-profit {
   color: var(--to-long);
 }
-
 .text-loss {
   color: var(--to-short);
 }
-
 .bg-profit {
   background-color: var(--to-long);
 }
-
 .bg-loss {
   background-color: var(--to-short);
 }
 
 /* ── Animations ───────────────────────────────────────────────────────────── */
 .pulse-active {
-  animation: pulse-green 2.2s infinite;
+  animation: pulse-green 2.5s ease-in-out infinite;
 }
-
 @keyframes pulse-green {
   0%,
   100% {
     opacity: 1;
+    box-shadow: 0 0 6px rgba(14, 203, 129, 0.5);
   }
   50% {
-    opacity: 0.7;
+    opacity: 0.75;
+    box-shadow: 0 0 12px rgba(14, 203, 129, 0.25);
   }
 }
 
 .badge-pulse {
-  animation: badge-pulse 2s ease-in-out infinite;
+  animation: badge-pulse 2.2s ease-in-out infinite;
 }
-
 @keyframes badge-pulse {
   0%,
   100% {
@@ -460,49 +540,128 @@
   }
 }
 
+/* Glow pulse for stat cards */
+.glow-pulse-green {
+  animation: glow-pulse-green 3s ease-in-out infinite;
+}
+@keyframes glow-pulse-green {
+  0%,
+  100% {
+    box-shadow: 0 0 8px rgba(14, 203, 129, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(14, 203, 129, 0.45);
+  }
+}
+.glow-pulse-amber {
+  animation: glow-pulse-amber 3s ease-in-out infinite;
+}
+@keyframes glow-pulse-amber {
+  0%,
+  100% {
+    box-shadow: 0 0 8px rgba(240, 185, 11, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(240, 185, 11, 0.45);
+  }
+}
+
+/* Shimmer scan line */
+@keyframes shimmer-scan {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(400%);
+  }
+}
+.shimmer-line::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 25%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(240, 185, 11, 0.5),
+    transparent
+  );
+  animation: shimmer-scan 3.5s ease-in-out infinite;
+}
+
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
 
 /* ── Radix dialog backdrop ────────────────────────────────────────────────── */
 [data-state='open'] > [data-radix-dialog-overlay] {
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(8px) saturate(120%);
+  -webkit-backdrop-filter: blur(8px) saturate(120%);
 }
 
-/* ── Mode badge variants ──────────────────────────────────────────────────── */
-/* Eliminates repeated long Tailwind chains for the LIVE/PAPER badge           */
+/* ── Mode badges ──────────────────────────────────────────────────────────── */
 .mode-badge {
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
   padding: 0.125rem 0.5rem;
-  border-radius: 0.25rem;
+  border-radius: 0.375rem;
   font-family: var(--font-mono);
   font-size: 0.625rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
+  transition: box-shadow 0.2s ease;
 }
-
 .mode-badge-live {
-  border: 1px solid rgba(14, 203, 129, 0.2);
+  border: 1px solid rgba(14, 203, 129, 0.25);
   background: rgba(14, 203, 129, 0.08);
   color: var(--to-long);
 }
-
+.mode-badge-live:hover {
+  box-shadow: var(--glow-green);
+}
 .mode-badge-paper {
-  border: 1px solid rgba(240, 185, 11, 0.2);
+  border: 1px solid rgba(240, 185, 11, 0.25);
   background: rgba(240, 185, 11, 0.08);
   color: var(--to-warning);
 }
+.mode-badge-paper:hover {
+  box-shadow: var(--glow-amber);
+}
 
-/* ── KPI sublabel row ─────────────────────────────────────────────────────── */
+/* ── KPI meta label ───────────────────────────────────────────────────────── */
 .kpi-meta {
   font-family: var(--font-mono);
   font-size: 0.5625rem;
   font-weight: 600;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--to-text-dim);
+}
+
+/* ── Frosted top bar ──────────────────────────────────────────────────────── */
+.topbar-glass {
+  background: rgba(8, 11, 16, 0.85);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  border-bottom: 1px solid rgba(240, 185, 11, 0.07);
+  box-shadow:
+    0 1px 0 rgba(139, 92, 246, 0.05),
+    0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+/* ── Nav active glow ──────────────────────────────────────────────────────── */
+.nav-active-glow {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  background: linear-gradient(to bottom, #f0b90b, #fcd34d);
+  border-radius: 0 3px 3px 0;
+  box-shadow: 0 0 8px rgba(240, 185, 11, 0.6);
 }

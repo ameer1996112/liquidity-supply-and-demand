@@ -293,6 +293,11 @@ class AccountOrchestrator:
             )
 
         except Exception as e:
+            from src.adapters.supabase_api import is_supabase_connection_error, reset_api_supabase
+            if is_supabase_connection_error(e):
+                logger.warning("Supabase connection error in get_account_performance, re-raising for retry")
+                reset_api_supabase()
+                raise
             logger.exception(f"Failed to get account performance for {account_name}: {e}")
             return None
 
@@ -420,6 +425,11 @@ class AccountOrchestrator:
             )
 
         except Exception as e:
+            from src.adapters.supabase_api import is_supabase_connection_error, reset_api_supabase
+            if is_supabase_connection_error(e):
+                logger.warning("Supabase connection error in suggest_capital_allocation, re-raising for retry")
+                reset_api_supabase()
+                raise
             logger.exception("Failed to suggest capital allocation: %s", e)
             return AllocationPlan(
                 total_capital=total_available_capital,

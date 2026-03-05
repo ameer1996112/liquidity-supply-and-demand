@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/traces", tags=["traces"])
 
-from src.adapters.supabase_api import get_api_supabase as _get_supabase
+from src.adapters.supabase_api import get_api_supabase as _get_supabase, supabase_query
 
 # ── Response models ────────────────────────────────────────────────────────────
 
@@ -164,6 +164,7 @@ def _percentile(data: List[float], pct: float) -> Optional[float]:
 # ── Endpoints ──────────────────────────────────────────────────────────────────
 
 @router.get("", response_model=List[TraceSummary])
+@supabase_query
 def list_traces(
     limit:      int            = Query(50, ge=1, le=500),
     account_id: Optional[str]  = Query(None),
@@ -203,6 +204,7 @@ def list_traces(
 
 
 @router.get("/stats", response_model=StatsResponse)
+@supabase_query
 def traces_stats(
     hours: int = Query(24, ge=1, le=720, description="Look-back window in hours"),
 ):
@@ -264,6 +266,7 @@ def traces_stats(
 
 
 @router.get("/{correlation_id}", response_model=TraceDetail)
+@supabase_query
 def get_trace(correlation_id: str):
     """Fetch a single pipeline trace by correlation_id."""
     try:

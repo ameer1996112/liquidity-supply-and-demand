@@ -1,97 +1,151 @@
 'use client';
 
-import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { LucideIcon } from 'lucide-react';
 
-type Trend = 'up' | 'down' | 'neutral';
 type Variant = 'default' | 'profit' | 'loss' | 'warning';
 
 interface StatCardProps {
   label: string;
   value: string;
   icon?: LucideIcon;
-  trend?: Trend;
   subValue?: string;
   variant?: Variant;
   className?: string;
 }
 
-const VARIANT_STYLES: Record<Variant, string> = {
-  default: 'text-[var(--to-text-primary)]',
-  profit: 'text-[var(--to-long)]',
-  loss: 'text-[var(--to-short)]',
-  warning: 'text-[var(--to-warning)]',
-};
-
-const TREND_CONFIG: Record<Trend, { icon: typeof TrendingUp; color: string }> = {
-  up: { icon: TrendingUp, color: 'text-[var(--to-long)]' },
-  down: { icon: TrendingDown, color: 'text-[var(--to-short)]' },
-  neutral: { icon: Minus, color: 'text-[var(--to-text-dim)]' },
-};
-
+// Detect sign from value string
 function detectVariant(value: string): Variant {
   const cleaned = value.replace(/[,$%\s]/g, '');
   const num = parseFloat(cleaned);
   if (isNaN(num) || num === 0) return 'default';
-  if (value.includes('%') && Math.abs(num) > 5) return num > 0 ? 'profit' : 'loss';
-  if (value.startsWith('+') || value.startsWith('-')) return num > 0 ? 'profit' : 'loss';
+  if (value.includes('%') && Math.abs(num) > 5)
+    return num > 0 ? 'profit' : 'loss';
+  if (value.startsWith('+') || value.startsWith('-'))
+    return num > 0 ? 'profit' : 'loss';
   return 'default';
 }
+
+const VARIANT_CONFIG: Record<
+  Variant,
+  {
+    valueClass: string;
+    iconBg: string;
+    iconColor: string;
+    barColor: string;
+    glowClass: string;
+  }
+> = {
+  default: {
+    valueClass: 'text-[var(--to-text-primary)]',
+    iconBg: 'bg-[var(--to-surface-raised)] border border-[var(--to-border)]',
+    iconColor: 'text-[var(--to-text-secondary)]',
+    barColor: 'bg-[var(--to-border)]',
+    glowClass: '',
+  },
+  profit: {
+    valueClass: 'gradient-text-green text-glow-green',
+    iconBg: 'bg-[#0ecb81]/10 border border-[#0ecb81]/25',
+    iconColor: 'text-[#0ecb81]',
+    barColor: 'bg-[#0ecb81]',
+    glowClass: 'hover:glow-green',
+  },
+  loss: {
+    valueClass: 'gradient-text-red text-glow-red',
+    iconBg: 'bg-[#f6465d]/10 border border-[#f6465d]/25',
+    iconColor: 'text-[#f6465d]',
+    barColor: 'bg-[#f6465d]',
+    glowClass: 'hover:glow-red',
+  },
+  warning: {
+    valueClass: 'gradient-text-amber text-glow-amber',
+    iconBg: 'bg-[#f0b90b]/10 border border-[#f0b90b]/25',
+    iconColor: 'text-[#f0b90b]',
+    barColor: 'bg-[#f0b90b]',
+    glowClass: 'hover:glow-amber',
+  },
+};
 
 export function StatCard({
   label,
   value,
   icon: Icon,
-  trend,
   subValue,
   variant,
   className,
 }: StatCardProps) {
   const resolvedVariant = variant ?? detectVariant(value);
-  const TrendIcon = trend ? TREND_CONFIG[trend].icon : null;
+  const cfg = VARIANT_CONFIG[resolvedVariant];
 
   return (
     <div
       className={cn(
-        'relative overflow-hidden rounded border border-[var(--to-border)] bg-[var(--to-surface)] px-3 py-2.5',
-        'transition-colors duration-150 hover:border-[var(--to-border)]/80',
+        'group relative overflow-hidden rounded-xl',
+        'border border-[var(--to-border)]',
+        'bg-gradient-to-br from-[var(--to-surface)] to-[var(--to-surface-raised)]',
+        'px-4 py-3.5',
+        'transition-all duration-200 ease-out',
+        'hover:border-[var(--to-border-glow)] hover:-translate-y-[1px]',
+        'hover:shadow-[0_4px_24px_rgba(0,0,0,0.4)]',
         className,
       )}
     >
-      <div className='flex items-center justify-between'>
+      {/* Shimmer scan line on hover */}
+      <div className='absolute inset-x-0 top-0 h-px overflow-hidden opacity-0 group-hover:opacity-100 transition-opacity duration-300'>
+        <div className='h-px w-1/3 bg-gradient-to-r from-transparent via-[rgba(240,185,11,0.6)] to-transparent animate-[shimmer-scan_2s_ease-in-out_infinite]' />
+      </div>
+
+      {/* Top row: label + icon chip */}
+      <div className='flex items-center justify-between mb-2.5'>
         <p
-          className='text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--to-text-dim)]'
+          className='text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--to-text-dim)]'
           style={{ fontFamily: 'var(--font-sans)' }}
         >
           {label}
         </p>
-        {Icon && <Icon className='h-3.5 w-3.5 text-[var(--to-text-dim)]' />}
-      </div>
-
-      <div className='mt-1.5 flex items-baseline gap-1.5'>
-        <p
-          className={cn(
-            'text-base font-bold tabular-nums leading-none',
-            VARIANT_STYLES[resolvedVariant],
-          )}
-          style={{ fontFamily: 'var(--font-mono)' }}
-        >
-          {value}
-        </p>
-        {TrendIcon && (
-          <TrendIcon className={cn('h-3.5 w-3.5', TREND_CONFIG[trend!].color)} />
+        {Icon && (
+          <div
+            className={cn(
+              'flex h-6 w-6 items-center justify-center rounded-md',
+              cfg.iconBg,
+            )}
+          >
+            <Icon className={cn('h-3.5 w-3.5', cfg.iconColor)} />
+          </div>
         )}
       </div>
 
+      {/* Value */}
+      <p
+        className={cn(
+          'text-[1.15rem] font-bold tabular-nums leading-none',
+          cfg.valueClass,
+        )}
+        style={{ fontFamily: 'var(--font-mono)' }}
+      >
+        {value}
+      </p>
+
+      {/* Sub-value */}
       {subValue && (
         <p
-          className='mt-1 text-[10px] tabular-nums text-[var(--to-text-dim)]'
+          className='mt-1.5 text-[10px] tabular-nums text-[var(--to-text-dim)] truncate'
           style={{ fontFamily: 'var(--font-mono)' }}
         >
           {subValue}
         </p>
       )}
+
+      {/* Bottom accent bar */}
+      <div
+        className={cn(
+          'absolute bottom-0 inset-x-0 h-[2px] opacity-0 group-hover:opacity-100 transition-opacity duration-300',
+          cfg.barColor,
+        )}
+      />
+
+      {/* Subtle gradient overlay on bg */}
+      <div className='pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-br from-white/[0.015] via-transparent to-transparent' />
     </div>
   );
 }

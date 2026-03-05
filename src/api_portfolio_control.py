@@ -20,7 +20,7 @@ router = APIRouter(prefix="/api/portfolio-control", tags=["portfolio-control"])
 
 # ── Shared Supabase client with auto-reconnect ──────────────────
 
-from src.adapters.supabase_api import get_api_supabase as _get_supabase, reset_api_supabase
+from src.adapters.supabase_api import get_api_supabase as _get_supabase, reset_api_supabase, supabase_query
 
 
 def _is_connection_error(exc: Exception) -> bool:
@@ -660,6 +660,7 @@ def get_account_comparison():
 
 @router.get("/accounts/allocation-suggest", response_model=AllocationPlanResponse)
 @router.post("/accounts/allocation/suggest", response_model=AllocationPlanResponse)
+@supabase_query
 def suggest_capital_allocation(
     total_capital: float,
     goal: str = "maximize_sharpe",

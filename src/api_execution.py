@@ -24,7 +24,7 @@ router = APIRouter(prefix="/execution", tags=["execution"])
 
 # ── Shared Supabase client with auto-reconnect ──────────────────
 
-from src.adapters.supabase_api import get_api_supabase as _get_supabase
+from src.adapters.supabase_api import get_api_supabase as _get_supabase, supabase_query
 
 
 # ── Response Models ───────────────────────────────────────────────
@@ -79,6 +79,7 @@ class TCAAlertResponse(BaseModel):
 
 
 @router.get("/tca-summary", response_model=TCAMetricsResponse)
+@supabase_query
 def get_tca_summary(
     days: int = Query(1, ge=1, le=90, description="Number of days to look back"),
     run_mode: Optional[str] = Query(None, description="Filter by LIVE or PAPER mode")
@@ -115,6 +116,7 @@ def get_tca_summary(
 
 
 @router.get("/slippage-by-symbol", response_model=List[SlippageBySymbolResponse])
+@supabase_query
 def get_slippage_by_symbol(
     days: int = Query(30, ge=1, le=90, description="Number of days to look back"),
     run_mode: Optional[str] = Query(None, description="Filter by LIVE or PAPER mode")
@@ -170,6 +172,7 @@ def get_slippage_by_hour(
 
 
 @router.get("/latency-breakdown", response_model=LatencyBreakdownResponse)
+@supabase_query
 def get_latency_breakdown(
     days: int = Query(7, ge=1, le=30, description="Number of days to look back")
 ):

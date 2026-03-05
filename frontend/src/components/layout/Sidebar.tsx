@@ -104,10 +104,15 @@ export function Sidebar() {
         className={cn(
           'fixed left-0 top-0 bottom-0 z-40 flex flex-col',
           'border-r border-[var(--to-border)]',
-          'bg-[var(--to-bg)]',
           'transition-all duration-200 ease-in-out',
           isCollapsed ? 'w-14' : 'w-56',
         )}
+        style={{
+          background:
+            'linear-gradient(180deg, #0b0e14 0%, #080b10 60%, #0a0d12 100%)',
+          boxShadow:
+            '1px 0 0 rgba(240,185,11,0.04), 4px 0 20px rgba(0,0,0,0.4)',
+        }}
       >
         {/* ── Brand header ─────────────────────────────────────────── */}
         <div
@@ -118,19 +123,25 @@ export function Sidebar() {
         >
           {!isCollapsed && (
             <div className='flex items-center gap-2'>
-              <div className='flex h-7 w-7 items-center justify-center rounded bg-[var(--to-warning)]/15 border border-[var(--to-warning)]/30'>
+              <div
+                className='flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--to-warning)]/12 border border-[var(--to-warning)]/25'
+                style={{ boxShadow: '0 0 10px rgba(240,185,11,0.25)' }}
+              >
                 <Activity className='h-4 w-4 text-[var(--to-warning)]' />
               </div>
               <div className='flex flex-col leading-tight'>
                 <span
-                  className='text-[13px] font-semibold tracking-tight text-[var(--to-text-primary)]'
-                  style={{ fontFamily: 'var(--font-sans)' }}
+                  className='text-[13px] font-bold tracking-tight text-[var(--to-text-primary)]'
+                  style={{
+                    fontFamily: 'var(--font-sans)',
+                    letterSpacing: '-0.02em',
+                  }}
                 >
                   TradeOps
                 </span>
                 <span
                   suppressHydrationWarning
-                  className='text-[9px] uppercase tracking-[0.18em] text-[var(--to-text-dim)]'
+                  className='text-[9px] uppercase tracking-[0.2em] text-[var(--to-text-dim)]'
                   style={{ fontFamily: 'var(--font-mono)' }}
                 >
                   5M · LIVE
@@ -139,7 +150,10 @@ export function Sidebar() {
             </div>
           )}
           {isCollapsed && (
-            <div className='flex h-7 w-7 items-center justify-center rounded bg-[var(--to-warning)]/15 border border-[var(--to-warning)]/30'>
+            <div
+              className='flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--to-warning)]/12 border border-[var(--to-warning)]/25'
+              style={{ boxShadow: '0 0 10px rgba(240,185,11,0.25)' }}
+            >
               <Activity className='h-4 w-4 text-[var(--to-warning)]' />
             </div>
           )}
@@ -151,10 +165,12 @@ export function Sidebar() {
             <div key={group.id} className='space-y-1.5'>
               {!isCollapsed && (
                 <div
-                  className='px-2.5 text-[10px] uppercase tracking-[0.18em] text-[var(--to-text-dim)]'
+                  className='px-2.5 pb-0.5 pt-1 text-[9px] uppercase tracking-[0.2em] text-[var(--to-text-dim)] flex items-center gap-2'
                   style={{ fontFamily: 'var(--font-mono)' }}
                 >
+                  <span className='flex-1 h-px bg-[var(--to-border)]' />
                   {group.label}
+                  <span className='flex-1 h-px bg-[var(--to-border)]' />
                 </div>
               )}
               <div className='space-y-0.5'>
@@ -170,16 +186,14 @@ export function Sidebar() {
                       href={item.path}
                       className={cn(
                         'group relative flex items-center gap-2.5 rounded-lg px-2.5 py-1.5',
-                        'transition-colors duration-100',
+                        'transition-all duration-150',
                         isActive
-                          ? 'bg-[var(--to-warning)]/12 text-[var(--to-warning)] border border-[var(--to-warning)]/30'
-                          : 'border border-transparent text-[var(--to-text-secondary)] hover:bg-[var(--to-surface-raised)] hover:text-[var(--to-text-primary)]',
+                          ? 'bg-[var(--to-warning)]/10 text-[var(--to-warning)] border border-[var(--to-warning)]/20'
+                          : 'border border-transparent text-[var(--to-text-secondary)] hover:bg-[var(--to-surface-raised)]/60 hover:text-[var(--to-text-primary)]',
                         isCollapsed && 'justify-center px-0',
                       )}
                     >
-                      {isActive && (
-                        <span className='absolute left-0 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-r bg-[var(--to-warning)]' />
-                      )}
+                      {isActive && <span className='nav-active-glow' />}
                       <item.icon
                         className={cn(
                           'h-4 w-4 shrink-0',
