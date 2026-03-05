@@ -17,7 +17,6 @@ import {
   Users,
   LineChart,
   Timer,
-  FlaskConical,
   SlidersHorizontal,
   Bell,
   Trophy,
@@ -103,7 +102,6 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: 'Analytics', icon: BarChart3, path: '/analytics' },
       { label: 'Backtest', icon: LineChart, path: '/backtest' },
-      { label: 'Backtests', icon: FlaskConical, path: '/backtests' },
     ],
   },
   {
