@@ -166,9 +166,19 @@ def _exists_trade_key(trade_key: str, broker_profile_id: Optional[int] = None) -
 
 
 def _lookup_symbol_overrides(symbol: str) -> Optional[Dict[str, Any]]:
-    """Fetch per-symbol risk rules from Supabase (if available)."""
+    """Fetch per-symbol risk rules from Supabase with Redis cache (TTL=60s)."""
     if not supabase or not symbol:
         return None
+    cache_key = f"symbol_rules:{symbol.upper()}"
+    # Try Redis cache first
+    try:
+        from src.services.redis_cache import get_cached, set_cached
+        cached = get_cached(cache_key)
+        if cached is not None:
+            return cached if cached else None  # empty dict = "no rules" sentinel
+    except Exception:
+        pass
+    # Cache miss — query Supabase
     try:
         r = (
             supabase.table("symbol_risk_rules")
@@ -177,8 +187,13 @@ def _lookup_symbol_overrides(symbol: str) -> Optional[Dict[str, Any]]:
             .limit(1)
             .execute()
         )
-        if r.data:
-            return r.data[0]
+        result = r.data[0] if r.data else {}
+        try:
+            from src.services.redis_cache import set_cached
+            set_cached(cache_key, result, ttl=60)
+        except Exception:
+            pass
+        return result if result else None
     except Exception as e:
         logger.warning("symbol_risk_rules lookup failed for %s: %s", symbol, e)
     return None
@@ -596,19 +611,34 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
             except Exception:
                 pass  # fail-open
 
-    # --- Daily trade limit ---
+    # --- Daily trade limit (Redis-cached, TTL=30s) ---
     if s.pine_max_trades_per_day > 0 and supabase:
         try:
             from datetime import datetime as _dt, timezone
             today_start = _dt.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
-            result = (
-                supabase.table("trading_signals")
-                .select("id")
-                .in_("status", ["active", "executed", "closed"])
-                .gte("created_at", today_start)
-                .execute()
-            )
-            today_count = len(result.data)
+            today_count: Optional[int] = None
+            cache_key = f"daily_trade_count:{today_start[:10]}"
+            try:
+                from src.services.redis_cache import get_cached, set_cached
+                cached_count = get_cached(cache_key)
+                if cached_count is not None:
+                    today_count = int(cached_count)
+            except Exception:
+                pass
+            if today_count is None:
+                result = (
+                    supabase.table("trading_signals")
+                    .select("id")
+                    .in_("status", ["active", "executed", "closed"])
+                    .gte("created_at", today_start)
+                    .execute()
+                )
+                today_count = len(result.data)
+                try:
+                    from src.services.redis_cache import set_cached
+                    set_cached(cache_key, today_count, ttl=30)
+                except Exception:
+                    pass
             if today_count >= s.pine_max_trades_per_day:
                 return f"Daily trade limit reached: {today_count}/{s.pine_max_trades_per_day} trades today"
         except Exception as e:

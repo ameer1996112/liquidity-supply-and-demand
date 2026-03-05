@@ -13,7 +13,7 @@
 - [x] 2.1 TopBar already decoupled from full signal list ✅
 - [x] 2.2 Connection health already 30s polling ✅
 - [x] 2.3 WS batching already 300ms ✅
-- [ ] 2.4 Add global QueryProvider defaults (refetchOnWindowFocus: false, staleTime)
+- [x] 2.4 Add global QueryProvider defaults (gcTime, retry backoff, mutations no-retry) ✅
 
 ## Phase 3 — Premium UI Transformation (Frontend)
 
@@ -24,11 +24,11 @@
 - [x] 3.5 Upgrade Sidebar — sidebar-glass, ConnectionPill, correct HealthStatus types ✅
 - [x] 3.6 Create `MiniSparkline.tsx` — pure SVG inline sparklines ✅
 - [x] 3.9 Upgrade StatCard — animated numbers, FlashValue, trend arrows ✅
-- [ ] 3.7 Upgrade AppShell (remove window anti-pattern, route transitions)
-- [ ] 3.8 Upgrade Dashboard page (bento grid, animated KPIs, sparklines)
-- [ ] 3.10 Upgrade SignalTable (color-coded status, sortable, council chips)
-- [ ] 3.11 Upgrade ActiveTradesPanel (real-time P&L color animation)
-- [ ] 3.12 Upgrade LiveLog (terminal-style with syntax highlighting)
+- [x] 3.7 Upgrade AppShell — ShellActionsProvider, removed window globals, route fade-in-up ✅
+- [x] 3.8 Upgrade Dashboard page — bento grid, 7 stat cards, stagger-children, glow-card panels ✅
+- [x] 3.10 Upgrade SignalTable — score col, relative time, row accent bar, sortable ✅
+- [x] 3.11 Upgrade ActiveTradesPanel — PnL-based row accent, pulsing live dot, account col ✅
+- [x] 3.12 Upgrade LiveLog — level pill badges, PAUSED indicator, newest-entry fade-in ✅
 - [ ] 3.13 Upgrade Risk page (gauge charts, animated progress bars)
 - [ ] 3.14 Upgrade Positions page (real-time P&L transitions)
 - [ ] 3.15 Upgrade Analytics page (premium chart suite)
@@ -42,6 +42,7 @@
 - [x] 4.2 Add cache invalidation to symbol rules CRUD in `api_rules.py` ✅
 - [ ] 4.3 Add Redis caching to `_lookup_symbol_overrides()` in worker
 - [ ] 4.4 Add Redis caching to daily trade count in `_validate_pine_filters()`
+- [x] 4.8 Migrate api.py on_event → lifespan context manager (eliminates deprecation warnings) ✅
 - [x] 4.5 Enhance `GET /api/v1/webhook/stats/summary` — rich KPIs + 30s Redis cache ✅
 - [x] 4.6 Rate limiting on `/webhook` endpoint (60/min per IP via slowapi) ✅
 - [x] 4.7 Add `slowapi>=0.1.9` to `requirements.txt` ✅

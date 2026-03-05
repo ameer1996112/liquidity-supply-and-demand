@@ -5,19 +5,26 @@ import { Radio, Activity, TrendingUp, TrendingDown } from 'lucide-react';
 import { formatDistanceToNowStrict } from 'date-fns';
 
 import { useTradingSignals } from '@/hooks/useTradingSignals';
-import { TradingSignal, TradingMode, getSymbol, getSide, getPnl } from '@/types/trading';
+import {
+  TradingSignal,
+  TradingMode,
+  getSymbol,
+  getSide,
+  getPnl,
+} from '@/types/trading';
 import { isSignalOpen } from '@/domain/metrics/tradingMetrics';
 import {
   TableEmptyState,
   TableSkeleton,
 } from '@/components/shared/TableStates';
 import { ClientDate } from '@/components/ui/ClientDate';
-import { EMPTY_VALUE, formatNumber, normalizeNegativeZero } from '@/lib/formatters';
-import { cn } from '@/lib/utils';
 import {
-  DataTable,
-  type DataTableColumn,
-} from '@/components/shared/DataTable';
+  EMPTY_VALUE,
+  formatNumber,
+  normalizeNegativeZero,
+} from '@/lib/formatters';
+import { cn } from '@/lib/utils';
+import { DataTable, type DataTableColumn } from '@/components/shared/DataTable';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -40,10 +47,14 @@ function SideCell({ signal }: { signal: TradingSignal }) {
       <span
         className={cn(
           'inline-flex items-center gap-0.5 rounded px-1 py-0 font-mono text-[9px] font-bold',
-          isBuy ? 'bg-long/15 text-long' : 'bg-short/15 text-short',
+          isBuy ? 'bg-long/15 text-long' : 'bg-short/15 text-short'
         )}
       >
-        {isBuy ? <TrendingUp className='h-2.5 w-2.5' /> : <TrendingDown className='h-2.5 w-2.5' />}
+        {isBuy ? (
+          <TrendingUp className='h-2.5 w-2.5' />
+        ) : (
+          <TrendingDown className='h-2.5 w-2.5' />
+        )}
         {side.toUpperCase()}
       </span>
     </div>
@@ -62,13 +73,21 @@ function TriggerCell({ signal }: { signal: TradingSignal }) {
   } else if (entryModel.includes('boc') || entryModel.includes('break')) {
     label = 'BoC';
     cls = 'trigger-boc';
-  } else if (entryModel.includes('flip') || entryModel.includes('zone') || signal.zone_type) {
+  } else if (
+    entryModel.includes('flip') ||
+    entryModel.includes('zone') ||
+    signal.zone_type
+  ) {
     label = 'FLIP';
     cls = 'trigger-flip';
   }
 
   if (!label) return <span className='text-text-dim'>—</span>;
-  return <span className={cn('rounded px-1.5 py-0 text-[9px] font-bold', cls)}>{label}</span>;
+  return (
+    <span className={cn('rounded px-1.5 py-0 text-[9px] font-bold', cls)}>
+      {label}
+    </span>
+  );
 }
 
 function EntryCell({ signal }: { signal: TradingSignal }) {
@@ -76,7 +95,9 @@ function EntryCell({ signal }: { signal: TradingSignal }) {
   const symbol = getSymbol(signal);
   return (
     <span className='font-mono text-[11px] tabular-nums text-text-secondary'>
-      {entry != null ? Number(entry).toFixed(symbol.includes('JPY') ? 3 : 5) : EMPTY_VALUE}
+      {entry != null
+        ? Number(entry).toFixed(symbol.includes('JPY') ? 3 : 5)
+        : EMPTY_VALUE}
     </span>
   );
 }
@@ -84,7 +105,9 @@ function EntryCell({ signal }: { signal: TradingSignal }) {
 function RrCell({ signal }: { signal: TradingSignal }) {
   return (
     <span className='font-mono text-[11px] tabular-nums text-text-dim'>
-      {signal.rr_ratio ? `1:${formatNumber(signal.rr_ratio, { decimals: 1 })}` : EMPTY_VALUE}
+      {signal.rr_ratio
+        ? `1:${formatNumber(signal.rr_ratio, { decimals: 1 })}`
+        : EMPTY_VALUE}
     </span>
   );
 }
@@ -94,7 +117,9 @@ function AgeCell({ signal }: { signal: TradingSignal }) {
     <ClientDate
       className='font-mono text-[10px] tabular-nums text-text-dim'
       render={() =>
-        formatDistanceToNowStrict(new Date(signal.created_at), { addSuffix: false })
+        formatDistanceToNowStrict(new Date(signal.created_at), {
+          addSuffix: false,
+        })
       }
     />
   );
@@ -103,17 +128,33 @@ function AgeCell({ signal }: { signal: TradingSignal }) {
 function PnlCell({ signal }: { signal: TradingSignal }) {
   const pnl = normalizeNegativeZero(getPnl(signal));
   if (pnl == null) {
-    return <span className='font-mono text-xs text-text-dim'>{EMPTY_VALUE}</span>;
+    return (
+      <span className='font-mono text-xs text-text-dim'>{EMPTY_VALUE}</span>
+    );
   }
+  const isPos = pnl >= 0;
   return (
     <span
       className={cn(
         'font-mono text-xs font-bold tabular-nums',
-        pnl >= 0 ? 'text-long' : 'text-short',
+        isPos ? 'text-[var(--to-long)]' : 'text-[var(--to-short)]'
       )}
     >
       {pnl > 0 ? '+' : ''}
       {formatNumber(pnl, { decimals: 2 })}
+    </span>
+  );
+}
+
+function AccountCell({ signal }: { signal: TradingSignal }) {
+  if (!signal.account_name)
+    return <span className='text-[var(--to-text-dim)]'>—</span>;
+  return (
+    <span
+      className='rounded bg-[var(--to-surface-raised)] px-1.5 py-0.5 font-mono text-[9px] text-[var(--to-text-dim)] truncate max-w-[80px] block'
+      title={signal.account_name}
+    >
+      {signal.account_name}
     </span>
   );
 }
@@ -161,6 +202,12 @@ export function ActiveTradesPanel({
       render: (signal) => <AgeCell signal={signal} />,
     },
     {
+      id: 'account',
+      header: 'Account',
+      align: 'left',
+      render: (signal) => <AccountCell signal={signal} />,
+    },
+    {
       id: 'pnl',
       header: 'PnL',
       isNumeric: true,
@@ -174,15 +221,22 @@ export function ActiveTradesPanel({
       {/* Header */}
       <div className='to-panel-header'>
         <div className='flex items-center gap-2'>
-          <Radio className='h-3.5 w-3.5 text-blue-accent' />
+          {activeTrades.length > 0 ? (
+            <span className='relative flex h-2 w-2'>
+              <span className='absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--to-long)] opacity-60' />
+              <span className='relative inline-flex h-2 w-2 rounded-full bg-[var(--to-long)]' />
+            </span>
+          ) : (
+            <Radio className='h-3.5 w-3.5 text-[var(--to-text-dim)]' />
+          )}
           <span className='panel-label'>Active Positions</span>
         </div>
         <span
           className={cn(
             'rounded px-2 py-0.5 font-mono text-[10px] font-bold tabular-nums',
             activeTrades.length > 0
-              ? 'bg-blue-accent/15 text-blue-accent'
-              : 'bg-surface-raised text-text-dim',
+              ? 'bg-[var(--to-long)]/15 text-[var(--to-long)]'
+              : 'bg-[var(--to-surface-raised)] text-[var(--to-text-dim)]'
           )}
         >
           {activeTrades.length}
@@ -190,7 +244,12 @@ export function ActiveTradesPanel({
       </div>
 
       {/* Body */}
-      <div className={cn('scrollbar-thin min-h-0 flex-1 overflow-y-auto', compact && 'py-0')}>
+      <div
+        className={cn(
+          'scrollbar-thin min-h-0 flex-1 overflow-y-auto',
+          compact && 'py-0'
+        )}
+      >
         {isLoading ? (
           <div className='p-2'>
             <TableSkeleton rowCount={3} columnCount={6} />
@@ -213,9 +272,13 @@ export function ActiveTradesPanel({
             stickyHeader={false}
             getRowId={(signal) => signal.id}
             onRowClick={onSelectSignal}
-            getRowClassName={() =>
-              'border-l-2 border-l-blue-accent/30'
-            }
+            getRowClassName={(signal) => {
+              const pnl = getPnl(signal);
+              if (pnl == null) return 'border-l-2 border-l-[var(--to-border)]';
+              return pnl >= 0
+                ? 'border-l-2 border-l-[var(--to-long)]/50'
+                : 'border-l-2 border-l-[var(--to-short)]/50';
+            }}
           />
         )}
       </div>

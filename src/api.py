@@ -10,6 +10,8 @@ import re
 import uuid
 from typing import Any
 
+from contextlib import asynccontextmanager
+
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, WebSocket
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -73,7 +75,17 @@ from src.api_webhook_read import router as webhook_read_router  # E2E: signals/r
 from src.api_copilot import router as copilot_router           # AI Copilot: natural language queries
 from src.api_market import router as market_router             # Market data proxy (Yahoo Finance CORS bypass)
 
-app = FastAPI(title="Trading Webhook API", version="1.0.0")
+@asynccontextmanager
+async def _lifespan(app: FastAPI):  # noqa: ARG001
+    """Replaces deprecated @app.on_event('startup'/'shutdown')."""
+    # ── STARTUP ──────────────────────────────────────────────────────────────
+    _fail_fast_config()
+    yield
+    # ── SHUTDOWN ─────────────────────────────────────────────────────────────
+    _shutdown_worker()
+
+
+app = FastAPI(title="Trading Webhook API", version="1.0.0", lifespan=_lifespan)
 
 # Attach rate limiter state and error handler
 if _RATE_LIMIT_AVAILABLE and _limiter is not None:
@@ -111,7 +123,6 @@ app.add_middleware(
 )
 
 
-@app.on_event("startup")
 def _fail_fast_config():
     settings = get_settings()
     
@@ -185,7 +196,6 @@ def _fail_fast_config():
         # strategy validation RuntimeError bubble up before this handler.
 
 
-@app.on_event("shutdown")
 def _shutdown_worker():
     """Shutdown background worker gracefully."""
     try:

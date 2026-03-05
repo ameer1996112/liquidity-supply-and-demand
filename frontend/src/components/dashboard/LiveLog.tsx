@@ -20,12 +20,35 @@ interface LiveLogProps {
   onClear?: () => void;
 }
 
-const LEVEL_STYLES: Record<LogEntry['level'], { prefix: string; color: string }> = {
-  info: { prefix: 'INF', color: 'text-[var(--to-accent-blue)]' },
-  warn: { prefix: 'WRN', color: 'text-[var(--to-warning)]' },
-  error: { prefix: 'ERR', color: 'text-[var(--to-short)]' },
-  success: { prefix: 'OK ', color: 'text-[var(--to-long)]' },
-  debug: { prefix: 'DBG', color: 'text-[var(--to-text-dim)]' },
+const LEVEL_STYLES: Record<
+  LogEntry['level'],
+  { prefix: string; color: string; bg: string }
+> = {
+  info: {
+    prefix: 'INF',
+    color: 'text-[var(--to-accent-blue)]',
+    bg: 'bg-[var(--to-accent-blue)]/10',
+  },
+  warn: {
+    prefix: 'WRN',
+    color: 'text-[var(--to-warning)]',
+    bg: 'bg-[var(--to-warning)]/10',
+  },
+  error: {
+    prefix: 'ERR',
+    color: 'text-[var(--to-short)]',
+    bg: 'bg-[var(--to-short)]/10',
+  },
+  success: {
+    prefix: 'OK',
+    color: 'text-[var(--to-long)]',
+    bg: 'bg-[var(--to-long)]/10',
+  },
+  debug: {
+    prefix: 'DBG',
+    color: 'text-[var(--to-text-dim)]',
+    bg: 'bg-transparent',
+  },
 };
 
 function formatTimestamp(iso: string): string {
@@ -75,7 +98,7 @@ export function LiveLog({
     <div
       className={cn(
         'flex flex-col overflow-hidden rounded border border-[var(--to-border)] bg-[#0a0d10]',
-        className,
+        className
       )}
     >
       {/* Header */}
@@ -94,6 +117,11 @@ export function LiveLog({
           >
             {visibleEntries.length} lines
           </span>
+          {paused && (
+            <span className='rounded bg-[var(--to-warning)]/15 px-1.5 py-0.5 text-[9px] font-bold text-[var(--to-warning)]'>
+              PAUSED
+            </span>
+          )}
         </div>
         <div className='flex items-center gap-1'>
           <button
@@ -101,7 +129,11 @@ export function LiveLog({
             className='rounded p-1 text-[var(--to-text-dim)] transition-colors hover:bg-[var(--to-surface-raised)] hover:text-[var(--to-text-secondary)]'
             title={paused ? 'Resume' : 'Pause'}
           >
-            {paused ? <Play className='h-3 w-3' /> : <Pause className='h-3 w-3' />}
+            {paused ? (
+              <Play className='h-3 w-3' />
+            ) : (
+              <Pause className='h-3 w-3' />
+            )}
           </button>
           {onClear && (
             <button
@@ -120,7 +152,11 @@ export function LiveLog({
         ref={scrollRef}
         onScroll={handleScroll}
         className='flex-1 overflow-x-auto overflow-y-auto px-2.5 py-1.5 scrollbar-thin'
-        style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', lineHeight: '1.6' }}
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: '11px',
+          lineHeight: '1.6',
+        }}
       >
         {visibleEntries.length === 0 ? (
           <div className='flex h-full items-center justify-center'>
@@ -129,15 +165,30 @@ export function LiveLog({
             </span>
           </div>
         ) : (
-          visibleEntries.map((entry) => {
+          visibleEntries.map((entry, idx) => {
             const style = LEVEL_STYLES[entry.level];
+            const isNewest = idx === visibleEntries.length - 1;
             return (
-              <div key={entry.id} className='flex gap-2'>
+              <div
+                key={entry.id}
+                className={cn(
+                  'flex gap-2 rounded px-1 py-0.5 transition-colors',
+                  isNewest && !paused && 'animate-fade-in-up',
+                  entry.level === 'error' && 'bg-[var(--to-short)]/5',
+                  entry.level === 'warn' && 'bg-[var(--to-warning)]/5'
+                )}
+              >
                 <span className='shrink-0 tabular-nums text-[var(--to-text-dim)] whitespace-nowrap'>
                   {formatTimestamp(entry.timestamp)}
                 </span>
-                <span className={cn('shrink-0 font-bold whitespace-nowrap', style.color)}>
-                  [{style.prefix}]
+                <span
+                  className={cn(
+                    'shrink-0 rounded px-1 py-0 font-bold whitespace-nowrap text-[9px]',
+                    style.color,
+                    style.bg
+                  )}
+                >
+                  {style.prefix}
                 </span>
                 {entry.source && (
                   <span className='shrink-0 whitespace-nowrap text-[var(--to-accent-blue)]/60'>
@@ -145,7 +196,7 @@ export function LiveLog({
                   </span>
                 )}
                 <span
-                  className='shrink-0 whitespace-nowrap text-[var(--to-text-secondary)]'
+                  className='min-w-0 whitespace-nowrap text-[var(--to-text-secondary)]'
                   title={entry.message}
                 >
                   {entry.message}
