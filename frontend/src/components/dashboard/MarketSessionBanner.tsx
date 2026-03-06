@@ -272,17 +272,25 @@ function TimelineBar({ utcH, ilOffset, ilTimeStr }: TimelineBarProps) {
 }
 
 // ── Session Card ──────────────────────────────────────────────────────────────
+function getSessionPhase(progress: number): 'OPEN' | 'MID' | 'CLOSE' {
+  if (progress < 22) return 'OPEN';
+  if (progress > 78) return 'CLOSE';
+  return 'MID';
+}
+
 function ProgressRing({
   progress,
   color,
   label,
+  active,
 }: {
   progress: number;
   color: string;
   label: string;
+  active: boolean;
 }) {
-  const size = 44;
-  const stroke = 4;
+  const size = 68;
+  const stroke = 6;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   const clamped = Math.max(0, Math.min(100, progress));
@@ -290,7 +298,33 @@ function ProgressRing({
 
   return (
     <div className='relative shrink-0'>
-      <svg width={size} height={size} className='-rotate-90'>
+      {/* outer breathing halo */}
+      {active && (
+        <div
+          className='absolute inset-0 rounded-full animate-pulse'
+          style={{
+            background: `radial-gradient(circle, ${color}33 0%, transparent 70%)`,
+            filter: 'blur(6px)',
+            transform: 'scale(1.15)',
+          }}
+        />
+      )}
+
+      <svg width={size} height={size} className='-rotate-90 relative z-[1]'>
+        <defs>
+          <linearGradient
+            id={`ring-grad-${color}`}
+            x1='0%'
+            y1='0%'
+            x2='100%'
+            y2='100%'
+          >
+            <stop offset='0%' stopColor={color} stopOpacity='0.95' />
+            <stop offset='70%' stopColor={color} stopOpacity='0.7' />
+            <stop offset='100%' stopColor={color} stopOpacity='1' />
+          </linearGradient>
+        </defs>
+
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -304,22 +338,39 @@ function ProgressRing({
           cy={size / 2}
           r={radius}
           fill='transparent'
-          stroke={color}
+          stroke={`url(#ring-grad-${color})`}
           strokeWidth={stroke}
           strokeLinecap='round'
           strokeDasharray={circumference}
           strokeDashoffset={dashOffset}
           style={{
-            transition: 'stroke-dashoffset 700ms ease-out',
-            filter: `drop-shadow(0 0 4px ${color}88)`,
+            transition:
+              'stroke-dashoffset 750ms cubic-bezier(0.22, 1, 0.36, 1)',
+            filter: `drop-shadow(0 0 6px ${color}aa)`,
           }}
         />
       </svg>
+
+      {/* center glass core */}
       <div
-        className='absolute inset-0 flex items-center justify-center text-[9px] font-bold tabular-nums'
-        style={{ color, fontFamily: 'var(--font-mono)' }}
+        className='absolute inset-[11px] rounded-full border flex flex-col items-center justify-center z-[2]'
+        style={{
+          borderColor: `${color}55`,
+          background:
+            'radial-gradient(circle at 30% 25%, rgba(255,255,255,0.12), rgba(255,255,255,0.03) 45%, rgba(0,0,0,0.15) 100%)',
+          boxShadow: `inset 0 0 10px ${color}33`,
+        }}
       >
-        {label}
+        <span
+          className='text-[10px] font-extrabold tabular-nums leading-none'
+          style={{
+            color,
+            fontFamily: 'var(--font-mono)',
+            textShadow: `0 0 8px ${color}88`,
+          }}
+        >
+          {label}
+        </span>
       </div>
     </div>
   );
@@ -343,6 +394,7 @@ function SessionCard({ session: s, utcH, now, ilOffset }: SessionCardProps) {
   const ilEndH = utcHToIL(s.endH, ilOffset);
 
   const ringLabel = `${Math.round(progress)}%`;
+  const phase = getSessionPhase(progress);
 
   return (
     <div
@@ -433,23 +485,43 @@ function SessionCard({ session: s, utcH, now, ilOffset }: SessionCardProps) {
 
       {/* Ring progress (active) or opens-in (inactive) */}
       {active ? (
-        <div className='flex items-center gap-2'>
-          <ProgressRing progress={progress} color={s.color} label={ringLabel} />
-          <div className='min-w-0 flex-1 space-y-0.5'>
+        <div className='flex items-center gap-3'>
+          <ProgressRing
+            progress={progress}
+            color={s.color}
+            label={ringLabel}
+            active={active}
+          />
+          <div className='min-w-0 flex-1 space-y-1'>
+            <div className='flex items-center justify-between'>
+              <p
+                className='text-[8px]'
+                style={{
+                  color: s.dimTextColor,
+                  fontFamily: 'var(--font-mono)',
+                }}
+              >
+                {pad2(ilStartH)}:00 → {pad2(ilEndH)}:00 IL
+              </p>
+              <span
+                className='text-[8px] font-bold px-1.5 py-0.5 rounded border'
+                style={{
+                  color: s.textColor,
+                  borderColor: `${s.color}55`,
+                  background: `${s.color}1a`,
+                  fontFamily: 'var(--font-mono)',
+                  letterSpacing: '0.08em',
+                }}
+              >
+                {phase}
+              </span>
+            </div>
             <p
-              className='text-[8px]'
-              style={{
-                color: s.dimTextColor,
-                fontFamily: 'var(--font-mono)',
-              }}
-            >
-              {pad2(ilStartH)}:00 → {pad2(ilEndH)}:00 IL
-            </p>
-            <p
-              className='text-[10px] font-bold tabular-nums'
+              className='text-[12px] font-extrabold tabular-nums tracking-tight'
               style={{
                 color: s.textColor,
                 fontFamily: 'var(--font-mono)',
+                textShadow: `0 0 10px ${s.color}70`,
               }}
             >
               {formatHM(remainingMs)} left
