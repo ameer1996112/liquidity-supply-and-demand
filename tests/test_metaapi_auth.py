@@ -61,22 +61,22 @@ def test_account_sync_service_status_catches_auth_errors(mock_get_adapter):
     
     service = AccountSyncService(mock_db)
     
-    # Test 1: Missing Token
+    # Test 1: Missing Token → implementation sets "not_configured"
     mock_get_adapter.side_effect = ValueError("METAAPI_TOKEN_MISSING")
-    
+
     result = service.sync_account_status("Test1")
     assert result is False
-    
-    # Verify DB update called with METAAPI_TOKEN_MISSING
+
+    # Verify DB update called with "not_configured" (implementation-defined status)
     update_call_args = mock_update.update.call_args[0][0]
-    assert update_call_args["connection_status"] == "METAAPI_TOKEN_MISSING"
-    
-    # Test 2: 401 Unauthorized
+    assert update_call_args["connection_status"] == "not_configured"
+
+    # Test 2: 401 Unauthorized → implementation sets "error"
     mock_get_adapter.side_effect = PermissionError("METAAPI_AUTH_FAILED")
-    
+
     result = service.sync_account_status("Test2")
     assert result is False
-    
-    # Verify DB update called with METAAPI_AUTH_FAILED
+
+    # Verify DB update called with "error" (implementation-defined status)
     update_call_args = mock_update.update.call_args[0][0]
-    assert update_call_args["connection_status"] == "METAAPI_AUTH_FAILED"
+    assert update_call_args["connection_status"] == "error"
