@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Activity, Clock, Timer } from 'lucide-react';
+import { Activity, Clock, Timer, AlertTriangle } from 'lucide-react';
 
 type SessionDef = {
   id: 'sydney' | 'tokyo' | 'london' | 'newyork';
@@ -9,7 +9,9 @@ type SessionDef = {
   city: string;
   startHourUtc: number;
   endHourUtc: number;
-  accent: string;
+  accentBorder: string;
+  accentText: string;
+  accentBar: string;
 };
 
 const SESSIONS: SessionDef[] = [
@@ -19,7 +21,9 @@ const SESSIONS: SessionDef[] = [
     city: 'Sydney',
     startHourUtc: 22,
     endHourUtc: 7,
-    accent: 'border-l-cyan-500',
+    accentBorder: 'border-l-cyan-500',
+    accentText: 'text-cyan-300',
+    accentBar: 'bg-cyan-400',
   },
   {
     id: 'tokyo',
@@ -27,7 +31,9 @@ const SESSIONS: SessionDef[] = [
     city: 'Tokyo',
     startHourUtc: 0,
     endHourUtc: 9,
-    accent: 'border-l-sky-500',
+    accentBorder: 'border-l-sky-500',
+    accentText: 'text-sky-300',
+    accentBar: 'bg-sky-400',
   },
   {
     id: 'london',
@@ -35,7 +41,9 @@ const SESSIONS: SessionDef[] = [
     city: 'London',
     startHourUtc: 8,
     endHourUtc: 17,
-    accent: 'border-l-indigo-500',
+    accentBorder: 'border-l-indigo-500',
+    accentText: 'text-indigo-300',
+    accentBar: 'bg-indigo-400',
   },
   {
     id: 'newyork',
@@ -43,7 +51,9 @@ const SESSIONS: SessionDef[] = [
     city: 'New York',
     startHourUtc: 13,
     endHourUtc: 22,
-    accent: 'border-l-emerald-500',
+    accentBorder: 'border-l-emerald-500',
+    accentText: 'text-emerald-300',
+    accentBar: 'bg-emerald-400',
   },
 ];
 
@@ -51,8 +61,8 @@ type SessionState = SessionDef & {
   active: boolean;
   progressPct: number;
   remainingMs: number;
-  startDisplayUtc: string;
-  endDisplayUtc: string;
+  startDisplayIL: string;
+  endDisplayIL: string;
 };
 
 function utcSeconds(now: Date): number {
@@ -61,8 +71,18 @@ function utcSeconds(now: Date): number {
   );
 }
 
-function toUtcLabel(hour: number): string {
-  return `${String(hour).padStart(2, '0')}:00`;
+function isWeekendClosedForex(now: Date): boolean {
+  const day = now.getUTCDay(); // 0 Sun ... 6 Sat
+  const hour = now.getUTCHours();
+
+  // Saturday: always closed
+  if (day === 6) return true;
+  // Friday after 22:00 UTC closed
+  if (day === 5 && hour >= 22) return true;
+  // Sunday before 22:00 UTC closed
+  if (day === 0 && hour < 22) return true;
+
+  return false;
 }
 
 function isSessionActive(
@@ -73,7 +93,6 @@ function isSessionActive(
   const start = startHourUtc * 3600;
   const end = endHourUtc * 3600;
 
-  // overnight session
   if (end <= start) {
     return nowSec >= start || nowSec < end;
   }
@@ -128,6 +147,58 @@ function formatDurationHM(ms: number): string {
   return `${m}m`;
 }
 
+function formatIsraelClock(now: Date): string {
+  return now.toLocaleTimeString('en-GB', {
+    timeZone: 'Asia/Jerusalem',
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+}
+
+function formatIsraelDay(now: Date): string {
+  return now.toLocaleDateString('en-GB', {
+    timeZone: 'Asia/Jerusalem',
+    weekday: 'short',
+  });
+}
+
+function utcHourToIsraelLabel(utcHour: number): string {
+  const now = new Date();
+  const baseUtc = new Date(
+    Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate(),
+      utcHour,
+      0,
+      0
+    )
+  );
+
+  return baseUtc.toLocaleTimeString('en-GB', {
+    timeZone: 'Asia/Jerusalem',
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function msToWeeklyOpen(now: Date): number {
+  const day = now.getUTCDay();
+  const nowSec = utcSeconds(now);
+  const weekSec = day * 86400 + nowSec;
+  const sundayOpenSec = 0 * 86400 + 22 * 3600;
+
+  if (day === 0 && now.getUTCHours() < 22) {
+    return (22 * 3600 - nowSec) * 1000;
+  }
+
+  const nextSundayOpenSec = 7 * 86400 + sundayOpenSec;
+  return Math.max(0, (nextSundayOpenSec - weekSec) * 1000);
+}
+
 export function MarketSessionBanner() {
   const [now, setNow] = useState<Date | null>(null);
 
@@ -138,13 +209,19 @@ export function MarketSessionBanner() {
     return () => clearInterval(id);
   }, []);
 
+  const marketClosed = useMemo(
+    () => (now ? isWeekendClosedForex(now) : false),
+    [now]
+  );
+
   const sessionStates = useMemo<SessionState[]>(() => {
     if (!now) return [];
 
     const sec = utcSeconds(now);
 
     return SESSIONS.map((s) => {
-      const active = isSessionActive(sec, s.startHourUtc, s.endHourUtc);
+      const actuallyActive = isSessionActive(sec, s.startHourUtc, s.endHourUtc);
+      const active = !marketClosed && actuallyActive;
       const { progressPct, remainingMs } = active
         ? computeSessionProgress(sec, s.startHourUtc, s.endHourUtc)
         : { progressPct: 0, remainingMs: 0 };
@@ -154,11 +231,11 @@ export function MarketSessionBanner() {
         active,
         progressPct,
         remainingMs,
-        startDisplayUtc: toUtcLabel(s.startHourUtc),
-        endDisplayUtc: toUtcLabel(s.endHourUtc),
+        startDisplayIL: utcHourToIsraelLabel(s.startHourUtc),
+        endDisplayIL: utcHourToIsraelLabel(s.endHourUtc),
       };
     });
-  }, [now]);
+  }, [now, marketClosed]);
 
   const isLondonActive =
     sessionStates.find((s) => s.id === 'london')?.active ?? false;
@@ -166,15 +243,9 @@ export function MarketSessionBanner() {
     sessionStates.find((s) => s.id === 'newyork')?.active ?? false;
   const isOverlap = isLondonActive && isNyActive;
 
-  const nowUtcLabel = now
-    ? now.toLocaleTimeString('en-GB', {
-        timeZone: 'UTC',
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      })
-    : '--:--:--';
+  const nowIlLabel = now ? formatIsraelClock(now) : '--:--:--';
+  const nowIlDay = now ? formatIsraelDay(now) : '---';
+  const weekendOpenMs = now && marketClosed ? msToWeeklyOpen(now) : 0;
 
   return (
     <section className='shrink-0 animate-fade-in-up'>
@@ -182,17 +253,32 @@ export function MarketSessionBanner() {
         <div className='mb-2 flex items-center justify-between'>
           <div className='flex items-center gap-2'>
             <span className='inline-flex items-center gap-1 rounded-sm border border-white/5 bg-[#121214] px-2 py-1'>
-              <Activity className='h-3 w-3 text-zinc-300' />
-              <span className='font-sans text-[10px] uppercase tracking-[0.12em] text-zinc-300'>
-                Market Sessions
+              <Activity
+                className={
+                  marketClosed
+                    ? 'h-3 w-3 text-amber-400'
+                    : 'h-3 w-3 text-emerald-400'
+                }
+              />
+              <span className='font-sans text-[10px] uppercase tracking-[0.12em] text-zinc-200'>
+                {marketClosed ? 'Market Closed (Weekend)' : 'Market Sessions'}
               </span>
             </span>
 
-            {isOverlap && (
+            {isOverlap && !marketClosed && (
               <span className='inline-flex items-center gap-1 rounded-sm border border-amber-500/40 bg-[#121214] px-2 py-1'>
                 <Activity className='h-3 w-3 text-amber-400' />
                 <span className='font-sans text-[10px] uppercase tracking-[0.12em] text-amber-300'>
                   High Volume / Overlap
+                </span>
+              </span>
+            )}
+
+            {marketClosed && (
+              <span className='inline-flex items-center gap-1 rounded-sm border border-amber-500/40 bg-[#121214] px-2 py-1'>
+                <AlertTriangle className='h-3 w-3 text-amber-400' />
+                <span className='font-mono text-[10px] text-amber-300'>
+                  Opens in {formatDurationHM(weekendOpenMs)}
                 </span>
               </span>
             )}
@@ -201,7 +287,7 @@ export function MarketSessionBanner() {
           <div className='inline-flex items-center gap-1 rounded-sm border border-white/5 bg-[#121214] px-2 py-1'>
             <Clock className='h-3 w-3 text-zinc-400' />
             <span className='font-mono text-[11px] text-zinc-300'>
-              {nowUtcLabel} UTC
+              {nowIlDay} {nowIlLabel} IL
             </span>
           </div>
         </div>
@@ -214,7 +300,7 @@ export function MarketSessionBanner() {
                 'rounded-sm border bg-[#121214] px-3 py-2',
                 'border-white/5',
                 'border-l-2',
-                s.active ? s.accent : 'border-l-white/5',
+                s.active ? s.accentBorder : 'border-l-white/5',
               ].join(' ')}
             >
               <div className='mb-1 flex items-center justify-between'>
@@ -237,19 +323,25 @@ export function MarketSessionBanner() {
                     'rounded-sm border px-1.5 py-0.5 font-sans text-[9px] uppercase tracking-[0.12em]',
                     s.active
                       ? 'border-emerald-500/30 text-emerald-300'
+                      : marketClosed
+                      ? 'border-amber-500/25 text-amber-300'
                       : 'border-white/5 text-zinc-500',
                   ].join(' ')}
                 >
-                  {s.active ? 'Active' : 'Closed'}
+                  {marketClosed ? 'Closed' : s.active ? 'Active' : 'Closed'}
                 </span>
               </div>
 
               <div className='mb-1.5 flex items-center justify-between'>
                 <span className='font-mono text-[10px] text-zinc-500'>
-                  {s.startDisplayUtc} → {s.endDisplayUtc} UTC
+                  {s.startDisplayIL} → {s.endDisplayIL} IL
                 </span>
                 {s.active ? (
-                  <span className='font-mono text-[10px] text-zinc-200'>
+                  <span
+                    className={['font-mono text-[10px]', s.accentText].join(
+                      ' '
+                    )}
+                  >
                     {formatDurationHM(s.remainingMs)} left
                   </span>
                 ) : (
@@ -263,14 +355,16 @@ export function MarketSessionBanner() {
                 <div>
                   <div className='h-1 w-full overflow-hidden rounded-none border border-white/10 bg-[#09090b]'>
                     <div
-                      className='h-full bg-white'
-                      style={{
-                        width: `${Math.max(3, s.progressPct)}%`,
-                      }}
+                      className={['h-full', s.accentBar].join(' ')}
+                      style={{ width: `${Math.max(3, s.progressPct)}%` }}
                     />
                   </div>
                   <div className='mt-1 flex items-center justify-between'>
-                    <span className='font-mono text-[10px] text-zinc-400'>
+                    <span
+                      className={['font-mono text-[10px]', s.accentText].join(
+                        ' '
+                      )}
+                    >
                       {Math.round(s.progressPct)}%
                     </span>
                     <span className='inline-flex items-center gap-1 font-mono text-[10px] text-zinc-300'>
