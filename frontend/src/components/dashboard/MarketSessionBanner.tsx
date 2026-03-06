@@ -1,59 +1,72 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Activity, Clock, Timer, AlertTriangle } from 'lucide-react';
+import { Activity, Clock3, Zap } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+type SessionId = 'sydney' | 'tokyo' | 'london' | 'newyork';
 
 type SessionDef = {
-  id: 'sydney' | 'tokyo' | 'london' | 'newyork';
-  label: string;
+  id: SessionId;
+  name: string;
   city: string;
-  startHourUtc: number;
-  endHourUtc: number;
-  accentBorder: string;
+  startUtcH: number;
+  endUtcH: number;
+  accent: string;
+  accentSoft: string;
   accentText: string;
-  accentBar: string;
+  progressFrom: string;
+  progressTo: string;
 };
 
 const SESSIONS: SessionDef[] = [
   {
     id: 'sydney',
-    label: 'Sydney',
+    name: 'Sydney',
     city: 'Sydney',
-    startHourUtc: 22,
-    endHourUtc: 7,
-    accentBorder: 'border-l-cyan-500',
-    accentText: 'text-cyan-300',
-    accentBar: 'bg-cyan-400',
+    startUtcH: 22,
+    endUtcH: 7,
+    accent: 'rgba(34,211,238,0.45)',
+    accentSoft: 'rgba(34,211,238,0.12)',
+    accentText: '#67e8f9',
+    progressFrom: '#0891b2',
+    progressTo: '#22d3ee',
   },
   {
     id: 'tokyo',
-    label: 'Tokyo',
+    name: 'Tokyo',
     city: 'Tokyo',
-    startHourUtc: 0,
-    endHourUtc: 9,
-    accentBorder: 'border-l-sky-500',
-    accentText: 'text-sky-300',
-    accentBar: 'bg-sky-400',
+    startUtcH: 0,
+    endUtcH: 9,
+    accent: 'rgba(59,130,246,0.45)',
+    accentSoft: 'rgba(59,130,246,0.12)',
+    accentText: '#93c5fd',
+    progressFrom: '#2563eb',
+    progressTo: '#60a5fa',
   },
   {
     id: 'london',
-    label: 'London',
+    name: 'London',
     city: 'London',
-    startHourUtc: 8,
-    endHourUtc: 17,
-    accentBorder: 'border-l-indigo-500',
-    accentText: 'text-indigo-300',
-    accentBar: 'bg-indigo-400',
+    startUtcH: 8,
+    endUtcH: 17,
+    accent: 'rgba(99,102,241,0.45)',
+    accentSoft: 'rgba(99,102,241,0.12)',
+    accentText: '#a5b4fc',
+    progressFrom: '#4f46e5',
+    progressTo: '#818cf8',
   },
   {
     id: 'newyork',
-    label: 'New York',
+    name: 'New York',
     city: 'New York',
-    startHourUtc: 13,
-    endHourUtc: 22,
-    accentBorder: 'border-l-emerald-500',
-    accentText: 'text-emerald-300',
-    accentBar: 'bg-emerald-400',
+    startUtcH: 13,
+    endUtcH: 22,
+    accent: 'rgba(16,185,129,0.45)',
+    accentSoft: 'rgba(16,185,129,0.12)',
+    accentText: '#6ee7b7',
+    progressFrom: '#059669',
+    progressTo: '#34d399',
   },
 ];
 
@@ -61,112 +74,88 @@ type SessionState = SessionDef & {
   active: boolean;
   progressPct: number;
   remainingMs: number;
-  startDisplayIL: string;
-  endDisplayIL: string;
+  startIL: string;
+  endIL: string;
 };
 
-function utcSeconds(now: Date): number {
-  return (
-    now.getUTCHours() * 3600 + now.getUTCMinutes() * 60 + now.getUTCSeconds()
-  );
+function utcSeconds(d: Date): number {
+  return d.getUTCHours() * 3600 + d.getUTCMinutes() * 60 + d.getUTCSeconds();
 }
 
 function isWeekendClosedForex(now: Date): boolean {
   const day = now.getUTCDay(); // 0 Sun ... 6 Sat
   const hour = now.getUTCHours();
 
-  // Saturday: always closed
-  if (day === 6) return true;
-  // Friday after 22:00 UTC closed
-  if (day === 5 && hour >= 22) return true;
-  // Sunday before 22:00 UTC closed
-  if (day === 0 && hour < 22) return true;
+  if (day === 6) return true; // Saturday
+  if (day === 5 && hour >= 22) return true; // Friday after 22:00 UTC
+  if (day === 0 && hour < 22) return true; // Sunday before 22:00 UTC
 
   return false;
 }
 
-function isSessionActive(
+function isActiveSession(
   nowSec: number,
-  startHourUtc: number,
-  endHourUtc: number
+  startH: number,
+  endH: number
 ): boolean {
-  const start = startHourUtc * 3600;
-  const end = endHourUtc * 3600;
+  const start = startH * 3600;
+  const end = endH * 3600;
 
   if (end <= start) {
     return nowSec >= start || nowSec < end;
   }
-
   return nowSec >= start && nowSec < end;
 }
 
-function computeSessionProgress(
+function getProgress(
   nowSec: number,
-  startHourUtc: number,
-  endHourUtc: number
+  startH: number,
+  endH: number
 ): { progressPct: number; remainingMs: number } {
-  const start = startHourUtc * 3600;
-  const end = endHourUtc * 3600;
+  const start = startH * 3600;
+  const end = endH * 3600;
 
   if (end <= start) {
     const total = 24 * 3600 - start + end;
     const elapsed =
       nowSec >= start ? nowSec - start : 24 * 3600 - start + nowSec;
-    const remaining = Math.max(0, total - elapsed);
+    const rem = Math.max(0, total - elapsed);
     return {
       progressPct: Math.max(0, Math.min(100, (elapsed / total) * 100)),
-      remainingMs: remaining * 1000,
+      remainingMs: rem * 1000,
     };
   }
 
   const total = end - start;
   const elapsed = Math.max(0, Math.min(total, nowSec - start));
-  const remaining = Math.max(0, total - elapsed);
-
+  const rem = Math.max(0, total - elapsed);
   return {
     progressPct: Math.max(0, Math.min(100, (elapsed / total) * 100)),
-    remainingMs: remaining * 1000,
+    remainingMs: rem * 1000,
   };
 }
 
-function formatDurationHMS(ms: number): string {
-  const total = Math.max(0, Math.floor(ms / 1000));
-  const h = Math.floor(total / 3600);
-  const m = Math.floor((total % 3600) / 60);
-  const s = total % 60;
+function hms(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(
-    s
+    sec
   ).padStart(2, '0')}`;
 }
 
-function formatDurationHM(ms: number): string {
-  const total = Math.max(0, Math.floor(ms / 1000));
-  const h = Math.floor(total / 3600);
-  const m = Math.floor((total % 3600) / 60);
+function hm(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
   if (h > 0) return `${h}h ${String(m).padStart(2, '0')}m`;
   return `${m}m`;
 }
 
-function formatIsraelClock(now: Date): string {
-  return now.toLocaleTimeString('en-GB', {
-    timeZone: 'Asia/Jerusalem',
-    hour12: false,
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
-}
-
-function formatIsraelDay(now: Date): string {
-  return now.toLocaleDateString('en-GB', {
-    timeZone: 'Asia/Jerusalem',
-    weekday: 'short',
-  });
-}
-
-function utcHourToIsraelLabel(utcHour: number): string {
+function utcHourToIL(utcHour: number): string {
   const now = new Date();
-  const baseUtc = new Date(
+  const utc = new Date(
     Date.UTC(
       now.getUTCFullYear(),
       now.getUTCMonth(),
@@ -176,12 +165,28 @@ function utcHourToIsraelLabel(utcHour: number): string {
       0
     )
   );
-
-  return baseUtc.toLocaleTimeString('en-GB', {
+  return utc.toLocaleTimeString('en-GB', {
     timeZone: 'Asia/Jerusalem',
-    hour12: false,
     hour: '2-digit',
     minute: '2-digit',
+    hour12: false,
+  });
+}
+
+function ilClock(now: Date): string {
+  return now.toLocaleTimeString('en-GB', {
+    timeZone: 'Asia/Jerusalem',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+}
+
+function ilDay(now: Date): string {
+  return now.toLocaleDateString('en-GB', {
+    timeZone: 'Asia/Jerusalem',
+    weekday: 'short',
   });
 }
 
@@ -189,14 +194,57 @@ function msToWeeklyOpen(now: Date): number {
   const day = now.getUTCDay();
   const nowSec = utcSeconds(now);
   const weekSec = day * 86400 + nowSec;
-  const sundayOpenSec = 0 * 86400 + 22 * 3600;
+  const sundayOpenSec = 22 * 3600; // Sunday 22:00 UTC
 
   if (day === 0 && now.getUTCHours() < 22) {
     return (22 * 3600 - nowSec) * 1000;
   }
 
-  const nextSundayOpenSec = 7 * 86400 + sundayOpenSec;
-  return Math.max(0, (nextSundayOpenSec - weekSec) * 1000);
+  const nextSundayOpen = 7 * 86400 + sundayOpenSec;
+  return Math.max(0, (nextSundayOpen - weekSec) * 1000);
+}
+
+function MiniTimeline({ now }: { now: Date }) {
+  const utcH =
+    now.getUTCHours() + now.getUTCMinutes() / 60 + now.getUTCSeconds() / 3600;
+  const markerPct = (utcH / 24) * 100;
+
+  return (
+    <div className='relative mt-2'>
+      <div className='relative h-1.5 rounded-full bg-[#0b0d10] border border-white/5 overflow-hidden'>
+        {SESSIONS.map((s) => (
+          <div
+            key={s.id}
+            className='absolute top-0 h-full opacity-65'
+            style={{
+              left: `${(s.startUtcH / 24) * 100}%`,
+              width: `${
+                ((s.endUtcH > s.startUtcH
+                  ? s.endUtcH - s.startUtcH
+                  : 24 - s.startUtcH + s.endUtcH) /
+                  24) *
+                100
+              }%`,
+              background: `linear-gradient(90deg, ${s.progressFrom}, ${s.progressTo})`,
+            }}
+          />
+        ))}
+      </div>
+      <div
+        className='absolute top-1/2 -translate-y-1/2 w-[2px] h-3 bg-white rounded-full'
+        style={{
+          left: `${markerPct}%`,
+          boxShadow: '0 0 8px rgba(255,255,255,0.8)',
+        }}
+      />
+      <div className='mt-1 flex items-center justify-between text-[8px] text-zinc-500 font-mono'>
+        <span>{utcHourToIL(0)} IL</span>
+        <span>{utcHourToIL(8)} IL</span>
+        <span>{utcHourToIL(16)} IL</span>
+        <span>{utcHourToIL(22)} IL</span>
+      </div>
+    </div>
+  );
 }
 
 export function MarketSessionBanner() {
@@ -214,170 +262,175 @@ export function MarketSessionBanner() {
     [now]
   );
 
-  const sessionStates = useMemo<SessionState[]>(() => {
+  const sessions = useMemo<SessionState[]>(() => {
     if (!now) return [];
-
     const sec = utcSeconds(now);
 
     return SESSIONS.map((s) => {
-      const actuallyActive = isSessionActive(sec, s.startHourUtc, s.endHourUtc);
-      const active = !marketClosed && actuallyActive;
-      const { progressPct, remainingMs } = active
-        ? computeSessionProgress(sec, s.startHourUtc, s.endHourUtc)
+      const activeNow =
+        !marketClosed && isActiveSession(sec, s.startUtcH, s.endUtcH);
+      const p = activeNow
+        ? getProgress(sec, s.startUtcH, s.endUtcH)
         : { progressPct: 0, remainingMs: 0 };
-
       return {
         ...s,
-        active,
-        progressPct,
-        remainingMs,
-        startDisplayIL: utcHourToIsraelLabel(s.startHourUtc),
-        endDisplayIL: utcHourToIsraelLabel(s.endHourUtc),
+        active: activeNow,
+        progressPct: p.progressPct,
+        remainingMs: p.remainingMs,
+        startIL: utcHourToIL(s.startUtcH),
+        endIL: utcHourToIL(s.endUtcH),
       };
     });
   }, [now, marketClosed]);
 
-  const isLondonActive =
-    sessionStates.find((s) => s.id === 'london')?.active ?? false;
-  const isNyActive =
-    sessionStates.find((s) => s.id === 'newyork')?.active ?? false;
-  const isOverlap = isLondonActive && isNyActive;
+  const london = sessions.find((s) => s.id === 'london')?.active ?? false;
+  const ny = sessions.find((s) => s.id === 'newyork')?.active ?? false;
+  const overlap = london && ny;
+  const weeklyOpenMs = now && marketClosed ? msToWeeklyOpen(now) : 0;
 
-  const nowIlLabel = now ? formatIsraelClock(now) : '--:--:--';
-  const nowIlDay = now ? formatIsraelDay(now) : '---';
-  const weekendOpenMs = now && marketClosed ? msToWeeklyOpen(now) : 0;
+  if (!now) return null;
 
   return (
     <section className='shrink-0 animate-fade-in-up'>
-      <div className='rounded-sm border border-white/5 bg-[#09090b] p-3'>
-        <div className='mb-2 flex items-center justify-between'>
-          <div className='flex items-center gap-2'>
-            <span className='inline-flex items-center gap-1 rounded-sm border border-white/5 bg-[#121214] px-2 py-1'>
-              <Activity
-                className={
-                  marketClosed
-                    ? 'h-3 w-3 text-amber-400'
-                    : 'h-3 w-3 text-emerald-400'
-                }
-              />
-              <span className='font-sans text-[10px] uppercase tracking-[0.12em] text-zinc-200'>
-                {marketClosed ? 'Market Closed (Weekend)' : 'Market Sessions'}
-              </span>
-            </span>
+      <div className='relative overflow-hidden rounded-xl border border-[var(--to-border)] bg-[linear-gradient(135deg,var(--to-surface)_0%,var(--to-surface-raised)_100%)]'>
+        <div
+          className='absolute inset-x-0 top-0 h-[1px]'
+          style={{
+            background:
+              'linear-gradient(90deg, rgba(34,211,238,0.4) 0%, rgba(99,102,241,0.5) 45%, rgba(16,185,129,0.45) 100%)',
+          }}
+        />
 
-            {isOverlap && !marketClosed && (
-              <span className='inline-flex items-center gap-1 rounded-sm border border-amber-500/40 bg-[#121214] px-2 py-1'>
-                <Activity className='h-3 w-3 text-amber-400' />
-                <span className='font-sans text-[10px] uppercase tracking-[0.12em] text-amber-300'>
-                  High Volume / Overlap
+        <div className='p-3 pt-3.5'>
+          <div className='flex items-center justify-between'>
+            <div className='flex items-center gap-2'>
+              <span className='inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/20 px-2 py-0.5'>
+                <Activity
+                  className={cn(
+                    'h-3 w-3',
+                    marketClosed ? 'text-amber-400' : 'text-emerald-400'
+                  )}
+                />
+                <span className='font-sans text-[9px] font-bold uppercase tracking-[0.16em] text-zinc-300'>
+                  {marketClosed ? 'Market Closed (Weekend)' : 'Market Sessions'}
                 </span>
               </span>
-            )}
 
-            {marketClosed && (
-              <span className='inline-flex items-center gap-1 rounded-sm border border-amber-500/40 bg-[#121214] px-2 py-1'>
-                <AlertTriangle className='h-3 w-3 text-amber-400' />
-                <span className='font-mono text-[10px] text-amber-300'>
-                  Opens in {formatDurationHM(weekendOpenMs)}
-                </span>
-              </span>
-            )}
-          </div>
-
-          <div className='inline-flex items-center gap-1 rounded-sm border border-white/5 bg-[#121214] px-2 py-1'>
-            <Clock className='h-3 w-3 text-zinc-400' />
-            <span className='font-mono text-[11px] text-zinc-300'>
-              {nowIlDay} {nowIlLabel} IL
-            </span>
-          </div>
-        </div>
-
-        <div className='grid grid-cols-1 gap-2 xl:grid-cols-4'>
-          {sessionStates.map((s) => (
-            <div
-              key={s.id}
-              className={[
-                'rounded-sm border bg-[#121214] px-3 py-2',
-                'border-white/5',
-                'border-l-2',
-                s.active ? s.accentBorder : 'border-l-white/5',
-              ].join(' ')}
-            >
-              <div className='mb-1 flex items-center justify-between'>
-                <div>
-                  <p
-                    className={[
-                      'font-sans text-[12px] leading-none',
-                      s.active ? 'text-white' : 'text-zinc-500',
-                    ].join(' ')}
-                  >
-                    {s.label}
-                  </p>
-                  <p className='font-sans text-[10px] text-zinc-500'>
-                    {s.city}
-                  </p>
-                </div>
-
-                <span
-                  className={[
-                    'rounded-sm border px-1.5 py-0.5 font-sans text-[9px] uppercase tracking-[0.12em]',
-                    s.active
-                      ? 'border-emerald-500/30 text-emerald-300'
-                      : marketClosed
-                      ? 'border-amber-500/25 text-amber-300'
-                      : 'border-white/5 text-zinc-500',
-                  ].join(' ')}
-                >
-                  {marketClosed ? 'Closed' : s.active ? 'Active' : 'Closed'}
-                </span>
-              </div>
-
-              <div className='mb-1.5 flex items-center justify-between'>
-                <span className='font-mono text-[10px] text-zinc-500'>
-                  {s.startDisplayIL} → {s.endDisplayIL} IL
-                </span>
-                {s.active ? (
-                  <span
-                    className={['font-mono text-[10px]', s.accentText].join(
-                      ' '
-                    )}
-                  >
-                    {formatDurationHM(s.remainingMs)} left
+              {overlap && !marketClosed && (
+                <span className='inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5'>
+                  <Zap className='h-3 w-3 text-amber-300' />
+                  <span className='font-sans text-[9px] font-bold uppercase tracking-[0.16em] text-amber-200'>
+                    High Volume Overlap
                   </span>
-                ) : (
-                  <span className='font-mono text-[10px] text-zinc-500'>
-                    --
-                  </span>
-                )}
-              </div>
+                </span>
+              )}
 
-              {s.active ? (
-                <div>
-                  <div className='h-1 w-full overflow-hidden rounded-none border border-white/10 bg-[#09090b]'>
-                    <div
-                      className={['h-full', s.accentBar].join(' ')}
-                      style={{ width: `${Math.max(3, s.progressPct)}%` }}
-                    />
-                  </div>
-                  <div className='mt-1 flex items-center justify-between'>
-                    <span
-                      className={['font-mono text-[10px]', s.accentText].join(
-                        ' '
-                      )}
-                    >
-                      {Math.round(s.progressPct)}%
-                    </span>
-                    <span className='inline-flex items-center gap-1 font-mono text-[10px] text-zinc-300'>
-                      <Timer className='h-3 w-3 text-zinc-400' />
-                      {formatDurationHMS(s.remainingMs)}
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <div className='h-1 w-full border border-white/10 bg-[#09090b]' />
+              {marketClosed && (
+                <span className='rounded-full border border-amber-400/30 bg-amber-500/10 px-2 py-0.5 text-[9px] font-mono text-amber-200'>
+                  Opens in {hm(weeklyOpenMs)}
+                </span>
               )}
             </div>
-          ))}
+
+            <div className='inline-flex items-center gap-1 rounded-lg border border-white/10 bg-black/20 px-2 py-1'>
+              <Clock3 className='h-3 w-3 text-zinc-400' />
+              <span className='font-mono text-[10px] text-zinc-300'>
+                {ilDay(now)} {ilClock(now)} IL
+              </span>
+            </div>
+          </div>
+
+          <MiniTimeline now={now} />
+
+          <div className='mt-2 grid grid-cols-1 gap-2 xl:grid-cols-4'>
+            {sessions.map((s) => (
+              <div
+                key={s.id}
+                className='relative overflow-hidden rounded-lg border border-white/8 bg-black/20 p-2.5 transition-all'
+                style={
+                  s.active
+                    ? {
+                        borderColor: s.accent,
+                        background: `linear-gradient(180deg, ${s.accentSoft} 0%, rgba(0,0,0,0.18) 100%)`,
+                      }
+                    : undefined
+                }
+              >
+                {s.active && (
+                  <div
+                    className='absolute inset-x-0 top-0 h-[1px]'
+                    style={{
+                      background: `linear-gradient(90deg, ${s.progressFrom}, ${s.progressTo})`,
+                    }}
+                  />
+                )}
+
+                <div className='flex items-center justify-between'>
+                  <div>
+                    <p
+                      className={cn(
+                        'font-sans text-[11px] font-semibold',
+                        s.active ? 'text-white' : 'text-zinc-500'
+                      )}
+                    >
+                      {s.name}
+                    </p>
+                    <p className='font-sans text-[9px] text-zinc-500'>
+                      {s.city}
+                    </p>
+                  </div>
+                  <span
+                    className={cn(
+                      'rounded-md border px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-widest',
+                      s.active
+                        ? 'border-emerald-400/30 text-emerald-300'
+                        : marketClosed
+                        ? 'border-amber-400/20 text-amber-300'
+                        : 'border-white/10 text-zinc-500'
+                    )}
+                  >
+                    {marketClosed ? 'Closed' : s.active ? 'Active' : 'Closed'}
+                  </span>
+                </div>
+
+                <div className='mt-1 flex items-center justify-between'>
+                  <span className='font-mono text-[9px] text-zinc-500'>
+                    {s.startIL} → {s.endIL} IL
+                  </span>
+                  <span className='font-mono text-[9px] text-zinc-400'>
+                    {s.active ? `${hm(s.remainingMs)} left` : '--'}
+                  </span>
+                </div>
+
+                {s.active ? (
+                  <div className='mt-1.5'>
+                    <div className='h-1 rounded-full bg-[#0a0c10] border border-white/10 overflow-hidden'>
+                      <div
+                        className='h-full rounded-full'
+                        style={{
+                          width: `${Math.max(3, s.progressPct)}%`,
+                          background: `linear-gradient(90deg, ${s.progressFrom}, ${s.progressTo})`,
+                        }}
+                      />
+                    </div>
+                    <div className='mt-1 flex items-center justify-between'>
+                      <span
+                        className='font-mono text-[9px]'
+                        style={{ color: s.accentText }}
+                      >
+                        {Math.round(s.progressPct)}%
+                      </span>
+                      <span className='font-mono text-[9px] text-zinc-300'>
+                        {hms(s.remainingMs)}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className='mt-1.5 h-1 rounded-full bg-[#0a0c10] border border-white/10' />
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </section>
