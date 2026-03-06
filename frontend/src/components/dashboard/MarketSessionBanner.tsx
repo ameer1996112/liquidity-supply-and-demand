@@ -66,6 +66,49 @@ function utcDecimalHours(d: Date) {
   return d.getUTCHours() + d.getUTCMinutes() / 60 + d.getUTCSeconds() / 3600;
 }
 
+/** Returns current Israel (Asia/Jerusalem) time as decimal hours 0–24 */
+function getILDecimalHours(date: Date): number {
+  const ilStr = date.toLocaleString('en-US', {
+    timeZone: 'Asia/Jerusalem',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+  // format: "HH:MM:SS"
+  const [hStr, mStr, sStr] = ilStr.split(':');
+  const h = parseInt(hStr, 10);
+  const m = parseInt(mStr, 10);
+  const s = parseInt(sStr, 10);
+  return h + m / 60 + s / 3600;
+}
+
+/** Returns Israel UTC offset in whole hours (+2 or +3 for DST) */
+function getILOffset(date: Date): number {
+  const utcH = utcDecimalHours(date);
+  const ilH = getILDecimalHours(date);
+  let offset = ilH - utcH;
+  if (offset > 12) offset -= 24;
+  if (offset < -12) offset += 24;
+  return Math.round(offset);
+}
+
+/** Convert a UTC hour (0–23) to Israel hour, wrapping at 24 */
+function utcHToIL(utcH: number, ilOffset: number): number {
+  return (utcH + ilOffset + 24) % 24;
+}
+
+/** Format Israel time string from a Date */
+function formatILTime(date: Date): string {
+  return date.toLocaleTimeString('en-GB', {
+    timeZone: 'Asia/Jerusalem',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+}
+
 function isSessionActive(s: Session, utcH: number) {
   return utcH >= s.startH && utcH < s.endH;
 }
@@ -121,8 +164,20 @@ function formatHM(ms: number) {
 }
 
 // ── 24h Timeline Bar ──────────────────────────────────────────────────────────
-function TimelineBar({ utcH }: { utcH: number }) {
+interface TimelineBarProps {
+  utcH: number;
+  ilOffset: number;
+  ilTimeStr: string;
+}
+
+function TimelineBar({ utcH, ilOffset, ilTimeStr }: TimelineBarProps) {
   const markerPct = (utcH / 24) * 100;
+
+  // IL hour labels: show IL time at UTC 0, 6, 12, 18, 24
+  const ilLabels = [0, 6, 12, 18, 24].map((h) => ({
+    utcH: h,
+    ilH: utcHToIL(h, ilOffset),
+  }));
 
   return (
     <div className='relative mb-4'>
@@ -159,25 +214,25 @@ function TimelineBar({ utcH }: { utcH: number }) {
       >
         <div className='relative -translate-x-1/2'>
           <div className='w-[3px] h-[14px] rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.9),0_0_16px_rgba(255,255,255,0.4)]' />
-          {/* Tooltip */}
+          {/* Tooltip — shows Israel time */}
           <div
             className='absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-white/80 whitespace-nowrap bg-[var(--to-surface-raised)] border border-white/10 px-1.5 py-0.5 rounded'
             style={{ fontFamily: 'var(--font-mono)' }}
           >
-            {pad2(Math.floor(utcH))}:{pad2(Math.floor((utcH % 1) * 60))} UTC
+            {ilTimeStr} IL
           </div>
         </div>
       </div>
 
-      {/* Hour labels */}
+      {/* Hour labels — Israel time */}
       <div className='flex justify-between mt-1.5 px-0'>
-        {[0, 6, 12, 18, 24].map((h) => (
+        {ilLabels.map(({ utcH: h, ilH }) => (
           <span
             key={h}
             className='text-[8px] text-[var(--to-text-dim)]'
             style={{ fontFamily: 'var(--font-mono)' }}
           >
-            {pad2(h)}:00
+            {pad2(ilH)}:00
           </span>
         ))}
       </div>
@@ -221,13 +276,18 @@ interface SessionCardProps {
   session: Session;
   utcH: number;
   now: Date;
+  ilOffset: number;
 }
 
-function SessionCard({ session: s, utcH, now }: SessionCardProps) {
+function SessionCard({ session: s, utcH, now, ilOffset }: SessionCardProps) {
   const active = isSessionActive(s, utcH);
   const progress = getSessionProgress(s, utcH);
   const remainingMs = active ? getRemainingMs(s.endH, now) : 0;
   const opensInMs = !active ? getOpensInMs(s.startH, s.endH, now) : 0;
+
+  // Convert session UTC hours to Israel time for display
+  const ilStartH = utcHToIL(s.startH, ilOffset);
+  const ilEndH = utcHToIL(s.endH, ilOffset);
 
   return (
     <div
@@ -339,7 +399,7 @@ function SessionCard({ session: s, utcH, now }: SessionCardProps) {
                 fontFamily: 'var(--font-mono)',
               }}
             >
-              {pad2(s.startH)}:00 → {pad2(s.endH)}:00 UTC
+              {pad2(ilStartH)}:00 → {pad2(ilEndH)}:00 IL
             </span>
             <span
               className='text-[9px] font-bold tabular-nums'
@@ -361,7 +421,7 @@ function SessionCard({ session: s, utcH, now }: SessionCardProps) {
               fontFamily: 'var(--font-mono)',
             }}
           >
-            {pad2(s.startH)}:00 – {pad2(s.endH)}:00 UTC
+            {pad2(ilStartH)}:00 – {pad2(ilEndH)}:00 IL
           </span>
           <span
             className='text-[9px] tabular-nums'
@@ -406,9 +466,10 @@ function OverlapBadge() {
 // ── Swap Countdown ────────────────────────────────────────────────────────────
 interface SwapCountdownProps {
   swapMs: number;
+  ilSwapHour: number;
 }
 
-function SwapCountdown({ swapMs }: SwapCountdownProps) {
+function SwapCountdown({ swapMs, ilSwapHour }: SwapCountdownProps) {
   const { h, m, s } = msToHMS(swapMs);
 
   // Urgency levels
@@ -476,7 +537,7 @@ function SwapCountdown({ swapMs }: SwapCountdownProps) {
           fontFamily: 'var(--font-mono)',
         }}
       >
-        22:00 UTC daily
+        {pad2(ilSwapHour)}:00 IL daily
       </span>
     </div>
   );
@@ -496,6 +557,10 @@ export function MarketSessionBanner() {
   if (!now) return null;
 
   const utcH = utcDecimalHours(now);
+  const ilOffset = getILOffset(now);
+  const ilTimeStr = formatILTime(now);
+  const ilSwapHour = utcHToIL(SWAP_UTC_HOUR, ilOffset);
+
   const activeSessions = SESSIONS.filter((s) => isSessionActive(s, utcH));
   const isOverlap = activeSessions.length > 1;
   const swapMs = getSwapMs(now);
@@ -552,23 +617,28 @@ export function MarketSessionBanner() {
               className='text-[8px] text-[var(--to-text-dim)]'
               style={{ fontFamily: 'var(--font-mono)' }}
             >
-              UTC {pad2(now.getUTCHours())}:{pad2(now.getUTCMinutes())}:
-              {pad2(now.getUTCSeconds())}
+              IL {ilTimeStr}
             </span>
           </div>
 
           {/* Timeline */}
-          <TimelineBar utcH={utcH} />
+          <TimelineBar utcH={utcH} ilOffset={ilOffset} ilTimeStr={ilTimeStr} />
 
           {/* Session cards + swap */}
           <div className='flex gap-2 items-stretch'>
             {SESSIONS.map((s) => (
-              <SessionCard key={s.id} session={s} utcH={utcH} now={now} />
+              <SessionCard
+                key={s.id}
+                session={s}
+                utcH={utcH}
+                now={now}
+                ilOffset={ilOffset}
+              />
             ))}
 
             {isOverlap && <OverlapBadge />}
 
-            <SwapCountdown swapMs={swapMs} />
+            <SwapCountdown swapMs={swapMs} ilSwapHour={ilSwapHour} />
           </div>
         </div>
       </div>
