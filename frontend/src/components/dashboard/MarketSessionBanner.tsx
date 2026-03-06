@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
-import { Zap, Clock } from 'lucide-react';
+import { Clock3, Zap, MoonStar, Globe2 } from 'lucide-react';
 
-// ── Session definitions (UTC hours) ──────────────────────────────────────────
+// ── Session definitions in UTC ───────────────────────────────────────────────
 const SESSIONS = [
   {
     id: 'asian',
@@ -14,13 +14,6 @@ const SESSIONS = [
     startH: 0,
     endH: 9,
     color: '#8b5cf6',
-    border: 'rgba(139,92,246,0.45)',
-    bg: 'rgba(139,92,246,0.07)',
-    glow: '0 0 18px rgba(139,92,246,0.45), 0 0 36px rgba(139,92,246,0.15)',
-    barGradient: 'linear-gradient(90deg, #7c3aed, #8b5cf6, #a78bfa)',
-    textColor: '#a78bfa',
-    dimTextColor: 'rgba(167,139,250,0.45)',
-    timelineBg: 'rgba(139,92,246,0.35)',
   },
   {
     id: 'london',
@@ -30,13 +23,6 @@ const SESSIONS = [
     startH: 7,
     endH: 16,
     color: '#3b82f6',
-    border: 'rgba(59,130,246,0.45)',
-    bg: 'rgba(59,130,246,0.07)',
-    glow: '0 0 18px rgba(59,130,246,0.45), 0 0 36px rgba(59,130,246,0.15)',
-    barGradient: 'linear-gradient(90deg, #1d4ed8, #3b82f6, #60a5fa)',
-    textColor: '#60a5fa',
-    dimTextColor: 'rgba(96,165,250,0.45)',
-    timelineBg: 'rgba(59,130,246,0.35)',
   },
   {
     id: 'newyork',
@@ -46,27 +32,28 @@ const SESSIONS = [
     startH: 13,
     endH: 22,
     color: '#0ecb81',
-    border: 'rgba(14,203,129,0.45)',
-    bg: 'rgba(14,203,129,0.07)',
-    glow: '0 0 18px rgba(14,203,129,0.45), 0 0 36px rgba(14,203,129,0.15)',
-    barGradient: 'linear-gradient(90deg, #059669, #0ecb81, #34d399)',
-    textColor: '#34d399',
-    dimTextColor: 'rgba(52,211,153,0.45)',
-    timelineBg: 'rgba(14,203,129,0.35)',
   },
 ] as const;
 
 type Session = (typeof SESSIONS)[number];
 
-// Swap/rollover: 22:00 UTC (≈ 5 PM New York EST)
+// Friday close / Sunday open convention in UTC
+const WEEKLY_MARKET_OPEN_UTC_DAY = 0; // Sunday
+const WEEKLY_MARKET_OPEN_UTC_HOUR = 22; // 22:00 UTC (typical FX reopen)
+const WEEKLY_MARKET_CLOSE_UTC_DAY = 5; // Friday
+const WEEKLY_MARKET_CLOSE_UTC_HOUR = 22; // 22:00 UTC close
+
 const SWAP_UTC_HOUR = 22;
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Time helpers ──────────────────────────────────────────────────────────────
 function utcDecimalHours(d: Date) {
   return d.getUTCHours() + d.getUTCMinutes() / 60 + d.getUTCSeconds() / 3600;
 }
 
-/** Returns current Israel (Asia/Jerusalem) time as decimal hours 0–24 */
+function utcSecondsOfDay(d: Date) {
+  return d.getUTCHours() * 3600 + d.getUTCMinutes() * 60 + d.getUTCSeconds();
+}
+
 function getILDecimalHours(date: Date): number {
   const ilStr = date.toLocaleString('en-US', {
     timeZone: 'Asia/Jerusalem',
@@ -75,7 +62,6 @@ function getILDecimalHours(date: Date): number {
     second: '2-digit',
     hour12: false,
   });
-  // format: "HH:MM:SS"
   const [hStr, mStr, sStr] = ilStr.split(':');
   const h = parseInt(hStr, 10);
   const m = parseInt(mStr, 10);
@@ -83,7 +69,6 @@ function getILDecimalHours(date: Date): number {
   return h + m / 60 + s / 3600;
 }
 
-/** Returns Israel UTC offset in whole hours (+2 or +3 for DST) */
 function getILOffset(date: Date): number {
   const utcH = utcDecimalHours(date);
   const ilH = getILDecimalHours(date);
@@ -93,12 +78,10 @@ function getILOffset(date: Date): number {
   return Math.round(offset);
 }
 
-/** Convert a UTC hour (0–23) to Israel hour, wrapping at 24 */
 function utcHToIL(utcH: number, ilOffset: number): number {
   return (utcH + ilOffset + 24) % 24;
 }
 
-/** Format Israel time string from a Date */
 function formatILTime(date: Date): string {
   return date.toLocaleTimeString('en-GB', {
     timeZone: 'Asia/Jerusalem',
@@ -109,557 +92,147 @@ function formatILTime(date: Date): string {
   });
 }
 
-function isSessionActive(s: Session, utcH: number) {
-  return utcH >= s.startH && utcH < s.endH;
-}
-
-function getSessionProgress(s: Session, utcH: number) {
-  if (!isSessionActive(s, utcH)) return 0;
-  return ((utcH - s.startH) / (s.endH - s.startH)) * 100;
-}
-
-function getRemainingMs(endH: number, now: Date) {
-  const endSec = endH * 3600;
-  const nowSec =
-    now.getUTCHours() * 3600 + now.getUTCMinutes() * 60 + now.getUTCSeconds();
-  return Math.max(0, (endSec - nowSec) * 1000);
-}
-
-function getOpensInMs(startH: number, endH: number, now: Date) {
-  const nowSec =
-    now.getUTCHours() * 3600 + now.getUTCMinutes() * 60 + now.getUTCSeconds();
-  const startSec = startH * 3600;
-  const endSec = endH * 3600;
-  if (nowSec >= startSec && nowSec < endSec) return 0;
-  let diff = startSec - nowSec;
-  if (diff <= 0) diff += 86400;
-  return diff * 1000;
-}
-
-function getSwapMs(now: Date) {
-  const nowSec =
-    now.getUTCHours() * 3600 + now.getUTCMinutes() * 60 + now.getUTCSeconds();
-  const swapSec = SWAP_UTC_HOUR * 3600;
-  let diff = swapSec - nowSec;
-  if (diff <= 0) diff += 86400;
-  return diff * 1000;
-}
-
-function msToHMS(ms: number) {
-  const totalSec = Math.floor(ms / 1000);
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const s = totalSec % 60;
-  return { h, m, s };
+function formatILDay(date: Date): string {
+  return date.toLocaleDateString('en-GB', {
+    timeZone: 'Asia/Jerusalem',
+    weekday: 'short',
+  });
 }
 
 function pad2(n: number) {
   return String(n).padStart(2, '0');
 }
 
-function formatHM(ms: number) {
+function msToHMS(ms: number) {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  return { h, m, s };
+}
+
+function formatHMShort(ms: number) {
   const { h, m } = msToHMS(ms);
   if (h > 0) return `${h}h ${pad2(m)}m`;
   return `${m}m`;
 }
 
-// ── 24h Timeline Bar ──────────────────────────────────────────────────────────
-interface TimelineBarProps {
-  utcH: number;
-  ilOffset: number;
-  ilTimeStr: string;
+// ── Market state helpers ─────────────────────────────────────────────────────
+function isMarketClosedWeekend(now: Date): boolean {
+  const day = now.getUTCDay(); // 0=Sun ... 5=Fri ... 6=Sat
+  const sec = utcSecondsOfDay(now);
+  const closeSec = WEEKLY_MARKET_CLOSE_UTC_HOUR * 3600;
+  const openSec = WEEKLY_MARKET_OPEN_UTC_HOUR * 3600;
+
+  // Sat all day closed
+  if (day === 6) return true;
+  // Fri after close closed
+  if (day === WEEKLY_MARKET_CLOSE_UTC_DAY && sec >= closeSec) return true;
+  // Sun before open closed
+  if (day === WEEKLY_MARKET_OPEN_UTC_DAY && sec < openSec) return true;
+
+  return false;
 }
 
-function TimelineBar({ utcH, ilOffset, ilTimeStr }: TimelineBarProps) {
+function msToWeeklyOpen(now: Date): number {
+  const current = new Date(now);
+  let target = new Date(now);
+
+  // start from this week's Sunday 22:00 UTC
+  const day = current.getUTCDay();
+  const diffToSunday = (7 - day) % 7;
+  target.setUTCDate(current.getUTCDate() + diffToSunday);
+  target.setUTCHours(WEEKLY_MARKET_OPEN_UTC_HOUR, 0, 0, 0);
+
+  // if already past target, go next week
+  if (target.getTime() <= current.getTime()) {
+    target.setUTCDate(target.getUTCDate() + 7);
+  }
+
+  return Math.max(0, target.getTime() - current.getTime());
+}
+
+function isSessionActive(session: Session, utcH: number) {
+  return utcH >= session.startH && utcH < session.endH;
+}
+
+function getActiveSessions(utcH: number) {
+  return SESSIONS.filter((s) => isSessionActive(s, utcH));
+}
+
+function getSessionProgressPct(session: Session, utcH: number) {
+  if (!isSessionActive(session, utcH)) return 0;
+  return ((utcH - session.startH) / (session.endH - session.startH)) * 100;
+}
+
+function getSessionRemainingMs(session: Session, now: Date) {
+  const endSec = session.endH * 3600;
+  const nowSec = utcSecondsOfDay(now);
+  return Math.max(0, (endSec - nowSec) * 1000);
+}
+
+function getNextSessionOpenMs(now: Date): number {
+  const nowSec = utcSecondsOfDay(now);
+  const nowH = utcDecimalHours(now);
+  const sorted = [...SESSIONS].sort((a, b) => a.startH - b.startH);
+
+  for (const s of sorted) {
+    if (nowH < s.startH) {
+      return (s.startH * 3600 - nowSec) * 1000;
+    }
+  }
+
+  // next day first session
+  return (24 * 3600 - nowSec + sorted[0].startH * 3600) * 1000;
+}
+
+function getSwapMs(now: Date) {
+  const nowSec = utcSecondsOfDay(now);
+  const swapSec = SWAP_UTC_HOUR * 3600;
+  let diff = swapSec - nowSec;
+  if (diff <= 0) diff += 86400;
+  return diff * 1000;
+}
+
+// ── Compact visual pieces ─────────────────────────────────────────────────────
+function MiniTimeline({ utcH, ilOffset }: { utcH: number; ilOffset: number }) {
   const markerPct = (utcH / 24) * 100;
 
-  // IL hour labels: show IL time at UTC 0, 6, 12, 18, 24
-  const ilLabels = [0, 6, 12, 18, 24].map((h) => ({
-    utcH: h,
-    ilH: utcHToIL(h, ilOffset),
-  }));
-
   return (
-    <div className='relative mb-4'>
-      {/* Track */}
-      <div className='relative h-[5px] rounded-full bg-[var(--to-surface-raised)] overflow-hidden'>
-        {/* Session bands */}
+    <div className='relative'>
+      <div className='relative h-[4px] rounded-full bg-[var(--to-surface-raised)] overflow-hidden'>
         {SESSIONS.map((s) => (
           <div
             key={s.id}
-            className='absolute top-0 h-full opacity-50'
+            className='absolute top-0 h-full opacity-70'
             style={{
               left: `${(s.startH / 24) * 100}%`,
               width: `${((s.endH - s.startH) / 24) * 100}%`,
-              background: s.barGradient,
+              background: s.color,
             }}
           />
         ))}
-        {/* Overlap highlight: London + NY (13-16 UTC) */}
         <div
-          className='absolute top-0 h-full opacity-70'
+          className='absolute top-1/2 -translate-y-1/2 h-[12px] w-[2px] rounded-full bg-white'
           style={{
-            left: `${(13 / 24) * 100}%`,
-            width: `${(3 / 24) * 100}%`,
-            background:
-              'linear-gradient(90deg, rgba(240,185,11,0.6), rgba(240,185,11,0.8))',
+            left: `${markerPct}%`,
+            boxShadow: '0 0 10px rgba(255,255,255,0.8)',
           }}
         />
       </div>
 
-      {/* Current time marker — sits above the track */}
-      <div
-        className='absolute top-1/2 -translate-y-1/2 z-10'
-        style={{ left: `${markerPct}%` }}
-      >
-        <div className='relative -translate-x-1/2'>
-          <div className='w-[3px] h-[14px] rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.9),0_0_16px_rgba(255,255,255,0.4)]' />
-          {/* Tooltip — shows Israel time */}
-          <div
-            className='absolute -top-6 left-1/2 -translate-x-1/2 text-[8px] font-bold text-white/80 whitespace-nowrap bg-[var(--to-surface-raised)] border border-white/10 px-1.5 py-0.5 rounded'
-            style={{ fontFamily: 'var(--font-mono)' }}
-          >
-            {ilTimeStr} IL
-          </div>
-        </div>
-      </div>
-
-      {/* Hour labels — Israel time */}
-      <div className='flex justify-between mt-1.5 px-0'>
-        {ilLabels.map(({ utcH: h, ilH }) => (
-          <span
-            key={h}
-            className='text-[8px] text-[var(--to-text-dim)]'
-            style={{ fontFamily: 'var(--font-mono)' }}
-          >
-            {pad2(ilH)}:00
+      <div className='mt-1.5 flex justify-between text-[8px] text-[var(--to-text-dim)]'>
+        {[0, 12, 24].map((h) => (
+          <span key={h} style={{ fontFamily: 'var(--font-mono)' }}>
+            {pad2(utcHToIL(h % 24, ilOffset))}:00 IL
           </span>
         ))}
       </div>
-
-      {/* Session labels on timeline */}
-      <div className='relative h-3 mt-0.5'>
-        {SESSIONS.map((s) => {
-          const midPct = ((s.startH + s.endH) / 2 / 24) * 100;
-          return (
-            <span
-              key={s.id}
-              className='absolute text-[7px] font-bold uppercase tracking-widest -translate-x-1/2'
-              style={{
-                left: `${midPct}%`,
-                color: s.dimTextColor,
-                fontFamily: 'var(--font-mono)',
-              }}
-            >
-              {s.name}
-            </span>
-          );
-        })}
-        {/* Overlap label */}
-        <span
-          className='absolute text-[7px] font-bold uppercase tracking-widest -translate-x-1/2'
-          style={{
-            left: `${((13 + 1.5) / 24) * 100}%`,
-            color: 'rgba(240,185,11,0.6)',
-            fontFamily: 'var(--font-mono)',
-          }}
-        >
-          overlap
-        </span>
-      </div>
     </div>
   );
 }
 
-// ── Session Card ──────────────────────────────────────────────────────────────
-function getSessionPhase(progress: number): 'OPEN' | 'MID' | 'CLOSE' {
-  if (progress < 22) return 'OPEN';
-  if (progress > 78) return 'CLOSE';
-  return 'MID';
-}
-
-function ProgressRing({
-  progress,
-  color,
-  label,
-  active,
-}: {
-  progress: number;
-  color: string;
-  label: string;
-  active: boolean;
-}) {
-  const size = 68;
-  const stroke = 6;
-  const radius = (size - stroke) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const clamped = Math.max(0, Math.min(100, progress));
-  const dashOffset = circumference * (1 - clamped / 100);
-
-  return (
-    <div className='relative shrink-0'>
-      {/* outer breathing halo */}
-      {active && (
-        <div
-          className='absolute inset-0 rounded-full animate-pulse'
-          style={{
-            background: `radial-gradient(circle, ${color}33 0%, transparent 70%)`,
-            filter: 'blur(6px)',
-            transform: 'scale(1.15)',
-          }}
-        />
-      )}
-
-      <svg width={size} height={size} className='-rotate-90 relative z-[1]'>
-        <defs>
-          <linearGradient
-            id={`ring-grad-${color}`}
-            x1='0%'
-            y1='0%'
-            x2='100%'
-            y2='100%'
-          >
-            <stop offset='0%' stopColor={color} stopOpacity='0.95' />
-            <stop offset='70%' stopColor={color} stopOpacity='0.7' />
-            <stop offset='100%' stopColor={color} stopOpacity='1' />
-          </linearGradient>
-        </defs>
-
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill='transparent'
-          stroke='rgba(255,255,255,0.08)'
-          strokeWidth={stroke}
-        />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill='transparent'
-          stroke={`url(#ring-grad-${color})`}
-          strokeWidth={stroke}
-          strokeLinecap='round'
-          strokeDasharray={circumference}
-          strokeDashoffset={dashOffset}
-          style={{
-            transition:
-              'stroke-dashoffset 750ms cubic-bezier(0.22, 1, 0.36, 1)',
-            filter: `drop-shadow(0 0 6px ${color}aa)`,
-          }}
-        />
-      </svg>
-
-      {/* center glass core */}
-      <div
-        className='absolute inset-[11px] rounded-full border flex flex-col items-center justify-center z-[2]'
-        style={{
-          borderColor: `${color}55`,
-          background:
-            'radial-gradient(circle at 30% 25%, rgba(255,255,255,0.12), rgba(255,255,255,0.03) 45%, rgba(0,0,0,0.15) 100%)',
-          boxShadow: `inset 0 0 10px ${color}33`,
-        }}
-      >
-        <span
-          className='text-[10px] font-extrabold tabular-nums leading-none'
-          style={{
-            color,
-            fontFamily: 'var(--font-mono)',
-            textShadow: `0 0 8px ${color}88`,
-          }}
-        >
-          {label}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-interface SessionCardProps {
-  session: Session;
-  utcH: number;
-  now: Date;
-  ilOffset: number;
-}
-
-function SessionCard({ session: s, utcH, now, ilOffset }: SessionCardProps) {
-  const active = isSessionActive(s, utcH);
-  const progress = getSessionProgress(s, utcH);
-  const remainingMs = active ? getRemainingMs(s.endH, now) : 0;
-  const opensInMs = !active ? getOpensInMs(s.startH, s.endH, now) : 0;
-
-  // Convert session UTC hours to Israel time for display
-  const ilStartH = utcHToIL(s.startH, ilOffset);
-  const ilEndH = utcHToIL(s.endH, ilOffset);
-
-  const ringLabel = `${Math.round(progress)}%`;
-  const phase = getSessionPhase(progress);
-
-  return (
-    <div
-      className={cn(
-        'relative flex-1 min-w-0 rounded-xl border p-3 transition-all duration-700 overflow-hidden',
-        'flex flex-col gap-2'
-      )}
-      style={
-        active
-          ? {
-              borderColor: s.border,
-              background: s.bg,
-              boxShadow: s.glow,
-            }
-          : {
-              borderColor: 'var(--to-border)',
-              background: 'var(--to-surface)',
-            }
-      }
-    >
-      {/* Shimmer sweep on active */}
-      {active && (
-        <div className='pointer-events-none absolute inset-0 overflow-hidden rounded-xl'>
-          <div
-            className='absolute inset-y-0 w-1/3 opacity-20'
-            style={{
-              background: `linear-gradient(90deg, transparent, ${s.color}, transparent)`,
-              animation: 'shimmer-scan 3s ease-in-out infinite',
-            }}
-          />
-        </div>
-      )}
-
-      {/* Header row */}
-      <div className='flex items-center justify-between'>
-        <div className='flex items-center gap-1.5'>
-          <span className='text-base leading-none'>{s.emoji}</span>
-          <div>
-            <p
-              className='text-[10px] font-bold uppercase tracking-[0.12em] leading-none'
-              style={{
-                color: active ? s.textColor : 'var(--to-text-dim)',
-                fontFamily: 'var(--font-sans)',
-              }}
-            >
-              {s.name}
-            </p>
-            <p
-              className='text-[8px] mt-0.5 leading-none'
-              style={{
-                color: active ? s.dimTextColor : 'var(--to-text-dim)',
-                fontFamily: 'var(--font-mono)',
-              }}
-            >
-              {s.city}
-            </p>
-          </div>
-        </div>
-
-        {/* Status badge */}
-        <div
-          className={cn(
-            'flex items-center gap-1 rounded-full px-2 py-0.5 text-[8px] font-bold uppercase tracking-widest border'
-          )}
-          style={
-            active
-              ? {
-                  background: `${s.color}18`,
-                  borderColor: `${s.color}40`,
-                  color: s.textColor,
-                }
-              : {
-                  background: 'rgba(255,255,255,0.03)',
-                  borderColor: 'var(--to-border)',
-                  color: 'var(--to-text-dim)',
-                }
-          }
-        >
-          {active && (
-            <span
-              className='w-1.5 h-1.5 rounded-full animate-pulse'
-              style={{ background: s.color }}
-            />
-          )}
-          {active ? 'LIVE' : 'CLOSED'}
-        </div>
-      </div>
-
-      {/* Ring progress (active) or opens-in (inactive) */}
-      {active ? (
-        <div className='flex items-center gap-3'>
-          <ProgressRing
-            progress={progress}
-            color={s.color}
-            label={ringLabel}
-            active={active}
-          />
-          <div className='min-w-0 flex-1 space-y-1'>
-            <div className='flex items-center justify-between'>
-              <p
-                className='text-[8px]'
-                style={{
-                  color: s.dimTextColor,
-                  fontFamily: 'var(--font-mono)',
-                }}
-              >
-                {pad2(ilStartH)}:00 → {pad2(ilEndH)}:00 IL
-              </p>
-              <span
-                className='text-[8px] font-bold px-1.5 py-0.5 rounded border'
-                style={{
-                  color: s.textColor,
-                  borderColor: `${s.color}55`,
-                  background: `${s.color}1a`,
-                  fontFamily: 'var(--font-mono)',
-                  letterSpacing: '0.08em',
-                }}
-              >
-                {phase}
-              </span>
-            </div>
-            <p
-              className='text-[12px] font-extrabold tabular-nums tracking-tight'
-              style={{
-                color: s.textColor,
-                fontFamily: 'var(--font-mono)',
-                textShadow: `0 0 10px ${s.color}70`,
-              }}
-            >
-              {formatHM(remainingMs)} left
-            </p>
-          </div>
-        </div>
-      ) : (
-        <div className='flex items-center justify-between'>
-          <span
-            className='text-[8px]'
-            style={{
-              color: 'var(--to-text-dim)',
-              fontFamily: 'var(--font-mono)',
-            }}
-          >
-            {pad2(ilStartH)}:00 – {pad2(ilEndH)}:00 IL
-          </span>
-          <span
-            className='text-[9px] tabular-nums'
-            style={{
-              color: 'var(--to-text-dim)',
-              fontFamily: 'var(--font-mono)',
-            }}
-          >
-            Opens in {formatHM(opensInMs)}
-          </span>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Overlap Badge ─────────────────────────────────────────────────────────────
-function OverlapBadge() {
-  return (
-    <div
-      className='shrink-0 flex flex-col items-center justify-center rounded-xl border px-3 py-2 gap-1'
-      style={{
-        borderColor: 'rgba(240,185,11,0.4)',
-        background: 'rgba(240,185,11,0.06)',
-        boxShadow:
-          '0 0 16px rgba(240,185,11,0.3), 0 0 32px rgba(240,185,11,0.1)',
-      }}
-    >
-      <Zap className='h-4 w-4 text-amber-400 animate-pulse' />
-      <span
-        className='text-[8px] font-bold uppercase tracking-widest text-amber-400 text-center leading-tight'
-        style={{ fontFamily: 'var(--font-mono)' }}
-      >
-        HIGH
-        <br />
-        VOL
-      </span>
-    </div>
-  );
-}
-
-// ── Swap Countdown ────────────────────────────────────────────────────────────
-interface SwapCountdownProps {
-  swapMs: number;
-  ilSwapHour: number;
-}
-
-function SwapCountdown({ swapMs, ilSwapHour }: SwapCountdownProps) {
-  const { h, m, s } = msToHMS(swapMs);
-
-  // Urgency levels
-  const isUrgent = swapMs < 30 * 60 * 1000; // < 30 min
-  const isWarning = swapMs < 2 * 60 * 60 * 1000; // < 2 hours
-
-  const color = isUrgent ? '#f6465d' : isWarning ? '#f0b90b' : '#0ecb81';
-
-  const glow = isUrgent
-    ? '0 0 16px rgba(246,70,93,0.5), 0 0 32px rgba(246,70,93,0.2)'
-    : isWarning
-    ? '0 0 16px rgba(240,185,11,0.4), 0 0 32px rgba(240,185,11,0.15)'
-    : '0 0 12px rgba(14,203,129,0.3)';
-
-  const border = isUrgent
-    ? 'rgba(246,70,93,0.4)'
-    : isWarning
-    ? 'rgba(240,185,11,0.35)'
-    : 'rgba(14,203,129,0.25)';
-
-  const bg = isUrgent
-    ? 'rgba(246,70,93,0.07)'
-    : isWarning
-    ? 'rgba(240,185,11,0.06)'
-    : 'rgba(14,203,129,0.05)';
-
-  return (
-    <div
-      className='shrink-0 flex flex-col items-center justify-center rounded-xl border px-4 py-3 gap-1 min-w-[110px] transition-all duration-700'
-      style={{
-        borderColor: border,
-        background: bg,
-        boxShadow: glow,
-      }}
-    >
-      <div className='flex items-center gap-1.5 mb-0.5'>
-        <Clock className='h-3 w-3' style={{ color, opacity: 0.8 }} />
-        <span
-          className='text-[8px] font-bold uppercase tracking-widest'
-          style={{ color, opacity: 0.8, fontFamily: 'var(--font-mono)' }}
-        >
-          Swap In
-        </span>
-      </div>
-
-      {/* Countdown */}
-      <div
-        className={cn(
-          'text-[1.1rem] font-bold tabular-nums leading-none tracking-tight',
-          isUrgent && 'animate-pulse'
-        )}
-        style={{
-          color,
-          fontFamily: 'var(--font-mono)',
-          textShadow: `0 0 12px ${color}80`,
-        }}
-      >
-        {pad2(h)}:{pad2(m)}:{pad2(s)}
-      </div>
-
-      <span
-        className='text-[7px] mt-0.5'
-        style={{
-          color: 'var(--to-text-dim)',
-          fontFamily: 'var(--font-mono)',
-        }}
-      >
-        {pad2(ilSwapHour)}:00 IL daily
-      </span>
-    </div>
-  );
-}
-
-// ── Main Component ────────────────────────────────────────────────────────────
+// ── Main ──────────────────────────────────────────────────────────────────────
 export function MarketSessionBanner() {
   const [now, setNow] = useState<Date | null>(null);
 
@@ -670,91 +243,243 @@ export function MarketSessionBanner() {
     return () => clearInterval(id);
   }, []);
 
-  if (!now) return null;
+  const model = useMemo(() => {
+    if (!now) return null;
 
-  const utcH = utcDecimalHours(now);
-  const ilOffset = getILOffset(now);
-  const ilTimeStr = formatILTime(now);
-  const ilSwapHour = utcHToIL(SWAP_UTC_HOUR, ilOffset);
+    const utcH = utcDecimalHours(now);
+    const ilOffset = getILOffset(now);
+    const ilTimeStr = formatILTime(now);
+    const ilDay = formatILDay(now);
+    const ilSwapHour = utcHToIL(SWAP_UTC_HOUR, ilOffset);
 
-  const activeSessions = SESSIONS.filter((s) => isSessionActive(s, utcH));
-  const isOverlap = activeSessions.length > 1;
-  const swapMs = getSwapMs(now);
+    const weekendClosed = isMarketClosedWeekend(now);
+    const activeSessions = weekendClosed ? [] : getActiveSessions(utcH);
+    const primary = activeSessions[0] ?? null;
+    const overlap = activeSessions.length > 1;
+
+    const swapMs = weekendClosed ? null : getSwapMs(now);
+    const nextOpenMs = weekendClosed
+      ? msToWeeklyOpen(now)
+      : getNextSessionOpenMs(now);
+
+    let statusTone: 'open' | 'warn' | 'closed' = 'open';
+    if (weekendClosed) statusTone = 'closed';
+    else if (activeSessions.length === 0) statusTone = 'warn';
+
+    return {
+      now,
+      utcH,
+      ilOffset,
+      ilTimeStr,
+      ilDay,
+      ilSwapHour,
+      weekendClosed,
+      activeSessions,
+      primary,
+      overlap,
+      statusTone,
+      swapMs,
+      nextOpenMs,
+    };
+  }, [now]);
+
+  if (!model) return null;
+
+  const toneClasses = {
+    open: {
+      border: 'rgba(14,203,129,0.25)',
+      bg: 'linear-gradient(135deg, rgba(14,203,129,0.08), rgba(14,203,129,0.03))',
+      dot: 'bg-[#0ecb81]',
+      text: 'text-[#0ecb81]',
+    },
+    warn: {
+      border: 'rgba(240,185,11,0.28)',
+      bg: 'linear-gradient(135deg, rgba(240,185,11,0.08), rgba(240,185,11,0.03))',
+      dot: 'bg-[#f0b90b]',
+      text: 'text-[#f0b90b]',
+    },
+    closed: {
+      border: 'rgba(139,149,165,0.3)',
+      bg: 'linear-gradient(135deg, rgba(139,149,165,0.08), rgba(139,149,165,0.03))',
+      dot: 'bg-[#8b95a5]',
+      text: 'text-[#8b95a5]',
+    },
+  }[model.statusTone];
+
+  const primarySessionProgress =
+    model.primary != null
+      ? getSessionProgressPct(model.primary, model.utcH)
+      : 0;
+  const primaryRemaining =
+    model.primary != null
+      ? getSessionRemainingMs(model.primary, model.now)
+      : null;
 
   return (
     <section
       className='shrink-0 animate-fade-in-up'
-      style={{ animationDelay: '20ms' }}
+      style={{ animationDelay: '10ms' }}
     >
-      {/* Card wrapper */}
       <div
-        className='relative rounded-xl border overflow-hidden'
+        className='relative rounded-xl border px-3 py-2 overflow-hidden'
         style={{
           borderColor: 'var(--to-border)',
           background:
-            'linear-gradient(135deg, var(--to-surface) 0%, var(--to-surface-raised) 100%)',
+            'linear-gradient(135deg, rgba(13,17,23,0.96) 0%, rgba(22,27,34,0.92) 100%)',
         }}
       >
-        {/* Top accent line */}
-        <div
-          className='absolute inset-x-0 top-0 h-[1px]'
-          style={{
-            background:
-              'linear-gradient(90deg, rgba(139,92,246,0.4) 0%, rgba(59,130,246,0.5) 33%, rgba(240,185,11,0.6) 55%, rgba(14,203,129,0.5) 100%)',
-          }}
-        />
+        <div className='absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-[#8b5cf6]/40 via-[#3b82f6]/40 to-[#0ecb81]/40' />
 
-        <div className='p-3 pt-4'>
-          {/* Header row */}
-          <div className='flex items-center justify-between mb-3'>
-            <div className='flex items-center gap-2'>
-              <span
-                className='text-[9px] font-bold uppercase tracking-[0.18em] text-[var(--to-text-dim)]'
-                style={{ fontFamily: 'var(--font-mono)' }}
-              >
-                Market Sessions
-              </span>
-              {isOverlap && (
-                <span
-                  className='inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[7px] font-bold uppercase tracking-widest border animate-pulse'
+        <div className='grid grid-cols-1 gap-2 xl:grid-cols-[1.8fr_auto] xl:items-center'>
+          {/* left: compact pulse */}
+          <div className='space-y-2'>
+            <div className='flex items-center justify-between'>
+              <div className='flex items-center gap-2 min-w-0'>
+                <div
+                  className='inline-flex items-center gap-1 rounded-md border px-2 py-0.5'
                   style={{
-                    borderColor: 'rgba(240,185,11,0.4)',
-                    background: 'rgba(240,185,11,0.08)',
-                    color: '#f0b90b',
-                    fontFamily: 'var(--font-mono)',
+                    borderColor: toneClasses.border,
+                    background: toneClasses.bg,
                   }}
                 >
-                  <Zap className='h-2.5 w-2.5' />
-                  {activeSessions.length} sessions overlap · peak volatility
-                </span>
+                  <span
+                    className={cn('h-1.5 w-1.5 rounded-full', toneClasses.dot)}
+                  />
+                  <span
+                    className={cn(
+                      'text-[9px] font-bold uppercase tracking-[0.12em]',
+                      toneClasses.text
+                    )}
+                    style={{ fontFamily: 'var(--font-mono)' }}
+                  >
+                    Market Pulse
+                  </span>
+                </div>
+
+                {model.overlap && (
+                  <span
+                    className='inline-flex items-center gap-1 rounded-md border border-amber-400/30 bg-amber-400/10 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-widest text-amber-300'
+                    style={{ fontFamily: 'var(--font-mono)' }}
+                  >
+                    <Zap className='h-2.5 w-2.5' />
+                    Overlap
+                  </span>
+                )}
+              </div>
+
+              <div
+                className='text-[9px] text-[var(--to-text-dim)] tabular-nums'
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                {model.ilDay} {model.ilTimeStr} IL
+              </div>
+            </div>
+
+            <div className='flex items-center gap-2 flex-wrap'>
+              {model.weekendClosed ? (
+                <>
+                  <MoonStar className='h-3.5 w-3.5 text-[var(--to-text-secondary)]' />
+                  <span className='text-[11px] font-semibold text-[var(--to-text-primary)]'>
+                    Market Closed (Weekend)
+                  </span>
+                  <span
+                    className='text-[10px] text-[var(--to-text-secondary)] tabular-nums'
+                    style={{ fontFamily: 'var(--font-mono)' }}
+                  >
+                    Opens in {formatHMShort(model.nextOpenMs)}
+                  </span>
+                </>
+              ) : model.primary ? (
+                <>
+                  <Globe2
+                    className='h-3.5 w-3.5'
+                    style={{ color: model.primary.color }}
+                  />
+                  <span
+                    className='text-[11px] font-semibold'
+                    style={{ color: model.primary.color }}
+                  >
+                    {model.primary.name} Session Live
+                  </span>
+                  <span
+                    className='text-[10px] tabular-nums'
+                    style={{
+                      color: model.primary.color,
+                      fontFamily: 'var(--font-mono)',
+                    }}
+                  >
+                    {Math.round(primarySessionProgress)}% ·{' '}
+                    {primaryRemaining ? formatHMShort(primaryRemaining) : '—'}{' '}
+                    left
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Clock3 className='h-3.5 w-3.5 text-amber-300' />
+                  <span className='text-[11px] font-semibold text-amber-300'>
+                    Market open, waiting next session
+                  </span>
+                  <span
+                    className='text-[10px] text-amber-200/90 tabular-nums'
+                    style={{ fontFamily: 'var(--font-mono)' }}
+                  >
+                    Starts in {formatHMShort(model.nextOpenMs)}
+                  </span>
+                </>
               )}
             </div>
-            <span
-              className='text-[8px] text-[var(--to-text-dim)]'
-              style={{ fontFamily: 'var(--font-mono)' }}
-            >
-              IL {ilTimeStr}
-            </span>
+
+            <MiniTimeline utcH={model.utcH} ilOffset={model.ilOffset} />
           </div>
 
-          {/* Timeline */}
-          <TimelineBar utcH={utcH} ilOffset={ilOffset} ilTimeStr={ilTimeStr} />
+          {/* right: compact swap pod */}
+          <div
+            className='rounded-lg border px-2.5 py-2 min-w-[128px]'
+            style={{
+              borderColor: model.weekendClosed
+                ? 'rgba(139,149,165,0.25)'
+                : 'rgba(14,203,129,0.28)',
+              background: model.weekendClosed
+                ? 'rgba(139,149,165,0.04)'
+                : 'rgba(14,203,129,0.05)',
+            }}
+          >
+            <div className='flex items-center justify-between gap-2'>
+              <span
+                className='text-[8px] uppercase tracking-[0.12em] text-[var(--to-text-dim)]'
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                Swap
+              </span>
+              <span
+                className='text-[8px] text-[var(--to-text-dim)]'
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                {pad2(model.ilSwapHour)}:00 IL
+              </span>
+            </div>
 
-          {/* Session cards + swap */}
-          <div className='flex gap-2 items-stretch'>
-            {SESSIONS.map((s) => (
-              <SessionCard
-                key={s.id}
-                session={s}
-                utcH={utcH}
-                now={now}
-                ilOffset={ilOffset}
-              />
-            ))}
-
-            {isOverlap && <OverlapBadge />}
-
-            <SwapCountdown swapMs={swapMs} ilSwapHour={ilSwapHour} />
+            {model.weekendClosed ? (
+              <p
+                className='mt-1 text-[10px] text-[var(--to-text-secondary)]'
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                Paused on weekend
+              </p>
+            ) : (
+              <p
+                className='mt-1 text-[14px] font-extrabold tabular-nums text-[#0ecb81]'
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  textShadow: '0 0 10px rgba(14,203,129,0.45)',
+                }}
+              >
+                {(() => {
+                  const s = msToHMS(model.swapMs ?? 0);
+                  return `${pad2(s.h)}:${pad2(s.m)}:${pad2(s.s)}`;
+                })()}
+              </p>
+            )}
           </div>
         </div>
       </div>
