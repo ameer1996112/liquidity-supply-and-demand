@@ -17,6 +17,7 @@ import {
 import { useRiskStatus } from '@/hooks/useRiskStatus';
 import { useConnectionHealth } from '@/hooks/useConnectionHealth';
 import { useDashboardLog } from '@/hooks/useDashboardLog';
+import { MarketSessionBanner } from '@/components/dashboard/MarketSessionBanner';
 import { PageStatusBanner } from '@/components/shared/PageStatusBanner';
 import { TableSkeleton } from '@/components/shared/TableStates';
 import {
@@ -276,6 +277,9 @@ export default function DashboardPage() {
 
       {/* ── Page-level health banner ────────────────────────────── */}
       <PageStatusBanner status={status} surfaceLabel='Dashboard' />
+
+      {/* ── Market Session Banner ───────────────────────────────── */}
+      <MarketSessionBanner />
 
       {/* ── Top row · Stat bento ───────────────────────────────── */}
       <section className='shrink-0'>
