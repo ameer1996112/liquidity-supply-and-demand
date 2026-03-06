@@ -272,6 +272,59 @@ function TimelineBar({ utcH, ilOffset, ilTimeStr }: TimelineBarProps) {
 }
 
 // ── Session Card ──────────────────────────────────────────────────────────────
+function ProgressRing({
+  progress,
+  color,
+  label,
+}: {
+  progress: number;
+  color: string;
+  label: string;
+}) {
+  const size = 44;
+  const stroke = 4;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const clamped = Math.max(0, Math.min(100, progress));
+  const dashOffset = circumference * (1 - clamped / 100);
+
+  return (
+    <div className='relative shrink-0'>
+      <svg width={size} height={size} className='-rotate-90'>
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill='transparent'
+          stroke='rgba(255,255,255,0.08)'
+          strokeWidth={stroke}
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill='transparent'
+          stroke={color}
+          strokeWidth={stroke}
+          strokeLinecap='round'
+          strokeDasharray={circumference}
+          strokeDashoffset={dashOffset}
+          style={{
+            transition: 'stroke-dashoffset 700ms ease-out',
+            filter: `drop-shadow(0 0 4px ${color}88)`,
+          }}
+        />
+      </svg>
+      <div
+        className='absolute inset-0 flex items-center justify-center text-[9px] font-bold tabular-nums'
+        style={{ color, fontFamily: 'var(--font-mono)' }}
+      >
+        {label}
+      </div>
+    </div>
+  );
+}
+
 interface SessionCardProps {
   session: Session;
   utcH: number;
@@ -288,6 +341,8 @@ function SessionCard({ session: s, utcH, now, ilOffset }: SessionCardProps) {
   // Convert session UTC hours to Israel time for display
   const ilStartH = utcHToIL(s.startH, ilOffset);
   const ilEndH = utcHToIL(s.endH, ilOffset);
+
+  const ringLabel = `${Math.round(progress)}%`;
 
   return (
     <div
@@ -376,23 +431,12 @@ function SessionCard({ session: s, utcH, now, ilOffset }: SessionCardProps) {
         </div>
       </div>
 
-      {/* Progress bar (active) or opens-in (inactive) */}
+      {/* Ring progress (active) or opens-in (inactive) */}
       {active ? (
-        <div className='space-y-1'>
-          {/* Bar */}
-          <div className='relative h-1.5 rounded-full bg-[var(--to-surface-raised)] overflow-hidden'>
-            <div
-              className='absolute left-0 top-0 h-full rounded-full transition-all duration-1000'
-              style={{
-                width: `${progress}%`,
-                background: s.barGradient,
-                boxShadow: `0 0 6px ${s.color}80`,
-              }}
-            />
-          </div>
-          {/* Time remaining */}
-          <div className='flex items-center justify-between'>
-            <span
+        <div className='flex items-center gap-2'>
+          <ProgressRing progress={progress} color={s.color} label={ringLabel} />
+          <div className='min-w-0 flex-1 space-y-0.5'>
+            <p
               className='text-[8px]'
               style={{
                 color: s.dimTextColor,
@@ -400,16 +444,16 @@ function SessionCard({ session: s, utcH, now, ilOffset }: SessionCardProps) {
               }}
             >
               {pad2(ilStartH)}:00 → {pad2(ilEndH)}:00 IL
-            </span>
-            <span
-              className='text-[9px] font-bold tabular-nums'
+            </p>
+            <p
+              className='text-[10px] font-bold tabular-nums'
               style={{
                 color: s.textColor,
                 fontFamily: 'var(--font-mono)',
               }}
             >
               {formatHM(remainingMs)} left
-            </span>
+            </p>
           </div>
         </div>
       ) : (
