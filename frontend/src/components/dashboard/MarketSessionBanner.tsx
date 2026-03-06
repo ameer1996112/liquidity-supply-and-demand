@@ -31,11 +31,11 @@ const SESSIONS: SessionDef[] = [
     endUtcH: 7,
     colorPrimary: '#06b6d4',
     colorSecondary: '#22d3ee',
-    colorGlow: 'rgba(6,182,212,0.35)',
-    colorBg: 'rgba(6,182,212,0.08)',
-    colorBorder: 'rgba(6,182,212,0.4)',
+    colorGlow: 'rgba(6,182,212,0.3)',
+    colorBg: 'rgba(6,182,212,0.07)',
+    colorBorder: 'rgba(6,182,212,0.38)',
     colorText: '#67e8f9',
-    colorDim: 'rgba(6,182,212,0.25)',
+    colorDim: 'rgba(6,182,212,0.18)',
   },
   {
     id: 'tokyo',
@@ -46,11 +46,11 @@ const SESSIONS: SessionDef[] = [
     endUtcH: 9,
     colorPrimary: '#3b82f6',
     colorSecondary: '#60a5fa',
-    colorGlow: 'rgba(59,130,246,0.35)',
-    colorBg: 'rgba(59,130,246,0.08)',
-    colorBorder: 'rgba(59,130,246,0.4)',
+    colorGlow: 'rgba(59,130,246,0.3)',
+    colorBg: 'rgba(59,130,246,0.07)',
+    colorBorder: 'rgba(59,130,246,0.38)',
     colorText: '#93c5fd',
-    colorDim: 'rgba(59,130,246,0.25)',
+    colorDim: 'rgba(59,130,246,0.18)',
   },
   {
     id: 'london',
@@ -61,11 +61,11 @@ const SESSIONS: SessionDef[] = [
     endUtcH: 17,
     colorPrimary: '#8b5cf6',
     colorSecondary: '#a78bfa',
-    colorGlow: 'rgba(139,92,246,0.35)',
-    colorBg: 'rgba(139,92,246,0.08)',
-    colorBorder: 'rgba(139,92,246,0.4)',
+    colorGlow: 'rgba(139,92,246,0.3)',
+    colorBg: 'rgba(139,92,246,0.07)',
+    colorBorder: 'rgba(139,92,246,0.38)',
     colorText: '#c4b5fd',
-    colorDim: 'rgba(139,92,246,0.25)',
+    colorDim: 'rgba(139,92,246,0.18)',
   },
   {
     id: 'newyork',
@@ -76,11 +76,11 @@ const SESSIONS: SessionDef[] = [
     endUtcH: 22,
     colorPrimary: '#10b981',
     colorSecondary: '#34d399',
-    colorGlow: 'rgba(16,185,129,0.35)',
-    colorBg: 'rgba(16,185,129,0.08)',
-    colorBorder: 'rgba(16,185,129,0.4)',
+    colorGlow: 'rgba(16,185,129,0.3)',
+    colorBg: 'rgba(16,185,129,0.07)',
+    colorBorder: 'rgba(16,185,129,0.38)',
     colorText: '#6ee7b7',
-    colorDim: 'rgba(16,185,129,0.25)',
+    colorDim: 'rgba(16,185,129,0.18)',
   },
 ];
 
@@ -88,6 +88,7 @@ type SessionState = SessionDef & {
   active: boolean;
   progressPct: number;
   remainingMs: number;
+  opensInMs: number;
   startIL: string;
   endIL: string;
 };
@@ -136,6 +137,20 @@ function getProgress(nowSec: number, startH: number, endH: number) {
     progressPct: Math.max(0, Math.min(100, (elapsed / total) * 100)),
     remainingMs: rem * 1000,
   };
+}
+
+function getOpensInMs(nowSec: number, startH: number, endH: number): number {
+  const start = startH * 3600;
+  const end = endH * 3600;
+  // If currently active, return 0
+  if (end <= start) {
+    if (nowSec >= start || nowSec < end) return 0;
+  } else {
+    if (nowSec >= start && nowSec < end) return 0;
+  }
+  let diff = start - nowSec;
+  if (diff <= 0) diff += 86400;
+  return diff * 1000;
 }
 
 function hms(ms: number): string {
@@ -226,11 +241,16 @@ export function MarketSessionBanner() {
       const p = activeNow
         ? getProgress(sec, s.startUtcH, s.endUtcH)
         : { progressPct: 0, remainingMs: 0 };
+      const opensInMs =
+        !activeNow && !marketClosed
+          ? getOpensInMs(sec, s.startUtcH, s.endUtcH)
+          : 0;
       return {
         ...s,
         active: activeNow,
         progressPct: p.progressPct,
         remainingMs: p.remainingMs,
+        opensInMs,
         startIL: utcHourToIL(s.startUtcH),
         endIL: utcHourToIL(s.endUtcH),
       };
@@ -282,7 +302,14 @@ export function MarketSessionBanner() {
               marginBottom: '10px',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                flexWrap: 'wrap',
+              }}
+            >
               <div
                 style={{
                   display: 'inline-flex',
@@ -313,7 +340,7 @@ export function MarketSessionBanner() {
                     fontSize: '9px',
                     fontWeight: 700,
                     letterSpacing: '0.14em',
-                    textTransform: 'uppercase',
+                    textTransform: 'uppercase' as const,
                     color: marketClosed ? '#fcd34d' : '#6ee7b7',
                   }}
                 >
@@ -342,7 +369,7 @@ export function MarketSessionBanner() {
                       fontSize: '9px',
                       fontWeight: 700,
                       letterSpacing: '0.14em',
-                      textTransform: 'uppercase',
+                      textTransform: 'uppercase' as const,
                       color: '#fde68a',
                     }}
                   >
@@ -382,6 +409,7 @@ export function MarketSessionBanner() {
                 border: '1px solid rgba(255,255,255,0.08)',
                 background: 'rgba(0,0,0,0.25)',
                 padding: '4px 10px',
+                flexShrink: 0,
               }}
             >
               <Clock3 style={{ width: 11, height: 11, color: '#71717a' }} />
@@ -399,7 +427,7 @@ export function MarketSessionBanner() {
           </div>
 
           {/* Timeline */}
-          <div style={{ position: 'relative', marginBottom: '10px' }}>
+          <div style={{ position: 'relative', marginBottom: '12px' }}>
             <div
               style={{
                 height: '6px',
@@ -492,7 +520,6 @@ export function MarketSessionBanner() {
                   padding: '10px 12px',
                   position: 'relative',
                   overflow: 'hidden',
-                  transition: 'all 0.5s ease',
                   boxShadow: s.active
                     ? `0 0 20px ${s.colorGlow}, inset 0 1px 0 ${s.colorDim}`
                     : 'none',
@@ -508,6 +535,21 @@ export function MarketSessionBanner() {
                       right: 0,
                       height: '2px',
                       background: `linear-gradient(90deg, ${s.colorPrimary}, ${s.colorSecondary})`,
+                    }}
+                  />
+                )}
+
+                {/* Subtle color tint on closed cards */}
+                {!s.active && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '3px',
+                      bottom: 0,
+                      background: `linear-gradient(180deg, ${s.colorPrimary}40, ${s.colorSecondary}20)`,
+                      borderRadius: '10px 0 0 10px',
                     }}
                   />
                 )}
@@ -528,7 +570,7 @@ export function MarketSessionBanner() {
                       gap: '6px',
                     }}
                   >
-                    <span style={{ fontSize: '16px', lineHeight: 1 }}>
+                    <span style={{ fontSize: '15px', lineHeight: 1 }}>
                       {s.flag}
                     </span>
                     <div>
@@ -548,7 +590,7 @@ export function MarketSessionBanner() {
                         style={{
                           fontFamily: 'var(--font-sans)',
                           fontSize: '9px',
-                          color: '#3f3f46',
+                          color: s.active ? '#71717a' : '#3f3f46',
                           lineHeight: 1,
                         }}
                       >
@@ -561,7 +603,7 @@ export function MarketSessionBanner() {
                     style={{
                       borderRadius: '6px',
                       border: `1px solid ${
-                        s.active ? s.colorBorder : 'rgba(255,255,255,0.08)'
+                        s.active ? s.colorBorder : 'rgba(255,255,255,0.07)'
                       }`,
                       background: s.active
                         ? s.colorBg
@@ -581,7 +623,6 @@ export function MarketSessionBanner() {
                           background: s.colorSecondary,
                           display: 'inline-block',
                           boxShadow: `0 0 6px ${s.colorPrimary}`,
-                          animation: 'pulse 2s infinite',
                         }}
                       />
                     )}
@@ -591,11 +632,11 @@ export function MarketSessionBanner() {
                         fontSize: '8px',
                         fontWeight: 700,
                         letterSpacing: '0.12em',
-                        textTransform: 'uppercase',
+                        textTransform: 'uppercase' as const,
                         color: s.active
                           ? s.colorText
                           : marketClosed
-                          ? '#a16207'
+                          ? '#78350f'
                           : '#3f3f46',
                       }}
                     >
@@ -622,7 +663,7 @@ export function MarketSessionBanner() {
                   >
                     {s.startIL} – {s.endIL} IL
                   </span>
-                  {s.active && (
+                  {s.active ? (
                     <span
                       style={{
                         fontFamily: 'var(--font-mono)',
@@ -633,61 +674,109 @@ export function MarketSessionBanner() {
                     >
                       {hm(s.remainingMs)} left
                     </span>
-                  )}
-                </div>
-
-                {/* Progress bar */}
-                <div
-                  style={{
-                    height: '3px',
-                    borderRadius: '2px',
-                    background: 'rgba(255,255,255,0.06)',
-                    overflow: 'hidden',
-                    marginBottom: s.active ? '6px' : '0',
-                  }}
-                >
-                  {s.active && (
-                    <div
-                      style={{
-                        height: '100%',
-                        width: `${Math.max(3, s.progressPct)}%`,
-                        background: `linear-gradient(90deg, ${s.colorPrimary}, ${s.colorSecondary})`,
-                        borderRadius: '2px',
-                        boxShadow: `0 0 6px ${s.colorPrimary}`,
-                        transition: 'width 1s linear',
-                      }}
-                    />
-                  )}
-                </div>
-
-                {/* Countdown + percent */}
-                {s.active && (
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                    }}
-                  >
+                  ) : !marketClosed && s.opensInMs > 0 ? (
                     <span
                       style={{
                         fontFamily: 'var(--font-mono)',
                         fontSize: '9px',
-                        color: s.colorText,
+                        color: '#52525b',
                       }}
                     >
-                      {Math.round(s.progressPct)}%
+                      in {hm(s.opensInMs)}
                     </span>
-                    <span
+                  ) : null}
+                </div>
+
+                {/* Progress bar — only shown when active */}
+                {s.active ? (
+                  <div>
+                    <div
                       style={{
-                        fontFamily: 'var(--font-mono)',
-                        fontSize: '10px',
-                        color: '#d4d4d8',
-                        letterSpacing: '0.04em',
+                        height: '4px',
+                        borderRadius: '3px',
+                        background: 'rgba(255,255,255,0.06)',
+                        overflow: 'hidden',
+                        marginBottom: '6px',
+                        border: `1px solid ${s.colorDim}`,
                       }}
                     >
-                      {hms(s.remainingMs)}
-                    </span>
+                      <div
+                        style={{
+                          height: '100%',
+                          width: `${Math.max(3, s.progressPct)}%`,
+                          background: `linear-gradient(90deg, ${s.colorPrimary}, ${s.colorSecondary})`,
+                          borderRadius: '3px',
+                          boxShadow: `0 0 8px ${s.colorPrimary}`,
+                        }}
+                      />
+                    </div>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: '9px',
+                          color: s.colorText,
+                        }}
+                      >
+                        {Math.round(s.progressPct)}% elapsed
+                      </span>
+                      <span
+                        style={{
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: '10px',
+                          color: '#d4d4d8',
+                          letterSpacing: '0.04em',
+                        }}
+                      >
+                        {hms(s.remainingMs)}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  /* Closed state: show a dim colored "next open" bar */
+                  <div>
+                    <div
+                      style={{
+                        height: '3px',
+                        borderRadius: '3px',
+                        background: 'rgba(255,255,255,0.04)',
+                        overflow: 'hidden',
+                        border: '1px solid rgba(255,255,255,0.05)',
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: '100%',
+                          width: '100%',
+                          background: `linear-gradient(90deg, ${s.colorPrimary}20, ${s.colorSecondary}10)`,
+                        }}
+                      />
+                    </div>
+                    {!marketClosed && s.opensInMs > 0 && (
+                      <div
+                        style={{
+                          marginTop: '5px',
+                          display: 'flex',
+                          justifyContent: 'flex-end',
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: '9px',
+                            color: '#3f3f46',
+                          }}
+                        >
+                          Opens {hm(s.opensInMs)}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
