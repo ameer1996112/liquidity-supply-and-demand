@@ -12,19 +12,36 @@ interface SessionRingProps {
   className?: string;
 }
 
-/** Detect current trading session from UTC hour */
-function getCurrentSession(): { name: string; color: string } {
-  const hour = new Date().getUTCHours();
-  if (hour >= 0 && hour < 7) return { name: 'Tokyo', color: '#3b82f6' };
-  if (hour >= 7 && hour < 12) return { name: 'London', color: '#0ecb81' };
-  if (hour >= 12 && hour < 17) return { name: 'NY', color: '#f0b90b' };
-  if (hour >= 17 && hour < 21) return { name: 'NY Close', color: '#a78bfa' };
-  return { name: 'Off', color: '#64748b' };
+/** Detect current trading session from UTC time, respecting weekend close */
+function getCurrentSession(): { name: string; color: string; closed: boolean } {
+  const now = new Date();
+  const day = now.getUTCDay(); // 0=Sun, 1=Mon, ..., 5=Fri, 6=Sat
+  const hour = now.getUTCHours();
+
+  // Forex market closed: Sat all day, Sun before 22:00, Fri after 22:00
+  const isWeekendClosed =
+    day === 6 || // Saturday
+    (day === 0 && hour < 22) || // Sunday before 22:00 UTC
+    (day === 5 && hour >= 22); // Friday after 22:00 UTC
+
+  if (isWeekendClosed)
+    return { name: 'Closed', color: '#64748b', closed: true };
+
+  if (hour >= 0 && hour < 7)
+    return { name: 'Tokyo', color: '#3b82f6', closed: false };
+  if (hour >= 7 && hour < 12)
+    return { name: 'London', color: '#0ecb81', closed: false };
+  if (hour >= 12 && hour < 17)
+    return { name: 'NY', color: '#f0b90b', closed: false };
+  if (hour >= 17 && hour < 21)
+    return { name: 'NY Close', color: '#a78bfa', closed: false };
+  return { name: 'Off', color: '#64748b', closed: false };
 }
 
 /**
  * Compact session P&L chip — fits inline in the dashboard header bar.
  * Shows: session dot · P&L value · thin progress bar toward daily target.
+ * Renders a "Market Closed" pill on weekends.
  */
 export function SessionRing({
   todayPnl,
@@ -41,7 +58,9 @@ export function SessionRing({
 
   const isPositive = pnl >= 0;
   const isTargetHit = pnl >= dailyTarget;
-  const mainColor = isTargetHit
+  const mainColor = session.closed
+    ? '#64748b'
+    : isTargetHit
     ? '#f0b90b'
     : isPositive
     ? '#0ecb81'
@@ -49,6 +68,38 @@ export function SessionRing({
 
   const pnlStr = `${pnl >= 0 ? '+' : ''}$${Math.abs(pnl).toFixed(2)}`;
 
+  // ── Weekend / market closed state ─────────────────────────────────────────
+  if (session.closed) {
+    return (
+      <div
+        className={cn(
+          'flex items-center gap-2 rounded-lg border px-2.5 py-1.5',
+          className
+        )}
+        style={{
+          borderColor: 'rgba(100,116,139,0.2)',
+          backgroundColor: 'rgba(100,116,139,0.06)',
+          backdropFilter: 'blur(8px)',
+        }}
+      >
+        <span className='h-1.5 w-1.5 rounded-full bg-slate-500 flex-shrink-0' />
+        <span
+          className='text-[10px] font-bold uppercase tracking-widest text-slate-500'
+          style={{ fontFamily: 'var(--font-mono)' }}
+        >
+          Market Closed
+        </span>
+        <span
+          className='text-[9px] text-slate-600 hidden sm:inline'
+          style={{ fontFamily: 'var(--font-mono)' }}
+        >
+          · opens Sun 22:00 UTC
+        </span>
+      </div>
+    );
+  }
+
+  // ── Live session state ────────────────────────────────────────────────────
   return (
     <div
       className={cn(
@@ -91,9 +142,8 @@ export function SessionRing({
         </span>
       </FlashValue>
 
-      {/* Progress arc — thin vertical stack */}
+      {/* Progress bar + label */}
       <div className='flex flex-col items-end gap-0.5'>
-        {/* Mini arc bar */}
         <div className='w-14 h-1 rounded-full overflow-hidden bg-white/6'>
           <div
             className='h-full rounded-full transition-all duration-700'
@@ -117,7 +167,7 @@ export function SessionRing({
         </span>
       </div>
 
-      {/* Win/Loss counts — only if data available */}
+      {/* Win/Loss counts */}
       {(winCount != null || lossCount != null) && (
         <>
           <span className='h-3 w-px bg-white/10' />
