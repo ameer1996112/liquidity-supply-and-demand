@@ -13,6 +13,7 @@ import { X, Pencil, Scissors, Loader2 } from 'lucide-react';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { ClientDate } from '@/components/ui/ClientDate';
 import { PnLText } from '@/components/ui/typography';
+import { FlashValue } from '@/components/ui/AnimatedNumber';
 import { useConnectionHealth } from '@/hooks/useConnectionHealth';
 
 function PriceLabel({ label, value }: { label: string; value: number | null }) {
@@ -51,7 +52,9 @@ export function PositionCard({ position }: { position: ActivePosition }) {
       <div
         className={cn(
           'tv-card border-l-2 transition-colors',
-          pnlPositive ? 'border-l-[var(--to-long)]' : 'border-l-[var(--to-short)]',
+          pnlPositive
+            ? 'border-l-[var(--to-long)]'
+            : 'border-l-[var(--to-short)]'
         )}
       >
         <div className='p-4 space-y-3'>
@@ -66,7 +69,7 @@ export function PositionCard({ position }: { position: ActivePosition }) {
                   'font-mono text-[10px] px-1.5 py-0.5 rounded font-semibold uppercase',
                   isBuy
                     ? 'bg-[var(--to-long)]/15 text-[var(--to-long)]'
-                    : 'bg-[var(--to-short)]/15 text-[var(--to-short)]',
+                    : 'bg-[var(--to-short)]/15 text-[var(--to-short)]'
                 )}
               >
                 {position.side}
@@ -78,11 +81,13 @@ export function PositionCard({ position }: { position: ActivePosition }) {
               )}
             </div>
             <div className='text-right'>
-              <PnLText
-                value={position.live_pnl}
-                variant='currency'
-                size='xl'
-              />
+              <FlashValue value={position.live_pnl ?? 0}>
+                <PnLText
+                  value={position.live_pnl}
+                  variant='currency'
+                  size='xl'
+                />
+              </FlashValue>
             </div>
           </div>
 
@@ -103,7 +108,10 @@ export function PositionCard({ position }: { position: ActivePosition }) {
             {position.created_at ? (
               <ClientDate
                 render={() =>
-                  `Hold: ${formatDistanceToNowStrict(new Date(position.created_at!), { addSuffix: false })}`
+                  `Hold: ${formatDistanceToNowStrict(
+                    new Date(position.created_at!),
+                    { addSuffix: false }
+                  )}`
                 }
               />
             ) : (
@@ -119,7 +127,7 @@ export function PositionCard({ position }: { position: ActivePosition }) {
               disabled={closePosition.isPending || !isConnected}
               className={cn(
                 'flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-mono font-semibold uppercase tracking-wider transition-colors',
-                'bg-[var(--to-short)]/15 text-[var(--to-short)] hover:bg-[var(--to-short)]/25 disabled:opacity-60 disabled:cursor-not-allowed',
+                'bg-[var(--to-short)]/15 text-[var(--to-short)] hover:bg-[var(--to-short)]/25 disabled:opacity-60 disabled:cursor-not-allowed'
               )}
             >
               {closePosition.isPending ? (

@@ -20,6 +20,9 @@ import { useDashboardLog } from '@/hooks/useDashboardLog';
 import { MarketSessionBanner } from '@/components/dashboard/MarketSessionBanner';
 import { PageStatusBanner } from '@/components/shared/PageStatusBanner';
 import { TableSkeleton } from '@/components/shared/TableStates';
+import { SessionRing } from '@/components/dashboard/SessionRing';
+import { LivePnlTicker } from '@/components/dashboard/LivePnlTicker';
+import { BestSetupCard } from '@/components/dashboard/BestSetupCard';
 import {
   formatCurrency,
   formatNumber,
@@ -41,6 +44,7 @@ import {
   isSignalOpen,
   isSignalRejected,
 } from '@/domain/metrics/tradingMetrics';
+import { getScore } from '@/types/trading';
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -201,6 +205,56 @@ export default function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [latestSignal?.id]);
 
+  // ── Sparkline data (derived from recent signals) ────────────────────────────
+
+  const recentClosed = useMemo(
+    () =>
+      signals
+        .filter((s) => s.pnl != null || s.pnl_usd != null)
+        .slice(0, 14)
+        .reverse(),
+    [signals]
+  );
+
+  const pnlSparkline = useMemo(
+    () => recentClosed.map((s) => s.pnl ?? s.pnl_usd ?? 0),
+    [recentClosed]
+  );
+
+  const winRateSparkline = useMemo(() => {
+    const closed = recentClosed;
+    if (closed.length < 2) return [];
+    return closed.map((_, i) => {
+      const slice = closed.slice(0, i + 1);
+      const wins = slice.filter((s) => (s.pnl ?? s.pnl_usd ?? 0) > 0).length;
+      return (wins / slice.length) * 100;
+    });
+  }, [recentClosed]);
+
+  const scoreSparkline = useMemo(
+    () =>
+      signals
+        .slice(0, 14)
+        .reverse()
+        .map((s) => getScore(s) ?? 50),
+    [signals]
+  );
+
+  // Best setup: highest AI score signal from today
+  const bestSetupSignal = useMemo(() => {
+    const dayStart = new Date();
+    dayStart.setHours(0, 0, 0, 0);
+    const todaySignals = signals.filter(
+      (s) => new Date(s.created_at) >= dayStart
+    );
+    if (todaySignals.length === 0) return null;
+    return todaySignals.reduce((best, s) => {
+      const bScore = getScore(best) ?? 0;
+      const sScore = getScore(s) ?? 0;
+      return sScore > bScore ? s : best;
+    });
+  }, [signals, mounted]);
+
   const noData = signals.length === 0 && activePositionsCount === 0;
   const strategyName =
     latestSignal?.entry_model ?? latestSignal?.zone_type ?? 'Liquidity S&D';
@@ -266,7 +320,10 @@ export default function DashboardPage() {
             Live command center · telemetry first · 5-minute zones
           </p>
         </div>
-        <div className='flex items-center gap-2'>
+        <div className='flex items-center gap-2 flex-wrap justify-end'>
+          {mounted && todayPnl != null && (
+            <SessionRing todayPnl={todayPnl} dailyTarget={200} />
+          )}
           <span className='tf-badge'>
             <Radio className='h-3 w-3' />
             5M
@@ -280,6 +337,9 @@ export default function DashboardPage() {
 
       {/* ── Market Session Banner ───────────────────────────────── */}
       <MarketSessionBanner />
+
+      {/* ── Live P&L Ticker (open positions) ────────────────────── */}
+      {mounted && <LivePnlTicker signals={signals} />}
 
       {/* ── Top row · Stat bento ───────────────────────────────── */}
       <section className='shrink-0'>
@@ -318,6 +378,7 @@ export default function DashboardPage() {
                   : EMPTY_VALUE
               }
               icon={Wallet}
+              sparklineData={pnlSparkline}
               className='animate-fade-in-up'
             />
             <StatCard
@@ -336,6 +397,7 @@ export default function DashboardPage() {
                   : EMPTY_VALUE
               }
               icon={TrendingUp}
+              sparklineData={pnlSparkline}
               className='animate-fade-in-up'
             />
             <StatCard
@@ -356,6 +418,7 @@ export default function DashboardPage() {
                   : EMPTY_VALUE
               }
               icon={Target}
+              sparklineData={winRateSparkline}
               className='animate-fade-in-up'
             />
             <StatCard
@@ -421,6 +484,7 @@ export default function DashboardPage() {
                   : EMPTY_VALUE
               }
               icon={Clock}
+              sparklineData={scoreSparkline}
               className='animate-fade-in-up'
             />
           </div>
@@ -484,8 +548,11 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* Side rail · Risk status + Live log */}
+        {/* Side rail · Best Setup + Risk status + Live log */}
         <aside className='flex min-h-0 w-full flex-col gap-2 xl:w-[360px]'>
+          {bestSetupSignal && (
+            <BestSetupCard signal={bestSetupSignal} className='shrink-0' />
+          )}
           <section className='glow-card shrink-0'>
             <div className='to-panel-header'>
               <div className='flex items-center gap-2'>

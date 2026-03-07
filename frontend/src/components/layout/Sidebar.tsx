@@ -20,6 +20,7 @@ import {
   SlidersHorizontal,
   Bell,
   Trophy,
+  ScanLine,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSidebar } from '@/providers/SidebarProvider';
@@ -92,6 +93,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Monitoring',
     items: [
       { label: 'Risk Monitor', icon: Gauge, path: '/risk' },
+      { label: 'Scanner', icon: ScanLine, path: '/scanner' },
       { label: 'Alerts', icon: Bell, path: '/alerts' },
       { label: 'Prop Firm', icon: Trophy, path: '/prop-firm' },
     ],

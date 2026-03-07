@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { CommandPalette } from './CommandPalette';
+import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
 import { AICopilot } from '@/components/copilot/AICopilot';
 import { LiveMarketPanel } from '@/components/market/LiveMarketPanel';
 import { useSidebar } from '@/providers/SidebarProvider';
@@ -58,6 +59,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <>
       <CommandPalette />
+      <KeyboardShortcutsModal />
       <AICopilot open={copilotOpen} onClose={closeCopilot} />
       <LiveMarketPanel open={marketOpen} onClose={closeMarket} />
       <div className='relative min-h-screen bg-background'>

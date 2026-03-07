@@ -11,13 +11,45 @@ import {
   Settings,
   AlertCircle,
   Info,
+  Activity,
 } from 'lucide-react';
 import { useConnectionHealth } from '@/hooks/useConnectionHealth';
 import { PageStatusBanner } from '@/components/shared/PageStatusBanner';
+import { CircularGauge } from '@/components/ui/CircularGauge';
+
+// ── Composite Risk Score ──────────────────────────────────────────────────────
+
+function computeRiskScore(data: {
+  daily_risk: { loss_pct: number };
+  drawdown: { dd_utilization_pct: number };
+  position_limits: { open_positions: number; max_positions: number };
+  guard_rails: GuardRailStatus[];
+}): { score: number; label: string; color: string } {
+  const dailyLossScore = Math.min(data.daily_risk.loss_pct, 100);
+  const ddScore = Math.min(data.drawdown.dd_utilization_pct, 100);
+  const posScore =
+    data.position_limits.max_positions > 0
+      ? (data.position_limits.open_positions /
+          data.position_limits.max_positions) *
+        100
+      : 0;
+  const criticalRails = data.guard_rails.filter(
+    (r) => r.severity === 'critical'
+  ).length;
+  const railScore = Math.min(criticalRails * 25, 100);
+
+  const score = Math.round(
+    dailyLossScore * 0.35 + ddScore * 0.35 + posScore * 0.15 + railScore * 0.15
+  );
+
+  if (score >= 75) return { score, label: 'Critical', color: '#f6465d' };
+  if (score >= 50) return { score, label: 'Elevated', color: '#f0b90b' };
+  if (score >= 25) return { score, label: 'Moderate', color: '#3b82f6' };
+  return { score, label: 'Low', color: '#0ecb81' };
+}
 
 export default function RiskMonitorPage() {
   const { data, isLoading, error } = useRiskMonitor();
-
   const { status } = useConnectionHealth();
 
   if (error) {
@@ -29,7 +61,7 @@ export default function RiskMonitorPage() {
             Real-time risk state from Pine Script
           </p>
         </div>
-        <PageStatusBanner status={status} surfaceLabel="Risk decisions" />
+        <PageStatusBanner status={status} surfaceLabel='Risk decisions' />
       </div>
     );
   }
@@ -44,7 +76,7 @@ export default function RiskMonitorPage() {
         </p>
       </div>
 
-      <PageStatusBanner status={status} surfaceLabel="Risk decisions" />
+      <PageStatusBanner status={status} surfaceLabel='Risk decisions' />
 
       {/* Info banner */}
       <div className='flex items-start gap-2.5 rounded-lg border border-indigo-500/20 bg-indigo-500/8 px-3 py-2.5'>
@@ -63,6 +95,48 @@ export default function RiskMonitorPage() {
         <LoadingSkeleton />
       ) : data ? (
         <>
+          {/* ── Composite Risk Score + Circular Gauges ── */}
+          <div className='grid grid-cols-1 gap-3 lg:grid-cols-3'>
+            <CompositeRiskScore data={data} />
+
+            {/* Daily Loss Gauge */}
+            <div className='tv-card flex flex-col items-center justify-center p-5'>
+              <CircularGauge
+                value={data.daily_risk.loss_pct}
+                limit={100}
+                label='Daily Loss'
+                sublabel={`$${data.daily_risk.loss_used_usd.toFixed(
+                  0
+                )} / $${data.daily_risk.loss_limit_usd.toFixed(0)}`}
+                size={120}
+                colorZones={[
+                  { at: 50, color: '#f0b90b' },
+                  { at: 80, color: '#f6465d' },
+                ]}
+                unit='%'
+              />
+            </div>
+
+            {/* Drawdown Gauge */}
+            <div className='tv-card flex flex-col items-center justify-center p-5'>
+              <CircularGauge
+                value={data.drawdown.dd_utilization_pct}
+                limit={100}
+                label='Drawdown Used'
+                sublabel={`${data.drawdown.current_dd_pct.toFixed(
+                  2
+                )}% / ${data.drawdown.max_dd_allowed_pct.toFixed(1)}% max`}
+                size={120}
+                colorZones={[
+                  { at: 50, color: '#f0b90b' },
+                  { at: 80, color: '#f6465d' },
+                ]}
+                unit='%'
+              />
+            </div>
+          </div>
+
+          {/* ── Detail cards ── */}
           <div className='grid grid-cols-1 gap-3 lg:grid-cols-2'>
             <DailyRiskCard data={data.daily_risk} />
             <PositionLimitsCard data={data.position_limits} />
@@ -89,6 +163,117 @@ export default function RiskMonitorPage() {
     </div>
   );
 }
+
+// ── Composite Risk Score Card ─────────────────────────────────────────────────
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function CompositeRiskScore({ data }: { data: any }) {
+  const { score, label, color } = computeRiskScore(data);
+
+  return (
+    <div
+      className='tv-card flex flex-col items-center justify-center gap-3 p-5'
+      style={{ borderColor: `${color}25` }}
+    >
+      <div className='flex items-center gap-2'>
+        <Activity className='h-3.5 w-3.5' style={{ color }} />
+        <span
+          className='text-[10px] font-bold uppercase tracking-[0.18em]'
+          style={{ color, fontFamily: 'var(--font-mono)' }}
+        >
+          Risk Score
+        </span>
+      </div>
+
+      {/* Score ring */}
+      <div className='relative flex items-center justify-center'>
+        <svg width={120} height={120} viewBox='0 0 120 120'>
+          <circle
+            cx={60}
+            cy={60}
+            r={46}
+            fill='none'
+            stroke='#1e2329'
+            strokeWidth={10}
+          />
+          <circle
+            cx={60}
+            cy={60}
+            r={46}
+            fill='none'
+            stroke={color}
+            strokeWidth={10}
+            strokeLinecap='round'
+            strokeDasharray={`${(score / 100) * 289} 289`}
+            transform='rotate(-90 60 60)'
+            style={{ transition: 'stroke-dasharray 0.6s ease' }}
+          />
+        </svg>
+        <div className='absolute flex flex-col items-center'>
+          <span
+            className='text-[28px] font-bold tabular-nums leading-none'
+            style={{ color, fontFamily: 'var(--font-mono)' }}
+          >
+            {score}
+          </span>
+          <span
+            className='text-[9px] font-bold uppercase tracking-widest mt-0.5'
+            style={{ color, fontFamily: 'var(--font-mono)' }}
+          >
+            {label}
+          </span>
+        </div>
+      </div>
+
+      <div className='w-full space-y-1'>
+        {[
+          { label: 'Daily Loss', value: data.daily_risk.loss_pct },
+          { label: 'Drawdown', value: data.drawdown.dd_utilization_pct },
+          {
+            label: 'Positions',
+            value:
+              data.position_limits.max_positions > 0
+                ? (data.position_limits.open_positions /
+                    data.position_limits.max_positions) *
+                  100
+                : 0,
+          },
+        ].map((item) => (
+          <div key={item.label} className='flex items-center gap-2'>
+            <span
+              className='w-20 text-[9px] text-[var(--to-text-dim)]'
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >
+              {item.label}
+            </span>
+            <div className='flex-1 h-1 rounded-full bg-[#1e2329] overflow-hidden'>
+              <div
+                className='h-full rounded-full transition-all'
+                style={{
+                  width: `${Math.min(item.value, 100)}%`,
+                  backgroundColor:
+                    item.value > 80
+                      ? '#f6465d'
+                      : item.value > 50
+                      ? '#f0b90b'
+                      : '#0ecb81',
+                }}
+              />
+            </div>
+            <span
+              className='w-8 text-right text-[9px] tabular-nums text-[var(--to-text-dim)]'
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >
+              {item.value.toFixed(0)}%
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Panel Card wrapper ────────────────────────────────────────────────────────
 
 function PanelCard({
   icon,
@@ -121,8 +306,8 @@ function DailyRiskCard({ data }: { data: any }) {
     data.loss_pct > 80
       ? 'bg-red-500'
       : data.loss_pct > 50
-        ? 'bg-amber-500'
-        : 'bg-emerald-500';
+      ? 'bg-amber-500'
+      : 'bg-emerald-500';
 
   return (
     <PanelCard
@@ -157,7 +342,6 @@ function DailyRiskCard({ data }: { data: any }) {
           {data.loss_pct.toFixed(1)}% utilization
         </div>
       </div>
-
       <div className='border-t border-slate-800 pt-2'>
         <div className='flex justify-between text-xs'>
           <span
@@ -174,7 +358,6 @@ function DailyRiskCard({ data }: { data: any }) {
           </span>
         </div>
       </div>
-
       {data.profit_current_usd > 0 && (
         <div className='border-t border-slate-800 pt-2'>
           <div className='flex justify-between text-xs'>
@@ -261,8 +444,8 @@ function DrawdownCard({ data }: { data: any }) {
     data.dd_utilization_pct > 80
       ? 'bg-red-500'
       : data.dd_utilization_pct > 50
-        ? 'bg-amber-500'
-        : 'bg-emerald-500';
+      ? 'bg-amber-500'
+      : 'bg-emerald-500';
 
   return (
     <PanelCard
@@ -298,7 +481,6 @@ function DrawdownCard({ data }: { data: any }) {
           {data.dd_utilization_pct.toFixed(0)}% of max drawdown used
         </div>
       </div>
-
       <div className='grid grid-cols-2 gap-3 border-t border-slate-800 pt-2'>
         <div>
           <div
@@ -439,7 +621,7 @@ function SymbolOverridesCard({ data }: { data: any[] }) {
                   >
                     {h}
                   </th>
-                ),
+                )
               )}
             </tr>
           </thead>
@@ -506,7 +688,7 @@ function StatusBadge({ severity }: { severity: string }) {
     <span
       className={cn(
         'rounded px-1.5 py-0.5 text-[9px] font-bold',
-        styles[severity] ?? styles.info,
+        styles[severity] ?? styles.info
       )}
       style={{ fontFamily: 'var(--font-mono)' }}
     >
@@ -518,6 +700,11 @@ function StatusBadge({ severity }: { severity: string }) {
 function LoadingSkeleton() {
   return (
     <>
+      <div className='grid grid-cols-1 gap-3 lg:grid-cols-3'>
+        <Skeleton className='h-56 rounded-lg bg-slate-800/60' />
+        <Skeleton className='h-56 rounded-lg bg-slate-800/60' />
+        <Skeleton className='h-56 rounded-lg bg-slate-800/60' />
+      </div>
       <div className='grid grid-cols-1 gap-3 lg:grid-cols-2'>
         <Skeleton className='h-44 rounded-lg bg-slate-800/60' />
         <Skeleton className='h-44 rounded-lg bg-slate-800/60' />

@@ -15,11 +15,14 @@ import { TradeTable } from '@/components/journal/TradeTable';
 import { SignalInspector } from '@/components/SignalInspector';
 import { exportTradesToCsv } from '@/lib/exportCsv';
 import { Skeleton } from '@/components/ui/skeleton';
-import { BookOpen } from 'lucide-react';
+import { BookOpen, CalendarDays, List, Flame, Snowflake } from 'lucide-react';
 import { useConnectionHealth } from '@/hooks/useConnectionHealth';
 import { PageStatusBanner } from '@/components/shared/PageStatusBanner';
 import { PanelEmptyState } from '@/components/shared/PanelEmptyState';
 import { PatternAnalysis } from '@/components/journal/PatternAnalysis';
+import { CalendarPnlView } from '@/components/journal/CalendarPnlView';
+import { cn } from '@/lib/utils';
+import { getPnl } from '@/types/trading';
 
 type StatusFilter = 'ALL' | SignalStatus;
 type ModeFilter = 'ALL' | TradingMode;
@@ -29,9 +32,10 @@ export default function JournalPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [modeFilter, setModeFilter] = useState<ModeFilter>('ALL');
   const [inspectSignal, setInspectSignal] = useState<TradingSignal | null>(
-    null,
+    null
   );
   const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'table' | 'calendar'>('table');
 
   const queryMode = modeFilter === 'ALL' ? undefined : modeFilter;
   const { data: signals, isLoading } = useJournalSignals(queryMode);
@@ -77,17 +81,89 @@ export default function JournalPage() {
 
   const { status } = useConnectionHealth();
 
+  // Streak calculation
+  const { currentStreak, streakType } = useMemo(() => {
+    if (!signals || signals.length === 0)
+      return { currentStreak: 0, streakType: 'none' as const };
+    const closed = signals.filter((s) => getPnl(s) != null);
+    if (closed.length === 0)
+      return { currentStreak: 0, streakType: 'none' as const };
+    const lastPnl = getPnl(closed[0]) ?? 0;
+    const type = lastPnl >= 0 ? 'win' : 'loss';
+    let count = 0;
+    for (const s of closed) {
+      const p = getPnl(s) ?? 0;
+      if ((type === 'win' && p >= 0) || (type === 'loss' && p < 0)) count++;
+      else break;
+    }
+    return {
+      currentStreak: count,
+      streakType: type as 'win' | 'loss' | 'none',
+    };
+  }, [signals]);
+
   return (
     <div className='space-y-4'>
       {/* Header */}
-      <div>
-        <div className='flex items-center gap-2'>
-          <BookOpen className='h-4 w-4 text-slate-400' />
-          <h1 className='page-title text-lg font-semibold'>Trade Journal</h1>
+      <div className='flex items-start justify-between gap-3 flex-wrap'>
+        <div>
+          <div className='flex items-center gap-2'>
+            <BookOpen className='h-4 w-4 text-slate-400' />
+            <h1 className='page-title text-lg font-semibold'>Trade Journal</h1>
+            {/* Streak indicator */}
+            {currentStreak >= 2 && (
+              <div
+                className={cn(
+                  'flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold',
+                  streakType === 'win'
+                    ? 'bg-[#0ecb81]/12 text-[#0ecb81] border border-[#0ecb81]/25'
+                    : 'bg-[#f6465d]/12 text-[#f6465d] border border-[#f6465d]/25'
+                )}
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                {streakType === 'win' ? (
+                  <Flame className='h-3 w-3' />
+                ) : (
+                  <Snowflake className='h-3 w-3' />
+                )}
+                {currentStreak} {streakType === 'win' ? 'W' : 'L'} streak
+              </div>
+            )}
+          </div>
+          <p className='page-subtitle mt-0.5 text-xs'>
+            Full history of signals, executions, and outcomes.
+          </p>
         </div>
-        <p className='page-subtitle mt-0.5 text-xs'>
-          Full history of signals, executions, and outcomes.
-        </p>
+
+        {/* View mode toggle */}
+        <div className='flex items-center gap-1 rounded-lg border border-[var(--to-border)] bg-[var(--to-surface)] p-0.5'>
+          <button
+            onClick={() => setViewMode('table')}
+            className={cn(
+              'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[10px] font-medium transition-colors',
+              viewMode === 'table'
+                ? 'bg-[var(--to-surface-raised)] text-[var(--to-text-primary)]'
+                : 'text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]'
+            )}
+            style={{ fontFamily: 'var(--font-sans)' }}
+          >
+            <List className='h-3 w-3' />
+            Table
+          </button>
+          <button
+            onClick={() => setViewMode('calendar')}
+            className={cn(
+              'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[10px] font-medium transition-colors',
+              viewMode === 'calendar'
+                ? 'bg-[var(--to-surface-raised)] text-[var(--to-text-primary)]'
+                : 'text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]'
+            )}
+            style={{ fontFamily: 'var(--font-sans)' }}
+          >
+            <CalendarDays className='h-3 w-3' />
+            Calendar
+          </button>
+        </div>
       </div>
 
       <PageStatusBanner status={status} surfaceLabel='Signals & journal' />
@@ -104,33 +180,51 @@ export default function JournalPage() {
         resultCount={filtered.length}
       />
 
-      {/* Pattern Analysis Insights */}
-      {signals && signals.length >= 3 && <PatternAnalysis signals={signals} />}
-
-      {/* Table */}
-      {isLoading ? (
-        <div className='space-y-1.5'>
-          {[...Array(8)].map((_, i) => (
-            <Skeleton key={i} className='h-9 rounded-lg bg-slate-800/60' />
-          ))}
-        </div>
-      ) : filtered.length > 0 ? (
-        <TradeTable signals={filtered} onInspect={handleInspect} />
+      {/* Calendar view */}
+      {viewMode === 'calendar' ? (
+        signals && signals.length > 0 ? (
+          <CalendarPnlView signals={signals} />
+        ) : (
+          <div className='tv-card p-4'>
+            <PanelEmptyState
+              title='No trade data'
+              description='Trades will appear here after execution.'
+            />
+          </div>
+        )
       ) : (
-        <div className='tv-card p-4'>
-          <PanelEmptyState
-            title={
-              signals && signals.length > 0
-                ? 'No matching trades'
-                : 'No trade data'
-            }
-            description={
-              signals && signals.length > 0
-                ? 'Adjust filters to see results.'
-                : 'Trades will appear here after execution.'
-            }
-          />
-        </div>
+        <>
+          {/* Pattern Analysis Insights */}
+          {signals && signals.length >= 3 && (
+            <PatternAnalysis signals={signals} />
+          )}
+
+          {/* Table */}
+          {isLoading ? (
+            <div className='space-y-1.5'>
+              {[...Array(8)].map((_, i) => (
+                <Skeleton key={i} className='h-9 rounded-lg bg-slate-800/60' />
+              ))}
+            </div>
+          ) : filtered.length > 0 ? (
+            <TradeTable signals={filtered} onInspect={handleInspect} />
+          ) : (
+            <div className='tv-card p-4'>
+              <PanelEmptyState
+                title={
+                  signals && signals.length > 0
+                    ? 'No matching trades'
+                    : 'No trade data'
+                }
+                description={
+                  signals && signals.length > 0
+                    ? 'Adjust filters to see results.'
+                    : 'Trades will appear here after execution.'
+                }
+              />
+            </div>
+          )}
+        </>
       )}
 
       <SignalInspector

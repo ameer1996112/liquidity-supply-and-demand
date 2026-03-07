@@ -3,6 +3,7 @@
 import { cn } from '@/lib/utils';
 import type { LucideIcon } from 'lucide-react';
 import { AnimatedNumber, FlashValue } from '@/components/ui/AnimatedNumber';
+import { MiniSparkline } from '@/components/ui/MiniSparkline';
 
 type Variant = 'default' | 'profit' | 'loss' | 'warning';
 
@@ -19,6 +20,8 @@ interface StatCardProps {
   numericFormat?: (v: number) => string;
   /** Show a trend indicator arrow */
   trend?: 'up' | 'down' | 'neutral';
+  /** Optional sparkline data (array of numbers) shown at the bottom */
+  sparklineData?: number[];
 }
 
 // Detect sign from value string
@@ -83,6 +86,7 @@ export function StatCard({
   numericValue,
   numericFormat,
   trend,
+  sparklineData,
 }: StatCardProps) {
   const resolvedVariant = variant ?? detectVariant(value);
   const cfg = VARIANT_CONFIG[resolvedVariant];
@@ -168,6 +172,19 @@ export function StatCard({
         >
           {subValue}
         </p>
+      )}
+
+      {/* Sparkline */}
+      {sparklineData && sparklineData.length >= 2 && (
+        <div className='mt-2 opacity-70 group-hover:opacity-100 transition-opacity'>
+          <MiniSparkline
+            data={sparklineData}
+            width={120}
+            height={22}
+            strokeWidth={1.5}
+            fill
+          />
+        </div>
       )}
 
       {/* Bottom accent bar */}
