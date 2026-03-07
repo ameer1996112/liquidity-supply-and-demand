@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import { Activity, Clock, AlertTriangle } from 'lucide-react';
+import { Activity, Clock, AlertTriangle, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type Session = {
@@ -12,6 +12,9 @@ type Session = {
   endUtcH: number;
   accentColor: string;
   accentBg: string;
+  textColor: string;
+  gradientFrom: string;
+  gradientTo: string;
 };
 
 const SESSIONS: Session[] = [
@@ -21,8 +24,11 @@ const SESSIONS: Session[] = [
     city: 'Australia',
     startUtcH: 22,
     endUtcH: 7,
-    accentColor: 'border-cyan-500/50',
+    accentColor: 'border-cyan-500/30',
     accentBg: 'bg-cyan-500',
+    textColor: 'text-cyan-400',
+    gradientFrom: 'from-cyan-950/40',
+    gradientTo: 'to-cyan-900/10',
   },
   {
     id: 'tokyo',
@@ -30,8 +36,11 @@ const SESSIONS: Session[] = [
     city: 'Japan',
     startUtcH: 0,
     endUtcH: 9,
-    accentColor: 'border-blue-500/50',
+    accentColor: 'border-blue-500/30',
     accentBg: 'bg-blue-500',
+    textColor: 'text-blue-400',
+    gradientFrom: 'from-blue-950/40',
+    gradientTo: 'to-blue-900/10',
   },
   {
     id: 'london',
@@ -39,8 +48,11 @@ const SESSIONS: Session[] = [
     city: 'United Kingdom',
     startUtcH: 8,
     endUtcH: 17,
-    accentColor: 'border-indigo-500/50',
+    accentColor: 'border-indigo-500/30',
     accentBg: 'bg-indigo-500',
+    textColor: 'text-indigo-400',
+    gradientFrom: 'from-indigo-950/40',
+    gradientTo: 'to-indigo-900/10',
   },
   {
     id: 'newyork',
@@ -48,8 +60,11 @@ const SESSIONS: Session[] = [
     city: 'United States',
     startUtcH: 13,
     endUtcH: 22,
-    accentColor: 'border-emerald-500/50',
+    accentColor: 'border-emerald-500/30',
     accentBg: 'bg-emerald-500',
+    textColor: 'text-emerald-400',
+    gradientFrom: 'from-emerald-950/40',
+    gradientTo: 'to-emerald-900/10',
   },
 ];
 
@@ -229,127 +244,161 @@ export function MarketSessionBanner() {
 
   return (
     <section className='shrink-0'>
-      <div className='rounded-sm border border-white/5 bg-[#09090b] p-3'>
+      <div className='rounded-md border border-zinc-800/80 bg-[#09090b] p-3'>
         {/* Header */}
         <div className='mb-3 flex items-center justify-between'>
           <div className='flex items-center gap-2 flex-wrap'>
-            <span className='inline-flex items-center gap-1 rounded-sm border border-white/5 bg-[#121214] px-2 py-1'>
+            <div
+              className={cn(
+                'flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 transition-colors',
+                isWeekendClosed
+                  ? 'border-amber-800/30 bg-gradient-to-r from-amber-950/40 to-amber-900/10'
+                  : 'border-zinc-800 bg-gradient-to-r from-zinc-900/40 to-zinc-800/10'
+              )}
+            >
               <Activity
                 className={cn(
-                  'h-3 w-3',
+                  'h-3.5 w-3.5',
                   isWeekendClosed ? 'text-amber-400' : 'text-zinc-400'
                 )}
               />
-              <span className='font-sans text-[10px] uppercase tracking-[0.12em] text-zinc-300'>
+              <span className='font-sans text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-300'>
                 {isWeekendClosed
                   ? 'Market Closed (Weekend)'
                   : 'Market Sessions'}
               </span>
-            </span>
+            </div>
 
             {isHighVolumeOverlap && !isWeekendClosed && (
-              <span className='inline-flex items-center gap-1 rounded-sm border border-amber-500/30 bg-[#121214] px-2 py-1 animate-pulse'>
-                <Activity className='h-3 w-3 text-amber-400' />
-                <span className='font-sans text-[10px] uppercase tracking-[0.12em] text-amber-300'>
+              <div className='flex items-center gap-1.5 rounded-md border border-amber-800/30 bg-gradient-to-r from-amber-950/40 to-amber-900/10 px-2.5 py-1.5 animate-pulse'>
+                <Activity className='h-3.5 w-3.5 text-amber-400' />
+                <span className='font-sans text-[10px] font-medium uppercase tracking-[0.12em] text-amber-300'>
                   High Volume Overlap
                 </span>
-              </span>
+              </div>
             )}
 
             {isWeekendClosed && (
-              <span className='inline-flex items-center gap-1 rounded-sm border border-amber-500/30 bg-[#121214] px-2 py-1'>
-                <AlertTriangle className='h-3 w-3 text-amber-400' />
-                <span className='font-mono text-[10px] text-amber-300'>
+              <div className='flex items-center gap-1.5 rounded-md border border-amber-800/30 bg-gradient-to-r from-amber-950/40 to-amber-900/10 px-2.5 py-1.5'>
+                <AlertTriangle className='h-3.5 w-3.5 text-amber-400' />
+                <span className='font-mono text-[10px] font-medium text-amber-300'>
                   Opens in {formatDuration(weekendOpenMs)}
                 </span>
-              </span>
+              </div>
             )}
           </div>
 
-          <div className='inline-flex items-center gap-1 rounded-sm border border-white/5 bg-[#121214] px-2 py-1'>
-            <Clock className='h-3 w-3 text-zinc-400' />
-            <span className='font-mono text-[11px] text-zinc-300'>
+          <div className='flex items-center gap-1.5 rounded-md border border-zinc-800 bg-gradient-to-r from-zinc-900/40 to-zinc-800/10 px-2.5 py-1.5'>
+            <Clock className='h-3.5 w-3.5 text-zinc-400' />
+            <span className='font-mono text-[11px] font-medium text-zinc-300'>
               {israelDayString} {israelTimeString} IL
             </span>
           </div>
         </div>
 
         {/* Session Cards */}
-        <div className='grid grid-cols-1 gap-2 xl:grid-cols-4'>
+        <div className='grid grid-cols-1 gap-3 xl:grid-cols-4'>
           {sessionStates.map((session) => (
             <div
               key={session.id}
               className={cn(
-                'rounded-sm border bg-[#121214] px-3 py-2',
-                'border-white/5',
-                session.isActive ? session.accentColor : 'border-white/5',
-                !session.isActive && 'opacity-60'
+                'group relative overflow-hidden rounded-md border transition-all duration-300',
+                'bg-gradient-to-br',
+                session.gradientFrom,
+                session.gradientTo,
+                session.isActive ? session.accentColor : 'border-zinc-800/80',
+                !session.isActive && 'opacity-75'
               )}
             >
-              <div className='mb-1 flex items-center justify-between'>
-                <div>
-                  <p
+              {/* Top accent line for active sessions */}
+              {session.isActive && (
+                <div
+                  className={cn(
+                    'absolute inset-x-0 top-0 h-[2px]',
+                    session.accentBg
+                  )}
+                />
+              )}
+
+              <div className='p-3'>
+                <div className='mb-2 flex items-center justify-between'>
+                  <div>
+                    <p
+                      className={cn(
+                        'font-sans text-[13px] font-medium leading-none',
+                        session.isActive ? 'text-white' : 'text-zinc-400'
+                      )}
+                    >
+                      {session.name}
+                    </p>
+                    <p className='mt-1 font-sans text-[10px] text-zinc-500'>
+                      {session.city}
+                    </p>
+                  </div>
+
+                  <div
                     className={cn(
-                      'font-sans text-[12px] leading-none',
-                      session.isActive ? 'text-white' : 'text-zinc-500'
+                      'flex items-center gap-1.5 rounded-md border px-2 py-1',
+                      session.isActive
+                        ? cn(
+                            'border-zinc-700/50 bg-black/20',
+                            session.textColor
+                          )
+                        : isWeekendClosed
+                        ? 'border-amber-900/30 bg-black/20 text-amber-700'
+                        : 'border-zinc-800/50 bg-black/20 text-zinc-500'
                     )}
                   >
-                    {session.name}
-                  </p>
-                  <p className='font-sans text-[10px] text-zinc-500'>
-                    {session.city}
-                  </p>
+                    {session.isActive && (
+                      <span
+                        className={cn(
+                          'h-1.5 w-1.5 rounded-full animate-pulse',
+                          session.accentBg
+                        )}
+                      />
+                    )}
+                    <span className='font-sans text-[9px] font-medium uppercase tracking-[0.12em]'>
+                      {isWeekendClosed
+                        ? 'Closed'
+                        : session.isActive
+                        ? 'Open'
+                        : 'Closed'}
+                    </span>
+                  </div>
                 </div>
 
-                <span
-                  className={cn(
-                    'rounded-sm border px-1.5 py-0.5 font-sans text-[9px] uppercase tracking-[0.12em]',
-                    session.isActive
-                      ? 'border-emerald-500/30 text-emerald-300'
-                      : isWeekendClosed
-                      ? 'border-amber-500/25 text-amber-300'
-                      : 'border-white/5 text-zinc-500'
-                  )}
-                >
-                  {isWeekendClosed
-                    ? 'Closed'
-                    : session.isActive
-                    ? 'Open'
-                    : 'Closed'}
-                </span>
-              </div>
-
-              <div className='mb-1.5 flex items-center justify-between'>
-                <span className='font-mono text-[10px] text-zinc-500'>
-                  {session.startIL} → {session.endIL} IL
-                </span>
-                {session.isActive && (
-                  <span
-                    className={cn(
-                      'font-mono text-[10px]',
-                      session.isActive ? 'text-zinc-300' : 'text-zinc-500'
-                    )}
-                  >
-                    {Math.round(session.progress)}% elapsed
+                <div className='mb-2 flex items-center justify-between'>
+                  <span className='font-mono text-[10px] text-zinc-500'>
+                    {session.startIL} → {session.endIL} IL
                   </span>
+                  {session.isActive && (
+                    <span
+                      className={cn(
+                        'font-mono text-[10px] font-medium',
+                        session.textColor
+                      )}
+                    >
+                      {Math.round(session.progress)}% elapsed
+                    </span>
+                  )}
+                </div>
+
+                {/* Progress bar - only shown for active sessions */}
+                {session.isActive ? (
+                  <div className='h-1 w-full overflow-hidden rounded-sm bg-black/30'>
+                    <div
+                      className={cn('h-full', session.accentBg)}
+                      style={{ width: `${Math.max(3, session.progress)}%` }}
+                    />
+                  </div>
+                ) : (
+                  /* Empty progress bar placeholder for closed sessions */
+                  <div className='h-1 w-full rounded-sm bg-black/30' />
                 )}
               </div>
 
-              {/* Progress bar - only shown for active sessions */}
-              {session.isActive ? (
-                <div className='h-1 w-full overflow-hidden rounded-none border border-white/10 bg-[#09090b]'>
-                  <div
-                    className={session.accentBg}
-                    style={{
-                      width: `${Math.max(3, session.progress)}%`,
-                      height: '100%',
-                    }}
-                  />
-                </div>
-              ) : (
-                /* Empty progress bar placeholder for closed sessions */
-                <div className='h-1 w-full border border-white/10 bg-[#09090b]' />
-              )}
+              {/* Subtle hover effect */}
+              <div className='absolute inset-0 bg-gradient-to-t from-white/[0.03] to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100' />
             </div>
           ))}
         </div>
