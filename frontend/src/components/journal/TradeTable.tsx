@@ -5,7 +5,6 @@ import { TradingSignal, getSymbol, getScore, getPnl } from '@/types/trading';
 import { ExpandableTradeRow } from './ExpandableTradeRow';
 import { cn } from '@/lib/utils';
 import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
-import { useVirtualizedList } from '@/hooks/useVirtualizedList';
 
 interface TradeTableProps {
   signals: TradingSignal[];
@@ -117,18 +116,6 @@ export function TradeTable({ signals, onInspect }: TradeTableProps) {
     });
   }, [filtered, sortKey, sortDir]);
 
-  const {
-    setScrollTop,
-    visibleItems: visibleRows,
-    totalHeight,
-    offsetY,
-  } = useVirtualizedList({
-    items: sorted,
-    itemHeight: 52,
-    containerHeight: 560,
-    overscan: 8,
-  });
-
   if (signals.length === 0) {
     return (
       <div className='tv-card p-12 flex flex-col items-center justify-center'>
@@ -171,65 +158,51 @@ export function TradeTable({ signals, onInspect }: TradeTableProps) {
           </span>
         )}
       </div>
+
+      {/* Single flat table — no nested virtualization */}
       <div className='overflow-x-auto'>
-        <table className='w-full'>
-          <thead>
-            <tr className='border-b border-[#2a2e39]'>
-              {COLUMNS.map((col) => (
-                <th
-                  key={col.key}
-                  onClick={() => handleSort(col.key)}
-                  className='py-2.5 px-3 text-left cursor-pointer select-none group'
-                >
-                  <div className='flex items-center gap-1'>
-                    <span className='font-mono text-[10px] text-zinc-500 uppercase tracking-wider group-hover:text-zinc-300 transition-colors'>
-                      {col.label}
-                    </span>
-                    {sortKey === col.key ? (
-                      sortDir === 'asc' ? (
-                        <ArrowUp className='w-3 h-3 text-zinc-400' />
+        <div className='overflow-y-auto' style={{ maxHeight: 600 }}>
+          <table className='w-full'>
+            <thead className='sticky top-0 z-10 bg-[#0d1117]'>
+              <tr className='border-b border-[#2a2e39]'>
+                {COLUMNS.map((col) => (
+                  <th
+                    key={col.key}
+                    onClick={() => handleSort(col.key)}
+                    className='py-2.5 px-3 text-left cursor-pointer select-none group whitespace-nowrap'
+                  >
+                    <div className='flex items-center gap-1'>
+                      <span className='font-mono text-[10px] text-zinc-500 uppercase tracking-wider group-hover:text-zinc-300 transition-colors'>
+                        {col.label}
+                      </span>
+                      {sortKey === col.key ? (
+                        sortDir === 'asc' ? (
+                          <ArrowUp className='w-3 h-3 text-zinc-400' />
+                        ) : (
+                          <ArrowDown className='w-3 h-3 text-zinc-400' />
+                        )
                       ) : (
-                        <ArrowDown className='w-3 h-3 text-zinc-400' />
-                      )
-                    ) : (
-                      <ArrowUpDown className='w-3 h-3 text-zinc-700 group-hover:text-zinc-500 transition-colors' />
-                    )}
-                  </div>
-                </th>
+                        <ArrowUpDown className='w-3 h-3 text-zinc-700 group-hover:text-zinc-500 transition-colors' />
+                      )}
+                    </div>
+                  </th>
+                ))}
+                {/* Note + Expand columns */}
+                <th className='py-2.5 px-3 w-8' />
+                <th className='py-2.5 px-3 w-8' />
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((signal) => (
+                <ExpandableTradeRow
+                  key={signal.id}
+                  signal={signal}
+                  onInspect={onInspect}
+                />
               ))}
-              {/* Expand column */}
-              <th className='py-2.5 px-3 w-8' />
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td colSpan={COLUMNS.length + 1} className='p-0'>
-                <div
-                  className='relative overflow-y-auto'
-                  style={{ maxHeight: 560 }}
-                  onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
-                >
-                  <div style={{ height: totalHeight, position: 'relative' }}>
-                    <table
-                      className='w-full table-fixed'
-                      style={{ position: 'absolute', top: offsetY, left: 0 }}
-                    >
-                      <tbody>
-                        {visibleRows.map((signal) => (
-                          <ExpandableTradeRow
-                            key={signal.id}
-                            signal={signal}
-                            onInspect={onInspect}
-                          />
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
