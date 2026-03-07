@@ -240,6 +240,25 @@ export default function DashboardPage() {
     [signals]
   );
 
+  // Today's win/loss counts for SessionRing
+  const { todayWins, todayLosses } = useMemo(() => {
+    if (!mounted) return { todayWins: 0, todayLosses: 0 };
+    const dayStart = new Date();
+    dayStart.setHours(0, 0, 0, 0);
+    const todayClosedSignals = signals.filter(
+      (s) =>
+        new Date(s.created_at) >= dayStart &&
+        (s.pnl != null || s.pnl_usd != null)
+    );
+    const wins = todayClosedSignals.filter(
+      (s) => (s.pnl ?? s.pnl_usd ?? 0) > 0
+    ).length;
+    const losses = todayClosedSignals.filter(
+      (s) => (s.pnl ?? s.pnl_usd ?? 0) < 0
+    ).length;
+    return { todayWins: wins, todayLosses: losses };
+  }, [signals, mounted]);
+
   // Best setup: highest AI score signal from today
   const bestSetupSignal = useMemo(() => {
     const dayStart = new Date();
@@ -322,7 +341,12 @@ export default function DashboardPage() {
         </div>
         <div className='flex items-center gap-2 flex-wrap justify-end'>
           {mounted && todayPnl != null && (
-            <SessionRing todayPnl={todayPnl} dailyTarget={200} />
+            <SessionRing
+              todayPnl={todayPnl}
+              dailyTarget={200}
+              winCount={todayWins}
+              lossCount={todayLosses}
+            />
           )}
           <span className='tf-badge'>
             <Radio className='h-3 w-3' />
