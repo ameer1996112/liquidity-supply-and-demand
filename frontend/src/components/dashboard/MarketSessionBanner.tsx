@@ -321,17 +321,22 @@ export function MarketSessionBanner() {
               )}
 
               <div className='p-3'>
-                <div className='mb-2 flex items-center justify-between'>
+                <div className='mb-2.5 flex items-center justify-between'>
                   <div>
+                    {/* Stat-card style: uppercase + tracked label */}
                     <p
                       className={cn(
-                        'font-sans text-[13px] font-medium leading-none',
-                        session.isActive ? 'text-white' : 'text-zinc-400'
+                        'text-[10px] font-semibold uppercase leading-none tracking-[0.12em]',
+                        session.isActive ? 'text-zinc-200' : 'text-zinc-500'
                       )}
+                      style={{ fontFamily: 'var(--font-sans)' }}
                     >
                       {session.name}
                     </p>
-                    <p className='mt-1 font-sans text-[10px] text-zinc-500'>
+                    <p
+                      className='mt-1 text-[9px] uppercase tracking-[0.08em] text-zinc-600'
+                      style={{ fontFamily: 'var(--font-sans)' }}
+                    >
                       {session.city}
                     </p>
                   </div>
@@ -357,28 +362,36 @@ export function MarketSessionBanner() {
                         )}
                       />
                     )}
-                    <span className='font-sans text-[9px] font-medium uppercase tracking-[0.12em]'>
+                    <span
+                      className='text-[9px] font-bold uppercase tracking-[0.12em]'
+                      style={{ fontFamily: 'var(--font-sans)' }}
+                    >
                       {isWeekendClosed
                         ? 'Closed'
                         : session.isActive
-                        ? 'Open'
+                        ? 'Live'
                         : 'Closed'}
                     </span>
                   </div>
                 </div>
 
+                {/* Time range — font-mono to prevent jitter */}
                 <div className='mb-2 flex items-center justify-between'>
-                  <span className='font-mono text-[10px] text-zinc-500'>
+                  <span
+                    className='text-[10px] tabular-nums text-zinc-500'
+                    style={{ fontFamily: 'var(--font-mono)' }}
+                  >
                     {session.startIL} → {session.endIL} IL
                   </span>
                   {session.isActive && (
                     <span
                       className={cn(
-                        'font-mono text-[10px] font-medium',
+                        'text-[10px] font-medium tabular-nums',
                         session.textColor
                       )}
+                      style={{ fontFamily: 'var(--font-mono)' }}
                     >
-                      {Math.round(session.progress)}% elapsed
+                      {Math.round(session.progress)}%
                     </span>
                   )}
                 </div>
