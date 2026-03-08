@@ -7,19 +7,18 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
-  TrendingUp,
   TrendingDown,
-  Target,
   Activity,
   RefreshCw,
   ChevronRight,
-  Flame,
   Shield,
   BarChart2,
+  ArrowUpRight,
+  ArrowDownRight,
 } from 'lucide-react';
 import {
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -36,430 +35,36 @@ import {
 } from '@/hooks/usePropFirm';
 import { format, parseISO, differenceInSeconds } from 'date-fns';
 
-// ── Phase Stepper ─────────────────────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-const PHASES = [
-  {
-    key: 'phase1',
-    label: 'Phase 1',
-    desc: 'Initial evaluation',
-    color: '#3b82f6',
-  },
-  { key: 'phase2', label: 'Phase 2', desc: 'Verification', color: '#a78bfa' },
-  { key: 'funded', label: 'Funded', desc: 'Live account', color: '#0ecb81' },
-];
-
-function PhaseStepper({ currentPhase }: { currentPhase: string }) {
-  const currentIdx = PHASES.findIndex((p) => p.key === currentPhase);
-
-  return (
-    <div className='rounded-xl border border-[var(--to-border)] bg-[var(--to-surface)] p-5'>
-      <div className='flex items-center gap-2 mb-4'>
-        <Trophy className='h-4 w-4 text-[var(--to-warning)]' />
-        <span className='text-[12px] font-semibold text-[var(--to-text-secondary)] uppercase tracking-wider'>
-          Challenge Progress
-        </span>
-      </div>
-      <div className='flex items-center gap-0'>
-        {PHASES.map((phase, idx) => {
-          const isCompleted = idx < currentIdx;
-          const isCurrent = idx === currentIdx;
-          const isUpcoming = idx > currentIdx;
-          const color = isCurrent || isCompleted ? phase.color : '#2b3139';
-          return (
-            <div key={phase.key} className='flex items-center flex-1'>
-              <div className='flex flex-col items-center gap-1.5'>
-                <div
-                  className='flex h-9 w-9 items-center justify-center rounded-full border-2 transition-all'
-                  style={{
-                    borderColor: color,
-                    backgroundColor: isCompleted
-                      ? color
-                      : isCurrent
-                        ? `${color}20`
-                        : 'transparent',
-                  }}
-                >
-                  {isCompleted ? (
-                    <CheckCircle2 className='h-4 w-4 text-white' />
-                  ) : isCurrent ? (
-                    <span className='text-[11px] font-bold' style={{ color }}>
-                      {idx + 1}
-                    </span>
-                  ) : (
-                    <span className='text-[11px] font-bold text-[var(--to-text-dim)]'>
-                      {idx + 1}
-                    </span>
-                  )}
-                </div>
-                <div className='text-center'>
-                  <div
-                    className='text-[11px] font-semibold'
-                    style={{
-                      color:
-                        isCurrent || isCompleted
-                          ? phase.color
-                          : 'var(--to-text-dim)',
-                    }}
-                  >
-                    {phase.label}
-                  </div>
-                  <div className='text-[9px] text-[var(--to-text-dim)] mt-0.5'>
-                    {phase.desc}
-                  </div>
-                </div>
-              </div>
-              {idx < PHASES.length - 1 && (
-                <div
-                  className='flex-1 h-0.5 mb-6 mx-2'
-                  style={{
-                    backgroundColor: isCompleted
-                      ? PHASES[idx].color
-                      : '#2b3139',
-                  }}
-                />
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ── Countdown Timer ──────────────────────────────────────────────────────────────────
-
-function useCountdown(targetDate: Date | null) {
-  const [remaining, setRemaining] = useState<number>(0);
-  useEffect(() => {
-    if (!targetDate) return;
-    const tick = () => {
-      setRemaining(Math.max(0, differenceInSeconds(targetDate, new Date())));
-    };
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [targetDate]);
-  return remaining;
-}
-
-function CountdownTimer({ daysRemaining }: { daysRemaining: number | null }) {
-  // Always compute target (may be null) — hooks must be called unconditionally
-  const targetDate: Date | null =
-    daysRemaining != null
-      ? (() => {
-          const d = new Date();
-          d.setDate(d.getDate() + daysRemaining);
-          d.setHours(23, 59, 59, 999);
-          return d;
-        })()
-      : null;
-
-  const remaining = useCountdown(targetDate);
-
-  if (daysRemaining == null) return null;
-
-  const days = Math.floor(remaining / 86400);
-  const hours = Math.floor((remaining % 86400) / 3600);
-  const mins = Math.floor((remaining % 3600) / 60);
-  const secs = remaining % 60;
-
-  const urgentColor = days <= 3 ? '#f6465d' : days <= 7 ? '#f0b90b' : '#0ecb81';
-
-  return (
-    <div className='rounded-xl border border-[var(--to-border)] bg-[var(--to-surface)] p-5'>
-      <div className='flex items-center gap-2 mb-4'>
-        <Clock className='h-4 w-4 text-[var(--to-warning)]' />
-        <span className='text-[12px] font-semibold text-[var(--to-text-secondary)] uppercase tracking-wider'>
-          Challenge Deadline
-        </span>
-      </div>
-      <div className='flex items-center gap-3 justify-center'>
-        {[
-          { value: days, label: 'Days' },
-          { value: hours, label: 'Hours' },
-          { value: mins, label: 'Mins' },
-          { value: secs, label: 'Secs' },
-        ].map(({ value, label }, i) => (
-          <div key={label} className='flex items-center gap-3'>
-            <div className='flex flex-col items-center gap-1'>
-              <div
-                className='flex h-14 w-14 items-center justify-center rounded-xl border-2 text-xl font-bold tabular-nums'
-                style={{
-                  borderColor: `${urgentColor}40`,
-                  backgroundColor: `${urgentColor}10`,
-                  color: urgentColor,
-                  fontFamily: 'var(--font-mono)',
-                }}
-              >
-                {String(value).padStart(2, '0')}
-              </div>
-              <span className='text-[10px] text-[var(--to-text-dim)] uppercase tracking-wider'>
-                {label}
-              </span>
-            </div>
-            {i < 3 && (
-              <span className='text-lg font-bold text-[var(--to-text-dim)] mb-4'>
-                :
-              </span>
-            )}
-          </div>
-        ))}
-      </div>
-      {days <= 3 && (
-        <div
-          className='mt-3 flex items-center gap-2 rounded-lg px-3 py-2 text-[11px]'
-          style={{ backgroundColor: '#f6465d10', color: '#f6465d' }}
-        >
-          <AlertTriangle className='h-3.5 w-3.5 shrink-0' />
-          <span>
-            Deadline approaching — only{' '}
-            <strong>
-              {days}d {hours}h
-            </strong>{' '}
-            remaining!
-          </span>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Payout Projection ───────────────────────────────────────────────────────────────
-
-function PayoutProjection({
-  accountBalance,
+function computeHealthScore({
+  dailyPct,
+  dailyLimit,
+  trailingPct,
+  trailingLimit,
+  consistencyPct,
+  consistencyLimit,
+  safeToTrade,
   currentProfitPct,
 }: {
-  accountBalance: number;
+  dailyPct: number;
+  dailyLimit: number;
+  trailingPct: number;
+  trailingLimit: number;
+  consistencyPct: number;
+  consistencyLimit: number;
+  safeToTrade: boolean;
   currentProfitPct: number;
 }) {
-  const [targetPct, setTargetPct] = useState(10);
-  const [payoutPct, setPayoutPct] = useState(80);
-  const [daysLeft, setDaysLeft] = useState(15);
-
-  const targetProfit = (accountBalance * targetPct) / 100;
-  const payout = (targetProfit * payoutPct) / 100;
-  const dailyNeeded =
-    daysLeft > 0
-      ? (targetProfit - (accountBalance * currentProfitPct) / 100) / daysLeft
-      : 0;
-  const onTrack = currentProfitPct / targetPct >= 0.5; // halfway there or more
-
-  return (
-    <div className='rounded-xl border border-[var(--to-border)] bg-[var(--to-surface)] p-5'>
-      <div className='flex items-center gap-2 mb-4'>
-        <TrendingUp className='h-4 w-4 text-[var(--to-warning)]' />
-        <span className='text-[12px] font-semibold text-[var(--to-text-secondary)] uppercase tracking-wider'>
-          Payout Projection
-        </span>
-      </div>
-      <div className='grid grid-cols-3 gap-3 mb-4'>
-        <div>
-          <label className='text-[10px] text-[var(--to-text-dim)]'>
-            Target Profit %
-          </label>
-          <div className='flex items-center gap-1 mt-1'>
-            <input
-              type='number'
-              value={targetPct}
-              onChange={(e) => setTargetPct(Number(e.target.value))}
-              min={1}
-              max={20}
-              className='w-full rounded border border-[var(--to-border)] bg-[var(--to-surface-raised)] px-2 py-1 text-[12px] text-[var(--to-text-primary)] outline-none focus:border-[var(--to-warning)]/50 font-mono'
-            />
-            <span className='text-[11px] text-[var(--to-text-dim)]'>%</span>
-          </div>
-        </div>
-        <div>
-          <label className='text-[10px] text-[var(--to-text-dim)]'>
-            Payout Split %
-          </label>
-          <div className='flex items-center gap-1 mt-1'>
-            <input
-              type='number'
-              value={payoutPct}
-              onChange={(e) => setPayoutPct(Number(e.target.value))}
-              min={50}
-              max={100}
-              className='w-full rounded border border-[var(--to-border)] bg-[var(--to-surface-raised)] px-2 py-1 text-[12px] text-[var(--to-text-primary)] outline-none focus:border-[var(--to-warning)]/50 font-mono'
-            />
-            <span className='text-[11px] text-[var(--to-text-dim)]'>%</span>
-          </div>
-        </div>
-        <div>
-          <label className='text-[10px] text-[var(--to-text-dim)]'>
-            Days Remaining
-          </label>
-          <input
-            type='number'
-            value={daysLeft}
-            onChange={(e) => setDaysLeft(Number(e.target.value))}
-            min={1}
-            max={60}
-            className='w-full mt-1 rounded border border-[var(--to-border)] bg-[var(--to-surface-raised)] px-2 py-1 text-[12px] text-[var(--to-text-primary)] outline-none focus:border-[var(--to-warning)]/50 font-mono'
-          />
-        </div>
-      </div>
-      <div className='grid grid-cols-3 gap-3 pt-3 border-t border-[var(--to-border)]'>
-        <div>
-          <div className='text-[10px] text-[var(--to-text-dim)]'>
-            Target Profit
-          </div>
-          <div
-            className='text-[16px] font-bold font-mono'
-            style={{ color: '#3b82f6' }}
-          >
-            $
-            {targetProfit.toLocaleString('en-US', {
-              minimumFractionDigits: 0,
-              maximumFractionDigits: 0,
-            })}
-          </div>
-        </div>
-        <div>
-          <div className='text-[10px] text-[var(--to-text-dim)]'>
-            Proj. Payout
-          </div>
-          <div
-            className='text-[16px] font-bold font-mono'
-            style={{ color: '#0ecb81' }}
-          >
-            $
-            {payout.toLocaleString('en-US', {
-              minimumFractionDigits: 0,
-              maximumFractionDigits: 0,
-            })}
-          </div>
-        </div>
-        <div>
-          <div className='text-[10px] text-[var(--to-text-dim)]'>
-            Daily Needed
-          </div>
-          <div
-            className='text-[16px] font-bold font-mono'
-            style={{ color: dailyNeeded > 0 ? '#f0b90b' : '#0ecb81' }}
-          >
-            ${dailyNeeded > 0 ? (dailyNeeded ?? 0).toFixed(0) : '0'}
-          </div>
-        </div>
-      </div>
-      <div
-        className='mt-3 flex items-center gap-2 rounded-lg px-3 py-2 text-[11px]'
-        style={{
-          backgroundColor: onTrack ? '#0ecb8110' : '#f0b90b10',
-          color: onTrack ? '#0ecb81' : '#f0b90b',
-        }}
-      >
-        {onTrack ? (
-          <CheckCircle2 className='h-3.5 w-3.5 shrink-0' />
-        ) : (
-          <AlertTriangle className='h-3.5 w-3.5 shrink-0' />
-        )}
-        <span>
-          {onTrack
-            ? `On track — ${(currentProfitPct ?? 0).toFixed(2)}% of ${targetPct}% target achieved.`
-            : `Behind target — currently at ${(currentProfitPct ?? 0).toFixed(2)}% of ${targetPct}% goal.`}
-        </span>
-      </div>
-    </div>
-  );
+  if (!safeToTrade) return 0;
+  let score = 100;
+  score -= (dailyPct / Math.max(dailyLimit, 0.01)) * 30;
+  score -= (trailingPct / Math.max(trailingLimit, 0.01)) * 30;
+  if (consistencyPct > consistencyLimit * 0.8) score -= 20;
+  else if (consistencyPct > consistencyLimit * 0.6) score -= 10;
+  if (currentProfitPct > 0) score += Math.min(currentProfitPct * 2, 10);
+  return Math.max(0, Math.min(100, Math.round(score)));
 }
-
-// ── Circular SVG Gauge ────────────────────────────────────────────────────────
-
-interface GaugeProps {
-  value: number; // current value (e.g. 2.1)
-  limit: number; // max value (e.g. 5.0)
-  label: string;
-  sublabel?: string;
-  size?: number;
-  colorZones?: { at: number; color: string }[];
-  unit?: string;
-}
-
-function CircularGauge({
-  value,
-  limit,
-  label,
-  sublabel,
-  size = 120,
-  colorZones,
-  unit = '%',
-}: GaugeProps) {
-  const radius = 46;
-  const strokeWidth = 8;
-  const circumference = 2 * Math.PI * radius;
-  const pct = Math.min(value / limit, 1);
-  const fillLength = pct * circumference;
-
-  // Determine color
-  let color = '#0ecb81'; // green
-  if (colorZones) {
-    for (const zone of colorZones) {
-      if (value >= zone.at) color = zone.color;
-    }
-  }
-
-  return (
-    <div className='flex flex-col items-center gap-2'>
-      <div className='relative' style={{ width: size, height: size }}>
-        <svg width={size} height={size} viewBox='0 0 100 100'>
-          {/* Track */}
-          <circle
-            cx='50'
-            cy='50'
-            r={radius}
-            fill='none'
-            stroke='#1e2329'
-            strokeWidth={strokeWidth}
-          />
-          {/* Fill — starts at top (−90°) */}
-          <circle
-            cx='50'
-            cy='50'
-            r={radius}
-            fill='none'
-            stroke={color}
-            strokeWidth={strokeWidth}
-            strokeLinecap='round'
-            strokeDasharray={`${fillLength} ${circumference - fillLength}`}
-            strokeDashoffset={circumference * 0.25}
-            style={{
-              transition: 'stroke-dasharray 0.6s ease, stroke 0.4s ease',
-            }}
-          />
-        </svg>
-        {/* Center text */}
-        <div className='absolute inset-0 flex flex-col items-center justify-center'>
-          <span
-            className='text-xl font-bold tabular-nums'
-            style={{ color, fontFamily: 'var(--font-mono)' }}
-          >
-            {(value ?? 0).toFixed(2)}
-            {unit}
-          </span>
-          <span className='text-[10px] text-[var(--to-text-dim)] mt-0.5'>
-            / {limit}
-            {unit}
-          </span>
-        </div>
-      </div>
-      <div className='text-center'>
-        <div className='text-[13px] font-semibold text-[var(--to-text-primary)]'>
-          {label}
-        </div>
-        {sublabel && (
-          <div className='text-[11px] text-[var(--to-text-dim)] mt-0.5'>
-            {sublabel}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Phase Badge ───────────────────────────────────────────────────────────────
 
 function PhaseBadge({ phase }: { phase: string }) {
   const labels: Record<string, { label: string; color: string }> = {
@@ -473,12 +78,11 @@ function PhaseBadge({ phase }: { phase: string }) {
   };
   return (
     <span
-      className='inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-semibold uppercase tracking-wider'
+      className='inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wider font-mono'
       style={{
         backgroundColor: `${meta.color}18`,
         border: `1px solid ${meta.color}40`,
         color: meta.color,
-        fontFamily: 'var(--font-mono)',
       }}
     >
       <Trophy className='h-3 w-3' />
@@ -487,17 +91,115 @@ function PhaseBadge({ phase }: { phase: string }) {
   );
 }
 
-// ── Status Alert Banner ───────────────────────────────────────────────────────
+function HealthScoreCard({
+  score,
+  safeToTrade,
+}: {
+  score: number;
+  safeToTrade: boolean;
+}) {
+  const color = score >= 75 ? '#0ecb81' : score >= 50 ? '#f0b90b' : '#f6465d';
+  const label = score >= 75 ? 'Excellent' : score >= 50 ? 'Caution' : 'At Risk';
+  const radius = 52;
+  const circ = 2 * Math.PI * radius;
+  const fill = (score / 100) * circ;
+
+  return (
+    <div
+      className='relative rounded-2xl border border-[var(--to-border)] overflow-hidden p-5'
+      style={{ background: 'linear-gradient(135deg,#0d1117 0%,#12161c 100%)' }}
+    >
+      <div
+        className='absolute inset-0 pointer-events-none'
+        style={{
+          background: `radial-gradient(ellipse at 50% 0%, ${color}12 0%, transparent 70%)`,
+        }}
+      />
+      <div className='relative flex items-center gap-5'>
+        <div className='relative shrink-0' style={{ width: 124, height: 124 }}>
+          <svg width={124} height={124} viewBox='0 0 124 124'>
+            <circle
+              cx='62'
+              cy='62'
+              r={radius}
+              fill='none'
+              stroke='#1e2329'
+              strokeWidth={10}
+            />
+            <circle
+              cx='62'
+              cy='62'
+              r={radius}
+              fill='none'
+              stroke={color}
+              strokeWidth={10}
+              strokeLinecap='round'
+              strokeDasharray={`${fill} ${circ - fill}`}
+              strokeDashoffset={circ * 0.25}
+            />
+          </svg>
+          <div className='absolute inset-0 flex flex-col items-center justify-center'>
+            <span
+              className='text-3xl font-black tabular-nums'
+              style={{ color, fontFamily: 'var(--font-mono)' }}
+            >
+              {score}
+            </span>
+            <span
+              className='text-[9px] font-bold uppercase tracking-widest'
+              style={{ color }}
+            >
+              / 100
+            </span>
+          </div>
+        </div>
+
+        <div className='flex-1 min-w-0'>
+          <span className='text-[11px] font-bold uppercase tracking-widest text-[var(--to-text-dim)] font-mono'>
+            Challenge Health
+          </span>
+          <div
+            className='text-[22px] font-black leading-tight mt-1'
+            style={{ color }}
+          >
+            {label}
+          </div>
+          <div className='text-[12px] text-[var(--to-text-secondary)] mt-1'>
+            {score >= 75
+              ? 'All rules are healthy. Strong risk posture.'
+              : score >= 50
+              ? 'Some limits are getting close. Manage risk carefully.'
+              : 'Critical risk levels detected. Reduce exposure now.'}
+          </div>
+          <div className='mt-3'>
+            <span
+              className='inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono'
+              style={{
+                color,
+                backgroundColor: `${color}15`,
+                border: `1px solid ${color}30`,
+              }}
+            >
+              <span
+                className='inline-block w-1.5 h-1.5 rounded-full'
+                style={{ backgroundColor: color }}
+              />
+              {safeToTrade ? 'SAFE TO TRADE' : 'TRADING HALTED'}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function StatusBanner({
   safeToTrade,
-  dailyBreach,
   drawdownBreach,
   dailyPct,
   dailyLimit,
 }: {
   safeToTrade: boolean;
-  dailyBreach: boolean;
   drawdownBreach: boolean;
   dailyPct: number;
   dailyLimit: number;
@@ -505,97 +207,130 @@ function StatusBanner({
   const danger = dailyPct > dailyLimit * 0.7;
   const warning = dailyPct > dailyLimit * 0.5;
 
-  if (!safeToTrade) {
-    return (
-      <div
-        className='flex items-center gap-3 rounded-lg px-4 py-3 border'
-        style={{
-          backgroundColor: '#f6465d18',
-          borderColor: '#f6465d40',
-        }}
-      >
-        <XCircle className='h-5 w-5 shrink-0' style={{ color: '#f6465d' }} />
-        <div>
-          <div className='text-sm font-semibold' style={{ color: '#f6465d' }}>
-            {drawdownBreach
-              ? 'Challenge Failed — Max Drawdown Breached'
-              : 'Trading Halted — Daily Loss Limit Breached'}
-          </div>
-          <div className='text-[12px] text-[var(--to-text-secondary)] mt-0.5'>
-            All trading has been automatically stopped. Review your risk
-            settings before resuming.
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (danger) {
-    return (
-      <div
-        className='flex items-center gap-3 rounded-lg px-4 py-3 border'
-        style={{
-          backgroundColor: '#f0b90b18',
-          borderColor: '#f0b90b40',
-        }}
-      >
-        <AlertTriangle
-          className='h-5 w-5 shrink-0'
-          style={{ color: '#f0b90b' }}
-        />
-        <div>
-          <div className='text-sm font-semibold' style={{ color: '#f0b90b' }}>
-            Danger Zone — {dailyPct.toFixed(2)}% of {dailyLimit}% daily limit
-            used
-          </div>
-          <div className='text-[12px] text-[var(--to-text-secondary)] mt-0.5'>
-            Consider reducing exposure. Bot will auto-pause at {dailyLimit}%.
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (warning) {
-    return (
-      <div
-        className='flex items-center gap-3 rounded-lg px-4 py-3 border'
-        style={{
-          backgroundColor: '#3b82f618',
-          borderColor: '#3b82f640',
-        }}
-      >
-        <AlertTriangle
-          className='h-5 w-5 shrink-0'
-          style={{ color: '#3b82f6' }}
-        />
-        <div className='text-sm text-[var(--to-text-secondary)]'>
-          <span style={{ color: '#3b82f6' }} className='font-semibold'>
-            Warning:
-          </span>{' '}
-          {dailyPct.toFixed(2)}% daily drawdown — approaching limit.
-        </div>
-      </div>
-    );
-  }
+  const cfg = !safeToTrade
+    ? {
+        bg: '#f6465d18',
+        border: '#f6465d40',
+        color: '#f6465d',
+        Icon: XCircle,
+        title: drawdownBreach
+          ? 'Challenge Failed — Max Drawdown Breached'
+          : 'Trading Halted — Daily Loss Limit Breached',
+      }
+    : danger
+    ? {
+        bg: '#f0b90b18',
+        border: '#f0b90b40',
+        color: '#f0b90b',
+        Icon: AlertTriangle,
+        title: `Danger Zone — ${dailyPct.toFixed(
+          2
+        )}% of ${dailyLimit}% daily limit used`,
+      }
+    : warning
+    ? {
+        bg: '#3b82f618',
+        border: '#3b82f640',
+        color: '#3b82f6',
+        Icon: AlertTriangle,
+        title: `Warning — ${dailyPct.toFixed(2)}% daily drawdown`,
+      }
+    : {
+        bg: '#0ecb8118',
+        border: '#0ecb8140',
+        color: '#0ecb81',
+        Icon: CheckCircle2,
+        title: 'All systems green — safe to trade',
+      };
 
   return (
     <div
-      className='flex items-center gap-3 rounded-lg px-4 py-3 border'
-      style={{
-        backgroundColor: '#0ecb8118',
-        borderColor: '#0ecb8140',
-      }}
+      className='flex items-center gap-3 rounded-xl px-4 py-3 border'
+      style={{ backgroundColor: cfg.bg, borderColor: cfg.border }}
     >
-      <CheckCircle2 className='h-5 w-5 shrink-0' style={{ color: '#0ecb81' }} />
-      <div className='text-sm font-medium' style={{ color: '#0ecb81' }}>
-        All systems green — safe to trade
+      <cfg.Icon className='h-5 w-5 shrink-0' style={{ color: cfg.color }} />
+      <div className='text-sm font-semibold' style={{ color: cfg.color }}>
+        {cfg.title}
       </div>
     </div>
   );
 }
 
-// ── Drawdown History Chart ────────────────────────────────────────────────────
+function useCountdown(targetDate: Date | null) {
+  const [remaining, setRemaining] = useState(0);
+  useEffect(() => {
+    if (!targetDate) return;
+    const tick = () =>
+      setRemaining(Math.max(0, differenceInSeconds(targetDate, new Date())));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [targetDate]);
+  return remaining;
+}
+
+function CountdownTimer({ daysRemaining }: { daysRemaining: number | null }) {
+  const targetDate =
+    daysRemaining != null
+      ? (() => {
+          const d = new Date();
+          d.setDate(d.getDate() + daysRemaining);
+          d.setHours(23, 59, 59, 999);
+          return d;
+        })()
+      : null;
+  const remaining = useCountdown(targetDate);
+  if (daysRemaining == null) return null;
+
+  const days = Math.floor(remaining / 86400);
+  const hours = Math.floor((remaining % 86400) / 3600);
+  const mins = Math.floor((remaining % 3600) / 60);
+  const secs = remaining % 60;
+  const urgentColor = days <= 3 ? '#f6465d' : days <= 7 ? '#f0b90b' : '#0ecb81';
+
+  return (
+    <div className='rounded-2xl border border-[var(--to-border)] bg-[var(--to-surface)] p-5'>
+      <div className='flex items-center gap-2 mb-4'>
+        <Clock className='h-4 w-4 text-[var(--to-warning)]' />
+        <span className='text-[11px] font-bold text-[var(--to-text-secondary)] uppercase tracking-widest font-mono'>
+          Challenge Deadline
+        </span>
+      </div>
+      <div className='flex items-center gap-3 justify-center'>
+        {[
+          { value: days, label: 'Days' },
+          { value: hours, label: 'Hours' },
+          { value: mins, label: 'Mins' },
+          { value: secs, label: 'Secs' },
+        ].map(({ value, label }, i) => (
+          <div key={label} className='flex items-center gap-3'>
+            <div className='flex flex-col items-center gap-1'>
+              <div
+                className='flex h-14 w-14 items-center justify-center rounded-xl border-2 text-xl font-black tabular-nums'
+                style={{
+                  borderColor: `${urgentColor}40`,
+                  backgroundColor: `${urgentColor}10`,
+                  color: urgentColor,
+                  fontFamily: 'var(--font-mono)',
+                }}
+              >
+                {String(value).padStart(2, '0')}
+              </div>
+              <span className='text-[9px] text-[var(--to-text-dim)] uppercase tracking-wider font-mono'>
+                {label}
+              </span>
+            </div>
+            {i < 3 && (
+              <span className='text-lg font-bold text-[var(--to-text-dim)] mb-4'>
+                :
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function DrawdownHistoryChart({
   snapshots,
@@ -625,11 +360,21 @@ function DrawdownHistoryChart({
   }));
 
   return (
-    <ResponsiveContainer width='100%' height={180}>
-      <LineChart
+    <ResponsiveContainer width='100%' height={190}>
+      <AreaChart
         data={data}
         margin={{ top: 4, right: 16, left: -10, bottom: 0 }}
       >
+        <defs>
+          <linearGradient id='gradDaily' x1='0' y1='0' x2='0' y2='1'>
+            <stop offset='5%' stopColor='#3b82f6' stopOpacity={0.3} />
+            <stop offset='95%' stopColor='#3b82f6' stopOpacity={0} />
+          </linearGradient>
+          <linearGradient id='gradTrailing' x1='0' y1='0' x2='0' y2='1'>
+            <stop offset='5%' stopColor='#f0b90b' stopOpacity={0.3} />
+            <stop offset='95%' stopColor='#f0b90b' stopOpacity={0} />
+          </linearGradient>
+        </defs>
         <CartesianGrid strokeDasharray='3 3' stroke='#1e2329' />
         <XAxis
           dataKey='time'
@@ -657,12 +402,12 @@ function DrawdownHistoryChart({
           contentStyle={{
             backgroundColor: '#12161c',
             border: '1px solid #2b3139',
-            borderRadius: 6,
+            borderRadius: 8,
             fontSize: 12,
           }}
           labelStyle={{ color: '#848e9c' }}
           formatter={(val, name) => [
-            `${val ?? 0}%`,
+            `${val}%`,
             name === 'daily' ? 'Daily DD' : 'Trailing DD',
           ]}
         />
@@ -679,101 +424,28 @@ function DrawdownHistoryChart({
           strokeDasharray='4 4'
           strokeOpacity={0.6}
         />
-        <Line
+        <Area
           type='monotone'
           dataKey='daily'
           stroke='#3b82f6'
           strokeWidth={2}
+          fill='url(#gradDaily)'
           dot={false}
-          name='daily'
         />
-        <Line
+        <Area
           type='monotone'
           dataKey='trailing'
           stroke='#f0b90b'
           strokeWidth={2}
+          fill='url(#gradTrailing)'
           dot={false}
-          name='trailing'
         />
-      </LineChart>
+      </AreaChart>
     </ResponsiveContainer>
   );
 }
 
-// ── MTM Position Row ──────────────────────────────────────────────────────────
-
-interface MtmPos {
-  symbol: string;
-  side: string;
-  lots: number;
-  open_price: number;
-  current_price: number;
-  floating_pnl: number;
-  pct_to_sl?: number;
-  at_risk?: boolean;
-}
-
-function MtmPositionRow({ pos }: { pos: MtmPos }) {
-  const isLong = pos.side?.toLowerCase() === 'buy';
-  const pnlColor = pos.floating_pnl >= 0 ? '#0ecb81' : '#f6465d';
-  const atRisk =
-    pos.at_risk || (pos.pct_to_sl !== undefined && pos.pct_to_sl > 50);
-
-  return (
-    <div
-      className={cn(
-        'flex items-center justify-between px-3 py-2 rounded',
-        atRisk
-          ? 'border border-[#f6465d]/30 bg-[#f6465d]/5'
-          : 'border border-[var(--to-border)] bg-[var(--to-surface-raised)]',
-      )}
-    >
-      <div className='flex items-center gap-2.5'>
-        {atRisk && (
-          <AlertTriangle className='h-3.5 w-3.5 text-[#f6465d] shrink-0' />
-        )}
-        <div>
-          <div className='flex items-center gap-2'>
-            <span
-              className='text-[13px] font-semibold text-[var(--to-text-primary)]'
-              style={{ fontFamily: 'var(--font-mono)' }}
-            >
-              {pos.symbol}
-            </span>
-            <span
-              className='text-[10px] px-1.5 py-0.5 rounded font-medium'
-              style={{
-                backgroundColor: isLong ? '#0ecb8120' : '#f6465d20',
-                color: isLong ? '#0ecb81' : '#f6465d',
-                border: `1px solid ${isLong ? '#0ecb8140' : '#f6465d40'}`,
-              }}
-            >
-              {isLong ? 'LONG' : 'SHORT'}
-            </span>
-          </div>
-          <div className='text-[11px] text-[var(--to-text-dim)] mt-0.5'>
-            {pos.lots} lots · Entry {pos.open_price}
-          </div>
-        </div>
-      </div>
-      <div className='text-right'>
-        <div
-          className='text-[13px] font-semibold tabular-nums'
-          style={{ color: pnlColor, fontFamily: 'var(--font-mono)' }}
-        >
-          {(pos.floating_pnl ?? 0) >= 0 ? '+' : ''}${(pos.floating_pnl ?? 0).toFixed(2)}
-        </div>
-        {pos.pct_to_sl !== undefined && (
-          <div className='text-[10px] text-[var(--to-text-dim)]'>
-            {(pos.pct_to_sl ?? 0).toFixed(0)}% to SL
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Main Page ─────────────────────────────────────────────────────────────────
+// ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function PropFirmPage() {
   const [historyDays, setHistoryDays] = useState(7);
@@ -785,13 +457,13 @@ export default function PropFirmPage() {
     error: metricsError,
     dataUpdatedAt,
   } = usePropFirmMetrics(accountName);
+
   const { data: historyData, isLoading: historyLoading } = usePropFirmHistory(
     accountName,
-    historyDays,
+    historyDays
   );
   const { data: mtmData, isLoading: mtmLoading } = usePropFirmMtm(accountName);
   const resetMutation = useResetPropFirmDaily(accountName);
-
   const lastUpdated = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
 
   if (metricsLoading) {
@@ -810,7 +482,7 @@ export default function PropFirmPage() {
   if (metricsError || !metricsData) {
     return (
       <div className='flex-1 p-6'>
-        <div className='rounded-lg border border-[#f6465d]/40 bg-[#f6465d]/8 p-6 flex items-start gap-3'>
+        <div className='rounded-xl border border-[#f6465d]/40 bg-[#f6465d]/8 p-6 flex items-start gap-3'>
           <XCircle className='h-5 w-5 text-[#f6465d] mt-0.5 shrink-0' />
           <div>
             <div className='font-semibold text-[#f6465d]'>
@@ -831,11 +503,9 @@ export default function PropFirmPage() {
   const { equity, daily_pnl, drawdown, status, consistency, days_remaining } =
     metrics;
 
-  // Defensive defaults for API values that may be undefined/null
   const safeEquity = {
     daily_start_balance: equity?.daily_start_balance ?? 0,
     current_equity: equity?.current_equity ?? 0,
-    daily_high_water_mark: equity?.daily_high_water_mark ?? 0,
   };
   const safeDailyPnl = {
     closed: daily_pnl?.closed ?? 0,
@@ -845,9 +515,9 @@ export default function PropFirmPage() {
   const safeDrawdown = {
     daily_pct: drawdown?.daily_pct ?? 0,
     daily_limit_pct: drawdown?.daily_limit_pct ?? 0,
-    daily_remaining_usd: drawdown?.daily_remaining_usd ?? 0,
     trailing_pct: drawdown?.trailing_pct ?? 0,
     trailing_limit_pct: drawdown?.trailing_limit_pct ?? 0,
+    daily_remaining_usd: drawdown?.daily_remaining_usd ?? 0,
   };
   const safeConsistency = {
     best_day_pct: consistency?.best_day_pct ?? 0,
@@ -855,77 +525,74 @@ export default function PropFirmPage() {
     status: consistency?.status ?? 'safe',
   };
 
-  const dailyColorZones = [
-    { at: 0, color: '#0ecb81' },
-    { at: safeDrawdown.daily_limit_pct * 0.5, color: '#3b82f6' },
-    { at: safeDrawdown.daily_limit_pct * 0.7, color: '#f0b90b' },
-    { at: safeDrawdown.daily_limit_pct * 0.9, color: '#f6465d' },
-  ];
+  const currentProfitPct =
+    safeEquity.current_equity > safeEquity.daily_start_balance
+      ? ((safeEquity.current_equity - safeEquity.daily_start_balance) /
+          Math.max(safeEquity.daily_start_balance, 1)) *
+        100
+      : 0;
 
-  const trailingColorZones = [
-    { at: 0, color: '#0ecb81' },
-    { at: safeDrawdown.trailing_limit_pct * 0.5, color: '#3b82f6' },
-    { at: safeDrawdown.trailing_limit_pct * 0.7, color: '#f0b90b' },
-    { at: safeDrawdown.trailing_limit_pct * 0.9, color: '#f6465d' },
-  ];
+  const accountGrowthPct =
+    safeEquity.daily_start_balance > 0
+      ? ((safeEquity.current_equity - safeEquity.daily_start_balance) /
+          safeEquity.daily_start_balance) *
+        100
+      : 0;
 
-  const consistencyColorZones = [
-    { at: 0, color: '#0ecb81' },
-    { at: safeConsistency.limit_pct * 0.6, color: '#3b82f6' },
-    { at: safeConsistency.limit_pct * 0.8, color: '#f0b90b' },
-    { at: safeConsistency.limit_pct * 0.95, color: '#f6465d' },
-  ];
+  const healthScore = computeHealthScore({
+    dailyPct: safeDrawdown.daily_pct,
+    dailyLimit: safeDrawdown.daily_limit_pct,
+    trailingPct: safeDrawdown.trailing_pct,
+    trailingLimit: safeDrawdown.trailing_limit_pct,
+    consistencyPct: safeConsistency.best_day_pct,
+    consistencyLimit: safeConsistency.limit_pct,
+    safeToTrade: status.safe_to_trade,
+    currentProfitPct,
+  });
 
   return (
     <div className='flex-1 space-y-5 p-6'>
-      {/* ── Page Header ── */}
+      {/* Header */}
       <div className='flex items-start justify-between'>
-        <div>
-          <div className='flex items-center gap-3'>
-            <div className='flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--to-warning)]/15 border border-[var(--to-warning)]/30'>
-              <Trophy className='h-5 w-5 text-[var(--to-warning)]' />
-            </div>
-            <div>
-              <h1 className='text-lg font-semibold text-[var(--to-text-primary)]'>
-                Prop Firm Hub
-              </h1>
-              <div className='flex items-center gap-2 mt-0.5'>
-                <span
-                  className='text-[12px] text-[var(--to-text-dim)]'
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                >
-                  {account_name}
-                </span>
-                <ChevronRight className='h-3 w-3 text-[var(--to-text-dim)]' />
-                <PhaseBadge phase={evaluation_phase} />
-                {days_remaining !== null && (
-                  <span className='flex items-center gap-1 text-[11px] text-[var(--to-text-secondary)]'>
-                    <Clock className='h-3 w-3' />
-                    {days_remaining} days left
-                  </span>
-                )}
-              </div>
+        <div className='flex items-center gap-3'>
+          <div
+            className='flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--to-warning)]/30'
+            style={{
+              background:
+                'linear-gradient(135deg,rgba(240,185,11,0.2) 0%,rgba(240,185,11,0.05) 100%)',
+              boxShadow: '0 0 16px rgba(240,185,11,0.2)',
+            }}
+          >
+            <Trophy className='h-5 w-5 text-[var(--to-warning)]' />
+          </div>
+          <div>
+            <h1 className='text-[18px] font-black text-[var(--to-text-primary)] tracking-tight'>
+              Prop Firm Hub
+            </h1>
+            <div className='flex items-center gap-2 mt-0.5'>
+              <span className='text-[11px] text-[var(--to-text-dim)] font-mono'>
+                {account_name}
+              </span>
+              <ChevronRight className='h-3 w-3 text-[var(--to-text-dim)]' />
+              <PhaseBadge phase={evaluation_phase} />
             </div>
           </div>
         </div>
         <div className='flex items-center gap-2'>
           {lastUpdated && (
-            <span
-              className='text-[11px] text-[var(--to-text-dim)]'
-              style={{ fontFamily: 'var(--font-mono)' }}
-            >
+            <span className='text-[11px] text-[var(--to-text-dim)] font-mono'>
               Updated {format(lastUpdated, 'HH:mm:ss')}
             </span>
           )}
           <button
             onClick={() => resetMutation.mutate()}
             disabled={resetMutation.isPending}
-            className='flex items-center gap-1.5 px-3 py-1.5 rounded border border-[var(--to-border)] text-[12px] text-[var(--to-text-secondary)] hover:bg-[var(--to-surface-raised)] hover:text-[var(--to-text-primary)] transition-colors disabled:opacity-50'
+            className='flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--to-border)] text-[12px] text-[var(--to-text-secondary)] hover:bg-[var(--to-surface-raised)] hover:text-[var(--to-text-primary)] transition-colors disabled:opacity-50'
           >
             <RefreshCw
               className={cn(
                 'h-3.5 w-3.5',
-                resetMutation.isPending && 'animate-spin',
+                resetMutation.isPending && 'animate-spin'
               )}
             />
             Reset Daily
@@ -933,117 +600,53 @@ export default function PropFirmPage() {
         </div>
       </div>
 
-      {/* ── Status Banner ── */}
       <StatusBanner
         safeToTrade={status.safe_to_trade}
-        dailyBreach={status.daily_loss_breach}
         drawdownBreach={status.drawdown_breach}
         dailyPct={safeDrawdown.daily_pct}
         dailyLimit={safeDrawdown.daily_limit_pct}
       />
 
-      {/* ── Top Row: 3 Gauges + Equity Summary ── */}
-      <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4'>
-        {/* Daily Drawdown Gauge */}
-        <div className='rounded-xl border border-[var(--to-border)] bg-[var(--to-surface)] p-5 flex flex-col items-center gap-3'>
-          <CircularGauge
-            value={safeDrawdown.daily_pct}
-            limit={safeDrawdown.daily_limit_pct}
-            label='Daily Drawdown'
-            sublabel={`$${safeDrawdown.daily_remaining_usd.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} remaining`}
-            colorZones={dailyColorZones}
+      <div className='grid grid-cols-1 lg:grid-cols-3 gap-4'>
+        <div className='lg:col-span-2'>
+          <HealthScoreCard
+            score={healthScore}
+            safeToTrade={status.safe_to_trade}
           />
-          <div className='w-full pt-2 border-t border-[var(--to-border)]'>
-            <div className='flex justify-between text-[11px] text-[var(--to-text-dim)]'>
-              <span>Limit</span>
-              <span style={{ fontFamily: 'var(--font-mono)' }}>
-                {safeDrawdown.daily_limit_pct}%
-              </span>
-            </div>
-          </div>
         </div>
 
-        {/* Trailing Drawdown Gauge */}
-        <div className='rounded-xl border border-[var(--to-border)] bg-[var(--to-surface)] p-5 flex flex-col items-center gap-3'>
-          <CircularGauge
-            value={safeDrawdown.trailing_pct}
-            limit={safeDrawdown.trailing_limit_pct}
-            label='Trailing Drawdown'
-            sublabel='From peak equity'
-            colorZones={trailingColorZones}
-          />
-          <div className='w-full pt-2 border-t border-[var(--to-border)]'>
-            <div className='flex justify-between text-[11px] text-[var(--to-text-dim)]'>
-              <span>Limit</span>
-              <span style={{ fontFamily: 'var(--font-mono)' }}>
-                {safeDrawdown.trailing_limit_pct}%
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Consistency Gauge */}
-        <div className='rounded-xl border border-[var(--to-border)] bg-[var(--to-surface)] p-5 flex flex-col items-center gap-3'>
-          <CircularGauge
-            value={safeConsistency.best_day_pct}
-            limit={safeConsistency.limit_pct}
-            label='Consistency Rule'
-            sublabel='Best day / total profit'
-            colorZones={consistencyColorZones}
-          />
-          <div className='w-full pt-2 border-t border-[var(--to-border)]'>
-            <div className='flex items-center justify-between'>
-              <span className='text-[11px] text-[var(--to-text-dim)]'>
-                FTMO 40% rule
-              </span>
-              <span
-                className={cn(
-                  'text-[10px] px-1.5 py-0.5 rounded font-semibold',
-                  safeConsistency.status === 'safe'
-                    ? 'bg-[#0ecb8118] text-[#0ecb81]'
-                    : safeConsistency.status === 'warning'
-                      ? 'bg-[#f0b90b18] text-[#f0b90b]'
-                      : 'bg-[#f6465d18] text-[#f6465d]',
-                )}
-              >
-                {safeConsistency.status.toUpperCase()}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Equity Summary Card */}
-        <div className='rounded-xl border border-[var(--to-border)] bg-[var(--to-surface)] p-5 space-y-4'>
+        <div
+          className='rounded-2xl border border-[var(--to-border)] p-5 space-y-3'
+          style={{
+            background: 'linear-gradient(160deg,#0d1117 0%,#12161c 100%)',
+          }}
+        >
           <div className='flex items-center gap-2'>
             <BarChart2 className='h-4 w-4 text-[var(--to-warning)]' />
-            <span className='text-[12px] font-semibold text-[var(--to-text-secondary)] uppercase tracking-wider'>
+            <span className='text-[11px] font-bold text-[var(--to-text-secondary)] uppercase tracking-widest font-mono'>
               Equity Today
             </span>
           </div>
-          <div className='space-y-3'>
-            <div>
-              <div className='text-[11px] text-[var(--to-text-dim)]'>
-                Starting Balance
-              </div>
-              <div
-                className='text-[18px] font-bold text-[var(--to-text-primary)] tabular-nums'
-                style={{ fontFamily: 'var(--font-mono)' }}
-              >
-                $
-                {safeEquity.daily_start_balance.toLocaleString('en-US', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </div>
+          <div>
+            <div className='text-[10px] text-[var(--to-text-dim)] font-mono'>
+              Starting Balance
             </div>
-            <div>
-              <div className='text-[11px] text-[var(--to-text-dim)]'>
-                Current Equity
-              </div>
+            <div className='text-[20px] font-black font-mono'>
+              $
+              {safeEquity.daily_start_balance.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </div>
+          </div>
+          <div>
+            <div className='text-[10px] text-[var(--to-text-dim)] font-mono'>
+              Current Equity
+            </div>
+            <div className='flex items-center gap-2'>
               <div
-                className='text-[18px] font-bold tabular-nums'
+                className='text-[20px] font-black font-mono'
                 style={{
-                  fontFamily: 'var(--font-mono)',
                   color:
                     safeEquity.current_equity >= safeEquity.daily_start_balance
                       ? '#0ecb81'
@@ -1056,207 +659,50 @@ export default function PropFirmPage() {
                   maximumFractionDigits: 2,
                 })}
               </div>
-            </div>
-            <div className='flex justify-between pt-2 border-t border-[var(--to-border)]'>
-              <div>
-                <div className='text-[10px] text-[var(--to-text-dim)]'>
-                  Closed
-                </div>
-                <div
-                  className='text-[13px] font-semibold tabular-nums'
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  color: safeDailyPnl.closed >= 0 ? '#0ecb81' : '#f6465d',
-                }}
-                >
-                  {safeDailyPnl.closed >= 0 ? '+' : ''}$
-                  {safeDailyPnl.closed.toFixed(2)}
-                </div>
-              </div>
-              <div>
-                <div className='text-[10px] text-[var(--to-text-dim)]'>
-                  Floating
-                </div>
-                <div
-                  className='text-[13px] font-semibold tabular-nums'
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  color: safeDailyPnl.floating >= 0 ? '#0ecb81' : '#f6465d',
-                }}
-                >
-                  {safeDailyPnl.floating >= 0 ? '+' : ''}$
-                  {safeDailyPnl.floating.toFixed(2)}
-                </div>
-              </div>
-              <div>
-                <div className='text-[10px] text-[var(--to-text-dim)]'>
-                  Total P&L
-                </div>
-                <div
-                  className='text-[13px] font-semibold tabular-nums'
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  color: safeDailyPnl.total >= 0 ? '#0ecb81' : '#f6465d',
-                }}
-                >
-                  {safeDailyPnl.total >= 0 ? '+' : ''}${safeDailyPnl.total.toFixed(2)}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Middle Row: MTM Positions + Status Checklist ── */}
-      <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
-        {/* Live MTM Positions */}
-        <div className='rounded-xl border border-[var(--to-border)] bg-[var(--to-surface)] p-5 space-y-4'>
-          <div className='flex items-center justify-between'>
-            <div className='flex items-center gap-2'>
-              <Activity className='h-4 w-4 text-[var(--to-warning)]' />
-              <span className='text-[12px] font-semibold text-[var(--to-text-secondary)] uppercase tracking-wider'>
-                Live MTM Positions
-              </span>
-            </div>
-            {mtmData && (
               <span
-                className='text-[11px] text-[var(--to-text-dim)]'
-                style={{ fontFamily: 'var(--font-mono)' }}
-              >
-                Floating:{' '}
-                <span
+                className='flex items-center gap-0.5 text-[11px] font-bold font-mono px-1.5 py-0.5 rounded'
                 style={{
-                  color: (mtmData.floating_pnl ?? 0) >= 0 ? '#0ecb81' : '#f6465d',
+                  color: accountGrowthPct >= 0 ? '#0ecb81' : '#f6465d',
+                  backgroundColor:
+                    accountGrowthPct >= 0 ? '#0ecb8115' : '#f6465d15',
                 }}
               >
-                {(mtmData.floating_pnl ?? 0) >= 0 ? '+' : ''}$
-                {(mtmData.floating_pnl ?? 0).toFixed(2)}
-                </span>
+                {accountGrowthPct >= 0 ? (
+                  <ArrowUpRight className='h-3 w-3' />
+                ) : (
+                  <ArrowDownRight className='h-3 w-3' />
+                )}
+                {Math.abs(accountGrowthPct).toFixed(2)}%
               </span>
-            )}
+            </div>
           </div>
-
-          {mtmLoading ? (
-            <div className='space-y-2'>
-              {[1, 2].map((i) => (
-                <div
-                  key={i}
-                  className='h-12 rounded bg-[var(--to-surface-raised)] animate-pulse'
-                />
-              ))}
-            </div>
-          ) : mtmData?.positions && mtmData.positions.length > 0 ? (
-            <div className='space-y-2 max-h-52 overflow-y-auto'>
-              {mtmData.positions.map((pos, i) => (
-                <MtmPositionRow key={i} pos={pos} />
-              ))}
-            </div>
-          ) : (
-            <div className='flex flex-col items-center justify-center py-8 text-[var(--to-text-dim)]'>
-              <Shield className='h-8 w-8 mb-2 opacity-30' />
-              <span className='text-sm'>No open positions</span>
-            </div>
-          )}
-        </div>
-
-        {/* Rules Checklist */}
-        <div className='rounded-xl border border-[var(--to-border)] bg-[var(--to-surface)] p-5 space-y-4'>
-          <div className='flex items-center gap-2'>
-            <Shield className='h-4 w-4 text-[var(--to-warning)]' />
-            <span className='text-[12px] font-semibold text-[var(--to-text-secondary)] uppercase tracking-wider'>
-              Challenge Rules
-            </span>
-          </div>
-          <div className='space-y-3'>
+          <div className='grid grid-cols-3 gap-2 pt-2 border-t border-[var(--to-border)]'>
             {[
-              {
-                label: 'Daily Loss Limit',
-                detail: `${safeDrawdown.daily_pct.toFixed(2)}% of ${safeDrawdown.daily_limit_pct}% used`,
-                ok:
-                  !status.daily_loss_breach &&
-                  safeDrawdown.daily_pct < safeDrawdown.daily_limit_pct * 0.7,
-                warn:
-                  !status.daily_loss_breach &&
-                  safeDrawdown.daily_pct >= safeDrawdown.daily_limit_pct * 0.7,
-              },
-              {
-                label: 'Max Drawdown',
-                detail: `${safeDrawdown.trailing_pct.toFixed(2)}% of ${safeDrawdown.trailing_limit_pct}% used`,
-                ok:
-                  !status.drawdown_breach &&
-                  safeDrawdown.trailing_pct < safeDrawdown.trailing_limit_pct * 0.7,
-                warn:
-                  !status.drawdown_breach &&
-                  safeDrawdown.trailing_pct >= safeDrawdown.trailing_limit_pct * 0.7,
-              },
-              {
-                label: 'Consistency Rule (40%)',
-                detail: `Best day is ${safeConsistency.best_day_pct.toFixed(1)}% of total profit`,
-                ok: status.consistency_ok && safeConsistency.status === 'safe',
-                warn: status.consistency_ok && safeConsistency.status !== 'safe',
-              },
-              {
-                label: 'Safe to Trade',
-                detail: status.safe_to_trade
-                  ? 'No active breaches'
-                  : 'Trading paused',
-                ok: status.safe_to_trade,
-                warn: false,
-              },
-            ].map((rule) => {
-              const failed = !rule.ok && !rule.warn;
-              const iconColor = rule.ok
-                ? '#0ecb81'
-                : rule.warn
-                  ? '#f0b90b'
-                  : '#f6465d';
-              const Icon = rule.ok
-                ? CheckCircle2
-                : rule.warn
-                  ? AlertTriangle
-                  : XCircle;
-              return (
-                <div
-                  key={rule.label}
-                  className='flex items-center justify-between py-2 border-b border-[var(--to-border)] last:border-0'
-                >
-                  <div className='flex items-center gap-2.5'>
-                    <Icon
-                      className='h-4 w-4 shrink-0'
-                      style={{ color: iconColor }}
-                    />
-                    <div>
-                      <div className='text-[13px] font-medium text-[var(--to-text-primary)]'>
-                        {rule.label}
-                      </div>
-                      <div className='text-[11px] text-[var(--to-text-dim)]'>
-                        {rule.detail}
-                      </div>
-                    </div>
-                  </div>
-                  <span
-                    className='text-[10px] px-2 py-0.5 rounded font-semibold uppercase'
-                    style={{
-                      backgroundColor: `${iconColor}18`,
-                      color: iconColor,
-                      border: `1px solid ${iconColor}30`,
-                    }}
-                  >
-                    {rule.ok ? 'OK' : rule.warn ? 'WARN' : 'BREACH'}
-                  </span>
+              { label: 'Closed', value: safeDailyPnl.closed },
+              { label: 'Floating', value: safeDailyPnl.floating },
+              { label: 'Total', value: safeDailyPnl.total },
+            ].map(({ label, value }) => (
+              <div key={label}>
+                <div className='text-[9px] text-[var(--to-text-dim)] font-mono uppercase'>
+                  {label}
                 </div>
-              );
-            })}
+                <div
+                  className='text-[13px] font-bold font-mono'
+                  style={{ color: value >= 0 ? '#0ecb81' : '#f6465d' }}
+                >
+                  {value >= 0 ? '+' : ''}${value.toFixed(2)}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* ── Drawdown History Chart ── */}
-      <div className='rounded-xl border border-[var(--to-border)] bg-[var(--to-surface)] p-5 space-y-4'>
-        <div className='flex items-center justify-between'>
+      <div className='rounded-2xl border border-[var(--to-border)] bg-[var(--to-surface)] p-5'>
+        <div className='flex items-center justify-between mb-3'>
           <div className='flex items-center gap-2'>
             <TrendingDown className='h-4 w-4 text-[var(--to-warning)]' />
-            <span className='text-[12px] font-semibold text-[var(--to-text-secondary)] uppercase tracking-wider'>
+            <span className='text-[11px] font-bold text-[var(--to-text-secondary)] uppercase tracking-widest font-mono'>
               Drawdown History
             </span>
           </div>
@@ -1269,7 +715,7 @@ export default function PropFirmPage() {
                   'px-2.5 py-1 rounded text-[11px] font-medium transition-colors',
                   historyDays === d
                     ? 'bg-[var(--to-warning)]/15 text-[var(--to-warning)] border border-[var(--to-warning)]/30'
-                    : 'text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]',
+                    : 'text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]'
                 )}
               >
                 {d}d
@@ -1277,26 +723,7 @@ export default function PropFirmPage() {
             ))}
           </div>
         </div>
-        <div className='flex items-center gap-4 text-[11px]'>
-          <span className='flex items-center gap-1.5'>
-            <span
-              className='inline-block w-4 h-0.5 rounded'
-              style={{ backgroundColor: '#3b82f6' }}
-            />
-            <span className='text-[var(--to-text-dim)]'>Daily DD</span>
-          </span>
-          <span className='flex items-center gap-1.5'>
-            <span
-              className='inline-block w-4 h-0.5 rounded'
-              style={{ backgroundColor: '#f0b90b' }}
-            />
-            <span className='text-[var(--to-text-dim)]'>Trailing DD</span>
-          </span>
-          <span className='flex items-center gap-1.5'>
-            <span className='inline-block w-4 h-px border-t border-dashed border-[#f6465d]' />
-            <span className='text-[var(--to-text-dim)]'>Daily Limit</span>
-          </span>
-        </div>
+
         {historyLoading ? (
           <div className='h-44 flex items-center justify-center'>
             <div className='h-6 w-6 rounded-full border-2 border-[var(--to-warning)] border-t-transparent animate-spin' />
@@ -1310,22 +737,52 @@ export default function PropFirmPage() {
         )}
       </div>
 
-      {/* ── Phase Stepper ── */}
-      <PhaseStepper currentPhase={evaluation_phase} />
-
-      {/* ── Bottom Row: Countdown + Payout Projection ── */}
       <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
         <CountdownTimer daysRemaining={days_remaining} />
-        <PayoutProjection
-          accountBalance={safeEquity.daily_start_balance}
-          currentProfitPct={
-            safeEquity.current_equity > safeEquity.daily_start_balance
-              ? ((safeEquity.current_equity - safeEquity.daily_start_balance) /
-                  safeEquity.daily_start_balance) *
-                100
-              : 0
-          }
-        />
+        <div className='rounded-2xl border border-[var(--to-border)] bg-[var(--to-surface)] p-5'>
+          <div className='flex items-center gap-2 mb-2'>
+            <Activity className='h-4 w-4 text-[var(--to-warning)]' />
+            <span className='text-[11px] font-bold text-[var(--to-text-secondary)] uppercase tracking-widest font-mono'>
+              Live MTM Positions
+            </span>
+          </div>
+          {mtmLoading ? (
+            <div className='space-y-2'>
+              {[1, 2].map((i) => (
+                <div
+                  key={i}
+                  className='h-12 rounded-xl bg-[var(--to-surface-raised)] animate-pulse'
+                />
+              ))}
+            </div>
+          ) : mtmData?.positions?.length ? (
+            <div className='space-y-2 max-h-52 overflow-y-auto scrollbar-thin'>
+              {mtmData.positions.map((p, i) => (
+                <div
+                  key={i}
+                  className='flex items-center justify-between px-3 py-2.5 rounded-xl border border-[var(--to-border)] bg-[var(--to-surface-raised)]'
+                >
+                  <div className='text-[12px] font-mono text-[var(--to-text-primary)]'>
+                    {p.symbol}
+                  </div>
+                  <div
+                    className='text-[12px] font-mono font-bold'
+                    style={{
+                      color: (p.floating_pnl ?? 0) >= 0 ? '#0ecb81' : '#f6465d',
+                    }}
+                  >
+                    {(p.floating_pnl ?? 0) >= 0 ? '+' : ''}$
+                    {(p.floating_pnl ?? 0).toFixed(2)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className='text-[var(--to-text-dim)] text-sm'>
+              No open positions
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
