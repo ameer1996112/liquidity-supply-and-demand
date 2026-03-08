@@ -7,26 +7,11 @@ import {
   Clock,
   RefreshCw,
   ChevronRight,
-  BarChart2,
-  ArrowUpRight,
-  ArrowDownRight,
-  Filter,
-  TrendingDown,
+  DollarSign,
+  AlertTriangle,
+  CheckCircle,
+  Activity,
 } from 'lucide-react';
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip as RechartsTooltip,
-  ResponsiveContainer,
-  ReferenceLine,
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-} from 'recharts';
 import { cn } from '@/lib/utils';
 import {
   usePropFirmMetrics,
@@ -37,8 +22,10 @@ import {
 import { useAccountsComparison } from '@/hooks/useAccounts';
 import { fetchSignals } from '@/lib/supabase';
 import { useQuery } from '@tanstack/react-query';
-import { format, parseISO, subDays, startOfDay } from 'date-fns';
+import { format, subDays, startOfDay } from 'date-fns';
 import { getPnl, getSymbol, TradingSignal } from '@/types/trading';
+import { StatCard } from '@/components/dashboard/StatCard';
+import { CircularGauge } from '@/components/ui/CircularGauge';
 
 function normalizeSession(value: unknown): string {
   if (value == null) return 'Unknown';
@@ -115,7 +102,7 @@ function PhaseBadge({ phase }: { phase: string }) {
   };
   return (
     <span
-      className='inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wider font-mono'
+      className='inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider font-mono'
       style={{
         backgroundColor: `${meta.color}18`,
         border: `1px solid ${meta.color}40`,
@@ -252,19 +239,6 @@ export default function PropFirmPage() {
     };
   }, [filteredSignals, analyticsDaily]);
 
-  const symbolOptions = useMemo(
-    () => ['ALL', ...Array.from(new Set(allSignals.map((s) => getSymbol(s))))],
-    [allSignals]
-  );
-  const sessionOptions = useMemo(
-    () => [
-      'ALL',
-      ...Array.from(new Set(allSignals.map((s) => getSignalSession(s)))),
-    ],
-    [allSignals]
-  );
-  const dowOptions = ['ALL', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
   if (metricsLoading) {
     return (
       <div className='p-6 text-[var(--to-text-dim)]'>
@@ -342,255 +316,343 @@ export default function PropFirmPage() {
       : 0;
 
   return (
-    <div className='flex-1 space-y-5 p-6'>
-      <div className='flex items-start justify-between'>
-        <div className='space-y-2'>
-          <div className='flex items-center gap-3'>
-            <div className='flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--to-warning)]/30'>
-              <Trophy className='h-5 w-5 text-[var(--to-warning)]' />
+    <div className='flex-1 space-y-6 p-6 animate-fade-in-up'>
+      {/* Header Section */}
+      <div className='glass-panel p-6'>
+        <div className='flex flex-col md:flex-row md:items-center md:justify-between gap-4'>
+          <div className='space-y-3'>
+            <div className='flex items-center gap-3'>
+              <div className='flex h-12 w-12 items-center justify-center rounded-xl border border-[var(--to-warning)]/30 bg-[var(--to-warning)]/10'>
+                <Trophy className='h-6 w-6 text-[var(--to-warning)]' />
+              </div>
+              <div>
+                <h1 className='text-[22px] font-black text-[var(--to-text-primary)] tracking-tight'>
+                  Prop Firm Challenge
+                </h1>
+                <div className='flex items-center gap-2 mt-1'>
+                  <span className='text-[12px] text-[var(--to-text-secondary)] font-mono'>
+                    {account_name}
+                  </span>
+                  <ChevronRight className='h-3 w-3 text-[var(--to-text-dim)]' />
+                  <PhaseBadge phase={evaluation_phase} />
+                  {metrics.days_remaining !== null && (
+                    <div className='flex items-center gap-1 ml-2 text-[11px] text-[var(--to-text-dim)] font-mono'>
+                      <Clock className='h-3 w-3' />
+                      {metrics.days_remaining} days remaining
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-            <div>
-              <h1 className='text-[18px] font-black text-[var(--to-text-primary)] tracking-tight'>
-                Prop Firm Hub
-              </h1>
-              <div className='flex items-center gap-2 mt-0.5'>
-                <span className='text-[11px] text-[var(--to-text-dim)] font-mono'>
-                  {account_name}
-                </span>
-                <ChevronRight className='h-3 w-3 text-[var(--to-text-dim)]' />
-                <PhaseBadge phase={evaluation_phase} />
+
+            <div className='flex items-center gap-1.5 flex-wrap'>
+              <span className='text-[11px] text-[var(--to-text-dim)] font-mono mr-1'>
+                Account:
+              </span>
+              {accountOptions.map((acc) => (
+                <button
+                  key={acc}
+                  onClick={() => setSelectedAccount(acc)}
+                  className={cn(
+                    'px-3 py-1.5 rounded-lg text-[11px] font-bold font-mono uppercase tracking-wide transition-all border',
+                    selectedAccount === acc
+                      ? 'text-[#3b82f6] border-[#3b82f6]/40 bg-[#3b82f6]/15'
+                      : 'text-[var(--to-text-dim)] border-[var(--to-border)] hover:text-[var(--to-text-secondary)]'
+                  )}
+                >
+                  {acc}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className='flex items-center gap-3'>
+            {dataUpdatedAt && (
+              <span className='text-[11px] text-[var(--to-text-dim)] font-mono'>
+                Updated {format(new Date(dataUpdatedAt), 'HH:mm:ss')}
+              </span>
+            )}
+            <button
+              onClick={() => resetMutation.mutate()}
+              disabled={resetMutation.isPending}
+              className='flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[var(--to-border)] text-[12px] text-[var(--to-text-secondary)] hover:bg-[var(--to-surface-raised)] transition-colors'
+            >
+              <RefreshCw
+                className={cn(
+                  'h-3.5 w-3.5',
+                  resetMutation.isPending && 'animate-spin'
+                )}
+              />
+              Reset Daily
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Challenge Health Score & Account Overview */}
+      <div className='grid grid-cols-1 lg:grid-cols-3 gap-4'>
+        <div className='glass-panel p-6 lg:col-span-1'>
+          <div className='flex flex-col items-center'>
+            <h3 className='text-[13px] font-bold text-[var(--to-text-secondary)] uppercase tracking-widest font-mono mb-4'>
+              Challenge Health
+            </h3>
+
+            <div className='relative'>
+              <div className='absolute inset-0 flex items-center justify-center'>
+                <div className='text-center'>
+                  <div
+                    className={cn(
+                      'text-[32px] font-bold font-mono',
+                      healthScore > 80
+                        ? 'text-[#0ecb81]'
+                        : healthScore > 50
+                        ? 'text-[#f0b90b]'
+                        : 'text-[#f6465d]'
+                    )}
+                  >
+                    {healthScore}
+                  </div>
+                  <div className='text-[11px] text-[var(--to-text-dim)] mt-1'>
+                    {healthScore > 80
+                      ? 'Excellent'
+                      : healthScore > 50
+                      ? 'Caution'
+                      : 'At Risk'}
+                  </div>
+                </div>
+              </div>
+              <svg width='180' height='180' viewBox='0 0 100 100'>
+                <circle
+                  cx='50'
+                  cy='50'
+                  r='45'
+                  fill='none'
+                  stroke='#1e2329'
+                  strokeWidth='8'
+                />
+                <circle
+                  cx='50'
+                  cy='50'
+                  r='45'
+                  fill='none'
+                  stroke={
+                    healthScore > 80
+                      ? '#0ecb81'
+                      : healthScore > 50
+                      ? '#f0b90b'
+                      : '#f6465d'
+                  }
+                  strokeWidth='8'
+                  strokeLinecap='round'
+                  strokeDasharray={`${healthScore * 2.83} ${
+                    283 - healthScore * 2.83
+                  }`}
+                  strokeDashoffset='70'
+                  style={{
+                    transition: 'stroke-dasharray 0.6s ease, stroke 0.4s ease',
+                    filter: `drop-shadow(0 0 4px ${
+                      healthScore > 80
+                        ? '#0ecb8160'
+                        : healthScore > 50
+                        ? '#f0b90b60'
+                        : '#f6465d60'
+                    })`,
+                  }}
+                />
+              </svg>
+            </div>
+
+            <div className='mt-4 text-center'>
+              <div className='text-[13px] text-[var(--to-text-secondary)]'>
+                {status.safe_to_trade ? (
+                  <div className='flex items-center justify-center gap-1.5 text-[#0ecb81]'>
+                    <CheckCircle className='h-4 w-4' />
+                    <span>Safe to Trade</span>
+                  </div>
+                ) : (
+                  <div className='flex items-center justify-center gap-1.5 text-[#f6465d]'>
+                    <AlertTriangle className='h-4 w-4' />
+                    <span>Trading Restricted</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
-
-          <div className='flex items-center gap-1.5 flex-wrap'>
-            <span className='text-[10px] text-[var(--to-text-dim)] font-mono mr-1'>
-              Account:
-            </span>
-            {accountOptions.map((acc) => (
-              <button
-                key={acc}
-                onClick={() => setSelectedAccount(acc)}
-                className={cn(
-                  'px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono uppercase tracking-wide transition-all border',
-                  selectedAccount === acc
-                    ? 'text-[#3b82f6] border-[#3b82f6]/40 bg-[#3b82f6]/15'
-                    : 'text-[var(--to-text-dim)] border-[var(--to-border)] hover:text-[var(--to-text-secondary)]'
-                )}
-              >
-                {acc}
-              </button>
-            ))}
-          </div>
         </div>
 
-        <div className='flex items-center gap-2'>
-          {dataUpdatedAt && (
-            <span className='text-[11px] text-[var(--to-text-dim)] font-mono'>
-              Updated {format(new Date(dataUpdatedAt), 'HH:mm:ss')}
-            </span>
-          )}
-          <button
-            onClick={() => resetMutation.mutate()}
-            disabled={resetMutation.isPending}
-            className='flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--to-border)] text-[12px] text-[var(--to-text-secondary)]'
-          >
-            <RefreshCw
-              className={cn(
-                'h-3.5 w-3.5',
-                resetMutation.isPending && 'animate-spin'
+        <div className='glass-panel p-6 lg:col-span-2'>
+          <h3 className='text-[13px] font-bold text-[var(--to-text-secondary)] uppercase tracking-widest font-mono mb-4'>
+            Account Overview
+          </h3>
+
+          <div className='grid grid-cols-2 md:grid-cols-4 gap-4'>
+            <StatCard
+              label='Starting Balance'
+              value={`$${safeEquity.daily_start_balance.toLocaleString()}`}
+              icon={DollarSign}
+              variant='default'
+            />
+
+            <StatCard
+              label='Current Equity'
+              value={`$${safeEquity.current_equity.toLocaleString()}`}
+              icon={DollarSign}
+              variant={accountGrowthPct >= 0 ? 'profit' : 'loss'}
+              subValue={`${
+                accountGrowthPct >= 0 ? '+' : ''
+              }${accountGrowthPct.toFixed(2)}%`}
+              trend={accountGrowthPct >= 0 ? 'up' : 'down'}
+            />
+
+            <StatCard
+              label='Daily P&L'
+              value={`${
+                safeDailyPnl.total >= 0 ? '+' : ''
+              }$${safeDailyPnl.total.toLocaleString()}`}
+              icon={Activity}
+              variant={safeDailyPnl.total >= 0 ? 'profit' : 'loss'}
+              subValue={`Closed: ${
+                safeDailyPnl.closed >= 0 ? '+' : ''
+              }$${safeDailyPnl.closed.toLocaleString()}`}
+            />
+
+            <StatCard
+              label='Floating P&L'
+              value={`${
+                safeDailyPnl.floating >= 0 ? '+' : ''
+              }$${safeDailyPnl.floating.toLocaleString()}`}
+              icon={Activity}
+              variant={safeDailyPnl.floating >= 0 ? 'profit' : 'loss'}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Challenge Metrics */}
+      <div className='glass-panel p-6'>
+        <h3 className='text-[13px] font-bold text-[var(--to-text-secondary)] uppercase tracking-widest font-mono mb-4'>
+          Challenge Metrics
+        </h3>
+
+        <div className='grid grid-cols-1 md:grid-cols-3 gap-6'>
+          <div className='flex flex-col items-center'>
+            <CircularGauge
+              value={safeDrawdown.daily_pct}
+              limit={safeDrawdown.daily_limit_pct}
+              label='Daily Drawdown'
+              sublabel={`Limit: ${safeDrawdown.daily_limit_pct}%`}
+              size={150}
+              colorZones={[
+                { at: 0, color: '#0ecb81' },
+                { at: safeDrawdown.daily_limit_pct * 0.6, color: '#f0b90b' },
+                { at: safeDrawdown.daily_limit_pct * 0.8, color: '#f6465d' },
+              ]}
+            />
+            <div className='mt-2 text-[12px] text-[var(--to-text-secondary)]'>
+              {safeDrawdown.daily_pct < safeDrawdown.daily_limit_pct * 0.6 ? (
+                <span className='text-[#0ecb81]'>Safe Zone</span>
+              ) : safeDrawdown.daily_pct <
+                safeDrawdown.daily_limit_pct * 0.8 ? (
+                <span className='text-[#f0b90b]'>Caution Zone</span>
+              ) : (
+                <span className='text-[#f6465d]'>Danger Zone</span>
               )}
+            </div>
+          </div>
+
+          <div className='flex flex-col items-center'>
+            <CircularGauge
+              value={safeDrawdown.trailing_pct}
+              limit={safeDrawdown.trailing_limit_pct}
+              label='Max Drawdown'
+              sublabel={`Limit: ${safeDrawdown.trailing_limit_pct}%`}
+              size={150}
+              colorZones={[
+                { at: 0, color: '#0ecb81' },
+                { at: safeDrawdown.trailing_limit_pct * 0.6, color: '#f0b90b' },
+                { at: safeDrawdown.trailing_limit_pct * 0.8, color: '#f6465d' },
+              ]}
             />
-            Reset Daily
-          </button>
+            <div className='mt-2 text-[12px] text-[var(--to-text-secondary)]'>
+              {safeDrawdown.trailing_pct <
+              safeDrawdown.trailing_limit_pct * 0.6 ? (
+                <span className='text-[#0ecb81]'>Safe Zone</span>
+              ) : safeDrawdown.trailing_pct <
+                safeDrawdown.trailing_limit_pct * 0.8 ? (
+                <span className='text-[#f0b90b]'>Caution Zone</span>
+              ) : (
+                <span className='text-[#f6465d]'>Danger Zone</span>
+              )}
+            </div>
+          </div>
+
+          <div className='flex flex-col items-center'>
+            <CircularGauge
+              value={safeConsistency.best_day_pct}
+              limit={safeConsistency.limit_pct}
+              label='Consistency Rule'
+              sublabel={`Limit: ${safeConsistency.limit_pct}%`}
+              size={150}
+              colorZones={[
+                { at: 0, color: '#0ecb81' },
+                { at: safeConsistency.limit_pct * 0.75, color: '#f0b90b' },
+                { at: safeConsistency.limit_pct * 0.9, color: '#f6465d' },
+              ]}
+            />
+            <div className='mt-2 text-[12px] text-[var(--to-text-secondary)]'>
+              {safeConsistency.best_day_pct <
+              safeConsistency.limit_pct * 0.75 ? (
+                <span className='text-[#0ecb81]'>Well Balanced</span>
+              ) : safeConsistency.best_day_pct <
+                safeConsistency.limit_pct * 0.9 ? (
+                <span className='text-[#f0b90b]'>Approaching Limit</span>
+              ) : (
+                <span className='text-[#f6465d]'>Consistency Risk</span>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className='rounded-2xl border border-[var(--to-border)] bg-[var(--to-surface)] p-4'>
-        <div className='text-[12px] text-[var(--to-text-secondary)] font-mono'>
-          Challenge Health Score:{' '}
-          <span className='text-[var(--to-text-primary)] font-bold'>
-            {healthScore}
-          </span>
-        </div>
-      </div>
+      {/* Performance Summary */}
+      <div className='glass-panel p-6'>
+        <h3 className='text-[13px] font-bold text-[var(--to-text-secondary)] uppercase tracking-widest font-mono mb-4'>
+          Performance Summary
+        </h3>
 
-      <div className='rounded-2xl border border-[var(--to-border)] bg-[var(--to-surface)] p-4'>
-        <div className='flex items-center gap-2 mb-3'>
-          <Filter className='h-4 w-4 text-[var(--to-warning)]' />
-          <span className='text-[11px] font-bold text-[var(--to-text-secondary)] uppercase tracking-widest font-mono'>
-            Advanced Analytics Filters
-          </span>
-        </div>
-        <div className='grid grid-cols-2 md:grid-cols-5 gap-2'>
-          <select
-            value={analyticsRange}
-            onChange={(e) =>
-              setAnalyticsRange(Number(e.target.value) as 7 | 14 | 30)
-            }
-            className='rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)] px-2.5 py-1.5 text-[11px]'
-          >
-            <option value={7}>Last 7d</option>
-            <option value={14}>Last 14d</option>
-            <option value={30}>Last 30d</option>
-          </select>
-          <select
-            value={symbolFilter}
-            onChange={(e) => setSymbolFilter(e.target.value)}
-            className='rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)] px-2.5 py-1.5 text-[11px]'
-          >
-            {symbolOptions.map((s) => (
-              <option key={s} value={s}>
-                {s === 'ALL' ? 'All Symbols' : s}
-              </option>
-            ))}
-          </select>
-          <select
-            value={sessionFilter}
-            onChange={(e) => setSessionFilter(e.target.value)}
-            className='rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)] px-2.5 py-1.5 text-[11px]'
-          >
-            {sessionOptions.map((s) => (
-              <option key={s} value={s}>
-                {s === 'ALL' ? 'All Sessions' : s}
-              </option>
-            ))}
-          </select>
-          <select
-            value={dowFilter}
-            onChange={(e) => setDowFilter(e.target.value)}
-            className='rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)] px-2.5 py-1.5 text-[11px]'
-          >
-            {dowOptions.map((d) => (
-              <option key={d} value={d}>
-                {d === 'ALL' ? 'All Days' : d}
-              </option>
-            ))}
-          </select>
-          <button
-            onClick={() => {
-              setSymbolFilter('ALL');
-              setSessionFilter('ALL');
-              setDowFilter('ALL');
-              setAnalyticsRange(14);
-            }}
-            className='rounded-lg border border-[var(--to-border)] px-2.5 py-1.5 text-[11px]'
-          >
-            Reset Filters
-          </button>
-        </div>
-      </div>
+        <div className='grid grid-cols-2 md:grid-cols-5 gap-3'>
+          <StatCard
+            label='Positions'
+            value={`${summary.totalPositions}`}
+            variant='default'
+          />
 
-      <div className='grid grid-cols-2 md:grid-cols-5 gap-3'>
-        {[
-          {
-            label: 'Positions',
-            value: `${summary.totalPositions}`,
-            color: '#3b82f6',
-          },
-          {
-            label: 'Closed',
-            value: `${summary.closedTrades}`,
-            color: '#a78bfa',
-          },
-          {
-            label: 'Win Rate',
-            value: `${summary.winRate.toFixed(1)}%`,
-            color: summary.winRate >= 50 ? '#0ecb81' : '#f6465d',
-          },
-          {
-            label: 'Total PnL',
-            value: `${
+          <StatCard
+            label='Closed Trades'
+            value={`${summary.closedTrades}`}
+            variant='default'
+          />
+
+          <StatCard
+            label='Win Rate'
+            value={`${summary.winRate.toFixed(1)}%`}
+            variant={summary.winRate >= 50 ? 'profit' : 'loss'}
+          />
+
+          <StatCard
+            label='Total PnL'
+            value={`${
               summary.totalPnl >= 0 ? '+' : ''
-            }$${summary.totalPnl.toFixed(2)}`,
-            color: summary.totalPnl >= 0 ? '#0ecb81' : '#f6465d',
-          },
-          {
-            label: 'Best / Worst',
-            value: `${summary.bestDay.date} / ${summary.worstDay.date}`,
-            color: '#f0b90b',
-          },
-        ].map((kpi) => (
-          <div
-            key={kpi.label}
-            className='rounded-xl border border-[var(--to-border)] bg-[var(--to-surface)] p-3'
-          >
-            <div className='text-[9px] text-[var(--to-text-dim)] uppercase tracking-wide font-mono'>
-              {kpi.label}
-            </div>
-            <div
-              className='text-[14px] font-black mt-1 font-mono'
-              style={{ color: kpi.color }}
-            >
-              {kpi.value}
-            </div>
-          </div>
-        ))}
-      </div>
+            }$${summary.totalPnl.toFixed(2)}`}
+            variant={summary.totalPnl >= 0 ? 'profit' : 'loss'}
+          />
 
-      <div className='grid grid-cols-1 xl:grid-cols-3 gap-4'>
-        <div className='xl:col-span-2 rounded-2xl border border-[var(--to-border)] bg-[var(--to-surface)] p-4'>
-          <div className='text-[11px] font-bold text-[var(--to-text-secondary)] uppercase tracking-widest font-mono mb-3'>
-            Daily PnL
-          </div>
-          <ResponsiveContainer width='100%' height={220}>
-            <AreaChart data={analyticsDaily}>
-              <defs>
-                <linearGradient id='pnlGrad' x1='0' y1='0' x2='0' y2='1'>
-                  <stop offset='5%' stopColor='#3b82f6' stopOpacity={0.3} />
-                  <stop offset='95%' stopColor='#3b82f6' stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray='3 3' stroke='#1e2329' />
-              <XAxis dataKey='date' tick={{ fill: '#5e6673', fontSize: 10 }} />
-              <YAxis tick={{ fill: '#5e6673', fontSize: 10 }} />
-              <RechartsTooltip />
-              <Area
-                type='monotone'
-                dataKey='pnl'
-                stroke='#3b82f6'
-                fill='url(#pnlGrad)'
-                strokeWidth={2}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          <StatCard
+            label='Best / Worst Day'
+            value={`${summary.bestDay.date} / ${summary.worstDay.date}`}
+            variant='warning'
+          />
         </div>
-
-        <div className='rounded-2xl border border-[var(--to-border)] bg-[var(--to-surface)] p-4'>
-          <div className='text-[11px] font-bold text-[var(--to-text-secondary)] uppercase tracking-widest font-mono mb-3'>
-            Positions / Day
-          </div>
-          <ResponsiveContainer width='100%' height={220}>
-            <BarChart data={analyticsDaily}>
-              <CartesianGrid strokeDasharray='3 3' stroke='#1e2329' />
-              <XAxis dataKey='date' tick={{ fill: '#5e6673', fontSize: 10 }} />
-              <YAxis tick={{ fill: '#5e6673', fontSize: 10 }} />
-              <RechartsTooltip />
-              <Bar dataKey='positions' fill='#a78bfa' radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
-      <div className='rounded-2xl border border-[var(--to-border)] bg-[var(--to-surface)] p-4'>
-        <div className='text-[11px] font-bold text-[var(--to-text-secondary)] uppercase tracking-widest font-mono mb-3'>
-          Win Rate / Day
-        </div>
-        <ResponsiveContainer width='100%' height={220}>
-          <LineChart data={analyticsDaily}>
-            <CartesianGrid strokeDasharray='3 3' stroke='#1e2329' />
-            <XAxis dataKey='date' tick={{ fill: '#5e6673', fontSize: 10 }} />
-            <YAxis tick={{ fill: '#5e6673', fontSize: 10 }} domain={[0, 100]} />
-            <RechartsTooltip formatter={(v) => [`${v}%`, 'Win Rate']} />
-            <Line
-              type='monotone'
-              dataKey='winRate'
-              stroke='#0ecb81'
-              strokeWidth={2}
-              dot={false}
-            />
-          </LineChart>
-        </ResponsiveContainer>
       </div>
     </div>
   );
