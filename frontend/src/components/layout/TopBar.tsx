@@ -266,7 +266,8 @@ export function TopBar() {
   const [killDialogMode, setKillDialogMode] =
     useState<KillSwitchMode>('engage');
 
-  const { toggleCopilot, toggleMarket } = useShellActions();
+  const { toggleCopilot, toggleMarket, copilotOpen, marketOpen } =
+    useShellActions();
   const { data: accounts = [] } = useAccountsComparison();
   const { isApiUp, healthStatus, hasDrift, brokerOk, lastReconcileAt } =
     useSystemStatus();
@@ -495,7 +496,12 @@ export function TopBar() {
 
           <button
             onClick={toggleMarket}
-            className='flex items-center justify-center p-2 rounded-lg text-zinc-400 hover:text-[#0ecb81] hover:bg-[#0ecb81]/10 transition-colors tooltip-trigger'
+            className={cn(
+              'flex items-center justify-center p-2 rounded-lg transition-all',
+              marketOpen
+                ? 'text-[#0ecb81] bg-[#0ecb81]/15 ring-1 ring-[#0ecb81]/30 shadow-[0_0_10px_rgba(14,203,129,0.15)]'
+                : 'text-zinc-400 hover:text-[#0ecb81] hover:bg-[#0ecb81]/10'
+            )}
             title='Live Markets Panel'
           >
             <Globe className='h-4 w-4' />
@@ -503,7 +509,12 @@ export function TopBar() {
 
           <button
             onClick={toggleCopilot}
-            className='flex items-center justify-center p-2 rounded-lg text-zinc-400 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors tooltip-trigger'
+            className={cn(
+              'flex items-center justify-center p-2 rounded-lg transition-all',
+              copilotOpen
+                ? 'text-indigo-400 bg-indigo-500/15 ring-1 ring-indigo-500/30 shadow-[0_0_10px_rgba(99,102,241,0.15)]'
+                : 'text-zinc-400 hover:text-indigo-400 hover:bg-indigo-500/10'
+            )}
             title='AI Copilot (⌘/)'
           >
             <Sparkles className='h-4 w-4' />
