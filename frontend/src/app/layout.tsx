@@ -8,6 +8,7 @@ import { ShellActionsProvider } from '@/providers/ShellActionsProvider';
 import { AppShell } from '@/components/layout/AppShell';
 import { ToastProvider } from '@/components/ui/toast';
 import { AlertProvider } from '@/components/alerts/AlertProvider';
+import { TimezoneProvider } from '@/providers/TimezoneProvider';
 import './globals.css';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
@@ -40,13 +41,15 @@ export default function RootLayout({
           <ToastProvider>
             <AlertProvider>
               <ThemeProvider>
-                <SidebarProvider>
-                  <TradingModeProvider>
-                    <ShellActionsProvider>
-                      <AppShell>{children}</AppShell>
-                    </ShellActionsProvider>
-                  </TradingModeProvider>
-                </SidebarProvider>
+                <TimezoneProvider>
+                  <SidebarProvider>
+                    <TradingModeProvider>
+                      <ShellActionsProvider>
+                        <AppShell>{children}</AppShell>
+                      </ShellActionsProvider>
+                    </TradingModeProvider>
+                  </SidebarProvider>
+                </TimezoneProvider>
               </ThemeProvider>
             </AlertProvider>
           </ToastProvider>

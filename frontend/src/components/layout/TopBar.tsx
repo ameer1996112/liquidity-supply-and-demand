@@ -28,17 +28,27 @@ import {
 } from '@/components/risk/KillSwitchConfirmDialog';
 import { AlertBell } from '@/components/alerts/AlertBell';
 import { useShellActions } from '@/providers/ShellActionsProvider';
+import { useTimezone, TZ_OPTIONS } from '@/providers/TimezoneProvider';
 
 function DualClock() {
   const [now, setNow] = useState<Date | null>(null);
+  const [open, setOpen] = useState(false);
+  const { timezone, tzAbbr, setTimezone, formatTime } = useTimezone();
 
   useEffect(() => {
-    // Initialize inside interval callback to avoid synchronous setState-in-effect lint rule
     const update = () => setNow(new Date());
-    update(); // immediate first tick via callback so it's in the async boundary
+    update();
     const id = setInterval(update, 1000);
     return () => clearInterval(id);
   }, []);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!open) return;
+    const handler = () => setOpen(false);
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
+  }, [open]);
 
   if (!now) return null;
 
@@ -49,33 +59,77 @@ function DualClock() {
     second: '2-digit',
     hour12: false,
   });
-  const israel = now.toLocaleTimeString('en-GB', {
-    timeZone: 'Asia/Jerusalem',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  });
+  const local = formatTime(now);
 
   return (
-    <div
-      className='hidden items-center gap-4 text-[11px] tabular-nums xl:flex bg-[var(--to-surface-raised)]/30 px-3 py-1.5 rounded-lg border border-white/5 backdrop-blur-sm shadow-sm'
-      style={{ fontFamily: 'var(--font-mono)' }}
-    >
-      <div className='flex items-center gap-2'>
-        <Clock className='h-3.5 w-3.5 text-[var(--to-accent-purple)]/60' />
-        <span className='text-white/80 font-medium'>{utc}</span>
-        <span className='text-[var(--to-text-dim)] text-[9px] tracking-widest uppercase'>
-          UTC
-        </span>
-      </div>
-      <div className='h-3 w-px bg-white/10' />
-      <div className='flex items-center gap-2'>
-        <span className='text-white/80 font-medium'>{israel}</span>
-        <span className='text-[var(--to-text-dim)] text-[9px] tracking-widest uppercase'>
-          IL
-        </span>
-      </div>
+    <div className='relative hidden xl:flex'>
+      <button
+        type='button'
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
+        className='flex items-center gap-4 text-[11px] tabular-nums bg-[var(--to-surface-raised)]/30 px-3 py-1.5 rounded-lg border border-white/5 backdrop-blur-sm shadow-sm hover:border-white/10 transition-colors'
+        style={{ fontFamily: 'var(--font-mono)' }}
+        title='Click to change timezone'
+      >
+        <div className='flex items-center gap-2'>
+          <Clock className='h-3.5 w-3.5 text-[var(--to-accent-purple)]/60' />
+          <span className='text-white/80 font-medium'>{utc}</span>
+          <span className='text-[var(--to-text-dim)] text-[9px] tracking-widest uppercase'>
+            UTC
+          </span>
+        </div>
+        <div className='h-3 w-px bg-white/10' />
+        <div className='flex items-center gap-2'>
+          <span className='text-white/80 font-medium'>{local}</span>
+          <span className='text-[var(--to-text-dim)] text-[9px] tracking-widest uppercase'>
+            {tzAbbr}
+          </span>
+        </div>
+      </button>
+
+      {/* Timezone dropdown */}
+      {open && (
+        <div
+          className='absolute left-0 top-full mt-1.5 z-[200] min-w-[200px] rounded-xl border border-white/10 bg-[#0d0f14] shadow-2xl overflow-hidden'
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className='px-3 py-2 border-b border-white/5'>
+            <span
+              className='text-[9px] font-bold uppercase tracking-widest text-[var(--to-text-dim)]'
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >
+              Display Timezone
+            </span>
+          </div>
+          {TZ_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type='button'
+              onClick={() => {
+                setTimezone(opt.value);
+                setOpen(false);
+              }}
+              className={cn(
+                'flex w-full items-center justify-between px-3 py-2 text-left text-[11px] transition-colors',
+                timezone === opt.value
+                  ? 'bg-indigo-500/15 text-indigo-300'
+                  : 'text-[var(--to-text-secondary)] hover:bg-white/5 hover:text-white'
+              )}
+              style={{ fontFamily: 'var(--font-sans)' }}
+            >
+              <span>{opt.label}</span>
+              <span
+                className='text-[9px] font-bold tracking-widest text-[var(--to-text-dim)]'
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                {opt.abbr}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

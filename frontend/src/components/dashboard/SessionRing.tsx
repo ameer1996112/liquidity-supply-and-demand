@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { FlashValue } from '@/components/ui/AnimatedNumber';
+import { useTimezone } from '@/providers/TimezoneProvider';
 
 interface SessionRingProps {
   todayPnl: number | null | undefined;
@@ -50,6 +51,7 @@ export function SessionRing({
   lossCount,
   className,
 }: SessionRingProps) {
+  const { tzAbbr } = useTimezone();
   const pnl = todayPnl ?? 0;
   const session = useMemo(() => getCurrentSession(), []);
 
@@ -93,7 +95,7 @@ export function SessionRing({
           className='text-[9px] text-slate-600 hidden sm:inline'
           style={{ fontFamily: 'var(--font-mono)' }}
         >
-          · opens Sun 22:00 UTC
+          · opens Sun 22:00 UTC · {tzAbbr}
         </span>
       </div>
     );

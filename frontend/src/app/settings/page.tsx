@@ -5,7 +5,9 @@ import { ConfigDisplay } from '@/components/settings/ConfigDisplay';
 import { AiConfigPanel } from '@/components/settings/AiConfigPanel';
 import { SystemHealthPanel } from '@/components/settings/SystemHealthPanel';
 import { AlertRulesPanel } from '@/components/settings/AlertRulesPanel';
-import { Info, Layers, Settings } from 'lucide-react';
+import { Info, Layers, Settings, Globe, Check } from 'lucide-react';
+import { useTimezone, TZ_OPTIONS } from '@/providers/TimezoneProvider';
+import { cn } from '@/lib/utils';
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
@@ -22,6 +24,77 @@ function InfoRow({ label, value }: { label: string; value: string }) {
       >
         {value}
       </span>
+    </div>
+  );
+}
+
+function TimezonePanel() {
+  const { timezone, setTimezone, tzAbbr } = useTimezone();
+
+  return (
+    <div className='to-panel'>
+      <div className='to-panel-header'>
+        <div className='flex items-center gap-2'>
+          <Globe className='h-3.5 w-3.5 text-text-dim' />
+          <span
+            className='panel-label'
+            style={{ fontFamily: 'var(--font-sans)' }}
+          >
+            Display Timezone
+          </span>
+        </div>
+        <span
+          className='text-[10px] font-bold text-indigo-400 font-mono'
+          style={{ fontFamily: 'var(--font-mono)' }}
+        >
+          {tzAbbr}
+        </span>
+      </div>
+      <div className='p-3'>
+        <p
+          className='mb-3 text-[11px] text-[var(--to-text-dim)]'
+          style={{ fontFamily: 'var(--font-sans)' }}
+        >
+          All timestamps, session times, and clocks across the dashboard will
+          display in the selected timezone. Saved to your browser automatically.
+        </p>
+        <div className='grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-4'>
+          {TZ_OPTIONS.map((opt) => {
+            const isActive = timezone === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type='button'
+                onClick={() => setTimezone(opt.value)}
+                className={cn(
+                  'flex items-center justify-between rounded-lg border px-3 py-2.5 text-left transition-all',
+                  isActive
+                    ? 'border-indigo-500/40 bg-indigo-500/10 text-indigo-300'
+                    : 'border-[var(--to-border)] bg-[var(--to-surface-raised)] text-[var(--to-text-secondary)] hover:border-white/10 hover:text-white'
+                )}
+              >
+                <div>
+                  <p
+                    className='text-[11px] font-semibold'
+                    style={{ fontFamily: 'var(--font-sans)' }}
+                  >
+                    {opt.label}
+                  </p>
+                  <p
+                    className='text-[9px] font-mono text-[var(--to-text-dim)] mt-0.5'
+                    style={{ fontFamily: 'var(--font-mono)' }}
+                  >
+                    {opt.value}
+                  </p>
+                </div>
+                {isActive && (
+                  <Check className='h-3.5 w-3.5 text-indigo-400 shrink-0' />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
@@ -44,6 +117,9 @@ export default function SettingsPage() {
         </p>
       </div>
 
+      {/* Timezone */}
+      <TimezonePanel />
+
       {/* Connection Status */}
       <ConnectionStatus />
 
@@ -60,8 +136,18 @@ export default function SettingsPage() {
       <ConfigDisplay
         title='Environment'
         items={[
-          { key: 'SUPABASE_URL', value: supabaseUrl, sensitive: true, critical: true },
-          { key: 'SUPABASE_KEY', value: supabaseKey, sensitive: true, critical: true },
+          {
+            key: 'SUPABASE_URL',
+            value: supabaseUrl,
+            sensitive: true,
+            critical: true,
+          },
+          {
+            key: 'SUPABASE_KEY',
+            value: supabaseKey,
+            sensitive: true,
+            critical: true,
+          },
           { key: 'API_URL', value: apiUrl, critical: true },
           { key: 'NODE_ENV', value: process.env.NODE_ENV || 'development' },
         ]}

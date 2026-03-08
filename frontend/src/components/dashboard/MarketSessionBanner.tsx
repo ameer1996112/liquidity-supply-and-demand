@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import { Activity, Clock, AlertTriangle, Globe } from 'lucide-react';
+import { Activity, Clock, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTimezone } from '@/providers/TimezoneProvider';
 
 type Session = {
   id: string;
@@ -118,43 +119,7 @@ function calculateSessionProgress(
   return Math.min(100, Math.max(0, (elapsedHours / totalHours) * 100));
 }
 
-function formatIsraelTime(date: Date): string {
-  return date.toLocaleTimeString('en-GB', {
-    timeZone: 'Asia/Jerusalem',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  });
-}
-
-function formatIsraelDay(date: Date): string {
-  return date.toLocaleDateString('en-GB', {
-    timeZone: 'Asia/Jerusalem',
-    weekday: 'short',
-  });
-}
-
-function utcHourToIsraelTime(utcHour: number): string {
-  const now = new Date();
-  const date = new Date(
-    Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate(),
-      utcHour,
-      0,
-      0
-    )
-  );
-
-  return date.toLocaleTimeString('en-GB', {
-    timeZone: 'Asia/Jerusalem',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
-}
+// Time formatting is now handled by useTimezone() hook
 
 function msToWeekendOpen(now: Date): number {
   const day = now.getUTCDay();
@@ -184,6 +149,7 @@ function formatDuration(ms: number): string {
 }
 
 export function MarketSessionBanner() {
+  const { formatTime, formatDate, utcHourToLocal, tzAbbr } = useTimezone();
   const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
@@ -208,8 +174,8 @@ export function MarketSessionBanner() {
   const utcSeconds = now.getUTCSeconds();
   const utcDecimalHours = utcHours + utcMinutes / 60 + utcSeconds / 3600;
 
-  const israelTimeString = formatIsraelTime(now);
-  const israelDayString = formatIsraelDay(now);
+  const localTimeString = formatTime(now);
+  const localDayString = formatDate(now, { weekday: 'short' });
 
   // Calculate session states
   const sessionStates = SESSIONS.map((session) => {
@@ -230,8 +196,8 @@ export function MarketSessionBanner() {
       ...session,
       isActive,
       progress,
-      startIL: utcHourToIsraelTime(session.startUtcH),
-      endIL: utcHourToIsraelTime(session.endUtcH),
+      startLocal: utcHourToLocal(session.startUtcH),
+      endLocal: utcHourToLocal(session.endUtcH),
     };
   });
 
@@ -291,7 +257,7 @@ export function MarketSessionBanner() {
           <div className='flex items-center gap-1.5 rounded-md border border-zinc-800 bg-gradient-to-r from-zinc-900/40 to-zinc-800/10 px-2.5 py-1.5'>
             <Clock className='h-3.5 w-3.5 text-zinc-400' />
             <span className='font-mono text-[11px] font-medium text-zinc-300'>
-              {israelDayString} {israelTimeString} IL
+              {localDayString} {localTimeString} {tzAbbr}
             </span>
           </div>
         </div>
@@ -381,7 +347,7 @@ export function MarketSessionBanner() {
                     className='text-[10px] tabular-nums text-zinc-500'
                     style={{ fontFamily: 'var(--font-mono)' }}
                   >
-                    {session.startIL} → {session.endIL} IL
+                    {session.startLocal} → {session.endLocal} {tzAbbr}
                   </span>
                   {session.isActive && (
                     <span
