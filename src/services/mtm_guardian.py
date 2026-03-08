@@ -174,8 +174,55 @@ class MTMGuardian:
                     logger.error(f"MTM calculation error for position {pos.get('id')}: {e}")
 
         # 4. Calculate total equity and drawdown
+        # Priority: MetaAPI snapshot > override > settings fallback
         starting_balance = self._starting_balance_override or self.settings.account_balance
-        current_equity = starting_balance + closed_pnl + floating_pnl
+        current_equity = None
+
+        # Try to get real equity from account_status_snapshots (synced by AccountSyncService)
+        if account_name and account_name != "default":
+            try:
+                from datetime import timedelta
+                cutoff = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
+                today_start = datetime.now(timezone.utc).replace(
+                    hour=0, minute=0, second=0, microsecond=0
+                ).isoformat()
+
+                # Latest equity snapshot (within last 10 min)
+                latest_snap = self.supabase.table("account_status_snapshots")\
+                    .select("equity, balance, snapshot_time")\
+                    .eq("account_name", account_name)\
+                    .gte("snapshot_time", cutoff)\
+                    .order("snapshot_time", desc=True)\
+                    .limit(1)\
+                    .execute()
+
+                if latest_snap.data:
+                    current_equity = float(latest_snap.data[0]["equity"])
+
+                    # Use day-start balance for drawdown calculation
+                    day_start_snap = self.supabase.table("account_status_snapshots")\
+                        .select("balance")\
+                        .eq("account_name", account_name)\
+                        .gte("snapshot_time", today_start)\
+                        .order("snapshot_time", desc=False)\
+                        .limit(1)\
+                        .execute()
+
+                    if day_start_snap.data:
+                        starting_balance = float(day_start_snap.data[0]["balance"])
+                    else:
+                        starting_balance = float(latest_snap.data[0]["balance"])
+
+                    logger.debug(
+                        "MTM: using live MetaAPI equity $%.2f (balance $%.2f) for %s",
+                        current_equity, starting_balance, account_name
+                    )
+            except Exception as _snap_err:
+                logger.warning("MTM: failed to fetch account_status_snapshots for %s: %s", account_name, _snap_err)
+
+        # Fallback: calculate from starting_balance + PnL
+        if current_equity is None:
+            current_equity = starting_balance + closed_pnl + floating_pnl
 
         # Daily drawdown percentage
         daily_drawdown_pct = ((starting_balance - current_equity) / starting_balance) * 100 if starting_balance > 0 else 0

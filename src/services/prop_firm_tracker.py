@@ -51,6 +51,34 @@ class PropFirmTracker:
         self.supabase = supabase_client
         self.settings = settings
 
+    def _get_live_balance(self, account_name: str) -> Optional[float]:
+        """
+        Fetch the most recent account balance from account_status_snapshots
+        (populated by AccountSyncService from MetaAPI).
+
+        Returns None if no recent snapshot exists.
+        """
+        try:
+            from datetime import timedelta
+            cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+            result = self.supabase.table("account_status_snapshots")\
+                .select("balance, snapshot_time")\
+                .eq("account_name", account_name)\
+                .gte("snapshot_time", cutoff)\
+                .order("snapshot_time", desc=True)\
+                .limit(1)\
+                .execute()
+            if result.data:
+                bal = float(result.data[0]["balance"])
+                logger.info(
+                    "PropFirmTracker: using live MetaAPI balance $%.2f for %s",
+                    bal, account_name
+                )
+                return bal
+        except Exception as e:
+            logger.warning("PropFirmTracker: failed to fetch live balance for %s: %s", account_name, e)
+        return None
+
     async def get_current_metrics(
         self,
         account_name: str = "default",
@@ -91,12 +119,13 @@ class PropFirmTracker:
                 daily_high_water_mark = snapshot.data[0].get("daily_high_water_mark", daily_start_balance)
                 max_historical_equity = snapshot.data[0].get("max_historical_equity", daily_start_balance)
             else:
-                daily_start_balance = self.settings.account_balance
+                # No prop_firm_metrics snapshot for today — try account_status_snapshots (MetaAPI live data)
+                daily_start_balance = self._get_live_balance(account_name) or self.settings.account_balance
                 daily_high_water_mark = daily_start_balance
                 max_historical_equity = daily_start_balance
         except Exception as e:
             logger.error(f"Failed to fetch daily snapshot: {e}")
-            daily_start_balance = self.settings.account_balance
+            daily_start_balance = self._get_live_balance(account_name) or self.settings.account_balance
             daily_high_water_mark = daily_start_balance
             max_historical_equity = daily_start_balance
 
