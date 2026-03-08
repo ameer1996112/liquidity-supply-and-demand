@@ -209,6 +209,32 @@ class AccountOrchestrator:
                     logger.warning(f"Failed to fetch live data for {account_name}: {e}")
                     connection_status = "error"
 
+            # Fallback: try account_status_snapshots (populated by AccountSyncService from MetaAPI)
+            if balance == float(account_data.get("allocated_capital_usd") or 0):
+                try:
+                    cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+                    snap = self.client.table("account_status_snapshots")\
+                        .select("balance, equity, snapshot_time")\
+                        .eq("account_name", account_name)\
+                        .gte("snapshot_time", cutoff)\
+                        .order("snapshot_time", desc=True)\
+                        .limit(1)\
+                        .execute()
+                    if snap.data:
+                        balance = float(snap.data[0]["balance"])
+                        equity = float(snap.data[0]["equity"])
+                        last_sync_time = snap.data[0].get("snapshot_time")
+                        connection_status = "synced"
+                        logger.info(
+                            "AccountOrchestrator: using snapshot balance $%.2f for %s",
+                            balance, account_name
+                        )
+                except Exception as snap_err:
+                    logger.warning(
+                        "AccountOrchestrator: failed to fetch account_status_snapshots for %s: %s",
+                        account_name, snap_err
+                    )
+
             daily_pnl_pct = (daily_pnl / balance * 100) if balance > 0 else 0.0
 
             # Profit factor (gross wins / gross losses)
@@ -554,7 +580,7 @@ class AccountOrchestrator:
                         "account_name": account["account_name"],
                         "strategy_type": account.get("strategy_type", "BALANCED"),
                         "balance": perf.balance,
-                        "equity": perf.balance,  # TODO: Get actual equity from broker
+                        "equity": perf.equity,
                         "daily_pnl": perf.daily_pnl,
                         "daily_pnl_pct": perf.daily_pnl_pct,
                         "win_rate": perf.win_rate,

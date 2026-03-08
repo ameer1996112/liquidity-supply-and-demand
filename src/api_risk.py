@@ -142,7 +142,39 @@ def get_risk_status():
     correlation_exposure = cm.get_portfolio_exposure(positions)
 
     # 3. Equity & drawdown
-    starting_equity = s.account_balance
+    # Try to get real balance from account_status_snapshots (MetaAPI synced by AccountSyncService)
+    starting_equity = s.account_balance  # fallback
+    try:
+        from datetime import timedelta
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+
+        # Get all active accounts
+        accounts_resp = sb.table("account_strategies")\
+            .select("account_name")\
+            .eq("is_active", True)\
+            .execute()
+
+        if accounts_resp.data:
+            total_balance = 0.0
+            found_any = False
+            for acct in accounts_resp.data:
+                acct_name = acct["account_name"]
+                snap = sb.table("account_status_snapshots")\
+                    .select("balance")\
+                    .eq("account_name", acct_name)\
+                    .gte("snapshot_time", cutoff)\
+                    .order("snapshot_time", desc=True)\
+                    .limit(1)\
+                    .execute()
+                if snap.data:
+                    total_balance += float(snap.data[0]["balance"])
+                    found_any = True
+            if found_any:
+                starting_equity = total_balance
+                logger.debug("Risk status: using live MetaAPI balance $%.2f", starting_equity)
+    except Exception as _eq_err:
+        logger.warning("Risk status: failed to fetch live balance: %s", _eq_err)
+
     current_equity = starting_equity + daily_pnl
     drawdown_pct = max(0.0, (starting_equity - current_equity) / starting_equity * 100) if starting_equity > 0 else 0.0
     daily_pnl_pct = abs(daily_pnl / starting_equity * 100) if daily_pnl < 0 and starting_equity > 0 else 0.0
