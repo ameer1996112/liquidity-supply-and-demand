@@ -28,6 +28,36 @@ import { format, subDays, startOfDay } from 'date-fns';
 import { getPnl, getSymbol, TradingSignal } from '@/types/trading';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { CircularGauge } from '@/components/ui/CircularGauge';
+import type { PropFirmMetricsResponse } from '@/lib/api';
+
+const MOCK_METRICS: PropFirmMetricsResponse = {
+  status: 'ok',
+  account_name: 'Demo Account',
+  evaluation_phase: 'phase1',
+  metrics: {
+    equity: {
+      daily_start_balance: 100000,
+      current_equity: 101850,
+      daily_high_water_mark: 102100,
+    },
+    daily_pnl: { closed: 1200, floating: 650, total: 1850 },
+    drawdown: {
+      daily_pct: 0.8,
+      daily_limit_pct: 5,
+      daily_remaining_usd: 4200,
+      trailing_pct: 1.2,
+      trailing_limit_pct: 10,
+    },
+    status: {
+      daily_loss_breach: false,
+      drawdown_breach: false,
+      safe_to_trade: true,
+      consistency_ok: true,
+    },
+    consistency: { best_day_pct: 18, limit_pct: 30, status: 'safe' },
+    days_remaining: 22,
+  },
+};
 
 function normalizeSession(value: unknown): string {
   if (value == null) return 'Unknown';
@@ -249,27 +279,10 @@ export default function PropFirmPage() {
     );
   }
 
-  if (metricsError || !metricsData) {
-    return (
-      <div className='flex-1 p-6'>
-        <div className='rounded-xl border border-[#f6465d]/40 bg-[#f6465d]/8 p-6 flex items-start gap-3'>
-          <XCircle className='h-5 w-5 text-[#f6465d] mt-0.5 shrink-0' />
-          <div>
-            <div className='font-semibold text-[#f6465d]'>
-              Failed to load prop firm metrics
-            </div>
-            <div className='text-sm text-[var(--to-text-secondary)] mt-1'>
-              {metricsError instanceof Error
-                ? metricsError.message
-                : 'Backend may be offline or prop firm tracker not configured.'}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const isDemo = metricsError || !metricsData;
+  const resolvedMetrics = isDemo ? MOCK_METRICS : metricsData!;
 
-  const { metrics, evaluation_phase, account_name } = metricsData;
+  const { metrics, evaluation_phase, account_name } = resolvedMetrics;
   const { equity, daily_pnl, drawdown, status, consistency } = metrics;
 
   const safeEquity = {
@@ -319,6 +332,14 @@ export default function PropFirmPage() {
 
   return (
     <div className='flex-1 space-y-6 p-6 animate-fade-in-up'>
+      {/* Demo banner */}
+      {isDemo && (
+        <div className='rounded-xl border border-[#f0b90b]/30 bg-[#f0b90b]/8 px-4 py-3 flex items-center gap-2 text-[12px] text-[#f0b90b] font-mono'>
+          <AlertTriangle className='h-4 w-4 shrink-0' />
+          Backend offline — showing demo data. Connect your backend to see live
+          metrics.
+        </div>
+      )}
       {/* Header Section */}
       <div className='glass-panel p-6'>
         <div className='flex flex-col md:flex-row md:items-center md:justify-between gap-4'>
@@ -664,7 +685,15 @@ export default function PropFirmPage() {
           Daily Performance Calendar
         </h3>
 
-        <CalendarPnlView signals={filteredSignals.filter(isClosedSignal)} />
+        <CalendarPnlView
+          signals={allSignals
+            .filter(isClosedSignal)
+            .filter((s) =>
+              selectedAccount === 'default'
+                ? true
+                : getSignalAccount(s) === selectedAccount
+            )}
+        />
       </div>
     </div>
   );
