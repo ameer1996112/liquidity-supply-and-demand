@@ -342,6 +342,15 @@ export default function PropFirmPage() {
 
   const summary = useMemo(() => {
     const closed = filteredSignals.filter(isClosedSignal);
+    const open = filteredSignals.filter((s) => {
+      const st = String(s.status || '').toLowerCase();
+      return (
+        st === 'active' ||
+        st === 'executed' ||
+        st === 'open' ||
+        st === 'pending'
+      );
+    });
     const pnl = closed.reduce((acc, s) => acc + (getPnl(s) ?? 0), 0);
     const wins = closed.filter((s) => (getPnl(s) ?? 0) > 0).length;
     const wr = closed.length ? (wins / closed.length) * 100 : 0;
@@ -354,7 +363,7 @@ export default function PropFirmPage() {
     }
 
     return {
-      totalPositions: filteredSignals.length,
+      openPositions: open.length,
       closedTrades: closed.length,
       winRate: wr,
       totalPnl: pnl,
@@ -737,8 +746,8 @@ export default function PropFirmPage() {
 
         <div className='grid grid-cols-2 md:grid-cols-5 gap-3'>
           <StatCard
-            label='Positions'
-            value={`${summary.totalPositions}`}
+            label='Open Positions'
+            value={`${summary.openPositions}`}
             variant='default'
           />
 
