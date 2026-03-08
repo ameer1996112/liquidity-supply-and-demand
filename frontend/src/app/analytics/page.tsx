@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useAnalytics } from '@/hooks/useAnalytics';
 import {
@@ -8,23 +8,22 @@ import {
   useStreaks,
   useDrawdown,
   useSummary,
+  type BucketStats,
 } from '@/hooks/usePerformanceAnalytics';
-import { MetricCard } from '@/components/analytics/MetricCard';
-import { BreakdownTable } from '@/components/analytics/BreakdownTable';
-import { SummaryCards } from '@/components/analytics/SummaryCards';
+import { PerformanceScoreCard } from '@/components/analytics/PerformanceScoreCard';
+import {
+  InsightCard,
+  type InsightData,
+} from '@/components/analytics/InsightCard';
+import { AIConfidenceChart } from '@/components/analytics/AIConfidenceChart';
+import { SymbolPerformanceTable } from '@/components/analytics/SymbolPerformanceTable';
+import { DayOfWeekChart } from '@/components/analytics/DayOfWeekChart';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import {
-  Target,
-  TrendingUp,
-  BarChart3,
-  Hash,
-  Download,
-  TrendingDown,
-  Zap,
-  Clock,
-} from 'lucide-react';
+import { Download, BarChart3 } from 'lucide-react';
 import { PanelEmptyState } from '@/components/shared/PanelEmptyState';
+
+// ── Dynamic imports (heavy chart components) ─────────────────────────────────
 
 const EquityCurveChart = dynamic(
   () =>
@@ -33,95 +32,96 @@ const EquityCurveChart = dynamic(
     ),
   {
     loading: () => (
-      <Skeleton className='h-full min-h-[360px] rounded-lg bg-slate-800/60' />
+      <Skeleton className='h-[280px] w-full rounded-lg bg-slate-800/60' />
     ),
   }
-);
-const WinRateDonut = dynamic(
-  () =>
-    import('@/components/analytics/WinRateDonut').then((m) => m.WinRateDonut),
-  { loading: () => <Skeleton className='h-64 rounded-lg bg-slate-800/60' /> }
-);
-const PnlBySymbolChart = dynamic(
-  () =>
-    import('@/components/analytics/PnlBySymbolChart').then(
-      (m) => m.PnlBySymbolChart
-    ),
-  { loading: () => <Skeleton className='h-64 rounded-lg bg-slate-800/60' /> }
-);
-const DailyPnlChart = dynamic(
-  () =>
-    import('@/components/analytics/DailyPnlChart').then((m) => m.DailyPnlChart),
-  { loading: () => <Skeleton className='h-64 rounded-lg bg-slate-800/60' /> }
-);
-const HeatmapChart = dynamic(
-  () =>
-    import('@/components/analytics/HeatmapChart').then((m) => m.HeatmapChart),
-  { loading: () => <Skeleton className='h-64 rounded-lg bg-slate-800/60' /> }
 );
 const DrawdownChart = dynamic(
   () =>
     import('@/components/analytics/DrawdownChart').then((m) => m.DrawdownChart),
-  { loading: () => <Skeleton className='h-64 rounded-lg bg-slate-800/60' /> }
+  {
+    loading: () => (
+      <Skeleton className='h-[220px] w-full rounded-lg bg-slate-800/60' />
+    ),
+  }
+);
+const HeatmapChart = dynamic(
+  () =>
+    import('@/components/analytics/HeatmapChart').then((m) => m.HeatmapChart),
+  {
+    loading: () => (
+      <Skeleton className='h-[200px] w-full rounded-lg bg-slate-800/60' />
+    ),
+  }
 );
 const StreakTimeline = dynamic(
   () =>
     import('@/components/analytics/StreakTimeline').then(
       (m) => m.StreakTimeline
     ),
-  { loading: () => <Skeleton className='h-80 rounded-lg bg-slate-800/60' /> }
+  {
+    loading: () => (
+      <Skeleton className='h-[280px] w-full rounded-lg bg-slate-800/60' />
+    ),
+  }
 );
 const RollingMetricsChart = dynamic(
   () =>
     import('@/components/analytics/RollingMetricsChart').then(
       (m) => m.RollingMetricsChart
     ),
-  { loading: () => <Skeleton className='h-80 rounded-lg bg-slate-800/60' /> }
+  {
+    loading: () => (
+      <Skeleton className='h-[360px] w-full rounded-lg bg-slate-800/60' />
+    ),
+  }
 );
 
+// ── Types ─────────────────────────────────────────────────────────────────────
+
 type ModeFilter = 'LIVE' | 'PAPER' | 'ALL';
-type AnalyticsTab =
-  | 'overview'
-  | 'breakdown'
-  | 'drawdown'
-  | 'streaks'
-  | 'rolling';
-
-const TABS: { key: AnalyticsTab; label: string }[] = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'breakdown', label: 'Breakdown' },
-  { key: 'drawdown', label: 'Drawdown' },
-  { key: 'streaks', label: 'Streaks' },
-  { key: 'rolling', label: 'Rolling' },
-];
-
-const PERIODS = ['24h', '7d', '30d', 'all'] as const;
+const PERIODS = ['7d', '30d', '90d', 'all'] as const;
+type Period = (typeof PERIODS)[number];
 
 const HOUR_LABELS = Array.from(
   { length: 24 },
   (_, i) => `${String(i).padStart(2, '0')}:00`
 );
 
-/** Export analytics summary to CSV */
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function getBestBucket(
+  data: Record<string, BucketStats>,
+  minTrades = 3
+): { key: string; stats: BucketStats } | null {
+  const entries = Object.entries(data).filter(([, b]) => b.count >= minTrades);
+  if (entries.length === 0) return null;
+  const best = entries.reduce((a, b) =>
+    b[1].win_rate > a[1].win_rate ? b : a
+  );
+  return { key: best[0], stats: best[1] };
+}
+
+function toInsightData(
+  key: string,
+  stats: BucketStats,
+  type: InsightData['type'],
+  subValue?: string
+): InsightData {
+  return {
+    label: key,
+    value: key,
+    subValue,
+    winRate: stats.win_rate,
+    trades: stats.count,
+    pnl: stats.pnl,
+    type,
+  };
+}
+
 function exportAnalyticsCsv(
-  analytics: {
-    winRate: number;
-    profitFactor: number;
-    avgRR: number;
-    closedTrades: number;
-    totalTrades: number;
-    avgWin: number;
-    avgLoss: number;
-    outcomeDistribution: { wins: number; losses: number; breakeven: number };
-  } | null,
-  summaryData: {
-    sharpe_ratio: number;
-    sortino_ratio: number;
-    expectancy: number;
-    avg_hold_time_hours: number;
-    total_r_won: number;
-    total_r_lost: number;
-  } | null
+  analytics: ReturnType<typeof useAnalytics>['data'],
+  summaryData: ReturnType<typeof useSummary>['data']
 ) {
   const rows: string[][] = [
     ['Metric', 'Value'],
@@ -143,7 +143,6 @@ function exportAnalyticsCsv(
     ['Total R Won', summaryData ? summaryData.total_r_won.toFixed(2) : ''],
     ['Total R Lost', summaryData ? summaryData.total_r_lost.toFixed(2) : ''],
   ];
-
   const csv = rows.map((r) => r.join(',')).join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
@@ -154,21 +153,65 @@ function exportAnalyticsCsv(
   URL.revokeObjectURL(url);
 }
 
+// ── Section wrapper ───────────────────────────────────────────────────────────
+
+function Section({
+  title,
+  subtitle,
+  children,
+  className,
+}: {
+  title?: string;
+  subtitle?: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <section className={cn('flex flex-col gap-2', className)}>
+      {title && (
+        <div>
+          <h2
+            className='text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--to-text-dim)]'
+            style={{ fontFamily: 'var(--font-mono)' }}
+          >
+            {title}
+          </h2>
+          {subtitle && (
+            <p
+              className='mt-0.5 text-[10px] text-[var(--to-text-dim)]'
+              style={{ fontFamily: 'var(--font-sans)' }}
+            >
+              {subtitle}
+            </p>
+          )}
+        </div>
+      )}
+      {children}
+    </section>
+  );
+}
+
+// ── Skeleton helpers ──────────────────────────────────────────────────────────
+
+function CardSkeleton({ h = 'h-28' }: { h?: string }) {
+  return <Skeleton className={cn(h, 'rounded-lg bg-slate-800/60')} />;
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
+
 export default function AnalyticsPage() {
   const [modeFilter, setModeFilter] = useState<ModeFilter>('ALL');
-  const [activeTab, setActiveTab] = useState<AnalyticsTab>('overview');
-  const [period, setPeriod] = useState<string>('7d');
+  const [period, setPeriod] = useState<Period>('30d');
 
   const mode = modeFilter === 'ALL' ? undefined : modeFilter;
   const analyticsMode = modeFilter === 'ALL' ? 'LIVE' : modeFilter;
 
-  const { data: analytics, isLoading } = useAnalytics(mode);
-  const {
-    data: breakdown,
-    isLoading: breakdownLoading,
-    isError: breakdownError,
-    error: breakdownErrorObj,
-  } = useBreakdown(period, analyticsMode);
+  // ── Data hooks ──────────────────────────────────────────────────────────────
+  const { data: analytics, isLoading: analyticsLoading } = useAnalytics(mode);
+  const { data: breakdown, isLoading: breakdownLoading } = useBreakdown(
+    period,
+    analyticsMode
+  );
   const { data: streaksData, isLoading: streaksLoading } =
     useStreaks(analyticsMode);
   const { data: drawdownData, isLoading: drawdownLoading } =
@@ -176,25 +219,67 @@ export default function AnalyticsPage() {
   const { data: summaryData, isLoading: summaryLoading } =
     useSummary(analyticsMode);
 
+  const isLoading = analyticsLoading || summaryLoading;
+
+  // ── Derived insights ────────────────────────────────────────────────────────
+  const insights = useMemo(() => {
+    if (!breakdown) return { symbol: null, hour: null, day: null, model: null };
+
+    const bestSymbol = getBestBucket(breakdown.pnl_by_symbol);
+    const bestHour = getBestBucket(breakdown.pnl_by_hour);
+    const bestDay = getBestBucket(breakdown.pnl_by_day_of_week);
+    const bestModel = getBestBucket(breakdown.pnl_by_entry_model);
+
+    return {
+      symbol: bestSymbol
+        ? toInsightData(
+            bestSymbol.key,
+            bestSymbol.stats,
+            'symbol',
+            `${bestSymbol.stats.count} trades`
+          )
+        : null,
+      hour: bestHour
+        ? toInsightData(bestHour.key, bestHour.stats, 'hour', 'UTC time')
+        : null,
+      day: bestDay
+        ? toInsightData(bestDay.key, bestDay.stats, 'day', 'day of week')
+        : null,
+      model: bestModel
+        ? toInsightData(bestModel.key, bestModel.stats, 'model', 'entry model')
+        : null,
+    };
+  }, [breakdown]);
+
+  const hasData = !!analytics;
+  const hasBreakdown = !!breakdown;
+  const hasDrawdown = !!drawdownData && drawdownData.data.length > 0;
+  const hasStreaks = !!streaksData && streaksData.streaks.length > 0;
+
   return (
-    <div className='flex h-full min-h-0 flex-col gap-3'>
-      {/* ── Header ──────────────────────────────────────────────── */}
-      <div className='shrink-0 flex flex-wrap items-start justify-between gap-3'>
-        <div>
-          <h1 className='page-title text-lg font-semibold'>Analytics</h1>
-          <p className='page-subtitle mt-0.5 text-xs'>
-            Performance insights across trades, risk, and consistency.
-          </p>
+    <div className='flex flex-col gap-6 pb-8'>
+      {/* ── Header ──────────────────────────────────────────────────────────── */}
+      <div className='flex flex-wrap items-start justify-between gap-3'>
+        <div className='flex items-center gap-3'>
+          <div className='flex h-9 w-9 items-center justify-center rounded-xl bg-[#3b82f6]/12 border border-[#3b82f6]/25'>
+            <BarChart3 className='h-[18px] w-[18px] text-[#3b82f6]' />
+          </div>
+          <div>
+            <h1 className='page-title text-lg font-bold'>
+              Performance Intelligence
+            </h1>
+            <p className='page-subtitle mt-0.5 text-xs'>
+              Deep-dive analytics · patterns · risk-adjusted metrics
+            </p>
+          </div>
         </div>
 
         <div className='flex flex-wrap items-center gap-2'>
-          {/* Export CSV button */}
+          {/* Export CSV */}
           <button
-            onClick={() =>
-              exportAnalyticsCsv(analytics ?? null, summaryData ?? null)
-            }
+            onClick={() => exportAnalyticsCsv(analytics, summaryData)}
             disabled={!analytics && !summaryData}
-            className='flex items-center gap-1.5 rounded-lg border border-[var(--to-border)] bg-[var(--to-surface)] px-3 py-1.5 text-[10px] font-medium text-[var(--to-text-secondary)] transition-colors hover:border-[var(--to-accent-blue)]/50 hover:text-[var(--to-accent-blue)] disabled:opacity-40'
+            className='flex items-center gap-1.5 rounded-lg border border-[var(--to-border)] bg-[var(--to-surface)] px-3 py-1.5 text-[10px] font-medium text-[var(--to-text-secondary)] transition-colors hover:border-[#3b82f6]/50 hover:text-[#3b82f6] disabled:opacity-40'
             style={{ fontFamily: 'var(--font-mono)' }}
           >
             <Download className='h-3 w-3' />
@@ -202,25 +287,23 @@ export default function AnalyticsPage() {
           </button>
 
           {/* Period selector */}
-          {activeTab === 'breakdown' && (
-            <div className='surface-soft flex items-center gap-0.5 rounded-lg p-0.5'>
-              {PERIODS.map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setPeriod(p)}
-                  className={cn(
-                    'rounded-md px-2.5 py-1 text-[10px] transition-colors',
-                    period === p
-                      ? 'bg-indigo-600/20 text-indigo-300'
-                      : 'text-slate-500 hover:text-slate-300'
-                  )}
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-          )}
+          <div className='surface-soft flex items-center gap-0.5 rounded-lg p-0.5'>
+            {PERIODS.map((p) => (
+              <button
+                key={p}
+                onClick={() => setPeriod(p)}
+                className={cn(
+                  'rounded-md px-2.5 py-1 text-[10px] font-medium transition-colors',
+                  period === p
+                    ? 'bg-[#3b82f6]/20 text-[#3b82f6]'
+                    : 'text-slate-500 hover:text-slate-300'
+                )}
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
 
           {/* Mode filter */}
           <div className='surface-soft flex items-center gap-0.5 rounded-lg p-0.5'>
@@ -229,7 +312,7 @@ export default function AnalyticsPage() {
                 key={m}
                 onClick={() => setModeFilter(m)}
                 className={cn(
-                  'rounded-md px-3 py-1 text-[10px] transition-colors',
+                  'rounded-md px-3 py-1 text-[10px] font-medium transition-colors',
                   modeFilter === m
                     ? 'bg-emerald-500/15 text-emerald-400'
                     : 'text-slate-500 hover:text-slate-300'
@@ -243,356 +326,388 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* ── Tab bar ─────────────────────────────────────────────── */}
-      <div className='surface-soft flex w-fit shrink-0 items-center gap-0.5 rounded-lg p-0.5'>
-        {TABS.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={cn(
-              'rounded-md px-4 py-1.5 text-[11px] font-medium transition-colors',
-              activeTab === tab.key
-                ? 'bg-indigo-600/20 text-indigo-300'
-                : 'text-slate-500 hover:text-slate-300'
-            )}
-            style={{ fontFamily: 'var(--font-sans)' }}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      {/* ── No data state ────────────────────────────────────────────────────── */}
+      {!isLoading && !hasData && (
+        <div className='tv-card p-8'>
+          <PanelEmptyState
+            title='No performance data'
+            description='Execute and close trades to generate analytics.'
+          />
+        </div>
+      )}
 
-      {/* ── Tab content ─────────────────────────────────────────── */}
-      <div className='min-h-0 flex-1 overflow-y-auto scrollbar-thin'>
-        {/* ══ OVERVIEW ══ */}
-        {activeTab === 'overview' && (
-          <div className='flex h-full min-h-0 flex-col gap-4'>
-            {isLoading ? (
-              <div className='grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4'>
-                {[...Array(4)].map((_, i) => (
-                  <Skeleton
-                    key={i}
-                    className='h-24 rounded-lg bg-slate-800/60'
-                  />
-                ))}
-              </div>
-            ) : analytics ? (
-              <>
-                {/* Primary KPI row */}
-                <div className='grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4'>
-                  <MetricCard
-                    label='Win Rate'
-                    value={`${analytics.winRate.toFixed(1)}%`}
-                    icon={<Target className='w-4 h-4' />}
-                    trend={analytics.winRate >= 50 ? 'up' : 'down'}
-                    subtitle={`${analytics.outcomeDistribution.wins}W / ${analytics.outcomeDistribution.losses}L`}
-                  />
-                  <MetricCard
-                    label='Profit Factor'
-                    value={
-                      analytics.profitFactor >= 999
-                        ? 'Inf'
-                        : analytics.profitFactor.toFixed(2)
-                    }
-                    icon={<TrendingUp className='w-4 h-4' />}
-                    trend={analytics.profitFactor >= 1 ? 'up' : 'down'}
-                    subtitle={`Avg Win: $${analytics.avgWin.toFixed(2)}`}
-                  />
-                  <MetricCard
-                    label='Avg R:R'
-                    value={`1:${analytics.avgRR.toFixed(1)}`}
-                    icon={<BarChart3 className='w-4 h-4' />}
-                    subtitle={`Avg Loss: $${analytics.avgLoss.toFixed(2)}`}
-                  />
-                  <MetricCard
-                    label='Total Trades'
-                    value={analytics.closedTrades}
-                    icon={<Hash className='w-4 h-4' />}
-                    subtitle={`${analytics.totalTrades} signals total`}
-                  />
-                </div>
+      {/* ── Performance Score (Hero) ─────────────────────────────────────────── */}
+      <Section
+        title='Performance Score'
+        subtitle='Composite score across win rate, profit factor, risk-adjusted returns, and drawdown'
+      >
+        {isLoading ? (
+          <CardSkeleton h='h-36' />
+        ) : analytics && summaryData ? (
+          <PerformanceScoreCard
+            winRate={analytics.winRate}
+            profitFactor={analytics.profitFactor}
+            expectancy={summaryData.expectancy}
+            sharpeRatio={summaryData.sharpe_ratio}
+            sortinoRatio={summaryData.sortino_ratio}
+            maxDrawdownPct={drawdownData?.max_drawdown_pct ?? 0}
+            totalTrades={summaryData.total_trades}
+          />
+        ) : null}
+      </Section>
 
-                {/* Advanced risk-adjusted metrics row */}
-                {summaryLoading ? (
-                  <div className='grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4'>
-                    {[...Array(4)].map((_, i) => (
-                      <Skeleton
-                        key={i}
-                        className='h-20 rounded-lg bg-slate-800/60'
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  summaryData && (
-                    <div className='grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4'>
-                      <div className='tv-card flex items-start gap-3 p-4'>
-                        <div className='flex h-8 w-8 shrink-0 items-center justify-center rounded bg-[#1e222d] text-zinc-500'>
-                          <TrendingUp className='h-4 w-4' />
-                        </div>
-                        <div>
-                          <p className='text-[10px] uppercase tracking-wider text-zinc-500 font-mono'>
-                            Sharpe Ratio
-                          </p>
-                          <p
-                            className={cn(
-                              'font-mono text-lg font-bold tabular-nums',
-                              summaryData.sharpe_ratio > 0
-                                ? 'text-[#0ecb81]'
-                                : 'text-[#f6465d]'
-                            )}
-                          >
-                            {summaryData.sharpe_ratio.toFixed(2)}
-                          </p>
-                        </div>
-                      </div>
-                      <div className='tv-card flex items-start gap-3 p-4'>
-                        <div className='flex h-8 w-8 shrink-0 items-center justify-center rounded bg-[#1e222d] text-zinc-500'>
-                          <TrendingDown className='h-4 w-4' />
-                        </div>
-                        <div>
-                          <p className='text-[10px] uppercase tracking-wider text-zinc-500 font-mono'>
-                            Sortino Ratio
-                          </p>
-                          <p
-                            className={cn(
-                              'font-mono text-lg font-bold tabular-nums',
-                              summaryData.sortino_ratio > 0
-                                ? 'text-[#0ecb81]'
-                                : 'text-[#f6465d]'
-                            )}
-                          >
-                            {summaryData.sortino_ratio.toFixed(2)}
-                          </p>
-                        </div>
-                      </div>
-                      <div className='tv-card flex items-start gap-3 p-4'>
-                        <div className='flex h-8 w-8 shrink-0 items-center justify-center rounded bg-[#1e222d] text-zinc-500'>
-                          <Zap className='h-4 w-4' />
-                        </div>
-                        <div>
-                          <p className='text-[10px] uppercase tracking-wider text-zinc-500 font-mono'>
-                            Expectancy
-                          </p>
-                          <p
-                            className={cn(
-                              'font-mono text-lg font-bold tabular-nums',
-                              summaryData.expectancy > 0
-                                ? 'text-[#0ecb81]'
-                                : 'text-[#f6465d]'
-                            )}
-                          >
-                            ${summaryData.expectancy.toFixed(2)}
-                          </p>
-                        </div>
-                      </div>
-                      <div className='tv-card flex items-start gap-3 p-4'>
-                        <div className='flex h-8 w-8 shrink-0 items-center justify-center rounded bg-[#1e222d] text-zinc-500'>
-                          <Clock className='h-4 w-4' />
-                        </div>
-                        <div>
-                          <p className='text-[10px] uppercase tracking-wider text-zinc-500 font-mono'>
-                            Avg Hold
-                          </p>
-                          <p className='font-mono text-lg font-bold tabular-nums text-zinc-200'>
-                            {summaryData.avg_hold_time_hours.toFixed(1)}h
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                )}
+      {/* ── Equity Curve ─────────────────────────────────────────────────────── */}
+      {hasData && (
+        <Section
+          title='Equity Curve'
+          subtitle='Cumulative PnL over all closed trades'
+        >
+          <div className='tv-card p-4'>
+            <EquityCurveChart data={analytics!.equityCurve} />
+          </div>
+        </Section>
+      )}
 
-                {/* Equity curve */}
-                <div className='flex-1 min-h-[360px]'>
-                  <EquityCurveChart data={analytics.equityCurve} />
-                </div>
+      {/* ── Drawdown ─────────────────────────────────────────────────────────── */}
+      {(drawdownLoading || hasDrawdown) && (
+        <Section
+          title='Drawdown Analysis'
+          subtitle='Underwater equity curve — how deep and how long'
+        >
+          {drawdownLoading ? (
+            <CardSkeleton h='h-[220px]' />
+          ) : (
+            <DrawdownChart
+              data={drawdownData!.data}
+              maxDrawdownPct={drawdownData!.max_drawdown_pct}
+              maxDrawdownAmount={drawdownData!.max_drawdown_amount}
+            />
+          )}
+        </Section>
+      )}
 
-                {/* Secondary charts */}
-                <div className='grid grid-cols-1 lg:grid-cols-2 gap-3 shrink-0'>
-                  <WinRateDonut
-                    wins={analytics.outcomeDistribution.wins}
-                    losses={analytics.outcomeDistribution.losses}
-                    breakeven={analytics.outcomeDistribution.breakeven}
-                  />
-                  <PnlBySymbolChart data={analytics.pnlBySymbol} />
-                </div>
-
-                <div className='shrink-0'>
-                  <DailyPnlChart data={analytics.pnlByDay} />
-                </div>
-              </>
-            ) : (
-              <div className='tv-card flex-1 p-4'>
-                <PanelEmptyState
-                  title='No analytics data'
-                  description='Execute trades to generate performance data.'
-                />
-              </div>
-            )}
+      {/* ── Intelligence Insights ─────────────────────────────────────────────── */}
+      <Section
+        title='Intelligence Insights'
+        subtitle={`Best-performing patterns from the last ${period} · min 3 trades`}
+      >
+        {breakdownLoading ? (
+          <div className='grid grid-cols-2 gap-3 lg:grid-cols-4'>
+            {[...Array(4)].map((_, i) => (
+              <CardSkeleton key={i} h='h-32' />
+            ))}
+          </div>
+        ) : (
+          <div className='grid grid-cols-2 gap-3 lg:grid-cols-4'>
+            <InsightCard data={insights.symbol} type='symbol' />
+            <InsightCard data={insights.hour} type='hour' />
+            <InsightCard data={insights.day} type='day' />
+            <InsightCard data={insights.model} type='model' />
           </div>
         )}
+      </Section>
 
-        {/* ══ BREAKDOWN ══ */}
-        {activeTab === 'breakdown' && (
-          <>
-            {breakdownLoading ? (
-              <div className='space-y-3'>
-                <Skeleton className='h-56 rounded-lg bg-slate-800/60' />
-                <Skeleton className='h-44 rounded-lg bg-slate-800/60' />
-              </div>
-            ) : breakdownError ? (
-              <div className='tv-card p-4'>
-                <PanelEmptyState
-                  title='Failed to load breakdown'
-                  description={
-                    breakdownErrorObj instanceof Error
-                      ? breakdownErrorObj.message
-                      : 'Unable to fetch breakdown analytics.'
-                  }
-                />
-              </div>
-            ) : breakdown ? (
-              <div className='space-y-4'>
-                <div className='min-h-[280px]'>
-                  <HeatmapChart
-                    title='PnL by Hour of Day'
-                    rows={['PnL']}
-                    columns={HOUR_LABELS.filter((_, i) => i % 3 === 0)}
-                    data={[
-                      HOUR_LABELS.filter((_, i) => i % 3 === 0).map(
-                        (h) => breakdown.pnl_by_hour[h]?.pnl ?? 0
-                      ),
-                    ]}
+      {/* ── Symbol Performance + AI Confidence ───────────────────────────────── */}
+      {(breakdownLoading || hasBreakdown) && (
+        <Section
+          title='Breakdown Analysis'
+          subtitle='Symbol performance and AI confidence correlation'
+        >
+          {breakdownLoading ? (
+            <div className='grid grid-cols-1 gap-3 lg:grid-cols-2'>
+              <CardSkeleton h='h-64' />
+              <CardSkeleton h='h-64' />
+            </div>
+          ) : (
+            <div className='grid grid-cols-1 gap-3 lg:grid-cols-2'>
+              <SymbolPerformanceTable data={breakdown!.pnl_by_symbol} />
+              <AIConfidenceChart data={breakdown!.win_rate_by_ai_confidence} />
+            </div>
+          )}
+        </Section>
+      )}
+
+      {/* ── Hour Heatmap ─────────────────────────────────────────────────────── */}
+      {(breakdownLoading || hasBreakdown) && (
+        <Section
+          title='Time-of-Day Analysis'
+          subtitle='PnL distribution across trading hours (UTC)'
+        >
+          {breakdownLoading ? (
+            <CardSkeleton h='h-[200px]' />
+          ) : (
+            <HeatmapChart
+              title='PnL by Hour of Day (UTC)'
+              rows={['PnL']}
+              columns={HOUR_LABELS.filter((_, i) => i % 2 === 0)}
+              data={[
+                HOUR_LABELS.filter((_, i) => i % 2 === 0).map(
+                  (h) => breakdown!.pnl_by_hour[h]?.pnl ?? 0
+                ),
+              ]}
+            />
+          )}
+        </Section>
+      )}
+
+      {/* ── Day-of-Week + Entry Model ─────────────────────────────────────────── */}
+      {(breakdownLoading || hasBreakdown) && (
+        <Section
+          title='Pattern Analysis'
+          subtitle='Day-of-week performance and entry model breakdown'
+        >
+          {breakdownLoading ? (
+            <div className='grid grid-cols-1 gap-3 lg:grid-cols-2'>
+              <CardSkeleton h='h-56' />
+              <CardSkeleton h='h-56' />
+            </div>
+          ) : (
+            <div className='grid grid-cols-1 gap-3 lg:grid-cols-2'>
+              <DayOfWeekChart data={breakdown!.pnl_by_day_of_week} />
+              <EntryModelBreakdown data={breakdown!.pnl_by_entry_model} />
+            </div>
+          )}
+        </Section>
+      )}
+
+      {/* ── Rolling Metrics ───────────────────────────────────────────────────── */}
+      {(drawdownLoading || hasDrawdown) && (
+        <Section
+          title='Rolling Metrics'
+          subtitle='10-trade rolling window — Win Rate, Profit Factor, Avg R:R'
+        >
+          {drawdownLoading ? (
+            <CardSkeleton h='h-[360px]' />
+          ) : (
+            <RollingMetricsChart
+              drawdownData={drawdownData!.data}
+              windowSize={10}
+            />
+          )}
+        </Section>
+      )}
+
+      {/* ── Streak Timeline ───────────────────────────────────────────────────── */}
+      {(streaksLoading || hasStreaks) && (
+        <Section
+          title='Streak Analysis'
+          subtitle='Win/loss streak history and current momentum'
+        >
+          {streaksLoading ? (
+            <CardSkeleton h='h-[280px]' />
+          ) : (
+            <StreakTimeline
+              streaks={streaksData!.streaks}
+              maxWinStreak={streaksData!.max_win_streak}
+              maxLossStreak={streaksData!.max_loss_streak}
+              currentStreak={streaksData!.current_streak}
+              currentStreakType={streaksData!.current_streak_type}
+            />
+          )}
+        </Section>
+      )}
+
+      {/* ── Zone Type Breakdown ───────────────────────────────────────────────── */}
+      {(breakdownLoading || hasBreakdown) && (
+        <Section
+          title='Zone & Setup Analysis'
+          subtitle='Performance by zone type and setup quality'
+        >
+          {breakdownLoading ? (
+            <CardSkeleton h='h-48' />
+          ) : (
+            <ZoneTypeBreakdown data={breakdown!.pnl_by_zone_type} />
+          )}
+        </Section>
+      )}
+    </div>
+  );
+}
+
+// ── Inline sub-components ─────────────────────────────────────────────────────
+
+function EntryModelBreakdown({ data }: { data: Record<string, BucketStats> }) {
+  const rows = useMemo(
+    () =>
+      Object.entries(data)
+        .filter(([, b]) => b.count >= 1)
+        .map(([model, b]) => ({ model, ...b }))
+        .sort((a, b) => b.pnl - a.pnl),
+    [data]
+  );
+
+  if (rows.length === 0) {
+    return (
+      <div className='tv-card p-4'>
+        <PanelEmptyState
+          title='No entry model data'
+          description='More trades needed.'
+        />
+      </div>
+    );
+  }
+
+  const maxAbsPnl = Math.max(...rows.map((r) => Math.abs(r.pnl)), 1);
+
+  return (
+    <div className='tv-card'>
+      <div className='border-b border-[var(--to-border)] px-4 py-3'>
+        <p className='panel-label'>Entry Model Performance</p>
+        <p
+          className='mt-0.5 text-[10px] text-[var(--to-text-dim)]'
+          style={{ fontFamily: 'var(--font-sans)' }}
+        >
+          Which entry models generate the best results?
+        </p>
+      </div>
+      <div className='divide-y divide-[var(--to-border)]/50'>
+        {rows.map((row) => {
+          const winRateColor =
+            row.win_rate >= 60
+              ? '#0ecb81'
+              : row.win_rate >= 50
+              ? '#f0b90b'
+              : '#f6465d';
+          const barWidth = (Math.abs(row.pnl) / maxAbsPnl) * 100;
+          return (
+            <div
+              key={row.model}
+              className='flex items-center gap-3 px-4 py-2.5 hover:bg-[var(--to-surface-raised)]/30 transition-colors'
+            >
+              <span
+                className='w-28 truncate text-[11px] font-medium text-[var(--to-text-secondary)]'
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                {row.model}
+              </span>
+              <span
+                className='w-8 text-[10px] tabular-nums'
+                style={{ color: winRateColor, fontFamily: 'var(--font-mono)' }}
+              >
+                {row.win_rate.toFixed(0)}%
+              </span>
+              <div className='flex flex-1 items-center gap-2'>
+                <div className='h-1.5 flex-1 overflow-hidden rounded-full bg-[#1e2329]'>
+                  <div
+                    className='h-full rounded-full transition-all duration-500'
+                    style={{
+                      width: `${barWidth}%`,
+                      backgroundColor: row.pnl >= 0 ? '#0ecb81' : '#f6465d',
+                      opacity: 0.75,
+                    }}
                   />
                 </div>
+                <span
+                  className='w-20 text-right text-[10px] font-bold tabular-nums'
+                  style={{
+                    color: row.pnl >= 0 ? '#0ecb81' : '#f6465d',
+                    fontFamily: 'var(--font-mono)',
+                  }}
+                >
+                  {row.pnl >= 0 ? '+' : ''}${row.pnl.toFixed(2)}
+                </span>
+              </div>
+              <span
+                className='w-8 text-right text-[10px] text-[var(--to-text-dim)]'
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                {row.count}t
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
-                <div className='grid grid-cols-1 lg:grid-cols-2 gap-3'>
-                  <BreakdownTable
-                    title='By Symbol'
-                    data={breakdown.pnl_by_symbol}
-                  />
-                  <BreakdownTable
-                    title='By Day of Week'
-                    data={breakdown.pnl_by_day_of_week}
-                  />
-                </div>
+function ZoneTypeBreakdown({ data }: { data: Record<string, BucketStats> }) {
+  const rows = useMemo(
+    () =>
+      Object.entries(data)
+        .filter(([, b]) => b.count >= 1)
+        .map(([zone, b]) => ({ zone, ...b }))
+        .sort((a, b) => b.win_rate - a.win_rate),
+    [data]
+  );
 
-                <div className='grid grid-cols-1 lg:grid-cols-2 gap-3'>
-                  <BreakdownTable
-                    title='By Zone Type'
-                    data={breakdown.pnl_by_zone_type}
-                  />
-                  <BreakdownTable
-                    title='By Entry Model'
-                    data={breakdown.pnl_by_entry_model}
-                  />
-                </div>
+  if (rows.length === 0) {
+    return (
+      <div className='tv-card p-4'>
+        <PanelEmptyState
+          title='No zone data'
+          description='More trades needed.'
+        />
+      </div>
+    );
+  }
 
-                <BreakdownTable
-                  title='By AI Confidence'
-                  data={breakdown.win_rate_by_ai_confidence}
+  return (
+    <div className='tv-card'>
+      <div className='border-b border-[var(--to-border)] px-4 py-3'>
+        <p className='panel-label'>Zone Type Performance</p>
+        <p
+          className='mt-0.5 text-[10px] text-[var(--to-text-dim)]'
+          style={{ fontFamily: 'var(--font-sans)' }}
+        >
+          Supply & demand zone quality breakdown
+        </p>
+      </div>
+      <div className='grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-4'>
+        {rows.map((row) => {
+          const winRateColor =
+            row.win_rate >= 60
+              ? '#0ecb81'
+              : row.win_rate >= 50
+              ? '#f0b90b'
+              : '#f6465d';
+          return (
+            <div
+              key={row.zone}
+              className='flex flex-col gap-1.5 rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)]/40 p-3'
+            >
+              <span
+                className='truncate text-[10px] font-bold text-[var(--to-text-secondary)]'
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                {row.zone}
+              </span>
+              <span
+                className='text-lg font-black tabular-nums'
+                style={{ color: winRateColor, fontFamily: 'var(--font-mono)' }}
+              >
+                {row.win_rate.toFixed(0)}%
+              </span>
+              <div className='flex items-center justify-between'>
+                <span
+                  className='text-[9px] text-[var(--to-text-dim)]'
+                  style={{ fontFamily: 'var(--font-mono)' }}
+                >
+                  {row.count} trades
+                </span>
+                <span
+                  className='text-[10px] font-bold tabular-nums'
+                  style={{
+                    color: row.pnl >= 0 ? '#0ecb81' : '#f6465d',
+                    fontFamily: 'var(--font-mono)',
+                  }}
+                >
+                  {row.pnl >= 0 ? '+' : ''}${row.pnl.toFixed(0)}
+                </span>
+              </div>
+              {/* Win rate bar */}
+              <div className='h-1 overflow-hidden rounded-full bg-[#1e2329]'>
+                <div
+                  className='h-full rounded-full'
+                  style={{
+                    width: `${Math.min(row.win_rate, 100)}%`,
+                    backgroundColor: winRateColor,
+                  }}
                 />
               </div>
-            ) : (
-              <div className='tv-card p-4'>
-                <PanelEmptyState
-                  title='No breakdown data'
-                  description='Not enough trades yet to compute breakdown analytics.'
-                />
-              </div>
-            )}
-          </>
-        )}
-
-        {/* ══ DRAWDOWN ══ */}
-        {activeTab === 'drawdown' && (
-          <>
-            {drawdownLoading || summaryLoading ? (
-              <div className='space-y-3'>
-                <Skeleton className='h-72 rounded-lg bg-slate-800/60' />
-                <div className='grid grid-cols-2 gap-3 lg:grid-cols-3'>
-                  {[...Array(6)].map((_, i) => (
-                    <Skeleton
-                      key={i}
-                      className='h-20 rounded-lg bg-slate-800/60'
-                    />
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className='space-y-4'>
-                {drawdownData && (
-                  <DrawdownChart
-                    data={drawdownData.data}
-                    maxDrawdownPct={drawdownData.max_drawdown_pct}
-                    maxDrawdownAmount={drawdownData.max_drawdown_amount}
-                  />
-                )}
-                {summaryData && <SummaryCards data={summaryData} />}
-              </div>
-            )}
-          </>
-        )}
-
-        {/* ══ STREAKS ══ */}
-        {activeTab === 'streaks' && (
-          <>
-            {streaksLoading ? (
-              <Skeleton className='h-80 rounded-lg bg-slate-800/60' />
-            ) : streaksData ? (
-              <StreakTimeline
-                streaks={streaksData.streaks}
-                maxWinStreak={streaksData.max_win_streak}
-                maxLossStreak={streaksData.max_loss_streak}
-                currentStreak={streaksData.current_streak}
-                currentStreakType={streaksData.current_streak_type}
-              />
-            ) : (
-              <div className='tv-card p-4'>
-                <PanelEmptyState
-                  title='No streak data'
-                  description='Execute more trades to see win/loss streaks.'
-                />
-              </div>
-            )}
-          </>
-        )}
-
-        {/* ══ ROLLING ══ */}
-        {activeTab === 'rolling' && (
-          <>
-            {drawdownLoading ? (
-              <div className='space-y-3'>
-                <Skeleton className='h-56 rounded-lg bg-slate-800/60' />
-                <Skeleton className='h-56 rounded-lg bg-slate-800/60' />
-              </div>
-            ) : drawdownData && drawdownData.data.length > 0 ? (
-              <div className='space-y-4'>
-                <div className='flex items-center justify-between'>
-                  <div>
-                    <p className='page-title text-sm font-semibold'>
-                      Rolling Metrics
-                    </p>
-                    <p className='page-subtitle text-[11px]'>
-                      10-trade rolling window · Win Rate, Profit Factor, Avg R:R
-                    </p>
-                  </div>
-                </div>
-                <RollingMetricsChart
-                  drawdownData={drawdownData.data}
-                  windowSize={10}
-                />
-              </div>
-            ) : (
-              <div className='tv-card p-4'>
-                <PanelEmptyState
-                  title='No rolling data'
-                  description='Execute more trades to see rolling performance metrics.'
-                />
-              </div>
-            )}
-          </>
-        )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
