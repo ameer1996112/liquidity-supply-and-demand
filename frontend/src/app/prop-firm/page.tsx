@@ -11,8 +11,10 @@ import {
   AlertTriangle,
   CheckCircle,
   Activity,
+  Calendar,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { CalendarPnlView } from '@/components/journal/CalendarPnlView';
 import {
   usePropFirmMetrics,
   usePropFirmHistory,
@@ -653,6 +655,16 @@ export default function PropFirmPage() {
             variant='warning'
           />
         </div>
+      </div>
+
+      {/* Calendar View */}
+      <div className='glass-panel p-6'>
+        <h3 className='text-[13px] font-bold text-[var(--to-text-secondary)] uppercase tracking-widest font-mono mb-4 flex items-center gap-2'>
+          <Calendar className='h-4 w-4 text-[var(--to-warning)]' />
+          Daily Performance Calendar
+        </h3>
+
+        <CalendarPnlView signals={filteredSignals.filter(isClosedSignal)} />
       </div>
     </div>
   );
