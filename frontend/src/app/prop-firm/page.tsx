@@ -1,20 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Trophy,
-  AlertTriangle,
-  CheckCircle2,
   XCircle,
   Clock,
-  TrendingDown,
-  Activity,
   RefreshCw,
   ChevronRight,
-  Shield,
   BarChart2,
   ArrowUpRight,
   ArrowDownRight,
+  Filter,
+  TrendingDown,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -25,6 +22,10 @@ import {
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
   ReferenceLine,
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
 } from 'recharts';
 import { cn } from '@/lib/utils';
 import {
@@ -33,29 +34,65 @@ import {
   usePropFirmMtm,
   useResetPropFirmDaily,
 } from '@/hooks/usePropFirm';
-import { format, parseISO, differenceInSeconds } from 'date-fns';
+import { useAccountsComparison } from '@/hooks/useAccounts';
+import { fetchSignals } from '@/lib/supabase';
+import { useQuery } from '@tanstack/react-query';
+import { format, parseISO, subDays, startOfDay } from 'date-fns';
+import { getPnl, getSymbol, TradingSignal } from '@/types/trading';
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+function normalizeSession(value: unknown): string {
+  if (value == null) return 'Unknown';
+  if (typeof value === 'number') {
+    if (value === 0) return 'Asia';
+    if (value === 1) return 'London';
+    if (value === 2) return 'New York';
+    if (value === 3) return 'Off-Session';
+  }
+  const s = String(value).toLowerCase();
+  if (s.includes('asia')) return 'Asia';
+  if (s.includes('london')) return 'London';
+  if (s.includes('new') || s.includes('ny')) return 'New York';
+  return String(value);
+}
 
-function computeHealthScore({
-  dailyPct,
-  dailyLimit,
-  trailingPct,
-  trailingLimit,
-  consistencyPct,
-  consistencyLimit,
-  safeToTrade,
-  currentProfitPct,
-}: {
-  dailyPct: number;
-  dailyLimit: number;
-  trailingPct: number;
-  trailingLimit: number;
-  consistencyPct: number;
-  consistencyLimit: number;
-  safeToTrade: boolean;
-  currentProfitPct: number;
-}) {
+function getSignalSession(signal: TradingSignal): string {
+  const s = signal as TradingSignal & { session?: unknown };
+  if (s.session != null) return normalizeSession(s.session);
+  const ai = signal.ai_reasoning as unknown;
+  if (
+    ai &&
+    typeof ai === 'object' &&
+    'session' in (ai as Record<string, unknown>)
+  ) {
+    return normalizeSession((ai as Record<string, unknown>).session);
+  }
+  return 'Unknown';
+}
+
+function getSignalAccount(signal: TradingSignal): string {
+  const s = signal as TradingSignal & {
+    account_name?: string;
+    account?: string;
+    account_id?: string;
+  };
+  return s.account_name || s.account || s.account_id || 'default';
+}
+
+function isClosedSignal(signal: TradingSignal): boolean {
+  const st = String(signal.status || '').toLowerCase();
+  return (st === 'closed' || st === 'executed') && getPnl(signal) != null;
+}
+
+function computeHealthScore(
+  dailyPct: number,
+  dailyLimit: number,
+  trailingPct: number,
+  trailingLimit: number,
+  consistencyPct: number,
+  consistencyLimit: number,
+  safeToTrade: boolean,
+  currentProfitPct: number
+) {
   if (!safeToTrade) return 0;
   let score = 100;
   score -= (dailyPct / Math.max(dailyLimit, 0.01)) * 30;
@@ -91,390 +128,147 @@ function PhaseBadge({ phase }: { phase: string }) {
   );
 }
 
-function HealthScoreCard({
-  score,
-  safeToTrade,
-}: {
-  score: number;
-  safeToTrade: boolean;
-}) {
-  const color = score >= 75 ? '#0ecb81' : score >= 50 ? '#f0b90b' : '#f6465d';
-  const label = score >= 75 ? 'Excellent' : score >= 50 ? 'Caution' : 'At Risk';
-  const radius = 52;
-  const circ = 2 * Math.PI * radius;
-  const fill = (score / 100) * circ;
-
-  return (
-    <div
-      className='relative rounded-2xl border border-[var(--to-border)] overflow-hidden p-5'
-      style={{ background: 'linear-gradient(135deg,#0d1117 0%,#12161c 100%)' }}
-    >
-      <div
-        className='absolute inset-0 pointer-events-none'
-        style={{
-          background: `radial-gradient(ellipse at 50% 0%, ${color}12 0%, transparent 70%)`,
-        }}
-      />
-      <div className='relative flex items-center gap-5'>
-        <div className='relative shrink-0' style={{ width: 124, height: 124 }}>
-          <svg width={124} height={124} viewBox='0 0 124 124'>
-            <circle
-              cx='62'
-              cy='62'
-              r={radius}
-              fill='none'
-              stroke='#1e2329'
-              strokeWidth={10}
-            />
-            <circle
-              cx='62'
-              cy='62'
-              r={radius}
-              fill='none'
-              stroke={color}
-              strokeWidth={10}
-              strokeLinecap='round'
-              strokeDasharray={`${fill} ${circ - fill}`}
-              strokeDashoffset={circ * 0.25}
-            />
-          </svg>
-          <div className='absolute inset-0 flex flex-col items-center justify-center'>
-            <span
-              className='text-3xl font-black tabular-nums'
-              style={{ color, fontFamily: 'var(--font-mono)' }}
-            >
-              {score}
-            </span>
-            <span
-              className='text-[9px] font-bold uppercase tracking-widest'
-              style={{ color }}
-            >
-              / 100
-            </span>
-          </div>
-        </div>
-
-        <div className='flex-1 min-w-0'>
-          <span className='text-[11px] font-bold uppercase tracking-widest text-[var(--to-text-dim)] font-mono'>
-            Challenge Health
-          </span>
-          <div
-            className='text-[22px] font-black leading-tight mt-1'
-            style={{ color }}
-          >
-            {label}
-          </div>
-          <div className='text-[12px] text-[var(--to-text-secondary)] mt-1'>
-            {score >= 75
-              ? 'All rules are healthy. Strong risk posture.'
-              : score >= 50
-              ? 'Some limits are getting close. Manage risk carefully.'
-              : 'Critical risk levels detected. Reduce exposure now.'}
-          </div>
-          <div className='mt-3'>
-            <span
-              className='inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-mono'
-              style={{
-                color,
-                backgroundColor: `${color}15`,
-                border: `1px solid ${color}30`,
-              }}
-            >
-              <span
-                className='inline-block w-1.5 h-1.5 rounded-full'
-                style={{ backgroundColor: color }}
-              />
-              {safeToTrade ? 'SAFE TO TRADE' : 'TRADING HALTED'}
-            </span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StatusBanner({
-  safeToTrade,
-  drawdownBreach,
-  dailyPct,
-  dailyLimit,
-}: {
-  safeToTrade: boolean;
-  drawdownBreach: boolean;
-  dailyPct: number;
-  dailyLimit: number;
-}) {
-  const danger = dailyPct > dailyLimit * 0.7;
-  const warning = dailyPct > dailyLimit * 0.5;
-
-  const cfg = !safeToTrade
-    ? {
-        bg: '#f6465d18',
-        border: '#f6465d40',
-        color: '#f6465d',
-        Icon: XCircle,
-        title: drawdownBreach
-          ? 'Challenge Failed — Max Drawdown Breached'
-          : 'Trading Halted — Daily Loss Limit Breached',
-      }
-    : danger
-    ? {
-        bg: '#f0b90b18',
-        border: '#f0b90b40',
-        color: '#f0b90b',
-        Icon: AlertTriangle,
-        title: `Danger Zone — ${dailyPct.toFixed(
-          2
-        )}% of ${dailyLimit}% daily limit used`,
-      }
-    : warning
-    ? {
-        bg: '#3b82f618',
-        border: '#3b82f640',
-        color: '#3b82f6',
-        Icon: AlertTriangle,
-        title: `Warning — ${dailyPct.toFixed(2)}% daily drawdown`,
-      }
-    : {
-        bg: '#0ecb8118',
-        border: '#0ecb8140',
-        color: '#0ecb81',
-        Icon: CheckCircle2,
-        title: 'All systems green — safe to trade',
-      };
-
-  return (
-    <div
-      className='flex items-center gap-3 rounded-xl px-4 py-3 border'
-      style={{ backgroundColor: cfg.bg, borderColor: cfg.border }}
-    >
-      <cfg.Icon className='h-5 w-5 shrink-0' style={{ color: cfg.color }} />
-      <div className='text-sm font-semibold' style={{ color: cfg.color }}>
-        {cfg.title}
-      </div>
-    </div>
-  );
-}
-
-function useCountdown(targetDate: Date | null) {
-  const [remaining, setRemaining] = useState(0);
-  useEffect(() => {
-    if (!targetDate) return;
-    const tick = () =>
-      setRemaining(Math.max(0, differenceInSeconds(targetDate, new Date())));
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [targetDate]);
-  return remaining;
-}
-
-function CountdownTimer({ daysRemaining }: { daysRemaining: number | null }) {
-  const targetDate =
-    daysRemaining != null
-      ? (() => {
-          const d = new Date();
-          d.setDate(d.getDate() + daysRemaining);
-          d.setHours(23, 59, 59, 999);
-          return d;
-        })()
-      : null;
-  const remaining = useCountdown(targetDate);
-  if (daysRemaining == null) return null;
-
-  const days = Math.floor(remaining / 86400);
-  const hours = Math.floor((remaining % 86400) / 3600);
-  const mins = Math.floor((remaining % 3600) / 60);
-  const secs = remaining % 60;
-  const urgentColor = days <= 3 ? '#f6465d' : days <= 7 ? '#f0b90b' : '#0ecb81';
-
-  return (
-    <div className='rounded-2xl border border-[var(--to-border)] bg-[var(--to-surface)] p-5'>
-      <div className='flex items-center gap-2 mb-4'>
-        <Clock className='h-4 w-4 text-[var(--to-warning)]' />
-        <span className='text-[11px] font-bold text-[var(--to-text-secondary)] uppercase tracking-widest font-mono'>
-          Challenge Deadline
-        </span>
-      </div>
-      <div className='flex items-center gap-3 justify-center'>
-        {[
-          { value: days, label: 'Days' },
-          { value: hours, label: 'Hours' },
-          { value: mins, label: 'Mins' },
-          { value: secs, label: 'Secs' },
-        ].map(({ value, label }, i) => (
-          <div key={label} className='flex items-center gap-3'>
-            <div className='flex flex-col items-center gap-1'>
-              <div
-                className='flex h-14 w-14 items-center justify-center rounded-xl border-2 text-xl font-black tabular-nums'
-                style={{
-                  borderColor: `${urgentColor}40`,
-                  backgroundColor: `${urgentColor}10`,
-                  color: urgentColor,
-                  fontFamily: 'var(--font-mono)',
-                }}
-              >
-                {String(value).padStart(2, '0')}
-              </div>
-              <span className='text-[9px] text-[var(--to-text-dim)] uppercase tracking-wider font-mono'>
-                {label}
-              </span>
-            </div>
-            {i < 3 && (
-              <span className='text-lg font-bold text-[var(--to-text-dim)] mb-4'>
-                :
-              </span>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function DrawdownHistoryChart({
-  snapshots,
-  dailyLimit,
-  trailingLimit,
-}: {
-  snapshots: Array<{
-    snapshot_time: string;
-    daily_drawdown_pct: number;
-    trailing_drawdown_pct: number;
-  }>;
-  dailyLimit: number;
-  trailingLimit: number;
-}) {
-  if (!snapshots.length) {
-    return (
-      <div className='flex items-center justify-center h-40 text-[var(--to-text-dim)] text-sm'>
-        No historical data yet
-      </div>
-    );
-  }
-
-  const data = snapshots.map((s) => ({
-    time: format(parseISO(s.snapshot_time), 'MMM d HH:mm'),
-    daily: parseFloat((s.daily_drawdown_pct ?? 0).toFixed(2)),
-    trailing: parseFloat((s.trailing_drawdown_pct ?? 0).toFixed(2)),
-  }));
-
-  return (
-    <ResponsiveContainer width='100%' height={190}>
-      <AreaChart
-        data={data}
-        margin={{ top: 4, right: 16, left: -10, bottom: 0 }}
-      >
-        <defs>
-          <linearGradient id='gradDaily' x1='0' y1='0' x2='0' y2='1'>
-            <stop offset='5%' stopColor='#3b82f6' stopOpacity={0.3} />
-            <stop offset='95%' stopColor='#3b82f6' stopOpacity={0} />
-          </linearGradient>
-          <linearGradient id='gradTrailing' x1='0' y1='0' x2='0' y2='1'>
-            <stop offset='5%' stopColor='#f0b90b' stopOpacity={0.3} />
-            <stop offset='95%' stopColor='#f0b90b' stopOpacity={0} />
-          </linearGradient>
-        </defs>
-        <CartesianGrid strokeDasharray='3 3' stroke='#1e2329' />
-        <XAxis
-          dataKey='time'
-          tick={{
-            fill: '#5e6673',
-            fontSize: 10,
-            fontFamily: 'var(--font-mono)',
-          }}
-          tickLine={false}
-          axisLine={{ stroke: '#1e2329' }}
-          interval='preserveStartEnd'
-        />
-        <YAxis
-          tick={{
-            fill: '#5e6673',
-            fontSize: 10,
-            fontFamily: 'var(--font-mono)',
-          }}
-          tickLine={false}
-          axisLine={false}
-          tickFormatter={(v) => `${v}%`}
-          domain={[0, Math.max(dailyLimit, trailingLimit) * 1.1]}
-        />
-        <RechartsTooltip
-          contentStyle={{
-            backgroundColor: '#12161c',
-            border: '1px solid #2b3139',
-            borderRadius: 8,
-            fontSize: 12,
-          }}
-          labelStyle={{ color: '#848e9c' }}
-          formatter={(val, name) => [
-            `${val}%`,
-            name === 'daily' ? 'Daily DD' : 'Trailing DD',
-          ]}
-        />
-        <ReferenceLine
-          y={dailyLimit}
-          stroke='#f6465d'
-          strokeDasharray='4 4'
-          strokeOpacity={0.6}
-          label={{ value: `DD ${dailyLimit}%`, fill: '#f6465d', fontSize: 10 }}
-        />
-        <ReferenceLine
-          y={trailingLimit}
-          stroke='#f0b90b'
-          strokeDasharray='4 4'
-          strokeOpacity={0.6}
-        />
-        <Area
-          type='monotone'
-          dataKey='daily'
-          stroke='#3b82f6'
-          strokeWidth={2}
-          fill='url(#gradDaily)'
-          dot={false}
-        />
-        <Area
-          type='monotone'
-          dataKey='trailing'
-          stroke='#f0b90b'
-          strokeWidth={2}
-          fill='url(#gradTrailing)'
-          dot={false}
-        />
-      </AreaChart>
-    </ResponsiveContainer>
-  );
-}
-
-// ── Main ──────────────────────────────────────────────────────────────────────
-
 export default function PropFirmPage() {
+  const [selectedAccount, setSelectedAccount] = useState<string>('default');
   const [historyDays, setHistoryDays] = useState(7);
-  const accountName = 'default';
+  const [analyticsRange, setAnalyticsRange] = useState<7 | 14 | 30>(14);
+  const [symbolFilter, setSymbolFilter] = useState<string>('ALL');
+  const [sessionFilter, setSessionFilter] = useState<string>('ALL');
+  const [dowFilter, setDowFilter] = useState<string>('ALL');
+
+  const { data: accounts = [] } = useAccountsComparison();
+  const accountOptions = useMemo(
+    () =>
+      Array.from(new Set(['default', ...accounts.map((a) => a.account_name)])),
+    [accounts]
+  );
 
   const {
     data: metricsData,
     isLoading: metricsLoading,
     error: metricsError,
     dataUpdatedAt,
-  } = usePropFirmMetrics(accountName);
+  } = usePropFirmMetrics(selectedAccount);
 
   const { data: historyData, isLoading: historyLoading } = usePropFirmHistory(
-    accountName,
+    selectedAccount,
     historyDays
   );
-  const { data: mtmData, isLoading: mtmLoading } = usePropFirmMtm(accountName);
-  const resetMutation = useResetPropFirmDaily(accountName);
-  const lastUpdated = dataUpdatedAt ? new Date(dataUpdatedAt) : null;
+  const { data: mtmData, isLoading: mtmLoading } =
+    usePropFirmMtm(selectedAccount);
+  const resetMutation = useResetPropFirmDaily(selectedAccount);
+
+  const { data: allSignals = [] } = useQuery({
+    queryKey: ['prop-firm-analytics-signals', selectedAccount, analyticsRange],
+    queryFn: () => fetchSignals({ limit: 1200 }),
+    staleTime: 60_000,
+  });
+
+  const cutoff = useMemo(
+    () => startOfDay(subDays(new Date(), analyticsRange - 1)),
+    [analyticsRange]
+  );
+
+  const filteredSignals = useMemo(() => {
+    return allSignals
+      .filter((s) => new Date(s.created_at) >= cutoff)
+      .filter((s) =>
+        selectedAccount === 'default'
+          ? true
+          : getSignalAccount(s) === selectedAccount
+      )
+      .filter((s) =>
+        symbolFilter === 'ALL' ? true : getSymbol(s) === symbolFilter
+      )
+      .filter((s) =>
+        sessionFilter === 'ALL' ? true : getSignalSession(s) === sessionFilter
+      )
+      .filter((s) => {
+        if (dowFilter === 'ALL') return true;
+        const dow = new Date(s.created_at).toLocaleDateString('en-US', {
+          weekday: 'short',
+        });
+        return dow === dowFilter;
+      });
+  }, [
+    allSignals,
+    cutoff,
+    selectedAccount,
+    symbolFilter,
+    sessionFilter,
+    dowFilter,
+  ]);
+
+  const analyticsDaily = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        date: string;
+        positions: number;
+        wins: number;
+        losses: number;
+        pnl: number;
+      }
+    >();
+    for (const s of filteredSignals) {
+      const d = format(new Date(s.created_at), 'MMM dd');
+      if (!map.has(d))
+        map.set(d, { date: d, positions: 0, wins: 0, losses: 0, pnl: 0 });
+      const row = map.get(d)!;
+      row.positions += 1;
+      if (isClosedSignal(s)) {
+        const pnl = getPnl(s) ?? 0;
+        row.pnl += pnl;
+        if (pnl > 0) row.wins += 1;
+        else row.losses += 1;
+      }
+    }
+    return Array.from(map.values()).map((r) => ({
+      ...r,
+      winRate: r.wins + r.losses > 0 ? (r.wins / (r.wins + r.losses)) * 100 : 0,
+    }));
+  }, [filteredSignals]);
+
+  const summary = useMemo(() => {
+    const closed = filteredSignals.filter(isClosedSignal);
+    const pnl = closed.reduce((acc, s) => acc + (getPnl(s) ?? 0), 0);
+    const wins = closed.filter((s) => (getPnl(s) ?? 0) > 0).length;
+    const wr = closed.length ? (wins / closed.length) * 100 : 0;
+
+    let bestDay = { date: '—', pnl: -Infinity };
+    let worstDay = { date: '—', pnl: Infinity };
+    for (const d of analyticsDaily) {
+      if (d.pnl > bestDay.pnl) bestDay = { date: d.date, pnl: d.pnl };
+      if (d.pnl < worstDay.pnl) worstDay = { date: d.date, pnl: d.pnl };
+    }
+
+    return {
+      totalPositions: filteredSignals.length,
+      closedTrades: closed.length,
+      winRate: wr,
+      totalPnl: pnl,
+      bestDay: bestDay.pnl === -Infinity ? { date: '—', pnl: 0 } : bestDay,
+      worstDay: worstDay.pnl === Infinity ? { date: '—', pnl: 0 } : worstDay,
+    };
+  }, [filteredSignals, analyticsDaily]);
+
+  const symbolOptions = useMemo(
+    () => ['ALL', ...Array.from(new Set(allSignals.map((s) => getSymbol(s))))],
+    [allSignals]
+  );
+  const sessionOptions = useMemo(
+    () => [
+      'ALL',
+      ...Array.from(new Set(allSignals.map((s) => getSignalSession(s)))),
+    ],
+    [allSignals]
+  );
+  const dowOptions = ['ALL', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   if (metricsLoading) {
     return (
-      <div className='flex-1 flex items-center justify-center min-h-[60vh]'>
-        <div className='flex flex-col items-center gap-3'>
-          <div className='h-8 w-8 rounded-full border-2 border-[var(--to-warning)] border-t-transparent animate-spin' />
-          <span className='text-sm text-[var(--to-text-dim)]'>
-            Loading challenge data…
-          </span>
-        </div>
+      <div className='p-6 text-[var(--to-text-dim)]'>
+        Loading challenge data…
       </div>
     );
   }
@@ -500,8 +294,7 @@ export default function PropFirmPage() {
   }
 
   const { metrics, evaluation_phase, account_name } = metricsData;
-  const { equity, daily_pnl, drawdown, status, consistency, days_remaining } =
-    metrics;
+  const { equity, daily_pnl, drawdown, status, consistency } = metrics;
 
   const safeEquity = {
     daily_start_balance: equity?.daily_start_balance ?? 0,
@@ -517,12 +310,10 @@ export default function PropFirmPage() {
     daily_limit_pct: drawdown?.daily_limit_pct ?? 0,
     trailing_pct: drawdown?.trailing_pct ?? 0,
     trailing_limit_pct: drawdown?.trailing_limit_pct ?? 0,
-    daily_remaining_usd: drawdown?.daily_remaining_usd ?? 0,
   };
   const safeConsistency = {
     best_day_pct: consistency?.best_day_pct ?? 0,
     limit_pct: consistency?.limit_pct ?? 0,
-    status: consistency?.status ?? 'safe',
   };
 
   const currentProfitPct =
@@ -532,6 +323,17 @@ export default function PropFirmPage() {
         100
       : 0;
 
+  const healthScore = computeHealthScore(
+    safeDrawdown.daily_pct,
+    safeDrawdown.daily_limit_pct,
+    safeDrawdown.trailing_pct,
+    safeDrawdown.trailing_limit_pct,
+    safeConsistency.best_day_pct,
+    safeConsistency.limit_pct,
+    status.safe_to_trade,
+    currentProfitPct
+  );
+
   const accountGrowthPct =
     safeEquity.daily_start_balance > 0
       ? ((safeEquity.current_equity - safeEquity.daily_start_balance) /
@@ -539,55 +341,59 @@ export default function PropFirmPage() {
         100
       : 0;
 
-  const healthScore = computeHealthScore({
-    dailyPct: safeDrawdown.daily_pct,
-    dailyLimit: safeDrawdown.daily_limit_pct,
-    trailingPct: safeDrawdown.trailing_pct,
-    trailingLimit: safeDrawdown.trailing_limit_pct,
-    consistencyPct: safeConsistency.best_day_pct,
-    consistencyLimit: safeConsistency.limit_pct,
-    safeToTrade: status.safe_to_trade,
-    currentProfitPct,
-  });
-
   return (
     <div className='flex-1 space-y-5 p-6'>
-      {/* Header */}
       <div className='flex items-start justify-between'>
-        <div className='flex items-center gap-3'>
-          <div
-            className='flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--to-warning)]/30'
-            style={{
-              background:
-                'linear-gradient(135deg,rgba(240,185,11,0.2) 0%,rgba(240,185,11,0.05) 100%)',
-              boxShadow: '0 0 16px rgba(240,185,11,0.2)',
-            }}
-          >
-            <Trophy className='h-5 w-5 text-[var(--to-warning)]' />
-          </div>
-          <div>
-            <h1 className='text-[18px] font-black text-[var(--to-text-primary)] tracking-tight'>
-              Prop Firm Hub
-            </h1>
-            <div className='flex items-center gap-2 mt-0.5'>
-              <span className='text-[11px] text-[var(--to-text-dim)] font-mono'>
-                {account_name}
-              </span>
-              <ChevronRight className='h-3 w-3 text-[var(--to-text-dim)]' />
-              <PhaseBadge phase={evaluation_phase} />
+        <div className='space-y-2'>
+          <div className='flex items-center gap-3'>
+            <div className='flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--to-warning)]/30'>
+              <Trophy className='h-5 w-5 text-[var(--to-warning)]' />
+            </div>
+            <div>
+              <h1 className='text-[18px] font-black text-[var(--to-text-primary)] tracking-tight'>
+                Prop Firm Hub
+              </h1>
+              <div className='flex items-center gap-2 mt-0.5'>
+                <span className='text-[11px] text-[var(--to-text-dim)] font-mono'>
+                  {account_name}
+                </span>
+                <ChevronRight className='h-3 w-3 text-[var(--to-text-dim)]' />
+                <PhaseBadge phase={evaluation_phase} />
+              </div>
             </div>
           </div>
+
+          <div className='flex items-center gap-1.5 flex-wrap'>
+            <span className='text-[10px] text-[var(--to-text-dim)] font-mono mr-1'>
+              Account:
+            </span>
+            {accountOptions.map((acc) => (
+              <button
+                key={acc}
+                onClick={() => setSelectedAccount(acc)}
+                className={cn(
+                  'px-2.5 py-1 rounded-lg text-[10px] font-bold font-mono uppercase tracking-wide transition-all border',
+                  selectedAccount === acc
+                    ? 'text-[#3b82f6] border-[#3b82f6]/40 bg-[#3b82f6]/15'
+                    : 'text-[var(--to-text-dim)] border-[var(--to-border)] hover:text-[var(--to-text-secondary)]'
+                )}
+              >
+                {acc}
+              </button>
+            ))}
+          </div>
         </div>
+
         <div className='flex items-center gap-2'>
-          {lastUpdated && (
+          {dataUpdatedAt && (
             <span className='text-[11px] text-[var(--to-text-dim)] font-mono'>
-              Updated {format(lastUpdated, 'HH:mm:ss')}
+              Updated {format(new Date(dataUpdatedAt), 'HH:mm:ss')}
             </span>
           )}
           <button
             onClick={() => resetMutation.mutate()}
             disabled={resetMutation.isPending}
-            className='flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--to-border)] text-[12px] text-[var(--to-text-secondary)] hover:bg-[var(--to-surface-raised)] hover:text-[var(--to-text-primary)] transition-colors disabled:opacity-50'
+            className='flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[var(--to-border)] text-[12px] text-[var(--to-text-secondary)]'
           >
             <RefreshCw
               className={cn(
@@ -600,189 +406,191 @@ export default function PropFirmPage() {
         </div>
       </div>
 
-      <StatusBanner
-        safeToTrade={status.safe_to_trade}
-        drawdownBreach={status.drawdown_breach}
-        dailyPct={safeDrawdown.daily_pct}
-        dailyLimit={safeDrawdown.daily_limit_pct}
-      />
-
-      <div className='grid grid-cols-1 lg:grid-cols-3 gap-4'>
-        <div className='lg:col-span-2'>
-          <HealthScoreCard
-            score={healthScore}
-            safeToTrade={status.safe_to_trade}
-          />
-        </div>
-
-        <div
-          className='rounded-2xl border border-[var(--to-border)] p-5 space-y-3'
-          style={{
-            background: 'linear-gradient(160deg,#0d1117 0%,#12161c 100%)',
-          }}
-        >
-          <div className='flex items-center gap-2'>
-            <BarChart2 className='h-4 w-4 text-[var(--to-warning)]' />
-            <span className='text-[11px] font-bold text-[var(--to-text-secondary)] uppercase tracking-widest font-mono'>
-              Equity Today
-            </span>
-          </div>
-          <div>
-            <div className='text-[10px] text-[var(--to-text-dim)] font-mono'>
-              Starting Balance
-            </div>
-            <div className='text-[20px] font-black font-mono'>
-              $
-              {safeEquity.daily_start_balance.toLocaleString('en-US', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}
-            </div>
-          </div>
-          <div>
-            <div className='text-[10px] text-[var(--to-text-dim)] font-mono'>
-              Current Equity
-            </div>
-            <div className='flex items-center gap-2'>
-              <div
-                className='text-[20px] font-black font-mono'
-                style={{
-                  color:
-                    safeEquity.current_equity >= safeEquity.daily_start_balance
-                      ? '#0ecb81'
-                      : '#f6465d',
-                }}
-              >
-                $
-                {safeEquity.current_equity.toLocaleString('en-US', {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </div>
-              <span
-                className='flex items-center gap-0.5 text-[11px] font-bold font-mono px-1.5 py-0.5 rounded'
-                style={{
-                  color: accountGrowthPct >= 0 ? '#0ecb81' : '#f6465d',
-                  backgroundColor:
-                    accountGrowthPct >= 0 ? '#0ecb8115' : '#f6465d15',
-                }}
-              >
-                {accountGrowthPct >= 0 ? (
-                  <ArrowUpRight className='h-3 w-3' />
-                ) : (
-                  <ArrowDownRight className='h-3 w-3' />
-                )}
-                {Math.abs(accountGrowthPct).toFixed(2)}%
-              </span>
-            </div>
-          </div>
-          <div className='grid grid-cols-3 gap-2 pt-2 border-t border-[var(--to-border)]'>
-            {[
-              { label: 'Closed', value: safeDailyPnl.closed },
-              { label: 'Floating', value: safeDailyPnl.floating },
-              { label: 'Total', value: safeDailyPnl.total },
-            ].map(({ label, value }) => (
-              <div key={label}>
-                <div className='text-[9px] text-[var(--to-text-dim)] font-mono uppercase'>
-                  {label}
-                </div>
-                <div
-                  className='text-[13px] font-bold font-mono'
-                  style={{ color: value >= 0 ? '#0ecb81' : '#f6465d' }}
-                >
-                  {value >= 0 ? '+' : ''}${value.toFixed(2)}
-                </div>
-              </div>
-            ))}
-          </div>
+      <div className='rounded-2xl border border-[var(--to-border)] bg-[var(--to-surface)] p-4'>
+        <div className='text-[12px] text-[var(--to-text-secondary)] font-mono'>
+          Challenge Health Score:{' '}
+          <span className='text-[var(--to-text-primary)] font-bold'>
+            {healthScore}
+          </span>
         </div>
       </div>
 
-      <div className='rounded-2xl border border-[var(--to-border)] bg-[var(--to-surface)] p-5'>
-        <div className='flex items-center justify-between mb-3'>
-          <div className='flex items-center gap-2'>
-            <TrendingDown className='h-4 w-4 text-[var(--to-warning)]' />
-            <span className='text-[11px] font-bold text-[var(--to-text-secondary)] uppercase tracking-widest font-mono'>
-              Drawdown History
-            </span>
-          </div>
-          <div className='flex items-center gap-1'>
-            {[3, 7, 14, 30].map((d) => (
-              <button
-                key={d}
-                onClick={() => setHistoryDays(d)}
-                className={cn(
-                  'px-2.5 py-1 rounded text-[11px] font-medium transition-colors',
-                  historyDays === d
-                    ? 'bg-[var(--to-warning)]/15 text-[var(--to-warning)] border border-[var(--to-warning)]/30'
-                    : 'text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]'
-                )}
-              >
-                {d}d
-              </button>
-            ))}
-          </div>
+      <div className='rounded-2xl border border-[var(--to-border)] bg-[var(--to-surface)] p-4'>
+        <div className='flex items-center gap-2 mb-3'>
+          <Filter className='h-4 w-4 text-[var(--to-warning)]' />
+          <span className='text-[11px] font-bold text-[var(--to-text-secondary)] uppercase tracking-widest font-mono'>
+            Advanced Analytics Filters
+          </span>
         </div>
-
-        {historyLoading ? (
-          <div className='h-44 flex items-center justify-center'>
-            <div className='h-6 w-6 rounded-full border-2 border-[var(--to-warning)] border-t-transparent animate-spin' />
-          </div>
-        ) : (
-          <DrawdownHistoryChart
-            snapshots={historyData?.snapshots ?? []}
-            dailyLimit={safeDrawdown.daily_limit_pct}
-            trailingLimit={safeDrawdown.trailing_limit_pct}
-          />
-        )}
+        <div className='grid grid-cols-2 md:grid-cols-5 gap-2'>
+          <select
+            value={analyticsRange}
+            onChange={(e) =>
+              setAnalyticsRange(Number(e.target.value) as 7 | 14 | 30)
+            }
+            className='rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)] px-2.5 py-1.5 text-[11px]'
+          >
+            <option value={7}>Last 7d</option>
+            <option value={14}>Last 14d</option>
+            <option value={30}>Last 30d</option>
+          </select>
+          <select
+            value={symbolFilter}
+            onChange={(e) => setSymbolFilter(e.target.value)}
+            className='rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)] px-2.5 py-1.5 text-[11px]'
+          >
+            {symbolOptions.map((s) => (
+              <option key={s} value={s}>
+                {s === 'ALL' ? 'All Symbols' : s}
+              </option>
+            ))}
+          </select>
+          <select
+            value={sessionFilter}
+            onChange={(e) => setSessionFilter(e.target.value)}
+            className='rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)] px-2.5 py-1.5 text-[11px]'
+          >
+            {sessionOptions.map((s) => (
+              <option key={s} value={s}>
+                {s === 'ALL' ? 'All Sessions' : s}
+              </option>
+            ))}
+          </select>
+          <select
+            value={dowFilter}
+            onChange={(e) => setDowFilter(e.target.value)}
+            className='rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)] px-2.5 py-1.5 text-[11px]'
+          >
+            {dowOptions.map((d) => (
+              <option key={d} value={d}>
+                {d === 'ALL' ? 'All Days' : d}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={() => {
+              setSymbolFilter('ALL');
+              setSessionFilter('ALL');
+              setDowFilter('ALL');
+              setAnalyticsRange(14);
+            }}
+            className='rounded-lg border border-[var(--to-border)] px-2.5 py-1.5 text-[11px]'
+          >
+            Reset Filters
+          </button>
+        </div>
       </div>
 
-      <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
-        <CountdownTimer daysRemaining={days_remaining} />
-        <div className='rounded-2xl border border-[var(--to-border)] bg-[var(--to-surface)] p-5'>
-          <div className='flex items-center gap-2 mb-2'>
-            <Activity className='h-4 w-4 text-[var(--to-warning)]' />
-            <span className='text-[11px] font-bold text-[var(--to-text-secondary)] uppercase tracking-widest font-mono'>
-              Live MTM Positions
-            </span>
+      <div className='grid grid-cols-2 md:grid-cols-5 gap-3'>
+        {[
+          {
+            label: 'Positions',
+            value: `${summary.totalPositions}`,
+            color: '#3b82f6',
+          },
+          {
+            label: 'Closed',
+            value: `${summary.closedTrades}`,
+            color: '#a78bfa',
+          },
+          {
+            label: 'Win Rate',
+            value: `${summary.winRate.toFixed(1)}%`,
+            color: summary.winRate >= 50 ? '#0ecb81' : '#f6465d',
+          },
+          {
+            label: 'Total PnL',
+            value: `${
+              summary.totalPnl >= 0 ? '+' : ''
+            }$${summary.totalPnl.toFixed(2)}`,
+            color: summary.totalPnl >= 0 ? '#0ecb81' : '#f6465d',
+          },
+          {
+            label: 'Best / Worst',
+            value: `${summary.bestDay.date} / ${summary.worstDay.date}`,
+            color: '#f0b90b',
+          },
+        ].map((kpi) => (
+          <div
+            key={kpi.label}
+            className='rounded-xl border border-[var(--to-border)] bg-[var(--to-surface)] p-3'
+          >
+            <div className='text-[9px] text-[var(--to-text-dim)] uppercase tracking-wide font-mono'>
+              {kpi.label}
+            </div>
+            <div
+              className='text-[14px] font-black mt-1 font-mono'
+              style={{ color: kpi.color }}
+            >
+              {kpi.value}
+            </div>
           </div>
-          {mtmLoading ? (
-            <div className='space-y-2'>
-              {[1, 2].map((i) => (
-                <div
-                  key={i}
-                  className='h-12 rounded-xl bg-[var(--to-surface-raised)] animate-pulse'
-                />
-              ))}
-            </div>
-          ) : mtmData?.positions?.length ? (
-            <div className='space-y-2 max-h-52 overflow-y-auto scrollbar-thin'>
-              {mtmData.positions.map((p, i) => (
-                <div
-                  key={i}
-                  className='flex items-center justify-between px-3 py-2.5 rounded-xl border border-[var(--to-border)] bg-[var(--to-surface-raised)]'
-                >
-                  <div className='text-[12px] font-mono text-[var(--to-text-primary)]'>
-                    {p.symbol}
-                  </div>
-                  <div
-                    className='text-[12px] font-mono font-bold'
-                    style={{
-                      color: (p.floating_pnl ?? 0) >= 0 ? '#0ecb81' : '#f6465d',
-                    }}
-                  >
-                    {(p.floating_pnl ?? 0) >= 0 ? '+' : ''}$
-                    {(p.floating_pnl ?? 0).toFixed(2)}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className='text-[var(--to-text-dim)] text-sm'>
-              No open positions
-            </div>
-          )}
+        ))}
+      </div>
+
+      <div className='grid grid-cols-1 xl:grid-cols-3 gap-4'>
+        <div className='xl:col-span-2 rounded-2xl border border-[var(--to-border)] bg-[var(--to-surface)] p-4'>
+          <div className='text-[11px] font-bold text-[var(--to-text-secondary)] uppercase tracking-widest font-mono mb-3'>
+            Daily PnL
+          </div>
+          <ResponsiveContainer width='100%' height={220}>
+            <AreaChart data={analyticsDaily}>
+              <defs>
+                <linearGradient id='pnlGrad' x1='0' y1='0' x2='0' y2='1'>
+                  <stop offset='5%' stopColor='#3b82f6' stopOpacity={0.3} />
+                  <stop offset='95%' stopColor='#3b82f6' stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray='3 3' stroke='#1e2329' />
+              <XAxis dataKey='date' tick={{ fill: '#5e6673', fontSize: 10 }} />
+              <YAxis tick={{ fill: '#5e6673', fontSize: 10 }} />
+              <RechartsTooltip />
+              <Area
+                type='monotone'
+                dataKey='pnl'
+                stroke='#3b82f6'
+                fill='url(#pnlGrad)'
+                strokeWidth={2}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
         </div>
+
+        <div className='rounded-2xl border border-[var(--to-border)] bg-[var(--to-surface)] p-4'>
+          <div className='text-[11px] font-bold text-[var(--to-text-secondary)] uppercase tracking-widest font-mono mb-3'>
+            Positions / Day
+          </div>
+          <ResponsiveContainer width='100%' height={220}>
+            <BarChart data={analyticsDaily}>
+              <CartesianGrid strokeDasharray='3 3' stroke='#1e2329' />
+              <XAxis dataKey='date' tick={{ fill: '#5e6673', fontSize: 10 }} />
+              <YAxis tick={{ fill: '#5e6673', fontSize: 10 }} />
+              <RechartsTooltip />
+              <Bar dataKey='positions' fill='#a78bfa' radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div className='rounded-2xl border border-[var(--to-border)] bg-[var(--to-surface)] p-4'>
+        <div className='text-[11px] font-bold text-[var(--to-text-secondary)] uppercase tracking-widest font-mono mb-3'>
+          Win Rate / Day
+        </div>
+        <ResponsiveContainer width='100%' height={220}>
+          <LineChart data={analyticsDaily}>
+            <CartesianGrid strokeDasharray='3 3' stroke='#1e2329' />
+            <XAxis dataKey='date' tick={{ fill: '#5e6673', fontSize: 10 }} />
+            <YAxis tick={{ fill: '#5e6673', fontSize: 10 }} domain={[0, 100]} />
+            <RechartsTooltip formatter={(v) => [`${v}%`, 'Win Rate']} />
+            <Line
+              type='monotone'
+              dataKey='winRate'
+              stroke='#0ecb81'
+              strokeWidth={2}
+              dot={false}
+            />
+          </LineChart>
+        </ResponsiveContainer>
       </div>
     </div>
   );
