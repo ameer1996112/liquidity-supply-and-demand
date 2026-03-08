@@ -17,7 +17,7 @@ export const API_BASE_URL = rawApiUrl.endsWith('/')
  */
 export async function apiFetch<T>(
   endpoint: string,
-  options?: RequestInit,
+  options?: RequestInit
 ): Promise<T> {
   // Ensure endpoint starts with / and construct clean URL
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
@@ -99,14 +99,14 @@ export const backtestAPI = {
  */
 export async function fetchAccountsComparison(): Promise<AccountDetailApi[]> {
   const response = await apiFetch<AccountComparisonResponse>(
-    '/api/portfolio-control/accounts/comparison',
+    '/api/portfolio-control/accounts/comparison'
   );
   return response.accounts || [];
 }
 
 export async function fetchAccountDetail(accountName: string) {
   return apiFetch<any>(
-    `/api/portfolio-control/accounts/${encodeURIComponent(accountName)}`,
+    `/api/portfolio-control/accounts/${encodeURIComponent(accountName)}`
   );
 }
 
@@ -115,29 +115,31 @@ export async function syncAccount(accountName: string) {
     `/api/portfolio-control/accounts/${encodeURIComponent(accountName)}/sync`,
     {
       method: 'POST',
-    },
+    }
   );
 }
 
 export async function fetchAllocationSuggest(
   totalCapital: number,
-  goal: string = 'maximize_sharpe',
+  goal: string = 'maximize_sharpe'
 ) {
   return apiFetch<any>(
-    `/api/portfolio-control/accounts/allocation-suggest?total_capital=${totalCapital}&goal=${goal}`,
+    `/api/portfolio-control/accounts/allocation-suggest?total_capital=${totalCapital}&goal=${goal}`
   );
 }
 
 export async function executeAllocation(
   accountName: string,
-  allocationUsd: number,
+  allocationUsd: number
 ) {
   return apiFetch<any>(
-    `/api/portfolio-control/accounts/${encodeURIComponent(accountName)}/allocate`,
+    `/api/portfolio-control/accounts/${encodeURIComponent(
+      accountName
+    )}/allocate`,
     {
       method: 'POST',
       body: JSON.stringify({ allocation_usd: allocationUsd }),
-    },
+    }
   );
 }
 
@@ -171,13 +173,13 @@ export async function toggleTradeCopyRule(ruleId: number, enabled: boolean) {
     `/api/portfolio-control/accounts/trade-copy-rules/${ruleId}/toggle?enabled=${enabled}`,
     {
       method: 'PATCH',
-    },
+    }
   );
 }
 
 export async function fetchTradeCopyLog(limit: number = 50) {
   return apiFetch<any>(
-    `/api/portfolio-control/accounts/trade-copy-log?limit=${limit}`,
+    `/api/portfolio-control/accounts/trade-copy-log?limit=${limit}`
   );
 }
 
@@ -196,7 +198,7 @@ export interface HedgeSuggestionApi {
 
 export async function fetchHedgeSuggestions() {
   return apiFetch<HedgeSuggestionApi[]>(
-    '/api/portfolio-control/optimizer/hedge-suggestions',
+    '/api/portfolio-control/optimizer/hedge-suggestions'
   );
 }
 
@@ -211,7 +213,7 @@ export async function acceptHedgeSuggestion(suggestionId: number) {
     `/api/portfolio-control/optimizer/hedge-suggestions/${suggestionId}/accept`,
     {
       method: 'POST',
-    },
+    }
   );
 }
 
@@ -220,7 +222,7 @@ export async function rejectHedgeSuggestion(suggestionId: number) {
     `/api/portfolio-control/optimizer/hedge-suggestions/${suggestionId}/reject`,
     {
       method: 'POST',
-    },
+    }
   );
 }
 
@@ -248,7 +250,7 @@ export async function removeTrailingStop(trailingStopId: number) {
     `/api/portfolio-control/optimizer/trailing-stops/${trailingStopId}`,
     {
       method: 'DELETE',
-    },
+    }
   );
 }
 
@@ -265,7 +267,7 @@ export async function batchPositionAction(payload: {
     {
       method: 'POST',
       body: JSON.stringify(payload),
-    },
+    }
   );
 }
 
@@ -287,7 +289,9 @@ export async function fetchAccountPositions(accountName: string): Promise<{
   };
 }> {
   return apiFetch(
-    `/api/portfolio-control/accounts/${encodeURIComponent(accountName)}/positions`,
+    `/api/portfolio-control/accounts/${encodeURIComponent(
+      accountName
+    )}/positions`
   );
 }
 
@@ -304,7 +308,9 @@ export interface ReconcileStatusResponse {
 }
 
 export async function fetchReconcileStatus(): Promise<ReconcileStatusResponse> {
-  return apiFetch<ReconcileStatusResponse>('/api/portfolio-control/reconcile/status');
+  return apiFetch<ReconcileStatusResponse>(
+    '/api/portfolio-control/reconcile/status'
+  );
 }
 
 /**
@@ -381,7 +387,10 @@ export async function fetchGraduationStatus(): Promise<GraduationReadiness> {
   return apiFetch<GraduationReadiness>('/config/ai/graduation');
 }
 
-export async function setAiMode(mode: 'shadow' | 'enforce', reason?: string): Promise<{ status: string; mode: string }> {
+export async function setAiMode(
+  mode: 'shadow' | 'enforce',
+  reason?: string
+): Promise<{ status: string; mode: string }> {
   return apiFetch<{ status: string; mode: string }>('/config/ai/mode', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -398,7 +407,9 @@ export interface AiModeToggle {
   created_by: string | null;
 }
 
-export async function fetchAiModeToggles(limit?: number): Promise<{ toggles: AiModeToggle[] }> {
+export async function fetchAiModeToggles(
+  limit?: number
+): Promise<{ toggles: AiModeToggle[] }> {
   const q = limit != null ? `?limit=${limit}` : '';
   return apiFetch<{ toggles: AiModeToggle[] }>(`/config/ai/mode-toggles${q}`);
 }
@@ -412,10 +423,12 @@ export interface KillSwitchLogEntry {
 }
 
 export async function fetchKillSwitchLog(
-  limit?: number,
+  limit?: number
 ): Promise<{ events: KillSwitchLogEntry[] }> {
   const q = limit != null ? `?limit=${limit}` : '';
-  return apiFetch<{ events: KillSwitchLogEntry[] }>(`/risk/kill-switch/log${q}`);
+  return apiFetch<{ events: KillSwitchLogEntry[] }>(
+    `/risk/kill-switch/log${q}`
+  );
 }
 
 /**
@@ -435,7 +448,9 @@ export interface AiRunResponse {
   created_at?: string;
 }
 
-export async function fetchAiRunBySignal(signalId: number): Promise<AiRunResponse> {
+export async function fetchAiRunBySignal(
+  signalId: number
+): Promise<AiRunResponse> {
   return apiFetch<AiRunResponse>(`/api/ai-runs?signal_id=${signalId}`);
 }
 
@@ -451,12 +466,12 @@ export interface CouncilSummary {
  * Returns a map of signal_id (string) → CouncilSummary.
  */
 export async function fetchAiRunsBulk(
-  signalIds: (string | number)[],
+  signalIds: (string | number)[]
 ): Promise<Record<string, CouncilSummary>> {
   if (signalIds.length === 0) return {};
   const ids = signalIds.join(',');
   const resp = await apiFetch<{ runs: Record<string, CouncilSummary> }>(
-    `/api/ai-runs/bulk?signal_ids=${ids}`,
+    `/api/ai-runs/bulk?signal_ids=${ids}`
   );
   return resp.runs ?? {};
 }
@@ -596,7 +611,7 @@ export async function fetchRiskSettings() {
 export async function updateRiskSetting(
   settingKey: string,
   value: number | boolean | string | Record<string, unknown>,
-  changeReason?: string,
+  changeReason?: string
 ) {
   // TODO: Backend needs to implement this endpoint
   console.warn(`updateRiskSetting not implemented for ${settingKey}`);
@@ -610,7 +625,7 @@ export async function fetchSymbolRiskRules() {
 }
 
 export async function createSymbolRiskRule(
-  rule: Omit<SymbolRiskRuleApi, 'id' | 'created_at' | 'updated_at'>,
+  rule: Omit<SymbolRiskRuleApi, 'id' | 'created_at' | 'updated_at'>
 ) {
   // TODO: Backend needs to implement this endpoint
   console.warn('createSymbolRiskRule not implemented');
@@ -619,7 +634,7 @@ export async function createSymbolRiskRule(
 
 export async function updateSymbolRiskRule(
   symbol: string,
-  updates: Partial<SymbolRiskRuleApi>,
+  updates: Partial<SymbolRiskRuleApi>
 ) {
   // TODO: Backend needs to implement this endpoint
   console.warn(`updateSymbolRiskRule not implemented for ${symbol}`);
@@ -727,24 +742,83 @@ export interface MtmResponse {
   positions: MtmPosition[];
 }
 
-export async function fetchPropFirmMetrics(accountName = 'default'): Promise<PropFirmMetricsResponse> {
-  return apiFetch<PropFirmMetricsResponse>(`/api/prop-firm/metrics?account_name=${encodeURIComponent(accountName)}`);
+export async function fetchPropFirmMetrics(
+  accountName = 'default'
+): Promise<PropFirmMetricsResponse> {
+  return apiFetch<PropFirmMetricsResponse>(
+    `/api/prop-firm/metrics?account_name=${encodeURIComponent(accountName)}`
+  );
 }
 
-export async function fetchPropFirmHistory(accountName = 'default', days = 7): Promise<PropFirmHistoryResponse> {
-  return apiFetch<PropFirmHistoryResponse>(`/api/prop-firm/history?account_name=${encodeURIComponent(accountName)}&days=${days}`);
+export async function fetchPropFirmHistory(
+  accountName = 'default',
+  days = 7
+): Promise<PropFirmHistoryResponse> {
+  return apiFetch<PropFirmHistoryResponse>(
+    `/api/prop-firm/history?account_name=${encodeURIComponent(
+      accountName
+    )}&days=${days}`
+  );
 }
 
-export async function fetchPropFirmConsistency(accountName = 'default'): Promise<ConsistencyDetail> {
-  return apiFetch<ConsistencyDetail>(`/api/prop-firm/consistency?account_name=${encodeURIComponent(accountName)}`);
+export async function fetchPropFirmConsistency(
+  accountName = 'default'
+): Promise<ConsistencyDetail> {
+  return apiFetch<ConsistencyDetail>(
+    `/api/prop-firm/consistency?account_name=${encodeURIComponent(accountName)}`
+  );
 }
 
-export async function fetchPropFirmMtm(accountName = 'default'): Promise<MtmResponse> {
-  return apiFetch<MtmResponse>(`/api/prop-firm/mtm?account_name=${encodeURIComponent(accountName)}`);
+export async function fetchPropFirmMtm(
+  accountName = 'default'
+): Promise<MtmResponse> {
+  return apiFetch<MtmResponse>(
+    `/api/prop-firm/mtm?account_name=${encodeURIComponent(accountName)}`
+  );
 }
 
-export async function resetPropFirmDaily(accountName = 'default'): Promise<{ status: string }> {
-  return apiFetch<{ status: string }>(`/api/prop-firm/reset?account_name=${encodeURIComponent(accountName)}`, { method: 'POST' });
+export async function resetPropFirmDaily(
+  accountName = 'default'
+): Promise<{ status: string }> {
+  return apiFetch<{ status: string }>(
+    `/api/prop-firm/reset?account_name=${encodeURIComponent(accountName)}`,
+    { method: 'POST' }
+  );
+}
+
+// ── Account Trade History (DB + MetaAPI merged) ────────────────────────────
+
+export interface TradeHistoryTrade {
+  id: string | number;
+  symbol: string;
+  side: string;
+  size: number;
+  entry: number;
+  exit: number;
+  pnl_usd: number;
+  entry_time: string | null;
+  exit_time: string | null;
+  outcome: 'win' | 'loss';
+  source: 'database' | 'metaapi';
+}
+
+export interface TradeHistoryResponse {
+  trades: TradeHistoryTrade[];
+  total: number;
+  sources: { database: number; metaapi: number };
+}
+
+export async function fetchAccountTradeHistory(
+  accountName: string,
+  days?: number
+): Promise<TradeHistoryResponse> {
+  const params = new URLSearchParams();
+  if (days) params.set('days', String(days));
+  return apiFetch<TradeHistoryResponse>(
+    `/api/portfolio-control/accounts/${encodeURIComponent(
+      accountName
+    )}/history?${params}`
+  );
 }
 
 // ── AI Copilot API ─────────────────────────────────────────────────────────
@@ -762,7 +836,7 @@ export interface CopilotChatResponse {
 
 export async function fetchCopilotAnswer(
   question: string,
-  history: CopilotHistoryMessage[] = [],
+  history: CopilotHistoryMessage[] = []
 ): Promise<CopilotChatResponse> {
   return apiFetch<CopilotChatResponse>('/api/copilot/chat', {
     method: 'POST',

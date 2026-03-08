@@ -3539,12 +3539,13 @@ if array.size(demandZones) > 0 and barstate.isconfirmed
                 z.leftZone := true
                 z.leftWithBearish := current_close < current_open
 
-            // === STRICT MITIGATION CHECK (DEMAND) ===
-            // Zone is killed on ANY wick touch BEFORE liquidity sweep to enforce "Fresh Zone Only"
-            // Conditions for mitigation:
-            // 1) Price CLOSES inside the zone, OR
-            // 2) Price wicks THROUGH the entire zone (breach - low goes below zone bottom), OR
-            // 3) Price wicks INTO zone (fresh touch before setup ready) - STRICT RULE
+            // === EARLY MITIGATION KILL-SWITCH (DEMAND) ===
+            // STRICT S&D SEQUENCE RULE:
+            //   1. Zone Creation → 2. Departure → 3. Liquidity Formation → 4. Sweep → 5. Entry
+            // If price touches the zone (wick, close, or breach) while liquiditySwept == false,
+            // the zone is immediately INVALIDATED and deleted. It is a dead zone.
+            // NOTE: f_check_demand_sweeps() runs BEFORE this block, so if sweep and touch
+            // happen on the same bar, liquiditySwept is already true and the zone survives.
             if not z.mitigated
                 bool is_future_bar = not na(z.createdBarIndex) and bar_index > z.createdBarIndex
 
@@ -3554,36 +3555,15 @@ if array.size(demandZones) > 0 and barstate.isconfirmed
                 // Breach - price wicks through entire zone (wick below zone bottom)
                 bool breaches_zone = low < z.bottom
 
-                // Wick INTO zone (touch) - STRICT RULE: Kill zone before setup is ready
+                // Wick INTO zone (any touch at all)
                 bool wicks_into_zone = low <= z.top and low >= z.bottom
 
-                // SIMULTANEOUS SWEEP: If current bar sweeps target, allow entry (exception to strict rule)
-                bool current_bar_sweeping = not na(z.structureSweepLevel) and high > z.structureSweepLevel
-
-                // UPDATED: Separate Touch from Mitigation
-                // Preserve touch data for inspector, but only flag "touchedPreSweep"
-                // when the LIQUIDITY candle itself mitigates the zone.
+                // KILL-SWITCH: Any touch before liquidity sweep → zone is dead
                 if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or wicks_into_zone or breaches_zone)
-                    z.lastTouchBar := bar_index
-                    z.wasTouched := true
-
-                    // Only count as pre-sweep mitigation if this bar is the liquidity bar
-                    bool is_liq_bar = false
-                    if not na(z.liquidityBarIndex) and bar_index == z.liquidityBarIndex
-                        is_liq_bar := true
-                    else if not na(z.liqLowBar) and bar_index == z.liqLowBar
-                        is_liq_bar := true
-                    else if not na(z.liqHighBar) and bar_index == z.liqHighBar
-                        is_liq_bar := true
-
-                    if is_liq_bar
-                        z.touchedPreSweep := true
-
-                // MITIGATION (VANISH): Kill zone if CLOSED INSIDE or FULLY BREACHED
-                // This restores strict strategy behavior. Wick touches still survive (recording touchedPreSweep).
-                if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or breaches_zone) and not current_bar_sweeping
+                    z.touchedPreSweep := true
+                    z.inactiveReason := "KILLED - Early Mitigation (touched before liquidity sweep)"
                     remove_zone_all_arrays(true, i)
-                    continue // Skip to next zone since this one is gone
+                    continue // Dead zone removed
 
 // === TRACK LIQUIDITY AND ZONE STATUS (SUPPLY) ===
 // CRITICAL: Only validate liquidity sweeps for LIVE zones (not historical backfill)
@@ -3662,12 +3642,13 @@ if array.size(supplyZones) > 0 and barstate.isconfirmed
 
 
             
-            // === STRICT MITIGATION CHECK (SUPPLY) ===
-            // Zone is killed on ANY wick touch BEFORE liquidity sweep to enforce "Fresh Zone Only"
-            // Conditions for mitigation:
-            // 1) Price CLOSES inside the zone, OR
-            // 2) Price wicks THROUGH the entire zone (breach - high goes above zone top), OR
-            // 3) Price wicks INTO zone (fresh touch before setup ready) - STRICT RULE
+            // === EARLY MITIGATION KILL-SWITCH (SUPPLY) ===
+            // STRICT S&D SEQUENCE RULE:
+            //   1. Zone Creation → 2. Departure → 3. Liquidity Formation → 4. Sweep → 5. Entry
+            // If price touches the zone (wick, close, or breach) while liquiditySwept == false,
+            // the zone is immediately INVALIDATED and deleted. It is a dead zone.
+            // NOTE: f_check_supply_sweeps() runs BEFORE this block, so if sweep and touch
+            // happen on the same bar, liquiditySwept is already true and the zone survives.
             if not z.mitigated
                 bool is_future_bar = not na(z.createdBarIndex) and bar_index > z.createdBarIndex
 
@@ -3677,24 +3658,15 @@ if array.size(supplyZones) > 0 and barstate.isconfirmed
                 // Breach - price wicks through entire zone (wick above zone top)
                 bool breaches_zone = high > z.top
 
-                // Wick INTO zone (touch) - STRICT RULE: Kill zone before setup is ready
+                // Wick INTO zone (any touch at all)
                 bool wicks_into_zone = high >= z.bottom and high <= z.top
 
-                // SIMULTANEOUS SWEEP: If current bar sweeps target, allow entry (exception to strict rule)
-                bool current_bar_sweeping = not na(z.structureSweepLevel) and low < z.structureSweepLevel
-
-                // UPDATED: Separate Touch from Mitigation
-                // Preserve Touch Data: Update flags but don't kill the zone yet
+                // KILL-SWITCH: Any touch before liquidity sweep → zone is dead
                 if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or wicks_into_zone or breaches_zone)
-                    z.lastTouchBar := bar_index
-                    z.wasTouched := true
                     z.touchedPreSweep := true
-
-                // MITIGATION (VANISH): Kill zone if CLOSED INSIDE or FULLY BREACHED
-                // This restores strict strategy behavior. Wick touches still survive (recording touchedPreSweep).
-                if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or breaches_zone) and not current_bar_sweeping
+                    z.inactiveReason := "KILLED - Early Mitigation (touched before liquidity sweep)"
                     remove_zone_all_arrays(false, i)
-                    continue // Skip to next zone since this one is gone
+                    continue // Dead zone removed
 
 
 // === ZONE INVALIDATION (DEMAND) ===

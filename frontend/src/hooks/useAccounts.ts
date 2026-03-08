@@ -9,11 +9,24 @@ import {
   createTradeCopyRule,
   toggleTradeCopyRule,
   fetchTradeCopyLog,
+  fetchAccountTradeHistory,
 } from '@/lib/api';
 
-const ACCOUNTS_COMPARISON_KEY = ['portfolio-control', 'accounts', 'comparison'] as const;
-const TRADE_COPY_RULES_KEY = ['portfolio-control', 'accounts', 'trade-copy-rules'] as const;
-const TRADE_COPY_LOG_KEY = ['portfolio-control', 'accounts', 'trade-copy-log'] as const;
+const ACCOUNTS_COMPARISON_KEY = [
+  'portfolio-control',
+  'accounts',
+  'comparison',
+] as const;
+const TRADE_COPY_RULES_KEY = [
+  'portfolio-control',
+  'accounts',
+  'trade-copy-rules',
+] as const;
+const TRADE_COPY_LOG_KEY = [
+  'portfolio-control',
+  'accounts',
+  'trade-copy-log',
+] as const;
 
 export function useAccountsComparison() {
   return useQuery({
@@ -23,9 +36,18 @@ export function useAccountsComparison() {
   });
 }
 
-export function useAllocationSuggest(totalCapital: number, goal = 'maximize_sharpe') {
+export function useAllocationSuggest(
+  totalCapital: number,
+  goal = 'maximize_sharpe'
+) {
   return useQuery({
-    queryKey: ['portfolio-control', 'accounts', 'allocation-suggest', totalCapital, goal],
+    queryKey: [
+      'portfolio-control',
+      'accounts',
+      'allocation-suggest',
+      totalCapital,
+      goal,
+    ],
     queryFn: () => fetchAllocationSuggest(totalCapital, goal),
     staleTime: 60_000,
     enabled: totalCapital > 0,
@@ -35,8 +57,13 @@ export function useAllocationSuggest(totalCapital: number, goal = 'maximize_shar
 export function useExecuteAllocation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ accountName, allocationUsd }: { accountName: string; allocationUsd: number }) =>
-      executeAllocation(accountName, allocationUsd),
+    mutationFn: ({
+      accountName,
+      allocationUsd,
+    }: {
+      accountName: string;
+      allocationUsd: number;
+    }) => executeAllocation(accountName, allocationUsd),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ACCOUNTS_COMPARISON_KEY });
     },
@@ -54,7 +81,8 @@ export function useTradeCopyRules() {
 export function useCreateTradeCopyRule() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (rule: Parameters<typeof createTradeCopyRule>[0]) => createTradeCopyRule(rule),
+    mutationFn: (rule: Parameters<typeof createTradeCopyRule>[0]) =>
+      createTradeCopyRule(rule),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: TRADE_COPY_RULES_KEY });
       queryClient.invalidateQueries({ queryKey: TRADE_COPY_LOG_KEY });
@@ -78,5 +106,14 @@ export function useTradeCopyLog(limit = 50) {
     queryKey: [...TRADE_COPY_LOG_KEY, limit],
     queryFn: () => fetchTradeCopyLog(limit),
     staleTime: 15_000,
+  });
+}
+
+export function useAccountTradeHistory(accountName: string, days = 90) {
+  return useQuery({
+    queryKey: ['account-trade-history', accountName, days],
+    queryFn: () => fetchAccountTradeHistory(accountName, days),
+    staleTime: 60_000,
+    enabled: !!accountName && accountName !== 'default',
   });
 }

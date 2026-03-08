@@ -21,7 +21,10 @@ import {
   usePropFirmMtm,
   useResetPropFirmDaily,
 } from '@/hooks/usePropFirm';
-import { useAccountsComparison } from '@/hooks/useAccounts';
+import {
+  useAccountsComparison,
+  useAccountTradeHistory,
+} from '@/hooks/useAccounts';
 import { fetchSignals } from '@/lib/supabase';
 import { useQuery } from '@tanstack/react-query';
 import { format, subDays, startOfDay } from 'date-fns';
@@ -189,13 +192,96 @@ export default function PropFirmPage() {
     staleTime: 60_000,
   });
 
+  // Fetch MetaAPI trade history (DB + MetaAPI merged) for the calendar
+  const { data: metaApiHistory } = useAccountTradeHistory(resolvedAccount, 90);
+
+  // Transform MetaAPI trades into TradingSignal-compatible shape for CalendarPnlView
+  const metaApiSignals = useMemo((): TradingSignal[] => {
+    if (!metaApiHistory?.trades?.length) return [];
+    return metaApiHistory.trades.map(
+      (trade) =>
+        ({
+          id: `metaapi-${trade.id}`,
+          created_at:
+            trade.exit_time || trade.entry_time || new Date().toISOString(),
+          updated_at:
+            trade.exit_time || trade.entry_time || new Date().toISOString(),
+          symbol: trade.symbol,
+          side: (trade.side?.toLowerCase() ?? 'buy') as TradingSignal['side'],
+          price: trade.entry ?? 0,
+          stop_loss: null,
+          take_profit: null,
+          position_size: trade.size ?? 0,
+          score: null,
+          notes: null,
+          ai_reasoning: null,
+          status: 'closed' as TradingSignal['status'],
+          filter_reason: null,
+          mode: 'LIVE' as TradingSignal['mode'],
+          rr_ratio: null,
+          sl_pips: null,
+          pnl: trade.pnl_usd ?? null,
+          pnl_usd: trade.pnl_usd ?? null,
+          pnl_percentage: null,
+          closed_at: trade.exit_time ?? null,
+          exit_price: trade.exit ?? null,
+          exit_type: null,
+          account_name: resolvedAccount,
+          // required by type but unused by calendar
+          ticker: trade.symbol,
+          action: null,
+          signal_action: null,
+          order_type: null,
+          trailing_stop: null,
+          multi_tp: null,
+          partial_close_percent: null,
+          broker_order_id: null,
+          close_broker_order_id: null,
+          run_mode: 'LIVE',
+          zone_id: null,
+          zone_type: null,
+          zone_grade: null,
+          entry_model: null,
+          liq_swept: null,
+          target_swept: null,
+          caused_sweep: null,
+          is_accuracy: null,
+          session: null,
+          trend: null,
+          htf_trend: null,
+          rsi: null,
+          rvol: null,
+          adx: null,
+          atr_ratio: null,
+          base_quality: null,
+          departure_strength: null,
+          liquidity_distance: null,
+          liquidity_spread: null,
+          liquidity_distance_pips: null,
+          liquidity_spread_pips: null,
+          return_strength: null,
+          ai_confidence: null,
+          outcome: trade.outcome ?? null,
+        } as unknown as TradingSignal)
+    );
+  }, [metaApiHistory, resolvedAccount]);
+
+  // Merge Supabase signals with MetaAPI signals (MetaAPI fills gaps not in DB)
+  const mergedSignals = useMemo(() => {
+    const supabaseIds = new Set(allSignals.map((s) => String(s.id)));
+    const uniqueMetaApi = metaApiSignals.filter(
+      (s) => !supabaseIds.has(String(s.id))
+    );
+    return [...allSignals, ...uniqueMetaApi];
+  }, [allSignals, metaApiSignals]);
+
   const cutoff = useMemo(
     () => startOfDay(subDays(new Date(), analyticsRange - 1)),
     [analyticsRange]
   );
 
   const filteredSignals = useMemo(() => {
-    return allSignals
+    return mergedSignals
       .filter((s) => new Date(s.created_at) >= cutoff)
       .filter((s) =>
         resolvedAccount === 'default'
@@ -216,7 +302,7 @@ export default function PropFirmPage() {
         return dow === dowFilter;
       });
   }, [
-    allSignals,
+    mergedSignals,
     cutoff,
     resolvedAccount,
     symbolFilter,
@@ -692,7 +778,7 @@ export default function PropFirmPage() {
         </h3>
 
         <CalendarPnlView
-          signals={allSignals
+          signals={mergedSignals
             .filter(isClosedSignal)
             .filter((s) =>
               resolvedAccount === 'default'
