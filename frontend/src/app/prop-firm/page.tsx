@@ -148,7 +148,6 @@ function PhaseBadge({ phase }: { phase: string }) {
 }
 
 export default function PropFirmPage() {
-  const [selectedAccount, setSelectedAccount] = useState<string>('default');
   const [historyDays, setHistoryDays] = useState(7);
   const [analyticsRange, setAnalyticsRange] = useState<7 | 14 | 30>(14);
   const [symbolFilter, setSymbolFilter] = useState<string>('ALL');
@@ -156,29 +155,36 @@ export default function PropFirmPage() {
   const [dowFilter, setDowFilter] = useState<string>('ALL');
 
   const { data: accounts = [] } = useAccountsComparison();
-  const accountOptions = useMemo(
-    () =>
-      Array.from(new Set(['default', ...accounts.map((a) => a.account_name)])),
-    [accounts]
-  );
+
+  // Build account options — only show 'default' when no real accounts exist
+  const accountOptions = useMemo(() => {
+    const names = accounts.map((a) => a.account_name).filter(Boolean);
+    return names.length > 0 ? names : ['default'];
+  }, [accounts]);
+
+  // Auto-select the first real account (or 'default' as fallback)
+  const [selectedAccount, setSelectedAccount] = useState<string>('default');
+  const resolvedAccount = accountOptions.includes(selectedAccount)
+    ? selectedAccount
+    : accountOptions[0] ?? 'default';
 
   const {
     data: metricsData,
     isLoading: metricsLoading,
     error: metricsError,
     dataUpdatedAt,
-  } = usePropFirmMetrics(selectedAccount);
+  } = usePropFirmMetrics(resolvedAccount);
 
   const { data: historyData, isLoading: historyLoading } = usePropFirmHistory(
-    selectedAccount,
+    resolvedAccount,
     historyDays
   );
   const { data: mtmData, isLoading: mtmLoading } =
-    usePropFirmMtm(selectedAccount);
-  const resetMutation = useResetPropFirmDaily(selectedAccount);
+    usePropFirmMtm(resolvedAccount);
+  const resetMutation = useResetPropFirmDaily(resolvedAccount);
 
   const { data: allSignals = [] } = useQuery({
-    queryKey: ['prop-firm-analytics-signals', selectedAccount, analyticsRange],
+    queryKey: ['prop-firm-analytics-signals', resolvedAccount, analyticsRange],
     queryFn: () => fetchSignals({ limit: 1200 }),
     staleTime: 60_000,
   });
@@ -192,9 +198,9 @@ export default function PropFirmPage() {
     return allSignals
       .filter((s) => new Date(s.created_at) >= cutoff)
       .filter((s) =>
-        selectedAccount === 'default'
+        resolvedAccount === 'default'
           ? true
-          : getSignalAccount(s) === selectedAccount
+          : getSignalAccount(s) === resolvedAccount
       )
       .filter((s) =>
         symbolFilter === 'ALL' ? true : getSymbol(s) === symbolFilter
@@ -212,7 +218,7 @@ export default function PropFirmPage() {
   }, [
     allSignals,
     cutoff,
-    selectedAccount,
+    resolvedAccount,
     symbolFilter,
     sessionFilter,
     dowFilter,
@@ -378,7 +384,7 @@ export default function PropFirmPage() {
                   onClick={() => setSelectedAccount(acc)}
                   className={cn(
                     'px-3 py-1.5 rounded-lg text-[11px] font-bold font-mono uppercase tracking-wide transition-all border',
-                    selectedAccount === acc
+                    resolvedAccount === acc
                       ? 'text-[#3b82f6] border-[#3b82f6]/40 bg-[#3b82f6]/15'
                       : 'text-[var(--to-text-dim)] border-[var(--to-border)] hover:text-[var(--to-text-secondary)]'
                   )}
@@ -689,9 +695,9 @@ export default function PropFirmPage() {
           signals={allSignals
             .filter(isClosedSignal)
             .filter((s) =>
-              selectedAccount === 'default'
+              resolvedAccount === 'default'
                 ? true
-                : getSignalAccount(s) === selectedAccount
+                : getSignalAccount(s) === resolvedAccount
             )}
         />
       </div>
