@@ -66,6 +66,11 @@ export type Zone
     int   touchCount       // Number of times zone has been touched (for first-touch-only rule and V5 AI)
     int   lastTouchBar     // Bar index of the last touch (to track continuous engagements)
     bool  touchedPreSweep  // True if zone was touched BEFORE liquidity was swept (Permanently invalidates zone)
+    // Touch History (persisted for Zone Inspector in Bar Replay Mode)
+    float touchHigh        // High of the candle that first touched/mitigated this zone
+    float touchLow         // Low of the candle that first touched/mitigated this zone
+    float touchOpen        // Open of the candle that first touched/mitigated this zone
+    float touchClose       // Close of the candle that first touched/mitigated this zone
     float baseQuality      // V6: Quality of base construction (0-100, fewer indecisive candles = higher)
     float departureStrength // V6: Strength of price departure from zone (0-100, bigger candles + volume = higher)
     float liquidityDistance // V7.1: Distance from zone to liquidity in pips (0-100, closer = higher score)
