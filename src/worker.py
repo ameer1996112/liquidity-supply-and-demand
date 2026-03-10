@@ -899,6 +899,17 @@ def process_trade(payload: Dict[str, Any]):
     s = get_settings()
 
     # ══════════════════════════════════════════════════════════════════
+    # LATENCY INSTRUMENTATION (Phase 1 Optimization)
+    # Track execution time at each stage to identify bottlenecks
+    # ══════════════════════════════════════════════════════════════════
+    from src.utils.latency_tracker import LatencyTracker
+    latency_enabled = getattr(s, "enable_latency_instrumentation", False)
+    tracker = LatencyTracker(enabled=latency_enabled)
+    tracker.set_metadata("symbol", symbol)
+    tracker.set_metadata("side", side)
+    tracker.checkpoint("start")
+
+    # ══════════════════════════════════════════════════════════════════
     # SYMBOL WHITELIST CHECK (Block unprofitable symbols)
     # ══════════════════════════════════════════════════════════════════
     if SYMBOL_WHITELIST_ENABLED and symbol.upper() not in PROFITABLE_SYMBOLS:
@@ -1048,6 +1059,8 @@ def process_trade(payload: Dict[str, Any]):
         except Exception as e:
             logger.error("Staleness guard crashed: %s", e, exc_info=True)
 
+    tracker.checkpoint("after_staleness_guard")
+
     # ══════════════════════════════════════════════════════════════════
     # FAST-PATH BYPASS (Phase 1 Latency Optimization)
     # Skip full AI ensemble for high-confidence signals to reduce latency.
@@ -1109,6 +1122,10 @@ def process_trade(payload: Dict[str, Any]):
         _supervisor = _Supervisor(supabase_client=supabase, redis_client=get_redis())
         ai_result = _supervisor.evaluate(payload)
 
+    tracker.checkpoint("after_ai_supervisor")
+    tracker.set_metadata("used_fast_path", used_fast_path)
+    tracker.set_metadata("rf_prob", ai_result.get("rf_prob", 0.0) if ai_result else 0.0)
+
     # Trading Council — 9-stage multi-agent pipeline (SHADOW MODE, never blocks)
     # Replaces the old 4-agent Bull/Bear/Risk/Chair debate.
     # Stages: Market Analyst → Setup Analyst → Bull/Bear Researchers →
@@ -1153,6 +1170,8 @@ def process_trade(payload: Dict[str, Any]):
         else:
             # Original blocking behavior
             _run_council_sync()
+
+    tracker.checkpoint("after_trading_council")
 
     # Enrich AI result with zone/sweep/metrics from original payload
     _ZONE_FIELD_MAP = {
@@ -1228,6 +1247,8 @@ def process_trade(payload: Dict[str, Any]):
     log_event(None, "ai_approved", "worker", {"symbol": symbol, "rf_prob": ai_result.get("rf_prob")})
     log_guard_decision("ai_ensemble", "approved", ai_result.get("reason", "GO")[:200], symbol, {"rf_prob": ai_result.get("rf_prob")})
 
+    tracker.checkpoint("after_ai_decision")
+
     payload["ai_reasoning"] = ai_result
     payload["ai_decision"] = ai_result.get("decision")
     try:
@@ -1277,6 +1298,8 @@ def process_trade(payload: Dict[str, Any]):
     if not matching:
         matching = [None]
 
+    tracker.checkpoint("before_execution")
+
     if len(matching) == 1:
         # Single account: run directly (no thread overhead)
         _execute_for_profile(payload.copy(), matching[0], ai_result, dry_run, s, current_equity_global)
@@ -1302,6 +1325,13 @@ def process_trade(payload: Dict[str, Any]):
                     future.result()
                 except Exception as exc:
                     logger.error("Profile %s execution error: %s", name, exc)
+
+    tracker.checkpoint("after_execution")
+    tracker.set_metadata("accounts_executed", len(matching))
+
+    # Report latency breakdown (only if instrumentation enabled)
+    if latency_enabled:
+        tracker.report(symbol=symbol)
 
 
 def run():
