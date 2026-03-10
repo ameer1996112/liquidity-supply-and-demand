@@ -211,6 +211,7 @@ float structure_low_20 = ta.lowest(low, 20)
 invalidate_on_wick   = input.bool(true, "Invalidate on Wick Touch", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Zone becomes invalid if ANY wick penetrates it. OFF: Only body closes invalidate zones.")
 max_zones            = input.int(20, "Max Zones Displayed", minval = 1, maxval = 50, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Maximum number of zones to show on chart. More = cluttered but complete history.")
 min_body_perc        = input.float(50.0, "Min Body %", minval = 0, maxval = 100, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Minimum candle body percentage for strong impulse detection. 50% = body must be at least half of candle range.")
+zone_departure_grace_bars = input.int(3, "Zone Departure Grace Period (Bars)", minval = 0, maxval = 10, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Bars after zone creation where wick touches and closes-inside are ignored. Prevents zones from being killed by their own departure candles. 0 = disabled. Only structural breaches (wick through entire zone) still kill immediately.")
 
 // Liquidity Detection (CRITICAL PARAMETERS)
 liq_pivot_len       = input.int(5, "Pivot Strength", minval = 1, group = "⚙️ Advanced / Manual Tweaks", tooltip = "How many candles on each side to confirm a swing high/low. Higher = Fewer but stronger pivots. Lower = More pivots but weaker.")
@@ -3413,6 +3414,12 @@ if array.size(demandZones) > 0 and barstate.isconfirmed
             // === DEMAND SWEEP DETECTION (via modular function) ===
             f_check_demand_sweeps(i)
 
+            // === TOUCH SNAPSHOT CAMERA (DEMAND) ===
+            // Record ONCE on first valid post-sweep touch, independent of execution gate
+            if z.liquiditySwept and (low <= z.top) and na(z.touchOpen)
+                z.touchLow := low
+                z.touchOpen := open
+                z.touchClose := close
 
             // Update demand liquidity visuals (connector + label)
             updateDemandLiquidityVisual(i)
@@ -3436,18 +3443,25 @@ if array.size(demandZones) > 0 and barstate.isconfirmed
                 // Breach - price wicks through entire zone (wick below zone bottom)
                 bool breaches_zone = low < z.bottom
 
-                // Wick INTO zone (touch) - STRICT RULE: Kill zone before setup is ready
-                bool wicks_into_zone = low <= z.top and low >= z.bottom
+                // Wick INTO zone (touch) - STRICT RULE with explicit pre-sweep gating
+                // IMPORTANT: same-bar sweep+touch must NOT invalidate (order-of-operations fix)
+                bool wicks_into_zone = (low <= z.top) and (not z.liquiditySwept)
 
                 // SIMULTANEOUS SWEEP: If current bar sweeps target, allow entry (exception to strict rule)
                 bool current_bar_sweeping = not na(z.structureSweepLevel) and high > z.structureSweepLevel
 
-                // STRICT MITIGATION: Kill zone on ANY touch if liquidity NOT yet swept AND not simultaneously sweeping
-                if is_future_bar and not z.liquiditySwept and (closes_inside or breaches_zone or wicks_into_zone) and not current_bar_sweeping
+                // Grace Period: protect departure candles from wick/close-inside touches
+                // Only structural breach (low < zone bottom) kills immediately; wick/close-inside are protected
+                bool in_grace_period = not na(z.createdBarIndex) and bar_index <= (z.createdBarIndex + zone_departure_grace_bars)
+                bool soft_touch = closes_inside or wicks_into_zone
+                bool touch_triggers_mitigation = breaches_zone or (soft_touch and not in_grace_period)
+                // STRICT MITIGATION: Kill on structural breach or post-grace soft touch
+                // NOTE: pre-sweep gating is handled in wicks_into_zone and closes_inside remains sweep-gated below
+                if is_future_bar and ((not z.liquiditySwept and touch_triggers_mitigation) or breaches_zone) and not current_bar_sweeping
                     z.mitigated := true
                     z.touchedPreSweep := true
                     z.mitigationTime := time
-                    z.inactiveReason := closes_inside ? "Close inside zone" : (breaches_zone ? "Price breached zone" : "Zone touched before setup (Fresh)")
+                    z.inactiveReason := breaches_zone ? "Price breached zone" : (closes_inside ? "Close inside zone" : "Zone touched before setup (Fresh)")
                     if not na(z.boxId)
                         box.set_bgcolor(z.boxId, color.new(color.gray, 85))
                         box.set_border_color(z.boxId, color.gray)
@@ -3521,6 +3535,13 @@ if array.size(supplyZones) > 0 and barstate.isconfirmed
             // === SUPPLY SWEEP DETECTION (via modular function) ===
             f_check_supply_sweeps(i)
 
+            // === TOUCH SNAPSHOT CAMERA (SUPPLY) ===
+            // Record ONCE on first valid post-sweep touch, independent of execution gate
+            if z.liquiditySwept and (high >= z.bottom) and na(z.touchOpen)
+                z.touchLow := high
+                z.touchOpen := open
+                z.touchClose := close
+
             // Update supply liquidity visuals
             updateSupplyLiquidityVisual(i)
 
@@ -3544,17 +3565,24 @@ if array.size(supplyZones) > 0 and barstate.isconfirmed
                 // Breach - price wicks through entire zone (wick above zone top)
                 bool breaches_zone = high > z.top
 
-                // Wick INTO zone (touch) - STRICT RULE: Kill zone before setup is ready
-                bool wicks_into_zone = high >= z.bottom and high <= z.top
+                // Wick INTO zone (touch) - STRICT RULE with explicit pre-sweep gating
+                // IMPORTANT: same-bar sweep+touch must NOT invalidate (order-of-operations fix)
+                bool wicks_into_zone = (high >= z.bottom) and (not z.liquiditySwept)
 
                 // SIMULTANEOUS SWEEP: If current bar sweeps target, allow entry (exception to strict rule)
                 bool current_bar_sweeping = not na(z.structureSweepLevel) and low < z.structureSweepLevel
 
-                // STRICT MITIGATION: Kill zone on ANY touch if liquidity NOT yet swept AND not simultaneously sweeping
-                if is_future_bar and not z.liquiditySwept and (closes_inside or breaches_zone or wicks_into_zone) and not current_bar_sweeping
+                // Grace Period: protect departure candles from wick/close-inside touches
+                // Only structural breach (high > zone top) kills immediately; wick/close-inside are protected
+                bool in_grace_period = not na(z.createdBarIndex) and bar_index <= (z.createdBarIndex + zone_departure_grace_bars)
+                bool soft_touch = closes_inside or wicks_into_zone
+                bool touch_triggers_mitigation = breaches_zone or (soft_touch and not in_grace_period)
+                // STRICT MITIGATION: Kill on structural breach or post-grace soft touch
+                // NOTE: pre-sweep gating is handled in wicks_into_zone and closes_inside remains sweep-gated below
+                if is_future_bar and ((not z.liquiditySwept and touch_triggers_mitigation) or breaches_zone) and not current_bar_sweeping
                     z.mitigated := true
                     z.mitigationTime := time
-                    z.inactiveReason := closes_inside ? "Close inside zone" : (breaches_zone ? "Price breached zone" : "Zone touched before setup (Fresh)")
+                    z.inactiveReason := breaches_zone ? "Price breached zone" : (closes_inside ? "Close inside zone" : "Zone touched before setup (Fresh)")
                     if not na(z.boxId)
                         box.set_bgcolor(z.boxId, color.new(color.gray, 85))
                         box.set_border_color(z.boxId, color.gray)
@@ -3591,7 +3619,11 @@ if array.size(demandZones) > 0
             // 4. Wick below zone (optional via input)
             bool wick_below_zone = current_low < z.bottom
 
-            if bearish_close_inside or close_below_zone or isTooOld or (invalidate_on_wick and wick_below_zone)
+            // === GRACE PERIOD (DEMAND INVALIDATION) ===
+            // Protect zone from close-inside invalidation during departure candles.
+            // Structural breaches (close_below_zone, wick_below_zone) still kill immediately.
+            bool in_grace_period_inv_d = not na(z.createdBarIndex) and bar_index <= (z.createdBarIndex + zone_departure_grace_bars)
+            if (bearish_close_inside and not in_grace_period_inv_d) or close_below_zone or isTooOld or (invalidate_on_wick and wick_below_zone)
                 remove_zone_all_arrays(true, i)
 
 // === ZONE INVALIDATION (SUPPLY) ===
@@ -3614,7 +3646,11 @@ if array.size(supplyZones) > 0
             // 3. Wick above zone (optional via input)
             bool wick_above_zone = current_high > z.top
 
-            if bullish_close_inside or close_above_zone or isTooOld or (invalidate_on_wick and wick_above_zone)
+            // === GRACE PERIOD (SUPPLY INVALIDATION) ===
+            // Protect zone from close-inside invalidation during departure candles.
+            // Structural breaches (close_above_zone, wick_above_zone) still kill immediately.
+            bool in_grace_period_inv_s = not na(z.createdBarIndex) and bar_index <= (z.createdBarIndex + zone_departure_grace_bars)
+            if (bullish_close_inside and not in_grace_period_inv_s) or close_above_zone or isTooOld or (invalidate_on_wick and wick_above_zone)
                 remove_zone_all_arrays(false, i)
 
 // === UPDATE ZONE BOXES AND LABELS (Dynamic Extension + UZID) ===
@@ -5213,7 +5249,13 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
             zoneUsedInspector := not na(inspectorZone.lastEntryBar) ? "Yes" : "No"
             
             // Bullish/Bearish Close (same for both)
-            bullishBearishClose := close > open ? "Bullish" : "Bearish"
+            // STRICT: Use saved touch candle data only. Never fall back to live bar.
+            // Demand: touchClose > touchOpen = Bullish
+            // Supply: touchClose < touchOpen = Bearish
+            if not na(inspectorZone.touchClose) and not na(inspectorZone.touchOpen)
+                bullishBearishClose := isInspectorDemand ? (inspectorZone.touchClose > inspectorZone.touchOpen ? "Bullish" : "Bearish") : (inspectorZone.touchClose < inspectorZone.touchOpen ? "Bearish" : "Bullish")
+            else
+                bullishBearishClose := "Waiting"
             
             // Not Closed In (same for both)
             notClosedIn := (close < zoneInspectorLow or close > zoneInspectorHigh) ? "Yes" : "No"
