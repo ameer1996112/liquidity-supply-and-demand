@@ -1,6 +1,7 @@
 """Discord and Telegram alert adapter."""
 
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -9,6 +10,12 @@ import requests
 from config import get_settings
 
 logger = logging.getLogger(__name__)
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Phase 1 Latency Optimization: Background notification executor
+# Sends Discord/Telegram alerts in background threads to avoid blocking execution
+# ═══════════════════════════════════════════════════════════════════════════
+_notification_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="NotificationAsync")
 
 
 def get_pip_divisor(symbol: str) -> float:
@@ -218,3 +225,64 @@ def send_telegram(data: Dict[str, Any], alert_id: int) -> bool:
     except Exception as e:
         logger.error(f"Telegram error: {e}")
         return False
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Async Notification Wrappers (Phase 1 Latency Optimization)
+# These functions submit notifications to background threads to avoid blocking
+# the critical execution path. Use these in worker.py instead of sync versions.
+# ═══════════════════════════════════════════════════════════════════════════
+
+def send_discord_async(
+    data: Dict[str, Any],
+    alert_id: int,
+    mode: str = "manual",
+    ai_result: Optional[Dict[str, Any]] = None,
+) -> None:
+    """
+    Send Discord notification in background thread (non-blocking).
+
+    Returns immediately without waiting for HTTP response.
+    Logs errors in background if notification fails.
+    """
+    s = get_settings()
+    if not getattr(s, "async_notifications", False):
+        # Async notifications disabled - use synchronous version
+        send_discord(data, alert_id, mode, ai_result)
+        return
+
+    def _send():
+        try:
+            success, error = send_discord(data, alert_id, mode, ai_result)
+            if not success:
+                logger.warning(f"Background Discord notification failed: {error}")
+        except Exception as e:
+            logger.error(f"Background Discord notification crashed: {e}")
+
+    _notification_executor.submit(_send)
+    logger.debug(f"Discord notification queued in background for alert #{alert_id}")
+
+
+def send_telegram_async(data: Dict[str, Any], alert_id: int) -> None:
+    """
+    Send Telegram notification in background thread (non-blocking).
+
+    Returns immediately without waiting for HTTP response.
+    Logs errors in background if notification fails.
+    """
+    s = get_settings()
+    if not getattr(s, "async_notifications", False):
+        # Async notifications disabled - use synchronous version
+        send_telegram(data, alert_id)
+        return
+
+    def _send():
+        try:
+            success = send_telegram(data, alert_id)
+            if not success:
+                logger.warning(f"Background Telegram notification failed for alert #{alert_id}")
+        except Exception as e:
+            logger.error(f"Background Telegram notification crashed: {e}")
+
+    _notification_executor.submit(_send)
+    logger.debug(f"Telegram notification queued in background for alert #{alert_id}")

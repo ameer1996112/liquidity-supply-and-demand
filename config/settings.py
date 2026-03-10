@@ -190,6 +190,48 @@ class Settings(BaseSettings):
         description="Run Bull/Bear/Risk/Chair debate and persist to ai_runs. Never blocks.",
         validation_alias="AI_DEBATE_ENABLED",
     )
+
+    # ── Phase 1 Latency Optimization (2026-03-10) ────────────────────────────
+    enable_fast_path_bypass: bool = Field(
+        default=False,
+        description="Skip full AI ensemble for high-confidence signals (latency optimization).",
+        validation_alias="ENABLE_FAST_PATH_BYPASS",
+    )
+    fast_path_rf_threshold: float = Field(
+        default=0.85,
+        ge=0.5,
+        le=1.0,
+        description="Minimum RF confidence to trigger fast-path bypass (skip LLM).",
+        validation_alias="FAST_PATH_RF_THRESHOLD",
+    )
+    fast_path_live_only: bool = Field(
+        default=True,
+        description="Only use fast-path in LIVE mode (full checks in PAPER for testing).",
+        validation_alias="FAST_PATH_LIVE_ONLY",
+    )
+    async_notifications: bool = Field(
+        default=False,
+        description="Send Discord/Telegram notifications in background threads (non-blocking).",
+        validation_alias="ASYNC_NOTIFICATIONS",
+    )
+    async_trading_council: bool = Field(
+        default=False,
+        description="Run Trading Council in background thread (shadow mode, non-blocking).",
+        validation_alias="ASYNC_TRADING_COUNCIL",
+    )
+    enable_latency_instrumentation: bool = Field(
+        default=False,
+        description="Log detailed latency breakdowns per execution stage.",
+        validation_alias="ENABLE_LATENCY_INSTRUMENTATION",
+    )
+    tca_latency_threshold_ms: int = Field(
+        default=5000,
+        ge=100,
+        le=30000,
+        description="TCA alert threshold for high execution latency (milliseconds).",
+        validation_alias="TCA_LATENCY_THRESHOLD_MS",
+    )
+
     # Sprint 3.4: Strategy graduation — cannot enable enforce unless thresholds met
     ai_graduation_min_sample_size: int = Field(
         default=50,

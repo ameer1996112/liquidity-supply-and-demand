@@ -17,7 +17,7 @@ from src.adapters.supabase import (
     get_alert_by_zone_id,
     get_alert_by_trade_key,
 )
-from src.adapters.discord import send_discord, send_telegram
+from src.adapters.discord import send_discord, send_telegram, send_discord_async, send_telegram_async
 from src.adapters.paper_trader import get_paper_trader
 from src.adapters.execution.interfaces import OrderRequest, CloseRequest
 from src.adapters.execution.router import get_adapter
@@ -485,8 +485,9 @@ def process_trade(
 
     # Pass through AI ensemble result (if available) so Discord can render
     # the full brain decision matrix.
-    send_discord(data, alert_id, mode=mode, ai_result=ai_result)
-    send_telegram(data, alert_id)
+    # Phase 1 Optimization: Use async notifications to avoid blocking execution
+    send_discord_async(data, alert_id, mode=mode, ai_result=ai_result)
+    send_telegram_async(data, alert_id)
 
 
 execute_trade = process_trade

@@ -1049,40 +1049,110 @@ def process_trade(payload: Dict[str, Any]):
             logger.error("Staleness guard crashed: %s", e, exc_info=True)
 
     # ══════════════════════════════════════════════════════════════════
+    # FAST-PATH BYPASS (Phase 1 Latency Optimization)
+    # Skip full AI ensemble for high-confidence signals to reduce latency.
+    # If RF confidence >= threshold, skip Supervisor + Trading Council.
+    # ══════════════════════════════════════════════════════════════════
+    enable_fast_path = getattr(s, "enable_fast_path_bypass", False)
+    fast_path_threshold = getattr(s, "fast_path_rf_threshold", 0.85)
+    fast_path_live_only = getattr(s, "fast_path_live_only", True)
+
+    ai_result = None
+    used_fast_path = False
+
+    # Fast path conditions: enabled + (LIVE mode OR not live-only restriction)
+    if enable_fast_path and (run_mode == "LIVE" or not fast_path_live_only):
+        try:
+            # Quick RF prediction only (no LLM, no RAG)
+            rf_prob, rf_note, features = get_prediction(payload)
+
+            if rf_prob >= fast_path_threshold:
+                # High confidence - bypass full AI ensemble
+                used_fast_path = True
+                ai_result = {
+                    "decision": "GO",
+                    "reason": f"Fast-path approved (RF={rf_prob:.2f} >= {fast_path_threshold:.2f})",
+                    "rf_prob": rf_prob,
+                    "rf_note": rf_note,
+                    "fast_path": True,
+                    "rules": [],
+                    "narrative": "Fast-path bypass - skipped RAG/LLM for speed",
+                    "llm_raw": None,
+                }
+                logger.info(
+                    "⚡ FAST PATH: RF=%.2f >= %.2f, skipping full AI ensemble (saved ~1200ms)",
+                    rf_prob,
+                    fast_path_threshold,
+                )
+                log_event(
+                    None,
+                    "fast_path_bypass",
+                    "worker",
+                    {"symbol": symbol, "rf_prob": rf_prob, "threshold": fast_path_threshold},
+                )
+            else:
+                logger.info(
+                    "Fast-path not triggered: RF=%.2f < %.2f, running full AI ensemble",
+                    rf_prob,
+                    fast_path_threshold,
+                )
+        except Exception as e:
+            logger.warning("Fast-path check failed, falling back to full AI: %s", e)
+
+    # ══════════════════════════════════════════════════════════════════
     # MAS COUNCIL DECISION (Supervisor → Quant Agent → Risk Agent)
     # Debate is streamed live to /ws/debate via Redis pub/sub.
+    # Only runs if fast-path didn't bypass it.
     # ══════════════════════════════════════════════════════════════════
-    from src.agents.supervisor import Supervisor as _Supervisor
-    _supervisor = _Supervisor(supabase_client=supabase, redis_client=get_redis())
-    ai_result = _supervisor.evaluate(payload)
+    if ai_result is None:
+        from src.agents.supervisor import Supervisor as _Supervisor
+        _supervisor = _Supervisor(supabase_client=supabase, redis_client=get_redis())
+        ai_result = _supervisor.evaluate(payload)
 
     # Trading Council — 9-stage multi-agent pipeline (SHADOW MODE, never blocks)
     # Replaces the old 4-agent Bull/Bear/Risk/Chair debate.
     # Stages: Market Analyst → Setup Analyst → Bull/Bear Researchers →
     #         Research Manager → Aggressive/Conservative/Neutral Debaters → Risk Judge
+    #
+    # Phase 1 Optimization: Run in background thread if async enabled (saves ~500-1000ms)
     if getattr(s, "ai_debate_enabled", True):
-        try:
-            from src.ai.trading_council import run_trading_council
-            from src.services.ai_run_service import persist_debate, _get_trace_id_by_correlation
-            council_result = run_trading_council(
-                payload,
-                supabase=supabase,
-                redis_client=get_redis(),
-            )
-            corr = payload.get("_correlation_id")
-            if corr:
-                trace_id = _get_trace_id_by_correlation(supabase, corr) if supabase else None
-                persist_debate(supabase, corr, council_result, trace_id=trace_id)
-            # Shadow: council recommendation is logged only, NEVER blocks execution
-            logger.info(
-                "Trading Council (shadow): decision=%s confidence=%d memo=%s votes=%s",
-                council_result.get("council_decision"),
-                council_result.get("council_confidence", 0),
-                (council_result.get("memo") or "")[:80],
-                council_result.get("votes_tally", ""),
-            )
-        except Exception as deb_err:
-            logger.warning("Trading Council failed (non-blocking): %s", deb_err)
+        async_council = getattr(s, "async_trading_council", False)
+
+        def _run_council_sync():
+            """Run Trading Council synchronously (blocking)."""
+            try:
+                from src.ai.trading_council import run_trading_council
+                from src.services.ai_run_service import persist_debate, _get_trace_id_by_correlation
+
+                council_result = run_trading_council(
+                    payload,
+                    supabase=supabase,
+                    redis_client=get_redis(),
+                )
+                corr = payload.get("_correlation_id")
+                if corr:
+                    trace_id = _get_trace_id_by_correlation(supabase, corr) if supabase else None
+                    persist_debate(supabase, corr, council_result, trace_id=trace_id)
+
+                # Shadow: council recommendation is logged only, NEVER blocks execution
+                logger.info(
+                    "Trading Council (shadow): decision=%s confidence=%d memo=%s votes=%s",
+                    council_result.get("council_decision"),
+                    council_result.get("council_confidence", 0),
+                    (council_result.get("memo") or "")[:80],
+                    council_result.get("votes_tally", ""),
+                )
+            except Exception as deb_err:
+                logger.warning("Trading Council failed (non-blocking): %s", deb_err)
+
+        if async_council:
+            # Run in background thread - don't wait for result
+            import threading
+            threading.Thread(target=_run_council_sync, daemon=True, name="TradingCouncilAsync").start()
+            logger.info("⚡ Trading Council started in background (async mode, saved ~500-1000ms)")
+        else:
+            # Original blocking behavior
+            _run_council_sync()
 
     # Enrich AI result with zone/sweep/metrics from original payload
     _ZONE_FIELD_MAP = {
