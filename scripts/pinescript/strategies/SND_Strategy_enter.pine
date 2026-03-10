@@ -246,9 +246,6 @@ show_demand_zones    = true
 show_supply_zones    = true
 show_entry_labels    = true
 show_ai_debug_comment = input.bool(false, "Show AI Debug Text On Order Labels", group = "⚙️ Advanced / Manual Tweaks", tooltip = "If enabled, the long F:score=... | F:liquidity_distance=... debug string will be appended to the order label comment on the chart. When disabled (recommended), order labels stay clean while all AI metrics are still sent through the webhook payload.")
-zone_label_style = input.string("Compact", "Zone Label Style", options = ["Compact", "Detailed"], group = "⚙️ Advanced / Manual Tweaks", tooltip = "Compact: D-123 / S-123. Detailed: include type tag and optional grade/score.")
-zone_label_show_metrics = input.bool(true, "Zone Label: Show Grade/Score", group = "⚙️ Advanced / Manual Tweaks", tooltip = "Show [Grade|Score] in detailed zone labels.")
-show_blocked_trade_labels = input.bool(false, "Show Blocked Trade Labels", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: show chart labels explaining why entries were blocked. OFF: hide blocked-reason labels.")
 long_label_offset_atr = 0.60
 long_label_offset_ticks = 0
 extend_bars          = 50
@@ -2263,10 +2260,7 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
 
                 accTag := accTag + debugInfo
 
-            string sideTag = isDemand ? "D-" : "S-"
-            string compactText = sideTag + str.tostring(zoneUZID)
-            string detailedText = (isDemand ? "Demand " : "Supply ") + compactText
-            string id_text = " " + (zone_label_style == "Detailed" ? detailedText : compactText) + " "
+            string id_text = " " + accTag + (isDemand ? "D-" : "S-") + str.tostring(zoneUZID) + " "
             float mid = (zTop + zBottom) / 2.0
             // Label colors match zone colors - accuracy zones use blue/purple
             color lbl_bg_color = na
@@ -2316,8 +2310,8 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                 z.departureStrength := 50.0
             
             // Update Label with Grade if enabled
-            if show_grade_on_zone and zone_label_style == "Compact"
-                // Compact mode keeps grade prefix behavior
+            if show_grade_on_zone
+                // Recreate label text with grade
                 string gradeStr = "[" + z.grade + "] "
                 label.set_text(idLbl, gradeStr + id_text)
                  
@@ -3567,35 +3561,22 @@ if array.size(demandZones) > 0 and barstate.isconfirmed
                 bool current_bar_sweeping = not na(z.structureSweepLevel) and high > z.structureSweepLevel
 
                 // UPDATED: Separate Touch from Mitigation
-                // Preserve old working behavior for touchedPreSweep (strict), and add delayed re-touch invalidation.
+                // Preserve touch data for inspector, but only flag "touchedPreSweep"
+                // when the LIQUIDITY candle itself mitigates the zone.
                 if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or wicks_into_zone or breaches_zone)
-                    int touchBarNow = bar_index
-                    z.lastTouchBar := touchBarNow
+                    z.lastTouchBar := bar_index
                     z.wasTouched := true
 
-                    // 1) Old strict behavior: flag pre-sweep touch only when liquidity anchor bar itself touches.
+                    // Only count as pre-sweep mitigation if this bar is the liquidity bar
                     bool is_liq_bar = false
-                    if not na(z.liquidityBarIndex) and touchBarNow == z.liquidityBarIndex
+                    if not na(z.liquidityBarIndex) and bar_index == z.liquidityBarIndex
                         is_liq_bar := true
-                    else if not na(z.liqLowBar) and touchBarNow == z.liqLowBar
+                    else if not na(z.liqLowBar) and bar_index == z.liqLowBar
                         is_liq_bar := true
-                    else if not na(z.liqHighBar) and touchBarNow == z.liqHighBar
+                    else if not na(z.liqHighBar) and bar_index == z.liqHighBar
                         is_liq_bar := true
 
-                    // 2) New delayed re-touch rule: if touch happens well after liquidity anchor, mark stale.
-                    // This blocks late returns (zone 17422-type) without blocking immediate valid setups (zone 17398-type).
-                    int liq_anchor_bar = na
-                    if not na(z.liquidityBarIndex)
-                        liq_anchor_bar := z.liquidityBarIndex
-                    else if not na(z.liqLowBar)
-                        liq_anchor_bar := z.liqLowBar
-                    else if not na(z.liqHighBar)
-                        liq_anchor_bar := z.liqHighBar
-
-                    // Strict delayed re-touch rule: block if touch happens 4+ bars after liquidity anchor
-                    bool delayed_retouch = not na(liq_anchor_bar) and (touchBarNow - liq_anchor_bar >= 4)
-
-                    if is_liq_bar or delayed_retouch
+                    if is_liq_bar
                         z.touchedPreSweep := true
 
                 // MITIGATION (VANISH): Kill zone if CLOSED INSIDE or FULLY BREACHED
@@ -3801,11 +3782,7 @@ if show_zones and show_demand_zones and array.size(demandZones) > 0 and barstate
                         label.set_x(z.idLabel, bar_index)
                         label.set_y(z.idLabel, lbl_mid)
                         string demandAccTag = z.isAccuracy ? "⭐ ACC " : ""
-                        string demandCompact = demandAccTag + "D-" + str.tostring(z.id)
-                        string demandDetailed = "Demand " + demandCompact
-                        string demandMetrics = zone_label_show_metrics ? (" [" + z.grade + "|" + str.tostring(z.score, "#") + "]") : ""
-                        string demandText = zone_label_style == "Detailed" ? (demandDetailed + demandMetrics) : demandCompact
-                        label.set_text(z.idLabel, " " + demandText + " ")
+                        label.set_text(z.idLabel, " " + demandAccTag + "D-" + str.tostring(z.id) + " ")
                         label.set_style(z.idLabel, label.style_label_left)
                         label.set_textcolor(z.idLabel, color.white)
                         label.set_color(z.idLabel, z.isAccuracy ? color.new(#2196F3, 0) : color.new(#26a69a, 0))  // Blue for ACC, teal for normal
@@ -3839,11 +3816,7 @@ if show_zones and show_supply_zones and array.size(supplyZones) > 0 and barstate
                         label.set_x(z.idLabel, bar_index)
                         label.set_y(z.idLabel, lbl_mid)
                         string supplyAccTag = z.isAccuracy ? "⭐ ACC " : ""
-                        string supplyCompact = supplyAccTag + "S-" + str.tostring(z.id)
-                        string supplyDetailed = "Supply " + supplyCompact
-                        string supplyMetrics = zone_label_show_metrics ? (" [" + z.grade + "|" + str.tostring(z.score, "#") + "]") : ""
-                        string supplyText = zone_label_style == "Detailed" ? (supplyDetailed + supplyMetrics) : supplyCompact
-                        label.set_text(z.idLabel, " " + supplyText + " ")
+                        label.set_text(z.idLabel, " " + supplyAccTag + "S-" + str.tostring(z.id) + " ")
                         label.set_style(z.idLabel, label.style_label_left)
                         label.set_textcolor(z.idLabel, color.white)
                         label.set_color(z.idLabel, z.isAccuracy ? color.new(#AB47BC, 0) : color.new(#ef5350, 0))  // Purple for ACC, coral for normal
@@ -3899,7 +3872,7 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
 
             // [optimization/ai-overhaul] DEBUG LABEL: Show exactly why this demand zone was blocked
             // Visible whenever Debug Level != None (and for Shadow Mode skips too)
-            if not can_enter and show_blocked_trade_labels and debug_level != "None" and isRecentBarForDebug()
+            if not can_enter and debug_level != "None" and isRecentBarForDebug()
                 bool isAiBlock = str.contains(entryReason, "AI Quality") or str.contains(entryReason, "[SHADOW]")
                 color blockCol = isAiBlock ? color.orange : color.new(color.red, 20)
                 string blockTag = isAiBlock ? "🤖 " : "🚫 "
@@ -4390,7 +4363,7 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     stat_entries_blocked_by_liquidity += 1
 
             // [optimization/ai-overhaul] DEBUG LABEL: Show exactly why this supply zone was blocked
-            if not can_enter and show_blocked_trade_labels and debug_level != "None" and isRecentBarForDebug()
+            if not can_enter and debug_level != "None" and isRecentBarForDebug()
                 bool isAiBlock = str.contains(entryReason, "AI Quality") or str.contains(entryReason, "[SHADOW]")
                 color blockCol = isAiBlock ? color.orange : color.new(color.red, 20)
                 string blockTag = isAiBlock ? "🤖 " : "🚫 "
