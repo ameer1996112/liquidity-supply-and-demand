@@ -150,6 +150,8 @@ def save_alert(
         'return_strength': data.get('return_strength'),
         'liquidity_distance_pips': data.get('liquidity_distance_pips'),
         'liquidity_spread_pips': data.get('liquidity_spread_pips'),
+        # SL pips from Pine webhook
+        'sl_pips': data.get('sl_pips'),
         # V2.0 Telemetry Fields
         'run_mode': run_mode,
         'run_id': run_id,
@@ -244,6 +246,7 @@ def update_alert_exit(zone_id: int, exit_data: dict, trade_key: str = None) -> b
         'exit_type': exit_data.get('exit_type'),
         'mae_pips': exit_data.get('mae_pips'),
         'close_price': exit_data.get('close_price'),
+        'exit_price': exit_data.get('close_price'),  # Frontend reads exit_price column
         'close_time': exit_data.get('close_time', datetime.utcnow().isoformat()),
         'exit_time': exit_time,
         # Mark the high-level action explicitly for UI consumers (Signals drawer)
