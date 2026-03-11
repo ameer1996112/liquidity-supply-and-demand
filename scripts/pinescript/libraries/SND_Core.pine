@@ -580,3 +580,78 @@ export is_makuchaku_pvt_low(series float src_low, int idx) =>
 // @returns True if pivot high pattern detected
 export is_makuchaku_pvt_high(series float src_high, int idx) =>
     src_high[idx+1] > src_high[idx] and src_high[idx+1] > src_high[idx+2]
+
+// ══════════════════════════════════════════════════════════
+// === LIQUIDITY VALIDATION (VIDEO STRATEGY REQUIREMENT) ===
+// ══════════════════════════════════════════════════════════
+
+// Validates demand liquidity according to video rule:
+// "When we have a level of liquidity like that, we want to see that low take out its previous internal high"
+// This means: A swing low is ONLY valid if it broke a previous swing high before forming
+// @param src_low Series of low prices
+// @param src_high Series of high prices
+// @param pivot_bar_offset The offset of the pivot low to validate
+// @param lookback Maximum bars to scan backwards for previous swing high
+// @returns True if this swing low broke a previous internal high (valid liquidity)
+export validate_demand_liquidity(series float src_low, series float src_high, int pivot_bar_offset, int lookback) =>
+    // Safety check
+    if na(pivot_bar_offset) or pivot_bar_offset < 0 or lookback <= 0
+        false
+    else
+        float pivot_low_price = src_low[pivot_bar_offset]
+        bool broke_internal_high = false
+
+        // Scan backwards from the pivot to find if it broke any previous swing high
+        // We need to look at the bars BEFORE the pivot formed (older bars)
+        int scan_start = pivot_bar_offset + 1  // Start from bar before pivot
+        int scan_end = math.min(pivot_bar_offset + lookback, 500)  // Cap at 500 bars for performance
+
+        // Find previous pivot highs in the lookback period
+        for i = scan_start to scan_end
+            // Check if this bar is a pivot high (3-candle pattern)
+            if i + 2 <= 500  // Ensure we have enough history
+                // A pivot high at offset i means: high[i] > high[i-1] AND high[i] > high[i+1]
+                // But we're scanning backwards, so we check if high[i+1] is a pivot
+                if is_makuchaku_pvt_high(src_high, i)
+                    float prev_high_price = src_high[i + 1]  // The pivot high price
+
+                    // Check if the pivot low broke below this previous high
+                    // "Broke" means the low went BELOW the high (taking liquidity)
+                    if pivot_low_price < prev_high_price
+                        broke_internal_high := true
+                        break  // Found valid liquidity, exit loop
+
+        broke_internal_high
+
+// Validates supply liquidity according to video rule (inverse):
+// A swing high is ONLY valid if it broke a previous swing low before forming
+// @param src_high Series of high prices
+// @param src_low Series of low prices
+// @param pivot_bar_offset The offset of the pivot high to validate
+// @param lookback Maximum bars to scan backwards for previous swing low
+// @returns True if this swing high broke a previous internal low (valid liquidity)
+export validate_supply_liquidity(series float src_high, series float src_low, int pivot_bar_offset, int lookback) =>
+    // Safety check
+    if na(pivot_bar_offset) or pivot_bar_offset < 0 or lookback <= 0
+        false
+    else
+        float pivot_high_price = src_high[pivot_bar_offset]
+        bool broke_internal_low = false
+
+        // Scan backwards from the pivot to find if it broke any previous swing low
+        int scan_start = pivot_bar_offset + 1  // Start from bar before pivot
+        int scan_end = math.min(pivot_bar_offset + lookback, 500)  // Cap at 500 bars
+
+        // Find previous pivot lows in the lookback period
+        for i = scan_start to scan_end
+            // Check if this bar is a pivot low (3-candle pattern)
+            if i + 2 <= 500  // Ensure we have enough history
+                if is_makuchaku_pvt_low(src_low, i)
+                    float prev_low_price = src_low[i + 1]  // The pivot low price
+
+                    // Check if the pivot high broke above this previous low
+                    if pivot_high_price > prev_low_price
+                        broke_internal_low := true
+                        break  // Found valid liquidity, exit loop
+
+        broke_internal_low

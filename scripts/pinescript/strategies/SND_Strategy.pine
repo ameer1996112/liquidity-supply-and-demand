@@ -30,8 +30,8 @@
 
 // === LIBRARY IMPORTS ===
 // Import helper functions from external libraries to reduce script size
-import ameer_1996112/SND_Utils/12 as Utils
-import ameer_1996112/SND_Core/6 as Core
+import ameer_1996112/SND_Utils/14 as Utils
+import ameer_1996112/SND_Core/9 as Core
 
 strategy("Institutional Liquidity Protocol [Pro]",
      shorttitle = "S&D Algo [Pro]",
@@ -338,7 +338,7 @@ filter_dead_zone = input.bool(true, "Block Dead Zone (xx:50-xx:00)", group = "�
 filter_trading_hours = input.bool(true, "Trading Hours Only", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Only trade during active market hours. OFF: Trade 24/7.")
 trading_start_hour = input.int(7, "   └─ Start Hour (UTC)", minval = 0, maxval = 23, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Hour to start trading (0-23). 7 = 7:00 AM UTC.")
 trading_end_hour = input.int(22, "   └─ End Hour (UTC)", minval = 0, maxval = 23, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Hour to stop trading (0-23). 22 = 10:00 PM UTC.")
-require_htf_flip = input.bool(true, "HTF Flip Context", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Flip entries only valid near 30m/1H candle opens for better timing.")
+require_htf_flip = input.bool(true, "HTF Flip Context", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Flip entries only valid near 30m/1H candle opens for better timing.\n\n⚠️ Note: Video strategy emphasizes HTF context checks before all entries. Current implementation focuses on Flip timing. Consider adding broader HTF validation.")
 
 // AI & Quality Filters
 enable_ai_quality_filter = input.bool(true, "AI Quality Filter", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Block low-quality setups using AI scoring. Improves win rate.")
@@ -1685,30 +1685,40 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
 
                     // Pivot must be AFTER zone creation
                     if pBar > z.createdBarIndex
-                        // VALIDATION: Check pivot location based on model selected
-                        bool isValidLocation = false
-                        float distFromZone = 0.0
+                        // === CRITICAL VIDEO RULE: LIQUIDITY VALIDATION ===
+                        // Video rule (timestamp 3:44-4:05):
+                        // "When we have a level of liquidity like that, we want to see that low take out its previous internal high"
+                        // This swing low is ONLY valid if it broke a previous swing high
+                        int pivot_offset = off + 1  // The actual pivot is at off+1
+                        int validation_lookback = 100  // Scan up to 100 bars back
+                        bool isValidLiquidity = Core.validate_demand_liquidity(low, high, pivot_offset, validation_lookback)
 
-                        if use_inducement_linking
-                            // MODEL B (Inducement): Inducement must be ABOVE zone top
-                            isValidLocation := pLow > z.top
-                            distFromZone := pLow - z.top
-                        else
-                            // MODEL A (Standard): Inducement must be BELOW zone bottom
-                            isValidLocation := pLow < z.bottom
-                            distFromZone := z.bottom - pLow
+                        // Skip this pivot if it didn't break a previous internal high
+                        if isValidLiquidity
+                            // VALIDATION: Check pivot location based on model selected
+                            bool isValidLocation = false
+                            float distFromZone = 0.0
 
-                        if isValidLocation
-                            // Check distance constraints if set
-                            float maxDistPrice = effective_liq_max_dist * pip_size
-                            bool distOK = na(maxDistPrice) or maxDistPrice <= 0 or distFromZone <= maxDistPrice
+                            if use_inducement_linking
+                                // MODEL B (Inducement): Inducement must be ABOVE zone top
+                                isValidLocation := pLow > z.top
+                                distFromZone := pLow - z.top
+                            else
+                                // MODEL A (Standard): Inducement must be BELOW zone bottom
+                                isValidLocation := pLow < z.bottom
+                                distFromZone := z.bottom - pLow
 
-                            if distOK
-                                // We want the LOWEST valid pivot (closest to zone = inducement)
-                                if pLow < bestLiqPrice
-                                    bestLiqPrice := pLow
-                                    bestLiqBar := pBar
-                                // Continue scanning - DO NOT BREAK
+                            if isValidLocation
+                                // Check distance constraints if set
+                                float maxDistPrice = effective_liq_max_dist * pip_size
+                                bool distOK = na(maxDistPrice) or maxDistPrice <= 0 or distFromZone <= maxDistPrice
+
+                                if distOK
+                                    // We want the LOWEST valid pivot (closest to zone = inducement)
+                                    if pLow < bestLiqPrice
+                                        bestLiqPrice := pLow
+                                        bestLiqBar := pBar
+                                    // Continue scanning - DO NOT BREAK
 
         // If we found a valid inducement pivot, configure the zone
         if not na(bestLiqBar) and bestLiqPrice < 1.0e10
@@ -1840,31 +1850,40 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
 
                     // Pivot must be AFTER zone creation
                     if pBar > z.createdBarIndex
-                        // VALIDATION: Check pivot location based on model selected
-                        bool isValidLocation = false
-                        float distFromZone = 0.0
+                        // === CRITICAL VIDEO RULE: LIQUIDITY VALIDATION ===
+                        // Video rule (inverse for supply):
+                        // A swing high is ONLY valid if it broke a previous swing low
+                        int pivot_offset = off + 1  // The actual pivot is at off+1
+                        int validation_lookback = 100  // Scan up to 100 bars back
+                        bool isValidLiquidity = Core.validate_supply_liquidity(high, low, pivot_offset, validation_lookback)
 
-                        if use_inducement_linking
-                            // MODEL B (Inducement): Inducement must be BELOW zone bottom
-                            isValidLocation := pHigh < z.bottom
-                            distFromZone := z.bottom - pHigh
-                        else
-                            // MODEL A (Standard): Inducement must be ABOVE zone top
-                            isValidLocation := pHigh > z.top
-                            distFromZone := pHigh - z.top
+                        // Skip this pivot if it didn't break a previous internal low
+                        if isValidLiquidity
+                            // VALIDATION: Check pivot location based on model selected
+                            bool isValidLocation = false
+                            float distFromZone = 0.0
 
-                        if isValidLocation
-                            // Check distance constraints if set
-                            float distFromZoneCheck = distFromZone
-                            float maxDistPrice = effective_liq_max_dist * pip_size
-                            bool distOK = na(maxDistPrice) or maxDistPrice <= 0 or distFromZoneCheck <= maxDistPrice
+                            if use_inducement_linking
+                                // MODEL B (Inducement): Inducement must be BELOW zone bottom
+                                isValidLocation := pHigh < z.bottom
+                                distFromZone := z.bottom - pHigh
+                            else
+                                // MODEL A (Standard): Inducement must be ABOVE zone top
+                                isValidLocation := pHigh > z.top
+                                distFromZone := pHigh - z.top
 
-                            if distOK
-                                // We want the HIGHEST valid pivot (closest to zone = inducement)
-                                if pHigh > bestLiqPrice
-                                    bestLiqPrice := pHigh
-                                    bestLiqBar := pBar
-                                // Continue scanning - DO NOT BREAK
+                            if isValidLocation
+                                // Check distance constraints if set
+                                float distFromZoneCheck = distFromZone
+                                float maxDistPrice = effective_liq_max_dist * pip_size
+                                bool distOK = na(maxDistPrice) or maxDistPrice <= 0 or distFromZoneCheck <= maxDistPrice
+
+                                if distOK
+                                    // We want the HIGHEST valid pivot (closest to zone = inducement)
+                                    if pHigh > bestLiqPrice
+                                        bestLiqPrice := pHigh
+                                        bestLiqBar := pBar
+                                    // Continue scanning - DO NOT BREAK
 
         // If we found a valid inducement pivot, configure the zone
         if not na(bestLiqBar) and bestLiqPrice > 0.0
@@ -3912,10 +3931,12 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
 
             if can_enter
                 if currentTouch
-                    // FIRST-TOUCH-ONLY RULE: Block retrace entries (zones already touched)
-                    // If touchCount > 1, it means we touched previously (since we just incremented it to 1 now)
-                    if z.touchCount > 1
-                        z.inactiveReason := "BLOCKED - Retrace entry (touchCount=" + str.tostring(z.touchCount) + ")"
+                    // LIQUIDITY FRESHNESS CHECK: Allow retests, but skip if liquidity is stale
+                    // Video strategy: Skip only if liquidity ALREADY SWEPT in distant past (not just zone touched)
+                    // This allows valid retests while blocking stale setups
+                    bool liquidityIsStale = z.liquiditySwept and not na(z.liquiditySweptBarIndex) and (bar_index - z.liquiditySweptBarIndex) > 50
+                    if liquidityIsStale
+                        z.inactiveReason := "BLOCKED - Liquidity already swept (stale, " + str.tostring(bar_index - z.liquiditySweptBarIndex) + " bars ago)"
                         continue  // Skip to next zone
                     
                     // PRIME the zone - store reference candle data for Break of Candle model
@@ -3996,6 +4017,9 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
 
             // Store model for Inspector/Debug
             z.inactiveReason := "Model: " + chosenModel
+
+            // Convert chosen model to numeric code for webhook/backend
+            float entry_model_code = chosenModel == "FLIP" ? 1 : (chosenModel == "BREAK_CANDLE" ? 3 : 2)
 
             bool in_date_range = not enable_date_filter or (time >= start_date and time <= end_date)
             if not in_date_range
@@ -4132,7 +4156,7 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                 // Populate global plot variables for Webhook
                 plot_id               := z.id
                 plot_type             := 1 // Demand
-                plot_entry_model      := 2 // Directional Close
+                plot_entry_model      := entry_model_code // Actual detected model (1=Flip, 2=DirClose, 3=BoC)
                 plot_score            := z.score
                 plot_freshness        := z.touchCount <= 1 ? 1 : 0
                 plot_session          := feature_session
@@ -4403,10 +4427,12 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
 
             if can_enter
                 if currentTouch
-                    // FIRST-TOUCH-ONLY RULE: Block retrace entries (zones already touched)
-                    // If touchCount > 1, it means we touched previously (since we just incremented it to 1 now)
-                    if z.touchCount > 1
-                        z.inactiveReason := "BLOCKED - Retrace entry (touchCount=" + str.tostring(z.touchCount) + ")"
+                    // LIQUIDITY FRESHNESS CHECK: Allow retests, but skip if liquidity is stale
+                    // Video strategy: Skip only if liquidity ALREADY SWEPT in distant past (not just zone touched)
+                    // This allows valid retests while blocking stale setups
+                    bool liquidityIsStale = z.liquiditySwept and not na(z.liquiditySweptBarIndex) and (bar_index - z.liquiditySweptBarIndex) > 50
+                    if liquidityIsStale
+                        z.inactiveReason := "BLOCKED - Liquidity already swept (stale, " + str.tostring(bar_index - z.liquiditySweptBarIndex) + " bars ago)"
                         continue  // Skip to next zone
                     
                     // PRIME the zone - store reference candle data for Break of Candle model
@@ -4487,6 +4513,9 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
 
             // Store model for Inspector/Debug
             z.inactiveReason := "Model: " + chosenModel
+
+            // Convert chosen model to numeric code for webhook/backend
+            float entry_model_code = chosenModel == "FLIP" ? 1 : (chosenModel == "BREAK_CANDLE" ? 3 : 2)
 
             bool in_date_range = not enable_date_filter or (time >= start_date and time <= end_date)
             if not in_date_range
@@ -4623,7 +4652,7 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                 // Populate global plot variables for Webhook
                 plot_id               := z.id
                 plot_type             := -1 // Supply
-                plot_entry_model      := 2 // Directional Close
+                plot_entry_model      := entry_model_code // Actual detected model (1=Flip, 2=DirClose, 3=BoC)
                 plot_score            := z.score
                 plot_freshness        := z.touchCount <= 1 ? 1 : 0
                 plot_session          := feature_session
