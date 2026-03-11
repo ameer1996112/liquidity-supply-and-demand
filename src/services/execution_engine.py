@@ -173,10 +173,14 @@ class ExecutionEngine:
 
         # Step 7: Check alert thresholds
         slippage_threshold = getattr(self.settings, "tca_slippage_threshold_pips", 3.0)
-        latency_threshold = getattr(self.settings, "tca_latency_threshold_ms", 5000)
+        latency_threshold = getattr(self.settings, "tca_latency_threshold_ms", 30000)
+        bot_latency_threshold = getattr(self.settings, "tca_bot_latency_threshold_ms", 10000)
+        broker_latency_threshold = getattr(self.settings, "tca_broker_latency_threshold_ms", 20000)
 
         exceeds_slippage = False
         exceeds_latency = False
+        exceeds_bot_latency = False
+        exceeds_broker_latency = False
 
         if slippage_pips is not None:
             exceeds_slippage = self.tca_analyzer.detect_high_slippage_alert(
@@ -186,6 +190,13 @@ class ExecutionEngine:
 
         if total_execution_ms > latency_threshold:
             exceeds_latency = True
+
+        # Separate bot vs broker latency detection
+        if signal_to_submit_ms and signal_to_submit_ms > bot_latency_threshold:
+            exceeds_bot_latency = True
+
+        if submit_to_fill_ms > broker_latency_threshold:
+            exceeds_broker_latency = True
 
         # Step 8: Persist TCA metrics to database
         tca_record = {
@@ -233,12 +244,32 @@ class ExecutionEngine:
                         f"(threshold: {slippage_threshold} pips). Cost: ${slippage_usd:.2f}"
             )
 
-        if exceeds_latency:
+        # Separate alerts for bot vs broker latency
+        if exceeds_bot_latency:
+            self._create_tca_alert(
+                signal_id=signal_id,
+                alert_type="high_bot_latency",
+                severity="warning",
+                message=f"High bot processing latency: {signal_to_submit_ms}ms on {symbol} "
+                        f"(threshold: {bot_latency_threshold}ms). Check guard rail performance."
+            )
+
+        if exceeds_broker_latency:
+            self._create_tca_alert(
+                signal_id=signal_id,
+                alert_type="high_broker_latency",
+                severity="info",  # Info since we can't control broker speed
+                message=f"High broker execution latency: {submit_to_fill_ms}ms on {symbol} "
+                        f"(threshold: {broker_latency_threshold}ms). MetaAPI/broker may be slow."
+            )
+
+        # Legacy total latency alert (kept for backward compatibility)
+        if exceeds_latency and not (exceeds_bot_latency or exceeds_broker_latency):
             self._create_tca_alert(
                 signal_id=signal_id,
                 alert_type="high_latency",
                 severity="warning",
-                message=f"High execution latency: {total_execution_ms}ms on {symbol} "
+                message=f"High total execution latency: {total_execution_ms}ms on {symbol} "
                         f"(threshold: {latency_threshold}ms)"
             )
 

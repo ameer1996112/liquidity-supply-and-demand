@@ -225,11 +225,25 @@ class Settings(BaseSettings):
         validation_alias="ENABLE_LATENCY_INSTRUMENTATION",
     )
     tca_latency_threshold_ms: int = Field(
-        default=5000,
+        default=30000,
+        ge=100,
+        le=60000,
+        description="TCA alert threshold for high TOTAL execution latency (milliseconds). Set to 30s to account for broker delays on minor pairs.",
+        validation_alias="TCA_LATENCY_THRESHOLD_MS",
+    )
+    tca_bot_latency_threshold_ms: int = Field(
+        default=10000,
         ge=100,
         le=30000,
-        description="TCA alert threshold for high execution latency (milliseconds).",
-        validation_alias="TCA_LATENCY_THRESHOLD_MS",
+        description="Alert threshold for bot processing latency (signal→submit). Triggers if guard rails are slow.",
+        validation_alias="TCA_BOT_LATENCY_THRESHOLD_MS",
+    )
+    tca_broker_latency_threshold_ms: int = Field(
+        default=20000,
+        ge=1000,
+        le=60000,
+        description="Alert threshold for broker execution latency (submit→fill). Triggers if broker/MetaAPI is slow.",
+        validation_alias="TCA_BROKER_LATENCY_THRESHOLD_MS",
     )
 
     # Sprint 3.4: Strategy graduation — cannot enable enforce unless thresholds met
