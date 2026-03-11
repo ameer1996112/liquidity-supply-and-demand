@@ -70,7 +70,8 @@ def get_risk_status():
     sb = _get_supabase()
 
     # 1. Daily PnL from closed trades today (combined + by run_mode for UI)
-    today_start = datetime.combine(date.today(), datetime.min.time()).isoformat()
+    # Use UTC date to match database timestamps which are stored in UTC
+    today_start_utc = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
     daily_pnl = 0.0
     live_daily_pnl: Optional[float] = None
     paper_daily_pnl: Optional[float] = None
@@ -80,7 +81,7 @@ def get_risk_status():
             sb.table("trading_signals")
             .select("pnl_usd, run_mode")
             .eq("status", "closed")
-            .gte("created_at", today_start)
+            .gte("created_at", today_start_utc)
             .execute()
         )
         rows = resp.data or []
