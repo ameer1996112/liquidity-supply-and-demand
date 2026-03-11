@@ -94,7 +94,22 @@ def calculate_max_position_size(
                 pip_value_per_lot = 1.0  # $1 per point per lot
             elif "JPY" in symbol:
                 pip_size = 0.01
-                pip_value_per_lot = 1000.0
+                # ✅ DYNAMIC pip value calculation for JPY pairs (Migration 026)
+                # Formula: pip_value = (pip_size / exchange_rate) * lot_size
+                # Example: NZDJPY @ 93.918 → (0.01 / 93.918) * 100,000 = $10.65/lot
+                if entry > 0:
+                    pip_value_per_lot = (pip_size / entry) * 100000
+                    logger.debug(
+                        f"JPY pair {symbol}: Dynamic pip_value=${pip_value_per_lot:.2f}/lot "
+                        f"(entry={entry:.5f})"
+                    )
+                else:
+                    # Fallback to USDJPY approximation if entry price unavailable
+                    pip_value_per_lot = 1000.0
+                    logger.warning(
+                        f"JPY pair {symbol}: Using static pip_value=1000.0 (no entry price). "
+                        "This may cause position sizing errors!"
+                    )
             elif "XAU" in symbol or "GOLD" in symbol or "XAG" in symbol or "SILVER" in symbol:
                 pip_size = 0.01
                 pip_value_per_lot = 100.0
