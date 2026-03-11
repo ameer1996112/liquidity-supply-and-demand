@@ -2,16 +2,18 @@
 
 import { Suspense, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useActivePositions } from '@/hooks/usePositions';
+import { useActivePositions, useCleanupStale } from '@/hooks/usePositions';
 import { AccountBar } from '@/components/positions/AccountBar';
 import { PositionCard } from '@/components/positions/PositionCard';
 import { OptimizerPanel } from '@/components/portfolio/OptimizerPanel';
+import { ReconciliationAlert } from '@/components/positions/ReconciliationAlert';
 import { Crosshair } from 'lucide-react';
 import { PanelEmptyState } from '@/components/shared/PanelEmptyState';
 import { TableSkeleton } from '@/components/shared/TableStates';
 
 function PositionsPageContent() {
   const { data, isLoading } = useActivePositions();
+  const cleanupStale = useCleanupStale();
   const searchParams = useSearchParams();
   const highlightTicket = searchParams.get('order_id');
   const rawPositions = data?.positions || [];
@@ -45,6 +47,14 @@ function PositionsPageContent() {
       <div className='tv-card p-2'>
         <AccountBar />
       </div>
+
+      {/* Reconciliation Alert */}
+      {data?.reconciliation && (
+        <ReconciliationAlert
+          reconciliation={data.reconciliation}
+          onSync={() => cleanupStale.mutate()}
+        />
+      )}
 
       {/* Portfolio Optimizer */}
       <div className='tv-card p-2'>

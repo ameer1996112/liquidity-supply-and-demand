@@ -15,11 +15,23 @@ export interface ActivePosition {
   broker_order_id: string | null;
   current_price: number | null;
   live_pnl: number | null;
+  live_pnl_pct: number | null;
   hold_duration_seconds: number;
   created_at: string;
   zone_type: string | null;
   entry_model: string | null;
   rr_ratio: number | null;
+  is_stale: boolean;
+  broker_exists: boolean;
+}
+
+export interface ReconciliationInfo {
+  db_position_count: number;
+  broker_position_count: number;
+  matched_count: number;
+  stale_in_db: number;
+  missing_in_db: number;
+  has_mismatches: boolean;
 }
 
 export interface AccountStatus {
@@ -37,7 +49,11 @@ export const positionKeys = {
 };
 
 export function useActivePositions() {
-  return useQuery<{ positions: ActivePosition[]; count: number }>({
+  return useQuery<{
+    positions: ActivePosition[];
+    count: number;
+    reconciliation: ReconciliationInfo;
+  }>({
     queryKey: positionKeys.active,
     queryFn: async () => {
       const base = getApiUrl();
@@ -183,6 +199,51 @@ export function usePartialClose() {
       addToast({
         title: 'Partial close failed',
         message: `Signal #${variables.signalId}: ${error.message}`,
+        severity: 'critical',
+        duration: 8000,
+      });
+    },
+  });
+}
+
+export function useCleanupStale() {
+  const queryClient = useQueryClient();
+  const { addToast } = useToast();
+  return useMutation({
+    mutationFn: async () => {
+      const base = getApiUrl();
+      if (!base) throw new Error('API URL not configured');
+      const res = await fetch(`${base}/positions/cleanup-stale`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: positionKeys.active });
+      queryClient.invalidateQueries({ queryKey: positionKeys.account });
+      const closedCount = data?.closed_count ?? 0;
+      if (closedCount > 0) {
+        addToast({
+          title: 'Stale positions cleaned up',
+          message: `Closed ${closedCount} stale ${closedCount === 1 ? 'position' : 'positions'}.`,
+          severity: 'success',
+          duration: 6000,
+        });
+      } else {
+        addToast({
+          title: 'No stale positions found',
+          message: 'All positions are synchronized with broker.',
+          severity: 'info',
+          duration: 4000,
+        });
+      }
+    },
+    onError: (error: Error) => {
+      addToast({
+        title: 'Cleanup failed',
+        message: error.message,
         severity: 'critical',
         duration: 8000,
       });

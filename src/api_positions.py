@@ -64,16 +64,29 @@ class ActivePosition(BaseModel):
     zone_id: Optional[int] = None
     current_price: Optional[float] = None
     live_pnl: Optional[float] = None
+    live_pnl_pct: Optional[float] = None  # PnL as % of account
     hold_duration_seconds: int = 0
     created_at: str
     zone_type: Optional[str] = None
     entry_model: Optional[str] = None
     rr_ratio: Optional[float] = None
+    is_stale: bool = False  # True if position closed on broker but open in DB
+    broker_exists: bool = True  # False if DB position doesn't exist on broker
+
+
+class ReconciliationInfo(BaseModel):
+    db_position_count: int
+    broker_position_count: int
+    matched_count: int
+    stale_in_db: int  # Positions in DB but not on broker
+    missing_in_db: int  # Positions on broker but not in DB
+    has_mismatches: bool
 
 
 class ActivePositionsResponse(BaseModel):
     positions: List[ActivePosition]
     count: int
+    reconciliation: ReconciliationInfo
 
 
 class ClosePositionRequest(BaseModel):
@@ -112,10 +125,25 @@ def get_active_positions(
         ),
     ),
 ):
-    """List active positions enriched with live prices and PnL."""
+    """List active positions enriched with live prices, PnL, and broker reconciliation."""
     sb = _get_supabase()
     now = datetime.now(timezone.utc)
+    adapter = _get_adapter()
 
+    # Fetch broker positions for reconciliation
+    broker_positions = {}
+    try:
+        if hasattr(adapter, "get_open_positions"):
+            broker_pos_list = adapter.get_open_positions()
+            broker_positions = {pos.get("id"): pos for pos in broker_pos_list}
+        elif hasattr(adapter, "get_account_information"):
+            account_info = adapter.get_account_information()
+            broker_pos_list = account_info.get("positions", [])
+            broker_positions = {pos.get("id"): pos for pos in broker_pos_list}
+    except Exception as exc:
+        logger.warning("Failed to fetch broker positions for reconciliation: %s", exc)
+
+    # Fetch database positions
     try:
         q = (
             sb.table("trading_signals")
@@ -137,8 +165,6 @@ def get_active_positions(
 
     # Batch-fetch live prices per unique symbol
     price_cache: Dict[str, tuple] = {}
-    adapter = _get_adapter()
-
     if hasattr(adapter, "_get_symbol_price"):
         symbols = {r.get("symbol") for r in rows if r.get("symbol")}
         for sym in symbols:
@@ -148,12 +174,35 @@ def get_active_positions(
             except Exception:
                 price_cache[sym] = (None, None)
 
+    # Get account balance for PnL % calculation
+    account_balance = 50000.0  # Default
+    try:
+        if hasattr(adapter, "get_account_information"):
+            account_info = adapter.get_account_information()
+            account_balance = float(account_info.get("balance", 50000.0))
+    except Exception:
+        pass
+
+    # Build positions with reconciliation data
     positions = []
+    matched_count = 0
+    stale_count = 0
+
     for r in rows:
         symbol = r.get("symbol", "")
         side = (r.get("side") or "").lower()
         entry = r.get("entry")
         size = float(r.get("size") or 0)
+        broker_order_id = r.get("broker_order_id")
+
+        # Check if position exists on broker
+        broker_exists = broker_order_id in broker_positions if broker_order_id else False
+        is_stale = not broker_exists and broker_order_id is not None
+
+        if broker_exists:
+            matched_count += 1
+        elif is_stale:
+            stale_count += 1
 
         # Current price from cache
         bid, ask = price_cache.get(symbol, (None, None))
@@ -161,9 +210,12 @@ def get_active_positions(
 
         # Live PnL
         live_pnl = None
+        live_pnl_pct = None
         if current_price is not None and entry is not None and size > 0:
             direction = 1 if side == "buy" else -1
             live_pnl = round((current_price - entry) * size * direction, 2)
+            if account_balance > 0:
+                live_pnl_pct = round((live_pnl / account_balance) * 100, 2)
 
         # Hold duration
         hold_seconds = 0
@@ -186,19 +238,41 @@ def get_active_positions(
                 sl=r.get("sl"),
                 tp=r.get("tp"),
                 size=size,
-                broker_order_id=r.get("broker_order_id"),
+                broker_order_id=broker_order_id,
                 zone_id=r.get("zone_id"),
                 current_price=current_price,
                 live_pnl=live_pnl,
+                live_pnl_pct=live_pnl_pct,
                 hold_duration_seconds=hold_seconds,
                 created_at=created_str,
                 zone_type=r.get("zone_type"),
                 entry_model=r.get("entry_model"),
                 rr_ratio=r.get("rr_ratio"),
+                is_stale=is_stale,
+                broker_exists=broker_exists,
             )
         )
 
-    return ActivePositionsResponse(positions=positions, count=len(positions))
+    # Calculate reconciliation info
+    db_count = len(positions)
+    broker_count = len(broker_positions)
+    missing_in_db = max(0, broker_count - matched_count)
+    has_mismatches = stale_count > 0 or missing_in_db > 0
+
+    reconciliation = ReconciliationInfo(
+        db_position_count=db_count,
+        broker_position_count=broker_count,
+        matched_count=matched_count,
+        stale_in_db=stale_count,
+        missing_in_db=missing_in_db,
+        has_mismatches=has_mismatches,
+    )
+
+    return ActivePositionsResponse(
+        positions=positions,
+        count=len(positions),
+        reconciliation=reconciliation,
+    )
 
 
 @router.post("/{signal_id}/close")
@@ -433,6 +507,79 @@ def partial_close(signal_id: int, body: PartialCloseRequest):
         "closed_volume": partial_volume,
         "remaining_volume": remaining,
         "broker_status": exec_result.status,
+    }
+
+
+@router.post("/cleanup-stale")
+def cleanup_stale_positions():
+    """Automatically close stale positions (closed on broker but not in DB)."""
+    sb = _get_supabase()
+    adapter = _get_adapter()
+
+    # Fetch broker positions
+    broker_positions = {}
+    try:
+        if hasattr(adapter, "get_open_positions"):
+            broker_pos_list = adapter.get_open_positions()
+            broker_positions = {pos.get("id"): pos for pos in broker_pos_list}
+        elif hasattr(adapter, "get_account_information"):
+            account_info = adapter.get_account_information()
+            broker_pos_list = account_info.get("positions", [])
+            broker_positions = {pos.get("id"): pos for pos in broker_pos_list}
+    except Exception as exc:
+        logger.error("Failed to fetch broker positions: %s", exc)
+        return {
+            "status": "error",
+            "message": f"Failed to fetch broker positions: {exc}",
+            "closed_count": 0,
+        }
+
+    # Find stale positions
+    try:
+        resp = (
+            sb.table("trading_signals")
+            .select("id, broker_order_id, symbol, side, status")
+            .in_("status", ["OPEN", "open", "active", "executed"])
+            .execute()
+        )
+        db_positions = resp.data or []
+    except Exception as exc:
+        logger.error("Failed to fetch database positions: %s", exc)
+        return {
+            "status": "error",
+            "message": f"Failed to fetch database positions: {exc}",
+            "closed_count": 0,
+        }
+
+    # Close stale positions
+    closed_ids = []
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    for pos in db_positions:
+        broker_order_id = pos.get("broker_order_id")
+        if broker_order_id and broker_order_id not in broker_positions:
+            # Position exists in DB but not on broker - close it
+            signal_id = pos.get("id")
+            try:
+                sb.table("trading_signals").update({
+                    "status": "CLOSED",
+                    "closed_at": now_iso,
+                    "exit_type": "STALE_CLEANUP",
+                }).eq("id", signal_id).execute()
+
+                closed_ids.append(signal_id)
+                logger.info(
+                    f"Auto-closed stale position: ID {signal_id} "
+                    f"({pos.get('symbol')} {pos.get('side')})"
+                )
+            except Exception as exc:
+                logger.error(f"Failed to close stale position {signal_id}: {exc}")
+
+    return {
+        "status": "ok",
+        "message": f"Closed {len(closed_ids)} stale positions",
+        "closed_count": len(closed_ids),
+        "closed_ids": closed_ids,
     }
 
 

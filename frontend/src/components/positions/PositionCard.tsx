@@ -9,7 +9,7 @@ import {
 } from '@/hooks/usePositions';
 import { ModifySLTPDialog } from './ModifySLTPDialog';
 import { ClosePositionDialog } from './ClosePositionDialog';
-import { X, Pencil, Scissors, Loader2 } from 'lucide-react';
+import { X, Pencil, Scissors, Loader2, AlertTriangle, Clock } from 'lucide-react';
 import { formatDistanceToNowStrict } from 'date-fns';
 import { ClientDate } from '@/components/ui/ClientDate';
 import { PnLText } from '@/components/ui/typography';
@@ -39,6 +39,12 @@ export function PositionCard({ position }: { position: ActivePosition }) {
   const isBuy = position.side.toLowerCase() === 'buy';
   const pnlPositive = (position.live_pnl ?? 0) >= 0;
 
+  // Health indicators
+  const isStale = position.is_stale;
+  const holdSeconds = position.hold_duration_seconds || 0;
+  const holdHours = holdSeconds / 3600;
+  const isLongHold = holdHours > 24; // Warning if held > 24 hours
+
   const handleClose = () => {
     setShowCloseDialog(true);
   };
@@ -52,12 +58,24 @@ export function PositionCard({ position }: { position: ActivePosition }) {
       <div
         className={cn(
           'tv-card border-l-2 transition-colors',
-          pnlPositive
-            ? 'border-l-[var(--to-long)]'
-            : 'border-l-[var(--to-short)]'
+          isStale
+            ? 'border-l-yellow-500'
+            : pnlPositive
+              ? 'border-l-[var(--to-long)]'
+              : 'border-l-[var(--to-short)]'
         )}
       >
         <div className='p-4 space-y-3'>
+          {/* Stale position warning */}
+          {isStale && (
+            <div className='flex items-center gap-2 px-3 py-2 bg-yellow-500/10 border border-yellow-500/20 rounded text-yellow-400'>
+              <AlertTriangle className='h-3.5 w-3.5' />
+              <span className='text-xs font-medium'>
+                Warning: Position closed on broker but not in database
+              </span>
+            </div>
+          )}
+
           {/* Header: Symbol + Side + PnL */}
           <div className='flex items-center justify-between'>
             <div className='flex items-center gap-2'>
@@ -79,6 +97,12 @@ export function PositionCard({ position }: { position: ActivePosition }) {
                   {position.zone_type}
                 </span>
               )}
+              {isLongHold && (
+                <span className='flex items-center gap-1 font-mono text-[9px] px-1 py-0.5 rounded bg-orange-500/10 text-orange-400 uppercase'>
+                  <Clock className='h-2.5 w-2.5' />
+                  Long Hold
+                </span>
+              )}
             </div>
             <div className='text-right'>
               <FlashValue value={position.live_pnl ?? 0}>
@@ -88,6 +112,12 @@ export function PositionCard({ position }: { position: ActivePosition }) {
                   size='xl'
                 />
               </FlashValue>
+              {position.live_pnl_pct != null && (
+                <p className='text-[10px] font-mono text-zinc-500 mt-0.5'>
+                  {position.live_pnl_pct > 0 ? '+' : ''}
+                  {position.live_pnl_pct.toFixed(2)}% of account
+                </p>
+              )}
             </div>
           </div>
 
