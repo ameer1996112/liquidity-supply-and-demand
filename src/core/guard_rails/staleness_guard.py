@@ -1,3 +1,4 @@
+
 """
 Signal Staleness Guard
 Rejects outdated signals to prevent slippage on delayed webhooks.
@@ -18,6 +19,106 @@ from typing import Tuple, Optional
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+# ══════════════════════════════════════════════════════════
+# SYMBOL-AWARE PIP SIZE HELPERS
+# ══════════════════════════════════════════════════════════
+
+# Index symbol fragments — these must use pip_size = 1.0 (1 point = 1 pip)
+_INDEX_FRAGMENTS = [
+    "NAS100", "US100", "NDX", "USTEC",
+    "US30", "DJ30", "DJI", "DOW",
+    "SPX", "SP500", "US500",
+    "UK100", "GER", "DAX", "FRA40", "FRA",
+    "JPN225", "AUS200", "NKY",
+]
+
+# Crypto symbol fragments — also use pip_size = 1.0
+_CRYPTO_FRAGMENTS = [
+    "BTC", "ETH", "XRP", "ADA", "SOL",
+    "DOGE", "LTC", "BCH", "DOT", "LINK",
+]
+
+
+def get_pip_size(symbol: str) -> float:
+    """
+    Return the correct pip/point size for a symbol based on its asset class.
+
+    This is the SINGLE SOURCE OF TRUTH for pip size in the staleness guard.
+    It prevents the 10,000x inflation bug that occurs when the standard Forex
+    pip divisor (0.0001) is applied to index or crypto prices.
+
+    Asset class → pip_size:
+        Indices  (NAS100, US30, SPX500, …)  → 1.0   (1 point  = 1 pip)
+        Crypto   (BTC, ETH, …)              → 1.0   (1 dollar = 1 pip)
+        JPY pairs                           → 0.01
+        Gold / Silver (XAU, XAG)            → 0.01
+        Standard Forex (EURUSD, GBPUSD, …)  → 0.0001
+
+    Args:
+        symbol: Trading symbol string (case-insensitive)
+
+    Returns:
+        pip_size as a float
+    """
+    s = symbol.upper()
+
+    # Indices: 1 point = 1 pip (NOT the Forex 0.0001 divisor!)
+    if any(frag in s for frag in _INDEX_FRAGMENTS):
+        return 1.0
+
+    # Crypto: 1 dollar move = 1 pip
+    if any(frag in s for frag in _CRYPTO_FRAGMENTS):
+        return 1.0
+
+    # JPY pairs: pip = 0.01
+    if "JPY" in s:
+        return 0.01
+
+    # Gold / Silver: pip = 0.01
+    if any(frag in s for frag in ["XAU", "GOLD", "XAG", "SILVER"]):
+        return 0.01
+
+    # Standard Forex default
+    return 0.0001
+
+
+def get_deviation_threshold(symbol: str, base_threshold_pips: float) -> float:
+    """
+    Return the effective price-deviation threshold for a symbol.
+
+    The base threshold (default 3.0) is calibrated for Forex where 3 pips is
+    a meaningful move.  For indices and crypto the same raw number is far too
+    tight — NAS100 can move 50+ points in a single second during normal
+    trading.  This function scales the threshold so the staleness guard
+    remains meaningful across all asset classes.
+
+    Scaling factors (applied to base_threshold_pips):
+        Indices  → ×50   (3 pips → 150 index points)
+        Crypto   → ×200  (3 pips → 600 dollar points for BTC)
+        Metals   → ×5    (3 pips → 15 pips = $0.15 move for Gold)
+        Forex    → ×1    (unchanged)
+
+    Args:
+        symbol:               Trading symbol string (case-insensitive)
+        base_threshold_pips:  Configured threshold (e.g. 3.0)
+
+    Returns:
+        Effective threshold in the symbol's native pip units
+    """
+    s = symbol.upper()
+
+    if any(frag in s for frag in _INDEX_FRAGMENTS):
+        return base_threshold_pips * 50    # e.g. 3 → 150 index points
+
+    if any(frag in s for frag in _CRYPTO_FRAGMENTS):
+        return base_threshold_pips * 200   # e.g. 3 → 600 dollar points
+
+    if any(frag in s for frag in ["XAU", "GOLD", "XAG", "SILVER"]):
+        return base_threshold_pips * 5     # e.g. 3 → 15 pips ($0.15)
+
+    return base_threshold_pips             # Forex: unchanged
 
 
 class StalenessGuard:
@@ -166,33 +267,36 @@ class StalenessGuard:
                 logger.warning(f"No market data for {symbol}, skipping price check (fail-open)")
                 return True, ""
 
-            # Calculate price deviation in pips
-            if "JPY" in symbol:
-                pip_size = 0.01
-            elif "XAU" in symbol or "GOLD" in symbol:
-                pip_size = 0.01
-            else:
-                pip_size = 0.0001
+            # Calculate price deviation using symbol-aware pip size.
+            # CRITICAL: Indices (NAS100, US30, SPX500) and Crypto use pip_size=1.0.
+            # Using the Forex default (0.0001) on an index causes a 10,000x explosion
+            # e.g. 71.21 points / 0.0001 = 712,100 "pips" → false rejection.
+            pip_size = get_pip_size(symbol)
+
+            # Scale the threshold per asset class so it remains meaningful.
+            # Forex: 3 pips unchanged. Indices: 150 pts. Crypto: 600 pts. Metals: 15 pips.
+            effective_threshold = get_deviation_threshold(symbol, self.max_price_deviation_pips)
 
             price_diff_pips = abs(current_price - signal_entry) / pip_size
 
             logger.info(
                 f"Price deviation: {price_diff_pips:.1f} pips "
-                f"(signal: {signal_entry}, current: {current_price}, symbol: {symbol})"
+                f"(signal: {signal_entry}, current: {current_price}, symbol: {symbol}, "
+                f"pip_size: {pip_size}, threshold: {effective_threshold:.1f})"
             )
 
-            if price_diff_pips > self.max_price_deviation_pips:
+            if price_diff_pips > effective_threshold:
                 return False, (
                     f"Price deviation: {price_diff_pips:.1f} pips from signal entry "
                     f"(signal: {signal_entry}, current: {current_price}). "
                     f"Market moved too much during webhook latency. Rejecting to prevent slippage."
                 )
 
-            # Warning zone: >2 pips but <3 pips
-            if price_diff_pips > self.max_price_deviation_pips * 0.66:
+            # Warning zone: >66% of threshold
+            if price_diff_pips > effective_threshold * 0.66:
                 logger.warning(
                     f"⚠️ Price deviation warning: {price_diff_pips:.1f} pips "
-                    f"(approaching {self.max_price_deviation_pips} pip limit)"
+                    f"(approaching {effective_threshold:.1f} pip limit for {symbol})"
                 )
 
         except Exception as e:
@@ -260,15 +364,18 @@ class StalenessGuard:
                 diagnostics["current_price"] = get_current_price(symbol)
 
                 if diagnostics["current_price"]:
-                    pip_size = 0.01 if "JPY" in symbol else 0.0001
+                    # Use symbol-aware pip size — same fix as _check_price_deviation()
+                    pip_size = get_pip_size(symbol)
+                    effective_threshold = get_deviation_threshold(symbol, self.max_price_deviation_pips)
                     diagnostics["price_deviation_pips"] = (
                         abs(diagnostics["current_price"] - diagnostics["signal_entry"]) / pip_size
                     )
 
-                    if diagnostics["price_deviation_pips"] > self.max_price_deviation_pips:
+                    if diagnostics["price_deviation_pips"] > effective_threshold:
                         diagnostics["passed"] = False
                         diagnostics["warnings"].append(
-                            f"Price moved too much: {diagnostics['price_deviation_pips']:.1f} pips"
+                            f"Price moved too much: {diagnostics['price_deviation_pips']:.1f} pips "
+                            f"(threshold: {effective_threshold:.1f} for {symbol})"
                         )
         except Exception as e:
             diagnostics["warnings"].append(f"Price check failed: {e}")
