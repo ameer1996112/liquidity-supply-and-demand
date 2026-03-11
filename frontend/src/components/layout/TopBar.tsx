@@ -311,9 +311,11 @@ export function TopBar() {
   const todayPnl =
     selectedAccount != null
       ? selectedAccount.daily_pnl ?? selectedAccount.realized_pnl_today ?? 0
+      : todayPnlFromStats != null
+      ? todayPnlFromStats
       : accountsTodayPnl !== null
       ? accountsTodayPnl
-      : todayPnlFromStats ?? risk?.live_daily_pnl ?? risk?.daily_pnl ?? 0;
+      : risk?.live_daily_pnl ?? risk?.daily_pnl ?? 0;
 
   const todayPnlColor =
     todayPnl == null

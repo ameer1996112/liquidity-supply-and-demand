@@ -534,8 +534,8 @@ export calculate_return_strength(int sweep_bar_idx, int prime_bar_idx, bool isDe
                     float body_size = math.abs(candle_close - candle_open)
                     float body_percent = candle_range > 0 ? body_size / candle_range : 0.0
 
-                    // Check if candle is moving toward zone
-                    bool toward_zone = isDemand ? (candle_close > candle_open) : (candle_close < candle_open)
+                    // Check if candle is moving toward zone (returning after sweep)
+                    bool toward_zone = isDemand ? (candle_close < candle_open) : (candle_close > candle_open)
 
                     if toward_zone
                         total_body_percent += body_percent
