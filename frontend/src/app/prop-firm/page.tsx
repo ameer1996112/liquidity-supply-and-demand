@@ -322,13 +322,17 @@ export default function PropFirmPage() {
       }
     >();
     for (const s of filteredSignals) {
-      const d = format(new Date(s.created_at), 'MMM dd');
+      // Use closed_at for accurate daily grouping (when trade finished, not when signal was created)
+      const dateStr = s.closed_at || s.created_at;
+      const d = format(new Date(dateStr), 'MMM dd');
       if (!map.has(d))
         map.set(d, { date: d, positions: 0, wins: 0, losses: 0, pnl: 0 });
       const row = map.get(d)!;
       row.positions += 1;
       if (isClosedSignal(s)) {
         const pnl = getPnl(s) ?? 0;
+        // Skip zero-PnL trades (stale positions from cleanup)
+        if (pnl === 0) continue;
         row.pnl += pnl;
         if (pnl > 0) row.wins += 1;
         else row.losses += 1;

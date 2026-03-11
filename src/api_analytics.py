@@ -76,8 +76,16 @@ def _fetch_closed_signals(
     # Mirror frontend isSignalClosed(): for 'executed' signals, only include
     # those that have pnl_usd or closed_at — i.e. truly completed trades.
     # 'closed' status signals are always included.
+    # ALSO: Exclude zero-PnL trades to filter out stale positions that were
+    # cleaned up but never actually executed on broker.
     def _is_truly_closed(s: dict) -> bool:
         status = (s.get("status") or "").lower()
+
+        # Exclude zero-PnL trades (stale positions from cleanup)
+        pnl = s.get("pnl_usd") or s.get("pnl") or 0
+        if pnl == 0:
+            return False
+
         if status == "closed":
             return True
         # executed: must have pnl_usd or closed_at to count as a finished trade
@@ -186,14 +194,18 @@ def get_breakdown(
 
     def hour_key(s):
         try:
-            dt = datetime.fromisoformat(s["created_at"].replace("Z", "+00:00"))
+            # Use closed_at for accurate time-of-day analysis (when trade finished)
+            dt_str = s.get("closed_at") or s["created_at"]
+            dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
             return f"{dt.hour:02d}:00"
         except Exception:
             return None
 
     def dow_key(s):
         try:
-            dt = datetime.fromisoformat(s["created_at"].replace("Z", "+00:00"))
+            # Use closed_at for accurate day-of-week analysis (when trade finished)
+            dt_str = s.get("closed_at") or s["created_at"]
+            dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
             return DAY_NAMES[dt.weekday()]
         except Exception:
             return None

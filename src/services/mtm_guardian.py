@@ -89,15 +89,22 @@ class MTMGuardian:
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
 
         # 2. Calculate closed PnL — scoped to this account
+        # CRITICAL: Use closed_at instead of created_at for accurate daily PnL
+        # A trade created yesterday but closed today should count in TODAY's PnL
         try:
             q = self.supabase.table("trading_signals")\
                 .select("pnl_usd")\
                 .in_("status", ["closed", "CLOSED", "executed", "EXECUTED"])\
-                .gte("created_at", today_start)
+                .gte("closed_at", today_start)
             q = self._apply_account_filter(q, account_name, broker_profile_id)
             closed_trades = q.execute()
 
-            closed_pnl = sum(float(t.get("pnl_usd", 0)) for t in closed_trades.data) if closed_trades.data else 0.0
+            # Filter out zero-PnL trades (stale positions from cleanup script)
+            closed_pnl = sum(
+                float(t.get("pnl_usd", 0))
+                for t in closed_trades.data
+                if float(t.get("pnl_usd", 0)) != 0
+            ) if closed_trades.data else 0.0
         except Exception as e:
             logger.error(f"Failed to fetch closed PnL: {e}")
             closed_pnl = 0.0

@@ -34,7 +34,13 @@ function buildDayMap(signals: TradingSignal[]): Map<string, DayData> {
     const pnl = getPnl(signal);
     if (pnl == null) continue;
 
-    const dateStr = format(new Date(signal.created_at), 'yyyy-MM-dd');
+    // Skip zero-PnL trades (stale positions from cleanup script)
+    if (pnl === 0) continue;
+
+    // Use closed_at for accurate daily grouping (when trade finished, not when signal created)
+    const s = signal as TradingSignal & { closed_at?: string };
+    const dateTimestamp = s.closed_at || signal.created_at;
+    const dateStr = format(new Date(dateTimestamp), 'yyyy-MM-dd');
     const existing = map.get(dateStr);
 
     if (existing) {
@@ -44,7 +50,7 @@ function buildDayMap(signals: TradingSignal[]): Map<string, DayData> {
       else if (pnl < 0) existing.losses += 1;
     } else {
       map.set(dateStr, {
-        date: new Date(signal.created_at),
+        date: new Date(dateTimestamp),
         pnl,
         tradeCount: 1,
         wins: pnl > 0 ? 1 : 0,
