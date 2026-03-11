@@ -48,10 +48,10 @@ class SymbolMapper:
 
     SYMBOL_MAP = {
         # ── US Indices ──
-        "NAS100": "USTEC",      # Nasdaq 100 (some brokers: NAS100, US100)
-        "SPX500": "US500",      # S&P 500 (some brokers: SPX500, US500)
-        "US30": "US30",         # Dow Jones (usually same)
-        "US2000": "US2000",     # Russell 2000
+        "NAS100": "NAS100.raw",  # ACG-DEMO broker format
+        "SPX500": "SPX500.raw",  # ACG-DEMO broker format
+        "US30": "US30.raw",      # ACG-DEMO broker format
+        "US2000": "US2000.raw",  # ACG-DEMO broker format
 
         # ── European Indices ──
         "GER40": "GER40",       # DAX (some brokers: DAX40, DE40)
@@ -60,8 +60,8 @@ class SymbolMapper:
         "ESP35": "ESP35",       # IBEX 35
 
         # ── Metals ──
-        "XAUUSD": "XAUUSD",     # Gold (usually same, some: GOLD)
-        "XAGUSD": "XAGUSD",     # Silver (usually same, some: SILVER)
+        "XAUUSD": "XAUUSD.raw",  # ACG-DEMO broker format
+        "XAGUSD": "XAGUSD.raw",  # ACG-DEMO broker format
 
         # ── Forex (ACG-DEMO uses `.raw` suffix) ──
         "EURUSD": "EURUSD.raw",
@@ -73,6 +73,7 @@ class SymbolMapper:
         "NZDUSD": "NZDUSD.raw",
         "USDCHF": "USDCHF.raw",
         "GBPCAD": "GBPCAD.raw",
+        "NZDJPY": "NZDJPY.raw",
 
         # ── Crypto ──
         "BTCUSD": "BTCUSD",     # Bitcoin
@@ -120,7 +121,8 @@ class SymbolMapper:
         Priority:
         1. Custom overrides (from database)
         2. Built-in map
-        3. Passthrough (return original)
+        3. Auto-append `.raw` for forex pairs
+        4. Passthrough (return original)
 
         Args:
             tv_symbol: Symbol from TradingView (e.g., "NAS100")
@@ -151,21 +153,18 @@ class SymbolMapper:
                 logger.debug(f"Symbol mapped (built-in): {tv_symbol} -> {broker_symbol}")
             return broker_symbol
 
-        # Priority 3: Passthrough (no mapping found)
-        # Guardrail for ACG-DEMO style brokers where forex symbols require `.raw`
-        if (
-            len(symbol_upper) == 6
-            and symbol_upper[:3].isalpha()
-            and symbol_upper[3:].isalpha()
-            and not symbol_upper.endswith(".RAW")
-        ):
-            logger.warning(
-                "Symbol passthrough for forex pair without broker suffix: %s. "
-                "If broker requires suffix (e.g. .raw), add symbol_mappings override.",
+        # Priority 3: Auto-append `.raw` for forex pairs (ACG-DEMO broker convention)
+        if len(symbol_upper) == 6 and symbol_upper[:3].isalpha() and symbol_upper[3:].isalpha():
+            broker_symbol = f"{symbol_upper}.raw"
+            logger.info(
+                "Symbol auto-mapped (forex .raw default): %s -> %s",
                 tv_symbol,
+                broker_symbol,
             )
-        else:
-            logger.debug(f"Symbol passthrough: {tv_symbol} (no mapping found)")
+            return broker_symbol
+
+        # Priority 4: Passthrough (no mapping found)
+        logger.debug(f"Symbol passthrough: {tv_symbol} (no mapping found)")
         return tv_symbol
 
     @classmethod
