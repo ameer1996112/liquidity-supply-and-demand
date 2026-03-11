@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { useTradingMode } from '@/providers/TradingModeProvider';
 import { useRiskStatus, useKillSwitchMutation } from '@/hooks/useRiskStatus';
 import { useAccountsComparison } from '@/hooks/useAccounts';
+import { useSignalStats } from '@/hooks/useTradingSignals';
 import {
   fetchReconcileStatus,
   getApiUrl,
@@ -261,6 +262,7 @@ export function TopBar() {
 
   const { mode, setMode } = useTradingMode();
   const { data: risk } = useRiskStatus();
+  const { data: stats } = useSignalStats();
   const killMutation = useKillSwitchMutation();
   const [killDialogOpen, setKillDialogOpen] = useState(false);
   const [killDialogMode, setKillDialogMode] =
@@ -290,10 +292,15 @@ export function TopBar() {
     selectedAccount?.equity ??
     (risk?.current_equity != null ? risk.current_equity : null);
 
+  const todayPnlFromStats =
+    mode === 'PAPER'
+      ? stats?.paper_daily_pnl ?? stats?.paper_pnl_24h
+      : stats?.live_daily_pnl ?? stats?.live_pnl_24h;
+
   const todayPnl =
     selectedAccount != null
       ? selectedAccount.daily_pnl ?? selectedAccount.realized_pnl_today ?? 0
-      : risk?.live_daily_pnl ?? risk?.daily_pnl ?? 0;
+      : todayPnlFromStats ?? risk?.live_daily_pnl ?? risk?.daily_pnl ?? 0;
 
   const todayPnlColor =
     todayPnl == null
