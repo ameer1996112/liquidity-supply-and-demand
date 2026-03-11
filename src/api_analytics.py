@@ -46,9 +46,9 @@ def _fetch_closed_signals(
             "zone_type, entry_model, ai_confidence, rr_ratio, run_mode, "
             "created_at, closed_at, status"
         )
-        # Include both 'closed' and 'executed' statuses to match frontend
-        # isSignalClosed() logic which treats executed+pnl as closed trades.
-        .in_("status", ["closed", "executed"])
+        # Include both 'CLOSED' and 'EXECUTED' statuses (database uses uppercase)
+        # Also include lowercase variants for backward compatibility
+        .in_("status", ["closed", "executed", "CLOSED", "EXECUTED"])
         .order("created_at", desc=False)
     )
 
@@ -181,6 +181,99 @@ class SummaryResponse(BaseModel):
 
 
 # ── Endpoints ────────────────────────────────────────────────
+
+
+class TradeRecord(BaseModel):
+    """Individual trade record for frontend consumption."""
+    id: str
+    timestamp: str
+    symbol: str
+    side: str
+    result: str
+    pnl: float
+    rMultiple: float
+    holdTime: float
+    pattern: str
+    session: str
+
+
+class TradesResponse(BaseModel):
+    """Response model for /trades endpoint."""
+    trades: List[TradeRecord]
+
+
+@router.get("/trades", response_model=TradesResponse)
+def get_trades(
+    days: int = Query(0, ge=0, le=365, description="Number of days to fetch (0=all)"),
+    limit: int = Query(500, ge=1, le=5000, description="Max number of trades"),
+    mode: str = Query("LIVE"),
+    account_id: Optional[str] = Query(None, description="Filter to a specific account_id"),
+):
+    """
+    Get individual trade records for analytics frontend.
+
+    This endpoint transforms closed signals into the format expected by the
+    analytics page, including session classification, hold time, and R-multiple.
+    """
+    period = "all" if days == 0 else f"{days}d" if days <= 30 else "all"
+    signals = _fetch_closed_signals(period, mode, account_id=account_id)
+
+    def classify_session(dt_str: str) -> str:
+        """Classify trade into trading session based on UTC hour."""
+        try:
+            dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
+            hour = dt.hour
+            # Sydney: 22:00-07:00 UTC, Tokyo: 00:00-09:00, London: 08:00-17:00, NY: 13:00-22:00
+            if 0 <= hour < 9:
+                return "Asia"
+            elif 8 <= hour < 13:
+                return "London"
+            elif 13 <= hour < 22:
+                return "NY"
+            else:
+                return "Sydney"
+        except Exception:
+            return "London"  # Default fallback
+
+    trades = []
+    for sig in signals[:limit]:
+        pnl = float(sig.get("pnl_usd") or 0)
+        pnl_r = float(sig.get("pnl_r") or 0)
+
+        # Determine result
+        if pnl > 0:
+            result = "WIN"
+        elif pnl < 0:
+            result = "LOSS"
+        else:
+            result = "BREAKEVEN"
+
+        # Calculate hold time in minutes
+        created = sig.get("created_at", "")
+        closed = sig.get("closed_at", "")
+        hold_time = 0.0
+        if created and closed:
+            try:
+                c1 = datetime.fromisoformat(created.replace("Z", "+00:00"))
+                c2 = datetime.fromisoformat(closed.replace("Z", "+00:00"))
+                hold_time = (c2 - c1).total_seconds() / 60  # minutes
+            except Exception:
+                pass
+
+        trades.append(TradeRecord(
+            id=str(sig.get("id", "")),
+            timestamp=closed or created,
+            symbol=sig.get("symbol", ""),
+            side=sig.get("side", "").upper(),
+            result=result,
+            pnl=pnl,
+            rMultiple=pnl_r,
+            holdTime=hold_time,
+            pattern=sig.get("zone_type", "SND Zone"),
+            session=classify_session(closed or created),
+        ))
+
+    return TradesResponse(trades=trades)
 
 
 @router.get("/breakdown", response_model=BreakdownResponse)
