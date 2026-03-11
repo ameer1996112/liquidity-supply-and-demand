@@ -167,6 +167,69 @@ def process_trade(
                     exec_result.status,
                     exec_result.message,
                 )
+
+                # Fetch actual PnL from broker and update database
+                if exec_result.status == "success" and hasattr(adapter, "get_historical_deals"):
+                    try:
+                        # Get deals from the last hour to find our closed position
+                        from datetime import timedelta
+                        now = datetime.now(timezone.utc)
+                        start_time = (now - timedelta(hours=1)).isoformat()
+                        end_time = now.isoformat()
+
+                        deals = adapter.get_historical_deals(start_time, end_time)
+
+                        # Find the deal that matches our position
+                        matching_deal = None
+                        for deal in deals:
+                            # Match by positionId or orderId
+                            if (deal.get("positionId") == broker_order_id or
+                                deal.get("orderId") == broker_order_id):
+                                # Look for the closing deal (DEAL_ENTRY_OUT)
+                                if deal.get("entryType") in ["DEAL_ENTRY_OUT", "DEAL_ENTRY_OUT_BY"]:
+                                    matching_deal = deal
+                                    break
+
+                        if matching_deal:
+                            actual_pnl = float(matching_deal.get("profit", 0))
+                            actual_commission = float(matching_deal.get("commission", 0))
+                            actual_swap = float(matching_deal.get("swap", 0))
+
+                            # Total realized PnL = profit + commission + swap
+                            total_realized_pnl = actual_pnl + actual_commission + actual_swap
+
+                            logger.info(
+                                "✅ Broker actual PnL for alert #%s: profit=$%.2f commission=$%.2f swap=$%.2f total=$%.2f (was $%.2f from TradingView)",
+                                alert["id"],
+                                actual_pnl,
+                                actual_commission,
+                                actual_swap,
+                                total_realized_pnl,
+                                exit_data.get("pnl_usd", 0)
+                            )
+
+                            # Update database with actual broker PnL
+                            client = supabase_module.supabase
+                            if client:
+                                pnl_update = {
+                                    "pnl_usd": total_realized_pnl,
+                                    "pnl": total_realized_pnl,  # Also update pnl field
+                                    "commission": actual_commission,
+                                    "swap": actual_swap,
+                                }
+                                if trade_key:
+                                    client.table("trading_signals").update(pnl_update).eq("trade_key", trade_key).execute()
+                                else:
+                                    client.table("trading_signals").update(pnl_update).eq("zone_id", data["zone_id"]).execute()
+
+                                logger.info("Updated DB with broker actual PnL: $%.2f", total_realized_pnl)
+                        else:
+                            logger.warning(
+                                "Could not find matching deal for broker_order_id=%s in recent history",
+                                broker_order_id
+                            )
+                    except Exception as e:
+                        logger.error("Failed to fetch/update actual broker PnL for alert #%s: %s", alert["id"], e)
             except Exception as e:  # noqa: BLE001
                 logger.error("Broker close failed for zone_id=%s: %s", data["zone_id"], e)
 
