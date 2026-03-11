@@ -39,10 +39,13 @@ def _is_signal_closed(r: Dict[str, Any]) -> bool:
 
 def _is_signal_open_strict(r: Dict[str, Any]) -> bool:
     status = str(r.get("status") or "").strip().lower()
-    if status == "open" and r.get("execution_source") == "metaapi" and r.get("broker_position_id") is not None:
+    # Check for broker_position_id OR broker_order_id (fallback for older records)
+    has_broker_link = r.get("broker_position_id") is not None or r.get("broker_order_id") is not None
+
+    if status == "open" and r.get("execution_source") == "metaapi" and has_broker_link:
         return True
     if status in ("active", "pending", "executed") and not _is_signal_closed(r):
-        return r.get("broker_position_id") is not None
+        return has_broker_link
     return False
 
 
@@ -119,7 +122,7 @@ def get_active_positions(
             .select(
                 "id, symbol, side, entry, sl, tp, size, broker_order_id, zone_id, "
                 "created_at, zone_type, entry_model, rr_ratio, "
-                "status, execution_source, broker_position_id, closed_at, exit_price, pnl"
+                "status, execution_source, broker_position_id, broker_order_id, closed_at, exit_price, pnl"
             )
             .in_("status", ["OPEN", "open", "active", "executed", "PENDING", "pending"])
         )
