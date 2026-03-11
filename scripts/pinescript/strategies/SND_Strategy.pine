@@ -3432,6 +3432,12 @@ isValidEntry(isDemand, idx) =>
 
     // RETURN STRENGTH / COMPRESSION FILTER
     if canEnter and min_return_strength > 0
+        // Calculate dynamically if enabled and required for filter
+        if enable_v6_v7_features
+            z.returnStrength := Core.calculate_return_strength(z.liquiditySweptBarIndex, bar_index, isDemand, bar_index, high, low, open, close, volume, vol_sma_20)
+        else
+            z.returnStrength := 50.0
+
         if z.returnStrength < min_return_strength
             canEnter := false
             reason := "Return too slow (" + str.tostring(z.returnStrength, "#") + " < " + str.tostring(min_return_strength) + ")"
