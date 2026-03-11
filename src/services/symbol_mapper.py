@@ -63,15 +63,16 @@ class SymbolMapper:
         "XAUUSD": "XAUUSD",     # Gold (usually same, some: GOLD)
         "XAGUSD": "XAGUSD",     # Silver (usually same, some: SILVER)
 
-        # ── Forex (usually identical, but some brokers add suffixes) ──
+        # ── Forex (ACG-DEMO uses `.raw` suffix) ──
         "EURUSD": "EURUSD.raw",
-        "GBPUSD": "GBPUSD",
-        "USDJPY": "USDJPY",
-        "GBPJPY": "GBPJPY",
-        "AUDUSD": "AUDUSD",
-        "USDCAD": "USDCAD",
-        "NZDUSD": "NZDUSD",
-        "USDCHF": "USDCHF",
+        "GBPUSD": "GBPUSD.raw",
+        "USDJPY": "USDJPY.raw",
+        "GBPJPY": "GBPJPY.raw",
+        "AUDUSD": "AUDUSD.raw",
+        "USDCAD": "USDCAD.raw",
+        "NZDUSD": "NZDUSD.raw",
+        "USDCHF": "USDCHF.raw",
+        "GBPCAD": "GBPCAD.raw",
 
         # ── Crypto ──
         "BTCUSD": "BTCUSD",     # Bitcoin
@@ -150,8 +151,21 @@ class SymbolMapper:
                 logger.debug(f"Symbol mapped (built-in): {tv_symbol} -> {broker_symbol}")
             return broker_symbol
 
-        # Priority 3: Passthrough (no mapping needed)
-        logger.debug(f"Symbol passthrough: {tv_symbol} (no mapping found)")
+        # Priority 3: Passthrough (no mapping found)
+        # Guardrail for ACG-DEMO style brokers where forex symbols require `.raw`
+        if (
+            len(symbol_upper) == 6
+            and symbol_upper[:3].isalpha()
+            and symbol_upper[3:].isalpha()
+            and not symbol_upper.endswith(".RAW")
+        ):
+            logger.warning(
+                "Symbol passthrough for forex pair without broker suffix: %s. "
+                "If broker requires suffix (e.g. .raw), add symbol_mappings override.",
+                tv_symbol,
+            )
+        else:
+            logger.debug(f"Symbol passthrough: {tv_symbol} (no mapping found)")
         return tv_symbol
 
     @classmethod
