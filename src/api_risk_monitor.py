@@ -57,6 +57,7 @@ class ActiveSettings(BaseModel):
     max_trades_per_day: int
     dead_zone_block_enabled: bool
     account_balance_usd: float
+    pine_min_return_strength: float
 
 
 class GuardRailStatus(BaseModel):
@@ -217,7 +218,8 @@ async def get_risk_monitor():
         trading_hours_utc=f"{settings.pine_trading_start_hour}-{settings.pine_trading_end_hour}",
         max_trades_per_day=max_trades_today,
         dead_zone_block_enabled=settings.pine_block_dead_zone,
-        account_balance_usd=settings.account_balance
+        account_balance_usd=settings.account_balance,
+        pine_min_return_strength=settings.pine_min_return_strength
     )
 
     # 5. Guard rails status

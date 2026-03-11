@@ -527,6 +527,10 @@ function ActiveSettingsCard({ data }: { data: any }) {
       label: 'Dead Zone Block',
       value: data.dead_zone_block_enabled ? 'ON' : 'OFF',
     },
+    {
+      label: 'Return Strength',
+      value: data.pine_min_return_strength > 0 ? `≥ ${data.pine_min_return_strength}` : 'OFF',
+    },
   ];
 
   return (

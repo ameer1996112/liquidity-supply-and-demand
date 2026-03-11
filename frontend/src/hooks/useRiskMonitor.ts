@@ -40,6 +40,7 @@ export interface ActiveSettings {
   max_trades_per_day: number;
   dead_zone_block_enabled: boolean;
   account_balance_usd: number;
+  pine_min_return_strength: number;
 }
 
 export interface GuardRailStatus {
