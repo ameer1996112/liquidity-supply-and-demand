@@ -297,9 +297,22 @@ export function TopBar() {
       ? stats?.paper_daily_pnl ?? stats?.paper_pnl_24h
       : stats?.live_daily_pnl ?? stats?.live_pnl_24h;
 
+  // Sum daily_pnl across all accounts for Global view.
+  // Accounts are populated from the backend which uses MetaAPI balance snapshots
+  // (account_status_snapshots: current_balance − start_of_day_balance).
+  const accountsTodayPnl = useMemo(() => {
+    if (accounts.length === 0) return null;
+    return accounts.reduce(
+      (sum, acc) => sum + (acc.daily_pnl ?? acc.realized_pnl_today ?? 0),
+      0
+    );
+  }, [accounts]);
+
   const todayPnl =
     selectedAccount != null
       ? selectedAccount.daily_pnl ?? selectedAccount.realized_pnl_today ?? 0
+      : accountsTodayPnl !== null
+      ? accountsTodayPnl
       : todayPnlFromStats ?? risk?.live_daily_pnl ?? risk?.daily_pnl ?? 0;
 
   const todayPnlColor =

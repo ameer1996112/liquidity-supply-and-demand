@@ -152,6 +152,39 @@ class AccountOrchestrator:
                 logger.error(f"Error calculating daily_pnl: {e}")
                 daily_pnl = 0.0
 
+            # ── Override daily_pnl with MetaAPI balance diff (more accurate) ──
+            # Uses account_status_snapshots: current_balance − last_balance_before_today
+            try:
+                start_snap = self.client.table("account_status_snapshots") \
+                    .select("balance") \
+                    .eq("account_name", account_name) \
+                    .lt("snapshot_time", today_start) \
+                    .order("snapshot_time", desc=True) \
+                    .limit(1) \
+                    .execute()
+
+                current_snap = self.client.table("account_status_snapshots") \
+                    .select("balance") \
+                    .eq("account_name", account_name) \
+                    .order("snapshot_time", desc=True) \
+                    .limit(1) \
+                    .execute()
+
+                if start_snap.data and current_snap.data:
+                    start_bal = float(start_snap.data[0]["balance"])
+                    curr_bal = float(current_snap.data[0]["balance"])
+                    daily_pnl = curr_bal - start_bal
+                    logger.info(
+                        "daily_pnl from MetaAPI snapshots for %s: "
+                        "start=$%.2f current=$%.2f diff=$%.2f",
+                        account_name, start_bal, curr_bal, daily_pnl,
+                    )
+            except Exception as _snap_pnl_err:
+                logger.warning(
+                    "Failed to compute daily_pnl from snapshots for %s: %s",
+                    account_name, _snap_pnl_err,
+                )
+
             # Get real balance and live data from broker (not static allocated capital)
             balance = float(account_data.get("allocated_capital_usd") or 0)  # Fallback
             equity = balance  # Default: equity = balance
