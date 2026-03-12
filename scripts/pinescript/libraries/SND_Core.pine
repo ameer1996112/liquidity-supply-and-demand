@@ -18,7 +18,7 @@ library("SND_Core", overlay=true)
 // Zone Type - Core data structure for demand/supply zones
 export type Zone
     int   id
-    box   boxId
+    int   boxId           // Box object ID (0 = none)
     float top
     float bottom
     bool  active
@@ -46,9 +46,9 @@ export type Zone
     bool  targetSwept               // True when the Target (HIGH for demand, LOW for supply) is swept AFTER inducement
     int   targetSweptBarIndex       // Bar index when target was swept (must be > liquiditySweptBarIndex)
     int   peakBarIndex              // Bar index of the structural extreme after sweep
-    int   legCandleCount             // Count of directional candles in the leg (bearish for demand, bullish for supply)
-    float pushHighPrice              // For demand: the PUSH HIGH price (departure peak) before retracement
-    int   pushHighBar                // For demand: bar index of the push high
+    int   legCandleCount            // Count of directional candles in the leg (bearish for demand, bullish for supply)
+    float pushHighPrice             // For demand: the PUSH HIGH price (departure peak) before retracement
+    int   pushHighBar               // For demand: bar index of the push high
     string inactiveReason           // Reason zone was invalidated (e.g., "Inducement swept before target taken")
 
     // Trading
@@ -76,18 +76,18 @@ export type Zone
     float departureStrength // V6: Strength of price departure from zone (0-100, bigger candles + volume = higher)
     float liquidityDistance // V7.1: Distance from zone to liquidity in pips (0-100, closer = higher score)
     float liquiditySpread   // V7.1: Spread between inducement and target in pips (0-100, wider = higher)
-    bool  isAccuracy      // Zone type: true = Accuracy zone, false = Normal zone
+    bool  isAccuracy        // Zone type: true = Accuracy zone, false = Normal zone
     float peakPrice        // Price at that peak
     float score           // Zone Quality Score (0-100)
     string grade          // Zone Grade (A+, A, B, C)
 
-    // Visuals
-    line  connectorLine
-    line  targetLine      // For Supply: separate line to Target (Low)
-    line  inducementHLine  // Horizontal line at inducement level
-    line  targetHLine      // Horizontal line at target level
-    label infoLabel
-    label idLabel
+    // Visuals (stored as object IDs, not direct object references)
+    int   connectorLine   // line object ID (0 = none)
+    int   targetLine      // For Supply: separate line to Target (Low) - line object ID
+    int   inducementHLine // Horizontal line at inducement level - line object ID
+    int   targetHLine     // Horizontal line at target level - line object ID
+    int   infoLabel       // label object ID
+    int   idLabel         // label object ID
 
 // Zone Database Entry - For persistent storage and inspection
 export type ZoneDBEntry
