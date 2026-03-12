@@ -1970,18 +1970,28 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
 f_check_demand_sweeps(int zoneArrayIndex) =>
     Core.Zone z = array.get(demandZones, zoneArrayIndex)
     bool needsPersist = false
-    
+
+    // === PEAK BAR TRACKING (Demand) ===
+    // CRITICAL FIX: Moved to TOP of function to ensure it executes every bar
+    // Decoupled from sweep: camera turns on the moment the INDUCEMENT is registered.
+    // Tracks the highest high from liquidityBarIndex until the zone is first touched.
+    if not na(z.liquidityBarIndex) and bar_index >= z.liquidityBarIndex and na(z.lastTouchBar)
+        if na(z.peakPrice) or high > z.peakPrice
+            z.peakPrice := high
+            z.peakBarIndex := bar_index
+            needsPersist := true  // CRITICAL: Must persist these changes!
+
     // === INDUCEMENT SWEEP CHECK ===
     // Inducement Low for Demand: price drops to/below liqLowPrice
     if bar_index > z.liquidityBarIndex and not na(z.liqLowPrice)
         bool is_sweeping_now = low <= z.liqLowPrice  // STRICT: no tolerance
-        
+
         if is_sweeping_now
             z.liquiditySwept := true
             z.liquiditySweptBarIndex := bar_index  // Updates to LATEST sweep
             z.causedSweep := true
             needsPersist := true
-    
+
     // === TARGET SWEEP CHECK ===
     // Target High for Demand: price must strictly tag or exceed liqHighPrice
     // CRITICAL: Only check AFTER liquidityValid is true (proper pivot scan completed)
@@ -1990,7 +2000,7 @@ f_check_demand_sweeps(int zoneArrayIndex) =>
         float targetSweepTolerance = 0.0
         float targetSweepLevel = z.liqHighPrice - targetSweepTolerance
         bool is_tgt_sweeping_now = high >= targetSweepLevel
-        
+
         if is_tgt_sweeping_now
             z.targetSwept := true
             z.targetSweptBarIndex := bar_index
@@ -1999,15 +2009,6 @@ f_check_demand_sweeps(int zoneArrayIndex) =>
                 z.causedSweep := true
             needsPersist := true
 
-    // === PEAK BAR TRACKING (Demand) ===
-    // Decoupled from sweep: camera turns on the moment the INDUCEMENT is registered.
-    // Tracks the highest high from liquidityBarIndex until the zone is first touched.
-    if not na(z.liquidityBarIndex) and bar_index >= z.liquidityBarIndex and na(z.lastTouchBar)
-        if na(z.peakPrice) or high > z.peakPrice
-            z.peakPrice := high
-            z.peakBarIndex := bar_index
-            needsPersist := true
-    
     // === PERSIST CHANGES ONCE ===
     if needsPersist
         array.set(demandZones, zoneArrayIndex, z)
