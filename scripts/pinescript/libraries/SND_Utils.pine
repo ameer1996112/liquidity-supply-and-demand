@@ -332,8 +332,9 @@ export build_webhook_payload(
     payload := payload + ',"base_quality":' + to_json_num(_base_quality, "#.##")
     payload := payload + ',"departure_strength":' + to_json_num(_departure_strength, "#.##")
     payload := payload + ',"liquidity_distance":' + to_json_num(_liq_distance, "#.##")
-    payload := payload + ',"liquidity_spread":' + to_json_num(_liq_spread, "#.##")
-    payload := payload + ',"return_strength":' + to_json_num(_return_strength, "#.##")
+payload := payload + ',"liquidity_spread":' + to_json_num(_liq_spread, "#.##")
+    float return_strength = 50.0  // Default strength metric
+    payload := payload + ',"return_strength":' + to_json_num(return_strength, "#.##")
 
     // === RAW PIP VALUES (for dashboard display) ===
     if not na(_liq_distance_pips)
