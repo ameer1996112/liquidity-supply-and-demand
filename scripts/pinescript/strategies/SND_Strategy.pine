@@ -3250,7 +3250,7 @@ updateDemandLiquidityVisual(idx) =>
                 z.targetHLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice,
                                            x2 = lineEnd, y2 = z.liqHighPrice,
                                            xloc = xloc.bar_index, extend = extend.none,
-                                           color = tgtColor, style = line.style_solid, width = 1))
+                                           color = tgtColor, style = line.style_solid, width = 1)
         else
             // Clear horizontal lines if toggle is disabled
             if not na(z.inducementHLine)
@@ -3274,7 +3274,7 @@ updateDemandLiquidityVisual(idx) =>
             lineWidth = z.liquiditySwept ? 2 : 1
             z.connectorLine := line.new(x1 = z.createdBarIndex, y1 = mid, x2 = z.liquidityBarIndex, y2 = z.liquidityPrice,
                                   xloc = xloc.bar_index, extend = extend.none,
-                                  color = liq_line_color, style = lineStyle, width = lineWidth))
+                                  color = liq_line_color, style = lineStyle, width = lineWidth)
         true
 
 
@@ -3311,7 +3311,7 @@ updateSupplyLiquidityVisual(idx) =>
                 z.inducementHLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice,
                                                x2 = lineEnd, y2 = z.liqHighPrice,
                                                xloc = xloc.bar_index, extend = extend.none,
-                                               color = indColor, style = line.style_dashed, width = 1))
+                                               color = indColor, style = line.style_dashed, width = 1)
 
             // === HORIZONTAL LINE FOR TARGET (solid lime, at liqLowPrice) ===
             if not na(z.targetHLine)
@@ -3323,7 +3323,7 @@ updateSupplyLiquidityVisual(idx) =>
                 z.targetHLine := line.new(x1 = z.liqLowBar, y1 = z.liqLowPrice,
                                            x2 = lineEnd, y2 = z.liqLowPrice,
                                            xloc = xloc.bar_index, extend = extend.none,
-                                           color = tgtColor, style = line.style_solid, width = 1))
+                                           color = tgtColor, style = line.style_solid, width = 1)
         else
             // Clear horizontal lines if toggle is disabled
             if not na(z.inducementHLine)
@@ -3352,7 +3352,7 @@ updateSupplyLiquidityVisual(idx) =>
             indWidth = z.liquiditySwept ? 2 : 1
             z.connectorLine := line.new(x1 = z.createdBarIndex, y1 = zBottom, x2 = z.liqHighBar, y2 = z.liqHighPrice,
                                   xloc = xloc.bar_index, extend = extend.none,
-                                  color = liq_line_color, style = indStyle, width = indWidth))
+                                  color = liq_line_color, style = indStyle, width = indWidth)
 
             // === LINE 2: Inducement HIGH to Target LOW (gray, solid) ===
             if not na(z.liqLowPrice) and not na(z.liqLowBar)
@@ -3365,7 +3365,7 @@ updateSupplyLiquidityVisual(idx) =>
                 targetWidth = z.targetSwept ? 2 : 1
                 z.targetLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice, x2 = z.liqLowBar, y2 = z.liqLowPrice,
                                       xloc = xloc.bar_index, extend = extend.none,
-                                      color = targetColor, style = targetStyle, width = targetWidth))
+                                      color = targetColor, style = targetStyle, width = targetWidth)
         true
 
 
