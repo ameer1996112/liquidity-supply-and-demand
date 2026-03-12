@@ -1,32 +1,35 @@
-# TODO
+# Exit Webhook Bug Fix Plan — COMPLETED ✅
 
-## ✅ COMPLETED - 2026-03-11: Liquidity Validation Implementation
+## Bugs Fixed
 
-Critical liquidity validation has been implemented based on professional S&D trader's video strategy:
+1. [x] Exit payload missing `run_mode`, `symbol`, `side` → backend defaults to PAPER, never closes MT5
+2. [x] `exit_type` always "unknown" → added `comment_loss`/`comment_profit` to all `strategy.exit()` calls
+3. [x] DB marked CLOSED BEFORE broker close → moved `update_alert_exit()` to AFTER confirmed broker close
+4. [x] Backend `exit_run_mode` fallback was "PAPER" → now uses `get_settings().run_mode`
+5. [x] No symbol verification → added symbol mismatch guard before `close_order()`
 
-- [x] Add liquidity validation function to SND_Core.pine library
-- [x] Integrate liquidity validation into demand zone liquidity scanning
-- [x] Integrate liquidity validation into supply zone liquidity scanning
-- [x] Update documentation with implementation details
+## Files Changed
 
-**Files Modified:**
-- `scripts/pinescript/libraries/SND_Core.pine` - Added validate_demand_liquidity() and validate_supply_liquidity()
-- `scripts/pinescript/strategies/SND_Strategy.pine` - Integrated validation at lines ~1687 and ~1852
-- `docs/LIQUIDITY_VALIDATION_SUMMARY.md` - Complete implementation guide
-- `docs/PINESCRIPT_FIXES_APPLIED.md` - Updated with Fix #3 details
+- [x] `scripts/pinescript/libraries/SND_Utils.pine` — added `_symbol`, `_side`, `_run_mode` params to `build_exit_webhook_payload()`
+- [x] `scripts/pinescript/strategies/SND_Strategy.pine` — passes `syminfo.ticker`, `exit_side`, `"LIVE"` to exit payload; fixed `exit_type` detection; added `comment_loss`/`comment_profit` to all 28 `strategy.exit()` calls
+- [x] `src/logic.py` — fixed `exit_run_mode` fallback; moved `update_alert_exit()` after broker close; added symbol mismatch guard
 
-**Impact:**
-- Filters ~40% of invalid liquidity setups (matches video trader)
-- Expected win rate increase: 45% → 65% (+20%)
-- Strategy alignment score: 60% → 85%
+## New Exit Payload (after fix)
 
-**Next Step:** Deploy to TradingView and run backtest
-
----
-
-## ✅ COMPLETED - Previous: Fix TopBar Today Metric
-
-- [x] Update TopBar to use dashboard signal stats source for Today PnL
-- [x] Preserve account-specific metric behavior when account is selected
-- [x] Run frontend type/lint check for touched file
-- [x] Mark tasks complete
+```json
+{
+  "event_type": "exit",
+  "zone_id": 18868,
+  "symbol": "GBPCAD",
+  "side": "buy",
+  "run_mode": "LIVE",
+  "outcome": "loss",
+  "bars_held": 1,
+  "close_price": 1.81852,
+  "pnl_r": -1.0,
+  "pnl_usd": -327.26,
+  "exit_type": "sl_hit",
+  "mae_pips": 12.3,
+  "close_time": "2025-01-15 10:00:00"
+}
+```

@@ -77,6 +77,7 @@ export type Zone
     float liquidityDistance // V7.1: Distance from zone to liquidity in pips (0-100, closer = higher score)
     float liquiditySpread   // V7.1: Spread between inducement and target in pips (0-100, wider = higher)
     bool  isAccuracy      // Zone type: true = Accuracy zone, false = Normal zone
+    float peakPrice        // Price at that peak
     float score           // Zone Quality Score (0-100)
     string grade          // Zone Grade (A+, A, B, C)
 

@@ -98,13 +98,15 @@ def process_trade(
             "bars_held": data["bars_held"],
         }
         trade_key = (data.get("trade_key") or "").strip()
-        update_alert_exit(data["zone_id"], exit_data, trade_key=trade_key)
-        logger.info("Exit recorded: zone_id=%s, outcome=%s", data["zone_id"], data["outcome"])
+        logger.info("Exit received: zone_id=%s, outcome=%s", data["zone_id"], data["outcome"])
         log_event(None, "exit_processed", "logic", {"zone_id": data["zone_id"], "outcome": data["outcome"]})
 
         # 2) Broker close: only for LIVE signals with live_trading_enabled
-        exit_run_mode = str(data.get("run_mode", "PAPER")).upper()
+        # BUGFIX: fallback to settings run_mode (not "PAPER") so LIVE exits actually close the broker position
+        exit_run_mode = str(data.get("run_mode", get_settings().run_mode)).upper()
         if exit_run_mode == "PAPER":
+            # PAPER mode: no broker to confirm, update DB immediately
+            update_alert_exit(data["zone_id"], exit_data, trade_key=trade_key)
             logger.info("PAPER exit — updating DB to CLOSED for zone_id=%s", data["zone_id"])
             try:
                 # Mark the paper trade as closed in DB directly
@@ -137,6 +139,8 @@ def process_trade(
                         data["zone_id"],
                         trade_key,
                     )
+                    # Still record exit telemetry even if broker close is skipped
+                    update_alert_exit(data["zone_id"], exit_data, trade_key=trade_key)
                     return
 
                 broker_order_id = alert.get("broker_order_id")
@@ -145,6 +149,19 @@ def process_trade(
                         "No broker_order_id on alert %s; cannot send broker close.",
                         alert.get("id"),
                     )
+                    # Still record exit telemetry
+                    update_alert_exit(data["zone_id"], exit_data, trade_key=trade_key)
+                    return
+
+                # SAFEGUARD: Verify symbol matches to avoid closing the wrong MT5 position
+                payload_symbol = str(data.get("symbol", "")).upper()
+                alert_symbol = str(alert.get("symbol", "")).upper()
+                if payload_symbol and alert_symbol and payload_symbol != alert_symbol:
+                    logger.error(
+                        "Symbol mismatch: exit payload symbol=%s but alert #%s symbol=%s — aborting broker close",
+                        payload_symbol, alert["id"], alert_symbol,
+                    )
+                    update_alert_exit(data["zone_id"], exit_data, trade_key=trade_key)
                     return
 
                 close_req = CloseRequest(
@@ -167,6 +184,19 @@ def process_trade(
                     exec_result.status,
                     exec_result.message,
                 )
+
+                # BUGFIX: Only update DB to CLOSED AFTER broker close is confirmed
+                if exec_result.status in ("filled", "submitted", "success"):
+                    update_alert_exit(data["zone_id"], exit_data, trade_key=trade_key)
+                    logger.info(
+                        "✅ DB updated to CLOSED after confirmed broker close for zone_id=%s alert #%s ticket=%s",
+                        data["zone_id"], alert["id"], broker_order_id,
+                    )
+                else:
+                    logger.error(
+                        "Broker close FAILED for zone_id=%s (status=%s) — DB NOT marked CLOSED; watchdog will retry",
+                        data["zone_id"], exec_result.status,
+                    )
 
                 # Fetch actual PnL from broker and update database
                 if exec_result.status == "success" and hasattr(adapter, "get_historical_deals"):

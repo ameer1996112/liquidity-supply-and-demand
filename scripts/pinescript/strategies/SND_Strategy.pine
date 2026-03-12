@@ -29,8 +29,8 @@
 
 // === LIBRARY IMPORTS ===
 // Import helper functions from external libraries to reduce script size
-import ameer_1996112/SND_Utils/14 as Utils
-import ameer_1996112/SND_Core/10 as Core
+import ameer_1996112/SND_Utils/15 as Utils
+import ameer_1996112/SND_Core/12 as Core
 
 strategy("Institutional Liquidity Protocol [Pro]",
      shorttitle = "S&D Algo [Pro]",
@@ -2003,14 +2003,12 @@ f_check_demand_sweeps(int zoneArrayIndex) =>
     
     // === INDUCEMENT SWEEP CHECK ===
     // Inducement Low for Demand: price drops to/below liqLowPrice
-    if not na(z.liqLowPrice) and not z.liquiditySwept
-        float sweepTolerance = syminfo.mintick * 20
-        float sweepLevel = z.liqLowPrice + sweepTolerance
-        bool is_sweeping_now = low <= sweepLevel
+    if bar_index > z.liquidityBarIndex and not na(z.liqLowPrice)
+        bool is_sweeping_now = low <= z.liqLowPrice  // STRICT: no tolerance
         
         if is_sweeping_now
             z.liquiditySwept := true
-            z.liquiditySweptBarIndex := bar_index
+            z.liquiditySweptBarIndex := bar_index  // Updates to LATEST sweep
             z.peakBarIndex := bar_index
             z.causedSweep := true
             needsPersist := true
@@ -2056,14 +2054,12 @@ f_check_supply_sweeps(int zoneArrayIndex) =>
     
     // === INDUCEMENT SWEEP CHECK ===
     // Inducement High for Supply: price rises to/above liqHighPrice
-    if not na(z.liqHighPrice) and not z.liquiditySwept
-        float sweepTolerance = syminfo.mintick * 20
-        float sweepLevel = z.liqHighPrice - sweepTolerance
-        bool is_sweeping_now = high >= sweepLevel
+    if bar_index > z.liquidityBarIndex and not na(z.liqHighPrice)
+        bool is_sweeping_now = high >= z.liqHighPrice  // STRICT: no tolerance
         
         if is_sweeping_now
             z.liquiditySwept := true
-            z.liquiditySweptBarIndex := bar_index
+            z.liquiditySweptBarIndex := bar_index  // Updates to LATEST sweep
             z.peakBarIndex := bar_index
             z.causedSweep := true
             needsPersist := true
@@ -2338,6 +2334,9 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
             z.idLabel := idLbl
             z.touchCount := 0  // Initialize touch count for V5 AI tracking
             z.isAccuracy := isAccuracy  // Tag zone type for trade tracking
+            // Initialize peak tracking for new bar-count filters
+            z.peakBarIndex := na
+            z.peakPrice := na
 
             // === SCORING SYSTEM INTEGRATION ===
             // Calculate Score (0-100)
@@ -2643,14 +2642,24 @@ validate_entry_conditions(bool isDemand, int idx) =>
                     reason := ai_reason
 
     // === RETURN SPEED VALIDATION (Bar-Count Filters) ===
+    // Use FIRST touch after sweep (structural) rather than the current bar,
+    // so same-bar sweep+touch correctly counts as 0 and later entry bars don't inflate it.
     if canEnter
-        int sweep_bars = bar_index - z.liquiditySweptBarIndex
-        int peak_bars = bar_index - z.peakBarIndex
+        int sweep_bars = na
+        int peak_bars  = na
 
-        if sweep_bars > max_sweep_to_touch_bars
+        // Sweep -> Touch: bars between liquidity sweep and the first zone touch
+        if z.liquiditySwept and not na(z.liquiditySweptBarIndex) and not na(z.lastTouchBar) and z.lastTouchBar >= z.liquiditySweptBarIndex
+            sweep_bars := z.lastTouchBar - z.liquiditySweptBarIndex
+
+        // Peak -> Touch: bars between structural extreme and the first zone touch
+        if not na(z.peakBarIndex) and not na(z.lastTouchBar) and z.lastTouchBar >= z.peakBarIndex
+            peak_bars := z.lastTouchBar - z.peakBarIndex
+
+        if not na(sweep_bars) and sweep_bars > max_sweep_to_touch_bars
             canEnter := false
             reason := "Too slow after sweep"
-        else if peak_bars > max_peak_to_touch_bars
+        else if not na(peak_bars) and peak_bars > max_peak_to_touch_bars
             canEnter := false
             reason := "Return drop/rally too slow"
 
@@ -4275,6 +4284,7 @@ if barstate.isconfirmed and cached_demand_size > 0 and allow_long_trades
                     z.departureStrength,     // departure_strength
                     z.liquidityDistance,     // liquidity_distance
                     z.liquiditySpread,       // liquidity_spread
+                    float(na),               // return_strength (disabled - use structural bar-count filters instead)
                     pip_size,
                     webhook_include_zone_id,
                     // === AI GUARDIAN METRICSxq ===
@@ -4353,9 +4363,9 @@ if barstate.isconfirmed and cached_demand_size > 0 and allow_long_trades
                         strategy.entry("Long", strategy.long, qty = pos_qty_units, comment = entryComment)
 
                 if not na(take_profit_price) and take_profit_price > 0
-                    strategy.exit("Long Exit", "Long", stop = stop_loss_price, limit = take_profit_price)
+                    strategy.exit("Long Exit", "Long", stop = stop_loss_price, limit = take_profit_price, comment_loss = "SL", comment_profit = "TP")
                 else
-                    strategy.exit("Long Exit", "Long", stop = stop_loss_price)
+                    strategy.exit("Long Exit", "Long", stop = stop_loss_price, comment_loss = "SL")
 
                 if not dry_run_mode
                     // Capture entry state
@@ -4508,12 +4518,6 @@ if barstate.isconfirmed and cached_supply_size > 0 and allow_short_trades
                     // Hybrid return strength: time-based + distance bonus
                     // Hybrid return strength: NA-safe & zero-safe
 
-
-
-
-                        else
-                    else
-                    
                     if enable_v6_v7_features
                         z.liquidityDistance := temp_liq_distance
                         z.liquiditySpread := temp_liq_spread
@@ -4776,6 +4780,7 @@ if barstate.isconfirmed and cached_supply_size > 0 and allow_short_trades
                     z.departureStrength,     // departure_strength
                     z.liquidityDistance,     // liquidity_distance
                     z.liquiditySpread,       // liquidity_spread
+                    float(na),               // return_strength (disabled - use structural bar-count filters instead)
                     pip_size,
                     webhook_include_zone_id,
                     // === AI GUARDIAN METRICS ===
@@ -4845,9 +4850,9 @@ if barstate.isconfirmed and cached_supply_size > 0 and allow_short_trades
                         strategy.entry("Short", strategy.short, qty = pos_qty_units, comment = entryComment)
 
                 if not na(take_profit_price) and take_profit_price > 0
-                    strategy.exit("Short Exit", "Short", stop = stop_loss_price, limit = take_profit_price)
+                    strategy.exit("Short Exit", "Short", stop = stop_loss_price, limit = take_profit_price, comment_loss = "SL", comment_profit = "TP")
                 else
-                    strategy.exit("Short Exit", "Short", stop = stop_loss_price)
+                    strategy.exit("Short Exit", "Short", stop = stop_loss_price, comment_loss = "SL")
 
                 if not dry_run_mode
                     // Capture entry state
@@ -4930,24 +4935,24 @@ if strategy.position_size != 0 and not na(active_entry_id) and not na(trade_curr
         // Submit exit orders for the active entry
         if active_entry_id == "Long"
             if not na(trade_tp1_price) and trade_tp1_price > trade_entry_price
-                strategy.exit("Long Exit", "Long", stop = trade_current_sl, limit = trade_tp1_price)
+                strategy.exit("Long Exit", "Long", stop = trade_current_sl, limit = trade_tp1_price, comment_loss = "SL", comment_profit = "TP")
             else
-                strategy.exit("Long Exit", "Long", stop = trade_current_sl)
+                strategy.exit("Long Exit", "Long", stop = trade_current_sl, comment_loss = "SL")
         else if active_entry_id == "Long Flip"
             if not na(trade_tp1_price) and trade_tp1_price > trade_entry_price
-                strategy.exit("Long Flip Exit", "Long Flip", stop = trade_current_sl, limit = trade_tp1_price)
+                strategy.exit("Long Flip Exit", "Long Flip", stop = trade_current_sl, limit = trade_tp1_price, comment_loss = "SL", comment_profit = "TP")
             else
-                strategy.exit("Long Flip Exit", "Long Flip", stop = trade_current_sl)
+                strategy.exit("Long Flip Exit", "Long Flip", stop = trade_current_sl, comment_loss = "SL")
         else if active_entry_id == "Short"
             if not na(trade_tp1_price) and trade_tp1_price < trade_entry_price
-                strategy.exit("Short Exit", "Short", stop = trade_current_sl, limit = trade_tp1_price)
+                strategy.exit("Short Exit", "Short", stop = trade_current_sl, limit = trade_tp1_price, comment_loss = "SL", comment_profit = "TP")
             else
-                strategy.exit("Short Exit", "Short", stop = trade_current_sl)
+                strategy.exit("Short Exit", "Short", stop = trade_current_sl, comment_loss = "SL")
         else if active_entry_id == "Short Flip"
             if not na(trade_tp1_price) and trade_tp1_price < trade_entry_price
-                strategy.exit("Short Flip Exit", "Short Flip", stop = trade_current_sl, limit = trade_tp1_price)
+                strategy.exit("Short Flip Exit", "Short Flip", stop = trade_current_sl, limit = trade_tp1_price, comment_loss = "SL", comment_profit = "TP")
             else
-                strategy.exit("Short Flip Exit", "Short Flip", stop = trade_current_sl)
+                strategy.exit("Short Flip Exit", "Short Flip", stop = trade_current_sl, comment_loss = "SL")
 
 // === BREAK-EVEN LOGIC (Updated Rules) ===
 if strategy.position_size != 0 and not na(trade_entry_price) and not na(trade_original_sl_pips) and not na(active_entry_id) and not trade_be_moved
@@ -4989,24 +4994,24 @@ if strategy.position_size != 0 and not na(trade_entry_price) and not na(trade_or
                 // Update exit orders with new BE SL
                 if active_entry_id == "Long"
                     if not na(trade_tp1_price) and trade_tp1_price > trade_entry_price
-                        strategy.exit("Long Exit", "Long", stop = new_be_sl, limit = trade_tp1_price)
+                        strategy.exit("Long Exit", "Long", stop = new_be_sl, limit = trade_tp1_price, comment_loss = "BE", comment_profit = "TP")
                     else
-                        strategy.exit("Long Exit", "Long", stop = new_be_sl)
+                        strategy.exit("Long Exit", "Long", stop = new_be_sl, comment_loss = "BE")
                 else if active_entry_id == "Long Flip"
                     if not na(trade_tp1_price) and trade_tp1_price > trade_entry_price
-                        strategy.exit("Long Flip Exit", "Long Flip", stop = new_be_sl, limit = trade_tp1_price)
+                        strategy.exit("Long Flip Exit", "Long Flip", stop = new_be_sl, limit = trade_tp1_price, comment_loss = "BE", comment_profit = "TP")
                     else
-                        strategy.exit("Long Flip Exit", "Long Flip", stop = new_be_sl)
+                        strategy.exit("Long Flip Exit", "Long Flip", stop = new_be_sl, comment_loss = "BE")
                 else if active_entry_id == "Short"
                     if not na(trade_tp1_price) and trade_tp1_price < trade_entry_price
-                        strategy.exit("Short Exit", "Short", stop = new_be_sl, limit = trade_tp1_price)
+                        strategy.exit("Short Exit", "Short", stop = new_be_sl, limit = trade_tp1_price, comment_loss = "BE", comment_profit = "TP")
                     else
-                        strategy.exit("Short Exit", "Short", stop = new_be_sl)
+                        strategy.exit("Short Exit", "Short", stop = new_be_sl, comment_loss = "BE")
                 else if active_entry_id == "Short Flip"
                     if not na(trade_tp1_price) and trade_tp1_price < trade_entry_price
-                        strategy.exit("Short Flip Exit", "Short Flip", stop = new_be_sl, limit = trade_tp1_price)
+                        strategy.exit("Short Flip Exit", "Short Flip", stop = new_be_sl, limit = trade_tp1_price, comment_loss = "BE", comment_profit = "TP")
                     else
-                        strategy.exit("Short Flip Exit", "Short Flip", stop = new_be_sl)
+                        strategy.exit("Short Flip Exit", "Short Flip", stop = new_be_sl, comment_loss = "BE")
 
 // === CHECK IF TP1 IS HIT ===
 if strategy.position_size != 0 and not na(trade_tp1_price) and not tp1_hit
@@ -5033,13 +5038,13 @@ if strategy.position_size != 0 and not na(trade_tp1_price) and not tp1_hit
             // Move to break-even if enabled (standard BE mode)
             if use_break_even and not na(trade_entry_price) and trade_entry_price > 0 and not na(active_entry_id)
                 if active_entry_id == "Long"
-                    strategy.exit("Long Exit", "Long", stop = trade_entry_price)
+                    strategy.exit("Long Exit", "Long", stop = trade_entry_price, comment_loss = "BE")
                 else if active_entry_id == "Long Flip"
-                    strategy.exit("Long Flip Exit", "Long Flip", stop = trade_entry_price)
+                    strategy.exit("Long Flip Exit", "Long Flip", stop = trade_entry_price, comment_loss = "BE")
                 else if active_entry_id == "Short"
-                    strategy.exit("Short Exit", "Short", stop = trade_entry_price)
+                    strategy.exit("Short Exit", "Short", stop = trade_entry_price, comment_loss = "BE")
                 else if active_entry_id == "Short Flip"
-                    strategy.exit("Short Flip Exit", "Short Flip", stop = trade_entry_price)
+                    strategy.exit("Short Flip Exit", "Short Flip", stop = trade_entry_price, comment_loss = "BE")
 
 // === 2025 TRAILING STOP LOGIC (1-MINUTE TRAILING AFTER TP1) ===
 if strategy.position_size != 0 and use_stop_loss and not na(trade_entry_price) and not na(trade_original_sl) and not na(trade_original_sl_pips) and not na(active_entry_id)
@@ -5141,13 +5146,13 @@ if strategy.position_size != 0 and use_stop_loss and not na(trade_entry_price) a
     
     if should_update_sl and (tp1_hit or not trade_be_moved)
         if active_entry_id == "Long"
-            strategy.exit("Long Exit", "Long", stop = new_sl)
+            strategy.exit("Long Exit", "Long", stop = new_sl, comment_loss = "SL")
         else if active_entry_id == "Long Flip"
-            strategy.exit("Long Flip Exit", "Long Flip", stop = new_sl)
+            strategy.exit("Long Flip Exit", "Long Flip", stop = new_sl, comment_loss = "SL")
         else if active_entry_id == "Short"
-            strategy.exit("Short Exit", "Short", stop = new_sl)
+            strategy.exit("Short Exit", "Short", stop = new_sl, comment_loss = "SL")
         else if active_entry_id == "Short Flip"
-            strategy.exit("Short Flip Exit", "Short Flip", stop = new_sl)
+            strategy.exit("Short Flip Exit", "Short Flip", stop = new_sl, comment_loss = "SL")
         trade_current_sl := new_sl
 
 // === MAX HOLDING TIME CHECK (BARS) ===
@@ -5208,17 +5213,21 @@ if trade_just_closed
             mae_pips := (trade_worst_price - trade_entry_price) / pip_size
 
     // Determine exit type from exit comment
+    // NOTE: comment_loss/comment_profit are set on all strategy.exit() calls below so these match reliably.
     string exit_type = "unknown"
-    if str.contains(exit_comment, "TP") or str.contains(exit_comment, "limit")
+    if str.contains(exit_comment, "TP")
         exit_type := "tp_hit"
-    else if str.contains(exit_comment, "SL") or str.contains(exit_comment, "stop")
+    else if str.contains(exit_comment, "SL")
         exit_type := "sl_hit"
-    else if str.contains(exit_comment, "Time") or str.contains(exit_comment, "Bars")
-        exit_type := "time_stop"
-    else if str.contains(exit_comment, "Break-Even") or str.contains(exit_comment, "BE")
+    else if str.contains(exit_comment, "BE")
         exit_type := "break_even"
-    else if str.contains(exit_comment, "Close")
-        exit_type := "manual_close"
+    else if str.contains(exit_comment, "TimeStop")
+        exit_type := "time_stop"
+    else if str.contains(exit_comment, "EarlyClose")
+        exit_type := "early_close"
+    // Fallback: if bars_held >= max_bars_held, it was a time-based exit
+    else if bars_held >= max_bars_held
+        exit_type := "time_stop"
 
     // Calculate P&L in R (risk units) and USD
     float lastProfit = strategy.closedtrades.profit(last_trade_idx)  // account currency P&L (can be negative)
@@ -5228,8 +5237,14 @@ if trade_just_closed
 
     // === SEND EXIT WEBHOOK ===
     if enable_webhook_alerts and not na(trade_zone_id)
+        // Derive side from the active entry id (set at entry time)
+        string exit_side = str.contains(active_entry_id, "Long") ? "buy" : "sell"
+
         string exit_payload = Utils.build_exit_webhook_payload(
             trade_zone_id,              // zone_id
+            syminfo.ticker,             // symbol — required for broker close routing
+            exit_side,                  // side — required for broker close routing
+            "LIVE",                     // run_mode — tells backend to fire broker close
             was_win ? "win" : "loss",   // outcome
             bars_held,                  // bars_held
             close,                      // close_price
@@ -5925,16 +5940,16 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
         int sweep_to_touch_bars = (not na(inspectorZone) and not na(inspectorZone.liquiditySweptBarIndex) and not na(inspectorZone.lastTouchBar) and inspectorZone.lastTouchBar >= inspectorZone.liquiditySweptBarIndex) ? (inspectorZone.lastTouchBar - inspectorZone.liquiditySweptBarIndex) : na
         string sweepTouchStr = na(sweep_to_touch_bars) ? "N/A" : (str.tostring(sweep_to_touch_bars) + " bars")
         color sweepTouchColor = na(sweep_to_touch_bars) ? color.gray : (sweep_to_touch_bars <= max_sweep_to_touch_bars ? color.rgb(0, 200, 100) : (sweep_to_touch_bars <= max_sweep_to_touch_bars * 2 ? color.rgb(255, 180, 0) : color.rgb(255, 80, 80)))
-        table.cell(zoneInspector, 0, nextRow, "Sweep->Touch", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.black, 100), text_size = tblSize)
-        table.cell(zoneInspector, 1, nextRow, sweepTouchStr, text_color = sweepTouchColor, bgcolor = color.new(color.black, 100), text_size = tblSize)
+        table.cell(zoneInspector, 0, nextRow, "Sweep->Touch", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.black, 100), text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
+        table.cell(zoneInspector, 1, nextRow, sweepTouchStr, text_color = sweepTouchColor, bgcolor = color.new(color.black, 100), text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         nextRow += 1
 
         // Peak->Touch bar count (bars from structural extreme to zone touch)
         int peak_to_touch_bars = (not na(inspectorZone) and not na(inspectorZone.peakBarIndex) and not na(inspectorZone.lastTouchBar) and inspectorZone.lastTouchBar >= inspectorZone.peakBarIndex) ? (inspectorZone.lastTouchBar - inspectorZone.peakBarIndex) : na
         string peakTouchStr = na(peak_to_touch_bars) ? "N/A" : (str.tostring(peak_to_touch_bars) + " bars")
         color peakTouchColor = na(peak_to_touch_bars) ? color.gray : (peak_to_touch_bars <= max_peak_to_touch_bars ? color.rgb(0, 200, 100) : (peak_to_touch_bars <= max_peak_to_touch_bars * 2 ? color.rgb(255, 180, 0) : color.rgb(255, 80, 80)))
-        table.cell(zoneInspector, 0, nextRow, "Peak->Touch", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.black, 100), text_size = tblSize)
-        table.cell(zoneInspector, 1, nextRow, peakTouchStr, text_color = peakTouchColor, bgcolor = color.new(color.black, 100), text_size = tblSize)
+        table.cell(zoneInspector, 0, nextRow, "Peak->Touch", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.black, 100), text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
+        table.cell(zoneInspector, 1, nextRow, peakTouchStr, text_color = peakTouchColor, bgcolor = color.new(color.black, 100), text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         nextRow += 1
 
         table.cell(zoneInspector, 0, nextRow, "Leg Candles", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))

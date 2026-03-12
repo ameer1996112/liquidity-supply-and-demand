@@ -2,7 +2,7 @@
 // © ameer_1996112
 
 //@version=6
-library("SND_Utils", version=14, overlay=true)
+library("SND_Utils", overlay=true)
 
 // ══════════════════════════════════════════════════════════
 // SND_Utils - Helper Library for Supply & Demand Strategy
@@ -277,7 +277,7 @@ export build_webhook_payload(
      float _score, int _freshness, int _session, float _atr_ratio,
      int _trend, float _rsi, int _htf_trend, float _rvol, float _adx,
      int _touch_count, float _base_quality, float _departure_strength,
-     float _liq_distance, float _liq_spread, float _return_strength,
+     float _liq_distance, float _liq_spread,
      float pip_size, bool include_zone_id,
      bool _liquidity_sweep, string _arrival_type, bool _structure_break,
      float _account_balance = 50000,
@@ -317,7 +317,7 @@ export build_webhook_payload(
 
     // === AI FEATURES (V5.1 Key-Value format for train_ai_guardian.py) ===
     int _zone_type_int = _zone_type == "supply" ? 1 : 0
-    string _signal_f = " | F:score=" + str.tostring(_score, "#.##") + " | F:fresh=" + str.tostring(_freshness) + " | F:session=" + str.tostring(_session) + " | F:zone_type=" + str.tostring(_zone_type_int) + " | F:atr_ratio=" + str.tostring(_atr_ratio, "#.##") + " | F:is_accuracy=" + str.tostring(_is_accuracy ? 1 : 0) + " | F:trend=" + str.tostring(_trend) + " | F:rsi=" + str.tostring(_rsi, "#.##") + " | F:htf_trend=" + str.tostring(_htf_trend) + " | F:rvol=" + str.tostring(_rvol, "#.##") + " | F:adx=" + str.tostring(_adx, "#.##") + " | F:touch_count=" + str.tostring(_touch_count) + " | F:base_quality=" + str.tostring(_base_quality, "#.##") + " | F:departure_strength=" + str.tostring(_departure_strength, "#.##") + " | F:liquidity_distance=" + str.tostring(_liq_distance, "#.##") + " | F:liquidity_spread=" + str.tostring(_liq_spread, "#.##") + " | F:return_strength=" + str.tostring(_return_strength, "#.##")
+    string _signal_f = " | F:score=" + str.tostring(_score, "#.##") + " | F:fresh=" + str.tostring(_freshness) + " | F:session=" + str.tostring(_session) + " | F:zone_type=" + str.tostring(_zone_type_int) + " | F:atr_ratio=" + str.tostring(_atr_ratio, "#.##") + " | F:is_accuracy=" + str.tostring(_is_accuracy ? 1 : 0) + " | F:trend=" + str.tostring(_trend) + " | F:rsi=" + str.tostring(_rsi, "#.##") + " | F:htf_trend=" + str.tostring(_htf_trend) + " | F:rvol=" + str.tostring(_rvol, "#.##") + " | F:adx=" + str.tostring(_adx, "#.##") + " | F:touch_count=" + str.tostring(_touch_count) + " | F:base_quality=" + str.tostring(_base_quality, "#.##") + " | F:departure_strength=" + str.tostring(_departure_strength, "#.##") + " | F:liquidity_distance=" + str.tostring(_liq_distance, "#.##") + " | F:liquidity_spread=" + str.tostring(_liq_spread, "#.##")
     payload := payload + ',"signal":"' + _signal_f + '"'
     payload := payload + ',"score":' + to_json_num(_score, "#.#")
     payload := payload + ',"freshness":' + str.tostring(_freshness, "#")
@@ -354,11 +354,19 @@ export build_webhook_payload(
 
 // Builds EXIT webhook payload
 // Returns: JSON string with exit telemetry
+// @param _zone_id  Zone ID that triggered the entry
+// @param _symbol   Trading symbol (e.g. "GBPCAD") — required for broker close routing
+// @param _side     Trade direction: "buy" or "sell" — required for broker close routing
+// @param _run_mode Execution mode: "LIVE", "PAPER", "DRY_RUN" — controls whether broker close fires
 // @param _pnl_r   P&L in R (risk units)
 // @param _pnl_usd P&L in account currency (can be negative for losses)
+// @param _exit_type Exit reason: "tp_hit", "sl_hit", "time_stop", "break_even", "early_close", "unknown"
 // @returns JSON string payload
 export build_exit_webhook_payload(
-     int   _zone_id,
+     int    _zone_id,
+     string _symbol,
+     string _side,
+     string _run_mode,
      string _outcome,
      int    _bars_held,
      float  _close_price,
@@ -370,6 +378,9 @@ export build_exit_webhook_payload(
  ) =>
     string payload = '{"event_type":"exit"'
     payload := payload + ',"zone_id":' + str.tostring(_zone_id, "#")
+    payload := payload + ',"symbol":"' + _symbol + '"'
+    payload := payload + ',"side":"' + _side + '"'
+    payload := payload + ',"run_mode":"' + _run_mode + '"'
     payload := payload + ',"outcome":"' + _outcome + '"'
     payload := payload + ',"bars_held":' + str.tostring(_bars_held, "#")
     payload := payload + ',"close_price":' + to_json_num(_close_price, "#.##########")
