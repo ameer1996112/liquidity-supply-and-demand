@@ -2000,13 +2000,11 @@ f_check_demand_sweeps(int zoneArrayIndex) =>
             needsPersist := true
 
     // === PEAK BAR TRACKING (Demand) ===
-    // After liquidity is swept, track the highest high (structural extreme before return)
-    // peakBarIndex is updated whenever a new high is made post-sweep
-    if z.liquiditySwept and not na(z.liquiditySweptBarIndex)
-        if na(z.peakBarIndex)
-            z.peakBarIndex := bar_index
-            needsPersist := true
-        else if high > high[bar_index - z.peakBarIndex]
+    // Decoupled from sweep: camera turns on the moment the INDUCEMENT is registered.
+    // Tracks the highest high from liquidityBarIndex until the zone is first touched.
+    if not na(z.liquidityBarIndex) and bar_index >= z.liquidityBarIndex and na(z.lastTouchBar)
+        if na(z.peakPrice) or high > z.peakPrice
+            z.peakPrice := high
             z.peakBarIndex := bar_index
             needsPersist := true
     
@@ -2052,13 +2050,11 @@ f_check_supply_sweeps(int zoneArrayIndex) =>
             needsPersist := true
 
     // === PEAK BAR TRACKING (Supply) ===
-    // After liquidity is swept, track the lowest low (structural extreme before return)
-    // peakBarIndex is updated whenever a new low is made post-sweep
-    if z.liquiditySwept and not na(z.liquiditySweptBarIndex)
-        if na(z.peakBarIndex)
-            z.peakBarIndex := bar_index
-            needsPersist := true
-        else if low < low[bar_index - z.peakBarIndex]
+    // Decoupled from sweep: camera turns on the moment the INDUCEMENT is registered.
+    // Tracks the lowest low from liquidityBarIndex until the zone is first touched.
+    if not na(z.liquidityBarIndex) and bar_index >= z.liquidityBarIndex and na(z.lastTouchBar)
+        if na(z.peakPrice) or low < z.peakPrice
+            z.peakPrice := low
             z.peakBarIndex := bar_index
             needsPersist := true
     
