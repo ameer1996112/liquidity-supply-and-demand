@@ -18,7 +18,7 @@ library("SND_Core", overlay=true)
 // Zone Type - Core data structure for demand/supply zones
 export type Zone
     int   id
-    int   boxId           // Box object ID (0 = none)
+    box   boxId           // Box object (na = none)
     float top
     float bottom
     bool  active
@@ -81,13 +81,13 @@ export type Zone
     float score           // Zone Quality Score (0-100)
     string grade          // Zone Grade (A+, A, B, C)
 
-    // Visuals (stored as object IDs, not direct object references)
-    int   connectorLine   // line object ID (0 = none)
-    int   targetLine      // For Supply: separate line to Target (Low) - line object ID
-    int   inducementHLine // Horizontal line at inducement level - line object ID
-    int   targetHLine     // Horizontal line at target level - line object ID
-    int   infoLabel       // label object ID
-    int   idLabel         // label object ID
+    // Visuals (stored as object references)
+    line   connectorLine   // line object (na = none)
+    line   targetLine      // For Supply: separate line to Target (Low) - line object
+    line   inducementHLine // Horizontal line at inducement level - line object
+    line   targetHLine     // Horizontal line at target level - line object
+    label   infoLabel       // label object
+    label   idLabel         // label object
 
 // Zone Database Entry - For persistent storage and inspection
 export type ZoneDBEntry

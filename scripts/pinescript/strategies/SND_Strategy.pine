@@ -30,7 +30,7 @@
 // === LIBRARY IMPORTS ===
 // Import helper functions from external libraries to reduce script size
 import ameer_1996112/SND_Utils/17 as Utils
-import ameer_1996112/SND_Core/15 as Core
+import ameer_1996112/SND_Core/16 as Core
 
 strategy("Institutional Liquidity Protocol [Pro]",
      shorttitle = "S&D Algo [Pro]",
@@ -2116,36 +2116,30 @@ trimZoneArrays(bool isDemand) =>
         while array.size(demandZones) > maxCount
             Core.Zone z = array.pop(demandZones)
             db_markInactive(z.id, "max_pruned")  // Mark as inactive before removal
-            // Get box from ID and delete
-            int boxIdVal = z.boxId
-            box b = box.from_id(boxIdVal)
-            box.delete(b)
+            box.delete(z.boxId)
             if not na(z.connectorLine)
-                line.delete(line.from_id(z.connectorLine))
+                line.delete(z.connectorLine)
             if not na(z.inducementHLine)
-                line.delete(line.from_id(z.inducementHLine))
+                line.delete(z.inducementHLine)
             if not na(z.targetHLine)
-                line.delete(line.from_id(z.targetHLine))
+                line.delete(z.targetHLine)
             if not na(z.idLabel)
-                label.delete(label.from_id(z.idLabel))
+                label.delete(z.idLabel)
     else
         while array.size(supplyZones) > maxCount
             Core.Zone z = array.pop(supplyZones)
             db_markInactive(z.id, "max_pruned")  // Mark as inactive before removal
-            // Get box from ID and delete
-            int boxIdVal = z.boxId
-            box b = box.from_id(boxIdVal)
-            box.delete(b)
+            box.delete(z.boxId)
             if not na(z.connectorLine)
-                line.delete(line.from_id(z.connectorLine))
+                line.delete(z.connectorLine)
             if not na(z.targetLine)
-                line.delete(line.from_id(z.targetLine))
+                line.delete(z.targetLine)
             if not na(z.inducementHLine)
-                line.delete(line.from_id(z.inducementHLine))
+                line.delete(z.inducementHLine)
             if not na(z.targetHLine)
-                line.delete(line.from_id(z.targetHLine))
+                line.delete(z.targetHLine)
             if not na(z.idLabel)
-                label.delete(label.from_id(z.idLabel))
+                label.delete(z.idLabel)
 
 // === MAIN ZONE CREATION FUNCTION ===
 createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int legCandles, int zoneUZID) =>
@@ -2330,14 +2324,14 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
             // Create Zone Object
             Core.Zone z = Core.Zone.new()
             z.id := zoneUZID
-            z.boxId := box.get_id(b)
+            z.boxId := b
             z.top := zTop
             z.bottom := zBottom
             z.active := true
             z.createdBarIndex := baseBarIdx
             z.isHistorical := isHistorical
             z.startTime := time[baseIdx]
-            z.idLabel := label.get_id(idLbl)
+            z.idLabel := idLbl
             z.touchCount := 0  // Initialize touch count for V5 AI tracking
             z.isAccuracy := isAccuracy  // Tag zone type for trade tracking
             // Initialize peak tracking for new bar-count filters
@@ -2388,45 +2382,39 @@ remove_zone_all_arrays(bool isDemand, int idx) =>
         if idx >= 0 and idx < array.size(demandZones)
             Core.Zone z = array.get(demandZones, idx)
             db_markInactive(z.id, "removed")  // Mark as inactive before removal
-            // Get box from ID and delete
-            int boxIdVal = z.boxId
-            box b = box.from_id(boxIdVal)
-            box.delete(b)
+            box.delete(z.boxId)
             if not na(z.connectorLine)
-                line.delete(line.from_id(z.connectorLine))
+                line.delete(z.connectorLine)
                 z.connectorLine := na  // Explicitly free memory
             if not na(z.inducementHLine)
-                line.delete(line.from_id(z.inducementHLine))
+                line.delete(z.inducementHLine)
                 z.inducementHLine := na  // Explicitly free memory
             if not na(z.targetHLine)
-                line.delete(line.from_id(z.targetHLine))
+                line.delete(z.targetHLine)
                 z.targetHLine := na  // Explicitly free memory
             if not na(z.idLabel)
-                label.delete(label.from_id(z.idLabel))
+                label.delete(z.idLabel)
                 z.idLabel := na  // Explicitly free memory
             array.remove(demandZones, idx)
     else
         if idx >= 0 and idx < array.size(supplyZones)
             Core.Zone z = array.get(supplyZones, idx)
             db_markInactive(z.id, "removed")  // Mark as inactive before removal
-            // Get box from ID and delete
-            int boxIdVal = z.boxId
-            box b = box.from_id(boxIdVal)
-            box.delete(b)
+            box.delete(z.boxId)
             if not na(z.connectorLine)
-                line.delete(line.from_id(z.connectorLine))
+                line.delete(z.connectorLine)
                 z.connectorLine := na  // Explicitly free memory
             if not na(z.targetLine)
-                line.delete(line.from_id(z.targetLine))
+                line.delete(z.targetLine)
                 z.targetLine := na  // Explicitly free memory
             if not na(z.inducementHLine)
-                line.delete(line.from_id(z.inducementHLine))
+                line.delete(z.inducementHLine)
                 z.inducementHLine := na  // Explicitly free memory
             if not na(z.targetHLine)
-                line.delete(line.from_id(z.targetHLine))
+                line.delete(z.targetHLine)
                 z.targetHLine := na  // Explicitly free memory
             if not na(z.idLabel)
-                label.delete(label.from_id(z.idLabel))
+                label.delete(z.idLabel)
                 z.idLabel := na  // Explicitly free memory
             array.remove(supplyZones, idx)
 
@@ -3028,16 +3016,16 @@ deactivateDemandZone(idx) =>
         // For now, we keep the same style or maybe dim it?
         // Original code just reset colors which might be redundant if they are already set.
         // But let's keep it consistent.
-        box.set_bgcolor(box.from_id(z.boxId), col_demand_bg)
-        box.set_border_color(box.from_id(z.boxId), col_demand_border)
+        box.set_bgcolor(z.boxId,col_demand_bg)
+        box.set_border_color(z.boxId,col_demand_border)
 
 // === Helper: deactivate supply zones after a trade ===
 deactivateSupplyZone(idx) =>
     if idx >= 0 and idx < array.size(supplyZones)
         Core.Zone z = array.get(supplyZones, idx)
         z.active := false
-        box.set_bgcolor(box.from_id(z.boxId), col_supply_bg)
-        box.set_border_color(box.from_id(z.boxId), col_supply_border)
+        box.set_bgcolor(z.boxId,col_supply_bg)
+        box.set_border_color(z.boxId,col_supply_border)
 
 deactivateOverlappingSupplyZones(refLow, refHigh) =>
     for k = 0 to array.size(supplyZones) - 1
@@ -3212,13 +3200,13 @@ clearDemandLiquidityVisual(idx) =>
     if idx >= 0 and idx < array.size(demandZones)
         Core.Zone z = array.get(demandZones, idx)
         if not na(z.connectorLine)
-            line.delete(line.from_id(z.connectorLine))
+            line.delete(z.connectorLine)
             z.connectorLine := na
         if not na(z.inducementHLine)
-            line.delete(line.from_id(z.inducementHLine))
+            line.delete(z.inducementHLine)
             z.inducementHLine := na
         if not na(z.targetHLine)
-            line.delete(line.from_id(z.targetHLine))
+            line.delete(z.targetHLine)
             z.targetHLine := na
 
 updateDemandLiquidityVisual(idx) =>
@@ -3230,49 +3218,49 @@ updateDemandLiquidityVisual(idx) =>
         if show_liquidity_connectors
             // === HORIZONTAL LINE FOR INDUCEMENT (dashed orange, at liqLowPrice) ===
             if not na(z.inducementHLine)
-                line.delete(line.from_id(z.inducementHLine))
+                line.delete(z.inducementHLine)
 
             if not na(z.liqLowPrice) and not na(z.liqLowBar)
                 color indColor = z.liquiditySwept ? color.new(color.orange, 0) : color.new(color.orange, 50)
                 int lineEnd = bar_index + 20
-                z.inducementHLine := line.get_id(line.new(x1 = z.liqLowBar, y1 = z.liqLowPrice,
+                z.inducementHLine := line.new(x1 = z.liqLowBar, y1 = z.liqLowPrice,
                                                x2 = lineEnd, y2 = z.liqLowPrice,
                                                xloc = xloc.bar_index, extend = extend.none,
                                                color = indColor, style = line.style_dashed, width = 1))
 
             // === HORIZONTAL LINE FOR TARGET (solid lime, at liqHighPrice) ===
             if not na(z.targetHLine)
-                line.delete(line.from_id(z.targetHLine))
+                line.delete(z.targetHLine)
 
             if not na(z.liqHighPrice) and not na(z.liqHighBar)
                 color tgtColor = z.targetSwept ? color.new(color.lime, 0) : color.new(color.lime, 50)
                 int lineEnd = bar_index + 20
-                z.targetHLine := line.get_id(line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice,
+                z.targetHLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice,
                                            x2 = lineEnd, y2 = z.liqHighPrice,
                                            xloc = xloc.bar_index, extend = extend.none,
                                            color = tgtColor, style = line.style_solid, width = 1))
         else
             // Clear horizontal lines if toggle is disabled
             if not na(z.inducementHLine)
-                line.delete(line.from_id(z.inducementHLine))
+                line.delete(z.inducementHLine)
                 z.inducementHLine := na
             if not na(z.targetHLine)
-                line.delete(line.from_id(z.targetHLine))
+                line.delete(z.targetHLine)
                 z.targetHLine := na
 
         // === ZONE-TO-LIQUIDITY CONNECTOR LINE (only if original liquidity price set) ===
         if na(z.liquidityPrice) or na(z.liquidityBarIndex) or na(z.createdBarIndex) or not show_liquidity_connectors
             if not na(z.connectorLine)
-                line.delete(line.from_id(z.connectorLine))
+                line.delete(z.connectorLine)
                 z.connectorLine := na
         else
             float mid = (z.top + z.bottom) / 2.0
             if not na(z.connectorLine)
-                line.delete(line.from_id(z.connectorLine))
+                line.delete(z.connectorLine)
 
             lineStyle = z.liquiditySwept ? line.style_solid : line.style_dotted
             lineWidth = z.liquiditySwept ? 2 : 1
-            z.connectorLine := line.get_id(line.new(x1 = z.createdBarIndex, y1 = mid, x2 = z.liquidityBarIndex, y2 = z.liquidityPrice,
+            z.connectorLine := line.new(x1 = z.createdBarIndex, y1 = mid, x2 = z.liquidityBarIndex, y2 = z.liquidityPrice,
                                   xloc = xloc.bar_index, extend = extend.none,
                                   color = liq_line_color, style = lineStyle, width = lineWidth))
         true
@@ -3282,16 +3270,16 @@ clearSupplyLiquidityVisual(idx) =>
     if idx >= 0 and idx < array.size(supplyZones)
         Core.Zone z = array.get(supplyZones, idx)
         if not na(z.connectorLine)
-            line.delete(line.from_id(z.connectorLine))
+            line.delete(z.connectorLine)
             z.connectorLine := na
         if not na(z.targetLine)
-            line.delete(line.from_id(z.targetLine))
+            line.delete(z.targetLine)
             z.targetLine := na
         if not na(z.inducementHLine)
-            line.delete(line.from_id(z.inducementHLine))
+            line.delete(z.inducementHLine)
             z.inducementHLine := na
         if not na(z.targetHLine)
-            line.delete(line.from_id(z.targetHLine))
+            line.delete(z.targetHLine)
             z.targetHLine := na
 
 updateSupplyLiquidityVisual(idx) =>
@@ -3303,67 +3291,67 @@ updateSupplyLiquidityVisual(idx) =>
         if show_liquidity_connectors
             // === HORIZONTAL LINE FOR INDUCEMENT (dashed orange, at liqHighPrice) ===
             if not na(z.inducementHLine)
-                line.delete(line.from_id(z.inducementHLine))
+                line.delete(z.inducementHLine)
 
             if not na(z.liqHighPrice) and not na(z.liqHighBar)
                 color indColor = z.liquiditySwept ? color.new(color.orange, 0) : color.new(color.orange, 50)
                 int lineEnd = bar_index + 20
-                z.inducementHLine := line.get_id(line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice,
+                z.inducementHLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice,
                                                x2 = lineEnd, y2 = z.liqHighPrice,
                                                xloc = xloc.bar_index, extend = extend.none,
                                                color = indColor, style = line.style_dashed, width = 1))
 
             // === HORIZONTAL LINE FOR TARGET (solid lime, at liqLowPrice) ===
             if not na(z.targetHLine)
-                line.delete(line.from_id(z.targetHLine))
+                line.delete(z.targetHLine)
 
             if not na(z.liqLowPrice) and not na(z.liqLowBar)
                 color tgtColor = z.targetSwept ? color.new(color.lime, 0) : color.new(color.lime, 50)
                 int lineEnd = bar_index + 20
-                z.targetHLine := line.get_id(line.new(x1 = z.liqLowBar, y1 = z.liqLowPrice,
+                z.targetHLine := line.new(x1 = z.liqLowBar, y1 = z.liqLowPrice,
                                            x2 = lineEnd, y2 = z.liqLowPrice,
                                            xloc = xloc.bar_index, extend = extend.none,
                                            color = tgtColor, style = line.style_solid, width = 1))
         else
             // Clear horizontal lines if toggle is disabled
             if not na(z.inducementHLine)
-                line.delete(line.from_id(z.inducementHLine))
+                line.delete(z.inducementHLine)
                 z.inducementHLine := na
             if not na(z.targetHLine)
-                line.delete(line.from_id(z.targetHLine))
+                line.delete(z.targetHLine)
                 z.targetHLine := na
 
         // === CONNECTOR LINES (only if liqHighPrice set) ===
         if na(z.liqHighPrice) or na(z.liqHighBar) or na(z.createdBarIndex) or not show_liquidity_connectors
             if not na(z.connectorLine)
-                line.delete(line.from_id(z.connectorLine))
+                line.delete(z.connectorLine)
                 z.connectorLine := na
             if not na(z.targetLine)
-                line.delete(line.from_id(z.targetLine))
+                line.delete(z.targetLine)
                 z.targetLine := na
         else
             float zBottom = z.bottom
 
             // === LINE 1: Zone to Inducement HIGH (gray, dashed) ===
             if not na(z.connectorLine)
-                line.delete(line.from_id(z.connectorLine))
+                line.delete(z.connectorLine)
 
             indStyle = z.liquiditySwept ? line.style_dashed : line.style_dotted
             indWidth = z.liquiditySwept ? 2 : 1
-            z.connectorLine := line.get_id(line.new(x1 = z.createdBarIndex, y1 = zBottom, x2 = z.liqHighBar, y2 = z.liqHighPrice,
+            z.connectorLine := line.new(x1 = z.createdBarIndex, y1 = zBottom, x2 = z.liqHighBar, y2 = z.liqHighPrice,
                                   xloc = xloc.bar_index, extend = extend.none,
                                   color = liq_line_color, style = indStyle, width = indWidth))
 
             // === LINE 2: Inducement HIGH to Target LOW (gray, solid) ===
             if not na(z.liqLowPrice) and not na(z.liqLowBar)
                 if not na(z.targetLine)
-                    line.delete(line.from_id(z.targetLine))
+                    line.delete(z.targetLine)
 
                 // Gray solid line for Target - distinct from Inducement dotted line
                 targetColor = color.new(color.gray, 25)
                 targetStyle = line.style_solid
                 targetWidth = z.targetSwept ? 2 : 1
-                z.targetLine := line.get_id(line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice, x2 = z.liqLowBar, y2 = z.liqLowPrice,
+                z.targetLine := line.new(x1 = z.liqHighBar, y1 = z.liqHighPrice, x2 = z.liqLowBar, y2 = z.liqLowPrice,
                                       xloc = xloc.bar_index, extend = extend.none,
                                       color = targetColor, style = targetStyle, width = targetWidth))
         true
@@ -3868,16 +3856,16 @@ if show_zones and show_demand_zones and cached_demand_size > 0 and barstate.isco
                 int right_bar_index = left_bar_index + extend_bars
                 if not na(z.boxId)
                     // Update box right edge for exact extension
-                    box.set_right(box.from_id(z.boxId), right_bar_index)
+                    box.set_right(z.boxId,right_bar_index)
                     // Update colors based on Accuracy status
                     if z.isAccuracy
-                        box.set_bgcolor(box.from_id(z.boxId), col_acc_demand_bg)  // Blue for demand ACC
-                        box.set_border_width(box.from_id(z.boxId), 2)
-                        box.set_border_color(box.from_id(z.boxId), col_acc_demand_border)
+                        box.set_bgcolor(z.boxId,col_acc_demand_bg)  // Blue for demand ACC
+                        box.set_border_width(z.boxId,2)
+                        box.set_border_color(z.boxId,col_acc_demand_border)
                     else
-                        box.set_bgcolor(box.from_id(z.boxId), col_demand_bg)
-                        box.set_border_width(box.from_id(z.boxId), 1)
-                        box.set_border_color(box.from_id(z.boxId), col_demand_border)
+                        box.set_bgcolor(z.boxId,col_demand_bg)
+                        box.set_border_width(z.boxId,1)
+                        box.set_border_color(z.boxId,col_demand_border)
 
                     if not na(z.idLabel)
                         float lbl_mid = (z.top + z.bottom) / 2
@@ -3909,16 +3897,16 @@ if show_zones and show_supply_zones and cached_supply_size > 0 and barstate.isco
                 int right_bar_index = left_bar_index + extend_bars
                 if not na(z.boxId)
                     // Update box right edge for exact extension
-                    box.set_right(box.from_id(z.boxId), right_bar_index)
+                    box.set_right(z.boxId,right_bar_index)
                     // Update colors based on Accuracy status
                     if z.isAccuracy
-                        box.set_bgcolor(box.from_id(z.boxId), col_acc_supply_bg)  // Purple for supply ACC
-                        box.set_border_width(box.from_id(z.boxId), 2)
-                        box.set_border_color(box.from_id(z.boxId), col_acc_supply_border)
+                        box.set_bgcolor(z.boxId,col_acc_supply_bg)  // Purple for supply ACC
+                        box.set_border_width(z.boxId,2)
+                        box.set_border_color(z.boxId,col_acc_supply_border)
                     else
-                        box.set_bgcolor(box.from_id(z.boxId), col_supply_bg)
-                        box.set_border_width(box.from_id(z.boxId), 1)
-                        box.set_border_color(box.from_id(z.boxId), col_supply_border)
+                        box.set_bgcolor(z.boxId,col_supply_bg)
+                        box.set_border_width(z.boxId,1)
+                        box.set_border_color(z.boxId,col_supply_border)
 
                     if not na(z.idLabel)
                         float lbl_mid = (z.top + z.bottom) / 2
