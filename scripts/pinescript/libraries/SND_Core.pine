@@ -45,6 +45,7 @@ export type Zone
     string liqSource                // Selection method: "PIVOT", "FALLBACK_SCAN", "LOW_FIRST_BACKWARD"
     bool  targetSwept               // True when the Target (HIGH for demand, LOW for supply) is swept AFTER inducement
     int   targetSweptBarIndex       // Bar index when target was swept (must be > liquiditySweptBarIndex)
+    int   peakBarIndex              // Bar index of the structural extreme after sweep
     int   legCandleCount             // Count of directional candles in the leg (bearish for demand, bullish for supply)
     float pushHighPrice              // For demand: the PUSH HIGH price (departure peak) before retracement
     int   pushHighBar                // For demand: bar index of the push high
@@ -75,7 +76,6 @@ export type Zone
     float departureStrength // V6: Strength of price departure from zone (0-100, bigger candles + volume = higher)
     float liquidityDistance // V7.1: Distance from zone to liquidity in pips (0-100, closer = higher score)
     float liquiditySpread   // V7.1: Spread between inducement and target in pips (0-100, wider = higher)
-    float returnStrength    // V7: Strength of return to zone after sweep (0-100, faster + bigger = higher)
     bool  isAccuracy      // Zone type: true = Accuracy zone, false = Normal zone
     float score           // Zone Quality Score (0-100)
     string grade          // Zone Grade (A+, A, B, C)
@@ -108,6 +108,7 @@ export type ZoneDBEntry
     int   liquidityCandleCount
     bool  causedSweep
     int   legCandleCount             // Count of directional candles in the leg
+    int   peakBarIndex               // Bar index of structural extreme (for UI/DB sync)
     float score
     string grade
 
@@ -485,81 +486,6 @@ export calculate_liquidity_spread(float target_price, float inducement_price, fl
         // Cap at 100 pips spread = 100 score
         float score = math.min(spread_pips, 100.0)
         score
-
-// Calculate Return Strength: How aggressively price returned after sweep (0-100 score)
-// Analyzes bars between liquidity sweep and zone prime
-// @param sweep_bar_idx Bar index when sweep occurred
-// @param prime_bar_idx Bar index when zone became primed
-// @param isDemand True for demand zones
-// @param current_bar_index Current bar_index
-// @param src_high Series of high prices
-// @param src_low Series of low prices
-// @param src_open Series of open prices
-// @param src_close Series of close prices
-// @param src_volume Series of volume
-// @param vol_sma_20 20-period SMA of volume
-// @returns Return strength score 0-100
-export calculate_return_strength(int sweep_bar_idx, int prime_bar_idx, bool isDemand, int current_bar_index, series float src_high, series float src_low, series float src_open, series float src_close, series float src_volume, series float vol_sma_20) =>
-    if na(sweep_bar_idx) or na(prime_bar_idx) or sweep_bar_idx >= prime_bar_idx
-        50.0  // Default if no valid sweep or instant prime
-    else
-        int bars_after_sweep = prime_bar_idx - sweep_bar_idx
-
-        // If primed immediately (1 bar), that's maximum conviction
-        if bars_after_sweep == 1
-            100.0
-        else
-            // Analyze up to 5 bars of return journey
-            int candles_to_analyze = math.min(bars_after_sweep, 5)
-            float total_body_percent = 0.0
-            float total_rvol = 0.0
-            int valid_candles = 0
-
-            // SAFETY: Ensure we don't exceed Pine Script's 10000 bar limit
-            int max_lookback = 10000
-
-            // Loop through bars between sweep and prime
-            for i = 1 to candles_to_analyze
-                int offset = prime_bar_idx - i
-                int hist_offset = current_bar_index - offset
-                // Skip if offset exceeds max lookback
-                if offset >= 0 and hist_offset >= 0 and hist_offset < max_lookback
-                    float candle_high = src_high[hist_offset]
-                    float candle_low = src_low[hist_offset]
-                    float candle_open = src_open[hist_offset]
-                    float candle_close = src_close[hist_offset]
-                    float candle_volume = src_volume[hist_offset]
-
-                    float candle_range = candle_high - candle_low
-                    float body_size = math.abs(candle_close - candle_open)
-                    float body_percent = candle_range > 0 ? body_size / candle_range : 0.0
-
-                    // Check if candle is moving toward zone (returning after sweep)
-                    bool toward_zone = isDemand ? (candle_close < candle_open) : (candle_close > candle_open)
-
-                    if toward_zone
-                        total_body_percent += body_percent
-
-                        // Relative volume (using pre-calculated SMA)
-                        float vol_avg_at_candle = vol_sma_20[hist_offset]
-                        float candle_rvol = vol_avg_at_candle > 0 ? candle_volume / vol_avg_at_candle : 1.0
-                        total_rvol += candle_rvol
-
-                        valid_candles += 1
-
-            // Calculate strength: 50% from body size, 50% from volume
-            float avg_body_percent = valid_candles > 0 ? total_body_percent / valid_candles : 0.0
-            float avg_rvol = valid_candles > 0 ? total_rvol / valid_candles : 1.0
-
-            // Normalize scores
-            float body_score = avg_body_percent * 50.0
-            float rvol_score = math.min(avg_rvol / 3.0, 1.0) * 50.0
-
-            // Bonus for fast return (fewer bars = higher conviction)
-            float speed_bonus = bars_after_sweep <= 3 ? 20.0 : (bars_after_sweep <= 5 ? 10.0 : 0.0)
-
-            float return_strength = math.min(body_score + rvol_score + speed_bonus, 100.0)
-            return_strength
 
 // ══════════════════════════════════════════════════════════
 // === 3-CANDLE PIVOT HELPERS (Makuchaku Style) ===

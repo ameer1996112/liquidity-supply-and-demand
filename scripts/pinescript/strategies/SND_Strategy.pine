@@ -351,7 +351,8 @@ enable_ai_lite_mode = input.bool(false, "   └─ Lite Mode (Block Only Score<3
 enable_ai_shadow_mode = input.bool(false, "   └─ Shadow Mode (Never Blocks)", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: AI filter runs but NEVER blocks trades. Blocked reason is shown in debug labels only. Use to measure how often the filter would reject without losing real trades.")
 enable_grade_filter = input.bool(false, "Grade Filter", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Filter by zone grade (A+, A, B+, etc). OFF: Use score filter instead.")
 min_entry_grade     = input.string("C", "   └─ Min Grade", options=["A+", "A", "B+", "B", "C+", "C"], group = "⚙️ Advanced / Manual Tweaks", tooltip="Minimum zone grade required. A+ = Best quality, C = Lowest.")
-min_return_strength = input.int(0, "Return Speed Filter", minval = 0, maxval = 100, group = "⚙️ Advanced / Manual Tweaks", tooltip = "How fast price returned after sweep. 0 = OFF. 30 = Block slow returns. 70 = Only sharp V-reversals.")
+max_sweep_to_touch_bars = input.int(30, "Max Sweep to Touch Bars", minval = 1, maxval = 500, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Maximum allowed bars between the liquidity sweep and the zone touch. Blocks setups where price consolidates too long after sweeping.")
+max_peak_to_touch_bars = input.int(15, "Max Peak to Touch Bars", minval = 1, maxval = 500, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Maximum allowed bars from the structural extreme (peak) after sweep to the zone touch. Ensures the return drop/rally is fast.")
 
 // Advanced Features
 use_break_even     = input.bool(false, "Break-Even Mode", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Move SL to entry price after hitting partial profit target. Protects gains.")
@@ -390,7 +391,6 @@ var float plot_base_quality     = na
 var float plot_departure_strength = na
 var float plot_liquidity_distance = na
 var float plot_liquidity_spread = na
-var float plot_return_strength  = na
 
 // ══════════════════════════════════════════════════════════
 // === RISK MANAGEMENT & BACKTEST SETTINGS ===
@@ -424,7 +424,6 @@ if use_profile_defaults
         liq_entry_max_dist := 30.0
         ai_quality_threshold := 70
         min_entry_grade := "B+"
-        min_return_strength := 50
         risk_per_trade_pct := 0.5
         if not use_custom_rr
             risk_reward_ratio := 3.0
@@ -438,7 +437,6 @@ if use_profile_defaults
         liq_entry_max_dist := 50.0
         ai_quality_threshold := 60
         min_entry_grade := "C+"
-        min_return_strength := 30
         risk_per_trade_pct := 0.5
         if not use_custom_rr
             risk_reward_ratio := 2.0
@@ -452,7 +450,6 @@ if use_profile_defaults
         liq_entry_max_dist := 100.0
         ai_quality_threshold := 50
         min_entry_grade := "C"
-        min_return_strength := 0
         risk_per_trade_pct := 0.5
         if not use_custom_rr
             risk_reward_ratio := 1.5
@@ -474,7 +471,6 @@ if use_profile_defaults
         liq_entry_max_dist := 60.0           // ← Reduced from 100 (split between Aggressive 100 and Balanced 50)
 
         // Add quality filters (CRITICAL for forex win rate improvement)
-        min_return_strength := 25            // ← CRITICAL FIX: Was 0! Now requires decent return momentum
         min_entry_grade := "C+"              // ← Improved from "C" (better zone quality)
         ai_quality_threshold := 55           // ← Improved from 50 (stricter AI filter, Balanced is 60)
 
@@ -2015,9 +2011,19 @@ f_check_demand_sweeps(int zoneArrayIndex) =>
         if is_sweeping_now
             z.liquiditySwept := true
             z.liquiditySweptBarIndex := bar_index
+            z.peakBarIndex := bar_index
             z.causedSweep := true
             needsPersist := true
     
+    // === STRUCTURAL EXTREME (PEAK) TRACKING ===
+    // After sweep, track the highest high (the peak of the pullback BEFORE touching zone)
+    if z.liquiditySwept and not na(z.peakBarIndex)
+        // Check if current high is higher than the high at the recorded peakBarIndex
+        int offset = bar_index - z.peakBarIndex
+        if offset >= 0 and high > high[offset]
+            z.peakBarIndex := bar_index
+            needsPersist := true
+
     // === TARGET SWEEP CHECK ===
     // Target High for Demand: price must strictly tag or exceed liqHighPrice
     // CRITICAL: Only check AFTER liquidityValid is true (proper pivot scan completed)
@@ -2058,9 +2064,19 @@ f_check_supply_sweeps(int zoneArrayIndex) =>
         if is_sweeping_now
             z.liquiditySwept := true
             z.liquiditySweptBarIndex := bar_index
+            z.peakBarIndex := bar_index
             z.causedSweep := true
             needsPersist := true
     
+    // === STRUCTURAL EXTREME (PEAK) TRACKING ===
+    // After sweep, track the lowest low (the peak of the pullback BEFORE touching zone)
+    if z.liquiditySwept and not na(z.peakBarIndex)
+        // Check if current low is lower than the low at the recorded peakBarIndex
+        int offset = bar_index - z.peakBarIndex
+        if offset >= 0 and low < low[offset]
+            z.peakBarIndex := bar_index
+            needsPersist := true
+
     // === TARGET SWEEP CHECK ===
     // Target Low for Supply: price must strictly tag or break below liqLowPrice
     // CRITICAL: Only check AFTER liquidityValid is true (proper pivot scan completed)
@@ -2626,6 +2642,18 @@ validate_entry_conditions(bool isDemand, int idx) =>
                     canEnter := false
                     reason := ai_reason
 
+    // === RETURN SPEED VALIDATION (Bar-Count Filters) ===
+    if canEnter
+        int sweep_bars = bar_index - z.liquiditySweptBarIndex
+        int peak_bars = bar_index - z.peakBarIndex
+
+        if sweep_bars > max_sweep_to_touch_bars
+            canEnter := false
+            reason := "Too slow after sweep"
+        else if peak_bars > max_peak_to_touch_bars
+            canEnter := false
+            reason := "Return drop/rally too slow"
+
     [canEnter, reason, z]
 
 // === TRADE TRACKING VARIABLES ===
@@ -2659,7 +2687,6 @@ var float trade_base_quality    = na      // Base quality at entry
 var float trade_departure_str   = na      // Departure strength at entry
 var float trade_liq_distance    = na      // Liquidity distance at entry
 var float trade_liq_spread      = na      // Liquidity spread at entry
-var float trade_return_str      = na      // Return strength at entry
 var bool  trade_liq_swept       = false   // Liquidity swept at entry
 var bool  trade_target_swept    = false   // Target swept at entry
 var bool  trade_caused_sweep    = false   // Caused sweep at entry
@@ -3432,17 +3459,6 @@ isValidEntry(isDemand, idx) =>
             canEnter := false
             reason := "Grade too low (" + z.grade + " < " + min_entry_grade + ")"
 
-    // RETURN STRENGTH / COMPRESSION FILTER
-    if canEnter and min_return_strength > 0
-        // Calculate dynamically if enabled and required for filter
-        if enable_v6_v7_features
-            z.returnStrength := Core.calculate_return_strength(z.liquiditySweptBarIndex, bar_index, isDemand, bar_index, high, low, open, close, volume, vol_sma_20)
-        else
-            z.returnStrength := 50.0
-
-        if z.returnStrength < min_return_strength
-            canEnter := false
-            reason := "Return too slow (" + str.tostring(z.returnStrength, "#") + " < " + str.tostring(min_return_strength) + ")"
 
 
 
@@ -3761,7 +3777,7 @@ if demandSize > 0
     pip_buffer    = pip_size * 0.1
 
     // Use live array size for the check to handle early bars correctly
-    int demandSize = array.size(demandZones)
+    demandSize := array.size(demandZones)
     if demandSize > 0
         for i = demandSize - 1 to 0
             if i >= demandSize
@@ -3994,17 +4010,16 @@ if barstate.isconfirmed and cached_demand_size > 0 and allow_long_trades
                     // IMPORTANT: Call functions unconditionally for Pine Script series consistency
                     float temp_liq_distance = Core.calculate_liquidity_distance(z.top, z.liqLowPrice, pip_size)
                     float temp_liq_spread = Core.calculate_liquidity_spread(z.liqHighPrice, z.liqLowPrice, pip_size)
-                    float temp_return_strength = Core.calculate_return_strength(z.liquiditySweptBarIndex, bar_index, true, bar_index, high, low, open, close, volume, vol_sma_20)
+                    // Hybrid return strength: time-based + distance bonus
+                    // Hybrid return strength: NA-safe & zero-safe
                     
                     if enable_v6_v7_features
                         z.liquidityDistance := temp_liq_distance
                         z.liquiditySpread := temp_liq_spread
-                        z.returnStrength := temp_return_strength
                     else
                         // Default values when disabled (neutral 50)
                         z.liquidityDistance := 50.0
                         z.liquiditySpread := 50.0
-                        z.returnStrength := 50.0
 
         // === STEP 2: ENTER ON BULLISH CLOSE (if zone is primed) ===
         if z.active and z.primed
@@ -4206,7 +4221,6 @@ if barstate.isconfirmed and cached_demand_size > 0 and allow_long_trades
                 plot_departure_strength := z.departureStrength
                 plot_liquidity_distance := z.liquidityDistance
                 plot_liquidity_spread := z.liquiditySpread
-                plot_return_strength  := z.returnStrength
 
                 triggeredZoneId := z.id
 
@@ -4261,7 +4275,6 @@ if barstate.isconfirmed and cached_demand_size > 0 and allow_long_trades
                     z.departureStrength,     // departure_strength
                     z.liquidityDistance,     // liquidity_distance
                     z.liquiditySpread,       // liquidity_spread
-                    z.returnStrength,        // return_strength
                     pip_size,
                     webhook_include_zone_id,
                     // === AI GUARDIAN METRICSxq ===
@@ -4305,7 +4318,6 @@ if barstate.isconfirmed and cached_demand_size > 0 and allow_long_trades
                     // Keep scores available explicitly if needed for AI training
                     ai_features += " | F:liquidity_distance_score=" + str.tostring(z.liquidityDistance, "#.##")
                     ai_features += " | F:liquidity_spread_score=" + str.tostring(z.liquiditySpread, "#.##")
-                    ai_features += " | F:return_strength=" + str.tostring(z.returnStrength, "#.##")
                     // === AI DATA HARVESTER (compact DNA for Strategy Tester export) ===
                     // Maps user pseudocode variables to real Pine names:
                     //   rvol_value        → feature_rvol
@@ -4373,7 +4385,6 @@ if barstate.isconfirmed and cached_demand_size > 0 and allow_long_trades
                     trade_departure_str := z.departureStrength
                     trade_liq_distance := z.liquidityDistance
                     trade_liq_spread := z.liquiditySpread
-                    trade_return_str := z.returnStrength
                     trade_liq_swept := z.liquiditySwept
                     trade_target_swept := z.targetSwept
                     trade_caused_sweep := z.causedSweep
@@ -4494,17 +4505,22 @@ if barstate.isconfirmed and cached_supply_size > 0 and allow_short_trades
                     // IMPORTANT: Call functions unconditionally for Pine Script series consistency
                     float temp_liq_distance = Core.calculate_liquidity_distance(z.bottom, z.liqHighPrice, pip_size)
                     float temp_liq_spread = Core.calculate_liquidity_spread(z.liqLowPrice, z.liqHighPrice, pip_size)
-                    float temp_return_strength = Core.calculate_return_strength(z.liquiditySweptBarIndex, bar_index, false, bar_index, high, low, open, close, volume, vol_sma_20)
+                    // Hybrid return strength: time-based + distance bonus
+                    // Hybrid return strength: NA-safe & zero-safe
+
+
+
+
+                        else
+                    else
                     
                     if enable_v6_v7_features
                         z.liquidityDistance := temp_liq_distance
                         z.liquiditySpread := temp_liq_spread
-                        z.returnStrength := temp_return_strength
                     else
                         // Default values when disabled (neutral 50)
                         z.liquidityDistance := 50.0
                         z.liquiditySpread := 50.0
-                        z.returnStrength := 50.0
 
         // === STEP 2: ENTER ON BEARISH CLOSE (if zone is primed) ===
         if z.active and z.primed
@@ -4706,7 +4722,6 @@ if barstate.isconfirmed and cached_supply_size > 0 and allow_short_trades
                 plot_departure_strength := z.departureStrength
                 plot_liquidity_distance := z.liquidityDistance
                 plot_liquidity_spread := z.liquiditySpread
-                plot_return_strength  := z.returnStrength
 
                 triggeredZoneId := z.id
 
@@ -4761,7 +4776,6 @@ if barstate.isconfirmed and cached_supply_size > 0 and allow_short_trades
                     z.departureStrength,     // departure_strength
                     z.liquidityDistance,     // liquidity_distance
                     z.liquiditySpread,       // liquidity_spread
-                    z.returnStrength,        // return_strength
                     pip_size,
                     webhook_include_zone_id,
                     // === AI GUARDIAN METRICS ===
@@ -4805,7 +4819,6 @@ if barstate.isconfirmed and cached_supply_size > 0 and allow_short_trades
                     // Keep scores available explicitly if needed for AI training
                     ai_features += " | F:liquidity_distance_score=" + str.tostring(z.liquidityDistance, "#.##")
                     ai_features += " | F:liquidity_spread_score=" + str.tostring(z.liquiditySpread, "#.##")
-                    ai_features += " | F:return_strength=" + str.tostring(z.returnStrength, "#.##")
                     // === AI DATA HARVESTER (compact DNA for Strategy Tester export) ===
                     float zone_height_pips = pip_size > 0 ? (z.top - z.bottom) / pip_size : 0.0
                     string dna_session = feature_session == 0 ? "As" : (feature_session == 1 ? "Ld" : (feature_session == 2 ? "NY" : "Of"))
@@ -4864,7 +4877,6 @@ if barstate.isconfirmed and cached_supply_size > 0 and allow_short_trades
                     trade_departure_str := z.departureStrength
                     trade_liq_distance := z.liquidityDistance
                     trade_liq_spread := z.liquiditySpread
-                    trade_return_str := z.returnStrength
                     trade_liq_swept := z.liquiditySwept
                     trade_target_swept := z.targetSwept
                     trade_caused_sweep := z.causedSweep
@@ -5908,6 +5920,23 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
             displayLegCount := dbEntry.legCandleCount
         string legLabel = isInspectorDemand ? "Bearish" : "Bullish"
         string legCandleStr = na(displayLegCount) or displayLegCount == 0 ? "N/A" : str.tostring(displayLegCount) + " " + legLabel
+
+        // Sweep->Touch bar count (bars from liquidity sweep to zone touch)
+        int sweep_to_touch_bars = (not na(inspectorZone) and not na(inspectorZone.liquiditySweptBarIndex) and not na(inspectorZone.lastTouchBar) and inspectorZone.lastTouchBar >= inspectorZone.liquiditySweptBarIndex) ? (inspectorZone.lastTouchBar - inspectorZone.liquiditySweptBarIndex) : na
+        string sweepTouchStr = na(sweep_to_touch_bars) ? "N/A" : (str.tostring(sweep_to_touch_bars) + " bars")
+        color sweepTouchColor = na(sweep_to_touch_bars) ? color.gray : (sweep_to_touch_bars <= max_sweep_to_touch_bars ? color.rgb(0, 200, 100) : (sweep_to_touch_bars <= max_sweep_to_touch_bars * 2 ? color.rgb(255, 180, 0) : color.rgb(255, 80, 80)))
+        table.cell(zoneInspector, 0, nextRow, "Sweep->Touch", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.black, 100), text_size = tblSize)
+        table.cell(zoneInspector, 1, nextRow, sweepTouchStr, text_color = sweepTouchColor, bgcolor = color.new(color.black, 100), text_size = tblSize)
+        nextRow += 1
+
+        // Peak->Touch bar count (bars from structural extreme to zone touch)
+        int peak_to_touch_bars = (not na(inspectorZone) and not na(inspectorZone.peakBarIndex) and not na(inspectorZone.lastTouchBar) and inspectorZone.lastTouchBar >= inspectorZone.peakBarIndex) ? (inspectorZone.lastTouchBar - inspectorZone.peakBarIndex) : na
+        string peakTouchStr = na(peak_to_touch_bars) ? "N/A" : (str.tostring(peak_to_touch_bars) + " bars")
+        color peakTouchColor = na(peak_to_touch_bars) ? color.gray : (peak_to_touch_bars <= max_peak_to_touch_bars ? color.rgb(0, 200, 100) : (peak_to_touch_bars <= max_peak_to_touch_bars * 2 ? color.rgb(255, 180, 0) : color.rgb(255, 80, 80)))
+        table.cell(zoneInspector, 0, nextRow, "Peak->Touch", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.black, 100), text_size = tblSize)
+        table.cell(zoneInspector, 1, nextRow, peakTouchStr, text_color = peakTouchColor, bgcolor = color.new(color.black, 100), text_size = tblSize)
+        nextRow += 1
+
         table.cell(zoneInspector, 0, nextRow, "Leg Candles", text_color = color.rgb(150, 150, 150), bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_right, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
         legCandleColor = displayLegCount > 3 ? color.green : (displayLegCount > 0 ? color.orange : color.rgb(150, 150, 150))
         table.cell(zoneInspector, 1, nextRow, legCandleStr, text_color = legCandleColor, bgcolor = color.new(color.rgb(25, 30, 35), 5), text_halign = text.align_left, text_size = (table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)))
@@ -6098,4 +6127,3 @@ plot(plot_liquidity_distance, "W16: Liquidity Dist", display = display.none)
 // 17: Liquidity Spread
 plot(plot_liquidity_spread, "W17: Liquidity Spread", display = display.none)
 // 18: Return Strength (V7.1 Feature)
-plot(plot_return_strength, "W18: Return Strength", display = display.none)
