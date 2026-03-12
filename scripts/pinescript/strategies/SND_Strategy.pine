@@ -351,8 +351,8 @@ enable_ai_lite_mode = input.bool(false, "   └─ Lite Mode (Block Only Score<3
 enable_ai_shadow_mode = input.bool(false, "   └─ Shadow Mode (Never Blocks)", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: AI filter runs but NEVER blocks trades. Blocked reason is shown in debug labels only. Use to measure how often the filter would reject without losing real trades.")
 enable_grade_filter = input.bool(false, "Grade Filter", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Filter by zone grade (A+, A, B+, etc). OFF: Use score filter instead.")
 min_entry_grade     = input.string("C", "   └─ Min Grade", options=["A+", "A", "B+", "B", "C+", "C"], group = "⚙️ Advanced / Manual Tweaks", tooltip="Minimum zone grade required. A+ = Best quality, C = Lowest.")
-max_sweep_to_touch_bars = input.int(30, "Max Sweep to Touch Bars", minval = 1, maxval = 500, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Maximum allowed bars between the liquidity sweep and the zone touch. Blocks setups where price consolidates too long after sweeping.")
-max_peak_to_touch_bars = input.int(15, "Max Peak to Touch Bars", minval = 1, maxval = 500, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Maximum allowed bars from the structural extreme (peak) after sweep to the zone touch. Ensures the return drop/rally is fast.")
+max_peak_to_touch_bars = input.int(30, "Max Peak to Touch Bars", minval = 1, maxval = 500, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Maximum allowed bars from the structural extreme (peak) after sweep to the zone touch. Prevents trading slow, grinding pullbacks.")
+max_sweep_to_touch_bars = input.int(15, "Max Sweep to Touch Bars", minval = 1, maxval = 500, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Maximum allowed bars between the liquidity sweep and the zone touch. Ensures impulsive reactions.")
 
 // Advanced Features
 use_break_even     = input.bool(false, "Break-Even Mode", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Move SL to entry price after hitting partial profit target. Protects gains.")
@@ -3451,7 +3451,7 @@ isLiquidityValidForEntry(isDemand, idx) =>
 isValidEntry(isDemand, idx) =>
     [canEnter, reason, z] = validate_entry_conditions(isDemand, idx)
 
-    // Note: Timing filter is now checked INSIDE validate_entry_conditions 
+    // Note: Timing filter is now checked INSIDE validate_entry_conditions
     // to prioritize the "Blocked by Timing" reason string.
 
     // SCORING FILTER
