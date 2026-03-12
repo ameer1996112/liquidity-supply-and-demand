@@ -1971,15 +1971,9 @@ f_check_demand_sweeps(int zoneArrayIndex) =>
     Core.Zone z = array.get(demandZones, zoneArrayIndex)
     bool needsPersist = false
 
-    // === PEAK BAR TRACKING (Demand) ===
-    // CRITICAL FIX: Moved to TOP of function to ensure it executes every bar
-    // Decoupled from sweep: camera turns on the moment the INDUCEMENT is registered.
-    // Tracks the highest high from liquidityBarIndex until the zone is first touched.
-    if not na(z.liquidityBarIndex) and bar_index >= z.liquidityBarIndex and na(z.lastTouchBar)
-        if na(z.peakPrice) or high > z.peakPrice
-            z.peakPrice := high
-            z.peakBarIndex := bar_index
-            needsPersist := true  // CRITICAL: Must persist these changes!
+    // === PEAK BAR TRACKING (Demand) - REMOVED ===
+    // Moved to touch block to fix memory persistence issue
+    // See: Demand Touch Block for peak calculation logic
 
     // === INDUCEMENT SWEEP CHECK ===
     // Inducement Low for Demand: price drops to/below liqLowPrice
@@ -2050,15 +2044,10 @@ f_check_supply_sweeps(int zoneArrayIndex) =>
                 z.causedSweep := true
             needsPersist := true
 
-    // === PEAK BAR TRACKING (Supply) ===
-    // Decoupled from sweep: camera turns on the moment the INDUCEMENT is registered.
-    // Tracks the lowest low from liquidityBarIndex until the zone is first touched.
-    if not na(z.liquidityBarIndex) and bar_index >= z.liquidityBarIndex and na(z.lastTouchBar)
-        if na(z.peakPrice) or low < z.peakPrice
-            z.peakPrice := low
-            z.peakBarIndex := bar_index
-            needsPersist := true
-    
+    // === PEAK BAR TRACKING (Supply) - REMOVED ===
+    // Moved to touch block to fix memory persistence issue
+    // See: Supply Touch Block for peak calculation logic
+
     // === PERSIST CHANGES ONCE ===
     if needsPersist
         array.set(supplyZones, zoneArrayIndex, z)
@@ -3595,6 +3584,24 @@ if array.size(demandZones) > 0 and barstate.isconfirmed
                     z.lastTouchBar := bar_index
                     z.wasTouched := true
 
+                    // === IMMEDIATE PEAK CALCULATION (Demand) ===
+                    // CRITICAL: Calculate peak NOW at touch to fix memory persistence issue
+                    // User's "High-Water Mark" logic: track from inducement to touch, keep highest
+                    if not na(z.liquidityBarIndex)
+                        int steps_back = bar_index - z.liquidityBarIndex
+                        if steps_back >= 0
+                            float max_p = high
+                            int max_idx = bar_index
+                            for i = 0 to steps_back
+                                if high[i] > max_p
+                                    max_p := high[i]
+                                    max_idx := bar_index - i
+                            z.peakPrice := max_p
+                            z.peakBarIndex := max_idx
+                            // PERSIST: Save zone changes immediately
+                            array.set(demandZones, i, z)
+                            db_updateZoneLiquidity(z)
+
                     // Only count as pre-sweep mitigation if this bar is the liquidity bar
                     bool is_liq_bar = false
                     if not na(z.liquidityBarIndex) and bar_index == z.liquidityBarIndex
@@ -3717,6 +3724,24 @@ if array.size(supplyZones) > 0 and barstate.isconfirmed
                     z.lastTouchBar := bar_index
                     z.wasTouched := true
                     z.touchedPreSweep := true
+
+                    // === IMMEDIATE PEAK CALCULATION (Supply) ===
+                    // CRITICAL: Calculate peak NOW at touch to fix memory persistence issue
+                    // User's "Low-Water Mark" logic: track from inducement to touch, keep lowest
+                    if not na(z.liquidityBarIndex)
+                        int steps_back = bar_index - z.liquidityBarIndex
+                        if steps_back >= 0
+                            float min_p = low
+                            int min_idx = bar_index
+                            for i = 0 to steps_back
+                                if low[i] < min_p
+                                    min_p := low[i]
+                                    min_idx := bar_index - i
+                            z.peakPrice := min_p
+                            z.peakBarIndex := min_idx
+                            // PERSIST: Save zone changes immediately
+                            array.set(supplyZones, i, z)
+                            db_updateZoneLiquidity(z)
 
                 // MITIGATION (VANISH): Kill zone if CLOSED INSIDE or FULLY BREACHED
                 // This restores strict strategy behavior. Wick touches still survive (recording touchedPreSweep).
@@ -3878,15 +3903,33 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
             // Ensure first touch is recorded even if entry is blocked (e.g. Dead Zone)
             float touchTolerance = 0.0
             bool currentTouch = low <= (z.top + touchTolerance)
-            
+
             if currentTouch
                 bool isContinuous = not na(z.lastTouchBar) and (bar_index - z.lastTouchBar) <= 1
                 if not isContinuous
                     z.touchCount := z.touchCount + 1
-                
+
                 z.lastTouchBar := bar_index
                 z.wasTouched := true
-                
+
+                // === IMMEDIATE PEAK CALCULATION (Demand) ===
+                // CRITICAL: Calculate peak NOW at touch to fix memory persistence issue
+                // User's "High-Water Mark" logic: track from inducement to touch, keep highest
+                if not na(z.liquidityBarIndex)
+                    int steps_back = bar_index - z.liquidityBarIndex
+                    if steps_back >= 0
+                        float max_p = high
+                        int max_idx = bar_index
+                        for i = 0 to steps_back
+                            if high[i] > max_p
+                                max_p := high[i]
+                                max_idx := bar_index - i
+                        z.peakPrice := max_p
+                        z.peakBarIndex := max_idx
+                        // PERSIST: Save zone changes immediately
+                        array.set(demandZones, i, z)
+                        db_updateZoneLiquidity(z)
+
             // Unified demand entry validation (shared with flip entries)
             [can_enter, entryReason] = isValidDemandEntry(i)
 
@@ -4363,14 +4406,32 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
             // Ensure first touch is recorded even if entry is blocked (e.g. Dead Zone)
             float touchTolerance = 0.0
             bool currentTouch = high >= (z.bottom - touchTolerance)
-            
+
             if currentTouch
                 bool isContinuous = not na(z.lastTouchBar) and (bar_index - z.lastTouchBar) <= 1
                 if not isContinuous
                     z.touchCount := z.touchCount + 1
-                
+
                 z.lastTouchBar := bar_index
                 z.wasTouched := true
+
+                // === IMMEDIATE PEAK CALCULATION (Supply) ===
+                // CRITICAL: Calculate peak NOW at touch to fix memory persistence issue
+                // User's "Low-Water Mark" logic: track from inducement to touch, keep lowest
+                if not na(z.liquidityBarIndex)
+                    int steps_back = bar_index - z.liquidityBarIndex
+                    if steps_back >= 0
+                        float min_p = low
+                        int min_idx = bar_index
+                        for i = 0 to steps_back
+                            if low[i] < min_p
+                                min_p := low[i]
+                                min_idx := bar_index - i
+                        z.peakPrice := min_p
+                        z.peakBarIndex := min_idx
+                        // PERSIST: Save zone changes immediately
+                        array.set(supplyZones, i, z)
+                        db_updateZoneLiquidity(z)
 
             // Unified supply entry validation (shared with flip entries)
             [can_enter, entryReason] = isValidSupplyEntry(i)
