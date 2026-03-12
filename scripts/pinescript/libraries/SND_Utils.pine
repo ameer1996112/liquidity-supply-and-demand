@@ -2,7 +2,7 @@
 // © ameer_1996112
 
 //@version=6
-library("SND_Utils", overlay=true)
+library("SND_Utils", version=14, overlay=true)
 
 // ══════════════════════════════════════════════════════════
 // SND_Utils - Helper Library for Supply & Demand Strategy
