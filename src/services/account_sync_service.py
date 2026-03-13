@@ -386,6 +386,9 @@ class AccountSyncService:
             broker_pos_list = broker_positions.data or []
             db_pos_list = db_positions.data or []
 
+            # Drift counter: we treat ONLY "MISSING_ON_BROKER" as true drift.
+            # External/orphaned broker positions are logged but do not count as API drift,
+            # since they often represent manual trades outside the bot.
             drift_count = 0
 
             # Broker → DB: classify EXTERNAL vs matched
@@ -432,7 +435,6 @@ class AccountSyncService:
                 if matched_signal_id is None:
                     reconciliation_status = "orphaned"
                     reconciliation_note = "EXTERNAL: broker position not found in trading_signals"
-                    drift_count += 1
                     try:
                         from src.services.trade_events import log_event
                         log_event(
@@ -494,6 +496,8 @@ class AccountSyncService:
                                     pass
 
                     if is_missing_on_broker:
+                        # Only count true drift where DB shows an open position
+                        # but the broker has no matching position.
                         drift_count += 1
                         reason = "MISSING_ON_BROKER: DB shows open position but broker snapshot has no matching position"
                         logger.warning(
