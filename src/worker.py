@@ -1427,7 +1427,6 @@ def run():
                     try:
                         from src.services.broker_reconciliation import run_reconciliation_for_profile
                         from src.core.broker_profiles import get_active_profiles
-                        from config import get_settings
 
                         profiles = get_active_profiles()
                         settings = get_settings()
