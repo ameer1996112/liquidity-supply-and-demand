@@ -1397,6 +1397,7 @@ def run():
             logger.warning("Daily reset scheduler init failed: %s", exc)
 
     last_watchdog_ts = time.time()
+    last_reconciliation_ts = 0  # Broker reconciliation runs every 5 minutes
     while True:
         task = None
         payload_str = None
@@ -1419,6 +1420,38 @@ def run():
                         trailing_stop_manager.update_trailing_stops()
                     except Exception as ts_exc:  # noqa: BLE001
                         logger.error("TrailingStopManager update failed: %s", ts_exc)
+
+                # Broker state reconciliation - sync DB with broker for externally closed trades
+                # Run every 5 minutes (300 seconds) to avoid excessive API calls
+                if now - last_reconciliation_ts >= 300:
+                    try:
+                        from src.services.broker_reconciliation import run_reconciliation_for_profile
+                        from src.core.broker_profiles import get_active_profiles
+                        from config import get_settings
+
+                        profiles = get_active_profiles()
+                        settings = get_settings()
+                        for profile in profiles:
+                            # Skip paper trading profiles
+                            if profile.get("run_mode") == "PAPER":
+                                continue
+                            result = run_reconciliation_for_profile(
+                                supabase_url=settings.supabase_url,
+                                supabase_key=settings.supabase_service_role_key or settings.supabase_key,
+                                broker_profile_id=profile.get("id", 0),
+                                meta_api_token=profile.get("token", ""),
+                                meta_api_account_id=profile.get("meta_api_account_id", ""),
+                                meta_api_region=getattr(settings, "meta_api_region", "london"),
+                            )
+                            if result.get("closed_count", 0) > 0:
+                                logger.info(
+                                    "Broker reconciliation: closed %d trades for profile %s",
+                                    result["closed_count"],
+                                    profile.get("name", "unknown"),
+                                )
+                        last_reconciliation_ts = now
+                    except Exception as recon_exc:  # noqa: BLE001
+                        logger.error("Broker reconciliation failed: %s", recon_exc)
 
                 # Clear config cache to pick up DB changes
                 try:
