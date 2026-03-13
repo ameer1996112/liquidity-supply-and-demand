@@ -258,13 +258,22 @@ class MLGuardian:
                 features["hour"] = now.hour
                 features["day_of_week"] = now.weekday()
 
-            # === FEATURE: Type (Long/Short) ===
-            trade_type = str(signal.get("type") or signal.get("side") or "unknown").lower()
-            # Normalize: buy/long -> entry long, sell/short -> entry short
-            if trade_type in ("buy", "long"):
-                trade_type = "entry long"
-            elif trade_type in ("sell", "short"):
-                trade_type = "entry short"
+            # === FEATURE: Type (Long/Short) - Use entry_model for proper mapping ===
+            # Mapping matches features.py: _SIDE_MODEL_TO_TYPE
+            side = str(signal.get("side") or signal.get("type") or "unknown").lower()
+            entry_model = str(signal.get("entry_model") or signal.get("entry") or "DIR_CLOSE").upper()
+
+            # Map side + entry_model to type string (matches training data)
+            type_mapping = {
+                ("buy", "FLIP"): "flip",
+                ("sell", "FLIP"): "flip",
+                ("buy", "DIR_CLOSE"): "entry long",
+                ("sell", "DIR_CLOSE"): "entry short",
+                ("buy", "BREAK_CANDLE"): "boc",
+                ("sell", "BREAK_CANDLE"): "boc",
+            }
+            trade_type = type_mapping.get((side, entry_model), "entry long" if side in ("buy", "long") else "entry short" if side in ("sell", "short") else "default")
+
             type_encoder = self._encoders.get("type")
             if type_encoder:
                 features["type_encoded"] = self._safe_encode(type_encoder, trade_type, "type")
@@ -275,6 +284,9 @@ class MLGuardian:
             signal_value = str(signal.get("signal") or signal.get("entry_model") or "unknown")
             # Clean up signal - take first part before pipe or comma (same as training)
             signal_clean = signal_value.split('|')[0].split(',')[0].strip()[:50]
+            # Use default if empty after cleaning
+            if not signal_clean:
+                signal_clean = "default"
             signal_encoder = self._encoders.get("signal")
             if signal_encoder:
                 features["signal_encoded"] = self._safe_encode(signal_encoder, signal_clean, "signal")
