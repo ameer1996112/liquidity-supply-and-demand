@@ -113,48 +113,60 @@ class BrokerReconciliation:
         )
         return response.data or []
 
-    def _fetch_closed_deal(self, trade: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Fetch the closed deal from broker history for a specific trade."""
-        # Get recent deals (last 24 hours to find the closed trade)
+    def fetch_closing_deal(self, position_id: str, symbol: str, since_time: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """
+        Public helper: Fetch DEAL_ENTRY_OUT for position since watermark.
+        Used by: logic.py (instant), watchdog.py (background).
+        """
         end_time = datetime.now(timezone.utc)
-        start_time = end_time - timedelta(hours=48)  # Look back 48 hours
+        if since_time:
+            start_time = datetime.fromisoformat(since_time.replace("Z", "+00:00"))
+        else:
+            start_time = end_time - timedelta(hours=2)  # Default window
 
         start_str = start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
         end_str = end_time.strftime("%Y-%m-%dT%H:%M:%SZ")
 
         deals = self.meta_api.get_historical_deals(start_str, end_str)
 
-        # Find deal matching our trade by broker_order_id
-        broker_order_id = str(trade.get("broker_order_id"))
 
+        start_str = start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+        end_str = end_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        deals = self.meta_api.get_historical_deals(start_str, end_str)
+
+        # OPTIMIZED: positionId + DEAL_ENTRY_OUT + symbol
         for deal in deals:
-            # Match by positionId or orderId
-            position_id = str(deal.get("positionId", ""))
-            order_id = str(deal.get("orderId", ""))
+            if (str(deal.get("positionId", "")) == position_id and 
+                deal.get("entryType") == "DEAL_ENTRY_OUT" and
+                deal.get("symbol", "").upper() == symbol.upper()):
+                profit = float(deal.get("profit", 0))
+                commission = float(deal.get("commission", 0))
+                swap = float(deal.get("swap", 0))
+                return {
+                    "profit": profit,
+                    "commission": commission,
+                    "swap": swap,
+                    "total_pnl": profit + commission + swap,
+                    "exit_price": float(deal.get("price", 0)),
+                    "exit_time": deal.get("time")
+                }
 
-            if position_id == broker_order_id or order_id == broker_order_id:
-                # This is a DEAL_ENTRY_OUT (close) deal
-                if deal.get("entryType") == "DEAL_ENTRY_OUT":
-                    return deal
-
-            # Also check by symbol + approximate time if no ID match
-            symbol = trade.get("symbol", "").upper()
-            if deal.get("symbol", "").upper() == symbol:
-                # Check if it's a closing deal (profit not 0 and has entry/close pair)
-                if deal.get("entryType") == "DEAL_ENTRY_OUT":
-                    return deal
-
-        logger.warning(f"No closed deal found for trade {trade.get('id')} (ticket {broker_order_id})")
+        logger.debug(f"No closing deal for position {position_id}/{symbol} since {since_time or '2h'} ({len(deals)} deals)")
         return None
 
-    def _update_trade_closed(self, trade: Dict[str, Any], deal: Dict[str, Any]) -> None:
-        """Update trade in DB with final closed state from broker deal."""
+@staticmethod
+    def get_last_closed_timestamp(supabase_client) -> str:
+        """Watermark: return most recent closed_at timestamp."""
+        try:
+            resp = supabase_client.table("trading_signals") \
+                .select("closed_at").eq("status", "closed") \
+                .order("closed_at", desc=True).limit(1).execute()
+            return resp.data[0]["closed_at"] if resp.data else \
+                   (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+        except:
+            return (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
 
-        # Extract PnL from deal
-        profit = deal.get("profit", 0.0) or 0.0
-        commission = deal.get("commission", 0.0) or 0.0
-        swap = deal.get("swap", 0.0) or 0.0
-        total_pnl = profit + commission + swap
 
         # Determine outcome
         if total_pnl > 0:

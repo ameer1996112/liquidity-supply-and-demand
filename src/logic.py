@@ -198,44 +198,49 @@ def process_trade(
                         data["zone_id"], exec_result.status,
                     )
 
-                # Fetch actual PnL from broker and update database
+# 🚀 OPTIMIZED Broker PnL Fetch (Watermark + 15min Instant Window)
                 if exec_result.status == "success" and hasattr(adapter, "get_historical_deals"):
                     try:
-                        # Get deals from the last hour to find our closed position
+                        from src.services.broker_reconciliation import get_last_closed_timestamp
                         from datetime import timedelta
                         now = datetime.now(timezone.utc)
-                        start_time = (now - timedelta(hours=1)).isoformat()
+                        
+                        # Instant prong: max 15min lookback for webhook closes
+                        close_window_start = (now - timedelta(minutes=15)).isoformat()
+                        # Watermark: DB's last closed_at (safety net)
+                        watermark = get_last_closed_timestamp(supabase_module.supabase)
+                        
+                        # Use most recent (efficient + safe)
+                        start_time = max(close_window_start, watermark)
                         end_time = now.isoformat()
+                        
+                        logger.info("Fetching broker PnL since %s (watermark=%s)", start_time[:19], watermark[:19])
+                        deals = adapter.get_historical_deals(start_time, end_time)
 
                         deals = adapter.get_historical_deals(start_time, end_time)
 
-                        # Find the deal that matches our position
+                        # OPTIMIZED: positionId + DEAL_ENTRY_OUT + symbol match
                         matching_deal = None
+                        symbol = alert.get("symbol", "").upper()
                         for deal in deals:
-                            # Match by positionId or orderId
-                            if (deal.get("positionId") == broker_order_id or
-                                deal.get("orderId") == broker_order_id):
-                                # Look for the closing deal (DEAL_ENTRY_OUT)
-                                if deal.get("entryType") in ["DEAL_ENTRY_OUT", "DEAL_ENTRY_OUT_BY"]:
-                                    matching_deal = deal
-                                    break
+                            if (str(deal.get("positionId", "")) == str(broker_order_id) and 
+                                deal.get("entryType") == "DEAL_ENTRY_OUT" and
+                                str(deal.get("symbol", "")).upper() == symbol):
+                                matching_deal = deal
+                                break
 
                         if matching_deal:
                             actual_pnl = float(matching_deal.get("profit", 0))
                             actual_commission = float(matching_deal.get("commission", 0))
                             actual_swap = float(matching_deal.get("swap", 0))
-
-                            # Total realized PnL = profit + commission + swap
                             total_realized_pnl = actual_pnl + actual_commission + actual_swap
 
                             logger.info(
-                                "✅ Broker actual PnL for alert #%s: profit=$%.2f commission=$%.2f swap=$%.2f total=$%.2f (was $%.2f from TradingView)",
-                                alert["id"],
-                                actual_pnl,
-                                actual_commission,
-                                actual_swap,
-                                total_realized_pnl,
-                                exit_data.get("pnl_usd", 0)
+                                "🚀 INSTANT Broker PnL alert#%s ticket=%s: P=$%.2f C=$%.2f S=$%.2f TOTAL=$%.2f "
+                                "(vs TradingView $%.2f) | Deals fetched: %d",
+                                alert["id"], broker_order_id,
+                                actual_pnl, actual_commission, actual_swap, total_realized_pnl,
+                                exit_data.get("pnl_usd", 0), len(deals)
                             )
 
                             # Update database with actual broker PnL
