@@ -391,15 +391,11 @@ export async function fetchSignalStats(): Promise<SignalStats> {
     console.warn('Failed to compute broker-based PnL from snapshots:', e);
   }
 
-  // Override signal-based PnL with broker-based PnL when available
-  if (brokerDailyPnl != null) {
-    dailyPnl = brokerDailyPnl;
-    liveDailyPnl = brokerDailyPnl;
-  }
-  if (brokerTotalPnl != null) {
-    totalPnl = brokerTotalPnl;
-    liveTotalPnl = brokerTotalPnl;
-  }
+  // Choose effective PnL values (prefer broker-based when available)
+  const effectiveDailyPnl = brokerDailyPnl ?? dailyPnl;
+  const effectiveLiveDailyPnl = brokerDailyPnl ?? liveDailyPnl;
+  const effectiveTotalPnl = brokerTotalPnl ?? totalPnl;
+  const effectiveLiveTotalPnl = brokerTotalPnl ?? liveTotalPnl;
 
   // ── Daily Drawdown % ───────────────────────────────────────────────
   // Use account balance from closed signals if available, fallback to 50000
@@ -413,7 +409,9 @@ export async function fetchSignalStats(): Promise<SignalStats> {
       ? balanceSamples[balanceSamples.length - 1]
       : 50000;
   const dailyDrawdownPct =
-    dailyPnl < 0 ? (Math.abs(dailyPnl) / accountBalance) * 100 : 0;
+    effectiveDailyPnl < 0
+      ? (Math.abs(effectiveDailyPnl) / accountBalance) * 100
+      : 0;
 
   return {
     total_signals_24h: signals.length,
@@ -428,11 +426,11 @@ export async function fetchSignalStats(): Promise<SignalStats> {
     total_pnl_24h: livePnl,
     live_pnl_24h: livePnl,
     paper_pnl_24h: paperPnl,
-    daily_pnl: dailyPnl,
-    live_daily_pnl: liveDailyPnl,
+    daily_pnl: effectiveDailyPnl,
+    live_daily_pnl: effectiveLiveDailyPnl,
     paper_daily_pnl: paperDailyPnl,
-    total_pnl: totalPnl,
-    live_total_pnl: liveTotalPnl,
+    total_pnl: effectiveTotalPnl,
+    live_total_pnl: effectiveLiveTotalPnl,
     paper_total_pnl: paperTotalPnl,
     daily_drawdown_pct: dailyDrawdownPct,
   };
