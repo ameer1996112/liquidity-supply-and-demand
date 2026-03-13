@@ -1,6 +1,14 @@
-# TODO - SND_Strategy PineScript Compile Fix
+# Bug Fix: New Error in Logs Analysis
 
-- [x] Analyze compiler errors and identify root cause (extra closing parenthesis in delete calls).
-- [x] Fix malformed delete calls in `scripts/pinescript/strategies/SND_Strategy.pine`.
-- [x] Search and verify no malformed `*.delete(...))` calls remain.
-- [ ] Re-scan for object-reference type mismatch hotspots if any compile errors remain.
+## Initial Analysis
+
+- Logs show repetitive 60s polling for trading data (all INFO, 200 OK)
+- Trade close processed for zone_id=17616 (win, $367 PNL)
+- No ERROR/EXCEPTION in provided logs
+- Prop firm metrics likely triggered, failing silently
+
+## Steps
+
+1. [ ] Read src/services/prop_firm_metrics_calculator.py for bugs (division by zero, missing account, etc.)
+2. [ ] Check worker.py for metrics trigger after trade close
+       3
