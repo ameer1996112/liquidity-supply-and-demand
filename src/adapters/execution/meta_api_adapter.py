@@ -37,6 +37,7 @@ class MetaApiAdapter:
         token: str,
         account_id: str,
         account_name: Optional[str] = None,
+        region: Optional[str] = None,
     ) -> None:
         self.token = token.strip()
         self.account_id = account_id.strip()
@@ -46,11 +47,11 @@ class MetaApiAdapter:
         if not self.token or not self.account_id:
             raise ValueError("MetaApiAdapter requires non-empty token and account_id")
 
-        # Allow region to be configured via settings (META_API_REGION)
+        # Allow region to be configured explicitly or via settings (META_API_REGION)
         settings = get_settings()
-        region = (getattr(settings, "meta_api_region", "new-york") or "new-york").strip()
-        self.base_url = f"https://mt-client-api-v1.{region}.agiliumtrade.ai"
-        logger.info("MetaApiAdapter using region '%s' (%s)", region, self.base_url)
+        effective_region = (region or getattr(settings, "meta_api_region", "new-york") or "new-york").strip()
+        self.base_url = f"https://mt-client-api-v1.{effective_region}.agiliumtrade.ai"
+        logger.info("MetaApiAdapter using region '%s' (%s)", effective_region, self.base_url)
 
     def _headers(self) -> Dict[str, str]:
         return {
