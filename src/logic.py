@@ -236,11 +236,12 @@ def process_trade(
                             total_realized_pnl = actual_pnl + actual_commission + actual_swap
 
                             logger.info(
-                                "🚀 INSTANT Broker PnL alert#%s ticket=%s: P=$%.2f C=$%.2f S=$%.2f TOTAL=$%.2f "
-                                "(vs TradingView $%.2f) | Deals fetched: %d",
+                                "🚀 INSTANT Broker PnL #%s ticket=%s | Raw: P=$%.2f C=$%.2f S=$%.2f | "
+                                "NET=$%.2f (vs TV $%.2f) | %d deals | Match: %s",
                                 alert["id"], broker_order_id,
                                 actual_pnl, actual_commission, actual_swap, total_realized_pnl,
-                                exit_data.get("pnl_usd", 0), len(deals)
+                                exit_data.get("pnl_usd", 0), len(deals),
+                                "DEAL_ENTRY_OUT" if matching_deal.get("entryType") else matching_deal.get("entryType", "UNKNOWN")
                             )
 
                             # Update database with actual broker PnL
