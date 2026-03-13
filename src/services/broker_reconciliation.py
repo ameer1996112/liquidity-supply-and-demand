@@ -1,11 +1,10 @@
-"""
 Broker Reconciliation Service
 
 Periodically reconciles database trade states with broker (MetaAPI) truth.
 Handles trades closed by broker-side SL/TP that didn't fire exit webhooks.
 
 This prevents "ghost positions" where DB shows OPEN but broker already closed the trade.
-"""
+```
 
 import logging
 from datetime import datetime, timezone, timedelta
@@ -113,6 +112,40 @@ class BrokerReconciliation:
         )
         return response.data or []
 
+    def _fetch_closed_deal(self, trade: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Fetch the closed deal from broker history for a specific trade (INTERNAL)."""
+        # Get recent deals (last 24 hours to find the closed trade)
+        end_time = datetime.now(timezone.utc)
+        start_time = end_time - timedelta(hours=48)  # Look back 48 hours
+
+        start_str = start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+        end_str = end_time.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        deals = self.meta_api.get_historical_deals(start_str, end_str)
+
+        # Find deal matching our trade by broker_order_id
+        broker_order_id = str(trade.get("broker_order_id"))
+
+        for deal in deals:
+            # Match by positionId or orderId
+            position_id = str(deal.get("positionId", ""))
+            order_id = str(deal.get("orderId", ""))
+
+            if position_id == broker_order_id or order_id == broker_order_id:
+                # This is a DEAL_ENTRY_OUT (close) deal
+                if deal.get("entryType") == "DEAL_ENTRY_OUT":
+                    return deal
+
+            # Also check by symbol + approximate time if no ID match
+            symbol = trade.get("symbol", "").upper()
+            if deal.get("symbol", "").upper() == symbol:
+                # Check if it's a closing deal (profit not 0 and has entry/close pair)
+                if deal.get("entryType") == "DEAL_ENTRY_OUT":
+                    return deal
+
+        logger.warning(f"No closed deal found for trade {trade.get('id')} (ticket {broker_order_id})")
+        return None
+
     def fetch_closing_deal(self, position_id: str, symbol: str, since_time: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """
         Public helper: Fetch DEAL_ENTRY_OUT for position since watermark.
@@ -123,12 +156,6 @@ class BrokerReconciliation:
             start_time = datetime.fromisoformat(since_time.replace("Z", "+00:00"))
         else:
             start_time = end_time - timedelta(hours=2)  # Default window
-
-        start_str = start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
-        end_str = end_time.strftime("%Y-%m-%dT%H:%M:%SZ")
-
-        deals = self.meta_api.get_historical_deals(start_str, end_str)
-
 
         start_str = start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
         end_str = end_time.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -155,7 +182,7 @@ class BrokerReconciliation:
         logger.debug(f"No closing deal for position {position_id}/{symbol} since {since_time or '2h'} ({len(deals)} deals)")
         return None
 
-@staticmethod
+    @staticmethod
     def get_last_closed_timestamp(supabase_client) -> str:
         """Watermark: return most recent closed_at timestamp."""
         try:
@@ -167,6 +194,14 @@ class BrokerReconciliation:
         except:
             return (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
 
+    def _update_trade_closed(self, trade: Dict[str, Any], deal: Dict[str, Any]) -> None:
+        """Update trade in DB with final closed state from broker deal."""
+
+        # Extract PnL from deal
+        profit = deal.get("profit", 0.0) or 0.0
+        commission = deal.get("commission", 0.0) or 0.0
+        swap = deal.get("swap", 0.0) or 0.0
+        total_pnl = profit + commission + swap
 
         # Determine outcome
         if total_pnl > 0:
