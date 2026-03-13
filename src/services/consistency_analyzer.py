@@ -102,7 +102,13 @@ class ConsistencyAnalyzer:
         # Group by day
         daily_profits = {}
         for trade in trades.data:
-            pnl = float(trade.get("pnl_usd", 0))
+            raw_pnl = trade.get("pnl_usd", 0)
+            # Safely coerce to float; treat None/empty as 0 to avoid crashes
+            try:
+                pnl = float(raw_pnl) if raw_pnl is not None else 0.0
+            except (TypeError, ValueError):
+                logger.debug("Skipping trade with non-numeric pnl_usd=%r", raw_pnl)
+                pnl = 0.0
             trade_date = datetime.fromisoformat(trade["created_at"].replace("Z", "+00:00"))
             day_key = trade_date.date().isoformat()
 
