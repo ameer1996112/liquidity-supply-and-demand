@@ -1,4 +1,4 @@
-y """Execution router: choose adapter by RUN_MODE, settings, or broker profile (multi-account)."""
+"""Execution router: choose adapter by RUN_MODE, settings, or broker profile (multi-account)."""
 
 from typing import Any, Dict
 
@@ -54,3 +54,4 @@ def get_adapter(
             return DryRunAdapter()
         return LiveAdapter()
     return DryRunAdapter()
+
