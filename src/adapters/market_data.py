@@ -203,6 +203,7 @@ def get_market_snapshot(symbol: str) -> dict:
         "XAUUSD": "GC=F",
         "EURUSD": "EURUSD=X",
         "GBPUSD": "GBPUSD=X",
+        "GBPCAD": "GBPCAD=X",  # Added for staleness guard
         "USDJPY": "USDJPY=X",
         "USDCHF": "USDCHF=X",
         "AUDUSD": "AUDUSD=X",
@@ -307,6 +308,7 @@ def get_current_price(symbol: str) -> float:
         "XAUUSD": "GC=F",
         "EURUSD": "EURUSD=X",
         "GBPUSD": "GBPUSD=X",
+        "GBPCAD": "GBPCAD=X",  # Added for staleness guard
         "USDJPY": "USDJPY=X",
         "USDCHF": "USDCHF=X",
         "AUDUSD": "AUDUSD=X",

@@ -754,7 +754,7 @@ def _align_features_for_inference(
         missing_cols = [c for c in expected_cols if c not in live_cols]
 
         if dropped_cols:
-            logger.warning(
+            logger.info(
                 "ML inference alignment for %s: dropping %d unexpected columns (live=%d expected=%d): %s",
                 symbol,
                 len(dropped_cols),
@@ -763,7 +763,7 @@ def _align_features_for_inference(
                 dropped_cols,
             )
         if missing_cols:
-            logger.warning(
+            logger.info(
                 "ML inference alignment for %s: adding %d missing columns as 0.0: %s",
                 symbol,
                 len(missing_cols),
@@ -780,7 +780,7 @@ def _align_features_for_inference(
         live_count = len(live_cols)
         if live_count > expected_count:
             dropped_cols = live_cols[expected_count:]
-            logger.warning(
+            logger.info(
                 "ML inference alignment for %s: dropping %d overflow columns by position "
                 "(live=%d expected=%d): %s",
                 symbol,
@@ -793,7 +793,7 @@ def _align_features_for_inference(
         elif live_count < expected_count:
             pad = expected_count - live_count
             missing_cols = [f"__pad_{i}" for i in range(pad)]
-            logger.warning(
+            logger.info(
                 "ML inference alignment for %s: padding %d missing columns as 0.0 "
                 "(live=%d expected=%d)",
                 symbol,
