@@ -119,6 +119,12 @@ export async function syncAccount(accountName: string) {
   );
 }
 
+export async function syncAllAccounts() {
+  return apiFetch<any>('/api/portfolio-control/accounts/sync-all', {
+    method: 'POST',
+  });
+}
+
 export async function fetchAllocationSuggest(
   totalCapital: number,
   goal: string = 'maximize_sharpe'

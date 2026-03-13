@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { ConnectionStatus } from '@/components/settings/ConnectionStatus';
 import { ConfigDisplay } from '@/components/settings/ConfigDisplay';
 import { AiConfigPanel } from '@/components/settings/AiConfigPanel';
@@ -8,6 +9,7 @@ import { AlertRulesPanel } from '@/components/settings/AlertRulesPanel';
 import { Info, Layers, Settings, Globe, Check } from 'lucide-react';
 import { useTimezone, TZ_OPTIONS } from '@/providers/TimezoneProvider';
 import { cn } from '@/lib/utils';
+import { syncAllAccounts } from '@/lib/api';
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
@@ -99,6 +101,65 @@ function TimezonePanel() {
   );
 }
 
+function ManualSyncPanel() {
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [lastResult, setLastResult] = useState<string | null>(null);
+
+  const handleSync = async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    setLastResult(null);
+    try {
+      const resp = await syncAllAccounts();
+      const success = resp?.success_count ?? 0;
+      const total = resp?.total_accounts ?? 0;
+      setLastResult(`Synced ${success}/${total} accounts`);
+    } catch (e) {
+      setLastResult('Sync failed — check backend logs');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  return (
+    <div className='to-panel'>
+      <div className='to-panel-header'>
+        <div className='flex items-center gap-2'>
+          <Layers className='h-3.5 w-3.5 text-text-dim' />
+          <span
+            className='panel-label'
+            style={{ fontFamily: 'var(--font-sans)' }}
+          >
+            Broker Sync Controls
+          </span>
+        </div>
+      </div>
+      <div className='flex items-center justify-between px-3 py-3 gap-3'>
+        <div className='text-[11px] text-[var(--to-text-dim)]'>
+          <p>
+            Manually trigger a full MetaAPI account sync and reconciliation for
+            all active accounts. Useful after fixing configuration or broker
+            drift.
+          </p>
+          {lastResult && (
+            <p className='mt-1 font-mono text-[10px] text-text-secondary'>
+              {lastResult}
+            </p>
+          )}
+        </div>
+        <button
+          type='button'
+          onClick={handleSync}
+          disabled={isSyncing}
+          className='shrink-0 rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)] px-4 py-2 text-[11px] font-mono font-bold uppercase tracking-widest text-white hover:border-white/20 hover:bg-white/5 disabled:opacity-60'
+        >
+          {isSyncing ? 'Syncing…' : 'Sync All Accounts'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -128,6 +189,9 @@ export default function SettingsPage() {
 
       {/* System Health */}
       <SystemHealthPanel />
+
+      {/* Manual broker sync */}
+      <ManualSyncPanel />
 
       {/* Alert Rules */}
       <AlertRulesPanel />
