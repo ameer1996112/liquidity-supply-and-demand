@@ -319,6 +319,88 @@ export async function fetchSignalStats(): Promise<SignalStats> {
     console.error('Failed to fetch total PnL:', e);
   }
 
+  // ── MetaTrader-aligned PnL from account_status_snapshots ───────────
+  // Use broker balance snapshots so dashboard matches real account PnL.
+  let brokerDailyPnl: number | null = null;
+  let brokerTotalPnl: number | null = null;
+  try {
+    if (supabase) {
+      // Get all active accounts
+      const { data: accounts } = await supabase
+        .from('account_strategies')
+        .select('account_name, allocated_capital_usd')
+        .eq('is_active', true);
+
+      const todayStart = new Date();
+      todayStart.setUTCHours(0, 0, 0, 0);
+      const todayISO = todayStart.toISOString();
+
+      let dailySum = 0;
+      let totalAllocated = 0;
+      let currentBalanceSum = 0;
+
+      for (const acct of accounts ?? []) {
+        const name = (acct as { account_name?: string }).account_name;
+        if (!name) continue;
+
+        const allocated =
+          Number(
+            (acct as { allocated_capital_usd?: number | null })
+              .allocated_capital_usd ?? 0
+          ) || 0;
+        totalAllocated += allocated;
+
+        // Balance just before today (start-of-day baseline)
+        const { data: startSnap } = await supabase
+          .from('account_status_snapshots')
+          .select('balance')
+          .eq('account_name', name)
+          .lt('snapshot_time', todayISO)
+          .order('snapshot_time', { ascending: false })
+          .limit(1);
+
+        // Latest balance for this account
+        const { data: currentSnap } = await supabase
+          .from('account_status_snapshots')
+          .select('balance')
+          .eq('account_name', name)
+          .order('snapshot_time', { ascending: false })
+          .limit(1);
+
+        if (startSnap && startSnap.length && currentSnap && currentSnap.length) {
+          const startBal = Number(
+            (startSnap[0] as { balance: number }).balance ?? 0
+          );
+          const currBal = Number(
+            (currentSnap[0] as { balance: number }).balance ?? 0
+          );
+          dailySum += currBal - startBal;
+          currentBalanceSum += currBal;
+        }
+      }
+
+      if (currentBalanceSum !== 0) {
+        brokerDailyPnl = dailySum;
+        // Total PnL = current balance minus allocated capital (initial deposit)
+        if (totalAllocated > 0) {
+          brokerTotalPnl = currentBalanceSum - totalAllocated;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to compute broker-based PnL from snapshots:', e);
+  }
+
+  // Override signal-based PnL with broker-based PnL when available
+  if (brokerDailyPnl != null) {
+    dailyPnl = brokerDailyPnl;
+    liveDailyPnl = brokerDailyPnl;
+  }
+  if (brokerTotalPnl != null) {
+    totalPnl = brokerTotalPnl;
+    liveTotalPnl = brokerTotalPnl;
+  }
+
   // ── Daily Drawdown % ───────────────────────────────────────────────
   // Use account balance from closed signals if available, fallback to 50000
   const balanceSamples = eligibleForPnl
