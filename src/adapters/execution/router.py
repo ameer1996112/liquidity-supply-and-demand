@@ -1,4 +1,4 @@
-"""Execution router: choose adapter by RUN_MODE, settings, or broker profile (multi-account)."""
+y """Execution router: choose adapter by RUN_MODE, settings, or broker profile (multi-account)."""
 
 from typing import Any, Dict
 
@@ -24,6 +24,11 @@ def get_adapter(
     """
     s = settings or get_settings()
 
+    # Normalize env-driven strings to avoid leading/trailing whitespace issues
+    # (we've seen EXECUTION_MODE set as "\tMETAAPI" in production).
+    env_exec_mode = (getattr(s, "execution_mode", "") or "").strip().upper()
+    env_run_mode = (run_mode or s.run_mode or "DRY_RUN").strip().upper()
+
     # Multi-account: profile carries token, account_id, and optional name
     if profile and isinstance(profile, dict):
         token = (profile.get("token") or "").strip()
@@ -34,10 +39,10 @@ def get_adapter(
         # Fall through to single-account
 
     # Explicit override: external execution via MetaApi (single-account)
-    if getattr(s, "execution_mode", "").upper() == "METAAPI":
+    if env_exec_mode == "METAAPI":
         return MetaApiAdapter(token=s.meta_api_token, account_id=s.meta_api_account_id)
 
-    mode = (run_mode or s.run_mode).upper()
+    mode = env_run_mode
     if mode == "DRY_RUN":
         return DryRunAdapter()
     if mode == "PAPER":
