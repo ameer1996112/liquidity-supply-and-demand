@@ -29,11 +29,12 @@ logger = logging.getLogger(__name__)
 # Path to model artifacts: project root ml/ (src/ai -> src -> project root -> ml)
 ML_DIR = Path(__file__).resolve().parent.parent.parent / "ml"
 
-# [optimization/ai-overhaul] Default to v3 LightGBM (7,924 samples, 39 features, ROC-AUC 0.55)
-# v1 RF (model.pkl): 41 samples, 5 features — effectively random for any unseen symbol.
-# v3 LightGBM (model_v3_lgbm.txt): 7,924 synthetic samples, 39 rich features.
-MODEL_PATH = ML_DIR / "model_v3_lgbm.txt"   # v3 LightGBM (was: model.pkl)
-MODEL_PATH_LEGACY = ML_DIR / "model.pkl"     # v1 RF fallback (rarely useful)
+# [FIX] Use v1 RandomForest (5 features) - signals don't contain the 39 technical features needed by v3 LightGBM
+# model.pkl: 41 samples trained on (asset_id, hour, day_of_week, type_encoded, signal_encoded)
+# model_v3_lgbm.txt: 7,924 samples requires 39 technical features (score, fresh, session, zone_type, atr_ratio, etc.)
+# SWAP: Changed from "model_v3_lgbm.txt" to "model.pkl" so signals can be processed without market data
+MODEL_PATH = ML_DIR / "model.pkl"        # v1 RF (COMPATIBLE with signals)
+MODEL_PATH_V3 = ML_DIR / "model_v3_lgbm.txt"  # v3 LightGBM (requires 39 technical features - NOT COMPATIBLE)
 ENCODERS_PATH = ML_DIR / "encoders.pkl"
 
 
