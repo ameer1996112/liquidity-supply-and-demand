@@ -32,3 +32,13 @@ __pycache__/
 .
 .claude/settings.json
 .claude/settings.json
+.claude/skills/frontend-polish/SKILL.md
+.claude/skills/release-audit/SKILL.md
+.claude/skills/backend-architect/SKILL.md
+.claude/settings.json
+.claude/skills/bug-hunter/SKILL.md
+.claude/skills/system-tracker/SKILL.md
+.claude/skills/fullstack-builder/SKILL.md
+.claude/skills/trading-reconcile/SKILL.md
+.claude/CLAUDE.md
+.claude/settings.json
