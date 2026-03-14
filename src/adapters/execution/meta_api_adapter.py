@@ -716,3 +716,60 @@ class MetaApiAdapter:
             message="MetaApi position close sent",
         )
 
+    def get_deals_by_position(self, position_id: str) -> list[Dict[str, Any]]:
+        """
+        Fetch all deals for a specific position from MetaAPI.
+
+        Args:
+            position_id: The position ID to fetch deals for
+
+        Returns:
+            List of deal dictionaries. Returns empty list on failure, circuit breaker open,
+            or if position_id is empty/None.
+        """
+        if not position_id:
+            logger.error("get_deals_by_position called with empty position_id")
+            return []
+
+        if self._check_circuit_breaker():
+            logger.warning("get_deals_by_position skipped: circuit breaker open")
+            return []
+
+        url = (
+            f"{self.base_url}/users/current/accounts/"
+            f"{self.account_id}/history-deals/position/{position_id}"
+        )
+
+        resp = self._request_with_retry("GET", url, timeout=30)
+        if resp is None:
+            logger.warning("get_deals_by_position: no response for position %s", position_id)
+            return []
+
+        if resp.status_code != 200:
+            logger.error(
+                "get_deals_by_position failed for position %s: HTTP %s %s",
+                position_id,
+                resp.status_code,
+                resp.text[:200],
+            )
+            return []
+
+        try:
+            data = resp.json()
+        except ValueError:
+            logger.error(
+                "get_deals_by_position invalid JSON for position %s: %s",
+                position_id,
+                resp.text[:200],
+            )
+            return []
+
+        # Response can be a dict with "deals" key, or a list directly
+        if isinstance(data, dict):
+            deals = data.get("deals") or []
+        else:
+            deals = data if isinstance(data, list) else []
+
+        logger.info("get_deals_by_position: fetched %s deals for position %s", len(deals), position_id)
+        return deals
+

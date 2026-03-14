@@ -213,55 +213,67 @@ def process_trade(
                         # Use most recent (efficient + safe)
                         start_time = max(close_window_start, watermark)
                         end_time = now.isoformat()
-                        
+
                         logger.info("Fetching broker PnL since %s (watermark=%s)", start_time[:19], watermark[:19])
-                        deals = adapter.get_historical_deals(start_time, end_time)
+
+                        # Use new get_deals_by_position method for more efficient fetching
+                        try:
+                            deals = adapter.get_deals_by_position(broker_order_id)
+                            if not deals:
+                                logger.debug("get_deals_by_position returned empty, falling back to get_historical_deals")
+                                deals = adapter.get_historical_deals(start_time, end_time)
+                        except Exception:
+                            logger.debug("get_deals_by_position not available, falling back to get_historical_deals")
+                            deals = adapter.get_historical_deals(start_time, end_time)
 
                         deals = adapter.get_historical_deals(start_time, end_time)
 
-                        # OPTIMIZED: positionId + DEAL_ENTRY_OUT + symbol match
-                        matching_deal = None
+                        # Process ALL exit deals for the position (DEAL_ENTRY_OUT)
+                        total_pnl = 0.0
+                        total_commission = 0.0
+                        total_swap = 0.0
+                        exit_deals = []
                         symbol = alert.get("symbol", "").upper()
+
                         for deal in deals:
-                            if (str(deal.get("positionId", "")) == str(broker_order_id) and 
+                            if (str(deal.get("positionId", "")) == str(broker_order_id) and
                                 deal.get("entryType") == "DEAL_ENTRY_OUT" and
                                 str(deal.get("symbol", "")).upper() == symbol):
-                                matching_deal = deal
-                                break
+                                exit_deals.append(deal)
+                                total_pnl += float(deal.get("profit", 0))
+                                total_commission += float(deal.get("commission", 0))
+                                total_swap += float(deal.get("swap", 0))
 
-                        if matching_deal:
-                            actual_pnl = float(matching_deal.get("profit", 0))
-                            actual_commission = float(matching_deal.get("commission", 0))
-                            actual_swap = float(matching_deal.get("swap", 0))
-                            total_realized_pnl = actual_pnl + actual_commission + actual_swap
+                        if exit_deals:
+                            total_realized_pnl = total_pnl + total_commission + total_swap
 
                             logger.info(
                                 "🚀 INSTANT Broker PnL #%s ticket=%s | Raw: P=$%.2f C=$%.2f S=$%.2f | "
-                                "NET=$%.2f (vs TV $%.2f) | %d deals | Match: %s",
+                                "NET=$%.2f (vs TV $%.2f) | %d exit deals | Matches: %s",
                                 alert["id"], broker_order_id,
-                                actual_pnl, actual_commission, actual_swap, total_realized_pnl,
-                                exit_data.get("pnl_usd", 0), len(deals),
-                                "DEAL_ENTRY_OUT" if matching_deal.get("entryType") else matching_deal.get("entryType", "UNKNOWN")
+                                total_pnl, total_commission, total_swap, total_realized_pnl,
+                                exit_data.get("pnl_usd", 0), len(exit_deals),
+                                "DEAL_ENTRY_OUT" if exit_deals[0].get("entryType") else exit_deals[0].get("entryType", "UNKNOWN")
                             )
 
-                            # Update database with actual broker PnL
+                            # Update database with actual broker PnL (sum of all exit deals)
                             client = supabase_module.supabase
                             if client:
                                 pnl_update = {
                                     "pnl_usd": total_realized_pnl,
                                     "pnl": total_realized_pnl,  # Also update pnl field
-                                    "commission": actual_commission,
-                                    "swap": actual_swap,
+                                    "commission": total_commission,
+                                    "swap": total_swap,
                                 }
                                 if trade_key:
                                     client.table("trading_signals").update(pnl_update).eq("trade_key", trade_key).execute()
                                 else:
                                     client.table("trading_signals").update(pnl_update).eq("zone_id", data["zone_id"]).execute()
 
-                                logger.info("Updated DB with broker actual PnL: $%.2f", total_realized_pnl)
+                                logger.info("Updated DB with broker actual PnL: $%.2f (sum of %d exit deals)", total_realized_pnl, len(exit_deals))
                         else:
                             logger.warning(
-                                "Could not find matching deal for broker_order_id=%s in recent history",
+                                "Could not find any exit deals for broker_order_id=%s in recent history",
                                 broker_order_id
                             )
                     except Exception as e:
