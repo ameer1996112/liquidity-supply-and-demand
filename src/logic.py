@@ -199,7 +199,7 @@ def process_trade(
                     )
 
 # 🚀 OPTIMIZED Broker PnL Fetch (Watermark + 15min Instant Window)
-                if exec_result.status == "success" and hasattr(adapter, "get_historical_deals"):
+                if exec_result.status in ("filled", "success") and hasattr(adapter, "get_historical_deals"):
                     try:
                         from src.services.broker_reconciliation import get_last_closed_timestamp
                         from datetime import timedelta
