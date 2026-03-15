@@ -89,6 +89,11 @@ def get_ai_runs_bulk(signal_ids: str = Query(..., description="Comma-separated s
     Fetch council summary (recommendation, confidence, votes) for multiple signals at once.
     Returns a dict keyed by signal_id (as string) → {recommendation, confidence, votes}.
     Missing signals are omitted from the response.
+
+    Two-pass strategy:
+      1. Direct query on ai_runs.signal_id (fast path for new signals)
+      2. Fallback via pipeline_traces.correlation_id for older signals where
+         ai_runs.signal_id was never populated (handles the pre-fix race condition)
     """
     sb = _get_supabase()
     if not sb:
@@ -104,6 +109,7 @@ def get_ai_runs_bulk(signal_ids: str = Query(..., description="Comma-separated s
         if not int_ids:
             return {"runs": {}}
 
+        # Pass 1: direct signal_id lookup
         resp = (
             sb.table("ai_runs")
             .select("signal_id, recommendation, confidence, votes")
@@ -121,6 +127,50 @@ def get_ai_runs_bulk(signal_ids: str = Query(..., description="Comma-separated s
                         "confidence": row.get("confidence", 0),
                         "votes": row.get("votes") or {},
                     }
+
+        # Pass 2: fallback via pipeline_traces for any still-missing signals
+        # (covers older positions recorded before the race condition fix)
+        missing_ids = [sid for sid in int_ids if str(sid) not in runs]
+        if missing_ids:
+            try:
+                traces_resp = (
+                    sb.table("pipeline_traces")
+                    .select("signal_id, correlation_id")
+                    .in_("signal_id", missing_ids)
+                    .execute()
+                )
+                if traces_resp.data:
+                    corr_to_signal: Dict[str, int] = {}
+                    for t in traces_resp.data:
+                        if t.get("correlation_id") and t.get("signal_id"):
+                            corr_to_signal[t["correlation_id"]] = int(t["signal_id"])
+
+                    if corr_to_signal:
+                        corr_ids = list(corr_to_signal.keys())
+                        ai_resp = (
+                            sb.table("ai_runs")
+                            .select("correlation_id, recommendation, confidence, votes")
+                            .in_("correlation_id", corr_ids)
+                            .execute()
+                        )
+                        if ai_resp.data:
+                            for row in ai_resp.data:
+                                corr = row.get("correlation_id")
+                                if corr and corr in corr_to_signal:
+                                    sid = str(corr_to_signal[corr])
+                                    if sid not in runs:
+                                        rec = row.get("recommendation", "allow")
+                                        # Skip unfinished placeholder rows
+                                        if rec == "pending":
+                                            continue
+                                        runs[sid] = {
+                                            "recommendation": rec,
+                                            "confidence": row.get("confidence", 0),
+                                            "votes": row.get("votes") or {},
+                                        }
+            except Exception:
+                pass  # Fallback failure is silent — never break the main response
+
         return {"runs": runs}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
