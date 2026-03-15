@@ -251,8 +251,8 @@ function ExecutionQualityContent() {
                         .filter((v): v is number => v != null)
                         .sort((a, b) => a - b);
                       if (!vals.length) return '—';
-                      const idx = Math.floor(vals.length * 0.95);
-                      const p95 = vals[Math.min(idx, vals.length - 1)];
+                      const idx = Math.min(Math.ceil(vals.length * 0.95) - 1, vals.length - 1);
+                      const p95 = vals[idx];
                       return p95 < 1000 ? `${Math.round(p95)} ms` : `${(p95 / 1000).toFixed(2)} s`;
                     })()
                   : '—'

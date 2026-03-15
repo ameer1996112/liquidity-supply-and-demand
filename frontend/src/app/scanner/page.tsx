@@ -239,6 +239,14 @@ export default function ScannerPage() {
         </button>
       </div>
 
+      {/* Demo data warning — shown when API is unreachable and mock data is displayed */}
+      {error && symbols.length > 0 && (
+        <div className='flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-400'>
+          <span className='font-bold'>Demo data</span>
+          <span className='text-amber-500/80'>· Scanner API unavailable — showing placeholder symbols, not live zone data.</span>
+        </div>
+      )}
+
       {/* Summary chips */}
       {!isLoading && symbols.length > 0 && (
         <div className='flex items-center gap-2 flex-wrap'>

@@ -46,10 +46,13 @@ function computeAnalytics(signals: TradingSignal[]): AnalyticsData {
   const kpis = computeTradeKpis(signals);
   const closed = kpis.closedTrades;
 
-  const sorted = [...closed].sort(
-    (a, b) =>
-      new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-  );
+  // Sort by closed_at so equity curve reflects when PnL was realized,
+  // not when the trade was entered. Fall back to created_at for older records.
+  const sorted = [...closed].sort((a, b) => {
+    const aTime = new Date(a.closed_at ?? a.created_at).getTime();
+    const bTime = new Date(b.closed_at ?? b.created_at).getTime();
+    return aTime - bTime;
+  });
 
   // Outcome distribution
   let wins = 0;
@@ -102,12 +105,13 @@ function computeAnalytics(signals: TradingSignal[]): AnalyticsData {
   const avgWin = wins > 0 ? totalWinPnl / wins : 0;
   const avgLoss = losses > 0 ? totalLossPnl / losses : 0;
 
-  // Equity curve
+  // Equity curve — use closed_at as the x-axis date so the chart reflects
+  // when each trade's PnL was actually realized, not when it was opened.
   let cumPnl = 0;
   const equityCurve = sorted.map((s) => {
     cumPnl += getPnl(s) ?? 0;
     return {
-      date: format(new Date(s.created_at), 'MMM dd'),
+      date: format(new Date(s.closed_at ?? s.created_at), 'MMM dd'),
       cumPnl: Number(cumPnl.toFixed(2)),
     };
   });
@@ -135,13 +139,13 @@ function computeAnalytics(signals: TradingSignal[]): AnalyticsData {
     }))
     .sort((a, b) => b.pnl - a.pnl);
 
-  // PnL by day
+  // PnL by day — group by closed_at so each day reflects realized PnL
   const dayMap = new Map<
     string,
     { pnl: number; wins: number; losses: number }
   >();
   for (const s of closed) {
-    const day = format(new Date(s.created_at), 'MMM dd');
+    const day = format(new Date(s.closed_at ?? s.created_at), 'MMM dd');
     const pnl = getPnl(s) ?? 0;
     const existing = dayMap.get(day) || { pnl: 0, wins: 0, losses: 0 };
     existing.pnl += pnl;
