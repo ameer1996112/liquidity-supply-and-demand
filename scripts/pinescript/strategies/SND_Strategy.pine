@@ -220,8 +220,8 @@ require_major_liquidity = input.bool(true, "Require Strong Pivots", group = "⚙
 useOneCandleLiquidity = input.bool(true, "Allow 1-Candle Swings", group = "⚙️ Advanced / Manual Tweaks", tooltip = "ON: Detect liquidity even from single-candle reversals. OFF: Require multi-candle swings.")
 
 // Symbol-Specific Liquidity Distance (IMPORTANT FOR EACH PAIR)
-liq_max_distance_pips_forex = input.float(10.0, "Max Distance - Forex (pips)", minval = 5.0, group = "⚙️ Advanced / Manual Tweaks", tooltip = "How far can liquidity be from zone for Forex pairs. 10 pips = tight, 20+ = loose.")
-liq_max_distance_pips_gold  = input.float(300.0, "Max Distance - Gold (pips)", minval = 5.0, group = "⚙️ Advanced / Manual Tweaks", tooltip = "How far can liquidity be from zone for Gold. 300 pips = $3 in Gold terms.")
+liq_max_distance_pips_forex = input.float(20.0, "Max Distance - Forex (pips)", minval = 5.0, group = "⚙️ Advanced / Manual Tweaks", tooltip = "How far can liquidity be from zone for Forex pairs. 10 pips = tight, 20+ = loose.")
+liq_max_distance_pips_gold  = input.float(400.0, "Max Distance - Gold (pips)", minval = 5.0, group = "⚙️ Advanced / Manual Tweaks", tooltip = "How far can liquidity be from zone for Gold. 300 pips = $3 in Gold terms.")
 liq_max_distance_pips_index = input.float(5000.0, "Max Distance - Indices (pips)", minval = 100.0, group = "⚙️ Advanced / Manual Tweaks", tooltip = "How far can liquidity be from zone for Indices like NAS100.")
 
 // Hardcoded settings (optimal defaults)
@@ -272,7 +272,7 @@ risk_per_trade_pct    = input.float(0.5, "Risk Per Trade (%)", minval = 0.1, max
 stop_loss_buffer_pips = input.float(1.0, "SL Buffer (Pips)", minval = 0, step = 0.1, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Extra pips added below/above the zone wick for stop loss. Protects against wick hunts.")
 use_custom_rr         = input.bool(false, "☐ Override: Use Fixed RR", group = "⚙️ Advanced / Manual Tweaks", tooltip = "OFF (default): Uses smart SL-based rules (tight SL = higher RR). ON: Uses your custom ratio below for all trades.")
 risk_reward_ratio     = input.float(2.0, "   └─ Custom R:R Ratio", minval = 0.5, step = 0.1, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Your custom Risk:Reward ratio. Only used when 'Override: Use Fixed RR' is checked.")
-liq_entry_max_dist = input.float(50.0, "Max Zone-to-Liq Distance (Pips)", minval = 0.0, step = 1.0, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Block trades if zone is too far from liquidity. 50 pips = zone must be within 50 pips of swept liquidity.")
+liq_entry_max_dist = input.float(10.0, "Max Zone-to-Liq Distance (Pips)", minval = 0.0, step = 1.0, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Block trades if zone is too far from liquidity. Entry gate (tighter than scan distance) — only fires when inducement is close to zone boundary.")
 min_tp_distance_pips = input.float(5.0, "Min TP Distance (Pips)", minval = 1.0, step = 1.0, group = "⚙️ Advanced / Manual Tweaks", tooltip = "Minimum take profit distance. Prevents tiny TP that would be eaten by spread. 5 pips = TP must be at least 5 pips away.")
 
 // Advanced Settings (normally leave as defaults)
@@ -446,7 +446,7 @@ if use_profile_defaults
         liq_pivot_len := 5
         liq_max_distance_pips_forex := 10.0
         liq_max_distance_pips_gold := 200.0
-        liq_entry_max_dist := 30.0
+        liq_entry_max_dist := 8.0
         ai_quality_threshold := 70
         min_entry_grade := "B+"
         if not use_custom_rr
@@ -456,9 +456,9 @@ if use_profile_defaults
     else if is_balanced
         pvtMax := 5
         liq_pivot_len := 5
-        liq_max_distance_pips_forex := 15.0
-        liq_max_distance_pips_gold := 300.0
-        liq_entry_max_dist := 50.0
+        liq_max_distance_pips_forex := 20.0
+        liq_max_distance_pips_gold := 400.0
+        liq_entry_max_dist := 10.0
         ai_quality_threshold := 60
         min_entry_grade := "C+"
         if not use_custom_rr
@@ -470,7 +470,7 @@ if use_profile_defaults
         liq_pivot_len := 3
         liq_max_distance_pips_forex := 20.0
         liq_max_distance_pips_gold := 500.0
-        liq_entry_max_dist := 100.0
+        liq_entry_max_dist := 15.0
         ai_quality_threshold := 50
         min_entry_grade := "C"
         if not use_custom_rr
@@ -490,7 +490,7 @@ if use_profile_defaults
     if is_aggressive and not (is_gold or is_index)
         // Tighten liquidity filters for forex (critical!)
         liq_max_distance_pips_forex := 12.0  // ← Reduced from 20 (split between Aggressive 20 and Balanced 15)
-        liq_entry_max_dist := 60.0           // ← Reduced from 100 (split between Aggressive 100 and Balanced 50)
+        liq_entry_max_dist := 12.0           // ← Entry gate tighter than scan (12 pips scan, 12 pips gate = same quality)
 
         // Add quality filters (CRITICAL for forex win rate improvement)
         min_entry_grade := "C+"              // ← Improved from "C" (better zone quality)

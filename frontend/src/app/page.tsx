@@ -566,7 +566,6 @@ export default function DashboardPage() {
                 councilMap={councilMap}
                 onSelectSignal={handleSelectSignal}
                 maxRows={30}
-                className='max-h-[320px]'
               />
             )}
           </div>
