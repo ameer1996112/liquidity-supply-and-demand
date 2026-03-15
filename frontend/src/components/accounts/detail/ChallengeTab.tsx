@@ -244,7 +244,7 @@ export function ChallengeTab({ accountName }: ChallengeTabProps) {
             Edit Limits
           </Button>
           <span className='text-[10px] text-zinc-600 font-mono'>
-            {current.evaluation_start_date ? `Started ${current.evaluation_start_date}` : 'No start date set'}
+            {settings?.evaluation_start_date ? `Started ${settings.evaluation_start_date}` : 'No start date set'}
           </span>
         </div>
       ) : (

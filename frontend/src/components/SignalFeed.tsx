@@ -65,7 +65,9 @@ const columns: DataTableColumn<TradingSignal>[] = [
         <ScoreRing score={getScore(signal)} size='sm' />
         <StatusBadge status={signal.status} pnl={getPnl(signal)} compact />
         {signal.status?.toLowerCase() === 'execution_failed' && (
-          <AlertCircle className='h-3 w-3 text-orange-400 shrink-0' title='Trade approved but not executed in MetaTrader' />
+          <div title='Trade approved but not executed in MetaTrader'>
+            <AlertCircle className='h-3 w-3 text-orange-400 shrink-0' />
+          </div>
         )}
       </div>
     ),
