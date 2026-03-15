@@ -170,8 +170,9 @@ def _fail_fast_config():
             # Validate active strategy configs (Sprint 4.4).
             # Any invalid active strategy should hard-fail startup so we never
             # run with unsafe strategy-as-data.
+            # NOTE: validate_active_strategies_startup raises RuntimeError on
+            # invalid configs.  We let it propagate (crash the API) intentionally.
             from src.services.strategy_config import validate_active_strategies_startup
-
             validate_active_strategies_startup(sb_client)
 
             # Initialize worker
@@ -194,10 +195,10 @@ def _fail_fast_config():
         else:
             logger.warning("Supabase not configured, background sync disabled")
 
+    except RuntimeError:
+        raise  # Strategy validation failure — crash on purpose
     except Exception as e:
-        logger.error(f"Failed to initialize background sync worker or strategy validation: {e}")
-        # Don't fail startup if background worker init fails, but let explicit
-        # strategy validation RuntimeError bubble up before this handler.
+        logger.error(f"Failed to initialize background sync worker: {e}")
 
 
 def _shutdown_worker():
@@ -421,7 +422,6 @@ def set_ai_mode_endpoint(body: SetAiModeBody):
     Set AI mode (shadow | enforce). Enforce only allowed when graduation ready.
     Full audit log in ai_mode_toggles.
     """
-    from fastapi import HTTPException
     from src.services.ai_mode_override import set_ai_mode, invalidate_cache
     from src.services.graduation_service import (
         compute_shadow_metrics,
@@ -499,6 +499,8 @@ async def debate_ws(websocket: WebSocket):
     from fastapi import WebSocket as _WS
     await websocket.accept()
     logger.info("[WS] /ws/debate client connected: %s", websocket.client)
+    _r = None
+    pubsub = None
     try:
         import redis.asyncio as aioredis
         from config import get_settings as _gs
@@ -512,11 +514,19 @@ async def debate_ws(websocket: WebSocket):
                 await websocket.send_text(raw["data"])
             except Exception:
                 break
-        await pubsub.unsubscribe("trading:debate_logs")
-        await _r.aclose()
     except Exception as exc:
         logger.warning("[WS] /ws/debate error: %s", exc)
     finally:
+        if pubsub:
+            try:
+                await pubsub.unsubscribe("trading:debate_logs")
+            except Exception:
+                pass
+        if _r:
+            try:
+                await _r.aclose()
+            except Exception:
+                pass
         logger.info("[WS] /ws/debate client disconnected")
 
 

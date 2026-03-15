@@ -432,22 +432,13 @@ def _validate_flip_timing(payload: Dict[str, Any]) -> Optional[str]:
         return None
 
     try:
-        from datetime import datetime as _dt
+        from dateutil.parser import parse as _parse_dt
 
         if not isinstance(bar_time, str):
             logger.warning("bar_time is not a string (%s) — skipping FLIP timing check", type(bar_time))
             return None
 
-        cleaned = bar_time.replace("+00:00", "").replace("Z", "").split("+")[0].split("-0")[0] if "T" in bar_time else bar_time
-        for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%d %H:%M:%S"):
-            try:
-                dt = _dt.strptime(cleaned, fmt)
-                break
-            except ValueError:
-                continue
-        else:
-            from dateutil.parser import parse as _parse_dt
-            dt = _parse_dt(bar_time)
+        dt = _parse_dt(bar_time)
 
         if dt.minute not in {0, 15, 30, 45}:
             return (
@@ -559,6 +550,9 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
     dead zone, trading hours, daily trade limit.
     Returns None if all pass, rejection reason string if any fails.
     """
+    from datetime import datetime as _dt, timezone
+    from dateutil.parser import parse as _parse_dt
+
     s = get_settings()
 
     # --- Zone quality score ---
@@ -607,17 +601,7 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
         bar_time = payload.get("bar_time")
         if bar_time and isinstance(bar_time, str):
             try:
-                from datetime import datetime as _dt
-                cleaned = bar_time.replace("+00:00", "").replace("Z", "").split("+")[0].split("-0")[0] if "T" in bar_time else bar_time
-                for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%d %H:%M:%S"):
-                    try:
-                        dt = _dt.strptime(cleaned, fmt)
-                        break
-                    except ValueError:
-                        continue
-                else:
-                    from dateutil.parser import parse as _parse_dt
-                    dt = _parse_dt(bar_time)
+                dt = _parse_dt(bar_time)
                 if dt.minute >= 50:
                     return f"Dead zone: bar_time {bar_time} is in last 10 min of hour (minute={dt.minute})"
             except Exception:
@@ -628,17 +612,7 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
         bar_time = payload.get("bar_time")
         if bar_time and isinstance(bar_time, str):
             try:
-                from datetime import datetime as _dt
-                cleaned = bar_time.replace("+00:00", "").replace("Z", "").split("+")[0].split("-0")[0] if "T" in bar_time else bar_time
-                for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%d %H:%M:%S"):
-                    try:
-                        dt = _dt.strptime(cleaned, fmt)
-                        break
-                    except ValueError:
-                        continue
-                else:
-                    from dateutil.parser import parse as _parse_dt
-                    dt = _parse_dt(bar_time)
+                dt = _parse_dt(bar_time)
                 if dt.hour < s.pine_trading_start_hour or dt.hour >= s.pine_trading_end_hour:
                     return f"Outside trading hours: hour={dt.hour} (allowed {s.pine_trading_start_hour}-{s.pine_trading_end_hour} UTC)"
             except Exception:
@@ -811,8 +785,8 @@ def _get_account_daily_pnl(profile: Optional[Dict[str, Any]] = None) -> float:
     if not supabase:
         return 0.0
     try:
-        from datetime import date, datetime
-        today_start = datetime.combine(date.today(), datetime.min.time()).isoformat()
+        from datetime import datetime as _dt, timezone
+        today_start = _dt.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
         q = supabase.table("trading_signals").select("pnl_usd").eq("status", "closed").gte("created_at", today_start)
         if profile and profile.get("id") is not None:
             q = q.eq("broker_profile_id", profile["id"])

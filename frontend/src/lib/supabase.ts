@@ -251,11 +251,12 @@ export async function fetchSignalStats(): Promise<SignalStats> {
       const { data: allClosed } = await supabase
         .from('trading_signals')
         .select(
-          'pnl, pnl_usd, entry, exit_fill_price, size, side, run_mode, status'
+          'pnl, pnl_usd, entry, exit_fill_price, exit_price, size, side, run_mode, status'
         )
         .or(
-          'status.eq.closed,status.eq.executed,status.eq.CLOSED,status.eq.EXECUTED'
-        );
+          'status.ilike.closed,status.ilike.executed,status.ilike.open'
+        )
+        .limit(5000);
 
       if (allClosed) {
         totalPnl = (allClosed as ClosedSignalRow[]).reduce((sum, s) => {

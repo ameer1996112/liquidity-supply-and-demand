@@ -226,8 +226,6 @@ def process_trade(
                             logger.debug("get_deals_by_position not available, falling back to get_historical_deals")
                             deals = adapter.get_historical_deals(start_time, end_time)
 
-                        deals = adapter.get_historical_deals(start_time, end_time)
-
                         # Process ALL exit deals for the position (DEAL_ENTRY_OUT)
                         total_pnl = 0.0
                         total_commission = 0.0
@@ -401,7 +399,7 @@ def process_trade(
                 risk_pct = _profile_risk if (_profile_risk is not None and _profile_risk > 0) else _dynamic_risk
 
                 # ── Kelly Criterion Position Sizing ────────────────────
-                if s.kelly_enabled and supabase:
+                if s.kelly_enabled and supabase_module.supabase:
                     try:
                         from src.services.position_optimizer import PositionOptimizer
 
@@ -410,7 +408,7 @@ def process_trade(
 
                         # Get closed trades for win rate calculation
                         stats_query = (
-                            supabase.table("trading_signals")
+                            supabase_module.supabase.table("trading_signals")
                             .select("pnl_r, outcome")
                             .eq("mode", mode_filter)
                             .in_("outcome", ["win", "loss"])
