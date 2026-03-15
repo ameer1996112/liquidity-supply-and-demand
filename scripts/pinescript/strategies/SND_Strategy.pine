@@ -36,8 +36,7 @@ strategy("Institutional Liquidity Protocol [Pro]",
      shorttitle = "S&D Algo [Pro]",
      overlay = true,
      max_bars_back = 5000,
-     initial_capital = 10000000,  // ⚠️ For BACKTESTING ONLY - NOT used for live position sizing!
-                                   // Live position sizing uses "account_size_usd" input below (line ~260)
+     initial_capital = 50000,      // Matches account_size_usd for accurate backtest P&L (was 10M which made % useless)
      currency = currency.USD,
      default_qty_type = strategy.fixed,
      default_qty_value = 100,

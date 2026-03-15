@@ -674,6 +674,29 @@ def _get_account_daily_pnl(profile: Optional[Dict[str, Any]] = None) -> float:
         return 0.0
 
 
+def _get_account_daily_trade_count(profile: Optional[Dict[str, Any]] = None) -> int:
+    """Count today's executed/active/closed trades for a specific account."""
+    if not supabase:
+        return 0
+    try:
+        from datetime import datetime as _dt, timezone
+        today_start = _dt.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        q = (
+            supabase.table("trading_signals")
+            .select("id")
+            .in_("status", ["active", "executed", "closed"])
+            .gte("created_at", today_start)
+        )
+        if profile and profile.get("id") is not None:
+            q = q.eq("broker_profile_id", profile["id"])
+        elif profile and profile.get("name"):
+            q = q.eq("account_name", profile["name"])
+        result = q.execute()
+        return len(result.data or [])
+    except Exception:
+        return 0
+
+
 def _get_account_positions_from_db(profile: Optional[Dict[str, Any]] = None) -> list:
     """Fetch active positions scoped to a specific account."""
     try:
@@ -862,6 +885,27 @@ def _execute_for_profile(
         log_guard_decision("account_guard", "rejected", rejection, symbol)
         logger.warning("ACCOUNT GUARD BLOCKED [%s]: %s", account_name, rejection)
         return
+
+    # Apply PropGuard multiplier from the guards that just ran
+    if acct_multiplier_key in payload:
+        payload["_risk_multiplier"] = payload[acct_multiplier_key]
+
+    # ── Half-risk enforcement for 2nd daily trade (Python-side authority) ────────────
+    # Pine Script also applies half-risk for the 2nd trade, but Python is the authority.
+    # This ensures the cap holds even if Pine has a bug or risk% changes mid-day.
+    max_daily = getattr(s, "pine_max_trades_per_day", 0)
+    if max_daily >= 2:
+        try:
+            acct_today_count = _get_account_daily_trade_count(profile)
+            if acct_today_count == 1:  # this incoming trade will be the 2nd
+                current_mult = float(payload.get("_risk_multiplier", 1.0))
+                payload["_risk_multiplier"] = current_mult * 0.5
+                logger.info(
+                    "Half-risk [%s]: 2nd trade of day — multiplier %.2f → %.2f",
+                    account_name, current_mult, payload["_risk_multiplier"],
+                )
+        except Exception as e:
+            logger.warning("Half-risk daily count failed for %s: %s (fail-open)", account_name, e)
 
     # Execute
     try:
