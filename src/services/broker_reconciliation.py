@@ -128,9 +128,9 @@ class BrokerReconciliation:
 
     def _fetch_closed_deal(self, trade: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Fetch the closed deal from broker history for a specific trade (INTERNAL)."""
-        # Get recent deals (last 24 hours to find the closed trade)
+        # Get recent deals — look back 7 days to cover trades held for several days.
         end_time = datetime.now(timezone.utc)
-        start_time = end_time - timedelta(hours=48)  # Look back 48 hours
+        start_time = end_time - timedelta(days=7)
 
         start_str = start_time.strftime("%Y-%m-%dT%H:%M:%SZ")
         end_str = end_time.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -205,16 +205,19 @@ class BrokerReconciliation:
     def _update_trade_closed(self, trade: Dict[str, Any], deal: Dict[str, Any]) -> None:
         """Update trade in DB with final closed state from broker deal."""
 
-        # Extract PnL from deal
-        profit = deal.get("profit", 0.0) or 0.0
-        commission = deal.get("commission", 0.0) or 0.0
-        swap = deal.get("swap", 0.0) or 0.0
-        total_pnl = profit + commission + swap
+        # Extract PnL components from deal.
+        # MT5 treats commission as a separate account-level item — the per-trade
+        # profit shown in MT5 History is GROSS profit (before commission).
+        # We store gross profit in pnl_usd to match what MT5 shows, and keep
+        # commission/swap in their own columns for the account-level totals.
+        profit = float(deal.get("profit", 0.0) or 0.0)
+        commission = float(deal.get("commission", 0.0) or 0.0)
+        swap = float(deal.get("swap", 0.0) or 0.0)
 
-        # Determine outcome
-        if total_pnl > 0:
+        # Determine outcome from gross profit (matching MT5 semantics)
+        if profit > 0:
             outcome = "win"
-        elif total_pnl < 0:
+        elif profit < 0:
             outcome = "loss"
         else:
             outcome = "breakeven"
@@ -225,7 +228,6 @@ class BrokerReconciliation:
         # Closed at time
         closed_at = deal.get("time")
         if closed_at:
-            # Parse ISO timestamp if needed
             if isinstance(closed_at, str):
                 try:
                     closed_at = datetime.fromisoformat(closed_at.replace("Z", "+00:00"))
@@ -234,11 +236,11 @@ class BrokerReconciliation:
         else:
             closed_at = datetime.now(timezone.utc)
 
-        # Update DB
+        # Update DB — pnl_usd = gross profit (matches MT5 per-trade display)
         self.supabase.table("trading_signals").update({
             "status": "closed",
             "outcome": outcome,
-            "pnl_usd": total_pnl,
+            "pnl_usd": profit,
             "closed_at": closed_at.isoformat(),
             "exit_fill_price": close_price,
             "commission": commission,
@@ -246,9 +248,11 @@ class BrokerReconciliation:
         }).eq("id", trade["id"]).execute()
 
         logger.info(
-            f"Updated trade {trade['id']}: outcome={outcome}, pnl={total_pnl:.2f}, "
+            f"Updated trade {trade['id']}: outcome={outcome}, gross_pnl={profit:.2f}, "
+            f"commission={commission:.2f}, swap={swap:.2f}, "
             f"closed_at={closed_at.isoformat()}",
         )
+
 
     def _update_trade_closed_fallback(self, trade: Dict[str, Any]) -> None:
         """Update trade when we can't fetch deal details - use current DB data."""
