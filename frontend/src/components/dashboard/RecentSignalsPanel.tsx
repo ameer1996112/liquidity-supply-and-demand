@@ -272,7 +272,8 @@ export function RecentSignalsPanel({
             st === 'risk_rejected' ||
             st === 'kill_switch_blocked' ||
             st === 'staleness_rejected' ||
-            st === 'received'
+            st === 'received' ||
+            st === 'execution_failed'
           );
         });
       default:

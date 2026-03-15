@@ -602,13 +602,15 @@ def process_trade(
                     update_alert_status(alert_id, "OPEN")
                 elif exec_result.status in ("filled", "submitted") and not broker_order_id:
                     logger.warning(
-                        "Execution for alert #%s returned status=%s but no broker_order_id; leaving status non-OPEN.",
+                        "Execution for alert #%s returned status=%s but no broker_order_id; marking execution_failed.",
                         alert_id,
                         exec_result.status,
                     )
+                    update_alert_status(alert_id, "execution_failed", notes="Broker accepted order but returned no order ID")
             except Exception as e:  # noqa: BLE001
                 logger.error("Execution adapter error for alert #%s: %s", alert_id, e)
                 log_event(alert_id, "execution_failed", "logic", {"error": str(e)[:200]})
+                update_alert_status(alert_id, "execution_failed", notes=f"Execution exception: {str(e)[:200]}")
 
     # Pass through AI ensemble result (if available) so Discord can render
     # the full brain decision matrix.

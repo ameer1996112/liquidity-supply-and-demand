@@ -87,6 +87,30 @@ const CONFIGS: Record<
     className: () =>
       'bg-[var(--to-warning)]/15 text-[var(--to-warning)] border-[var(--to-warning)]/40',
   },
+  execution_failed: {
+    icon: () => <XCircle className='w-3 h-3' />,
+    label: 'NOT EXEC',
+    className: () =>
+      'bg-orange-500/15 text-orange-400 border-orange-500/40',
+  },
+  staleness_rejected: {
+    icon: () => <Clock className='w-3 h-3' />,
+    label: 'STALE',
+    className: () =>
+      'bg-[var(--to-surface-raised)] text-[var(--to-text-dim)] border-[var(--to-border-subtle)]',
+  },
+  risk_rejected: {
+    icon: () => <ShieldX className='w-3 h-3' />,
+    label: 'RISK',
+    className: () =>
+      'bg-[var(--to-short)]/15 text-[var(--to-short)] border-[var(--to-short)]/40',
+  },
+  kill_switch_blocked: {
+    icon: () => <ShieldX className='w-3 h-3' />,
+    label: 'KILL SW',
+    className: () =>
+      'bg-[var(--to-short)]/15 text-[var(--to-short)] border-[var(--to-short)]/40',
+  },
 };
 
 const DEFAULT_CONFIG = {
