@@ -223,6 +223,185 @@ def get_risk_status():
     )
 
 
+@router.get("/dashboard")
+def get_risk_dashboard():
+    """
+    Full risk state dashboard: daily/weekly/monthly PnL, active guard states,
+    guard rejection stats, multipliers, consecutive losses.
+    """
+    from datetime import timedelta
+
+    s = get_settings()
+    sb = _get_supabase()
+    now_utc = datetime.now(timezone.utc)
+
+    today_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    week_start = (now_utc - timedelta(days=7)).isoformat()
+    month_start = now_utc.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+
+    # ── PnL windows ──────────────────────────────────────────────────
+    daily_pnl = weekly_pnl = monthly_pnl = 0.0
+    consecutive_losses = 0
+    try:
+        month_resp = (
+            sb.table("trading_signals")
+            .select("pnl_usd, created_at, exit_time")
+            .eq("status", "closed")
+            .gte("created_at", month_start)
+            .order("exit_time", desc=True)
+            .execute()
+        )
+        rows = month_resp.data or []
+        for t in rows:
+            pnl = float(t.get("pnl_usd") or 0)
+            monthly_pnl += pnl
+            created = t.get("created_at", "")
+            if created >= today_start:
+                daily_pnl += pnl
+            if created >= week_start:
+                weekly_pnl += pnl
+        # Consecutive losses from latest closed trades
+        last_resp = (
+            sb.table("trading_signals")
+            .select("pnl_usd")
+            .eq("status", "closed")
+            .order("exit_time", desc=True)
+            .limit(10)
+            .execute()
+        )
+        for t in (last_resp.data or []):
+            if (float(t.get("pnl_usd") or 0)) < 0:
+                consecutive_losses += 1
+            else:
+                break
+    except Exception:
+        pass
+
+    # ── Account balance ───────────────────────────────────────────────
+    account_balance = float(s.account_balance)
+    try:
+        cutoff = (now_utc - timedelta(hours=24)).isoformat()
+        accounts_resp = sb.table("account_strategies").select("account_name").eq("is_active", True).execute()
+        if accounts_resp.data:
+            total = 0.0
+            found = False
+            for acct in accounts_resp.data:
+                snap = (
+                    sb.table("account_status_snapshots")
+                    .select("balance")
+                    .eq("account_name", acct["account_name"])
+                    .gte("snapshot_time", cutoff)
+                    .order("snapshot_time", desc=True)
+                    .limit(1)
+                    .execute()
+                )
+                if snap.data:
+                    total += float(snap.data[0]["balance"])
+                    found = True
+            if found:
+                account_balance = total
+    except Exception:
+        pass
+
+    # ── Active guard states ───────────────────────────────────────────
+    daily_loss_pct = abs(daily_pnl / account_balance * 100) if daily_pnl < 0 and account_balance > 0 else 0.0
+    daily_profit_pct = (daily_pnl / account_balance * 100) if daily_pnl > 0 and account_balance > 0 else 0.0
+    weekly_loss_pct = abs(weekly_pnl / account_balance * 100) if weekly_pnl < 0 and account_balance > 0 else 0.0
+    monthly_loss_pct = abs(monthly_pnl / account_balance * 100) if monthly_pnl < 0 and account_balance > 0 else 0.0
+
+    guards: Dict[str, Any] = {
+        "kill_switch": {"active": False, "label": ""},
+        "drawdown_scaling": {"active": False, "label": "Normal (1.0x)", "multiplier": 1.0},
+        "profit_lockdown": {"active": False, "label": "No lock-in", "multiplier": 1.0},
+        "weekly_loss_limit": {"active": False, "label": "", "pct_used": round(weekly_loss_pct, 2)},
+        "monthly_loss_limit": {"active": False, "label": "", "pct_used": round(monthly_loss_pct, 2)},
+        "consecutive_losses": {"count": consecutive_losses, "active": False, "label": ""},
+    }
+
+    # Kill switch
+    try:
+        from src.adapters.redis_queue import get_redis
+        redis_kill = get_redis().get("trading:kill_switch") == "1"
+        env_kill = bool(getattr(s, "trading_kill_switch", False))
+        guards["kill_switch"]["active"] = redis_kill or env_kill
+        if redis_kill or env_kill:
+            guards["kill_switch"]["label"] = "Kill switch ENGAGED"
+    except Exception:
+        pass
+
+    # Drawdown scaling
+    dd_th1 = getattr(s, "drawdown_threshold_1", 0.02) * 100
+    dd_th2 = getattr(s, "drawdown_threshold_2", 0.03) * 100
+    if daily_loss_pct >= dd_th2:
+        guards["drawdown_scaling"].update({"active": True, "label": f"-{daily_loss_pct:.1f}% → 0.25x size", "multiplier": 0.25})
+    elif daily_loss_pct >= dd_th1:
+        guards["drawdown_scaling"].update({"active": True, "label": f"-{daily_loss_pct:.1f}% → 0.5x size", "multiplier": 0.50})
+
+    # Profit lock-in
+    pl_th1 = getattr(s, "profit_lockdown_threshold_1", 0.02) * 100
+    pl_th2 = getattr(s, "profit_lockdown_threshold_2", 0.03) * 100
+    if daily_profit_pct >= pl_th2:
+        guards["profit_lockdown"].update({"active": True, "label": f"+{daily_profit_pct:.1f}% → 0.5x size", "multiplier": 0.50})
+    elif daily_profit_pct >= pl_th1:
+        guards["profit_lockdown"].update({"active": True, "label": f"+{daily_profit_pct:.1f}% → 0.75x size", "multiplier": 0.75})
+
+    # Weekly / monthly limits
+    w_limit = getattr(s, "weekly_max_loss_pct", 10.0)
+    if weekly_loss_pct >= w_limit:
+        guards["weekly_loss_limit"].update({"active": True, "label": f"HALTED — {weekly_loss_pct:.1f}% / {w_limit:.0f}% limit"})
+
+    m_limit = getattr(s, "monthly_max_loss_pct", 8.0)
+    if monthly_loss_pct >= m_limit:
+        guards["monthly_loss_limit"].update({"active": True, "label": f"HALTED — {monthly_loss_pct:.1f}% / {m_limit:.0f}% limit"})
+
+    # Consecutive losses
+    max_consec = getattr(s, "max_consecutive_losses", 3)
+    if consecutive_losses >= max_consec:
+        guards["consecutive_losses"].update({"active": True, "label": f"{consecutive_losses} losses in a row — cooling off"})
+
+    # ── Guard rejection stats (last 7 days from trade_events) ────────
+    rejection_stats: Dict[str, int] = {}
+    try:
+        events_resp = (
+            sb.table("trade_events")
+            .select("event_type, metadata")
+            .gte("created_at", week_start)
+            .in_("event_type", ["guard_decision"])
+            .execute()
+        )
+        for ev in (events_resp.data or []):
+            meta = ev.get("metadata") or {}
+            guard_name = meta.get("guard_name", "unknown")
+            result = meta.get("result", "")
+            if result in ("rejected", "blocked"):
+                rejection_stats[guard_name] = rejection_stats.get(guard_name, 0) + 1
+    except Exception:
+        pass
+
+    return {
+        "account_balance": round(account_balance, 2),
+        "pnl": {
+            "daily": round(daily_pnl, 2),
+            "daily_pct": round(daily_loss_pct if daily_pnl < 0 else -daily_profit_pct, 2),
+            "weekly": round(weekly_pnl, 2),
+            "weekly_pct": round(-weekly_loss_pct if weekly_pnl < 0 else weekly_pnl / account_balance * 100, 2),
+            "monthly": round(monthly_pnl, 2),
+            "monthly_pct": round(-monthly_loss_pct if monthly_pnl < 0 else monthly_pnl / account_balance * 100, 2),
+        },
+        "consecutive_losses": consecutive_losses,
+        "guards": guards,
+        "rejection_stats_7d": rejection_stats,
+        "limits": {
+            "daily_loss_kill_pct": s.trinity_max_daily_loss_pct,
+            "weekly_loss_pct": getattr(s, "weekly_max_loss_pct", 10.0),
+            "monthly_loss_pct": getattr(s, "monthly_max_loss_pct", 8.0),
+            "max_consecutive_losses": getattr(s, "max_consecutive_losses", 3),
+            "profit_lockdown_threshold_1_pct": getattr(s, "profit_lockdown_threshold_1", 0.02) * 100,
+            "profit_lockdown_threshold_2_pct": getattr(s, "profit_lockdown_threshold_2", 0.03) * 100,
+        },
+    }
+
+
 @router.post("/kill-switch")
 def toggle_kill_switch(body: KillSwitchRequest):
     """Toggle kill switch on/off.  Sets Redis key for cross-process sync + audit log."""

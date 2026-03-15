@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>TradeOps — Task & Bug Board</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0f14;
+      --surface: #13161e;
+      --surface2: #1a1e2a;
+      --surface3: #22273a;
+      --border: #2a2f42;
+      --text: #e2e8f0;
+      --text-muted: #6b7280;
+      --text-dim: #9ca3af;
+      --accent: #6366f1;
+      --accent-glow: rgba(99,102,241,0.15);
+      --green: #10b981;
+      --yellow: #f59e0b;
+      --red: #ef4444;
+      --orange: #f97316;
+      --blue: #3b82f6;
+      --purple: #8b5cf6;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── TOP BAR ── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+      height: 58px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .topbar-left { display: flex; align-items: center; gap: 14px; }
+    .logo { font-size: 16px; font-weight: 700; color: var(--accent); letter-spacing: 0.04em; }
+    .logo span { color: var(--text-dim); }
+    .breadcrumb { font-size: 12px; color: var(--text-muted); }
+    .breadcrumb b { color: var(--text-dim); }
+
+    .topbar-right { display: flex; align-items: center; gap: 10px; }
+    .btn-new {
+      display: flex; align-items: center; gap: 6px;
+      background: var(--accent); color: #fff;
+      border: none; border-radius: 7px;
+      padding: 7px 14px; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: all 0.2s;
+      box-shadow: 0 0 18px rgba(99,102,241,0.4);
+    }
+    .btn-new:hover { background: #4f51d8; box-shadow: 0 0 28px rgba(99,102,241,0.6); }
+
+    /* ── MAIN ── */
+    .main { padding: 20px 28px; }
+
+    .board-header {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 20px;
+    }
+    .board-title { font-size: 20px; font-weight: 700; }
+    .badge-count {
+      background: var(--surface3); border: 1px solid var(--border);
+      border-radius: 20px; padding: 2px 10px; font-size: 12px; color: var(--text-dim);
+    }
+    .filters { display: flex; gap: 8px; margin-left: auto; }
+    .filter-chip {
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
+      padding: 5px 12px; font-size: 12px; color: var(--text-dim); cursor: pointer;
+      transition: all 0.15s;
+    }
+    .filter-chip:hover { border-color: var(--accent); color: var(--text); }
+    .filter-chip.active { border-color: var(--accent); color: var(--accent); background: var(--accent-glow); }
+
+    /* ── KANBAN ── */
+    .kanban {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      align-items: start;
+    }
+
+    .column {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .col-header {
+      display: flex; align-items: center; gap: 8px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      position: relative;
+    }
+    .col-header::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      border-radius: 12px 12px 0 0;
+    }
+    .col-backlog .col-header::before { background: var(--text-muted); }
+    .col-todo .col-header::before { background: var(--blue); }
+    .col-inprogress .col-header::before { background: var(--yellow); }
+    .col-done .col-header::before { background: var(--green); }
+
+    .col-icon { font-size: 15px; }
+    .col-name { font-size: 13px; font-weight: 600; }
+    .col-count {
+      margin-left: auto;
+      background: var(--surface3); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1px 8px; font-size: 11px; color: var(--text-muted);
+    }
+
+    .col-body { padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+
+    /* ── TICKET CARD ── */
+    .card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 13px 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+    .card::before {
+      content: '';
+      position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    }
+    .card.priority-critical::before { background: var(--red); }
+    .card.priority-high::before { background: var(--orange); }
+    .card.priority-medium::before { background: var(--yellow); }
+    .card.priority-low::before { background: var(--blue); }
+
+    .card:hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent), 0 4px 20px rgba(99,102,241,0.12);
+      transform: translateY(-1px);
+    }
+
+    .card-top { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
+    .card-id { font-size: 10px; color: var(--text-muted); font-weight: 600; letter-spacing: 0.05em; flex-shrink: 0; margin-top: 2px; }
+    .card-type-icon { font-size: 11px; flex-shrink: 0; margin-top: 2px; }
+    .card-title { font-size: 13px; font-weight: 500; line-height: 1.4; flex: 1; }
+
+    .card-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .tag {
+      border-radius: 5px; padding: 2px 8px; font-size: 11px; font-weight: 500;
+    }
+    .tag-component { background: rgba(99,102,241,0.12); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.25); }
+    .tag-pine    { background: rgba(16,185,129,0.1); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.2); }
+    .tag-python  { background: rgba(59,130,246,0.1); color: #93c5fd; border: 1px solid rgba(59,130,246,0.2); }
+    .tag-supa    { background: rgba(139,92,246,0.1); color: #c4b5fd; border: 1px solid rgba(139,92,246,0.2); }
+    .tag-fe      { background: rgba(249,115,22,0.1); color: #fdba74; border: 1px solid rgba(249,115,22,0.2); }
+    .tag-mt5     { background: rgba(245,158,11,0.1); color: #fcd34d; border: 1px solid rgba(245,158,11,0.2); }
+    .tag-ai      { background: rgba(236,72,153,0.1); color: #f9a8d4; border: 1px solid rgba(236,72,153,0.2); }
+
+    .priority-badge {
+      border-radius: 5px; padding: 2px 8px; font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+    }
+    .p-critical { background: rgba(239,68,68,0.15); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); }
+    .p-high     { background: rgba(249,115,22,0.15); color: #fdba74; border: 1px solid rgba(249,115,22,0.3); }
+    .p-medium   { background: rgba(245,158,11,0.15); color: #fcd34d; border: 1px solid rgba(245,158,11,0.3); }
+    .p-low      { background: rgba(59,130,246,0.15);  color: #93c5fd; border: 1px solid rgba(59,130,246,0.3); }
+
+    .card-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+    .card-meta { font-size: 11px; color: var(--text-muted); }
+    .avatar {
+      width: 22px; height: 22px; border-radius: 50%; background: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 700; color: #fff;
+    }
+
+    /* ── ADD CARD BUTTON ── */
+    .add-card {
+      display: flex; align-items: center; gap: 6px;
+      padding: 8px 12px; border-radius: 7px; border: 1px dashed var(--border);
+      color: var(--text-muted); font-size: 12px; cursor: pointer;
+      transition: all 0.15s; margin: 4px 12px 12px;
+    }
+    .add-card:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-glow); }
+
+    /* ── MODAL ── */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+      display: flex; align-items: center; justify-content: center; z-index: 200;
+    }
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      width: 540px; max-height: 90vh; overflow-y: auto;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+      animation: slideUp 0.2s ease;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(20px); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
+    .modal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .modal-title { font-size: 16px; font-weight: 700; }
+    .modal-close {
+      background: var(--surface3); border: none; border-radius: 6px;
+      width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--text-dim); font-size: 16px; transition: all 0.15s;
+    }
+    .modal-close:hover { background: var(--border); color: var(--text); }
+
+    .modal-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-label { font-size: 12px; font-weight: 600; color: var(--text-dim); letter-spacing: 0.04em; }
+    .form-input, .form-select, .form-textarea {
+      background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text); font-family: 'Inter', sans-serif; font-size: 13px;
+      padding: 9px 12px; outline: none; transition: border 0.15s; width: 100%;
+    }
+    .form-input::placeholder, .form-textarea::placeholder { color: var(--text-muted); }
+    .form-input:focus, .form-select:focus, .form-textarea:focus { border-color: var(--accent); }
+    .form-select option { background: var(--surface2); }
+    .form-textarea { resize: vertical; min-height: 90px; }
+
+    .ai-note {
+      background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.2);
+      border-radius: 8px; padding: 10px 14px;
+      display: flex; gap: 10px; align-items: flex-start;
+    }
+    .ai-note-icon { font-size: 15px; flex-shrink: 0; }
+    .ai-note-text { font-size: 12px; color: #a5b4fc; line-height: 1.5; }
+    .ai-note-text b { color: var(--accent); }
+
+    .modal-footer {
+      display: flex; gap: 10px; justify-content: flex-end;
+      padding: 16px 24px 20px; border-top: 1px solid var(--border);
+    }
+    .btn-cancel {
+      background: var(--surface3); border: 1px solid var(--border); color: var(--text-dim);
+      border-radius: 7px; padding: 8px 16px; font-size: 13px; font-weight: 500; cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-cancel:hover { color: var(--text); border-color: var(--text-muted); }
+    .btn-create {
+      background: var(--accent); border: none; color: #fff;
+      border-radius: 7px; padding: 8px 18px; font-size: 13px; font-weight: 600; cursor: pointer;
+      box-shadow: 0 0 14px rgba(99,102,241,0.4); transition: all 0.2s;
+    }
+    .btn-create:hover { background: #4f51d8; }
+
+    /* ── AI AGENT FEED ── */
+    .agent-feed {
+      margin-top: 24px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px; overflow: hidden;
+    }
+    .feed-header {
+      display: flex; align-items: center; gap: 10px; padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(90deg, rgba(99,102,241,0.05) 0%, transparent 100%);
+    }
+    .feed-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0;
+      animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+    .feed-title { font-size: 13px; font-weight: 600; }
+    .feed-sub { font-size: 11px; color: var(--text-muted); margin-left: auto; }
+
+    .feed-list { padding: 12px 18px; display: flex; flex-direction: column; gap: 10px; }
+    .feed-item { display: flex; gap: 12px; align-items: flex-start; }
+    .feed-avatar {
+      width: 28px; height: 28px; border-radius: 7px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; font-size: 13px;
+    }
+    .fa-ai   { background: rgba(99,102,241,0.2); }
+    .fa-bot  { background: rgba(16,185,129,0.2); }
+    .fa-warn { background: rgba(245,158,11,0.2); }
+    .feed-content { flex: 1; }
+    .feed-msg { font-size: 12px; color: var(--text-dim); line-height: 1.5; }
+    .feed-msg b { color: var(--text); }
+    .feed-msg .ticket-ref {
+      color: var(--accent); font-weight: 600; cursor: pointer;
+    }
+    .feed-time { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+    /* ── STATS ROW ── */
+    .stats-row { display: flex; gap: 12px; margin-bottom: 20px; }
+    .stat-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      padding: 14px 18px; flex: 1; display: flex; align-items: center; gap: 14px;
+    }
+    .stat-icon { font-size: 20px; }
+    .stat-val { font-size: 22px; font-weight: 700; line-height: 1; }
+    .stat-label { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+    .stat-red  .stat-val { color: var(--red); }
+    .stat-yellow .stat-val { color: var(--yellow); }
+    .stat-blue .stat-val  { color: var(--blue); }
+    .stat-green .stat-val { color: var(--green); }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="logo">TradeOps <span>/ Board</span></div>
+    <div class="breadcrumb">Algo-Trading System &rsaquo; <b>Task & Bug Board</b></div>
+  </div>
+  <div class="topbar-right">
+    <div class="filter-chip active">All</div>
+    <div class="filter-chip">Bugs</div>
+    <div class="filter-chip">Tasks</div>
+    <div class="filter-chip">Features</div>
+    <button class="btn-new" onclick="openModal()">＋ New Ticket</button>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- STATS -->
+  <div class="stats-row">
+    <div class="stat-card stat-red">
+      <div class="stat-icon">🛑</div>
+      <div>
+        <div class="stat-val">3</div>
+        <div class="stat-label">Active Bugs</div>
+      </div>
+    </div>
+    <div class="stat-card stat-yellow">
+      <div class="stat-icon">⏳</div>
+      <div>
+        <div class="stat-val">2</div>
+        <div class="stat-label">In Progress</div>
+      </div>
+    </div>
+    <div class="stat-card stat-blue">
+      <div class="stat-icon">📋</div>
+      <div>
+        <div class="stat-val">4</div>
+        <div class="stat-label">Sprint Tasks</div>
+      </div>
+    </div>
+    <div class="stat-card stat-green">
+      <div class="stat-icon">✅</div>
+      <div>
+        <div class="stat-val">12</div>
+        <div class="stat-label">Completed</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOARD HEADER -->
+  <div class="board-header">
+    <div class="board-title">📊 Sprint Board</div>
+    <div class="badge-count">2026-03-15</div>
+    <div class="filters">
+      <div class="filter-chip">Component ▾</div>
+      <div class="filter-chip">Priority ▾</div>
+      <div class="filter-chip">Assignee ▾</div>
+    </div>
+  </div>
+
+  <!-- KANBAN COLUMNS -->
+  <div class="kanban">
+
+    <!-- BACKLOG -->
+    <div class="column col-backlog">
+      <div class="col-header">
+        <span class="col-icon">📋</span>
+        <span class="col-name">Backlog / Known Issues</span>
+        <span class="col-count">3</span>
+      </div>
+      <div class="col-body">
+
+        <div class="card priority-medium">
+          <div class="card-top">
+            <span class="card-id">BUG-014</span>
+            <span class="card-type-icon">🐛</span>
+            <span class="card-title">ML Guardian occasionally blocks valid high-confidence signals</span>
+          </div>
+          <div class="card-tags">
+            <span class="tag tag-python">Python Backend</span>
+            <span class="priority-badge p-medium">MEDIUM</span>
+          </div>
+          <div class="card-footer">
+            <span class="card-meta">Opened 3 days ago</span>
+            <div class="avatar">A</div>
+          </div>
+        </div>
+
+        <div class="card priority-low">
+          <div class="card-top">
+            <span class="card-id">TASK-008</span>
+            <span class="card-type-icon">📌</span>
+            <span class="card-title">Add bar-count display to Zone Inspector panel</span>
+          </div>
+          <div class="card-tags">
+            <span class="tag tag-pine">Pine Script</span>
+            <span class="priority-badge p-low">LOW</span>
+          </div>
+          <div class="card-footer">
+            <span class="card-meta">Opened 5 days ago</span>
+            <div class="avatar">A</div>
+          </div>
+        </div>
+
+        <div class="card priority-high">
+          <div class="card-top">
+            <span class="card-id">BUG-015</span>
+            <span class="card-type-icon">🐛</span>
+            <span class="card-title">Webhook occasionally drops signals under high Redis load</span>
+          </div>
+          <div class="card-tags">
+            <span class="tag tag-python">Python Backend</span>
+            <span class="priority-badge p-high">HIGH</span>
+          </div>
+          <div class="card-footer">
+            <span class="card-meta">Opened 1 day ago</span>
+            <div class="avatar">A</div>
+          </div>
+        </div>
+
+      </div>
+      <div class="add-card" onclick="openModal()">＋ Add ticket</div>
+    </div>
+
+    <!-- TO DO -->
+    <div class="column col-todo">
+      <div class="col-header">
+        <span class="col-icon">🛠️</span>
+        <span class="col-name">To Do (Current Sprint)</span>
+        <span class="col-count">2</span>
+      </div>
+      <div class="col-body">
+
+        <div class="card priority-high">
+          <div class="card-top">
+            <span class="card-id">TASK-009</span>
+            <span class="card-type-icon">📌</span>
+            <span class="card-title">Audit Pine Script webhook payload for <code style="font-size:11px;background:rgba(255,255,255,0.07);padding:1px 4px;border-radius:3px">council</code> JSON key</span>
+          </div>
+          <div class="card-tags">
+            <span class="tag tag-pine">Pine Script</span>
+            <span class="priority-badge p-high">HIGH</span>
+          </div>
+          <div class="card-footer">
+            <span class="card-meta">Sprint #4</span>
+            <div class="avatar">A</div>
+          </div>
+        </div>
+
+        <div class="card priority-high">
+          <div class="card-top">
+            <span class="card-id">TASK-010</span>
+            <span class="card-type-icon">📌</span>
+            <span class="card-title">Audit Python backend for council extraction & Supabase insertion</span>
+          </div>
+          <div class="card-tags">
+            <span class="tag tag-python">Python Backend</span>
+            <span class="tag tag-supa">Supabase</span>
+            <span class="priority-badge p-high">HIGH</span>
+          </div>
+          <div class="card-footer">
+            <span class="card-meta">Sprint #4</span>
+            <div class="avatar">A</div>
+          </div>
+        </div>
+
+      </div>
+      <div class="add-card" onclick="openModal()">＋ Add ticket</div>
+    </div>
+
+    <!-- IN PROGRESS -->
+    <div class="column col-inprogress">
+      <div class="col-header">
+        <span class="col-icon">⏳</span>
+        <span class="col-name">In Progress</span>
+        <span class="col-count">2</span>
+      </div>
+      <div class="col-body">
+
+        <div class="card priority-critical">
+          <div class="card-top">
+            <span class="card-id">BUG-012</span>
+            <span class="card-type-icon">🐛</span>
+            <span class="card-title">"Council" column showing empty <code style="font-size:11px;background:rgba(255,255,255,0.07);padding:1px 4px;border-radius:3px">−</code> on dashboard</span>
+          </div>
+          <div class="card-tags">
+            <span class="tag tag-fe">Frontend</span>
+            <span class="tag tag-supa">Supabase</span>
+            <span class="priority-badge p-critical">CRITICAL</span>
+          </div>
+          <div class="card-footer">
+            <span class="card-meta">🤖 AI Agent active</span>
+            <div class="avatar" style="background:var(--purple)">🤖</div>
+          </div>
+        </div>
+
+        <div class="card priority-medium">
+          <div class="card-top">
+            <span class="card-id">FEAT-003</span>
+            <span class="card-type-icon">✨</span>
+            <span class="card-title">Kanban Task Board — design & implementation</span>
+          </div>
+          <div class="card-tags">
+            <span class="tag tag-fe">Frontend</span>
+            <span class="tag tag-ai">AI Agent</span>
+            <span class="priority-badge p-medium">MEDIUM</span>
+          </div>
+          <div class="card-footer">
+            <span class="card-meta">🤖 AI Agent active</span>
+            <div class="avatar" style="background:var(--purple)">🤖</div>
+          </div>
+        </div>
+
+      </div>
+      <div class="add-card" onclick="openModal()">＋ Add ticket</div>
+    </div>
+
+    <!-- DONE -->
+    <div class="column col-done">
+      <div class="col-header">
+        <span class="col-icon">✅</span>
+        <span class="col-name">Completed / Deployed</span>
+        <span class="col-count">5</span>
+      </div>
+      <div class="col-body">
+
+        <div class="card" style="opacity:0.75">
+          <div class="card-top">
+            <span class="card-id">BUG-011</span>
+            <span class="card-type-icon">🐛</span>
+            <span class="card-title">Next.js App Router aggressive caching on Supabase calls</span>
+          </div>
+          <div class="card-tags">
+            <span class="tag tag-fe">Frontend</span>
+            <span class="priority-badge p-high">HIGH</span>
+          </div>
+          <div class="card-footer">
+            <span class="card-meta">✅ Deployed 2026-03-15</span>
+          </div>
+        </div>
+
+        <div class="card" style="opacity:0.75">
+          <div class="card-top">
+            <span class="card-id">BUG-010</span>
+            <span class="card-type-icon">🐛</span>
+            <span class="card-title">Council race condition in async processing pipeline</span>
+          </div>
+          <div class="card-tags">
+            <span class="tag tag-python">Python Backend</span>
+            <span class="priority-badge p-critical">CRITICAL</span>
+          </div>
+          <div class="card-footer">
+            <span class="card-meta">✅ Deployed 2026-03-15</span>
+          </div>
+        </div>
+
+        <div class="card" style="opacity:0.75">
+          <div class="card-top">
+            <span class="card-id">BUG-009</span>
+            <span class="card-type-icon">🐛</span>
+            <span class="card-title">Pine Script `N/A` memory leak in return-strength tracking</span>
+          </div>
+          <div class="card-tags">
+            <span class="tag tag-pine">Pine Script</span>
+            <span class="priority-badge p-high">HIGH</span>
+          </div>
+          <div class="card-footer">
+            <span class="card-meta">✅ Deployed 2026-03-14</span>
+          </div>
+        </div>
+
+        <div class="card" style="opacity:0.75">
+          <div class="card-top">
+            <span class="card-id">BUG-008</span>
+            <span class="card-type-icon">🐛</span>
+            <span class="card-title">MT5 broker sync not marking SL/TP closes as CLOSED</span>
+          </div>
+          <div class="card-tags">
+            <span class="tag tag-mt5">MetaTrader</span>
+            <span class="tag tag-supa">Supabase</span>
+            <span class="priority-badge p-high">HIGH</span>
+          </div>
+          <div class="card-footer">
+            <span class="card-meta">✅ Deployed 2026-03-13</span>
+          </div>
+        </div>
+
+        <div class="card" style="opacity:0.75">
+          <div class="card-top">
+            <span class="card-id">FEAT-002</span>
+            <span class="card-type-icon">✨</span>
+            <span class="card-title">True Net PnL (Gross − Commission − Swap) calculation</span>
+          </div>
+          <div class="card-tags">
+            <span class="tag tag-python">Python Backend</span>
+            <span class="tag tag-mt5">MetaTrader</span>
+            <span class="priority-badge p-medium">MEDIUM</span>
+          </div>
+          <div class="card-footer">
+            <span class="card-meta">✅ Deployed 2026-03-12</span>
+          </div>
+        </div>
+
+      </div>
+      <div class="add-card" onclick="openModal()">＋ Add ticket</div>
+    </div>
+
+  </div><!-- end kanban -->
+
+  <!-- AI AGENT FEED -->
+  <div class="agent-feed">
+    <div class="feed-header">
+      <div class="feed-dot"></div>
+      <div class="feed-title">🤖 AI Agent Activity Feed</div>
+      <div class="feed-sub">Live — agents auto-post updates here</div>
+    </div>
+    <div class="feed-list">
+
+      <div class="feed-item">
+        <div class="feed-avatar fa-ai">🤖</div>
+        <div class="feed-content">
+          <div class="feed-msg"><b>Antigravity Agent</b> moved <span class="ticket-ref">BUG-012</span> to <b>In Progress</b> and began root-cause analysis. Identified race condition between council enrichment and signal persistence.</div>
+          <div class="feed-time">Just now</div>
+        </div>
+      </div>
+
+      <div class="feed-item">
+        <div class="feed-avatar fa-bot">✅</div>
+        <div class="feed-content">
+          <div class="feed-msg"><b>Antigravity Agent</b> closed <span class="ticket-ref">BUG-011</span>. Fix: disabled Next.js <code style="font-size:11px;background:rgba(255,255,255,0.07);padding:1px 4px;border-radius:3px">cache: 'force-cache'</code> on all Supabase fetches. Deployed & verified.</div>
+          <div class="feed-time">2 hours ago</div>
+        </div>
+      </div>
+
+      <div class="feed-item">
+        <div class="feed-avatar fa-warn">⚠️</div>
+        <div class="feed-content">
+          <div class="feed-msg"><b>Antigravity Agent</b> flagged new issue on <span class="ticket-ref">BUG-015</span>: Redis queue occasionally drops signals under load >50 msg/s. Moved to Backlog.</div>
+          <div class="feed-time">5 hours ago</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div><!-- end main -->
+
+<!-- NEW TICKET MODAL -->
+<div class="modal-overlay hidden" id="modal" onclick="handleOverlayClick(event)">
+  <div class="modal" id="modal-box">
+    <div class="modal-header">
+      <div class="modal-title">✏️ Create New Ticket</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="form-group">
+        <label class="form-label">TITLE *</label>
+        <input class="form-input" placeholder="e.g. Council column showing empty on dashboard" />
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">TYPE *</label>
+          <select class="form-select">
+            <option>🐛 Bug</option>
+            <option>📌 Task</option>
+            <option>✨ Feature</option>
+            <option>🔬 Research</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">PRIORITY *</label>
+          <select class="form-select">
+            <option>🔴 Critical</option>
+            <option>🟠 High</option>
+            <option selected>🟡 Medium</option>
+            <option>🔵 Low</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">COMPONENT *</label>
+          <select class="form-select">
+            <option>Pine Script</option>
+            <option>Python Backend</option>
+            <option>Supabase / DB</option>
+            <option>Frontend (React)</option>
+            <option>MetaTrader / MT5</option>
+            <option>AI / ML Pipeline</option>
+            <option>Infrastructure</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">INITIAL COLUMN</label>
+          <select class="form-select">
+            <option>📋 Backlog</option>
+            <option>🛠️ To Do</option>
+            <option>⏳ In Progress</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">DESCRIPTION</label>
+        <textarea class="form-textarea" placeholder="Steps to reproduce, expected vs actual behavior, relevant logs…"></textarea>
+      </div>
+
+      <div class="ai-note">
+        <div class="ai-note-icon">🤖</div>
+        <div class="ai-note-text">
+          <b>AI Agent Integration:</b> When an agent picks up this ticket, it will automatically post progress updates to the Activity Feed above, and move this card through the board columns as work progresses.
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-create" onclick="closeModal()">Create Ticket</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  function openModal() {
+    document.getElementById('modal').classList.remove('hidden');
+  }
+  function closeModal() {
+    document.getElementById('modal').classList.add('hidden');
+  }
+  function handleOverlayClick(e) {
+    if (e.target === document.getElementById('modal')) closeModal();
+  }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+</script>
+
+</body>
+</html>

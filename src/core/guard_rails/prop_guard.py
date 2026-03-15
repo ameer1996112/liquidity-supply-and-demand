@@ -62,6 +62,31 @@ def check_safety(
     if daily_loss_pct >= kill_threshold:
         return False, 0.0, "Kill Switch"
 
+    # Intraday drawdown scaling — reduce size (not kill) when loss hits thresholds
+    # Uses existing drawdown_threshold_1/2 + risk_reduction_1/2 settings
+    if daily_pnl < 0 and getattr(s, "enable_risk_scaling", True):
+        th2 = getattr(s, "drawdown_threshold_2", 0.03)
+        th1 = getattr(s, "drawdown_threshold_1", 0.02)
+        red2 = getattr(s, "risk_reduction_2", 0.25)
+        red1 = getattr(s, "risk_reduction_1", 0.5)
+        if daily_loss_pct >= th2:
+            return True, red2, f"Drawdown Scale (severe): -{daily_loss_pct:.1%} loss → {red2:.0%} size"
+        elif daily_loss_pct >= th1:
+            return True, red1, f"Drawdown Scale (moderate): -{daily_loss_pct:.1%} loss → {red1:.0%} size"
+
+    # Profit lock-in scaling — reduce size when daily gains reach thresholds
+    # Protects accumulated daily profit from being given back in late-session trades
+    if daily_pnl > 0 and getattr(s, "enable_profit_lockdown", True):
+        daily_profit_pct = daily_pnl / starting_balance
+        th2_p = getattr(s, "profit_lockdown_threshold_2", 0.03)
+        th1_p = getattr(s, "profit_lockdown_threshold_1", 0.02)
+        red2_p = getattr(s, "profit_lockdown_reduction_2", 0.5)
+        red1_p = getattr(s, "profit_lockdown_reduction_1", 0.75)
+        if daily_profit_pct >= th2_p:
+            return True, red2_p, f"Profit Lock-in (protect gains): +{daily_profit_pct:.1%} today → {red2_p:.0%} size"
+        elif daily_profit_pct >= th1_p:
+            return True, red1_p, f"Profit Lock-in (build buffer): +{daily_profit_pct:.1%} today → {red1_p:.0%} size"
+
     # If risk mode is not step-up, use linear behaviour
     if getattr(s, "risk_mode", "step_up") != "step_up":
         return True, 1.0, "Linear risk mode"

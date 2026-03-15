@@ -286,6 +286,32 @@ class Settings(BaseSettings):
     pine_trading_end_hour: int = Field(default=22, ge=0, le=23, description="Trading end hour (UTC). 22=default.")
     pine_max_trades_per_day: int = Field(default=2, ge=0, le=10, description="Max trades per day. 2=Balanced, 1=Conservative. 0=OFF.")
 
+    # Weekly loss limit
+    enable_weekly_loss_limit: bool = Field(default=True, description="Block new trades when weekly PnL exceeds max_weekly_loss_pct. 0=OFF.")
+    weekly_max_loss_pct: float = Field(default=10.0, ge=1.0, le=50.0, description="Max weekly loss as % of account balance before halting trading.")
+
+    # Monthly loss limit
+    enable_monthly_loss_limit: bool = Field(default=True, description="Block new trades when monthly PnL exceeds monthly_max_loss_pct.")
+    monthly_max_loss_pct: float = Field(default=8.0, ge=1.0, le=50.0, description="Max monthly loss as % of account balance. 8%=FTMO max drawdown default.")
+
+    # Consecutive loss circuit breaker
+    max_consecutive_losses: int = Field(default=3, ge=0, le=10, description="Pause trading after N consecutive losing trades. 0=OFF.")
+    consec_loss_pause_hours: float = Field(default=4.0, ge=0.5, le=48.0, description="Hours to pause after hitting consecutive loss limit.")
+
+    # Profit lock-in scaling (protect daily gains)
+    enable_profit_lockdown: bool = Field(default=True, description="Reduce position size once daily profit reaches thresholds.")
+    profit_lockdown_threshold_1: float = Field(default=0.02, ge=0.005, le=0.2, description="+2% daily profit → scale down to reduction_1 size.")
+    profit_lockdown_reduction_1: float = Field(default=0.75, ge=0.1, le=1.0, description="Size multiplier at profit threshold 1 (e.g. 0.75 = 75%).")
+    profit_lockdown_threshold_2: float = Field(default=0.03, ge=0.005, le=0.2, description="+3% daily profit → scale down to reduction_2 size.")
+    profit_lockdown_reduction_2: float = Field(default=0.5, ge=0.1, le=1.0, description="Size multiplier at profit threshold 2 (e.g. 0.5 = 50%).")
+
+    # Spread gate (minimum SL pips per instrument type)
+    spread_gate_enabled: bool = Field(default=True, description="Reject trades where SL is too tight relative to typical spread.")
+    min_sl_pips_forex: float = Field(default=5.0, ge=0.5, le=50.0, description="Min SL pips for standard forex pairs.")
+    min_sl_pips_jpy: float = Field(default=7.0, ge=0.5, le=50.0, description="Min SL pips for JPY pairs (wider spreads).")
+    min_sl_pips_gold: float = Field(default=30.0, ge=1.0, le=500.0, description="Min SL pips for XAUUSD/XAGUSD.")
+    min_sl_pips_indices: float = Field(default=10.0, ge=1.0, le=200.0, description="Min SL points for indices (US30, NAS100, SPX500).")
+
     # Shadow launch toggle for EnsembleBrain gating in worker
     run_shadow_mode: bool = False
 

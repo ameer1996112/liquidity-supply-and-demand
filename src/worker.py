@@ -518,6 +518,39 @@ def _validate_futures_entry_model(payload: Dict[str, Any]) -> Optional[str]:
 
 _GRADE_VALUES = {"A+": 6, "A": 5, "B+": 4, "B": 3, "C+": 2, "C": 1}
 
+# Guards that are important enough to notify Discord/Telegram when they fire.
+# Others (e.g. zone score, dead zone) are routine and would spam.
+_NOTIFY_GUARD_PREFIXES = (
+    "weekly loss limit",
+    "monthly loss limit",
+    "circuit breaker",
+    "profit lock",
+    "drawdown scale",
+    "spread gate",
+)
+
+
+def _notify_guard_activation(reason: str, symbol: str, payload: Dict[str, Any]) -> None:
+    """Fire a Discord/Telegram alert when an important risk guard activates."""
+    reason_lower = reason.lower()
+    if not any(reason_lower.startswith(p) for p in _NOTIFY_GUARD_PREFIXES):
+        return
+    try:
+        from src.adapters.discord import send_discord_async
+        notification_payload = {
+            "symbol": symbol,
+            "side": payload.get("side", ""),
+            "size": payload.get("size", 0),
+            "entry": payload.get("entry", 0),
+            "account_balance": payload.get("account_balance", 0),
+            "run_mode": payload.get("run_mode", "PAPER"),
+            "_guard_reason": reason,
+            "_guard_blocked": True,
+        }
+        send_discord_async(notification_payload, alert_id=0, mode="guard_blocked")
+    except Exception as _e:
+        logger.debug("Guard notification skipped: %s", _e)
+
 
 def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
     """Deterministic pre-filters mirroring SND_Strategy.pine entry conditions.
@@ -643,6 +676,123 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
                 return f"Daily trade limit reached: {today_count}/{s.pine_max_trades_per_day} trades today"
         except Exception as e:
             logger.warning("Daily trade limit check failed: %s (fail-open)", e)
+
+    # --- Spread gate (minimum SL pips per instrument type) ---
+    if getattr(s, "spread_gate_enabled", True):
+        try:
+            entry_price = float(payload.get("entry", 0))
+            sl_price = float(payload.get("sl", 0))
+            sym_upper = (payload.get("symbol") or "").upper()
+            if entry_price > 0 and sl_price > 0:
+                price_diff = abs(entry_price - sl_price)
+                if "XAU" in sym_upper or "GOLD" in sym_upper or "XAG" in sym_upper:
+                    sl_pips_calc = price_diff / 0.01
+                    min_sl = getattr(s, "min_sl_pips_gold", 30.0)
+                    instrument = "gold/silver"
+                elif any(x in sym_upper for x in ["US30", "NAS", "SPX", "NDX", "USTEC"]):
+                    sl_pips_calc = price_diff  # indices: 1 point = 1 unit
+                    min_sl = getattr(s, "min_sl_pips_indices", 10.0)
+                    instrument = "index"
+                elif "JPY" in sym_upper:
+                    sl_pips_calc = price_diff / 0.01
+                    min_sl = getattr(s, "min_sl_pips_jpy", 7.0)
+                    instrument = "JPY pair"
+                else:
+                    sl_pips_calc = price_diff / 0.0001
+                    min_sl = getattr(s, "min_sl_pips_forex", 5.0)
+                    instrument = "forex"
+                if sl_pips_calc < min_sl:
+                    return (
+                        f"Spread gate ({instrument}): SL {sl_pips_calc:.1f} pips < "
+                        f"minimum {min_sl:.0f} pips — SL too tight relative to spread risk"
+                    )
+        except Exception as e:
+            logger.warning("Spread gate check failed: %s (fail-open)", e)
+
+    # --- Monthly loss limit ---
+    if getattr(s, "enable_monthly_loss_limit", True) and getattr(s, "monthly_max_loss_pct", 8.0) > 0 and supabase:
+        try:
+            from datetime import date as _date
+            month_start = _dt.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+            monthly_resp = (
+                supabase.table("trading_signals")
+                .select("pnl_usd")
+                .eq("status", "closed")
+                .gte("created_at", month_start)
+                .execute()
+            )
+            monthly_pnl = sum(float(t.get("pnl_usd") or 0) for t in (monthly_resp.data or []))
+            acct_bal_m = float(payload.get("account_balance", s.account_balance))
+            monthly_limit = -(getattr(s, "monthly_max_loss_pct", 8.0) / 100.0) * acct_bal_m
+            if monthly_pnl < monthly_limit:
+                return (
+                    f"Monthly loss limit: ${monthly_pnl:.2f} loss this month "
+                    f"(limit ${monthly_limit:.2f} = {getattr(s, 'monthly_max_loss_pct', 8.0):.0f}% of ${acct_bal_m:.0f})"
+                )
+        except Exception as e:
+            logger.warning("Monthly loss check failed: %s (fail-open)", e)
+
+    # --- Weekly loss limit ---
+    if getattr(s, "enable_weekly_loss_limit", True) and getattr(s, "weekly_max_loss_pct", 10.0) > 0 and supabase:
+        try:
+            from datetime import timedelta
+            week_start = (_dt.now(timezone.utc) - timedelta(days=7)).isoformat()
+            weekly_resp = (
+                supabase.table("trading_signals")
+                .select("pnl_usd")
+                .eq("status", "closed")
+                .gte("created_at", week_start)
+                .execute()
+            )
+            weekly_pnl = sum(float(t.get("pnl_usd") or 0) for t in (weekly_resp.data or []))
+            acct_bal = float(payload.get("account_balance", s.account_balance))
+            weekly_limit = -(getattr(s, "weekly_max_loss_pct", 10.0) / 100.0) * acct_bal
+            if weekly_pnl < weekly_limit:
+                return (
+                    f"Weekly loss limit: ${weekly_pnl:.2f} loss this week "
+                    f"(limit ${weekly_limit:.2f} = {getattr(s, 'weekly_max_loss_pct', 10.0):.0f}% of ${acct_bal:.0f})"
+                )
+        except Exception as e:
+            logger.warning("Weekly loss check failed: %s (fail-open)", e)
+
+    # --- Consecutive loss circuit breaker ---
+    max_consec = getattr(s, "max_consecutive_losses", 3)
+    if max_consec > 0 and supabase:
+        try:
+            consec_resp = (
+                supabase.table("trading_signals")
+                .select("pnl_usd, exit_time")
+                .eq("status", "closed")
+                .order("exit_time", desc=True)
+                .limit(max_consec)
+                .execute()
+            )
+            consecutive = 0
+            for trade in (consec_resp.data or []):
+                if (float(trade.get("pnl_usd") or 0)) < 0:
+                    consecutive += 1
+                else:
+                    break
+            if consecutive >= max_consec and consec_resp.data:
+                pause_hours = float(getattr(s, "consec_loss_pause_hours", 4.0))
+                last_exit_str = consec_resp.data[0].get("exit_time")
+                if last_exit_str:
+                    try:
+                        from dateutil.parser import parse as _parse_exit
+                        last_exit = _parse_exit(last_exit_str)
+                        if last_exit.tzinfo is None:
+                            last_exit = last_exit.replace(tzinfo=timezone.utc)
+                        elapsed_h = (_dt.now(timezone.utc) - last_exit).total_seconds() / 3600
+                        if elapsed_h < pause_hours:
+                            remaining = pause_hours - elapsed_h
+                            return (
+                                f"Circuit breaker: {consecutive} consecutive losses — "
+                                f"cooling off ({remaining:.1f}h remaining of {pause_hours:.0f}h pause)"
+                            )
+                    except Exception:
+                        pass  # fail-open on date parse error
+        except Exception as e:
+            logger.warning("Consecutive loss check failed: %s (fail-open)", e)
 
     # --- R:R ratio ---
     rr = payload.get("rr_ratio")
@@ -1104,6 +1254,21 @@ def process_trade(payload: Dict[str, Any]):
             logger.error("Staleness guard crashed: %s", e, exc_info=True)
 
     tracker.checkpoint("after_staleness_guard")
+
+    # ══════════════════════════════════════════════════════════════════
+    # PINE FILTERS + RISK GUARDS (zone quality, daily/weekly/monthly limits,
+    # spread gate, consecutive loss circuit breaker)
+    # ══════════════════════════════════════════════════════════════════
+    pine_rejection = _validate_pine_filters(payload)
+    if pine_rejection:
+        save_result(payload, "filtered", pine_rejection, 0.0, account_name=account_name)
+        _tag = pine_rejection.split(":")[0].lower().replace(" ", "_")[:40]
+        log_guard_decision("pine_filters", "rejected", pine_rejection, symbol, {"tag": _tag})
+        logger.warning("PINE/RISK FILTER BLOCKED [%s]: %s", symbol, pine_rejection)
+        _notify_guard_activation(pine_rejection, symbol, payload)
+        return
+
+    tracker.checkpoint("after_pine_filters")
 
     # ══════════════════════════════════════════════════════════════════
     # FAST-PATH BYPASS (Phase 1 Latency Optimization)

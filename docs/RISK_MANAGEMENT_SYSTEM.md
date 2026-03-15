@@ -1,6 +1,6 @@
 # Risk Management System Overview
 
-> Last updated: 2026-03-15 — Role separation overhaul (4 bugs fixed, see bottom)
+> Last updated: 2026-03-15 — Three new guards added: intraday drawdown scaling, weekly loss limit, consecutive loss circuit breaker
 
 ## Architecture: Pine Script + Backend Cooperation
 
@@ -12,7 +12,13 @@ Pine Script = Signal Generator ONLY
 
 Backend Bot = Single Risk Authority
   ├─ PropGuard Step-Up: survival 0.5x → building 0.75x → normal 1.0x → (funded only: aggressive 2.0x)
+  ├─ Intraday drawdown scaling: -2% daily → 0.5x size; -3% daily → 0.25x size
   ├─ Trinity kill switch: 4% daily loss / 8% drawdown → halt all trading
+  ├─ Profit lock-in scaling: +2% daily → 0.75x size; +3% daily → 0.5x size  [NEW]
+  ├─ Spread gate: rejects trades where SL < min safe pips per instrument type  [NEW]
+  ├─ Monthly loss limit: -8% of account this month → halt trading  [NEW]
+  ├─ Weekly loss limit: -10% of account in 7 days → halt until next week
+  ├─ Consecutive loss circuit breaker: 3 losses in a row → 4h cooling-off
   ├─ FTMO compliance: EvaluationTracker enforces phase limits when EVALUATION_MODE=true
   ├─ Correlation guard: max 1 position per correlated group
   ├─ Sector guard: max 10-40% exposure per sector
