@@ -40,7 +40,7 @@ export interface LatencyBreakdown {
 export interface TCAAlert {
   id: number;
   signal_id: number;
-  alert_type: 'high_slippage' | 'high_latency' | 'unknown';
+  alert_type: 'high_slippage' | 'high_latency' | 'unknown' | 'high_bot_latency' | 'high_broker_latency';
   slippage_pips?: number;
   total_execution_ms?: number;
   exceeds_slippage_threshold: boolean;
