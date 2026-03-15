@@ -31,6 +31,12 @@ if (!supabaseUrl || !supabaseAnonKey) {
 export const supabase: SupabaseClient<Database> | null =
   supabaseUrl && supabaseAnonKey
     ? createClient<Database>(supabaseUrl, supabaseAnonKey, {
+        global: {
+          fetch: (url, options) => {
+            // Force no caching for all Supabase API calls to ensure fresh data
+            return fetch(url, { ...options, cache: 'no-store' });
+          },
+        },
         realtime: {
           params: {
             eventsPerSecond: 10,

@@ -25,6 +25,7 @@ export async function apiFetch<T>(
 
   const response = await fetch(url, {
     ...options,
+    cache: 'no-store', // Fix: Force Next.js App Router to never cache API responses
     headers: {
       'Content-Type': 'application/json',
       ...options?.headers,
