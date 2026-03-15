@@ -298,6 +298,202 @@ async def get_risk_monitor():
         except Exception as e:
             logger.warning(f"Circuit breaker check failed: {e}")
 
+    # ── New guards ────────────────────────────────────────────────────
+
+    from datetime import timedelta
+    now_utc = datetime.now(timezone.utc)
+    week_start = (now_utc - timedelta(days=7)).isoformat()
+    month_start = now_utc.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+
+    # Weekly / Monthly PnL
+    weekly_pnl = 0.0
+    monthly_pnl = 0.0
+    try:
+        month_resp = (
+            supabase.table("trading_signals")
+            .select("pnl_usd, created_at")
+            .eq("status", "closed")
+            .gte("created_at", month_start)
+            .execute()
+        )
+        for t in (month_resp.data or []):
+            pnl = float(t.get("pnl_usd") or 0)
+            monthly_pnl += pnl
+            if (t.get("created_at") or "") >= week_start:
+                weekly_pnl += pnl
+    except Exception as e:
+        logger.warning(f"Weekly/monthly PnL fetch failed: {e}")
+
+    acct_bal = settings.account_balance
+
+    # Drawdown Scaling
+    daily_loss_pct = abs(daily_pnl / acct_bal * 100) if daily_pnl < 0 and acct_bal > 0 else 0.0
+    dd_th1 = getattr(settings, "drawdown_threshold_1", 0.02) * 100
+    dd_th2 = getattr(settings, "drawdown_threshold_2", 0.03) * 100
+    red1 = getattr(settings, "risk_reduction_1", 0.5)
+    red2 = getattr(settings, "risk_reduction_2", 0.25)
+    if daily_loss_pct >= dd_th2:
+        guard_rails.append(GuardRailStatus(
+            name="Drawdown Scaling",
+            status="warning", severity="warning",
+            message=f"-{daily_loss_pct:.1f}% today → {int(red2*100)}% size (severe)"
+        ))
+    elif daily_loss_pct >= dd_th1:
+        guard_rails.append(GuardRailStatus(
+            name="Drawdown Scaling",
+            status="warning", severity="warning",
+            message=f"-{daily_loss_pct:.1f}% today → {int(red1*100)}% size (moderate)"
+        ))
+    else:
+        guard_rails.append(GuardRailStatus(
+            name="Drawdown Scaling",
+            status="passed", severity="success",
+            message=f"Normal (loss {daily_loss_pct:.1f}% / {dd_th1:.0f}% threshold)"
+        ))
+
+    # Profit Lock-in
+    daily_profit_pct = (daily_pnl / acct_bal * 100) if daily_pnl > 0 and acct_bal > 0 else 0.0
+    pl_th1 = getattr(settings, "profit_lockdown_threshold_1", 0.02) * 100
+    pl_th2 = getattr(settings, "profit_lockdown_threshold_2", 0.03) * 100
+    pl_red1 = getattr(settings, "profit_lockdown_reduction_1", 0.75)
+    pl_red2 = getattr(settings, "profit_lockdown_reduction_2", 0.50)
+    enabled_pl = getattr(settings, "enable_profit_lockdown", True)
+    if not enabled_pl:
+        guard_rails.append(GuardRailStatus(name="Profit Lock-in", status="passed", severity="info", message="Disabled"))
+    elif daily_profit_pct >= pl_th2:
+        guard_rails.append(GuardRailStatus(
+            name="Profit Lock-in",
+            status="warning", severity="warning",
+            message=f"+{daily_profit_pct:.1f}% today → {int(pl_red2*100)}% size (protecting gains)"
+        ))
+    elif daily_profit_pct >= pl_th1:
+        guard_rails.append(GuardRailStatus(
+            name="Profit Lock-in",
+            status="warning", severity="warning",
+            message=f"+{daily_profit_pct:.1f}% today → {int(pl_red1*100)}% size (building buffer)"
+        ))
+    else:
+        guard_rails.append(GuardRailStatus(
+            name="Profit Lock-in",
+            status="passed", severity="success",
+            message=f"No lock-in (profit {daily_profit_pct:.1f}% / {pl_th1:.0f}% threshold)"
+        ))
+
+    # Weekly Loss Limit
+    w_limit = getattr(settings, "weekly_max_loss_pct", 10.0)
+    weekly_used_pct = abs(weekly_pnl / acct_bal * 100) if weekly_pnl < 0 and acct_bal > 0 else 0.0
+    enabled_w = getattr(settings, "enable_weekly_loss_limit", True)
+    if not enabled_w:
+        guard_rails.append(GuardRailStatus(name="Weekly Loss Limit", status="passed", severity="info", message="Disabled"))
+    elif weekly_used_pct >= w_limit:
+        guard_rails.append(GuardRailStatus(
+            name="Weekly Loss Limit",
+            status="critical", severity="critical",
+            message=f"HALTED — ${weekly_pnl:.0f} ({weekly_used_pct:.1f}% / {w_limit:.0f}% limit)"
+        ))
+    elif weekly_used_pct >= w_limit * 0.8:
+        guard_rails.append(GuardRailStatus(
+            name="Weekly Loss Limit",
+            status="warning", severity="warning",
+            message=f"${weekly_pnl:.0f} ({weekly_used_pct:.1f}% / {w_limit:.0f}% limit)"
+        ))
+    else:
+        guard_rails.append(GuardRailStatus(
+            name="Weekly Loss Limit",
+            status="passed", severity="success",
+            message=f"${weekly_pnl:.0f} ({weekly_used_pct:.1f}% / {w_limit:.0f}% limit)"
+        ))
+
+    # Monthly Loss Limit
+    m_limit = getattr(settings, "monthly_max_loss_pct", 8.0)
+    monthly_used_pct = abs(monthly_pnl / acct_bal * 100) if monthly_pnl < 0 and acct_bal > 0 else 0.0
+    enabled_m = getattr(settings, "enable_monthly_loss_limit", True)
+    if not enabled_m:
+        guard_rails.append(GuardRailStatus(name="Monthly Loss Limit", status="passed", severity="info", message="Disabled"))
+    elif monthly_used_pct >= m_limit:
+        guard_rails.append(GuardRailStatus(
+            name="Monthly Loss Limit",
+            status="critical", severity="critical",
+            message=f"HALTED — ${monthly_pnl:.0f} ({monthly_used_pct:.1f}% / {m_limit:.0f}% limit)"
+        ))
+    elif monthly_used_pct >= m_limit * 0.8:
+        guard_rails.append(GuardRailStatus(
+            name="Monthly Loss Limit",
+            status="warning", severity="warning",
+            message=f"${monthly_pnl:.0f} ({monthly_used_pct:.1f}% / {m_limit:.0f}% limit)"
+        ))
+    else:
+        guard_rails.append(GuardRailStatus(
+            name="Monthly Loss Limit",
+            status="passed", severity="success",
+            message=f"${monthly_pnl:.0f} ({monthly_used_pct:.1f}% / {m_limit:.0f}% limit)"
+        ))
+
+    # Consecutive Loss Circuit Breaker
+    max_consec = getattr(settings, "max_consecutive_losses", 3)
+    pause_hours = getattr(settings, "consec_loss_pause_hours", 4.0)
+    consecutive_losses = 0
+    consec_active = False
+    try:
+        last_resp = (
+            supabase.table("trading_signals")
+            .select("pnl_usd, exit_time")
+            .eq("status", "closed")
+            .order("exit_time", desc=True)
+            .limit(max_consec)
+            .execute()
+        )
+        for t in (last_resp.data or []):
+            if (float(t.get("pnl_usd") or 0)) < 0:
+                consecutive_losses += 1
+            else:
+                break
+        if consecutive_losses >= max_consec and last_resp.data:
+            last_exit_str = last_resp.data[0].get("exit_time")
+            if last_exit_str:
+                from dateutil.parser import parse as _parse_dt
+                last_exit = _parse_dt(last_exit_str)
+                if last_exit.tzinfo is None:
+                    last_exit = last_exit.replace(tzinfo=timezone.utc)
+                elapsed_h = (now_utc - last_exit).total_seconds() / 3600
+                consec_active = elapsed_h < pause_hours
+    except Exception as e:
+        logger.warning(f"Consecutive loss check failed: {e}")
+
+    if max_consec == 0:
+        guard_rails.append(GuardRailStatus(name="Consec. Loss CB", status="passed", severity="info", message="Disabled"))
+    elif consec_active:
+        guard_rails.append(GuardRailStatus(
+            name="Consec. Loss CB",
+            status="critical", severity="critical",
+            message=f"PAUSED — {consecutive_losses} losses in a row ({pause_hours:.0f}h cooling off)"
+        ))
+    elif consecutive_losses >= max_consec - 1:
+        guard_rails.append(GuardRailStatus(
+            name="Consec. Loss CB",
+            status="warning", severity="warning",
+            message=f"{consecutive_losses}/{max_consec} losses — 1 more triggers pause"
+        ))
+    else:
+        guard_rails.append(GuardRailStatus(
+            name="Consec. Loss CB",
+            status="passed", severity="success",
+            message=f"{consecutive_losses}/{max_consec} consecutive losses"
+        ))
+
+    # Spread Gate
+    enabled_sg = getattr(settings, "spread_gate_enabled", True)
+    guard_rails.append(GuardRailStatus(
+        name="Spread Gate",
+        status="passed", severity="success" if enabled_sg else "info",
+        message=(
+            f"Active — forex ≥{getattr(settings,'min_sl_pips_forex',5):.0f}p / "
+            f"JPY ≥{getattr(settings,'min_sl_pips_jpy',7):.0f}p / "
+            f"Gold ≥{getattr(settings,'min_sl_pips_gold',30):.0f}p"
+            if enabled_sg else "Disabled"
+        )
+    ))
+
     # 6. Symbol overrides
     symbol_overrides = _get_symbol_overrides(supabase)
 

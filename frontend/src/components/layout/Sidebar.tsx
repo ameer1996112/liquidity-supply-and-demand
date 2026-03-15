@@ -21,6 +21,7 @@ import {
   Bell,
   Trophy,
   ScanLine,
+  LayoutGrid,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSidebar } from '@/providers/SidebarProvider';
@@ -119,6 +120,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Ops',
     items: [
       { label: 'Journal', icon: BookOpen, path: '/journal' },
+      { label: 'Board', icon: LayoutGrid, path: '/board' },
       { label: 'Settings', icon: Settings, path: '/settings' },
     ],
   },
