@@ -287,6 +287,7 @@ min_position_size_units = 1000  // Min position size
 max_position_size_lots = input.float(100.0, "Absolute Max Position Size (Lots)", minval = 0.1, step = 1.0, group = "🛡️ Prop Firm / Risk Safety", tooltip = "HARD LIMIT: Maximum lots Pine will send in the alert. Backend will also cap independently.\n\nFor FTMO $50k at 0.5% risk with 10-pip SL: ~2.5 lots max. Keep at 100 to let backend control.")
 max_lots_per_10k       = input.float(10.0, "Relative Max Lots (Per $10k)", minval = 0.1, step = 1.0, group = "🛡️ Prop Firm / Risk Safety", tooltip = "DYNAMIC LIMIT: Caps lots relative to account size.\n\nExample (10 lots per $10k):\n• $50k account = 50 lots max\n• $100k account = 100 lots max\n\nNote: Backend enforces its own tighter limit based on actual risk% and SL distance.")
 max_usd_risk_cap      = input.float(0.0, "Max USD Risk Cap ($)", minval = 0.0, step = 50.0, group = "🛡️ Prop Firm / Risk Safety", tooltip = "OPTIONAL HARD RISK LIMIT: Maximum USD to risk per trade. 0 = disabled.\n\nFor FTMO $50k at 0.5% risk: $250 per trade. Setting this to $250 ensures no trade risks more even if SL is very tight.\n\nBackend also enforces this independently.")
+use_half_risk_second_trade = input.bool(true, "Half Risk on 2nd Daily Trade", group = "🛡️ Prop Firm / Risk Safety", tooltip = "ON: The 2nd trade of the day risks half your normal %. Protects against back-to-back losses eating the daily limit.\n\nExample at 1% risk:\n• Trade 1: 1% = $500\n• Trade 2: 0.5% = $250")
 dry_run_mode          = false  // Dry run disabled by default
 
 // Debug & Display (visual only - no impact on backtest results)
@@ -448,7 +449,6 @@ if use_profile_defaults
         liq_entry_max_dist := 30.0
         ai_quality_threshold := 70
         min_entry_grade := "B+"
-        risk_per_trade_pct := 0.5
         if not use_custom_rr
             risk_reward_ratio := 3.0
         max_trades_per_day := 1
@@ -461,7 +461,6 @@ if use_profile_defaults
         liq_entry_max_dist := 50.0
         ai_quality_threshold := 60
         min_entry_grade := "C+"
-        risk_per_trade_pct := 0.5
         if not use_custom_rr
             risk_reward_ratio := 2.0
         max_trades_per_day := 2
@@ -474,7 +473,6 @@ if use_profile_defaults
         liq_entry_max_dist := 100.0
         ai_quality_threshold := 50
         min_entry_grade := "C"
-        risk_per_trade_pct := 0.5
         if not use_custom_rr
             risk_reward_ratio := 1.5
         max_trades_per_day := 2
@@ -4242,9 +4240,9 @@ if barstate.isconfirmed and cached_demand_size > 0 and allow_long_trades
             balance  = account_size_usd
             risk_pct = risk_per_trade_pct
             
-            if current_day_trades == 1 and max_trades_per_day == 2
+            if use_half_risk_second_trade and current_day_trades == 1 and max_trades_per_day == 2
                 risk_pct := risk_pct * 0.5
-            
+
             [pos_is_valid, pos_qty_units, pos_qty_lots, pos_error_msg, pos_validation_details, pos_sl_fixed] = validate_position_size(entry_price, stop_loss_price, balance, risk_pct, false)
             
             // Use the corrected SL from validation
@@ -4755,7 +4753,7 @@ if barstate.isconfirmed and cached_supply_size > 0 and allow_short_trades
             balance  = account_size_usd
             risk_pct = risk_per_trade_pct
 
-            if current_day_trades == 1 and max_trades_per_day == 2
+            if use_half_risk_second_trade and current_day_trades == 1 and max_trades_per_day == 2
                 risk_pct := risk_pct * 0.5
 
             [pos_is_valid, pos_qty_units, pos_qty_lots, pos_error_msg, pos_validation_details, pos_sl_fixed] = validate_position_size(entry_price, stop_loss_price, balance, risk_pct, true)
