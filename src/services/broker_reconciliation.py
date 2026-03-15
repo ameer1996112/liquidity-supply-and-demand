@@ -1,10 +1,12 @@
+"""
 Broker Reconciliation Service
 
 Periodically reconciles database trade states with broker (MetaAPI) truth.
 Handles trades closed by broker-side SL/TP that didn't fire exit webhooks.
 
 This prevents "ghost positions" where DB shows OPEN but broker already closed the trade.
-```
+"""
+
 
 import logging
 from datetime import datetime, timezone, timedelta
@@ -59,41 +61,53 @@ class BrokerReconciliation:
 
             # 3. For each DB trade, check if it still exists in broker
             for trade in db_trades:
-                trade_id = trade.get("id")
-                broker_order_id = trade.get("broker_order_id")
+                # FIX 1: Per-trade isolation — a bad trade must NOT crash the entire loop.
+                # Log the error and continue to the next trade.
+                try:
+                    trade_id = trade.get("id")
+                    broker_order_id = trade.get("broker_order_id")
 
-                if not broker_order_id:
-                    logger.debug(f"Trade {trade_id}: no broker_order_id, skipping")
-                    continue
+                    if not broker_order_id:
+                        logger.debug(f"Trade {trade_id}: no broker_order_id, skipping")
+                        continue
 
-                # Check if this trade's position still exists in broker
-                # Note: broker_order_id in DB corresponds to position id in MetaAPI
-                str_ticket = str(broker_order_id)
+                    # Check if this trade's position still exists in broker
+                    # Note: broker_order_id in DB corresponds to position id in MetaAPI
+                    str_ticket = str(broker_order_id)
 
-                if str_ticket not in broker_ticket_ids:
-                    # Trade is no longer open in broker - it was closed by SL/TP
-                    logger.info(f"Trade {trade_id}: ticket {broker_order_id} not in broker positions - closed externally")
+                    if str_ticket not in broker_ticket_ids:
+                        # Trade is no longer open in broker - it was closed by SL/TP
+                        logger.info(f"Trade {trade_id}: ticket {broker_order_id} not in broker positions - closed externally")
 
-                    # 4. Fetch the closed deal to get final PnL
-                    closed_deal = self._fetch_closed_deal(trade)
+                        # 4. Fetch the closed deal to get final PnL
+                        closed_deal = self._fetch_closed_deal(trade)
 
-                    if closed_deal:
-                        # 5. Update DB with final trade state
-                        self._update_trade_closed(trade, closed_deal)
-                        stats["closed_count"] += 1
-                        stats["updated_ids"].append(trade_id)
-                        logger.info(
-                            f"Reconciled trade {trade_id}: closed at {closed_deal.get('price')}, "
-                            f"PnL={closed_deal.get('profit')}",
-                        )
+                        if closed_deal:
+                            # 5. Update DB with final trade state
+                            self._update_trade_closed(trade, closed_deal)
+                            stats["closed_count"] += 1
+                            stats["updated_ids"].append(trade_id)
+                            logger.info(
+                                f"Reconciled trade {trade_id}: closed at {closed_deal.get('price')}, "
+                                f"PnL={closed_deal.get('profit')}",
+                            )
+                        else:
+                            # Couldn't find deal - mark as closed with estimated PnL
+                            logger.warning(f"Could not fetch closed deal for trade {trade_id}, using current data")
+                            self._update_trade_closed_fallback(trade)
+                            stats["closed_count"] += 1
+                            stats["updated_ids"].append(trade_id)
                     else:
-                        # Couldn't find deal - mark as closed with estimated PnL
-                        logger.warning(f"Could not fetch closed deal for trade {trade_id}, using current data")
-                        self._update_trade_closed_fallback(trade)
-                        stats["closed_count"] += 1
-                        stats["updated_ids"].append(trade_id)
-                else:
-                    logger.debug(f"Trade {trade_id}: ticket {broker_order_id} still open in broker")
+                        logger.debug(f"Trade {trade_id}: ticket {broker_order_id} still open in broker")
+
+                except Exception as trade_exc:
+                    # Isolate the failure: log it and move on to the next trade.
+                    logger.error(
+                        f"Reconciliation error for trade {trade.get('id')} "
+                        f"(broker_order_id={trade.get('broker_order_id')}): {trade_exc}"
+                    )
+                    stats["errors"].append(f"trade_{trade.get('id')}: {str(trade_exc)[:100]}")
+                    continue
 
         except Exception as e:
             logger.error(f"Broker reconciliation failed: {e}")
@@ -102,11 +116,11 @@ class BrokerReconciliation:
         return stats
 
     def _get_active_db_trades(self) -> list:
-        """Fetch trades with status active/executed from DB."""
+        """Fetch trades with status active/executed/OPEN from DB."""
         response = (
             self.supabase.table("trading_signals")
             .select("id, symbol, side, size, entry, filled_entry_price, sl, tp, status, pnl_usd, broker_order_id, closed_at, outcome")
-            .in_("status", ["active", "executed", "ACTIVE", "EXECUTED"])
+            .in_("status", ["active", "executed", "ACTIVE", "EXECUTED", "OPEN", "open"])
             .eq("broker_profile_id", self.broker_profile_id)
             .execute()
         )
@@ -123,23 +137,17 @@ class BrokerReconciliation:
 
         deals = self.meta_api.get_historical_deals(start_str, end_str)
 
-        # Find deal matching our trade by broker_order_id
+        # Find deal matching our trade by broker_order_id (positionId or orderId)
         broker_order_id = str(trade.get("broker_order_id"))
 
+        # FIX 2: Only match by strict ID — never fall back to symbol-only matching.
+        # A symbol-only fallback would return the wrong deal if two positions of the
+        # same symbol are open concurrently, corrupting PnL for both.
         for deal in deals:
-            # Match by positionId or orderId
             position_id = str(deal.get("positionId", ""))
             order_id = str(deal.get("orderId", ""))
 
             if position_id == broker_order_id or order_id == broker_order_id:
-                # This is a DEAL_ENTRY_OUT (close) deal
-                if deal.get("entryType") == "DEAL_ENTRY_OUT":
-                    return deal
-
-            # Also check by symbol + approximate time if no ID match
-            symbol = trade.get("symbol", "").upper()
-            if deal.get("symbol", "").upper() == symbol:
-                # Check if it's a closing deal (profit not 0 and has entry/close pair)
                 if deal.get("entryType") == "DEAL_ENTRY_OUT":
                     return deal
 
@@ -230,10 +238,9 @@ class BrokerReconciliation:
         self.supabase.table("trading_signals").update({
             "status": "closed",
             "outcome": outcome,
-            "pnl": total_pnl,
             "pnl_usd": total_pnl,
             "closed_at": closed_at.isoformat(),
-            "filled_close_price": close_price,
+            "exit_fill_price": close_price,
             "commission": commission,
             "swap": swap,
         }).eq("id", trade["id"]).execute()

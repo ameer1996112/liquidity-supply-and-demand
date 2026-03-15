@@ -156,11 +156,14 @@ class TradeWatchdog:
             pass
 
         try:
+            # FIX 3: Include all active statuses — logic.py writes 'OPEN' on fill,
+            # but legacy/partial paths may write 'executed'/'active'. Include them all
+            # so the watchdog can detect silent exits regardless of the write path.
             resp = (
                 self.supabase.table("trading_signals")
                 .select("*")
                 .eq("run_mode", "LIVE")
-                .eq("status", "executed")
+                .in_("status", ["executed", "OPEN", "active", "ACTIVE", "open"])
             ).execute()
             executed_trades: Sequence[Dict[str, Any]] = resp.data or []
         except Exception as exc:  # noqa: BLE001

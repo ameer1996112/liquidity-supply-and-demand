@@ -541,15 +541,26 @@ class MetaApiAdapter:
                 message=msg,
             )
 
-        order_id = data.get("orderId") or data.get("id")
+        # FIX 5: Prefer positionId over orderId as broker_order_id.
+        # In MT5 hedging mode (all prop firms), orderId != positionId.
+        # The broker positions endpoint returns 'id' which equals positionId,
+        # so reconciliation must store positionId to match correctly.
+        # Fall back to orderId for netting-mode accounts where positionId is absent.
+        order_id = data.get("positionId") or data.get("orderId") or data.get("id")
         if not order_id:
-            msg = f"MetaApi response missing orderId: {data}"
+            msg = f"MetaApi response missing positionId/orderId: {data}"
             logger.error(msg)
             return ExecutionResult(
                 status="failed",
                 client_order_id=request.client_order_id,
                 message=msg,
             )
+        logger.info(
+            "MetaApi broker_order_id resolved: positionId=%s orderId=%s -> using %s",
+            data.get("positionId"),
+            data.get("orderId"),
+            order_id,
+        )
 
         # TCA: Extract actual fill price from broker response
         # MetaAPI returns price in various fields depending on order type
