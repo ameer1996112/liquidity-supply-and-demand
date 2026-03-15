@@ -5,6 +5,7 @@ Save to Supabase, filter or notify, optional paper position. Used only by worker
 
 import logging
 import uuid
+from config.logging_config import get_logger
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Tuple, Optional
 
@@ -26,8 +27,7 @@ from src.adapters import supabase as supabase_module
 from src.services.trade_events import log_event
 from src.services.execution_engine import ExecutionEngine
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
+logger = get_logger("trinity.logic")
 
 _paper_trader = None
 

@@ -25,6 +25,12 @@ class Settings(BaseSettings):
         populate_by_name=True,
     )
 
+    log_level: str = Field(
+        default="INFO",
+        description="Root log level: DEBUG | INFO | WARNING | ERROR. Env: LOG_LEVEL.",
+        validation_alias=AliasChoices("LOG_LEVEL", "log_level"),
+    )
+
     supabase_url: str = Field(..., min_length=1, description="SUPABASE_URL")
     redis_url: str = Field(..., min_length=1, description="REDIS_URL")
     webhook_secret: str = Field(default="", description="WEBHOOK_SECRET")

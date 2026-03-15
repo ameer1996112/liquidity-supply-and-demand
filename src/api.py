@@ -32,13 +32,13 @@ except ImportError:
     logging.getLogger(__name__).warning("slowapi not installed — rate limiting disabled")
 
 from config import get_settings
-from config.logging_config import configure_logging
+from config.logging_config import configure_logging, get_logger
 from src.adapters.redis_queue import get_redis
 from src.core.transport import get_transport
 from src.core.signal import EntryWebhookPayload, ExitWebhookPayload, validate_webhook_payload
 
-configure_logging(level=logging.INFO, format_str="%(asctime)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
+configure_logging()
+logger = get_logger("trinity.api")
 
 
 def _build_cors_origins() -> list[str]:
@@ -125,6 +125,31 @@ app.add_middleware(
     expose_headers=["*"],
     max_age=600,
 )
+
+import time as _time_mod
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request as _StarletteRequest
+from starlette.responses import Response as _StarletteResponse
+
+_req_logger = get_logger("trinity.api.requests")
+
+class _RequestLoggingMiddleware(BaseHTTPMiddleware):
+    """Log method, path, status, and duration for every request at DEBUG level."""
+
+    async def dispatch(self, request: _StarletteRequest, call_next: Any) -> _StarletteResponse:
+        t0 = _time_mod.perf_counter()
+        response = await call_next(request)
+        ms = ((_time_mod.perf_counter() - t0) * 1000)
+        _req_logger.debug(
+            "%s %s → %d (%.0fms)",
+            request.method,
+            request.url.path,
+            response.status_code,
+            ms,
+        )
+        return response
+
+app.add_middleware(_RequestLoggingMiddleware)
 
 
 def _fail_fast_config():

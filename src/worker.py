@@ -23,7 +23,7 @@ _root = Path(__file__).resolve().parent.parent
 load_dotenv(_root / ".env")
 
 from config import get_settings
-from config.logging_config import configure_logging
+from config.logging_config import configure_logging, get_logger, trade_context
 from src.adapters.redis_queue import get_redis
 from src.core.transport import SignalTransport, get_transport
 from src.core.consumer_validator import validate_dequeued_message
@@ -49,8 +49,8 @@ from src.services.watchdog import TradeWatchdog
 from src.services.trailing_stop_manager import TrailingStopManager
 from src.core.dynamic_config import get_dynamic_setting, clear_settings_cache, apply_time_based_rules
 
-configure_logging(level=logging.INFO, format_str="%(asctime)s | %(levelname)s | %(message)s")
-logger = logging.getLogger("TRINITY_WORKER")
+configure_logging()
+logger = get_logger("trinity.worker")
 
 MAX_OPEN_POSITIONS = 3
 # NOTE: Actual RF threshold is settings.ml_min_confidence (default 0.60).
