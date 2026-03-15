@@ -204,7 +204,10 @@ export default function AnalyticsPage() {
   const [period, setPeriod] = useState<Period>('30d');
 
   const mode = modeFilter === 'ALL' ? undefined : modeFilter;
-  const analyticsMode = modeFilter === 'ALL' ? 'LIVE' : modeFilter;
+  // Pass 'ALL' to backend when user selects ALL — backend supports it and returns
+  // all trades regardless of run_mode. Previously hardcoded 'LIVE' here which meant
+  // breakdown/streaks/drawdown always showed LIVE-only data even when ALL was selected.
+  const analyticsMode = modeFilter;
 
   // ── Data hooks ──────────────────────────────────────────────────────────────
   const { data: analytics, isLoading: analyticsLoading } = useAnalytics(mode);

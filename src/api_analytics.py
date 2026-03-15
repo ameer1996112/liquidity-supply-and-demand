@@ -68,7 +68,10 @@ def _fetch_closed_signals(
     td = PERIOD_MAP.get(period)
     if td:
         cutoff = (datetime.now(timezone.utc) - td).isoformat()
-        query = query.gte("created_at", cutoff)
+        # Filter by closed_at so period reflects when the trade finished, not when
+        # it was opened. A trade opened 31 days ago but closed today should appear
+        # in a "30d" report. Fall back to created_at for signals without closed_at.
+        query = query.or_(f"closed_at.gte.{cutoff},and(closed_at.is.null,created_at.gte.{cutoff})")
 
     resp = query.limit(5000).execute()
     raw = resp.data or []

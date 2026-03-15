@@ -168,13 +168,7 @@ export async function fetchSignalStats(): Promise<SignalStats> {
   const eligibleForPnl = signals.filter((s) => {
     const st = normalizeStatus(s.status);
     const hasPnl = s.pnl_usd != null || s.pnl != null;
-    return (
-      hasPnl &&
-      (st === 'closed' ||
-        st === 'executed' ||
-        st === 'CLOSED' ||
-        st === 'EXECUTED')
-    );
+    return hasPnl && (st === 'closed' || st === 'executed');
   });
 
   const liveClosed = eligibleForPnl.filter(isLive);
