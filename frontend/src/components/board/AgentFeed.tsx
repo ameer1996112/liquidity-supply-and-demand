@@ -135,6 +135,7 @@ export function AgentFeed() {
                 <p
                   className='mt-0.5 text-[10px] text-[var(--to-text-dim)]'
                   style={{ fontFamily: 'var(--font-mono)' }}
+                  suppressHydrationWarning
                 >
                   {new Date(ev.created_at).toLocaleTimeString()}
                 </p>
