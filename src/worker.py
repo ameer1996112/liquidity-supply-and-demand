@@ -1261,7 +1261,17 @@ def process_trade(payload: Dict[str, Any]):
     )
 
     decision = str(ai_result.get("decision", "NO_GO")).upper()
-    shadow_mode = bool(getattr(s, "run_shadow_mode", False))
+    # Shadow mode: run_shadow_mode (hardcoded) OR ai_mode=="shadow" (env-controlled AI_MODE)
+    # AI_MODE=shadow → log-only, never block. AI_MODE=enforce → blocking active.
+    _effective_ai_mode = getattr(s, "ai_mode", "shadow")
+    try:
+        from src.services.ai_mode_override import get_ai_mode_override
+        _db_override = get_ai_mode_override()
+        if _db_override:
+            _effective_ai_mode = _db_override
+    except Exception:
+        pass
+    shadow_mode = bool(getattr(s, "run_shadow_mode", False)) or (_effective_ai_mode == "shadow")
 
     if decision in {"NO_GO", "MODEL_ERROR"}:
         if shadow_mode:
@@ -1406,7 +1416,7 @@ def run():
     logger.info("Account Balance: $%s", f"{s.account_balance:,.0f}")
     logger.info("Risk Per Trade: %s%%", s.risk_percent)
     logger.info("Correlation Limit: %s positions", s.trinity_max_positions)
-    logger.info("AI Ensemble: %s | Shadow: %s", "ON", "ON" if getattr(s, "run_shadow_mode", False) else "OFF")
+    logger.info("AI Ensemble: %s | Shadow: %s (ai_mode=%s)", "ON", "ON" if getattr(s, "run_shadow_mode", False) or getattr(s, "ai_mode", "shadow") == "shadow" else "OFF", getattr(s, "ai_mode", "shadow"))
     logger.info("Kill-Switch: %s", "ON" if kill_sw else "OFF")
     logger.info("LIVE_TRADING: %s", "true" if live else "false")
     logger.info("Evaluation Mode: %s", "ON" if getattr(s, "evaluation_mode", False) else "OFF")
