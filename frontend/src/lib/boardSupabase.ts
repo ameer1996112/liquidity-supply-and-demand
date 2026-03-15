@@ -102,6 +102,7 @@ export async function updateTicket(
 }
 
 // ── Mock fallback when Supabase is not configured ─────────────────────────────
+// Static timestamps avoid server/client hydration mismatch (React error #418)
 const MOCK_TICKETS: Ticket[] = [
   {
     id: '1',
@@ -111,8 +112,8 @@ const MOCK_TICKETS: Ticket[] = [
     component: 'Frontend (React)',
     priority: 'critical',
     status: 'in_progress',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: '2026-03-15T00:00:00.000Z',
+    updated_at: '2026-03-15T00:00:00.000Z',
   },
   {
     id: '2',
@@ -122,8 +123,8 @@ const MOCK_TICKETS: Ticket[] = [
     component: 'Pine Script',
     priority: 'high',
     status: 'todo',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: '2026-03-15T00:00:00.000Z',
+    updated_at: '2026-03-15T00:00:00.000Z',
   },
   {
     id: '3',
@@ -133,8 +134,8 @@ const MOCK_TICKETS: Ticket[] = [
     component: 'AI / ML Pipeline',
     priority: 'medium',
     status: 'backlog',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: '2026-03-15T00:00:00.000Z',
+    updated_at: '2026-03-15T00:00:00.000Z',
   },
   {
     id: '4',
@@ -144,7 +145,7 @@ const MOCK_TICKETS: Ticket[] = [
     component: 'Frontend (React)',
     priority: 'high',
     status: 'done',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_at: '2026-03-15T00:00:00.000Z',
+    updated_at: '2026-03-15T00:00:00.000Z',
   },
 ];

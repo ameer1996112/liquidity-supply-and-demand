@@ -13,6 +13,7 @@ interface FeedEvent {
   agent_name?: string;
 }
 
+// Static timestamps avoid server/client hydration mismatch (React error #418)
 const SEED_EVENTS: FeedEvent[] = [
   {
     id: 'seed-1',
@@ -21,7 +22,7 @@ const SEED_EVENTS: FeedEvent[] = [
       'began root-cause analysis. Identified race condition between council enrichment and signal persistence.',
     event_type: 'update',
     agent_name: 'Antigravity Agent',
-    created_at: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
+    created_at: '2026-03-15T00:00:00.000Z',
   },
   {
     id: 'seed-2',
@@ -30,7 +31,7 @@ const SEED_EVENTS: FeedEvent[] = [
       'closed ticket. Fix: disabled Next.js force-cache on all Supabase fetches. Deployed & verified.',
     event_type: 'close',
     agent_name: 'Antigravity Agent',
-    created_at: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
+    created_at: '2026-03-14T22:00:00.000Z',
   },
   {
     id: 'seed-3',
@@ -39,7 +40,7 @@ const SEED_EVENTS: FeedEvent[] = [
       'moved to In Progress. Investigating async worker pipeline for race conditions.',
     event_type: 'move',
     agent_name: 'Antigravity Agent',
-    created_at: new Date(Date.now() - 1000 * 60 * 300).toISOString(),
+    created_at: '2026-03-14T19:00:00.000Z',
   },
 ];
 
