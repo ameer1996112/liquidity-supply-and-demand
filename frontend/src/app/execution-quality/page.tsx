@@ -127,7 +127,8 @@ function ExecutionQualityContent() {
   });
   const { data: accounts = [] } = useTraceAccounts();
 
-  const hasHighSlippage = tcaSummary && tcaSummary.avg_slippage_pips < -2.0;
+  // Positive slippage = paid more than expected (bad). Alert when avg > 2 pips adverse.
+  const hasHighSlippage = tcaSummary && tcaSummary.avg_slippage_pips > 2.0;
   const { status } = useConnectionHealth();
 
   return (
@@ -510,6 +511,10 @@ function ExecutionQualityContent() {
                               `High slippage: ${alert.slippage_pips?.toFixed(1)} pips`}
                             {alert.alert_type === 'high_latency' &&
                               `High latency: ${alert.total_execution_ms}ms`}
+                            {alert.alert_type === 'high_bot_latency' &&
+                              `High bot latency: ${alert.total_execution_ms}ms (guard rails slow)`}
+                            {alert.alert_type === 'high_broker_latency' &&
+                              `High broker latency: ${alert.total_execution_ms}ms (broker fill slow)`}
                           </div>
                           <div className='font-mono text-[10px] text-slate-500'>
                             Signal #{alert.signal_id}

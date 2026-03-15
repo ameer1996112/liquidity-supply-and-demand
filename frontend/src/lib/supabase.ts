@@ -213,7 +213,12 @@ export async function fetchSignalStats(): Promise<SignalStats> {
   todayMidnight.setUTCHours(0, 0, 0, 0);
   const todayISO = todayMidnight.toISOString();
 
-  const todaySignals = eligibleForPnl.filter((s) => s.created_at >= todayISO);
+  // Use closed_at for daily PnL grouping — a trade opened yesterday and closed today
+  // should count as today's PnL. Fall back to created_at only if closed_at is missing.
+  const todaySignals = eligibleForPnl.filter((s) => {
+    const closedTime = s.closed_at ?? s.created_at;
+    return closedTime >= todayISO;
+  });
   const dailyPnl = todaySignals.reduce((sum, s) => sum + getPnlUsd(s), 0);
 
   // Mode-specific daily PnL
@@ -254,7 +259,7 @@ export async function fetchSignalStats(): Promise<SignalStats> {
           'pnl, pnl_usd, entry, exit_fill_price, exit_price, size, side, run_mode, status'
         )
         .or(
-          'status.ilike.closed,status.ilike.executed,status.ilike.open'
+          'status.ilike.closed,status.ilike.executed'
         )
         .limit(5000);
 
