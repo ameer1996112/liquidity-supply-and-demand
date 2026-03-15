@@ -1,5 +1,43 @@
 # Risk Management System Overview
 
+> Last updated: 2026-03-15 — Role separation overhaul (4 bugs fixed, see bottom)
+
+## Architecture: Pine Script + Backend Cooperation
+
+```
+Pine Script = Signal Generator ONLY
+  ├─ Calculates: entry price, SL, TP, intended lot size
+  ├─ Fires alerts when zone + liquidity + AI conditions are met
+  └─ Daily loss check (4%): backtest simulation only, does NOT control live bot
+
+Backend Bot = Single Risk Authority
+  ├─ PropGuard Step-Up: survival 0.5x → building 0.75x → normal 1.0x → (funded only: aggressive 2.0x)
+  ├─ Trinity kill switch: 4% daily loss / 8% drawdown → halt all trading
+  ├─ FTMO compliance: EvaluationTracker enforces phase limits when EVALUATION_MODE=true
+  ├─ Correlation guard: max 1 position per correlated group
+  ├─ Sector guard: max 10-40% exposure per sector
+  ├─ Portfolio VaR guard: max $500 VaR
+  └─ Final sizing = min(pine_lots, max_allowed) × risk_multiplier
+```
+
+**Key principle: Pine proposes, backend disposes.**
+Pine's lot size is always capped by the backend. The backend's risk_multiplier is now
+correctly applied to the final position size (was silently ignored before 2026-03-15).
+
+## FTMO $50k Limit Alignment
+
+| Metric               | FTMO Firm Limit | Bot Kill Threshold | Buffer  |
+|---------------------|-----------------|--------------------|---------|
+| Daily loss           | $2,500 (5%)     | $2,000 (4%)        | $500    |
+| Overall drawdown     | $5,000 (10%)    | $4,000 (8%)        | $1,000  |
+| Phase 1 profit target| $5,000 (10%)    | Track only         | —       |
+| Single trade risk    | No limit        | 1% ($500 max)      | —       |
+| Best day / total profit | 40% (FTMO rule) | Throttle at 35%, block at 40% | ✓ |
+
+**To activate FTMO compliance:** Set `EVALUATION_MODE=true` in Railway env vars.
+
+---
+
 ## 🛡️ Multi-Layer Defense Architecture
 
 Your bot uses **7 layers of risk management** working together to protect your account:

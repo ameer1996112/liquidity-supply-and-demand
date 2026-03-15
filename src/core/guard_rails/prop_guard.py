@@ -76,11 +76,22 @@ def check_safety(
     th2 = getattr(s, "step_up_threshold_2", 0.05)
     r2 = getattr(s, "step_up_risk_2", 2.0)
 
+    # During prop firm evaluation: cap multiplier at 1.0x.
+    # Rationale: in a challenge, being ahead doesn't mean take more risk —
+    # it means protect the profit target. One bad 2x trade can breach the daily
+    # loss limit and fail the challenge. Aggressive scaling is for funded accounts only.
+    evaluation_mode = getattr(s, "evaluation_mode", False)
+    evaluation_phase = getattr(s, "evaluation_phase", "phase1")
+    in_evaluation = evaluation_mode and evaluation_phase in ("phase1", "phase2")
+
     if profit_pct < 0:
         # Below starting balance: preserve capital
         return True, survival_risk / max(base_risk, 1e-6), "Survival Mode"
     if profit_pct > th2:
-        # Deep in profit: house money mode
+        if in_evaluation:
+            # Evaluation: hold at 1x even when ahead — protect profit target
+            return True, r1 / max(base_risk, 1e-6), "Normal Buffer (Evaluation: no scale-up)"
+        # Funded/live: house money mode — scale up
         return True, r2 / max(base_risk, 1e-6), "Aggressive Kill Zone"
     if profit_pct > th1:
         # Healthy buffer built: normal base risk

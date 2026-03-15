@@ -654,6 +654,44 @@ export async function deleteSymbolRiskRule(symbol: string) {
   return {};
 }
 
+// ── Challenge Settings API ────────────────────────────────────────────────
+
+export interface ChallengeSettings {
+  account_name: string;
+  broker_profile_id: number | null;
+  evaluation_mode: boolean;
+  evaluation_phase: 'phase1' | 'phase2' | 'funded';
+  starting_balance: number;
+  profit_target: number;
+  max_daily_loss_pct: number;
+  max_drawdown_pct: number;
+  min_trading_days: number;
+  consistency_limit_pct: number;
+  evaluation_start_date: string | null;
+}
+
+export async function fetchChallengeSettings(accountName: string): Promise<ChallengeSettings> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/portfolio-control/accounts/${encodeURIComponent(accountName)}/challenge`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`Failed to fetch challenge settings: ${res.statusText}`);
+  return res.json();
+}
+
+export async function updateChallengeSettings(
+  accountName: string,
+  settings: Omit<ChallengeSettings, 'account_name' | 'broker_profile_id' | 'evaluation_start_date'>
+): Promise<ChallengeSettings> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/portfolio-control/accounts/${encodeURIComponent(accountName)}/challenge`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(settings),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to update challenge settings: ${res.statusText}`);
+  }
+  return res.json();
+}
+
 // ── Prop Firm API ──────────────────────────────────────────────────────────
 
 export interface PropFirmEquity {

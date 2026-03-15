@@ -454,25 +454,41 @@ def process_trade(
 
                 sl_pips = risk  # raw price distance (used for logging)
                 symbol_overrides = data.get("_symbol_overrides")
+
+                # Read PropGuard risk multiplier (set by worker.py Step-Up Protocol)
+                # Survival mode: 0.5x | Building buffer: 0.75x | Normal: 1.0x | Aggressive: 2.0x
+                risk_multiplier = float(data.get("_risk_multiplier", 1.0))
+                # Also apply time-based multiplier if present
+                time_multiplier = float(data.get("_time_risk_multiplier", 1.0))
+                effective_multiplier = risk_multiplier * time_multiplier
+                if effective_multiplier != 1.0:
+                    logger.info(
+                        "Risk multipliers: prop_guard=%.2f, time=%.2f -> effective=%.2f",
+                        risk_multiplier, time_multiplier, effective_multiplier,
+                    )
+
                 max_lots = calculate_max_position_size(
                     payload=data,
                     account_balance=current_balance,
                     risk_percent=risk_pct,
+                    risk_multiplier=effective_multiplier,
                     symbol_overrides=symbol_overrides,
                 )
                 if size > max_lots:
                     logger.warning(
-                        "Size %.4f exceeds risk limit %.4f — capping to max",
+                        "Size %.4f exceeds risk limit %.4f (multiplier=%.2f) — capping to max",
                         size,
                         max_lots,
+                        effective_multiplier,
                     )
                     size = max_lots
                 size = round(size, 2)
 
                 logger.info(
-                    "Risk Calc: Balance=$%.2f Risk=%.1f%% SL_dist=%.5f -> MaxSize=%.4f, FinalSize=%.2f",
+                    "Risk Calc: Balance=$%.2f Risk=%.1f%% Multiplier=%.2f SL_dist=%.5f -> MaxSize=%.4f, FinalSize=%.2f",
                     current_balance,
                     risk_pct,
+                    effective_multiplier,
                     sl_pips,
                     max_lots,
                     size,

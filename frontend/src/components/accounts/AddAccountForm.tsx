@@ -2,9 +2,20 @@
 
 import { useState } from 'react';
 import { useCreateAccountStrategy } from '@/hooks/useAccountsSupabase';
+import { useUpdateChallengeSettings } from '@/hooks/useChallenge';
 import { useToast } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
-import { Plus, Loader2, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Loader2, X, ChevronDown, ChevronUp, Shield } from 'lucide-react';
+
+// Bot kill thresholds per provider (set at 80% of firm limits for safety buffer)
+const PROVIDER_DEFAULTS: Record<string, { profitTarget: number; dailyLossPct: number; ddPct: number; minDays: number }> = {
+  FTMO:       { profitTarget: 5000, dailyLossPct: 4.0, ddPct: 8.0, minDays: 4 },
+  ACG:        { profitTarget: 5000, dailyLossPct: 4.0, ddPct: 8.0, minDays: 5 },
+  MyFundedFX: { profitTarget: 8000, dailyLossPct: 4.0, ddPct: 8.0, minDays: 5 },
+  TFT:        { profitTarget: 5000, dailyLossPct: 4.0, ddPct: 8.0, minDays: 4 },
+  E8:         { profitTarget: 8000, dailyLossPct: 4.0, ddPct: 8.0, minDays: 5 },
+  Other:      { profitTarget: 5000, dailyLossPct: 4.0, ddPct: 8.0, minDays: 4 },
+};
 
 interface AddAccountFormProps {
   onSuccess?: () => void;
@@ -20,7 +31,7 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
   const [accountType, setAccountType] = useState('Personal');
   const [provider, setProvider] = useState('Personal');
   const [strategyType, setStrategyType] = useState('BALANCED');
-  const [riskPercent, setRiskPercent] = useState(1);
+  const [riskPercent, setRiskPercent] = useState(0.5);
   const [maxPositions, setMaxPositions] = useState(3);
   const [allocatedCapital, setAllocatedCapital] = useState(50000);
 
@@ -28,19 +39,57 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
   const [metaApiAccountId, setMetaApiAccountId] = useState('');
   const [metaApiTokenKey, setMetaApiTokenKey] = useState('META_API_TOKEN');
 
+  // Challenge settings (shown for Eval/Funded)
+  const [challengePhase, setChallengePhase] = useState<'phase1' | 'phase2' | 'funded'>('phase1');
+  const [profitTarget, setProfitTarget] = useState(5000);
+  const [dailyLossPct, setDailyLossPct] = useState(4.0);
+  const [ddPct, setDdPct] = useState(8.0);
+  const [minDays, setMinDays] = useState(4);
+
   // Advanced toggle
   const [showAdvanced, setShowAdvanced] = useState(false);
+
+  const isEvalOrFunded = accountType === 'Eval' || accountType === 'Funded';
+
+  // When provider changes, pre-fill challenge limits with that firm's defaults
+  const handleProviderChange = (p: string) => {
+    setProvider(p);
+    const defaults = PROVIDER_DEFAULTS[p];
+    if (defaults && isEvalOrFunded) {
+      setProfitTarget(defaults.profitTarget);
+      setDailyLossPct(defaults.dailyLossPct);
+      setDdPct(defaults.ddPct);
+      setMinDays(defaults.minDays);
+    }
+  };
+
+  // When account type changes, reset provider and pre-fill defaults
+  const handleTypeChange = (t: string) => {
+    setAccountType(t);
+    if (t === 'Personal') {
+      setProvider('Personal');
+    } else {
+      if (provider === 'Personal') setProvider('FTMO');
+      const p = provider === 'Personal' ? 'FTMO' : provider;
+      const defaults = PROVIDER_DEFAULTS[p];
+      if (defaults) {
+        setProfitTarget(defaults.profitTarget);
+        setDailyLossPct(defaults.dailyLossPct);
+        setDdPct(defaults.ddPct);
+        setMinDays(defaults.minDays);
+      }
+    }
+  };
+
+  // Hook to save challenge settings after account creation
+  const [createdAccountName, setCreatedAccountName] = useState('');
+  const updateChallenge = useUpdateChallengeSettings(createdAccountName);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const name = accountName.trim();
     if (!name) {
-      addToast({
-        title: 'Validation',
-        message: 'Account name is required',
-        severity: 'warning',
-        duration: 3000,
-      });
+      addToast({ title: 'Validation', message: 'Account name is required', severity: 'warning', duration: 3000 });
       return;
     }
     try {
@@ -55,32 +104,55 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
         meta_api_account_id: metaApiAccountId.trim() || undefined,
         meta_api_token_env_key: metaApiTokenKey.trim() || undefined,
       });
+
+      // Save challenge settings for Eval/Funded accounts
+      if (isEvalOrFunded) {
+        setCreatedAccountName(name);
+        // Small delay to let the account be created and broker_profile linked
+        await new Promise(r => setTimeout(r, 500));
+        try {
+          await updateChallenge.mutateAsync({
+            evaluation_mode: true,
+            evaluation_phase: challengePhase,
+            starting_balance: allocatedCapital,
+            profit_target: profitTarget,
+            max_daily_loss_pct: dailyLossPct,
+            max_drawdown_pct: ddPct,
+            min_trading_days: minDays,
+            consistency_limit_pct: 40,
+          });
+        } catch {
+          // Non-fatal: challenge settings can be edited later in the Challenge tab
+        }
+      }
+
       addToast({
         title: 'Account added',
-        message: `${name} created successfully${metaApiAccountId.trim() ? ' with broker profile' : ''}`,
+        message: `${name} created${isEvalOrFunded ? ` — ${provider} ${challengePhase === 'phase1' ? 'Phase 1' : challengePhase === 'phase2' ? 'Phase 2' : 'Funded'} configured` : ''}`,
         severity: 'success',
-        duration: 3000,
+        duration: 4000,
       });
-      // Reset
+
+      // Reset form
       setAccountName('');
       setAccountType('Personal');
       setProvider('Personal');
       setStrategyType('BALANCED');
-      setRiskPercent(1);
+      setRiskPercent(0.5);
       setMaxPositions(3);
       setAllocatedCapital(50000);
       setMetaApiAccountId('');
       setMetaApiTokenKey('META_API_TOKEN');
+      setChallengePhase('phase1');
+      setProfitTarget(5000);
+      setDailyLossPct(4.0);
+      setDdPct(8.0);
+      setMinDays(4);
       setShowAdvanced(false);
       onSuccess?.();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      addToast({
-        title: 'Failed to add account',
-        message: msg || 'Unknown error. Check backend logs.',
-        severity: 'critical',
-        duration: 6000,
-      });
+      addToast({ title: 'Failed to add account', message: msg || 'Unknown error. Check backend logs.', severity: 'critical', duration: 6000 });
     }
   };
 
@@ -127,10 +199,7 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
           <select
             id='account-type'
             value={accountType}
-            onChange={(e) => {
-              setAccountType(e.target.value);
-              if (e.target.value === 'Personal') setProvider('Personal');
-            }}
+            onChange={(e) => handleTypeChange(e.target.value)}
             className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm text-zinc-200 font-mono'
           >
             <option value='Personal'>Personal</option>
@@ -145,7 +214,7 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
           <select
             id='account-provider'
             value={provider}
-            onChange={(e) => setProvider(e.target.value)}
+            onChange={(e) => handleProviderChange(e.target.value)}
             className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm text-zinc-200 font-mono'
           >
             <option value='Personal'>Personal</option>
@@ -282,14 +351,74 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
         </div>
       )}
 
-      {/* Evaluation notice */}
-      {accountType === 'Eval' && (
-        <div className='rounded border border-blue-500/30 bg-blue-500/5 px-3 py-2'>
-          <p className='text-[10px] text-blue-400'>
-            Evaluation mode will be enabled. The bot will enforce daily loss
-            (5%) and max drawdown (10%) limits per FTMO rules. You can customize
-            limits in the account settings after creation.
-          </p>
+      {/* Challenge settings (Eval / Funded only) */}
+      {isEvalOrFunded && (
+        <div className='rounded-lg border border-indigo-500/30 bg-indigo-500/5 p-3 space-y-3'>
+          <div className='flex items-center gap-2'>
+            <Shield className='h-3.5 w-3.5 text-indigo-400' />
+            <span className='text-xs font-semibold text-indigo-300'>Challenge Settings</span>
+            <span className='text-[9px] text-indigo-500 font-mono ml-1'>
+              (pre-filled for {provider === 'Personal' ? 'FTMO' : provider} — edit below or adjust later)
+            </span>
+          </div>
+
+          {/* Phase selector */}
+          <div>
+            <label className='text-[10px] text-zinc-500 font-mono block mb-1'>Starting Phase</label>
+            <div className='flex gap-2'>
+              {(['phase1', 'phase2', 'funded'] as const).map((p) => (
+                <button
+                  key={p}
+                  type='button'
+                  onClick={() => setChallengePhase(p)}
+                  className={`flex-1 py-1.5 rounded text-xs font-mono border transition-colors ${
+                    challengePhase === p
+                      ? 'border-indigo-500/60 bg-indigo-500/20 text-indigo-300'
+                      : 'border-[#2a2e39] bg-[#1e222d] text-zinc-500 hover:text-zinc-300'
+                  }`}
+                >
+                  {p === 'phase1' ? 'Phase 1' : p === 'phase2' ? 'Phase 2' : 'Funded'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className='grid grid-cols-2 gap-2'>
+            <div>
+              <label className='text-[10px] text-zinc-500 font-mono block mb-1'>Profit Target ($)</label>
+              <input type='number' min={0} step={500} value={profitTarget}
+                onChange={e => setProfitTarget(parseFloat(e.target.value) || 0)}
+                className='w-full px-2 py-1.5 bg-[#1e222d] border border-[#2a2e39] rounded text-sm font-mono text-zinc-200 focus:outline-none focus:border-zinc-500' />
+            </div>
+            <div>
+              <label className='text-[10px] text-zinc-500 font-mono block mb-1'>
+                Daily Kill % <span className='text-zinc-600'>(bot stop)</span>
+              </label>
+              <input type='number' min={0.5} max={10} step={0.5} value={dailyLossPct}
+                onChange={e => setDailyLossPct(parseFloat(e.target.value) || 0)}
+                className='w-full px-2 py-1.5 bg-[#1e222d] border border-[#2a2e39] rounded text-sm font-mono text-zinc-200 focus:outline-none focus:border-zinc-500' />
+              <p className='text-[9px] text-zinc-600 mt-0.5 font-mono'>
+                = ${((allocatedCapital * dailyLossPct) / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </p>
+            </div>
+            <div>
+              <label className='text-[10px] text-zinc-500 font-mono block mb-1'>
+                Drawdown Kill % <span className='text-zinc-600'>(bot stop)</span>
+              </label>
+              <input type='number' min={1} max={20} step={0.5} value={ddPct}
+                onChange={e => setDdPct(parseFloat(e.target.value) || 0)}
+                className='w-full px-2 py-1.5 bg-[#1e222d] border border-[#2a2e39] rounded text-sm font-mono text-zinc-200 focus:outline-none focus:border-zinc-500' />
+              <p className='text-[9px] text-zinc-600 mt-0.5 font-mono'>
+                = ${((allocatedCapital * ddPct) / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </p>
+            </div>
+            <div>
+              <label className='text-[10px] text-zinc-500 font-mono block mb-1'>Min Trading Days</label>
+              <input type='number' min={0} max={60} step={1} value={minDays}
+                onChange={e => setMinDays(parseInt(e.target.value, 10) || 0)}
+                className='w-full px-2 py-1.5 bg-[#1e222d] border border-[#2a2e39] rounded text-sm font-mono text-zinc-200 focus:outline-none focus:border-zinc-500' />
+            </div>
+          </div>
         </div>
       )}
 

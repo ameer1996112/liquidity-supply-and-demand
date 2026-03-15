@@ -306,25 +306,30 @@ class Settings(BaseSettings):
     nas100_point_value: float = Field(default=1.0, ge=0.1, le=100.0)
 
     # ── Evaluation Mode (Prop Firm Challenge Tracking) ──────────────────────
+    # IMPORTANT: Set evaluation_mode=True in .env when running a prop firm challenge.
+    # All phase limits below are FTMO Standard $50k defaults. Override per-challenge via .env.
     evaluation_mode: bool = Field(default=False, description="Enable prop firm evaluation tracking")
     evaluation_phase: Literal["phase1", "phase2", "funded"] = Field(default="phase1", description="Current evaluation phase")
     evaluation_start_date: str = Field(default="", description="ISO datetime when evaluation started (YYYY-MM-DD)")
 
-    # Phase 1 Rules (FTMO/MyFundedFX style)
-    phase1_profit_target: float = Field(default=5000.0, ge=0.0, description="Phase 1 profit target ($)")
-    phase1_max_daily_loss: float = Field(default=500.0, ge=0.0, description="Phase 1 max daily loss ($)")
-    phase1_max_drawdown_pct: float = Field(default=5.0, ge=0.0, le=100.0, description="Phase 1 max drawdown (%)")
+    # Phase 1 Rules (FTMO Standard $50k: 10% profit target, 5% max daily loss, 10% max overall DD)
+    # Bot operates at 80% of firm limits to leave a safety buffer before hard breach.
+    # FTMO rule: max daily loss = 5% of INITIAL balance = $2,500 on $50k
+    # Bot kill at: $2,000 (4% of $50k) — leaves $500 buffer before firm breach
+    phase1_profit_target: float = Field(default=5000.0, ge=0.0, description="Phase 1 profit target ($). FTMO $50k: $5,000")
+    phase1_max_daily_loss: float = Field(default=2000.0, ge=0.0, description="Phase 1 bot kill daily loss ($). FTMO $50k limit=$2500, bot kills at $2000 (80% of limit)")
+    phase1_max_drawdown_pct: float = Field(default=8.0, ge=0.0, le=100.0, description="Phase 1 bot kill drawdown (%). FTMO $50k limit=10%, bot kills at 8%")
     phase1_min_trading_days: int = Field(default=4, ge=0, description="Phase 1 minimum trading days")
 
-    # Phase 2 Rules
-    phase2_profit_target: float = Field(default=2500.0, ge=0.0, description="Phase 2 profit target ($)")
-    phase2_max_daily_loss: float = Field(default=500.0, ge=0.0, description="Phase 2 max daily loss ($)")
-    phase2_max_drawdown_pct: float = Field(default=5.0, ge=0.0, le=100.0, description="Phase 2 max drawdown (%)")
+    # Phase 2 Rules (FTMO Standard $50k: 5% profit target, same loss limits)
+    phase2_profit_target: float = Field(default=2500.0, ge=0.0, description="Phase 2 profit target ($). FTMO $50k: $2,500")
+    phase2_max_daily_loss: float = Field(default=2000.0, ge=0.0, description="Phase 2 bot kill daily loss ($). Same as Phase 1")
+    phase2_max_drawdown_pct: float = Field(default=8.0, ge=0.0, le=100.0, description="Phase 2 bot kill drawdown (%). Same as Phase 1")
     phase2_min_trading_days: int = Field(default=4, ge=0, description="Phase 2 minimum trading days")
 
-    # Funded Account Rules
-    funded_max_daily_loss: float = Field(default=500.0, ge=0.0, description="Funded account max daily loss ($)")
-    funded_max_drawdown_pct: float = Field(default=10.0, ge=0.0, le=100.0, description="Funded account trailing drawdown (%)")
+    # Funded Account Rules (FTMO: 5% daily loss, 10% trailing DD — bot kills at 80% of each)
+    funded_max_daily_loss: float = Field(default=2000.0, ge=0.0, description="Funded account bot kill daily loss ($). FTMO limit=$2500, bot kills at $2000")
+    funded_max_drawdown_pct: float = Field(default=8.0, ge=0.0, le=100.0, description="Funded account bot kill drawdown (%). FTMO trailing DD=10%, bot kills at 8%")
 
     # Consistency Rule
     consistency_target_pct: float = Field(default=70.0, ge=0.0, le=100.0, description="Consistency target (% of profitable days)")

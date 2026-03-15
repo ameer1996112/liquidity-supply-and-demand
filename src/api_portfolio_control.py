@@ -1181,6 +1181,167 @@ def delete_account(account_name: str):
 
 
 # ══════════════════════════════════════════════════════════════════
+# CHALLENGE SETTINGS ENDPOINTS (Per-account prop firm config)
+# ══════════════════════════════════════════════════════════════════
+
+
+class ChallengeSettingsRequest(BaseModel):
+    """Per-account prop firm challenge configuration stored in broker_profiles."""
+    evaluation_mode: bool = Field(default=True, description="Enable prop firm guardrails for this account")
+    evaluation_phase: str = Field(default="phase1", description="phase1 | phase2 | funded")
+    starting_balance: float = Field(default=50000.0, ge=100, description="Account starting balance ($)")
+    profit_target: float = Field(default=5000.0, ge=0, description="Profit target to pass phase ($)")
+    max_daily_loss_pct: float = Field(default=4.0, ge=0.1, le=20.0, description="Bot kill daily loss % (set below firm limit for buffer)")
+    max_drawdown_pct: float = Field(default=8.0, ge=0.1, le=50.0, description="Bot kill drawdown % (set below firm limit for buffer)")
+    min_trading_days: int = Field(default=4, ge=0, description="Minimum trading days required")
+    consistency_limit_pct: float = Field(default=40.0, ge=10, le=100, description="FTMO 40% rule: best day max % of total profit")
+
+
+class ChallengeSettingsResponse(BaseModel):
+    account_name: str
+    broker_profile_id: Optional[int]
+    evaluation_mode: bool
+    evaluation_phase: str
+    starting_balance: float
+    profit_target: float
+    max_daily_loss_pct: float
+    max_drawdown_pct: float
+    min_trading_days: int
+    consistency_limit_pct: float
+    evaluation_start_date: Optional[str]
+
+
+@router.get("/accounts/{account_name}/challenge", response_model=ChallengeSettingsResponse)
+def get_challenge_settings(account_name: str):
+    """Get challenge/evaluation settings for an account from its broker_profile."""
+    sb = _get_supabase()
+
+    # Get account + its broker_profile_id
+    acct = sb.table("account_strategies").select("broker_profile_id").eq(
+        "account_name", account_name
+    ).limit(1).execute()
+
+    if not acct.data:
+        raise HTTPException(404, detail=f"Account '{account_name}' not found")
+
+    profile_id = acct.data[0].get("broker_profile_id")
+    if not profile_id:
+        # Return defaults — no broker profile yet
+        return ChallengeSettingsResponse(
+            account_name=account_name,
+            broker_profile_id=None,
+            evaluation_mode=False,
+            evaluation_phase="phase1",
+            starting_balance=50000.0,
+            profit_target=5000.0,
+            max_daily_loss_pct=4.0,
+            max_drawdown_pct=8.0,
+            min_trading_days=4,
+            consistency_limit_pct=40.0,
+            evaluation_start_date=None,
+        )
+
+    bp = sb.table("broker_profiles").select(
+        "id, evaluation_mode, evaluation_phase, evaluation_start_date, "
+        "starting_balance, max_daily_loss_pct, max_drawdown_pct, "
+        "profit_target, consistency_limit_pct"
+    ).eq("id", profile_id).limit(1).execute()
+
+    if not bp.data:
+        raise HTTPException(404, detail=f"Broker profile not found for '{account_name}'")
+
+    d = bp.data[0]
+    return ChallengeSettingsResponse(
+        account_name=account_name,
+        broker_profile_id=d["id"],
+        evaluation_mode=d.get("evaluation_mode", False),
+        evaluation_phase=d.get("evaluation_phase", "phase1"),
+        starting_balance=d.get("starting_balance", 50000.0),
+        profit_target=d.get("profit_target", 0.0),
+        max_daily_loss_pct=d.get("max_daily_loss_pct", 4.0),
+        max_drawdown_pct=d.get("max_drawdown_pct", 8.0),
+        min_trading_days=d.get("min_trading_days", 4) if d.get("min_trading_days") is not None else 4,
+        consistency_limit_pct=d.get("consistency_limit_pct", 40.0),
+        evaluation_start_date=str(d["evaluation_start_date"]) if d.get("evaluation_start_date") else None,
+    )
+
+
+@router.put("/accounts/{account_name}/challenge", response_model=ChallengeSettingsResponse)
+def update_challenge_settings(account_name: str, body: ChallengeSettingsRequest):
+    """Update challenge/evaluation settings for an account.
+
+    Creates a broker_profile if one doesn't exist yet.
+    Activates evaluation mode and sets phase-specific limits.
+    """
+    sb = _get_supabase()
+
+    if body.evaluation_phase not in ("phase1", "phase2", "funded"):
+        raise HTTPException(422, detail="evaluation_phase must be phase1, phase2, or funded")
+
+    # Get account
+    acct = sb.table("account_strategies").select(
+        "id, broker_profile_id, account_name, meta_api_account_id, meta_api_token_env_key, allocated_capital_usd"
+    ).eq("account_name", account_name).limit(1).execute()
+
+    if not acct.data:
+        raise HTTPException(404, detail=f"Account '{account_name}' not found")
+
+    acct_data = acct.data[0]
+    profile_id = acct_data.get("broker_profile_id")
+
+    challenge_fields = {
+        "evaluation_mode": body.evaluation_mode,
+        "evaluation_phase": body.evaluation_phase,
+        "starting_balance": body.starting_balance,
+        "profit_target": body.profit_target,
+        "max_daily_loss_pct": body.max_daily_loss_pct,
+        "max_drawdown_pct": body.max_drawdown_pct,
+        "consistency_limit_pct": body.consistency_limit_pct,
+    }
+    # Set evaluation start date when activating phase1
+    if body.evaluation_mode and body.evaluation_phase == "phase1":
+        from datetime import date as _date
+        challenge_fields["evaluation_start_date"] = str(_date.today())
+
+    if profile_id:
+        # Update existing broker_profile
+        sb.table("broker_profiles").update(challenge_fields).eq("id", profile_id).execute()
+        logger.info("Challenge settings updated for %s (profile_id=%s): phase=%s, eval=%s",
+                    account_name, profile_id, body.evaluation_phase, body.evaluation_mode)
+    else:
+        # Create broker_profile with challenge settings
+        bp_payload = {
+            "name": account_name,
+            "meta_api_account_id": acct_data.get("meta_api_account_id") or "",
+            "token_env_key": acct_data.get("meta_api_token_env_key") or "META_API_TOKEN",
+            "run_mode": "LIVE",
+            "is_active": True,
+            **challenge_fields,
+        }
+        bp_result = sb.table("broker_profiles").insert(bp_payload).execute()
+        if not bp_result.data:
+            raise HTTPException(500, detail="Failed to create broker profile")
+        profile_id = bp_result.data[0]["id"]
+        sb.table("account_strategies").update({"broker_profile_id": profile_id}).eq(
+            "id", acct_data["id"]
+        ).execute()
+        logger.info("Broker profile created for %s (id=%s) with challenge settings", account_name, profile_id)
+
+    # Also update account_type if activating evaluation
+    if body.evaluation_mode and body.evaluation_phase != "funded":
+        sb.table("account_strategies").update({"account_type": "Eval"}).eq(
+            "account_name", account_name
+        ).execute()
+    elif body.evaluation_phase == "funded":
+        sb.table("account_strategies").update({"account_type": "Funded"}).eq(
+            "account_name", account_name
+        ).execute()
+
+    # Return updated settings
+    return get_challenge_settings(account_name)
+
+
+# ══════════════════════════════════════════════════════════════════
 # EVALUATION PROGRESS ENDPOINTS (FTMO/PropFirm Challenges)
 # ══════════════════════════════════════════════════════════════════
 
