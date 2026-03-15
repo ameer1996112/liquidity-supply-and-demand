@@ -1163,6 +1163,10 @@ def process_trade(payload: Dict[str, Any]):
                 logger.warning("Trading Council failed (non-blocking): %s", deb_err)
 
         if async_council:
+            corr = payload.get("_correlation_id")
+            if corr:
+                from src.services.ai_run_service import init_ai_run
+                init_ai_run(supabase, corr)
             # Run in background thread - don't wait for result
             import threading
             threading.Thread(target=_run_council_sync, daemon=True, name="TradingCouncilAsync").start()

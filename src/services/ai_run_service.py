@@ -30,6 +30,23 @@ def _get_trace_id_by_correlation(supabase: Any, correlation_id: str) -> Optional
     return None
 
 
+def init_ai_run(supabase: Any, correlation_id: str) -> bool:
+    """Synchronously create a placeholder ai_run so later async steps can find it and logic.py can link signal_id."""
+    if not supabase or not correlation_id:
+        return False
+    try:
+        supabase.table("ai_runs").insert({
+            "correlation_id": correlation_id,
+            "run_type": "debate",
+            "recommendation": "pending",
+            "confidence": 0,
+        }).execute()
+        return True
+    except Exception as e:
+        logger.warning("Failed to init ai_run for %s: %s", correlation_id, e)
+        return False
+
+
 def persist_debate(
     supabase: Any,
     correlation_id: str,
@@ -82,7 +99,13 @@ def persist_debate(
         if trace_id:
             row["trace_id"] = trace_id
 
-        resp = supabase.table("ai_runs").insert(row).execute()
+        # Try to modify existing placeholder first
+        existing = supabase.table("ai_runs").select("id").eq("correlation_id", correlation_id).execute()
+        if existing.data and len(existing.data) > 0:
+            resp = supabase.table("ai_runs").update(row).eq("correlation_id", correlation_id).execute()
+        else:
+            resp = supabase.table("ai_runs").insert(row).execute()
+
         if resp.data and len(resp.data) > 0:
             return int(resp.data[0]["id"])
         return None
