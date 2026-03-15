@@ -51,7 +51,7 @@ export function SessionRing({
   lossCount,
   className,
 }: SessionRingProps) {
-  const { tzAbbr } = useTimezone();
+  const { tzAbbr, utcHourToLocal } = useTimezone();
   const pnl = todayPnl ?? 0;
   const session = useMemo(() => getCurrentSession(), []);
 
@@ -72,6 +72,7 @@ export function SessionRing({
 
   // ── Weekend / market closed state ─────────────────────────────────────────
   if (session.closed) {
+    const localOpen = utcHourToLocal(22); // 22:00 UTC → local tz
     return (
       <div
         className={cn(
@@ -95,7 +96,7 @@ export function SessionRing({
           className='text-[9px] text-slate-600 hidden sm:inline'
           style={{ fontFamily: 'var(--font-mono)' }}
         >
-          · opens Sun 22:00 UTC · {tzAbbr}
+          · opens Sun 22:00 UTC / {localOpen} {tzAbbr}
         </span>
       </div>
     );
