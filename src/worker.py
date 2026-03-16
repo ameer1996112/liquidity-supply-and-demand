@@ -1330,9 +1330,14 @@ def process_trade(payload: Dict[str, Any]):
                     redis_client=get_redis(),
                 )
                 corr = payload.get("_correlation_id")
+                
+                import src.adapters.supabase as supabase_module
+                supabase_module.init_supabase()
+                sb_client = supabase_module.supabase
+
                 if corr:
-                    trace_id = _get_trace_id_by_correlation(supabase, corr) if supabase else None
-                    persist_debate(supabase, corr, council_result, trace_id=trace_id)
+                    trace_id = _get_trace_id_by_correlation(sb_client, corr) if sb_client else None
+                    persist_debate(sb_client, corr, council_result, trace_id=trace_id)
 
                 # Shadow: council recommendation is logged only, NEVER blocks execution
                 logger.info(
@@ -1347,9 +1352,13 @@ def process_trade(payload: Dict[str, Any]):
 
         if async_council:
             corr = payload.get("_correlation_id")
+            logger.info("⚡ Trading Council async check: corr=%s", corr)
             if corr:
                 from src.services.ai_run_service import init_ai_run
-                init_ai_run(supabase, corr)
+                import src.adapters.supabase as supabase_module
+                supabase_module.init_supabase()
+                inserted = init_ai_run(supabase_module.supabase, corr)
+                logger.info("⚡ init_ai_run for corr=%s returned %s", corr, inserted)
             # Run in background thread - don't wait for result
             import threading
             threading.Thread(target=_run_council_sync, daemon=True, name="TradingCouncilAsync").start()
