@@ -34,7 +34,7 @@ def _is_table_missing(exc: BaseException) -> bool:
 
 # ── Lazy Supabase client ─────────────────────────────────────
 
-from src.adapters.supabase_api import get_api_supabase as _get_supabase
+from src.adapters.supabase_api import get_api_supabase as _get_supabase, reset_api_supabase, is_supabase_connection_error
 
 
 # ── Request / Response Models ────────────────────────────────
@@ -108,6 +108,8 @@ def list_alerts(
             logger.debug("trading_alerts table not found (run migrations/004_trading_alerts.sql): %s", exc)
             alerts = []
         else:
+            if is_supabase_connection_error(exc):
+                reset_api_supabase()
             logger.error("Failed to fetch alerts: %s", exc)
             alerts = []
 
@@ -199,6 +201,8 @@ def list_alert_rules():
             logger.debug("alert_rules table not found (run migrations/005_alert_rules.sql): %s", exc)
             rules = []
         else:
+            if is_supabase_connection_error(exc):
+                reset_api_supabase()
             logger.error("Failed to fetch alert rules: %s", exc)
             rules = []
 

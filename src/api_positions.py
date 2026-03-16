@@ -15,7 +15,7 @@ router = APIRouter(prefix="/positions", tags=["positions"])
 
 # ── Lazy Supabase client (same pattern as api_risk.py) ──────
 
-from src.adapters.supabase_api import get_api_supabase as _get_supabase
+from src.adapters.supabase_api import get_api_supabase as _get_supabase, reset_api_supabase, is_supabase_connection_error
 
 
 def _get_adapter():
@@ -160,6 +160,8 @@ def get_active_positions(
         raw_rows = resp.data or []
         rows = [r for r in raw_rows if _is_signal_open_strict(r)]
     except Exception as exc:
+        if is_supabase_connection_error(exc):
+            reset_api_supabase()
         logger.error("Failed to fetch active positions: %s", exc)
         rows = []
 
@@ -616,6 +618,8 @@ def get_account_status():
         )
         active_count = sum(1 for r in (resp.data or []) if _is_signal_open_strict(r))
     except Exception as exc:
+        if is_supabase_connection_error(exc):
+            reset_api_supabase()
         logger.error("Failed to fetch count of active positions: %s", exc)
         active_count = 0
 

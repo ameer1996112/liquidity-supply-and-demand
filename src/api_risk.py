@@ -15,7 +15,7 @@ router = APIRouter(prefix="/risk", tags=["risk"])
 
 # ── Lazy Supabase client (same pattern as api_rules.py) ──────
 
-from src.adapters.supabase_api import get_api_supabase as _get_supabase
+from src.adapters.supabase_api import get_api_supabase as _get_supabase, reset_api_supabase, is_supabase_connection_error
 
 
 # ── Singleton guard rail instances ───────────────────────────
@@ -174,6 +174,8 @@ def get_risk_status():
                 starting_equity = total_balance
                 logger.debug("Risk status: using live MetaAPI balance $%.2f", starting_equity)
     except Exception as _eq_err:
+        if is_supabase_connection_error(_eq_err):
+            reset_api_supabase()
         logger.warning("Risk status: failed to fetch live balance: %s", _eq_err)
 
     current_equity = starting_equity + daily_pnl

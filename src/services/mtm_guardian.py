@@ -43,6 +43,21 @@ class MTMGuardian:
         self._cached_equity = {}     # per-account equity caches
         self._cache_ttl_seconds = getattr(settings, "mtm_cache_ttl_seconds", 10)
 
+    def _reconnect_on_error(self, exc: Exception) -> None:
+        """Reset shared Supabase client pool and refresh self.supabase on connection errors."""
+        err_str = str(exc).lower()
+        is_conn_err = any(kw in err_str for kw in (
+            "connectionterminated", "remoteprotocolerror", "server disconnected",
+            "disconnect", "streamclosed", "send_end_stream",
+        ))
+        if is_conn_err:
+            try:
+                from src.adapters.supabase_api import get_api_supabase, reset_api_supabase
+                reset_api_supabase()
+                self.supabase = get_api_supabase()
+            except Exception:
+                pass
+
     def _apply_account_filter(self, query, account_name=None, broker_profile_id=None):
         """Add account isolation filters to a Supabase query."""
         if broker_profile_id is not None:
@@ -106,6 +121,7 @@ class MTMGuardian:
                 if float(t.get("pnl_usd", 0)) != 0
             ) if closed_trades.data else 0.0
         except Exception as e:
+            self._reconnect_on_error(e)
             logger.error(f"Failed to fetch closed PnL: {e}")
             closed_pnl = 0.0
 
@@ -117,6 +133,7 @@ class MTMGuardian:
             q = self._apply_account_filter(q, account_name, broker_profile_id)
             open_positions = q.execute()
         except Exception as e:
+            self._reconnect_on_error(e)
             logger.error(f"Failed to fetch open positions: {e}")
             open_positions = None
 
@@ -225,6 +242,7 @@ class MTMGuardian:
                         current_equity, starting_balance, account_name
                     )
             except Exception as _snap_err:
+                self._reconnect_on_error(_snap_err)
                 logger.warning("MTM: failed to fetch account_status_snapshots for %s: %s", account_name, _snap_err)
 
         # Fallback: calculate from starting_balance + PnL
