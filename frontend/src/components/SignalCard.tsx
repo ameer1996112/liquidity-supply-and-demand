@@ -215,8 +215,13 @@ export function SignalCard({ signal, onInspect }: SignalCardProps) {
   const isActive = normalized === 'active';
   const isAiRejected = normalized === 'ai_rejected';
   const isClosed = normalized === 'closed';
-  const isWin = pnl !== null && pnl > 0;
-  const isLoss = pnl !== null && pnl < 0;
+  const isRejected = [
+    'staleness_rejected', 'filtered', 'ai_rejected',
+    'execution_failed', 'rejected', 'guard_rejected',
+  ].includes(normalized ?? '');
+  const displayPnl = isRejected ? null : pnl;
+  const isWin = displayPnl !== null && displayPnl > 0;
+  const isLoss = displayPnl !== null && displayPnl < 0;
 
   const handleCardClick = () => {
     onInspect?.(signal);
@@ -310,7 +315,7 @@ export function SignalCard({ signal, onInspect }: SignalCardProps) {
             <span className='text-[10px] font-mono text-zinc-600 uppercase'>
               PnL
             </span>
-            <PnLDisplay pnl={pnl} size='sm' />
+            <PnLDisplay pnl={displayPnl} size='sm' />
           </div>
           {/* Exit price for closed trades */}
           {isClosed && signal.exit_price !== undefined && (

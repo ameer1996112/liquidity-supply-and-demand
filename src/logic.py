@@ -143,14 +143,43 @@ def process_trade(
                     update_alert_exit(data["zone_id"], exit_data, trade_key=trade_key)
                     return
 
+                # Guard: skip exit entirely if entry was never executed on broker
+                _REJECTED_STATUSES = {
+                    "staleness_rejected", "filtered", "ai_rejected",
+                    "execution_failed", "rejected", "guard_rejected",
+                }
+                alert_status = str(alert.get("status") or "").lower()
+                if alert_status in _REJECTED_STATUSES:
+                    logger.warning(
+                        "Skipping exit for alert #%s (status=%s) — entry was never executed on broker. "
+                        "zone_id=%s trade_key=%s",
+                        alert.get("id"), alert_status, data["zone_id"], trade_key,
+                    )
+                    # Write a visible note to the record so the dashboard shows why,
+                    # but do NOT touch status or pnl_usd.
+                    try:
+                        _close_price = data.get("close_price") or data.get("exit_price")
+                        _exit_note = (
+                            f"Exit received from TradingView (close={_close_price}) "
+                            f"but entry was {alert_status} — PnL not recorded."
+                        )
+                        _client = supabase_module.supabase
+                        if _client:
+                            _q = _client.table("trading_signals").update({"notes": _exit_note})
+                            if trade_key:
+                                _q.eq("trade_key", trade_key).execute()
+                            else:
+                                _q.eq("zone_id", data["zone_id"]).execute()
+                    except Exception as _note_err:
+                        logger.debug("Could not write rejected-exit note: %s", _note_err)
+                    return
+
                 broker_order_id = alert.get("broker_order_id")
                 if not broker_order_id:
                     logger.warning(
-                        "No broker_order_id on alert %s; cannot send broker close.",
-                        alert.get("id"),
+                        "No broker_order_id on alert %s (status=%s); cannot send broker close — skipping exit update.",
+                        alert.get("id"), alert_status,
                     )
-                    # Still record exit telemetry
-                    update_alert_exit(data["zone_id"], exit_data, trade_key=trade_key)
                     return
 
                 # SAFEGUARD: Verify symbol matches to avoid closing the wrong MT5 position
