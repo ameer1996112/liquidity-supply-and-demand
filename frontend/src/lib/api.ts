@@ -115,7 +115,7 @@ export interface LiveBrokerBalance {
 }
 
 export async function fetchLiveBrokerBalance(): Promise<LiveBrokerBalance> {
-  return apiFetch<LiveBrokerBalance>('/api/v1/positions/account');
+  return apiFetch<LiveBrokerBalance>('/positions/account');
 }
 
 export async function fetchAccountDetail(accountName: string) {
