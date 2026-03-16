@@ -269,9 +269,13 @@ export default function PropFirmPage() {
   // Merge Supabase signals with MetaAPI signals (MetaAPI fills gaps not in DB)
   const mergedSignals = useMemo(() => {
     const supabaseIds = new Set(allSignals.map((s) => String(s.id)));
-    const uniqueMetaApi = metaApiSignals.filter(
-      (s) => !supabaseIds.has(String(s.id))
-    );
+    const uniqueMetaApi = metaApiSignals.filter((s) => {
+      // MetaAPI signal ids are prefixed with "metaapi-" over the raw backend id.
+      // DB-sourced trades come back with their numeric DB id (e.g. "metaapi-123"),
+      // so strip the prefix before checking against supabaseIds to avoid duplicates.
+      const rawId = String(s.id).replace(/^metaapi-/, '');
+      return !supabaseIds.has(rawId);
+    });
     return [...allSignals, ...uniqueMetaApi];
   }, [allSignals, metaApiSignals]);
 
