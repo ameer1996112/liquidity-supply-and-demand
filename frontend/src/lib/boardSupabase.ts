@@ -4,6 +4,12 @@ export type TicketType = 'bug' | 'task' | 'feature' | 'research';
 export type Priority = 'critical' | 'high' | 'medium' | 'low';
 export type TicketStatus = 'backlog' | 'todo' | 'in_progress' | 'done';
 
+export interface AIActionLog {
+  date: string;
+  summary: string;
+  files_touched: string[];
+}
+
 export interface Ticket {
   id: string;
   ticket_id: string;
@@ -13,6 +19,7 @@ export interface Ticket {
   component: string;
   priority: Priority;
   status: TicketStatus;
+  ai_session_log: AIActionLog[];
   created_at: string;
   updated_at: string;
   completed_at?: string | null;
@@ -112,6 +119,7 @@ const MOCK_TICKETS: Ticket[] = [
     component: 'Frontend (React)',
     priority: 'critical',
     status: 'in_progress',
+    ai_session_log: [],
     created_at: '2026-03-15T00:00:00.000Z',
     updated_at: '2026-03-15T00:00:00.000Z',
   },
@@ -123,6 +131,7 @@ const MOCK_TICKETS: Ticket[] = [
     component: 'Pine Script',
     priority: 'high',
     status: 'todo',
+    ai_session_log: [],
     created_at: '2026-03-15T00:00:00.000Z',
     updated_at: '2026-03-15T00:00:00.000Z',
   },
@@ -134,6 +143,7 @@ const MOCK_TICKETS: Ticket[] = [
     component: 'AI / ML Pipeline',
     priority: 'medium',
     status: 'backlog',
+    ai_session_log: [],
     created_at: '2026-03-15T00:00:00.000Z',
     updated_at: '2026-03-15T00:00:00.000Z',
   },
@@ -145,6 +155,7 @@ const MOCK_TICKETS: Ticket[] = [
     component: 'Frontend (React)',
     priority: 'high',
     status: 'done',
+    ai_session_log: [],
     created_at: '2026-03-15T00:00:00.000Z',
     updated_at: '2026-03-15T00:00:00.000Z',
   },
