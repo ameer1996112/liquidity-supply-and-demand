@@ -634,7 +634,11 @@ export function SignalInspector({
                     {signal.sl_pips && (
                       <InfoRow
                         label='SL Distance'
-                        value={`${formatNum(signal.sl_pips, 1)} pips`}
+                        value={`${formatNum(signal.sl_pips, 1)} ${
+                          /NAS|US30|SPX|UK100|GER|FRA|JPN225|AUS200|NDX|USTEC/.test(symbol?.toUpperCase() ?? '')
+                            ? 'pts'
+                            : 'pips'
+                        }`}
                       />
                     )}
 
