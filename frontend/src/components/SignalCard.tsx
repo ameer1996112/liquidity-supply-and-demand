@@ -217,7 +217,7 @@ export function SignalCard({ signal, onInspect }: SignalCardProps) {
   const isClosed = normalized === 'closed';
   const isRejected = [
     'staleness_rejected', 'filtered', 'ai_rejected',
-    'execution_failed', 'rejected', 'guard_rejected',
+    'execution_failed', 'rejected', 'guard_rejected', 'unexecuted',
   ].includes(normalized ?? '');
   const displayPnl = isRejected ? null : pnl;
   const isWin = displayPnl !== null && displayPnl > 0;
