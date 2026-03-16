@@ -105,6 +105,19 @@ export async function fetchAccountsComparison(): Promise<AccountDetailApi[]> {
   return response.accounts || [];
 }
 
+export interface LiveBrokerBalance {
+  balance: number;
+  equity: number;
+  free_margin: number;
+  margin_used: number;
+  margin_level_pct: number;
+  active_positions_count: number;
+}
+
+export async function fetchLiveBrokerBalance(): Promise<LiveBrokerBalance> {
+  return apiFetch<LiveBrokerBalance>('/api/v1/positions/account');
+}
+
 export async function fetchAccountDetail(accountName: string) {
   return apiFetch<any>(
     `/api/portfolio-control/accounts/${encodeURIComponent(accountName)}`

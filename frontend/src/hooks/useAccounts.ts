@@ -10,6 +10,7 @@ import {
   toggleTradeCopyRule,
   fetchTradeCopyLog,
   fetchAccountTradeHistory,
+  fetchLiveBrokerBalance,
 } from '@/lib/api';
 
 const ACCOUNTS_COMPARISON_KEY = [
@@ -33,6 +34,15 @@ export function useAccountsComparison() {
     queryKey: ACCOUNTS_COMPARISON_KEY,
     queryFn: fetchAccountsComparison,
     staleTime: 30_000,
+  });
+}
+
+export function useLiveBrokerBalance() {
+  return useQuery({
+    queryKey: ['live-broker-balance'],
+    queryFn: fetchLiveBrokerBalance,
+    refetchInterval: 15_000,
+    staleTime: 10_000,
   });
 }
 
