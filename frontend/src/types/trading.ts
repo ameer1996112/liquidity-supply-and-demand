@@ -207,6 +207,8 @@ export interface SignalStats {
   failed_count: number;
   win_rate: number; // Backwards-compatible overall win rate (defaults to live)
   live_win_rate?: number; // Live-only win rate
+  /** Number of closed trades that contribute to win_rate calculation */
+  closed_trade_count?: number;
   ai_reject_rate: number;
   active_trades: number;
   total_pnl_24h: number; // Backwards-compatible PnL (defaults to live)

@@ -422,6 +422,7 @@ export async function fetchSignalStats(): Promise<SignalStats> {
   return {
     total_signals_24h: signals.length,
     executed_count: executed.length + activeSignals.length,
+    closed_trade_count: liveClosed.length,
     filtered_count: filtered.length,
     failed_count: failed.length,
     win_rate: liveWinRate,
@@ -841,6 +842,7 @@ function getMockStats(): SignalStats {
     failed_count: 3,
     win_rate: 66.7,
     live_win_rate: 66.7,
+    closed_trade_count: 12,
     ai_reject_rate: 68.1,
     active_trades: 2,
     total_pnl_24h: 458.25,

@@ -437,8 +437,8 @@ export default function DashboardPage() {
                   : 'neutral'
               }
               subValue={
-                stats?.executed_count != null
-                  ? `${stats.executed_count} trades`
+                stats?.closed_trade_count != null
+                  ? `${stats.closed_trade_count} trades`
                   : EMPTY_VALUE
               }
               icon={Target}
