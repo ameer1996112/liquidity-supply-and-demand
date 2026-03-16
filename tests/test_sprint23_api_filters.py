@@ -79,7 +79,7 @@ def _mock_supabase_chain(rows):
     chain = MagicMock()
     chain.execute.return_value = MagicMock(data=rows)
     # Chain all builder methods back to self so filters compose correctly.
-    for method in ("select", "eq", "in_", "order", "limit", "gte", "not_"):
+    for method in ("select", "eq", "in_", "order", "limit", "gte", "not_", "or_"):
         getattr(chain, method).return_value = chain
     sb = MagicMock()
     sb.table.return_value.select.return_value = chain

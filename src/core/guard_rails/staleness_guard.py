@@ -262,6 +262,15 @@ class StalenessGuard:
             if not symbol or signal_entry == 0:
                 return True, ""
 
+            # Bypass price deviation check for proxy mismatched symbols.
+            # TradingView sends Spot/CFD prices (e.g. XAUUSD), but market_data.py uses Futures (GC=F).
+            # This causes a permanent massive premium difference that falsely triggers the guard.
+            s_upper = symbol.upper()
+            is_proxy_mismatch = any(frag in s_upper for frag in ["XAU", "GOLD", "XAG", "SILVER", "NAS", "US30", "SPX", "US100", "US500", "BTC"])
+            if is_proxy_mismatch:
+                logger.info(f"Bypassing price deviation check for {symbol} (Spot vs Futures premium mismatch)")
+                return True, ""
+
             current_price = get_current_price(symbol)
             if not current_price:
                 logger.warning(f"No market data for {symbol}, skipping price check (fail-open)")
@@ -361,22 +370,27 @@ class StalenessGuard:
 
             symbol = payload.get("symbol")
             if symbol and diagnostics["signal_entry"]:
-                diagnostics["current_price"] = get_current_price(symbol)
+                s_upper = symbol.upper()
+                is_proxy_mismatch = any(frag in s_upper for frag in ["XAU", "GOLD", "XAG", "SILVER", "NAS", "US30", "SPX", "US100", "US500", "BTC"])
+                if is_proxy_mismatch:
+                    diagnostics["warnings"].append(f"Price check bypassed for {symbol} (Spot vs Futures premium mismatch)")
+                else:
+                    diagnostics["current_price"] = get_current_price(symbol)
 
-                if diagnostics["current_price"]:
-                    # Use symbol-aware pip size — same fix as _check_price_deviation()
-                    pip_size = get_pip_size(symbol)
-                    effective_threshold = get_deviation_threshold(symbol, self.max_price_deviation_pips)
-                    diagnostics["price_deviation_pips"] = (
-                        abs(diagnostics["current_price"] - diagnostics["signal_entry"]) / pip_size
-                    )
-
-                    if diagnostics["price_deviation_pips"] > effective_threshold:
-                        diagnostics["passed"] = False
-                        diagnostics["warnings"].append(
-                            f"Price moved too much: {diagnostics['price_deviation_pips']:.1f} pips "
-                            f"(threshold: {effective_threshold:.1f} for {symbol})"
+                    if diagnostics["current_price"]:
+                        # Use symbol-aware pip size — same fix as _check_price_deviation()
+                        pip_size = get_pip_size(symbol)
+                        effective_threshold = get_deviation_threshold(symbol, self.max_price_deviation_pips)
+                        diagnostics["price_deviation_pips"] = (
+                            abs(diagnostics["current_price"] - diagnostics["signal_entry"]) / pip_size
                         )
+
+                        if diagnostics["price_deviation_pips"] > effective_threshold:
+                            diagnostics["passed"] = False
+                            diagnostics["warnings"].append(
+                                f"Price moved too much: {diagnostics['price_deviation_pips']:.1f} pips "
+                                f"(threshold: {effective_threshold:.1f} for {symbol})"
+                            )
         except Exception as e:
             diagnostics["warnings"].append(f"Price check failed: {e}")
 
