@@ -180,9 +180,9 @@ def process_trade(
                         "No broker_order_id on alert %s (status=%s); cannot send broker close — skipping exit update.",
                         alert.get("id"), alert_status,
                     )
-                    # If entry was never processed by the worker (still in initial "received" state),
+                    # If entry was never successfully executed (still in initial received/PENDING state),
                     # mark it as unexecuted so it doesn't stay PENDING forever in the dashboard.
-                    if alert_status in ("received",):
+                    if alert_status in ("received", "pending"):
                         _note = (
                             f"Exit received from TradingView (close={data.get('close_price')}, "
                             f"outcome={data.get('outcome')}) but entry was never executed on broker "
@@ -683,6 +683,15 @@ def process_trade(
                         exec_result.status,
                     )
                     update_alert_status(alert_id, "execution_failed", notes="Broker accepted order but returned no order ID")
+                else:
+                    # Broker returned an explicit failure (e.g. ERR_MARKET_UNKNOWN_SYMBOL, timeout, etc.)
+                    # Without this branch the signal stays stuck in PENDING forever.
+                    _fail_msg = str(getattr(exec_result, "message", None) or f"Execution failed: status={exec_result.status}")
+                    logger.error(
+                        "Execution FAILED for alert #%s (status=%s): %s — marking execution_failed",
+                        alert_id, exec_result.status, _fail_msg,
+                    )
+                    update_alert_status(alert_id, "execution_failed", notes=_fail_msg[:500])
             except Exception as e:  # noqa: BLE001
                 logger.error("Execution adapter error for alert #%s: %s", alert_id, e)
                 log_event(alert_id, "execution_failed", "logic", {"error": str(e)[:200]})
