@@ -266,15 +266,29 @@ export default function PropFirmPage() {
     );
   }, [metaApiHistory, resolvedAccount]);
 
-  // Merge Supabase signals with MetaAPI signals (MetaAPI fills gaps not in DB)
-  const mergedSignals = useMemo(() => {
-    const supabaseIds = new Set(allSignals.map((s) => String(s.id)));
+  // Only use Supabase signals that were actually executed on the broker
+  // (broker_order_id is set by logic.py only after MetaTrader confirms the trade).
+  // Signals without broker_order_id may be rejected/filtered signals that were
+  // never filled — MetaAPI history covers any gaps for broker-executed trades.
+  const brokerConfirmedSignals = useMemo(
+    () =>
+      allSignals.filter(
+        (s) =>
+          (s as TradingSignal & { broker_order_id?: string | null })
+            .broker_order_id != null
+      ),
+    [allSignals]
+  );
 
-    // Build a fingerprint set from Supabase trades to catch duplicates where
+  // Merge broker-confirmed Supabase signals with MetaAPI signals (MetaAPI fills gaps not in DB)
+  const mergedSignals = useMemo(() => {
+    const supabaseIds = new Set(brokerConfirmedSignals.map((s) => String(s.id)));
+
+    // Build a fingerprint set from broker-confirmed trades to catch duplicates where
     // broker_order_id is null in DB (so backend dedup misses them). Two trades
     // with the same symbol + closed_at minute + rounded PnL are treated as the same.
     const supabaseFingerprints = new Set(
-      allSignals.map((s) => {
+      brokerConfirmedSignals.map((s) => {
         const pnl = Math.round((getPnl(s) ?? 0) * 100);
         const minute = s.closed_at
           ? s.closed_at.slice(0, 16)
@@ -301,8 +315,8 @@ export default function PropFirmPage() {
 
       return true;
     });
-    return [...allSignals, ...uniqueMetaApi];
-  }, [allSignals, metaApiSignals]);
+    return [...brokerConfirmedSignals, ...uniqueMetaApi];
+  }, [brokerConfirmedSignals, metaApiSignals]);
 
   const cutoff = useMemo(
     () => startOfDay(subDays(new Date(), analyticsRange - 1)),
