@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
   SheetFooter,
@@ -70,6 +71,9 @@ export function TrailingStopDialog({
           <SheetTitle className='font-mono text-sm text-zinc-200'>
             Attach trailing stop
           </SheetTitle>
+          <SheetDescription className='sr-only'>
+            Configure trailing stop parameters for an open position.
+          </SheetDescription>
         </SheetHeader>
 
         <div className='flex flex-col gap-4 px-4 py-2'>

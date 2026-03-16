@@ -62,7 +62,7 @@ def get_ai_run_by_signal(signal_id: int = Query(..., description="Trading signal
                     .execute()
                 )
         if not resp.data or len(resp.data) == 0:
-            raise HTTPException(status_code=404, detail="No AI run found for this signal")
+            return {"data": None}
         row = resp.data[0]
         return {
             "id": row["id"],

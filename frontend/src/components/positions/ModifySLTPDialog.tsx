@@ -5,6 +5,7 @@ import { useModifySLTP } from '@/hooks/usePositions';
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
@@ -62,6 +63,9 @@ export function ModifySLTPDialog({
           <SheetTitle className='font-mono text-sm text-zinc-200'>
             Modify SL / TP
           </SheetTitle>
+          <SheetDescription className='sr-only'>
+            Update stop loss and take profit levels for this position.
+          </SheetDescription>
         </SheetHeader>
 
         <div className='mt-6 space-y-4'>

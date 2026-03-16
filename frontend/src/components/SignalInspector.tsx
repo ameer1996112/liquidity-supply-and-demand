@@ -374,14 +374,7 @@ export function SignalInspector({
   const signalId = signal?.id ? parseInt(String(signal.id), 10) : null;
   const { data: aiRun, isLoading: aiRunLoading } = useQuery({
     queryKey: ['ai-run', signalId],
-    queryFn: async () => {
-      try {
-        return await fetchAiRunBySignal(signalId!);
-      } catch (e) {
-        if (e instanceof Error && e.message.includes('404')) return null;
-        throw e;
-      }
-    },
+    queryFn: () => fetchAiRunBySignal(signalId!),
     enabled: !!signalId && open && !Number.isNaN(signalId),
   });
 

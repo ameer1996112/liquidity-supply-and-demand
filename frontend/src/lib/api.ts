@@ -470,8 +470,12 @@ export interface AiRunResponse {
 
 export async function fetchAiRunBySignal(
   signalId: number
-): Promise<AiRunResponse> {
-  return apiFetch<AiRunResponse>(`/api/ai-runs?signal_id=${signalId}`);
+): Promise<AiRunResponse | null> {
+  const res = await apiFetch<AiRunResponse | { data: null }>(
+    `/api/ai-runs?signal_id=${signalId}`
+  );
+  if (res && 'data' in res && res.data === null) return null;
+  return res as AiRunResponse;
 }
 
 /** Lightweight council summary for a single signal (from bulk endpoint) */
