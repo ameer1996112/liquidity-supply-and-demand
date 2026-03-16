@@ -289,7 +289,7 @@ export function TopBar() {
   );
 
   const netLiq =
-    selectedAccount?.equity ??
+    selectedAccount?.balance ??
     (risk?.current_equity != null ? risk.current_equity : null);
 
   const todayPnlFromStats =
