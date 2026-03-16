@@ -144,7 +144,7 @@ export function PropFirmWidget() {
           <span className='flex items-center gap-2'>
             🏆 Prop Firm Challenge Tracker
             <span className='text-sm font-normal text-muted-foreground'>
-              ({data.evaluation_phase.toUpperCase()})
+              ({data.evaluation_phase?.toUpperCase()})
             </span>
           </span>
           {metrics.status.safe_to_trade ? (

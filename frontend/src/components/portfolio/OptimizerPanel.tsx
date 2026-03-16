@@ -160,7 +160,7 @@ export function OptimizerPanel() {
                     High exposure: {suggestion.reason}
                   </p>
                   <p className="text-[11px] text-zinc-400 mt-0.5">
-                    Suggested: <strong>{suggestion.suggested_direction.toUpperCase()}</strong>{' '}
+                    Suggested: <strong>{suggestion.suggested_direction?.toUpperCase()}</strong>{' '}
                     {suggestion.suggested_symbol} @ {suggestion.suggested_size_lots} lots
                   </p>
                 </div>

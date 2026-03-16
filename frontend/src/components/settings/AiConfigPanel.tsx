@@ -207,7 +207,7 @@ export function AiConfigPanel() {
       {/* AI Guardian */}
       <SectionCard title="AI Guardian (LLM)" icon={<Brain className="w-4 h-4" />}>
         <ConfigRow label="Status" value={<StatusBadge enabled={ai.ai_filter_enabled} />} />
-        <ConfigRow label="Provider" value={ai.ai_provider.toUpperCase()} />
+        <ConfigRow label="Provider" value={ai.ai_provider?.toUpperCase()} />
         <ConfigRow label="Model" value={ai.ai_model} />
         <ConfigRow label="Base URL" value={ai.ai_base_url} />
         <ConfigRow label="Min Confidence" value={`${ai.ai_min_confidence}%`} />
