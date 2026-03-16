@@ -254,6 +254,19 @@ def update_alert_exit(zone_id: int, exit_data: dict, trade_key: str = None) -> b
     }
 
     try:
+        # Idempotency guard: skip if already CLOSED to avoid overwriting broker-verified PnL
+        # on duplicate exit webhooks (TradingView retries, network issues, etc.)
+        try:
+            if trade_key and trade_key.strip():
+                existing = supabase.table('trading_signals').select('status').eq('trade_key', trade_key).maybe_single().execute()
+            else:
+                existing = supabase.table('trading_signals').select('status').eq('zone_id', zone_id).maybe_single().execute()
+            if existing and existing.data and str(existing.data.get('status', '')).upper() == 'CLOSED':
+                logger.info("Idempotency: signal already CLOSED (trade_key=%s zone_id=%s) — skipping duplicate exit", trade_key, zone_id)
+                return True
+        except Exception:
+            pass  # fail-open: if check fails, proceed with update
+
         # Prefer trade_key correlation if provided and non-empty
         if trade_key and trade_key.strip():
             response = supabase.table('trading_signals').update(update_data).eq('trade_key', trade_key).execute()

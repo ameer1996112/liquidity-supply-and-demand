@@ -691,7 +691,7 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
             monthly_resp = (
                 supabase.table("trading_signals")
                 .select("pnl_usd")
-                .eq("status", "closed")
+                .in_("status", ["CLOSED", "closed"])
                 .gte("created_at", month_start)
                 .execute()
             )
@@ -714,7 +714,7 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
             weekly_resp = (
                 supabase.table("trading_signals")
                 .select("pnl_usd")
-                .eq("status", "closed")
+                .in_("status", ["CLOSED", "closed"])
                 .gte("created_at", week_start)
                 .execute()
             )
@@ -736,7 +736,7 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
             consec_resp = (
                 supabase.table("trading_signals")
                 .select("pnl_usd, exit_time")
-                .eq("status", "closed")
+                .in_("status", ["CLOSED", "closed"])
                 .order("exit_time", desc=True)
                 .limit(max_consec)
                 .execute()
@@ -787,7 +787,7 @@ def _get_account_daily_pnl(profile: Optional[Dict[str, Any]] = None) -> float:
     try:
         from datetime import datetime as _dt, timezone
         today_start = _dt.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
-        q = supabase.table("trading_signals").select("pnl_usd").eq("status", "closed").gte("created_at", today_start)
+        q = supabase.table("trading_signals").select("pnl_usd").in_("status", ["CLOSED", "closed"]).gte("created_at", today_start)
         if profile and profile.get("id") is not None:
             q = q.eq("broker_profile_id", profile["id"])
         elif profile and profile.get("name"):

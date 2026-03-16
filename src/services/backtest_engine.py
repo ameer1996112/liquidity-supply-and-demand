@@ -122,7 +122,7 @@ def _load_signals(supabase: Any, config: Dict) -> List[Dict]:
         q = (
             supabase.table("trading_signals")
             .select("id, symbol, side, entry, sl, tp, size, zone_id, score, entry_model, created_at, pnl_usd, outcome, exit_price, closed_at")
-            .eq("status", "closed")
+            .in_("status", ["CLOSED", "closed"])
             .in_("outcome", ["win", "loss"])
             .gte("created_at", f"{start}T00:00:00Z")
             .lte("created_at", f"{end}T23:59:59Z")

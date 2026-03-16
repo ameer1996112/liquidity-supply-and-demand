@@ -126,7 +126,7 @@ def get_stats_summary(
         q = (
             sb.table("trading_signals")
             .select("pnl_usd, outcome, rr_ratio, created_at, status, run_mode")
-            .eq("status", "closed")
+            .in_("status", ["CLOSED", "closed"])
         )
         if run_mode and run_mode != "ALL":
             q = q.eq("run_mode", run_mode)

@@ -280,7 +280,7 @@ def process_trade(
                                 alert["id"], broker_order_id,
                                 total_pnl, total_commission, total_swap, total_realized_pnl,
                                 exit_data.get("pnl_usd", 0), len(exit_deals),
-                                "DEAL_ENTRY_OUT" if exit_deals[0].get("entryType") else exit_deals[0].get("entryType", "UNKNOWN")
+                                exit_deals[0].get("entryType", "UNKNOWN")
                             )
 
                             # Update database with actual broker PnL (sum of all exit deals)
@@ -294,8 +294,10 @@ def process_trade(
                                 }
                                 if trade_key:
                                     client.table("trading_signals").update(pnl_update).eq("trade_key", trade_key).execute()
+                                elif data.get("zone_id"):
+                                    client.table("trading_signals").update(pnl_update).eq("zone_id", data.get("zone_id")).execute()
                                 else:
-                                    client.table("trading_signals").update(pnl_update).eq("zone_id", data["zone_id"]).execute()
+                                    logger.warning("Cannot update broker PnL for alert #%s: no trade_key or zone_id", alert["id"])
 
                                 logger.info("Updated DB with broker actual PnL: $%.2f (sum of %d exit deals)", total_realized_pnl, len(exit_deals))
                         else:
@@ -625,8 +627,30 @@ def process_trade(
                             db_err,
                         )
                 elif exec_result.status == "submitted" and broker_order_id:
-                    # Mark as executed; PnL/outcome updated later on exit webhook
-                    update_alert_status(alert_id, "OPEN")
+                    # Mark as executed; PnL/outcome updated later on exit webhook.
+                    # BUGFIX: also persist broker_order_id so exit webhook can close it.
+                    try:
+                        supabase_module.init_supabase()
+                        client = supabase_module.supabase
+                        if client:
+                            submitted_payload = {
+                                "status": "OPEN",
+                                "broker_order_id": str(broker_order_id),
+                                "entry_time": datetime.now(timezone.utc).isoformat(),
+                            }
+                            if trade_key:
+                                client.table("trading_signals").update(submitted_payload).eq("trade_key", trade_key).execute()
+                            else:
+                                client.table("trading_signals").update(submitted_payload).eq("id", alert_id).execute()
+                            logger.info(
+                                "✅ Submitted order #%s linked to broker ticket #%s",
+                                alert_id, broker_order_id,
+                            )
+                        else:
+                            update_alert_status(alert_id, "OPEN")
+                    except Exception as _sub_err:
+                        logger.error("Failed to persist broker_order_id for submitted alert #%s: %s", alert_id, _sub_err)
+                        update_alert_status(alert_id, "OPEN")
                 elif exec_result.status in ("filled", "submitted") and not broker_order_id:
                     logger.warning(
                         "Execution for alert #%s returned status=%s but no broker_order_id; marking execution_failed.",

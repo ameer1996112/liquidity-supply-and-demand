@@ -92,7 +92,7 @@ def compute_shadow_metrics(
         q = (
             supabase.table("trading_signals")
             .select("id, outcome, pnl_usd, ai_reasoning")
-            .eq("status", "closed")
+            .in_("status", ["CLOSED", "closed"])
             .in_("outcome", ["win", "loss"])
             .gte("created_at", since)
         )

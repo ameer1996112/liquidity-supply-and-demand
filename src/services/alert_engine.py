@@ -180,7 +180,7 @@ class AlertEngine:
         query = (
             self.supabase.table("trading_signals")
             .select("pnl_usd, pnl, outcome, run_mode")
-            .eq("status", "closed")
+            .in_("status", ["CLOSED", "closed"])
             .order("created_at", desc=True)
             .limit(threshold + 5)  # Fetch extra to account for filtering
         )
@@ -227,7 +227,7 @@ class AlertEngine:
         query = (
             self.supabase.table("trading_signals")
             .select("pnl_usd, pnl")
-            .eq("status", "closed")
+            .in_("status", ["CLOSED", "closed"])
             .gte("created_at", today_start)
         )
 

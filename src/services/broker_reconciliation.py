@@ -195,7 +195,7 @@ class BrokerReconciliation:
         """Watermark: return most recent closed_at timestamp."""
         try:
             resp = supabase_client.table("trading_signals") \
-                .select("closed_at").eq("status", "closed") \
+                .select("closed_at").in_("status", ["CLOSED", "closed"]) \
                 .order("closed_at", desc=True).limit(1).execute()
             return resp.data[0]["closed_at"] if resp.data else \
                    (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()

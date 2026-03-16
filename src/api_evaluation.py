@@ -80,7 +80,7 @@ def calculate_evaluation_metrics():
     resp = (
         supabase.table("trading_signals")
         .select("*")
-        .eq("status", "closed")
+        .in_("status", ["CLOSED", "closed"])
         .eq("run_mode", "LIVE")  # Only count LIVE trades for evaluation
         .gte("created_at", s.evaluation_start_date)
         .order("created_at", desc=False)

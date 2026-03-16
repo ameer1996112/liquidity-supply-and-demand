@@ -80,7 +80,7 @@ def get_risk_status():
         resp = (
             sb.table("trading_signals")
             .select("pnl_usd, run_mode")
-            .eq("status", "closed")
+            .in_("status", ["CLOSED", "closed"])
             .gte("created_at", today_start_utc)
             .execute()
         )
@@ -246,7 +246,7 @@ def get_risk_dashboard():
         month_resp = (
             sb.table("trading_signals")
             .select("pnl_usd, created_at, exit_time")
-            .eq("status", "closed")
+            .in_("status", ["CLOSED", "closed"])
             .gte("created_at", month_start)
             .order("exit_time", desc=True)
             .execute()
@@ -264,7 +264,7 @@ def get_risk_dashboard():
         last_resp = (
             sb.table("trading_signals")
             .select("pnl_usd")
-            .eq("status", "closed")
+            .in_("status", ["CLOSED", "closed"])
             .order("exit_time", desc=True)
             .limit(10)
             .execute()

@@ -65,7 +65,7 @@ class RiskAgent:
             resp = (
                 self._sb.table("trading_signals")
                 .select("pnl_usd")
-                .eq("status", "closed")
+                .in_("status", ["CLOSED", "closed"])
                 .gte("created_at", today_start)
                 .execute()
             )

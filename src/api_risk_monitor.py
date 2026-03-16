@@ -93,7 +93,7 @@ def _get_daily_pnl(supabase) -> float:
         resp = (
             supabase.table("trading_signals")
             .select("pnl_usd")
-            .eq("status", "closed")
+            .in_("status", ["CLOSED", "closed"])
             .gte("created_at", today_start)
             .execute()
         )
@@ -312,7 +312,7 @@ async def get_risk_monitor():
         month_resp = (
             supabase.table("trading_signals")
             .select("pnl_usd, created_at")
-            .eq("status", "closed")
+            .in_("status", ["CLOSED", "closed"])
             .gte("created_at", month_start)
             .execute()
         )
@@ -438,7 +438,7 @@ async def get_risk_monitor():
         last_resp = (
             supabase.table("trading_signals")
             .select("pnl_usd, exit_time")
-            .eq("status", "closed")
+            .in_("status", ["CLOSED", "closed"])
             .order("exit_time", desc=True)
             .limit(max_consec)
             .execute()
