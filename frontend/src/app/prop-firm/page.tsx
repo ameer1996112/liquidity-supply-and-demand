@@ -269,12 +269,37 @@ export default function PropFirmPage() {
   // Merge Supabase signals with MetaAPI signals (MetaAPI fills gaps not in DB)
   const mergedSignals = useMemo(() => {
     const supabaseIds = new Set(allSignals.map((s) => String(s.id)));
+
+    // Build a fingerprint set from Supabase trades to catch duplicates where
+    // broker_order_id is null in DB (so backend dedup misses them). Two trades
+    // with the same symbol + closed_at minute + rounded PnL are treated as the same.
+    const supabaseFingerprints = new Set(
+      allSignals.map((s) => {
+        const pnl = Math.round((getPnl(s) ?? 0) * 100);
+        const minute = s.closed_at
+          ? s.closed_at.slice(0, 16)
+          : s.created_at.slice(0, 16);
+        return `${getSymbol(s)}|${minute}|${pnl}`;
+      })
+    );
+
     const uniqueMetaApi = metaApiSignals.filter((s) => {
       // MetaAPI signal ids are prefixed with "metaapi-" over the raw backend id.
       // DB-sourced trades come back with their numeric DB id (e.g. "metaapi-123"),
       // so strip the prefix before checking against supabaseIds to avoid duplicates.
       const rawId = String(s.id).replace(/^metaapi-/, '');
-      return !supabaseIds.has(rawId);
+      if (supabaseIds.has(rawId)) return false;
+
+      // Secondary dedup: match by symbol + closed_at minute + PnL for trades
+      // where broker_order_id is null so backend dedup missed them.
+      const pnl = Math.round((getPnl(s) ?? 0) * 100);
+      const minute = s.closed_at
+        ? s.closed_at.slice(0, 16)
+        : s.created_at.slice(0, 16);
+      const fingerprint = `${getSymbol(s)}|${minute}|${pnl}`;
+      if (supabaseFingerprints.has(fingerprint)) return false;
+
+      return true;
     });
     return [...allSignals, ...uniqueMetaApi];
   }, [allSignals, metaApiSignals]);
