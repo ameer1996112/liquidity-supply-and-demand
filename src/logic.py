@@ -180,6 +180,31 @@ def process_trade(
                         "No broker_order_id on alert %s (status=%s); cannot send broker close — skipping exit update.",
                         alert.get("id"), alert_status,
                     )
+                    # If entry was never processed by the worker (still in initial "received" state),
+                    # mark it as unexecuted so it doesn't stay PENDING forever in the dashboard.
+                    if alert_status in ("received",):
+                        _note = (
+                            f"Exit received from TradingView (close={data.get('close_price')}, "
+                            f"outcome={data.get('outcome')}) but entry was never executed on broker "
+                            f"(no broker_order_id). Marking as unexecuted."
+                        )
+                        logger.info(
+                            "Marking alert #%s as unexecuted (received→no broker execution, zone_id=%s)",
+                            alert.get("id"), data["zone_id"],
+                        )
+                        try:
+                            _client = supabase_module.supabase
+                            if _client:
+                                _q = _client.table("trading_signals").update({
+                                    "status": "unexecuted",
+                                    "notes": _note,
+                                })
+                                if trade_key:
+                                    _q.eq("trade_key", trade_key).execute()
+                                else:
+                                    _q.eq("zone_id", data["zone_id"]).execute()
+                        except Exception as _mark_err:
+                            logger.debug("Could not mark unexecuted: %s", _mark_err)
                     return
 
                 # SAFEGUARD: Verify symbol matches to avoid closing the wrong MT5 position
