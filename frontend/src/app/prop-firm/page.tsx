@@ -188,7 +188,7 @@ export default function PropFirmPage() {
 
   const { data: allSignals = [] } = useQuery({
     queryKey: ['prop-firm-analytics-signals', resolvedAccount, analyticsRange],
-    queryFn: () => fetchSignals({ limit: 1200 }),
+    queryFn: () => fetchSignals({ limit: 1200, mode: 'LIVE' }),
     staleTime: 60_000,
   });
 
@@ -282,7 +282,7 @@ export default function PropFirmPage() {
 
   const filteredSignals = useMemo(() => {
     return mergedSignals
-      .filter((s) => new Date(s.created_at) >= cutoff)
+      .filter((s) => new Date(s.closed_at || s.created_at) >= cutoff)
       .filter((s) =>
         resolvedAccount === 'default'
           ? true
@@ -348,12 +348,7 @@ export default function PropFirmPage() {
     const closed = filteredSignals.filter(isClosedSignal);
     const open = filteredSignals.filter((s) => {
       const st = String(s.status || '').toLowerCase();
-      return (
-        st === 'active' ||
-        st === 'executed' ||
-        st === 'open' ||
-        st === 'pending'
-      );
+      return st === 'active' || st === 'open' || st === 'pending';
     });
     const pnl = closed.reduce((acc, s) => acc + (getPnl(s) ?? 0), 0);
     const wins = closed.filter((s) => (getPnl(s) ?? 0) > 0).length;
