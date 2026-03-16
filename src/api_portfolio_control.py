@@ -1845,6 +1845,7 @@ def get_trade_history(
         # Transform database trades
         db_trades = []
         db_position_ids = set()  # Track position IDs we have in DB
+        db_fingerprints = set()  # Fallback dedup: symbol+exit_minute+rounded_pnl
 
         for trade in db_trades_data:
             # Calculate R multiple if possible
@@ -1883,6 +1884,14 @@ def get_trade_history(
             # Track broker order ID for deduplication
             if trade.get("broker_order_id"):
                 db_position_ids.add(str(trade.get("broker_order_id")))
+
+            # Fallback fingerprint: symbol + exit_time (minute) + rounded pnl
+            # Used when broker_order_id is null so MetaAPI dedup still works
+            exit_t = trade.get("exit_time") or ""
+            symbol = trade.get("symbol") or ""
+            pnl_rounded = round(float(trade.get("pnl_usd") or 0) * 100)
+            if exit_t and symbol:
+                db_fingerprints.add(f"{symbol}|{exit_t[:16]}|{pnl_rounded}")
 
         logger.info(f"Fetched {len(db_trades)} trades from database for {account_name}")
 
@@ -1968,6 +1977,15 @@ def get_trade_history(
                             swap = float(exit_deal.get("swap", 0) or 0)
                             commission = float(exit_deal.get("commission", 0) or 0)
                             total_pnl = profit + swap + commission
+
+                            # Fallback dedup: skip if fingerprint matches a DB trade
+                            # (catches cases where broker_order_id is null in DB)
+                            ma_symbol = entry_deal.get("symbol", "")
+                            ma_exit_t = (exit_deal.get("time") or "")[:16]
+                            ma_pnl_rounded = round(total_pnl * 100)
+                            if f"{ma_symbol}|{ma_exit_t}|{ma_pnl_rounded}" in db_fingerprints:
+                                logger.debug(f"Skipping MetaAPI position {position_id} — fingerprint matches DB trade")
+                                continue
 
                             # Determine side
                             deal_type = entry_deal.get("type", "")
