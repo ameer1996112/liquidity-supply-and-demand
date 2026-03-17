@@ -382,8 +382,9 @@ export calculate_base_quality(int base_start_idx, int base_end_idx, int current_
 // @param src_close Series of close prices
 // @param src_volume Series of volume
 // @param vol_sma_20 20-period SMA of volume
+// @param atr14 Current ATR(14) value for body magnitude normalization
 // @returns Departure strength score 0-100
-export calculate_departure_strength(int base_end_idx, bool isDemand, series float src_high, series float src_low, series float src_open, series float src_close, series float src_volume, series float vol_sma_20) =>
+export calculate_departure_strength(int base_end_idx, bool isDemand, series float src_high, series float src_low, series float src_open, series float src_close, series float src_volume, series float vol_sma_20, float atr14 = 0.0) =>
     if base_end_idx < 3
         50.0  // Not enough history
     else
@@ -416,11 +417,20 @@ export calculate_departure_strength(int base_end_idx, bool isDemand, series floa
                     float vol_avg_at_candle = vol_sma_20[candle_idx]
                     float candle_rvol = vol_avg_at_candle > 0 ? candle_volume / vol_avg_at_candle : 1.0
 
-                    // Calculate strength for this individual candle: 50% from body size, 50% from volume
-                    // Normalize: body_percent (0-1) * 50 + rvol (typically 0-3, cap at 3) / 3 * 50
-                    float body_score = body_percent * 50.0
-                    float rvol_score = math.min(candle_rvol / 3.0, 1.0) * 50.0
-                    float candle_strength = body_score + rvol_score
+                    // === NEW 3-COMPONENT SCORING ===
+                    // 1. Body Magnitude (40 pts): absolute body size vs ATR — rewards large moves
+                    //    body_size / ATR capped at 2.0x so a 2×ATR body = full 40 pts
+                    float ref_atr = atr14 > 0.0 ? atr14 : candle_range  // fallback: use candle range if no ATR
+                    float body_atr_ratio = ref_atr > 0.0 ? body_size / ref_atr : 0.0
+                    float magnitude_score = math.min(body_atr_ratio / 2.0, 1.0) * 40.0
+
+                    // 2. Body Dominance (30 pts): body as % of candle range — rewards clean bodied candles
+                    float dominance_score = body_percent * 30.0
+
+                    // 3. Volume (30 pts): relative volume capped at 2.5× average
+                    float rvol_score = math.min(candle_rvol / 2.5, 1.0) * 30.0
+
+                    float candle_strength = magnitude_score + dominance_score + rvol_score
 
                     if candle_strength > max_departure_strength
                         max_departure_strength := candle_strength

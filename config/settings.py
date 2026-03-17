@@ -313,7 +313,7 @@ class Settings(BaseSettings):
 
     # Spread gate (minimum SL pips per instrument type)
     spread_gate_enabled: bool = Field(default=True, description="Reject trades where SL is too tight relative to typical spread.")
-    min_sl_pips_forex: float = Field(default=5.0, ge=0.5, le=50.0, description="Min SL pips for standard forex pairs.")
+    min_sl_pips_forex: float = Field(default=3.0, ge=0.5, le=50.0, description="Min SL pips for standard forex pairs.")
     min_sl_pips_jpy: float = Field(default=3.0, ge=0.5, le=50.0, description="Min SL pips for JPY pairs (wider spreads).")
     min_sl_pips_gold: float = Field(default=30.0, ge=1.0, le=500.0, description="Min SL pips for XAUUSD/XAGUSD.")
     min_sl_pips_indices: float = Field(default=10.0, ge=1.0, le=200.0, description="Min SL points for indices (US30, NAS100, SPX500).")
