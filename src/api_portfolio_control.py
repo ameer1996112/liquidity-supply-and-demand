@@ -1886,8 +1886,10 @@ def get_trade_history(
                 db_position_ids.add(str(trade.get("broker_order_id")))
 
             # Fallback fingerprint: symbol + exit_time (minute) + rounded pnl
-            # Used when broker_order_id is null so MetaAPI dedup still works
-            exit_t = trade.get("exit_time") or ""
+            # Used when broker_order_id is null so MetaAPI dedup still works.
+            # Fall back to closed_at if exit_time is null (migration 026 backfills closed_at
+            # from exit_time/close_time, so some rows only have closed_at populated).
+            exit_t = trade.get("exit_time") or trade.get("closed_at") or ""
             symbol = trade.get("symbol") or ""
             pnl_rounded = round(float(trade.get("pnl_usd") or 0) * 100)
             if exit_t and symbol:

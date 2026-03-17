@@ -266,10 +266,10 @@ export default function PropFirmPage() {
     );
   }, [metaApiHistory, resolvedAccount]);
 
-  // Only use Supabase signals that were actually executed on the broker
-  // (broker_order_id is set by logic.py only after MetaTrader confirms the trade).
-  // Signals without broker_order_id may be rejected/filtered signals that were
-  // never filled — MetaAPI history covers any gaps for broker-executed trades.
+  // The backend /history endpoint already deduplicates DB trades + MetaAPI trades.
+  // Use metaApiSignals (broker ground truth) exclusively when available.
+  // Fall back to broker-confirmed Supabase signals only when MetaAPI history is
+  // unavailable (i.e. account === 'default' and useAccountTradeHistory is disabled).
   const brokerConfirmedSignals = useMemo(
     () =>
       allSignals.filter(
@@ -280,42 +280,15 @@ export default function PropFirmPage() {
     [allSignals]
   );
 
-  // Merge broker-confirmed Supabase signals with MetaAPI signals (MetaAPI fills gaps not in DB)
   const mergedSignals = useMemo(() => {
-    const supabaseIds = new Set(brokerConfirmedSignals.map((s) => String(s.id)));
-
-    // Build a fingerprint set from broker-confirmed trades to catch duplicates where
-    // broker_order_id is null in DB (so backend dedup misses them). Two trades
-    // with the same symbol + closed_at minute + rounded PnL are treated as the same.
-    const supabaseFingerprints = new Set(
-      brokerConfirmedSignals.map((s) => {
-        const pnl = Math.round((getPnl(s) ?? 0) * 100);
-        const minute = s.closed_at
-          ? s.closed_at.slice(0, 16)
-          : s.created_at.slice(0, 16);
-        return `${getSymbol(s)}|${minute}|${pnl}`;
-      })
-    );
-
-    const uniqueMetaApi = metaApiSignals.filter((s) => {
-      // MetaAPI signal ids are prefixed with "metaapi-" over the raw backend id.
-      // DB-sourced trades come back with their numeric DB id (e.g. "metaapi-123"),
-      // so strip the prefix before checking against supabaseIds to avoid duplicates.
-      const rawId = String(s.id).replace(/^metaapi-/, '');
-      if (supabaseIds.has(rawId)) return false;
-
-      // Secondary dedup: match by symbol + closed_at minute + PnL for trades
-      // where broker_order_id is null so backend dedup missed them.
-      const pnl = Math.round((getPnl(s) ?? 0) * 100);
-      const minute = s.closed_at
-        ? s.closed_at.slice(0, 16)
-        : s.created_at.slice(0, 16);
-      const fingerprint = `${getSymbol(s)}|${minute}|${pnl}`;
-      if (supabaseFingerprints.has(fingerprint)) return false;
-
-      return true;
-    });
-    return [...brokerConfirmedSignals, ...uniqueMetaApi];
+    // Prefer the backend-merged MetaAPI history — it is the single source of truth
+    // for broker-executed trades and is already deduplicated server-side.
+    if (metaApiSignals.length > 0) {
+      return metaApiSignals;
+    }
+    // Fallback: when MetaAPI history is unavailable (account = 'default'),
+    // use broker-confirmed Supabase signals (those with a broker_order_id set).
+    return brokerConfirmedSignals;
   }, [brokerConfirmedSignals, metaApiSignals]);
 
   const cutoff = useMemo(
