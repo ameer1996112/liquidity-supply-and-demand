@@ -282,7 +282,9 @@ export build_webhook_payload(
      bool _liquidity_sweep, string _arrival_type, bool _structure_break,
      float _account_balance = 50000,
      float _liq_distance_pips = na, float _liq_spread_pips = na,
-     int current_time = na) =>
+     int current_time = na,
+     float _be_trigger_price = na,
+     float _be_sl_price = na) =>
 
     string payload = '{"symbol":"' + _symbol + '"'
     payload := payload + ',"side":"' + _side + '"'
@@ -332,7 +334,7 @@ export build_webhook_payload(
     payload := payload + ',"base_quality":' + to_json_num(_base_quality, "#.##")
     payload := payload + ',"departure_strength":' + to_json_num(_departure_strength, "#.##")
     payload := payload + ',"liquidity_distance":' + to_json_num(_liq_distance, "#.##")
-payload := payload + ',"liquidity_spread":' + to_json_num(_liq_spread, "#.##")
+    payload := payload + ',"liquidity_spread":' + to_json_num(_liq_spread, "#.##")
     float return_strength = 50.0  // Default strength metric
     payload := payload + ',"return_strength":' + to_json_num(return_strength, "#.##")
 
@@ -349,6 +351,12 @@ payload := payload + ',"liquidity_spread":' + to_json_num(_liq_spread, "#.##")
 
     if not na(current_time)
         payload := payload + ',"signal_time":"' + str.format("{0,date,yyyy-MM-dd HH:mm:ss}", current_time, "Etc/UTC") + '"'
+
+    // BE (break-even) move prices — sent to backend for real-time SL management on broker
+    if not na(_be_trigger_price)
+        payload := payload + ',"be_trigger_price":' + to_json_num(_be_trigger_price, "#.##########")
+    if not na(_be_sl_price)
+        payload := payload + ',"be_sl_price":' + to_json_num(_be_sl_price, "#.##########")
 
     payload := payload + '}'
     payload

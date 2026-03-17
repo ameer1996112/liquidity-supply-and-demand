@@ -47,6 +47,7 @@ from src.services.trade_events import log_event, log_guard_decision
 from src import logic
 from src.services.watchdog import TradeWatchdog
 from src.services.trailing_stop_manager import TrailingStopManager
+from src.services.breakeven_manager import BreakevenManager
 from src.core.dynamic_config import get_dynamic_setting, clear_settings_cache, apply_time_based_rules
 
 configure_logging()
@@ -101,11 +102,12 @@ PROFITABLE_SYMBOLS = {
 supabase = None
 correlation_manager = None
 trailing_stop_manager = None
+breakeven_manager = None
 settings = None  # Global settings instance
 
 
 def init_connections():
-    global supabase, correlation_manager, trailing_stop_manager, settings
+    global supabase, correlation_manager, trailing_stop_manager, breakeven_manager, settings
     r = get_redis()
     s = get_settings()
     settings = s  # Store in global for use in save_result
@@ -128,15 +130,16 @@ def init_connections():
     except Exception as exc:
         logger.warning("CorrelationManager init failed (fallback to simple count): %s", exc)
 
-    # Initialize trailing stop manager
+    # Initialize trailing stop manager and breakeven manager
     if supabase:
         try:
             from src.adapters.execution.router import get_adapter
             adapter = get_adapter(run_mode=s.run_mode, settings=s)
             trailing_stop_manager = TrailingStopManager(supabase, adapter)
-            logger.info("TrailingStopManager initialized")
+            breakeven_manager = BreakevenManager(supabase, adapter)
+            logger.info("TrailingStopManager and BreakevenManager initialized")
         except Exception as exc:
-            logger.warning("TrailingStopManager init failed: %s", exc)
+            logger.warning("TrailingStopManager/BreakevenManager init failed: %s", exc)
 
     # ✅ v5.1: Load custom symbol mappings from database
     if supabase:
@@ -1626,6 +1629,13 @@ def run():
                         trailing_stop_manager.update_trailing_stops()
                     except Exception as ts_exc:  # noqa: BLE001
                         logger.error("TrailingStopManager update failed: %s", ts_exc)
+
+                # Check and fire break-even SL moves (near-zero latency)
+                if breakeven_manager:
+                    try:
+                        breakeven_manager.check_and_trigger()
+                    except Exception as be_exc:  # noqa: BLE001
+                        logger.error("BreakevenManager check failed: %s", be_exc)
 
                 # Clear config cache to pick up DB changes
                 try:

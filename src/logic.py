@@ -622,6 +622,11 @@ def process_trade(
                                 "entry_time": datetime.now(timezone.utc).isoformat(),
                                 "opened_at": datetime.now(timezone.utc).isoformat(),
                             }
+                            # Store BE trigger levels sent by Pine Script
+                            if data.get("be_trigger_price"):
+                                update_payload["be_trigger_price"] = float(data["be_trigger_price"])
+                            if data.get("be_sl_price"):
+                                update_payload["be_sl_price"] = float(data["be_sl_price"])
                             if account_name:
                                 update_payload["account_name"] = account_name
 

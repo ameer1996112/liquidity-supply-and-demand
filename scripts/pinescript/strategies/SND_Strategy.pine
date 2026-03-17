@@ -26,7 +26,7 @@
 
 // === LIBRARY IMPORTS ===
 // Import helper functions from external libraries to reduce script size
-import ameer_1996112/SND_Utils/17 as Utils
+import ameer_1996112/SND_Utils/18 as Utils
 import ameer_1996112/SND_Core/18 as Core
 
 strategy("Institutional Liquidity Protocol [Pro]",
@@ -431,7 +431,12 @@ col_acc_supply_border = #BA68C8  // Bright purple border
 
 float tol = pip_size * 1.0
 
-get_jpy_tp_rules(sl_pips) =>
+// Forex TP/BE rules — apply to ALL forex pairs (JPY, GBP, EUR, etc.)
+// SL ≤ 3 pips  → 1:4.5 TP, move SL to +2 pips at 1:4
+// SL 3.1-7     → 1:3 TP,   move SL to entry at 1:2
+// SL 7.1-11    → 1:2.5 TP, move SL to entry at 1:1.2
+// SL > 11      → 1:2 TP,   no BE move
+get_forex_tp_rules(sl_pips) =>
     float tp_ratio = 2.0
     float be_trigger_rr = na
     float be_sl_pips_min = na
@@ -440,17 +445,17 @@ get_jpy_tp_rules(sl_pips) =>
     if sl_pips <= 3.0
         tp_ratio := 4.5
         be_trigger_rr := 4.0
-        be_sl_pips_min := 2.0  // Move to 1:1 but min 2 pips
+        be_sl_pips_min := 2.0  // Move to +2 pips profit
         move_to_be := true
     else if sl_pips <= 7.0
         tp_ratio := 3.0
         be_trigger_rr := 2.0
-        be_sl_pips_min := 0.0  // Move to BE (entry)
+        be_sl_pips_min := 0.0  // Move to entry (BE)
         move_to_be := true
     else if sl_pips <= 11.0
         tp_ratio := 2.5
         be_trigger_rr := 1.2
-        be_sl_pips_min := 0.0  // Move to BE (entry)
+        be_sl_pips_min := 0.0  // Move to entry (BE)
         move_to_be := true
     else
         tp_ratio := 2.0
@@ -561,7 +566,7 @@ get_tp_ratio(symbol_type, sl_pips) =>
             be_sl := g_bes
             move_be := g_mbe
         else if is_jpy_pair or (not is_silver and not is_crypto)
-            [f_tp, f_bet, f_bes, f_mbe] = get_jpy_tp_rules(sl_pips)
+            [f_tp, f_bet, f_bes, f_mbe] = get_forex_tp_rules(sl_pips)
             base_ratio := f_tp
             be_trig := f_bet
             be_sl := f_bes
@@ -578,7 +583,7 @@ get_tp_ratio(symbol_type, sl_pips) =>
         be_sl := g_bes
         move_be := g_mbe
     else
-        [f_tp, f_bet, f_bes, f_mbe] = get_jpy_tp_rules(sl_pips)
+        [f_tp, f_bet, f_bes, f_mbe] = get_forex_tp_rules(sl_pips)
         base_ratio := f_tp
         be_trig := f_bet
         be_sl := f_bes
@@ -3091,6 +3096,9 @@ process_long_entries() =>
                 array.set(_trade_be_sl_pips, 0, na)
                 array.set(_trade_be_moved, 0, false)
 
+                float be_trigger_price_long = na
+                float be_sl_price_long = na
+
                 if use_take_profit and sl_pips > 0
                     [tp_r, be_trig, be_sl, move_be] = get_tp_ratio(syminfo.ticker, sl_pips)
 
@@ -3104,6 +3112,10 @@ process_long_entries() =>
                     if move_be
                         array.set(_trade_be_trigger_rr, 0, be_trig)
                         array.set(_trade_be_sl_pips, 0, be_sl)
+                        if not na(be_trig) and be_trig > 0
+                            be_trigger_price_long := entry_price + (pip_distance * be_trig)
+                            float be_sl_offset = (not na(be_sl) and be_sl > 0) ? be_sl * pip_size : 0.0
+                            be_sl_price_long := entry_price + be_sl_offset
 
                 float tp_distance_pips = na
                 if not na(take_profit_price) and not na(entry_price)
@@ -3238,7 +3250,9 @@ process_long_entries() =>
                         account_size_usd,         // _account_balance (Corrected)
                         f_liq_dist_pips,         // liq_distance_pips
                         f_liq_spread_pips,       // liq_spread_pips
-                        time                     // current_time
+                        time,                    // current_time
+                        be_trigger_price_long,   // be_trigger_price
+                        be_sl_price_long         // be_sl_price
                     ) : ""
 
                     if dry_run_mode
@@ -3518,6 +3532,9 @@ process_short_entries() =>
                 array.set(_trade_be_sl_pips, 0, na)
                 array.set(_trade_be_moved, 0, false)
 
+                float be_trigger_price_short = na
+                float be_sl_price_short = na
+
                 if use_take_profit and sl_pips > 0
                     [tp_r, be_trig, be_sl, move_be] = get_tp_ratio(syminfo.ticker, sl_pips)
 
@@ -3531,6 +3548,10 @@ process_short_entries() =>
                     if move_be
                         array.set(_trade_be_trigger_rr, 0, be_trig)
                         array.set(_trade_be_sl_pips, 0, be_sl)
+                        if not na(be_trig) and be_trig > 0
+                            be_trigger_price_short := entry_price - (pip_distance * be_trig)
+                            float be_sl_offset_s = (not na(be_sl) and be_sl > 0) ? be_sl * pip_size : 0.0
+                            be_sl_price_short := entry_price - be_sl_offset_s
 
                 float tp_distance_pips = na
                 if not na(take_profit_price) and not na(entry_price)
@@ -3665,7 +3686,9 @@ process_short_entries() =>
                         account_size_usd,               // _account_balance (Corrected)
                         f_liq_dist_pips_short,         // liq_distance_pips
                         f_liq_spread_pips_short,       // liq_spread_pips
-                        time                           // current_time
+                        time,                          // current_time
+                        be_trigger_price_short,        // be_trigger_price
+                        be_sl_price_short              // be_sl_price
                     ) : ""
 
                     if dry_run_mode
