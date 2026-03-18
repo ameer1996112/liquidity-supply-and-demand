@@ -3,7 +3,6 @@
 import { useMemo, useState } from 'react';
 import {
   Trophy,
-  XCircle,
   Clock,
   RefreshCw,
   ChevronRight,
@@ -149,17 +148,17 @@ function PhaseBadge({ phase }: { phase: string }) {
 }
 
 export default function PropFirmPage() {
-  const [historyDays, setHistoryDays] = useState(7);
-  const [analyticsRange, setAnalyticsRange] = useState<7 | 14 | 30>(14);
-  const [symbolFilter, setSymbolFilter] = useState<string>('ALL');
-  const [sessionFilter, setSessionFilter] = useState<string>('ALL');
-  const [dowFilter, setDowFilter] = useState<string>('ALL');
+  const [historyDays] = useState(30);
+  const [analyticsRange] = useState(14);
+  const [symbolFilter] = useState('ALL');
+  const [sessionFilter] = useState('ALL');
+  const [dowFilter] = useState('ALL');
 
   const { data: accounts = [] } = useAccountsComparison();
 
   // Build account options — only show 'default' when no real accounts exist
   const accountOptions = useMemo(() => {
-    const names = accounts.map((a) => a.account_name).filter(Boolean);
+    const names = (accounts || []).map((a) => a?.account_name).filter(Boolean);
     return names.length > 0 ? names : ['default'];
   }, [accounts]);
 

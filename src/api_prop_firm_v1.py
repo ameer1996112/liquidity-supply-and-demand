@@ -25,19 +25,25 @@ async def get_challenge_status(account_name: str, supabase=Depends(get_api_supab
             pass
             
     # Fallback to DB
-    profile_resp = supabase.table("broker_profiles").select("*, meta_api_server_name").eq("account_name", account_name).execute()
+    profile_resp = supabase.table("broker_profiles").select("*").eq("account_name", account_name).execute()
     if not profile_resp.data:
         raise HTTPException(status_code=404, detail="Broker profile not found")
         
     profile = profile_resp.data[0]
     server_name = profile.get("meta_api_server_name", "")
+    if not server_name:
+        server_name = profile.get("server", "")
     
     detector = PropFirmDetector(supabase)
     challenge_type = detector.auto_detect_challenge_type(server_name, account_name)
     rules = detector.get_firm_and_rules(server_name, challenge_type)
     
-    metrics_resp = supabase.table("prop_firm_metrics").select("*").eq("account_name", profile.get("account_name", "")).order("snapshot_time", desc=True).limit(1).execute()
-    metrics = metrics_resp.data[0] if metrics_resp.data else None
+    metrics = None
+    try:
+        metrics_resp = supabase.table("prop_firm_metrics").select("*").eq("account_name", profile.get("account_name", "")).order("snapshot_time", desc=True).limit(1).execute()
+        metrics = metrics_resp.data[0] if metrics_resp.data else None
+    except Exception:
+        pass
     
     res = {
         "status": "active",

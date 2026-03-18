@@ -687,20 +687,30 @@ export interface ChallengeSettings {
   evaluation_start_date: string | null;
 }
 
-export async function fetchChallengeSettings(accountName: string): Promise<ChallengeSettings> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/portfolio-control/accounts/${encodeURIComponent(accountName)}/challenge`, { cache: 'no-store' });
+export async function fetchChallengeSettings(accountName: string): Promise<any> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/prop-firm/challenge-status/${encodeURIComponent(accountName)}`, { cache: 'no-store' });
   if (!res.ok) throw new Error(`Failed to fetch challenge settings: ${res.statusText}`);
   return res.json();
 }
 
 export async function updateChallengeSettings(
   accountName: string,
-  settings: Omit<ChallengeSettings, 'account_name' | 'broker_profile_id' | 'evaluation_start_date'>
-): Promise<ChallengeSettings> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/portfolio-control/accounts/${encodeURIComponent(accountName)}/challenge`, {
-    method: 'PUT',
+  settings: any
+): Promise<any> {
+  // Map legacy payload properties to new backend structure
+  let challenge_type = settings.challenge_type || settings.evaluation_phase;
+  if (challenge_type === 'phase1') challenge_type = 'phase_1';
+  if (challenge_type === 'phase2') challenge_type = 'phase_2';
+  
+  const payload = {
+    challenge_type: challenge_type || 'phase_1',
+    ...settings
+  };
+
+  const res = await fetch(`${API_BASE_URL}/api/v1/prop-firm/challenge-config/${encodeURIComponent(accountName)}`, {
+    method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(settings),
+    body: JSON.stringify(payload),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
