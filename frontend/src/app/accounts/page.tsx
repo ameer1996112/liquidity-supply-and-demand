@@ -20,10 +20,11 @@ export default function AccountsPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const {
-    data: accounts = [] as AccountDetailApi[],
+    data: rawAccounts = [] as AccountDetailApi[],
     isLoading,
     error,
   } = useAccountsComparison();
+  const accounts = Array.isArray(rawAccounts) ? rawAccounts : [] as AccountDetailApi[];
   const queryClient = useQueryClient();
   const { addToast } = useToast();
 

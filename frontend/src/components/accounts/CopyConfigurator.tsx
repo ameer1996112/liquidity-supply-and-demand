@@ -22,8 +22,10 @@ import { cn } from '@/lib/utils';
 
 export function CopyConfigurator() {
   const { addToast } = useToast();
-  const { data: accounts = [] } = useAccountsComparison();
-  const { data: rules = [], isLoading } = useTradeCopyRules();
+  const { data: rawAccounts = [] } = useAccountsComparison();
+  const { data: rawRules = [], isLoading } = useTradeCopyRules();
+  const accounts = Array.isArray(rawAccounts) ? rawAccounts : [];
+  const rules = Array.isArray(rawRules) ? rawRules : [];
   const createRule = useCreateTradeCopyRule();
   const toggleRule = useToggleTradeCopyRule();
 

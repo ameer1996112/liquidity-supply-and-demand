@@ -21,7 +21,8 @@ import { cn } from '@/lib/utils';
 
 export function CapitalAllocator() {
   const { addToast } = useToast();
-  const { data: accounts = [] } = useAccountsComparison();
+  const { data: rawAccounts = [] } = useAccountsComparison();
+  const accounts = Array.isArray(rawAccounts) ? rawAccounts : [];
   const totalFromAccounts = accounts.reduce((a, c) => a + c.balance, 0);
   const [totalCapital, setTotalCapital] = useState(100000);
 
@@ -106,7 +107,7 @@ export function CapitalAllocator() {
 
         {isLoading ? (
           <Skeleton className='h-32 w-full bg-[#1e222d]' />
-        ) : plan && plan.recommendations.length > 0 ? (
+        ) : plan && Array.isArray(plan.recommendations) && plan.recommendations.length > 0 ? (
           <div className='space-y-3'>
             {plan.expected_portfolio_sharpe != null && (
               <p className='text-[10px] text-zinc-500 font-mono'>
