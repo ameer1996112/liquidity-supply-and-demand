@@ -68,7 +68,8 @@ export default function PropFirmPage() {
   const { data: accounts = [] } = useAccountsComparison();
 
   const accountOptions = useMemo(() => {
-    const names = (accounts || []).map((a) => a?.account_name).filter(Boolean);
+    const safeAccounts = Array.isArray(accounts) ? accounts : [];
+    const names = safeAccounts.map((a) => a?.account_name).filter(Boolean);
     return names.length > 0 ? names : ['default'];
   }, [accounts]);
 
@@ -84,12 +85,8 @@ export default function PropFirmPage() {
     dataUpdatedAt,
   } = usePropFirmMetrics(resolvedAccount);
 
-  const { data: historyData, isLoading: historyLoading } = usePropFirmHistory(
-    resolvedAccount,
-    historyDays
-  );
-  const { data: mtmData, isLoading: mtmLoading } =
-    usePropFirmMtm(resolvedAccount);
+  usePropFirmHistory(resolvedAccount, historyDays);
+  usePropFirmMtm(resolvedAccount);
   const resetMutation = useResetPropFirmDaily(resolvedAccount);
 
   const { data: allSignals = [] } = useQuery({
@@ -170,14 +167,19 @@ export default function PropFirmPage() {
     );
   }, [metaApiHistory, resolvedAccount]);
 
+  const safeAllSignals = useMemo(
+    () => (Array.isArray(allSignals) ? allSignals : []),
+    [allSignals]
+  );
+
   const brokerConfirmedSignals = useMemo(
     () =>
-      allSignals.filter(
+      safeAllSignals.filter(
         (s) =>
           (s as TradingSignal & { broker_order_id?: string | null })
             .broker_order_id != null
       ),
-    [allSignals]
+    [safeAllSignals]
   );
 
   const mergedSignals = useMemo(() => {
@@ -190,8 +192,13 @@ export default function PropFirmPage() {
     [analyticsRange]
   );
 
+  const safeMergedSignals = useMemo(
+    () => (Array.isArray(mergedSignals) ? mergedSignals : []),
+    [mergedSignals]
+  );
+
   const filteredSignals = useMemo(() => {
-    return mergedSignals
+    return safeMergedSignals
       .filter((s) => new Date(s.closed_at || s.created_at) >= cutoff)
       .filter((s) =>
         resolvedAccount === 'default'
@@ -212,7 +219,7 @@ export default function PropFirmPage() {
         return dow === dowFilter;
       });
   }, [
-    mergedSignals,
+    safeMergedSignals,
     cutoff,
     resolvedAccount,
     symbolFilter,
@@ -440,7 +447,7 @@ export default function PropFirmPage() {
         </h3>
 
         <CalendarPnlView
-          signals={mergedSignals
+          signals={safeMergedSignals
             .filter(isClosedSignal)
             .filter((s) =>
               resolvedAccount === 'default'
