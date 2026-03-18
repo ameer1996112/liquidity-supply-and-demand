@@ -8,6 +8,7 @@ import {
   usePropFirmHistory,
   usePropFirmMtm,
   useResetPropFirmDaily,
+  usePrefetchPropFirmAccounts,
 } from '@/hooks/usePropFirm';
 import {
   useAccountsComparison,
@@ -22,7 +23,9 @@ import type { PropFirmMetricsResponse } from '@/lib/api';
 import { ChallengeHeader } from '@/components/prop-firm/ChallengeHeader';
 import { HealthScoreGauge } from '@/components/prop-firm/HealthScoreGauge';
 import { ChallengeMetrics } from '@/components/prop-firm/ChallengeMetrics';
+import { ChallengeRules } from '@/components/prop-firm/ChallengeRules';
 import { PerformanceSummary } from '@/components/prop-firm/PerformanceSummary';
+import { usePropFirmChallenge } from '@/hooks/usePropFirmChallenge';
 import {
   getSignalSession,
   getSignalAccount,
@@ -78,6 +81,9 @@ export default function PropFirmPage() {
     ? selectedAccount
     : accountOptions[0] ?? 'default';
 
+  // Prefetch metrics for ALL accounts so switching is instant
+  usePrefetchPropFirmAccounts(accountOptions);
+
   const {
     data: metricsData,
     isLoading: metricsLoading,
@@ -88,6 +94,10 @@ export default function PropFirmPage() {
   usePropFirmHistory(resolvedAccount, historyDays);
   usePropFirmMtm(resolvedAccount);
   const resetMutation = useResetPropFirmDaily(resolvedAccount);
+
+  // Get firm-specific info for rules display
+  const { data: challengeData } = usePropFirmChallenge(resolvedAccount);
+  const firmInfo = challengeData?.firm_info;
 
   const { data: allSignals = [] } = useQuery({
     queryKey: ['prop-firm-analytics-signals', resolvedAccount, analyticsRange],
@@ -382,6 +392,8 @@ export default function PropFirmPage() {
               value={`$${safeEquity.daily_start_balance.toLocaleString()}`}
               icon={DollarSign}
               variant='default'
+              numericValue={safeEquity.daily_start_balance}
+              numericFormat={(v) => `$${v.toLocaleString(undefined, { minimumFractionDigits: 0 })}`}
             />
 
             <StatCard
@@ -389,10 +401,12 @@ export default function PropFirmPage() {
               value={`$${safeEquity.current_equity.toLocaleString()}`}
               icon={DollarSign}
               variant={accountGrowthPct >= 0 ? 'profit' : 'loss'}
+              numericValue={safeEquity.current_equity}
+              numericFormat={(v) => `$${v.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
               subValue={`${
                 accountGrowthPct >= 0 ? '+' : ''
               }${accountGrowthPct.toFixed(2)}%`}
-              trend={accountGrowthPct >= 0 ? 'up' : 'down'}
+              trend={accountGrowthPct >= 0 ? 'up' : accountGrowthPct < 0 ? 'down' : 'neutral'}
             />
 
             <StatCard
@@ -402,9 +416,12 @@ export default function PropFirmPage() {
               }$${safeDailyPnl.total.toLocaleString()}`}
               icon={Activity}
               variant={safeDailyPnl.total >= 0 ? 'profit' : 'loss'}
+              numericValue={safeDailyPnl.total}
+              numericFormat={(v) => `${v >= 0 ? '+' : ''}$${v.toLocaleString()}`}
               subValue={`Closed: ${
                 safeDailyPnl.closed >= 0 ? '+' : ''
               }$${safeDailyPnl.closed.toLocaleString()}`}
+              trend={safeDailyPnl.total >= 0 ? 'up' : safeDailyPnl.total < 0 ? 'down' : 'neutral'}
             />
 
             <StatCard
@@ -414,6 +431,9 @@ export default function PropFirmPage() {
               }$${safeDailyPnl.floating.toLocaleString()}`}
               icon={Activity}
               variant={safeDailyPnl.floating >= 0 ? 'profit' : 'loss'}
+              numericValue={safeDailyPnl.floating}
+              numericFormat={(v) => `${v >= 0 ? '+' : ''}$${v.toLocaleString()}`}
+              trend={safeDailyPnl.floating > 0 ? 'up' : safeDailyPnl.floating < 0 ? 'down' : 'neutral'}
             />
           </div>
         </div>
@@ -427,6 +447,21 @@ export default function PropFirmPage() {
         trailingLimitPct={safeDrawdown.trailing_limit_pct}
         consistencyPct={safeConsistency.best_day_pct}
         consistencyLimitPct={safeConsistency.limit_pct}
+      />
+
+      {/* Challenge Rules */}
+      <ChallengeRules
+        dailyLimitPct={safeDrawdown.daily_limit_pct}
+        maxDrawdownPct={safeDrawdown.trailing_limit_pct}
+        consistencyLimitPct={safeConsistency.limit_pct}
+        profitTargetPct={firmInfo?.profit_target_pct ?? 0}
+        minTradingDays={firmInfo?.min_trading_days ?? undefined}
+        maxTradingDays={firmInfo?.max_trading_days ?? undefined}
+        daysRemaining={metrics.days_remaining ?? undefined}
+        currentDailyPct={safeDrawdown.daily_pct}
+        currentTrailingPct={safeDrawdown.trailing_pct}
+        currentConsistencyPct={safeConsistency.best_day_pct}
+        currentProfitPct={currentProfitPct}
       />
 
       {/* Performance Summary */}

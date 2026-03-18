@@ -1,6 +1,7 @@
 'use client';
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import {
   fetchPropFirmMetrics,
   fetchPropFirmHistory,
@@ -21,7 +22,8 @@ export function usePropFirmMetrics(accountName = 'default') {
     queryKey: propFirmKeys.metrics(accountName),
     queryFn: () => fetchPropFirmMetrics(accountName),
     refetchInterval: 10_000,
-    staleTime: 5_000,
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
     retry: 1,
   });
 }
@@ -32,6 +34,7 @@ export function usePropFirmHistory(accountName = 'default', days = 7) {
     queryFn: () => fetchPropFirmHistory(accountName, days),
     refetchInterval: 60_000,
     staleTime: 30_000,
+    placeholderData: keepPreviousData,
     retry: 1,
   });
 }
@@ -42,6 +45,7 @@ export function usePropFirmConsistency(accountName = 'default') {
     queryFn: () => fetchPropFirmConsistency(accountName),
     refetchInterval: 30_000,
     staleTime: 15_000,
+    placeholderData: keepPreviousData,
     retry: 1,
   });
 }
@@ -51,9 +55,29 @@ export function usePropFirmMtm(accountName = 'default') {
     queryKey: propFirmKeys.mtm(accountName),
     queryFn: () => fetchPropFirmMtm(accountName),
     refetchInterval: 10_000,
-    staleTime: 5_000,
+    staleTime: 30_000,
+    placeholderData: keepPreviousData,
     retry: 1,
   });
+}
+
+/**
+ * Prefetch prop firm metrics for ALL accounts so switching is instant.
+ * Call once at the page level with the list of account names.
+ */
+export function usePrefetchPropFirmAccounts(accountNames: string[]) {
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    for (const name of accountNames) {
+      // Prefetch metrics (most critical for perceived speed)
+      queryClient.prefetchQuery({
+        queryKey: propFirmKeys.metrics(name),
+        queryFn: () => fetchPropFirmMetrics(name),
+        staleTime: 30_000,
+      });
+    }
+  }, [accountNames, queryClient]);
 }
 
 export function useResetPropFirmDaily(accountName = 'default') {
@@ -66,3 +90,4 @@ export function useResetPropFirmDaily(accountName = 'default') {
     },
   });
 }
+
