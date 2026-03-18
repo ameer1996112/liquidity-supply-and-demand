@@ -21,15 +21,17 @@ export interface ChallengeStatusResponse {
 
 export function usePropFirmChallenge(accountName: string | undefined) {
   const queryClient = useQueryClient();
+  const isRealAccount = !!accountName && accountName !== 'default';
 
   const query = useQuery<ChallengeStatusResponse>({
     queryKey: ['prop-firm-challenge', accountName],
     queryFn: async () => {
-      if (!accountName) return null as any;
+      if (!accountName || accountName === 'default') return null as any;
       return apiFetch(`/api/v1/prop-firm/challenge-status/${accountName}`);
     },
-    enabled: !!accountName,
-    refetchInterval: 10000, // Poll every 10 seconds
+    enabled: isRealAccount,
+    refetchInterval: isRealAccount ? 10000 : false,
+    retry: 1,
   });
 
   const updateConfig = useMutation({
