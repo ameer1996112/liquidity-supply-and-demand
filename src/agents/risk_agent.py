@@ -70,13 +70,23 @@ class RiskAgent:
                 .execute()
             )
             today_pnl = sum(float(r.get("pnl_usd") or 0) for r in (resp.data or []))
-            blocked = today_pnl <= DAILY_DRAWDOWN_LIMIT
+            
+            # Dynamic Limit Calculation
+            env_val = os.environ.get("DAILY_DRAWDOWN_LIMIT")
+            if env_val is not None and env_val != "-450.0":
+                daily_limit = float(env_val)
+            else:
+                from config import get_settings
+                s = get_settings()
+                daily_limit = -(s.account_balance * (s.trinity_max_daily_loss_pct / 100.0))
+
+            blocked = today_pnl <= daily_limit
             reason = (
-                f"Daily drawdown hit: ${today_pnl:.2f} ≤ ${DAILY_DRAWDOWN_LIMIT:.2f}"
+                f"Daily drawdown hit: ${today_pnl:.2f} ≤ ${daily_limit:.2f}"
                 if blocked else
-                f"Drawdown OK: ${today_pnl:.2f} / ${abs(DAILY_DRAWDOWN_LIMIT):.2f} limit"
+                f"Drawdown OK: ${today_pnl:.2f} / ${abs(daily_limit):.2f} limit"
             )
-            logger.info("[RISK] Drawdown: pnl=$%.2f limit=$%.2f blocked=%s", today_pnl, DAILY_DRAWDOWN_LIMIT, blocked)
+            logger.info("[RISK] Drawdown: pnl=$%.2f limit=$%.2f blocked=%s", today_pnl, daily_limit, blocked)
             return {"blocked": blocked, "reason": reason, "today_pnl": today_pnl}
         except Exception as exc:
             logger.error("[RISK] Drawdown check error (fail-open): %s", exc)
