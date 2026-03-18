@@ -1335,6 +1335,27 @@ def ensemble_decision(payload: Dict[str, Any]) -> Dict[str, Any]:
         _log_brain_decision(symbol, result)
         return result
 
+    # Fast-Path Bypass: skip LLM latency for very high-probability RF setups
+    enable_fast_path = getattr(settings, "enable_fast_path_bypass", False)
+    fast_path_threshold = getattr(settings, "fast_path_rf_threshold", 0.85)
+    fast_path_live_only = getattr(settings, "fast_path_live_only", True)
+    run_mode = str(getattr(settings, "run_mode", "")).upper()
+    
+    can_use_fast_path = enable_fast_path and (not fast_path_live_only or run_mode == "LIVE")
+    if can_use_fast_path and rf_prob >= fast_path_threshold:
+        result["decision"] = "GO"
+        result["reason"] = f"Fast-Path Bypass Triggered (RF {rf_prob:.1%} >= {fast_path_threshold:.1%})."
+        result["llm_status"] = "skipped_fast_path"
+        result["llm_error_message_short"] = "Bypassed via Fast-Path"
+        decision_trace["rules"].append({
+            "rule_id": "fast_path_bypass",
+            "status": "skipped",
+            "passed": True,
+            "message": result["reason"],
+        })
+        _log_brain_decision(symbol, result)
+        return result
+
     # Step 5: LLM wisdom (two-tier: quick first, escalate to deep when rules trigger)
     client = _get_llm_client()
     if client is None:
