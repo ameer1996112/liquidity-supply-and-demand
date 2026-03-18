@@ -1268,9 +1268,14 @@ export function SignalInspector({
                     </div>
                   </>
                 ) : (
-                  <div className='p-4 text-sm text-muted-foreground'>
-                    No AI Memo for this signal. Debate runs in shadow mode for
-                    signals processed after Sprint 3.3.
+                  <div className='flex flex-col items-center justify-center py-12 text-center gap-3'>
+                    <Brain className='w-10 h-10 text-muted-foreground/50' />
+                    <p className='text-sm text-muted-foreground'>
+                      No AI Council memo recorded for this signal.
+                    </p>
+                    <p className='text-xs text-muted-foreground/70'>
+                      Council runs automatically after each signal is processed.
+                    </p>
                   </div>
                 )}
               </TabsContent>

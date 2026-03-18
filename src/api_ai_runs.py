@@ -75,6 +75,7 @@ def get_ai_run_by_signal(signal_id: int = Query(..., description="Trading signal
             "memo": row.get("memo") or "",
             "votes": row.get("votes") or {},
             "transcript": row.get("transcript") or [],
+            "council_report": row.get("council_report") or {},
             "created_at": row.get("created_at"),
         }
     except HTTPException:

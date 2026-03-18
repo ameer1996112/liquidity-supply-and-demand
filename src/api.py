@@ -620,7 +620,11 @@ async def webhook(request: Request, payload: dict[str, Any] = Depends(get_webhoo
     action = (str(payload.get("action") or "")).strip().lower()
     is_exit = event_type == "exit" or action == "exit"
     receipt_id = str(uuid.uuid4())
+    correlation_id = str(uuid.uuid4())
     payload["_webhook_receipt_id"] = receipt_id
+    # _correlation_id links the Council ai_run to this signal.
+    # The worker uses this to call persist_debate() and link_ai_run_to_signal().
+    payload["_correlation_id"] = correlation_id
     if not is_exit:
         try:
             from src.adapters.supabase import get_supabase

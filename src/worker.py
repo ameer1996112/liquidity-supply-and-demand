@@ -1333,12 +1333,17 @@ def process_trade(payload: Dict[str, Any]):
                     redis_client=get_redis(),
                 )
                 corr = payload.get("_correlation_id")
-                
+
                 import src.adapters.supabase as supabase_module
                 supabase_module.init_supabase()
                 sb_client = supabase_module.supabase
 
-                if corr:
+                if not corr:
+                    logger.warning(
+                        "Trading Council: no _correlation_id in payload — ai_run will not be persisted. "
+                        "Ensure api.py stamps _correlation_id before enqueue."
+                    )
+                elif sb_client:
                     trace_id = _get_trace_id_by_correlation(sb_client, corr) if sb_client else None
                     persist_debate(sb_client, corr, council_result, trace_id=trace_id)
 
