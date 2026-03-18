@@ -74,8 +74,6 @@
 
 ## Traceability
 
-*Populated during roadmap creation.*
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | BUG-01 | Phase 1 | Pending |
@@ -91,9 +89,6 @@
 | API-01 | Phase 1 | Pending |
 | API-02 | Phase 1 | Pending |
 | API-03 | Phase 1 | Pending |
-| CACHE-01 | Phase 2 | Pending |
-| CACHE-02 | Phase 2 | Pending |
-| CACHE-03 | Phase 2 | Pending |
 | UI-01 | Phase 2 | Pending |
 | UI-02 | Phase 2 | Pending |
 | UI-03 | Phase 2 | Pending |
@@ -103,12 +98,15 @@
 | UI-07 | Phase 2 | Pending |
 | UI-08 | Phase 2 | Pending |
 | UI-09 | Phase 2 | Pending |
+| CACHE-01 | Phase 3 | Pending |
+| CACHE-02 | Phase 3 | Pending |
+| CACHE-03 | Phase 3 | Pending |
 
 **Coverage:**
 - v1 requirements: 22 total
 - Mapped to phases: 22
-- Unmapped: 0 ✓
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-18*
-*Last updated: 2026-03-18 after initial definition*
+*Last updated: 2026-03-18 — traceability updated after roadmap creation (CACHE moved to Phase 3)*
