@@ -101,7 +101,8 @@ class MTMGuardian:
             return cached
 
         # 1. Get starting balance for today
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        from src.services.prop_firm_tracker import get_ny_midnight_utc
+        today_start = get_ny_midnight_utc().isoformat()
 
         # 2. Calculate closed PnL — scoped to this account
         # CRITICAL: Use closed_at instead of created_at for accurate daily PnL
@@ -165,7 +166,11 @@ class MTMGuardian:
                     # Get pip values (reuse from risk_engine logic)
                     if "JPY" in symbol:
                         pip_size = 0.01
-                        pip_value_per_lot = 1000.0
+                        if entry > 0:
+                            pip_value_per_lot = (pip_size / entry) * 100000
+                        else:
+                            pip_value_per_lot = 1000.0
+                            logger.warning("MTM: JPY fallback pip_value for %s (no entry price)", symbol)
                     elif "XAU" in symbol or "GOLD" in symbol:
                         pip_size = 0.01
                         pip_value_per_lot = 100.0
@@ -207,9 +212,8 @@ class MTMGuardian:
             try:
                 from datetime import timedelta
                 cutoff = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
-                today_start = datetime.now(timezone.utc).replace(
-                    hour=0, minute=0, second=0, microsecond=0
-                ).isoformat()
+                from src.services.prop_firm_tracker import get_ny_midnight_utc
+                today_start = get_ny_midnight_utc().isoformat()
 
                 # Latest equity snapshot (within last 10 min)
                 latest_snap = self.supabase.table("account_status_snapshots")\

@@ -21,7 +21,17 @@ from typing import Dict, Optional, List
 from dataclasses import dataclass
 import logging
 
+import pytz
+
 logger = logging.getLogger(__name__)
+
+NY_TZ = pytz.timezone("America/New_York")
+
+def get_ny_midnight_utc() -> datetime:
+    """Return today's NY midnight as a UTC datetime."""
+    now_ny = datetime.now(NY_TZ)
+    midnight_ny = now_ny.replace(hour=0, minute=0, second=0, microsecond=0)
+    return midnight_ny.astimezone(timezone.utc)
 
 
 @dataclass
@@ -101,9 +111,7 @@ class PropFirmTracker:
         equity_data = mtm.get_real_time_equity(account_name)
 
         # 2. Get daily start balance from snapshot or settings
-        today_start = datetime.now(timezone.utc).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        ).isoformat()
+        today_start = get_ny_midnight_utc().isoformat()
 
         try:
             snapshot = self.supabase.table("prop_firm_metrics")\
@@ -150,11 +158,20 @@ class PropFirmTracker:
             if daily_start_balance > 0 else 0
         )
 
-        # Trailing drawdown: from all-time high
-        trailing_drawdown_pct = (
-            (max_historical_equity - current_equity) / max_historical_equity * 100
-            if max_historical_equity > 0 else 0
-        )
+        # Total drawdown: depends on evaluation phase
+        starting_balance = self.settings.account_balance
+        if evaluation_phase == "funded":
+            # Funded: trailing HWM denominator
+            trailing_drawdown_pct = (
+                (max_historical_equity - current_equity) / max_historical_equity * 100
+                if max_historical_equity > 0 else 0
+            )
+        else:
+            # Phase 1 / Phase 2: initial starting balance denominator
+            trailing_drawdown_pct = (
+                (starting_balance - current_equity) / starting_balance * 100
+                if starting_balance > 0 else 0
+            )
 
         # 7. Get limits based on evaluation phase
         if evaluation_phase == "phase1":
@@ -234,6 +251,20 @@ class PropFirmTracker:
             account_name: Account identifier
             broker_profile_id: Optional broker profile ID
         """
+        # Calculate trades today
+        try:
+            ny_midnight = get_ny_midnight_utc().isoformat()
+            trades_result = self.supabase.table("trading_signals") \
+                .select("id") \
+                .in_("status", ["closed", "CLOSED", "executed", "EXECUTED"]) \
+                .gte("closed_at", ny_midnight) \
+                .eq("account_name", account_name) \
+                .execute()
+            trades_today = len(trades_result.data) if trades_result.data else 0
+        except Exception as e:
+            logger.error(f"Failed to fetch trades_today: {e}")
+            trades_today = 0
+
         try:
             self.supabase.table("prop_firm_metrics").insert({
                 "account_name": account_name,
@@ -252,7 +283,7 @@ class PropFirmTracker:
                 "max_drawdown_limit_pct": metrics.max_drawdown_limit_pct,
                 "daily_loss_breach": metrics.daily_loss_breach,
                 "drawdown_breach": metrics.drawdown_breach,
-                "trades_today": 0,  # TODO: Calculate from trading_signals
+                "trades_today": trades_today,
                 "winning_trades_today": 0,
                 "losing_trades_today": 0,
             }).execute()
@@ -260,6 +291,7 @@ class PropFirmTracker:
             logger.info(f"Saved prop firm snapshot for {account_name}")
         except Exception as e:
             logger.error(f"Failed to save prop firm snapshot: {e}")
+            raise
 
     def get_historical_snapshots(
         self,
@@ -298,9 +330,7 @@ class PropFirmTracker:
         Returns:
             True if we need to create new daily starting balance snapshot
         """
-        today_start = datetime.now(timezone.utc).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        ).isoformat()
+        today_start = get_ny_midnight_utc().isoformat()
 
         try:
             snapshot = self.supabase.table("prop_firm_metrics")\
