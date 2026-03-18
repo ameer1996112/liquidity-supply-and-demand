@@ -21,8 +21,12 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
+import warnings
 
 import numpy as np
+
+warnings.filterwarnings("ignore", message=".*Trying to unpickle estimator.*")
+warnings.filterwarnings("ignore", message=".*X does not have valid feature names.*")
 
 logger = logging.getLogger(__name__)
 
@@ -200,12 +204,12 @@ class MLGuardian:
                 return int(encoder.transform([value])[0])
             else:
                 # Unknown value - use first class (most common fallback)
-                logger.warning(
+                logger.debug(
                     f"Unknown {encoder_name} value '{value}' - using default (0)"
                 )
                 return 0
         except Exception as e:
-            logger.warning(f"Encoding error for {encoder_name}: {e} - using default (0)")
+            logger.debug(f"Encoding error for {encoder_name}: {e} - using default (0)")
             return 0
 
     def _extract_features(self, signal: Dict[str, Any]) -> Optional[np.ndarray]:
@@ -327,7 +331,7 @@ class MLGuardian:
                     feature_array.append(features[fname])
                 else:
                     # Missing feature - use 0 as default
-                    logger.warning(f"Missing feature '{fname}' - using default 0")
+                    logger.debug(f"Missing feature '{fname}' - using default 0")
                     feature_array.append(0)
 
             return np.array([feature_array])

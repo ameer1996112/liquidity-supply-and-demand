@@ -23,6 +23,23 @@ import yfinance as yf
 
 logger = logging.getLogger(__name__)
 
+YAHOO_TICKER_MAP = {
+    "XAUUSD": "GC=F",
+    "EURUSD": "EURUSD=X",
+    "GBPUSD": "GBPUSD=X",
+    "GBPJPY": "GBPJPY=X",
+    "GBPCAD": "GBPCAD=X",
+    "USDJPY": "USDJPY=X",
+    "USDCHF": "USDCHF=X",
+    "USDCAD": "USDCAD=X",
+    "AUDUSD": "AUDUSD=X",
+    "NZDUSD": "NZDUSD=X",
+    "CHFJPY": "CHFJPY=X",
+    "BTCUSD": "BTC-USD",
+    "NAS100": "NQ=F",
+    "US30": "YM=F",
+}
+
 
 def _compute_rsi(series: pd.Series, period: int = 14) -> pd.Series:
     """Simple RSI implementation."""
@@ -89,23 +106,7 @@ def get_market_narrative(symbol: str, candles: int = 200) -> str:
     indices/FX pairs resolve correctly (e.g. XAUUSD -> GC=F).
     """
     # Map internal symbols to Yahoo Finance tickers
-    ticker_map = {
-        "XAUUSD": "GC=F",
-        "EURUSD": "EURUSD=X",
-        "GBPUSD": "GBPUSD=X",
-        "GBPJPY": "GBPJPY=X",
-        "GBPCAD": "GBPCAD=X",
-        "USDJPY": "USDJPY=X",
-        "USDCHF": "USDCHF=X",
-        "USDCAD": "USDCAD=X",
-        "AUDUSD": "AUDUSD=X",
-        "NZDUSD": "NZDUSD=X",
-        "CHFJPY": "CHFJPY=X",
-        "BTCUSD": "BTC-USD",
-        "NAS100": "NQ=F",
-        "US30": "YM=F",
-    }
-    lookup_symbol = ticker_map.get(symbol.upper(), symbol)
+    lookup_symbol = YAHOO_TICKER_MAP.get(symbol.upper(), symbol)
 
     try:
         ticker = yf.Ticker(lookup_symbol)
@@ -199,21 +200,7 @@ def get_market_snapshot(symbol: str) -> dict:
     from datetime import datetime, timezone
 
     # Map internal symbols to Yahoo Finance tickers
-    ticker_map = {
-        "XAUUSD": "GC=F",
-        "EURUSD": "EURUSD=X",
-        "GBPUSD": "GBPUSD=X",
-        "GBPCAD": "GBPCAD=X",  # Added for staleness guard
-        "USDJPY": "USDJPY=X",
-        "USDCHF": "USDCHF=X",
-        "AUDUSD": "AUDUSD=X",
-        "NZDUSD": "NZDUSD=X",
-        "USDCAD": "USDCAD=X",
-        "BTCUSD": "BTC-USD",
-        "NAS100": "NQ=F",
-        "US30": "YM=F",
-    }
-    lookup_symbol = ticker_map.get(symbol.upper(), symbol)
+    lookup_symbol = YAHOO_TICKER_MAP.get(symbol.upper(), symbol)
 
     try:
         ticker = yf.Ticker(lookup_symbol)
@@ -304,21 +291,7 @@ def get_current_price(symbol: str) -> float:
     Returns:
         Current price, or 0.0 if unavailable
     """
-    ticker_map = {
-        "XAUUSD": "GC=F",
-        "EURUSD": "EURUSD=X",
-        "GBPUSD": "GBPUSD=X",
-        "GBPCAD": "GBPCAD=X",  # Added for staleness guard
-        "USDJPY": "USDJPY=X",
-        "USDCHF": "USDCHF=X",
-        "AUDUSD": "AUDUSD=X",
-        "NZDUSD": "NZDUSD=X",
-        "USDCAD": "USDCAD=X",
-        "BTCUSD": "BTC-USD",
-        "NAS100": "NQ=F",
-        "US30": "YM=F",
-    }
-    lookup_symbol = ticker_map.get(symbol.upper(), symbol)
+    lookup_symbol = YAHOO_TICKER_MAP.get(symbol.upper(), symbol)
 
     try:
         ticker = yf.Ticker(lookup_symbol)
