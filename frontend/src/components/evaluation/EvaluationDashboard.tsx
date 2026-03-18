@@ -47,12 +47,9 @@ export function EvaluationDashboard() {
   }[evaluation.phase];
 
   const phaseBadgeColor = {
-    phase1:
-      'bg-[var(--to-accent-blue)]/15 text-[var(--to-accent-blue)] border-[var(--to-accent-blue)]/30',
-    phase2:
-      'bg-[var(--to-accent-amber)]/15 text-[var(--to-accent-amber)] border-[var(--to-accent-amber)]/30',
-    funded:
-      'bg-[var(--to-long)]/15 text-[var(--to-long)] border-[var(--to-long)]/30',
+    phase1: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20',
+    phase2: 'bg-[var(--to-accent-blue)]/15 text-[var(--to-accent-blue)] border-[var(--to-accent-blue)]/30',
+    funded: 'bg-[var(--to-warning)]/15 text-[var(--to-warning)] border-[var(--to-warning)]/30',
   }[evaluation.phase];
 
   return (

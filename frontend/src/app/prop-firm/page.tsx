@@ -126,23 +126,21 @@ function computeHealthScore(
 }
 
 function PhaseBadge({ phase }: { phase: string }) {
-  const labels: Record<string, { label: string; color: string }> = {
-    phase1: { label: 'Phase 1', color: '#3b82f6' },
-    phase2: { label: 'Phase 2', color: '#a78bfa' },
-    funded: { label: 'Funded', color: '#0ecb81' },
+  const labels: Record<string, { label: string; text: string; bg: string; border: string }> = {
+    phase1: { label: 'Phase 1', text: 'text-zinc-400', bg: 'bg-zinc-500/10', border: 'border-zinc-500/20' },
+    phase2: { label: 'Phase 2', text: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/20' },
+    funded: { label: 'Funded', text: 'text-[#f0b90b]', bg: 'bg-[#f0b90b]/10', border: 'border-[#f0b90b]/30' },
   };
   const meta = labels[phase] ?? {
     label: phase.toUpperCase(),
-    color: '#848e9c',
+    text: 'text-zinc-500', bg: 'bg-zinc-500/5', border: 'border-zinc-500/20'
   };
   return (
     <span
-      className='inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider font-mono'
-      style={{
-        backgroundColor: `${meta.color}18`,
-        border: `1px solid ${meta.color}40`,
-        color: meta.color,
-      }}
+      className={cn(
+        'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider font-mono border',
+        meta.text, meta.bg, meta.border
+      )}
     >
       <Trophy className='h-3 w-3' />
       {meta.label}
@@ -495,7 +493,7 @@ export default function PropFirmPage() {
                   className={cn(
                     'px-3 py-1.5 rounded-lg text-[11px] font-bold font-mono uppercase tracking-wide transition-all border',
                     resolvedAccount === acc
-                      ? 'text-[#3b82f6] border-[#3b82f6]/40 bg-[#3b82f6]/15'
+                      ? 'text-[var(--to-warning)] border-[var(--to-warning)]/40 bg-[var(--to-warning)]/15'
                       : 'text-[var(--to-text-dim)] border-[var(--to-border)] hover:text-[var(--to-text-secondary)]'
                   )}
                 >

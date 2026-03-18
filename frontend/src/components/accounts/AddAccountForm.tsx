@@ -39,8 +39,7 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
   const [metaApiAccountId, setMetaApiAccountId] = useState('');
   const [metaApiTokenKey, setMetaApiTokenKey] = useState('META_API_TOKEN');
 
-  // Challenge settings (shown for Eval/Funded)
-  const [challengePhase, setChallengePhase] = useState<'phase1' | 'phase2' | 'funded'>('phase1');
+  // Risk settings (shown for Eval/Funded)
   const [profitTarget, setProfitTarget] = useState(5000);
   const [dailyLossPct, setDailyLossPct] = useState(4.0);
   const [ddPct, setDdPct] = useState(8.0);
@@ -113,7 +112,7 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
         try {
           await updateChallenge.mutateAsync({
             evaluation_mode: true,
-            evaluation_phase: challengePhase,
+            evaluation_phase: 'phase1',
             starting_balance: allocatedCapital,
             profit_target: profitTarget,
             max_daily_loss_pct: dailyLossPct,
@@ -128,7 +127,7 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
 
       addToast({
         title: 'Account added',
-        message: `${name} created${isEvalOrFunded ? ` — ${provider} ${challengePhase === 'phase1' ? 'Phase 1' : challengePhase === 'phase2' ? 'Phase 2' : 'Funded'} configured` : ''}`,
+        message: `${name} created${isEvalOrFunded ? ` — ${provider} configuration applied` : ''}`,
         severity: 'success',
         duration: 4000,
       });
@@ -143,7 +142,6 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
       setAllocatedCapital(50000);
       setMetaApiAccountId('');
       setMetaApiTokenKey('META_API_TOKEN');
-      setChallengePhase('phase1');
       setProfitTarget(5000);
       setDailyLossPct(4.0);
       setDdPct(8.0);
@@ -351,36 +349,15 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
         </div>
       )}
 
-      {/* Challenge settings (Eval / Funded only) */}
+      {/* Risk Guardrails (Eval / Funded only) */}
       {isEvalOrFunded && (
-        <div className='rounded-lg border border-indigo-500/30 bg-indigo-500/5 p-3 space-y-3'>
+        <div className='rounded-lg border border-[#2a2e39] bg-[#1a1d24] p-3 space-y-3 mt-4'>
           <div className='flex items-center gap-2'>
-            <Shield className='h-3.5 w-3.5 text-indigo-400' />
-            <span className='text-xs font-semibold text-indigo-300'>Challenge Settings</span>
-            <span className='text-[9px] text-indigo-500 font-mono ml-1'>
+            <Shield className='h-3.5 w-3.5 text-yellow-500/80' />
+            <span className='text-xs font-semibold text-zinc-300'>Risk Guardrails</span>
+            <span className='text-[9px] text-zinc-500 font-mono ml-1'>
               (pre-filled for {provider === 'Personal' ? 'FTMO' : provider} — edit below or adjust later)
             </span>
-          </div>
-
-          {/* Phase selector */}
-          <div>
-            <label className='text-[10px] text-zinc-500 font-mono block mb-1'>Starting Phase</label>
-            <div className='flex gap-2'>
-              {(['phase1', 'phase2', 'funded'] as const).map((p) => (
-                <button
-                  key={p}
-                  type='button'
-                  onClick={() => setChallengePhase(p)}
-                  className={`flex-1 py-1.5 rounded text-xs font-mono border transition-colors ${
-                    challengePhase === p
-                      ? 'border-indigo-500/60 bg-indigo-500/20 text-indigo-300'
-                      : 'border-[#2a2e39] bg-[#1e222d] text-zinc-500 hover:text-zinc-300'
-                  }`}
-                >
-                  {p === 'phase1' ? 'Phase 1' : p === 'phase2' ? 'Phase 2' : 'Funded'}
-                </button>
-              ))}
-            </div>
           </div>
 
           <div className='grid grid-cols-2 gap-2'>

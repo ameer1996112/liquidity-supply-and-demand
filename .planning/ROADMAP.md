@@ -76,14 +76,24 @@ Plans:
   3. The frontend `ChallengeSelector` component is fully removed and no manual phase choices are presented to the user.
 **Plans**: TBD
 
+### Phase 5: UI Brand Overhaul
+**Goal**: The Prop Firm dashboard and Account configuration forms must strictly adhere to the TradeOps Premium Dark Terminal aesthetic (`#080b10` base, `#f0b90b` accents, `glass-panel` components) without jarring legacy colors.
+**Depends on**: Phase 4
+**Requirements**: UI-10, UI-11
+**Success Criteria** (what must be TRUE):
+  1. The "Add Account" form strips legacy purple/indigo UI boxes in favor of standard `to-panel` / `glass-panel` borders.
+  2. The Prop Firm phase badges and text tokens match the global CSS semantic tokens (`var(--to-warning)`, etc.).
+**Plans**: TBD
+
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 → 2 → 3
+Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Data Foundation and Bug Fixes | 3/3 | Completed | - |
 | 2. Account Card UI | 2/2 | Completed | - |
 | 3. Caching and Polish | 2/2 | Completed | - |
-| 4. Phase Auto-Detection | 0/2 | Not started | - |
+| 4. Phase Auto-Detection | 2/2 | Completed | - |
+| 5. UI Brand Overhaul | 2/2 | Completed | - |
