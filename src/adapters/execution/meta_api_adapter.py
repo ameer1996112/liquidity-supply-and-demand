@@ -123,7 +123,7 @@ class MetaApiAdapter:
             f"{self.base_url}/users/current/accounts/"
             f"{self.account_id}/symbols/{symbol}/current-price"
         )
-        resp = self._request_with_retry("GET", url, timeout=5)
+        resp = self._request_with_retry("GET", url, timeout=10)
         if resp is None or resp.status_code != 200:
             if resp is not None:
                 logger.error(
@@ -189,7 +189,7 @@ class MetaApiAdapter:
             f"{self.base_url}/users/current/accounts/"
             f"{self.account_id}"
         )
-        resp = self._request_with_retry("GET", url, timeout=5)
+        resp = self._request_with_retry("GET", url, timeout=10)
         self._name_fetched_from_api = True  # never fetch again regardless of outcome
         if resp is not None and resp.status_code == 200:
             try:
@@ -335,7 +335,7 @@ class MetaApiAdapter:
 
         # Fetch account details (server, platform, connection)
         account_url = f"{self.base_url}/users/current/accounts/{self.account_id}"
-        resp = self._request_with_retry("GET", account_url, timeout=5)
+        resp = self._request_with_retry("GET", account_url, timeout=10)
 
         if resp and resp.status_code == 200:
             try:
