@@ -12,10 +12,12 @@ import {
   Activity,
   Shield,
   Pause,
-  Play,
   Calendar,
   Settings,
   Trash2,
+  Wifi,
+  WifiOff,
+  Clock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
@@ -33,110 +35,132 @@ export function EnhancedAccountCard({
   className,
   onDelete,
 }: EnhancedAccountCardProps) {
-  const [showDetails, setShowDetails] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const dailyPositive = (account.daily_pnl ?? 0) >= 0;
   const winRatePct = toPercentFromRatioOrPercent(account.win_rate).toFixed(1);
   const isPaused = account.pause_trading ?? false;
+  const equity = account.equity || account.balance;
+  const equityDiffPct =
+    account.balance > 0
+      ? (((equity - account.balance) / account.balance) * 100).toFixed(2)
+      : '0.00';
+  const equityDiffPositive = equity >= account.balance;
 
-  const handleDelete = () => {
-    if (onDelete) {
-      onDelete(account.account_name);
-    }
-    setShowDeleteConfirm(false);
-  };
-
-  // Calculate derived metrics
   const avgRR =
     account.avg_win_usd && account.avg_loss_usd && account.avg_loss_usd > 0
-      ? (account.avg_win_usd / account.avg_loss_usd).toFixed(2)
-      : 'N/A';
+      ? (account.avg_win_usd / account.avg_loss_usd).toFixed(1)
+      : null;
 
-  const utilizationPct =
-    account.max_positions && account.active_positions
-      ? ((account.active_positions / account.max_positions) * 100).toFixed(0)
-      : '0';
+  const handleDelete = () => {
+    if (onDelete) onDelete(account.account_name);
+    setShowDeleteConfirm(false);
+  };
 
   return (
     <div
       className={cn(
         'tv-card flex flex-col overflow-hidden',
         isPaused && 'opacity-60 border-amber-500/20',
-        className,
+        className
       )}
     >
-      {/* Header */}
-      <div className='p-4 flex items-center justify-between border-b border-[#2a2e39]'>
+      {/* ── Section 1: Header ──────────────────────────────────── */}
+      <div className='px-4 py-3 flex items-center justify-between border-b border-[#2a2e39]'>
         <div className='flex items-center gap-2'>
-          <span className='font-mono text-sm font-semibold text-zinc-200'>
+          <span className='font-mono text-sm font-bold text-zinc-100 tracking-wide'>
             {account.account_name}
           </span>
-          {isPaused && <Pause className='h-3.5 w-3.5 text-amber-500' />}
-        </div>
-        <div className='flex items-center gap-2'>
-          {account.strategy_type && (
-            <span className='font-mono text-[10px] px-2 py-0.5 rounded bg-[#2a2e39] text-zinc-500'>
-              {account.strategy_type}
+          {account.account_type && (
+            <span
+              className={cn(
+                'px-2 py-0.5 text-[9px] font-mono font-bold rounded uppercase tracking-wider border',
+                account.account_type === 'Eval' &&
+                  'bg-amber-500/10 text-amber-400 border-amber-500/20',
+                account.account_type === 'Funded' &&
+                  'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+                account.account_type === 'Personal' &&
+                  'bg-zinc-700/30 text-zinc-500 border-zinc-600/20'
+              )}
+            >
+              {account.account_type}
             </span>
           )}
+          {account.provider && account.provider !== 'Personal' && (
+            <span className='px-1.5 py-0.5 text-[9px] font-mono rounded bg-blue-500/10 text-blue-400 border border-blue-500/20'>
+              {account.provider}
+            </span>
+          )}
+          {isPaused && <Pause className='h-3 w-3 text-amber-500' />}
+        </div>
+        <div className='flex items-center gap-1.5'>
+          {/* Connection dot */}
+          <span className='flex items-center gap-1 text-[9px] font-mono text-zinc-600'>
+            <span className='relative flex h-1.5 w-1.5'>
+              <span className='relative inline-flex rounded-full h-1.5 w-1.5 bg-zinc-600'></span>
+            </span>
+          </span>
           <Button
             variant='ghost'
             size='sm'
-            className='h-6 w-6 p-0 text-zinc-500 hover:text-zinc-300'
-            onClick={() => setShowDetails(!showDetails)}
+            className='h-6 w-6 p-0 text-zinc-600 hover:text-zinc-300'
+            onClick={() => setShowDeleteConfirm(true)}
           >
-            <Settings className='h-3.5 w-3.5' />
+            <Trash2 className='h-3 w-3' />
           </Button>
-          {onDelete && (
-            <Button
-              variant='ghost'
-              size='sm'
-              className='h-6 w-6 p-0 text-zinc-500 hover:text-red-500'
-              onClick={() => setShowDeleteConfirm(true)}
-            >
-              <Trash2 className='h-3.5 w-3.5' />
-            </Button>
-          )}
         </div>
       </div>
 
-      {/* Main Metrics */}
-      <div className='p-4 space-y-3'>
-        {/* Balance & Equity */}
-        <div className='space-y-2'>
-          <div className='flex justify-between items-baseline'>
-            <span className='text-[10px] text-zinc-600 font-mono flex items-center gap-1'>
-              <DollarSign className='h-3 w-3' />
-              Balance
-            </span>
-            <span className='font-mono text-base font-bold text-zinc-100 tabular-nums'>
-              $
-              {account.balance.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-              })}
-            </span>
+      {/* ── Section 2: Balance & Equity ────────────────────────── */}
+      <div className='px-4 py-3 border-b border-[#2a2e39]'>
+        <div className='flex items-baseline justify-between'>
+          <div className='flex items-center gap-1.5'>
+            <DollarSign className='h-3 w-3 text-zinc-600' />
+            <span className='text-[10px] text-zinc-600 font-mono'>Balance</span>
           </div>
-
-          {account.allocated_capital_usd != null &&
-            account.allocated_capital_usd !== account.balance && (
-              <div className='flex justify-between items-baseline'>
-                <span className='text-[10px] text-zinc-600 font-mono'>
-                  Allocated
-                </span>
-                <span className='font-mono text-xs text-zinc-400 tabular-nums'>
-                  $
-                  {account.allocated_capital_usd.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                  })}
-                </span>
-              </div>
-            )}
+          <span className='font-mono text-lg font-bold text-zinc-50 tabular-nums tracking-tight'>
+            ${account.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+          </span>
         </div>
 
-        {/* Daily P&L */}
-        <div className='flex justify-between items-center p-2 rounded bg-[#1e222d]/50'>
-          <span className='text-[10px] text-zinc-600 font-mono'>Daily P&L</span>
-          <div className='flex items-center gap-1'>
+        <div className='flex items-baseline justify-between mt-1.5'>
+          <span className='text-[10px] text-zinc-600 font-mono ml-[18px]'>Equity</span>
+          <div className='flex items-baseline gap-2'>
+            <span className='font-mono text-xs text-zinc-400 tabular-nums'>
+              ${equity.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            </span>
+            <span
+              className={cn(
+                'text-[10px] font-mono font-semibold tabular-nums px-1.5 py-0.5 rounded',
+                equityDiffPositive
+                  ? 'text-[#26a69a] bg-[#26a69a]/10'
+                  : 'text-[#ef5350] bg-[#ef5350]/10'
+              )}
+            >
+              {equityDiffPositive ? '+' : ''}{equityDiffPct}%
+            </span>
+          </div>
+        </div>
+
+        {account.allocated_capital_usd != null &&
+          account.allocated_capital_usd !== account.balance && (
+            <div className='flex items-baseline justify-between mt-1'>
+              <span className='text-[10px] text-zinc-600 font-mono ml-[18px]'>Allocated</span>
+              <span className='font-mono text-xs text-zinc-500 tabular-nums'>
+                ${account.allocated_capital_usd.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+          )}
+      </div>
+
+      {/* ── Section 3: P&L ─────────────────────────────────────── */}
+      <div className='px-4 py-3 border-b border-[#2a2e39]'>
+        {/* Daily P&L row */}
+        <div className='flex items-center justify-between'>
+          <span className='text-[10px] text-zinc-600 font-mono flex items-center gap-1'>
+            <Activity className='h-3 w-3' />
+            Daily P&L
+          </span>
+          <div className='flex items-center gap-1.5'>
             {dailyPositive ? (
               <TrendingUp className='w-3 h-3 text-[#26a69a]' />
             ) : (
@@ -144,177 +168,216 @@ export function EnhancedAccountCard({
             )}
             <span
               className={cn(
-                'font-mono text-sm font-semibold tabular-nums',
-                dailyPositive ? 'text-[#26a69a]' : 'text-[#ef5350]',
+                'font-mono text-sm font-bold tabular-nums',
+                dailyPositive ? 'text-[#26a69a]' : 'text-[#ef5350]'
               )}
             >
               {dailyPositive ? '+' : ''}${(account.daily_pnl ?? 0).toFixed(2)}
-              <span className='text-[10px] ml-0.5 opacity-80'>
-                ({dailyPositive ? '+' : ''}
-                {(account.daily_pnl_pct ?? 0).toFixed(2)}%)
-              </span>
+            </span>
+            <span
+              className={cn(
+                'text-[10px] font-mono tabular-nums opacity-80',
+                dailyPositive ? 'text-[#26a69a]' : 'text-[#ef5350]'
+              )}
+            >
+              ({dailyPositive ? '+' : ''}
+              {(account.daily_pnl_pct ?? 0).toFixed(2)}%)
             </span>
           </div>
         </div>
 
-        {/* Performance Metrics */}
-        <div className='grid grid-cols-2 gap-2'>
-          <MetricItem
-            label='Win Rate'
-            value={`${winRatePct}%`}
-            icon={<BarChart3 className='w-3 h-3' />}
-            valueColor={
-              parseFloat(winRatePct) >= 50 ? 'text-[#26a69a]' : 'text-[#ef5350]'
-            }
-          />
-          <MetricItem
-            label='Sharpe'
-            value={
-              account.sharpe_ratio != null
-                ? account.sharpe_ratio.toFixed(2)
-                : 'N/A'
-            }
-            icon={<Activity className='w-3 h-3' />}
-          />
-
-          {account.profit_factor != null && (
-            <MetricItem
-              label='Profit Factor'
-              value={account.profit_factor.toFixed(2)}
-              icon={<Target className='w-3 h-3' />}
-              valueColor={
-                account.profit_factor >= 1.5
-                  ? 'text-[#26a69a]'
-                  : account.profit_factor >= 1
-                    ? 'text-zinc-400'
-                    : 'text-[#ef5350]'
-              }
-            />
-          )}
-
-          {account.max_drawdown_pct != null && account.max_drawdown_pct > 0 && (
-            <MetricItem
-              label='Max DD'
-              value={`${account.max_drawdown_pct.toFixed(1)}%`}
-              icon={<AlertTriangle className='w-3 h-3' />}
-              valueColor='text-[#ef5350]'
-            />
-          )}
-        </div>
-
-        {/* Positions */}
-        <div className='pt-2 border-t border-[#2a2e39]'>
-          <div className='flex justify-between items-center'>
-            <span className='text-[10px] text-zinc-600 font-mono'>
-              Positions
+        {/* Floating P&L */}
+        {account.floating_pnl != null && account.floating_pnl !== 0 && (
+          <div className='flex items-center justify-between mt-1.5'>
+            <span className='text-[10px] text-zinc-600 font-mono ml-[16px]'>Floating</span>
+            <span
+              className={cn(
+                'font-mono text-xs tabular-nums',
+                account.floating_pnl >= 0 ? 'text-[#26a69a]' : 'text-[#ef5350]'
+              )}
+            >
+              {account.floating_pnl >= 0 ? '+' : ''}${account.floating_pnl.toFixed(2)}
             </span>
-            <div className='flex items-center gap-2'>
-              <span className='font-mono text-xs text-zinc-400 tabular-nums'>
-                {account.active_positions} / {account.max_positions || 3}
-              </span>
-              <div className='w-20 h-1.5 bg-[#1e222d] rounded-full overflow-hidden'>
-                <div
-                  className='h-full bg-emerald-500/60 transition-all'
-                  style={{ width: `${utilizationPct}%` }}
-                />
-              </div>
-            </div>
-          </div>
-          {account.total_trades != null && (
-            <div className='flex justify-between items-center mt-1'>
-              <span className='text-[10px] text-zinc-600 font-mono'>
-                Total Trades
-              </span>
-              <span className='font-mono text-xs text-zinc-500 tabular-nums'>
-                {account.total_trades}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* Prop Firm Section */}
-        <PropFirmSection accountName={account.account_name} serverName={account.server_name} />
-
-        {/* Detailed Settings (Expandable) */}
-        {showDetails && (
-          <div className='pt-3 mt-3 border-t border-[#2a2e39] space-y-2 animate-in fade-in slide-in-from-top-2 duration-200'>
-            <div className='text-[10px] text-zinc-500 font-mono mb-2 flex items-center gap-1'>
-              <Shield className='h-3 w-3' />
-              Risk Configuration
-            </div>
-
-            <div className='grid grid-cols-2 gap-2 text-[10px]'>
-              <DetailItem
-                label='Risk %'
-                value={`${account.risk_percent ?? 0.5}%`}
-              />
-              <DetailItem
-                label='Min RR'
-                value={`${account.min_rr_ratio ?? 2.0}:1`}
-              />
-              <DetailItem
-                label='Max Lots'
-                value={account.max_lot_size?.toString() ?? '10.0'}
-              />
-              <DetailItem
-                label='Max Pos'
-                value={account.max_positions?.toString() ?? '3'}
-              />
-            </div>
-
-            {(account.avg_win_usd != null || account.avg_loss_usd != null) && (
-              <>
-                <div className='text-[10px] text-zinc-500 font-mono mb-2 mt-3'>
-                  Average Trade Size
-                </div>
-                <div className='grid grid-cols-2 gap-2 text-[10px]'>
-                  {account.avg_win_usd != null && (
-                    <DetailItem
-                      label='Avg Win'
-                      value={`$${account.avg_win_usd.toFixed(2)}`}
-                      valueColor='text-[#26a69a]'
-                    />
-                  )}
-                  {account.avg_loss_usd != null && (
-                    <DetailItem
-                      label='Avg Loss'
-                      value={`$${account.avg_loss_usd.toFixed(2)}`}
-                      valueColor='text-[#ef5350]'
-                    />
-                  )}
-                  {typeof avgRR === 'string' && avgRR !== 'N/A' && (
-                    <DetailItem label='Avg RR' value={`${avgRR}:1`} />
-                  )}
-                </div>
-              </>
-            )}
-
-            {account.created_at && (
-              <div className='pt-2 mt-2 border-t border-[#2a2e39]/50'>
-                <div className='flex items-center justify-between text-[10px] text-zinc-600'>
-                  <span className='flex items-center gap-1'>
-                    <Calendar className='h-3 w-3' />
-                    Created
-                  </span>
-                  <span suppressHydrationWarning className='font-mono'>
-                    {new Date(account.created_at).toLocaleDateString()}
-                  </span>
-                </div>
-              </div>
-            )}
           </div>
         )}
 
-        {/* Pause Status */}
-        {isPaused && (
-          <div className='flex items-center gap-2 p-2 rounded bg-amber-500/10 border border-amber-500/20'>
-            <Pause className='h-3.5 w-3.5 text-amber-500 flex-shrink-0' />
-            <span className='text-[10px] text-amber-600 font-mono'>
-              Trading Paused
+        {/* Realized Today */}
+        {account.realized_pnl_today != null && account.realized_pnl_today !== 0 && (
+          <div className='flex items-center justify-between mt-1'>
+            <span className='text-[10px] text-zinc-600 font-mono ml-[16px]'>Realized</span>
+            <span
+              className={cn(
+                'font-mono text-xs tabular-nums',
+                account.realized_pnl_today >= 0 ? 'text-[#26a69a]' : 'text-[#ef5350]'
+              )}
+            >
+              {account.realized_pnl_today >= 0 ? '+' : ''}${account.realized_pnl_today.toFixed(2)}
             </span>
           </div>
         )}
       </div>
+
+      {/* ── Section 4: Performance Metrics ─────────────────────── */}
+      <div className='px-4 py-3 border-b border-[#2a2e39]'>
+        <div className='grid grid-cols-2 gap-2'>
+          <MetricBox
+            label='Win Rate'
+            value={`${winRatePct}%`}
+            icon={<BarChart3 className='w-3 h-3' />}
+            color={parseFloat(winRatePct) >= 50 ? 'green' : 'red'}
+          />
+          <MetricBox
+            label='Profit Factor'
+            value={account.profit_factor != null ? account.profit_factor.toFixed(2) : 'N/A'}
+            icon={<Target className='w-3 h-3' />}
+            color={
+              account.profit_factor != null
+                ? account.profit_factor >= 1.5
+                  ? 'green'
+                  : account.profit_factor >= 1
+                  ? 'neutral'
+                  : 'red'
+                : 'neutral'
+            }
+          />
+          <MetricBox
+            label='Sharpe'
+            value={account.sharpe_ratio != null ? account.sharpe_ratio.toFixed(2) : 'N/A'}
+            icon={<Activity className='w-3 h-3' />}
+            color='neutral'
+          />
+          <MetricBox
+            label='Max DD'
+            value={
+              account.max_drawdown_pct != null && account.max_drawdown_pct > 0
+                ? `${account.max_drawdown_pct.toFixed(1)}%`
+                : '0.0%'
+            }
+            icon={<AlertTriangle className='w-3 h-3' />}
+            color={
+              account.max_drawdown_pct != null && account.max_drawdown_pct > 5
+                ? 'red'
+                : account.max_drawdown_pct != null && account.max_drawdown_pct > 2
+                ? 'amber'
+                : 'neutral'
+            }
+          />
+        </div>
+      </div>
+
+      {/* ── Section 5: Trading Stats ───────────────────────────── */}
+      <div className='px-4 py-3 border-b border-[#2a2e39]'>
+        <div className='flex items-center justify-between'>
+          <div className='flex items-center gap-4'>
+            <div className='flex flex-col'>
+              <span className='text-[9px] text-zinc-600 font-mono'>Positions</span>
+              <span className='font-mono text-xs text-zinc-300 tabular-nums'>
+                {account.active_positions ?? 0} / {account.max_positions || 3}
+              </span>
+            </div>
+            <div className='flex flex-col'>
+              <span className='text-[9px] text-zinc-600 font-mono'>Total Trades</span>
+              <span className='font-mono text-xs text-zinc-300 tabular-nums'>
+                {account.total_trades ?? 0}
+              </span>
+            </div>
+            {account.winning_trades != null && (
+              <div className='flex flex-col'>
+                <span className='text-[9px] text-zinc-600 font-mono'>W / L</span>
+                <span className='font-mono text-xs tabular-nums'>
+                  <span className='text-[#26a69a]'>{account.winning_trades}</span>
+                  <span className='text-zinc-600'> / </span>
+                  <span className='text-[#ef5350]'>{account.losing_trades ?? 0}</span>
+                </span>
+              </div>
+            )}
+            {avgRR && (
+              <div className='flex flex-col'>
+                <span className='text-[9px] text-zinc-600 font-mono'>Avg RR</span>
+                <span className='font-mono text-xs text-zinc-300 tabular-nums'>
+                  {avgRR}:1
+                </span>
+              </div>
+            )}
+          </div>
+          {/* Position utilization bar */}
+          <div className='w-16 h-1.5 bg-[#1e222d] rounded-full overflow-hidden'>
+            <div
+              className='h-full bg-emerald-500/60 transition-all'
+              style={{
+                width: `${
+                  account.max_positions && account.active_positions
+                    ? Math.min(
+                        (account.active_positions / account.max_positions) * 100,
+                        100
+                      )
+                    : 0
+                }%`,
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Avg Win/Loss */}
+        {(account.avg_win_usd != null || account.avg_loss_usd != null) && (
+          <div className='flex items-center gap-4 mt-2 pt-2 border-t border-[#2a2e39]/50'>
+            {account.avg_win_usd != null && (
+              <div className='flex items-center gap-1'>
+                <span className='text-[9px] text-zinc-600 font-mono'>Avg Win</span>
+                <span className='font-mono text-[10px] text-[#26a69a] tabular-nums'>
+                  ${account.avg_win_usd.toFixed(0)}
+                </span>
+              </div>
+            )}
+            {account.avg_loss_usd != null && (
+              <div className='flex items-center gap-1'>
+                <span className='text-[9px] text-zinc-600 font-mono'>Avg Loss</span>
+                <span className='font-mono text-[10px] text-[#ef5350] tabular-nums'>
+                  ${account.avg_loss_usd.toFixed(0)}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Section 6: Risk Config ─────────────────────────────── */}
+      <div className='px-4 py-2.5 border-b border-[#2a2e39]'>
+        <div className='flex items-center gap-3'>
+          <Shield className='h-3 w-3 text-zinc-600' />
+          <div className='flex items-center gap-3 text-[9px] font-mono text-zinc-500'>
+            <span>Risk: <span className='text-zinc-400'>{account.risk_percent ?? 0.5}%</span></span>
+            <span>Min RR: <span className='text-zinc-400'>{account.min_rr_ratio ?? 2.0}:1</span></span>
+            <span>Max Lots: <span className='text-zinc-400'>{account.max_lot_size ?? 10.0}</span></span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Section 7: Prop Firm (Conditional) ──────────────────── */}
+      <PropFirmSection accountName={account.account_name} serverName={account.server_name} />
+
+      {/* ── Section 8: Footer (Last Sync + Strategy) ────────────── */}
+      <div className='px-4 py-2 flex items-center justify-between'>
+        {account.strategy_type && (
+          <span className='font-mono text-[9px] px-2 py-0.5 rounded bg-[#2a2e39] text-zinc-500'>
+            {account.strategy_type}
+          </span>
+        )}
+        {account.last_sync_time && (
+          <span suppressHydrationWarning className='flex items-center gap-1 text-[9px] text-zinc-600 font-mono'>
+            <Clock className='h-2.5 w-2.5' />
+            {new Date(account.last_sync_time).toLocaleTimeString()}
+          </span>
+        )}
+      </div>
+
+      {/* Pause Banner */}
+      {isPaused && (
+        <div className='mx-4 mb-3 flex items-center gap-2 p-2 rounded bg-amber-500/10 border border-amber-500/20'>
+          <Pause className='h-3.5 w-3.5 text-amber-500 flex-shrink-0' />
+          <span className='text-[10px] text-amber-600 font-mono'>Trading Paused</span>
+        </div>
+      )}
 
       {/* Delete Confirmation Dialog */}
       {showDeleteConfirm && (
@@ -358,49 +421,37 @@ export function EnhancedAccountCard({
   );
 }
 
-// Helper Components
-function MetricItem({
+// ── Metric Box Component ──────────────────────────────────────────
+function MetricBox({
   label,
   value,
   icon,
-  valueColor = 'text-zinc-300',
+  color = 'neutral',
 }: {
   label: string;
   value: string;
   icon?: React.ReactNode;
-  valueColor?: string;
+  color?: 'green' | 'red' | 'amber' | 'neutral';
 }) {
+  const colorClasses = {
+    green: 'text-[#26a69a] border-[#26a69a]/15 bg-[#26a69a]/5',
+    red: 'text-[#ef5350] border-[#ef5350]/15 bg-[#ef5350]/5',
+    amber: 'text-amber-400 border-amber-500/15 bg-amber-500/5',
+    neutral: 'text-zinc-300 border-[#2a2e39] bg-[#1e222d]/30',
+  };
+
   return (
-    <div className='flex flex-col gap-0.5 p-2 rounded bg-[#1e222d]/30'>
-      <span className='text-[10px] text-zinc-600 font-mono flex items-center gap-1'>
+    <div
+      className={cn(
+        'flex flex-col gap-0.5 p-2 rounded-lg border',
+        colorClasses[color]
+      )}
+    >
+      <span className='text-[9px] text-zinc-600 font-mono flex items-center gap-1'>
         {icon}
         {label}
       </span>
-      <span
-        className={cn(
-          'font-mono text-xs font-semibold tabular-nums',
-          valueColor,
-        )}
-      >
-        {value}
-      </span>
-    </div>
-  );
-}
-
-function DetailItem({
-  label,
-  value,
-  valueColor = 'text-zinc-400',
-}: {
-  label: string;
-  value: string;
-  valueColor?: string;
-}) {
-  return (
-    <div className='flex justify-between items-center'>
-      <span className='text-zinc-600 font-mono'>{label}</span>
-      <span className={cn('font-mono font-medium tabular-nums', valueColor)}>
+      <span className='font-mono text-xs font-bold tabular-nums'>
         {value}
       </span>
     </div>
