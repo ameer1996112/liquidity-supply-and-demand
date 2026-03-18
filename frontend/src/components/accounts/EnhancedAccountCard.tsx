@@ -20,6 +20,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 import { toPercentFromRatioOrPercent } from '@/domain/metrics/tradingMetrics';
+import { PropFirmSection } from './PropFirmSection';
 
 interface EnhancedAccountCardProps {
   account: AccountComparisonApi;
@@ -230,6 +231,9 @@ export function EnhancedAccountCard({
             </div>
           )}
         </div>
+
+        {/* Prop Firm Section */}
+        <PropFirmSection accountName={account.account_name} serverName={account.server_name} />
 
         {/* Detailed Settings (Expandable) */}
         {showDetails && (
