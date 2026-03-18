@@ -24,6 +24,8 @@ def test_prop_firm_tracker_drawdown_denominator():
     mock_settings.account_balance = 100000.0
     mock_settings.phase1_max_daily_loss = 5000.0
     mock_settings.phase1_max_drawdown_pct = 10.0
+    mock_settings.funded_max_daily_loss = 5000.0
+    mock_settings.funded_max_drawdown_pct = 10.0
     mock_settings.evaluation_mode = True
     mock_settings.evaluation_phase = "phase1"
     
@@ -82,7 +84,14 @@ def test_mtm_guardian_dynamic_jpy():
     # Also mock the 'closed' query
     mock_closed_response = MagicMock()
     mock_closed_response.data = []
-    guardian._apply_account_filter.side_effect = [mock_closed_response, mock_response]
+    
+    mock_closed_query = MagicMock()
+    mock_closed_query.execute.return_value = mock_closed_response
+    
+    mock_open_query = MagicMock()
+    mock_open_query.execute.return_value = mock_response
+    
+    guardian._apply_account_filter.side_effect = [mock_closed_query, mock_open_query]
     
     with patch("src.adapters.market_data.get_current_price") as mock_price:
         mock_price.return_value = 149.0

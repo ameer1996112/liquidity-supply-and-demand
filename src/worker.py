@@ -1612,6 +1612,7 @@ def run():
 
     last_watchdog_ts = time.time()
     last_reconciliation_ts = 0  # Broker reconciliation runs every 5 minutes
+    last_prop_firm_cache_ts = 0  # Prop firm metrics cache runs every 20 seconds
     while True:
         task = None
         payload_str = None
@@ -1689,6 +1690,41 @@ def run():
                     last_reconciliation_ts = now
                 except Exception as recon_exc:  # noqa: BLE001
                     logger.error("Broker reconciliation failed: %s", recon_exc)
+
+            if now - last_prop_firm_cache_ts >= 20:
+                try:
+                    from src.core.broker_profiles import get_active_profiles
+                    from src.services.prop_firm_detector import PropFirmDetector
+                    from src.services.redis_cache import cache_set
+                    
+                    profiles = get_active_profiles()
+                    detector = PropFirmDetector(supabase) if supabase else None
+                    if detector:
+                        for profile in profiles:
+                            account_name = profile.get("name")
+                            if not account_name:
+                                continue
+                            
+                            server_name = profile.get("meta_api_server_name", "")
+                            challenge_type = profile.get("challenge_type", "phase_1")
+                            rules = detector.get_firm_and_rules(server_name, challenge_type)
+                            if not rules:
+                                continue
+                                
+                            metrics_resp = supabase.table("prop_firm_metrics").select("*").eq("account_name", account_name).order("snapshot_time", desc=True).limit(1).execute()
+                            metrics = metrics_resp.data[0] if metrics_resp.data else None
+                            
+                            res = {
+                                "status": "active",
+                                "firm_detected": bool(rules),
+                                "firm_info": rules,
+                                "metrics": metrics
+                            }
+                            cache_key = f"prop_firm:metrics:{account_name}"
+                            cache_set(cache_key, res, ttl_seconds=30)
+                except Exception as cache_exc:
+                    logger.error("Prop firm cache worker failed: %s", cache_exc)
+                last_prop_firm_cache_ts = now
 
             task = transport.dequeue(timeout=5)
             backoff = 5

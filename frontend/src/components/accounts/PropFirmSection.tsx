@@ -50,8 +50,8 @@ export function PropFirmSection({ accountName, serverName }: { accountName: stri
         )}
       </div>
 
-      <WarningBanner metrics={data.metrics} limits={data.firm_info} />
-      <ProgressBars metrics={data.metrics} limits={data.firm_info} />
+      <WarningBanner metrics={data.metrics} limits={data.firm_info!} />
+      <ProgressBars metrics={data.metrics} limits={data.firm_info!} />
     </div>
   );
 }
