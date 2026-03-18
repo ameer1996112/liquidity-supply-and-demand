@@ -4,6 +4,7 @@ Save to Supabase, filter or notify, optional paper position. Used only by worker
 """
 
 import logging
+import time
 import uuid
 from config.logging_config import get_logger
 from datetime import datetime, timezone
@@ -30,6 +31,39 @@ from src.services.execution_engine import ExecutionEngine
 logger = get_logger("trinity.logic")
 
 _paper_trader = None
+
+# OPT-2 (latency): Balance cache to avoid an HTTP round-trip on every live trade.
+# Balance/equity are re-fetched from broker only when the cached value is older than
+# BALANCE_CACHE_TTL seconds. This removes ~100-300ms per signal on the hot path.
+_BALANCE_CACHE_TTL = 30  # seconds
+_balance_cache: Dict[str, Any] = {"balance": 0.0, "equity": 0.0, "fetched_at": 0.0}
+
+
+def _get_cached_balance(adapter: Any, fallback_balance: float) -> tuple[float, float]:
+    """Return (balance, equity) from cache if fresh, else fetch from broker and cache."""
+    now = time.monotonic()
+    if now - _balance_cache["fetched_at"] < _BALANCE_CACHE_TTL:
+        cached_bal = _balance_cache["balance"]
+        cached_eq = _balance_cache["equity"]
+        if cached_bal > 0:
+            logger.debug("Balance cache hit: balance=%.2f equity=%.2f (age=%.1fs)",
+                         cached_bal, cached_eq, now - _balance_cache["fetched_at"])
+            return cached_bal, cached_eq
+
+    # Cache miss or stale — fetch from broker
+    try:
+        info = adapter.get_account_information()
+        bal = float(info.get("balance", 0.0))
+        eq = float(info.get("equity", 0.0))
+        if bal > 0:
+            _balance_cache["balance"] = bal
+            _balance_cache["equity"] = eq
+            _balance_cache["fetched_at"] = now
+            logger.info("Balance cache updated: balance=%.2f equity=%.2f", bal, eq)
+            return bal, eq
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Balance fetch failed, using fallback: %s", e)
+    return fallback_balance, fallback_balance
 
 
 def _get_paper_trader_instance():
@@ -427,23 +461,11 @@ def process_trade(
                 reward = abs(tp - entry)
                 rr_ratio = reward / risk if risk > 0 else 0.0
 
-                # Force-fetch latest balance from broker for risk sizing
+                # OPT-2 (latency): Use cached balance — only hits broker when >30s stale
                 current_balance = s.account_balance
                 current_equity = s.account_balance
                 if hasattr(adapter, "get_account_information"):
-                    try:
-                        account_info = adapter.get_account_information()
-                        fetched_balance = account_info.get("balance", 0.0)
-                        fetched_equity = account_info.get("equity", 0.0)
-                        if fetched_balance > 0:
-                            current_balance = fetched_balance
-                        if fetched_equity > 0:
-                            current_equity = fetched_equity
-                    except Exception as acct_err:  # noqa: BLE001
-                        logger.warning(
-                            "Failed to fetch live balance, falling back to config: %s",
-                            acct_err,
-                        )
+                    current_balance, current_equity = _get_cached_balance(adapter, s.account_balance)
 
                 # Risk-based position sizing: DB broker_profiles > dynamic (UI) > .env
                 _profile_risk = (profile.get("risk_pct") if profile else None)

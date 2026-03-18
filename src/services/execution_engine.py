@@ -45,7 +45,8 @@ class ExecutionEngine:
         order_request: OrderRequest,
         signal_data: Dict[str, Any],
         adapter: Any,
-        profile: Optional[Dict] = None
+        profile: Optional[Dict] = None,
+        pre_fetched_market: Optional[Dict] = None,
     ) -> ExecutionResult:
         """
         Execute order with full TCA tracking.
@@ -55,6 +56,9 @@ class ExecutionEngine:
             signal_data: Original signal payload with metadata
             adapter: Execution adapter (MetaAPI, DryRun, etc.)
             profile: Optional broker profile for multi-account
+            pre_fetched_market: Optional pre-fetched market snapshot dict with keys
+                bid/ask/spread_pips/atr. When provided, skips the external
+                get_market_snapshot() HTTP call on the hot path (OPT-4).
 
         Returns:
             ExecutionResult from adapter
@@ -80,19 +84,10 @@ class ExecutionEngine:
         elif signal_created_at is None:
             signal_created_at = datetime.now(timezone.utc)
 
-        # Step 1: Capture pre-execution market snapshot
-        try:
-            market = get_market_snapshot(symbol)
-        except Exception as e:
-            logger.warning(f"Failed to get market snapshot: {e}")
-            market = {
-                "bid": 0.0,
-                "ask": 0.0,
-                "spread_pips": 0.0,
-                "atr": 0.0,
-            }
-
-        # Step 2: Submit order with timing
+        # Step 1: Submit order FIRST (latency-critical), then build market snapshot.
+        # OPT-4: If the caller provides a pre-fetched snapshot, use it and skip the
+        # external get_market_snapshot() call entirely. Otherwise fall back to it
+        # after the order is submitted (so it runs off the hot path).
         order_submitted_at = datetime.now(timezone.utc)
         submit_start = time.time()
 
@@ -100,7 +95,6 @@ class ExecutionEngine:
             exec_result = adapter.submit_order(order_request)
         except Exception as e:
             logger.error(f"Order submission failed: {e}")
-            # Still track TCA for failed orders
             exec_result = ExecutionResult(
                 status="failed",
                 message=str(e),
@@ -109,6 +103,21 @@ class ExecutionEngine:
 
         submit_duration_ms = int((time.time() - submit_start) * 1000)
         order_filled_at = datetime.now(timezone.utc)
+
+        # Build market snapshot — prefer pre-fetched (zero cost), fall back to live call
+        if pre_fetched_market:
+            market = pre_fetched_market
+        else:
+            try:
+                market = get_market_snapshot(symbol)
+            except Exception as e:
+                logger.warning(f"Failed to get market snapshot: {e}")
+                market = {
+                    "bid": 0.0,
+                    "ask": 0.0,
+                    "spread_pips": 0.0,
+                    "atr": 0.0,
+                }
 
         # Step 3: Calculate latency metrics
         signal_to_submit_ms = int(
