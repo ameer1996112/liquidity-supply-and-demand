@@ -15,6 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 1: Data Foundation and Bug Fixes** - Correct metrics backend with firm auto-detection, DB schema, and FTMO rules seeded
 - [ ] **Phase 2: Account Card UI** - Progress bars and challenge status embedded in account cards with 80% warning banners
 - [ ] **Phase 3: Caching and Polish** - Redis caching for multi-account sustainability and UX differentiators
+- [ ] **Phase 4: Phase Auto-Detection** - Automatically detect Phase 1, Phase 2, and Funded without manual UI dropdowns by checking account name and server.
 
 ## Phase Details
 
@@ -65,6 +66,16 @@ Plans:
 - [ ] 03-01: Background worker writing prop_firm metrics to Redis (key: prop_firm:metrics:{account_id}, TTL 30s, interval 20s)
 - [ ] 03-02: Update challenge-status endpoint to read from Redis with DB fallback on cache miss
 
+### Phase 4: Phase Auto-Detection
+**Goal**: The system automatically understands if an account is Phase 1, Phase 2, or Funded purely from the imported MetaAPI credentials (account name and server), permanently eliminating the manual "Set Challenge Type" step on the UI.
+**Depends on**: Phase 1
+**Requirements**: AUTO-01, AUTO-02, AUTO-03
+**Success Criteria** (what must be TRUE):
+  1. The backend API automatically parses `account_name` looking for keywords (e.g., "P1", "Phase 2", "Eval") to dynamically guess the phase.
+  2. The backend overrides evaluating phases to "Funded" if the MT5 Server string suggests a Live server (no "Demo" tag).
+  3. The frontend `ChallengeSelector` component is fully removed and no manual phase choices are presented to the user.
+**Plans**: TBD
+
 ## Progress
 
 **Execution Order:**
@@ -72,6 +83,7 @@ Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Data Foundation and Bug Fixes | 0/3 | Not started | - |
-| 2. Account Card UI | 0/2 | Not started | - |
-| 3. Caching and Polish | 0/2 | Not started | - |
+| 1. Data Foundation and Bug Fixes | 3/3 | Completed | - |
+| 2. Account Card UI | 2/2 | Completed | - |
+| 3. Caching and Polish | 2/2 | Completed | - |
+| 4. Phase Auto-Detection | 0/2 | Not started | - |

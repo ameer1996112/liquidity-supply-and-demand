@@ -4,7 +4,6 @@ import { usePropFirmChallenge } from '@/hooks/usePropFirmChallenge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ProgressBars } from '../prop-firm/ProgressBars';
 import { WarningBanner } from '../prop-firm/WarningBanner';
-import { ChallengeSelector } from '../prop-firm/ChallengeSelector';
 
 export function PropFirmSection({ accountName, serverName }: { accountName: string; serverName?: string }) {
   const { data, isLoading, error } = usePropFirmChallenge(accountName);
@@ -25,14 +24,7 @@ export function PropFirmSection({ accountName, serverName }: { accountName: stri
     );
   }
 
-  // Firm detected but no challenge phase configured yet!
-  if (data.firm_detected && (!data.firm_info?.challenge_type || !data.metrics)) {
-    return (
-      <div className="p-4 mx-4 mb-4 rounded border border-[#2a2e39] bg-[#1e222d]/30">
-        <ChallengeSelector accountId={accountName} detectedFirm={data.firm_info?.firm_display_name} />
-      </div>
-    );
-  }
+  const safeMetrics = data.metrics || ({} as any);
 
   return (
     <div className="p-4 mx-4 mb-4 rounded border border-[#2a2e39] bg-[#1e222d]/40">
@@ -43,15 +35,15 @@ export function PropFirmSection({ accountName, serverName }: { accountName: stri
             {data.firm_info?.challenge_type?.toUpperCase().replace('_', ' ')}
           </span>
         </span>
-        {data.metrics?.days_remaining != null && (
+        {safeMetrics.days_remaining != null && (
           <span className="text-[10px] font-mono text-zinc-400 flex items-center gap-1">
-             {data.metrics.days_remaining} Days Left
+             {safeMetrics.days_remaining} Days Left
           </span>
         )}
       </div>
 
-      <WarningBanner metrics={data.metrics} limits={data.firm_info!} />
-      <ProgressBars metrics={data.metrics} limits={data.firm_info!} />
+      <WarningBanner metrics={safeMetrics} limits={data.firm_info!} />
+      <ProgressBars metrics={safeMetrics} limits={data.firm_info!} />
     </div>
   );
 }

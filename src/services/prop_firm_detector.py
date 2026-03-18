@@ -58,3 +58,27 @@ class PropFirmDetector:
         if rules:
             return {**firm, **rules}
         return firm
+
+    def auto_detect_challenge_type(self, server_name: str, account_name: str) -> str:
+        """Dynamically determine the phase based on server and account name strings."""
+        server = (server_name or "").upper()
+        acc_name = (account_name or "").upper()
+        
+        # 1. Server explicitly indicates LIVE/FUNDED (but not DEMO)
+        if ("LIVE" in server or "SERVER" in server) and "DEMO" not in server:
+            return "funded"
+            
+        # 2. Account name regex/keyword matching for funded
+        if any(kw in acc_name for kw in ["FUNDED", "MASTER", "LIVE", "STEP 3"]):
+            return "funded"
+            
+        # 3. Account name parsing for Phase 2
+        if any(kw in acc_name for kw in ["PHASE 2", "P2", "STEP 2", "VERIF"]):
+            return "phase_2"
+            
+        # 4. Account name parsing for Phase 1
+        if any(kw in acc_name for kw in ["PHASE 1", "P1", "STEP 1", "EVAL"]):
+            return "phase_1"
+            
+        # Default to phase_1 if we only know it's a Demo server but no explicit name
+        return "phase_1"

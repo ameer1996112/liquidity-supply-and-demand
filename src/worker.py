@@ -1706,7 +1706,7 @@ def run():
                                 continue
                             
                             server_name = profile.get("meta_api_server_name", "")
-                            challenge_type = profile.get("challenge_type", "phase_1")
+                            challenge_type = detector.auto_detect_challenge_type(server_name, account_name)
                             rules = detector.get_firm_and_rules(server_name, challenge_type)
                             if not rules:
                                 continue
