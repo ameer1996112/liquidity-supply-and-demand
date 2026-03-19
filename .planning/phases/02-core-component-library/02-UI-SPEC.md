@@ -47,7 +47,6 @@ Declared values (multiples of 4 only). These are the spacing increments the exec
 Exceptions:
 - Button touch targets: minimum 36px height (h-9 = 36px default, h-10 = 40px large) — already set in button.tsx size variants, do not change.
 - Table head row height: 40px (h-10) — keep as-is.
-- Badge vertical padding: 2px top/bottom (py-0.5) — intentional compact exception for inline use.
 
 Source: CONTEXT.md decisions + existing button.tsx size variants.
 
@@ -59,16 +58,16 @@ The type scale is defined in globals.css as CSS custom properties. Components in
 
 | Role | Token | Size | Weight | Line Height | Usage in this phase |
 |------|-------|------|--------|-------------|---------------------|
-| Label | --to-label / --text-xs | 11px | 500 (medium) | 1.2 | Badge text, table head labels, button xs |
+| Label | --to-label / --text-xs | 11px | 600 (semibold) | 1.2 | Badge text, table head labels, button xs |
 | Body | --to-body / --text-sm | 13px | 400 (normal) | 1.5 | Table cells, card descriptions, default button text |
 | Heading | --to-heading / --text-lg | 17px | 600 (semibold) | 1.2 | Card titles (CardTitle), panel headers |
 | Display | --text-2xl | 24px | 700 (bold) | 1.1 | KPI values only — not used in base components this phase |
 
-Font weights in use (exactly 2 for body/label context):
+Font weights in use (exactly 2):
 - Regular: var(--to-weight-normal) = 400
 - Semibold: var(--to-weight-semibold) = 600
 
-Button and badge text use weight 500 (medium) as an accent exception — acceptable because it sits between label and heading weights and is already in the token set (--to-weight-medium).
+Button and badge text use weight 600 (Semibold). No medium (500) weight is used in this phase.
 
 Source: globals.css lines 178-198 (text scale + weight tokens).
 
@@ -114,7 +113,7 @@ Source: globals.css :root, CONTEXT.md decisions.
 
 ### Button (button.tsx)
 
-Base classes (keep): `inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50`
+Base classes (keep): `inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-semibold transition-all disabled:pointer-events-none disabled:opacity-50`
 
 Border radius: `rounded-md` = 6px. Do NOT change to 12px (that is card/panel radius only).
 
@@ -155,7 +154,9 @@ Notes:
 
 ### Badge (badge.tsx)
 
-Base classes (keep): `inline-flex items-center justify-center rounded-full border border-transparent px-2 py-0.5 text-xs font-medium w-fit whitespace-nowrap shrink-0`
+Base classes (keep): `inline-flex items-center justify-center rounded-full border border-transparent px-2 py-1 text-xs font-semibold w-fit whitespace-nowrap shrink-0`
+
+Note: vertical padding is `py-1` = 4px (smallest valid multiple of 4 on the spacing scale).
 
 | Variant | Background | Text | Border |
 |---------|-----------|------|--------|
@@ -174,7 +175,7 @@ StatusBadge (shared/StatusBadge.tsx) and SideBadge (shared/SideBadge.tsx) are NO
 | Sub-component | Change |
 |---------------|--------|
 | TableHeader | Add: `border-b border-[var(--to-border)]` |
-| TableHead | Replace `text-foreground` with `text-[var(--to-text-secondary)]`. Keep `h-10 px-2 text-left align-middle font-medium whitespace-nowrap`. Add `uppercase tracking-wider text-[length:var(--text-xs)]` for label styling. |
+| TableHead | Replace `text-foreground` with `text-[var(--to-text-secondary)]`. Keep `h-10 px-2 text-left align-middle font-semibold whitespace-nowrap`. Add `uppercase tracking-wider text-[length:var(--text-xs)]` for label styling. |
 | TableRow | Replace `hover:bg-muted/50` with `hover:bg-[var(--to-surface-raised)]`. Replace `border-b` with `border-b border-[var(--to-border-subtle)]`. |
 | TableCell | Keep `p-2 align-middle whitespace-nowrap`. Add `text-[var(--to-text-primary)]`. |
 | TableFooter | Replace `bg-muted/50` with `bg-[var(--to-surface)]`. Replace `border-t` with `border-t border-[var(--to-border)]`. |
@@ -248,7 +249,7 @@ This phase modifies visual styling only. However, the following copy elements ar
 | Error state | "[What failed]. [What to do next]." e.g. "Failed to load positions. Refresh or check your connection." |
 | Skeleton aria-label | `aria-label="Loading [section name]"` on skeleton wrapper containers |
 | Badge labels | Uppercase only for status/side badges (LIVE, PAPER, LONG, SHORT). Mixed case for all other badge variants. |
-| Table empty row | "No results" — centered, text-[var(--to-text-dim)], no icon needed at base component level |
+| Table empty row | The base Table component accepts an `emptyText` prop from callers. No default string is hardcoded in the component. Callers must supply context-specific copy (e.g. "No positions yet", "No trades found"). |
 
 Source: CONTEXT.md (destructive pattern), CLAUDE.md frontend standard (loading/empty/error states).
 
