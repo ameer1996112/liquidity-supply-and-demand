@@ -1,59 +1,55 @@
-# Prop Firm Page Overhaul
+# Trading System Optimization & Refactor
 
 ## What This Is
 
-Overhaul of the Prop Firm challenge tracking page in the TradeOps frontend. The page monitors prop firm evaluation/funded accounts with drawdown tracking, performance metrics, and challenge compliance. This milestone focuses on performance, design, and data accuracy improvements.
+A full-scale cleanup and professionalization of the institutional liquidity-based algorithmic trading system. This includes removing dead/redundant code, enforcing Domain-Driven Design (DDD) boundaries, resolving all linting and testing errors, and fixing critical bugs (CORS, MetaAPI timeouts). 
 
 ## Core Value
 
-Accurate, instant prop firm challenge monitoring — traders must trust the metrics they see and be able to switch between accounts without delay.
+Achieve a robust, highly reliable, clear, and maintainable trading system codebase that meets professional enterprise standards.
 
 ## Requirements
 
 ### Validated
 
-- ✓ Challenge health score gauge — existing
-- ✓ Account switching between multiple accounts — existing
-- ✓ Daily/Max drawdown tracking with circular gauges — existing
-- ✓ Account overview (balance, equity, P&L) — existing
-- ✓ Performance summary with trade stats — existing
-- ✓ Calendar PnL view — existing
-- ✓ Challenge header with phase badge — existing
-- ✓ Component extraction (ChallengeHeader, HealthScoreGauge, etc.) — existing
+- ✓ Fully functional Next.js real-time trading dashboard (Frontend)
+- ✓ FastAPI webhook receiver (Backend API)
+- ✓ Redis-based asynchronous signal processing queue
+- ✓ Python Worker for AI/ML guardrails and trade execution
+- ✓ Supabase integration for DB and Auth
 
 ### Active
 
-- [ ] Hide irrelevant metrics per firm (e.g. Consistency Rule gauge hidden for firms without it)
-- [ ] Fix slow account switching — prefetch/cache data for all accounts
-- [ ] Improve page design — richer stat cards, better visual hierarchy
-- [ ] Add firm-specific rules summary — show which rules apply per firm with limits
+- [ ] Remove all dead code, unused scripts, and deprecated feature branches.
+- [ ] Deduplicate functionality and standardise helper methods across the stack.
+- [ ] Refactor architecture to strictly adhere to Domain-Driven Design (DDD) component boundaries.
+- [ ] Fix all existing `ruff` lint warnings in the backend (currently ~98).
+- [ ] Fix all ESLint warnings and the failing Vitest test (`tradingMetrics.test.ts`) in the frontend.
+- [ ] Resolve production API CORS policy violations.
+- [ ] Fix MetaAPI "Read timed out" errors during background reconciliation tasks.
+- [ ] Fix `yfinance` HTTP 404 errors for market data fetching.
+- [ ] Optimize MetaAPI execution speed to reduce trade latency.
 
 ### Out of Scope
 
-- Backend API changes — frontend-only improvements
-- New prop firm detection logic — using existing backend data
-- Database schema changes — working with current data model
+- [Adding new algorithmic trading strategies] — Focus is entirely on refactoring, stabilizing, and professionalizing the existing logic, not adding new market behaviors right now.
 
 ## Context
 
-- **Current problem**: ACG-DEMO shows "Consistency Rule: 100% — Danger Zone" even though ACG doesn't have a consistency rule. This is misleading and erodes trust.
-- **Performance**: Account switching triggers fresh API calls for metrics, history, MTM, and signals. No prefetching or caching beyond React Query's staleTime.
-- **Architecture**: Prop Firm page recently refactored from 814-line monolith into 6 extracted components. The component structure is clean — this work builds on that foundation.
-- **Data source**: `usePropFirmMetrics` hook fetches from `/api/prop-firm/metrics?account_name=X`. The response includes `consistency` field — need to check if backend signals whether consistency rule applies.
+- The system relies on a FastAPI backend, a Python worker, and a Next.js frontend.
+- Local development heavily depends on Redis `localhost:6379`.
+- Codebase mapping (`.planning/codebase/`) surfaced multiple technical debt items and specific crash/latency issues reported by the user.
 
 ## Constraints
 
-- **Frontend only**: All changes in `frontend/src/` — no backend modifications
-- **Existing hooks**: Must work with current `usePropFirm*.ts` and `usePropFirmChallenge.ts` hooks
-- **Production deploy**: Changes deploy via Railway — must pass `npm run build`
+- **Architecture**: Must preserve the existing 3-tier decoupling (Frontend, API, Worker).
+- **Timeouts**: MetaAPI operations require careful timeout tuning to separate real-time critical path execution from slower background reconciliation.
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Hide gauges for non-applicable rules | ACG shows misleading 100% Danger Zone for consistency | — Pending |
-| Prefetch adjacent account data | Switching accounts currently triggers full refetch cycle | — Pending |
-| Use FirmInfo from usePropFirmChallenge for rule visibility | This hook already returns firm-specific limits (max_daily_loss_pct, profit_target_pct, etc.) | — Pending |
+| Full scale refactor | Codebase had accumulated redundant files and technical debt affecting reliability | — Pending |
 
 ---
-*Last updated: 2026-03-18 after initialization*
+*Last updated: 2026-03-19 after initialization*
