@@ -67,15 +67,15 @@ function AccountSwitcher({ accounts, selected, onChange }: AccountSwitcherProps)
 
   return (
     <div className='flex items-center gap-1.5'>
-      <span className='text-[10px] uppercase tracking-widest text-slate-600'>Account</span>
+      <span className='text-[10px] uppercase tracking-widest text-[var(--to-text-dim)]'>Account</span>
       <div className='flex items-center gap-0.5 rounded border border-[var(--to-border)] bg-[var(--to-surface)] p-0.5'>
         <button
           onClick={() => onChange(null)}
           className={cn(
             'rounded px-2.5 py-1 font-mono text-[10px] transition-colors',
             selected === null
-              ? 'bg-slate-700 text-slate-100'
-              : 'text-slate-500 hover:text-slate-300',
+              ? 'bg-[var(--to-surface-raised)] text-[var(--to-text-primary)]'
+              : 'text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]',
           )}
         >
           All
@@ -87,8 +87,8 @@ function AccountSwitcher({ accounts, selected, onChange }: AccountSwitcherProps)
             className={cn(
               'rounded px-2.5 py-1 font-mono text-[10px] transition-colors',
               selected === acc.account_id
-                ? 'bg-[var(--to-accent-blue)]/20 text-blue-300'
-                : 'text-slate-500 hover:text-slate-300',
+                ? 'bg-[var(--to-accent-blue)]/20 text-[var(--to-accent-blue)]'
+                : 'text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]',
             )}
           >
             {acc.account_id}
@@ -161,8 +161,8 @@ function ExecutionQualityContent() {
                   className={cn(
                     'rounded px-2.5 py-1 font-mono text-[11px] transition-colors',
                     period === p
-                      ? 'bg-indigo-600/20 text-indigo-300'
-                      : 'text-slate-500 hover:text-slate-300',
+                      ? 'bg-[var(--to-accent-blue)]/20 text-[var(--to-accent-blue)]'
+                      : 'text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]',
                   )}
                 >
                   {p}
@@ -175,7 +175,7 @@ function ExecutionQualityContent() {
           {activeTab === 'traces' && (
             <button
               onClick={() => refetch()}
-              className='flex items-center gap-1.5 rounded border border-[var(--to-border)] bg-[var(--to-surface)] px-2.5 py-1.5 text-[11px] text-slate-400 transition-colors hover:text-slate-200'
+              className='flex items-center gap-1.5 rounded border border-[var(--to-border)] bg-[var(--to-surface)] px-2.5 py-1.5 text-[11px] text-[var(--to-text-dim)] transition-colors hover:text-[var(--to-text-primary)]'
             >
               <RefreshCw className='h-3 w-3' />
               Refresh
@@ -191,14 +191,14 @@ function ExecutionQualityContent() {
         <TabsList className='h-8 border border-[var(--to-border)] bg-[var(--to-surface)] p-0.5'>
           <TabsTrigger
             value='traces'
-            className='h-7 px-3 text-[11px] data-[state=active]:bg-[var(--to-surface-raised)] data-[state=active]:text-slate-100'
+            className='h-7 px-3 text-[11px] data-[state=active]:bg-[var(--to-surface-raised)] data-[state=active]:text-[var(--to-text-primary)]'
           >
             <Activity className='mr-1.5 h-3 w-3' />
             Pipeline Traces
           </TabsTrigger>
           <TabsTrigger
             value='tca'
-            className='h-7 px-3 text-[11px] data-[state=active]:bg-[var(--to-surface-raised)] data-[state=active]:text-slate-100'
+            className='h-7 px-3 text-[11px] data-[state=active]:bg-[var(--to-surface-raised)] data-[state=active]:text-[var(--to-text-primary)]'
           >
             <TrendingDown className='mr-1.5 h-3 w-3' />
             TCA Metrics
@@ -224,7 +224,7 @@ function ExecutionQualityContent() {
                   : '—'
               }
               loading={tracesLoading}
-              valueClass='text-red-400'
+              valueClass='text-[var(--to-short)]'
             />
             <StatPill
               label='Avg Latency'
@@ -270,7 +270,7 @@ function ExecutionQualityContent() {
             initialSignalId={initialSignalId}
           />
 
-          <p className='text-[10px] text-slate-700'>
+          <p className='text-[10px] text-[var(--to-text-dim)]'>
             Showing last 50 pipeline traces
             {selectedAccount ? ` for account "${selectedAccount}"` : ' across all accounts'}.
             Click a row to inspect hop timestamps and broker status.
@@ -285,25 +285,25 @@ function ExecutionQualityContent() {
           <div className='grid grid-cols-1 gap-4 md:grid-cols-4'>
             <Card className='tv-card'>
               <CardHeader className='pb-2'>
-                <CardTitle className='flex items-center gap-1.5 text-xs text-slate-500'>
+                <CardTitle className='flex items-center gap-1.5 text-xs text-[var(--to-text-dim)]'>
                   <TrendingDown className='h-3.5 w-3.5' />
                   Avg Slippage
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 {summaryLoading ? (
-                  <Skeleton className='h-6 w-20 bg-slate-800/60' />
+                  <Skeleton className='h-6 w-20 bg-[var(--to-surface-raised)]/60' />
                 ) : (
                   <div>
                     <div
                       className={cn(
                         'text-2xl font-bold',
-                        hasHighSlippage ? 'text-red-400' : 'text-slate-100',
+                        hasHighSlippage ? 'text-[var(--to-short)]' : 'text-[var(--to-text-primary)]',
                       )}
                     >
                       {tcaSummary?.avg_slippage_pips?.toFixed(2) ?? '0.00'} pips
                     </div>
-                    <div className='mt-1 text-xs text-slate-500'>
+                    <div className='mt-1 text-xs text-[var(--to-text-secondary)]'>
                       ${tcaSummary?.total_slippage_cost_usd?.toFixed(2) ?? '0.00'} total cost
                     </div>
                   </div>
@@ -313,7 +313,7 @@ function ExecutionQualityContent() {
 
             <Card className='tv-card'>
               <CardHeader className='pb-2'>
-                <CardTitle className='flex items-center gap-1.5 text-xs text-slate-500'>
+                <CardTitle className='flex items-center gap-1.5 text-xs text-[var(--to-text-dim)]'>
                   <DollarSign className='h-3.5 w-3.5' />
                   Avg Spread Cost
                 </CardTitle>
@@ -323,10 +323,10 @@ function ExecutionQualityContent() {
                   <Skeleton className='h-6 w-20 bg-slate-800/60' />
                 ) : (
                   <div>
-                    <div className='text-2xl font-bold text-slate-100'>
+                    <div className='text-2xl font-bold text-[var(--to-text-primary)]'>
                       ${tcaSummary?.avg_spread_cost_usd?.toFixed(2) ?? '0.00'}
                     </div>
-                    <div className='mt-1 text-xs text-slate-500'>Per trade</div>
+                    <div className='mt-1 text-xs text-[var(--to-text-secondary)]'>Per trade</div>
                   </div>
                 )}
               </CardContent>
@@ -334,7 +334,7 @@ function ExecutionQualityContent() {
 
             <Card className='tv-card'>
               <CardHeader className='pb-2'>
-                <CardTitle className='flex items-center gap-1.5 text-xs text-slate-500'>
+                <CardTitle className='flex items-center gap-1.5 text-xs text-[var(--to-text-dim)]'>
                   <Clock className='h-3.5 w-3.5' />
                   Avg Execution Time
                 </CardTitle>
@@ -344,10 +344,10 @@ function ExecutionQualityContent() {
                   <Skeleton className='h-6 w-20 bg-slate-800/60' />
                 ) : (
                   <div>
-                    <div className='text-2xl font-bold text-slate-100'>
+                    <div className='text-2xl font-bold text-[var(--to-text-primary)]'>
                       {tcaSummary?.avg_execution_time_ms?.toFixed(0) ?? '0'}ms
                     </div>
-                    <div className='mt-1 text-xs text-slate-500'>Signal to fill</div>
+                    <div className='mt-1 text-xs text-[var(--to-text-secondary)]'>Signal to fill</div>
                   </div>
                 )}
               </CardContent>
@@ -355,7 +355,7 @@ function ExecutionQualityContent() {
 
             <Card className='tv-card'>
               <CardHeader className='pb-2'>
-                <CardTitle className='flex items-center gap-1.5 text-xs text-slate-500'>
+                <CardTitle className='flex items-center gap-1.5 text-xs text-[var(--to-text-dim)]'>
                   <AlertTriangle className='h-3.5 w-3.5' />
                   Total Trades
                 </CardTitle>
@@ -365,10 +365,10 @@ function ExecutionQualityContent() {
                   <Skeleton className='h-6 w-20 bg-slate-800/60' />
                 ) : (
                   <div>
-                    <div className='text-2xl font-bold text-slate-100'>
+                    <div className='text-2xl font-bold text-[var(--to-text-primary)]'>
                       {tcaSummary?.total_trades ?? 0}
                     </div>
-                    <div className='mt-1 text-xs text-slate-500'>Last {days} days</div>
+                    <div className='mt-1 text-xs text-[var(--to-text-secondary)]'>Last {days} days</div>
                   </div>
                 )}
               </CardContent>
@@ -378,37 +378,37 @@ function ExecutionQualityContent() {
           {/* Slippage by Symbol */}
           <Card className='tv-card'>
             <CardHeader>
-              <CardTitle className='text-sm font-medium text-slate-100'>
+              <CardTitle className='text-sm font-medium text-[var(--to-text-primary)]'>
                 Slippage by Symbol (Last 30 Days)
               </CardTitle>
             </CardHeader>
             <CardContent>
               {symbolLoading ? (
-                <Skeleton className='h-[300px] w-full bg-slate-800/60' />
+                <Skeleton className='h-[300px] w-full bg-[var(--to-surface-raised)]/60' />
               ) : (
                 <ResponsiveContainer width='100%' height={300}>
                   <BarChart data={slippageBySymbol}>
-                    <CartesianGrid strokeDasharray='3 3' stroke='#334155' />
-                    <XAxis dataKey='symbol' stroke='#64748b' style={{ fontSize: 11 }} />
+                    <CartesianGrid strokeDasharray='3 3' stroke='#1e2329' />
+                    <XAxis dataKey='symbol' stroke='#6b7280' style={{ fontSize: 11 }} />
                     <YAxis
                       label={{
                         value: 'Avg Slippage (pips)',
                         angle: -90,
                         position: 'insideLeft',
-                        style: { fontSize: 11, fill: '#64748b' },
+                        style: { fontSize: 11, fill: '#6b7280' },
                       }}
-                      stroke='#64748b'
+                      stroke='#6b7280'
                       style={{ fontSize: 11 }}
                     />
                     <Tooltip
                       contentStyle={{
-                        backgroundColor: '#0f172a',
-                        border: '1px solid #334155',
-                        borderRadius: '4px',
+                        backgroundColor: '#0e0f11',
+                        border: '1px solid #1e2329',
+                        borderRadius: '8px',
                         fontSize: 11,
                       }}
                     />
-                    <Bar dataKey='avg_slippage_pips' fill='#10b981' radius={[4, 4, 0, 0]} />
+                    <Bar dataKey='avg_slippage_pips' fill='#0ecb81' radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               )}
@@ -419,42 +419,42 @@ function ExecutionQualityContent() {
             {/* Slippage by Hour */}
             <Card className='tv-card'>
               <CardHeader>
-                <CardTitle className='text-sm font-medium text-slate-100'>
+                <CardTitle className='text-sm font-medium text-[var(--to-text-primary)]'>
                   Slippage by Hour (UTC)
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 {hourLoading ? (
-                  <Skeleton className='h-[250px] w-full bg-slate-800/60' />
+                  <Skeleton className='h-[250px] w-full bg-[var(--to-surface-raised)]/60' />
                 ) : (
                   <ResponsiveContainer width='100%' height={250}>
                     <LineChart data={slippageByHour}>
-                      <CartesianGrid strokeDasharray='3 3' stroke='#334155' />
-                      <XAxis dataKey='hour' stroke='#64748b' style={{ fontSize: 11 }} />
+                      <CartesianGrid strokeDasharray='3 3' stroke='var(--to-border)' />
+                      <XAxis dataKey='hour' stroke='var(--to-text-secondary)' style={{ fontSize: 11 }} />
                       <YAxis
-                        stroke='#64748b'
+                        stroke='var(--to-text-secondary)'
                         style={{ fontSize: 11 }}
                         label={{
                           value: 'Slippage (pips)',
                           angle: -90,
                           position: 'insideLeft',
-                          style: { fontSize: 11, fill: '#64748b' },
+                          style: { fontSize: 11, fill: 'var(--to-text-secondary)' },
                         }}
                       />
                       <Tooltip
                         contentStyle={{
-                          backgroundColor: '#0f172a',
-                          border: '1px solid #334155',
-                          borderRadius: '4px',
+                          backgroundColor: 'var(--to-surface)',
+                          border: '1px solid var(--to-border)',
+                          borderRadius: '8px',
                           fontSize: 11,
                         }}
                       />
                       <Line
                         type='monotone'
                         dataKey='avg_slippage_pips'
-                        stroke='#10b981'
+                        stroke='#0ecb81'
                         strokeWidth={2}
-                        dot={{ fill: '#10b981', r: 3 }}
+                        dot={{ fill: '#0ecb81', r: 3 }}
                       />
                     </LineChart>
                   </ResponsiveContainer>
@@ -465,19 +465,19 @@ function ExecutionQualityContent() {
             {/* Latency Breakdown */}
             <Card className='tv-card'>
               <CardHeader>
-                <CardTitle className='text-sm font-medium text-slate-100'>
+                <CardTitle className='text-sm font-medium text-[var(--to-text-primary)]'>
                   Latency Breakdown (Last 7 Days)
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 {latencyLoading ? (
-                  <Skeleton className='h-[250px] w-full bg-slate-800/60' />
+                  <Skeleton className='h-[250px] w-full bg-[var(--to-surface-raised)]/60' />
                 ) : (
                   <div className='space-y-4'>
                     <LatRow label='Signal → Submit' ms={latencyBreakdown?.avg_signal_to_submit_ms} />
                     <LatRow label='Submit → Fill' ms={latencyBreakdown?.avg_submit_to_fill_ms} />
                     <LatRow label='Total' ms={latencyBreakdown?.avg_total_execution_ms} bold />
-                    <div className='space-y-2 border-t border-slate-700 pt-4'>
+                    <div className='space-y-2 border-t border-[var(--to-border)] pt-4'>
                       <LatRow label='P95 Latency' ms={latencyBreakdown?.p95_latency_ms} small />
                       <LatRow label='P99 Latency' ms={latencyBreakdown?.p99_latency_ms} small />
                     </div>
@@ -490,24 +490,24 @@ function ExecutionQualityContent() {
           {/* TCA Alerts */}
           <Card className='tv-card'>
             <CardHeader>
-              <CardTitle className='text-sm font-medium text-slate-100'>
+              <CardTitle className='text-sm font-medium text-[var(--to-text-primary)]'>
                 Recent TCA Alerts (Last 7 Days)
               </CardTitle>
             </CardHeader>
             <CardContent>
               {alertsLoading ? (
-                <Skeleton className='h-[200px] w-full bg-slate-800/60' />
+                <Skeleton className='h-[200px] w-full bg-[var(--to-surface-raised)]/60' />
               ) : Array.isArray(tcaAlerts) && tcaAlerts.length > 0 ? (
                 <div className='space-y-2'>
                   {tcaAlerts.slice(0, 10).map((alert) => (
                     <div
                       key={alert.id}
-                      className='flex items-center justify-between rounded border border-slate-700 bg-slate-900 p-2'
+                      className='flex items-center justify-between rounded border border-[var(--to-border)] bg-[var(--to-surface)] p-2'
                     >
                       <div className='flex items-center gap-2'>
                         <AlertTriangle className='h-4 w-4 text-amber-400' />
                         <div>
-                          <div className='text-xs text-slate-300'>
+                          <div className='text-xs text-[var(--to-text-primary)]'>
                             {alert.alert_type === 'high_slippage' &&
                               `High slippage: ${alert.slippage_pips?.toFixed(1)} pips`}
                             {alert.alert_type === 'high_latency' &&
@@ -517,20 +517,20 @@ function ExecutionQualityContent() {
                             {alert.alert_type === 'high_broker_latency' &&
                               `High broker latency: ${alert.total_execution_ms}ms (broker fill slow)`}
                           </div>
-                          <div className='font-mono text-[10px] text-slate-500'>
+                          <div className='font-mono text-[10px] text-[var(--to-text-secondary)]'>
                             Signal #{alert.signal_id}
                           </div>
                         </div>
                       </div>
                       <ClientDate
-                        className='font-mono text-[10px] text-slate-500'
+                        className='font-mono text-[10px] text-[var(--to-text-secondary)]'
                         render={() => new Date(alert.created_at).toLocaleString()}
                       />
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className='py-8 text-center text-sm text-slate-500'>
+                <div className='py-8 text-center text-sm text-[var(--to-text-secondary)]'>
                   No TCA alerts in the last 7 days
                 </div>
               )}
@@ -548,7 +548,7 @@ export default function ExecutionQualityPage() {
   return (
     <Suspense
       fallback={
-        <div className='p-4 text-xs text-slate-500'>
+        <div className='p-4 text-xs text-[var(--to-text-secondary)]'>
           Loading execution quality analytics...
         </div>
       }
@@ -573,11 +573,11 @@ function StatPill({
 }) {
   return (
     <div className='rounded border border-[var(--to-border)] bg-[var(--to-surface)] px-3 py-2.5'>
-      <div className='text-[10px] uppercase tracking-widest text-slate-600'>{label}</div>
+      <div className='text-[10px] uppercase tracking-widest text-[var(--to-text-dim)]'>{label}</div>
       {loading ? (
-        <Skeleton className='mt-1 h-5 w-14 bg-slate-800/60' />
+        <Skeleton className='mt-1 h-5 w-14 bg-[var(--to-surface-raised)]/60' />
       ) : (
-        <div className={cn('mt-0.5 font-mono text-[15px] font-bold text-slate-100', valueClass)}>
+        <div className={cn('mt-0.5 font-mono text-[15px] font-bold text-[var(--to-text-primary)]', valueClass)}>
           {value}
         </div>
       )}
@@ -598,11 +598,11 @@ function LatRow({
 }) {
   return (
     <div className='flex items-center justify-between'>
-      <span className={cn('text-slate-500', small ? 'text-xs' : 'text-xs')}>{label}</span>
+      <span className='text-xs text-[var(--to-text-secondary)]'>{label}</span>
       <span
         className={cn(
-          'font-mono tabular-nums text-slate-100',
-          small ? 'text-xs text-slate-400' : 'text-sm',
+          'font-mono tabular-nums text-[var(--to-text-primary)]',
+          small ? 'text-xs text-[var(--to-text-dim)]' : 'text-sm',
           bold && 'font-bold',
         )}
       >

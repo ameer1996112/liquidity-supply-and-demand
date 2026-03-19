@@ -32,7 +32,7 @@ const EquityCurveChart = dynamic(
     ),
   {
     loading: () => (
-      <Skeleton className='h-[280px] w-full rounded-lg bg-slate-800/60' />
+      <Skeleton className='h-[280px] w-full rounded-lg bg-[var(--to-surface-raised)]/60' />
     ),
   }
 );
@@ -41,7 +41,7 @@ const DrawdownChart = dynamic(
     import('@/components/analytics/DrawdownChart').then((m) => m.DrawdownChart),
   {
     loading: () => (
-      <Skeleton className='h-[220px] w-full rounded-lg bg-slate-800/60' />
+      <Skeleton className='h-[220px] w-full rounded-lg bg-[var(--to-surface-raised)]/60' />
     ),
   }
 );
@@ -50,7 +50,7 @@ const HeatmapChart = dynamic(
     import('@/components/analytics/HeatmapChart').then((m) => m.HeatmapChart),
   {
     loading: () => (
-      <Skeleton className='h-[200px] w-full rounded-lg bg-slate-800/60' />
+      <Skeleton className='h-[200px] w-full rounded-lg bg-[var(--to-surface-raised)]/60' />
     ),
   }
 );
@@ -72,7 +72,7 @@ const RollingMetricsChart = dynamic(
     ),
   {
     loading: () => (
-      <Skeleton className='h-[360px] w-full rounded-lg bg-slate-800/60' />
+      <Skeleton className='h-[360px] w-full rounded-lg bg-[var(--to-surface-raised)]/60' />
     ),
   }
 );
@@ -194,7 +194,7 @@ function Section({
 // ── Skeleton helpers ──────────────────────────────────────────────────────────
 
 function CardSkeleton({ h = 'h-28' }: { h?: string }) {
-  return <Skeleton className={cn(h, 'rounded-lg bg-slate-800/60')} />;
+  return <Skeleton className={cn(h, 'rounded-lg bg-[var(--to-surface-raised)]/60')} />;
 }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
@@ -264,8 +264,8 @@ export default function AnalyticsPage() {
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div className='flex flex-wrap items-start justify-between gap-3'>
         <div className='flex items-center gap-3'>
-          <div className='flex h-9 w-9 items-center justify-center rounded-xl bg-[#3b82f6]/12 border border-[#3b82f6]/25'>
-            <BarChart3 className='h-[18px] w-[18px] text-[#3b82f6]' />
+          <div className='flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--to-accent-blue)]/12 border border-[var(--to-accent-blue)]/25'>
+            <BarChart3 className='h-[18px] w-[18px] text-[var(--to-accent-blue)]' />
           </div>
           <div>
             <h1 className='page-title text-lg font-bold'>
@@ -282,7 +282,7 @@ export default function AnalyticsPage() {
           <button
             onClick={() => exportAnalyticsCsv(analytics, summaryData)}
             disabled={!analytics && !summaryData}
-            className='flex items-center gap-1.5 rounded-lg border border-[var(--to-border)] bg-[var(--to-surface)] px-3 py-1.5 text-[10px] font-medium text-[var(--to-text-secondary)] transition-colors hover:border-[#3b82f6]/50 hover:text-[#3b82f6] disabled:opacity-40'
+            className='flex items-center gap-1.5 rounded-lg border border-[var(--to-border)] bg-[var(--to-surface)] px-3 py-1.5 text-[10px] font-medium text-[var(--to-text-secondary)] transition-colors hover:border-[var(--to-accent-blue)]/50 hover:text-[var(--to-accent-blue)] disabled:opacity-40'
             style={{ fontFamily: 'var(--font-mono)' }}
           >
             <Download className='h-3 w-3' />
@@ -298,8 +298,8 @@ export default function AnalyticsPage() {
                 className={cn(
                   'rounded-md px-2.5 py-1 text-[10px] font-medium transition-colors',
                   period === p
-                    ? 'bg-[#3b82f6]/20 text-[#3b82f6]'
-                    : 'text-slate-500 hover:text-slate-300'
+                    ? 'bg-[var(--to-accent-blue)]/20 text-[var(--to-accent-blue)]'
+                    : 'text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]'
                 )}
                 style={{ fontFamily: 'var(--font-mono)' }}
               >
@@ -317,8 +317,8 @@ export default function AnalyticsPage() {
                 className={cn(
                   'rounded-md px-3 py-1 text-[10px] font-medium transition-colors',
                   modeFilter === m
-                    ? 'bg-emerald-500/15 text-emerald-400'
-                    : 'text-slate-500 hover:text-slate-300'
+                    ? 'bg-[var(--to-long)]/15 text-[var(--to-long)]'
+                    : 'text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]'
                 )}
                 style={{ fontFamily: 'var(--font-mono)' }}
               >
@@ -567,10 +567,10 @@ function EntryModelBreakdown({ data }: { data: Record<string, BucketStats> }) {
         {rows.map((row) => {
           const winRateColor =
             row.win_rate >= 60
-              ? '#0ecb81'
+              ? 'var(--to-long)'
               : row.win_rate >= 50
-              ? '#f0b90b'
-              : '#f6465d';
+              ? 'var(--to-warning)'
+              : 'var(--to-short)';
           const barWidth = (Math.abs(row.pnl) / maxAbsPnl) * 100;
           return (
             <div
@@ -590,12 +590,12 @@ function EntryModelBreakdown({ data }: { data: Record<string, BucketStats> }) {
                 {row.win_rate.toFixed(0)}%
               </span>
               <div className='flex flex-1 items-center gap-2'>
-                <div className='h-1.5 flex-1 overflow-hidden rounded-full bg-[#1e2329]'>
+                <div className='h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--to-surface)]'>
                   <div
                     className='h-full rounded-full transition-all duration-500'
                     style={{
                       width: `${barWidth}%`,
-                      backgroundColor: row.pnl >= 0 ? '#0ecb81' : '#f6465d',
+                      backgroundColor: row.pnl >= 0 ? 'var(--to-long)' : 'var(--to-short)',
                       opacity: 0.75,
                     }}
                   />
@@ -603,7 +603,7 @@ function EntryModelBreakdown({ data }: { data: Record<string, BucketStats> }) {
                 <span
                   className='w-20 text-right text-[10px] font-bold tabular-nums'
                   style={{
-                    color: row.pnl >= 0 ? '#0ecb81' : '#f6465d',
+                    color: row.pnl >= 0 ? 'var(--to-long)' : 'var(--to-short)',
                     fontFamily: 'var(--font-mono)',
                   }}
                 >
@@ -691,7 +691,7 @@ function ZoneTypeBreakdown({ data }: { data: Record<string, BucketStats> }) {
                 <span
                   className='text-[10px] font-bold tabular-nums'
                   style={{
-                    color: row.pnl >= 0 ? '#0ecb81' : '#f6465d',
+                    color: row.pnl >= 0 ? 'var(--to-long)' : 'var(--to-short)',
                     fontFamily: 'var(--font-mono)',
                   }}
                 >
@@ -699,7 +699,7 @@ function ZoneTypeBreakdown({ data }: { data: Record<string, BucketStats> }) {
                 </span>
               </div>
               {/* Win rate bar */}
-              <div className='h-1 overflow-hidden rounded-full bg-[#1e2329]'>
+              <div className='h-1 overflow-hidden rounded-full bg-[var(--to-surface)]'>
                 <div
                   className='h-full rounded-full'
                   style={{
