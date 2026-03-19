@@ -13,15 +13,15 @@ import { syncAllAccounts } from '@/lib/api';
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className='flex items-center justify-between border-b border-slate-800 px-3 py-2 last:border-0'>
+    <div className='flex items-center justify-between border-b border-[var(--to-border)] px-3 py-2 last:border-0'>
       <span
-        className='text-[10px] uppercase tracking-wider text-slate-500'
+        className='text-[10px] uppercase tracking-wider text-[var(--to-text-dim)]'
         style={{ fontFamily: 'var(--font-mono)' }}
       >
         {label}
       </span>
       <span
-        className='text-xs text-slate-300'
+        className='text-xs text-[var(--to-text-secondary)]'
         style={{ fontFamily: 'var(--font-mono)' }}
       >
         {value}
@@ -170,7 +170,7 @@ export default function SettingsPage() {
       {/* Header */}
       <div>
         <div className='flex items-center gap-2'>
-          <Settings className='h-4 w-4 text-slate-400' />
+          <Settings className='h-4 w-4 text-[var(--to-text-dim)]' />
           <h1 className='page-title text-lg font-semibold'>Settings</h1>
         </div>
         <p className='page-subtitle mt-0.5 text-xs'>

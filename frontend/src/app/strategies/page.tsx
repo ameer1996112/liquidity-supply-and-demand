@@ -220,7 +220,7 @@ export default function StrategiesPage() {
       {/* Left: strategy list */}
       <div className='w-64 flex flex-col tv-card p-3 space-y-3'>
         <div className='flex items-center justify-between'>
-          <span className='text-xs font-mono text-zinc-500 uppercase tracking-wider'>
+          <span className='text-xs font-mono text-[var(--to-text-dim)] uppercase tracking-wider'>
             Strategies
           </span>
           <button
@@ -228,7 +228,7 @@ export default function StrategiesPage() {
             disabled={saving}
             className={cn(
               'flex items-center gap-1.5 px-2 py-1 rounded text-[11px] font-mono',
-              'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-50',
+              'bg-[var(--to-long)]/10 text-[var(--to-long)] hover:bg-[var(--to-long)]/20 disabled:opacity-50',
             )}
           >
             <Plus className='w-3 h-3' />
@@ -237,10 +237,10 @@ export default function StrategiesPage() {
         </div>
         {loading ? (
           <div className='flex-1 flex items-center justify-center'>
-            <Loader2 className='w-4 h-4 animate-spin text-zinc-500' />
+            <Loader2 className='w-4 h-4 animate-spin text-[var(--to-text-dim)]' />
           </div>
         ) : strategies.length === 0 ? (
-          <div className='text-xs text-zinc-600 font-mono'>
+          <div className='text-xs text-[var(--to-text-dim)] font-mono'>
             No strategies defined. Create one to begin.
           </div>
         ) : (
@@ -252,15 +252,15 @@ export default function StrategiesPage() {
                 className={cn(
                   'w-full text-left px-2 py-1.5 rounded text-xs font-mono flex items-center justify-between gap-2',
                   selectedId === s.id
-                    ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/30'
-                    : 'bg-[#12141b] text-zinc-400 border border-[#1e212b] hover:bg-[#1b1f2b]',
+                    ? 'bg-[var(--to-long)]/10 text-[var(--to-long)] border border-[var(--to-long)]/30'
+                    : 'bg-[var(--to-surface)] text-[var(--to-text-dim)] border border-[var(--to-border)] hover:bg-[var(--to-surface-raised)]',
                 )}
               >
                 <span className='truncate'>{s.name}</span>
                 <span
                   className={cn(
                     'flex items-center gap-1 text-[10px]',
-                    s.is_active ? 'text-emerald-400' : 'text-zinc-500',
+                    s.is_active ? 'text-[var(--to-long)]' : 'text-[var(--to-text-dim)]',
                   )}
                 >
                   v{s.version}
@@ -289,8 +289,8 @@ export default function StrategiesPage() {
               className={cn(
                 'flex items-center gap-1.5 px-3 py-1.5 rounded text-[11px] font-mono',
                 detail.is_active
-                  ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
-                  : 'bg-zinc-700/40 text-zinc-200 hover:bg-zinc-600/60',
+                  ? 'bg-[var(--to-long)]/10 text-[var(--to-long)] hover:bg-[var(--to-long)]/20'
+                  : 'bg-[var(--to-surface-raised)] text-[var(--to-text-secondary)] hover:bg-[var(--to-surface-raised)]/80',
               )}
             >
               {detail.is_active ? (
@@ -309,7 +309,7 @@ export default function StrategiesPage() {
         </div>
 
         {message && (
-          <div className='flex items-center gap-2 text-[11px] font-mono px-3 py-2 rounded border border-zinc-700 bg-zinc-900/60 text-zinc-200'>
+          <div className='flex items-center gap-2 text-[11px] font-mono px-3 py-2 rounded border border-[var(--to-border)] bg-[var(--to-surface)] text-[var(--to-text-secondary)]'>
             <AlertTriangle className='w-3.5 h-3.5 text-amber-400' />
             <span>{message}</span>
           </div>
@@ -320,7 +320,7 @@ export default function StrategiesPage() {
             {validationErrors.map((e) => (
               <div
                 key={`${e.field}-${e.message}`}
-                className='text-[11px] font-mono text-red-300'
+                className='text-[11px] font-mono text-[var(--to-short)]'
               >
                 <span className='font-semibold'>{e.field || '(root)'}:</span>{' '}
                 {e.message}
@@ -330,13 +330,13 @@ export default function StrategiesPage() {
         )}
 
         {!detail ? (
-          <div className='flex-1 flex items-center justify-center text-xs text-zinc-600 font-mono'>
+          <div className='flex-1 flex items-center justify-center text-xs text-[var(--to-text-dim)] font-mono'>
             Select a strategy on the left or create a new one.
           </div>
         ) : (
           <>
             <div className='flex items-center justify-between'>
-              <div className='text-[11px] text-zinc-500 font-mono'>
+              <div className='text-[11px] text-[var(--to-text-secondary)] font-mono'>
                 ID #{detail.id} · v{detail.version}{' '}
                 {detail.is_active ? '· ACTIVE' : '· INACTIVE'}
               </div>
@@ -346,7 +346,7 @@ export default function StrategiesPage() {
                   disabled={validating}
                   className={cn(
                     'flex items-center gap-1.5 px-3 py-1.5 rounded text-[11px] font-mono',
-                    'bg-zinc-700/60 text-zinc-100 hover:bg-zinc-600/80 disabled:opacity-50',
+                    'bg-[var(--to-surface-raised)] text-[var(--to-text-primary)] hover:bg-[var(--to-surface-raised)]/80 disabled:opacity-50',
                   )}
                 >
                   {validating && (
@@ -359,7 +359,7 @@ export default function StrategiesPage() {
                   disabled={saving}
                   className={cn(
                     'flex items-center gap-1.5 px-3 py-1.5 rounded text-[11px] font-mono',
-                    'bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50',
+                    'bg-[var(--to-long)] text-white hover:bg-[var(--to-long)]/80 disabled:opacity-50',
                   )}
                 >
                   {saving ? (
@@ -377,9 +377,9 @@ export default function StrategiesPage() {
               value={configText}
               onChange={(e) => setConfigText(e.target.value)}
               className={cn(
-                'flex-1 w-full bg-[#11131a] border border-[#272b38] rounded-lg px-3 py-2',
-                'font-mono text-[11px] text-zinc-200 resize-none',
-                'focus:outline-none focus:border-emerald-500',
+                'flex-1 w-full bg-[var(--to-surface)] border border-[var(--to-border)] rounded-lg px-3 py-2',
+                'font-mono text-[11px] text-[var(--to-text-primary)] resize-none',
+                'focus:outline-none focus:border-[var(--to-long)]/60',
               )}
               rows={24}
               spellCheck={false}

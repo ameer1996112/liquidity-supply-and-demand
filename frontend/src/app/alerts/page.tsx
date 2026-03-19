@@ -253,8 +253,8 @@ export default function AlertsPage() {
           label="Dead Letters"
           value={dlCount}
           icon={Inbox}
-          color="text-zinc-400"
-          bg="bg-zinc-500/10 border-zinc-500/20"
+          color="text-[var(--to-text-dim)]"
+          bg="bg-[var(--to-surface-raised)] border-[var(--to-border)]"
         />
       </div>
 
@@ -334,7 +334,7 @@ export default function AlertsPage() {
 
         {dlItems.length === 0 ? (
           <div className="rounded-xl border border-[var(--to-border)] py-8 text-center">
-            <CheckCircle2 className="mx-auto h-5 w-5 text-emerald-500 mb-1" />
+            <CheckCircle2 className="mx-auto h-5 w-5 text-[var(--to-long)] mb-1" />
             <p className="font-mono text-xs text-[var(--to-text-dim)]">
               Dead letter queue is empty.
             </p>

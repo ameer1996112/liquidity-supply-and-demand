@@ -320,7 +320,7 @@ function ExecutionQualityContent() {
               </CardHeader>
               <CardContent>
                 {summaryLoading ? (
-                  <Skeleton className='h-6 w-20 bg-slate-800/60' />
+                  <Skeleton className='h-6 w-20 bg-[var(--to-surface-raised)]/60' />
                 ) : (
                   <div>
                     <div className='text-2xl font-bold text-[var(--to-text-primary)]'>
@@ -341,7 +341,7 @@ function ExecutionQualityContent() {
               </CardHeader>
               <CardContent>
                 {summaryLoading ? (
-                  <Skeleton className='h-6 w-20 bg-slate-800/60' />
+                  <Skeleton className='h-6 w-20 bg-[var(--to-surface-raised)]/60' />
                 ) : (
                   <div>
                     <div className='text-2xl font-bold text-[var(--to-text-primary)]'>
@@ -362,7 +362,7 @@ function ExecutionQualityContent() {
               </CardHeader>
               <CardContent>
                 {summaryLoading ? (
-                  <Skeleton className='h-6 w-20 bg-slate-800/60' />
+                  <Skeleton className='h-6 w-20 bg-[var(--to-surface-raised)]/60' />
                 ) : (
                   <div>
                     <div className='text-2xl font-bold text-[var(--to-text-primary)]'>

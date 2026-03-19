@@ -69,10 +69,10 @@ export default function AccountDetailPage() {
     | 'error'
     | 'not_configured';
   const connectionColor = {
-    connected: 'text-emerald-500',
-    disconnected: 'text-amber-500',
-    error: 'text-red-500',
-    not_configured: 'text-slate-500',
+    connected: 'text-[var(--to-long)]',
+    disconnected: 'text-[var(--to-warning)]',
+    error: 'text-[var(--to-short)]',
+    not_configured: 'text-[var(--to-text-dim)]',
   }[connectionStatus];
 
   const connectionLabel = {
@@ -88,13 +88,13 @@ export default function AccountDetailPage() {
         <Button
           variant='ghost'
           size='sm'
-          className='text-slate-400 hover:text-slate-200'
+          className='text-[var(--to-text-dim)] hover:text-[var(--to-text-primary)]'
           onClick={() => router.push('/accounts')}
         >
           <ArrowLeft className='mr-2 h-4 w-4' />
           Back to Accounts
         </Button>
-        <div className='rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300'>
+        <div className='rounded-lg border border-[var(--to-short)]/30 bg-[var(--to-short)]/10 px-4 py-3 text-sm text-[var(--to-short)]'>
           Failed to load account details: {(error as Error).message}
         </div>
       </div>
@@ -109,7 +109,7 @@ export default function AccountDetailPage() {
           <Button
             variant='ghost'
             size='sm'
-            className='text-slate-400 hover:text-slate-200'
+            className='text-[var(--to-text-dim)] hover:text-[var(--to-text-primary)]'
             onClick={() => router.push('/accounts')}
           >
             <ArrowLeft className='mr-2 h-4 w-4' />
@@ -120,7 +120,7 @@ export default function AccountDetailPage() {
             <div className='flex items-center gap-3'>
               <h1 className='page-title text-lg font-semibold'>
                 {isLoading ? (
-                  <Skeleton className='h-6 w-48 bg-slate-800/60' />
+                  <Skeleton className='h-6 w-48 bg-[var(--to-surface-raised)]/60' />
                 ) : (
                   accountName
                 )}
@@ -128,7 +128,7 @@ export default function AccountDetailPage() {
               {!isLoading && account && (
                 <>
                   {account.account_type && (
-                    <span className='rounded bg-slate-700 px-2 py-0.5 text-xs font-mono text-slate-300'>
+                    <span className='rounded bg-[var(--to-surface-raised)] px-2 py-0.5 text-xs font-mono text-[var(--to-text-secondary)]'>
                       {account.account_type}
                     </span>
                   )}
@@ -144,17 +144,17 @@ export default function AccountDetailPage() {
                       <span
                         className={`animate-ping absolute inline-flex h-full w-full rounded-full ${
                           connectionStatus === 'connected'
-                            ? 'bg-emerald-500'
-                            : 'bg-amber-500'
+                            ? 'bg-[var(--to-long)]'
+                            : 'bg-[var(--to-warning)]'
                         } opacity-75`}
                       ></span>
                       <span
                         className={`relative inline-flex rounded-full h-2 w-2 ${
                           connectionStatus === 'connected'
-                            ? 'bg-emerald-500'
+                            ? 'bg-[var(--to-long)]'
                             : connectionStatus === 'error'
-                            ? 'bg-red-500'
-                            : 'bg-amber-500'
+                            ? 'bg-[var(--to-short)]'
+                            : 'bg-[var(--to-warning)]'
                         }`}
                       ></span>
                     </span>
@@ -168,18 +168,18 @@ export default function AccountDetailPage() {
             {!isLoading && account && (
               <div className='mt-2 flex items-center gap-4 text-sm'>
                 <div className='flex items-center gap-2'>
-                  <span className='text-xs text-slate-500'>Balance:</span>
-                  <span className='font-mono font-semibold text-slate-200'>
+                  <span className='text-xs text-[var(--to-text-dim)]'>Balance:</span>
+                  <span className='font-mono font-semibold text-[var(--to-text-primary)]'>
                     $
                     {account.balance.toLocaleString(undefined, {
                       minimumFractionDigits: 2,
                     })}
                   </span>
                 </div>
-                <div className='h-3 w-px bg-slate-700'></div>
+                <div className='h-3 w-px bg-[var(--to-border)]'></div>
                 <div className='flex items-center gap-2'>
-                  <span className='text-xs text-slate-500'>Equity:</span>
-                  <span className='font-mono font-semibold text-slate-200'>
+                  <span className='text-xs text-[var(--to-text-dim)]'>Equity:</span>
+                  <span className='font-mono font-semibold text-[var(--to-text-primary)]'>
                     $
                     {account.equity?.toLocaleString(undefined, {
                       minimumFractionDigits: 2,
@@ -189,14 +189,14 @@ export default function AccountDetailPage() {
                       })}
                   </span>
                 </div>
-                <div className='h-3 w-px bg-slate-700'></div>
+                <div className='h-3 w-px bg-[var(--to-border)]'></div>
                 <div className='flex items-center gap-2'>
                   <span className='text-xs text-slate-500'>Today:</span>
                   <span
                     className={`font-mono font-semibold ${
                       account.daily_pnl >= 0
-                        ? 'text-emerald-400'
-                        : 'text-red-400'
+                        ? 'text-[var(--to-long)]'
+                        : 'text-[var(--to-short)]'
                     }`}
                   >
                     {account.daily_pnl >= 0 ? '+' : ''}$
@@ -215,7 +215,7 @@ export default function AccountDetailPage() {
         <Button
           variant='outline'
           size='sm'
-          className='border-slate-700 text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+          className='border-[var(--to-border)] text-[var(--to-text-dim)] hover:bg-[var(--to-surface-raised)] hover:text-[var(--to-text-primary)]'
           onClick={() => syncMutation.mutate()}
           disabled={syncMutation.isPending}
         >
@@ -229,7 +229,7 @@ export default function AccountDetailPage() {
       </div>
 
       {/* Tabs */}
-      <div className='border-b border-slate-700'>
+      <div className='border-b border-[var(--to-border)]'>
         <nav className='flex gap-6'>
           {(
             [
@@ -249,7 +249,7 @@ export default function AccountDetailPage() {
                 ${
                   activeTab === tab
                     ? 'border-indigo-400 text-indigo-300'
-                    : 'border-transparent text-slate-500 hover:text-slate-300 hover:border-slate-700'
+                    : 'border-transparent text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)] hover:border-[var(--to-border)]'
                 }
               `}
             >
@@ -263,8 +263,8 @@ export default function AccountDetailPage() {
       <div className='tv-card p-3'>
         {isLoading ? (
           <div className='space-y-4'>
-            <Skeleton className='h-24 bg-slate-800/60' />
-            <Skeleton className='h-48 bg-slate-800/60' />
+            <Skeleton className='h-24 bg-[var(--to-surface-raised)]/60' />
+            <Skeleton className='h-48 bg-[var(--to-surface-raised)]/60' />
           </div>
         ) : account ? (
           <>

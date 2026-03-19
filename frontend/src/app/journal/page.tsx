@@ -108,7 +108,7 @@ export default function JournalPage() {
       <div className='flex items-start justify-between gap-3 flex-wrap'>
         <div>
           <div className='flex items-center gap-2'>
-            <BookOpen className='h-4 w-4 text-slate-400' />
+            <BookOpen className='h-4 w-4 text-[var(--to-text-dim)]' />
             <h1 className='page-title text-lg font-semibold'>Trade Journal</h1>
             {/* Streak indicator */}
             {currentStreak >= 2 && (
@@ -116,8 +116,8 @@ export default function JournalPage() {
                 className={cn(
                   'flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold',
                   streakType === 'win'
-                    ? 'bg-[#0ecb81]/12 text-[#0ecb81] border border-[#0ecb81]/25'
-                    : 'bg-[#f6465d]/12 text-[#f6465d] border border-[#f6465d]/25'
+                    ? 'bg-[var(--to-long)]/12 text-[var(--to-long)] border border-[var(--to-long)]/25'
+                    : 'bg-[var(--to-short)]/12 text-[var(--to-short)] border border-[var(--to-short)]/25'
                 )}
                 style={{ fontFamily: 'var(--font-mono)' }}
               >
@@ -203,7 +203,7 @@ export default function JournalPage() {
           {isLoading ? (
             <div className='space-y-1.5'>
               {[...Array(8)].map((_, i) => (
-                <Skeleton key={i} className='h-9 rounded-lg bg-slate-800/60' />
+                <Skeleton key={i} className='h-9 rounded-lg bg-[var(--to-surface-raised)]/60' />
               ))}
             </div>
           ) : filtered.length > 0 ? (
