@@ -10,7 +10,7 @@ Verifies:
 import json
 import unittest
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from src.core.transport import (
     InMemoryTransport,
@@ -226,7 +226,7 @@ class InMemoryIntegrationTests(unittest.TestCase):
 
         try:
             payload = json.loads(payload_str)
-            size = float(payload["size"])
+            float(payload["size"])
             raise AssertionError("Should have failed")
         except (ValueError, AssertionError):
             transport.dead_letter(payload_str, "Invalid size field")

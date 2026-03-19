@@ -12,7 +12,6 @@ from pydantic import BaseModel
 
 from src.ai.llm_client import (
     AIClient,
-    AIClientError,
     AnthropicClient,
     OpenAIClient,
     GeminiClient,
@@ -151,7 +150,7 @@ class AnthropicClientTests(unittest.TestCase):
         mock_client = MagicMock()
         mock_client.messages.create.return_value = mock_msg
 
-        with patch("src.ai.llm_client.AnthropicClient._raw_complete") as mock_raw:
+        with patch("src.ai.llm_client.AnthropicClient._raw_complete"):
             # Bypass _raw_complete by patching at instance level
             client = AnthropicClient(api_key="test")
             client._raw_complete = MagicMock(return_value='{"decision":"GO","reason":"ok"}')

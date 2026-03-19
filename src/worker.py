@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 """
 Trade Executor (Consumer) - Orchestrator.
 Guards: kill-switch, idempotency, risk, correlation, AI. On pass: logic.process_trade.
@@ -10,11 +11,10 @@ Architecture (v2 - multi-account isolated):
 """
 
 import json
-import logging
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from dotenv import load_dotenv
 
@@ -23,9 +23,9 @@ _root = Path(__file__).resolve().parent.parent
 load_dotenv(_root / ".env")
 
 from config import get_settings
-from config.logging_config import configure_logging, get_logger, trade_context
+from config.logging_config import configure_logging, get_logger
 from src.adapters.redis_queue import get_redis
-from src.core.transport import SignalTransport, get_transport
+from src.core.transport import get_transport
 from src.core.consumer_validator import validate_dequeued_message
 from src.core.observers import (
     WorkerSubject,
@@ -36,11 +36,10 @@ from src.core.observers import (
     AccountRouterObserver,
 )
 from src.core.account_router import AccountRouter  # no observers dependency
-from src.ai.brain import ensemble_decision, get_prediction, load_brain
+from src.ai.brain import get_prediction, load_brain
 from src.core.risk_engine import calculate_max_position_size as _calculate_max_position_size_impl
 from src.core.guard_rails.correlation import (
     create_correlation_manager_from_settings,
-    get_active_positions_from_db,
 )
 from src.core.guard_rails.prop_guard import check_safety
 from src.services.trade_events import log_event, log_guard_decision
@@ -48,7 +47,7 @@ from src import logic
 from src.services.watchdog import TradeWatchdog
 from src.services.trailing_stop_manager import TrailingStopManager
 from src.services.breakeven_manager import BreakevenManager
-from src.core.dynamic_config import get_dynamic_setting, clear_settings_cache, apply_time_based_rules
+from src.core.dynamic_config import clear_settings_cache, apply_time_based_rules
 
 configure_logging()
 logger = get_logger("trinity.worker")
@@ -108,7 +107,6 @@ settings = None  # Global settings instance
 
 def init_connections():
     global supabase, correlation_manager, trailing_stop_manager, breakeven_manager, settings
-    r = get_redis()
     s = get_settings()
     settings = s  # Store in global for use in save_result
     raw_key = s.supabase_service_role_key or s.supabase_key or ""
@@ -689,7 +687,6 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
     # --- Monthly loss limit ---
     if getattr(s, "enable_monthly_loss_limit", True) and getattr(s, "monthly_max_loss_pct", 8.0) > 0 and supabase:
         try:
-            from datetime import date as _date
             month_start = _dt.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
             monthly_resp = (
                 supabase.table("trading_signals")

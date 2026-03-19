@@ -11,7 +11,6 @@ import requests
 from config import get_settings
 from src.adapters.execution.interfaces import (
     CloseRequest,
-    ExecutionAdapter,
     ExecutionResult,
     OrderRequest,
 )
@@ -221,7 +220,7 @@ class MetaApiAdapter:
             f"{self.base_url}/users/current/accounts/"
             f"{self.account_id}/account-information"
         )
-        resp = self._request_with_retry("GET", url, timeout=10)
+        resp = self._request_with_retry("GET", url, timeout=30)
         if resp is None:
             return {"balance": 0.0, "equity": 0.0}
         if resp.status_code != 200:
@@ -275,7 +274,7 @@ class MetaApiAdapter:
             return []
 
         url = f"{self.base_url}/users/current/accounts/{self.account_id}/positions"
-        resp = self._request_with_retry("GET", url, timeout=10)
+        resp = self._request_with_retry("GET", url, timeout=30)
 
         if resp is None:
             logger.error("MetaApi get_open_positions failed: timeout or retries exhausted")

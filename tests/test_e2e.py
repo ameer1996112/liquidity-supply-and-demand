@@ -196,7 +196,7 @@ def build_entry_payload(symbol: str, side: str, run_mode: str, zone_id: int, sco
 
 
 def build_exit_payload(zone_id: int, entry: dict) -> dict:
-    side = entry["side"]
+    
     ep   = entry["entry"]
     tp   = entry["tp"]
     sl   = entry["sl"]
@@ -234,7 +234,7 @@ def run(base: str, symbol: str, side: str, run_mode: str, score: int, verbose: b
     step("1 · Backend health check")
     code, body = _get(f"{base}/health", verbose)
     if code == 200 and body.get("status") in ("healthy", "online"):
-        ok(f"Backend online")
+        ok("Backend online")
         info(f"service={body.get('service', 'api')}")
     else:
         fail(f"Backend not reachable (HTTP {code})")
@@ -280,7 +280,7 @@ def run(base: str, symbol: str, side: str, run_mode: str, score: int, verbose: b
                 fail(f"Unexpected decision: {decision}")
                 failures += 1
     elif code == 422:
-        fail(f"Validation error (HTTP 422) — payload schema mismatch")
+        fail("Validation error (HTTP 422) — payload schema mismatch")
         if verbose:
             dim(str(body.get("detail", "")))
         failures += 1
@@ -384,7 +384,7 @@ def run(base: str, symbol: str, side: str, run_mode: str, score: int, verbose: b
         status   = body.get("status", "?")
         ret_id   = body.get("trade_id")
         if status == "queued":
-            ok(f"Exit queued (worker will process)")
+            ok("Exit queued (worker will process)")
         else:
             ok(f"Exit processed: status={status}  trade_id={ret_id}")
     elif code == 404:

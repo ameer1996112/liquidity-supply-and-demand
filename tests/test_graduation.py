@@ -5,7 +5,6 @@ Sprint 3.4: Strategy graduation pipeline tests.
 from __future__ import annotations
 
 import unittest
-from unittest.mock import MagicMock
 
 from src.services.graduation_service import (
     ShadowMetrics,

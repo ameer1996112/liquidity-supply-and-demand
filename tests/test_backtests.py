@@ -5,7 +5,6 @@ Sprint 4.2: Look-ahead bias detection tests.
 
 from __future__ import annotations
 
-import json
 import unittest
 from unittest.mock import MagicMock, patch
 

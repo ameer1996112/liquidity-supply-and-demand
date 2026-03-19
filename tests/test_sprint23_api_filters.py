@@ -14,9 +14,8 @@ All Supabase calls are mocked — no real DB or Redis required.
 
 from __future__ import annotations
 
-import json
 import unittest
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -153,7 +152,6 @@ class AnalyticsAccountFilterTests(unittest.TestCase):
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
         import src.api_analytics as mod
-        from types import SimpleNamespace
 
         sb, chain = _mock_supabase_chain(rows)
         app = FastAPI()

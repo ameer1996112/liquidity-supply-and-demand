@@ -17,7 +17,7 @@ Covers:
 import time
 import unittest
 from dataclasses import FrozenInstanceError
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 from src.core.observers.base import (
     ERROR,

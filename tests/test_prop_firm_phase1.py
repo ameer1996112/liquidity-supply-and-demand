@@ -1,5 +1,4 @@
-import pytest
-from datetime import datetime, timezone
+from datetime import timezone
 import pytz
 from unittest.mock import MagicMock, patch
 import asyncio

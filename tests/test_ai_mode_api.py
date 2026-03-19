@@ -11,9 +11,10 @@ from unittest.mock import MagicMock, patch
 class AiModeApiTests(unittest.TestCase):
     """Tests for /config/ai/mode and /config/ai/mode-toggles endpoints."""
 
+    @patch("src.api._get_effective_ai_mode", return_value="shadow")
     @patch("src.services.graduation_service.compute_shadow_metrics")
     @patch("src.services.graduation_service.check_graduation_readiness")
-    def test_set_enforce_blocked_when_not_ready(self, mock_check_ready, mock_compute):
+    def test_set_enforce_blocked_when_not_ready(self, mock_check_ready, mock_compute, mock_get_effective):
         """Enforce mode is rejected with 403 when graduation not ready."""
         from fastapi.testclient import TestClient
         from src.api import app

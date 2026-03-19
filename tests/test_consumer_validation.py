@@ -140,7 +140,7 @@ class SchemaViolationTests(unittest.TestCase):
         self.assertEqual(self.transport.dead_letters[0]["error"].split(":")[0], "SCHEMA_VIOLATION")
 
     def test_payload_hash_stable_across_whitespace(self):
-        raw = json.dumps(VALID_ENTRY)
+        json.dumps(VALID_ENTRY)
         self.spy2, calls2 = _make_audit_spy()
         bad = json.dumps({k: v for k, v in VALID_ENTRY.items() if k != "symbol"})
         validate_dequeued_message(bad, self.transport, log_event_fn=self.spy)

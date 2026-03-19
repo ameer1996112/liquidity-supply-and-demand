@@ -17,7 +17,6 @@ import argparse
 import json
 import ssl
 import sys
-import time
 import urllib.request
 import urllib.error
 from datetime import datetime
@@ -215,7 +214,7 @@ def run_tests(base_url: str, verbose: bool) -> int:
     if code == 200:
         ok(f"Exit routed correctly  status={body.get('status')}  trade_id={body.get('trade_id')}")
     elif code == 422:
-        fail(f"Still getting 422 — unified dispatcher not routing exits properly")
+        fail("Still getting 422 — unified dispatcher not routing exits properly")
         fail(f"Detail: {body.get('detail')}")
         failures += 1
     else:
