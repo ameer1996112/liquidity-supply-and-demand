@@ -1,159 +1,104 @@
-# ARCHITECTURE.md — System Architecture
+# Architecture
 
-## Overview
+## Pattern
 
-Event-driven, producer-consumer trading system. TradingView webhooks trigger signals that flow through a multi-layered AI/ML guardrail pipeline before being executed on live broker accounts.
+**Event-driven, multi-process pipeline with observer pattern.**
 
-## Pattern: Decoupled Producer-Consumer
+Two independent services communicate via Redis queue:
+1. **API Service** (`src/api.py`) — FastAPI HTTP server that validates webhooks and enqueues signals
+2. **Worker Service** (`src/worker.py`) — Consumer that dequeues signals, runs guard chain, executes trades
 
-```
-TradingView
-    │
-    ▼ POST /webhook
-┌──────────────┐
-│  FastAPI     │  ← Signal receiver, REST API
-│  (API)       │  → Supabase (persist raw signal)
-│  port 8000   │  → Redis (enqueue for processing)
-└──────────────┘
-        │
-        │ Redis Queue
-        ▼
-┌──────────────┐
-│  Worker      │  ← Signal consumer, Guardrail pipeline
-│  (Worker)    │  → Execution adapters (MetaAPI / Paper)
-│  Python      │  → Supabase (persist results, traces)
-└──────────────┘
-        │
-        ├─ MetaAPI (live broker)
-        ├─ PaperTrader (simulation)
-        └─ Discord/Telegram (notifications)
-```
+Frontend is a Next.js application that talks to the API via REST. Real-time updates via WebSocket from the API.
 
-## Core Layers
+## Layers
 
-### 1. API Layer (`src/api.py` + `src/api_*.py`)
-- Single monolithic `api.py` entry point (30KB) that mounts sub-routers
-- ~20 sub-router modules: `api_accounts.py`, `api_analytics.py`, `api_risk.py`, `api_positions.py`, etc.
-- Webhook acceptance → validation → Supabase persist → Redis enqueue
-- REST endpoints for frontend dashboard (accounts, analytics, risk, positions, traces, etc.)
-- Rate limiting via slowapi; CORS configured via `FRONTEND_URL`
-
-### 2. Worker / Pipeline (`src/worker.py`)
-Massive single-file worker (82KB) that runs the full signal processing pipeline:
+### Backend
 
 ```
-Signal dequeued from Redis
-    │
-    ▼
-[Global Guards]
-    ├─ Staleness Guard (signal age check, price deviation)
-    ├─ Kill Switch check
-    └─ Market filter (news/session)
-    │
-    ▼
-[Account Routing] → src/core/account_router.py
-    │ (per account)
-    ▼
-[AI Ensemble]
-    ├─ AI Guardian (quick LLM check, confidence score)
-    ├─ ML Guardian (LightGBM win probability)
-    ├─ Trinity Risk Engine (drawdown/daily loss limits)
-    ├─ Portfolio VaR Guard
-    ├─ Sector Guard
-    ├─ Correlation Guard
-    └─ Prop Guard (FTMO challenge limits)
-    │
-    ▼
-[Execution Adapter]
-    ├─ MetaAPI Adapter → MetaTrader 5 (live)
-    └─ Paper Trader → In-memory (simulation)
-    │
-    ▼
-[Observers / Post-processing]
-    ├─ TCA (Transaction Cost Analysis)
-    ├─ Trace recording
-    └─ Notification dispatch
+TradingView Webhook
+       ↓
+[API Service] — validate → enqueue to Redis
+       ↓
+[Redis Queue] — message bus
+       ↓
+[Worker/Consumer] — dequeue → guard chain → execute
+       ↓
+[Supabase DB] — persistence
+       ↓
+[MetaAPI] — broker execution (MT5)
 ```
 
-### 3. AI/ML Layer (`src/ai/`)
-
-| File | Purpose |
-|------|---------|
-| `brain.py` (59KB) | Orchestrates entire AI ensemble |
-| `trading_council.py` (38KB) | Multi-agent LLM debate ("Bull" vs "Bear" vs "Neutral") |
-| `ai_guardian.py` (26KB) | Single-pass LLM confidence scoring |
-| `ml_guardian.py` (20KB) | LightGBM technical analysis scoring |
-| `debate.py` | Council debate logic |
-| `rag_engine.py` | BM25 retrieval for trade memory context |
-| `council_memory.py` | Stores/retrieves past similar trade situations |
-| `llm_client.py` | Unified LLM client (OpenAI/Anthropic/Groq) |
-| `features.py` | Feature engineering for ML |
-
-### 4. Core Domain (`src/core/`)
-
-| File | Purpose |
-|------|---------|
-| `risk_engine.py` (17KB) | Position sizing (Kelly, fixed %), R:R validation |
-| `transport.py` (10KB) | Signal queue abstraction (Redis or in-memory) |
-| `dynamic_config.py` (12KB) | Runtime configurable settings |
-| `guard_rails/` | Individual guard modules |
-| `signal.py` | Signal domain model |
-| `account_router.py` | Routes signals to correct broker accounts |
-| `broker_profiles.py` | Symbol mapping per broker |
-| `consumer_validator.py` | Validates incoming webhook payload |
-
-### 5. Adapters Layer (`src/adapters/`)
-
-| Adapter | Purpose |
-|---------|---------|
-| `execution/meta_api_adapter.py` | MetaTrader 5 via MetaAPI cloud |
-| `paper_trader.py` (11KB) | Simulated execution |
-| `supabase.py` (41KB) | All database operations |
-| `discord.py` (12KB) | Discord notifications |
-| `market_data.py` (9KB) | yfinance market data |
-| `redis_queue.py` (3KB) | Redis queue operations |
-
-### 6. Frontend (`frontend/src/`)
-
-Next.js 15 App Router, domain-driven structure:
+### Frontend
 
 ```
-frontend/src/
-├── app/              # Page routes (App Router)
-│   ├── page.tsx      # Main dashboard (22KB)
-│   ├── accounts/     # Account management
-│   ├── analytics/    # Analytics dashboard
-│   ├── execution-quality/  # TCA + trace viewer
-│   ├── positions/    # Open positions
-│   ├── risk/         # Risk monitoring
-│   ├── prop-firm/    # Prop firm tracking
-│   ├── backtest/     # ML backtesting
-│   ├── board/        # Kanban board
-│   └── settings/     # Configuration
-├── components/       # Shared UI components
-│   ├── dashboard/    # Dashboard panels (SignalInspector, RecentSignals, etc.)
-│   └── execution/    # Trade trace components (TraceTable, etc.)
-├── domain/           # Core domain models (TypeScript)
-│   └── metrics/      # Trading metrics calculations
-├── hooks/            # Custom React hooks
-├── lib/              # Utilities (Supabase client, API client)
-├── providers/        # Context providers (Auth, QueryClient, WebSocket)
-└── types/            # TypeScript type definitions
+Next.js App (App Router)
+├── /app pages (route handlers)
+├── /components (feature-organized)
+├── /hooks (data fetching: useX.ts)
+├── /domain (business types/models)
+├── /lib (utilities)
+└── /providers (context providers)
 ```
 
-## Data Flow: Signal Lifecycle
+## Guard Chain (Worker)
 
-1. **TradingView** fires webhook → `POST /webhook`
-2. **API** validates, persists to Supabase (`signals` table), enqueues to Redis
-3. **Worker** pops signal, runs global guards
-4. Per account: AI ensemble evaluates signal → result: APPROVE/REJECT
-5. If approved: execution adapter places order at broker
-6. Post-execution: TCA analysis, trace recorded, notification sent
-7. **Frontend** sees updates via Supabase Realtime + React Query polling
+Signals flow through a sequential guard chain before execution:
 
-## Key Design Decisions
+**Global guards (once per signal):**
+1. Kill-switch (env)
+2. Max lot size cap
+3. Staleness guard
+4. AI ensemble (RF model + RAG + LLM debate council)
 
-- **Fail-open by default:** AI/ML guards are designed to fail open (allow trade) on error, preventing AI timeouts from blocking execution
-- **Fast-path bypass:** High-confidence signals can bypass some guards for speed
-- **Single worker file:** All pipeline logic in `worker.py` (82KB) — functional, but growing unwieldy
-- **Multi-broker routing:** Symbol type determines which broker account to use (Forex → Vantage, Metals/Indices → FXCM/IC Markets)
+**Per-account guards (parallel accounts via ThreadPoolExecutor):**
+1. Kill-switch (Redis/MTM)
+2. Circuit breaker
+3. PropGuard (prop firm rules)
+4. Correlation guard
+5. VaR guard
+6. Sector guard
+7. Consistency analyzer
+
+**Execution:**
+- `logic.process_trade()` → ExecutionEngine → adapter → MetaAPI
+
+## Observer Pattern
+
+`WorkerSubject` in `src/core/observers/` broadcasts events to:
+- `AuditorObserver` — logs trade events
+- `RiskObserver` — risk checks
+- `ExecutorObserver` — execution
+- `MetricsObserver` — metrics tracking
+- `AccountRouterObserver` — multi-account routing
+
+## AI Ensemble (`src/ai/`)
+
+Three-layer AI decision system:
+- **ML Guardian** — Random Forest model (scikit-learn) on 20 engineered features
+- **RAG Engine** — retrieves historical trade context
+- **Debate Council** — LLM-based multi-agent deliberation (OpenAI)
+- **Brain** — Ensemble v9.1: aggregates RF + RAG + LLM votes
+
+## Data Flow
+
+1. TradingView sends webhook → `POST /webhook` on API
+2. API validates payload via `src/core/signal.py`, pushes to Redis
+3. Worker pops from Redis, runs through guard chain
+4. On pass: `logic.process_trade()` calls `ExecutionEngine` → MetaAPI
+5. Trade saved to Supabase with full TCA metrics
+6. Frontend polls REST APIs / WebSocket for live updates
+
+## Entry Points
+
+- **API:** `src/api.py` — FastAPI app, registered routers for every domain
+- **Worker:** `src/worker.py` — Long-running consumer loop
+- **Frontend:** `frontend/src/app/layout.tsx` → `frontend/src/app/page.tsx`
+
+## Key Abstractions
+
+- `src/core/transport.py` — signal transport abstraction (Redis/memory/HTTP)
+- `src/adapters/execution/router.py` — execution adapter router (live/paper)
+- `src/adapters/supabase.py` — database adapter
+- `src/adapters/metaapi.py` — broker adapter
+- `src/core/risk_engine.py` — pure risk domain (no I/O)
+- `src/services/execution_engine.py` — TCA-wrapped execution

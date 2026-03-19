@@ -1,187 +1,167 @@
-# INTEGRATIONS.md — External Services & APIs
+# External Integrations
 
-## Supabase (Primary Data Layer)
+**Analysis Date:** 2026-03-19
 
-**Purpose:** PostgreSQL database, authentication, and realtime push  
-**Adapter:** `src/adapters/supabase.py` (41KB — largest adapter file)  
-**Client:** `supabase-py` ==2.10.0  
+## APIs & External Services
 
-### Usage
-- **Database:** All signal, trade, account, and analytics records
-- **Auth:** User authentication (frontend uses anon key; backend uses service role key)
-- **Realtime:** Supabase channels for live signal feed to frontend
-- **Row Level Security:** Enforced — backend bypasses with service role key only
-- **Frontend client:** `@supabase/supabase-js` — direct browser subscriptions
+**Broker Execution (MT5):**
+- MetaApi Cloud - MT5 broker bridge over HTTP REST
+  - SDK/Client: `requests` HTTP calls via `src/adapters/execution/meta_api_adapter.py`
+  - Base URL pattern: `https://mt-client-api-v1.{region}.agiliumtrade.ai`
+  - Auth: `META_API_TOKEN` (env var), passed as `auth-token` header
+  - Account: `META_API_ACCOUNT_ID` (env var)
+  - Region: `META_API_REGION` (env var, default `new-york`)
+  - Multi-account: `BROKER_PROFILES_JSON` (JSON array of broker profiles)
+  - Circuit breaker: `src/core/circuit_breaker.py` guards against 429/5xx cascades
 
-### Env vars
-```
-SUPABASE_URL=https://your-project-id.supabase.co
-SUPABASE_ANON_KEY=...
-SUPABASE_SERVICE_ROLE_KEY=...   # ⚠️ Backend only, never expose to frontend
-NEXT_PUBLIC_SUPABASE_URL=...    # Frontend (baked at build)
-NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-```
+**Market Data:**
+- Yahoo Finance (yfinance) - Market narrative generation and historical returns
+  - SDK: `yfinance>=0.2.36`
+  - Used in: `src/adapters/market_data.py`, `src/services/historical_returns.py`, `src/api_market.py` (CORS proxy for frontend)
+  - Symbol mapping: `XAUUSD → GC=F`, `NAS100 → NQ=F`, `EURUSD → EURUSD=X`, etc.
+  - No API key required (public Yahoo Finance API)
 
----
+**AI Providers:**
+- Anthropic Claude - Primary AI guardian
+  - SDK: `anthropic>=0.18.0`
+  - Client: `src/ai/llm_client.py` `AnthropicClient`
+  - Auth: `ANTHROPIC_API_KEY` (via `AI_API_KEY` alias)
+  - Default model: `claude-3-5-sonnet-20241022`
+- OpenAI / OpenAI-compatible (Groq) - Ensemble brain LLM
+  - SDK: `openai>=1.0.0`
+  - Client: `src/ai/llm_client.py` `OpenAIClient`
+  - Auth: `OPENAI_API_KEY` (via `AI_API_KEY` alias)
+  - Base URL override: `AI_BASE_URL` (allows routing to Groq `api.groq.com/openai/v1`)
+  - Default quick model: `llama-3.1-8b-instant` (Groq-hosted)
+  - Default deep model: `llama-3.3-70b-versatile` (Groq-hosted)
+- Google Gemini - Stub only (`GeminiClient` in `src/ai/llm_client.py`), not implemented
+- Local/Ollama - Stub only (`LocalClient` in `src/ai/llm_client.py`), not implemented
+- Provider selection: `AI_PROVIDER` env var (`anthropic` | `openai` | `gemini` | `local`)
 
-## Redis (Signal Queue + Cache)
+**Notifications:**
+- Discord - Trade alerts and bot notifications
+  - SDK: `requests` HTTP POST to webhook URL
+  - Client: `src/adapters/discord.py`
+  - Auth: `DISCORD_WEBHOOK_URL` (full webhook URL)
+  - Optional async mode: `ASYNC_NOTIFICATIONS=true` uses background ThreadPoolExecutor
+- Telegram - Trade alerts
+  - SDK: `requests` HTTP calls to Bot API
+  - Client: `src/adapters/discord.py` (shared module)
+  - Auth: `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`
 
-**Purpose:** Decoupled message queue between API and Worker, plus caching  
-**Adapter:** `src/adapters/redis_queue.py`  
-**Client:** `redis-py` ≥5.0.0  
+**Trading Signals (Inbound):**
+- TradingView Webhooks - Signal source
+  - Receives `POST /webhook` on backend API (`src/api.py`)
+  - Auth: `WEBHOOK_SECRET` (HMAC or bearer token validation via `src/core/signal.py`)
+  - Payload: JSON with symbol, side, entry, stop_loss, take_profit, position_size, score, etc.
 
-### Usage
-- **Queue:** API pushes signals; Worker pops and processes them
-- **Caching:** Account balances, broker name lookups (permanent cache)
-- **Signal transport mode:** Configurable via `SIGNAL_TRANSPORT=redis` (default) or `memory` (tests)
-- **Fail-fast:** API checks Redis on startup and refuses to start if unavailable
+## Data Storage
 
-### Env vars
-```
-REDIS_URL=redis://localhost:6379
-SIGNAL_TRANSPORT=redis   # or 'memory' for tests
-```
+**Databases:**
+- Supabase (PostgreSQL) - Primary persistent store
+  - Backend client: `supabase==2.10.0` (`src/adapters/supabase.py`, `src/adapters/supabase_api.py`)
+  - Frontend client: `@supabase/supabase-js ^2.93.3` (`frontend/src/lib/supabase.ts`, `frontend/src/lib/boardSupabase.ts`)
+  - Backend connection: `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` (or `SUPABASE_ANON_KEY`)
+  - Frontend connection: `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+  - Key tables: `trading_signals`, `account_strategies`, `broker_profiles`, `account_status_snapshots`, `symbol_risk_rules`, `portfolio_snapshots`, `ai_runs`, `board_tickets`
+  - Migrations: `migrations/` directory (SQL files, numbered `001` through `026+`)
+  - Realtime: enabled on frontend with 10 events/second cap
 
----
+**Message Queue:**
+- Redis 7 (Alpine) - Signal queue between API producer and Worker consumer
+  - SDK: `redis>=5.0.0`
+  - Client: `src/adapters/redis_queue.py`
+  - Connection: `REDIS_URL` (env var)
+  - Queue name: `signals:default` (LPUSH/BRPOP pattern)
+  - Dead letter queue: `signals:dead_letter` (failed signals)
+  - Cache layer: `src/services/redis_cache.py` (account data, MTM snapshots)
+  - In-memory fallback: `SIGNAL_TRANSPORT=memory` for tests
 
-## MetaAPI (Broker Execution)
+**File Storage:**
+- Local filesystem only - ML model artifacts stored at `ml/` (`model_v3_lgbm.txt`, `model_v3.pkl`, `encoders_v3.pkl`, `scaler_v2.pkl`)
+- No cloud file storage (S3/GCS) detected
 
-**Purpose:** Connect to MetaTrader 5 accounts via cloud SDK for live order execution  
-**Adapter:** `src/adapters/execution/meta_api_adapter.py`  
-**Client:** MetaApi cloud SDK (Python)  
+**Caching:**
+- Redis - Account data cache TTL `ACCOUNT_CACHE_TTL_SECONDS` (default 30s)
+- Redis - MTM guardian cache TTL `MTM_CACHE_TTL_SECONDS` (default 10s)
+- Python `lru_cache` - Settings singleton (`config/settings.py`)
 
-### Usage
-- **Supported brokers:** Vantage (Forex), FXCM/IC Markets (Metals/Indices)
-- **Operations:** Open/close positions, fetch account balance, get open positions, price quotes
-- **Multi-account:** Two separate broker configs (VANTAGE for FX, FXCM for metals/indices)
-- **Symbol mapping:** `src/core/broker_profiles.py` — maps TradingView symbols to broker-specific symbols (e.g., `GBPUSD` → `GBPUSD.raw`)
-- **Background reconciliation:** Periodic sync of broker positions with Supabase records (APScheduler)
-- **Timeout settings:** Fast path (trade execution) vs background path (reconciliation)
+## Authentication & Identity
 
-### Env vars
-```
-META_API_TOKEN=...               # Default/Vantage token
-META_API_ACCOUNT_ID=...
-META_API_REGION=new-york
-META_API_TOKEN_VANTAGE=...
-META_API_ACCOUNT_ID_VANTAGE=...
-META_API_TOKEN_FXCM=...          # FXCM/IC Markets
-META_API_ACCOUNT_ID_FXCM=...
-```
+**Auth Provider:**
+- None (no user authentication layer detected)
+- Backend uses `WEBHOOK_SECRET` for TradingView webhook HMAC validation only
+- Supabase accessed with service role key server-side (full access)
+- Frontend uses anon key directly (no user login/RLS enforcement detected)
 
----
+## Monitoring & Observability
 
-## AI Providers (LLM Guardrails)
+**Error Tracking:**
+- None detected (no Sentry, Datadog, etc.)
 
-**Purpose:** Multi-LLM ensemble for trade signal validation  
-**Adapters:** `src/ai/` directory, `src/core/guard_rails/`  
+**Logs:**
+- Python structured logging via `config/logging_config.py` (`configure_logging()`)
+- Log level configurable via `LOG_LEVEL` env var (default `INFO`)
+- Named loggers per module (e.g. `trinity.api`, `trinity.worker`)
+- Frontend: `console.log` / `console.warn` / `console.error` only
 
-### OpenAI / Groq (via OpenAI-compatible API)
-- **Primary model:** `llama-3.3-70b-versatile` (Groq)
-- **Fallback model:** `llama-3.1-8b-instant` (Groq)
-- **Base URL:** `https://api.groq.com/openai/v1`
-- **Usage:** Fast quick-check tier; AI Guardian confidence scoring
+**Kanban Board:**
+- Internal board via Supabase (`board_tickets` table)
+- API: `POST /api/board/create-ticket`, `POST /api/board/agent-update` (`src/api_board.py`)
+- Frontend: `/board` route, uses `frontend/src/lib/boardSupabase.ts`
 
-### Anthropic (Claude)
-- **Provider:** `anthropic` library ≥0.18.0
-- **Usage:** Deep analysis tier; Trading Council debates
+## CI/CD & Deployment
 
-### Two-Tier AI Architecture
-- **Quick:** `AI_QUICK_MODEL=llama-3.1-8b-instant` — fast first pass
-- **Deep:** `AI_DEEP_MODEL=llama-3.3-70b-versatile` — escalation on borderline signals
-- **AI Mode:** `shadow` (log only, no block) or `enforce` (block failing signals)
+**Hosting:**
+- Railway (PaaS) - all three services (API, Worker, Frontend)
+- Services auto-deploy on push to main via Railway GitHub integration
 
-### Env vars
-```
-AI_FILTER_ENABLED=true
-AI_PROVIDER=anthropic
-OPENAI_API_KEY=...
-AI_BASE_URL=https://api.groq.com/openai/v1
-AI_MODEL=llama-3.3-70b-versatile
-ANTHROPIC_API_KEY=...
-AI_MIN_CONFIDENCE=75
-AI_TIMEOUT_SECONDS=5
-```
+**CI Pipeline:**
+- Not detected (no GitHub Actions, CircleCI config found)
 
----
+**Container Registry:**
+- Railway's internal registry (Docker builds run by Railway)
 
-## TradingView (Signal Source)
+## Webhooks & Callbacks
 
-**Purpose:** Incoming webhook signals from TradingView Pine Script strategy  
-**Entry point:** `POST /webhook` (in `src/api.py`)  
+**Incoming:**
+- `POST /webhook` - TradingView signal receiver (`src/api.py`)
+  - Validates `WEBHOOK_SECRET`, pushes to Redis queue
+- `POST /api/board/create-ticket` - Agent board ticket creation
+- `POST /api/board/agent-update` - Agent board ticket status updates
 
-### Webhook Payload
-```json
-{
-  "symbol": "GBPUSD",
-  "side": "BUY",
-  "entry": 1.2500,
-  "sl": 1.2450,
-  "tp": 1.2600,
-  "size": 0.1
-}
-```
+**Outgoing:**
+- Discord webhooks - `DISCORD_WEBHOOK_URL` (trade notifications)
+- Telegram Bot API - `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` (trade notifications)
+- MetaApi REST - Trade execution (`src/adapters/execution/meta_api_adapter.py`)
+- Anthropic API - AI guardian calls (`src/ai/llm_client.py`)
+- OpenAI / Groq API - LLM ensemble calls (`src/ai/llm_client.py`)
+- Yahoo Finance API - Market data pulls (`src/adapters/market_data.py`)
 
-### Security
-- Optional `WEBHOOK_SECRET` header validation
-- Rate limited via slowapi
-- Staleness guard: rejects signals >5 seconds old (`STALENESS_MAX_AGE_SECONDS=5`)
+## Environment Configuration
 
----
+**Required env vars:**
+- `SUPABASE_URL` - Supabase project URL
+- `SUPABASE_ANON_KEY` or `SUPABASE_SERVICE_ROLE_KEY` - Supabase auth key
+- `REDIS_URL` - Redis connection URL
 
-## Discord / Telegram (Notifications)
+**Critical optional env vars:**
+- `META_API_TOKEN` - MetaApi JWT for broker execution
+- `META_API_ACCOUNT_ID` - MT5 account identifier
+- `WEBHOOK_SECRET` - TradingView webhook authentication
+- `DISCORD_WEBHOOK_URL` - Discord notification endpoint
+- `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` - Telegram notifications
+- `AI_API_KEY` - Anthropic or OpenAI key (aliased from `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`)
+- `AI_PROVIDER` - `anthropic` | `openai` | `gemini` | `local`
+- `AI_BASE_URL` - Override for Groq or other OpenAI-compatible endpoints
+- `NEXT_PUBLIC_API_URL` - Frontend → backend URL
+- `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Frontend Supabase
 
-**Purpose:** Trade execution notifications and alerts  
-**Adapters:** `src/adapters/discord.py`  
-
-### Usage
-- Signal received, trade executed, risk limit hit, error alerts
-- Discord webhook (HTTP POST)
-- Telegram bot (Bot Token + Chat ID)
-
-### Env vars
-```
-DISCORD_WEBHOOK_URL=...
-TELEGRAM_BOT_TOKEN=...
-TELEGRAM_CHAT_ID=...
-```
-
----
-
-## Yahoo Finance (Market Data)
-
-**Purpose:** Historical OHLCV data for ML model features  
-**Adapter:** `src/adapters/market_data.py`  
-**Client:** `yfinance` ≥0.2.36  
-
-### Usage
-- Technical indicator calculation (RSI, ATR, MACD, Bollinger Bands)
-- ML Guardian feature engineering
-- Symbol mapping required: TradingView symbols → Yahoo Finance format
-
-### Known Issue
-- HTTP 404 errors for some symbols (e.g., GBPJPY) — symbol mapping may need tuning
-
----
-
-## YouTube / Web Scraping (Strategy Research)
-
-**Purpose:** Automated strategy research from YouTube content  
-**Libraries:** `youtube-transcript-api`, `scrapetube`, `beautifulsoup4`, `lxml`  
-
-### Usage
-- Transcript extraction from YouTube strategy videos
-- Part of AI Copilot / strategy analysis features
-- `src/api_copilot.py` exposes endpoints for this
+**Secrets location:**
+- `.env` file at project root (gitignored)
+- Railway environment variable panel in production
+- `.env.example` documents all variables with defaults
 
 ---
 
-## Paper Trader (Internal Simulation)
-
-**Purpose:** Simulated execution without real broker  
-**Adapter:** `src/adapters/paper_trader.py`  
-
-### Usage
-- Enabled via `PAPER_TRADING_ENABLED=true`
-- In-memory position tracking
-- Useful for testing guardrail pipeline without MetaAPI
+*Integration audit: 2026-03-19*
