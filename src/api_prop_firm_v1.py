@@ -29,23 +29,38 @@ async def get_challenge_status(account_name: str, supabase=Depends(get_api_supab
             except Exception:
                 pass
                 
-        # Fallback to DB
-        profile_resp = supabase.table("broker_profiles").select("*").eq("account_name", account_name).execute()
-        if not profile_resp.data:
+        # 1. Get broker_profile_id from account_strategies
+        acc_resp = supabase.table("account_strategies").select("broker_profile_id, account_type").eq("account_name", account_name).execute()
+        if not acc_resp.data:
             return {"status": "inactive", "firm_detected": False, "firm_info": None, "metrics": None}
             
-        profile = profile_resp.data[0]
-        server_name = profile.get("meta_api_server_name", "")
-        if not server_name:
-            server_name = profile.get("server", "")
+        acc_data = acc_resp.data[0]
+        broker_profile_id = acc_data.get("broker_profile_id")
         
+        server_name = ""
+        db_challenge_type = None
+        
+        if broker_profile_id:
+            profile_resp = supabase.table("broker_profiles").select("*").eq("id", broker_profile_id).execute()
+            if profile_resp.data:
+                profile = profile_resp.data[0]
+                server_name = profile.get("meta_api_server_name", "") or profile.get("server", "")
+                db_challenge_type = profile.get("challenge_type")
+                
+        # 2. Fallback to live snapshots if server_name is missing
+        if not server_name:
+            snap_resp = supabase.table("account_status_snapshots").select("server_name").eq("account_name", account_name).order("snapshot_time", desc=True).limit(1).execute()
+            if snap_resp.data and snap_resp.data[0].get("server_name"):
+                server_name = snap_resp.data[0]["server_name"]
+                
         detector = PropFirmDetector(supabase)
-        challenge_type = detector.auto_detect_challenge_type(server_name, account_name)
+        # Use DB value if set, else auto-detect
+        challenge_type = db_challenge_type if db_challenge_type else detector.auto_detect_challenge_type(server_name, account_name)
         rules = detector.get_firm_and_rules(server_name, challenge_type)
         
         metrics = None
         try:
-            metrics_resp = supabase.table("prop_firm_metrics").select("*").eq("account_name", profile.get("account_name", "")).order("snapshot_time", desc=True).limit(1).execute()
+            metrics_resp = supabase.table("prop_firm_metrics").select("*").eq("account_name", account_name).order("snapshot_time", desc=True).limit(1).execute()
             metrics = metrics_resp.data[0] if metrics_resp.data else None
         except Exception:
             pass

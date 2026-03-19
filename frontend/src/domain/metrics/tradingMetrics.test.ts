@@ -21,7 +21,7 @@ function mkSignal(partial: Partial<TradingSignal>): TradingSignal {
 
 describe('tradingMetrics', () => {
   it('classifies executed with no exit/pnl as open', () => {
-    const signal = mkSignal({ status: 'executed' });
+    const signal = mkSignal({ status: 'executed', broker_position_id: 'pos-123' });
     expect(isSignalOpen(signal)).toBe(true);
     expect(isSignalClosed(signal)).toBe(false);
   });

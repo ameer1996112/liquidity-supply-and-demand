@@ -6,18 +6,16 @@ sector exposure, and optimization recommendations.
 """
 
 import logging
-from typing import Dict, List, Optional
-from datetime import datetime, timezone
+from typing import Dict, List
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from config import get_settings
 from src.adapters import supabase
 from src.services.portfolio_analyzer import (
     PortfolioAnalyzer,
     Position,
-    PortfolioRiskMetrics,
 )
 from src.services.historical_returns import HistoricalReturnsService
 from src.services.position_optimizer import PositionOptimizer

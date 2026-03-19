@@ -93,7 +93,7 @@ def _build_context() -> tuple[str, list[str]]:
                     f"Closed trade stats: Win rate={win_rate:.1f}%, "
                     f"Total PnL=${total_pnl:.2f}, "
                     f"Avg PnL=${total_pnl/len(pnls):.2f}" if pnls else
-                    f"Closed trade stats: No closed trades with PnL data"
+                    "Closed trade stats: No closed trades with PnL data"
                 )
                 sources.append("recent_signals")
 
@@ -246,7 +246,7 @@ async def copilot_chat(request: CopilotChatRequest) -> CopilotChatResponse:
 
     # Call LLM
     try:
-        from src.ai.llm_client import get_ai_client, AIClientError
+        from src.ai.llm_client import get_ai_client
 
         client = get_ai_client()
         answer = client._raw_complete(

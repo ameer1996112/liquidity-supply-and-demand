@@ -144,13 +144,15 @@ export function TraceTable({
   }
 
   useEffect(() => {
-    if (!initialSignalId || !traces || traces.length === 0) return;
+    if (!initialSignalId || !Array.isArray(traces) || traces.length === 0) return;
     const match = traces.find((t) => t.signal_id === initialSignalId);
     if (match) {
       setSelectedId(match.correlation_id);
       setDrawerOpen(true);
     }
   }, [initialSignalId, traces]);
+
+  const safeTraces = Array.isArray(traces) ? traces : [];
 
   return (
     <>
@@ -196,7 +198,7 @@ export function TraceTable({
           </div>
         )}
 
-        {!isLoading && !error && (!traces || traces.length === 0) && (
+        {!isLoading && !error && safeTraces.length === 0 && (
           <div className='flex flex-col items-center justify-center gap-2 py-16 text-slate-500'>
             <Radio className='h-8 w-8 opacity-30' />
             <span className='text-sm'>No pipeline traces yet</span>
@@ -206,9 +208,9 @@ export function TraceTable({
           </div>
         )}
 
-        {!isLoading && !error && traces && traces.length > 0 && (
+        {!isLoading && !error && safeTraces.length > 0 && (
           <div className='divide-y divide-[var(--to-border)]'>
-            {traces.map((trace) => (
+            {safeTraces.map((trace) => (
               <button
                 key={trace.correlation_id}
                 onClick={() => handleRowClick(trace.correlation_id)}

@@ -12,7 +12,7 @@ import logging
 from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from config import get_settings
 from src.services.tca_analyzer import TCAAnalyzer

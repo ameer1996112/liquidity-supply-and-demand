@@ -63,7 +63,7 @@ export function AgentFeed() {
       });
 
     // Subscribe to new events via realtime
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const channel = (supabase as any)
       .channel('agent-feed')
       .on(

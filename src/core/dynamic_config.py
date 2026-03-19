@@ -327,7 +327,7 @@ def check_time_rule_trigger(rule: dict) -> tuple[bool, Optional[float]]:
     Returns:
         (should_trigger, risk_multiplier)
     """
-    from datetime import datetime, time as dt_time
+    from datetime import datetime
     import pytz
 
     trigger_type = rule.get("trigger_type", "")

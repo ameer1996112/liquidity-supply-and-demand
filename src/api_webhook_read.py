@@ -149,7 +149,7 @@ def get_stats_summary(
         active_trades = len(active_resp.data or [])
 
         # ── 24h signals (all statuses) ─────────────────────────────────
-        from datetime import date, timedelta
+        from datetime import date
         today_start = datetime.combine(date.today(), datetime.min.time()).isoformat()
         dq = (
             sb.table("trading_signals")

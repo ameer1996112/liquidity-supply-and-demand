@@ -4,7 +4,6 @@ Sprint 4.1: Backtest engine — replays signals in time order, runs pipeline in 
 
 from __future__ import annotations
 
-import json
 import logging
 import time
 from datetime import datetime, timezone
@@ -13,7 +12,6 @@ from typing import Any, Callable, Dict, List, Optional
 from config import get_settings
 
 from src.services.lookahead_bias_detector import (
-    LookAheadBiasError,
     filter_candles_to_time,
     get_decision_ts_from_signal,
 )

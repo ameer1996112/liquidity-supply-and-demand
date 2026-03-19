@@ -122,7 +122,7 @@ export function SymbolScanner() {
 
   const filtered = (() => {
     const cutoff = subDays(new Date(), filter.days);
-    let base = (allSignals as TradingSignal[]).filter((s) => {
+    const base = (allSignals as TradingSignal[]).filter((s) => {
       if (!isAfter(new Date(s.created_at), cutoff)) return false;
       if (
         filter.symbol &&

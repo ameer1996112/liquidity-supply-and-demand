@@ -23,14 +23,15 @@ const TradingModeContext = createContext<TradingModeContextValue>({
 const STORAGE_KEY = 'trading-mode';
 
 export function TradingModeProvider({ children }: { children: ReactNode }) {
-  const [mode, setModeState] = useState<TradingMode>('LIVE');
-
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === 'PAPER' || stored === 'BACKTEST') {
-      setModeState(stored as TradingMode);
+  const [mode, setModeState] = useState<TradingMode>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored === 'PAPER' || stored === 'BACKTEST') {
+        return stored as TradingMode;
+      }
     }
-  }, []);
+    return 'LIVE';
+  });
 
   const setMode = useCallback((m: TradingMode) => {
     setModeState(m);

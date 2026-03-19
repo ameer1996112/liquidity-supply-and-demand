@@ -9,7 +9,7 @@ Created: 2026-02-09
 """
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 from supabase import Client
 

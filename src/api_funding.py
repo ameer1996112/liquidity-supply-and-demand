@@ -10,7 +10,7 @@ Author: Trinity Engine v3.0
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Optional, List
+from typing import List
 
 from fastapi import APIRouter, Query
 from pydantic import BaseModel

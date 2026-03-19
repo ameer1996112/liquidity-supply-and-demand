@@ -8,7 +8,7 @@ const SYMBOL_RULES_QUERY_KEY = ['symbol-risk-rules'] as const;
 
 async function fetchSymbolRiskRules(): Promise<SymbolRiskRule[]> {
   if (!supabase) throw new Error('Supabase not configured');
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const db = supabase as any;
   const { data, error } = await db
     .from('symbol_risk_rules')
@@ -20,7 +20,7 @@ async function fetchSymbolRiskRules(): Promise<SymbolRiskRule[]> {
 
 async function createSymbolRiskRule(rule: Omit<SymbolRiskRule, 'id' | 'created_at' | 'updated_at'>): Promise<SymbolRiskRule> {
   if (!supabase) throw new Error('Supabase not configured');
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const db = supabase as any;
   const payload = {
     symbol: (rule.symbol || '').trim().toUpperCase(),
@@ -38,7 +38,7 @@ async function createSymbolRiskRule(rule: Omit<SymbolRiskRule, 'id' | 'created_a
 
 async function updateSymbolRiskRule(symbol: string, updates: Partial<SymbolRiskRule>): Promise<SymbolRiskRule> {
   if (!supabase) throw new Error('Supabase not configured');
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const db = supabase as any;
   const payload: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
@@ -57,7 +57,7 @@ async function updateSymbolRiskRule(symbol: string, updates: Partial<SymbolRiskR
 
 async function deleteSymbolRiskRule(symbol: string): Promise<void> {
   if (!supabase) throw new Error('Supabase not configured');
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const db = supabase as any;
   const { error } = await db.from('symbol_risk_rules').delete().eq('symbol', symbol.trim().toUpperCase());
   if (error) throw error;

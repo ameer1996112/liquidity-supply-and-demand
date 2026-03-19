@@ -5,7 +5,7 @@ Aggregates data from DB, Redis, and settings to show current risk utilization.
 
 import logging
 from datetime import date, datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel

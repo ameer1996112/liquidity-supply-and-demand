@@ -138,7 +138,7 @@ export const signalKeys = {
  */
 export function useTradingSignals(mode?: TradingMode) {
   const queryClient = useQueryClient();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const subscriptionRef = useRef<any>(null);
   const eventQueueRef = useRef<QueuedRealtimeEvent[]>([]);
   const batchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

@@ -61,7 +61,7 @@ export function useAlerts() {
       });
       if (!res.ok) {
         // Log and degrade gracefully.
-        // eslint-disable-next-line no-console
+         
         console.warn('Failed to fetch alerts', res.status, res.statusText);
         return [];
       }
@@ -87,7 +87,7 @@ export function useAlerts() {
           (old ?? []).filter((a) => a.id !== id),
         );
       } catch (err) {
-        // eslint-disable-next-line no-console
+         
         console.error('Failed to acknowledge alert', err);
       }
     },
@@ -107,7 +107,7 @@ export function useAlerts() {
       });
       queryClient.setQueryData<Alert[]>(alertKeys.active, []);
     } catch (err) {
-      // eslint-disable-next-line no-console
+       
       console.error('Failed to acknowledge all alerts', err);
     }
   }, [queryClient]);

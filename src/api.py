@@ -35,7 +35,7 @@ from config import get_settings
 from config.logging_config import configure_logging, get_logger
 from src.adapters.redis_queue import get_redis
 from src.core.transport import get_transport
-from src.core.signal import EntryWebhookPayload, ExitWebhookPayload, validate_webhook_payload
+from src.core.signal import validate_webhook_payload
 
 configure_logging()
 logger = get_logger("trinity.api")
@@ -51,6 +51,11 @@ def _build_cors_origins() -> list[str]:
     if frontend_url and frontend_url not in origins:
         origins.append(frontend_url)
         logger.info("CORS: Added FRONTEND_URL origin: %s", frontend_url)
+
+    cors_env = os.getenv("CORS_ORIGINS", "").strip()
+    if cors_env:
+        origins.extend([o.strip() for o in cors_env.split(",") if o.strip()])
+
     return origins
 
 
@@ -121,6 +126,7 @@ app.include_router(board_router)          # Board: /api/v1/board/tickets, agent-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_build_cors_origins(),
+    allow_origin_regex=os.getenv("CORS_ORIGIN_REGEX", r"https://.*\.up\.railway\.app"),
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
@@ -523,7 +529,6 @@ async def debate_ws(websocket: WebSocket):
     final decision) to Redis pub/sub channel `trading:debate_logs`.
     This endpoint subscribes and forwards every message to connected clients.
     """
-    from fastapi import WebSocket as _WS
     await websocket.accept()
     logger.info("[WS] /ws/debate client connected: %s", websocket.client)
     _r = None

@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Iterable, List, Optional, Protocol, Sequence
+from typing import Any, Dict, List, Optional, Protocol, Sequence
 
 import requests
 

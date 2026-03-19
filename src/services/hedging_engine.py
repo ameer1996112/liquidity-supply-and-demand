@@ -14,7 +14,6 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Tuple
-import numpy as np
 
 logger = logging.getLogger(__name__)
 

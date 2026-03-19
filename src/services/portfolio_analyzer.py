@@ -9,7 +9,6 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
-from datetime import datetime, timezone
 
 from src.services.historical_returns import HistoricalReturnsService
 

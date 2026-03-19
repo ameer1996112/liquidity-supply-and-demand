@@ -99,7 +99,7 @@ export function useDashboardLog({
       };
       return updated;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [mounted, isConnected]);
 
   useEffect(() => {

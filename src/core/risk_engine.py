@@ -4,7 +4,6 @@ Pure domain: no DB/API calls. Used by worker and guard_rails.
 """
 
 import logging
-from dataclasses import dataclass
 from datetime import date, datetime
 from enum import Enum
 from typing import Any, Dict, Optional

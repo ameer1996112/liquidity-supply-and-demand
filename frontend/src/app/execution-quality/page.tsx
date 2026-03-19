@@ -60,8 +60,9 @@ interface AccountSwitcherProps {
 }
 
 function AccountSwitcher({ accounts, selected, onChange }: AccountSwitcherProps) {
+  const safeAccounts = Array.isArray(accounts) ? accounts : [];
   // Hide when only the "default" account exists — single-account deployments
-  const hasMultiple = accounts.length > 1 || (accounts.length === 1 && accounts[0].account_id !== 'default');
+  const hasMultiple = safeAccounts.length > 1 || (safeAccounts.length === 1 && safeAccounts[0].account_id !== 'default');
   if (!hasMultiple) return null;
 
   return (
@@ -79,7 +80,7 @@ function AccountSwitcher({ accounts, selected, onChange }: AccountSwitcherProps)
         >
           All
         </button>
-        {accounts.map((acc) => (
+        {safeAccounts.map((acc) => (
           <button
             key={acc.account_id}
             onClick={() => onChange(acc.account_id)}
@@ -496,7 +497,7 @@ function ExecutionQualityContent() {
             <CardContent>
               {alertsLoading ? (
                 <Skeleton className='h-[200px] w-full bg-slate-800/60' />
-              ) : tcaAlerts && tcaAlerts.length > 0 ? (
+              ) : Array.isArray(tcaAlerts) && tcaAlerts.length > 0 ? (
                 <div className='space-y-2'>
                   {tcaAlerts.slice(0, 10).map((alert) => (
                     <div

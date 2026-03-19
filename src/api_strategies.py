@@ -13,7 +13,6 @@ from pydantic import BaseModel, Field, ValidationError
 
 from src.adapters.supabase_api import get_api_supabase as _get_supabase
 from src.services.strategy_config import (
-    StrategyConfig,
     format_validation_errors,
     validate_strategy_config,
 )

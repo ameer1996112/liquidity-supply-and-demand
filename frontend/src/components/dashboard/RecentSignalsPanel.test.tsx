@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import { createRoot, Root } from 'react-dom/client';
-import { act } from 'react-dom/test-utils';
+import { act } from 'react';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RecentSignalsPanel } from './RecentSignalsPanel';
 import { SignalInspector } from '@/components/SignalInspector';
 import type { TradingSignal } from '@/types/trading';
@@ -30,8 +31,9 @@ function DashboardHarness() {
   );
   const [inspectorOpen, setInspectorOpen] = useState(false);
 
+  const queryClient = new QueryClient();
   return (
-    <>
+    <QueryClientProvider client={queryClient}>
       <RecentSignalsPanel
         onSelectSignal={(signal) => {
           setSelectedSignal(signal);
@@ -43,7 +45,7 @@ function DashboardHarness() {
         open={inspectorOpen}
         onOpenChange={setInspectorOpen}
       />
-    </>
+    </QueryClientProvider>
   );
 }
 

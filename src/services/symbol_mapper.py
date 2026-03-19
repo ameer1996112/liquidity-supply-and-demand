@@ -31,7 +31,7 @@ Author: Claude Code (v5.1)
 Date: 2026-02-10
 """
 
-from typing import Dict, Optional
+from typing import Dict
 import logging
 
 logger = logging.getLogger(__name__)

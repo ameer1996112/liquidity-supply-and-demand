@@ -32,7 +32,10 @@ const TRADE_COPY_LOG_KEY = [
 export function useAccountsComparison() {
   return useQuery({
     queryKey: ACCOUNTS_COMPARISON_KEY,
-    queryFn: fetchAccountsComparison,
+    queryFn: async () => {
+      const data = await fetchAccountsComparison();
+      return Array.isArray(data) ? data : [];
+    },
     staleTime: 30_000,
   });
 }

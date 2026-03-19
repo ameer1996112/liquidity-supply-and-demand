@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from src.core.observers.base import ERROR, ORDER_SUBMITTED, SIGNAL_RECEIVED, Observer, TradeEvent
 

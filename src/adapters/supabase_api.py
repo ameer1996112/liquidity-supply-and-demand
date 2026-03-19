@@ -8,7 +8,6 @@ instead of managing their own _client global.
 
 import logging
 import time
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 

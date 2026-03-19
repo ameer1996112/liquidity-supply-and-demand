@@ -26,7 +26,7 @@ from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     # AccountRouter imported only for type-checking to avoid circular imports.
-    from src.core.account_router import AccountRouter
+    pass
 
 logger = logging.getLogger(__name__)
 

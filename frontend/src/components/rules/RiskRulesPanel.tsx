@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 
 // Untyped accessor for tables not in the Database generic
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const db = supabase as any;
 import type { SymbolRiskRule } from '@/types/rules';
 import {

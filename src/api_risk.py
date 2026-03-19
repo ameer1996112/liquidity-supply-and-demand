@@ -1,7 +1,7 @@
 """Risk Cockpit API -- live risk state + kill switch toggle."""
 
 import logging
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException

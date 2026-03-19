@@ -7,7 +7,6 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from config import get_settings
 
 logger = logging.getLogger(__name__)
 

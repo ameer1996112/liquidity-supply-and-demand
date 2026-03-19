@@ -41,7 +41,7 @@ const CustomTooltip = ({
   label,
 }: {
   active?: boolean;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   payload?: Array<{ name: string; value: number; color: string; payload: any }>;
   label?: string;
 }) => {

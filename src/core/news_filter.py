@@ -3,7 +3,6 @@ import requests
 from datetime import datetime, timedelta
 import logging
 import pytz
-import re
 import time
 
 # Configure Logging

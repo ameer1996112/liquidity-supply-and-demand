@@ -166,7 +166,7 @@ export default function RiskMonitorPage() {
 
 // ── Composite Risk Score Card ─────────────────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function CompositeRiskScore({ data }: { data: any }) {
   const { score, label, color } = computeRiskScore(data);
 
@@ -300,7 +300,7 @@ function PanelCard({
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function DailyRiskCard({ data }: { data: any }) {
   const utilizationColor =
     data.loss_pct > 80
@@ -388,7 +388,7 @@ function DailyRiskCard({ data }: { data: any }) {
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function PositionLimitsCard({ data }: { data: any }) {
   return (
     <PanelCard
@@ -438,7 +438,7 @@ function PositionLimitsCard({ data }: { data: any }) {
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function DrawdownCard({ data }: { data: any }) {
   const ddColor =
     data.dd_utilization_pct > 80
@@ -515,7 +515,7 @@ function DrawdownCard({ data }: { data: any }) {
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function ActiveSettingsCard({ data }: { data: any }) {
   const rows = [
     { label: 'Risk/Trade', value: `${data.risk_per_trade_pct}%` },
@@ -594,7 +594,7 @@ function GuardRailsCard({ data }: { data: GuardRailStatus[] }) {
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function SymbolOverridesCard({ data }: { data: any[] }) {
   return (
     <div className='tv-card'>

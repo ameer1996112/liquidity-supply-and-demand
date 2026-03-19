@@ -37,7 +37,7 @@ export interface CreateTicketInput {
 /** Fetch all tickets ordered by created_at desc */
 export async function fetchTickets(): Promise<Ticket[]> {
   if (!supabase) return MOCK_TICKETS;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const { data, error } = await (supabase as any)
     .from('project_tickets')
     .select('*')
@@ -49,7 +49,7 @@ export async function fetchTickets(): Promise<Ticket[]> {
 /** Create a new ticket; auto-generates ticket_id like BUG-023 */
 export async function createTicket(input: CreateTicketInput): Promise<Ticket> {
   if (!supabase) throw new Error('Supabase unavailable');
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const db = supabase as any;
   const prefix =
     input.type === 'bug'
@@ -86,7 +86,7 @@ export async function updateTicketStatus(
   status: TicketStatus
 ): Promise<void> {
   if (!supabase) return;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const db = supabase as any;
   const patch: Record<string, unknown> = { status };
   if (status === 'done') patch.completed_at = new Date().toISOString();
@@ -100,7 +100,7 @@ export async function updateTicket(
   patch: Partial<Ticket>
 ): Promise<void> {
   if (!supabase) return;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const { error } = await (supabase as any)
     .from('project_tickets')
     .update(patch)

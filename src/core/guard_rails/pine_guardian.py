@@ -23,7 +23,7 @@ Version: 1.0.0
 import logging
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict, Literal, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 

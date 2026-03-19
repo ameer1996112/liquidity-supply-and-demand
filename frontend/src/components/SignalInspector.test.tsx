@@ -3,6 +3,7 @@
 import { createRoot, Root } from 'react-dom/client';
 import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SignalInspector } from './SignalInspector';
 import type { TradingSignal } from '@/types/trading';
 
@@ -54,9 +55,12 @@ describe('SignalInspector decision summary', () => {
       },
     };
 
+    const queryClient = new QueryClient();
     act(() => {
       root.render(
-        <SignalInspector signal={signal} open={true} onOpenChange={() => {}} />
+        <QueryClientProvider client={queryClient}>
+          <SignalInspector signal={signal} open={true} onOpenChange={() => {}} />
+        </QueryClientProvider>
       );
     });
 
@@ -111,9 +115,12 @@ describe('SignalInspector decision summary', () => {
       },
     };
 
+    const queryClient = new QueryClient();
     act(() => {
       root.render(
-        <SignalInspector signal={signal} open={true} onOpenChange={() => {}} />
+        <QueryClientProvider client={queryClient}>
+          <SignalInspector signal={signal} open={true} onOpenChange={() => {}} />
+        </QueryClientProvider>
       );
     });
 
@@ -146,9 +153,12 @@ describe('SignalInspector decision summary', () => {
       run_mode: 'LIVE',
     } as TradingSignal;
 
+    const queryClient = new QueryClient();
     act(() => {
       root.render(
-        <SignalInspector signal={signal} open={true} onOpenChange={() => {}} />
+        <QueryClientProvider client={queryClient}>
+          <SignalInspector signal={signal} open={true} onOpenChange={() => {}} />
+        </QueryClientProvider>
       );
     });
 
@@ -170,9 +180,12 @@ describe('SignalInspector decision summary', () => {
       signal_action: 'close_all',
     } as TradingSignal;
 
+    const queryClient = new QueryClient();
     act(() => {
       root.render(
-        <SignalInspector signal={signal} open={true} onOpenChange={() => {}} />
+        <QueryClientProvider client={queryClient}>
+          <SignalInspector signal={signal} open={true} onOpenChange={() => {}} />
+        </QueryClientProvider>
       );
     });
 

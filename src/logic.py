@@ -3,7 +3,6 @@ Trade execution logic (Engine).
 Save to Supabase, filter or notify, optional paper position. Used only by worker.
 """
 
-import logging
 import time
 import uuid
 from config.logging_config import get_logger
@@ -19,7 +18,7 @@ from src.adapters.supabase import (
     get_alert_by_zone_id,
     get_alert_by_trade_key,
 )
-from src.adapters.discord import send_discord, send_telegram, send_discord_async, send_telegram_async
+from src.adapters.discord import send_discord_async, send_telegram_async
 from src.adapters.paper_trader import get_paper_trader
 from src.adapters.execution.interfaces import OrderRequest, CloseRequest
 from src.adapters.execution.router import get_adapter

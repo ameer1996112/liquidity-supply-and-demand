@@ -1,12 +1,11 @@
 """Rules Management API — Symbol Risk Rules + RAG Strategy Rules."""
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from config import get_settings
 
 logger = logging.getLogger(__name__)
 

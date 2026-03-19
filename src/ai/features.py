@@ -4,7 +4,6 @@ import re
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-import pandas as pd
 
 
 # ── Session mapping: Pine Script session int → session name string ───────

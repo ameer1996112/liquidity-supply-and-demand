@@ -15,7 +15,7 @@ Author: Trinity Engine v3.0
 """
 
 from datetime import datetime, timezone
-from typing import Tuple, Optional
+from typing import Tuple
 import logging
 
 logger = logging.getLogger(__name__)

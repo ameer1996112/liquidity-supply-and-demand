@@ -45,7 +45,7 @@ def push_payload(payload_str: str) -> None:
         # Fallback: save signal to dead-letter queue so it's not lost
         try:
             push_dead_letter(payload_str, f"Redis push failed: {e}")
-            logger.warning(f"✅ Payload saved to dead-letter queue for manual retry")
+            logger.warning("✅ Payload saved to dead-letter queue for manual retry")
         except Exception as dl_error:
             logger.critical(f"❌ CRITICAL: Failed to save to dead-letter: {dl_error}", exc_info=True)
             # Last resort: re-raise to trigger Railway restart (fail-fast)

@@ -1,10 +1,9 @@
 """Evaluation API - Track prop firm evaluation progress."""
 
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from fastapi import APIRouter
 
 from config import get_settings
-from src.adapters.supabase import init_supabase
 
 router = APIRouter(prefix="/evaluation", tags=["evaluation"])
 
@@ -12,7 +11,6 @@ router = APIRouter(prefix="/evaluation", tags=["evaluation"])
 @router.get("/stats")
 def get_evaluation_stats():
     """Get evaluation progress metrics."""
-    from src.adapters import supabase as supabase_module
 
     s = get_settings()
 

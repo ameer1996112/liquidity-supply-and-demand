@@ -7,7 +7,7 @@ for portfolio risk analysis.
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional
+from typing import List, Optional
 import numpy as np
 import yfinance as yf
 from functools import lru_cache

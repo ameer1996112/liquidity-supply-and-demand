@@ -8,7 +8,6 @@ and portfolio optimization algorithms.
 import logging
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
-import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -202,7 +201,7 @@ class PositionOptimizer:
         projected_exposure_usd = current_exposure_usd + new_notional
 
         if total_equity == 0:
-            return False, f"Cannot calculate sector exposure: equity is zero"
+            return False, "Cannot calculate sector exposure: equity is zero"
 
         projected_exposure_pct = (projected_exposure_usd / total_equity) * 100
         limit_pct = sector_limits[sector] * 100

@@ -109,7 +109,7 @@ class LatencyTracker:
 
         # Add metadata summary
         if self.metadata:
-            logger.log(log_level, f"\n  Metadata:")
+            logger.log(log_level, "\n  Metadata:")
             for key, value in self.metadata.items():
                 logger.log(log_level, f"    {key}: {value}")
 

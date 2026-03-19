@@ -9,7 +9,7 @@ Author: Trinity Engine v3.0
 """
 
 import logging
-from datetime import datetime, timezone, time
+from datetime import datetime, timezone
 from typing import Optional
 
 logger = logging.getLogger(__name__)

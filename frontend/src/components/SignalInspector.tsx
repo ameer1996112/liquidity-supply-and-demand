@@ -814,7 +814,7 @@ export function SignalInspector({
                                   ? String(rule.message)
                                   : '';
                               return (
-                                // eslint-disable-next-line react/no-array-index-key
+                                 
                                 <div
                                   key={`${getRuleDisplayId(
                                     rule as Record<string, unknown>
@@ -866,7 +866,7 @@ export function SignalInspector({
                             </span>
                             <ul className='list-disc pl-4 space-y-1'>
                               {ai.rules.slice(0, 5).map((rule, idx) => (
-                                // eslint-disable-next-line react/no-array-index-key
+                                 
                                 <li key={idx}>{String(rule)}</li>
                               ))}
                             </ul>

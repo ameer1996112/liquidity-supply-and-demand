@@ -28,7 +28,7 @@ export function TableSkeleton({
         >
           {cols.map((__, colIndex) => (
             <Skeleton
-              // eslint-disable-next-line react/no-array-index-key
+               
               key={colIndex}
               className={cn(
                 'h-3 rounded bg-surface-raised/80',

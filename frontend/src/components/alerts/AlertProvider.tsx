@@ -70,9 +70,9 @@ export function AlertProvider({ children }: AlertProviderProps) {
       alerts,
       unreadCount,
       // Expose async signatures but underlying hooks already handle errors/logging.
-      // eslint-disable-next-line @typescript-eslint/no-misused-promises
+       
       markAsRead,
-      // eslint-disable-next-line @typescript-eslint/no-misused-promises
+       
       clearAll,
     }),
     [alerts, unreadCount, markAsRead, clearAll],
