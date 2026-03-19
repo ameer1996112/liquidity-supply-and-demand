@@ -191,7 +191,7 @@ export default function AccountDetailPage() {
                 </div>
                 <div className='h-3 w-px bg-[var(--to-border)]'></div>
                 <div className='flex items-center gap-2'>
-                  <span className='text-xs text-slate-500'>Today:</span>
+                  <span className='text-xs text-[var(--to-text-dim)]'>Today:</span>
                   <span
                     className={`font-mono font-semibold ${
                       account.daily_pnl >= 0

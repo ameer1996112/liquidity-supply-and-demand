@@ -16,10 +16,10 @@ export default function RulesPage() {
       </div>
 
       <Tabs defaultValue='risk'>
-        <TabsList className='surface-soft rounded-lg border border-slate-700 p-0.5'>
+        <TabsList className='surface-soft rounded-lg border border-[var(--to-border)] p-0.5'>
           <TabsTrigger
             value='risk'
-            className='flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[11px] font-medium data-[state=active]:bg-indigo-600/20 data-[state=active]:text-indigo-300 data-[state=inactive]:text-slate-500'
+            className='flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[11px] font-medium data-[state=active]:bg-indigo-600/20 data-[state=active]:text-indigo-300 data-[state=inactive]:text-[var(--to-text-dim)]'
             style={{ fontFamily: 'var(--font-sans)' }}
           >
             <ShieldCheck className='h-3.5 w-3.5' />
@@ -27,7 +27,7 @@ export default function RulesPage() {
           </TabsTrigger>
           <TabsTrigger
             value='strategy'
-            className='flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[11px] font-medium data-[state=active]:bg-indigo-600/20 data-[state=active]:text-indigo-300 data-[state=inactive]:text-slate-500'
+            className='flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[11px] font-medium data-[state=active]:bg-indigo-600/20 data-[state=active]:text-indigo-300 data-[state=inactive]:text-[var(--to-text-dim)]'
             style={{ fontFamily: 'var(--font-sans)' }}
           >
             <BookOpen className='h-3.5 w-3.5' />

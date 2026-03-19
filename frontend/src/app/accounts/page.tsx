@@ -103,9 +103,9 @@ export default function AccountsPage() {
       <section>
         <div className='mb-3 flex items-center justify-between'>
           <div className='flex items-center gap-2'>
-            <Users className='h-3.5 w-3.5 text-slate-400' />
+            <Users className='h-3.5 w-3.5 text-[var(--to-text-dim)]' />
             <h2
-              className='text-sm font-medium text-slate-300'
+              className='text-sm font-medium text-[var(--to-text-secondary)]'
               style={{ fontFamily: 'var(--font-sans)' }}
             >
               Account Comparison
@@ -119,7 +119,7 @@ export default function AccountsPage() {
                 className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] transition-colors ${
                   viewMode === 'table'
                     ? 'bg-indigo-600/20 text-indigo-300'
-                    : 'text-slate-500 hover:text-slate-300'
+                    : 'text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]'
                 }`}
                 style={{ fontFamily: 'var(--font-sans)' }}
               >
@@ -131,7 +131,7 @@ export default function AccountsPage() {
                 className={`flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] transition-colors ${
                   viewMode === 'cards'
                     ? 'bg-indigo-600/20 text-indigo-300'
-                    : 'text-slate-500 hover:text-slate-300'
+                    : 'text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]'
                 }`}
                 style={{ fontFamily: 'var(--font-sans)' }}
               >
@@ -143,7 +143,7 @@ export default function AccountsPage() {
             <Button
               variant='outline'
               size='sm'
-              className='h-7 border-slate-700 bg-slate-800/60 text-slate-300 hover:bg-slate-800 hover:text-slate-100 text-xs'
+              className='h-7 border-[var(--to-border)] bg-[var(--to-surface)] text-[var(--to-text-secondary)] hover:bg-[var(--to-surface-raised)] hover:text-[var(--to-text-primary)] text-xs'
               onClick={() => setShowAddForm(!showAddForm)}
             >
               <Plus className='mr-1 h-3 w-3' />
@@ -164,7 +164,7 @@ export default function AccountsPage() {
         {isLoading ? (
           <div className='space-y-2'>
             {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className='h-14 rounded-lg bg-slate-800/60' />
+              <Skeleton key={i} className='h-14 rounded-lg bg-[var(--to-surface-raised)]/60' />
             ))}
           </div>
         ) : accounts.length === 0 ? (
@@ -174,7 +174,7 @@ export default function AccountsPage() {
                 [ NO ACCOUNTS CONFIGURED ]
               </span>
               <span
-                className='mt-1 text-[10px] text-slate-700'
+                className='mt-1 text-[10px] text-[var(--to-text-dim)]'
                 style={{ fontFamily: 'var(--font-mono)' }}
               >
                 click &quot;Add account&quot; above or add rows to

@@ -61,7 +61,7 @@ const StreakTimeline = dynamic(
     ),
   {
     loading: () => (
-      <Skeleton className='h-[280px] w-full rounded-lg bg-slate-800/60' />
+      <Skeleton className='h-[280px] w-full rounded-lg bg-[var(--to-surface-raised)]/60' />
     ),
   }
 );

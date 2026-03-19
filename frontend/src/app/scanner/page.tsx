@@ -91,7 +91,7 @@ function SideBadge({ side }: { side: string }) {
   }
   return (
     <span
-      className='inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-slate-700/50 text-slate-400'
+      className='inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase bg-[var(--to-surface-raised)] text-[var(--to-text-dim)]'
       style={{ fontFamily: 'var(--font-mono)' }}
     >
       <Minus className='h-2.5 w-2.5' /> NEUTRAL
@@ -293,7 +293,7 @@ export default function ScannerPage() {
         {isLoading ? (
           <div className='p-4 space-y-2'>
             {[...Array(6)].map((_, i) => (
-              <Skeleton key={i} className='h-10 rounded-lg bg-slate-800/60' />
+              <Skeleton key={i} className='h-10 rounded-lg bg-[var(--to-surface-raised)]/60' />
             ))}
           </div>
         ) : filtered.length === 0 ? (
