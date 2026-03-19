@@ -99,8 +99,8 @@ function WaitingBanner({
   ];
 
   return (
-    <section className='to-panel shrink-0 border-amber/15 bg-amber/5 p-3'>
-      <h2 className='text-sm font-semibold text-amber'>Bot is waiting for…</h2>
+    <section className='to-panel shrink-0 border-[var(--to-warning)]/15 bg-[var(--to-warning)]/5 p-3'>
+      <h2 className='text-sm font-semibold text-[var(--to-warning)]'>Bot is waiting for…</h2>
       <div className='mt-2 grid gap-3 md:grid-cols-2'>
         <dl className='space-y-1 text-xs text-text-secondary'>
           {(
@@ -202,8 +202,7 @@ export default function DashboardPage() {
         : new Date().toLocaleTimeString()
     );
     // Recompute only when the latest signal changes, not on every render tick
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [latestSignal?.id]);
+  }, [latestSignal?.id, latestSignal?.updated_at, latestSignal?.created_at]);
 
   // ── Sparkline data (derived from recent signals) ────────────────────────────
 
