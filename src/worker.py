@@ -1681,12 +1681,21 @@ def run():
                             meta_api_account_id=profile.get("meta_api_account_id", ""),
                             meta_api_region=getattr(settings, "meta_api_region", "london"),
                         )
-                        logger.info(
-                            "Broker reconciliation for profile %s: %d closed, %d errors",
-                            profile.get("name", "unknown"),
-                            result.get("closed_count", 0),
-                            len(result.get("errors", [])),
-                        )
+                        closed_count = result.get("closed_count", 0)
+                        error_count = len(result.get("errors", []))
+                        # Only log at INFO when something actually happened
+                        if closed_count > 0 or error_count > 0:
+                            logger.info(
+                                "Broker reconciliation for profile %s: %d closed, %d errors",
+                                profile.get("name", "unknown"),
+                                closed_count,
+                                error_count,
+                            )
+                        else:
+                            logger.debug(
+                                "Broker reconciliation for profile %s: no changes",
+                                profile.get("name", "unknown"),
+                            )
                     last_reconciliation_ts = now
                 except Exception as recon_exc:  # noqa: BLE001
                     logger.error("Broker reconciliation failed: %s", recon_exc)

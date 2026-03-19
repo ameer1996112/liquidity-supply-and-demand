@@ -119,9 +119,11 @@ class MetaApiAdapter:
 
         Returns (bid, ask); any failures are logged and return (None, None).
         """
+        # Translate to broker symbol (e.g. GBPUSD -> GBPUSD.raw for ACG-DEMO)
+        broker_symbol = SymbolMapper.to_broker_symbol(symbol)
         url = (
             f"{self.base_url}/users/current/accounts/"
-            f"{self.account_id}/symbols/{symbol}/current-price"
+            f"{self.account_id}/symbols/{broker_symbol}/current-price"
         )
         resp = self._request_with_retry("GET", url, timeout=10)
         if resp is None or resp.status_code != 200:
