@@ -67,12 +67,17 @@
   --color-text-primary: var(--to-text-primary);
   --color-text-secondary: var(--to-text-secondary);
   --color-text-dim: var(--to-text-dim);
+  --color-success: var(--to-success);
+  --color-error:   var(--to-error);
+  --color-info:    var(--to-info);
 }
 
 /* ── TradeOps Design System — Premium Dark Terminal ───────────────────────── */
 :root {
+  /* ── Radius ──────────────────────────────────────────────────────────────── */
   --radius: 0.5rem;
 
+  /* ── Color: Backgrounds & Surfaces ──────────────────────────────────────── */
   /* Core palette — deep obsidian base */
   --background: #080b10;
   --foreground: #e6eaf0;
@@ -93,14 +98,14 @@
   --input: #161b22;
   --ring: #f0b90b;
 
-  /* Chart colors */
+  /* ── Color: Chart ───────────────────────────────────────────────────────── */
   --chart-1: #0ecb81;
   --chart-2: #f6465d;
   --chart-3: #f0b90b;
   --chart-4: #3b82f6;
   --chart-5: #a78bfa;
 
-  /* Sidebar */
+  /* ── Color: Sidebar ─────────────────────────────────────────────────────── */
   --sidebar: #080b10;
   --sidebar-foreground: #b0bac8;
   --sidebar-primary: #f0b90b;
@@ -110,28 +115,44 @@
   --sidebar-border: #21262d;
   --sidebar-ring: #f0b90b;
 
-  /* TradeOps semantic tokens */
+  /* ── Color: TradeOps Backgrounds ────────────────────────────────────────── */
   --to-bg: #080b10;
   --to-surface: #0d1117;
   --to-surface-raised: #161b22;
   --to-surface-overlay: #1c2230;
+
+  /* ── Color: Borders ─────────────────────────────────────────────────────── */
   --to-border: #21262d;
   --to-border-subtle: #161b22;
   --to-border-glow: rgba(240, 185, 11, 0.15);
+
+  /* ── Color: Text ────────────────────────────────────────────────────────── */
   --to-text-primary: #e6eaf0;
   --to-text-secondary: #8b95a5;
   --to-text-dim: #4d5666;
+
+  /* ── Color: Accents ─────────────────────────────────────────────────────── */
   --to-accent-blue: #3b82f6;
   --to-accent-green: #0ecb81;
   --to-accent-red: #f6465d;
   --to-accent-amber: #f0b90b;
   --to-accent-purple: #8b5cf6;
 
-  /* Trading semantic */
+  /* ── Color: Semantic (trading) ──────────────────────────────────────────── */
   --to-long: #0ecb81;
   --to-short: #f6465d;
   --to-neutral: #8b95a5;
   --to-warning: #f0b90b;
+
+  /* ── Color: Semantic (status) ───────────────────────────────────────────── */
+  --to-success: var(--to-accent-green);   /* #0ecb81 — alias, not duplicate */
+  --to-info:    var(--to-accent-blue);    /* #3b82f6 — alias */
+  --to-error:   var(--to-accent-red);     /* #f6465d — alias */
+
+  /* Semantic glow aliases */
+  --glow-success: var(--glow-green);
+  --glow-error:   var(--glow-red);
+  --glow-info:    var(--glow-blue);
 
   /* Glow shadows */
   --glow-green: 0 0 12px rgba(14, 203, 129, 0.35),
