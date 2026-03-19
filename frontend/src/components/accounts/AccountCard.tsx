@@ -22,7 +22,7 @@ export function AccountCard({ account, className }: AccountCardProps) {
       )}
     >
       <div className="flex items-center justify-between">
-        <span className="font-mono text-sm font-semibold text-zinc-200">
+        <span className="font-mono text-sm font-semibold text-[var(--to-text-primary)]">
           {account.account_name}
         </span>
         {account.strategy_type && (
@@ -34,14 +34,14 @@ export function AccountCard({ account, className }: AccountCardProps) {
 
       <div className="space-y-2">
         <div className="flex justify-between items-baseline">
-          <span className="text-[10px] text-zinc-600 font-mono">Balance</span>
-          <span className="font-mono text-sm font-bold text-zinc-100 tabular-nums">
+          <span className="text-[10px] text-[var(--to-text-dim)] font-mono">Balance</span>
+          <span className="font-mono text-sm font-bold text-[var(--to-text-primary)] tabular-nums">
             ${account.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
           </span>
         </div>
 
         <div className="flex justify-between items-center">
-          <span className="text-[10px] text-zinc-600 font-mono">Daily PnL</span>
+          <span className="text-[10px] text-[var(--to-text-dim)] font-mono">Daily PnL</span>
           <div className="flex items-center gap-1">
             {dailyPositive ? (
               <TrendingUp className="w-3 h-3 text-long" />
@@ -62,10 +62,10 @@ export function AccountCard({ account, className }: AccountCardProps) {
         </div>
 
         <div className="flex justify-between items-center">
-          <span className="text-[10px] text-zinc-600 font-mono">Win Rate</span>
+          <span className="text-[10px] text-[var(--to-text-dim)] font-mono">Win Rate</span>
           <div className="flex items-center gap-1">
-            <BarChart3 className="w-3 h-3 text-zinc-500" />
-            <span className="font-mono text-xs text-zinc-300 tabular-nums">
+            <BarChart3 className="w-3 h-3 text-[var(--to-text-dim)]" />
+            <span className="font-mono text-xs text-[var(--to-text-secondary)] tabular-nums">
               {winRatePct}%
             </span>
           </div>
@@ -73,16 +73,16 @@ export function AccountCard({ account, className }: AccountCardProps) {
 
         {account.sharpe_ratio != null && (
           <div className="flex justify-between items-center">
-            <span className="text-[10px] text-zinc-600 font-mono">Sharpe</span>
-            <span className="font-mono text-xs text-zinc-400 tabular-nums">
+            <span className="text-[10px] text-[var(--to-text-dim)] font-mono">Sharpe</span>
+            <span className="font-mono text-xs text-[var(--to-text-dim)] tabular-nums">
               {account.sharpe_ratio.toFixed(2)}
             </span>
           </div>
         )}
 
         <div className="flex justify-between items-center pt-1 border-t border-panel-border-subtle">
-          <span className="text-[10px] text-zinc-600 font-mono">Positions</span>
-          <span className="font-mono text-xs text-zinc-400 tabular-nums">
+          <span className="text-[10px] text-[var(--to-text-dim)] font-mono">Positions</span>
+          <span className="font-mono text-xs text-[var(--to-text-dim)] tabular-nums">
             {account.active_positions}
             {account.total_trades != null ? ` / ${account.total_trades} trades` : ''}
           </span>

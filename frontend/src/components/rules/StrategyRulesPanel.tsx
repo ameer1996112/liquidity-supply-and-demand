@@ -93,7 +93,7 @@ export function StrategyRulesPanel() {
 
   if (!supabase) {
     return (
-      <div className='tv-card p-6 text-center text-zinc-500 text-sm'>
+      <div className='tv-card p-6 text-center text-[var(--to-text-dim)] text-sm'>
         Supabase not configured. Set environment variables to manage rules.
       </div>
     );
@@ -102,14 +102,14 @@ export function StrategyRulesPanel() {
   return (
     <div className='space-y-4'>
       {error && (
-        <div className='bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-2 text-red-400 text-xs font-mono'>
+        <div className='bg-[var(--to-short)]/10 border border-[var(--to-short)]/30 rounded-lg px-4 py-2 text-[var(--to-short)] text-xs font-mono'>
           {error}
         </div>
       )}
 
       <div className='flex items-center justify-between'>
         <div className='flex items-center gap-2'>
-          <span className='text-xs text-zinc-500 font-mono uppercase tracking-wider'>
+          <span className='text-xs text-[var(--to-text-dim)] font-mono uppercase tracking-wider'>
             RAG Strategy Knowledge Base
           </span>
           <Badge variant='secondary' className='text-[10px]'>
@@ -120,7 +120,7 @@ export function StrategyRulesPanel() {
           onClick={() => setShowForm(!showForm)}
           className={cn(
             'flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono',
-            'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors',
+            'bg-[var(--to-long)]/10 text-[var(--to-long)] hover:bg-[var(--to-long)]/20 transition-colors',
           )}
         >
           <Plus className='w-3.5 h-3.5' />
@@ -131,8 +131,8 @@ export function StrategyRulesPanel() {
       {showForm && (
         <div className='tv-card p-4 space-y-3'>
           <div className='flex items-center gap-2'>
-            <BookOpen className='w-4 h-4 text-zinc-500' />
-            <span className='text-xs font-mono text-zinc-400 uppercase tracking-wider'>
+            <BookOpen className='w-4 h-4 text-[var(--to-text-dim)]' />
+            <span className='text-xs font-mono text-[var(--to-text-dim)] uppercase tracking-wider'>
               New Strategy Rule
             </span>
           </div>
@@ -144,13 +144,13 @@ export function StrategyRulesPanel() {
             rows={4}
             className={cn(
               'w-full bg-[#1e222d] border border-[#2a2e39] rounded-lg px-3 py-2',
-              'text-xs font-mono text-zinc-200 placeholder:text-zinc-600',
+              'text-xs font-mono text-[var(--to-text-primary)] placeholder:text-[var(--to-text-dim)]',
               'focus:outline-none focus:border-emerald-500 resize-y',
             )}
           />
           <div className='flex items-center justify-between'>
             <div className='flex items-center gap-2'>
-              <span className='text-[10px] text-zinc-500 font-mono uppercase'>
+              <span className='text-[10px] text-[var(--to-text-dim)] font-mono uppercase'>
                 Timeframe:
               </span>
               <div className='flex gap-1'>
@@ -161,8 +161,8 @@ export function StrategyRulesPanel() {
                     className={cn(
                       'px-2 py-0.5 rounded text-[10px] font-mono transition-colors',
                       timeframe === tf
-                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                        : 'bg-[#1e222d] text-zinc-500 border border-[#2a2e39] hover:text-zinc-300',
+                        ? 'bg-[var(--to-long)]/20 text-[var(--to-long)] border border-[var(--to-long)]/30'
+                        : 'bg-[#1e222d] text-[var(--to-text-dim)] border border-[#2a2e39] hover:text-[var(--to-text-secondary)]',
                     )}
                   >
                     {tf}
@@ -176,7 +176,7 @@ export function StrategyRulesPanel() {
                   setShowForm(false);
                   setContent('');
                 }}
-                className='px-3 py-1.5 rounded text-xs font-mono text-zinc-500 hover:text-zinc-300 transition-colors'
+                className='px-3 py-1.5 rounded text-xs font-mono text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)] transition-colors'
               >
                 Cancel
               </button>
@@ -203,15 +203,15 @@ export function StrategyRulesPanel() {
 
       {loading ? (
         <div className='flex items-center justify-center py-12'>
-          <Loader2 className='w-5 h-5 animate-spin text-zinc-500' />
+          <Loader2 className='w-5 h-5 animate-spin text-[var(--to-text-dim)]' />
         </div>
       ) : rules.length === 0 ? (
         <div className='tv-card p-8 text-center'>
-          <BookOpen className='w-8 h-8 text-zinc-600 mx-auto mb-3' />
-          <p className='text-zinc-500 text-sm'>
+          <BookOpen className='w-8 h-8 text-[var(--to-text-dim)] mx-auto mb-3' />
+          <p className='text-[var(--to-text-dim)] text-sm'>
             No strategy rules in the knowledge base.
           </p>
-          <p className='text-zinc-600 text-xs mt-1'>
+          <p className='text-[var(--to-text-dim)] text-xs mt-1'>
             Add rules that the AI will use when evaluating trade signals.
           </p>
         </div>
@@ -224,7 +224,7 @@ export function StrategyRulesPanel() {
             >
               <div className='flex items-start justify-between gap-3'>
                 <div className='flex-1 min-w-0'>
-                  <p className='text-xs text-zinc-300 font-mono leading-relaxed whitespace-pre-wrap'>
+                  <p className='text-xs text-[var(--to-text-secondary)] font-mono leading-relaxed whitespace-pre-wrap'>
                     {rule.content}
                   </p>
                   <div className='flex items-center gap-2 mt-2'>
@@ -238,14 +238,14 @@ export function StrategyRulesPanel() {
                           {key}: {value}
                         </Badge>
                       ))}
-                    <span className='text-[9px] text-zinc-600 font-mono'>
+                    <span className='text-[9px] text-[var(--to-text-dim)] font-mono'>
                       ID: {rule.id.slice(0, 8)}
                     </span>
                   </div>
                 </div>
                 <button
                   onClick={() => deleteRule(rule.id)}
-                  className='p-1 text-zinc-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100'
+                  className='p-1 text-[var(--to-text-dim)] hover:text-[var(--to-short)] transition-colors opacity-0 group-hover:opacity-100'
                 >
                   <Trash2 className='w-3.5 h-3.5' />
                 </button>

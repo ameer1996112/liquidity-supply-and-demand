@@ -26,12 +26,12 @@ export function ReconciliationAlert({
     return (
       <div className='tv-card'>
         <div className='flex items-center gap-3 px-4 py-3'>
-          <CheckCircle className='h-4 w-4 text-green-500' />
+          <CheckCircle className='h-4 w-4 text-[var(--to-long)]' />
           <div className='flex-1'>
-            <p className='text-sm font-medium text-zinc-200'>
+            <p className='text-sm font-medium text-[var(--to-text-primary)]'>
               Positions synchronized
             </p>
-            <p className='text-xs text-zinc-500'>
+            <p className='text-xs text-[var(--to-text-dim)]'>
               {matched_count} {matched_count === 1 ? 'position' : 'positions'}{' '}
               matched with broker
             </p>
@@ -46,14 +46,14 @@ export function ReconciliationAlert({
       <div className='flex items-start gap-3 px-4 py-3'>
         <AlertCircle className='h-5 w-5 text-yellow-500 mt-0.5' />
         <div className='flex-1'>
-          <p className='text-sm font-semibold text-zinc-200'>
+          <p className='text-sm font-semibold text-[var(--to-text-primary)]'>
             Position reconciliation warning
           </p>
-          <div className='mt-1 space-y-1 text-xs text-zinc-400'>
+          <div className='mt-1 space-y-1 text-xs text-[var(--to-text-dim)]'>
             <div className='flex items-center gap-4'>
               <span>Database: {db_position_count} positions</span>
               <span>Broker: {broker_position_count} positions</span>
-              <span className='text-green-400'>
+              <span className='text-[var(--to-long)]'>
                 Matched: {matched_count}
               </span>
             </div>

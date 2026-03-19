@@ -200,7 +200,7 @@ export function AlertRulesPanel() {
                 className={cn(
                   'font-mono text-[10px] px-1.5 py-0.5 rounded uppercase',
                   SEVERITY_COLORS[rule.severity] ||
-                    'bg-zinc-500/15 text-zinc-400',
+                    'bg-zinc-500/15 text-[var(--to-text-dim)]',
                 )}
               >
                 {rule.severity}

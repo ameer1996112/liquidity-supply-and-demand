@@ -21,8 +21,8 @@ export function OverviewTab({ account }: OverviewTabProps) {
     <div className='space-y-6'>
       {/* Live Status */}
       <section className='tv-card p-4'>
-        <h3 className='text-sm font-medium text-zinc-300 mb-4 flex items-center gap-2'>
-          <Server className='h-4 w-4 text-emerald-500' />
+        <h3 className='text-sm font-medium text-[var(--to-text-secondary)] mb-4 flex items-center gap-2'>
+          <Server className='h-4 w-4 text-[var(--to-long)]' />
           Live Status
         </h3>
 
@@ -30,7 +30,7 @@ export function OverviewTab({ account }: OverviewTabProps) {
           <MetricCard
             label='Balance'
             value={`$${account.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
-            valueColor='text-zinc-100'
+            valueColor='text-[var(--to-text-primary)]'
           />
           <MetricCard
             label='Equity'
@@ -40,7 +40,7 @@ export function OverviewTab({ account }: OverviewTabProps) {
                 ? 'text-[#26a69a]'
                 : account.equity && account.equity < account.balance
                   ? 'text-[#ef5350]'
-                  : 'text-zinc-100'
+                  : 'text-[var(--to-text-primary)]'
             }
           />
           <MetricCard
@@ -50,7 +50,7 @@ export function OverviewTab({ account }: OverviewTabProps) {
                 ? `$${account.free_margin.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
                 : 'N/A'
             }
-            valueColor='text-zinc-300'
+            valueColor='text-[var(--to-text-secondary)]'
             sublabel={account.free_margin == null ? 'Awaiting sync' : undefined}
           />
           <MetricCard
@@ -64,10 +64,10 @@ export function OverviewTab({ account }: OverviewTabProps) {
               account.margin_level_pct && account.margin_level_pct >= 200
                 ? 'text-[#26a69a]'
                 : account.margin_level_pct && account.margin_level_pct >= 100
-                  ? 'text-zinc-300'
+                  ? 'text-[var(--to-text-secondary)]'
                   : account.margin_level_pct
                     ? 'text-[#ef5350]'
-                    : 'text-zinc-400'
+                    : 'text-[var(--to-text-dim)]'
             }
             sublabel={
               account.margin_level_pct == null ? 'Awaiting sync' : undefined
@@ -76,7 +76,7 @@ export function OverviewTab({ account }: OverviewTabProps) {
         </div>
 
         {account.server_name && (
-          <div className='mt-4 pt-4 border-t border-[#2a2e39] text-xs text-zinc-500 flex items-center gap-4'>
+          <div className='mt-4 pt-4 border-t border-[#2a2e39] text-xs text-[var(--to-text-dim)] flex items-center gap-4'>
             <span>Server: {account.server_name}</span>
             {account.platform_type && (
               <span>Platform: {account.platform_type}</span>
@@ -99,11 +99,11 @@ export function OverviewTab({ account }: OverviewTabProps) {
       {/* Risk Configuration */}
       <section className='tv-card p-4'>
         <div className='flex items-center justify-between mb-4'>
-          <h3 className='text-sm font-medium text-zinc-300 flex items-center gap-2'>
+          <h3 className='text-sm font-medium text-[var(--to-text-secondary)] flex items-center gap-2'>
             <Shield className='h-4 w-4 text-blue-500' />
             Risk Configuration
           </h3>
-          <span className='text-xs text-zinc-500 font-mono'>
+          <span className='text-xs text-[var(--to-text-dim)] font-mono'>
             Source: {account.strategy_type || 'Pine/TradingView'}
           </span>
         </div>
@@ -124,7 +124,7 @@ export function OverviewTab({ account }: OverviewTabProps) {
             valueColor={
               account.min_rr_ratio != null && account.min_rr_ratio > 0
                 ? 'text-amber-400'
-                : 'text-zinc-500'
+                : 'text-[var(--to-text-dim)]'
             }
           />
           <MetricCard
@@ -140,7 +140,7 @@ export function OverviewTab({ account }: OverviewTabProps) {
         </div>
 
         <div className='mt-4 pt-4 border-t border-[#2a2e39]'>
-          <p className='text-xs text-zinc-500 italic'>
+          <p className='text-xs text-[var(--to-text-dim)] italic'>
             💡 Risk settings are controlled by Pine strategy. Dashboard displays
             current state (read-only).
           </p>
@@ -149,10 +149,10 @@ export function OverviewTab({ account }: OverviewTabProps) {
 
       {/* Performance Metrics */}
       <section className='tv-card p-4'>
-        <h3 className='text-sm font-medium text-zinc-300 mb-4 flex items-center gap-2'>
-          <Activity className='h-4 w-4 text-green-500' />
+        <h3 className='text-sm font-medium text-[var(--to-text-secondary)] mb-4 flex items-center gap-2'>
+          <Activity className='h-4 w-4 text-[var(--to-long)]' />
           Performance Summary
-          <span className='ml-auto text-xs text-zinc-600 font-mono'>
+          <span className='ml-auto text-xs text-[var(--to-text-dim)] font-mono'>
             (Last 30 days)
           </span>
         </h3>
@@ -176,10 +176,10 @@ export function OverviewTab({ account }: OverviewTabProps) {
               account.profit_factor && account.profit_factor >= 1.5
                 ? 'text-[#26a69a]'
                 : account.profit_factor && account.profit_factor >= 1
-                  ? 'text-zinc-400'
+                  ? 'text-[var(--to-text-dim)]'
                   : account.profit_factor
                     ? 'text-[#ef5350]'
-                    : 'text-zinc-400'
+                    : 'text-[var(--to-text-dim)]'
             }
             sublabel={
               account.total_trades && account.total_trades < 10
@@ -198,8 +198,8 @@ export function OverviewTab({ account }: OverviewTabProps) {
               account.sharpe_ratio && account.sharpe_ratio >= 1.5
                 ? 'text-[#26a69a]'
                 : account.sharpe_ratio && account.sharpe_ratio >= 1
-                  ? 'text-zinc-300'
-                  : 'text-zinc-400'
+                  ? 'text-[var(--to-text-secondary)]'
+                  : 'text-[var(--to-text-dim)]'
             }
           />
           <MetricCard
@@ -214,7 +214,7 @@ export function OverviewTab({ account }: OverviewTabProps) {
                 ? 'text-[#ef5350]'
                 : account.max_drawdown_pct && account.max_drawdown_pct >= 5
                   ? 'text-amber-400'
-                  : 'text-zinc-400'
+                  : 'text-[var(--to-text-dim)]'
             }
             sublabel={
               account.max_drawdown_pct == null || account.max_drawdown_pct === 0
@@ -225,14 +225,14 @@ export function OverviewTab({ account }: OverviewTabProps) {
           <MetricCard
             label='Total Trades'
             value={account.total_trades?.toString() || '0'}
-            valueColor='text-zinc-300'
+            valueColor='text-[var(--to-text-secondary)]'
           />
         </div>
       </section>
 
       {/* Today's Activity */}
       <section className='tv-card p-4'>
-        <h3 className='text-sm font-medium text-zinc-300 mb-4 flex items-center gap-2'>
+        <h3 className='text-sm font-medium text-[var(--to-text-secondary)] mb-4 flex items-center gap-2'>
           <TrendingUp className='h-4 w-4 text-blue-500' />
           Today's Activity
         </h3>
@@ -264,7 +264,7 @@ export function OverviewTab({ account }: OverviewTabProps) {
               account.max_positions &&
               account.active_positions >= account.max_positions
                 ? 'text-amber-400'
-                : 'text-zinc-300'
+                : 'text-[var(--to-text-secondary)]'
             }
             sublabel={
               account.max_positions
@@ -279,7 +279,7 @@ export function OverviewTab({ account }: OverviewTabProps) {
                 ? `$${account.margin_used.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
                 : 'N/A'
             }
-            valueColor='text-zinc-300'
+            valueColor='text-[var(--to-text-secondary)]'
             sublabel={account.margin_used == null ? 'No positions' : undefined}
           />
         </div>
@@ -332,14 +332,14 @@ function MetricCard({
 }) {
   return (
     <div className='flex flex-col gap-1 p-3 rounded bg-[#1e222d]/50'>
-      <span className='text-[10px] text-zinc-600 font-mono'>{label}</span>
+      <span className='text-[10px] text-[var(--to-text-dim)] font-mono'>{label}</span>
       <span
         className={`font-mono text-sm font-semibold tabular-nums ${valueColor}`}
       >
         {value}
       </span>
       {sublabel && (
-        <span className='text-[9px] text-zinc-600 mt-0.5'>{sublabel}</span>
+        <span className='text-[9px] text-[var(--to-text-dim)] mt-0.5'>{sublabel}</span>
       )}
     </div>
   );

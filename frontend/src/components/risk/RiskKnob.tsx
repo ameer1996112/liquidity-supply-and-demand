@@ -59,11 +59,11 @@ export function RiskKnob({
             strokeWidth='8'
             strokeLinecap='round'
             strokeDasharray={`${percent * 2.64} 264`}
-            className='text-emerald-500 transition-[stroke-dasharray] duration-200'
+            className='text-[var(--to-long)] transition-[stroke-dasharray] duration-200'
           />
         </svg>
         <div className='absolute inset-0 flex items-center justify-center'>
-          <span className='font-mono text-xl font-bold text-zinc-100 tabular-nums'>
+          <span className='font-mono text-xl font-bold text-[var(--to-text-primary)] tabular-nums'>
             {clamped.toFixed(1)}%
           </span>
         </div>
@@ -86,7 +86,7 @@ export function RiskKnob({
             'disabled:opacity-50 disabled:cursor-not-allowed',
           )}
         />
-        <div className='flex justify-between text-[10px] font-mono text-zinc-500'>
+        <div className='flex justify-between text-[10px] font-mono text-[var(--to-text-dim)]'>
           <span>{MIN}%</span>
           <span>Risk per trade</span>
           <span>{MAX}%</span>

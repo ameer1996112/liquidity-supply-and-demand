@@ -27,7 +27,7 @@ export function AlertItem({ alert, onMarkRead }: AlertItemProps) {
         className={cn(
           'mt-0.5 flex h-6 w-6 items-center justify-center rounded-full',
           isCritical
-            ? 'bg-red-500/10 text-red-400'
+            ? 'bg-[var(--to-short)]/10 text-[var(--to-short)]'
             : 'bg-amber-500/10 text-amber-300',
         )}
       >
@@ -36,18 +36,18 @@ export function AlertItem({ alert, onMarkRead }: AlertItemProps) {
       <div className='flex-1 space-y-0.5'>
         <div className='flex items-center justify-between gap-2'>
           <div className='flex items-center gap-2'>
-            <span className='text-xs font-semibold text-zinc-100'>
+            <span className='text-xs font-semibold text-[var(--to-text-primary)]'>
               {alert.title || alert.alert_type}
             </span>
             {alert.signal_id && (
-              <span className='rounded bg-[#1e222d] px-1.5 py-0.5 text-[10px] font-mono text-zinc-500'>
+              <span className='rounded bg-[#1e222d] px-1.5 py-0.5 text-[10px] font-mono text-[var(--to-text-dim)]'>
                 #{alert.signal_id}
               </span>
             )}
           </div>
           <span
             suppressHydrationWarning
-            className='text-[10px] font-mono text-zinc-500'
+            className='text-[10px] font-mono text-[var(--to-text-dim)]'
           >
             {new Date(alert.created_at).toLocaleTimeString(undefined, {
               hour: '2-digit',
@@ -55,18 +55,18 @@ export function AlertItem({ alert, onMarkRead }: AlertItemProps) {
             })}
           </span>
         </div>
-        <p className='text-[11px] text-zinc-400 leading-snug'>
+        <p className='text-[11px] text-[var(--to-text-dim)] leading-snug'>
           {alert.message}
         </p>
         <div className='flex items-center justify-between pt-1'>
-          <span className='text-[10px] uppercase tracking-wide text-zinc-500'>
+          <span className='text-[10px] uppercase tracking-wide text-[var(--to-text-dim)]'>
             {String(alert.severity).toUpperCase()}
           </span>
           {onMarkRead && (
             <button
               type='button'
               onClick={() => onMarkRead(alert.id)}
-              className='inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-zinc-400 hover:text-zinc-100 hover:bg-[#242938]'
+              className='inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-[var(--to-text-dim)] hover:text-[var(--to-text-primary)] hover:bg-[#242938]'
             >
               <Bell className='h-3 w-3' />
               Mark read

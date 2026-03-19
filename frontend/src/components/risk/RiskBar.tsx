@@ -29,7 +29,7 @@ function RiskGauge({
     <div className='flex min-w-[110px] flex-1 flex-col gap-1'>
       <div className='flex items-center justify-between'>
         <span
-          className='text-[9px] uppercase tracking-[0.12em] text-slate-500'
+          className='text-[9px] uppercase tracking-[0.12em] text-[var(--to-text-dim)]'
           style={{ fontFamily: 'var(--font-sans)' }}
         >
           {label}
@@ -37,7 +37,7 @@ function RiskGauge({
         <span
           className={cn(
             'text-[11px] font-semibold tabular-nums',
-            danger ? 'text-red-400' : 'text-slate-300'
+            danger ? 'text-[var(--to-short)]' : 'text-slate-300'
           )}
           style={{ fontFamily: 'var(--font-mono)' }}
         >
@@ -105,7 +105,7 @@ export function RiskBar() {
       {/* Positions counter */}
       <div className='flex items-center gap-1.5'>
         <span
-          className='text-[9px] uppercase tracking-[0.12em] text-slate-500'
+          className='text-[9px] uppercase tracking-[0.12em] text-[var(--to-text-dim)]'
           style={{ fontFamily: 'var(--font-sans)' }}
         >
           Pos
@@ -113,7 +113,7 @@ export function RiskBar() {
         <span
           className={cn(
             'text-[11px] font-semibold tabular-nums',
-            positionsDanger ? 'text-red-400' : 'text-slate-300'
+            positionsDanger ? 'text-[var(--to-short)]' : 'text-slate-300'
           )}
           style={{ fontFamily: 'var(--font-mono)' }}
         >
@@ -123,9 +123,9 @@ export function RiskBar() {
 
       {/* Risk mode badge */}
       <div className='flex items-center gap-1 rounded-md border border-slate-800 bg-slate-800/60 px-2 py-1'>
-        <Shield className='h-3 w-3 text-slate-500' />
+        <Shield className='h-3 w-3 text-[var(--to-text-dim)]' />
         <span
-          className='text-[9px] uppercase text-slate-400'
+          className='text-[9px] uppercase text-[var(--to-text-dim)]'
           style={{ fontFamily: 'var(--font-mono)' }}
         >
           {risk.risk_label}
@@ -140,8 +140,8 @@ export function RiskBar() {
           'flex items-center gap-1.5 rounded-md border px-2.5 py-1',
           'text-[10px] font-semibold uppercase tracking-wider transition-all',
           risk.kill_switch_active
-            ? 'animate-pulse border-red-500 bg-red-500/20 text-red-300'
-            : 'border-slate-700 bg-slate-800/60 text-slate-400 hover:border-slate-600 hover:text-slate-200'
+            ? 'animate-pulse border-red-500 bg-[var(--to-short)]/20 text-red-300'
+            : 'border-slate-700 bg-slate-800/60 text-[var(--to-text-dim)] hover:border-slate-600 hover:text-slate-200'
         )}
         style={{ fontFamily: 'var(--font-mono)' }}
       >

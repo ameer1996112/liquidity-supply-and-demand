@@ -83,7 +83,7 @@ export function ChallengeMetrics({
 
   return (
     <div className='tv-card p-6'>
-      <h3 className='text-[13px] font-bold text-zinc-400 uppercase tracking-widest font-mono mb-4'>
+      <h3 className='text-[13px] font-bold text-[var(--to-text-dim)] uppercase tracking-widest font-mono mb-4'>
         Challenge Metrics
       </h3>
 

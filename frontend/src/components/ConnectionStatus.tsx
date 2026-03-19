@@ -15,7 +15,7 @@ export function ConnectionStatus() {
   const { isOnline, health } = useLiveTrading();
 
   const status = isOnline ? 'online' : 'offline';
-  const color = isOnline ? 'text-emerald-400' : 'text-red-400';
+  const color = isOnline ? 'text-[var(--to-long)]' : 'text-[var(--to-short)]';
   const bgColor = isOnline ? 'bg-emerald-400/10' : 'bg-red-400/10';
   const borderColor = isOnline ? 'border-emerald-400/20' : 'border-red-400/20';
 
@@ -81,7 +81,7 @@ export function ConnectionBadge() {
       <span
         className={cn(
           'text-[10px] font-medium uppercase tracking-wider',
-          isOnline ? 'text-emerald-400' : 'text-red-400',
+          isOnline ? 'text-[var(--to-long)]' : 'text-[var(--to-short)]',
         )}
       >
         {isOnline ? 'Live' : 'Offline'}

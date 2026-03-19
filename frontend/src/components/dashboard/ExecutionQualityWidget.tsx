@@ -50,7 +50,7 @@ export function ExecutionQualityWidget() {
               {/* Slippage */}
               <div className='flex items-center justify-between'>
                 <span
-                  className='text-[10px] text-slate-500'
+                  className='text-[10px] text-[var(--to-text-dim)]'
                   style={{ fontFamily: 'var(--font-sans)' }}
                 >
                   Avg Slippage (24h)
@@ -59,14 +59,14 @@ export function ExecutionQualityWidget() {
                   <div
                     className={cn(
                       'text-xs font-semibold tabular-nums',
-                      hasHighSlippage ? 'text-red-400' : 'text-slate-200'
+                      hasHighSlippage ? 'text-[var(--to-short)]' : 'text-slate-200'
                     )}
                     style={{ fontFamily: 'var(--font-mono)' }}
                   >
                     {data.avg_slippage_pips.toFixed(2)} pips
                   </div>
                   <div
-                    className='text-[9px] text-slate-600'
+                    className='text-[9px] text-[var(--to-text-dim)]'
                     style={{ fontFamily: 'var(--font-mono)' }}
                   >
                     ${data.total_slippage_cost_usd.toFixed(2)} cost
@@ -77,7 +77,7 @@ export function ExecutionQualityWidget() {
               {/* Execution Time */}
               <div className='flex items-center justify-between'>
                 <span
-                  className='text-[10px] text-slate-500'
+                  className='text-[10px] text-[var(--to-text-dim)]'
                   style={{ fontFamily: 'var(--font-sans)' }}
                 >
                   Avg Execution
@@ -93,7 +93,7 @@ export function ExecutionQualityWidget() {
                     {data.avg_execution_time_ms.toFixed(0)}ms
                   </div>
                   <div
-                    className='text-[9px] text-slate-600'
+                    className='text-[9px] text-[var(--to-text-dim)]'
                     style={{ fontFamily: 'var(--font-mono)' }}
                   >
                     signal to fill
@@ -104,14 +104,14 @@ export function ExecutionQualityWidget() {
               {/* Total Cost */}
               <div className='flex items-center justify-between border-t border-slate-800 pt-2'>
                 <span
-                  className='text-[10px] text-slate-500'
+                  className='text-[10px] text-[var(--to-text-dim)]'
                   style={{ fontFamily: 'var(--font-sans)' }}
                 >
                   Total TX Cost
                 </span>
                 <div className='text-right'>
                   <div
-                    className='text-xs font-semibold tabular-nums text-red-400'
+                    className='text-xs font-semibold tabular-nums text-[var(--to-short)]'
                     style={{ fontFamily: 'var(--font-mono)' }}
                   >
                     -$
@@ -120,7 +120,7 @@ export function ExecutionQualityWidget() {
                     ).toFixed(2)}
                   </div>
                   <div
-                    className='text-[9px] text-slate-600'
+                    className='text-[9px] text-[var(--to-text-dim)]'
                     style={{ fontFamily: 'var(--font-mono)' }}
                   >
                     {data.total_trades} trades
@@ -135,7 +135,7 @@ export function ExecutionQualityWidget() {
         {!isLoading && (
           <div className='mt-2.5 border-t border-slate-800 pt-2'>
             <div
-              className='text-center text-[9px] text-slate-600'
+              className='text-center text-[9px] text-[var(--to-text-dim)]'
               style={{ fontFamily: 'var(--font-mono)' }}
             >
               view detailed TCA →

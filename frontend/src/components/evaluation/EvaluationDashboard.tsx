@@ -47,7 +47,7 @@ export function EvaluationDashboard() {
   }[evaluation.phase];
 
   const phaseBadgeColor = {
-    phase1: 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20',
+    phase1: 'bg-zinc-500/10 text-[var(--to-text-dim)] border-[var(--to-border)]',
     phase2: 'bg-[var(--to-accent-blue)]/15 text-[var(--to-accent-blue)] border-[var(--to-accent-blue)]/30',
     funded: 'bg-[var(--to-warning)]/15 text-[var(--to-warning)] border-[var(--to-warning)]/30',
   }[evaluation.phase];
@@ -58,7 +58,7 @@ export function EvaluationDashboard() {
       <div className='px-6 py-4 border-b border-panel-border flex items-center justify-between'>
         <div className='flex items-center gap-3'>
           <Target className='w-5 h-5 text-[var(--to-text-secondary)]' />
-          <h2 className='text-sm font-semibold text-zinc-100'>
+          <h2 className='text-sm font-semibold text-[var(--to-text-primary)]'>
             Evaluation Progress
           </h2>
         </div>
@@ -70,11 +70,11 @@ export function EvaluationDashboard() {
       <div className='p-6 space-y-6'>
         {/* Day Counter */}
         <div className='flex items-center justify-between'>
-          <div className='flex items-center gap-2 text-sm text-zinc-400'>
+          <div className='flex items-center gap-2 text-sm text-[var(--to-text-dim)]'>
             <Calendar className='w-4 h-4' />
             <span>Day {evaluation.current_day} of {evaluation.total_days}</span>
           </div>
-          <div className='text-xs text-zinc-500'>
+          <div className='text-xs text-[var(--to-text-dim)]'>
             {evaluation.actual_trading_days} / {evaluation.min_trading_days} trading days
           </div>
         </div>
@@ -82,7 +82,7 @@ export function EvaluationDashboard() {
         {/* Profit Target Progress */}
         <div className='space-y-2'>
           <div className='flex items-center justify-between text-sm'>
-            <span className='text-zinc-400'>Profit Target</span>
+            <span className='text-[var(--to-text-dim)]'>Profit Target</span>
             <span className='font-mono font-semibold text-text-secondary'>
               <PnLText
                 value={evaluation.current_profit}
@@ -110,7 +110,7 @@ export function EvaluationDashboard() {
                     : 'bg-[var(--to-text-secondary)]',
             )}
           />
-          <div className='text-right text-xs text-zinc-500'>
+          <div className='text-right text-xs text-[var(--to-text-dim)]'>
             {evaluation.profit_progress_pct.toFixed(1)}%
           </div>
         </div>
@@ -118,7 +118,7 @@ export function EvaluationDashboard() {
         {/* Daily Loss Buffer */}
         <div className='space-y-2'>
           <div className='flex items-center justify-between text-sm'>
-            <span className='text-zinc-400'>Max Daily Loss</span>
+            <span className='text-[var(--to-text-dim)]'>Max Daily Loss</span>
             <span className='font-mono font-semibold'>
               <PnLText
                 value={evaluation.today_pnl}
@@ -148,7 +148,7 @@ export function EvaluationDashboard() {
             )}
           />
           <div className='flex justify-between text-xs'>
-            <span className='text-zinc-500'>
+            <span className='text-[var(--to-text-dim)]'>
               Buffer:{' '}
               <PnLText
                 value={evaluation.daily_loss_buffer}
@@ -172,7 +172,7 @@ export function EvaluationDashboard() {
         {/* Drawdown */}
         <div className='space-y-2'>
           <div className='flex items-center justify-between text-sm'>
-            <span className='text-zinc-400'>Max Drawdown</span>
+            <span className='text-[var(--to-text-dim)]'>Max Drawdown</span>
             <span className='font-mono font-semibold text-text-secondary'>
               {evaluation.current_drawdown_pct.toFixed(2)}% /{' '}
               {evaluation.max_drawdown_pct.toFixed(1)}%
@@ -195,7 +195,7 @@ export function EvaluationDashboard() {
                   : 'bg-[var(--to-long)]',
             )}
           />
-          <div className='text-right text-xs text-zinc-500'>
+          <div className='text-right text-xs text-[var(--to-text-dim)]'>
             Peak:{' '}
             <PnLText
               value={evaluation.peak_balance}
@@ -208,7 +208,7 @@ export function EvaluationDashboard() {
         {/* Consistency */}
         <div className='space-y-2'>
           <div className='flex items-center justify-between text-sm'>
-            <span className='text-zinc-400'>Consistency</span>
+            <span className='text-[var(--to-text-dim)]'>Consistency</span>
             <span className='font-mono font-semibold text-text-secondary'>
               {evaluation.consistency_pct.toFixed(0)}% /{' '}
               {evaluation.consistency_target_pct.toFixed(0)}%
@@ -232,7 +232,7 @@ export function EvaluationDashboard() {
 
         {/* Rules Checklist */}
         <div className='space-y-2 pt-4 border-t border-panel-border'>
-          <div className='text-xs font-semibold text-zinc-400 uppercase tracking-wide mb-3'>
+          <div className='text-xs font-semibold text-[var(--to-text-dim)] uppercase tracking-wide mb-3'>
             Requirements
           </div>
           <div className='grid grid-cols-1 gap-2'>
@@ -241,7 +241,7 @@ export function EvaluationDashboard() {
                 key={rule}
                 className='flex items-center justify-between text-sm'
               >
-                <span className='text-zinc-400 capitalize'>
+                <span className='text-[var(--to-text-dim)] capitalize'>
                   {rule.replace(/_/g, ' ')}
                 </span>
                 {passed ? (

@@ -33,7 +33,7 @@ function StatusBadge({ enabled, label }: { enabled: boolean; label?: string }) {
     <span
       className={cn(
         'inline-flex items-center gap-1 font-mono text-[10px] px-1.5 py-0.5 rounded',
-        enabled ? 'text-emerald-400 bg-emerald-500/10' : 'text-zinc-500 bg-zinc-700/30'
+        enabled ? 'text-[var(--to-long)] bg-[var(--to-long)]/10' : 'text-[var(--to-text-dim)] bg-[var(--to-surface-raised)]/30'
       )}
     >
       {enabled ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
@@ -53,8 +53,8 @@ function ConfigRow({
 }) {
   return (
     <div className="flex items-center justify-between py-2">
-      <span className="text-[11px] text-zinc-500 uppercase tracking-wider font-mono">{label}</span>
-      <span className={cn('font-mono text-xs text-zinc-300', valueClass)}>{value}</span>
+      <span className="text-[11px] text-[var(--to-text-dim)] uppercase tracking-wider font-mono">{label}</span>
+      <span className={cn('font-mono text-xs text-[var(--to-text-secondary)]', valueClass)}>{value}</span>
     </div>
   );
 }
@@ -215,7 +215,7 @@ export function AiConfigPanel() {
         <ConfigRow
           label="API Key"
           value={ai.ai_api_key_set ? 'Configured' : 'Not set'}
-          valueClass={ai.ai_api_key_set ? 'text-emerald-400' : 'text-rose-400'}
+          valueClass={ai.ai_api_key_set ? 'text-[var(--to-long)]' : 'text-rose-400'}
         />
       </SectionCard>
 
@@ -251,7 +251,7 @@ export function AiConfigPanel() {
                     <button
                       onClick={() => setShowEnforceConfirm(true)}
                       disabled={modeChanging}
-                      className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 font-mono"
+                      className="text-[10px] px-2 py-0.5 rounded bg-[var(--to-long)]/20 text-[var(--to-long)] hover:bg-emerald-500/30 font-mono"
                     >
                       Enable Enforce
                     </button>
@@ -260,14 +260,14 @@ export function AiConfigPanel() {
                       <button
                         onClick={handleSetEnforce}
                         disabled={modeChanging}
-                        className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/30 text-emerald-400 font-mono"
+                        className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/30 text-[var(--to-long)] font-mono"
                       >
                         {modeChanging ? '…' : 'Confirm'}
                       </button>
                       <button
                         onClick={() => setShowEnforceConfirm(false)}
                         disabled={modeChanging}
-                        className="text-[10px] px-2 py-0.5 rounded bg-zinc-600 text-zinc-300 font-mono"
+                        className="text-[10px] px-2 py-0.5 rounded bg-[var(--to-surface-raised)] text-[var(--to-text-secondary)] font-mono"
                       >
                         Cancel
                       </button>
@@ -295,7 +295,7 @@ export function AiConfigPanel() {
                 <span
                   className={cn(
                     'font-mono text-[10px]',
-                    graduation.ready ? 'text-emerald-400' : 'text-amber-400'
+                    graduation.ready ? 'text-[var(--to-long)]' : 'text-amber-400'
                   )}
                 >
                   {graduation.ready ? 'READY' : 'NOT READY'}
@@ -317,7 +317,7 @@ export function AiConfigPanel() {
                   setShowToggles(!showToggles);
                   if (!showToggles && toggles.length === 0) loadToggles();
                 }}
-                className="flex items-center gap-1.5 text-[10px] text-zinc-500 hover:text-zinc-300 font-mono"
+                className="flex items-center gap-1.5 text-[10px] text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)] font-mono"
               >
                 <History className="w-3 h-3" />
                 Toggle History ({toggles.length})
@@ -325,10 +325,10 @@ export function AiConfigPanel() {
               {showToggles && toggles.length > 0 && (
                 <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
                   {toggles.map((t, i) => (
-                    <div key={i} className="text-[10px] font-mono text-zinc-500">
+                    <div key={i} className="text-[10px] font-mono text-[var(--to-text-dim)]">
                       {t.from_mode} → {t.to_mode}
                       {t.reason && ` (${t.reason})`}{' '}
-                      <span className="text-zinc-600">{new Date(t.created_at).toLocaleString()}</span>
+                      <span className="text-[var(--to-text-dim)]">{new Date(t.created_at).toLocaleString()}</span>
                     </div>
                   ))}
                 </div>
@@ -350,7 +350,7 @@ export function AiConfigPanel() {
           }
         />
         <div className="flex items-center justify-between py-2">
-          <span className="text-[11px] text-zinc-500 uppercase tracking-wider font-mono">
+          <span className="text-[11px] text-[var(--to-text-dim)] uppercase tracking-wider font-mono">
             Kill Switch History
           </span>
           <button
@@ -362,7 +362,7 @@ export function AiConfigPanel() {
                 loadKillLog();
               }
             }}
-            className="flex items-center gap-1.5 text-[10px] text-zinc-500 hover:text-zinc-300 font-mono"
+            className="flex items-center gap-1.5 text-[10px] text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)] font-mono"
           >
             <History className="w-3 h-3" />
             {showKillEvents ? 'Hide' : 'Show'} ({killEvents.length})
@@ -371,27 +371,27 @@ export function AiConfigPanel() {
         {showKillEvents && killEvents.length > 0 && (
           <div className="mb-2 max-h-32 space-y-1 overflow-y-auto px-1">
             {killEvents.map((ev) => (
-              <div key={ev.id} className="text-[10px] font-mono text-zinc-500">
-                <span className="text-zinc-600">
+              <div key={ev.id} className="text-[10px] font-mono text-[var(--to-text-dim)]">
+                <span className="text-[var(--to-text-dim)]">
                   {new Date(ev.created_at).toLocaleString()}
                 </span>
                 {' · '}
                 <span
                   className={cn(
                     'font-semibold',
-                    ev.action === 'engage' ? 'text-red-400' : 'text-emerald-400',
+                    ev.action === 'engage' ? 'text-[var(--to-short)]' : 'text-[var(--to-long)]',
                   )}
                 >
                   {ev.action === 'engage' ? 'HALT' : 'RESET'}
                 </span>
                 {' by '}
-                <span className="text-zinc-300">
+                <span className="text-[var(--to-text-secondary)]">
                   {ev.toggled_by || 'unknown'}
                 </span>
                 {ev.reason && (
                   <>
                     {' — '}
-                    <span className="text-zinc-400">{ev.reason}</span>
+                    <span className="text-[var(--to-text-dim)]">{ev.reason}</span>
                   </>
                 )}
               </div>
@@ -399,8 +399,8 @@ export function AiConfigPanel() {
           </div>
         )}
         <ConfigRow label="Run Mode" value={execution.run_mode} valueClass={
-          execution.run_mode === 'LIVE' ? 'text-emerald-400' :
-          execution.run_mode === 'PAPER' ? 'text-amber-400' : 'text-zinc-500'
+          execution.run_mode === 'LIVE' ? 'text-[var(--to-long)]' :
+          execution.run_mode === 'PAPER' ? 'text-amber-400' : 'text-[var(--to-text-dim)]'
         } />
         <ConfigRow label="Execution Mode" value={execution.execution_mode} />
         <ConfigRow label="Live Trading" value={<StatusBadge enabled={execution.live_trading_enabled} />} />
@@ -408,7 +408,7 @@ export function AiConfigPanel() {
         <ConfigRow
           label="MetaAPI"
           value={execution.meta_api_configured ? `Connected (${execution.meta_api_region})` : 'Not configured'}
-          valueClass={execution.meta_api_configured ? 'text-emerald-400' : 'text-zinc-500'}
+          valueClass={execution.meta_api_configured ? 'text-[var(--to-long)]' : 'text-[var(--to-text-dim)]'}
         />
       </SectionCard>
 

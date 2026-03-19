@@ -160,12 +160,12 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
       className='rounded-lg border border-[#2a2e39] bg-[#1e222d]/80 p-4 space-y-4'
     >
       <div className='flex items-center justify-between'>
-        <h3 className='text-sm font-semibold text-zinc-200'>Add account</h3>
+        <h3 className='text-sm font-semibold text-[var(--to-text-primary)]'>Add account</h3>
         {onCancel && (
           <button
             type='button'
             onClick={onCancel}
-            className='text-zinc-500 hover:text-zinc-300'
+            className='text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]'
           >
             <X className='h-4 w-4' />
           </button>
@@ -174,7 +174,7 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
 
       {/* Account name */}
       <div>
-        <label className='text-[10px] text-zinc-500 font-mono block mb-1'>
+        <label className='text-[10px] text-[var(--to-text-dim)] font-mono block mb-1'>
           Account name *
         </label>
         <input
@@ -183,7 +183,7 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
           value={accountName}
           onChange={(e) => setAccountName(e.target.value)}
           placeholder='e.g. ACG Stage 1, FTMO Challenge'
-          className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm text-zinc-200 font-mono placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500'
+          className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm text-[var(--to-text-primary)] font-mono placeholder:text-[var(--to-text-dim)] focus:outline-none focus:border-zinc-500'
           required
         />
       </div>
@@ -191,14 +191,14 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
       {/* Account Type + Provider */}
       <div className='grid grid-cols-2 gap-3'>
         <div>
-          <label className='text-[10px] text-zinc-500 font-mono block mb-1'>
+          <label className='text-[10px] text-[var(--to-text-dim)] font-mono block mb-1'>
             Account type
           </label>
           <select
             id='account-type'
             value={accountType}
             onChange={(e) => handleTypeChange(e.target.value)}
-            className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm text-zinc-200 font-mono'
+            className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm text-[var(--to-text-primary)] font-mono'
           >
             <option value='Personal'>Personal</option>
             <option value='Eval'>Evaluation</option>
@@ -206,14 +206,14 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
           </select>
         </div>
         <div>
-          <label className='text-[10px] text-zinc-500 font-mono block mb-1'>
+          <label className='text-[10px] text-[var(--to-text-dim)] font-mono block mb-1'>
             Provider
           </label>
           <select
             id='account-provider'
             value={provider}
             onChange={(e) => handleProviderChange(e.target.value)}
-            className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm text-zinc-200 font-mono'
+            className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm text-[var(--to-text-primary)] font-mono'
           >
             <option value='Personal'>Personal</option>
             <option value='FTMO'>FTMO</option>
@@ -229,14 +229,14 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
       {/* Strategy + Risk */}
       <div className='grid grid-cols-2 gap-3'>
         <div>
-          <label className='text-[10px] text-zinc-500 font-mono block mb-1'>
+          <label className='text-[10px] text-[var(--to-text-dim)] font-mono block mb-1'>
             Strategy type
           </label>
           <select
             id='account-strategy-type'
             value={strategyType}
             onChange={(e) => setStrategyType(e.target.value)}
-            className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm text-zinc-200 font-mono'
+            className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm text-[var(--to-text-primary)] font-mono'
           >
             <option value='CONSERVATIVE'>Conservative</option>
             <option value='BALANCED'>Balanced</option>
@@ -245,7 +245,7 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
           </select>
         </div>
         <div>
-          <label className='text-[10px] text-zinc-500 font-mono block mb-1'>
+          <label className='text-[10px] text-[var(--to-text-dim)] font-mono block mb-1'>
             Risk %
           </label>
           <input
@@ -256,7 +256,7 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
             step={0.1}
             value={riskPercent}
             onChange={(e) => setRiskPercent(parseFloat(e.target.value) || 0)}
-            className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm font-mono text-zinc-200'
+            className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm font-mono text-[var(--to-text-primary)]'
           />
         </div>
       </div>
@@ -264,7 +264,7 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
       {/* Max Positions + Capital */}
       <div className='grid grid-cols-2 gap-3'>
         <div>
-          <label className='text-[10px] text-zinc-500 font-mono block mb-1'>
+          <label className='text-[10px] text-[var(--to-text-dim)] font-mono block mb-1'>
             Max positions
           </label>
           <input
@@ -274,11 +274,11 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
             max={10}
             value={maxPositions}
             onChange={(e) => setMaxPositions(parseInt(e.target.value, 10) || 0)}
-            className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm font-mono text-zinc-200'
+            className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm font-mono text-[var(--to-text-primary)]'
           />
         </div>
         <div>
-          <label className='text-[10px] text-zinc-500 font-mono block mb-1'>
+          <label className='text-[10px] text-[var(--to-text-dim)] font-mono block mb-1'>
             Starting capital ($)
           </label>
           <input
@@ -290,14 +290,14 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
             onChange={(e) =>
               setAllocatedCapital(parseFloat(e.target.value) || 0)
             }
-            className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm font-mono text-zinc-200'
+            className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm font-mono text-[var(--to-text-primary)]'
           />
         </div>
       </div>
 
       {/* MetaAPI Connection */}
       <div>
-        <label className='text-[10px] text-zinc-500 font-mono block mb-1'>
+        <label className='text-[10px] text-[var(--to-text-dim)] font-mono block mb-1'>
           MetaAPI Account ID
         </label>
         <input
@@ -306,9 +306,9 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
           value={metaApiAccountId}
           onChange={(e) => setMetaApiAccountId(e.target.value)}
           placeholder='Paste your MetaAPI account ID (optional)'
-          className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm text-zinc-200 font-mono placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500'
+          className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm text-[var(--to-text-primary)] font-mono placeholder:text-[var(--to-text-dim)] focus:outline-none focus:border-zinc-500'
         />
-        <p className='text-[9px] text-zinc-600 mt-1'>
+        <p className='text-[9px] text-[var(--to-text-dim)] mt-1'>
           Connect to your broker via MetaAPI. Leave empty to configure later.
         </p>
       </div>
@@ -317,7 +317,7 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
       <button
         type='button'
         onClick={() => setShowAdvanced(!showAdvanced)}
-        className='flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-400 font-mono transition-colors'
+        className='flex items-center gap-1 text-[10px] text-[var(--to-text-dim)] hover:text-[var(--to-text-dim)] font-mono transition-colors'
       >
         {showAdvanced ? (
           <ChevronUp className='h-3 w-3' />
@@ -330,7 +330,7 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
       {showAdvanced && (
         <div className='space-y-3 pl-2 border-l border-[#2a2e39]'>
           <div>
-            <label className='text-[10px] text-zinc-500 font-mono block mb-1'>
+            <label className='text-[10px] text-[var(--to-text-dim)] font-mono block mb-1'>
               Token env key
             </label>
             <input
@@ -339,9 +339,9 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
               value={metaApiTokenKey}
               onChange={(e) => setMetaApiTokenKey(e.target.value)}
               placeholder='META_API_TOKEN'
-              className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm text-zinc-200 font-mono placeholder:text-zinc-600 focus:outline-none focus:border-zinc-500'
+              className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm text-[var(--to-text-primary)] font-mono placeholder:text-[var(--to-text-dim)] focus:outline-none focus:border-zinc-500'
             />
-            <p className='text-[9px] text-zinc-600 mt-1'>
+            <p className='text-[9px] text-[var(--to-text-dim)] mt-1'>
               Environment variable name holding the MetaAPI JWT. Default:
               META_API_TOKEN
             </p>
@@ -354,46 +354,46 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
         <div className='rounded-lg border border-[#2a2e39] bg-[#1a1d24] p-3 space-y-3 mt-4'>
           <div className='flex items-center gap-2'>
             <Shield className='h-3.5 w-3.5 text-yellow-500/80' />
-            <span className='text-xs font-semibold text-zinc-300'>Risk Guardrails</span>
-            <span className='text-[9px] text-zinc-500 font-mono ml-1'>
+            <span className='text-xs font-semibold text-[var(--to-text-secondary)]'>Risk Guardrails</span>
+            <span className='text-[9px] text-[var(--to-text-dim)] font-mono ml-1'>
               (pre-filled for {provider === 'Personal' ? 'FTMO' : provider} — edit below or adjust later)
             </span>
           </div>
 
           <div className='grid grid-cols-2 gap-2'>
             <div>
-              <label className='text-[10px] text-zinc-500 font-mono block mb-1'>Profit Target ($)</label>
+              <label className='text-[10px] text-[var(--to-text-dim)] font-mono block mb-1'>Profit Target ($)</label>
               <input type='number' min={0} step={500} value={profitTarget}
                 onChange={e => setProfitTarget(parseFloat(e.target.value) || 0)}
-                className='w-full px-2 py-1.5 bg-[#1e222d] border border-[#2a2e39] rounded text-sm font-mono text-zinc-200 focus:outline-none focus:border-zinc-500' />
+                className='w-full px-2 py-1.5 bg-[#1e222d] border border-[#2a2e39] rounded text-sm font-mono text-[var(--to-text-primary)] focus:outline-none focus:border-zinc-500' />
             </div>
             <div>
-              <label className='text-[10px] text-zinc-500 font-mono block mb-1'>
-                Daily Kill % <span className='text-zinc-600'>(bot stop)</span>
+              <label className='text-[10px] text-[var(--to-text-dim)] font-mono block mb-1'>
+                Daily Kill % <span className='text-[var(--to-text-dim)]'>(bot stop)</span>
               </label>
               <input type='number' min={0.5} max={10} step={0.5} value={dailyLossPct}
                 onChange={e => setDailyLossPct(parseFloat(e.target.value) || 0)}
-                className='w-full px-2 py-1.5 bg-[#1e222d] border border-[#2a2e39] rounded text-sm font-mono text-zinc-200 focus:outline-none focus:border-zinc-500' />
-              <p className='text-[9px] text-zinc-600 mt-0.5 font-mono'>
+                className='w-full px-2 py-1.5 bg-[#1e222d] border border-[#2a2e39] rounded text-sm font-mono text-[var(--to-text-primary)] focus:outline-none focus:border-zinc-500' />
+              <p className='text-[9px] text-[var(--to-text-dim)] mt-0.5 font-mono'>
                 = ${((allocatedCapital * dailyLossPct) / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </p>
             </div>
             <div>
-              <label className='text-[10px] text-zinc-500 font-mono block mb-1'>
-                Drawdown Kill % <span className='text-zinc-600'>(bot stop)</span>
+              <label className='text-[10px] text-[var(--to-text-dim)] font-mono block mb-1'>
+                Drawdown Kill % <span className='text-[var(--to-text-dim)]'>(bot stop)</span>
               </label>
               <input type='number' min={1} max={20} step={0.5} value={ddPct}
                 onChange={e => setDdPct(parseFloat(e.target.value) || 0)}
-                className='w-full px-2 py-1.5 bg-[#1e222d] border border-[#2a2e39] rounded text-sm font-mono text-zinc-200 focus:outline-none focus:border-zinc-500' />
-              <p className='text-[9px] text-zinc-600 mt-0.5 font-mono'>
+                className='w-full px-2 py-1.5 bg-[#1e222d] border border-[#2a2e39] rounded text-sm font-mono text-[var(--to-text-primary)] focus:outline-none focus:border-zinc-500' />
+              <p className='text-[9px] text-[var(--to-text-dim)] mt-0.5 font-mono'>
                 = ${((allocatedCapital * ddPct) / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </p>
             </div>
             <div>
-              <label className='text-[10px] text-zinc-500 font-mono block mb-1'>Min Trading Days</label>
+              <label className='text-[10px] text-[var(--to-text-dim)] font-mono block mb-1'>Min Trading Days</label>
               <input type='number' min={0} max={60} step={1} value={minDays}
                 onChange={e => setMinDays(parseInt(e.target.value, 10) || 0)}
-                className='w-full px-2 py-1.5 bg-[#1e222d] border border-[#2a2e39] rounded text-sm font-mono text-zinc-200 focus:outline-none focus:border-zinc-500' />
+                className='w-full px-2 py-1.5 bg-[#1e222d] border border-[#2a2e39] rounded text-sm font-mono text-[var(--to-text-primary)] focus:outline-none focus:border-zinc-500' />
             </div>
           </div>
         </div>

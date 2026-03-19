@@ -64,7 +64,7 @@ export function KanbanBoard() {
                   'rounded-md px-2.5 py-1 text-[10px] font-medium capitalize transition-colors',
                   typeFilter === f
                     ? 'bg-indigo-500/20 text-indigo-400'
-                    : 'text-slate-500 hover:text-slate-300'
+                    : 'text-[var(--to-text-dim)] hover:text-slate-300'
                 )}
                 style={{ fontFamily: 'var(--font-mono)' }}
               >
@@ -87,10 +87,10 @@ export function KanbanBoard() {
       {/* Stats row */}
       <div className='grid grid-cols-4 gap-3'>
         {[
-          { label: 'Active Bugs', val: bugCount, color: 'text-red-400' },
+          { label: 'Active Bugs', val: bugCount, color: 'text-[var(--to-short)]' },
           { label: 'In Progress', val: inProg, color: 'text-yellow-400' },
           { label: 'Sprint Tasks', val: todoCount, color: 'text-blue-400' },
-          { label: 'Completed', val: doneCount, color: 'text-emerald-400' },
+          { label: 'Completed', val: doneCount, color: 'text-[var(--to-long)]' },
         ].map(({ label, val, color }) => (
           <div
             key={label}

@@ -33,7 +33,7 @@ const FILTER_TABS: FilterConfig[] = [
     icon: <Layers className='w-3.5 h-3.5' />,
     filter: () => true,
     accentColor:
-      'data-[state=active]:bg-zinc-700 data-[state=active]:text-zinc-100',
+      'data-[state=active]:bg-[var(--to-surface-raised)] data-[state=active]:text-[var(--to-text-primary)]',
   },
   {
     id: 'live',
@@ -60,7 +60,7 @@ const FILTER_TABS: FilterConfig[] = [
       return pnl !== null && pnl > 0;
     },
     accentColor:
-      'data-[state=active]:bg-emerald-500/20 data-[state=active]:text-emerald-400',
+      'data-[state=active]:bg-[var(--to-long)]/20 data-[state=active]:text-[var(--to-long)]',
   },
   {
     id: 'losses',
@@ -95,8 +95,8 @@ function FilterTabButton({
         'flex items-center gap-1.5 px-3 py-1.5 rounded-md transition-all',
         'text-[11px] font-mono font-semibold uppercase tracking-wider',
         'border border-transparent',
-        'hover:bg-zinc-800/50',
-        'data-[state=inactive]:text-zinc-500',
+        'hover:bg-[var(--to-surface-raised)]/50',
+        'data-[state=inactive]:text-[var(--to-text-dim)]',
         config.accentColor,
       )}
     >
@@ -105,7 +105,7 @@ function FilterTabButton({
       <span
         className={cn(
           'ml-1 px-1.5 py-0.5 rounded text-[10px]',
-          isActive ? 'bg-white/10' : 'bg-zinc-800 text-zinc-500',
+          isActive ? 'bg-white/10' : 'bg-[var(--to-surface-raised)] text-[var(--to-text-dim)]',
         )}
       >
         {count}
@@ -141,11 +141,11 @@ function EmptyState({
 
   return (
     <div className='flex flex-col items-center justify-center py-20 text-center'>
-      <div className='w-16 h-16 rounded-full bg-zinc-800/50 flex items-center justify-center mb-4'>
-        <Inbox className='w-8 h-8 text-zinc-600' />
+      <div className='w-16 h-16 rounded-full bg-[var(--to-surface-raised)]/50 flex items-center justify-center mb-4'>
+        <Inbox className='w-8 h-8 text-[var(--to-text-dim)]' />
       </div>
-      <h3 className='font-mono text-sm text-zinc-400 mb-2'>No Signals Found</h3>
-      <p className='text-xs text-zinc-600 max-w-xs'>{getMessage()}</p>
+      <h3 className='font-mono text-sm text-[var(--to-text-dim)] mb-2'>No Signals Found</h3>
+      <p className='text-xs text-[var(--to-text-dim)] max-w-xs'>{getMessage()}</p>
     </div>
   );
 }
@@ -158,7 +158,7 @@ function ErrorState() {
         <AlertCircle className='w-8 h-8 text-rose-400' />
       </div>
       <h3 className='font-mono text-sm text-rose-400 mb-2'>Connection Error</h3>
-      <p className='text-xs text-zinc-500 max-w-xs'>
+      <p className='text-xs text-[var(--to-text-dim)] max-w-xs'>
         Failed to load trading signals. Check your connection and try again.
       </p>
     </div>
@@ -230,7 +230,7 @@ export function SignalGrid({ mode, onSelectSignal }: SignalGridProps) {
           <p className='font-mono text-sm text-amber-400/90'>
             Loaded {signals.length} signals, but hidden by filters.
           </p>
-          <p className='font-mono text-xs text-zinc-500 mt-2'>
+          <p className='font-mono text-xs text-[var(--to-text-dim)] mt-2'>
             Sample run_mode: [{signals[0]?.mode ?? 'N/A'}], status: [
             {signals[0]?.status ?? 'N/A'}]
           </p>
@@ -260,13 +260,13 @@ export function SignalGrid({ mode, onSelectSignal }: SignalGridProps) {
       {/* Signal Count Footer */}
       {!isLoading && filteredSignals.length > 0 && (
         <div className='flex items-center justify-between pt-2 border-t border-zinc-800/50'>
-          <span className='text-[11px] text-zinc-600 font-mono'>
+          <span className='text-[11px] text-[var(--to-text-dim)] font-mono'>
             Showing {filteredSignals.length} of {signals.length} signals
           </span>
           {activeFilter !== 'all' && (
             <button
               onClick={() => setActiveFilter('all')}
-              className='text-[11px] text-zinc-500 hover:text-zinc-300 font-mono uppercase tracking-wider'
+              className='text-[11px] text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)] font-mono uppercase tracking-wider'
             >
               Clear Filter
             </button>

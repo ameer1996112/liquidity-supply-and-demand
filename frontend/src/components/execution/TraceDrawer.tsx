@@ -77,7 +77,7 @@ function BrokerBadges({ status, errorType }: { status: TraceBrokerStatus; errorT
   return (
     <div className='flex flex-wrap gap-1.5'>
       {status.broker_connected && (
-        <span className='inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'>
+        <span className='inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium bg-[var(--to-long)]/10 text-[var(--to-long)] border border-[var(--to-long)]/20'>
           <Wifi className='h-2.5 w-2.5' />
           broker_connected
         </span>
@@ -95,13 +95,13 @@ function BrokerBadges({ status, errorType }: { status: TraceBrokerStatus; errorT
         </span>
       )}
       {errorType && (
-        <span className='inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium bg-red-500/10 text-red-400 border border-red-500/20'>
+        <span className='inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium bg-[var(--to-short)]/10 text-[var(--to-short)] border border-red-500/20'>
           <XCircle className='h-2.5 w-2.5' />
           {errorType}
         </span>
       )}
       {!status.broker_connected && !status.missing_on_broker && !errorType && (
-        <span className='inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium bg-slate-700/40 text-slate-400 border border-slate-700/40'>
+        <span className='inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium bg-[var(--to-surface-raised)]/40 text-[var(--to-text-dim)] border border-[var(--to-border)]/40'>
           <Radio className='h-2.5 w-2.5' />
           signal_only
         </span>
@@ -130,29 +130,29 @@ function HopLine({ hop }: { hop: HopRow }) {
             'flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-[10px]',
             hasTs
               ? hop.highlight
-                ? 'border-red-500/40 bg-red-500/10 text-red-400'
-                : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
-              : 'border-slate-700 bg-slate-900 text-slate-600',
+                ? 'border-red-500/40 bg-[var(--to-short)]/10 text-[var(--to-short)]'
+                : 'border-[var(--to-long)]/30 bg-[var(--to-long)]/10 text-[var(--to-long)]'
+              : 'border-[var(--to-border)] bg-[var(--to-surface)] text-[var(--to-text-dim)]',
           )}
         >
           {hop.icon}
         </div>
-        <div className='mt-1 w-px flex-1 bg-slate-800 group-last:hidden' />
+        <div className='mt-1 w-px flex-1 bg-[var(--to-surface-raised)] group-last:hidden' />
       </div>
 
       {/* Content */}
       <div className='flex-1 pt-0.5'>
         <div className='flex items-baseline justify-between gap-2'>
-          <span className='text-[11px] font-medium text-slate-300'>{hop.label}</span>
+          <span className='text-[11px] font-medium text-[var(--to-text-secondary)]'>{hop.label}</span>
           {hop.deltaMs != null && (
             <span
               className={cn(
                 'font-mono text-[10px] tabular-nums',
                 hop.deltaMs > 1000
-                  ? 'text-red-400'
+                  ? 'text-[var(--to-short)]'
                   : hop.deltaMs > 200
                     ? 'text-amber-400'
-                    : 'text-emerald-400',
+                    : 'text-[var(--to-long)]',
               )}
             >
               +{fmtMs(hop.deltaMs)}
@@ -160,13 +160,13 @@ function HopLine({ hop }: { hop: HopRow }) {
           )}
         </div>
         <span
-          className='font-mono text-[10px] text-slate-500'
+          className='font-mono text-[10px] text-[var(--to-text-dim)]'
           style={{ fontFamily: 'var(--font-mono)' }}
         >
           {fmtTs(hop.ts)}
         </span>
         {hop.deltaMs != null && (
-          <div className='mt-1 text-[10px] text-slate-600'>{hop.deltaLabel}</div>
+          <div className='mt-1 text-[10px] text-[var(--to-text-dim)]'>{hop.deltaLabel}</div>
         )}
       </div>
     </div>
@@ -176,19 +176,19 @@ function HopLine({ hop }: { hop: HopRow }) {
 function DurationRow({ label, ms, emphasis }: { label: string; ms: number | null; emphasis?: boolean }) {
   return (
     <div className='flex items-center justify-between py-1'>
-      <span className={cn('text-[11px]', emphasis ? 'font-medium text-slate-200' : 'text-slate-500')}>
+      <span className={cn('text-[11px]', emphasis ? 'font-medium text-[var(--to-text-primary)]' : 'text-[var(--to-text-dim)]')}>
         {label}
       </span>
       <span
         className={cn(
           'font-mono text-[11px] tabular-nums',
           ms == null
-            ? 'text-slate-600'
+            ? 'text-[var(--to-text-dim)]'
             : ms > 1000
-              ? 'text-red-400'
+              ? 'text-[var(--to-short)]'
               : ms > 200
                 ? 'text-amber-400'
-                : 'text-emerald-400',
+                : 'text-[var(--to-long)]',
           emphasis && 'text-[12px] font-bold',
         )}
       >
@@ -325,16 +325,16 @@ export function TraceDrawer({
         className='w-full border-l border-[var(--to-border)] bg-[#0b0e11] p-0 sm:max-w-[520px]'
       >
         <SheetHeader className='border-b border-[var(--to-border)] px-5 py-4'>
-          <SheetTitle className='flex items-center gap-2 text-sm font-medium text-slate-100'>
+          <SheetTitle className='flex items-center gap-2 text-sm font-medium text-[var(--to-text-primary)]'>
             <Clock className='h-4 w-4 text-[var(--to-accent-blue)]' />
             Pipeline Trace
             {detail && (
-              <span className='ml-1 rounded bg-slate-800 px-2 py-0.5 font-mono text-[10px] text-slate-400'>
+              <span className='ml-1 rounded bg-[var(--to-surface-raised)] px-2 py-0.5 font-mono text-[10px] text-[var(--to-text-dim)]'>
                 {detail.correlation_id.slice(0, 8)}…
               </span>
             )}
           </SheetTitle>
-          <SheetDescription className='text-[11px] text-slate-500'>
+          <SheetDescription className='text-[11px] text-[var(--to-text-dim)]'>
             {detail
               ? `${detail.symbol ?? '—'} · ${detail.run_mode ?? '—'} · account: ${detail.account_id ?? 'default'}`
               : 'Loading trace…'}
@@ -345,7 +345,7 @@ export function TraceDrawer({
           {isLoading && (
             <div className='space-y-3 p-5'>
               {Array.from({ length: 6 }).map((_, i) => (
-                <Skeleton key={i} className='h-10 w-full bg-slate-800/60' />
+                <Skeleton key={i} className='h-10 w-full bg-[var(--to-surface-raised)]/60' />
               ))}
             </div>
           )}
@@ -355,7 +355,7 @@ export function TraceDrawer({
               {/* Broker status badges */}
               {status && (
                 <div>
-                  <div className='mb-2 text-[10px] uppercase tracking-widest text-slate-600'>
+                  <div className='mb-2 text-[10px] uppercase tracking-widest text-[var(--to-text-dim)]'>
                     Broker Status
                   </div>
                   <BrokerBadges status={status} errorType={detail.error_type} />
@@ -365,41 +365,41 @@ export function TraceDrawer({
               {/* Error message */}
               {detail.error_type && (
                 <div className='rounded border border-red-500/20 bg-red-500/5 px-3 py-2'>
-                  <div className='flex items-center gap-1.5 text-[11px] font-medium text-red-400'>
+                  <div className='flex items-center gap-1.5 text-[11px] font-medium text-[var(--to-short)]'>
                     <AlertTriangle className='h-3.5 w-3.5' />
                     {detail.error_type}
                   </div>
                   {detail.error_message && (
-                    <p className='mt-1 font-mono text-[10px] text-red-300/70'>
+                    <p className='mt-1 font-mono text-[10px] text-[var(--to-short)]/70'>
                       {detail.error_message}
                     </p>
                   )}
                 </div>
               )}
 
-              <Separator className='bg-slate-800' />
+              <Separator className='bg-[var(--to-surface-raised)]' />
 
               {/* Duration breakdown */}
               <div>
-                <div className='mb-2 text-[10px] uppercase tracking-widest text-slate-600'>
+                <div className='mb-2 text-[10px] uppercase tracking-widest text-[var(--to-text-dim)]'>
                   Duration Breakdown
                 </div>
-                <div className='rounded border border-slate-800 bg-slate-900/50 px-3 py-2 space-y-0.5'>
+                <div className='rounded border border-[var(--to-border)] bg-[var(--to-surface)]/50 px-3 py-2 space-y-0.5'>
                   <DurationRow label='Queue wait' ms={queueWait} />
                   <DurationRow label='Risk / AI' ms={riskMs} />
                   <DurationRow label='Execution' ms={execMs} />
                   <DurationRow label='Broker connect' ms={brokerConnectMs} />
                   <DurationRow label='Broker fill' ms={brokerFillMs} />
-                  <Separator className='my-1 bg-slate-800' />
+                  <Separator className='my-1 bg-[var(--to-surface-raised)]' />
                   <DurationRow label='Total end-to-end' ms={totalMs} emphasis />
                 </div>
               </div>
 
-              <Separator className='bg-slate-800' />
+              <Separator className='bg-[var(--to-surface-raised)]' />
 
               {/* Hop timeline */}
               <div>
-                <div className='mb-3 text-[10px] uppercase tracking-widest text-slate-600'>
+                <div className='mb-3 text-[10px] uppercase tracking-widest text-[var(--to-text-dim)]'>
                   Hop Timeline
                 </div>
                 <div>
@@ -412,12 +412,12 @@ export function TraceDrawer({
               {/* Signal ID reference */}
               {detail.signal_id && (
                 <>
-                  <Separator className='bg-slate-800' />
-                  <div className='text-[10px] text-slate-600'>
+                  <Separator className='bg-[var(--to-surface-raised)]' />
+                  <div className='text-[10px] text-[var(--to-text-dim)]'>
                     Signal ID:{' '}
-                    <span className='font-mono text-slate-400'>{detail.signal_id}</span>
+                    <span className='font-mono text-[var(--to-text-dim)]'>{detail.signal_id}</span>
                     {' · '}Correlation:{' '}
-                    <span className='font-mono text-[9px] text-slate-500 break-all'>
+                    <span className='font-mono text-[9px] text-[var(--to-text-dim)] break-all'>
                       {detail.correlation_id}
                     </span>
                   </div>

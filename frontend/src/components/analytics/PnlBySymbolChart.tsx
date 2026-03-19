@@ -19,14 +19,14 @@ export function PnlBySymbolChart({ data }: PnlBySymbolChartProps) {
   if (data.length === 0) {
     return (
       <div className="tv-card p-4 flex items-center justify-center h-[260px]">
-        <span className="text-xs text-zinc-600 font-mono">No symbol data</span>
+        <span className="text-xs text-[var(--to-text-dim)] font-mono">No symbol data</span>
       </div>
     );
   }
 
   return (
     <div className="tv-card p-4">
-      <span className="font-mono text-xs text-zinc-400 uppercase tracking-wider">
+      <span className="font-mono text-xs text-[var(--to-text-dim)] uppercase tracking-wider">
         PnL by Symbol
       </span>
       <div className="mt-3">

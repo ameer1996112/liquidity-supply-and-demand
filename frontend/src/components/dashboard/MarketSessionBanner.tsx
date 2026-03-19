@@ -61,9 +61,9 @@ const SESSIONS: Session[] = [
     city: 'United States',
     startUtcH: 13,
     endUtcH: 22,
-    accentColor: 'border-emerald-500/30',
+    accentColor: 'border-[var(--to-long)]/30',
     accentBg: 'bg-emerald-500',
-    textColor: 'text-emerald-400',
+    textColor: 'text-[var(--to-long)]',
     gradientFrom: 'from-emerald-950/40',
     gradientTo: 'to-emerald-900/10',
   },
@@ -225,10 +225,10 @@ export function MarketSessionBanner() {
               <Activity
                 className={cn(
                   'h-3.5 w-3.5',
-                  isWeekendClosed ? 'text-amber-400' : 'text-zinc-400'
+                  isWeekendClosed ? 'text-amber-400' : 'text-[var(--to-text-dim)]'
                 )}
               />
-              <span className='font-sans text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-300'>
+              <span className='font-sans text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--to-text-secondary)]'>
                 {isWeekendClosed
                   ? 'Market Closed (Weekend)'
                   : 'Market Sessions'}
@@ -255,8 +255,8 @@ export function MarketSessionBanner() {
           </div>
 
           <div className='flex items-center gap-1.5 rounded-md border border-zinc-800 bg-gradient-to-r from-zinc-900/40 to-zinc-800/10 px-2.5 py-1.5'>
-            <Clock className='h-3.5 w-3.5 text-zinc-400' />
-            <span className='font-mono text-[11px] font-medium text-zinc-300'>
+            <Clock className='h-3.5 w-3.5 text-[var(--to-text-dim)]' />
+            <span className='font-mono text-[11px] font-medium text-[var(--to-text-secondary)]'>
               {localDayString} {localTimeString} {tzAbbr}
             </span>
           </div>
@@ -293,14 +293,14 @@ export function MarketSessionBanner() {
                     <p
                       className={cn(
                         'text-[10px] font-semibold uppercase leading-none tracking-[0.12em]',
-                        session.isActive ? 'text-zinc-200' : 'text-zinc-500'
+                        session.isActive ? 'text-[var(--to-text-primary)]' : 'text-[var(--to-text-dim)]'
                       )}
                       style={{ fontFamily: 'var(--font-sans)' }}
                     >
                       {session.name}
                     </p>
                     <p
-                      className='mt-1 text-[9px] uppercase tracking-[0.08em] text-zinc-600'
+                      className='mt-1 text-[9px] uppercase tracking-[0.08em] text-[var(--to-text-dim)]'
                       style={{ fontFamily: 'var(--font-sans)' }}
                     >
                       {session.city}
@@ -317,7 +317,7 @@ export function MarketSessionBanner() {
                           )
                         : isWeekendClosed
                         ? 'border-amber-900/30 bg-black/20 text-amber-700'
-                        : 'border-zinc-800/50 bg-black/20 text-zinc-500'
+                        : 'border-zinc-800/50 bg-black/20 text-[var(--to-text-dim)]'
                     )}
                   >
                     {session.isActive && (
@@ -344,7 +344,7 @@ export function MarketSessionBanner() {
                 {/* Time range — font-mono to prevent jitter */}
                 <div className='mb-2 flex items-center justify-between'>
                   <span
-                    className='text-[10px] tabular-nums text-zinc-500'
+                    className='text-[10px] tabular-nums text-[var(--to-text-dim)]'
                     style={{ fontFamily: 'var(--font-mono)' }}
                   >
                     {session.startLocal} → {session.endLocal} {tzAbbr}

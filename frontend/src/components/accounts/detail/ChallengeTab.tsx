@@ -112,7 +112,7 @@ export function ChallengeTab({ accountName }: ChallengeTabProps) {
   if (isLoading) {
     return (
       <div className='flex items-center justify-center h-32'>
-        <Loader2 className='h-5 w-5 animate-spin text-zinc-500' />
+        <Loader2 className='h-5 w-5 animate-spin text-[var(--to-text-dim)]' />
       </div>
     );
   }
@@ -130,11 +130,11 @@ export function ChallengeTab({ accountName }: ChallengeTabProps) {
         'rounded-lg border px-4 py-3 flex items-center justify-between',
         current.evaluation_mode
           ? 'border-indigo-500/30 bg-indigo-500/5'
-          : 'border-zinc-700 bg-zinc-800/40'
+          : 'border-[var(--to-border)] bg-[var(--to-surface-raised)]/40'
       )}>
         <div className='flex items-center gap-2'>
-          <Shield className={cn('h-4 w-4', current.evaluation_mode ? 'text-indigo-400' : 'text-zinc-500')} />
-          <span className={cn('text-sm font-medium', current.evaluation_mode ? 'text-indigo-300' : 'text-zinc-400')}>
+          <Shield className={cn('h-4 w-4', current.evaluation_mode ? 'text-indigo-400' : 'text-[var(--to-text-dim)]')} />
+          <span className={cn('text-sm font-medium', current.evaluation_mode ? 'text-indigo-300' : 'text-[var(--to-text-dim)]')}>
             {current.evaluation_mode ? 'Evaluation mode active — prop firm guardrails enforced' : 'Evaluation mode off — no prop firm limits'}
           </span>
         </div>
@@ -146,7 +146,7 @@ export function ChallengeTab({ accountName }: ChallengeTabProps) {
           }}
           className={cn(
             'relative inline-flex h-5 w-9 items-center rounded-full transition-colors',
-            form.evaluation_mode ? 'bg-indigo-600' : 'bg-zinc-700'
+            form.evaluation_mode ? 'bg-indigo-600' : 'bg-[var(--to-surface-raised)]'
           )}
         >
           <span className={cn(
@@ -158,7 +158,7 @@ export function ChallengeTab({ accountName }: ChallengeTabProps) {
 
       {/* Phase switcher */}
       <section>
-        <h3 className='text-xs font-mono text-zinc-500 uppercase tracking-wider mb-3'>Current Phase</h3>
+        <h3 className='text-xs font-mono text-[var(--to-text-dim)] uppercase tracking-wider mb-3'>Current Phase</h3>
         <div className='flex gap-2'>
           {PHASE_ORDER.map((phase, idx) => {
             const isActive = current.evaluation_phase === phase;
@@ -173,16 +173,16 @@ export function ChallengeTab({ accountName }: ChallengeTabProps) {
                   isActive
                     ? 'border-indigo-500/60 bg-indigo-500/10 text-indigo-300'
                     : isPast
-                    ? 'border-emerald-500/30 bg-emerald-500/5 text-emerald-400 cursor-pointer hover:bg-emerald-500/10'
-                    : 'border-zinc-700 bg-zinc-800/40 text-zinc-500 cursor-pointer hover:bg-zinc-700/40 hover:text-zinc-300'
+                    ? 'border-[var(--to-long)]/30 bg-emerald-500/5 text-[var(--to-long)] cursor-pointer hover:bg-[var(--to-long)]/10'
+                    : 'border-[var(--to-border)] bg-[var(--to-surface-raised)]/40 text-[var(--to-text-dim)] cursor-pointer hover:bg-[var(--to-surface-raised)]/40 hover:text-[var(--to-text-secondary)]'
                 )}
               >
                 {isPast ? (
-                  <CheckCircle className='h-4 w-4 text-emerald-500' />
+                  <CheckCircle className='h-4 w-4 text-[var(--to-long)]' />
                 ) : isActive ? (
                   <div className='h-2 w-2 rounded-full bg-indigo-400 animate-pulse' />
                 ) : (
-                  <div className='h-2 w-2 rounded-full bg-zinc-600' />
+                  <div className='h-2 w-2 rounded-full bg-[var(--to-surface-raised)]' />
                 )}
                 <span>{PHASE_LABELS[phase]}</span>
                 {isActive && <ChevronRight className='h-3 w-3 rotate-90' />}
@@ -196,10 +196,10 @@ export function ChallengeTab({ accountName }: ChallengeTabProps) {
       <section className='grid grid-cols-2 md:grid-cols-4 gap-3'>
         <div className='rounded-lg border border-[#2a2e39] bg-[#1e222d]/80 p-3'>
           <div className='flex items-center gap-1.5 mb-2'>
-            <Target className='h-3.5 w-3.5 text-emerald-400' />
-            <span className='text-[10px] text-zinc-500 font-mono uppercase'>Profit Target</span>
+            <Target className='h-3.5 w-3.5 text-[var(--to-long)]' />
+            <span className='text-[10px] text-[var(--to-text-dim)] font-mono uppercase'>Profit Target</span>
           </div>
-          <div className='text-lg font-mono font-semibold text-zinc-100'>
+          <div className='text-lg font-mono font-semibold text-[var(--to-text-primary)]'>
             ${current.profit_target.toLocaleString()}
           </div>
           <ProgressBar value={0} max={current.profit_target} color='bg-emerald-500' />
@@ -207,32 +207,32 @@ export function ChallengeTab({ accountName }: ChallengeTabProps) {
         <div className='rounded-lg border border-[#2a2e39] bg-[#1e222d]/80 p-3'>
           <div className='flex items-center gap-1.5 mb-2'>
             <AlertTriangle className='h-3.5 w-3.5 text-amber-400' />
-            <span className='text-[10px] text-zinc-500 font-mono uppercase'>Daily Kill</span>
+            <span className='text-[10px] text-[var(--to-text-dim)] font-mono uppercase'>Daily Kill</span>
           </div>
-          <div className='text-lg font-mono font-semibold text-zinc-100'>
+          <div className='text-lg font-mono font-semibold text-[var(--to-text-primary)]'>
             ${dailyLimitUsd.toLocaleString()}
           </div>
-          <div className='text-[9px] text-zinc-600 font-mono mt-1'>{current.max_daily_loss_pct}% of balance</div>
+          <div className='text-[9px] text-[var(--to-text-dim)] font-mono mt-1'>{current.max_daily_loss_pct}% of balance</div>
         </div>
         <div className='rounded-lg border border-[#2a2e39] bg-[#1e222d]/80 p-3'>
           <div className='flex items-center gap-1.5 mb-2'>
-            <TrendingDown className='h-3.5 w-3.5 text-red-400' />
-            <span className='text-[10px] text-zinc-500 font-mono uppercase'>DD Kill</span>
+            <TrendingDown className='h-3.5 w-3.5 text-[var(--to-short)]' />
+            <span className='text-[10px] text-[var(--to-text-dim)] font-mono uppercase'>DD Kill</span>
           </div>
-          <div className='text-lg font-mono font-semibold text-zinc-100'>
+          <div className='text-lg font-mono font-semibold text-[var(--to-text-primary)]'>
             ${ddLimitUsd.toLocaleString()}
           </div>
-          <div className='text-[9px] text-zinc-600 font-mono mt-1'>{current.max_drawdown_pct}% of balance</div>
+          <div className='text-[9px] text-[var(--to-text-dim)] font-mono mt-1'>{current.max_drawdown_pct}% of balance</div>
         </div>
         <div className='rounded-lg border border-[#2a2e39] bg-[#1e222d]/80 p-3'>
           <div className='flex items-center gap-1.5 mb-2'>
             <Calendar className='h-3.5 w-3.5 text-blue-400' />
-            <span className='text-[10px] text-zinc-500 font-mono uppercase'>Min Days</span>
+            <span className='text-[10px] text-[var(--to-text-dim)] font-mono uppercase'>Min Days</span>
           </div>
-          <div className='text-lg font-mono font-semibold text-zinc-100'>
+          <div className='text-lg font-mono font-semibold text-[var(--to-text-primary)]'>
             {current.min_trading_days}
           </div>
-          <div className='text-[9px] text-zinc-600 font-mono mt-1'>trading days required</div>
+          <div className='text-[9px] text-[var(--to-text-dim)] font-mono mt-1'>trading days required</div>
         </div>
       </section>
 
@@ -240,18 +240,18 @@ export function ChallengeTab({ accountName }: ChallengeTabProps) {
       {!editing ? (
         <div className='flex items-center gap-3'>
           <Button size='sm' variant='outline' onClick={() => setEditing(true)}
-            className='border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'>
+            className='border-[var(--to-border)] text-[var(--to-text-dim)] hover:text-[var(--to-text-primary)] hover:bg-[var(--to-surface-raised)]'>
             Edit Limits
           </Button>
-          <span className='text-[10px] text-zinc-600 font-mono'>
+          <span className='text-[10px] text-[var(--to-text-dim)] font-mono'>
             {settings?.evaluation_start_date ? `Started ${settings.evaluation_start_date}` : 'No start date set'}
           </span>
         </div>
       ) : (
         <div className='rounded-lg border border-[#2a2e39] bg-[#1e222d]/80 p-4 space-y-4'>
           <div className='flex items-center justify-between mb-1'>
-            <h4 className='text-sm font-semibold text-zinc-200'>Edit Challenge Limits</h4>
-            <div className='flex gap-2 text-[10px] text-zinc-500 font-mono'>
+            <h4 className='text-sm font-semibold text-[var(--to-text-primary)]'>Edit Challenge Limits</h4>
+            <div className='flex gap-2 text-[10px] text-[var(--to-text-dim)] font-mono'>
               Apply preset:
               {Object.keys(PROVIDER_PRESETS).map(p => (
                 <button key={p} onClick={() => applyPreset(p, form.evaluation_phase)}
@@ -264,53 +264,53 @@ export function ChallengeTab({ accountName }: ChallengeTabProps) {
 
           <div className='grid grid-cols-2 gap-3'>
             <div>
-              <label className='text-[10px] text-zinc-500 font-mono block mb-1'>Starting Balance ($)</label>
+              <label className='text-[10px] text-[var(--to-text-dim)] font-mono block mb-1'>Starting Balance ($)</label>
               <input type='number' min={1000} step={1000} value={form.starting_balance}
                 onChange={e => setForm(f => ({ ...f, starting_balance: parseFloat(e.target.value) || 0 }))}
-                className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm font-mono text-zinc-200 focus:outline-none focus:border-zinc-500' />
+                className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm font-mono text-[var(--to-text-primary)] focus:outline-none focus:border-zinc-500' />
             </div>
             <div>
-              <label className='text-[10px] text-zinc-500 font-mono block mb-1'>Profit Target ($)</label>
+              <label className='text-[10px] text-[var(--to-text-dim)] font-mono block mb-1'>Profit Target ($)</label>
               <input type='number' min={0} step={500} value={form.profit_target}
                 onChange={e => setForm(f => ({ ...f, profit_target: parseFloat(e.target.value) || 0 }))}
-                className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm font-mono text-zinc-200 focus:outline-none focus:border-zinc-500' />
+                className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm font-mono text-[var(--to-text-primary)] focus:outline-none focus:border-zinc-500' />
             </div>
             <div>
-              <label className='text-[10px] text-zinc-500 font-mono block mb-1'>
-                Daily Kill % <span className='text-zinc-600'>(bot stops at this loss)</span>
+              <label className='text-[10px] text-[var(--to-text-dim)] font-mono block mb-1'>
+                Daily Kill % <span className='text-[var(--to-text-dim)]'>(bot stops at this loss)</span>
               </label>
               <input type='number' min={0.5} max={10} step={0.5} value={form.max_daily_loss_pct}
                 onChange={e => setForm(f => ({ ...f, max_daily_loss_pct: parseFloat(e.target.value) || 0 }))}
-                className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm font-mono text-zinc-200 focus:outline-none focus:border-zinc-500' />
-              <p className='text-[9px] text-zinc-600 mt-1 font-mono'>
+                className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm font-mono text-[var(--to-text-primary)] focus:outline-none focus:border-zinc-500' />
+              <p className='text-[9px] text-[var(--to-text-dim)] mt-1 font-mono'>
                 = ${((form.starting_balance * form.max_daily_loss_pct) / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })} — set below firm&apos;s limit
               </p>
             </div>
             <div>
-              <label className='text-[10px] text-zinc-500 font-mono block mb-1'>
-                Drawdown Kill % <span className='text-zinc-600'>(bot stops at this DD)</span>
+              <label className='text-[10px] text-[var(--to-text-dim)] font-mono block mb-1'>
+                Drawdown Kill % <span className='text-[var(--to-text-dim)]'>(bot stops at this DD)</span>
               </label>
               <input type='number' min={1} max={20} step={0.5} value={form.max_drawdown_pct}
                 onChange={e => setForm(f => ({ ...f, max_drawdown_pct: parseFloat(e.target.value) || 0 }))}
-                className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm font-mono text-zinc-200 focus:outline-none focus:border-zinc-500' />
-              <p className='text-[9px] text-zinc-600 mt-1 font-mono'>
+                className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm font-mono text-[var(--to-text-primary)] focus:outline-none focus:border-zinc-500' />
+              <p className='text-[9px] text-[var(--to-text-dim)] mt-1 font-mono'>
                 = ${((form.starting_balance * form.max_drawdown_pct) / 100).toLocaleString(undefined, { maximumFractionDigits: 0 })} — set below firm&apos;s limit
               </p>
             </div>
             <div>
-              <label className='text-[10px] text-zinc-500 font-mono block mb-1'>Min Trading Days</label>
+              <label className='text-[10px] text-[var(--to-text-dim)] font-mono block mb-1'>Min Trading Days</label>
               <input type='number' min={0} max={60} step={1} value={form.min_trading_days}
                 onChange={e => setForm(f => ({ ...f, min_trading_days: parseInt(e.target.value, 10) || 0 }))}
-                className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm font-mono text-zinc-200 focus:outline-none focus:border-zinc-500' />
+                className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm font-mono text-[var(--to-text-primary)] focus:outline-none focus:border-zinc-500' />
             </div>
             <div>
-              <label className='text-[10px] text-zinc-500 font-mono block mb-1'>
-                Consistency Limit % <span className='text-zinc-600'>(FTMO: 40%)</span>
+              <label className='text-[10px] text-[var(--to-text-dim)] font-mono block mb-1'>
+                Consistency Limit % <span className='text-[var(--to-text-dim)]'>(FTMO: 40%)</span>
               </label>
               <input type='number' min={10} max={100} step={5} value={form.consistency_limit_pct}
                 onChange={e => setForm(f => ({ ...f, consistency_limit_pct: parseFloat(e.target.value) || 40 }))}
-                className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm font-mono text-zinc-200 focus:outline-none focus:border-zinc-500' />
-              <p className='text-[9px] text-zinc-600 mt-1 font-mono'>Best single day ≤ this% of total profit</p>
+                className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm font-mono text-[var(--to-text-primary)] focus:outline-none focus:border-zinc-500' />
+              <p className='text-[9px] text-[var(--to-text-dim)] mt-1 font-mono'>Best single day ≤ this% of total profit</p>
             </div>
           </div>
 

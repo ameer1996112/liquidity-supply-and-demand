@@ -87,13 +87,13 @@ export function SessionRing({
       >
         <span className='h-1.5 w-1.5 rounded-full bg-slate-500 flex-shrink-0' />
         <span
-          className='text-[10px] font-bold uppercase tracking-widest text-slate-500'
+          className='text-[10px] font-bold uppercase tracking-widest text-[var(--to-text-dim)]'
           style={{ fontFamily: 'var(--font-mono)' }}
         >
           Market Closed
         </span>
         <span
-          className='text-[9px] text-slate-600 hidden sm:inline'
+          className='text-[9px] text-[var(--to-text-dim)] hidden sm:inline'
           style={{ fontFamily: 'var(--font-mono)' }}
         >
           · opens Sun 22:00 UTC / {localOpen} {tzAbbr}

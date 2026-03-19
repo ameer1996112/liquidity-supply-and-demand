@@ -87,7 +87,7 @@ function getTrigger(
 function TriggerBadge({ signal }: { signal: TradingSignal }) {
   const trigger = getTrigger(signal);
   if (!trigger)
-    return <span className='text-slate-600 font-mono text-[9px]'>—</span>;
+    return <span className='text-[var(--to-text-dim)] font-mono text-[9px]'>—</span>;
 
   if (trigger === 'FLIP') return <span className='trigger-flip'>FLIP</span>;
   if (trigger === 'BoC') return <span className='trigger-boc'>BoC</span>;
@@ -121,7 +121,7 @@ const SignalRowMemo = memo(function SignalRow({
     <div
       onClick={() => onOpenDetails(signal)}
       className={cn(
-        'group flex cursor-pointer items-center gap-3 border-b border-slate-800/60 px-3 py-3.5 transition-colors data-row',
+        'group flex cursor-pointer items-center gap-3 border-b border-[var(--to-border)]/60 px-3 py-3.5 transition-colors data-row',
         isActive && 'border-l-2 border-l-indigo-500',
         isReviewed && 'opacity-70',
       )}
@@ -129,13 +129,13 @@ const SignalRowMemo = memo(function SignalRow({
       <div className='min-w-0 flex-1'>
         <div className='flex items-center gap-2'>
           <span
-            className='text-xs font-bold text-slate-200'
+            className='text-xs font-bold text-[var(--to-text-primary)]'
             style={{ fontFamily: 'var(--font-mono)' }}
           >
             {symbol}
           </span>
           <ClientDate
-            className='text-[10px] text-slate-500 tabular-nums'
+            className='text-[10px] text-[var(--to-text-dim)] tabular-nums'
             render={() =>
               formatDistanceToNowStrict(new Date(signal.created_at), {
                 addSuffix: true,
@@ -145,7 +145,7 @@ const SignalRowMemo = memo(function SignalRow({
           <span
             className={cn(
               'inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold',
-              isBuy ? 'text-emerald-400' : 'text-red-400',
+              isBuy ? 'text-[var(--to-long)]' : 'text-[var(--to-short)]',
             )}
           >
             {isBuy ? (
@@ -168,17 +168,17 @@ const SignalRowMemo = memo(function SignalRow({
       <Popover>
         <PopoverTrigger
           onClick={(e) => e.stopPropagation()}
-          className='rounded-md p-1 text-slate-500 opacity-0 transition-opacity hover:bg-slate-800 hover:text-slate-200 group-hover:opacity-100'
+          className='rounded-md p-1 text-[var(--to-text-dim)] opacity-0 transition-opacity hover:bg-[var(--to-surface-raised)] hover:text-[var(--to-text-primary)] group-hover:opacity-100'
         >
           <Ellipsis className='h-4 w-4' />
         </PopoverTrigger>
-        <PopoverContent className='w-44 border-slate-800 bg-slate-900 p-1.5'>
+        <PopoverContent className='w-44 border-[var(--to-border)] bg-[var(--to-surface)] p-1.5'>
           <button
             type='button'
             onClick={() => {
               onOpenDetails(signal);
             }}
-            className='flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-slate-200 hover:bg-slate-800'
+            className='flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-[var(--to-text-primary)] hover:bg-[var(--to-surface-raised)]'
           >
             <Eye className='h-3.5 w-3.5' />
             View details
@@ -186,7 +186,7 @@ const SignalRowMemo = memo(function SignalRow({
           <button
             type='button'
             onClick={() => navigator.clipboard?.writeText(symbol)}
-            className='flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-slate-200 hover:bg-slate-800'
+            className='flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-[var(--to-text-primary)] hover:bg-[var(--to-surface-raised)]'
           >
             <Copy className='h-3.5 w-3.5' />
             Copy symbol
@@ -196,7 +196,7 @@ const SignalRowMemo = memo(function SignalRow({
             onClick={() =>
               navigator.clipboard?.writeText(JSON.stringify(signal, null, 2))
             }
-            className='flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-slate-200 hover:bg-slate-800'
+            className='flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-[var(--to-text-primary)] hover:bg-[var(--to-surface-raised)]'
           >
             <Copy className='h-3.5 w-3.5' />
             Copy payload
@@ -204,7 +204,7 @@ const SignalRowMemo = memo(function SignalRow({
           <button
             type='button'
             onClick={() => onToggleReviewed(signal.id)}
-            className='flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-slate-200 hover:bg-slate-800'
+            className='flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-[var(--to-text-primary)] hover:bg-[var(--to-surface-raised)]'
           >
             <Check className='h-3.5 w-3.5' />
             {isReviewed ? 'Dismiss review' : 'Mark reviewed'}
@@ -301,7 +301,7 @@ export function RecentSignalsPanel({
           </span>
         </div>
         <span
-          className='text-[10px] text-slate-500 tabular-nums'
+          className='text-[10px] text-[var(--to-text-dim)] tabular-nums'
           style={{ fontFamily: 'var(--font-mono)' }}
         >
           {filtered.length}/{signals.length}
@@ -319,7 +319,7 @@ export function RecentSignalsPanel({
               'text-[10px] font-medium',
               activeFilter === tab.key
                 ? 'bg-indigo-600/20 text-indigo-300'
-                : 'text-slate-500 hover:bg-slate-800 hover:text-slate-300',
+                : 'text-[var(--to-text-dim)] hover:bg-[var(--to-surface-raised)] hover:text-[var(--to-text-secondary)]',
             )}
             style={{ fontFamily: 'var(--font-mono)' }}
           >
@@ -333,7 +333,7 @@ export function RecentSignalsPanel({
           {isLoading ? (
             <div className='space-y-1 p-2'>
               {[...Array(6)].map((_, i) => (
-                <Skeleton key={i} className='h-6 w-full bg-slate-800/60' />
+                <Skeleton key={i} className='h-6 w-full bg-[var(--to-surface-raised)]/60' />
               ))}
             </div>
           ) : filtered.length === 0 ? (
@@ -370,7 +370,7 @@ export function RecentSignalsPanel({
 
       {!isLoading && filtered.length > PAGE_SIZE && (
         <div className='tv-divider flex items-center justify-between border-t px-3 py-2'>
-          <span className='text-[10px] text-slate-500'>
+          <span className='text-[10px] text-[var(--to-text-dim)]'>
             Page {page}/{totalPages}
           </span>
           <div className='flex items-center gap-1'>
@@ -378,7 +378,7 @@ export function RecentSignalsPanel({
               type='button'
               disabled={page <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className='rounded border border-slate-700 px-2 py-0.5 text-[10px] text-slate-300 disabled:opacity-40'
+              className='rounded border border-[var(--to-border)] px-2 py-0.5 text-[10px] text-[var(--to-text-secondary)] disabled:opacity-40'
             >
               Prev
             </button>
@@ -386,7 +386,7 @@ export function RecentSignalsPanel({
               type='button'
               disabled={page >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              className='rounded border border-slate-700 px-2 py-0.5 text-[10px] text-slate-300 disabled:opacity-40'
+              className='rounded border border-[var(--to-border)] px-2 py-0.5 text-[10px] text-[var(--to-text-secondary)] disabled:opacity-40'
             >
               Next
             </button>
@@ -399,13 +399,13 @@ export function RecentSignalsPanel({
           <SheetContent
             side='right'
             data-testid='legacy-signal-details-panel'
-            className='w-full border-slate-800 bg-slate-950 p-0 sm:max-w-lg'
+            className='w-full border-[var(--to-border)] bg-[var(--to-surface)] p-0 sm:max-w-lg'
           >
-            <SheetHeader className='space-y-2 border-b border-slate-800 px-5 py-4 text-left'>
-              <SheetTitle className='text-base font-semibold text-slate-100'>
+            <SheetHeader className='space-y-2 border-b border-[var(--to-border)] px-5 py-4 text-left'>
+              <SheetTitle className='text-base font-semibold text-[var(--to-text-primary)]'>
                 Signal details
               </SheetTitle>
-              <SheetDescription className='text-xs text-slate-400'>
+              <SheetDescription className='text-xs text-[var(--to-text-dim)]'>
                 {selectedSignal
                   ? `${getSymbol(selectedSignal)} · ${selectedSignal.status}`
                   : 'No signal selected'}
@@ -414,14 +414,14 @@ export function RecentSignalsPanel({
 
             {selectedSignal && (
               <ScrollArea className='h-[calc(100vh-88px)]'>
-                <div className='space-y-5 px-5 py-4 text-sm text-slate-200'>
-                  <div className='rounded-lg border border-slate-800 bg-slate-900/40 p-3'>
+                <div className='space-y-5 px-5 py-4 text-sm text-[var(--to-text-primary)]'>
+                  <div className='rounded-lg border border-[var(--to-border)] bg-[var(--to-surface)]/40 p-3'>
                     <div className='flex flex-wrap items-center justify-between gap-3'>
                       <div>
-                        <p className='text-[11px] uppercase tracking-wide text-slate-500'>
+                        <p className='text-[11px] uppercase tracking-wide text-[var(--to-text-dim)]'>
                           Instrument
                         </p>
-                        <p className='mt-1 text-lg font-semibold tracking-wide text-slate-100'>
+                        <p className='mt-1 text-lg font-semibold tracking-wide text-[var(--to-text-primary)]'>
                           {getSymbol(selectedSignal)}
                         </p>
                       </div>
@@ -437,27 +437,27 @@ export function RecentSignalsPanel({
                   </div>
 
                   <div className='grid grid-cols-2 gap-3'>
-                    <div className='rounded-lg border border-slate-800/90 bg-slate-900/25 p-3'>
-                      <p className='text-[10px] uppercase tracking-wide text-slate-500'>
+                    <div className='rounded-lg border border-[var(--to-border)]/90 bg-[var(--to-surface)]/25 p-3'>
+                      <p className='text-[10px] uppercase tracking-wide text-[var(--to-text-dim)]'>
                         Direction
                       </p>
-                      <p className='mt-1 font-mono text-sm text-slate-100'>
+                      <p className='mt-1 font-mono text-sm text-[var(--to-text-primary)]'>
                         {getSide(selectedSignal).toUpperCase()}
                       </p>
                     </div>
-                    <div className='rounded-lg border border-slate-800/90 bg-slate-900/25 p-3'>
-                      <p className='text-[10px] uppercase tracking-wide text-slate-500'>
+                    <div className='rounded-lg border border-[var(--to-border)]/90 bg-[var(--to-surface)]/25 p-3'>
+                      <p className='text-[10px] uppercase tracking-wide text-[var(--to-text-dim)]'>
                         Trigger
                       </p>
-                      <p className='mt-1 font-mono text-sm text-slate-100'>
+                      <p className='mt-1 font-mono text-sm text-[var(--to-text-primary)]'>
                         {getTrigger(selectedSignal) ?? EMPTY_VALUE}
                       </p>
                     </div>
-                    <div className='rounded-lg border border-slate-800/90 bg-slate-900/25 p-3'>
-                      <p className='text-[10px] uppercase tracking-wide text-slate-500'>
+                    <div className='rounded-lg border border-[var(--to-border)]/90 bg-[var(--to-surface)]/25 p-3'>
+                      <p className='text-[10px] uppercase tracking-wide text-[var(--to-text-dim)]'>
                         Risk:Reward
                       </p>
-                      <p className='mt-1 font-mono text-sm text-slate-100'>
+                      <p className='mt-1 font-mono text-sm text-[var(--to-text-primary)]'>
                         {selectedSignal.rr_ratio
                           ? `1:${formatNumber(selectedSignal.rr_ratio, {
                               decimals: 1,
@@ -465,20 +465,20 @@ export function RecentSignalsPanel({
                           : EMPTY_VALUE}
                       </p>
                     </div>
-                    <div className='rounded-lg border border-slate-800/90 bg-slate-900/25 p-3'>
-                      <p className='text-[10px] uppercase tracking-wide text-slate-500'>
+                    <div className='rounded-lg border border-[var(--to-border)]/90 bg-[var(--to-surface)]/25 p-3'>
+                      <p className='text-[10px] uppercase tracking-wide text-[var(--to-text-dim)]'>
                         PnL
                       </p>
-                      <div className='mt-1 font-mono text-sm text-slate-100'>
+                      <div className='mt-1 font-mono text-sm text-[var(--to-text-primary)]'>
                         <PnLDisplay pnl={getPnl(selectedSignal)} size='md' />
                       </div>
                     </div>
-                    <div className='col-span-2 rounded-lg border border-slate-800/90 bg-slate-900/25 p-3'>
-                      <p className='text-[10px] uppercase tracking-wide text-slate-500'>
+                    <div className='col-span-2 rounded-lg border border-[var(--to-border)]/90 bg-[var(--to-surface)]/25 p-3'>
+                      <p className='text-[10px] uppercase tracking-wide text-[var(--to-text-dim)]'>
                         Timestamp
                       </p>
                       <ClientDate
-                        className='mt-1 font-mono text-sm text-slate-200 block'
+                        className='mt-1 font-mono text-sm text-[var(--to-text-primary)] block'
                         render={() =>
                           new Date(selectedSignal.created_at).toLocaleString()
                         }
@@ -486,11 +486,11 @@ export function RecentSignalsPanel({
                     </div>
                   </div>
 
-                  <div className='rounded-lg border border-slate-800 bg-slate-900/25 p-3'>
-                    <p className='text-[10px] uppercase tracking-wide text-slate-500'>
+                  <div className='rounded-lg border border-[var(--to-border)] bg-[var(--to-surface)]/25 p-3'>
+                    <p className='text-[10px] uppercase tracking-wide text-[var(--to-text-dim)]'>
                       Rationale
                     </p>
-                    <p className='mt-2 leading-6 text-slate-300'>
+                    <p className='mt-2 leading-6 text-[var(--to-text-secondary)]'>
                       {selectedSignal.notes ||
                         selectedSignal.filter_reason ||
                         EMPTY_VALUE}

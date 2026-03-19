@@ -24,7 +24,7 @@ export function WaitingPlaceholder({
       </span>
 
       {/* Label */}
-      <span className='font-mono text-[11px] text-zinc-500 animate-pulse tracking-wider'>
+      <span className='font-mono text-[11px] text-[var(--to-text-dim)] animate-pulse tracking-wider'>
         {message}
       </span>
     </div>

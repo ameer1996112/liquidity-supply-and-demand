@@ -78,10 +78,10 @@ export function OptimizerPanel() {
       {/* Batch actions */}
       <Card className="border-[#2a2e39] bg-[#1e222d]/50">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-zinc-100">
+          <CardTitle className="text-sm font-medium text-[var(--to-text-primary)]">
             Batch actions
           </CardTitle>
-          <CardDescription className="text-[11px] text-zinc-500">
+          <CardDescription className="text-[11px] text-[var(--to-text-dim)]">
             Apply to current positions. Changes are sent to the backend immediately.
           </CardDescription>
         </CardHeader>
@@ -91,7 +91,7 @@ export function OptimizerPanel() {
             size="sm"
             onClick={() => runBatch('close', winnerIds)}
             disabled={winnerIds.length === 0 || isBusy}
-            className="border-[#2a2e39] bg-[#1e222d] text-emerald-400 hover:bg-emerald-500/20 hover:border-emerald-500/50"
+            className="border-[#2a2e39] bg-[#1e222d] text-[var(--to-long)] hover:bg-[var(--to-long)]/20 hover:border-emerald-500/50"
           >
             <TrendingUp className="h-3.5 w-3" />
             Close all winners ({winnerIds.length})
@@ -101,7 +101,7 @@ export function OptimizerPanel() {
             size="sm"
             onClick={() => runBatch('close', loserIds)}
             disabled={loserIds.length === 0 || isBusy}
-            className="border-[#2a2e39] bg-[#1e222d] text-red-400 hover:bg-red-500/20 hover:border-red-500/50"
+            className="border-[#2a2e39] bg-[#1e222d] text-[var(--to-short)] hover:bg-[var(--to-short)]/20 hover:border-red-500/50"
           >
             <TrendingDown className="h-3.5 w-3" />
             Close all losers ({loserIds.length})
@@ -111,7 +111,7 @@ export function OptimizerPanel() {
             size="sm"
             onClick={() => runBatch('move_sl_breakeven', allIds)}
             disabled={allIds.length === 0 || isBusy}
-            className="border-[#2a2e39] bg-[#1e222d] text-zinc-300 hover:bg-[#2a2e39]"
+            className="border-[#2a2e39] bg-[#1e222d] text-[var(--to-text-secondary)] hover:bg-[#2a2e39]"
           >
             <MoveHorizontal className="h-3.5 w-3" />
             Move all SL to breakeven
@@ -121,7 +121,7 @@ export function OptimizerPanel() {
             size="sm"
             onClick={() => setTrailingDialogOpen(true)}
             disabled={allIds.length === 0}
-            className="border-[#2a2e39] bg-[#1e222d] text-zinc-300 hover:bg-[#2a2e39]"
+            className="border-[#2a2e39] bg-[#1e222d] text-[var(--to-text-secondary)] hover:bg-[#2a2e39]"
           >
             Attach trailing stop…
           </Button>
@@ -137,17 +137,17 @@ export function OptimizerPanel() {
       {/* Hedging suggestions */}
       <Card className="border-[#2a2e39] bg-[#1e222d]/50">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-zinc-100 flex items-center gap-2">
+          <CardTitle className="text-sm font-medium text-[var(--to-text-primary)] flex items-center gap-2">
             <Shield className="h-4 w-4 text-amber-500" />
             Hedging
           </CardTitle>
-          <CardDescription className="text-[11px] text-zinc-500">
+          <CardDescription className="text-[11px] text-[var(--to-text-dim)]">
             Reduce exposure when the hedging engine detects high risk.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {suggestionsLoading ? (
-            <p className="text-xs text-zinc-500 flex items-center gap-1">
+            <p className="text-xs text-[var(--to-text-dim)] flex items-center gap-1">
               <Loader2 className="h-3 w-3 animate-spin" />
               Loading suggestions…
             </p>
@@ -159,7 +159,7 @@ export function OptimizerPanel() {
                   <p className="text-sm font-medium text-amber-200">
                     High exposure: {suggestion.reason}
                   </p>
-                  <p className="text-[11px] text-zinc-400 mt-0.5">
+                  <p className="text-[11px] text-[var(--to-text-dim)] mt-0.5">
                     Suggested: <strong>{suggestion.suggested_direction?.toUpperCase()}</strong>{' '}
                     {suggestion.suggested_symbol} @ {suggestion.suggested_size_lots} lots
                   </p>
@@ -183,7 +183,7 @@ export function OptimizerPanel() {
                   size="sm"
                   onClick={() => rejectHedge.mutate(suggestion.id)}
                   disabled={rejectHedge.isPending}
-                  className="border-[#2a2e39] text-zinc-400"
+                  className="border-[#2a2e39] text-[var(--to-text-dim)]"
                 >
                   <X className="h-3 w-3" />
                   Dismiss
@@ -192,13 +192,13 @@ export function OptimizerPanel() {
             </div>
           ) : (
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-xs text-zinc-500">No pending hedge suggestions.</p>
+              <p className="text-xs text-[var(--to-text-dim)]">No pending hedge suggestions.</p>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => generateHedge.mutate()}
                 disabled={generateHedge.isPending || positions.length === 0}
-                className="border-[#2a2e39] text-zinc-400"
+                className="border-[#2a2e39] text-[var(--to-text-dim)]"
               >
                 {generateHedge.isPending ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -216,10 +216,10 @@ export function OptimizerPanel() {
       {trailingStops.length > 0 && (
         <Card className="border-[#2a2e39] bg-[#1e222d]/50">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-zinc-100">
+            <CardTitle className="text-sm font-medium text-[var(--to-text-primary)]">
               Active trailing stops
             </CardTitle>
-            <CardDescription className="text-[11px] text-zinc-500">
+            <CardDescription className="text-[11px] text-[var(--to-text-dim)]">
               {trailingStops.length} position(s) with trailing stop attached.
             </CardDescription>
           </CardHeader>
@@ -230,13 +230,13 @@ export function OptimizerPanel() {
                   key={ts.id}
                   className={cn(
                     'flex items-center justify-between rounded border border-[#2a2e39] px-2.5 py-1.5',
-                    'text-xs font-mono text-zinc-300'
+                    'text-xs font-mono text-[var(--to-text-secondary)]'
                   )}
                 >
                   <span>
                     {ts.symbol} #{ts.signal_id} · {ts.trail_distance_pips} pips
                     {ts.is_activated && (
-                      <Badge className="ml-1.5 bg-emerald-500/20 text-emerald-400 text-[10px]">
+                      <Badge className="ml-1.5 bg-[var(--to-long)]/20 text-[var(--to-long)] text-[10px]">
                         Active
                       </Badge>
                     )}

@@ -21,7 +21,7 @@ export function PortfolioRiskWidget() {
       <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a2e39]">
         <div className="flex items-center gap-2">
           <TrendingDown className="w-4 h-4 text-[#2962ff]" />
-          <span className="font-mono text-xs font-semibold text-zinc-300 uppercase tracking-wider">
+          <span className="font-mono text-xs font-semibold text-[var(--to-text-secondary)] uppercase tracking-wider">
             Portfolio Risk
           </span>
         </div>
@@ -42,7 +42,7 @@ export function PortfolioRiskWidget() {
           <div className="space-y-3">
             {/* VaR Metric */}
             <div>
-              <div className="text-[10px] text-zinc-500 font-mono mb-1">
+              <div className="text-[10px] text-[var(--to-text-dim)] font-mono mb-1">
                 Portfolio VaR (95%)
               </div>
               <div className="flex items-baseline gap-2">
@@ -54,7 +54,7 @@ export function PortfolioRiskWidget() {
                 >
                   ${Math.abs(data.var_95_1d).toFixed(0)}
                 </span>
-                <span className="text-xs text-zinc-500">
+                <span className="text-xs text-[var(--to-text-dim)]">
                   {varUtilization.toFixed(0)}% used
                 </span>
               </div>
@@ -87,18 +87,18 @@ export function PortfolioRiskWidget() {
             {/* Quick Stats */}
             <div className="grid grid-cols-2 gap-2 pt-2">
               <div>
-                <div className="text-[9px] text-zinc-600 font-mono mb-0.5">
+                <div className="text-[9px] text-[var(--to-text-dim)] font-mono mb-0.5">
                   Volatility
                 </div>
-                <div className="text-sm font-mono text-zinc-300">
+                <div className="text-sm font-mono text-[var(--to-text-secondary)]">
                   {data.portfolio_volatility.toFixed(1)}%
                 </div>
               </div>
               <div>
-                <div className="text-[9px] text-zinc-600 font-mono mb-0.5">
+                <div className="text-[9px] text-[var(--to-text-dim)] font-mono mb-0.5">
                   Exposure
                 </div>
-                <div className="text-sm font-mono text-zinc-300">
+                <div className="text-sm font-mono text-[var(--to-text-secondary)]">
                   ${(data.total_exposure / 1000).toFixed(1)}k
                 </div>
               </div>
@@ -106,11 +106,11 @@ export function PortfolioRiskWidget() {
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-8 text-center">
-            <TrendingDown className="w-8 h-8 text-zinc-700 mb-2" />
-            <span className="text-xs text-zinc-600 font-mono">
+            <TrendingDown className="w-8 h-8 text-[var(--to-text-dim)] mb-2" />
+            <span className="text-xs text-[var(--to-text-dim)] font-mono">
               No active positions
             </span>
-            <span className="text-[10px] text-zinc-700 font-mono mt-1">
+            <span className="text-[10px] text-[var(--to-text-dim)] font-mono mt-1">
               VaR analysis unavailable
             </span>
           </div>
@@ -122,10 +122,10 @@ export function PortfolioRiskWidget() {
         href="/portfolio-risk"
         className="flex items-center justify-between px-4 py-2 border-t border-[#2a2e39] hover:bg-[#1e222d]/50 transition-colors group"
       >
-        <span className="text-[10px] text-zinc-500 font-mono group-hover:text-zinc-400">
+        <span className="text-[10px] text-[var(--to-text-dim)] font-mono group-hover:text-[var(--to-text-dim)]">
           View full analysis
         </span>
-        <ArrowRight className="w-3 h-3 text-zinc-600 group-hover:text-zinc-400" />
+        <ArrowRight className="w-3 h-3 text-[var(--to-text-dim)] group-hover:text-[var(--to-text-dim)]" />
       </Link>
     </div>
   );

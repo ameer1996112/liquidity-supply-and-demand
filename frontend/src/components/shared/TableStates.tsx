@@ -57,7 +57,7 @@ export function TableEmptyState({
 }: TableEmptyStateProps) {
   return (
     <div className='empty-state py-12'>
-      <div className='mb-3 text-slate-500'>
+      <div className='mb-3 text-[var(--to-text-dim)]'>
         {icon ?? <Activity className='h-5 w-5' />}
       </div>
       <span className='text-sm font-medium text-slate-200'>
@@ -65,7 +65,7 @@ export function TableEmptyState({
       </span>
       {description ? (
         <span
-          className='mt-1 text-[11px] text-slate-500'
+          className='mt-1 text-[11px] text-[var(--to-text-dim)]'
           style={{ fontFamily: 'var(--font-mono)' }}
         >
           {description}

@@ -46,7 +46,7 @@ export function BreakdownTable({ title, data }: BreakdownTableProps) {
   if (entries.length === 0) {
     return (
       <div className="tv-card p-6 text-center">
-        <span className="text-xs text-zinc-600 font-mono">No data</span>
+        <span className="text-xs text-[var(--to-text-dim)] font-mono">No data</span>
       </div>
     );
   }
@@ -54,7 +54,7 @@ export function BreakdownTable({ title, data }: BreakdownTableProps) {
   return (
     <div className="tv-card">
       <div className="px-4 py-3 border-b border-[#2a2e39]">
-        <span className="font-mono text-xs text-zinc-400 uppercase tracking-wider">
+        <span className="font-mono text-xs text-[var(--to-text-dim)] uppercase tracking-wider">
           {title}
         </span>
       </div>
@@ -75,7 +75,7 @@ export function BreakdownTable({ title, data }: BreakdownTableProps) {
                 <th
                   key={key}
                   onClick={() => toggleSort(key)}
-                  className="px-3 py-2 text-left text-[10px] text-zinc-500 font-mono uppercase tracking-wider cursor-pointer hover:text-zinc-300 transition-colors"
+                  className="px-3 py-2 text-left text-[10px] text-[var(--to-text-dim)] font-mono uppercase tracking-wider cursor-pointer hover:text-[var(--to-text-secondary)] transition-colors"
                 >
                   <span className="flex items-center gap-1">
                     {label}
@@ -91,10 +91,10 @@ export function BreakdownTable({ title, data }: BreakdownTableProps) {
                 key={key}
                 className="border-b border-[#2a2e39] last:border-b-0 hover:bg-[#1e222d]/50"
               >
-                <td className="px-3 py-2 font-mono text-xs text-zinc-300">
+                <td className="px-3 py-2 font-mono text-xs text-[var(--to-text-secondary)]">
                   {key}
                 </td>
-                <td className="px-3 py-2 font-mono text-xs tabular-nums text-zinc-400">
+                <td className="px-3 py-2 font-mono text-xs tabular-nums text-[var(--to-text-dim)]">
                   {stats.count}
                 </td>
                 <td className="px-3 py-2 font-mono text-xs tabular-nums text-[#26a69a]">
@@ -103,7 +103,7 @@ export function BreakdownTable({ title, data }: BreakdownTableProps) {
                 <td className="px-3 py-2 font-mono text-xs tabular-nums text-[#ef5350]">
                   {stats.losses}
                 </td>
-                <td className="px-3 py-2 font-mono text-xs tabular-nums text-zinc-300">
+                <td className="px-3 py-2 font-mono text-xs tabular-nums text-[var(--to-text-secondary)]">
                   {stats.win_rate.toFixed(1)}%
                 </td>
                 <td
@@ -111,7 +111,7 @@ export function BreakdownTable({ title, data }: BreakdownTableProps) {
                     'px-3 py-2 font-mono text-xs font-semibold tabular-nums',
                     stats.pnl > 0 && 'text-[#26a69a]',
                     stats.pnl < 0 && 'text-[#ef5350]',
-                    stats.pnl === 0 && 'text-zinc-500',
+                    stats.pnl === 0 && 'text-[var(--to-text-dim)]',
                   )}
                 >
                   {stats.pnl >= 0 ? '+' : ''}${stats.pnl.toFixed(2)}

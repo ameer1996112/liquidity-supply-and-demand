@@ -12,9 +12,9 @@ function PhaseBadge({ phase }: { phase: string }) {
   > = {
     phase1: {
       label: 'Phase 1',
-      text: 'text-zinc-400',
+      text: 'text-[var(--to-text-dim)]',
       bg: 'bg-zinc-500/10',
-      border: 'border-zinc-500/20',
+      border: 'border-[var(--to-border)]',
     },
     phase2: {
       label: 'Phase 2',
@@ -31,9 +31,9 @@ function PhaseBadge({ phase }: { phase: string }) {
   };
   const meta = labels[phase] ?? {
     label: phase.toUpperCase(),
-    text: 'text-zinc-500',
+    text: 'text-[var(--to-text-dim)]',
     bg: 'bg-zinc-500/5',
-    border: 'border-zinc-500/20',
+    border: 'border-[var(--to-border)]',
   };
   return (
     <span
@@ -82,17 +82,17 @@ export function ChallengeHeader({
               <Trophy className='h-6 w-6 text-amber-400' />
             </div>
             <div>
-              <h1 className='text-[22px] font-black text-zinc-100 tracking-tight'>
+              <h1 className='text-[22px] font-black text-[var(--to-text-primary)] tracking-tight'>
                 Prop Firm Challenge
               </h1>
               <div className='flex items-center gap-2 mt-1'>
-                <span className='text-[12px] text-zinc-500 font-mono'>
+                <span className='text-[12px] text-[var(--to-text-dim)] font-mono'>
                   {accountName}
                 </span>
-                <ChevronRight className='h-3 w-3 text-zinc-700' />
+                <ChevronRight className='h-3 w-3 text-[var(--to-text-dim)]' />
                 <PhaseBadge phase={evaluationPhase} />
                 {daysRemaining !== null && (
-                  <div className='flex items-center gap-1 ml-2 text-[11px] text-zinc-600 font-mono'>
+                  <div className='flex items-center gap-1 ml-2 text-[11px] text-[var(--to-text-dim)] font-mono'>
                     <Clock className='h-3 w-3' />
                     {daysRemaining} days remaining
                   </div>
@@ -110,14 +110,14 @@ export function ChallengeHeader({
 
         <div className='flex items-center gap-3'>
           {dataUpdatedAt && (
-            <span className='text-[11px] text-zinc-600 font-mono'>
+            <span className='text-[11px] text-[var(--to-text-dim)] font-mono'>
               Updated {format(new Date(dataUpdatedAt), 'HH:mm:ss')}
             </span>
           )}
           <button
             onClick={onReset}
             disabled={isResetting}
-            className='flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#2a2e39] text-[12px] text-zinc-400 hover:bg-[#1e222d] transition-colors'
+            className='flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#2a2e39] text-[12px] text-[var(--to-text-dim)] hover:bg-[#1e222d] transition-colors'
           >
             <RefreshCw
               className={cn(

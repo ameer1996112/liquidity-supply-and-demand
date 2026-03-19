@@ -419,7 +419,7 @@ export function TopBar() {
                   'rounded-md px-3 py-1.5 text-[10px] uppercase font-bold tracking-widest transition-all',
                   selectedAccountName === null
                     ? 'bg-white/10 text-white shadow-sm'
-                    : 'text-zinc-500 hover:text-zinc-300'
+                    : 'text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]'
                 )}
                 style={{ fontFamily: 'var(--font-mono)' }}
               >
@@ -434,7 +434,7 @@ export function TopBar() {
                     'rounded-md px-3 py-1.5 text-[10px] uppercase font-bold tracking-widest transition-all',
                     selectedAccountName === acc.account_name
                       ? 'bg-indigo-500/20 text-indigo-300 shadow-sm'
-                      : 'text-zinc-500 hover:text-zinc-300'
+                      : 'text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]'
                   )}
                   style={{ fontFamily: 'var(--font-mono)' }}
                 >
@@ -450,7 +450,7 @@ export function TopBar() {
             style={{ fontFamily: 'var(--font-mono)' }}
           >
             <div className='flex flex-col items-end justify-center'>
-              <span className='text-[9px] text-zinc-500 uppercase tracking-widest leading-none mb-1'>
+              <span className='text-[9px] text-[var(--to-text-dim)] uppercase tracking-widest leading-none mb-1'>
                 Net Liq
               </span>
               <span className='text-[13px] text-white font-semibold leading-none'>
@@ -463,7 +463,7 @@ export function TopBar() {
             </div>
             <div className='h-5 w-px bg-white/10' />
             <div className='flex flex-col items-end justify-center'>
-              <span className='text-[9px] text-zinc-500 uppercase tracking-widest leading-none mb-1'>
+              <span className='text-[9px] text-[var(--to-text-dim)] uppercase tracking-widest leading-none mb-1'>
                 Today
               </span>
               <span
@@ -492,7 +492,7 @@ export function TopBar() {
                 'flex items-center gap-1.5 rounded-md px-3 py-1.5 transition-all outline-none',
                 mode === 'LIVE'
                   ? 'bg-[#0ecb81]/15 text-[#0ecb81] shadow-[0_0_10px_rgba(14,203,129,0.15)] ring-1 ring-[#0ecb81]/30'
-                  : 'text-zinc-500 hover:text-zinc-300'
+                  : 'text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]'
               )}
             >
               <Radio className='h-3.5 w-3.5' />
@@ -506,7 +506,7 @@ export function TopBar() {
                 'flex items-center gap-1.5 rounded-md px-3 py-1.5 transition-all outline-none',
                 mode === 'PAPER'
                   ? 'bg-amber-500/15 text-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.15)] ring-1 ring-amber-500/30'
-                  : 'text-zinc-500 hover:text-zinc-300'
+                  : 'text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]'
               )}
             >
               <FlaskConical className='h-3.5 w-3.5' />
@@ -524,7 +524,7 @@ export function TopBar() {
               'flex items-center justify-center p-2 rounded-lg transition-all',
               marketOpen
                 ? 'text-[#0ecb81] bg-[#0ecb81]/15 ring-1 ring-[#0ecb81]/30 shadow-[0_0_10px_rgba(14,203,129,0.15)]'
-                : 'text-zinc-400 hover:text-[#0ecb81] hover:bg-[#0ecb81]/10'
+                : 'text-[var(--to-text-dim)] hover:text-[#0ecb81] hover:bg-[#0ecb81]/10'
             )}
             title='Live Markets Panel'
           >
@@ -537,7 +537,7 @@ export function TopBar() {
               'flex items-center justify-center p-2 rounded-lg transition-all',
               copilotOpen
                 ? 'text-indigo-400 bg-indigo-500/15 ring-1 ring-indigo-500/30 shadow-[0_0_10px_rgba(99,102,241,0.15)]'
-                : 'text-zinc-400 hover:text-indigo-400 hover:bg-indigo-500/10'
+                : 'text-[var(--to-text-dim)] hover:text-indigo-400 hover:bg-indigo-500/10'
             )}
             title='AI Copilot (⌘/)'
           >
@@ -558,7 +558,7 @@ export function TopBar() {
               'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest transition-all',
               risk?.kill_switch_active
                 ? 'animate-pulse bg-[#f23645]/20 text-[#f23645] ring-1 ring-[#f23645]/50 shadow-[0_0_15px_rgba(242,54,69,0.3)]'
-                : 'bg-white/5 text-zinc-400 hover:bg-[#f23645]/15 hover:text-[#f23645] hover:ring-1 hover:ring-[#f23645]/30 disabled:opacity-50'
+                : 'bg-white/5 text-[var(--to-text-dim)] hover:bg-[#f23645]/15 hover:text-[#f23645] hover:ring-1 hover:ring-[#f23645]/30 disabled:opacity-50'
             )}
             style={{ fontFamily: 'var(--font-mono)' }}
             title={

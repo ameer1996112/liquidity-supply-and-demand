@@ -66,18 +66,18 @@ export function CapitalAllocator() {
     <Card className='border-[#2a2e39] bg-[#1e222d]/50'>
       <CardHeader className='pb-2'>
         <div className='flex items-center gap-2'>
-          <PiggyBank className='h-4 w-4 text-emerald-500' />
-          <CardTitle className='text-sm font-medium text-zinc-100'>
+          <PiggyBank className='h-4 w-4 text-[var(--to-long)]' />
+          <CardTitle className='text-sm font-medium text-[var(--to-text-primary)]'>
             Capital Allocation
           </CardTitle>
         </div>
-        <CardDescription className='text-[11px] text-zinc-500'>
+        <CardDescription className='text-[11px] text-[var(--to-text-dim)]'>
           Optimize capital distribution across accounts based on performance.
         </CardDescription>
       </CardHeader>
       <CardContent className='space-y-4'>
         <div>
-          <label className='text-[10px] text-zinc-500 font-mono block mb-1'>
+          <label className='text-[10px] text-[var(--to-text-dim)] font-mono block mb-1'>
             Total capital ($)
           </label>
           <input
@@ -86,10 +86,10 @@ export function CapitalAllocator() {
             min={1}
             value={totalCapital}
             onChange={(e) => setTotalCapital(parseFloat(e.target.value) || 0)}
-            className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm font-mono text-zinc-200'
+            className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm font-mono text-[var(--to-text-primary)]'
           />
           {totalFromAccounts > 0 && (
-            <p className='text-[10px] text-zinc-600 mt-1'>
+            <p className='text-[10px] text-[var(--to-text-dim)] mt-1'>
               Sum of account balances: ${totalFromAccounts.toLocaleString()}
             </p>
           )}
@@ -98,7 +98,7 @@ export function CapitalAllocator() {
         <Button
           variant='outline'
           size='sm'
-          className='w-full border-[#2a2e39] text-zinc-400 hover:bg-[#2a2e39] hover:text-zinc-200'
+          className='w-full border-[#2a2e39] text-[var(--to-text-dim)] hover:bg-[#2a2e39] hover:text-[var(--to-text-primary)]'
           onClick={handleSuggest}
         >
           <TrendingUp className='h-3.5 w-3.5 mr-2' />
@@ -110,7 +110,7 @@ export function CapitalAllocator() {
         ) : plan && Array.isArray(plan.recommendations) && plan.recommendations.length > 0 ? (
           <div className='space-y-3'>
             {plan.expected_portfolio_sharpe != null && (
-              <p className='text-[10px] text-zinc-500 font-mono'>
+              <p className='text-[10px] text-[var(--to-text-dim)] font-mono'>
                 Expected Sharpe: {plan.expected_portfolio_sharpe.toFixed(2)}
               </p>
             )}
@@ -120,10 +120,10 @@ export function CapitalAllocator() {
                   key={rec.account_name}
                   className='flex flex-col gap-1 rounded-lg border border-[#2a2e39] p-3'
                 >
-                  <span className='font-mono text-xs text-zinc-200'>
+                  <span className='font-mono text-xs text-[var(--to-text-primary)]'>
                     {rec.account_name}
                   </span>
-                  <div className='flex justify-between text-[10px] text-zinc-500'>
+                  <div className='flex justify-between text-[10px] text-[var(--to-text-dim)]'>
                     <span>
                       Current: ${rec.current_balance.toLocaleString()}
                     </span>
@@ -149,7 +149,7 @@ export function CapitalAllocator() {
                     <Button
                       size='sm'
                       variant='ghost'
-                      className='h-6 text-xs text-zinc-400 hover:text-emerald-400'
+                      className='h-6 text-xs text-[var(--to-text-dim)] hover:text-[var(--to-long)]'
                       disabled={executeAllocation.isPending}
                       onClick={() =>
                         handleExecute(
@@ -166,7 +166,7 @@ export function CapitalAllocator() {
                     </Button>
                   </div>
                   {rec.reason && (
-                    <p className='text-[10px] text-zinc-600 line-clamp-2'>
+                    <p className='text-[10px] text-[var(--to-text-dim)] line-clamp-2'>
                       {rec.reason}
                     </p>
                   )}
@@ -180,11 +180,11 @@ export function CapitalAllocator() {
             NEXT_PUBLIC_API_URL is set.
           </p>
         ) : accounts.length === 0 ? (
-          <p className='text-xs text-zinc-600 font-mono py-4 text-center'>
+          <p className='text-xs text-[var(--to-text-dim)] font-mono py-4 text-center'>
             Add accounts to see allocation suggestions.
           </p>
         ) : (
-          <p className='text-xs text-zinc-600 font-mono py-4 text-center'>
+          <p className='text-xs text-[var(--to-text-dim)] font-mono py-4 text-center'>
             {accounts.length === 1
               ? 'Single account — current allocation is optimal.'
               : 'No recommendations yet. Click &quot;Suggest allocation&quot; to refresh.'}

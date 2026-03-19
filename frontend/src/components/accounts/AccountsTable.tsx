@@ -93,55 +93,55 @@ export function AccountsTable({ accounts, onDelete }: AccountsTableProps) {
         <table className='w-full text-sm'>
           <thead>
             <tr className='border-b border-[#2a2e39] bg-[#1e222d]/50'>
-              <th className='text-left px-4 py-3 text-xs font-mono text-zinc-500'>
+              <th className='text-left px-4 py-3 text-xs font-mono text-[var(--to-text-dim)]'>
                 <button
                   onClick={() => {
                     setSortBy('name');
                     setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
                   }}
-                  className='hover:text-zinc-300'
+                  className='hover:text-[var(--to-text-secondary)]'
                 >
                   Account
                 </button>
               </th>
-              <th className='text-left px-4 py-3 text-xs font-mono text-zinc-500'>
+              <th className='text-left px-4 py-3 text-xs font-mono text-[var(--to-text-dim)]'>
                 Type
               </th>
-              <th className='text-left px-4 py-3 text-xs font-mono text-zinc-500'>
+              <th className='text-left px-4 py-3 text-xs font-mono text-[var(--to-text-dim)]'>
                 Connection
               </th>
-              <th className='text-right px-4 py-3 text-xs font-mono text-zinc-500'>
+              <th className='text-right px-4 py-3 text-xs font-mono text-[var(--to-text-dim)]'>
                 <button
                   onClick={() => {
                     setSortBy('balance');
                     setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
                   }}
-                  className='hover:text-zinc-300'
+                  className='hover:text-[var(--to-text-secondary)]'
                 >
                   Balance
                 </button>
               </th>
-              <th className='text-right px-4 py-3 text-xs font-mono text-zinc-500'>
+              <th className='text-right px-4 py-3 text-xs font-mono text-[var(--to-text-dim)]'>
                 Equity
               </th>
-              <th className='text-right px-4 py-3 text-xs font-mono text-zinc-500'>
+              <th className='text-right px-4 py-3 text-xs font-mono text-[var(--to-text-dim)]'>
                 <button
                   onClick={() => {
                     setSortBy('daily_pnl');
                     setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
                   }}
-                  className='hover:text-zinc-300'
+                  className='hover:text-[var(--to-text-secondary)]'
                 >
                   Today P&L
                 </button>
               </th>
-              <th className='text-center px-4 py-3 text-xs font-mono text-zinc-500'>
+              <th className='text-center px-4 py-3 text-xs font-mono text-[var(--to-text-dim)]'>
                 Positions
               </th>
-              <th className='text-right px-4 py-3 text-xs font-mono text-zinc-500'>
+              <th className='text-right px-4 py-3 text-xs font-mono text-[var(--to-text-dim)]'>
                 Win Rate
               </th>
-              <th className='text-right px-4 py-3 text-xs font-mono text-zinc-500'>
+              <th className='text-right px-4 py-3 text-xs font-mono text-[var(--to-text-dim)]'>
                 Actions
               </th>
             </tr>
@@ -173,7 +173,7 @@ export function AccountsTable({ accounts, onDelete }: AccountsTableProps) {
                             )}`
                           )
                         }
-                        className='font-mono text-xs text-zinc-200 hover:text-emerald-400 hover:underline'
+                        className='font-mono text-xs text-[var(--to-text-primary)] hover:text-[var(--to-long)] hover:underline'
                       >
                         {account.account_name}
                       </button>
@@ -195,30 +195,30 @@ export function AccountsTable({ accounts, onDelete }: AccountsTableProps) {
                           account.account_type === 'Eval' &&
                             'bg-amber-500/10 text-amber-400 border border-amber-500/20',
                           account.account_type === 'Funded' &&
-                            'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20',
+                            'bg-[var(--to-long)]/10 text-[var(--to-long)] border border-[var(--to-long)]/20',
                           account.account_type === 'Personal' &&
-                            'bg-zinc-700/30 text-zinc-400'
+                            'bg-[var(--to-surface-raised)]/30 text-[var(--to-text-dim)]'
                         )}
                       >
                         {account.account_type}
                       </span>
                     ) : (
-                      <span className='text-xs text-zinc-600'>-</span>
+                      <span className='text-xs text-[var(--to-text-dim)]'>-</span>
                     )}
                   </td>
 
                   {/* Connection */}
                   <td className='px-4 py-3'>
-                    <span className='flex items-center gap-1.5 text-xs text-zinc-500'>
+                    <span className='flex items-center gap-1.5 text-xs text-[var(--to-text-dim)]'>
                       <span className='relative flex h-2 w-2'>
-                        <span className='relative inline-flex rounded-full h-2 w-2 bg-zinc-600'></span>
+                        <span className='relative inline-flex rounded-full h-2 w-2 bg-[var(--to-surface-raised)]'></span>
                       </span>
                       N/A
                     </span>
                   </td>
 
                   {/* Balance */}
-                  <td className='px-4 py-3 text-right font-mono text-xs text-zinc-200'>
+                  <td className='px-4 py-3 text-right font-mono text-xs text-[var(--to-text-primary)]'>
                     $
                     {account.balance.toLocaleString(undefined, {
                       minimumFractionDigits: 2,
@@ -226,7 +226,7 @@ export function AccountsTable({ accounts, onDelete }: AccountsTableProps) {
                   </td>
 
                   {/* Equity */}
-                  <td className='px-4 py-3 text-right font-mono text-xs text-zinc-300'>
+                  <td className='px-4 py-3 text-right font-mono text-xs text-[var(--to-text-secondary)]'>
                     $
                     {(account.equity || account.balance).toLocaleString(
                       undefined,
@@ -260,7 +260,7 @@ export function AccountsTable({ accounts, onDelete }: AccountsTableProps) {
 
                   {/* Positions */}
                   <td className='px-4 py-3 text-center'>
-                    <span className='font-mono text-xs text-zinc-400'>
+                    <span className='font-mono text-xs text-[var(--to-text-dim)]'>
                       {account.active_positions} / {account.max_positions || 3}
                     </span>
                   </td>
@@ -288,7 +288,7 @@ export function AccountsTable({ accounts, onDelete }: AccountsTableProps) {
                             )}`
                           )
                         }
-                        className='p-1.5 rounded hover:bg-[#2a2e39] text-zinc-500 hover:text-zinc-300 transition-colors'
+                        className='p-1.5 rounded hover:bg-[#2a2e39] text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)] transition-colors'
                         title='View Details'
                       >
                         <Eye className='h-3.5 w-3.5' />
@@ -298,7 +298,7 @@ export function AccountsTable({ accounts, onDelete }: AccountsTableProps) {
                           syncMutation.mutate(account.account_name)
                         }
                         disabled={syncMutation.isPending}
-                        className='p-1.5 rounded hover:bg-[#2a2e39] text-zinc-500 hover:text-emerald-400 transition-colors disabled:opacity-50'
+                        className='p-1.5 rounded hover:bg-[#2a2e39] text-[var(--to-text-dim)] hover:text-[var(--to-long)] transition-colors disabled:opacity-50'
                         title='Resync Now'
                       >
                         <RefreshCw
@@ -310,7 +310,7 @@ export function AccountsTable({ accounts, onDelete }: AccountsTableProps) {
                       </button>
                       <button
                         onClick={() => onDelete(account.account_name)}
-                        className='p-1.5 rounded hover:bg-[#2a2e39] text-zinc-500 hover:text-red-500 transition-colors'
+                        className='p-1.5 rounded hover:bg-[#2a2e39] text-[var(--to-text-dim)] hover:text-[var(--to-short)] transition-colors'
                         title='Delete Account'
                       >
                         <Trash2 className='h-3.5 w-3.5' />
@@ -325,7 +325,7 @@ export function AccountsTable({ accounts, onDelete }: AccountsTableProps) {
       </div>
 
       {accounts.length === 0 && (
-        <div className='px-4 py-12 text-center text-xs text-zinc-600'>
+        <div className='px-4 py-12 text-center text-xs text-[var(--to-text-dim)]'>
           No accounts to display
         </div>
       )}

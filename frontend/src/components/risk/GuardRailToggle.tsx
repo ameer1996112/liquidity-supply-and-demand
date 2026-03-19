@@ -89,13 +89,13 @@ export function GuardRailToggle({
             )}
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[#2a2e39] text-zinc-400">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[#2a2e39] text-[var(--to-text-dim)]">
                 <Icon className="h-4 w-4" />
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-medium text-zinc-100">{item.label}</p>
+                <p className="text-sm font-medium text-[var(--to-text-primary)]">{item.label}</p>
                 {item.description && (
-                  <p className="text-[11px] text-zinc-500 truncate">
+                  <p className="text-[11px] text-[var(--to-text-dim)] truncate">
                     {item.description}
                   </p>
                 )}

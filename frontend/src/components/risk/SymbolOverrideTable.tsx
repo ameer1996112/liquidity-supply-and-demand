@@ -125,7 +125,7 @@ export function SymbolOverrideTable() {
 
   if (isLoading) {
     return (
-      <div className="rounded-lg border border-[#2a2e39] bg-[#1e222d]/50 p-8 text-center text-zinc-500 text-sm">
+      <div className="rounded-lg border border-[#2a2e39] bg-[#1e222d]/50 p-8 text-center text-[var(--to-text-dim)] text-sm">
         Loading symbol overrides…
       </div>
     );
@@ -142,7 +142,7 @@ export function SymbolOverrideTable() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-[11px] font-mono text-zinc-500 uppercase tracking-wider">
+        <p className="text-[11px] font-mono text-[var(--to-text-dim)] uppercase tracking-wider">
           Per-symbol risk & leverage
         </p>
         {!adding && !editSymbol && (
@@ -150,7 +150,7 @@ export function SymbolOverrideTable() {
             variant="outline"
             size="xs"
             onClick={startAdd}
-            className="border-[#2a2e39] bg-[#1e222d] text-zinc-300 hover:bg-[#2a2e39]"
+            className="border-[#2a2e39] bg-[#1e222d] text-[var(--to-text-secondary)] hover:bg-[#2a2e39]"
           >
             <Plus className="h-3 w-3" />
             Add override
@@ -162,22 +162,22 @@ export function SymbolOverrideTable() {
         <Table>
           <TableHeader>
             <TableRow className="border-[#2a2e39] hover:bg-transparent">
-              <TableHead className="text-zinc-500 font-mono text-[11px]">
+              <TableHead className="text-[var(--to-text-dim)] font-mono text-[11px]">
                 Symbol
               </TableHead>
-              <TableHead className="text-zinc-500 font-mono text-[11px]">
+              <TableHead className="text-[var(--to-text-dim)] font-mono text-[11px]">
                 Risk %
               </TableHead>
-              <TableHead className="text-zinc-500 font-mono text-[11px]">
+              <TableHead className="text-[var(--to-text-dim)] font-mono text-[11px]">
                 Max lot
               </TableHead>
-              <TableHead className="text-zinc-500 font-mono text-[11px]">
+              <TableHead className="text-[var(--to-text-dim)] font-mono text-[11px]">
                 Max pos
               </TableHead>
-              <TableHead className="text-zinc-500 font-mono text-[11px]">
+              <TableHead className="text-[var(--to-text-dim)] font-mono text-[11px]">
                 Status
               </TableHead>
-              <TableHead className="w-[100px] text-right text-zinc-500 font-mono text-[11px]">
+              <TableHead className="w-[100px] text-right text-[var(--to-text-dim)] font-mono text-[11px]">
                 Actions
               </TableHead>
             </TableRow>
@@ -193,7 +193,7 @@ export function SymbolOverrideTable() {
                     onChange={(e) =>
                       setEditRow((r) => ({ ...r, symbol: e.target.value }))
                     }
-                    className="w-24 rounded border border-[#2a2e39] bg-[#0f1117] px-2 py-1 font-mono text-xs text-zinc-100"
+                    className="w-24 rounded border border-[#2a2e39] bg-[#0f1117] px-2 py-1 font-mono text-xs text-[var(--to-text-primary)]"
                   />
                 </TableCell>
                 <TableCell>
@@ -209,7 +209,7 @@ export function SymbolOverrideTable() {
                         risk_percent: parseFloat(e.target.value) || 1,
                       }))
                     }
-                    className="w-16 rounded border border-[#2a2e39] bg-[#0f1117] px-2 py-1 font-mono text-xs text-zinc-100"
+                    className="w-16 rounded border border-[#2a2e39] bg-[#0f1117] px-2 py-1 font-mono text-xs text-[var(--to-text-primary)]"
                   />
                 </TableCell>
                 <TableCell>
@@ -224,7 +224,7 @@ export function SymbolOverrideTable() {
                         max_lot_size: parseFloat(e.target.value) || 1,
                       }))
                     }
-                    className="w-16 rounded border border-[#2a2e39] bg-[#0f1117] px-2 py-1 font-mono text-xs text-zinc-100"
+                    className="w-16 rounded border border-[#2a2e39] bg-[#0f1117] px-2 py-1 font-mono text-xs text-[var(--to-text-primary)]"
                   />
                 </TableCell>
                 <TableCell>
@@ -238,7 +238,7 @@ export function SymbolOverrideTable() {
                         max_positions: parseInt(e.target.value, 10) || 3,
                       }))
                     }
-                    className="w-14 rounded border border-[#2a2e39] bg-[#0f1117] px-2 py-1 font-mono text-xs text-zinc-100"
+                    className="w-14 rounded border border-[#2a2e39] bg-[#0f1117] px-2 py-1 font-mono text-xs text-[var(--to-text-primary)]"
                   />
                 </TableCell>
                 <TableCell>-</TableCell>
@@ -255,7 +255,7 @@ export function SymbolOverrideTable() {
                       {createRule.isPending ? (
                         <Loader2 className="h-3 w-3 animate-spin" />
                       ) : (
-                        <Save className="h-3 w-3 text-emerald-500" />
+                        <Save className="h-3 w-3 text-[var(--to-long)]" />
                       )}
                     </Button>
                     <Button size="icon-xs" variant="ghost" onClick={cancelAdd}>
@@ -275,19 +275,19 @@ export function SymbolOverrideTable() {
                   key={rule.symbol}
                   className="border-[#2a2e39] hover:bg-[#1e222d]/50"
                 >
-                  <TableCell className="font-mono text-xs text-zinc-100">
+                  <TableCell className="font-mono text-xs text-[var(--to-text-primary)]">
                     {isEditing ? (
                       <input
                         type="text"
                         value={row.symbol}
                         readOnly
-                        className="w-24 rounded border border-[#2a2e39] bg-[#0f1117] px-2 py-1 font-mono text-xs text-zinc-400"
+                        className="w-24 rounded border border-[#2a2e39] bg-[#0f1117] px-2 py-1 font-mono text-xs text-[var(--to-text-dim)]"
                       />
                     ) : (
                       rule.symbol
                     )}
                   </TableCell>
-                  <TableCell className="font-mono text-xs text-zinc-300">
+                  <TableCell className="font-mono text-xs text-[var(--to-text-secondary)]">
                     {isEditing ? (
                       <input
                         type="number"
@@ -302,13 +302,13 @@ export function SymbolOverrideTable() {
                               parseFloat(e.target.value) || 1,
                           }))
                         }
-                        className="w-16 rounded border border-[#2a2e39] bg-[#0f1117] px-2 py-1 font-mono text-xs text-zinc-100"
+                        className="w-16 rounded border border-[#2a2e39] bg-[#0f1117] px-2 py-1 font-mono text-xs text-[var(--to-text-primary)]"
                       />
                     ) : (
                       `${rule.risk_percent}%`
                     )}
                   </TableCell>
-                  <TableCell className="font-mono text-xs text-zinc-300">
+                  <TableCell className="font-mono text-xs text-[var(--to-text-secondary)]">
                     {isEditing ? (
                       <input
                         type="number"
@@ -322,13 +322,13 @@ export function SymbolOverrideTable() {
                               parseFloat(e.target.value) || 1,
                           }))
                         }
-                        className="w-16 rounded border border-[#2a2e39] bg-[#0f1117] px-2 py-1 font-mono text-xs text-zinc-100"
+                        className="w-16 rounded border border-[#2a2e39] bg-[#0f1117] px-2 py-1 font-mono text-xs text-[var(--to-text-primary)]"
                       />
                     ) : (
                       rule.max_lot_size
                     )}
                   </TableCell>
-                  <TableCell className="font-mono text-xs text-zinc-300">
+                  <TableCell className="font-mono text-xs text-[var(--to-text-secondary)]">
                     {isEditing ? (
                       <input
                         type="number"
@@ -341,7 +341,7 @@ export function SymbolOverrideTable() {
                               parseInt(e.target.value, 10) || 3,
                           }))
                         }
-                        className="w-14 rounded border border-[#2a2e39] bg-[#0f1117] px-2 py-1 font-mono text-xs text-zinc-100"
+                        className="w-14 rounded border border-[#2a2e39] bg-[#0f1117] px-2 py-1 font-mono text-xs text-[var(--to-text-primary)]"
                       />
                     ) : (
                       rule.max_positions
@@ -349,11 +349,11 @@ export function SymbolOverrideTable() {
                   </TableCell>
                   <TableCell>
                     {rule.enabled ? (
-                      <Badge className="bg-emerald-500/20 text-emerald-400 text-[10px]">
+                      <Badge className="bg-[var(--to-long)]/20 text-[var(--to-long)] text-[10px]">
                         On
                       </Badge>
                     ) : (
-                      <Badge className="bg-zinc-600/30 text-zinc-500 text-[10px]">
+                      <Badge className="bg-[var(--to-surface-raised)]/30 text-[var(--to-text-dim)] text-[10px]">
                         Off
                       </Badge>
                     )}
@@ -370,7 +370,7 @@ export function SymbolOverrideTable() {
                           {updateRule.isPending ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
                           ) : (
-                            <Save className="h-3 w-3 text-emerald-500" />
+                            <Save className="h-3 w-3 text-[var(--to-long)]" />
                           )}
                         </Button>
                         <Button
@@ -387,7 +387,7 @@ export function SymbolOverrideTable() {
                           size="icon-xs"
                           variant="ghost"
                           onClick={() => startEdit(rule)}
-                          className="text-zinc-500 hover:text-zinc-300"
+                          className="text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]"
                         >
                           <Pencil className="h-3 w-3" />
                         </Button>
@@ -396,7 +396,7 @@ export function SymbolOverrideTable() {
                           variant="ghost"
                           onClick={() => remove(rule.symbol)}
                           disabled={deleteRule.isPending}
-                          className="text-zinc-500 hover:text-red-400"
+                          className="text-[var(--to-text-dim)] hover:text-[var(--to-short)]"
                         >
                           <Trash2 className="h-3 w-3" />
                         </Button>
@@ -411,7 +411,7 @@ export function SymbolOverrideTable() {
       </div>
 
       {rules.length === 0 && !adding && (
-        <p className="py-4 text-center text-xs text-zinc-500">
+        <p className="py-4 text-center text-xs text-[var(--to-text-dim)]">
           No symbol overrides. Add one to set custom risk or leverage per pair.
         </p>
       )}

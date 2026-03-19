@@ -121,22 +121,22 @@ export function CopyConfigurator() {
       <CardHeader className='pb-2'>
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-2'>
-            <Copy className='h-4 w-4 text-emerald-500' />
-            <CardTitle className='text-sm font-medium text-zinc-100'>
+            <Copy className='h-4 w-4 text-[var(--to-long)]' />
+            <CardTitle className='text-sm font-medium text-[var(--to-text-primary)]'>
               Trade Copy Rules
             </CardTitle>
           </div>
           <Button
             variant='ghost'
             size='sm'
-            className='text-zinc-400 hover:text-zinc-200'
+            className='text-[var(--to-text-dim)] hover:text-[var(--to-text-primary)]'
             onClick={() => setShowForm(!showForm)}
           >
             <Plus className='h-3.5 w-3.5 mr-1' />
             Add rule
           </Button>
         </div>
-        <CardDescription className='text-[11px] text-zinc-500'>
+        <CardDescription className='text-[11px] text-[var(--to-text-dim)]'>
           Copy trades from master account to slave accounts with optional
           scaling.
         </CardDescription>
@@ -150,17 +150,17 @@ export function CopyConfigurator() {
               placeholder='Rule name (optional)'
               value={ruleName}
               onChange={(e) => setRuleName(e.target.value)}
-              className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm text-zinc-200 font-mono placeholder:text-zinc-600'
+              className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm text-[var(--to-text-primary)] font-mono placeholder:text-[var(--to-text-dim)]'
             />
             <div>
-              <label className='text-[10px] text-zinc-500 font-mono block mb-1'>
+              <label className='text-[10px] text-[var(--to-text-dim)] font-mono block mb-1'>
                 Master account
               </label>
               <select
                 id='copy-master-account'
                 value={masterAccount}
                 onChange={(e) => setMasterAccount(e.target.value)}
-                className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm text-zinc-200 font-mono'
+                className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm text-[var(--to-text-primary)] font-mono'
               >
                 <option value=''>Select master</option>
                 {accountNames.map((n) => (
@@ -171,20 +171,20 @@ export function CopyConfigurator() {
               </select>
             </div>
             <div>
-              <label className='text-[10px] text-zinc-500 font-mono block mb-1'>
+              <label className='text-[10px] text-[var(--to-text-dim)] font-mono block mb-1'>
                 Slave accounts
               </label>
               <div className='flex gap-2 flex-wrap'>
                 {slaveAccounts.map((n) => (
                   <span
                     key={n}
-                    className='inline-flex items-center gap-1 px-2 py-1 rounded bg-[#2a2e39] text-xs font-mono text-zinc-300'
+                    className='inline-flex items-center gap-1 px-2 py-1 rounded bg-[#2a2e39] text-xs font-mono text-[var(--to-text-secondary)]'
                   >
                     {n}
                     <button
                       type='button'
                       onClick={() => handleRemoveSlave(n)}
-                      className='text-zinc-500 hover:text-red-400'
+                      className='text-[var(--to-text-dim)] hover:text-[var(--to-short)]'
                     >
                       ×
                     </button>
@@ -198,7 +198,7 @@ export function CopyConfigurator() {
                       setSlaveAccounts([...slaveAccounts, v]);
                     e.target.value = '';
                   }}
-                  className='px-2 py-1 bg-[#1e222d] border border-[#2a2e39] rounded text-xs font-mono text-zinc-400'
+                  className='px-2 py-1 bg-[#1e222d] border border-[#2a2e39] rounded text-xs font-mono text-[var(--to-text-dim)]'
                 >
                   <option value=''>+ Add slave</option>
                   {accountNames
@@ -212,7 +212,7 @@ export function CopyConfigurator() {
               </div>
             </div>
             <div className='flex items-center gap-4'>
-              <label className='flex items-center gap-2 text-xs text-zinc-500'>
+              <label className='flex items-center gap-2 text-xs text-[var(--to-text-dim)]'>
                 <input
                   id='copy-scale-by-balance'
                   type='checkbox'
@@ -222,7 +222,7 @@ export function CopyConfigurator() {
                 />
                 Scale by balance
               </label>
-              <label className='flex items-center gap-2 text-xs text-zinc-500'>
+              <label className='flex items-center gap-2 text-xs text-[var(--to-text-dim)]'>
                 Risk multiplier:
                 <input
                   id='copy-risk-multiplier'
@@ -263,11 +263,11 @@ export function CopyConfigurator() {
         {isLoading ? (
           <Skeleton className='h-24 w-full bg-[#1e222d]' />
         ) : accountNames.length < 2 ? (
-          <p className='text-xs text-zinc-600 font-mono py-4 text-center'>
+          <p className='text-xs text-[var(--to-text-dim)] font-mono py-4 text-center'>
             Add at least 2 accounts to create copy rules (master → slave).
           </p>
         ) : rules.length === 0 ? (
-          <p className='text-xs text-zinc-600 font-mono py-4 text-center'>
+          <p className='text-xs text-[var(--to-text-dim)] font-mono py-4 text-center'>
             No copy rules yet. Click &quot;Add rule&quot; to create one.
           </p>
         ) : (
@@ -283,10 +283,10 @@ export function CopyConfigurator() {
                 )}
               >
                 <div>
-                  <span className='font-mono text-xs text-zinc-200'>
+                  <span className='font-mono text-xs text-[var(--to-text-primary)]'>
                     {rule.rule_name}
                   </span>
-                  <span className='text-[10px] text-zinc-500 ml-2'>
+                  <span className='text-[10px] text-[var(--to-text-dim)] ml-2'>
                     {rule.master_account_name} →{' '}
                     {rule.slave_account_names.join(', ')}
                   </span>
@@ -297,8 +297,8 @@ export function CopyConfigurator() {
                   className={cn(
                     'font-mono text-[10px] px-2 py-1 rounded transition-colors',
                     rule.enabled
-                      ? 'bg-emerald-500/20 text-emerald-400'
-                      : 'bg-zinc-700 text-zinc-500',
+                      ? 'bg-[var(--to-long)]/20 text-[var(--to-long)]'
+                      : 'bg-[var(--to-surface-raised)] text-[var(--to-text-dim)]',
                   )}
                 >
                   {rule.enabled ? 'ON' : 'OFF'}

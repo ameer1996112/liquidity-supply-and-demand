@@ -32,9 +32,9 @@ export function ProgressBars({ metrics, limits }: { metrics: any; limits: FirmIn
       {/* Daily Drawdown */}
       <div className="space-y-1">
         <div className="flex justify-between items-end">
-          <span className="text-[10px] font-mono text-zinc-500">Daily Loss</span>
-          <span className="text-[10px] font-mono font-medium text-zinc-300">
-            {dailyPct.toFixed(2)}% <span className="text-zinc-600">/ {maxDailyLimit}%</span>
+          <span className="text-[10px] font-mono text-[var(--to-text-dim)]">Daily Loss</span>
+          <span className="text-[10px] font-mono font-medium text-[var(--to-text-secondary)]">
+            {dailyPct.toFixed(2)}% <span className="text-[var(--to-text-dim)]">/ {maxDailyLimit}%</span>
           </span>
         </div>
         <div className="h-1.5 w-full bg-[#2a2e39] rounded-full overflow-hidden">
@@ -48,9 +48,9 @@ export function ProgressBars({ metrics, limits }: { metrics: any; limits: FirmIn
       {/* Total Drawdown */}
       <div className="space-y-1">
         <div className="flex justify-between items-end">
-          <span className="text-[10px] font-mono text-zinc-500">Max DD</span>
-          <span className="text-[10px] font-mono font-medium text-zinc-300">
-             {totalPct.toFixed(2)}% <span className="text-zinc-600">/ {maxTotalLimit}%</span>
+          <span className="text-[10px] font-mono text-[var(--to-text-dim)]">Max DD</span>
+          <span className="text-[10px] font-mono font-medium text-[var(--to-text-secondary)]">
+             {totalPct.toFixed(2)}% <span className="text-[var(--to-text-dim)]">/ {maxTotalLimit}%</span>
           </span>
         </div>
         <div className="h-1.5 w-full bg-[#2a2e39] rounded-full overflow-hidden">
@@ -65,9 +65,9 @@ export function ProgressBars({ metrics, limits }: { metrics: any; limits: FirmIn
       {profitTarget && profitTarget > 0 && (
         <div className="space-y-1 mt-3">
           <div className="flex justify-between items-end">
-            <span className="text-[10px] font-mono text-zinc-500">Target</span>
-            <span className="text-[10px] font-mono font-medium text-emerald-400">
-              {pnlPct > 0 ? pnlPct.toFixed(2) : 0}% <span className="text-zinc-600">/ {profitTarget}%</span>
+            <span className="text-[10px] font-mono text-[var(--to-text-dim)]">Target</span>
+            <span className="text-[10px] font-mono font-medium text-[var(--to-long)]">
+              {pnlPct > 0 ? pnlPct.toFixed(2) : 0}% <span className="text-[var(--to-text-dim)]">/ {profitTarget}%</span>
             </span>
           </div>
           <div className="h-1.5 w-full bg-[#2a2e39] rounded-full overflow-hidden">

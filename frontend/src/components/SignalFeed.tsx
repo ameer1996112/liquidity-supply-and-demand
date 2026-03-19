@@ -38,7 +38,7 @@ const columns: DataTableColumn<TradingSignal>[] = [
     width: 'w-[90px]',
     render: (signal) => (
       <ClientDate
-        className='font-mono text-[11px] text-zinc-500 tabular-nums whitespace-nowrap'
+        className='font-mono text-[11px] text-[var(--to-text-dim)] tabular-nums whitespace-nowrap'
         render={() => formatRelativeTime(new Date(signal.created_at))}
       />
     ),
@@ -49,7 +49,7 @@ const columns: DataTableColumn<TradingSignal>[] = [
     width: 'w-[140px]',
     render: (signal) => (
       <div className='flex items-center gap-2'>
-        <span className='font-mono text-sm font-bold text-zinc-100 tracking-tight'>
+        <span className='font-mono text-sm font-bold text-[var(--to-text-primary)] tracking-tight'>
           {getSymbol(signal)}
         </span>
         <SideBadge side={getSide(signal)} compact />
@@ -81,16 +81,16 @@ const columns: DataTableColumn<TradingSignal>[] = [
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className='font-mono text-[11px] text-zinc-500 line-clamp-1 cursor-help'>
+              <span className='font-mono text-[11px] text-[var(--to-text-dim)] line-clamp-1 cursor-help'>
                 {reason || (
-                  <span className='text-zinc-700 italic'>No reason</span>
+                  <span className='text-[var(--to-text-dim)] italic'>No reason</span>
                 )}
               </span>
             </TooltipTrigger>
             {(signal.notes || signal.filter_reason) && (
               <TooltipContent
                 side='bottom'
-                className='max-w-sm bg-zinc-900 border-zinc-700 text-zinc-300'
+                className='max-w-sm bg-[var(--to-surface)] border-[var(--to-border)] text-[var(--to-text-secondary)]'
               >
                 <p className='text-xs'>
                   {signal.notes || signal.filter_reason}
@@ -109,7 +109,7 @@ const columns: DataTableColumn<TradingSignal>[] = [
     align: 'right',
     isNumeric: true,
     render: (signal) => (
-      <span className='font-mono text-[11px] text-zinc-400 tabular-nums'>
+      <span className='font-mono text-[11px] text-[var(--to-text-dim)] tabular-nums'>
         {signal.rr_ratio ? `1:${safeFloat(signal.rr_ratio, 1)}` : '--'}
       </span>
     ),
@@ -171,7 +171,7 @@ function SignalRow({ signal, onClick }: SignalRowProps) {
       {/* Column 1: Time - Relative "2m ago" */}
       <td className='py-2 px-3 w-[90px]'>
         <ClientDate
-          className='font-mono text-[11px] text-zinc-500 tabular-nums whitespace-nowrap'
+          className='font-mono text-[11px] text-[var(--to-text-dim)] tabular-nums whitespace-nowrap'
           render={() => formatRelativeTime(new Date(signal.created_at))}
         />
       </td>
@@ -179,7 +179,7 @@ function SignalRow({ signal, onClick }: SignalRowProps) {
       {/* Column 2: Signal - Symbol + Side Badge */}
       <td className='py-2 px-3 w-[140px]'>
         <div className='flex items-center gap-2'>
-          <span className='font-mono text-sm font-bold text-zinc-100 tracking-tight'>
+          <span className='font-mono text-sm font-bold text-[var(--to-text-primary)] tracking-tight'>
             {symbol}
           </span>
           <SideBadge side={side} compact />
@@ -199,16 +199,16 @@ function SignalRow({ signal, onClick }: SignalRowProps) {
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className='font-mono text-[11px] text-zinc-500 line-clamp-1 cursor-help'>
+              <span className='font-mono text-[11px] text-[var(--to-text-dim)] line-clamp-1 cursor-help'>
                 {reason || (
-                  <span className='text-zinc-700 italic'>No reason</span>
+                  <span className='text-[var(--to-text-dim)] italic'>No reason</span>
                 )}
               </span>
             </TooltipTrigger>
             {(signal.notes || signal.filter_reason) && (
               <TooltipContent
                 side='bottom'
-                className='max-w-sm bg-zinc-900 border-zinc-700 text-zinc-300'
+                className='max-w-sm bg-[var(--to-surface)] border-[var(--to-border)] text-[var(--to-text-secondary)]'
               >
                 <p className='text-xs'>
                   {signal.notes || signal.filter_reason}
@@ -221,7 +221,7 @@ function SignalRow({ signal, onClick }: SignalRowProps) {
 
       {/* Column 5: R:R - Risk/Reward Ratio */}
       <td className='py-2 px-3 w-[70px] text-right'>
-        <span className='font-mono text-[11px] text-zinc-400 tabular-nums'>
+        <span className='font-mono text-[11px] text-[var(--to-text-dim)] tabular-nums'>
           {signal.rr_ratio ? `1:${safeFloat(signal.rr_ratio, 1)}` : '--'}
         </span>
       </td>
@@ -292,8 +292,8 @@ export function SignalFeed({ defaultMode, onSelectSignal }: SignalFeedProps) {
       {/* HEADER - Signal Count Stats */}
       <div className='flex items-center justify-between px-4 py-3 border-b border-zinc-800 bg-zinc-950/50'>
         <div className='flex items-center gap-2'>
-          <Zap className='w-4 h-4 text-zinc-500' />
-          <span className='font-mono text-xs text-zinc-400 uppercase tracking-wider'>
+          <Zap className='w-4 h-4 text-[var(--to-text-dim)]' />
+          <span className='font-mono text-xs text-[var(--to-text-dim)] uppercase tracking-wider'>
             Signal Feed
           </span>
           {defaultMode && (
@@ -314,27 +314,27 @@ export function SignalFeed({ defaultMode, onSelectSignal }: SignalFeedProps) {
         <div className='flex items-center gap-4 text-[10px] font-mono'>
           <div className='flex items-center gap-1.5'>
             <span className='w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse' />
-            <span className='text-zinc-500'>LIVE</span>
+            <span className='text-[var(--to-text-dim)]'>LIVE</span>
             <span className='text-blue-400 font-bold'>{stats.live}</span>
           </div>
           <div className='flex items-center gap-1.5'>
             <span className='w-1.5 h-1.5 rounded-full bg-rose-500' />
-            <span className='text-zinc-500'>VETO</span>
+            <span className='text-[var(--to-text-dim)]'>VETO</span>
             <span className='text-rose-400 font-bold'>{stats.veto}</span>
           </div>
           <div className='flex items-center gap-1.5'>
             <span className='w-1.5 h-1.5 rounded-full bg-zinc-500' />
-            <span className='text-zinc-500'>FILTER</span>
-            <span className='text-zinc-400 font-bold'>{stats.filtered}</span>
+            <span className='text-[var(--to-text-dim)]'>FILTER</span>
+            <span className='text-[var(--to-text-dim)] font-bold'>{stats.filtered}</span>
           </div>
           <div className='flex items-center gap-1.5'>
             <span className='w-1.5 h-1.5 rounded-full bg-emerald-500' />
-            <span className='text-zinc-500'>CLOSED</span>
-            <span className='text-emerald-400 font-bold'>{stats.closed}</span>
+            <span className='text-[var(--to-text-dim)]'>CLOSED</span>
+            <span className='text-[var(--to-long)] font-bold'>{stats.closed}</span>
           </div>
           <div className='pl-2 border-l border-zinc-800'>
-            <span className='text-zinc-500'>TOTAL</span>
-            <span className='text-zinc-300 font-bold ml-1.5'>
+            <span className='text-[var(--to-text-dim)]'>TOTAL</span>
+            <span className='text-[var(--to-text-secondary)] font-bold ml-1.5'>
               {stats.total}
             </span>
           </div>
@@ -379,11 +379,11 @@ export function SignalFeed({ defaultMode, onSelectSignal }: SignalFeedProps) {
 
       {/* FOOTER - Connection Status */}
       <div className='flex items-center justify-between px-4 py-2 border-t border-zinc-800 bg-zinc-950/50'>
-        <div className='flex items-center gap-2 text-[10px] font-mono text-zinc-600'>
+        <div className='flex items-center gap-2 text-[10px] font-mono text-[var(--to-text-dim)]'>
           <span className='w-1.5 h-1.5 rounded-full bg-emerald-500/70 animate-pulse' />
           <span>Realtime Connected</span>
         </div>
-        <span className='text-[10px] font-mono text-zinc-700'>
+        <span className='text-[10px] font-mono text-[var(--to-text-dim)]'>
           Showing {allSignals.length} of 50 max
         </span>
       </div>

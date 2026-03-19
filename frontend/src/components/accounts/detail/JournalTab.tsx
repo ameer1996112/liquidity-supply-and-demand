@@ -192,10 +192,10 @@ export function JournalTab({ accountName }: JournalTabProps) {
       {/* Header */}
       <div className='flex items-center justify-between'>
         <div className='flex items-center gap-3'>
-          <BookOpen className='h-4 w-4 text-emerald-500' />
-          <h3 className='text-sm font-medium text-zinc-300'>Trading Journal</h3>
+          <BookOpen className='h-4 w-4 text-[var(--to-long)]' />
+          <h3 className='text-sm font-medium text-[var(--to-text-secondary)]'>Trading Journal</h3>
           {!isLoading && entries && (
-            <span className='text-xs text-zinc-500'>
+            <span className='text-xs text-[var(--to-text-dim)]'>
               {entries.length} entries
             </span>
           )}
@@ -203,7 +203,7 @@ export function JournalTab({ accountName }: JournalTabProps) {
         <Button
           variant='outline'
           size='sm'
-          className='border-[#2a2e39] text-zinc-400 hover:bg-[#2a2e39] hover:text-zinc-200'
+          className='border-[#2a2e39] text-[var(--to-text-dim)] hover:bg-[#2a2e39] hover:text-[var(--to-text-primary)]'
           onClick={() => setShowAddForm(!showAddForm)}
         >
           <Plus className='h-3.5 w-3.5 mr-1.5' />
@@ -215,20 +215,20 @@ export function JournalTab({ accountName }: JournalTabProps) {
       {showAddForm && (
         <div className='tv-card p-4 space-y-4'>
           <div>
-            <label className='block text-xs text-zinc-500 mb-2'>Note</label>
+            <label className='block text-xs text-[var(--to-text-dim)] mb-2'>Note</label>
             <textarea
               id='journal-note-text'
               value={noteText}
               onChange={(e) => setNoteText(e.target.value)}
               placeholder='What did you learn from this trade? What went well? What could improve?'
               rows={4}
-              className='w-full px-3 py-2 text-sm rounded border border-[#2a2e39] bg-[#1e222d] text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-emerald-500'
+              className='w-full px-3 py-2 text-sm rounded border border-[#2a2e39] bg-[#1e222d] text-[var(--to-text-primary)] placeholder-zinc-600 focus:outline-none focus:border-emerald-500'
             />
           </div>
 
           <div className='grid grid-cols-2 gap-4'>
             <div>
-              <label className='block text-xs text-zinc-500 mb-2'>Tags</label>
+              <label className='block text-xs text-[var(--to-text-dim)] mb-2'>Tags</label>
               <div className='flex gap-2'>
                 <input
                   id='journal-tag-input'
@@ -237,7 +237,7 @@ export function JournalTab({ accountName }: JournalTabProps) {
                   onChange={(e) => setTagInput(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
                   placeholder='Add tag (e.g., revenge-trade)'
-                  className='flex-1 px-3 py-1.5 text-sm rounded border border-[#2a2e39] bg-[#1e222d] text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-emerald-500'
+                  className='flex-1 px-3 py-1.5 text-sm rounded border border-[#2a2e39] bg-[#1e222d] text-[var(--to-text-primary)] placeholder-zinc-600 focus:outline-none focus:border-emerald-500'
                 />
                 <Button
                   variant='outline'
@@ -253,7 +253,7 @@ export function JournalTab({ accountName }: JournalTabProps) {
                   {selectedTags.map((tag) => (
                     <span
                       key={tag}
-                      className='px-2 py-1 text-xs font-mono rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1'
+                      className='px-2 py-1 text-xs font-mono rounded bg-[var(--to-long)]/10 text-[var(--to-long)] border border-[var(--to-long)]/20 flex items-center gap-1'
                     >
                       {tag}
                       <button onClick={() => handleRemoveTag(tag)}>
@@ -266,7 +266,7 @@ export function JournalTab({ accountName }: JournalTabProps) {
             </div>
 
             <div>
-              <label className='block text-xs text-zinc-500 mb-2'>
+              <label className='block text-xs text-[var(--to-text-dim)] mb-2'>
                 Rating (1-5)
               </label>
               <div className='flex gap-1'>
@@ -278,7 +278,7 @@ export function JournalTab({ accountName }: JournalTabProps) {
                       'p-1.5 rounded transition-colors',
                       rating && n <= rating
                         ? 'text-amber-500'
-                        : 'text-zinc-600 hover:text-amber-500',
+                        : 'text-[var(--to-text-dim)] hover:text-amber-500',
                     )}
                   >
                     <Star
@@ -292,14 +292,14 @@ export function JournalTab({ accountName }: JournalTabProps) {
           </div>
 
           <div>
-            <label className='block text-xs text-zinc-500 mb-2'>
+            <label className='block text-xs text-[var(--to-text-dim)] mb-2'>
               Emotional State (Optional)
             </label>
             <select
               id='journal-emotional-state'
               value={emotionalState}
               onChange={(e) => setEmotionalState(e.target.value)}
-              className='w-full px-3 py-1.5 text-sm rounded border border-[#2a2e39] bg-[#1e222d] text-zinc-300 focus:outline-none focus:border-emerald-500'
+              className='w-full px-3 py-1.5 text-sm rounded border border-[#2a2e39] bg-[#1e222d] text-[var(--to-text-secondary)] focus:outline-none focus:border-emerald-500'
             >
               <option value=''>Select state...</option>
               <option value='calm'>Calm & Focused</option>
@@ -316,7 +316,7 @@ export function JournalTab({ accountName }: JournalTabProps) {
               variant='ghost'
               size='sm'
               onClick={() => setShowAddForm(false)}
-              className='text-zinc-500'
+              className='text-[var(--to-text-dim)]'
             >
               Cancel
             </Button>
@@ -325,7 +325,7 @@ export function JournalTab({ accountName }: JournalTabProps) {
               size='sm'
               onClick={handleSubmit}
               disabled={createMutation.isPending}
-              className='border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10'
+              className='border-[var(--to-long)]/30 text-[var(--to-long)] hover:bg-[var(--to-long)]/10'
             >
               {createMutation.isPending ? 'Saving...' : 'Save Note'}
             </Button>
@@ -336,15 +336,15 @@ export function JournalTab({ accountName }: JournalTabProps) {
       {/* Tag Filter */}
       {allTags.length > 0 && (
         <div className='flex items-center gap-2'>
-          <Tag className='h-3.5 w-3.5 text-zinc-500' />
-          <span className='text-xs text-zinc-500'>Filter:</span>
+          <Tag className='h-3.5 w-3.5 text-[var(--to-text-dim)]' />
+          <span className='text-xs text-[var(--to-text-dim)]'>Filter:</span>
           <button
             onClick={() => setTagFilter(undefined)}
             className={cn(
               'px-2 py-1 text-xs rounded',
               !tagFilter
-                ? 'bg-emerald-500/20 text-emerald-400'
-                : 'text-zinc-500 hover:text-zinc-300',
+                ? 'bg-[var(--to-long)]/20 text-[var(--to-long)]'
+                : 'text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]',
             )}
           >
             All
@@ -356,8 +356,8 @@ export function JournalTab({ accountName }: JournalTabProps) {
               className={cn(
                 'px-2 py-1 text-xs font-mono rounded',
                 tagFilter === tag
-                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                  : 'text-zinc-500 hover:text-zinc-300 hover:bg-[#2a2e39]',
+                  ? 'bg-[var(--to-long)]/20 text-[var(--to-long)] border border-[var(--to-long)]/30'
+                  : 'text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)] hover:bg-[#2a2e39]',
               )}
             >
               {tag}
@@ -379,10 +379,10 @@ export function JournalTab({ accountName }: JournalTabProps) {
           notes, tags, and ratings.
         </div>
       ) : !entries || entries.length === 0 ? (
-        <div className='flex flex-col items-center justify-center rounded-lg border border-[#2a2e39] bg-[#1e222d]/50 py-16 text-zinc-500'>
+        <div className='flex flex-col items-center justify-center rounded-lg border border-[#2a2e39] bg-[#1e222d]/50 py-16 text-[var(--to-text-dim)]'>
           <BookOpen className='h-10 w-10 mb-3 opacity-50' />
           <p className='text-sm font-mono'>No journal entries yet</p>
-          <p className='text-xs text-zinc-600 mt-1 max-w-md text-center'>
+          <p className='text-xs text-[var(--to-text-dim)] mt-1 max-w-md text-center'>
             Click "Add Note" to start documenting your trading journey. Track
             what works, what doesn't, and your emotional state.
           </p>
@@ -394,7 +394,7 @@ export function JournalTab({ accountName }: JournalTabProps) {
               <div className='flex items-start justify-between'>
                 <div className='flex-1'>
                   <div className='flex items-center gap-3 mb-2'>
-                    <span className='font-mono text-xs font-semibold text-zinc-200'>
+                    <span className='font-mono text-xs font-semibold text-[var(--to-text-primary)]'>
                       {entry.symbol || 'General Note'}
                     </span>
                     {entry.trade_outcome && entry.trade_outcome !== 'open' && (
@@ -402,8 +402,8 @@ export function JournalTab({ accountName }: JournalTabProps) {
                         className={cn(
                           'px-1.5 py-0.5 text-[9px] font-mono rounded',
                           entry.trade_outcome === 'win'
-                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                            : 'bg-red-500/10 text-red-400 border border-red-500/20',
+                            ? 'bg-[var(--to-long)]/10 text-[var(--to-long)] border border-[var(--to-long)]/20'
+                            : 'bg-[var(--to-short)]/10 text-[var(--to-short)] border border-red-500/20',
                         )}
                       >
                         {entry.trade_outcome.toUpperCase()}
@@ -426,19 +426,19 @@ export function JournalTab({ accountName }: JournalTabProps) {
                     )}
                     <span
                       suppressHydrationWarning
-                      className='text-xs text-zinc-600'
+                      className='text-xs text-[var(--to-text-dim)]'
                     >
                       {new Date(entry.created_at).toLocaleDateString()}
                     </span>
                   </div>
 
-                  <p className='text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap'>
+                  <p className='text-sm text-[var(--to-text-secondary)] leading-relaxed whitespace-pre-wrap'>
                     {entry.note_text}
                   </p>
 
                   {entry.emotional_state && (
-                    <div className='mt-2 text-xs text-zinc-500'>
-                      <span className='text-zinc-600'>Mood:</span>{' '}
+                    <div className='mt-2 text-xs text-[var(--to-text-dim)]'>
+                      <span className='text-[var(--to-text-dim)]'>Mood:</span>{' '}
                       {entry.emotional_state}
                     </div>
                   )}
@@ -448,7 +448,7 @@ export function JournalTab({ accountName }: JournalTabProps) {
                       {entry.tags.map((tag, idx) => (
                         <span
                           key={idx}
-                          className='px-1.5 py-0.5 text-[10px] font-mono rounded bg-zinc-700/30 text-zinc-400'
+                          className='px-1.5 py-0.5 text-[10px] font-mono rounded bg-[var(--to-surface-raised)]/30 text-[var(--to-text-dim)]'
                         >
                           #{tag}
                         </span>
@@ -459,7 +459,7 @@ export function JournalTab({ accountName }: JournalTabProps) {
 
                 <button
                   onClick={() => deleteMutation.mutate(entry.id)}
-                  className='p-1.5 rounded hover:bg-[#2a2e39] text-zinc-600 hover:text-red-500 transition-colors'
+                  className='p-1.5 rounded hover:bg-[#2a2e39] text-[var(--to-text-dim)] hover:text-[var(--to-short)] transition-colors'
                   title='Delete entry'
                 >
                   <Trash2 className='h-3.5 w-3.5' />
@@ -472,8 +472,8 @@ export function JournalTab({ accountName }: JournalTabProps) {
 
       {/* Screenshot Upload Placeholder */}
       {showAddForm && (
-        <div className='rounded-lg border border-dashed border-[#2a2e39] bg-[#1e222d]/30 px-4 py-8 text-center text-xs text-zinc-600'>
-          <Upload className='h-6 w-6 mx-auto mb-2 text-zinc-600' />
+        <div className='rounded-lg border border-dashed border-[#2a2e39] bg-[#1e222d]/30 px-4 py-8 text-center text-xs text-[var(--to-text-dim)]'>
+          <Upload className='h-6 w-6 mx-auto mb-2 text-[var(--to-text-dim)]' />
           <p className='font-mono'>Screenshot Upload</p>
           <p className='mt-1'>Coming soon: Drag & drop chart screenshots</p>
         </div>

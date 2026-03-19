@@ -141,7 +141,7 @@ export function ChallengeRules({
 
   return (
     <div className='tv-card p-6'>
-      <h3 className='text-[13px] font-bold text-zinc-400 uppercase tracking-widest font-mono mb-4 flex items-center gap-2'>
+      <h3 className='text-[13px] font-bold text-[var(--to-text-dim)] uppercase tracking-widest font-mono mb-4 flex items-center gap-2'>
         <Shield className='h-4 w-4 text-blue-400' />
         Challenge Rules
       </h3>
@@ -166,12 +166,12 @@ export function ChallengeRules({
                     ? 'text-[#ef5350]'
                     : rule.status === 'warning'
                     ? 'text-amber-400'
-                    : 'text-zinc-500'
+                    : 'text-[var(--to-text-dim)]'
                 )}
               >
                 {rule.icon}
               </span>
-              <span className='font-mono text-xs text-zinc-300'>
+              <span className='font-mono text-xs text-[var(--to-text-secondary)]'>
                 {rule.name}
               </span>
             </div>
@@ -184,14 +184,14 @@ export function ChallengeRules({
                       ? 'text-[#ef5350]'
                       : rule.status === 'warning'
                       ? 'text-amber-400'
-                      : 'text-zinc-400'
+                      : 'text-[var(--to-text-dim)]'
                   )}
                 >
                   {rule.currentValue}
                 </span>
               )}
-              <span className='font-mono text-[10px] text-zinc-600'>/</span>
-              <span className='font-mono text-xs text-zinc-200 tabular-nums'>
+              <span className='font-mono text-[10px] text-[var(--to-text-dim)]'>/</span>
+              <span className='font-mono text-xs text-[var(--to-text-primary)] tabular-nums'>
                 {rule.limit}
               </span>
               {rule.status && (
@@ -212,13 +212,13 @@ export function ChallengeRules({
         {/* Show N/A rules in muted style */}
         {notApplicable.length > 0 && (
           <div className='flex items-center gap-2 px-3 py-2 mt-1'>
-            <span className='text-[9px] font-mono text-zinc-600 uppercase tracking-wider'>
+            <span className='text-[9px] font-mono text-[var(--to-text-dim)] uppercase tracking-wider'>
               Not applicable:
             </span>
             {notApplicable.map((rule) => (
               <span
                 key={rule.name}
-                className='text-[10px] font-mono text-zinc-600 px-2 py-0.5 rounded bg-[#1e222d] border border-[#2a2e39]/50'
+                className='text-[10px] font-mono text-[var(--to-text-dim)] px-2 py-0.5 rounded bg-[#1e222d] border border-[#2a2e39]/50'
               >
                 {rule.name}
               </span>

@@ -60,7 +60,7 @@ export function ModifySLTPDialog({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className='bg-[#131722] border-l border-[#2a2e39]'>
         <SheetHeader>
-          <SheetTitle className='font-mono text-sm text-zinc-200'>
+          <SheetTitle className='font-mono text-sm text-[var(--to-text-primary)]'>
             Modify SL / TP
           </SheetTitle>
           <SheetDescription className='sr-only'>
@@ -70,7 +70,7 @@ export function ModifySLTPDialog({
 
         <div className='mt-6 space-y-4'>
           <div className='space-y-1'>
-            <label className='text-[10px] uppercase tracking-wider text-zinc-500 font-mono'>
+            <label className='text-[10px] uppercase tracking-wider text-[var(--to-text-dim)] font-mono'>
               Stop Loss
             </label>
             <input
@@ -80,12 +80,12 @@ export function ModifySLTPDialog({
               value={sl}
               onChange={(e) => setSl(e.target.value)}
               placeholder={currentSL != null ? String(currentSL) : 'Enter SL'}
-              className='w-full bg-[#1e222d] border border-[#2a2e39] rounded px-2.5 py-1.5 text-xs font-mono text-zinc-300 focus:outline-none focus:border-[#26a69a] transition-colors'
+              className='w-full bg-[#1e222d] border border-[#2a2e39] rounded px-2.5 py-1.5 text-xs font-mono text-[var(--to-text-secondary)] focus:outline-none focus:border-[#26a69a] transition-colors'
             />
           </div>
 
           <div className='space-y-1'>
-            <label className='text-[10px] uppercase tracking-wider text-zinc-500 font-mono'>
+            <label className='text-[10px] uppercase tracking-wider text-[var(--to-text-dim)] font-mono'>
               Take Profit
             </label>
             <input
@@ -95,7 +95,7 @@ export function ModifySLTPDialog({
               value={tp}
               onChange={(e) => setTp(e.target.value)}
               placeholder={currentTP != null ? String(currentTP) : 'Enter TP'}
-              className='w-full bg-[#1e222d] border border-[#2a2e39] rounded px-2.5 py-1.5 text-xs font-mono text-zinc-300 focus:outline-none focus:border-[#26a69a] transition-colors'
+              className='w-full bg-[#1e222d] border border-[#2a2e39] rounded px-2.5 py-1.5 text-xs font-mono text-[var(--to-text-secondary)] focus:outline-none focus:border-[#26a69a] transition-colors'
             />
           </div>
 
@@ -106,9 +106,9 @@ export function ModifySLTPDialog({
               'w-full flex items-center justify-center gap-2 py-2 rounded-md',
               'font-mono text-xs font-semibold uppercase tracking-wider transition-colors',
               modifySLTP.isPending
-                ? 'bg-[#2a2e39] text-zinc-500 cursor-not-allowed'
+                ? 'bg-[#2a2e39] text-[var(--to-text-dim)] cursor-not-allowed'
                 : !isConnected
-                  ? 'bg-[#2a2e39] text-zinc-600 cursor-not-allowed'
+                  ? 'bg-[#2a2e39] text-[var(--to-text-dim)] cursor-not-allowed'
                   : 'bg-blue-500 text-white hover:bg-blue-500/90',
               armed && 'ring-2 ring-blue-300/60',
             )}

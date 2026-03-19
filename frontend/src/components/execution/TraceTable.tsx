@@ -20,10 +20,10 @@ import {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function msColor(ms: number | null | undefined): string {
-  if (ms == null) return 'text-slate-600';
-  if (ms > 2000) return 'text-red-400';
+  if (ms == null) return 'text-[var(--to-text-dim)]';
+  if (ms > 2000) return 'text-[var(--to-short)]';
   if (ms > 500) return 'text-amber-400';
-  return 'text-emerald-400';
+  return 'text-[var(--to-long)]';
 }
 
 function fmtMs(ms: number | null | undefined): string {
@@ -54,25 +54,25 @@ function TraceStatusIcon({ trace }: { trace: TraceSummary }) {
   if (trace.error_type) {
     return (
       <span title={trace.error_type}>
-        <XCircle className='h-3.5 w-3.5 text-red-400' />
+        <XCircle className='h-3.5 w-3.5 text-[var(--to-short)]' />
       </span>
     );
   }
   // If submitted (has total_ms) treat as completed
   if (trace.total_ms != null) {
-    return <CheckCircle2 className='h-3.5 w-3.5 text-emerald-400' />;
+    return <CheckCircle2 className='h-3.5 w-3.5 text-[var(--to-long)]' />;
   }
-  return <Clock className='h-3.5 w-3.5 text-slate-500' />;
+  return <Clock className='h-3.5 w-3.5 text-[var(--to-text-dim)]' />;
 }
 
 function SideBadge({ side }: { side: string | null | undefined }) {
-  if (!side) return <span className='text-slate-600'>—</span>;
+  if (!side) return <span className='text-[var(--to-text-dim)]'>—</span>;
   const isBuy = side.toLowerCase() === 'buy';
   return (
     <span
       className={cn(
         'inline-block rounded px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase',
-        isBuy ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400',
+        isBuy ? 'bg-[var(--to-long)]/10 text-[var(--to-long)]' : 'bg-[var(--to-short)]/10 text-[var(--to-short)]',
       )}
     >
       {side}
@@ -89,7 +89,7 @@ function RunModeBadge({ mode }: { mode: string | null | undefined }) {
         'inline-block rounded px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider',
         isLive
           ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-          : 'bg-slate-700/40 text-slate-500 border border-slate-700',
+          : 'bg-[var(--to-surface-raised)]/40 text-[var(--to-text-dim)] border border-[var(--to-border)]',
       )}
     >
       {mode}
@@ -166,7 +166,7 @@ export function TraceTable({
             (h, i) => (
               <span
                 key={i}
-                className='text-[10px] font-medium uppercase tracking-widest text-slate-600'
+                className='text-[10px] font-medium uppercase tracking-widest text-[var(--to-text-dim)]'
               >
                 {h}
               </span>
@@ -179,30 +179,30 @@ export function TraceTable({
           <div className='space-y-px'>
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className='flex items-center gap-2 px-3 py-2.5'>
-                <Skeleton className='h-3.5 w-3.5 rounded-full bg-slate-800/60' />
-                <Skeleton className='h-3 w-16 bg-slate-800/60' />
-                <Skeleton className='h-3 w-10 bg-slate-800/60' />
-                <Skeleton className='h-3 w-32 bg-slate-800/60' />
-                <Skeleton className='h-3 w-20 bg-slate-800/60' />
-                <Skeleton className='h-3 w-14 bg-slate-800/60' />
-                <Skeleton className='h-3 w-12 bg-slate-800/60' />
+                <Skeleton className='h-3.5 w-3.5 rounded-full bg-[var(--to-surface-raised)]/60' />
+                <Skeleton className='h-3 w-16 bg-[var(--to-surface-raised)]/60' />
+                <Skeleton className='h-3 w-10 bg-[var(--to-surface-raised)]/60' />
+                <Skeleton className='h-3 w-32 bg-[var(--to-surface-raised)]/60' />
+                <Skeleton className='h-3 w-20 bg-[var(--to-surface-raised)]/60' />
+                <Skeleton className='h-3 w-14 bg-[var(--to-surface-raised)]/60' />
+                <Skeleton className='h-3 w-12 bg-[var(--to-surface-raised)]/60' />
               </div>
             ))}
           </div>
         )}
 
         {error && !isLoading && (
-          <div className='flex items-center gap-2 px-4 py-8 text-sm text-red-400'>
+          <div className='flex items-center gap-2 px-4 py-8 text-sm text-[var(--to-short)]'>
             <XCircle className='h-4 w-4' />
             Failed to load traces: {error.message}
           </div>
         )}
 
         {!isLoading && !error && safeTraces.length === 0 && (
-          <div className='flex flex-col items-center justify-center gap-2 py-16 text-slate-500'>
+          <div className='flex flex-col items-center justify-center gap-2 py-16 text-[var(--to-text-dim)]'>
             <Radio className='h-8 w-8 opacity-30' />
             <span className='text-sm'>No pipeline traces yet</span>
-            <span className='text-[11px] text-slate-600'>
+            <span className='text-[11px] text-[var(--to-text-dim)]'>
               Traces appear after signals are processed
             </span>
           </div>
@@ -227,7 +227,7 @@ export function TraceTable({
                 </span>
 
                 {/* Symbol */}
-                <span className='font-mono text-[12px] font-medium text-slate-200'>
+                <span className='font-mono text-[12px] font-medium text-[var(--to-text-primary)]'>
                   {trace.symbol ?? '—'}
                 </span>
 
@@ -236,14 +236,14 @@ export function TraceTable({
 
                 {/* Correlation ID */}
                 <span
-                  className='truncate font-mono text-[10px] text-slate-500'
+                  className='truncate font-mono text-[10px] text-[var(--to-text-dim)]'
                   title={trace.correlation_id}
                 >
                   {trace.correlation_id.slice(0, 12)}…
                 </span>
 
                 {/* Account */}
-                <span className='font-mono text-[10px] text-slate-500 truncate'>
+                <span className='font-mono text-[10px] text-[var(--to-text-dim)] truncate'>
                   {trace.account_id ?? 'default'}
                 </span>
 
@@ -253,12 +253,12 @@ export function TraceTable({
                 </span>
 
                 {/* Time ago */}
-                <span className='text-[10px] text-slate-600 tabular-nums'>
+                <span className='text-[10px] text-[var(--to-text-dim)] tabular-nums'>
                   {fmtTime(trace.received_at ?? trace.created_at)}
                 </span>
 
                 {/* Chevron */}
-                <ChevronRight className='h-3 w-3 text-slate-700 transition-colors group-hover:text-slate-500' />
+                <ChevronRight className='h-3 w-3 text-[var(--to-text-dim)] transition-colors group-hover:text-[var(--to-text-dim)]' />
               </button>
             ))}
           </div>

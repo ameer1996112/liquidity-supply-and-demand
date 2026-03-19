@@ -94,7 +94,7 @@ function BoolIndicator({
         className={cn(
           'w-5 h-5 rounded flex items-center justify-center',
           isTrue
-            ? 'bg-emerald-500/20 text-emerald-400'
+            ? 'bg-[var(--to-long)]/20 text-[var(--to-long)]'
             : 'bg-muted text-muted-foreground'
         )}
       >
@@ -174,8 +174,8 @@ function JsonViewer({ data, title }: { data: unknown; title: string }) {
         >
           {copied ? (
             <>
-              <CheckCircle2 className='w-3 h-3 text-emerald-400' />
-              <span className='text-emerald-400'>Copied!</span>
+              <CheckCircle2 className='w-3 h-3 text-[var(--to-long)]' />
+              <span className='text-[var(--to-long)]'>Copied!</span>
             </>
           ) : (
             <>
@@ -329,8 +329,8 @@ function getRuleBadge(rule: Record<string, unknown>, ai: AIReasoning | null) {
     if (llmStatus === 'ok') {
       return {
         label: 'OK',
-        rowClass: 'border-emerald-500/20 bg-emerald-500/5',
-        textClass: 'text-emerald-400',
+        rowClass: 'border-[var(--to-long)]/20 bg-emerald-500/5',
+        textClass: 'text-[var(--to-long)]',
       };
     }
     if (llmStatus === 'error') {
@@ -351,9 +351,9 @@ function getRuleBadge(rule: Record<string, unknown>, ai: AIReasoning | null) {
   return {
     label: passed ? 'PASS' : 'FAIL',
     rowClass: passed
-      ? 'border-emerald-500/20 bg-emerald-500/5'
+      ? 'border-[var(--to-long)]/20 bg-emerald-500/5'
       : 'border-rose-500/20 bg-rose-500/5',
-    textClass: passed ? 'text-emerald-400' : 'text-rose-400',
+    textClass: passed ? 'text-[var(--to-long)]' : 'text-rose-400',
   };
 }
 
@@ -456,7 +456,7 @@ export function SignalInspector({
                   className={cn(
                     'text-xs font-bold px-2.5 py-1 border-0',
                     isBuy
-                      ? 'bg-emerald-500/20 text-emerald-400'
+                      ? 'bg-[var(--to-long)]/20 text-[var(--to-long)]'
                       : 'bg-rose-500/20 text-rose-400'
                   )}
                 >
@@ -615,7 +615,7 @@ export function SignalInspector({
                       <InfoRow
                         label='Take Profit'
                         value={`$${formatNum(takeProfit, 5)}`}
-                        valueClass='text-emerald-400'
+                        valueClass='text-[var(--to-long)]'
                       />
                     )}
                     <Separator className='my-2 bg-border' />
@@ -650,7 +650,7 @@ export function SignalInspector({
                           label='Realized PnL'
                           value={`${pnl >= 0 ? '+' : ''}$${formatNum(pnl, 2)}`}
                           valueClass={
-                            pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                            pnl >= 0 ? 'text-[var(--to-long)]' : 'text-rose-400'
                           }
                         />
                         {signal.pnl_percentage != null && (
@@ -661,7 +661,7 @@ export function SignalInspector({
                             }${formatNum(signal.pnl_percentage, 2)}%`}
                             valueClass={
                               signal.pnl_percentage >= 0
-                                ? 'text-emerald-400'
+                                ? 'text-[var(--to-long)]'
                                 : 'text-rose-400'
                             }
                           />
@@ -688,7 +688,7 @@ export function SignalInspector({
                         className={cn(
                           'font-mono text-2xl font-bold',
                           score >= 70
-                            ? 'text-emerald-400'
+                            ? 'text-[var(--to-long)]'
                             : score >= 50
                             ? 'text-amber-400'
                             : 'text-rose-400'
@@ -744,7 +744,7 @@ export function SignalInspector({
                             className={cn(
                               'font-mono text-sm font-bold px-2.5 py-1 rounded',
                               decisionValue === 'GO' &&
-                                'bg-emerald-500/20 text-emerald-400',
+                                'bg-[var(--to-long)]/20 text-[var(--to-long)]',
                               decisionValue === 'NO_GO' &&
                                 'bg-rose-500/20 text-rose-400',
                               decisionValue === 'MODEL_ERROR' &&
@@ -778,7 +778,7 @@ export function SignalInspector({
                             <span
                               className={cn(
                                 'font-semibold',
-                                llmStatus === 'ok' && 'text-emerald-400',
+                                llmStatus === 'ok' && 'text-[var(--to-long)]',
                                 llmStatus === 'skipped' && 'text-amber-400',
                                 llmStatus === 'error' && 'text-amber-400'
                               )}
@@ -937,7 +937,7 @@ export function SignalInspector({
                                   className={cn(
                                     'text-[10px] border-0 px-1.5 py-0',
                                     ai.zone_type === 'demand'
-                                      ? 'bg-emerald-500/20 text-emerald-400'
+                                      ? 'bg-[var(--to-long)]/20 text-[var(--to-long)]'
                                       : 'bg-rose-500/20 text-rose-400'
                                   )}
                                 >
@@ -978,8 +978,8 @@ export function SignalInspector({
                                 <div className='flex items-center gap-1'>
                                   {ai.trend === 1 ? (
                                     <>
-                                      <TrendingUp className='w-3 h-3 text-emerald-400' />
-                                      <span className='text-emerald-400'>
+                                      <TrendingUp className='w-3 h-3 text-[var(--to-long)]' />
+                                      <span className='text-[var(--to-long)]'>
                                         Up
                                       </span>
                                     </>
@@ -1173,7 +1173,7 @@ export function SignalInspector({
                             className={cn(
                               'text-xs font-bold',
                               aiRun.recommendation === 'allow'
-                                ? 'bg-emerald-500/20 text-emerald-400'
+                                ? 'bg-[var(--to-long)]/20 text-[var(--to-long)]'
                                 : 'bg-rose-500/20 text-rose-400'
                             )}
                           >
@@ -1215,7 +1215,7 @@ export function SignalInspector({
                                   className={cn(
                                     'font-mono px-2 py-0.5 rounded border text-[10px]',
                                     vote === 'allow'
-                                      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
+                                      ? 'border-[var(--to-long)]/30 bg-[var(--to-long)]/10 text-[var(--to-long)]'
                                       : 'border-rose-500/30 bg-rose-500/10 text-rose-400'
                                   )}
                                 >
@@ -1240,14 +1240,14 @@ export function SignalInspector({
                             className={cn(
                               'rounded border px-3 py-2 text-sm',
                               // Legacy debate roles
-                              msg.role === 'bull' && 'border-emerald-500/30 bg-emerald-500/5',
+                              msg.role === 'bull' && 'border-[var(--to-long)]/30 bg-emerald-500/5',
                               msg.role === 'bear' && 'border-rose-500/30 bg-rose-500/5',
                               msg.role === 'risk' && 'border-amber-500/30 bg-amber-500/5',
                               msg.role === 'chair' && 'border-blue-500/30 bg-blue-500/5',
                               // Trading Council roles
                               msg.role === 'market_analyst' && 'border-sky-500/30 bg-sky-500/5',
                               msg.role === 'setup_analyst' && 'border-cyan-500/30 bg-cyan-500/5',
-                              msg.role === 'bull_researcher' && 'border-emerald-500/30 bg-emerald-500/5',
+                              msg.role === 'bull_researcher' && 'border-[var(--to-long)]/30 bg-emerald-500/5',
                               msg.role === 'bear_researcher' && 'border-rose-500/30 bg-rose-500/5',
                               msg.role === 'research_manager' && 'border-purple-500/30 bg-purple-500/5',
                               msg.role === 'aggressive_debater' && 'border-orange-500/30 bg-orange-500/5',

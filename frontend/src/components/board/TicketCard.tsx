@@ -18,14 +18,14 @@ const PRIORITY_BORDER: Record<string, string> = {
 };
 
 const PRIORITY_BADGE: Record<string, string> = {
-  critical: 'bg-red-500/15 text-red-300 border border-red-500/30',
+  critical: 'bg-red-500/15 text-red-300 border border-[var(--to-short)]/30',
   high: 'bg-orange-500/15 text-orange-300 border border-orange-500/30',
   medium: 'bg-yellow-500/15 text-yellow-300 border border-yellow-500/30',
   low: 'bg-blue-500/15 text-blue-300 border border-blue-500/30',
 };
 
 const COMPONENT_BADGE: Record<string, string> = {
-  'Pine Script': 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20',
+  'Pine Script': 'bg-[var(--to-long)]/10 text-emerald-300 border border-[var(--to-long)]/20',
   'Python Backend': 'bg-blue-500/10 text-blue-300 border border-blue-500/20',
   'Supabase / DB': 'bg-purple-500/10 text-purple-300 border border-purple-500/20',
   'Frontend (React)': 'bg-orange-500/10 text-orange-300 border border-orange-500/20',

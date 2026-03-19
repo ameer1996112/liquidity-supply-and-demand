@@ -45,7 +45,7 @@ export function HeatmapChart({
 
   return (
     <div className="tv-card p-4">
-      <span className="font-mono text-xs text-zinc-400 uppercase tracking-wider">
+      <span className="font-mono text-xs text-[var(--to-text-dim)] uppercase tracking-wider">
         {title}
       </span>
 
@@ -61,7 +61,7 @@ export function HeatmapChart({
           {columns.map((col) => (
             <div
               key={col}
-              className="text-[9px] text-zinc-500 font-mono uppercase tracking-wider text-center py-1"
+              className="text-[9px] text-[var(--to-text-dim)] font-mono uppercase tracking-wider text-center py-1"
             >
               {col}
             </div>
@@ -72,7 +72,7 @@ export function HeatmapChart({
             <>
               <div
                 key={`label-${row}`}
-                className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider flex items-center"
+                className="text-[10px] text-[var(--to-text-dim)] font-mono uppercase tracking-wider flex items-center"
               >
                 {row}
               </div>
@@ -92,7 +92,7 @@ export function HeatmapChart({
                         'font-mono text-[10px] tabular-nums',
                         val > 0 && 'text-[#26a69a]',
                         val < 0 && 'text-[#ef5350]',
-                        val === 0 && 'text-zinc-600',
+                        val === 0 && 'text-[var(--to-text-dim)]',
                       )}
                     >
                       {val !== 0 ? `$${val.toFixed(0)}` : '—'}

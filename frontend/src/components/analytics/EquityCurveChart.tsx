@@ -31,7 +31,7 @@ export function EquityCurveChart({ data }: EquityCurveChartProps) {
   return (
     <div className='tv-card p-4 min-h-[400px] h-full flex flex-col'>
       <div className='flex items-center justify-between mb-3'>
-        <span className='font-mono text-xs text-zinc-400 uppercase tracking-wider'>
+        <span className='font-mono text-xs text-[var(--to-text-dim)] uppercase tracking-wider'>
           Equity Curve
         </span>
         <span

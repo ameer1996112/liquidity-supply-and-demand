@@ -148,9 +148,9 @@ export function PropFirmWidget() {
             </span>
           </span>
           {metrics.status.safe_to_trade ? (
-            <CheckCircle className='h-5 w-5 text-green-500' />
+            <CheckCircle className='h-5 w-5 text-[var(--to-long)]' />
           ) : (
-            <AlertTriangle className='h-5 w-5 text-red-500' />
+            <AlertTriangle className='h-5 w-5 text-[var(--to-short)]' />
           )}
         </CardTitle>
       </CardHeader>
@@ -212,7 +212,7 @@ export function PropFirmWidget() {
           <div>
             <p className='text-sm text-muted-foreground'>Daily PnL</p>
             <p
-              className={`text-xl font-bold ${(metrics.daily_pnl?.total ?? 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}
+              className={`text-xl font-bold ${(metrics.daily_pnl?.total ?? 0) >= 0 ? 'text-[var(--to-long)]' : 'text-[var(--to-short)]'}`}
             >
               {(metrics.daily_pnl?.total ?? 0) >= 0 ? '+' : ''}$
               {(metrics.daily_pnl?.total ?? 0).toLocaleString('en-US', {

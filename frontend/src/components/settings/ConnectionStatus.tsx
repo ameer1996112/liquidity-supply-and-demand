@@ -99,8 +99,8 @@ export function ConnectionStatus() {
 
   const statusColor = (status: Status) => {
     switch (status) {
-      case 'online': return 'text-emerald-400';
-      case 'offline': return 'text-zinc-500';
+      case 'online': return 'text-[var(--to-long)]';
+      case 'offline': return 'text-[var(--to-text-dim)]';
       case 'error': return 'text-rose-400';
       default: return 'text-amber-400';
     }
@@ -109,7 +109,7 @@ export function ConnectionStatus() {
   const statusDot = (status: Status) => {
     switch (status) {
       case 'online': return 'bg-emerald-400';
-      case 'offline': return 'bg-zinc-600';
+      case 'offline': return 'bg-[var(--to-surface-raised)]';
       case 'error': return 'bg-rose-400';
       default: return 'bg-amber-400 animate-pulse';
     }

@@ -119,7 +119,7 @@ export function TradeTable({ signals, onInspect }: TradeTableProps) {
   if (signals.length === 0) {
     return (
       <div className='tv-card p-12 flex flex-col items-center justify-center'>
-        <span className='text-sm text-zinc-500 font-mono'>
+        <span className='text-sm text-[var(--to-text-dim)] font-mono'>
           No trades match your filters
         </span>
       </div>
@@ -138,11 +138,11 @@ export function TradeTable({ signals, onInspect }: TradeTableProps) {
               'font-mono text-[10px] px-2.5 py-1 rounded transition-colors',
               modeFilter === mode
                 ? mode === 'LIVE'
-                  ? 'bg-emerald-500/20 text-emerald-400'
+                  ? 'bg-[var(--to-long)]/20 text-[var(--to-long)]'
                   : mode === 'PAPER'
                   ? 'bg-blue-500/20 text-blue-400'
-                  : 'bg-zinc-700/50 text-zinc-300'
-                : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50'
+                  : 'bg-[var(--to-surface-raised)]/50 text-[var(--to-text-secondary)]'
+                : 'text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)] hover:bg-[var(--to-surface-raised)]/50'
             )}
           >
             {mode === 'all'
@@ -153,7 +153,7 @@ export function TradeTable({ signals, onInspect }: TradeTableProps) {
           </button>
         ))}
         {modeFilter !== 'all' && (
-          <span className='ml-2 text-[10px] text-zinc-600 font-mono'>
+          <span className='ml-2 text-[10px] text-[var(--to-text-dim)] font-mono'>
             {filtered.length}/{signals.length}
           </span>
         )}
@@ -172,17 +172,17 @@ export function TradeTable({ signals, onInspect }: TradeTableProps) {
                     className='py-2.5 px-3 text-left cursor-pointer select-none group whitespace-nowrap'
                   >
                     <div className='flex items-center gap-1'>
-                      <span className='font-mono text-[10px] text-zinc-500 uppercase tracking-wider group-hover:text-zinc-300 transition-colors'>
+                      <span className='font-mono text-[10px] text-[var(--to-text-dim)] uppercase tracking-wider group-hover:text-[var(--to-text-secondary)] transition-colors'>
                         {col.label}
                       </span>
                       {sortKey === col.key ? (
                         sortDir === 'asc' ? (
-                          <ArrowUp className='w-3 h-3 text-zinc-400' />
+                          <ArrowUp className='w-3 h-3 text-[var(--to-text-dim)]' />
                         ) : (
-                          <ArrowDown className='w-3 h-3 text-zinc-400' />
+                          <ArrowDown className='w-3 h-3 text-[var(--to-text-dim)]' />
                         )
                       ) : (
-                        <ArrowUpDown className='w-3 h-3 text-zinc-700 group-hover:text-zinc-500 transition-colors' />
+                        <ArrowUpDown className='w-3 h-3 text-[var(--to-text-dim)] group-hover:text-[var(--to-text-dim)] transition-colors' />
                       )}
                     </div>
                   </th>

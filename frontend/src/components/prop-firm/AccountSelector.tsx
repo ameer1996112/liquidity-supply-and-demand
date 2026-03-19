@@ -15,7 +15,7 @@ export function AccountSelector({
 }: AccountSelectorProps) {
   return (
     <div className='flex items-center gap-1.5 flex-wrap'>
-      <span className='text-[11px] text-zinc-600 font-mono mr-1'>
+      <span className='text-[11px] text-[var(--to-text-dim)] font-mono mr-1'>
         Account:
       </span>
       {accounts.map((acc) => (
@@ -26,7 +26,7 @@ export function AccountSelector({
             'px-3 py-1.5 rounded-lg text-[11px] font-bold font-mono uppercase tracking-wide transition-all border',
             selectedAccount === acc
               ? 'text-amber-400 border-amber-500/40 bg-amber-500/15'
-              : 'text-zinc-600 border-[#2a2e39] hover:text-zinc-400'
+              : 'text-[var(--to-text-dim)] border-[#2a2e39] hover:text-[var(--to-text-dim)]'
           )}
         >
           {acc}

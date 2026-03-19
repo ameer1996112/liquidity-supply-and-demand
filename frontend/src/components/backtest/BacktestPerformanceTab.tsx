@@ -140,7 +140,7 @@ function StatRow({
   variant?: "positive" | "negative" | "neutral";
 }) {
   const colorClass =
-    variant === "positive" ? "text-green-500" : variant === "negative" ? "text-red-500" : "";
+    variant === "positive" ? "text-[var(--to-long)]" : variant === "negative" ? "text-[var(--to-short)]" : "";
 
   return (
     <div className="flex justify-between items-center py-2 border-b border-gray-800 last:border-0">
@@ -184,7 +184,7 @@ export function BacktestPerformanceTab({
               <p className="text-xs text-gray-500">Net Profit</p>
               <p
                 className={`text-xl font-bold ${
-                  netProfit >= 0 ? "text-green-500" : "text-red-500"
+                  netProfit >= 0 ? "text-[var(--to-long)]" : "text-[var(--to-short)]"
                 }`}
               >
                 {netProfit >= 0 ? "+" : ""}${netProfit.toFixed(2)}
@@ -196,7 +196,7 @@ export function BacktestPerformanceTab({
             </div>
             <div className="space-y-1">
               <p className="text-xs text-gray-500">Win Rate</p>
-              <p className="text-xl font-bold text-green-500">
+              <p className="text-xl font-bold text-[var(--to-long)]">
                 {stats.win_rate.toFixed(1)}%
               </p>
             </div>
@@ -216,7 +216,7 @@ export function BacktestPerformanceTab({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
-            <TrendingUp className="h-5 w-5 text-emerald-500" />
+            <TrendingUp className="h-5 w-5 text-[var(--to-long)]" />
             Performance
           </CardTitle>
         </CardHeader>

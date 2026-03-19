@@ -28,7 +28,7 @@ export function DrawdownChart({
   if (data.length < 2) {
     return (
       <div className="tv-card flex items-center justify-center" style={{ height }}>
-        <span className="text-xs text-zinc-600 font-mono">
+        <span className="text-xs text-[var(--to-text-dim)] font-mono">
           Not enough data for drawdown chart
         </span>
       </div>
@@ -38,11 +38,11 @@ export function DrawdownChart({
   return (
     <div className="tv-card p-4">
       <div className="flex items-center justify-between mb-3">
-        <span className="font-mono text-xs text-zinc-400 uppercase tracking-wider">
+        <span className="font-mono text-xs text-[var(--to-text-dim)] uppercase tracking-wider">
           Underwater Plot
         </span>
         <div className="flex items-center gap-4">
-          <span className="font-mono text-[10px] text-zinc-500">
+          <span className="font-mono text-[10px] text-[var(--to-text-dim)]">
             Max DD:{' '}
             <span className="text-[#ef5350] font-semibold">
               {maxDrawdownPct.toFixed(1)}% (${maxDrawdownAmount.toFixed(2)})

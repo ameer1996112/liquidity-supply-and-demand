@@ -28,11 +28,11 @@ function SummaryMetric({
 }) {
   return (
     <div className="tv-card p-4 flex items-start gap-3">
-      <div className="flex items-center justify-center w-8 h-8 rounded bg-[#1e222d] text-zinc-500 shrink-0">
+      <div className="flex items-center justify-center w-8 h-8 rounded bg-[#1e222d] text-[var(--to-text-dim)] shrink-0">
         {icon}
       </div>
       <div className="flex flex-col">
-        <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-mono">
+        <span className="text-[10px] uppercase tracking-wider text-[var(--to-text-dim)] font-mono">
           {label}
         </span>
         <span
@@ -40,7 +40,7 @@ function SummaryMetric({
             'font-mono text-lg font-bold tabular-nums',
             colored === 'green' && 'text-[#26a69a]',
             colored === 'red' && 'text-[#ef5350]',
-            !colored && 'text-zinc-200',
+            !colored && 'text-[var(--to-text-primary)]',
           )}
         >
           {value}

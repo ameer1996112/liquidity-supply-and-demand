@@ -27,14 +27,14 @@ export function WinRateDonut({ wins, losses, breakeven }: WinRateDonutProps) {
   if (total === 0) {
     return (
       <div className="tv-card p-4 flex items-center justify-center h-[260px]">
-        <span className="text-xs text-zinc-600 font-mono">No closed trades</span>
+        <span className="text-xs text-[var(--to-text-dim)] font-mono">No closed trades</span>
       </div>
     );
   }
 
   return (
     <div className="tv-card p-4">
-      <span className="font-mono text-xs text-zinc-400 uppercase tracking-wider">
+      <span className="font-mono text-xs text-[var(--to-text-dim)] uppercase tracking-wider">
         Win / Loss Distribution
       </span>
       <div className="relative mt-2">
@@ -61,24 +61,24 @@ export function WinRateDonut({ wins, losses, breakeven }: WinRateDonutProps) {
         </ResponsiveContainer>
         {/* Center label */}
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          <span className="font-mono text-2xl font-bold text-zinc-100">{winRate}%</span>
-          <span className="text-[10px] text-zinc-500 uppercase">Win Rate</span>
+          <span className="font-mono text-2xl font-bold text-[var(--to-text-primary)]">{winRate}%</span>
+          <span className="text-[10px] text-[var(--to-text-dim)] uppercase">Win Rate</span>
         </div>
       </div>
       {/* Legend */}
       <div className="flex items-center justify-center gap-4 mt-2">
         <div className="flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-sm" style={{ background: COLORS.wins }} />
-          <span className="text-[10px] text-zinc-500 font-mono">{wins} Wins</span>
+          <span className="text-[10px] text-[var(--to-text-dim)] font-mono">{wins} Wins</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-sm" style={{ background: COLORS.losses }} />
-          <span className="text-[10px] text-zinc-500 font-mono">{losses} Losses</span>
+          <span className="text-[10px] text-[var(--to-text-dim)] font-mono">{losses} Losses</span>
         </div>
         {breakeven > 0 && (
           <div className="flex items-center gap-1.5">
             <div className="w-2.5 h-2.5 rounded-sm" style={{ background: COLORS.breakeven }} />
-            <span className="text-[10px] text-zinc-500 font-mono">{breakeven} BE</span>
+            <span className="text-[10px] text-[var(--to-text-dim)] font-mono">{breakeven} BE</span>
           </div>
         )}
       </div>

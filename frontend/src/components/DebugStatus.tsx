@@ -122,8 +122,8 @@ export function DebugStatus() {
     <div
       className={`fixed bottom-0 left-0 right-0 z-50 px-4 py-2 font-mono text-xs ${
         isOnline
-          ? 'bg-emerald-950/90 border-t border-emerald-800/50 text-emerald-400'
-          : 'bg-red-950/90 border-t border-red-800/50 text-red-400'
+          ? 'bg-emerald-950/90 border-t border-emerald-800/50 text-[var(--to-long)]'
+          : 'bg-red-950/90 border-t border-red-800/50 text-[var(--to-short)]'
       }`}
     >
       <div className="max-w-screen-xl mx-auto flex items-center justify-between">

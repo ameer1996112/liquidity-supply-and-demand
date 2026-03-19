@@ -48,19 +48,19 @@ export function JournalFilters({
       {/* Top row: Search + Export */}
       <div className='flex items-center gap-3'>
         <div className='relative flex-1'>
-          <Search className='absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500' />
+          <Search className='absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--to-text-dim)]' />
           <input
             id='journal-search'
             type='text'
             placeholder='Search by symbol, status, notes...'
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
-            className='w-full pl-9 pr-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded-md text-sm text-zinc-200 placeholder:text-zinc-600 font-mono focus:outline-none focus:border-zinc-600 transition-colors'
+            className='w-full pl-9 pr-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded-md text-sm text-[var(--to-text-primary)] placeholder:text-[var(--to-text-dim)] font-mono focus:outline-none focus:border-zinc-600 transition-colors'
           />
         </div>
         <button
           onClick={onExport}
-          className='flex items-center gap-2 px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded-md text-xs text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 transition-colors font-mono'
+          className='flex items-center gap-2 px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded-md text-xs text-[var(--to-text-dim)] hover:text-[var(--to-text-primary)] hover:border-zinc-600 transition-colors font-mono'
         >
           <Download className='w-3.5 h-3.5' />
           CSV
@@ -79,8 +79,8 @@ export function JournalFilters({
                 className={cn(
                   'font-mono text-[10px] px-2 py-1 rounded transition-colors',
                   statusFilter === opt.value
-                    ? 'bg-[#2a2e39] text-zinc-200'
-                    : 'text-zinc-500 hover:text-zinc-300',
+                    ? 'bg-[#2a2e39] text-[var(--to-text-primary)]'
+                    : 'text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]',
                 )}
               >
                 {opt.label}
@@ -97,8 +97,8 @@ export function JournalFilters({
                 className={cn(
                   'font-mono text-[10px] px-2 py-1 rounded transition-colors',
                   modeFilter === opt.value
-                    ? 'bg-[#2a2e39] text-zinc-200'
-                    : 'text-zinc-500 hover:text-zinc-300',
+                    ? 'bg-[#2a2e39] text-[var(--to-text-primary)]'
+                    : 'text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]',
                 )}
               >
                 {opt.label}
@@ -107,7 +107,7 @@ export function JournalFilters({
           </div>
         </div>
 
-        <span className='font-mono text-[10px] text-zinc-600'>
+        <span className='font-mono text-[10px] text-[var(--to-text-dim)]'>
           {resultCount} trade{resultCount !== 1 ? 's' : ''}
         </span>
       </div>

@@ -17,7 +17,7 @@ export function WarningBanner({ metrics, limits }: { metrics: any; limits: FirmI
 
   if (isDrawdownBreach) {
     return (
-      <div className="flex items-center gap-2 p-2 rounded bg-red-500/10 border border-red-500/20 mb-3 text-red-500">
+      <div className="flex items-center gap-2 p-2 rounded bg-[var(--to-short)]/10 border border-red-500/20 mb-3 text-[var(--to-short)]">
         <AlertTriangle className="h-4 w-4 shrink-0" />
         <span className="text-[10px] font-mono font-bold">ACCOUNT BREACH DETECTED</span>
       </div>

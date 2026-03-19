@@ -53,7 +53,7 @@ export function HealthScoreGauge({
   return (
     <div className='tv-card p-6'>
       <div className='flex flex-col items-center'>
-        <h3 className='text-[13px] font-bold text-zinc-400 uppercase tracking-widest font-mono mb-4'>
+        <h3 className='text-[13px] font-bold text-[var(--to-text-dim)] uppercase tracking-widest font-mono mb-4'>
           Challenge Health
         </h3>
 
@@ -66,7 +66,7 @@ export function HealthScoreGauge({
               >
                 {healthScore}
               </div>
-              <div className='text-[11px] text-zinc-600 mt-1'>{label}</div>
+              <div className='text-[11px] text-[var(--to-text-dim)] mt-1'>{label}</div>
             </div>
           </div>
           <svg width='180' height='180' viewBox='0 0 100 100'>

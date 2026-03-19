@@ -162,11 +162,11 @@ export function RiskRulesPanel() {
   };
 
   const inputCls =
-    'bg-[#1e222d] border border-[#2a2e39] rounded px-2 py-1 text-xs font-mono text-zinc-200 focus:outline-none focus:border-emerald-500 w-full';
+    'bg-[#1e222d] border border-[#2a2e39] rounded px-2 py-1 text-xs font-mono text-[var(--to-text-primary)] focus:outline-none focus:border-emerald-500 w-full';
 
   if (!supabase) {
     return (
-      <div className="tv-card p-6 text-center text-zinc-500 text-sm">
+      <div className="tv-card p-6 text-center text-[var(--to-text-dim)] text-sm">
         Supabase not configured. Set environment variables to manage rules.
       </div>
     );
@@ -175,14 +175,14 @@ export function RiskRulesPanel() {
   return (
     <div className="space-y-4">
       {error && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-2 text-red-400 text-xs font-mono">
+        <div className="bg-[var(--to-short)]/10 border border-[var(--to-short)]/30 rounded-lg px-4 py-2 text-[var(--to-short)] text-xs font-mono">
           {error}
         </div>
       )}
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-xs text-zinc-500 font-mono uppercase tracking-wider">
+          <span className="text-xs text-[var(--to-text-dim)] font-mono uppercase tracking-wider">
             Per-Symbol Risk Configuration
           </span>
           <Badge variant="secondary" className="text-[10px]">
@@ -198,7 +198,7 @@ export function RiskRulesPanel() {
           disabled={addingNew}
           className={cn(
             'flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-mono',
-            'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors',
+            'bg-[var(--to-long)]/10 text-[var(--to-long)] hover:bg-[var(--to-long)]/20 transition-colors',
             'disabled:opacity-50 disabled:cursor-not-allowed'
           )}
         >
@@ -210,20 +210,20 @@ export function RiskRulesPanel() {
       <div className="tv-card overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <Loader2 className="w-5 h-5 animate-spin text-zinc-500" />
+            <Loader2 className="w-5 h-5 animate-spin text-[var(--to-text-dim)]" />
           </div>
         ) : (
           <Table>
             <TableHeader>
               <TableRow className="border-[#2a2e39]">
-                <TableHead className="text-[10px] text-zinc-500 font-mono uppercase">Symbol</TableHead>
-                <TableHead className="text-[10px] text-zinc-500 font-mono uppercase">Max Lot</TableHead>
-                <TableHead className="text-[10px] text-zinc-500 font-mono uppercase">Risk %</TableHead>
-                <TableHead className="text-[10px] text-zinc-500 font-mono uppercase">Pip Size</TableHead>
-                <TableHead className="text-[10px] text-zinc-500 font-mono uppercase">Pip Value/Lot</TableHead>
-                <TableHead className="text-[10px] text-zinc-500 font-mono uppercase">Max Pos</TableHead>
-                <TableHead className="text-[10px] text-zinc-500 font-mono uppercase">Enabled</TableHead>
-                <TableHead className="text-[10px] text-zinc-500 font-mono uppercase text-right">Actions</TableHead>
+                <TableHead className="text-[10px] text-[var(--to-text-dim)] font-mono uppercase">Symbol</TableHead>
+                <TableHead className="text-[10px] text-[var(--to-text-dim)] font-mono uppercase">Max Lot</TableHead>
+                <TableHead className="text-[10px] text-[var(--to-text-dim)] font-mono uppercase">Risk %</TableHead>
+                <TableHead className="text-[10px] text-[var(--to-text-dim)] font-mono uppercase">Pip Size</TableHead>
+                <TableHead className="text-[10px] text-[var(--to-text-dim)] font-mono uppercase">Pip Value/Lot</TableHead>
+                <TableHead className="text-[10px] text-[var(--to-text-dim)] font-mono uppercase">Max Pos</TableHead>
+                <TableHead className="text-[10px] text-[var(--to-text-dim)] font-mono uppercase">Enabled</TableHead>
+                <TableHead className="text-[10px] text-[var(--to-text-dim)] font-mono uppercase text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -293,7 +293,7 @@ export function RiskRulesPanel() {
                       onClick={() => setEditRow({ ...editRow, enabled: !editRow.enabled })}
                       className={cn(
                         'w-8 h-4 rounded-full relative transition-colors',
-                        editRow.enabled ? 'bg-emerald-500' : 'bg-zinc-600'
+                        editRow.enabled ? 'bg-emerald-500' : 'bg-[var(--to-surface-raised)]'
                       )}
                     >
                       <span
@@ -309,11 +309,11 @@ export function RiskRulesPanel() {
                       <button
                         onClick={saveEdit}
                         disabled={saving || !editRow.symbol.trim()}
-                        className="p-1 text-emerald-400 hover:text-emerald-300 disabled:opacity-50"
+                        className="p-1 text-[var(--to-long)] hover:text-emerald-300 disabled:opacity-50"
                       >
                         {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                       </button>
-                      <button onClick={cancelEdit} className="p-1 text-zinc-500 hover:text-zinc-300">
+                      <button onClick={cancelEdit} className="p-1 text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]">
                         <X className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -324,7 +324,7 @@ export function RiskRulesPanel() {
                 editId === rule.id ? (
                   <TableRow key={rule.id} className="border-[#2a2e39] bg-blue-500/5">
                     <TableCell>
-                      <span className="text-xs font-mono text-zinc-200">{rule.symbol}</span>
+                      <span className="text-xs font-mono text-[var(--to-text-primary)]">{rule.symbol}</span>
                     </TableCell>
                     <TableCell>
                       <input
@@ -381,7 +381,7 @@ export function RiskRulesPanel() {
                         onClick={() => setEditRow({ ...editRow, enabled: !editRow.enabled })}
                         className={cn(
                           'w-8 h-4 rounded-full relative transition-colors',
-                          editRow.enabled ? 'bg-emerald-500' : 'bg-zinc-600'
+                          editRow.enabled ? 'bg-emerald-500' : 'bg-[var(--to-surface-raised)]'
                         )}
                       >
                         <span
@@ -397,11 +397,11 @@ export function RiskRulesPanel() {
                         <button
                           onClick={saveEdit}
                           disabled={saving}
-                          className="p-1 text-emerald-400 hover:text-emerald-300 disabled:opacity-50"
+                          className="p-1 text-[var(--to-long)] hover:text-emerald-300 disabled:opacity-50"
                         >
                           {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                         </button>
-                        <button onClick={cancelEdit} className="p-1 text-zinc-500 hover:text-zinc-300">
+                        <button onClick={cancelEdit} className="p-1 text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]">
                           <X className="w-3.5 h-3.5" />
                         </button>
                       </div>
@@ -409,20 +409,20 @@ export function RiskRulesPanel() {
                   </TableRow>
                 ) : (
                   <TableRow key={rule.id} className="border-[#2a2e39]">
-                    <TableCell className="text-xs font-mono text-zinc-200 font-semibold">
+                    <TableCell className="text-xs font-mono text-[var(--to-text-primary)] font-semibold">
                       {rule.symbol}
                     </TableCell>
-                    <TableCell className="text-xs font-mono text-zinc-400">{rule.max_lot_size}</TableCell>
-                    <TableCell className="text-xs font-mono text-zinc-400">{rule.risk_percent}%</TableCell>
-                    <TableCell className="text-xs font-mono text-zinc-400">{rule.pip_size}</TableCell>
-                    <TableCell className="text-xs font-mono text-zinc-400">${rule.pip_value_per_lot}</TableCell>
-                    <TableCell className="text-xs font-mono text-zinc-400">{rule.max_positions}</TableCell>
+                    <TableCell className="text-xs font-mono text-[var(--to-text-dim)]">{rule.max_lot_size}</TableCell>
+                    <TableCell className="text-xs font-mono text-[var(--to-text-dim)]">{rule.risk_percent}%</TableCell>
+                    <TableCell className="text-xs font-mono text-[var(--to-text-dim)]">{rule.pip_size}</TableCell>
+                    <TableCell className="text-xs font-mono text-[var(--to-text-dim)]">${rule.pip_value_per_lot}</TableCell>
+                    <TableCell className="text-xs font-mono text-[var(--to-text-dim)]">{rule.max_positions}</TableCell>
                     <TableCell>
                       <button
                         onClick={() => toggleEnabled(rule)}
                         className={cn(
                           'w-8 h-4 rounded-full relative transition-colors',
-                          rule.enabled ? 'bg-emerald-500' : 'bg-zinc-600'
+                          rule.enabled ? 'bg-emerald-500' : 'bg-[var(--to-surface-raised)]'
                         )}
                       >
                         <span
@@ -437,13 +437,13 @@ export function RiskRulesPanel() {
                       <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => startEdit(rule)}
-                          className="p-1 text-zinc-500 hover:text-blue-400 transition-colors"
+                          className="p-1 text-[var(--to-text-dim)] hover:text-blue-400 transition-colors"
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => deleteRule(rule.id, rule.symbol)}
-                          className="p-1 text-zinc-500 hover:text-red-400 transition-colors"
+                          className="p-1 text-[var(--to-text-dim)] hover:text-[var(--to-short)] transition-colors"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -454,7 +454,7 @@ export function RiskRulesPanel() {
               )}
               {rules.length === 0 && !addingNew && (
                 <TableRow className="border-[#2a2e39]">
-                  <TableCell colSpan={8} className="text-center text-zinc-500 text-xs py-8">
+                  <TableCell colSpan={8} className="text-center text-[var(--to-text-dim)] text-xs py-8">
                     No symbol rules configured. Click &quot;Add Symbol&quot; to create one.
                   </TableCell>
                 </TableRow>

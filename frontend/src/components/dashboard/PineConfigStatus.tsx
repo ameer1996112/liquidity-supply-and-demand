@@ -145,16 +145,16 @@ export function PineConfigStatus() {
 
   return (
     <div className='flex items-center gap-2.5 rounded-lg border border-slate-700/60 bg-slate-800/50 px-3 py-2'>
-      <Cpu className='h-3.5 w-3.5 shrink-0 text-slate-500' />
+      <Cpu className='h-3.5 w-3.5 shrink-0 text-[var(--to-text-dim)]' />
       <span className='status-dot status-dot-active pulse-active shrink-0' />
       <span
-        className='text-[10px] uppercase tracking-[0.12em] text-slate-500'
+        className='text-[10px] uppercase tracking-[0.12em] text-[var(--to-text-dim)]'
         style={{ fontFamily: 'var(--font-sans)' }}
       >
         Account Size
       </span>
       <span
-        className='ml-auto text-sm font-semibold tabular-nums text-emerald-400'
+        className='ml-auto text-sm font-semibold tabular-nums text-[var(--to-long)]'
         style={{ fontFamily: 'var(--font-mono)' }}
       >
         $
@@ -163,7 +163,7 @@ export function PineConfigStatus() {
         })}
       </span>
       <span
-        className='text-[9px] text-slate-600'
+        className='text-[9px] text-[var(--to-text-dim)]'
         style={{ fontFamily: 'var(--font-mono)' }}
       >
         {config.source === 'tradingview' ? 'TV' : 'CFG'}

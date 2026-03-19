@@ -69,7 +69,7 @@ export function MiniEquityChart({ mode }: MiniEquityChartProps) {
         <div className='empty-state py-12'>
           <span className='empty-state-text'>[ NO ACTIVE DATA ]</span>
           <span
-            className='mt-1 text-[10px] text-slate-700'
+            className='mt-1 text-[10px] text-[var(--to-text-dim)]'
             style={{ fontFamily: 'var(--font-mono)' }}
           >
             awaiting 5m zone entry
@@ -83,7 +83,7 @@ export function MiniEquityChart({ mode }: MiniEquityChartProps) {
     <div className='tv-card p-3'>
       {/* Header */}
       <div className='flex items-center justify-between mb-2'>
-        <span className='font-mono text-[10px] text-zinc-500 uppercase tracking-wider'>
+        <span className='font-mono text-[10px] text-[var(--to-text-dim)] uppercase tracking-wider'>
           Equity Curve
         </span>
         <div className='flex items-center gap-1'>

@@ -85,12 +85,12 @@ export function AnalyticsTab({ accountName }: AnalyticsTabProps) {
       {/* Per-Pair Performance */}
       <section className='space-y-3'>
         <div className='flex items-center justify-between'>
-          <h3 className='text-sm font-medium text-zinc-300 flex items-center gap-2'>
-            <Target className='h-4 w-4 text-emerald-500' />
+          <h3 className='text-sm font-medium text-[var(--to-text-secondary)] flex items-center gap-2'>
+            <Target className='h-4 w-4 text-[var(--to-long)]' />
             Per-Pair Performance
           </h3>
           {!loadingPairs && pairStats && (
-            <span className='text-xs text-zinc-500'>
+            <span className='text-xs text-[var(--to-text-dim)]'>
               {pairStats.length} pairs traded
             </span>
           )}
@@ -108,10 +108,10 @@ export function AnalyticsTab({ accountName }: AnalyticsTabProps) {
             rate, profit factor, and avg hold time.
           </div>
         ) : !pairStats || pairStats.length === 0 ? (
-          <div className='flex flex-col items-center justify-center rounded-lg border border-[#2a2e39] bg-[#1e222d]/50 py-12 text-zinc-500'>
+          <div className='flex flex-col items-center justify-center rounded-lg border border-[#2a2e39] bg-[#1e222d]/50 py-12 text-[var(--to-text-dim)]'>
             <div className='text-3xl mb-3'>📊</div>
             <p className='text-sm font-mono'>No trade data yet</p>
-            <p className='text-xs text-zinc-600 mt-1'>
+            <p className='text-xs text-[var(--to-text-dim)] mt-1'>
               Per-pair analytics will appear after closing some trades.
             </p>
           </div>
@@ -121,28 +121,28 @@ export function AnalyticsTab({ accountName }: AnalyticsTabProps) {
               <table className='w-full text-sm'>
                 <thead>
                   <tr className='border-b border-[#2a2e39] bg-[#1e222d]/50'>
-                    <th className='text-left px-4 py-2 text-xs font-mono text-zinc-500'>
+                    <th className='text-left px-4 py-2 text-xs font-mono text-[var(--to-text-dim)]'>
                       Pair
                     </th>
-                    <th className='text-center px-4 py-2 text-xs font-mono text-zinc-500'>
+                    <th className='text-center px-4 py-2 text-xs font-mono text-[var(--to-text-dim)]'>
                       Trades
                     </th>
-                    <th className='text-right px-4 py-2 text-xs font-mono text-zinc-500'>
+                    <th className='text-right px-4 py-2 text-xs font-mono text-[var(--to-text-dim)]'>
                       Win Rate
                     </th>
-                    <th className='text-right px-4 py-2 text-xs font-mono text-zinc-500'>
+                    <th className='text-right px-4 py-2 text-xs font-mono text-[var(--to-text-dim)]'>
                       Total P&L
                     </th>
-                    <th className='text-right px-4 py-2 text-xs font-mono text-zinc-500'>
+                    <th className='text-right px-4 py-2 text-xs font-mono text-[var(--to-text-dim)]'>
                       Avg Win
                     </th>
-                    <th className='text-right px-4 py-2 text-xs font-mono text-zinc-500'>
+                    <th className='text-right px-4 py-2 text-xs font-mono text-[var(--to-text-dim)]'>
                       Avg Loss
                     </th>
-                    <th className='text-right px-4 py-2 text-xs font-mono text-zinc-500'>
+                    <th className='text-right px-4 py-2 text-xs font-mono text-[var(--to-text-dim)]'>
                       PF
                     </th>
-                    <th className='text-right px-4 py-2 text-xs font-mono text-zinc-500'>
+                    <th className='text-right px-4 py-2 text-xs font-mono text-[var(--to-text-dim)]'>
                       Avg Hold
                     </th>
                   </tr>
@@ -158,12 +158,12 @@ export function AnalyticsTab({ accountName }: AnalyticsTabProps) {
                         key={pair.symbol}
                         className='border-b border-[#2a2e39] hover:bg-[#1e222d]/30'
                       >
-                        <td className='px-4 py-3 font-mono text-xs font-semibold text-zinc-200'>
+                        <td className='px-4 py-3 font-mono text-xs font-semibold text-[var(--to-text-primary)]'>
                           {pair.symbol}
                         </td>
-                        <td className='px-4 py-3 text-center font-mono text-xs text-zinc-400'>
+                        <td className='px-4 py-3 text-center font-mono text-xs text-[var(--to-text-dim)]'>
                           {pair.total_trades}
-                          <span className='text-[10px] ml-1 text-zinc-600'>
+                          <span className='text-[10px] ml-1 text-[var(--to-text-dim)]'>
                             ({pair.wins}W/{pair.losses}L)
                           </span>
                         </td>
@@ -171,7 +171,7 @@ export function AnalyticsTab({ accountName }: AnalyticsTabProps) {
                           <span
                             className={cn(
                               'font-mono text-xs font-medium',
-                              winRateGood ? 'text-[#26a69a]' : 'text-zinc-400',
+                              winRateGood ? 'text-[#26a69a]' : 'text-[var(--to-text-dim)]',
                             )}
                           >
                             {(pair.win_rate * 100).toFixed(1)}%
@@ -200,13 +200,13 @@ export function AnalyticsTab({ accountName }: AnalyticsTabProps) {
                           <span
                             className={cn(
                               'font-mono text-xs font-medium',
-                              pfGood ? 'text-[#26a69a]' : 'text-zinc-400',
+                              pfGood ? 'text-[#26a69a]' : 'text-[var(--to-text-dim)]',
                             )}
                           >
                             {pair.profit_factor.toFixed(2)}
                           </span>
                         </td>
-                        <td className='px-4 py-3 text-right font-mono text-xs text-zinc-400'>
+                        <td className='px-4 py-3 text-right font-mono text-xs text-[var(--to-text-dim)]'>
                           {pair.avg_hold_time_hours.toFixed(1)}h
                         </td>
                       </tr>
@@ -222,12 +222,12 @@ export function AnalyticsTab({ accountName }: AnalyticsTabProps) {
       {/* Losing Streaks Detection */}
       <section className='space-y-3'>
         <div className='flex items-center justify-between'>
-          <h3 className='text-sm font-medium text-zinc-300 flex items-center gap-2'>
+          <h3 className='text-sm font-medium text-[var(--to-text-secondary)] flex items-center gap-2'>
             <AlertTriangle className='h-4 w-4 text-amber-500' />
             Losing Streaks
           </h3>
           {!loadingStreaks && streaks && streaks.length > 0 && (
-            <span className='text-xs text-zinc-500'>
+            <span className='text-xs text-[var(--to-text-dim)]'>
               {streaks.filter((s) => s.status === 'active').length > 0 && (
                 <span className='text-amber-500'>
                   ⚠️ Active streak detected
@@ -249,7 +249,7 @@ export function AnalyticsTab({ accountName }: AnalyticsTabProps) {
             consecutive losing trades with total loss and affected pairs.
           </div>
         ) : !streaks || streaks.length === 0 ? (
-          <div className='rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-600'>
+          <div className='rounded-lg border border-[var(--to-long)]/30 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-600'>
             <div className='flex items-center gap-2'>
               <TrendingUp className='h-4 w-4' />
               <span className='font-medium'>
@@ -281,7 +281,7 @@ export function AnalyticsTab({ accountName }: AnalyticsTabProps) {
                           'font-mono text-sm font-semibold',
                           streak.status === 'active'
                             ? 'text-amber-500'
-                            : 'text-zinc-400',
+                            : 'text-[var(--to-text-dim)]',
                         )}
                       >
                         {streak.streak_length} consecutive losses
@@ -294,7 +294,7 @@ export function AnalyticsTab({ accountName }: AnalyticsTabProps) {
                     </div>
                     <div
                       suppressHydrationWarning
-                      className='text-xs text-zinc-500'
+                      className='text-xs text-[var(--to-text-dim)]'
                     >
                       {new Date(streak.start_date).toLocaleDateString()} -{' '}
                       {streak.status === 'active'
@@ -303,7 +303,7 @@ export function AnalyticsTab({ accountName }: AnalyticsTabProps) {
                     </div>
                     <div className='flex items-center gap-3 mt-2'>
                       <div>
-                        <span className='text-[10px] text-zinc-600 uppercase'>
+                        <span className='text-[10px] text-[var(--to-text-dim)] uppercase'>
                           Total Loss
                         </span>
                         <div className='font-mono text-sm font-semibold text-[#ef5350]'>
@@ -312,10 +312,10 @@ export function AnalyticsTab({ accountName }: AnalyticsTabProps) {
                       </div>
                       <div className='h-8 w-px bg-[#2a2e39]'></div>
                       <div>
-                        <span className='text-[10px] text-zinc-600 uppercase'>
+                        <span className='text-[10px] text-[var(--to-text-dim)] uppercase'>
                           Pairs Affected
                         </span>
-                        <div className='font-mono text-xs text-zinc-400'>
+                        <div className='font-mono text-xs text-[var(--to-text-dim)]'>
                           {streak.symbols.join(', ')}
                         </div>
                       </div>
@@ -333,10 +333,10 @@ export function AnalyticsTab({ accountName }: AnalyticsTabProps) {
 
       {/* Session Performance (Placeholder for Chart) */}
       <section className='space-y-3'>
-        <h3 className='text-sm font-medium text-zinc-300'>
+        <h3 className='text-sm font-medium text-[var(--to-text-secondary)]'>
           Session Performance
         </h3>
-        <div className='rounded-lg border border-[#2a2e39] bg-[#1e222d]/50 px-4 py-12 text-center text-xs text-zinc-600'>
+        <div className='rounded-lg border border-[#2a2e39] bg-[#1e222d]/50 px-4 py-12 text-center text-xs text-[var(--to-text-dim)]'>
           <div className='text-3xl mb-3'>📈</div>
           <p className='font-mono'>Chart Coming Soon</p>
           <p className='mt-1 max-w-md mx-auto'>
@@ -348,8 +348,8 @@ export function AnalyticsTab({ accountName }: AnalyticsTabProps) {
 
       {/* Equity Curve (Placeholder for Chart) */}
       <section className='space-y-3'>
-        <h3 className='text-sm font-medium text-zinc-300'>Equity Curve</h3>
-        <div className='rounded-lg border border-[#2a2e39] bg-[#1e222d]/50 px-4 py-12 text-center text-xs text-zinc-600'>
+        <h3 className='text-sm font-medium text-[var(--to-text-secondary)]'>Equity Curve</h3>
+        <div className='rounded-lg border border-[#2a2e39] bg-[#1e222d]/50 px-4 py-12 text-center text-xs text-[var(--to-text-dim)]'>
           <div className='text-3xl mb-3'>📊</div>
           <p className='font-mono'>Chart Coming Soon</p>
           <p className='mt-1 max-w-md mx-auto'>

@@ -56,10 +56,10 @@ function StatItem({ label, value, icon, trend, highlight }: StatItemProps) {
 function StatItemSkeleton() {
   return (
     <div className="flex items-center gap-2 px-4 py-2">
-      <Skeleton className="w-8 h-8 rounded-md bg-zinc-800" />
+      <Skeleton className="w-8 h-8 rounded-md bg-[var(--to-surface-raised)]" />
       <div className="flex flex-col gap-1">
-        <Skeleton className="w-16 h-2.5 bg-zinc-800" />
-        <Skeleton className="w-12 h-4 bg-zinc-800" />
+        <Skeleton className="w-16 h-2.5 bg-[var(--to-surface-raised)]" />
+        <Skeleton className="w-12 h-4 bg-[var(--to-surface-raised)]" />
       </div>
     </div>
   );
@@ -70,7 +70,7 @@ export function StatsTicker() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-14 bg-zinc-950/80 border-b border-zinc-800 text-red-400 text-sm">
+      <div className="flex items-center justify-center h-14 bg-zinc-950/80 border-b border-zinc-800 text-[var(--to-short)] text-sm">
         <span className="font-mono">Error loading stats</span>
       </div>
     );

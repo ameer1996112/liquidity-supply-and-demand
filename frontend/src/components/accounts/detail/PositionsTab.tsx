@@ -30,12 +30,12 @@ export function PositionsTab({ accountName }: PositionsTabProps) {
         <div className={`rounded-lg border px-4 py-3 flex items-center gap-3 ${
           orphanedCount > 0 || pendingCount > 0
             ? 'border-amber-500/30 bg-amber-500/5'
-            : 'border-emerald-500/30 bg-emerald-500/5'
+            : 'border-[var(--to-long)]/30 bg-emerald-500/5'
         }`}>
           {orphanedCount > 0 || pendingCount > 0 ? (
             <AlertCircle className="h-5 w-5 text-amber-500 flex-shrink-0" />
           ) : (
-            <CheckCircle className="h-5 w-5 text-emerald-500 flex-shrink-0" />
+            <CheckCircle className="h-5 w-5 text-[var(--to-long)] flex-shrink-0" />
           )}
           <div>
             <div className={`text-sm font-medium ${orphanedCount > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
@@ -61,9 +61,9 @@ export function PositionsTab({ accountName }: PositionsTabProps) {
       {/* Broker Positions */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-medium text-zinc-300">
+          <h3 className="text-sm font-medium text-[var(--to-text-secondary)]">
             Broker Positions
-            {!isLoading && <span className="ml-2 text-zinc-500">({brokerPositions.length})</span>}
+            {!isLoading && <span className="ml-2 text-[var(--to-text-dim)]">({brokerPositions.length})</span>}
           </h3>
         </div>
 
@@ -78,10 +78,10 @@ export function PositionsTab({ accountName }: PositionsTabProps) {
             Failed to fetch positions. This endpoint may not be implemented yet.
           </div>
         ) : brokerPositions.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-lg border border-[#2a2e39] bg-[#1e222d]/50 py-12 text-zinc-500">
+          <div className="flex flex-col items-center justify-center rounded-lg border border-[#2a2e39] bg-[#1e222d]/50 py-12 text-[var(--to-text-dim)]">
             <XCircle className="h-10 w-10 mb-3 opacity-50" />
             <p className="text-sm font-mono">No open positions</p>
-            <p className="text-xs text-zinc-600 mt-1">
+            <p className="text-xs text-[var(--to-text-dim)] mt-1">
               Positions from MetaAPI will appear here.
             </p>
           </div>
@@ -91,43 +91,43 @@ export function PositionsTab({ accountName }: PositionsTabProps) {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[#2a2e39] bg-[#1e222d]/50">
-                    <th className="text-left px-4 py-2 text-xs font-mono text-zinc-500">Symbol</th>
-                    <th className="text-left px-4 py-2 text-xs font-mono text-zinc-500">Side</th>
-                    <th className="text-right px-4 py-2 text-xs font-mono text-zinc-500">Lots</th>
-                    <th className="text-right px-4 py-2 text-xs font-mono text-zinc-500">Entry</th>
-                    <th className="text-right px-4 py-2 text-xs font-mono text-zinc-500">Current</th>
-                    <th className="text-right px-4 py-2 text-xs font-mono text-zinc-500">SL</th>
-                    <th className="text-right px-4 py-2 text-xs font-mono text-zinc-500">TP</th>
-                    <th className="text-right px-4 py-2 text-xs font-mono text-zinc-500">P&L</th>
-                    <th className="text-left px-4 py-2 text-xs font-mono text-zinc-500">Status</th>
+                    <th className="text-left px-4 py-2 text-xs font-mono text-[var(--to-text-dim)]">Symbol</th>
+                    <th className="text-left px-4 py-2 text-xs font-mono text-[var(--to-text-dim)]">Side</th>
+                    <th className="text-right px-4 py-2 text-xs font-mono text-[var(--to-text-dim)]">Lots</th>
+                    <th className="text-right px-4 py-2 text-xs font-mono text-[var(--to-text-dim)]">Entry</th>
+                    <th className="text-right px-4 py-2 text-xs font-mono text-[var(--to-text-dim)]">Current</th>
+                    <th className="text-right px-4 py-2 text-xs font-mono text-[var(--to-text-dim)]">SL</th>
+                    <th className="text-right px-4 py-2 text-xs font-mono text-[var(--to-text-dim)]">TP</th>
+                    <th className="text-right px-4 py-2 text-xs font-mono text-[var(--to-text-dim)]">P&L</th>
+                    <th className="text-left px-4 py-2 text-xs font-mono text-[var(--to-text-dim)]">Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {brokerPositions.map((pos, idx) => {
                     const isProfit = pos.profit >= 0;
                     const statusColor = {
-                      matched: 'text-emerald-500',
+                      matched: 'text-[var(--to-long)]',
                       orphaned: 'text-amber-500',
-                      pending: 'text-zinc-500',
+                      pending: 'text-[var(--to-text-dim)]',
                     }[pos.reconciliation_status || 'pending'];
 
                     return (
                       <tr key={pos.id || idx} className="border-b border-[#2a2e39] hover:bg-[#1e222d]/30">
-                        <td className="px-4 py-3 font-mono text-xs text-zinc-200">{pos.symbol}</td>
+                        <td className="px-4 py-3 font-mono text-xs text-[var(--to-text-primary)]">{pos.symbol}</td>
                         <td className="px-4 py-3">
                           <span className={`text-xs font-mono ${pos.side === 'buy' ? 'text-[#26a69a]' : 'text-[#ef5350]'}`}>
                             {pos.side.toUpperCase()}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-right font-mono text-xs text-zinc-300">{pos.volume.toFixed(2)}</td>
-                        <td className="px-4 py-3 text-right font-mono text-xs text-zinc-300">{pos.open_price.toFixed(5)}</td>
-                        <td className="px-4 py-3 text-right font-mono text-xs text-zinc-300">
+                        <td className="px-4 py-3 text-right font-mono text-xs text-[var(--to-text-secondary)]">{pos.volume.toFixed(2)}</td>
+                        <td className="px-4 py-3 text-right font-mono text-xs text-[var(--to-text-secondary)]">{pos.open_price.toFixed(5)}</td>
+                        <td className="px-4 py-3 text-right font-mono text-xs text-[var(--to-text-secondary)]">
                           {pos.current_price ? pos.current_price.toFixed(5) : '-'}
                         </td>
-                        <td className="px-4 py-3 text-right font-mono text-xs text-zinc-400">
+                        <td className="px-4 py-3 text-right font-mono text-xs text-[var(--to-text-dim)]">
                           {pos.sl ? pos.sl.toFixed(5) : '-'}
                         </td>
-                        <td className="px-4 py-3 text-right font-mono text-xs text-zinc-400">
+                        <td className="px-4 py-3 text-right font-mono text-xs text-[var(--to-text-dim)]">
                           {pos.tp ? pos.tp.toFixed(5) : '-'}
                         </td>
                         <td className="px-4 py-3 text-right">
@@ -152,13 +152,13 @@ export function PositionsTab({ accountName }: PositionsTabProps) {
 
       {/* DB Positions */}
       <section className="space-y-3">
-        <h3 className="text-sm font-medium text-zinc-300">
+        <h3 className="text-sm font-medium text-[var(--to-text-secondary)]">
           Database Positions
-          {!isLoading && <span className="ml-2 text-zinc-500">({dbPositions.length})</span>}
+          {!isLoading && <span className="ml-2 text-[var(--to-text-dim)]">({dbPositions.length})</span>}
         </h3>
 
         {dbPositions.length === 0 ? (
-          <div className="rounded-lg border border-[#2a2e39] bg-[#1e222d]/50 px-4 py-8 text-center text-xs text-zinc-500">
+          <div className="rounded-lg border border-[#2a2e39] bg-[#1e222d]/50 px-4 py-8 text-center text-xs text-[var(--to-text-dim)]">
             No active positions in database.
           </div>
         ) : (
@@ -167,29 +167,29 @@ export function PositionsTab({ accountName }: PositionsTabProps) {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-[#2a2e39] bg-[#1e222d]/50">
-                    <th className="text-left px-4 py-2 text-xs font-mono text-zinc-500">Symbol</th>
-                    <th className="text-left px-4 py-2 text-xs font-mono text-zinc-500">Side</th>
-                    <th className="text-right px-4 py-2 text-xs font-mono text-zinc-500">Size</th>
-                    <th className="text-right px-4 py-2 text-xs font-mono text-zinc-500">Entry</th>
-                    <th className="text-right px-4 py-2 text-xs font-mono text-zinc-500">SL</th>
-                    <th className="text-right px-4 py-2 text-xs font-mono text-zinc-500">TP</th>
-                    <th className="text-left px-4 py-2 text-xs font-mono text-zinc-500">Status</th>
+                    <th className="text-left px-4 py-2 text-xs font-mono text-[var(--to-text-dim)]">Symbol</th>
+                    <th className="text-left px-4 py-2 text-xs font-mono text-[var(--to-text-dim)]">Side</th>
+                    <th className="text-right px-4 py-2 text-xs font-mono text-[var(--to-text-dim)]">Size</th>
+                    <th className="text-right px-4 py-2 text-xs font-mono text-[var(--to-text-dim)]">Entry</th>
+                    <th className="text-right px-4 py-2 text-xs font-mono text-[var(--to-text-dim)]">SL</th>
+                    <th className="text-right px-4 py-2 text-xs font-mono text-[var(--to-text-dim)]">TP</th>
+                    <th className="text-left px-4 py-2 text-xs font-mono text-[var(--to-text-dim)]">Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {dbPositions.map((pos: any, idx: number) => (
                     <tr key={pos.id || idx} className="border-b border-[#2a2e39] hover:bg-[#1e222d]/30">
-                      <td className="px-4 py-3 font-mono text-xs text-zinc-200">{pos.symbol}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-[var(--to-text-primary)]">{pos.symbol}</td>
                       <td className="px-4 py-3">
                         <span className={`text-xs font-mono ${pos.side === 'buy' ? 'text-[#26a69a]' : 'text-[#ef5350]'}`}>
                           {pos.side?.toUpperCase()}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-right font-mono text-xs text-zinc-300">{pos.size?.toFixed(2)}</td>
-                      <td className="px-4 py-3 text-right font-mono text-xs text-zinc-300">{pos.entry?.toFixed(5)}</td>
-                      <td className="px-4 py-3 text-right font-mono text-xs text-zinc-400">{pos.sl?.toFixed(5)}</td>
-                      <td className="px-4 py-3 text-right font-mono text-xs text-zinc-400">{pos.tp?.toFixed(5)}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-zinc-500">{pos.status}</td>
+                      <td className="px-4 py-3 text-right font-mono text-xs text-[var(--to-text-secondary)]">{pos.size?.toFixed(2)}</td>
+                      <td className="px-4 py-3 text-right font-mono text-xs text-[var(--to-text-secondary)]">{pos.entry?.toFixed(5)}</td>
+                      <td className="px-4 py-3 text-right font-mono text-xs text-[var(--to-text-dim)]">{pos.sl?.toFixed(5)}</td>
+                      <td className="px-4 py-3 text-right font-mono text-xs text-[var(--to-text-dim)]">{pos.tp?.toFixed(5)}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-[var(--to-text-dim)]">{pos.status}</td>
                     </tr>
                   ))}
                 </tbody>

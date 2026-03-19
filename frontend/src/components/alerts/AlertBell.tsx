@@ -26,7 +26,7 @@ export function AlertBell() {
             'relative inline-flex h-8 w-8 items-center justify-center rounded-md border transition-all',
             open
               ? 'border-amber-500/40 bg-amber-500/15 text-amber-400 ring-1 ring-amber-500/30 shadow-[0_0_10px_rgba(245,158,11,0.15)]'
-              : 'border-[#2a2e39] bg-[#141821] text-zinc-400 hover:text-zinc-100 hover:bg-[#1a1f2a]'
+              : 'border-[#2a2e39] bg-[#141821] text-[var(--to-text-dim)] hover:text-[var(--to-text-primary)] hover:bg-[#1a1f2a]'
           )}
           aria-label='Open alerts'
         >
@@ -41,11 +41,11 @@ export function AlertBell() {
       <PopoverContent className='w-80 p-0'>
         <div className='flex items-center justify-between border-b border-[#2a2e39] px-3 py-2'>
           <div className='flex items-center gap-2'>
-            <span className='text-xs font-semibold uppercase tracking-wide text-zinc-400'>
+            <span className='text-xs font-semibold uppercase tracking-wide text-[var(--to-text-dim)]'>
               Alerts
             </span>
             {isLoading && (
-              <span className='text-[10px] text-zinc-600 font-mono'>
+              <span className='text-[10px] text-[var(--to-text-dim)] font-mono'>
                 syncing…
               </span>
             )}
@@ -54,7 +54,7 @@ export function AlertBell() {
             <button
               type='button'
               onClick={clearAll}
-              className='text-[10px] text-zinc-500 hover:text-zinc-200'
+              className='text-[10px] text-[var(--to-text-dim)] hover:text-[var(--to-text-primary)]'
             >
               Clear all
             </button>
@@ -62,7 +62,7 @@ export function AlertBell() {
         </div>
         <div className='max-h-80 overflow-y-auto py-2 space-y-1'>
           {!hasAlerts && (
-            <p className='px-3 py-6 text-center text-xs text-zinc-500'>
+            <p className='px-3 py-6 text-center text-xs text-[var(--to-text-dim)]'>
               No active alerts. You&apos;re all clear.
             </p>
           )}

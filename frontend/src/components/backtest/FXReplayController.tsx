@@ -199,11 +199,11 @@ export function FXReplayController({
           </div>
           <div>
             <p className="text-gray-400">High</p>
-            <p className="font-mono text-green-500">{(currentCandle as any).high.toFixed(5)}</p>
+            <p className="font-mono text-[var(--to-long)]">{(currentCandle as any).high.toFixed(5)}</p>
           </div>
           <div>
             <p className="text-gray-400">Low</p>
-            <p className="font-mono text-red-500">{(currentCandle as any).low.toFixed(5)}</p>
+            <p className="font-mono text-[var(--to-short)]">{(currentCandle as any).low.toFixed(5)}</p>
           </div>
           <div>
             <p className="text-gray-400">Close</p>

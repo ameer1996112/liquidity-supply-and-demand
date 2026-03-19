@@ -121,12 +121,12 @@ export function HistoryTab({ accountName }: HistoryTabProps) {
       {/* Filters */}
       <div className='flex items-center justify-between'>
         <div className='flex items-center gap-3'>
-          <Filter className='h-4 w-4 text-zinc-500' />
+          <Filter className='h-4 w-4 text-[var(--to-text-dim)]' />
           <select
             id='history-date-range'
             value={dateRange}
             onChange={(e) => setDateRange(e.target.value as any)}
-            className='px-3 py-1.5 text-sm rounded border border-[#2a2e39] bg-[#1e222d] text-zinc-300 focus:outline-none focus:border-emerald-500'
+            className='px-3 py-1.5 text-sm rounded border border-[#2a2e39] bg-[#1e222d] text-[var(--to-text-secondary)] focus:outline-none focus:border-emerald-500'
           >
             <option value='7d'>Last 7 days</option>
             <option value='30d'>Last 30 days</option>
@@ -138,7 +138,7 @@ export function HistoryTab({ accountName }: HistoryTabProps) {
             id='history-outcome-filter'
             value={outcomeFilter}
             onChange={(e) => setOutcomeFilter(e.target.value as any)}
-            className='px-3 py-1.5 text-sm rounded border border-[#2a2e39] bg-[#1e222d] text-zinc-300 focus:outline-none focus:border-emerald-500'
+            className='px-3 py-1.5 text-sm rounded border border-[#2a2e39] bg-[#1e222d] text-[var(--to-text-secondary)] focus:outline-none focus:border-emerald-500'
           >
             <option value='all'>All outcomes</option>
             <option value='win'>Wins only</option>
@@ -151,7 +151,7 @@ export function HistoryTab({ accountName }: HistoryTabProps) {
           size='sm'
           onClick={exportCSV}
           disabled={trades.length === 0}
-          className='border-[#2a2e39] text-zinc-400 hover:bg-[#2a2e39] hover:text-zinc-200'
+          className='border-[#2a2e39] text-[var(--to-text-dim)] hover:bg-[#2a2e39] hover:text-[var(--to-text-primary)]'
         >
           <Download className='h-3.5 w-3.5 mr-1.5' />
           Export CSV
@@ -161,23 +161,23 @@ export function HistoryTab({ accountName }: HistoryTabProps) {
       {/* Loading State */}
       {loading && (
         <div className='flex items-center justify-center rounded-lg border border-[#2a2e39] bg-[#1e222d]/50 py-16'>
-          <Loader2 className='h-8 w-8 animate-spin text-emerald-500' />
+          <Loader2 className='h-8 w-8 animate-spin text-[var(--to-long)]' />
         </div>
       )}
 
       {/* Error State */}
       {error && !loading && (
-        <div className='rounded-lg border border-red-900/50 bg-red-950/30 p-4 text-red-400 text-sm'>
+        <div className='rounded-lg border border-red-900/50 bg-red-950/30 p-4 text-[var(--to-short)] text-sm'>
           {error}
         </div>
       )}
 
       {/* Empty State */}
       {!loading && !error && trades.length === 0 && (
-        <div className='flex flex-col items-center justify-center rounded-lg border border-[#2a2e39] bg-[#1e222d]/50 py-16 text-zinc-500'>
+        <div className='flex flex-col items-center justify-center rounded-lg border border-[#2a2e39] bg-[#1e222d]/50 py-16 text-[var(--to-text-dim)]'>
           <div className='text-4xl mb-4'>📊</div>
           <p className='text-sm font-mono'>No Closed Trades</p>
-          <p className='text-xs text-zinc-600 mt-1 max-w-md text-center'>
+          <p className='text-xs text-[var(--to-text-dim)] mt-1 max-w-md text-center'>
             No closed trades found for the selected period. Closed trades will
             appear here once positions are exited.
           </p>
@@ -190,28 +190,28 @@ export function HistoryTab({ accountName }: HistoryTabProps) {
           <table className='w-full text-sm'>
             <thead className='bg-[#1e222d] border-b border-[#2a2e39]'>
               <tr>
-                <th className='px-4 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider'>
+                <th className='px-4 py-3 text-left text-xs font-medium text-[var(--to-text-dim)] uppercase tracking-wider'>
                   Symbol
                 </th>
-                <th className='px-4 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider'>
+                <th className='px-4 py-3 text-left text-xs font-medium text-[var(--to-text-dim)] uppercase tracking-wider'>
                   Side
                 </th>
-                <th className='px-4 py-3 text-right text-xs font-medium text-zinc-400 uppercase tracking-wider'>
+                <th className='px-4 py-3 text-right text-xs font-medium text-[var(--to-text-dim)] uppercase tracking-wider'>
                   Entry
                 </th>
-                <th className='px-4 py-3 text-right text-xs font-medium text-zinc-400 uppercase tracking-wider'>
+                <th className='px-4 py-3 text-right text-xs font-medium text-[var(--to-text-dim)] uppercase tracking-wider'>
                   Exit
                 </th>
-                <th className='px-4 py-3 text-right text-xs font-medium text-zinc-400 uppercase tracking-wider'>
+                <th className='px-4 py-3 text-right text-xs font-medium text-[var(--to-text-dim)] uppercase tracking-wider'>
                   P&L
                 </th>
-                <th className='px-4 py-3 text-right text-xs font-medium text-zinc-400 uppercase tracking-wider'>
+                <th className='px-4 py-3 text-right text-xs font-medium text-[var(--to-text-dim)] uppercase tracking-wider'>
                   R Multiple
                 </th>
-                <th className='px-4 py-3 text-right text-xs font-medium text-zinc-400 uppercase tracking-wider'>
+                <th className='px-4 py-3 text-right text-xs font-medium text-[var(--to-text-dim)] uppercase tracking-wider'>
                   MAE
                 </th>
-                <th className='px-4 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider'>
+                <th className='px-4 py-3 text-left text-xs font-medium text-[var(--to-text-dim)] uppercase tracking-wider'>
                   Exit Time
                 </th>
               </tr>
@@ -222,49 +222,49 @@ export function HistoryTab({ accountName }: HistoryTabProps) {
                   key={trade.id}
                   className='hover:bg-[#1e222d] transition-colors'
                 >
-                  <td className='px-4 py-3 font-mono text-zinc-200'>
+                  <td className='px-4 py-3 font-mono text-[var(--to-text-primary)]'>
                     {trade.symbol}
                   </td>
                   <td className='px-4 py-3'>
                     <span
                       className={`px-2 py-0.5 text-xs rounded ${
                         trade.side === 'buy'
-                          ? 'bg-emerald-900/30 text-emerald-400'
+                          ? 'bg-emerald-900/30 text-[var(--to-long)]'
                           : 'bg-rose-900/30 text-rose-400'
                       }`}
                     >
                       {trade.side.toUpperCase()}
                     </span>
                   </td>
-                  <td className='px-4 py-3 text-right font-mono text-zinc-300'>
+                  <td className='px-4 py-3 text-right font-mono text-[var(--to-text-secondary)]'>
                     {trade.entry.toFixed(5)}
                   </td>
-                  <td className='px-4 py-3 text-right font-mono text-zinc-300'>
+                  <td className='px-4 py-3 text-right font-mono text-[var(--to-text-secondary)]'>
                     {trade.exit.toFixed(5)}
                   </td>
                   <td
                     className={`px-4 py-3 text-right font-mono font-semibold ${
-                      trade.pnl_usd >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                      trade.pnl_usd >= 0 ? 'text-[var(--to-long)]' : 'text-rose-400'
                     }`}
                   >
                     ${trade.pnl_usd.toFixed(2)}
                   </td>
-                  <td className='px-4 py-3 text-right font-mono text-zinc-300'>
+                  <td className='px-4 py-3 text-right font-mono text-[var(--to-text-secondary)]'>
                     {trade.r_multiple
                       ? `${trade.r_multiple.toFixed(2)}R`
                       : 'N/A'}
                   </td>
-                  <td className='px-4 py-3 text-right font-mono text-zinc-400'>
+                  <td className='px-4 py-3 text-right font-mono text-[var(--to-text-dim)]'>
                     {trade.mae ? `$${trade.mae.toFixed(2)}` : 'N/A'}
                   </td>
-                  <td className='px-4 py-3 text-zinc-400 text-xs'>
+                  <td className='px-4 py-3 text-[var(--to-text-dim)] text-xs'>
                     {new Date(trade.exit_time).toLocaleString()}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <div className='bg-[#1e222d] px-4 py-3 border-t border-[#2a2e39] text-xs text-zinc-500'>
+          <div className='bg-[#1e222d] px-4 py-3 border-t border-[#2a2e39] text-xs text-[var(--to-text-dim)]'>
             Showing {trades.length} closed{' '}
             {trades.length === 1 ? 'trade' : 'trades'}
           </div>
