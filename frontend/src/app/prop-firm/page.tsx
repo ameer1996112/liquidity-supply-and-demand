@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { AlertTriangle, DollarSign, Activity, Calendar } from 'lucide-react';
 import { CalendarPnlView } from '@/components/journal/CalendarPnlView';
 import {
@@ -62,11 +62,11 @@ const MOCK_METRICS: PropFirmMetricsResponse = {
 };
 
 export default function PropFirmPage() {
-  const [historyDays] = useState(30);
-  const [analyticsRange] = useState(14);
-  const [symbolFilter] = useState('ALL');
-  const [sessionFilter] = useState('ALL');
-  const [dowFilter] = useState('ALL');
+  const historyDays = 30;
+  const analyticsRange = 14;
+  const symbolFilter = 'ALL';
+  const sessionFilter = 'ALL';
+  const dowFilter = 'ALL';
 
   const { data: accounts = [] } = useAccountsComparison();
 
@@ -76,7 +76,7 @@ export default function PropFirmPage() {
     return names.length > 0 ? names : ['default'];
   }, [accounts]);
 
-  const [selectedAccount, setSelectedAccount] = useState<string>('default');
+  const selectedAccount = 'default';
   const resolvedAccount = accountOptions.includes(selectedAccount)
     ? selectedAccount
     : accountOptions[0] ?? 'default';
@@ -87,6 +87,7 @@ export default function PropFirmPage() {
   const {
     data: metricsData,
     isLoading: metricsLoading,
+    isError: metricsIsError,
     error: metricsError,
     dataUpdatedAt,
   } = usePropFirmMetrics(resolvedAccount);
@@ -296,9 +297,17 @@ export default function PropFirmPage() {
     };
   }, [filteredSignals, analyticsDaily]);
 
-  if (metricsLoading) {
+  // Show skeleton only on initial load with no data — fall through on error
+  if (metricsLoading && !metricsIsError) {
     return (
-      <div className='p-6 text-zinc-600'>Loading challenge data…</div>
+      <div className='flex flex-col gap-3 p-2'>
+        <div className='h-16 rounded-xl bg-[var(--to-surface-raised)]/60 animate-pulse' />
+        <div className='grid grid-cols-1 lg:grid-cols-3 gap-4'>
+          <div className='h-48 rounded-xl bg-[var(--to-surface-raised)]/60 animate-pulse' />
+          <div className='h-48 lg:col-span-2 rounded-xl bg-[var(--to-surface-raised)]/60 animate-pulse' />
+        </div>
+        <div className='h-32 rounded-xl bg-[var(--to-surface-raised)]/60 animate-pulse' />
+      </div>
     );
   }
 
@@ -360,7 +369,7 @@ export default function PropFirmPage() {
         daysRemaining={metrics.days_remaining}
         accountOptions={accountOptions}
         selectedAccount={resolvedAccount}
-        onSelectAccount={setSelectedAccount}
+        onSelectAccount={() => {}}
         dataUpdatedAt={dataUpdatedAt}
         onReset={() => resetMutation.mutate()}
         isResetting={resetMutation.isPending}

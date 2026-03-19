@@ -52,20 +52,6 @@ export default function RiskMonitorPage() {
   const { data, isLoading, error } = useRiskMonitor();
   const { status } = useConnectionHealth();
 
-  if (error) {
-    return (
-      <div className='space-y-4'>
-        <div>
-          <h1 className='page-title text-lg font-semibold'>Risk Monitor</h1>
-          <p className='page-subtitle mt-0.5 text-xs'>
-            Real-time risk state from Pine Script
-          </p>
-        </div>
-        <PageStatusBanner status={status} surfaceLabel='Risk decisions' />
-      </div>
-    );
-  }
-
   return (
     <div className='space-y-4'>
       {/* Header */}
@@ -91,7 +77,7 @@ export default function RiskMonitorPage() {
         </p>
       </div>
 
-      {isLoading ? (
+      {isLoading || error ? (
         <LoadingSkeleton />
       ) : data ? (
         <>
@@ -100,7 +86,7 @@ export default function RiskMonitorPage() {
             <CompositeRiskScore data={data} />
 
             {/* Daily Loss Gauge */}
-            <div className='tv-card flex flex-col items-center justify-center p-5'>
+            <div className='glow-card flex flex-col items-center justify-center p-5'>
               <CircularGauge
                 value={data.daily_risk.loss_pct}
                 limit={100}
@@ -118,7 +104,7 @@ export default function RiskMonitorPage() {
             </div>
 
             {/* Drawdown Gauge */}
-            <div className='tv-card flex flex-col items-center justify-center p-5'>
+            <div className='glow-card flex flex-col items-center justify-center p-5'>
               <CircularGauge
                 value={data.drawdown.dd_utilization_pct}
                 limit={100}
@@ -150,7 +136,7 @@ export default function RiskMonitorPage() {
             <SymbolOverridesCard data={data.symbol_overrides} />
           )}
           <div
-            className='text-right text-[10px] text-slate-600'
+            className='text-right text-[10px] text-[var(--to-text-dim)]'
             style={{ fontFamily: 'var(--font-mono)' }}
           >
             updated{' '}
@@ -304,54 +290,54 @@ function PanelCard({
 function DailyRiskCard({ data }: { data: any }) {
   const utilizationColor =
     data.loss_pct > 80
-      ? 'bg-red-500'
+      ? 'bg-[var(--to-short)]'
       : data.loss_pct > 50
-      ? 'bg-amber-500'
-      : 'bg-emerald-500';
+      ? 'bg-[var(--to-warning)]'
+      : 'bg-[var(--to-long)]';
 
   return (
     <PanelCard
-      icon={<Target className='h-3.5 w-3.5 text-indigo-400' />}
+      icon={<Target className='h-3.5 w-3.5 text-[var(--to-accent-blue)]' />}
       title='Daily Risk Status'
     >
       <div>
         <div className='mb-1 flex items-baseline justify-between'>
           <span
-            className='text-[10px] text-slate-500'
+            className='text-[10px] text-[var(--to-text-dim)]'
             style={{ fontFamily: 'var(--font-sans)' }}
           >
             Daily Loss
           </span>
           <span
-            className='text-xs text-slate-300 tabular-nums'
+            className='text-xs text-[var(--to-text-primary)] tabular-nums'
             style={{ fontFamily: 'var(--font-mono)' }}
           >
             ${data.loss_used_usd.toFixed(2)} / ${data.loss_limit_usd.toFixed(2)}
           </span>
         </div>
-        <div className='h-1.5 overflow-hidden rounded-full bg-slate-800'>
+        <div className='h-1.5 overflow-hidden rounded-full bg-[var(--to-border)]'>
           <div
             className={cn('h-full transition-all', utilizationColor)}
             style={{ width: `${Math.min(data.loss_pct, 100)}%` }}
           />
         </div>
         <div
-          className='mt-1 text-[9px] text-slate-600'
+          className='mt-1 text-[9px] text-[var(--to-text-dim)]'
           style={{ fontFamily: 'var(--font-mono)' }}
         >
           {data.loss_pct.toFixed(1)}% utilization
         </div>
       </div>
-      <div className='border-t border-slate-800 pt-2'>
+      <div className='border-t border-[var(--to-border)] pt-2'>
         <div className='flex justify-between text-xs'>
           <span
-            className='text-slate-500'
+            className='text-[var(--to-text-secondary)]'
             style={{ fontFamily: 'var(--font-sans)' }}
           >
             Remaining
           </span>
           <span
-            className='tabular-nums text-emerald-400'
+            className='tabular-nums text-[var(--to-long)]'
             style={{ fontFamily: 'var(--font-mono)' }}
           >
             ${data.remaining_usd.toFixed(2)}
@@ -359,16 +345,16 @@ function DailyRiskCard({ data }: { data: any }) {
         </div>
       </div>
       {data.profit_current_usd > 0 && (
-        <div className='border-t border-slate-800 pt-2'>
+        <div className='border-t border-[var(--to-border)] pt-2'>
           <div className='flex justify-between text-xs'>
             <span
-              className='text-slate-500'
+              className='text-[var(--to-text-secondary)]'
               style={{ fontFamily: 'var(--font-sans)' }}
             >
               Daily Profit
             </span>
             <span
-              className='tabular-nums text-emerald-400'
+              className='tabular-nums text-[var(--to-long)]'
               style={{ fontFamily: 'var(--font-mono)' }}
             >
               +${data.profit_current_usd.toFixed(2)}
@@ -376,7 +362,7 @@ function DailyRiskCard({ data }: { data: any }) {
           </div>
           {data.is_profit_target_hit && (
             <div
-              className='mt-1 text-[10px] text-emerald-500'
+              className='mt-1 text-[10px] text-[var(--to-long)]'
               style={{ fontFamily: 'var(--font-mono)' }}
             >
               target hit: ${data.profit_target_usd.toFixed(0)}
@@ -392,18 +378,18 @@ function DailyRiskCard({ data }: { data: any }) {
 function PositionLimitsCard({ data }: { data: any }) {
   return (
     <PanelCard
-      icon={<Shield className='h-3.5 w-3.5 text-indigo-400' />}
+      icon={<Shield className='h-3.5 w-3.5 text-[var(--to-accent-blue)]' />}
       title='Position Limits'
     >
       <div className='flex items-center justify-between'>
         <span
-          className='text-[10px] text-slate-500'
+          className='text-[10px] text-[var(--to-text-dim)]'
           style={{ fontFamily: 'var(--font-sans)' }}
         >
           Open Positions
         </span>
         <span
-          className='text-base font-semibold tabular-nums text-slate-200'
+          className='text-base font-semibold tabular-nums text-[var(--to-text-primary)]'
           style={{ fontFamily: 'var(--font-mono)' }}
         >
           {data.open_positions} / {data.max_positions}
@@ -411,23 +397,23 @@ function PositionLimitsCard({ data }: { data: any }) {
       </div>
       <div className='flex items-center justify-between'>
         <span
-          className='text-[10px] text-slate-500'
+          className='text-[10px] text-[var(--to-text-dim)]'
           style={{ fontFamily: 'var(--font-sans)' }}
         >
           Trades Today
         </span>
         <span
-          className='text-base font-semibold tabular-nums text-slate-200'
+          className='text-base font-semibold tabular-nums text-[var(--to-text-primary)]'
           style={{ fontFamily: 'var(--font-mono)' }}
         >
           {data.trades_today} / {data.max_trades_today}
         </span>
       </div>
       {data.warning && (
-        <div className='flex items-center gap-2 border-t border-slate-800 pt-2'>
-          <AlertCircle className='h-3 w-3 text-amber-400' />
+        <div className='flex items-center gap-2 border-t border-[var(--to-border)] pt-2'>
+          <AlertCircle className='h-3 w-3 text-[var(--to-warning)]' />
           <span
-            className='text-[10px] text-amber-400'
+            className='text-[10px] text-[var(--to-warning)]'
             style={{ fontFamily: 'var(--font-sans)' }}
           >
             {data.warning}
@@ -442,55 +428,55 @@ function PositionLimitsCard({ data }: { data: any }) {
 function DrawdownCard({ data }: { data: any }) {
   const ddColor =
     data.dd_utilization_pct > 80
-      ? 'bg-red-500'
+      ? 'bg-[var(--to-short)]'
       : data.dd_utilization_pct > 50
-      ? 'bg-amber-500'
-      : 'bg-emerald-500';
+      ? 'bg-[var(--to-warning)]'
+      : 'bg-[var(--to-long)]';
 
   return (
     <PanelCard
-      icon={<TrendingDown className='h-3.5 w-3.5 text-indigo-400' />}
+      icon={<TrendingDown className='h-3.5 w-3.5 text-[var(--to-accent-blue)]' />}
       title='Drawdown Status'
     >
       <div>
         <div className='mb-1 flex items-baseline justify-between'>
           <span
-            className='text-[10px] text-slate-500'
+            className='text-[10px] text-[var(--to-text-dim)]'
             style={{ fontFamily: 'var(--font-sans)' }}
           >
             Current DD
           </span>
           <span
-            className='text-xs text-slate-300 tabular-nums'
+            className='text-xs text-[var(--to-text-primary)] tabular-nums'
             style={{ fontFamily: 'var(--font-mono)' }}
           >
             {data.current_dd_pct.toFixed(2)}% /{' '}
             {data.max_dd_allowed_pct.toFixed(1)}%
           </span>
         </div>
-        <div className='h-1.5 overflow-hidden rounded-full bg-slate-800'>
+        <div className='h-1.5 overflow-hidden rounded-full bg-[var(--to-border)]'>
           <div
             className={cn('h-full transition-all', ddColor)}
             style={{ width: `${Math.min(data.dd_utilization_pct, 100)}%` }}
           />
         </div>
         <div
-          className='mt-1 text-[9px] text-slate-600'
+          className='mt-1 text-[9px] text-[var(--to-text-dim)]'
           style={{ fontFamily: 'var(--font-mono)' }}
         >
           {data.dd_utilization_pct.toFixed(0)}% of max drawdown used
         </div>
       </div>
-      <div className='grid grid-cols-2 gap-3 border-t border-slate-800 pt-2'>
+      <div className='grid grid-cols-2 gap-3 border-t border-[var(--to-border)] pt-2'>
         <div>
           <div
-            className='text-[10px] text-slate-500'
+            className='text-[10px] text-[var(--to-text-dim)]'
             style={{ fontFamily: 'var(--font-sans)' }}
           >
             Peak Equity
           </div>
           <div
-            className='text-xs tabular-nums text-slate-300'
+            className='text-xs tabular-nums text-[var(--to-text-secondary)]'
             style={{ fontFamily: 'var(--font-mono)' }}
           >
             ${data.peak_equity_usd.toFixed(2)}
@@ -498,13 +484,13 @@ function DrawdownCard({ data }: { data: any }) {
         </div>
         <div>
           <div
-            className='text-[10px] text-slate-500'
+            className='text-[10px] text-[var(--to-text-dim)]'
             style={{ fontFamily: 'var(--font-sans)' }}
           >
             Current
           </div>
           <div
-            className='text-xs tabular-nums text-slate-300'
+            className='text-xs tabular-nums text-[var(--to-text-secondary)]'
             style={{ fontFamily: 'var(--font-mono)' }}
           >
             ${data.current_equity_usd.toFixed(2)}
@@ -535,20 +521,20 @@ function ActiveSettingsCard({ data }: { data: any }) {
 
   return (
     <PanelCard
-      icon={<Settings className='h-3.5 w-3.5 text-indigo-400' />}
+      icon={<Settings className='h-3.5 w-3.5 text-[var(--to-accent-blue)]' />}
       title='Active Settings'
     >
       <div className='space-y-1.5'>
         {rows.map((r) => (
           <div key={r.label} className='flex justify-between text-xs'>
             <span
-              className='text-slate-500'
+              className='text-[var(--to-text-secondary)]'
               style={{ fontFamily: 'var(--font-sans)' }}
             >
               {r.label}
             </span>
             <span
-              className='tabular-nums text-slate-300'
+              className='tabular-nums text-[var(--to-text-primary)]'
               style={{ fontFamily: 'var(--font-mono)' }}
             >
               {r.value}
@@ -563,24 +549,24 @@ function ActiveSettingsCard({ data }: { data: any }) {
 function GuardRailsCard({ data }: { data: GuardRailStatus[] }) {
   return (
     <PanelCard
-      icon={<Shield className='h-3.5 w-3.5 text-indigo-400' />}
+      icon={<Shield className='h-3.5 w-3.5 text-[var(--to-accent-blue)]' />}
       title='Guard Rails Status'
     >
       <div className='space-y-0'>
         {data.map((rail) => (
           <div
             key={rail.name}
-            className='flex items-center justify-between border-b border-slate-800 py-2 last:border-0'
+            className='flex items-center justify-between border-b border-[var(--to-border)] py-2 last:border-0'
           >
             <span
-              className='text-[11px] text-slate-400'
+              className='text-[11px] text-[var(--to-text-secondary)]'
               style={{ fontFamily: 'var(--font-sans)' }}
             >
               {rail.name}
             </span>
             <div className='flex items-center gap-2'>
               <span
-                className='text-[10px] text-slate-600'
+                className='text-[10px] text-[var(--to-text-dim)]'
                 style={{ fontFamily: 'var(--font-mono)' }}
               >
                 {rail.message}
@@ -597,8 +583,8 @@ function GuardRailsCard({ data }: { data: GuardRailStatus[] }) {
  
 function SymbolOverridesCard({ data }: { data: any[] }) {
   return (
-    <div className='tv-card'>
-      <div className='tv-divider flex items-center gap-2 border-b px-3 py-2'>
+    <div className='glow-card'>
+      <div className='flex items-center gap-2 border-b border-[var(--to-border)] px-3 py-2'>
         <span
           className='panel-label'
           style={{ fontFamily: 'var(--font-sans)' }}
@@ -606,7 +592,7 @@ function SymbolOverridesCard({ data }: { data: any[] }) {
           Symbol Overrides
         </span>
         <span
-          className='text-[9px] text-slate-600'
+          className='text-[9px] text-[var(--to-text-dim)]'
           style={{ fontFamily: 'var(--font-mono)' }}
         >
           read-only
@@ -615,12 +601,12 @@ function SymbolOverridesCard({ data }: { data: any[] }) {
       <div className='overflow-x-auto p-3'>
         <table className='w-full text-xs'>
           <thead>
-            <tr className='border-b border-slate-800'>
+            <tr className='border-b border-[var(--to-border)]'>
               {['Symbol', 'Risk%', 'Max Lots', 'SL Buffer', 'Pip Size'].map(
                 (h) => (
                   <th
                     key={h}
-                    className='py-1.5 text-left text-[9px] uppercase tracking-wider text-slate-600 last:text-right'
+                    className='py-1.5 text-left text-[9px] uppercase tracking-wider text-[var(--to-text-dim)] last:text-right'
                     style={{ fontFamily: 'var(--font-mono)' }}
                   >
                     {h}
@@ -633,34 +619,34 @@ function SymbolOverridesCard({ data }: { data: any[] }) {
             {data.map((o) => (
               <tr
                 key={o.symbol}
-                className='border-b border-slate-800/50 last:border-0 data-row'
+                className='border-b border-[var(--to-border)]/50 last:border-0 data-row'
               >
                 <td
-                  className='py-1.5 text-slate-300'
+                  className='py-1.5 text-[var(--to-text-secondary)]'
                   style={{ fontFamily: 'var(--font-mono)' }}
                 >
                   {o.symbol}
                 </td>
                 <td
-                  className='py-1.5 text-right tabular-nums text-slate-400'
+                  className='py-1.5 text-right tabular-nums text-[var(--to-text-dim)]'
                   style={{ fontFamily: 'var(--font-mono)' }}
                 >
                   {o.risk_pct}%
                 </td>
                 <td
-                  className='py-1.5 text-right tabular-nums text-slate-400'
+                  className='py-1.5 text-right tabular-nums text-[var(--to-text-dim)]'
                   style={{ fontFamily: 'var(--font-mono)' }}
                 >
                   {o.max_lots}
                 </td>
                 <td
-                  className='py-1.5 text-right tabular-nums text-slate-400'
+                  className='py-1.5 text-right tabular-nums text-[var(--to-text-dim)]'
                   style={{ fontFamily: 'var(--font-mono)' }}
                 >
                   {o.sl_buffer_pips} pips
                 </td>
                 <td
-                  className='py-1.5 text-right tabular-nums text-slate-400'
+                  className='py-1.5 text-right tabular-nums text-[var(--to-text-dim)]'
                   style={{ fontFamily: 'var(--font-mono)' }}
                 >
                   {o.pip_size}
@@ -676,10 +662,10 @@ function SymbolOverridesCard({ data }: { data: any[] }) {
 
 function StatusBadge({ severity }: { severity: string }) {
   const styles: Record<string, string> = {
-    success: 'bg-emerald-500/15 text-emerald-400',
-    warning: 'bg-amber-500/15 text-amber-400',
-    critical: 'bg-red-500/15 text-red-400',
-    info: 'bg-indigo-500/15 text-indigo-400',
+    success: 'bg-[var(--to-long)]/15 text-[var(--to-long)]',
+    warning: 'bg-[var(--to-warning)]/15 text-[var(--to-warning)]',
+    critical: 'bg-[var(--to-short)]/15 text-[var(--to-short)]',
+    info: 'bg-[var(--to-accent-blue)]/15 text-[var(--to-accent-blue)]',
   };
   const labels: Record<string, string> = {
     success: '✓',
@@ -705,19 +691,19 @@ function LoadingSkeleton() {
   return (
     <>
       <div className='grid grid-cols-1 gap-3 lg:grid-cols-3'>
-        <Skeleton className='h-56 rounded-lg bg-slate-800/60' />
-        <Skeleton className='h-56 rounded-lg bg-slate-800/60' />
-        <Skeleton className='h-56 rounded-lg bg-slate-800/60' />
+        <Skeleton className='h-56 rounded-xl bg-[var(--to-surface-raised)]/60' />
+        <Skeleton className='h-56 rounded-xl bg-[var(--to-surface-raised)]/60' />
+        <Skeleton className='h-56 rounded-xl bg-[var(--to-surface-raised)]/60' />
       </div>
       <div className='grid grid-cols-1 gap-3 lg:grid-cols-2'>
-        <Skeleton className='h-44 rounded-lg bg-slate-800/60' />
-        <Skeleton className='h-44 rounded-lg bg-slate-800/60' />
+        <Skeleton className='h-44 rounded-xl bg-[var(--to-surface-raised)]/60' />
+        <Skeleton className='h-44 rounded-xl bg-[var(--to-surface-raised)]/60' />
       </div>
       <div className='grid grid-cols-1 gap-3 lg:grid-cols-2'>
-        <Skeleton className='h-44 rounded-lg bg-slate-800/60' />
-        <Skeleton className='h-44 rounded-lg bg-slate-800/60' />
+        <Skeleton className='h-44 rounded-xl bg-[var(--to-surface-raised)]/60' />
+        <Skeleton className='h-44 rounded-xl bg-[var(--to-surface-raised)]/60' />
       </div>
-      <Skeleton className='h-56 rounded-lg bg-slate-800/60' />
+      <Skeleton className='h-56 rounded-xl bg-[var(--to-surface-raised)]/60' />
     </>
   );
 }
