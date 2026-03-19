@@ -316,6 +316,36 @@
   pointer-events: none;
 }
 
+/* glass-panel-subtle — lighter frosted effect for secondary surfaces */
+.glass-panel-subtle {
+  background: linear-gradient(
+    135deg,
+    rgba(13, 17, 23, 0.85) 0%,
+    rgba(22, 27, 34, 0.75) 100%
+  );
+  border-radius: var(--to-radius-card);
+  border: 1px solid var(--to-border);
+  backdrop-filter: blur(6px) saturate(120%);
+  -webkit-backdrop-filter: blur(6px) saturate(120%);
+  position: relative;
+  overflow: hidden;
+}
+
+/* glass-panel-strong — maximum frosted effect for modal/overlay surfaces */
+.glass-panel-strong {
+  background: linear-gradient(
+    135deg,
+    rgba(8, 11, 16, 0.96) 0%,
+    rgba(13, 17, 23, 0.92) 100%
+  );
+  border-radius: var(--to-radius-card);
+  border: 1px solid var(--to-border-glow);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  position: relative;
+  overflow: hidden;
+}
+
 .to-panel-header {
   display: flex;
   align-items: center;
