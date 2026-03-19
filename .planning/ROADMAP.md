@@ -1,139 +1,164 @@
-# ROADMAP.md — Frontend Redesign Milestone
+# Roadmap: Trinity Trading System — UI Redesign
 
-**Milestone:** v1.0 — Frontend Redesign
-**Defined:** 2026-03-19
-**Status:** In Progress
+## v1.0: Premium Dark Trading Terminal
 
-## Overview
+**Goal:** Complete UI overhaul — premium dark fintech aesthetic, mobile-first responsive layout, cohesive design system applied uniformly across all pages.
 
-Complete visual redesign of the trading bot dashboard frontend. 7 phases from design system foundation through final polish. Each phase is independently deployable.
+**Phases:** 8 | **Requirements:** 31
 
 ---
 
-## Phase 1: Design System & Navigation
+### Phase 1: Design System Foundation
 
-**Goal:** Establish the design foundation and unified navigation that all other phases build on.
+**Goal:** Consolidate and formalize the design system — audit existing tokens, fill gaps in typography/spacing scales, and ensure every visual primitive is defined as a reusable CSS custom property.
 
-**Requirements:** DS-01, DS-02, DS-03, DS-04, DS-05, DS-06, NAV-01, NAV-02, NAV-03, NAV-04
+**Requirements:** DSYS-01, DSYS-02, DSYS-03, DSYS-04
 
 **Success Criteria:**
-1. Color palette tokens are defined in Tailwind config and used in at least one sample component
-2. Sidebar navigation renders on all pages with correct active state, icons, and collapse behavior
-3. Card component with glass-morphism style is reusable and documented
-4. Skeleton loading component is reusable and renders correctly
-5. All monospace number styles are applied to price/number elements globally
+1. Complete color token set documented and defined as CSS custom properties (no hardcoded hex values remain in any component)
+2. Typography scale with 6+ size steps, defined weights, and line-height ratios is usable via utility classes
+3. Spacing scale (4px-based) defined and applied consistently across components
+4. Glass, glow, and gradient tokens are consolidated and documented as reusable utility classes
+
+**Plans:** 2 plans
+
+Plans:
+- [x] 01-01-PLAN.md — Color tokens (semantic status) + typography scale + font weights (DSYS-01, DSYS-02)
+- [ ] 01-02-PLAN.md — Spacing scale + radius aliases + glass variants + gradient tokens + TOKEN-AUDIT.md (DSYS-03, DSYS-04)
+
+| Plans | Progress |
+|-------|----------|
+| 2 | 1/2 complete |
 
 ---
 
-## Phase 2: Dashboard (Main Page)
+### Phase 2: Core Component Library
 
-**Goal:** Redesign the main dashboard as a real-time command center for the trading bot.
+**Goal:** Restyle all base UI components (buttons, cards, tables, badges, inputs, loaders) to use design system tokens exclusively, ensuring consistency across the entire application.
 
-**Requirements:** DASH-01, DASH-02, DASH-03, DASH-04, DASH-05, DASH-06
+**Requirements:** COMP-01, COMP-02, COMP-03, COMP-04, COMP-05, COMP-06
 
 **Success Criteria:**
-1. Signal feed displays real-time signals with AI verdict and guardrail status badges
-2. P&L summary widget shows today's P&L with correct color-coding (green/red)
-3. Bot status panel shows trading mode, last signal time, and active/inactive state
-4. Risk snapshot widget shows daily loss %, drawdown %, and prop firm proximity
-5. Signal card expands in-place to show AI rationale and guardrail breakdown
-6. Dashboard layout fits without vertical scroll for critical widgets on 1080p screen
+1. Every button variant (primary, secondary, ghost, destructive) renders with token-based colors, consistent padding, and hover states
+2. Card/panel components consistently use glass-panel or to-panel styling depending on elevation
+3. All tables use consistent header/row styling with hover highlight and dense mode option
+4. Badge styling is uniform (live/paper, long/short, trigger types)
+5. All form inputs render with dark-theme styling using design tokens
+6. Skeleton/shimmer loading pattern is implemented and used on at least 3 pages
+
+| Plans | Progress |
+|-------|----------|
+| — | Not started |
 
 ---
 
-## Phase 3: Positions & Risk Pages
+### Phase 3: Navigation Redesign
 
-**Goal:** Redesign positions and risk monitoring pages with live data and visual risk indicators.
+**Goal:** Redesign desktop sidebar and create mobile bottom navigation bar. Clean, organized, with active state indicators and smooth transitions.
 
-**Requirements:** POS-01, POS-02, POS-03, POS-04, RISK-01, RISK-02, RISK-03, RISK-04, RISK-05
+**Requirements:** NAV-01, NAV-02, NAV-03
 
 **Success Criteria:**
-1. Positions table shows all open positions with correct columns and heat-colored P&L rows
-2. Positions update within 10 seconds of real changes
-3. Risk gauges render for daily loss and drawdown with correct color zones (green/amber/red)
-4. Portfolio VaR, sector, and correlation cards display and update correctly
-5. Empty state renders on positions page when no open positions exist
-6. Warning styling activates when any risk metric exceeds 80% of its limit
+1. Desktop sidebar has clear section grouping, icon + label, and active state glow indicator
+2. Mobile bottom nav bar appears below 768px with 5 key sections accessible via single tap
+3. Page transitions use fade-in-up animation with no layout shift
+
+| Plans | Progress |
+|-------|----------|
+| — | Not started |
 
 ---
 
-## Phase 4: Analytics & Execution Quality Pages
+### Phase 4: Dashboard Redesign
 
-**Goal:** Redesign analytics and execution quality pages with dark-themed interactive charts.
+**Goal:** Transform the dashboard into an eye-catching command center with hero metrics, live signal feed, and WebSocket status — the first screen that wows.
 
-**Requirements:** ANA-01, ANA-02, ANA-03, ANA-04, EXQ-01, EXQ-02, EXQ-03, EXQ-04
+**Requirements:** DASH-01, DASH-02, DASH-03, DASH-04
 
 **Success Criteria:**
-1. Equity curve chart renders with dark theme, glowing fill, and hover tooltips
-2. Win rate heatmap or grouped bar chart renders by symbol and session
-3. KPI cards at top of analytics show correct metrics from API
-4. Execution trace timeline renders each signal's phase durations correctly
-5. Latency breakdown chart shows bot vs broker latency correctly
-6. Slippage chart renders with real data from trace API
-7. Filter controls work for symbol, date range, and outcome on EXQ page
+1. Hero section shows 4-6 key KPIs (PnL, win rate, active positions, daily trades) in premium glow cards
+2. Signal feed shows latest signals with side-colored accents, animated entry, and live timestamp
+3. WebSocket status indicator is visible in the header/hero with green/amber/red dot + label
+4. Dashboard layout stacks properly on mobile with all metrics and controls accessible
+
+| Plans | Progress |
+|-------|----------|
+| — | Not started |
 
 ---
 
-## Phase 5: Prop Firm & Accounts Pages
+### Phase 5: Risk & Prop Firm Redesign
 
-**Goal:** Redesign prop firm challenge tracker and account management pages.
+**Goal:** Redesign risk monitor and prop firm challenge tracker — the highest-priority monitoring pages — with clear metric hierarchy and visual gauges.
 
-**Requirements:** PROP-01, PROP-02, PROP-03, PROP-04, PROP-05, ACC-01, ACC-02, ACC-03
+**Requirements:** RISK-01, RISK-02, RISK-03
 
 **Success Criteria:**
-1. Prop firm page shows challenge phase badge, account name, and broker correctly
-2. Daily loss and drawdown progress bars render with correct color zones
-3. Profit target progress renders with % to target
-4. Consistency tracker shows best day % vs 40% limit
-5. Account cards show balance, equity, phase badge, and connection status
-6. Disconnected/error accounts are visually distinct from healthy accounts
+1. Risk monitor has tiered layout: critical metrics (drawdown, daily loss) at top with color-coded status, detail panels below
+2. Prop firm tracker has visual progress bars/gauges showing challenge metrics against limits
+3. Both pages are fully responsive on mobile with metric cards stacking vertically and controls accessible
+
+| Plans | Progress |
+|-------|----------|
+| — | Not started |
 
 ---
 
-## Phase 6: Alerts, Settings & Strategies Pages
+### Phase 6: Remaining Pages Redesign
 
-**Goal:** Redesign the remaining utility pages — alerts, settings, and strategies.
+**Goal:** Apply the design system consistently to all remaining pages — positions, analytics, accounts, and all secondary pages.
 
-**Requirements:** ALRT-01, ALRT-02, SET-01, SET-02
+**Requirements:** PAGE-01, PAGE-02, PAGE-03, PAGE-04
 
 **Success Criteria:**
-1. Alerts page shows a filterable list with severity badges (info/warning/critical)
-2. Alert items are visually distinct by severity with color and icon
-3. Settings page uses organized form sections with clear labels
-4. Strategies page shows active strategy cards with key config values
-5. All three pages use the design system established in Phase 1
+1. Positions page uses glass-panel cards, consistent table styling, and proper mobile layout
+2. Analytics page has consistent chart styling (recharts theme tokens) and responsive layout
+3. Accounts page uses consistent card/list styling with status indicators
+4. All secondary pages (Board, Backtest, Rules, Journal, Execution Quality, Settings, Scanner, Strategies, Alerts) use design system tokens and have basic responsive layout
+
+| Plans | Progress |
+|-------|----------|
+| — | Not started |
 
 ---
 
-## Phase 7: Performance, Polish & QA
+### Phase 7: Responsive Polish
 
-**Goal:** Optimize loading performance, fix any cross-page inconsistencies, and validate all pages pass a final quality bar.
+**Goal:** Systematic mobile-first pass across all pages — ensure every page works perfectly on 320px-480px screens with full control (not just read-only).
 
-**Requirements:** PERF-01, PERF-02, PERF-03, PERF-04
+**Requirements:** RESP-01, RESP-02, RESP-03
 
 **Success Criteria:**
-1. All pages have skeleton loading states — no empty/null flash on first load
-2. React Query stale/cache times are tuned — no unnecessary refetches visible in network tab
-3. Supabase Realtime used for signals and positions where previously polling was used
-4. `npm run build` passes with no new errors compared to baseline
-5. ESLint passes with no new warnings compared to baseline
-6. All 7 phases are visually consistent — no page feels designed separately
+1. All pages tested and functional at 360px width — no overflow, no hidden controls
+2. Data tables have mobile strategy (horizontal scroll with sticky first column, or card view)
+3. Charts are readable and interactive on mobile (tooltips accessible, legends don't overlap)
+
+| Plans | Progress |
+|-------|----------|
+| — | Not started |
 
 ---
 
-## Coverage
+### Phase 8: Micro-Interactions & Final Polish
 
-| # | Phase | Requirements | Status |
-|---|-------|-------------|--------|
-| 1 | Design System & Navigation | DS-01–06, NAV-01–04 | Not Started |
-| 2 | Dashboard (Main Page) | DASH-01–06 | Not Started |
-| 3 | Positions & Risk | POS-01–04, RISK-01–05 | Not Started |
-| 4 | Analytics & Execution Quality | ANA-01–04, EXQ-01–04 | Not Started |
-| 5 | Prop Firm & Accounts | PROP-01–05, ACC-01–03 | Not Started |
-| 6 | Alerts, Settings & Strategies | ALRT-01–02, SET-01–02 | Not Started |
-| 7 | Performance, Polish & QA | PERF-01–04 | Not Started |
+**Goal:** Add the finishing touches — loading skeletons, page transitions, number animations, hover effects — that make the UI feel alive and premium.
 
-**7 phases** | **44 requirements mapped** | All v1 requirements covered ✓
+**Requirements:** ANIM-01, ANIM-02, ANIM-03, ANIM-04
+
+**Success Criteria:**
+1. Skeleton loading states appear on all data-fetching pages during load
+2. Page transitions use consistent fade-in-up animation
+3. Numeric values (PnL, balance, metrics) use AnimatedNumber component for smooth transitions
+4. All interactive cards/buttons have hover effects (lift, glow, border-color shift)
+
+| Plans | Progress |
+|-------|----------|
+| — | Not started |
+
+---
+
+**Coverage:** 31 requirements → 8 phases → 100% mapped ✓
 
 ---
 *Roadmap created: 2026-03-19*
+*Last updated: 2026-03-19 — Phase 1 plans created (01-01, 01-02)*
