@@ -196,6 +196,33 @@
   --to-body:    var(--text-sm);    /* table cells, descriptions */
   --to-heading: var(--text-lg);    /* card/panel headings */
   --to-mono:    var(--text-sm);    /* monospace data values */
+
+  /* ── Spacing Scale (4px base) ────────────────────────────────────────────── */
+  --to-space-1:  0.25rem;    /* 4px */
+  --to-space-2:  0.5rem;     /* 8px */
+  --to-space-3:  0.75rem;    /* 12px */
+  --to-space-4:  1rem;       /* 16px */
+  --to-space-5:  1.25rem;    /* 20px */
+  --to-space-6:  1.5rem;     /* 24px */
+  --to-space-8:  2rem;       /* 32px */
+  --to-space-10: 2.5rem;     /* 40px */
+  --to-space-12: 3rem;       /* 48px */
+  --to-space-16: 4rem;       /* 64px */
+
+  /* ── Spacing Aliases ─────────────────────────────────────────────────────── */
+  --to-card-padding:  var(--to-space-4);   /* 16px — standard card inner padding */
+  --to-section-gap:   var(--to-space-6);   /* 24px — gap between page sections */
+  --to-row-gap:       var(--to-space-3);   /* 12px — gap between rows/items */
+
+  /* ── Radius Aliases ──────────────────────────────────────────────────────── */
+  --to-radius-card:   0.75rem;   /* 12px — glass-panel, glow-card */
+  --to-radius-badge:  0.375rem;  /* 6px  — tf-badge, trigger-*, status badges */
+  --to-radius-button: 0.5rem;    /* 8px  — button elements */
+
+  /* ── Gradient Tokens ─────────────────────────────────────────────────────── */
+  --gradient-surface: linear-gradient(160deg, #0d1117 0%, #080b10 100%);
+  --gradient-card:    linear-gradient(135deg, var(--to-surface) 0%, var(--to-surface-raised) 100%);
+  --gradient-accent:  linear-gradient(90deg, rgba(240,185,11,0.1) 0%, rgba(240,185,11,0.04) 100%);
 }
 
 /* ── Base styles ──────────────────────────────────────────────────────────── */
