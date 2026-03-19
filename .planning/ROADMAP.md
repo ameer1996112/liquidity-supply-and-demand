@@ -24,11 +24,11 @@
 
 Plans:
 - [x] 01-01-PLAN.md — Color tokens (semantic status) + typography scale + font weights (DSYS-01, DSYS-02)
-- [ ] 01-02-PLAN.md — Spacing scale + radius aliases + glass variants + gradient tokens + TOKEN-AUDIT.md (DSYS-03, DSYS-04)
+- [x] 01-02-PLAN.md — Spacing scale + radius aliases + glass variants + gradient tokens + TOKEN-AUDIT.md (DSYS-03, DSYS-04)
 
 | Plans | Progress |
 |-------|----------|
-| 2 | 1/2 complete |
+| 2 | 2/2 complete — Phase 1 DONE |
 
 ---
 
