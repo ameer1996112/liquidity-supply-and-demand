@@ -4,7 +4,7 @@ import { useAccountStatus } from '@/hooks/usePositions';
 import { cn } from '@/lib/utils';
 import { Wallet } from 'lucide-react';
 
-function AccountMetric({
+export function AccountMetric({
   label,
   value,
   colored,
@@ -14,16 +14,16 @@ function AccountMetric({
   colored?: 'green' | 'red';
 }) {
   return (
-    <div className="flex flex-col items-center gap-0.5">
-      <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-mono">
+    <div className='flex flex-col items-center gap-0.5'>
+      <span className='text-[10px] uppercase tracking-wider text-[var(--to-text-dim)] font-mono'>
         {label}
       </span>
       <span
         className={cn(
           'font-mono text-sm font-semibold tabular-nums',
-          colored === 'green' && 'text-[#26a69a]',
-          colored === 'red' && 'text-[#ef5350]',
-          !colored && 'text-zinc-200',
+          colored === 'green' && 'text-[var(--to-long)]',
+          colored === 'red' && 'text-[var(--to-short)]',
+          !colored && 'text-[var(--to-text-primary)]'
         )}
       >
         {value}
@@ -45,16 +45,16 @@ export function AccountBar() {
         : 'red';
 
   return (
-    <div className="tv-card">
-      <div className="px-4 py-3 flex items-center gap-6">
-        <div className="flex items-center gap-2">
-          <Wallet className="w-4 h-4 text-zinc-500" />
-          <span className="font-mono text-xs text-zinc-400 uppercase tracking-wider">
+    <div className='tv-card'>
+      <div className='px-4 py-3 flex items-center gap-6'>
+        <div className='flex items-center gap-2'>
+          <Wallet className='w-4 h-4 text-[var(--to-text-dim)]' />
+          <span className='font-mono text-xs text-[var(--to-text-dim)] uppercase tracking-wider'>
             Account
           </span>
         </div>
 
-        <div className="flex items-center gap-6 ml-auto">
+        <div className='flex items-center gap-6 ml-auto'>
           <AccountMetric
             label="Balance"
             value={`$${account.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}`}

@@ -19,10 +19,10 @@ import { useConnectionHealth } from '@/hooks/useConnectionHealth';
 function PriceLabel({ label, value }: { label: string; value: number | null }) {
   return (
     <div className='flex flex-col gap-0.5'>
-      <span className='text-[9px] uppercase tracking-wider text-zinc-600 font-mono'>
+      <span className='text-[9px] uppercase tracking-wider text-[var(--to-text-dim)] font-mono'>
         {label}
       </span>
-      <span className='font-mono text-xs tabular-nums text-zinc-300'>
+      <span className='font-mono text-xs tabular-nums text-[var(--to-text-primary)]'>
         {value != null ? value.toFixed(value > 100 ? 2 : 5) : '—'}
       </span>
     </div>
@@ -57,18 +57,26 @@ export function PositionCard({ position }: { position: ActivePosition }) {
     <>
       <div
         className={cn(
-          'tv-card border-l-2 transition-colors',
+          'tv-card border-l-2 transition-colors relative overflow-hidden',
           isStale
-            ? 'border-l-yellow-500'
+            ? 'border-l-[var(--to-warning)]'
             : pnlPositive
               ? 'border-l-[var(--to-long)]'
               : 'border-l-[var(--to-short)]'
         )}
       >
-        <div className='p-4 space-y-3'>
+        {/* Heat-mapped background gradient based on PnL */}
+        <div 
+          className={cn(
+            'absolute inset-0 opacity-10 pointer-events-none transition-colors delay-100',
+            !isStale && pnlPositive ? 'bg-gradient-to-r from-[var(--to-long)] to-transparent' : '',
+            !isStale && !pnlPositive ? 'bg-gradient-to-r from-[var(--to-short)] to-transparent' : ''
+          )}
+        />
+        <div className='p-4 space-y-3 relative z-10'>
           {/* Stale position warning */}
           {isStale && (
-            <div className='flex items-center gap-2 px-3 py-2 bg-yellow-500/10 border border-yellow-500/20 rounded text-yellow-400'>
+            <div className='flex items-center gap-2 px-3 py-2 bg-[var(--to-warning)]/10 border border-[var(--to-warning)]/20 rounded text-[var(--to-warning)]'>
               <AlertTriangle className='h-3.5 w-3.5' />
               <span className='text-xs font-medium'>
                 Warning: Position closed on broker but not in database
@@ -79,7 +87,7 @@ export function PositionCard({ position }: { position: ActivePosition }) {
           {/* Header: Symbol + Side + PnL */}
           <div className='flex items-center justify-between'>
             <div className='flex items-center gap-2'>
-              <span className='font-mono text-sm font-bold text-zinc-100'>
+              <span className='font-mono text-sm font-bold text-[var(--to-text-primary)]'>
                 {position.symbol}
               </span>
               <span
@@ -98,7 +106,7 @@ export function PositionCard({ position }: { position: ActivePosition }) {
                 </span>
               )}
               {isLongHold && (
-                <span className='flex items-center gap-1 font-mono text-[9px] px-1 py-0.5 rounded bg-orange-500/10 text-orange-400 uppercase'>
+                <span className='flex items-center gap-1 font-mono text-[9px] px-1 py-0.5 rounded bg-[var(--to-warning)]/10 text-[var(--to-warning)] uppercase'>
                   <Clock className='h-2.5 w-2.5' />
                   Long Hold
                 </span>
@@ -113,7 +121,7 @@ export function PositionCard({ position }: { position: ActivePosition }) {
                 />
               </FlashValue>
               {position.live_pnl_pct != null && (
-                <p className='text-[10px] font-mono text-zinc-500 mt-0.5'>
+                <p className='text-[10px] font-mono text-[var(--to-text-secondary)] mt-0.5'>
                   {position.live_pnl_pct > 0 ? '+' : ''}
                   {position.live_pnl_pct.toFixed(2)}% of account
                 </p>
@@ -130,7 +138,7 @@ export function PositionCard({ position }: { position: ActivePosition }) {
           </div>
 
           {/* Meta row */}
-          <div className='flex items-center justify-between text-[10px] font-mono text-zinc-500'>
+          <div className='flex items-center justify-between text-[10px] font-mono text-[var(--to-text-secondary)]'>
             <span>Size: {position.size}</span>
             {position.rr_ratio && (
               <span>R:R 1:{position.rr_ratio.toFixed(1)}</span>

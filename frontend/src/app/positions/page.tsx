@@ -33,12 +33,12 @@ function PositionsPageContent() {
       {/* Header */}
       <div>
         <div className='flex items-center gap-2'>
-          <Crosshair className='h-4 w-4 text-slate-400' />
+          <Crosshair className='h-4 w-4 text-[var(--to-text-dim)]' />
           <h1 className='page-title text-lg font-semibold'>
             Position Command Center
           </h1>
         </div>
-        <p className='page-subtitle mt-0.5 text-xs'>
+        <p className='page-subtitle mt-0.5 text-xs text-[var(--to-text-secondary)]'>
           Manage active positions, exposure, and optimizer actions in real time.
         </p>
       </div>
@@ -88,7 +88,7 @@ export default function PositionsPage() {
   return (
     <Suspense
       fallback={
-        <div className='p-4 text-xs text-slate-500'>
+        <div className='p-4 text-xs text-[var(--to-text-secondary)]'>
           Loading positions dashboard...
         </div>
       }
