@@ -376,10 +376,9 @@ export default function DashboardPage() {
           </p>
         </div>
         {!mounted || statsLoading || riskLoading || signalsLoading ? (
-          <div className='grid grid-cols-2 gap-1.5 md:grid-cols-4 xl:grid-cols-7'>
+          <div aria-label="Loading dashboard metrics" className='grid grid-cols-2 gap-1.5 md:grid-cols-4 xl:grid-cols-7'>
             {Array.from({ length: 7 }).map((_, idx) => (
               <Skeleton
-                 
                 key={idx}
                 className='h-[72px] rounded-xl border border-[var(--to-border)] skeleton-shimmer'
               />

@@ -10,6 +10,7 @@ import { ReconciliationAlert } from '@/components/positions/ReconciliationAlert'
 import { Crosshair } from 'lucide-react';
 import { PanelEmptyState } from '@/components/shared/PanelEmptyState';
 import { TableSkeleton } from '@/components/shared/TableStates';
+import { Skeleton } from '@/components/ui/skeleton';
 
 function PositionsPageContent() {
   const { data, isLoading } = useActivePositions();
@@ -63,8 +64,10 @@ function PositionsPageContent() {
 
       {/* Positions grid */}
       {isLoading ? (
-        <div className='tv-card p-3'>
-          <TableSkeleton rowCount={4} columnCount={4} />
+        <div aria-label="Loading positions" className='space-y-2'>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className='h-10 w-full' />
+          ))}
         </div>
       ) : positions.length > 0 ? (
         <div className='grid grid-cols-1 gap-3 lg:grid-cols-2'>
