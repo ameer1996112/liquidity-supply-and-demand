@@ -46,15 +46,11 @@ function relativeTime(iso: string): string {
   return `${Math.floor(diff / 86_400_000)}d`;
 }
 
-/** Left-side row accent color based on status */
-function rowAccentColor(status: string): string {
-  const s = status.toLowerCase();
-  if (s === 'active' || s === 'executed' || s === 'open')
-    return 'bg-[var(--to-long)]';
-  if (s === 'closed') return 'bg-[var(--to-text-dim)]/40';
-  if (s === 'ai_rejected' || s === 'failed') return 'bg-[var(--to-short)]';
-  if (s === 'filtered') return 'bg-[var(--to-short)]/40';
-  if (s === 'pending') return 'bg-[var(--to-warning)]';
+/** Left-side row accent color based on side (LONG=green, SHORT=red) */
+function rowAccentColor(side: string): string {
+  const s = side.toLowerCase();
+  if (s === 'buy' || s === 'long') return 'bg-[var(--to-long)]';
+  if (s === 'sell' || s === 'short') return 'bg-[var(--to-short)]';
   return 'bg-[var(--to-border)]';
 }
 
@@ -285,8 +281,8 @@ export function SignalTable({
       render: (signal) => (
         <span
           className={cn(
-            'block h-full w-[3px] rounded-full',
-            rowAccentColor(signal.status)
+            'animate-slide-in-right block h-full w-[3px] rounded-full',
+            rowAccentColor(signal.side)
           )}
           style={{ minHeight: 20 }}
         />
@@ -316,15 +312,16 @@ export function SignalTable({
       ),
       render: (signal) => (
         <div className='flex flex-col gap-0.5'>
-          <Mono size='sm' className='text-text-secondary'>
-            {formatTime(signal.created_at)}
-          </Mono>
           <span
-            className='text-[9px] text-[var(--to-text-dim)]'
+            className='font-mono text-[10px] tabular-nums text-[var(--to-text-primary)]'
             style={{ fontFamily: 'var(--font-mono)' }}
+            title={new Date(signal.created_at).toLocaleString()}
           >
             {relativeTime(signal.created_at)} ago
           </span>
+          <Mono size='sm' className='text-text-secondary'>
+            {formatTime(signal.created_at)}
+          </Mono>
         </div>
       ),
     },

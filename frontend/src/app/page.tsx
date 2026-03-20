@@ -7,7 +7,9 @@ import { StatCard } from '@/components/dashboard/StatCard';
 import { SignalTable } from '@/components/dashboard/SignalTable';
 import { LiveLog } from '@/components/dashboard/LiveLog';
 import { RiskBar } from '@/components/risk/RiskBar';
+import { ConnectionPill } from '@/components/dashboard/ConnectionPill';
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 import { useTradingMode } from '@/providers/TradingModeProvider';
 import {
   useSignalStats,
@@ -99,7 +101,7 @@ function WaitingBanner({
   ];
 
   return (
-    <section className='to-panel shrink-0 border-[var(--to-warning)]/15 bg-[var(--to-warning)]/5 p-3'>
+    <section className='glass-panel shrink-0 border-[var(--to-warning)]/30 bg-[var(--to-warning)]/5 p-4'>
       <h2 className='text-sm font-semibold text-[var(--to-warning)]'>Bot is waiting for…</h2>
       <div className='mt-2 grid gap-3 md:grid-cols-2'>
         <dl className='space-y-1 text-xs text-text-secondary'>
@@ -135,7 +137,12 @@ function WaitingBanner({
             {checks.map(([label, ok]) => (
               <li key={label} className='flex items-center justify-between'>
                 <span>{label}</span>
-                <span className={ok ? 'text-long' : 'text-short'}>●</span>
+                <span
+                  className={cn(
+                    'h-2 w-2 rounded-full inline-block',
+                    ok ? 'bg-[var(--to-long)]' : 'bg-[var(--to-short)]'
+                  )}
+                />
               </li>
             ))}
           </ul>
@@ -156,6 +163,7 @@ export default function DashboardPage() {
   );
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [showLog, setShowLog] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -347,6 +355,7 @@ export default function DashboardPage() {
               lossCount={todayLosses}
             />
           )}
+          <ConnectionPill />
           <span className='tf-badge'>
             <Radio className='h-3 w-3' />
             5M
@@ -401,7 +410,8 @@ export default function DashboardPage() {
               }
               icon={Wallet}
               sparklineData={pnlSparkline}
-              className='animate-fade-in-up'
+              hero={true}
+              className='col-span-1 xl:col-span-2 animate-fade-in-up'
             />
             <StatCard
               label='Total PnL'
@@ -603,7 +613,15 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          <section className='min-h-0 flex-1 overflow-hidden'>
+          {/* Log toggle button — mobile/tablet only */}
+          <button
+            className='xl:hidden text-[11px] text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)] transition-colors py-1 px-0.5 text-left'
+            onClick={() => setShowLog((prev) => !prev)}
+          >
+            {showLog ? 'Hide Live Log ▲' : 'Show Live Log ▼'}
+          </button>
+
+          <section className={cn('min-h-0 flex-1 overflow-hidden', !showLog && 'hidden xl:block')}>
             <LiveLog
               entries={logEntries}
               onClear={clearLog}
