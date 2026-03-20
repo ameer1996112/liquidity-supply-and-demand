@@ -94,7 +94,7 @@ export function KanbanBoard() {
         ].map(({ label, val, color }) => (
           <div
             key={label}
-            className='tv-card flex items-center gap-3 px-4 py-3'
+            className='glow-card flex items-center gap-3 px-4 py-3'
           >
             <span
               className={cn('text-2xl font-black tabular-nums', color)}

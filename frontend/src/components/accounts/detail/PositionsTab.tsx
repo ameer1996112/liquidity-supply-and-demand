@@ -86,7 +86,7 @@ export function PositionsTab({ accountName }: PositionsTabProps) {
             </p>
           </div>
         ) : (
-          <div className="tv-card overflow-hidden">
+          <div className="glow-card overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -162,7 +162,7 @@ export function PositionsTab({ accountName }: PositionsTabProps) {
             No active positions in database.
           </div>
         ) : (
-          <div className="tv-card overflow-hidden">
+          <div className="glow-card overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>

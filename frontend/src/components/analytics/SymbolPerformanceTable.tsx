@@ -28,7 +28,7 @@ export function SymbolPerformanceTable({ data }: SymbolPerformanceTableProps) {
 
   if (rows.length === 0) {
     return (
-      <div className='tv-card p-4'>
+      <div className='glow-card p-4'>
         <PanelEmptyState
           title='No symbol data'
           description='Trade more symbols to see performance breakdown.'
@@ -40,7 +40,7 @@ export function SymbolPerformanceTable({ data }: SymbolPerformanceTableProps) {
   const maxAbsPnl = Math.max(...rows.map((r) => Math.abs(r.pnl)), 1);
 
   return (
-    <div className='tv-card'>
+    <div className='glow-card'>
       {/* Header */}
       <div className='flex items-center gap-2 border-b border-[var(--to-border)] px-4 py-3'>
         <div className='flex h-7 w-7 items-center justify-center rounded-lg bg-[#3b82f6]/15 border border-[#3b82f6]/25'>

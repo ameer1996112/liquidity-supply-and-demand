@@ -17,7 +17,7 @@ export function AccountCard({ account, className }: AccountCardProps) {
   return (
     <div
       className={cn(
-        'tv-card p-4 flex flex-col gap-3',
+        'glow-card p-4 flex flex-col gap-3',
         className
       )}
     >

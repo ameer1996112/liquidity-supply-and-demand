@@ -140,7 +140,7 @@ export function ChallengeRules({
   );
 
   return (
-    <div className='tv-card p-6'>
+    <div className='glow-card p-6'>
       <h3 className='text-[13px] font-bold text-[var(--to-text-dim)] uppercase tracking-widest font-mono mb-4 flex items-center gap-2'>
         <Shield className='h-4 w-4 text-blue-400' />
         Challenge Rules

@@ -21,7 +21,7 @@ export function StreakTimeline({
   const maxCount = Math.max(...streaks.map((s) => s.count), 1);
 
   return (
-    <div className="tv-card p-4">
+    <div className="glow-card p-4">
       <div className="flex items-center justify-between mb-4">
         <span className="font-mono text-xs text-[var(--to-text-dim)] uppercase tracking-wider">
           Win/Loss Streaks

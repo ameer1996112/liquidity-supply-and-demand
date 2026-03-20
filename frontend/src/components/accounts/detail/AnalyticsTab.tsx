@@ -116,7 +116,7 @@ export function AnalyticsTab({ accountName }: AnalyticsTabProps) {
             </p>
           </div>
         ) : (
-          <div className='tv-card overflow-hidden'>
+          <div className='glow-card overflow-hidden'>
             <div className='overflow-x-auto'>
               <table className='w-full text-sm'>
                 <thead>

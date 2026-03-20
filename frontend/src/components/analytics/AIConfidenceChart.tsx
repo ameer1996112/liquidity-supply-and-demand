@@ -101,7 +101,7 @@ export function AIConfidenceChart({ data }: AIConfidenceChartProps) {
 
   if (chartData.length === 0) {
     return (
-      <div className='tv-card p-4'>
+      <div className='glow-card p-4'>
         <PanelEmptyState
           title='No AI confidence data'
           description='AI confidence scores will appear after more trades.'
@@ -111,7 +111,7 @@ export function AIConfidenceChart({ data }: AIConfidenceChartProps) {
   }
 
   return (
-    <div className='tv-card p-4'>
+    <div className='glow-card p-4'>
       {/* Header */}
       <div className='mb-4 flex items-center gap-2'>
         <div className='flex h-7 w-7 items-center justify-center rounded-lg bg-[#8b5cf6]/15 border border-[#8b5cf6]/25'>

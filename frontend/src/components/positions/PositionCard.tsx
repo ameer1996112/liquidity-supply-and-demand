@@ -57,7 +57,7 @@ export function PositionCard({ position }: { position: ActivePosition }) {
     <>
       <div
         className={cn(
-          'tv-card border-l-2 transition-colors relative overflow-hidden',
+          'glow-card border-l-2 transition-colors relative overflow-hidden',
           isStale
             ? 'border-l-[var(--to-warning)]'
             : pnlPositive

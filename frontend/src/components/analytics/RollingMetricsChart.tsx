@@ -118,7 +118,7 @@ export function RollingMetricsChart({
 
   if (rollingData.length < 3) {
     return (
-      <div className='tv-card p-4'>
+      <div className='glow-card p-4'>
         <PanelEmptyState
           title='Not enough data'
           description='Execute more trades to see rolling metrics.'
@@ -138,7 +138,7 @@ export function RollingMetricsChart({
   return (
     <div className='space-y-4'>
       {/* Win Rate Rolling */}
-      <div className='tv-card p-4'>
+      <div className='glow-card p-4'>
         <div className='mb-3 flex items-center justify-between'>
           <span className='panel-label'>
             Rolling Win Rate ({windowSize}-trade window)
@@ -200,7 +200,7 @@ export function RollingMetricsChart({
       </div>
 
       {/* Profit Factor + Avg R:R Rolling */}
-      <div className='tv-card p-4'>
+      <div className='glow-card p-4'>
         <div className='mb-3'>
           <span className='panel-label'>
             Rolling Profit Factor & Avg R:R ({windowSize}-trade window)

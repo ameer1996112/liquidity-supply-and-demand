@@ -82,7 +82,7 @@ export function ChallengeMetrics({
       : 'grid-cols-1 md:grid-cols-3';
 
   return (
-    <div className='tv-card p-6'>
+    <div className='glow-card p-6'>
       <h3 className='text-[13px] font-bold text-[var(--to-text-dim)] uppercase tracking-widest font-mono mb-4'>
         Challenge Metrics
       </h3>

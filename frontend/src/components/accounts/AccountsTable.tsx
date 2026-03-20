@@ -88,7 +88,7 @@ export function AccountsTable({ accounts, onDelete }: AccountsTableProps) {
   });
 
   return (
-    <div className='tv-card overflow-hidden'>
+    <div className='glow-card overflow-hidden'>
       <div className='overflow-x-auto'>
         <table className='w-full text-sm'>
           <thead>

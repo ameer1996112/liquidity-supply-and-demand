@@ -14,7 +14,7 @@ export function EvaluationDashboard() {
 
   if (isLoading) {
     return (
-      <div className='tv-card p-6 space-y-4'>
+      <div className='glow-card p-6 space-y-4'>
         <div className='flex items-center justify-between'>
           <div className='flex items-center gap-3'>
             <Skeleton className='h-5 w-5 rounded-full bg-slate-800/60' />
@@ -31,7 +31,7 @@ export function EvaluationDashboard() {
 
   if (error || !evaluation?.evaluation_mode) {
     return (
-      <div className='tv-card p-6'>
+      <div className='glow-card p-6'>
         <PanelEmptyState
           title='Evaluation disabled or offline'
           description='Connect an evaluation account or try again when the backend is reachable.'
@@ -53,7 +53,7 @@ export function EvaluationDashboard() {
   }[evaluation.phase];
 
   return (
-    <div className='tv-card'>
+    <div className='glow-card'>
       {/* Header */}
       <div className='px-6 py-4 border-b border-panel-border flex items-center justify-between'>
         <div className='flex items-center gap-3'>

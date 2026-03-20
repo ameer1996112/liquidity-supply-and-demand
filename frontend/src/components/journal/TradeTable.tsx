@@ -118,7 +118,7 @@ export function TradeTable({ signals, onInspect }: TradeTableProps) {
 
   if (signals.length === 0) {
     return (
-      <div className='tv-card p-12 flex flex-col items-center justify-center'>
+      <div className='glow-card p-12 flex flex-col items-center justify-center'>
         <span className='text-sm text-[var(--to-text-dim)] font-mono'>
           No trades match your filters
         </span>
@@ -127,7 +127,7 @@ export function TradeTable({ signals, onInspect }: TradeTableProps) {
   }
 
   return (
-    <div className='tv-card overflow-hidden'>
+    <div className='glow-card overflow-hidden'>
       {/* Mode Filter Toggle */}
       <div className='flex items-center gap-1 px-3 py-2 border-b border-[#2a2e39]'>
         {(['all', 'LIVE', 'PAPER'] as ModeFilter[]).map((mode) => (

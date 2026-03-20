@@ -24,7 +24,7 @@ export function ReconciliationAlert({
 
   if (!has_mismatches) {
     return (
-      <div className='tv-card'>
+      <div className='glow-card'>
         <div className='flex items-center gap-3 px-4 py-3'>
           <CheckCircle className='h-4 w-4 text-[var(--to-long)]' />
           <div className='flex-1'>
@@ -42,7 +42,7 @@ export function ReconciliationAlert({
   }
 
   return (
-    <div className='tv-card border-l-4 border-yellow-500'>
+    <div className='glow-card border-l-4 border-yellow-500'>
       <div className='flex items-start gap-3 px-4 py-3'>
         <AlertCircle className='h-5 w-5 text-yellow-500 mt-0.5' />
         <div className='flex-1'>

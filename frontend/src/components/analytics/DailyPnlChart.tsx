@@ -19,14 +19,14 @@ interface DailyPnlChartProps {
 export function DailyPnlChart({ data }: DailyPnlChartProps) {
   if (data.length === 0) {
     return (
-      <div className="tv-card p-4 flex items-center justify-center h-[220px]">
+      <div className="glow-card p-4 flex items-center justify-center h-[220px]">
         <span className="text-xs text-[var(--to-text-dim)] font-mono">No daily PnL data</span>
       </div>
     );
   }
 
   return (
-    <div className="tv-card p-4">
+    <div className="glow-card p-4">
       <span className="font-mono text-xs text-[var(--to-text-dim)] uppercase tracking-wider">
         Daily PnL
       </span>

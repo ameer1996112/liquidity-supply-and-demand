@@ -27,7 +27,7 @@ export function DrawdownChart({
 }: DrawdownChartProps) {
   if (data.length < 2) {
     return (
-      <div className="tv-card flex items-center justify-center" style={{ height }}>
+      <div className="glow-card flex items-center justify-center" style={{ height }}>
         <span className="text-xs text-[var(--to-text-dim)] font-mono">
           Not enough data for drawdown chart
         </span>
@@ -36,7 +36,7 @@ export function DrawdownChart({
   }
 
   return (
-    <div className="tv-card p-4">
+    <div className="glow-card p-4">
       <div className="flex items-center justify-between mb-3">
         <span className="font-mono text-xs text-[var(--to-text-dim)] uppercase tracking-wider">
           Underwater Plot

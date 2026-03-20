@@ -59,7 +59,7 @@ export function EnhancedAccountCard({
   return (
     <div
       className={cn(
-        'tv-card flex flex-col overflow-hidden',
+        'glow-card flex flex-col overflow-hidden',
         isPaused && 'opacity-60 border-amber-500/20',
         className
       )}
@@ -382,7 +382,7 @@ export function EnhancedAccountCard({
       {/* Delete Confirmation Dialog */}
       {showDeleteConfirm && (
         <div className='fixed inset-0 bg-black/50 flex items-center justify-center z-50'>
-          <div className='tv-card p-6 max-w-md w-full mx-4'>
+          <div className='glow-card p-6 max-w-md w-full mx-4'>
             <div className='flex items-center gap-3 mb-4'>
               <AlertTriangle className='h-5 w-5 text-[var(--to-short)]' />
               <h3 className='text-base font-semibold text-[var(--to-text-primary)]'>

@@ -74,7 +74,7 @@ export function ChallengeHeader({
   isResetting,
 }: ChallengeHeaderProps) {
   return (
-    <div className='tv-card p-6'>
+    <div className='glow-card p-6'>
       <div className='flex flex-col md:flex-row md:items-center md:justify-between gap-4'>
         <div className='space-y-3'>
           <div className='flex items-center gap-3'>

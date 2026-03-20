@@ -51,7 +51,7 @@ export function HealthScoreGauge({
       : 'At Risk';
 
   return (
-    <div className='tv-card p-6'>
+    <div className='glow-card p-6'>
       <div className='flex flex-col items-center'>
         <h3 className='text-[13px] font-bold text-[var(--to-text-dim)] uppercase tracking-widest font-mono mb-4'>
           Challenge Health

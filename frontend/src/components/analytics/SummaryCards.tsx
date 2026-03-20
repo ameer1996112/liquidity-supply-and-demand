@@ -27,7 +27,7 @@ function SummaryMetric({
   colored?: 'green' | 'red';
 }) {
   return (
-    <div className="tv-card p-4 flex items-start gap-3">
+    <div className="glow-card p-4 flex items-start gap-3">
       <div className="flex items-center justify-center w-8 h-8 rounded bg-[#1e222d] text-[var(--to-text-dim)] shrink-0">
         {icon}
       </div>

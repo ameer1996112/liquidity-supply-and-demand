@@ -92,7 +92,7 @@ export function DayOfWeekChart({ data }: DayOfWeekChartProps) {
 
   if (chartData.length === 0) {
     return (
-      <div className='tv-card p-4'>
+      <div className='glow-card p-4'>
         <PanelEmptyState
           title='No day-of-week data'
           description='More trades needed to show day-of-week patterns.'
@@ -102,7 +102,7 @@ export function DayOfWeekChart({ data }: DayOfWeekChartProps) {
   }
 
   return (
-    <div className='tv-card p-4'>
+    <div className='glow-card p-4'>
       {/* Header */}
       <div className='mb-4 flex items-center gap-2'>
         <div className='flex h-7 w-7 items-center justify-center rounded-lg bg-[#f0b90b]/15 border border-[#f0b90b]/25'>

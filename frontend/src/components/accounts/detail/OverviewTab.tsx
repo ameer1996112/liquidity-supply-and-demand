@@ -20,7 +20,7 @@ export function OverviewTab({ account }: OverviewTabProps) {
   return (
     <div className='space-y-6'>
       {/* Live Status */}
-      <section className='tv-card p-4'>
+      <section className='glow-card p-4'>
         <h3 className='text-sm font-medium text-[var(--to-text-secondary)] mb-4 flex items-center gap-2'>
           <Server className='h-4 w-4 text-[var(--to-long)]' />
           Live Status
@@ -97,7 +97,7 @@ export function OverviewTab({ account }: OverviewTabProps) {
       </section>
 
       {/* Risk Configuration */}
-      <section className='tv-card p-4'>
+      <section className='glow-card p-4'>
         <div className='flex items-center justify-between mb-4'>
           <h3 className='text-sm font-medium text-[var(--to-text-secondary)] flex items-center gap-2'>
             <Shield className='h-4 w-4 text-blue-500' />
@@ -148,7 +148,7 @@ export function OverviewTab({ account }: OverviewTabProps) {
       </section>
 
       {/* Performance Metrics */}
-      <section className='tv-card p-4'>
+      <section className='glow-card p-4'>
         <h3 className='text-sm font-medium text-[var(--to-text-secondary)] mb-4 flex items-center gap-2'>
           <Activity className='h-4 w-4 text-[var(--to-long)]' />
           Performance Summary
@@ -231,7 +231,7 @@ export function OverviewTab({ account }: OverviewTabProps) {
       </section>
 
       {/* Today's Activity */}
-      <section className='tv-card p-4'>
+      <section className='glow-card p-4'>
         <h3 className='text-sm font-medium text-[var(--to-text-secondary)] mb-4 flex items-center gap-2'>
           <TrendingUp className='h-4 w-4 text-blue-500' />
           Today's Activity

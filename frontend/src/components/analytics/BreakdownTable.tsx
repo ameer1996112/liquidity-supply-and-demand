@@ -45,14 +45,14 @@ export function BreakdownTable({ title, data }: BreakdownTableProps) {
 
   if (entries.length === 0) {
     return (
-      <div className="tv-card p-6 text-center">
+      <div className="glow-card p-6 text-center">
         <span className="text-xs text-[var(--to-text-dim)] font-mono">No data</span>
       </div>
     );
   }
 
   return (
-    <div className="tv-card">
+    <div className="glow-card">
       <div className="px-4 py-3 border-b border-[#2a2e39]">
         <span className="font-mono text-xs text-[var(--to-text-dim)] uppercase tracking-wider">
           {title}

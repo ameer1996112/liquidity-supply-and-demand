@@ -65,7 +65,7 @@ export function MiniEquityChart({ mode }: MiniEquityChartProps) {
 
   if (chartData.length < 2) {
     return (
-      <div className='tv-card min-h-[140px] flex items-center justify-center'>
+      <div className='glow-card min-h-[140px] flex items-center justify-center'>
         <div className='empty-state py-12'>
           <span className='empty-state-text'>[ NO ACTIVE DATA ]</span>
           <span
@@ -80,7 +80,7 @@ export function MiniEquityChart({ mode }: MiniEquityChartProps) {
   }
 
   return (
-    <div className='tv-card p-3'>
+    <div className='glow-card p-3'>
       {/* Header */}
       <div className='flex items-center justify-between mb-2'>
         <span className='font-mono text-[10px] text-[var(--to-text-dim)] uppercase tracking-wider'>

@@ -213,7 +213,7 @@ export function JournalTab({ accountName }: JournalTabProps) {
 
       {/* Add Entry Form */}
       {showAddForm && (
-        <div className='tv-card p-4 space-y-4'>
+        <div className='glow-card p-4 space-y-4'>
           <div>
             <label className='block text-xs text-[var(--to-text-dim)] mb-2'>Note</label>
             <textarea
@@ -390,7 +390,7 @@ export function JournalTab({ accountName }: JournalTabProps) {
       ) : (
         <div className='space-y-3'>
           {entries.map((entry) => (
-            <div key={entry.id} className='tv-card p-4 space-y-3'>
+            <div key={entry.id} className='glow-card p-4 space-y-3'>
               <div className='flex items-start justify-between'>
                 <div className='flex-1'>
                   <div className='flex items-center gap-3 mb-2'>

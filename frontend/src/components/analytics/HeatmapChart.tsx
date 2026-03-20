@@ -44,7 +44,7 @@ export function HeatmapChart({
   const max = Math.max(...allValues, 0);
 
   return (
-    <div className="tv-card p-4">
+    <div className="glow-card p-4">
       <span className="font-mono text-xs text-[var(--to-text-dim)] uppercase tracking-wider">
         {title}
       </span>

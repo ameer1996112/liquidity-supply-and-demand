@@ -78,7 +78,7 @@ export function DataTable<T>({
     <div className={cn('overflow-auto scrollbar-thin', className)}>
       <Table
         className={cn(
-          'w-full',
+          'w-full min-w-max',
           compact && 'table-dense',
           // Ensure base terminal table typography
           'text-xs',

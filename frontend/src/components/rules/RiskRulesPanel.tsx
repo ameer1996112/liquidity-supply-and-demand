@@ -166,7 +166,7 @@ export function RiskRulesPanel() {
 
   if (!supabase) {
     return (
-      <div className="tv-card p-6 text-center text-[var(--to-text-dim)] text-sm">
+      <div className="glow-card p-6 text-center text-[var(--to-text-dim)] text-sm">
         Supabase not configured. Set environment variables to manage rules.
       </div>
     );
@@ -207,7 +207,7 @@ export function RiskRulesPanel() {
         </button>
       </div>
 
-      <div className="tv-card overflow-hidden">
+      <div className="glow-card overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-5 h-5 animate-spin text-[var(--to-text-dim)]" />

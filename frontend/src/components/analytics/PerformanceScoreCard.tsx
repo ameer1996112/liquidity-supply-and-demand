@@ -186,7 +186,7 @@ export function PerformanceScoreCard(props: PerformanceScoreCardProps) {
 
   return (
     <div
-      className='tv-card relative overflow-hidden p-5'
+      className='glow-card relative overflow-hidden p-5'
       style={{ borderColor: `${color}20` }}
     >
       {/* Background glow */}

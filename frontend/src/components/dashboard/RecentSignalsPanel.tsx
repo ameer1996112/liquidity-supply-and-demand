@@ -288,7 +288,7 @@ export function RecentSignalsPanel({
   );
 
   return (
-    <div className='tv-card flex h-full min-w-0 flex-col overflow-hidden'>
+    <div className='glow-card flex h-full min-w-0 flex-col overflow-hidden'>
       {/* Header */}
       <div className='tv-divider flex shrink-0 items-center justify-between border-b px-3 py-2'>
         <div className='flex items-center gap-2'>

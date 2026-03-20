@@ -12,7 +12,7 @@ interface MetricCardProps {
 
 export function MetricCard({ label, value, icon, trend, subtitle }: MetricCardProps) {
   return (
-    <div className="tv-card p-4">
+    <div className="glow-card p-4">
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-center justify-center w-8 h-8 rounded bg-[#2a2e39] text-[var(--to-text-dim)]">
           {icon}

@@ -93,7 +93,7 @@ export function StrategyRulesPanel() {
 
   if (!supabase) {
     return (
-      <div className='tv-card p-6 text-center text-[var(--to-text-dim)] text-sm'>
+      <div className='glow-card p-6 text-center text-[var(--to-text-dim)] text-sm'>
         Supabase not configured. Set environment variables to manage rules.
       </div>
     );
@@ -129,7 +129,7 @@ export function StrategyRulesPanel() {
       </div>
 
       {showForm && (
-        <div className='tv-card p-4 space-y-3'>
+        <div className='glow-card p-4 space-y-3'>
           <div className='flex items-center gap-2'>
             <BookOpen className='w-4 h-4 text-[var(--to-text-dim)]' />
             <span className='text-xs font-mono text-[var(--to-text-dim)] uppercase tracking-wider'>
@@ -206,7 +206,7 @@ export function StrategyRulesPanel() {
           <Loader2 className='w-5 h-5 animate-spin text-[var(--to-text-dim)]' />
         </div>
       ) : rules.length === 0 ? (
-        <div className='tv-card p-8 text-center'>
+        <div className='glow-card p-8 text-center'>
           <BookOpen className='w-8 h-8 text-[var(--to-text-dim)] mx-auto mb-3' />
           <p className='text-[var(--to-text-dim)] text-sm'>
             No strategy rules in the knowledge base.
@@ -220,7 +220,7 @@ export function StrategyRulesPanel() {
           {rules.map((rule) => (
             <div
               key={rule.id}
-              className='tv-card px-4 py-3 group hover:border-[#3a3e49] transition-colors'
+              className='glow-card px-4 py-3 group hover:border-[#3a3e49] transition-colors'
             >
               <div className='flex items-start justify-between gap-3'>
                 <div className='flex-1 min-w-0'>

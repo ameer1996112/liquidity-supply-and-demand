@@ -34,7 +34,7 @@ export function InsightCard({ data, type, className }: InsightCardProps) {
 
   if (!data) {
     return (
-      <div className={cn('tv-card flex flex-col gap-3 p-4', className)}>
+      <div className={cn('glow-card flex flex-col gap-3 p-4', className)}>
         <div className='flex items-center gap-2'>
           <div
             className='flex h-7 w-7 items-center justify-center rounded-lg'
@@ -68,7 +68,7 @@ export function InsightCard({ data, type, className }: InsightCardProps) {
   return (
     <div
       className={cn(
-        'tv-card relative overflow-hidden flex flex-col gap-3 p-4',
+        'glow-card relative overflow-hidden flex flex-col gap-3 p-4',
         className
       )}
       style={{ borderColor: `${accent}20` }}

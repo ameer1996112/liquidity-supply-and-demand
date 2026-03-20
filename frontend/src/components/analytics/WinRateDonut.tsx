@@ -26,14 +26,14 @@ export function WinRateDonut({ wins, losses, breakeven }: WinRateDonutProps) {
 
   if (total === 0) {
     return (
-      <div className="tv-card p-4 flex items-center justify-center h-[260px]">
+      <div className="glow-card p-4 flex items-center justify-center h-[260px]">
         <span className="text-xs text-[var(--to-text-dim)] font-mono">No closed trades</span>
       </div>
     );
   }
 
   return (
-    <div className="tv-card p-4">
+    <div className="glow-card p-4">
       <span className="font-mono text-xs text-[var(--to-text-dim)] uppercase tracking-wider">
         Win / Loss Distribution
       </span>

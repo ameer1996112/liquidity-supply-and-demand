@@ -45,7 +45,7 @@ export function AccountBar() {
         : 'red';
 
   return (
-    <div className='tv-card'>
+    <div className='glow-card'>
       <div className='px-4 py-3 flex items-center gap-6'>
         <div className='flex items-center gap-2'>
           <Wallet className='w-4 h-4 text-[var(--to-text-dim)]' />

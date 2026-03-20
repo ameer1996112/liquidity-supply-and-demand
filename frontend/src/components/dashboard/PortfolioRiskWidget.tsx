@@ -16,7 +16,7 @@ export function PortfolioRiskWidget() {
   const isHighCorrelation = (data?.correlation_avg || 0) > 0.7;
 
   return (
-    <div className="tv-card flex flex-col h-full">
+    <div className="glow-card flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-[#2a2e39]">
         <div className="flex items-center gap-2">

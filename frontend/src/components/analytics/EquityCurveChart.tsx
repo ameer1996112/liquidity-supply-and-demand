@@ -19,7 +19,7 @@ interface EquityCurveChartProps {
 export function EquityCurveChart({ data }: EquityCurveChartProps) {
   if (data.length < 2) {
     return (
-      <div className='tv-card min-h-[400px] h-full flex items-center justify-center'>
+      <div className='glow-card min-h-[400px] h-full flex items-center justify-center'>
         <WaitingPlaceholder />
       </div>
     );
@@ -29,7 +29,7 @@ export function EquityCurveChart({ data }: EquityCurveChartProps) {
   const isPositive = lastValue >= 0;
 
   return (
-    <div className='tv-card p-4 min-h-[400px] h-full flex flex-col'>
+    <div className='glow-card p-4 min-h-[400px] h-full flex flex-col'>
       <div className='flex items-center justify-between mb-3'>
         <span className='font-mono text-xs text-[var(--to-text-dim)] uppercase tracking-wider'>
           Equity Curve

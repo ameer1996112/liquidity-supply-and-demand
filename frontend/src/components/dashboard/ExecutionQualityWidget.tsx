@@ -18,7 +18,7 @@ export function ExecutionQualityWidget() {
   return (
     <Link
       href='/execution-quality'
-      className='tv-card block transition-colors hover:border-slate-600'
+      className='glow-card block transition-colors hover:border-slate-600'
     >
       <div className='flex flex-col h-full p-3'>
         {/* Header */}
