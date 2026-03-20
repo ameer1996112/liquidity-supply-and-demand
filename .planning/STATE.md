@@ -3,21 +3,21 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Premium Dark Trading Terminal
 status: unknown
-last_updated: "2026-03-20T10:01:56.124Z"
+last_updated: "2026-03-20T12:30:00.000Z"
 progress:
   total_phases: 8
   completed_phases: 1
   total_plans: 5
-  completed_plans: 4
-  percent: 9
+  completed_plans: 5
+  percent: 11
 ---
 
 # Project State
 
 ## Current Position
 
-Phase: 02 (Core Component Library) — EXECUTING
-Plan: 2 of 3
+Phase: 02 (core-component-library) — EXECUTING
+Plan: 3 of 3 — COMPLETE
 
 ## Progress
 
@@ -51,6 +51,9 @@ Phases: 1/8 complete
 - Badge link variant removed — not in UI-SPEC contract; callers fall back to default which is correct
 - Skeleton shimmer class already existed in globals.css from Phase 01; skeleton.tsx needed only a class name swap
 - cva variant strings use bg-[var(--to-*)] arbitrary value syntax to reference CSS tokens without Tailwind semantic layer
+- Per-section skeleton pattern used across all 5 pages — never global spinners; each data section gets its own skeleton shape
+- Gauge skeletons use rounded-full to visually match CircularGauge components; progress bar skeletons use h-4 to match actual bar height
+- Prop Firm loading state migrated from animate-pulse to Skeleton component to ensure skeleton-shimmer class consistency
 
 ### Key Patterns
 
