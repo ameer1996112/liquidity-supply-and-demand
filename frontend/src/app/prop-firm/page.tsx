@@ -400,7 +400,7 @@ export default function PropFirmPage() {
           />
         </div>
 
-        <div className='tv-card p-6 lg:col-span-2'>
+        <div className='glass-panel p-6 lg:col-span-2'>
           <h3 className='text-[13px] font-bold text-[var(--to-text-dim)] uppercase tracking-widest font-mono mb-4'>
             Account Overview
           </h3>
@@ -494,7 +494,7 @@ export default function PropFirmPage() {
       />
 
       {/* Calendar View */}
-      <div className='tv-card p-6'>
+      <div className='glass-panel p-6'>
         <h3 className='text-[13px] font-bold text-[var(--to-text-dim)] uppercase tracking-widest font-mono mb-4 flex items-center gap-2'>
           <Calendar className='h-4 w-4 text-amber-400' />
           Daily Performance Calendar

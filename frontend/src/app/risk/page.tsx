@@ -81,10 +81,11 @@ export default function RiskMonitorPage() {
         <LoadingSkeleton />
       ) : data ? (
         <>
-          {/* ── Composite Risk Score + Circular Gauges ── */}
-          <div className='grid grid-cols-1 gap-3 lg:grid-cols-3'>
-            <CompositeRiskScore data={data} />
+          {/* ── Composite Risk Score — Hero Row ─────────────── */}
+          <CompositeRiskScore data={data} />
 
+          {/* ── Circular Gauges ──────────────────────────────── */}
+          <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
             {/* Daily Loss Gauge */}
             <div className='glow-card flex flex-col items-center justify-center p-5'>
               <CircularGauge
@@ -156,40 +157,27 @@ export default function RiskMonitorPage() {
 function CompositeRiskScore({ data }: { data: any }) {
   const { score, label, color } = computeRiskScore(data);
 
-  return (
-    <div
-      className='tv-card flex flex-col items-center justify-center gap-3 p-5'
-      style={{ borderColor: `${color}25` }}
-    >
-      <div className='flex items-center gap-2'>
-        <Activity className='h-3.5 w-3.5' style={{ color }} />
-        <span
-          className='text-[10px] font-bold uppercase tracking-[0.18em]'
-          style={{ color, fontFamily: 'var(--font-mono)' }}
-        >
-          Risk Score
-        </span>
-      </div>
+  const severityBg =
+    score >= 75
+      ? 'bg-[var(--to-short)]/5 border-l-4 border-l-[var(--to-short)]'
+      : score >= 50
+      ? 'bg-[var(--to-warning)]/5 border-l-4 border-l-[var(--to-warning)]'
+      : score >= 25
+      ? 'bg-blue-500/5 border-l-4 border-l-blue-500/60'
+      : 'bg-[var(--to-long)]/5 border-l-4 border-l-[var(--to-long)]';
 
+  return (
+    <div className={cn('glow-card flex items-center gap-6 p-5', severityBg)}>
       {/* Score ring */}
-      <div className='relative flex items-center justify-center'>
-        <svg width={120} height={120} viewBox='0 0 120 120'>
+      <div className='relative flex shrink-0 items-center justify-center'>
+        <svg width={96} height={96} viewBox='0 0 120 120'>
           <circle
-            cx={60}
-            cy={60}
-            r={46}
-            fill='none'
-            stroke='#1e2329'
-            strokeWidth={10}
+            cx={60} cy={60} r={46} fill='none'
+            stroke='#1e2329' strokeWidth={10}
           />
           <circle
-            cx={60}
-            cy={60}
-            r={46}
-            fill='none'
-            stroke={color}
-            strokeWidth={10}
-            strokeLinecap='round'
+            cx={60} cy={60} r={46} fill='none'
+            stroke={color} strokeWidth={10} strokeLinecap='round'
             strokeDasharray={`${(score / 100) * 289} 289`}
             transform='rotate(-90 60 60)'
             style={{ transition: 'stroke-dasharray 0.6s ease' }}
@@ -197,13 +185,13 @@ function CompositeRiskScore({ data }: { data: any }) {
         </svg>
         <div className='absolute flex flex-col items-center'>
           <span
-            className='text-[28px] font-bold tabular-nums leading-none'
+            className='text-[22px] font-bold tabular-nums leading-none'
             style={{ color, fontFamily: 'var(--font-mono)' }}
           >
             {score}
           </span>
           <span
-            className='text-[9px] font-bold uppercase tracking-widest mt-0.5'
+            className='text-[8px] font-bold uppercase tracking-widest mt-0.5'
             style={{ color, fontFamily: 'var(--font-mono)' }}
           >
             {label}
@@ -211,7 +199,17 @@ function CompositeRiskScore({ data }: { data: any }) {
         </div>
       </div>
 
-      <div className='w-full space-y-1'>
+      {/* Label + breakdown bars */}
+      <div className='flex flex-1 flex-col gap-1'>
+        <div className='flex items-center gap-2 mb-2'>
+          <Activity className='h-3.5 w-3.5' style={{ color }} />
+          <span
+            className='text-[10px] font-bold uppercase tracking-[0.18em]'
+            style={{ color, fontFamily: 'var(--font-mono)' }}
+          >
+            Composite Risk Score
+          </span>
+        </div>
         {[
           { label: 'Daily Loss', value: data.daily_risk.loss_pct },
           { label: 'Drawdown', value: data.drawdown.dd_utilization_pct },
@@ -271,15 +269,17 @@ function PanelCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className='tv-card'>
-      <div className='tv-divider flex items-center gap-2 border-b px-3 py-2'>
-        {icon}
-        <span
-          className='panel-label'
-          style={{ fontFamily: 'var(--font-sans)' }}
-        >
-          {title}
-        </span>
+    <div className='glow-card'>
+      <div className='to-panel-header'>
+        <div className='flex items-center gap-2'>
+          {icon}
+          <span
+            className='panel-label'
+            style={{ fontFamily: 'var(--font-sans)' }}
+          >
+            {title}
+          </span>
+        </div>
       </div>
       <div className='space-y-3 p-3'>{children}</div>
     </div>
@@ -584,19 +584,21 @@ function GuardRailsCard({ data }: { data: GuardRailStatus[] }) {
 function SymbolOverridesCard({ data }: { data: any[] }) {
   return (
     <div className='glow-card'>
-      <div className='flex items-center gap-2 border-b border-[var(--to-border)] px-3 py-2'>
-        <span
-          className='panel-label'
-          style={{ fontFamily: 'var(--font-sans)' }}
-        >
-          Symbol Overrides
-        </span>
-        <span
-          className='text-[9px] text-[var(--to-text-dim)]'
-          style={{ fontFamily: 'var(--font-mono)' }}
-        >
-          read-only
-        </span>
+      <div className='to-panel-header'>
+        <div className='flex items-center gap-2'>
+          <span
+            className='panel-label'
+            style={{ fontFamily: 'var(--font-sans)' }}
+          >
+            Symbol Overrides
+          </span>
+          <span
+            className='text-[9px] text-[var(--to-text-dim)]'
+            style={{ fontFamily: 'var(--font-mono)' }}
+          >
+            read-only
+          </span>
+        </div>
       </div>
       <div className='overflow-x-auto p-3'>
         <table className='w-full text-xs'>
