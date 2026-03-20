@@ -345,7 +345,7 @@ export default function AnalyticsPage() {
         subtitle='Composite score across win rate, profit factor, risk-adjusted returns, and drawdown'
       >
         {isLoading ? (
-          <CardSkeleton h='h-36' />
+          <div aria-label="Loading analytics"><CardSkeleton h='h-36' /></div>
         ) : analytics && summaryData ? (
           <PerformanceScoreCard
             winRate={analytics.winRate}

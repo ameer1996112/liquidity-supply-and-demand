@@ -26,6 +26,7 @@ import { ChallengeMetrics } from '@/components/prop-firm/ChallengeMetrics';
 import { ChallengeRules } from '@/components/prop-firm/ChallengeRules';
 import { PerformanceSummary } from '@/components/prop-firm/PerformanceSummary';
 import { usePropFirmChallenge } from '@/hooks/usePropFirmChallenge';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   getSignalSession,
   getSignalAccount,
@@ -300,13 +301,22 @@ export default function PropFirmPage() {
   // Show skeleton only on initial load with no data — fall through on error
   if (metricsLoading && !metricsIsError) {
     return (
-      <div className='flex flex-col gap-3 p-2'>
-        <div className='h-16 rounded-xl bg-[var(--to-surface-raised)]/60 animate-pulse' />
+      <div aria-label='Loading prop firm data' className='flex flex-col gap-4 p-2'>
+        <Skeleton className='h-16 w-full rounded-xl' />
         <div className='grid grid-cols-1 lg:grid-cols-3 gap-4'>
-          <div className='h-48 rounded-xl bg-[var(--to-surface-raised)]/60 animate-pulse' />
-          <div className='h-48 lg:col-span-2 rounded-xl bg-[var(--to-surface-raised)]/60 animate-pulse' />
+          <Skeleton className='h-48 rounded-xl' />
+          <Skeleton className='h-48 lg:col-span-2 rounded-xl' />
         </div>
-        <div className='h-32 rounded-xl bg-[var(--to-surface-raised)]/60 animate-pulse' />
+        <div className='space-y-4'>
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className='h-4 w-full rounded' />
+          ))}
+        </div>
+        <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className='h-20 w-full rounded-xl' />
+          ))}
+        </div>
       </div>
     );
   }

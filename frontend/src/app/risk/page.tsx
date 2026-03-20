@@ -689,21 +689,21 @@ function StatusBadge({ severity }: { severity: string }) {
 
 function LoadingSkeleton() {
   return (
-    <>
+    <div aria-label='Loading risk metrics' className='space-y-3'>
       <div className='grid grid-cols-1 gap-3 lg:grid-cols-3'>
-        <Skeleton className='h-56 rounded-xl bg-[var(--to-surface-raised)]/60' />
-        <Skeleton className='h-56 rounded-xl bg-[var(--to-surface-raised)]/60' />
-        <Skeleton className='h-56 rounded-xl bg-[var(--to-surface-raised)]/60' />
+        <Skeleton className='h-32 w-32 rounded-full bg-[var(--to-surface-raised)]/60 mx-auto' />
+        <Skeleton className='h-32 w-32 rounded-full bg-[var(--to-surface-raised)]/60 mx-auto' />
+        <Skeleton className='h-32 w-32 rounded-full bg-[var(--to-surface-raised)]/60 mx-auto' />
+      </div>
+      <div className='space-y-2'>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className='h-10 w-full rounded-xl bg-[var(--to-surface-raised)]/60' />
+        ))}
       </div>
       <div className='grid grid-cols-1 gap-3 lg:grid-cols-2'>
         <Skeleton className='h-44 rounded-xl bg-[var(--to-surface-raised)]/60' />
         <Skeleton className='h-44 rounded-xl bg-[var(--to-surface-raised)]/60' />
       </div>
-      <div className='grid grid-cols-1 gap-3 lg:grid-cols-2'>
-        <Skeleton className='h-44 rounded-xl bg-[var(--to-surface-raised)]/60' />
-        <Skeleton className='h-44 rounded-xl bg-[var(--to-surface-raised)]/60' />
-      </div>
-      <Skeleton className='h-56 rounded-xl bg-[var(--to-surface-raised)]/60' />
-    </>
+    </div>
   );
 }
