@@ -343,7 +343,7 @@ export function TopBar() {
   };
 
   return (
-    <header className='topbar-glass flex h-16 shrink-0 items-center justify-between gap-6 px-6 border-b border-white/[0.04] bg-[#09090b]/80 backdrop-blur-xl z-50'>
+    <header className='topbar-glass flex h-16 shrink-0 items-center justify-between gap-2 px-3 md:gap-6 md:px-6 border-b border-white/[0.04] bg-[#09090b]/80 backdrop-blur-xl z-50'>
       {/* Left: Branding/Title Container */}
       <div className='flex min-w-0 flex-1 items-center gap-6'>
         <div className='flex items-center gap-3 shrink-0'>
@@ -555,7 +555,7 @@ export function TopBar() {
             onClick={openKillDialog}
             disabled={killMutation.isPending || !isApiUp}
             className={cn(
-              'flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest transition-all',
+              'flex items-center gap-1.5 rounded-lg px-2 py-1.5 sm:px-3 text-[10px] font-bold uppercase tracking-widest transition-all',
               risk?.kill_switch_active
                 ? 'animate-pulse bg-[#f23645]/20 text-[#f23645] ring-1 ring-[#f23645]/50 shadow-[0_0_15px_rgba(242,54,69,0.3)]'
                 : 'bg-white/5 text-[var(--to-text-dim)] hover:bg-[#f23645]/15 hover:text-[#f23645] hover:ring-1 hover:ring-[#f23645]/30 disabled:opacity-50'
@@ -568,7 +568,7 @@ export function TopBar() {
             }
           >
             <Power className='h-3.5 w-3.5' />
-            {risk?.kill_switch_active ? 'KILL ON' : 'KILL'}
+            <span className='hidden sm:inline'>{risk?.kill_switch_active ? 'KILL ON' : 'KILL'}</span>
           </button>
         </div>
       </div>
