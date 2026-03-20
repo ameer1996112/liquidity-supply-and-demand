@@ -215,7 +215,7 @@ export default function ScannerPage() {
     ) : null;
 
   return (
-    <div className='space-y-4'>
+    <div className='space-y-4 animate-fade-in-up'>
       {/* Header */}
       <div className='flex items-start justify-between gap-3 flex-wrap'>
         <div>

@@ -166,7 +166,7 @@ export default function SettingsPage() {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
 
   return (
-    <div className='space-y-4'>
+    <div className='space-y-4 animate-fade-in-up'>
       {/* Header */}
       <div>
         <div className='flex items-center gap-2'>

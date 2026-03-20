@@ -30,7 +30,7 @@ function PositionsPageContent() {
   }, [rawPositions, highlightTicket]);
 
   return (
-    <div className='space-y-4'>
+    <div className='space-y-4 animate-fade-in-up'>
       {/* Header */}
       <div>
         <div className='flex items-center gap-2'>

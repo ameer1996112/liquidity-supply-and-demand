@@ -53,7 +53,7 @@ export default function RiskMonitorPage() {
   const { status } = useConnectionHealth();
 
   return (
-    <div className='space-y-4'>
+    <div className='space-y-4 animate-fade-in-up'>
       {/* Header */}
       <div>
         <h1 className='page-title text-lg font-semibold'>Risk Monitor</h1>

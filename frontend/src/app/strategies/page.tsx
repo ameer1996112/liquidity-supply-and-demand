@@ -216,7 +216,7 @@ export default function StrategiesPage() {
   };
 
   return (
-    <div className='flex gap-4 h-full'>
+    <div className='flex gap-4 h-full animate-fade-in-up'>
       {/* Left: strategy list */}
       <div className='w-64 flex flex-col glow-card p-3 space-y-3'>
         <div className='flex items-center justify-between'>

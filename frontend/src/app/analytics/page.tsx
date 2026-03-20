@@ -260,7 +260,7 @@ export default function AnalyticsPage() {
   const hasStreaks = !!streaksData && streaksData.streaks.length > 0;
 
   return (
-    <div className='flex flex-col gap-6 pb-8'>
+    <div className='flex flex-col gap-6 pb-8 animate-fade-in-up'>
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div className='flex flex-wrap items-start justify-between gap-3'>
         <div className='flex items-center gap-3'>
