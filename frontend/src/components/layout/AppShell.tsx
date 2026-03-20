@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
+import { MobileNav } from './MobileNav';
 import { CommandPalette } from './CommandPalette';
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
 import { AICopilot } from '@/components/copilot/AICopilot';
@@ -17,10 +18,10 @@ import { WifiOff } from 'lucide-react';
 /** Routes that bypass the shell and render fullscreen (no sidebar/topbar). */
 const FULLSCREEN_ROUTES = ['/terminal'] as const;
 
-/** Sidebar width tokens — kept in sync with Sidebar.tsx w-56 / w-14. */
+/** Sidebar width tokens — kept in sync with Sidebar.tsx w-56 / w-14. Desktop only (md+). */
 const SIDEBAR_WIDTH = {
-  expanded: 'ml-56',
-  collapsed: 'ml-14',
+  expanded: 'md:ml-56',
+  collapsed: 'md:ml-14',
 } as const;
 
 /** Maximum content column width — prevents over-stretching on ultra-wide. */
@@ -64,6 +65,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <LiveMarketPanel open={marketOpen} onClose={closeMarket} />
       <div className='relative min-h-screen bg-background'>
         <Sidebar />
+        <MobileNav />
 
         <div
           className={cn(
@@ -108,7 +110,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           )}
 
           {/* Page content — keyed by pathname for fade-in-up transition on route change */}
-          <main className='flex-1 overflow-hidden p-3 sm:p-4'>
+          <main className='flex-1 overflow-hidden p-3 sm:p-4 pb-20 md:pb-3'>
             <div
               key={pathname}
               className={cn(

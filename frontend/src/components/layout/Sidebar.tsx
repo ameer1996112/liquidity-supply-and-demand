@@ -213,7 +213,7 @@ export function Sidebar() {
                         'group relative flex items-center gap-2.5 rounded-lg px-2.5 py-1.5',
                         'transition-all duration-150',
                         isActive
-                          ? 'bg-[var(--to-warning)]/10 text-[var(--to-warning)] border border-[var(--to-warning)]/20'
+                          ? 'bg-[var(--to-warning)]/10 text-[var(--to-warning)] border-l-[3px] border-l-[var(--to-warning)]/70 border-t-0 border-r-0 border-b-0 pl-[7px] pr-2.5'
                           : 'border border-transparent text-[var(--to-text-secondary)] hover:bg-[var(--to-surface-raised)]/60 hover:text-[var(--to-text-primary)]',
                         isCollapsed && 'justify-center px-0'
                       )}
