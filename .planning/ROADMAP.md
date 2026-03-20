@@ -49,13 +49,13 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 02-01-PLAN.md — Button + badge + skeleton primitive restyling (COMP-01, COMP-04, COMP-06)
+- [x] 02-01-PLAN.md — Button + badge + skeleton primitive restyling (COMP-01, COMP-04, COMP-06)
 - [ ] 02-02-PLAN.md — Card + table restyling + input.tsx creation (COMP-02, COMP-03, COMP-05)
 - [ ] 02-03-PLAN.md — Page skeleton loading states on 5 data pages (COMP-06)
 
 | Plans | Progress |
 |-------|----------|
-| 3 | 0/3 complete |
+| 3 | 1/3 complete |
 
 ---
 

@@ -61,15 +61,30 @@ Every screen must look and feel like a premium fintech product — premium dark 
 - **Backend contract:** No API shape changes — frontend only
 - **Functional parity:** All existing functionality must be preserved through the redesign
 
+## Current Milestone: v1.0 Premium Dark Trading Terminal
+
+**Goal:** Complete UI overhaul — premium dark fintech aesthetic, mobile-first responsive layout, cohesive design system applied uniformly across all pages.
+
+**Target features:**
+- Design system foundation (tokens, typography, spacing)
+- Core component library (buttons, cards, tables, badges, inputs)
+- Navigation redesign (desktop sidebar + mobile bottom nav)
+- Dashboard redesign (hero metrics, live signal feed)
+- Risk & Prop Firm redesign (metric hierarchy, visual gauges)
+- Remaining pages redesign (positions, analytics, accounts, etc.)
+- Responsive polish (all pages usable on 320px-480px)
+- Micro-interactions (skeletons, transitions, number animations)
+
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Dark theme only | Trader preference, fits domain, faster to build well | — Pending |
-| Extend shadcn/ui rather than replace | Already in stack, Radix primitives are accessible | — Pending |
-| Mobile-first approach | Owner needs full control on phone | — Pending |
-| Design system first, then pages | Ensures coherence across all pages | — Pending |
-| Premium fintech aesthetic (glass/gradients) | User wants eye-catching, not minimal | — Pending |
+| Dark theme only | Trader preference, fits domain, faster to build well | ✓ Confirmed |
+| Extend shadcn/ui rather than replace | Already in stack, Radix primitives are accessible | ✓ Confirmed |
+| Mobile-first approach | Owner needs full control on phone | ✓ Confirmed |
+| Design system first, then pages | Ensures coherence across all pages | ✓ Confirmed |
+| Premium fintech aesthetic (glass/gradients) | User wants eye-catching, not minimal | ✓ Confirmed |
+| Skip research for v1.0 | Redesign of existing screens, no new domain | ✓ Confirmed |
 
 ---
-*Last updated: 2026-03-19 after initialization*
+*Last updated: 2026-03-19 after milestone v1.0 initialization*
