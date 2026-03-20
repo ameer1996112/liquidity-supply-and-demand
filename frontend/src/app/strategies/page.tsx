@@ -218,7 +218,7 @@ export default function StrategiesPage() {
   return (
     <div className='flex gap-4 h-full'>
       {/* Left: strategy list */}
-      <div className='w-64 flex flex-col tv-card p-3 space-y-3'>
+      <div className='w-64 flex flex-col glow-card p-3 space-y-3'>
         <div className='flex items-center justify-between'>
           <span className='text-xs font-mono text-[var(--to-text-dim)] uppercase tracking-wider'>
             Strategies
@@ -273,7 +273,7 @@ export default function StrategiesPage() {
       </div>
 
       {/* Right: editor */}
-      <div className='flex-1 flex flex-col tv-card p-4 space-y-3'>
+      <div className='flex-1 flex flex-col glow-card p-4 space-y-3'>
         <div className='flex items-center justify-between'>
           <div>
             <h1 className='page-title text-sm font-semibold'>

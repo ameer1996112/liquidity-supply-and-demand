@@ -200,7 +200,7 @@ export default function BacktestPage() {
       </div>
 
       {/* Configuration Panel */}
-      <div className='tv-card'>
+      <div className='glow-card'>
         <div className='tv-divider flex items-center justify-between border-b px-3 py-2'>
           <span className='panel-label'>Configuration</span>
           <div className='flex gap-2'>
@@ -641,7 +641,7 @@ export default function BacktestPage() {
         <>
           {/* Stats Cards */}
           <div className='grid grid-cols-2 md:grid-cols-4 gap-3'>
-            <div className='tv-card p-3'>
+            <div className='glow-card p-3'>
               <div className='flex items-center gap-1.5 mb-1.5'>
                 <Target className='h-3.5 w-3.5 text-indigo-400' />
                 <span className='panel-label'>Total Trades</span>
@@ -654,7 +654,7 @@ export default function BacktestPage() {
               </p>
             </div>
 
-            <div className='tv-card p-3'>
+            <div className='glow-card p-3'>
               <div className='flex items-center gap-1.5 mb-1.5'>
                 <TrendingUp className='h-3.5 w-3.5 text-[var(--to-long)]' />
                 <span className='panel-label'>Win Rate</span>
@@ -667,7 +667,7 @@ export default function BacktestPage() {
               </p>
             </div>
 
-            <div className='tv-card p-3'>
+            <div className='glow-card p-3'>
               <div className='flex items-center gap-1.5 mb-1.5'>
                 <DollarSign className='h-3.5 w-3.5 text-amber-400' />
                 <span className='panel-label'>Total Return</span>
@@ -684,7 +684,7 @@ export default function BacktestPage() {
               </p>
             </div>
 
-            <div className='tv-card p-3'>
+            <div className='glow-card p-3'>
               <div className='flex items-center gap-1.5 mb-1.5'>
                 <TrendingDown className='h-3.5 w-3.5 text-[var(--to-short)]' />
                 <span className='panel-label'>Max Drawdown</span>
@@ -707,7 +707,7 @@ export default function BacktestPage() {
             </TabsList>
 
             <TabsContent value='chart' className='mt-4'>
-              <Card className='tv-card p-6'>
+              <Card className='glow-card p-6'>
                 <div className='flex justify-between items-center mb-4'>
                   <h2 className='text-xl font-semibold'>Backtest Chart</h2>
                   <Button
@@ -746,7 +746,7 @@ export default function BacktestPage() {
             </TabsContent>
 
             <TabsContent value='trades' className='mt-4'>
-              <Card className='tv-card p-6'>
+              <Card className='glow-card p-6'>
                 <h2 className='text-xl font-semibold mb-4'>
                   Trade List ({visibleTrades.length} trades)
                 </h2>

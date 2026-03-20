@@ -185,7 +185,7 @@ export default function JournalPage() {
         signals && signals.length > 0 ? (
           <CalendarPnlView signals={signals} />
         ) : (
-          <div className='tv-card p-4'>
+          <div className='glow-card p-4'>
             <PanelEmptyState
               title='No trade data'
               description='Trades will appear here after execution.'
@@ -209,7 +209,7 @@ export default function JournalPage() {
           ) : filtered.length > 0 ? (
             <TradeTable signals={filtered} onInspect={handleInspect} />
           ) : (
-            <div className='tv-card p-4'>
+            <div className='glow-card p-4'>
               <PanelEmptyState
                 title={
                   signals && signals.length > 0

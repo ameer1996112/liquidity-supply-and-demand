@@ -45,7 +45,7 @@ function PositionsPageContent() {
       </div>
 
       {/* Account Bar */}
-      <div className='tv-card p-2'>
+      <div className='glow-card p-2'>
         <AccountBar />
       </div>
 
@@ -58,7 +58,7 @@ function PositionsPageContent() {
       )}
 
       {/* Portfolio Optimizer */}
-      <div className='tv-card p-2'>
+      <div className='glow-card p-2'>
         <OptimizerPanel />
       </div>
 
@@ -76,7 +76,7 @@ function PositionsPageContent() {
           ))}
         </div>
       ) : (
-        <div className='tv-card p-4'>
+        <div className='glow-card p-4'>
           <PanelEmptyState
             title='No active positions'
             description='Positions appear here when 5m zones are triggered.'

@@ -289,7 +289,7 @@ export default function ScannerPage() {
       )}
 
       {/* Table */}
-      <div className='tv-card overflow-hidden'>
+      <div className='glow-card overflow-hidden'>
         {isLoading ? (
           <div className='p-4 space-y-2'>
             {[...Array(6)].map((_, i) => (

@@ -331,7 +331,7 @@ export default function AnalyticsPage() {
 
       {/* ── No data state ────────────────────────────────────────────────────── */}
       {!isLoading && !hasData && (
-        <div className='tv-card p-8'>
+        <div className='glow-card p-8'>
           <PanelEmptyState
             title='No performance data'
             description='Execute and close trades to generate analytics.'
@@ -365,7 +365,7 @@ export default function AnalyticsPage() {
           title='Equity Curve'
           subtitle='Cumulative PnL over all closed trades'
         >
-          <div className='tv-card p-4'>
+          <div className='glow-card p-4'>
             <EquityCurveChart data={analytics!.equityCurve} />
           </div>
         </Section>
@@ -541,7 +541,7 @@ function EntryModelBreakdown({ data }: { data: Record<string, BucketStats> }) {
 
   if (rows.length === 0) {
     return (
-      <div className='tv-card p-4'>
+      <div className='glow-card p-4'>
         <PanelEmptyState
           title='No entry model data'
           description='More trades needed.'
@@ -553,7 +553,7 @@ function EntryModelBreakdown({ data }: { data: Record<string, BucketStats> }) {
   const maxAbsPnl = Math.max(...rows.map((r) => Math.abs(r.pnl)), 1);
 
   return (
-    <div className='tv-card'>
+    <div className='glow-card'>
       <div className='border-b border-[var(--to-border)] px-4 py-3'>
         <p className='panel-label'>Entry Model Performance</p>
         <p
@@ -636,7 +636,7 @@ function ZoneTypeBreakdown({ data }: { data: Record<string, BucketStats> }) {
 
   if (rows.length === 0) {
     return (
-      <div className='tv-card p-4'>
+      <div className='glow-card p-4'>
         <PanelEmptyState
           title='No zone data'
           description='More trades needed.'
@@ -646,7 +646,7 @@ function ZoneTypeBreakdown({ data }: { data: Record<string, BucketStats> }) {
   }
 
   return (
-    <div className='tv-card'>
+    <div className='glow-card'>
       <div className='border-b border-[var(--to-border)] px-4 py-3'>
         <p className='panel-label'>Zone Type Performance</p>
         <p

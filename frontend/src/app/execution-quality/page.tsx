@@ -283,7 +283,7 @@ function ExecutionQualityContent() {
         <TabsContent value='tca' className='mt-4 space-y-4'>
           {/* Summary Cards */}
           <div className='grid grid-cols-1 gap-4 md:grid-cols-4'>
-            <Card className='tv-card'>
+            <Card className='glow-card'>
               <CardHeader className='pb-2'>
                 <CardTitle className='flex items-center gap-1.5 text-xs text-[var(--to-text-dim)]'>
                   <TrendingDown className='h-3.5 w-3.5' />
@@ -311,7 +311,7 @@ function ExecutionQualityContent() {
               </CardContent>
             </Card>
 
-            <Card className='tv-card'>
+            <Card className='glow-card'>
               <CardHeader className='pb-2'>
                 <CardTitle className='flex items-center gap-1.5 text-xs text-[var(--to-text-dim)]'>
                   <DollarSign className='h-3.5 w-3.5' />
@@ -332,7 +332,7 @@ function ExecutionQualityContent() {
               </CardContent>
             </Card>
 
-            <Card className='tv-card'>
+            <Card className='glow-card'>
               <CardHeader className='pb-2'>
                 <CardTitle className='flex items-center gap-1.5 text-xs text-[var(--to-text-dim)]'>
                   <Clock className='h-3.5 w-3.5' />
@@ -353,7 +353,7 @@ function ExecutionQualityContent() {
               </CardContent>
             </Card>
 
-            <Card className='tv-card'>
+            <Card className='glow-card'>
               <CardHeader className='pb-2'>
                 <CardTitle className='flex items-center gap-1.5 text-xs text-[var(--to-text-dim)]'>
                   <AlertTriangle className='h-3.5 w-3.5' />
@@ -376,7 +376,7 @@ function ExecutionQualityContent() {
           </div>
 
           {/* Slippage by Symbol */}
-          <Card className='tv-card'>
+          <Card className='glow-card'>
             <CardHeader>
               <CardTitle className='text-sm font-medium text-[var(--to-text-primary)]'>
                 Slippage by Symbol (Last 30 Days)
@@ -417,7 +417,7 @@ function ExecutionQualityContent() {
 
           <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
             {/* Slippage by Hour */}
-            <Card className='tv-card'>
+            <Card className='glow-card'>
               <CardHeader>
                 <CardTitle className='text-sm font-medium text-[var(--to-text-primary)]'>
                   Slippage by Hour (UTC)
@@ -463,7 +463,7 @@ function ExecutionQualityContent() {
             </Card>
 
             {/* Latency Breakdown */}
-            <Card className='tv-card'>
+            <Card className='glow-card'>
               <CardHeader>
                 <CardTitle className='text-sm font-medium text-[var(--to-text-primary)]'>
                   Latency Breakdown (Last 7 Days)
@@ -488,7 +488,7 @@ function ExecutionQualityContent() {
           </div>
 
           {/* TCA Alerts */}
-          <Card className='tv-card'>
+          <Card className='glow-card'>
             <CardHeader>
               <CardTitle className='text-sm font-medium text-[var(--to-text-primary)]'>
                 Recent TCA Alerts (Last 7 Days)

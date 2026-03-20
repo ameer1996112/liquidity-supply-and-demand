@@ -168,7 +168,7 @@ export default function AccountsPage() {
             ))}
           </div>
         ) : accounts.length === 0 ? (
-          <div className='tv-card'>
+          <div className='glow-card'>
             <div className='empty-state py-14'>
               <span className='empty-state-text'>
                 [ NO ACCOUNTS CONFIGURED ]

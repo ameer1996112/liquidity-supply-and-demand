@@ -260,7 +260,7 @@ export default function AccountDetailPage() {
       </div>
 
       {/* Tab Content */}
-      <div className='tv-card p-3'>
+      <div className='glow-card p-3'>
         {isLoading ? (
           <div className='space-y-4'>
             <Skeleton className='h-24 bg-[var(--to-surface-raised)]/60' />
