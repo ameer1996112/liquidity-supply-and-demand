@@ -46,9 +46,16 @@ Plans:
 5. All form inputs render with dark-theme styling using design tokens
 6. Skeleton/shimmer loading pattern is implemented and used on at least 3 pages
 
+**Plans:** 3 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — Button + badge + skeleton primitive restyling (COMP-01, COMP-04, COMP-06)
+- [ ] 02-02-PLAN.md — Card + table restyling + input.tsx creation (COMP-02, COMP-03, COMP-05)
+- [ ] 02-03-PLAN.md — Page skeleton loading states on 5 data pages (COMP-06)
+
 | Plans | Progress |
 |-------|----------|
-| — | Not started |
+| 3 | 0/3 complete |
 
 ---
 
@@ -157,8 +164,8 @@ Plans:
 
 ---
 
-**Coverage:** 31 requirements → 8 phases → 100% mapped ✓
+**Coverage:** 31 requirements → 8 phases → 100% mapped
 
 ---
 *Roadmap created: 2026-03-19*
-*Last updated: 2026-03-19 — Phase 1 plans created (01-01, 01-02)*
+*Last updated: 2026-03-20 — Phase 2 plans created (02-01, 02-02, 02-03)*
