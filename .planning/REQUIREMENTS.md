@@ -36,9 +36,9 @@
 
 ### Risk & Prop Firm
 
-- [ ] **RISK-01**: Risk monitor displays clear metric hierarchy (daily PnL, drawdown, circuit breaker status)
-- [ ] **RISK-02**: Prop firm challenge tracker shows clear progress with visual gauges and pass/fail indicators
-- [ ] **RISK-03**: Risk and Prop Firm pages are fully responsive on mobile with all controls accessible
+- [x] **RISK-01**: Risk monitor displays clear metric hierarchy (daily PnL, drawdown, circuit breaker status)
+- [x] **RISK-02**: Prop firm challenge tracker shows clear progress with visual gauges and pass/fail indicators
+- [x] **RISK-03**: Risk and Prop Firm pages are fully responsive on mobile with all controls accessible
 
 ### Page Redesign
 
@@ -100,9 +100,9 @@
 | DASH-02 | Phase 4 | Complete |
 | DASH-03 | Phase 4 | Complete |
 | DASH-04 | Phase 4 | Complete |
-| RISK-01 | Phase 5 | Pending |
-| RISK-02 | Phase 5 | Pending |
-| RISK-03 | Phase 5 | Pending |
+| RISK-01 | Phase 5 | Complete |
+| RISK-02 | Phase 5 | Complete |
+| RISK-03 | Phase 5 | Complete |
 | PAGE-01 | Phase 6 | Pending |
 | PAGE-02 | Phase 6 | Pending |
 | PAGE-03 | Phase 6 | Pending |
