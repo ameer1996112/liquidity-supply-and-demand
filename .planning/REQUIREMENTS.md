@@ -55,10 +55,10 @@
 
 ### Micro-Interactions
 
-- [ ] **ANIM-01**: Loading states have smooth skeleton/shimmer animations
-- [ ] **ANIM-02**: Page transitions use fade-in-up or slide animations
-- [ ] **ANIM-03**: Numeric values animate when updating (PnL, metrics, counters)
-- [ ] **ANIM-04**: Interactive elements have hover effects (card lift, glow, border color shift)
+- [x] **ANIM-01**: Loading states have smooth skeleton/shimmer animations
+- [x] **ANIM-02**: Page transitions use fade-in-up or slide animations
+- [x] **ANIM-03**: Numeric values animate when updating (PnL, metrics, counters)
+- [x] **ANIM-04**: Interactive elements have hover effects (card lift, glow, border color shift)
 
 ## v2.0 Requirements
 
@@ -110,10 +110,10 @@
 | RESP-01 | Phase 7 | Complete |
 | RESP-02 | Phase 7 | Complete |
 | RESP-03 | Phase 7 | Complete |
-| ANIM-01 | Phase 8 | Pending |
-| ANIM-02 | Phase 8 | Pending |
-| ANIM-03 | Phase 8 | Pending |
-| ANIM-04 | Phase 8 | Pending |
+| ANIM-01 | Phase 8 | Complete |
+| ANIM-02 | Phase 8 | Complete |
+| ANIM-03 | Phase 8 | Complete |
+| ANIM-04 | Phase 8 | Complete |
 
 **Coverage:**
 - v1.0 requirements: 31 total
