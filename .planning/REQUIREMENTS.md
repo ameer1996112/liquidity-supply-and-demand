@@ -29,10 +29,10 @@
 
 ### Dashboard
 
-- [ ] **DASH-01**: Dashboard has eye-catching hero section with key metrics (PnL, win rate, active positions)
-- [ ] **DASH-02**: Signal feed displays live data with visual indicators and animations that feel alive
-- [ ] **DASH-03**: WebSocket connection status is clearly visible with appropriate color coding
-- [ ] **DASH-04**: Dashboard layout is fully responsive and usable on mobile with full control
+- [x] **DASH-01**: Dashboard has eye-catching hero section with key metrics (PnL, win rate, active positions)
+- [x] **DASH-02**: Signal feed displays live data with visual indicators and animations that feel alive
+- [x] **DASH-03**: WebSocket connection status is clearly visible with appropriate color coding
+- [x] **DASH-04**: Dashboard layout is fully responsive and usable on mobile with full control
 
 ### Risk & Prop Firm
 
@@ -96,10 +96,10 @@
 | NAV-01 | Phase 3 | Pending |
 | NAV-02 | Phase 3 | Pending |
 | NAV-03 | Phase 3 | Pending |
-| DASH-01 | Phase 4 | Pending |
-| DASH-02 | Phase 4 | Pending |
-| DASH-03 | Phase 4 | Pending |
-| DASH-04 | Phase 4 | Pending |
+| DASH-01 | Phase 4 | Complete |
+| DASH-02 | Phase 4 | Complete |
+| DASH-03 | Phase 4 | Complete |
+| DASH-04 | Phase 4 | Complete |
 | RISK-01 | Phase 5 | Pending |
 | RISK-02 | Phase 5 | Pending |
 | RISK-03 | Phase 5 | Pending |
