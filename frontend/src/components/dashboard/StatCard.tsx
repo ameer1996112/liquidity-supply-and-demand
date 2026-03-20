@@ -22,6 +22,8 @@ interface StatCardProps {
   trend?: 'up' | 'down' | 'neutral';
   /** Optional sparkline data (array of numbers) shown at the bottom */
   sparklineData?: number[];
+  /** Hero variant — larger value text + amber glow border for primary KPI card */
+  hero?: boolean;
 }
 
 // Detect sign from value string
@@ -87,6 +89,7 @@ export function StatCard({
   numericFormat,
   trend,
   sparklineData,
+  hero,
 }: StatCardProps) {
   const resolvedVariant = variant ?? detectVariant(value);
   const cfg = VARIANT_CONFIG[resolvedVariant];
@@ -95,11 +98,21 @@ export function StatCard({
     <div
       className={cn(
         'group relative overflow-hidden rounded-xl',
-        'border border-[var(--to-border)]',
+        hero
+          ? [
+              'border border-[var(--to-accent-amber)]/40',
+              'hover:border-[var(--to-accent-amber)]/70',
+              'shadow-[0_0_20px_rgba(240,185,11,0.12)]',
+              'px-5 py-4',
+            ]
+          : [
+              'border border-[var(--to-border)]',
+              'hover:border-[var(--to-border-glow)]',
+              'px-4 py-3.5',
+            ],
         'bg-gradient-to-br from-[var(--to-surface)] to-[var(--to-surface-raised)]',
-        'px-4 py-3.5',
         'transition-all duration-200 ease-out',
-        'hover:border-[var(--to-border-glow)] hover:-translate-y-[1px]',
+        'hover:-translate-y-[1px]',
         'hover:shadow-[0_4px_24px_rgba(0,0,0,0.4)]',
         className
       )}
@@ -146,7 +159,8 @@ export function StatCard({
       {/* Value — animated if numericValue provided */}
       <p
         className={cn(
-          'text-[1.15rem] font-bold tabular-nums leading-none',
+          hero ? 'text-[2rem]' : 'text-[1.15rem]',
+          'font-bold tabular-nums leading-none',
           cfg.valueClass
         )}
         style={{ fontFamily: 'var(--font-mono)' }}
