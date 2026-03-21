@@ -228,6 +228,53 @@ def send_telegram(data: Dict[str, Any], alert_id: int) -> bool:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# Guard / Watchdog Notifications
+# Lightweight Discord embeds that do NOT require trade fields (sl, tp, entry).
+# Use these for late-fill alerts, circuit-breaker notices, etc.
+# ═══════════════════════════════════════════════════════════════════════════
+
+def send_guard_notification(signal_id: Any, symbol: str, reason: str) -> Tuple[bool, Optional[str]]:
+    """Send a lightweight Discord embed for guard/watchdog events (no trade fields needed)."""
+    s = get_settings()
+    if not s.discord_webhook_url:
+        return False, "DISCORD_WEBHOOK_URL not configured"
+    try:
+        embed = {
+            "title": f"⚠️ Guard Alert — {symbol} (#{signal_id})",
+            "description": reason,
+            "color": 0xFFA500,  # orange
+            "timestamp": datetime.utcnow().isoformat(),
+            "footer": {"text": f"Signal #{signal_id}"},
+        }
+        payload = {"embeds": [embed]}
+        r = requests.post(s.discord_webhook_url, json=payload, timeout=10)
+        if r.status_code == 204:
+            return True, None
+        return False, f"HTTP {r.status_code}: {r.text[:200] if r.text else 'No response'}"
+    except Exception as e:
+        logger.error(f"Discord guard notification error: {e}")
+        return False, str(e)
+
+
+def send_guard_notification_async(signal_id: Any, symbol: str, reason: str) -> None:
+    """Non-blocking version of send_guard_notification."""
+    s = get_settings()
+    if not getattr(s, "async_notifications", False):
+        send_guard_notification(signal_id, symbol, reason)
+        return
+
+    def _send():
+        try:
+            success, error = send_guard_notification(signal_id, symbol, reason)
+            if not success:
+                logger.warning(f"Background Discord guard notification failed: {error}")
+        except Exception as e:
+            logger.error(f"Background Discord guard notification crashed: {e}")
+
+    _notification_executor.submit(_send)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # Async Notification Wrappers (Phase 1 Latency Optimization)
 # These functions submit notifications to background threads to avoid blocking
 # the critical execution path. Use these in worker.py instead of sync versions.

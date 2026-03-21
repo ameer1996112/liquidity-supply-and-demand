@@ -40,6 +40,10 @@ class TradeWatchdog:
         # MetaStats API (history-deals)
         self.stats_base_url = f"https://metastats-api-v1.{region}.agiliumtrade.ai"
         self.supabase = supabase_client
+        # Rate-limit late-fill alerts: track {signal_id: last_alerted_timestamp}
+        # to avoid spamming Discord+logs every 30s for the same stuck signal.
+        self._late_fill_alerted: Dict[Any, float] = {}
+        self._LATE_FILL_REPEAT_INTERVAL = 300  # seconds between repeat alerts per signal
 
         if not self.token or not self.account_id:
             logger.warning(
@@ -380,10 +384,17 @@ class TradeWatchdog:
             return 0
 
         alerted = 0
+        now_ts = time.time()
         for sig in late_signals:
             signal_id = sig.get("id")
             symbol = sig.get("symbol", "?")
             try:
+                # Rate-limit: skip if we already alerted this signal recently
+                last_alerted = self._late_fill_alerted.get(signal_id, 0)
+                if now_ts - last_alerted < self._LATE_FILL_REPEAT_INTERVAL:
+                    continue
+                self._late_fill_alerted[signal_id] = now_ts
+
                 # Log trade_event for audit trail
                 try:
                     from src.services.trade_events import log_event
@@ -396,22 +407,18 @@ class TradeWatchdog:
                 except Exception:
                     pass
 
-                # Fire Discord alert
+                # Fire Discord guard notification — uses the guard path which does NOT
+                # require sl/tp fields (avoids KeyError: 'sl' in send_discord).
                 try:
-                    from src.adapters.discord import send_discord_async
-                    send_discord_async(
-                        {
-                            "symbol": symbol,
-                            "side": sig.get("side", ""),
-                            "entry": sig.get("entry", 0),
-                            "_guard_reason": (
-                                f"🕐 Late Fill Alert: signal #{signal_id} ({symbol}) "
-                                f"has no broker confirmation after {threshold_s:.0f}s"
-                            ),
-                            "_guard_blocked": False,
-                        },
-                        alert_id=signal_id,
-                        mode="guard_blocked",
+                    from src.adapters.discord import send_guard_notification_async
+                    send_guard_notification_async(
+                        signal_id=signal_id,
+                        symbol=symbol,
+                        reason=(
+                            f"🕐 Late Fill Alert: signal #{signal_id} ({symbol}) "
+                            f"has no broker confirmation after {threshold_s:.0f}s — "
+                            f"possible execution failure."
+                        ),
                     )
                 except Exception:
                     pass
@@ -424,6 +431,12 @@ class TradeWatchdog:
                 alerted += 1
             except Exception as exc:
                 logger.debug("TradeWatchdog.check_late_fills: error on signal %s: %s", signal_id, exc)
+
+        # Clean up stale entries older than 1 hour to avoid memory growth
+        cutoff_cleanup = now_ts - 3600
+        self._late_fill_alerted = {
+            k: v for k, v in self._late_fill_alerted.items() if v > cutoff_cleanup
+        }
 
         return alerted
 
