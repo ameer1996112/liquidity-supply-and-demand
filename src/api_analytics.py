@@ -545,3 +545,153 @@ def get_summary(
         expectancy=round(expectancy, 2),
         total_trades=n,
     )
+
+
+# ── Phase 14: Strategy Performance ───────────────────────────────────────────
+
+
+class StrategyStats(BaseModel):
+    """Per-strategy performance statistics."""
+    strategy: str
+    total_trades: int
+    wins: int
+    losses: int
+    win_rate: float          # 0-100
+    total_pnl: float
+    avg_win: float
+    avg_loss: float
+    expectancy: float         # (win_rate * avg_win) - (loss_rate * avg_loss)
+    profit_factor: float      # gross_profit / gross_loss
+    avg_hold_hours: float
+    symbols: List[str]        # Unique symbols traded by this strategy
+
+
+class StrategyResponse(BaseModel):
+    strategies: List[StrategyStats]
+    total_trades: int
+    period: str
+    mode: str
+
+
+@router.get("/strategy", response_model=StrategyResponse)
+def get_strategy_performance(
+    period: str = Query("30d", pattern="^(24h|7d|30d|all)$"),
+    mode: str = Query("LIVE"),
+    account_id: Optional[str] = Query(None),
+):
+    """
+    Phase 14: Per-strategy performance breakdown.
+
+    Groups closed signals by account_name (which maps to the TradingView strategy name,
+    e.g. 'S&D Algo [Pro]', 'S&D Algo Balanced', etc.) and computes:
+    - Win rate, expectancy, profit factor per strategy
+    - Average hold time (minutes → hours)
+    - Which symbols each strategy traded
+
+    Use this endpoint to compare strategy performance side-by-side and identify
+    which Pine Script configurations are profitable in live trading.
+    """
+    sb = _get_supabase()
+
+    query = (
+        sb.table("trading_signals")
+        .select(
+            "id, symbol, pnl_usd, outcome, account_name, run_mode, "
+            "created_at, closed_at, status"
+        )
+        .in_("status", ["closed", "executed", "CLOSED", "EXECUTED"])
+        .order("created_at", desc=False)
+    )
+
+    if mode and mode != "ALL":
+        if mode == "LIVE":
+            query = query.or_("run_mode.eq.LIVE,run_mode.is.null")
+        else:
+            query = query.eq("run_mode", mode)
+
+    if account_id:
+        query = query.eq("account_id", account_id)
+
+    td = PERIOD_MAP.get(period)
+    if td:
+        cutoff = (datetime.now(timezone.utc) - td).isoformat()
+        query = query.or_(f"closed_at.gte.{cutoff},and(closed_at.is.null,created_at.gte.{cutoff})")
+
+    resp = query.limit(5000).execute()
+    raw = resp.data or []
+
+    # Filter to truly closed trades (non-zero PnL)
+    signals = [s for s in raw if float(s.get("pnl_usd") or 0) != 0]
+
+    # Group by strategy (account_name, fallback to "Unknown")
+    groups: Dict[str, list] = defaultdict(list)
+    for sig in signals:
+        strategy = (sig.get("account_name") or "Unknown").strip()
+        groups[strategy].append(sig)
+
+    result: List[StrategyStats] = []
+    for strategy, trades in sorted(groups.items()):
+        wins = 0
+        losses = 0
+        gross_profit = 0.0
+        gross_loss = 0.0
+        hold_times = []
+        symbols: set = set()
+
+        for t in trades:
+            pnl = float(t.get("pnl_usd") or 0)
+            sym = t.get("symbol", "")
+            if sym:
+                symbols.add(sym)
+            if pnl > 0:
+                wins += 1
+                gross_profit += pnl
+            elif pnl < 0:
+                losses += 1
+                gross_loss += abs(pnl)
+
+            # Hold time
+            created = t.get("created_at", "")
+            closed = t.get("closed_at", "")
+            if created and closed:
+                try:
+                    c1 = datetime.fromisoformat(created.replace("Z", "+00:00"))
+                    c2 = datetime.fromisoformat(closed.replace("Z", "+00:00"))
+                    hold_times.append((c2 - c1).total_seconds() / 3600)
+                except Exception:
+                    pass
+
+        n = len(trades)
+        win_rate = wins / n * 100 if n > 0 else 0
+        avg_win = gross_profit / wins if wins > 0 else 0
+        avg_loss = gross_loss / losses if losses > 0 else 0
+        loss_rate = losses / n if n > 0 else 0
+        expectancy = (win_rate / 100 * avg_win) - (loss_rate * avg_loss)
+        profit_factor = gross_profit / gross_loss if gross_loss > 0 else (gross_profit if gross_profit > 0 else 0)
+        avg_hold = sum(hold_times) / len(hold_times) if hold_times else 0
+
+        result.append(StrategyStats(
+            strategy=strategy,
+            total_trades=n,
+            wins=wins,
+            losses=losses,
+            win_rate=round(win_rate, 1),
+            total_pnl=round(gross_profit - gross_loss, 2),
+            avg_win=round(avg_win, 2),
+            avg_loss=round(avg_loss, 2),
+            expectancy=round(expectancy, 2),
+            profit_factor=round(profit_factor, 2),
+            avg_hold_hours=round(avg_hold, 2),
+            symbols=sorted(symbols),
+        ))
+
+    # Sort by total P&L descending
+    result.sort(key=lambda x: x.total_pnl, reverse=True)
+
+    return StrategyResponse(
+        strategies=result,
+        total_trades=len(signals),
+        period=period,
+        mode=mode,
+    )
+
