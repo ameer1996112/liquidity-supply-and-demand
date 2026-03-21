@@ -219,6 +219,11 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
             : '--'}
         </td>
 
+        {/* Size */}
+        <td className="py-2.5 px-3 font-mono text-[11px] text-[var(--to-text-dim)]">
+          {signal.position_size != null ? `${signal.position_size}L` : '--'}
+        </td>
+
         {/* SL Pips */}
         <td className="py-2.5 px-3 font-mono text-[11px] text-[var(--to-text-dim)]">
           {slPips != null ? slPips.toFixed(1) : '--'}

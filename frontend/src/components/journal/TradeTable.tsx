@@ -26,6 +26,7 @@ type SortKey =
   | 'score'
   | 'rr'
   | 'pnl'
+  | 'size'
   | 'duration';
 type SortDir = 'asc' | 'desc';
 
@@ -40,6 +41,7 @@ const COLUMNS: { key: SortKey; label: string; align?: string }[] = [
   { key: 'session', label: 'Session' },
   { key: 'entry', label: 'Entry' },
   { key: 'exit', label: 'Exit' },
+  { key: 'size', label: 'Size' },
   { key: 'slPips', label: 'SL Pips' },
   { key: 'score', label: 'AI' },
   { key: 'rr', label: 'R:R' },
@@ -86,6 +88,8 @@ function getSortValue(signal: TradingSignal, key: SortKey): number | string {
       return signal.price ?? signal.entry ?? 0;
     case 'exit':
       return signal.exit_price ?? 0;
+    case 'size':
+      return signal.position_size ?? 0;
     case 'slPips':
       return signal.sl_pips ?? 0;
     case 'score':
