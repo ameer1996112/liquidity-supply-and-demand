@@ -1,14 +1,17 @@
-import { TradingSignal, getSymbol, getSide, getScore, getPnl } from '@/types/trading';
-import { format } from 'date-fns';
+import { TradingSignal, getSymbol, getSide, getScore, getPnl, getNotes } from '@/types/trading';
+import { format, differenceInMinutes } from 'date-fns';
 
 export function exportTradesToCsv(signals: TradingSignal[], filename?: string) {
   const SESSION_LABELS: Record<number, string> = { 0: 'Asia', 1: 'LDN', 2: 'NY', 3: 'Off' };
 
   const headers = [
     'Date',
+    'Closed At',
+    'Duration',
     'Symbol',
     'Side',
     'Status',
+    'Account',
     'Zone Type',
     'Zone Grade',
     'Entry Model',
@@ -24,29 +27,44 @@ export function exportTradesToCsv(signals: TradingSignal[], filename?: string) {
     'AI Score',
     'PnL ($)',
     'PnL (%)',
+    'Notes',
   ];
 
-  const rows = signals.map((s) => [
-    format(new Date(s.created_at), 'yyyy-MM-dd HH:mm:ss'),
-    getSymbol(s),
-    getSide(s).toUpperCase(),
-    (s.status || '').toUpperCase(),
-    s.zone_type ?? '',
-    s.zone_grade ?? '',
-    s.entry_model ?? '',
-    s.session != null ? (SESSION_LABELS[s.session] || s.session) : '',
-    s.mode || s.run_mode || '',
-    s.price ?? s.entry ?? '',
-    s.stop_loss ?? s.sl ?? '',
-    s.take_profit ?? s.tp ?? '',
-    s.exit_price ?? '',
-    s.exit_type ?? '',
-    s.sl_pips ?? '',
-    s.rr_ratio ?? '',
-    getScore(s) ?? '',
-    getPnl(s) ?? '',
-    s.pnl_percentage ?? '',
-  ]);
+  const rows = signals.map((s) => {
+    const durationMin = s.closed_at
+      ? differenceInMinutes(new Date(s.closed_at), new Date(s.created_at))
+      : null;
+    const durationStr = durationMin == null ? '' : durationMin < 60
+      ? `${durationMin}m`
+      : durationMin < 1440
+      ? `${Math.floor(durationMin / 60)}h ${durationMin % 60}m`
+      : `${Math.floor(durationMin / 1440)}d`;
+    return [
+      format(new Date(s.created_at), 'yyyy-MM-dd HH:mm:ss'),
+      s.closed_at ? format(new Date(s.closed_at), 'yyyy-MM-dd HH:mm:ss') : '',
+      durationStr,
+      getSymbol(s),
+      getSide(s).toUpperCase(),
+      (s.status || '').toUpperCase(),
+      s.account_name ?? '',
+      s.zone_type ?? '',
+      s.zone_grade ?? '',
+      s.entry_model ?? '',
+      s.session != null ? (SESSION_LABELS[s.session] || s.session) : '',
+      s.mode || s.run_mode || '',
+      s.price ?? s.entry ?? '',
+      s.stop_loss ?? s.sl ?? '',
+      s.take_profit ?? s.tp ?? '',
+      s.exit_price ?? '',
+      s.exit_type ?? '',
+      s.sl_pips ?? '',
+      s.rr_ratio ?? '',
+      getScore(s) ?? '',
+      getPnl(s) ?? '',
+      s.pnl_percentage ?? '',
+      getNotes(s) ?? '',
+    ];
+  });
 
   const csvContent = [
     headers.join(','),

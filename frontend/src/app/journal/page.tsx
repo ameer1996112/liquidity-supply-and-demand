@@ -15,6 +15,8 @@ import { JournalFilters } from '@/components/journal/JournalFilters';
 import { JournalStats } from '@/components/journal/JournalStats';
 import { JournalEquityCurve } from '@/components/journal/JournalEquityCurve';
 import { AccountBreakdown } from '@/components/journal/AccountBreakdown';
+import { SymbolBreakdown } from '@/components/journal/SymbolBreakdown';
+import { DrawdownChart } from '@/components/journal/DrawdownChart';
 import { TradeTable } from '@/components/journal/TradeTable';
 import { SignalInspector } from '@/components/SignalInspector';
 import { exportTradesToCsv } from '@/lib/exportCsv';
@@ -227,8 +229,19 @@ export default function JournalPage() {
             />
           )}
 
+          {/* Symbol Breakdown */}
+          {signals && signals.length >= 3 && (
+            <SymbolBreakdown
+              signals={filtered}
+              onSymbolClick={(sym) => setSearch(sym)}
+            />
+          )}
+
           {/* Equity Curve Chart */}
           <JournalEquityCurve signals={filtered} />
+
+          {/* Drawdown Chart */}
+          <DrawdownChart signals={filtered} />
 
           {/* Pattern Analysis Insights */}
           {signals && signals.length >= 3 && (
