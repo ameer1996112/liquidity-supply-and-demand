@@ -176,11 +176,18 @@ class AlertEngine:
     def _check_consecutive_losses(self, condition: dict, severity: str) -> None:
         threshold = int(condition.get("threshold", 3))
         run_mode = condition.get("run_mode", "LIVE")  # Default to LIVE only
+        # Only look at trades from the last N days (default 7) to avoid
+        # triggering on historical losses when markets are closed (weekends/holidays).
+        lookback_days = int(condition.get("lookback_days", 7))
+        lookback_cutoff = (
+            datetime.now(timezone.utc) - timedelta(days=lookback_days)
+        ).isoformat()
 
         query = (
             self.supabase.table("trading_signals")
-            .select("pnl_usd, pnl, outcome, run_mode")
+            .select("pnl_usd, pnl, outcome, run_mode, closed_at, created_at")
             .in_("status", ["CLOSED", "closed"])
+            .gte("created_at", lookback_cutoff)
             .order("created_at", desc=True)
             .limit(threshold + 5)  # Fetch extra to account for filtering
         )
@@ -215,6 +222,7 @@ class AlertEngine:
                 f"Last {consecutive} closed {run_mode or 'all'} trades were losses. Consider pausing.",
                 {"consecutive_count": consecutive, "run_mode": run_mode},
             )
+
 
     def _check_drawdown_threshold(self, condition: dict, severity: str) -> None:
         from config import get_settings
