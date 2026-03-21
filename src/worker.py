@@ -134,8 +134,8 @@ def init_connections():
             from src.adapters.execution.router import get_adapter
             adapter = get_adapter(run_mode=s.run_mode, settings=s)
             trailing_stop_manager = TrailingStopManager(supabase, adapter)
-            breakeven_manager = BreakevenManager(supabase, adapter)
-            logger.info("TrailingStopManager and BreakevenManager initialized")
+            breakeven_manager = BreakevenManager(supabase, adapter, trailing_stop_manager=trailing_stop_manager)
+            logger.info("TrailingStopManager and BreakevenManager initialized (trailing stop auto-activation: enabled)")
         except Exception as exc:
             logger.warning("TrailingStopManager/BreakevenManager init failed: %s", exc)
 

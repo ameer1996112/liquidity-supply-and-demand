@@ -412,6 +412,33 @@ class Settings(BaseSettings):
     staleness_max_age_seconds: int = Field(default=5, ge=1, le=30, description="Maximum signal age before rejection (seconds)")
     staleness_max_price_deviation_pips: float = Field(default=3.0, ge=0.5, le=10.0, description="Maximum price movement from signal entry (pips)")
 
+    # ── Breakeven & Trailing Stop Optimization (v1.1 Phase 9) ─────────────
+    breakeven_buffer_pips: float = Field(
+        default=3.0, ge=0.0, le=20.0,
+        description="Pips above entry (buys) / below entry (sells) when moving SL to breakeven. Env: BREAKEVEN_BUFFER_PIPS.",
+        validation_alias="BREAKEVEN_BUFFER_PIPS",
+    )
+    trail_distance_pips_forex: float = Field(
+        default=15.0, ge=1.0, le=200.0,
+        description="Trailing stop distance in pips for standard forex pairs (EURUSD, GBPUSD, etc.). Env: TRAIL_DISTANCE_PIPS_FOREX.",
+        validation_alias="TRAIL_DISTANCE_PIPS_FOREX",
+    )
+    trail_distance_points_indices: float = Field(
+        default=30.0, ge=1.0, le=500.0,
+        description="Trailing stop distance in points for index CFDs (NAS100, US30, UK100, etc.). Env: TRAIL_DISTANCE_POINTS_INDICES.",
+        validation_alias="TRAIL_DISTANCE_POINTS_INDICES",
+    )
+    trail_distance_pips_gold: float = Field(
+        default=50.0, ge=1.0, le=500.0,
+        description="Trailing stop distance in pips for XAUUSD/GOLD (wider due to volatility). Env: TRAIL_DISTANCE_PIPS_GOLD.",
+        validation_alias="TRAIL_DISTANCE_PIPS_GOLD",
+    )
+    trail_activation_pips: float = Field(
+        default=0.0, ge=0.0, le=100.0,
+        description="Minimum pips from entry before trailing starts after BE. 0 = trail immediately from BE level. Env: TRAIL_ACTIVATION_PIPS.",
+        validation_alias="TRAIL_ACTIVATION_PIPS",
+    )
+
     # ── Consistency Analyzer Settings (Prop Firm Compliance) ──────────────
     consistency_enabled: bool = Field(default=True, description="Enable consistency analyzer (FTMO 40% rule)")
     consistency_limit_pct: float = Field(default=40.0, ge=20.0, le=60.0, description="Max % of total profit from single day (FTMO: 40%)")
