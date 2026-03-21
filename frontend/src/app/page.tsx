@@ -41,6 +41,7 @@ import {
   Crosshair,
   Clock,
   Target,
+  Percent,
 } from 'lucide-react';
 import {
   isSignalOpen,
@@ -394,7 +395,7 @@ export default function DashboardPage() {
             ))}
           </div>
         ) : (
-          <div className='grid grid-cols-2 gap-1.5 md:grid-cols-4 xl:grid-cols-7 stagger-children'>
+          <div className='grid grid-cols-2 gap-1.5 md:grid-cols-4 xl:grid-cols-8 stagger-children'>
             <StatCard
               label='Today PnL'
               value={formatCurrency(todayPnl, { signed: true })}
@@ -517,6 +518,36 @@ export default function DashboardPage() {
               }
               icon={Clock}
               sparklineData={scoreSparkline}
+              className='animate-fade-in-up'
+            />
+            <StatCard
+              label='Effective Risk'
+              value={
+                risk?.risk_multiplier != null && risk.risk_multiplier !== 1
+                  ? `${formatPercent(0.5 * risk.risk_multiplier)}`
+                  : formatPercent(0.5)
+              }
+              numericValue={
+                risk != null
+                  ? 0.5 * (risk.risk_multiplier ?? 1)
+                  : undefined
+              }
+              numericFormat={(v) => formatPercent(v)}
+              trend={
+                risk?.risk_multiplier != null
+                  ? risk.risk_multiplier > 1
+                    ? 'up'
+                    : risk.risk_multiplier < 1
+                    ? 'down'
+                    : 'neutral'
+                  : 'neutral'
+              }
+              subValue={
+                risk?.risk_multiplier != null
+                  ? `${risk.risk_multiplier.toFixed(2)}× (${risk.risk_mode ?? 'step_up'})`
+                  : EMPTY_VALUE
+              }
+              icon={Percent}
               className='animate-fade-in-up'
             />
           </div>

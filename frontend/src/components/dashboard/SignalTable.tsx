@@ -410,6 +410,41 @@ export function SignalTable({
       ),
     },
     {
+      id: 'risk_usd',
+      align: 'right',
+      isNumeric: true,
+      width: 'w-[64px]',
+      header: <span className='inline-flex items-center justify-end gap-0.5 w-full text-[10px]'>Risk$</span>,
+      render: (signal) => {
+        const entry = signal.entry ?? signal.price;
+        const sl = signal.sl ?? signal.stop_loss;
+        const size = signal.position_size;
+        if (!entry || !sl || !size) {
+          return <span className='font-mono text-[10px] text-[var(--to-text-dim)]/40'>—</span>;
+        }
+        const sym = signal.symbol?.toUpperCase() ?? '';
+        const pipSize = sym.includes('XAU') || sym.includes('GOLD')
+          ? 0.01
+          : sym.includes('JPY')
+          ? 0.01
+          : ['NAS', 'US30', 'SPX', 'GER', 'UK1', 'FRA'].some(k => sym.includes(k))
+          ? 1.0
+          : 0.0001;
+        const slPips = Math.abs(entry - sl) / pipSize;
+        // Approximate risk: pips × size × ~10 (standard lot pip value, rough USD)
+        const pipValuePerLot = sym.includes('JPY') ? 6.7 : sym.includes('XAU') ? 10 : 10;
+        const riskUsd = slPips * pipSize * size * pipValuePerLot * (1 / pipSize);
+        if (!isFinite(riskUsd) || riskUsd <= 0) {
+          return <span className='font-mono text-[10px] text-[var(--to-text-dim)]/40'>—</span>;
+        }
+        return (
+          <span className='font-mono text-[10px] tabular-nums text-[var(--to-warning)]'>
+            ${riskUsd < 1000 ? riskUsd.toFixed(0) : `${(riskUsd / 1000).toFixed(1)}k`}
+          </span>
+        );
+      },
+    },
+    {
       id: 'pnl',
       align: 'right',
       isNumeric: true,
