@@ -104,6 +104,35 @@ trailing_stop_manager = None
 breakeven_manager = None
 settings = None  # Global settings instance
 
+# Supabase client rotation — recreate every 90s to prevent HTTP/2 connection staleness
+_supabase_created_at: float = 0.0
+_SUPABASE_MAX_AGE = 90  # seconds
+_supabase_url: str = ""
+_supabase_key: str = ""
+
+
+def _get_fresh_supabase():
+    """Return a Supabase client, recreating it every 90s to avoid stale HTTP/2 connections.
+
+    supabase-py uses httpx which maintains HTTP/2 connections. These go stale after
+    15-40 minutes (server-side timeouts), causing ConnectionTerminated error_code:1.
+    Rotating the client every 90s ensures connections stay fresh.
+    """
+    global supabase, _supabase_created_at
+    import time
+    now = time.time()
+    if supabase is not None and _supabase_url and (now - _supabase_created_at) < _SUPABASE_MAX_AGE:
+        return supabase
+    if not _supabase_url or not _supabase_key:
+        return supabase  # fallback: no creds yet, return whatever we have
+    try:
+        from supabase import create_client
+        supabase = create_client(_supabase_url, _supabase_key)
+        _supabase_created_at = now
+    except Exception as _e:
+        logger.warning("Worker: failed to rotate Supabase client: %s", _e)
+    return supabase
+
 
 def init_connections():
     global supabase, correlation_manager, trailing_stop_manager, breakeven_manager, settings
@@ -117,7 +146,12 @@ def init_connections():
     if s.supabase_url and key:
         logger.info(f"Supabase Auth Initializing | Key Length: {len(key)} | Prefix: '{key[:10]}'")
         from supabase import create_client
+        import time as _time
+        global _supabase_url, _supabase_key, _supabase_created_at
+        _supabase_url = s.supabase_url
+        _supabase_key = key
         supabase = create_client(s.supabase_url, key)
+        _supabase_created_at = _time.time()
         logger.info("Supabase connected")
     else:
         logger.warning("Supabase credentials missing - logging disabled")
@@ -887,7 +921,7 @@ def _run_account_guards(
             from src.services.mtm_guardian import MTMGuardian
             # Use per-account starting balance if available
             acct_balance = float(payload.get("account_balance", s.account_balance))
-            mtm_guardian = MTMGuardian(supabase, s, starting_balance=acct_balance)
+            mtm_guardian = MTMGuardian(_get_fresh_supabase(), s, starting_balance=acct_balance)
             mtm_kill, mtm_reason = mtm_guardian.check_kill_switch(
                 account_name=account_name,
                 broker_profile_id=profile_id,

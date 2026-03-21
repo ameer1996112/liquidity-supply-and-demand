@@ -61,6 +61,22 @@ class PropFirmTracker:
         self.supabase = supabase_client
         self.settings = settings
 
+    def _reconnect_on_error(self, exc: Exception) -> None:
+        """Reset shared Supabase client pool and refresh self.supabase on connection errors."""
+        err_str = str(exc).lower()
+        is_conn_err = any(kw in err_str for kw in (
+            "connectionterminated", "remoteprotocolerror", "server disconnected",
+            "disconnect", "streamclosed", "send_end_stream", "connection reset",
+        ))
+        if is_conn_err:
+            try:
+                from src.adapters.supabase_api import get_api_supabase, reset_api_supabase
+                reset_api_supabase()
+                self.supabase = get_api_supabase()
+                logger.info("PropFirmTracker: Supabase client reconnected after %s", type(exc).__name__)
+            except Exception:
+                pass
+
     def _get_live_balance(self, account_name: str) -> Optional[float]:
         """
         Fetch the most recent account balance from account_status_snapshots
@@ -86,6 +102,7 @@ class PropFirmTracker:
                 )
                 return bal
         except Exception as e:
+            self._reconnect_on_error(e)
             logger.warning("PropFirmTracker: failed to fetch live balance for %s: %s", account_name, e)
         return None
 
@@ -132,6 +149,7 @@ class PropFirmTracker:
                 daily_high_water_mark = daily_start_balance
                 max_historical_equity = daily_start_balance
         except Exception as e:
+            self._reconnect_on_error(e)
             logger.error(f"Failed to fetch daily snapshot: {e}")
             daily_start_balance = self._get_live_balance(account_name) or self.settings.account_balance
             daily_high_water_mark = daily_start_balance
