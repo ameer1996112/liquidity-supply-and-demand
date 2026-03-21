@@ -1680,6 +1680,11 @@ def run():
                         watchdog.check_late_fills()
                     except Exception as lf_exc:  # noqa: BLE001
                         logger.debug("Late fill check failed: %s", lf_exc)
+                    try:
+                        watchdog.expire_stuck_pending()
+                    except Exception as ep_exc:  # noqa: BLE001
+                        logger.debug("Expire stuck pending failed: %s", ep_exc)
+
 
                 # Clear config cache to pick up DB changes
                 try:

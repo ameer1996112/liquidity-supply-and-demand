@@ -441,4 +441,67 @@ class TradeWatchdog:
         return alerted
 
 
+    # ------------------------------------------------------------------ #
+    # Auto-expire stuck PENDING signals
+    # ------------------------------------------------------------------ #
 
+    def expire_stuck_pending(self) -> int:
+        """
+        Find signals that have been PENDING with no broker_order_id for longer
+        than `pending_expire_minutes` (default 60 min) and mark them as
+        'execution_failed'.
+
+        This stops stuck signals from spamming late-fill alerts indefinitely.
+        Returns the number of signals expired this call.
+        """
+        if not self.supabase:
+            return 0
+
+        try:
+            expire_minutes = int(
+                getattr(self.settings, "pending_expire_minutes", 60)
+            )
+            expire_cutoff = (
+                datetime.now(timezone.utc) - timedelta(minutes=expire_minutes)
+            ).isoformat()
+
+            resp = (
+                self.supabase.table("trading_signals")
+                .select("id, symbol, created_at")
+                .in_("status", ["PENDING", "pending", "queued"])
+                .is_("broker_order_id", "null")
+                .lt("created_at", expire_cutoff)
+                .limit(50)
+                .execute()
+            )
+            stuck = resp.data or []
+        except Exception as exc:
+            logger.debug("TradeWatchdog.expire_stuck_pending: fetch failed: %s", exc)
+            return 0
+
+        expired = 0
+        for sig in stuck:
+            signal_id = sig.get("id")
+            symbol = sig.get("symbol", "?")
+            try:
+                self.supabase.table("trading_signals").update({
+                    "status": "execution_failed",
+                    "notes": (
+                        f"Auto-expired by watchdog: no broker fill after {expire_minutes}min"
+                    ),
+                }).eq("id", signal_id).execute()
+                logger.warning(
+                    "TradeWatchdog: auto-expired signal #%s (%s) — "
+                    "PENDING >%dmin with no broker_order_id → execution_failed",
+                    signal_id, symbol, expire_minutes,
+                )
+                # Remove from rate-limit tracker so no further late-fill alerts fire
+                self._late_fill_alerted.pop(signal_id, None)
+                expired += 1
+            except Exception as exc:
+                logger.error(
+                    "TradeWatchdog.expire_stuck_pending: failed to expire #%s: %s",
+                    signal_id, exc,
+                )
+
+        return expired
