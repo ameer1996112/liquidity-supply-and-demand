@@ -39,6 +39,9 @@ interface JournalFiltersProps {
   onModeChange: (value: ModeFilter) => void;
   period: JournalPeriod;
   onPeriodChange: (value: JournalPeriod) => void;
+  accountFilter: string | null;
+  onAccountChange: (value: string | null) => void;
+  availableAccounts: string[];
   onExport: () => void;
   resultCount: number;
 }
@@ -52,6 +55,9 @@ export function JournalFilters({
   onModeChange,
   period,
   onPeriodChange,
+  accountFilter,
+  onAccountChange,
+  availableAccounts,
   onExport,
   resultCount,
 }: JournalFiltersProps) {
@@ -79,7 +85,7 @@ export function JournalFilters({
         </button>
       </div>
 
-      {/* Bottom row: Status + Mode + Period + Count */}
+      {/* Bottom row: Status + Mode + Period + Account + Count */}
       <div className='flex items-center justify-between flex-wrap gap-2'>
         <div className='flex items-center gap-2 flex-wrap'>
           {/* Status Filter */}
@@ -135,6 +141,20 @@ export function JournalFilters({
               </button>
             ))}
           </div>
+
+          {/* Account Filter — only when multiple accounts present */}
+          {availableAccounts.length > 1 && (
+            <select
+              value={accountFilter ?? ''}
+              onChange={(e) => onAccountChange(e.target.value || null)}
+              className='font-mono text-[10px] px-2 py-1.5 bg-[#1e222d] border border-[#2a2e39] rounded-md text-[var(--to-text-secondary)] focus:outline-none focus:border-zinc-600 transition-colors cursor-pointer'
+            >
+              <option value=''>All accounts</option>
+              {availableAccounts.map((a) => (
+                <option key={a} value={a}>{a}</option>
+              ))}
+            </select>
+          )}
         </div>
 
         <span className='font-mono text-[10px] text-[var(--to-text-dim)]'>

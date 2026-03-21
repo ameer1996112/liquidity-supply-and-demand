@@ -9,10 +9,12 @@ import {
   getSymbol,
   getSide,
   getNotes,
+  getPnl,
 } from '@/types/trading';
 import { JournalFilters } from '@/components/journal/JournalFilters';
 import { JournalStats } from '@/components/journal/JournalStats';
 import { JournalEquityCurve } from '@/components/journal/JournalEquityCurve';
+import { AccountBreakdown } from '@/components/journal/AccountBreakdown';
 import { TradeTable } from '@/components/journal/TradeTable';
 import { SignalInspector } from '@/components/SignalInspector';
 import { exportTradesToCsv } from '@/lib/exportCsv';
@@ -24,7 +26,6 @@ import { PanelEmptyState } from '@/components/shared/PanelEmptyState';
 import { PatternAnalysis } from '@/components/journal/PatternAnalysis';
 import { CalendarPnlView } from '@/components/journal/CalendarPnlView';
 import { cn } from '@/lib/utils';
-import { getPnl } from '@/types/trading';
 
 type StatusFilter = 'ALL' | SignalStatus;
 type ModeFilter = 'ALL' | TradingMode;
@@ -34,20 +35,33 @@ export default function JournalPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [modeFilter, setModeFilter] = useState<ModeFilter>('ALL');
   const [period, setPeriod] = useState<JournalPeriod>('all');
-  const [inspectSignal, setInspectSignal] = useState<TradingSignal | null>(
-    null
-  );
+  const [accountFilter, setAccountFilter] = useState<string | null>(null);
+  const [inspectSignal, setInspectSignal] = useState<TradingSignal | null>(null);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'calendar'>('table');
 
   const queryMode = modeFilter === 'ALL' ? undefined : modeFilter;
   const { data: signals, isLoading } = useJournalSignals(queryMode, period);
 
+  // Derive unique accounts from all signals
+  const availableAccounts = useMemo(() => {
+    if (!signals) return [];
+    const accounts = new Set<string>();
+    for (const s of signals) {
+      if (s.account_name) accounts.add(s.account_name);
+    }
+    return Array.from(accounts).sort();
+  }, [signals]);
+
   const filtered = useMemo(() => {
     if (!signals) return [];
     return signals.filter((s) => {
+      // Account filter
+      if (accountFilter && s.account_name !== accountFilter) return false;
+      // Status filter
       if (statusFilter !== 'ALL' && s.status?.toLowerCase() !== statusFilter)
         return false;
+      // Text search
       if (search) {
         const q = search.toLowerCase();
         const sym = getSymbol(s).toLowerCase();
@@ -71,7 +85,7 @@ export default function JournalPage() {
       }
       return true;
     });
-  }, [signals, statusFilter, search]);
+  }, [signals, statusFilter, search, accountFilter]);
 
   const handleInspect = (signal: TradingSignal) => {
     setInspectSignal(signal);
@@ -113,7 +127,6 @@ export default function JournalPage() {
           <div className='flex items-center gap-2'>
             <BookOpen className='h-4 w-4 text-[var(--to-text-dim)]' />
             <h1 className='page-title text-lg font-semibold'>Trade Journal</h1>
-            {/* Streak indicator */}
             {currentStreak >= 2 && (
               <div
                 className={cn(
@@ -174,7 +187,7 @@ export default function JournalPage() {
       {/* Stats Bar — live from current filtered view */}
       <JournalStats signals={filtered} />
 
-      {/* Filters (search + status + mode + period) */}
+      {/* Filters */}
       <JournalFilters
         search={search}
         onSearchChange={setSearch}
@@ -184,6 +197,9 @@ export default function JournalPage() {
         onModeChange={setModeFilter}
         period={period}
         onPeriodChange={setPeriod}
+        accountFilter={accountFilter}
+        onAccountChange={setAccountFilter}
+        availableAccounts={availableAccounts}
         onExport={handleExport}
         resultCount={filtered.length}
       />
@@ -202,6 +218,15 @@ export default function JournalPage() {
         )
       ) : (
         <>
+          {/* Account Breakdown — when multiple accounts exist */}
+          {availableAccounts.length > 1 && signals && (
+            <AccountBreakdown
+              signals={signals}
+              activeAccount={accountFilter}
+              onAccountSelect={setAccountFilter}
+            />
+          )}
+
           {/* Equity Curve Chart */}
           <JournalEquityCurve signals={filtered} />
 
