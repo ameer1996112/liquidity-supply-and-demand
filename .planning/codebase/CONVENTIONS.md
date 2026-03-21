@@ -1,161 +1,161 @@
-# Coding Conventions
+# CONVENTIONS.md — Code Style & Patterns
 
-**Analysis Date:** 2026-03-19
+## Python (Backend)
 
-## Naming Patterns
+### Naming
+- **Modules:** lowercase snake_case — `risk_engine.py`, `prop_guard.py`
+- **Classes:** PascalCase — `Settings`, `EntryWebhookPayload`, `WorkerSubject`
+- **Functions:** snake_case — `get_settings()`, `calculate_max_position_size()`
+- **Constants:** UPPER_SNAKE — `MAX_OPEN_POSITIONS`, `ML_MIN_CONFIDENCE`
+- **Private helpers:** leading underscore `_` — `_fetch_closed_signals()`, `_bucket()`
+- **Logger naming:** `get_logger("trinity.[module]")` — e.g. `trinity.worker`, `trinity.api`
 
-**Python Files:**
-- API modules: `api_<domain>.py` (e.g., `src/api_positions.py`, `src/api_analytics.py`, `src/api_funding.py`)
-- Service modules: snake_case noun (e.g., `src/services/execution_engine.py`, `src/services/account_orchestrator.py`)
-- Core domain: snake_case (e.g., `src/core/risk_engine.py`, `src/core/consumer_validator.py`)
+### FastAPI Router Pattern
 
-**Python Functions:**
-- snake_case for all functions and methods
-- Private helpers: `_prefix` (e.g., `_get_supabase()`, `_is_signal_closed()`, `_make_payload()`)
-- Boolean predicates: `is_` or `has_` prefix (e.g., `_is_signal_closed()`, `_is_signal_open_strict()`, `is_supabase_connection_error()`)
+Each API feature lives in its own `src/api_[name].py` file:
 
-**Python Classes:**
-- PascalCase throughout (e.g., `RiskCheckResult`, `TradeRiskParams`, `ActivePosition`, `ReconciliationInfo`)
-- Pydantic models: PascalCase, often suffixed with `Request`, `Response`, `Result`, `Config`
-- Observer pattern classes: suffixed with `Observer` or `Subject` (e.g., `AuditorObserver`, `WorkerSubject`)
+```python
+# src/api_[feature].py
+from fastapi import APIRouter, Query, HTTPException
+from pydantic import BaseModel
+from typing import Optional, List
 
-**Python Constants:**
-- UPPER_SNAKE_CASE (e.g., `DEFAULT_MAX_DAILY_LOSS_PCT`, `_BALANCE_CACHE_TTL`, `GREEN`, `RED`)
+router = APIRouter()
 
-**TypeScript/React Files:**
-- React components: PascalCase `.tsx` (e.g., `RecentSignalsPanel.tsx`, `PositionCard.tsx`, `ReconciliationAlert.tsx`)
-- Custom hooks: `use` prefix, camelCase (e.g., `useActivePositions`, `usePositions.ts`, `useTradingSignals`)
-- Utility files: camelCase `.ts` (e.g., `format.ts`, `formatters.ts`, `exportCsv.ts`)
-- Page files: `page.tsx` in Next.js app router directory
+class MyResponse(BaseModel):
+    field: str
+    count: int
 
-**TypeScript Types:**
-- `interface` for object shapes (e.g., `ActivePosition`, `ReconciliationInfo`, `AccountStatus`)
-- `type` for unions and aliases (e.g., `SignalSide`, `TradingMode`, `SignalStatus`, `EmptyWinRateBehavior`)
-- Enums: PascalCase type names, string literal members (e.g., `'buy' | 'sell'`, `'LIVE' | 'PAPER'`)
+@router.get("/my-endpoint", response_model=MyResponse)
+def get_something(
+    period: str = Query("30d", pattern="^(24h|7d|30d|all)$"),
+    mode: str = Query("LIVE"),
+):
+    ...
+```
 
-**TypeScript Variables/Functions:**
-- camelCase for variables and functions (e.g., `positionKeys`, `getApiUrl`, `formatSignedCurrency`)
-- Query key objects: `<domain>Keys` pattern (e.g., `positionKeys.active`)
+Then mounted in `src/api.py`:
+```python
+from src.api_[feature] import router as [feature]_router
+app.include_router([feature]_router, prefix="/analytics")
+```
 
-## Code Style
+### Pydantic Model Pattern
 
-**Python Formatting:**
-- No explicit formatter config detected (no `.ruff.toml`, `.black`, or `pyproject.toml`)
-- 4-space indentation, lines generally under 100 chars
-- Section separators with `# ── Label ──────────` pattern used throughout
+```python
+# src/core/signal.py pattern
+from pydantic import BaseModel
+from typing import Optional
+from datetime import datetime
 
-**TypeScript Formatting:**
-- ESLint with `eslint-config-next` (core-web-vitals + typescript presets)
-- Several rules disabled: `@typescript-eslint/no-explicit-any`, `no-unused-vars`, `react-hooks/exhaustive-deps`, `react-hooks/rules-of-hooks`
-- `strict: true` in `tsconfig.json` — enforces strict null checks and type safety
-- `@/*` path alias maps to `frontend/src/*`
+class EntryWebhookPayload(BaseModel):
+    symbol: str
+    side: str
+    entry: float
+    sl: float
+    tp: float
+    size: float
+    # Optional extras from TradingView
+    bar_time: Optional[datetime] = None
+    zone_id: Optional[str] = None
+    rr_ratio: Optional[float] = None
+    run_mode: Optional[str] = None
+```
 
-**CSS/Styling:**
-- Tailwind CSS v4 with design tokens via CSS variables (`var(--to-text-dim)`, `var(--to-border)`)
-- `cn()` utility (`clsx` + `tailwind-merge`) for conditional class merging
-- Component variants use `cn(baseClasses, className)` spread pattern
-- `data-slot` attributes on Radix UI wrappers for semantic targeting
+### Settings Pattern
 
-## Import Organization
+```python
+# Always use get_settings() — never instantiate Settings() directly
+from config import get_settings
+settings = get_settings()  # cached via @lru_cache
 
-**Python Order:**
-1. Standard library (`import logging`, `from datetime import`, `from typing import`)
-2. Third-party (`from fastapi import`, `from pydantic import`)
-3. Internal config (`from config import get_settings`)
-4. Internal src (`from src.adapters...`, `from src.core...`, `from src.services...`)
+# After .env changes: process must restart (lru_cache persists)
+```
 
-**TypeScript Order:**
-1. React and framework (`'use client'` directive first, then `import { useState } from 'react'`)
-2. Third-party (`@tanstack/react-query`, `lucide-react`, `recharts`)
-3. Internal hooks (`@/hooks/...`)
-4. Internal components (`@/components/...`)
-5. Internal types and lib (`@/types/...`, `@/lib/...`)
+### Error Handling
 
-**Path Aliases:**
-- `@/` maps to `frontend/src/` (configured in `tsconfig.json` and `vitest.config.ts`)
+```python
+# API: raise HTTPException with status code
+from fastapi import HTTPException
+raise HTTPException(status_code=400, detail="Signal rejected: RR ratio below minimum")
 
-## Error Handling
+# Guard rails: return tuple (allowed: bool, reason: str)
+def check_something(payload, settings) -> tuple[bool, str]:
+    if bad:
+        return False, "reason for rejection"
+    return True, ""
 
-**Python Backend Pattern:**
-- FastAPI endpoints catch broad `except Exception as exc` and re-raise as `HTTPException`
-- Supabase connection errors detected with `is_supabase_connection_error()` helper, then client is reset
-- Internal helpers swallow non-critical errors silently with `except Exception: pass` (used for non-blocking operations like notes)
-- Logging at error/warning level before re-raise: `logger.error("...", exc)`
-- Risk/execution paths use explicit typed return objects (`RiskCheckResult`, `ExecutionResult`) rather than exceptions
+# Worker: fail-open pattern — on infrastructure errors, allow trade
+try:
+    result = check_consecutive_losses(...)
+except Exception:
+    logger.warning("Guard check failed, failing open")
+    return True, ""
+```
 
-**TypeScript Frontend Pattern:**
-- React Query error states handled via `isLoading`, `isError`, `error` from `useQuery`
-- `apiFetch()` throws `Error` with message `API Error (${status}): ${text}` on non-OK responses
-- Null-safe display helpers: `safeFloat()` returns `'--'` for null/undefined, `formatSignedCurrency()` returns `'—'`
-- `getApiUrl()` returns empty string when not configured; callers guard with `if (!base) throw new Error(...)`
+### Logging Pattern
 
-## Logging
+```python
+from config.logging_config import get_logger
+logger = get_logger("trinity.module_name")
 
-**Python Framework:**
-- Standard `logging` module via `config.logging_config.get_logger(name)`
-- Named loggers: `"trinity.api"`, `"trinity.logic"` (application namespace prefix)
-- Simple modules use: `logger = logging.getLogger(__name__)`
+logger.info("Signal received", extra={"symbol": symbol, "side": side})
+logger.warning("Guard check failed — failing open")
+logger.error("Trade execution failed", exc_info=True)
+```
 
-**Python Patterns:**
-- `logger.debug(...)` for cache hits, verbose trace data
-- `logger.info(...)` at key decision points (trade opened, closed, balance fetched)
-- `logger.warning(...)` for non-fatal degraded states (fetch failed, latency exceeded)
-- `logger.error(...)` for failures that need attention but don't crash
-- `%s` string formatting used (not f-strings) in logger calls
+## Frontend (Next.js / TypeScript)
 
-**TypeScript:**
-- No structured logging framework — `console.error` / `console.warn` only for developer warnings
-- React Query handles loading/error state visibility without logging
+### Component Naming
+- Files: PascalCase — `SignalCard.tsx`, `StatsTicker.tsx`
+- Components: PascalCase matching filename — `export default function SignalCard`
+- Feature components grouped in subdirectories: `components/dashboard/`, `components/analytics/`
 
-## Comments
+### Hook Pattern
 
-**Python Docstrings:**
-- Module-level: short triple-quoted summary (1-3 lines describing purpose)
-- Functions: Google-style docstrings with `Args:`, `Returns:` sections on public/shared functions
-- Private helpers: inline comment or brief docstring
+```typescript
+// frontend/src/hooks/useFeature.ts
+import { useQuery } from "@tanstack/react-query"
 
-**Python Inline Comments:**
-- Section headers: `# ── Section Name ───` with em-dash box drawing for visual grouping
-- Optimization notes: `# OPT-2 (latency): ...` prefix for performance decisions
-- Workaround notes: describe the "why" (e.g., `# macOS Python 3.x doesn't bundle root certs`)
+export function useFeature(options?: { period?: string }) {
+  return useQuery({
+    queryKey: ["feature", options?.period],
+    queryFn: async () => {
+      const url = `${process.env.NEXT_PUBLIC_API_URL}/feature?period=${options?.period ?? "30d"}`
+      const res = await fetch(url)
+      if (!res.ok) throw new Error("Failed to fetch feature data")
+      return res.json()
+    },
+    refetchInterval: 30_000,  // poll every 30s
+  })
+}
+```
 
-**TypeScript/TSDoc:**
-- JSDoc blocks (`/** ... */`) used on utility functions in `lib/format.ts` and `lib/api.ts`
-- `@param`, `@returns` tags used for public helper functions
-- In-component: inline `{/* Section comment */}` JSX comments for layout sections
-- Type files: `// CRITICAL: ...` for contract-sensitive fields in `types/trading.ts`
+### Page Pattern
 
-## Function Design
+```typescript
+// frontend/src/app/[route]/page.tsx
+"use client"
+import { useFeature } from "@/hooks/useFeature"
 
-**Python:**
-- Private helpers prefixed with `_` and kept short (10-30 lines)
-- Functions that access external services accept injected clients or call lazy getters internally
-- Pure domain functions (no I/O) in `src/core/` (e.g., `calculate_max_position_size`)
-- Settings accessed via `get_settings()` call (not global state at module load)
+export default function FeaturePage() {
+  const { data, isLoading, error } = useFeature()
+  if (isLoading) return <div>Loading...</div>
+  if (error) return <div>Error loading data</div>
+  return <div>{/* render data */}</div>
+}
+```
 
-**TypeScript:**
-- Custom hooks encapsulate all data fetching and return typed query results
-- `useMemo` for filtered/derived state in page components
-- Page components use named sub-functions for complex sections (e.g., `PositionsPageContent`)
-- Utility functions are pure: receive explicit arguments, no side effects
+### Styling
+- Tailwind CSS v4 utility classes throughout
+- Dark theme — slate/zinc/neutral color palette
+- No global CSS for component styles — co-located Tailwind classes
+- `className` uses `clsx` + `tailwind-merge` for conditional classes:
+  ```tsx
+  import { cn } from "@/lib/utils"
+  <div className={cn("base-class", condition && "conditional-class")} />
+  ```
 
-## Module Design
+## Testing Conventions
 
-**Python Exports:**
-- No `__all__` in most modules — all public names are accessible
-- FastAPI routers exported as `router` (e.g., `router = APIRouter(...)`)
-- Service singletons initialized lazily via getter functions (e.g., `get_api_supabase()`)
-
-**TypeScript Exports:**
-- Named exports preferred (e.g., `export function cn(...)`, `export const positionKeys`)
-- Default export reserved for page components (`export default function PositionsPage()`)
-- Barrel files not used — each module imports directly from source
-
-**Lazy Initialization Pattern (Python):**
-- Module-level singleton `_client = None`, initialized on first call
-- Pattern: `if _client is not None and (now - _created_at) < MAX_AGE: return _client`
-- Used for: Supabase client (`src/adapters/supabase_api.py`), Redis client, balance cache in `src/logic.py`
-
----
-
-*Convention analysis: 2026-03-19*
+See `TESTING.md` for full details.

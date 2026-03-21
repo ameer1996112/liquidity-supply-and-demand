@@ -1,129 +1,156 @@
-# Structure
+# STRUCTURE.md — Directory Layout
 
-## Directory Layout
+## Top-Level
 
 ```
-trading/
-├── src/                          # Python backend
-│   ├── api.py                    # FastAPI app entry point (API service)
-│   ├── worker.py                 # Consumer/executor entry point (Worker service)
-│   ├── logic.py                  # Trade execution logic (used by worker)
-│   ├── api_*.py                  # Feature routers (20+ domain routers)
-│   ├── core/                     # Pure domain logic
-│   │   ├── risk_engine.py        # Risk calculations (no I/O)
-│   │   ├── signal.py             # Signal validation
-│   │   ├── transport.py          # Signal transport abstraction
-│   │   ├── account_router.py     # Multi-account routing
-│   │   ├── consumer_validator.py # Queue message validation
-│   │   ├── guard_rails/          # Guard chain implementations
-│   │   │   ├── correlation.py
-│   │   │   ├── portfolio_var_guard.py
-│   │   │   ├── prop_guard.py
-│   │   │   ├── sector_guard.py
-│   │   │   ├── staleness_guard.py
-│   │   │   └── pine_guardian.py
-│   │   └── observers/            # Observer pattern implementations
-│   ├── services/                 # Application services (with I/O)
-│   │   ├── execution_engine.py   # TCA-wrapped order execution
-│   │   ├── account_orchestrator.py
-│   │   ├── alert_engine.py
-│   │   ├── backtest_engine.py
-│   │   ├── broker_reconciliation.py
-│   │   ├── graduation_service.py
-│   │   ├── position_optimizer.py
-│   │   ├── prop_firm_tracker.py
-│   │   ├── redis_cache.py
-│   │   ├── watchdog.py
-│   │   └── ...
-│   ├── ai/                       # AI/ML components
-│   │   ├── brain.py              # Ensemble v9.1 (RF + RAG + LLM)
-│   │   ├── debate.py             # LLM debate council
-│   │   ├── trading_council.py    # AI council orchestration
-│   │   ├── rag_engine.py         # RAG retrieval
-│   │   ├── ml_guardian.py        # ML guard
-│   │   ├── ai_guardian.py        # AI guard
-│   │   ├── features.py           # Feature engineering
-│   │   └── llm_client.py         # LLM client abstraction
-│   ├── adapters/                 # External service adapters
-│   │   ├── supabase.py           # Database adapter
-│   │   ├── metaapi.py            # MetaAPI broker adapter
-│   │   ├── redis_queue.py        # Redis adapter
-│   │   ├── discord.py            # Discord/Telegram notifications
-│   │   ├── market_data.py        # Market data (Yahoo Finance)
-│   │   ├── paper_trader.py       # Paper trading adapter
-│   │   └── execution/            # Execution adapters (live/paper)
-│   ├── agents/                   # Background AI agents
-│   ├── backtest/                 # Backtesting engine
-│   └── data/                     # Data utilities
-├── frontend/                     # Next.js frontend
-│   ├── src/
-│   │   ├── app/                  # Next.js App Router pages
-│   │   │   ├── accounts/
-│   │   │   ├── analytics/
-│   │   │   ├── board/
-│   │   │   ├── backtest/
-│   │   │   ├── execution-quality/
-│   │   │   ├── journal/
-│   │   │   ├── positions/
-│   │   │   ├── prop-firm/
-│   │   │   ├── risk/
-│   │   │   ├── rules/
-│   │   │   ├── settings/
-│   │   │   └── ...
-│   │   ├── components/           # React components (feature-organized)
-│   │   │   ├── shared/           # Shared/reusable components
-│   │   │   ├── ui/               # Base UI primitives
-│   │   │   ├── dashboard/
-│   │   │   ├── positions/
-│   │   │   ├── analytics/
-│   │   │   └── ...
-│   │   ├── hooks/                # Custom React hooks (useX.ts pattern)
-│   │   ├── domain/               # Business types and models
-│   │   ├── lib/                  # Utilities
-│   │   ├── providers/            # React context providers
-│   │   └── types/                # TypeScript type definitions
-│   ├── vitest.config.ts          # Frontend test config
-│   └── next.config.ts
-├── config/
-│   ├── settings.py               # Pydantic settings (env-var driven)
-│   └── logging_config.py
-├── migrations/                   # Supabase SQL migrations (028 files)
-├── tests/                        # Python test suite (pytest)
-├── scripts/                      # Admin/maintenance scripts
-├── ml/                           # ML training/data scripts
-├── docs/                         # Decision log, bugs, worklog
-├── plans/                        # Feature plans
-├── Dockerfile / Dockerfile.api / Dockerfile.worker
-├── docker-compose.yml
-├── requirements.txt
-├── nixpacks.toml / nixpacks.worker.toml
-└── railway.json
+/trading
+├── src/                    # Backend Python source
+├── config/                 # Settings + logging config
+├── tests/                  # pytest test suite
+├── frontend/               # Next.js dashboard
+├── docs/                   # Documentation (webhook-payload-reference.md)
+├── scripts/                # Utility scripts (simulate_signal.py, etc.)
+├── .planning/              # GSD planning artifacts
+├── .agent/                 # GSD workflow config
+├── .env.example            # Environment variable reference
+├── start.sh                # Local full-stack launcher
+├── AGENTS.md               # Architecture + gotchas for AI agents
+└── venv/                   # Python virtual environment
 ```
 
-## Key File Locations
+## `src/` — Backend Source
 
-| Purpose | Path |
-|---------|------|
-| API entry point | `src/api.py` |
-| Worker entry point | `src/worker.py` |
-| Trade execution | `src/logic.py` |
-| Risk calculations | `src/core/risk_engine.py` |
-| Settings/config | `config/settings.py` |
-| DB adapter | `src/adapters/supabase.py` |
-| Broker adapter | `src/adapters/metaapi.py` |
-| Redis adapter | `src/adapters/redis_queue.py` |
-| AI ensemble | `src/ai/brain.py` |
-| Frontend pages | `frontend/src/app/` |
-| Frontend hooks | `frontend/src/hooks/` |
-| DB migrations | `migrations/*.sql` |
-| Python tests | `tests/` |
-| Frontend tests | Co-located `*.test.tsx` |
+```
+src/
+├── api.py                      # Main FastAPI app — /webhook, /webhook/test, /health
+├── api_analytics.py            # Analytics router — /analytics/*
+├── api_risk.py                 # Risk router — /risk/*
+├── api_positions.py            # Positions router — /positions/*
+├── api_funding.py              # Funding router — /funding/*
+├── api_evaluation.py           # Evaluation router — /evaluation/*
+├── api_execution.py            # Execution quality router
+├── api_rules.py                # Dynamic config rules — /rules/*
+├── api_backtests.py            # Backtesting router
+├── api_strategies.py           # Strategies router
+├── api_board.py                # Trading board router
+├── api_portfolio_control.py    # Portfolio control router
+├── api_copilot.py              # AI copilot router
+├── api_traces.py               # Pipeline traces router
+├── worker.py                   # Worker entrypoint (consumer loop)
+├── logic.py                    # Trade execution logic
+├── __init__.py
+│
+├── core/                       # Core business logic
+│   ├── signal.py               # EntryWebhookPayload Pydantic model
+│   ├── risk_engine.py          # Lot size calculation
+│   ├── transport.py            # Redis vs memory queue abstraction
+│   ├── account_router.py       # Account routing from signal
+│   ├── circuit_breaker.py      # Per-account circuit breaker
+│   ├── dynamic_config.py       # Runtime config from DB
+│   ├── consumer_validator.py   # Worker-side payload validation
+│   ├── news_filter.py          # News event filter
+│   ├── broker_profiles.py      # Broker-specific configs
+│   │
+│   ├── guard_rails/            # Risk guard plugins
+│   │   ├── prop_guard.py       # Prop firm guards (RR, consec losses)
+│   │   ├── staleness_guard.py  # Bar time staleness check
+│   │   ├── correlation.py      # Correlation exposure guard
+│   │   ├── portfolio_var_guard.py # Portfolio VaR check
+│   │   ├── sector_guard.py     # Sector concentration
+│   │   ├── market_filter.py    # Market hours filter
+│   │   └── pine_guardian.py    # Pine Script signal validation
+│   │
+│   └── observers/              # Observer pattern (side effects)
+│       ├── auditor.py          # Trade audit logging
+│       ├── executor.py         # Execution observer
+│       ├── risk_observer.py    # Risk metric tracking
+│       ├── metrics.py          # Performance metrics
+│       ├── account_router_observer.py
+│       └── base.py             # Observer base class
+│
+├── adapters/                   # External service adapters
+│   ├── metaapi.py              # MetaAPI broker adapter
+│   ├── paper_trader.py         # Paper trading simulator
+│   ├── supabase.py             # Worker Supabase client
+│   ├── supabase_api.py         # API Supabase client (auto-reconnect)
+│   ├── redis_queue.py          # Redis client
+│   ├── discord.py              # Discord notifications
+│   ├── market_data.py          # Market data fetching
+│   └── execution/              # Execution adapters
+│
+├── ai/                         # AI/ML layer
+│   └── brain.py                # LLM guardian + prediction
+│
+├── agents/                     # Multi-agent supervisor
+│   └── supervisor.py
+│
+└── services/                   # Background services
+    ├── trailing_stop_manager.py
+    ├── breakeven_manager.py
+    ├── trade_events.py         # Trade event logging helpers
+    └── watchdog.py             # Trade watchdog service
+```
 
-## Naming Conventions
+## `config/` — Configuration
 
-- **Backend routers:** `src/api_<domain>.py` (e.g., `api_positions.py`, `api_analytics.py`)
-- **Services:** `src/services/<name>_service.py` or `src/services/<name>.py`
-- **Frontend hooks:** `use<Domain>.ts` (e.g., `usePositions.ts`, `useAnalytics.ts`)
-- **Frontend components:** PascalCase, co-located with feature folder
-- **DB migrations:** Zero-padded number + description (e.g., `028_accounts.sql`)
-- **Tests:** `tests/test_<module>.py` (Python), `<Component>.test.tsx` (frontend)
+```
+config/
+├── settings.py                 # Pydantic BaseSettings, @lru_cache get_settings()
+└── logging_config.py           # Structured logging setup
+```
+
+## `frontend/src/` — Frontend Source
+
+```
+frontend/src/
+├── app/                        # Next.js App Router pages
+│   ├── layout.tsx              # Root layout
+│   ├── page.tsx                # Dashboard (/)
+│   ├── analytics/              # Analytics page (/analytics)
+│   ├── positions/              # Positions (/positions)
+│   ├── risk/                   # Risk monitor (/risk)
+│   ├── prop-firm/              # Prop firm (/prop-firm)
+│   ├── accounts/               # Account management (/accounts)
+│   ├── alerts/                 # Alerts (/alerts)
+│   ├── backtest/               # Backtesting (/backtest)
+│   ├── board/                  # Trading board (/board)
+│   ├── execution-quality/      # Execution analytics (/execution-quality)
+│   ├── journal/                # Trade journal (/journal)
+│   ├── rules/                  # Dynamic rules (/rules)
+│   ├── scanner/                # Market scanner (/scanner)
+│   ├── settings/               # Settings (/settings)
+│   ├── strategies/             # Strategies (/strategies)
+│   └── api/                    # API routes (if any)
+│
+├── components/                 # Shared components
+│   ├── SignalCard.tsx           # Signal display card
+│   ├── SignalFeed.tsx           # Live signal feed list
+│   ├── SignalGrid.tsx           # Grid layout for signals
+│   ├── SignalInspector.tsx      # Signal detail inspector
+│   ├── StatsTicker.tsx          # Stats ticker strip
+│   ├── ConnectionStatus.tsx     # API connection indicator
+│   ├── DebugStatus.tsx          # Debug status panel
+│   └── [feature]/              # Feature-specific components
+│
+└── hooks/                      # React hooks (data fetching)
+    ├── useAnalytics.ts          # /analytics/* data
+    ├── usePositions.ts          # /positions/* data
+    ├── usePropFirm.ts           # /prop-firm data
+    ├── useAccounts.ts           # /accounts data
+    ├── useLiveTrading.ts        # Live signal feed
+    ├── usePortfolioRisk.ts      # Risk data
+    └── [20+ hooks total]
+```
+
+## Where to Add New Features
+
+| Feature type | Location |
+|-------------|----------|
+| New API endpoint | New `src/api_[name].py`, mount in `src/api.py` |
+| New guard rail | `src/core/guard_rails/[name]_guard.py` |
+| New pydantic schema | `src/core/signal.py` or new `src/core/[name].py` |
+| New frontend page | `frontend/src/app/[route]/page.tsx` |
+| New data hook | `frontend/src/hooks/use[Feature].ts` |
+| New component | `frontend/src/components/[Feature]/` |
+| New adapter | `src/adapters/[service].py` |
+| New test | `tests/test_[feature].py` |

@@ -1,126 +1,86 @@
-# Technology Stack
+# STACK.md — Technology Stack
 
-**Analysis Date:** 2026-03-19
+## Languages & Runtimes
 
-## Languages
+| Layer | Language | Runtime |
+|-------|----------|---------|
+| Backend API | Python | 3.10.1 (venv at `venv/`) |
+| Worker | Python | 3.10.1 (same venv) |
+| Frontend | TypeScript / JavaScript | Node.js ≥20.9 |
 
-**Primary:**
-- Python 3.11 (Docker/prod), 3.10 (local dev) - Backend API, Worker, ML, AI pipeline
-- TypeScript 5.x - Frontend (all `.ts`/`.tsx` files under `frontend/src/`)
+## Backend Frameworks & Libraries
 
-**Secondary:**
-- Bash - Service startup script (`start.sh`), Docker entrypoints
+| Library | Version | Role |
+|---------|---------|------|
+| **FastAPI** | latest | HTTP API framework, all routers |
+| **Uvicorn** | latest | ASGI server (PYTHONPATH=/workspace) |
+| **Pydantic v2** | latest | Schema validation (BaseModel, BaseSettings) |
+| **pydantic-settings** | latest | `config/settings.py` BaseSettings from .env |
+| **supabase-py** | latest | Supabase client (queries, inserts) |
+| **redis-py** | latest | Redis pub/sub and list queue |
+| **python-dotenv** | latest | `.env` loading in worker/scripts |
+| **slowapi** | latest | Rate limiting on webhook endpoints |
+| **ruff** | latest | Linter/formatter (Python) |
+| **pytest** | latest | Backend test runner |
 
-## Runtime
+### Key Python-only Internal Libraries
+- `src.ai` — LLM guardian (OpenAI/Anthropic via `AI_API_KEY`)
+- `src.adapters.metaapi` — MetaAPI broker adapter
+- `src.adapters.paper_trader` — Paper trading engine
+- `src.services.trailing_stop_manager` — trailing stop service
+- `src.services.breakeven_manager` — breakeven management
 
-**Environment:**
-- Python: 3.11-slim (Docker), runtime pinned via `Dockerfile`
-- Node.js: >=20.9.0 (enforced in `frontend/package.json`)
+## Frontend Frameworks & Libraries
 
-**Package Manager:**
-- Python: pip with virtual env (nixpacks path: `/app/venv`)
-- Node: npm 10.9.2 (lock file: `frontend/package-lock.json`)
-- Lockfiles: `frontend/package-lock.json` present; no Python lockfile (requirements.txt only)
+| Library | Version | Role |
+|---------|---------|------|
+| **Next.js** | 16.1.6 | App Router framework, SSR/CSR |
+| **React** | 19.2.3 | UI rendering |
+| **TypeScript** | ^5 | Type safety |
+| **Tailwind CSS** | ^4 | Utility-first styling |
+| **@tanstack/react-query** | ^5 | Server state, caching, polling |
+| **@tanstack/react-table** | ^8 | Sortable/filterable data tables |
+| **recharts** | ^3 | Charts (equity curve, bar charts) |
+| **lightweight-charts** | ^5 | TradingView-style candlestick/line charts |
+| **@supabase/supabase-js** | ^2 | Realtime subscriptions + REST |
+| **@radix-ui** | various | Headless UI primitives (dialog, tabs, tooltip, etc.) |
+| **lucide-react** | ^0.563 | Icon set |
+| **date-fns** | ^4 | Date formatting |
+| **vitest** | ^3 | Frontend test runner |
 
-## Frameworks
+## Database Layer
 
-**Backend Core:**
-- FastAPI >=0.109.0 - REST API (`src/api.py`), serves all `/api/v1/*` routes
-- Uvicorn (standard) >=0.27.0 - ASGI server, configured in `start.sh` and nixpacks
-- Pydantic / pydantic-settings >=2.0.0 - Schema validation and env config (`config/settings.py`)
-- APScheduler >=3.10.0 - Background job scheduling (daily resets, sync workers)
-- slowapi >=0.1.9 - Rate limiting (wraps `limits`), applied globally at 200/minute
+- **Supabase (PostgreSQL)** — primary store
+  - Table: `trading_signals` (signals, PnL, outcomes, status)
+  - Table: `prop_firm_accounts` (account configs, phases)
+  - Real-time subscriptions from frontend via `@supabase/supabase-js`
+  - Backend uses `supabase-py` with service role key
 
-**Frontend Core:**
-- Next.js 16.1.6 - React framework, App Router, standalone output (`frontend/next.config.ts`)
-- React 19.2.3 / React DOM 19.2.3 - UI rendering
+## Message Queue / Transport
 
-**Frontend UI:**
-- Tailwind CSS 4.x - Utility-first CSS
-- shadcn/ui via Radix UI primitives: `@radix-ui/react-dialog`, `react-tabs`, `react-tooltip`, `react-scroll-area`, `react-popover`, `react-separator`, `react-slot`
-- `class-variance-authority` + `clsx` + `tailwind-merge` - Conditional class composition
-- `lucide-react` ^0.563.0 - Icons
-- `tw-animate-css` - CSS animation utilities
-
-**Frontend Data / Charts:**
-- `@tanstack/react-query` ^5.90.20 - Server state management and caching
-- `@tanstack/react-table` ^8.21.3 - Table primitives
-- `recharts` ^3.7.0 - Analytics charts (bar, line charts)
-- `lightweight-charts` ^5.1.0 - TradingView-style price charts
-- `date-fns` ^4.1.0 - Date formatting utilities
-
-**Testing:**
-- Python: not detected (no pytest in requirements.txt; `tests/` directory exists)
-- Frontend: Vitest ^3.2.4 with jsdom environment (`frontend/vitest.config.ts`)
-
-**Build/Dev:**
-- Docker / docker-compose - Multi-service containerisation (`docker-compose.yml`)
-- Nixpacks - Railway-specific build config (`nixpacks.toml`, `nixpacks.worker.toml`)
-- ESLint 9 + eslint-config-next 16.1.6 - Frontend linting (`frontend/eslint.config.mjs`)
-- PostCSS + `@tailwindcss/postcss` - CSS processing
-
-## Key Dependencies
-
-**Critical Backend:**
-- `supabase==2.10.0` - Primary database client (`src/adapters/supabase.py`, `src/adapters/supabase_api.py`)
-- `redis>=5.0.0` - Signal queue between API and Worker (`src/adapters/redis_queue.py`)
-- `requests>=2.28.0` - HTTP calls to MetaApi and other external services
-
-**ML / AI:**
-- `scikit-learn==1.7.2` - ML model loading/inference (legacy models `ml/model.pkl`, `ml/model_v2.pkl`)
-- `lightgbm>=4.0.0` - Primary gradient boosting model (`ml/model_v3_lgbm.txt`)
-- `numpy>=1.24.0` + `pandas>=2.0.0` + `pyarrow>=14.0.0` - Data processing
-- `numba>=0.58.0` - JIT-compiled backtesting loops
-- `backtesting>=0.3.3` - Python backtesting framework
-- `optuna>=3.5.0` - Bayesian hyperparameter optimisation
-- `langchain>=0.2.0` + `langchain-community` + `langchain-openai` - LangChain RAG pipeline (`src/ai/rag_engine.py`)
-- `openai>=1.0.0` - OpenAI API client (also used for Groq-compatible endpoints)
-- `anthropic>=0.18.0` - Anthropic Claude client (`src/ai/llm_client.py`)
-- `rank-bm25>=0.2` - BM25 retrieval for Trading Council memory (`src/ai/council_memory.py`)
-- `yfinance>=0.2.36` - Market data for narrative building (`src/adapters/market_data.py`)
-- `plotly>=5.18.0` + `streamlit>=1.28.0` - Analytics visualisation (scripts/ML tooling)
-- `lightweight-charts>=2.0.0` - Backend chart export
-
-**Utilities:**
-- `python-dotenv>=1.0.0` - `.env` file loading
-- `pytz>=2023.3` - Timezone handling
-- `beautifulsoup4` + `lxml` - HTML scraping (YouTube transcript / web tools)
-- `youtube-transcript-api` + `scrapetube` - YouTube data for trading council context
-
-**Frontend Critical:**
-- `@supabase/supabase-js` ^2.93.3 - Frontend direct Supabase queries (`frontend/src/lib/supabase.ts`)
+- **Redis** — `redis://localhost:6379` (required before API start)
+  - Backend API pushes signals to a Redis list/queue
+  - Worker consumes from the queue
+  - `config/settings.py`: `SIGNAL_TRANSPORT` env var — `"redis"` (prod) or `"memory"` (tests)
+  - Transport abstraction: `src/core/transport.py`
 
 ## Configuration
 
-**Environment:**
-- Backend reads from `.env` at project root via pydantic-settings (`config/settings.py`)
-- Required: `SUPABASE_URL`, `REDIS_URL`
-- Optional critical: `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `META_API_TOKEN`, `META_API_ACCOUNT_ID`, `WEBHOOK_SECRET`, `DISCORD_WEBHOOK_URL`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
-- AI provider key: `AI_API_KEY` (aliases: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`)
-- Frontend reads: `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `.env` at project root — loaded by `config/settings.py` (pydantic-settings)
+- `config/settings.py` — `Settings` class with `@lru_cache` via `get_settings()`
+- `config/logging_config.py` — structured logging setup
+- Fail-fast: `SUPABASE_URL` and `REDIS_URL` required at startup
+- **Cache gotcha**: settings are cached — restart process after `.env` changes
 
-**Build:**
-- `Dockerfile` / `Dockerfile.api` / `Dockerfile.worker` - Python 3.11-slim base
-- `frontend/Dockerfile` - Node.js standalone Next.js build
-- `docker-compose.yml` - Local multi-service orchestration
-- `nixpacks.toml` / `nixpacks.worker.toml` - Railway deployment build specs
-- `railway.json` / `frontend/railway.json` - Railway service config
+## Build & Deployment
 
-## Platform Requirements
+- **Railway** — hosting platform (backend + worker + frontend as separate services)
+- **start.sh** — local full-stack launcher
+- Frontend: `npm run dev` (port 3000), `npm run build` for production
+- Backend: `uvicorn src.api:app --host 0.0.0.0 --port 8000`
+- Worker: `python3 -m src.worker`
 
-**Development:**
-- Docker + Docker Compose for full local stack
-- Python >=3.10 + pip for local backend
-- Node.js >=20.9.0 + npm for frontend
-- Redis (via Docker or local install)
+## Package Management
 
-**Production:**
-- Deployed on **Railway** (PaaS)
-- Backend API: Railway service (`nixpacks.toml` / `Dockerfile.api`)
-- Worker: Separate Railway service (`nixpacks.worker.toml` / `Dockerfile.worker`)
-- Frontend: Railway service (`frontend/railway.json`)
-- Frontend production URL: `https://frontend-production-a7cf.up.railway.app`
-
----
-
-*Stack analysis: 2026-03-19*
+- Python: pip + `venv/` (lockfile via `requirements.txt` or `pyproject.toml`)
+- Frontend: npm (`package-lock.json` — use npm, not yarn/pnpm)

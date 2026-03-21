@@ -1,104 +1,106 @@
-# Architecture
+# ARCHITECTURE.md — System Architecture
 
-## Pattern
+## Overview
 
-**Event-driven, multi-process pipeline with observer pattern.**
-
-Two independent services communicate via Redis queue:
-1. **API Service** (`src/api.py`) — FastAPI HTTP server that validates webhooks and enqueues signals
-2. **Worker Service** (`src/worker.py`) — Consumer that dequeues signals, runs guard chain, executes trades
-
-Frontend is a Next.js application that talks to the API via REST. Real-time updates via WebSocket from the API.
-
-## Layers
-
-### Backend
+Three decoupled services communicating via Redis and Supabase:
 
 ```
-TradingView Webhook
-       ↓
-[API Service] — validate → enqueue to Redis
-       ↓
-[Redis Queue] — message bus
-       ↓
-[Worker/Consumer] — dequeue → guard chain → execute
-       ↓
-[Supabase DB] — persistence
-       ↓
-[MetaAPI] — broker execution (MT5)
+TradingView ──webhook──▶ API (FastAPI :8000)
+                              │
+                         Redis Queue
+                              │
+                         Worker (Python)
+                              │ ├─ AI Ensemble
+                              │ ├─ Guard Rails
+                              │ └─ Account Router
+                              │
+                    ┌─────────┴─────────┐
+                MetaAPI               Supabase
+              (broker/MT4)           (persistence)
+                              ▲
+                         Frontend (Next.js :3000)
+                              │
+                        Supabase Realtime
 ```
 
-### Frontend
+## Service Details
+
+### 1. Backend API (`src/api.py`, port 8000)
+- **FastAPI** with multiple routers mounted from separate `src/api_*.py` modules
+- **Responsibilities:**
+  - Receive TradingView webhooks (`POST /webhook`)
+  - Validate payload (Pydantic `EntryWebhookPayload` in `src/core/signal.py`)
+  - Write signal to `trading_signals` with status `"RECEIVED"`
+  - Push to Redis queue via `src/core/transport.py`
+  - Serve all REST endpoints for the frontend
+
+### 2. Worker (`src/worker.py`)
+- **Single Python process** consuming from Redis queue in a loop
+- **Two-phase guard structure:**
+  - **Global guards** (run once per signal):
+    - Kill switch (env `TRADING_KILL_SWITCH`)
+    - Staleness guard (`src/core/guard_rails/staleness_guard.py`) 
+    - AI Ensemble / Trinity council (`src/ai/`)
+  - **Per-account guards** (run inside `ThreadPoolExecutor` per account):
+    - Circuit breaker (`src/core/circuit_breaker.py`)
+    - PropGuard (`src/core/guard_rails/prop_guard.py`)
+    - Correlation guard (`src/core/guard_rails/correlation.py`)
+    - VaR guard (`src/core/guard_rails/portfolio_var_guard.py`)
+    - Sector guard (`src/core/guard_rails/sector_guard.py`)
+- **Observer pattern** (`src/core/observers/`): Auditor, Risk, Executor, Metrics, AccountRouter observers
+- **Account Router** (`src/core/account_router.py`): maps signals to MetaAPI accounts
+- **Execution:** `src/logic.py` → `src/adapters/metaapi.py`
+
+### 3. Frontend (`frontend/`, port 3000)
+- **Next.js 16 App Router** — pages in `frontend/src/app/`
+- **Data pattern:** React hooks in `frontend/src/hooks/` wrapping react-query + fetch
+- **Realtime:** Supabase JS client for live signal feed updates
+- **No server-side logic** — pure client-side data fetching
+
+## Signal Data Flow
 
 ```
-Next.js App (App Router)
-├── /app pages (route handlers)
-├── /components (feature-organized)
-├── /hooks (data fetching: useX.ts)
-├── /domain (business types/models)
-├── /lib (utilities)
-└── /providers (context providers)
+1. TradingView fires alert
+2. POST /webhook → EntryWebhookPayload validated
+3. Signal written to Supabase (status=RECEIVED)
+4. Signal pushed to Redis queue
+5. Worker dequeues signal
+6. Global guards run (staleness, kill-switch, AI)
+7. Account Router resolves accounts for this signal
+8. Per-account: circuit breaker + prop guards run
+9. Risk engine calculates lot size
+10. MetaAPI executes trade
+11. Signal updated in Supabase (status=EXECUTED)
+12. Frontend polls / receives realtime update
 ```
-
-## Guard Chain (Worker)
-
-Signals flow through a sequential guard chain before execution:
-
-**Global guards (once per signal):**
-1. Kill-switch (env)
-2. Max lot size cap
-3. Staleness guard
-4. AI ensemble (RF model + RAG + LLM debate council)
-
-**Per-account guards (parallel accounts via ThreadPoolExecutor):**
-1. Kill-switch (Redis/MTM)
-2. Circuit breaker
-3. PropGuard (prop firm rules)
-4. Correlation guard
-5. VaR guard
-6. Sector guard
-7. Consistency analyzer
-
-**Execution:**
-- `logic.process_trade()` → ExecutionEngine → adapter → MetaAPI
-
-## Observer Pattern
-
-`WorkerSubject` in `src/core/observers/` broadcasts events to:
-- `AuditorObserver` — logs trade events
-- `RiskObserver` — risk checks
-- `ExecutorObserver` — execution
-- `MetricsObserver` — metrics tracking
-- `AccountRouterObserver` — multi-account routing
-
-## AI Ensemble (`src/ai/`)
-
-Three-layer AI decision system:
-- **ML Guardian** — Random Forest model (scikit-learn) on 20 engineered features
-- **RAG Engine** — retrieves historical trade context
-- **Debate Council** — LLM-based multi-agent deliberation (OpenAI)
-- **Brain** — Ensemble v9.1: aggregates RF + RAG + LLM votes
-
-## Data Flow
-
-1. TradingView sends webhook → `POST /webhook` on API
-2. API validates payload via `src/core/signal.py`, pushes to Redis
-3. Worker pops from Redis, runs through guard chain
-4. On pass: `logic.process_trade()` calls `ExecutionEngine` → MetaAPI
-5. Trade saved to Supabase with full TCA metrics
-6. Frontend polls REST APIs / WebSocket for live updates
-
-## Entry Points
-
-- **API:** `src/api.py` — FastAPI app, registered routers for every domain
-- **Worker:** `src/worker.py` — Long-running consumer loop
-- **Frontend:** `frontend/src/app/layout.tsx` → `frontend/src/app/page.tsx`
 
 ## Key Abstractions
 
-- `src/core/transport.py` — signal transport abstraction (Redis/memory/HTTP)
-- `src/adapters/execution/router.py` — execution adapter router (live/paper)
-- `src/adapters/supabase.py` — database adapter
-- `src/adapters/metaapi.py` — broker adapter
-- `src/core/risk_engine.py` — pure risk domain (no I/O)
-- `src/services/execution_engine.py` — TCA-wrapped execution
+| Abstraction | Location | Purpose |
+|-------------|----------|---------|
+| `EntryWebhookPayload` | `src/core/signal.py` | Webhook schema |
+| `Settings` | `config/settings.py` | All env config, cached via `@lru_cache` |
+| `get_transport()` | `src/core/transport.py` | Redis vs memory queue abstraction |
+| Guard rails | `src/core/guard_rails/` | Plugin-style risk checks |
+| Observer pattern | `src/core/observers/` | Side effects (audit, metrics, routing) |
+| `AccountRouter` | `src/core/account_router.py` | Maps signals to broker accounts |
+| `calculate_max_position_size` | `src/core/risk_engine.py` | Lot size from account balance + risk% |
+
+## API Router Structure
+
+```
+src/api.py               — Main app, /webhook, /webhook/test, /health
+src/api_analytics.py     — /analytics/* (equity curve, drawdown, strategy)
+src/api_risk.py          — /risk/*
+src/api_positions.py     — /positions/*
+src/api_funding.py       — /funding/*
+src/api_evaluation.py    — /evaluation/*
+src/api_execution.py     — /execution/*
+src/api_rules.py         — /rules/* (dynamic config)
+src/api_backtests.py     — /backtests/*
+src/api_strategies.py    — /strategies/*
+src/api_board.py         — /board/*
+src/api_portfolio_control.py — /portfolio/*
+src/api_copilot.py       — /copilot/*
+src/api_traces.py        — /traces/*
+```

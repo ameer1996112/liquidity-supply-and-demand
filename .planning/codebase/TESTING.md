@@ -1,119 +1,151 @@
-# Testing
+# TESTING.md — Test Structure & Practices
 
-## Frameworks
+## Backend Tests (pytest)
 
-### Backend (Python)
-- **pytest** — primary test runner
-- **unittest.mock** — mocking/patching
-- **pytest fixtures** — shared test infrastructure via `tests/conftest.py`
+### Running Tests
 
-### Frontend (TypeScript/React)
-- **Vitest** — test runner (configured in `frontend/vitest.config.ts`)
-- **jsdom** — browser environment simulation
-- Tests are co-located with components: `<Component>.test.tsx`
+```bash
+# Full suite (259 tests)
+PYTHONPATH=/Users/ameeramer/dev/projects/galilsoftware/sources/trading \
+  venv/bin/python3 -m pytest tests/ -v
 
-## Backend Test Structure
+# Quick pass (quiet)
+PYTHONPATH=/workspace venv/bin/python3 -m pytest tests/ -q
 
-### Location
-All Python tests live in `tests/` directory.
+# Single file
+PYTHONPATH=/workspace pytest tests/test_prop_firm_phase1.py -v
+```
+
+**Note:** Use `venv/bin/python3` not system python. `PYTHONPATH` must be set.
 
 ### Test Files
+
 ```
 tests/
-├── conftest.py                     # Global fixtures and env setup
-├── test_signal_transport.py
-├── test_worker_observers.py
-├── test_ai_mode_api.py
-├── test_account_routing.py
-├── test_llm_client.py
-├── test_ai_brain.py
-├── test_prop_firm_phase1.py
-├── test_graduation.py
-├── test_sprint55_reliability.py
-├── test_backtests.py
-├── test_strategy_config.py
-├── test_sprint23_api_filters.py
-├── test_e2e.py
-├── test_metaapi_auth.py
-├── test_reflection_memory.py
-├── test_pipeline.py
-├── test_pipeline_traces.py
-├── test_consumer_validation.py
-├── test_pnl_broker_fetch.py
-├── test_debate.py
-└── ...
+├── conftest.py                     # Global fixtures + env setup
+├── test_account_routing.py         # AccountRouter logic
+├── test_ai_brain.py                # AI guardian
+├── test_ai_mode_api.py             # AI mode API endpoints
+├── test_backtests.py               # Backtest endpoints
+├── test_consumer_validation.py     # Worker payload validation
+├── test_debate.py                  # AI debate/council
+├── test_e2e.py                     # End-to-end pipeline tests
+├── test_graduation.py              # Prop firm graduation logic
+├── test_llm_client.py              # LLM client abstraction
+├── test_metaapi_auth.py            # MetaAPI authentication
+├── test_pipeline.py                # Worker pipeline flow
+├── test_pipeline_traces.py         # Trace logging
+├── test_pnl_broker_fetch.py        # PnL fetching from broker
+├── test_prop_firm_phase1.py        # Phase 1 prop firm tests
+├── test_reflection_memory.py       # AI reflection/memory
+├── test_signal_transport.py        # Redis/memory transport
+├── test_sprint23_api_filters.py    # API filter regression tests
+└── test_sprint55_reliability.py    # Reliability/resilience tests
 ```
 
-### Conftest Pattern (`tests/conftest.py`)
+### conftest.py — Global Setup
+
+`tests/conftest.py` sets dummy env vars BEFORE any `src.*` imports:
+
 ```python
-# Dummy env vars set BEFORE any src.* imports
 os.environ.setdefault("SUPABASE_URL", "http://dummy.supabase.test")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379")
-os.environ.setdefault("SIGNAL_TRANSPORT", "memory")  # in-memory transport
+os.environ.setdefault("SIGNAL_TRANSPORT", "memory")  # No real Redis in tests
+os.environ.setdefault("META_API_TOKEN", "")
+os.environ.setdefault("AI_API_KEY", "dummy-ai-key")
+```
 
-# Global autouse fixture mocks Redis
+**Important:** `SIGNAL_TRANSPORT=memory` means tests use in-memory queue, never touch Redis.
+
+### Key Fixtures
+
+```python
+# conftest.py provides:
 @pytest.fixture(autouse=True)
 def _mock_redis_client(monkeypatch):
-    mock_redis = MagicMock()
-    import src.adapters.redis_queue as rq
-    monkeypatch.setattr(rq, "_redis", mock_redis)
-    yield mock_redis
+    """Replace Redis client with MagicMock for every test."""
+
+# Use in tests:
+def test_something(monkeypatch):
+    monkeypatch.setattr("src.module.get_settings", lambda: mock_settings)
 ```
 
-Key pattern: **env vars set at module level** (before imports) to prevent `config.Settings` `ValidationError`.
+### Mocking Pattern
 
-### Mocking Strategy
-- `monkeypatch` for module-level singletons (Redis, settings)
-- `unittest.mock.patch` for external API calls (MetaAPI, OpenAI)
-- **No real Redis or Supabase** in standard tests — `SIGNAL_TRANSPORT=memory` bypasses Redis
-- Tests needing specific behavior must patch at finer scope themselves
-- **Philosophy:** Integration tests can hit real services; unit tests mock at adapter boundary
+Tests mock external services at the adapter boundary:
 
-## Frontend Test Structure
+```python
+from unittest.mock import MagicMock, patch, AsyncMock
 
-### Location
-Co-located with components: `frontend/src/components/**/*.test.tsx`
+# Mock Supabase
+def test_analytics(monkeypatch):
+    mock_sb = MagicMock()
+    mock_sb.table().select().execute.return_value.data = [...]
+    monkeypatch.setattr("src.api_analytics._get_supabase", lambda: mock_sb)
 
-### Config (`frontend/vitest.config.ts`)
-```typescript
-export default defineConfig({
-  resolve: { alias: { '@': path.resolve(__dirname, './src') } },
-  test: { environment: 'jsdom' },
-});
+# Mock MetaAPI
+with patch("src.adapters.metaapi.execute_trade") as mock_trade:
+    mock_trade.return_value = {"order_id": "123"}
+    ...
+
+# Mock settings
+mock_settings = MagicMock()
+mock_settings.live_trading_enabled = False
+mock_settings.min_rr_ratio = 1.5
 ```
 
-### Known Test Files
-- `frontend/src/components/SignalInspector.test.tsx`
+### FastAPI TestClient Pattern
 
-## Running Tests
+```python
+from fastapi.testclient import TestClient
+from src.api import app
 
-### Backend
-```bash
-# Run all tests
-pytest tests/
+client = TestClient(app)
 
-# Run specific file
-pytest tests/test_pipeline.py -v
-
-# Run with output
-pytest tests/ -s
+def test_webhook():
+    response = client.post("/webhook", json={
+        "symbol": "EURUSD",
+        "side": "buy",
+        "entry": 1.10,
+        "sl": 1.09,
+        "tp": 1.12,
+        "size": 0.1
+    })
+    assert response.status_code == 200
 ```
 
-### Frontend
+## Frontend Tests (vitest)
+
+### Running Tests
+
 ```bash
 cd frontend
-npm test
-# or
-npx vitest
+npx vitest run       # Run once
+npx vitest           # Watch mode
 ```
 
-## Coverage
+**Note:** 1 pre-existing failure in `tradingMetrics.test.ts` — known issue, not a regression.
 
-No formal coverage thresholds are configured. Tests are feature/sprint-named (e.g., `test_sprint23_api_filters.py`) suggesting incremental coverage tied to sprint work.
+### Test Location
 
-## Gaps / Notes
+- Co-located: `frontend/src/components/SignalInspector.test.tsx`
+- Utility-level: `frontend/src/lib/tradingMetrics.test.ts`
 
-- Most tests are backend unit/integration tests; frontend test coverage appears limited (only one confirmed `.test.tsx` file found)
-- Some tests are named `test_sprint<N>_*` suggesting sprint-driven (not regression-first) coverage
-- `test_e2e.py` exists but true E2E requires live services (MetaAPI, Supabase)
-- No CI configuration found in the repo (tests likely run manually or via Railway deploy hooks)
+### Vitest Pattern
+
+```typescript
+import { describe, it, expect, vi } from "vitest"
+
+describe("MyComponent", () => {
+  it("renders correctly", () => {
+    // ...
+  })
+})
+```
+
+## Coverage Gaps (known)
+
+- `src/core/guard_rails/` — guard rails have partial coverage
+- `src/adapters/metaapi.py` — MetaAPI adapter mostly mocked
+- Frontend hooks — not systematically tested (only component-level tests)
+- `src/services/trailing_stop_manager.py` — limited test coverage
