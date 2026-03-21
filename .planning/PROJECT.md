@@ -77,5 +77,18 @@ Every screen must look and feel like a premium fintech product — premium dark 
 | DataTable min-w-max for mobile scroll | overflow-auto exists but needs min-w-max to trigger at 360px | ✓ Confirmed pattern |
 | Phase 6+7 caught component gap | Phase 6 only swept pages — 40 components still had tv-card; Phase 7 found and swept them | ⚠️ Lesson: sweep components AND pages together next time |
 
+## Current Milestone: v1.1 Position Management & Risk Intelligence
+
+**Goal:** Optimize the full position lifecycle (entry → breakeven → trail → exit) and add visibility into risk/execution health so every trade is managed smarter and every problem is caught before it costs money.
+
+**Target features:**
+- Breakeven buffer — move SL to entry+N pips (not exact entry) to absorb spread/commission
+- Trailing stop activation after breakeven fires — let winners run instead of clipping at entry
+- Per-symbol trail distance config (forex pips vs index points)
+- Risk multiplier visibility in dashboard — see what `step_up` mode is doing to lot sizes
+- Risk-per-trade column in signal table
+- Webhook → fill latency tracking and alerting
+- Dead signal detection (signal fires, no fill within 30s)
+
 ---
-*Last updated: 2026-03-20 after v1.0 milestone complete*
+*Last updated: 2026-03-21 after v1.1 milestone start*
