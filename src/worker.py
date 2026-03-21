@@ -1640,6 +1640,13 @@ def run():
                     except Exception as be_exc:  # noqa: BLE001
                         logger.error("BreakevenManager check failed: %s", be_exc)
 
+                # Phase 11: Detect late fills (signals >TCA_LATENCY_THRESHOLD_MS with no broker confirmation)
+                if watchdog:
+                    try:
+                        watchdog.check_late_fills()
+                    except Exception as lf_exc:  # noqa: BLE001
+                        logger.debug("Late fill check failed: %s", lf_exc)
+
                 # Clear config cache to pick up DB changes
                 try:
                     clear_settings_cache()

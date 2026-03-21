@@ -338,3 +338,94 @@ class TradeWatchdog:
                 exc,
             )
 
+    # ------------------------------------------------------------------ #
+    # Phase 11: Late Fill Detection
+    # ------------------------------------------------------------------ #
+
+    def check_late_fills(self) -> int:
+        """
+        Scan PENDING/OPEN signals that still have no broker_order_id after
+        >TCA_LATENCY_THRESHOLD_MS milliseconds (default 30s).
+
+        When a late fill is detected:
+        - Logs a trade_event: 'late_fill_alert'
+        - Emits a Discord/Telegram notification (via existing async notify path)
+
+        Returns the number of late-fill alerts fired this call.
+        """
+        if not self.supabase:
+            return 0
+
+        try:
+            threshold_ms = int(
+                getattr(self.settings, "tca_latency_threshold_ms", 30000)
+            )
+            threshold_s = threshold_ms / 1000.0
+
+            from datetime import datetime, timedelta, timezone
+            cutoff = (datetime.now(timezone.utc) - timedelta(seconds=threshold_s)).isoformat()
+
+            resp = (
+                self.supabase.table("trading_signals")
+                .select("id, symbol, side, entry, created_at")
+                .in_("status", ["PENDING", "pending", "queued"])
+                .is_("broker_order_id", "null")
+                .lt("created_at", cutoff)
+                .limit(20)
+                .execute()
+            )
+            late_signals = resp.data or []
+        except Exception as exc:
+            logger.debug("TradeWatchdog.check_late_fills: fetch failed: %s", exc)
+            return 0
+
+        alerted = 0
+        for sig in late_signals:
+            signal_id = sig.get("id")
+            symbol = sig.get("symbol", "?")
+            try:
+                # Log trade_event for audit trail
+                try:
+                    from src.services.trade_events import log_event
+                    log_event(signal_id, "late_fill_alert", "watchdog", {
+                        "symbol": symbol,
+                        "side": sig.get("side"),
+                        "threshold_seconds": threshold_s,
+                        "created_at": sig.get("created_at"),
+                    })
+                except Exception:
+                    pass
+
+                # Fire Discord alert
+                try:
+                    from src.adapters.discord import send_discord_async
+                    send_discord_async(
+                        {
+                            "symbol": symbol,
+                            "side": sig.get("side", ""),
+                            "entry": sig.get("entry", 0),
+                            "_guard_reason": (
+                                f"🕐 Late Fill Alert: signal #{signal_id} ({symbol}) "
+                                f"has no broker confirmation after {threshold_s:.0f}s"
+                            ),
+                            "_guard_blocked": False,
+                        },
+                        alert_id=signal_id,
+                        mode="guard_blocked",
+                    )
+                except Exception:
+                    pass
+
+                logger.warning(
+                    "TradeWatchdog: LATE FILL — signal #%s (%s) still PENDING "
+                    "after %.0fs (no broker_order_id). Possible execution failure.",
+                    signal_id, symbol, threshold_s,
+                )
+                alerted += 1
+            except Exception as exc:
+                logger.debug("TradeWatchdog.check_late_fills: error on signal %s: %s", signal_id, exc)
+
+        return alerted
+
+
+
