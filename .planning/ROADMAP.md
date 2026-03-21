@@ -6,11 +6,11 @@ This milestone extends the Trade Journal from a solid foundation (stats bar, equ
 
 ## Phases
 
-- [ ] **Phase 1: Per-Account Breakdown** - Account filter + per-account stats + comparison table
-- [ ] **Phase 2: Symbol Performance Table** - Symbol-level PnL/WR table + click-to-filter
-- [ ] **Phase 3: Drawdown Visualization** - Max drawdown in stats bar + underwater chart
-- [ ] **Phase 4: Mobile Optimization** - Responsive stats grid, scrollable table, mobile chart
-- [ ] **Phase 5: Trade Notes Polish** - Notes indicator in row, notes in CSV export
+- [x] **Phase 1: Per-Account Breakdown** - Account filter + per-account stats + comparison table
+- [x] **Phase 2: Symbol Performance Table** - Symbol-level PnL/WR table + click-to-filter
+- [x] **Phase 3: Drawdown Visualization** - Max drawdown in stats bar + underwater chart
+- [x] **Phase 4: Mobile Optimization** - Responsive stats grid, scrollable table, mobile chart
+- [x] **Phase 5: Trade Notes Polish** - Notes indicator in row, notes in CSV export
 
 ## Phase Details
 
