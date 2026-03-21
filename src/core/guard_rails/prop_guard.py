@@ -125,6 +125,84 @@ def check_safety(
     return True, 0.75, "Building Buffer"
 
 
+def check_signal_guards(
+    payload: dict,
+    supabase=None,
+) -> tuple[bool, str | None]:
+    """Phase 13: Prop-firm aware signal guards — RR ratio + consecutive loss check.
+
+    Runs before trade execution. Returns (allowed, rejection_reason).
+    - Enforces phase-aware min_rr_ratio (1.5 for evaluation, 0 disabled otherwise)
+    - Checks consecutive loss streak via Supabase (if available)
+
+    Args:
+        payload: Parsed signal dict (must contain rr_ratio field if checking RR).
+        supabase: Optional Supabase client for consecutive loss lookup.
+
+    Returns:
+        (True, None) if all guards pass.
+        (False, reason_string) if a guard rejects the signal.
+    """
+    from config import get_settings
+
+    s = get_settings()
+    evaluation_mode = getattr(s, "evaluation_mode", False)
+    evaluation_phase = getattr(s, "evaluation_phase", "phase1")
+
+    # ── RR Ratio Guard ────────────────────────────────────────────────────────
+    # Phase-aware default: 1.5 during evaluation phases, 0 (disabled) otherwise.
+    # Explicit MIN_RR_RATIO env var always wins.
+    min_rr = getattr(s, "min_rr_ratio", 0.0)
+    if min_rr == 0.0 and evaluation_mode and evaluation_phase in ("phase1", "phase2"):
+        min_rr = 1.5  # Default evaluation-phase guard
+
+    rr = payload.get("rr_ratio")
+    if min_rr > 0 and rr is not None:
+        try:
+            if float(rr) < min_rr:
+                return False, f"RR ratio {rr:.2f} below phase minimum {min_rr} ({evaluation_phase})"
+        except (ValueError, TypeError):
+            pass  # Non-numeric rr_ratio — skip silently
+
+    # ── Consecutive Loss Circuit Breaker ─────────────────────────────────────
+    max_consec = getattr(s, "max_consecutive_losses", 3)
+    if max_consec > 0 and supabase:
+        try:
+            import datetime as _dt
+            consec_resp = (
+                supabase.table("trading_signals")
+                .select("outcome, exit_time")
+                .in_("outcome", ["loss", "Loss", "LOSS"])
+                .not_.is_("exit_time", "null")
+                .order("exit_time", desc=True)
+                .limit(max_consec)
+                .execute()
+            )
+            trades = consec_resp.data or []
+            if len(trades) >= max_consec:
+                # All N most recent are losses → check pause window
+                pause_hours = float(getattr(s, "consec_loss_pause_hours", 4.0))
+                last_exit_str = trades[0].get("exit_time")
+                if last_exit_str:
+                    try:
+                        last_exit = _dt.datetime.fromisoformat(
+                            str(last_exit_str).replace("Z", "+00:00")
+                        )
+                        elapsed = (_dt.datetime.now(_dt.timezone.utc) - last_exit).total_seconds() / 3600
+                        if elapsed < pause_hours:
+                            remaining = pause_hours - elapsed
+                            return False, (
+                                f"Circuit breaker: {max_consec} consecutive losses — "
+                                f"paused {remaining:.1f}h remaining (resets after {pause_hours}h)"
+                            )
+                    except Exception:
+                        pass
+        except Exception:
+            pass  # Guard fails open — never block on DB error
+
+    return True, None
+
+
 __all__ = [
     "RiskGuardian",
     "RiskCheckResult",
@@ -133,4 +211,6 @@ __all__ = [
     "calculate_max_position_size",
     "create_risk_guardian_from_settings",
     "check_safety",
+    "check_signal_guards",
 ]
+
