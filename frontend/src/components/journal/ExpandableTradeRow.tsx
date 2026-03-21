@@ -15,6 +15,7 @@ import { format } from 'date-fns';
 import { ChevronDown, ExternalLink } from 'lucide-react';
 import { PnLText } from '@/components/ui/typography';
 import { TradeNoteEditor, TradeNoteIndicator } from './TradeNoteEditor';
+import { formatDuration } from './TradeTable';
 
 interface ExpandableTradeRowProps {
   signal: TradingSignal;
@@ -72,6 +73,12 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
   const tp = signal.take_profit ?? signal.tp;
   const statusClass =
     statusColors[signal.status?.toLowerCase() || ''] || 'text-[var(--to-text-dim)] bg-[var(--to-surface-raised)]/30';
+
+  // Duration
+  const durationMs = signal.closed_at
+    ? new Date(signal.closed_at).getTime() - new Date(signal.created_at).getTime()
+    : -1;
+  const durationLabel = formatDuration(durationMs);
 
   // Zone / model / session from top-level signal fields, AI reasoning as fallback
   const zoneType = signal.zone_type || ai?.zone_type;
@@ -236,6 +243,11 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
         {/* R:R */}
         <td className="py-2.5 px-3 font-mono text-[11px] text-[var(--to-text-dim)]">
           {signal.rr_ratio != null ? `1:${signal.rr_ratio.toFixed(1)}` : '--'}
+        </td>
+
+        {/* Duration */}
+        <td className="py-2.5 px-3 font-mono text-[11px] text-[var(--to-text-dim)]">
+          {durationLabel}
         </td>
 
         {/* PnL */}
@@ -453,6 +465,12 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
                       <span className="font-mono text-[var(--to-text-secondary)]">
                         {format(new Date(signal.closed_at), 'MMM dd, HH:mm:ss')}
                       </span>
+                    </div>
+                  )}
+                  {durationMs > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-[var(--to-text-dim)]">Duration</span>
+                      <span className="font-mono text-[var(--to-text-secondary)]">{durationLabel}</span>
                     </div>
                   )}
                   {pnl != null && (

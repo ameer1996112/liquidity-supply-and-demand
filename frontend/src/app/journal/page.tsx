@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { useJournalSignals } from '@/hooks/useJournalSignals';
+import { useJournalSignals, JournalPeriod } from '@/hooks/useJournalSignals';
 import {
   TradingSignal,
   TradingMode,
@@ -11,6 +11,8 @@ import {
   getNotes,
 } from '@/types/trading';
 import { JournalFilters } from '@/components/journal/JournalFilters';
+import { JournalStats } from '@/components/journal/JournalStats';
+import { JournalEquityCurve } from '@/components/journal/JournalEquityCurve';
 import { TradeTable } from '@/components/journal/TradeTable';
 import { SignalInspector } from '@/components/SignalInspector';
 import { exportTradesToCsv } from '@/lib/exportCsv';
@@ -31,6 +33,7 @@ export default function JournalPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [modeFilter, setModeFilter] = useState<ModeFilter>('ALL');
+  const [period, setPeriod] = useState<JournalPeriod>('all');
   const [inspectSignal, setInspectSignal] = useState<TradingSignal | null>(
     null
   );
@@ -38,7 +41,7 @@ export default function JournalPage() {
   const [viewMode, setViewMode] = useState<'table' | 'calendar'>('table');
 
   const queryMode = modeFilter === 'ALL' ? undefined : modeFilter;
-  const { data: signals, isLoading } = useJournalSignals(queryMode);
+  const { data: signals, isLoading } = useJournalSignals(queryMode, period);
 
   const filtered = useMemo(() => {
     if (!signals) return [];
@@ -168,7 +171,10 @@ export default function JournalPage() {
 
       <PageStatusBanner status={status} surfaceLabel='Signals & journal' />
 
-      {/* Filters */}
+      {/* Stats Bar — live from current filtered view */}
+      <JournalStats signals={filtered} />
+
+      {/* Filters (search + status + mode + period) */}
       <JournalFilters
         search={search}
         onSearchChange={setSearch}
@@ -176,6 +182,8 @@ export default function JournalPage() {
         onStatusChange={setStatusFilter}
         modeFilter={modeFilter}
         onModeChange={setModeFilter}
+        period={period}
+        onPeriodChange={setPeriod}
         onExport={handleExport}
         resultCount={filtered.length}
       />
@@ -194,6 +202,9 @@ export default function JournalPage() {
         )
       ) : (
         <>
+          {/* Equity Curve Chart */}
+          <JournalEquityCurve signals={filtered} />
+
           {/* Pattern Analysis Insights */}
           {signals && signals.length >= 3 && (
             <PatternAnalysis signals={signals} />

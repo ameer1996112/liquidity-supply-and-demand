@@ -3,20 +3,17 @@
 import { cn } from '@/lib/utils';
 import { Search, Download } from 'lucide-react';
 import { TradingMode, SignalStatus } from '@/types/trading';
+import { JournalPeriod } from '@/hooks/useJournalSignals';
 
 type StatusFilter = 'ALL' | SignalStatus;
 type ModeFilter = 'ALL' | TradingMode;
 
-interface JournalFiltersProps {
-  search: string;
-  onSearchChange: (value: string) => void;
-  statusFilter: StatusFilter;
-  onStatusChange: (value: StatusFilter) => void;
-  modeFilter: ModeFilter;
-  onModeChange: (value: ModeFilter) => void;
-  onExport: () => void;
-  resultCount: number;
-}
+const PERIOD_OPTIONS: { value: JournalPeriod; label: string }[] = [
+  { value: '7d', label: '7D' },
+  { value: '30d', label: '30D' },
+  { value: '90d', label: '90D' },
+  { value: 'all', label: 'All' },
+];
 
 const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
   { value: 'ALL', label: 'All' },
@@ -33,6 +30,19 @@ const MODE_OPTIONS: { value: ModeFilter; label: string }[] = [
   { value: 'PAPER', label: 'Paper' },
 ];
 
+interface JournalFiltersProps {
+  search: string;
+  onSearchChange: (value: string) => void;
+  statusFilter: StatusFilter;
+  onStatusChange: (value: StatusFilter) => void;
+  modeFilter: ModeFilter;
+  onModeChange: (value: ModeFilter) => void;
+  period: JournalPeriod;
+  onPeriodChange: (value: JournalPeriod) => void;
+  onExport: () => void;
+  resultCount: number;
+}
+
 export function JournalFilters({
   search,
   onSearchChange,
@@ -40,6 +50,8 @@ export function JournalFilters({
   onStatusChange,
   modeFilter,
   onModeChange,
+  period,
+  onPeriodChange,
   onExport,
   resultCount,
 }: JournalFiltersProps) {
@@ -67,9 +79,9 @@ export function JournalFilters({
         </button>
       </div>
 
-      {/* Bottom row: Status + Mode filters + Count */}
-      <div className='flex items-center justify-between'>
-        <div className='flex items-center gap-4'>
+      {/* Bottom row: Status + Mode + Period + Count */}
+      <div className='flex items-center justify-between flex-wrap gap-2'>
+        <div className='flex items-center gap-2 flex-wrap'>
           {/* Status Filter */}
           <div className='flex items-center gap-1 bg-[#1e222d] border border-[#2a2e39] rounded-md p-0.5'>
             {STATUS_OPTIONS.map((opt) => (
@@ -98,6 +110,24 @@ export function JournalFilters({
                   'font-mono text-[10px] px-2 py-1 rounded transition-colors',
                   modeFilter === opt.value
                     ? 'bg-[#2a2e39] text-[var(--to-text-primary)]'
+                    : 'text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]',
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Period Filter */}
+          <div className='flex items-center gap-1 bg-[#1e222d] border border-[#2a2e39] rounded-md p-0.5'>
+            {PERIOD_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => onPeriodChange(opt.value)}
+                className={cn(
+                  'font-mono text-[10px] px-2 py-1 rounded transition-colors',
+                  period === opt.value
+                    ? 'bg-[var(--to-long)]/20 text-[var(--to-long)]'
                     : 'text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]',
                 )}
               >

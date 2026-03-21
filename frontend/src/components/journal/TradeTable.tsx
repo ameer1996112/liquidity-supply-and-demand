@@ -25,7 +25,8 @@ type SortKey =
   | 'slPips'
   | 'score'
   | 'rr'
-  | 'pnl';
+  | 'pnl'
+  | 'duration';
 type SortDir = 'asc' | 'desc';
 
 const COLUMNS: { key: SortKey; label: string; align?: string }[] = [
@@ -42,8 +43,26 @@ const COLUMNS: { key: SortKey; label: string; align?: string }[] = [
   { key: 'slPips', label: 'SL Pips' },
   { key: 'score', label: 'AI' },
   { key: 'rr', label: 'R:R' },
+  { key: 'duration', label: 'Duration' },
   { key: 'pnl', label: 'PnL' },
 ];
+
+function getDurationMs(signal: TradingSignal): number {
+  if (!signal.closed_at) return -1;
+  return new Date(signal.closed_at).getTime() - new Date(signal.created_at).getTime();
+}
+
+export function formatDuration(ms: number): string {
+  if (ms < 0) return '--';
+  const totalMin = Math.floor(ms / 60000);
+  if (totalMin < 60) return `${totalMin}m`;
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h < 24) return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  const d = Math.floor(h / 24);
+  const rh = h % 24;
+  return rh > 0 ? `${d}d ${rh}h` : `${d}d`;
+}
 
 function getSortValue(signal: TradingSignal, key: SortKey): number | string {
   switch (key) {
@@ -73,6 +92,8 @@ function getSortValue(signal: TradingSignal, key: SortKey): number | string {
       return getScore(signal) ?? -1;
     case 'rr':
       return signal.rr_ratio ?? 0;
+    case 'duration':
+      return getDurationMs(signal);
     case 'pnl':
       return getPnl(signal) ?? 0;
     default:
@@ -85,7 +106,6 @@ type ModeFilter = 'all' | 'LIVE' | 'PAPER';
 export function TradeTable({ signals, onInspect }: TradeTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>('date');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
-  const [modeFilter, setModeFilter] = useState<ModeFilter>('all');
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -96,16 +116,8 @@ export function TradeTable({ signals, onInspect }: TradeTableProps) {
     }
   };
 
-  const filtered = useMemo(() => {
-    if (modeFilter === 'all') return signals;
-    return signals.filter((s) => {
-      const mode = (s.run_mode || s.mode || '').toUpperCase();
-      return mode === modeFilter;
-    });
-  }, [signals, modeFilter]);
-
   const sorted = useMemo(() => {
-    return [...filtered].sort((a, b) => {
+    return [...signals].sort((a, b) => {
       const aVal = getSortValue(a, sortKey);
       const bVal = getSortValue(b, sortKey);
       const cmp =
@@ -114,7 +126,7 @@ export function TradeTable({ signals, onInspect }: TradeTableProps) {
           : Number(aVal) - Number(bVal);
       return sortDir === 'asc' ? cmp : -cmp;
     });
-  }, [filtered, sortKey, sortDir]);
+  }, [signals, sortKey, sortDir]);
 
   if (signals.length === 0) {
     return (
@@ -128,37 +140,6 @@ export function TradeTable({ signals, onInspect }: TradeTableProps) {
 
   return (
     <div className='glow-card overflow-hidden'>
-      {/* Mode Filter Toggle */}
-      <div className='flex items-center gap-1 px-3 py-2 border-b border-[#2a2e39]'>
-        {(['all', 'LIVE', 'PAPER'] as ModeFilter[]).map((mode) => (
-          <button
-            key={mode}
-            onClick={() => setModeFilter(mode)}
-            className={cn(
-              'font-mono text-[10px] px-2.5 py-1 rounded transition-colors',
-              modeFilter === mode
-                ? mode === 'LIVE'
-                  ? 'bg-[var(--to-long)]/20 text-[var(--to-long)]'
-                  : mode === 'PAPER'
-                  ? 'bg-blue-500/20 text-blue-400'
-                  : 'bg-[var(--to-surface-raised)]/50 text-[var(--to-text-secondary)]'
-                : 'text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)] hover:bg-[var(--to-surface-raised)]/50'
-            )}
-          >
-            {mode === 'all'
-              ? 'All'
-              : mode === 'LIVE'
-              ? 'Live Only'
-              : 'Paper Only'}
-          </button>
-        ))}
-        {modeFilter !== 'all' && (
-          <span className='ml-2 text-[10px] text-[var(--to-text-dim)] font-mono'>
-            {filtered.length}/{signals.length}
-          </span>
-        )}
-      </div>
-
       {/* Single flat table — no nested virtualization */}
       <div className='overflow-x-auto'>
         <div className='overflow-y-auto' style={{ maxHeight: 600 }}>
