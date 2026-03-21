@@ -63,6 +63,13 @@ class EntryWebhookPayload(BaseModel):
     event_type: str | None = Field(None, description="If 'exit', use exit payload instead")
     signal_time: str | None = Field(None, description="Original signal generation time (UTC)")
 
+    # Phase 12: TradingView S&D Algo fields — passed in Pine Script alerts
+    bar_time: str | None = Field(None, description="Bar open time (UTC) used for staleness check")
+    zone_id: int | None = Field(None, description="S&D zone ID from Pine Script — links entry to exit")
+    rr_ratio: float | None = Field(None, description="Risk:Reward ratio from Pine Script — checked against min_rr_ratio")
+    run_mode: str | None = Field(None, description="Override run mode: LIVE or PAPER (optional, resolved by API if absent)")
+
+
     @model_validator(mode="after")
     def side_must_be_buy_or_sell(self) -> "EntryWebhookPayload":
         if str(self.side).lower() not in ("buy", "sell"):

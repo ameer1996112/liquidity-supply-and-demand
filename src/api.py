@@ -666,6 +666,167 @@ async def webhook(request: Request, payload: dict[str, Any] = Depends(get_webhoo
     return JSONResponse(status_code=200, content={"status": "queued", "account_id": account_id})
 
 
+@app.post("/webhook/test")
+async def webhook_test(
+    request: Request,
+    x_webhook_secret: str | None = Header(None),
+):
+    """
+    Phase 12: Dry-run webhook endpoint for TradingView integration testing.
+
+    Accepts the same JSON payload as POST /webhook but:
+    - Does NOT push to Redis / MessageQueue
+    - Does NOT write to trading_signals table
+    - Does NOT execute any trades
+
+    Returns a detailed diagnostic:
+    - Parsed and validated fields
+    - Which guard rails would fire (staleness, trading hours, RR ratio)
+    - Computed lot size from risk engine
+    - Any rejection reason
+
+    Use this endpoint to test your TradingView alert format before enabling live trading.
+    """
+    validate_webhook_secret(request, x_webhook_secret)
+    raw = await request.body()
+    try:
+        data = parse_body(raw)
+    except HTTPException as e:
+        return JSONResponse(status_code=400, content={"error": e.detail, "parsed": False})
+
+    # Schema validation
+    try:
+        _validate_webhook_payload(data)
+        schema_ok = True
+        schema_error = None
+    except RequestValidationError as e:
+        schema_ok = False
+        schema_error = str(e)
+
+    result: dict[str, Any] = {
+        "dry_run": True,
+        "schema_valid": schema_ok,
+        "schema_error": schema_error,
+        "parsed_fields": {
+            "symbol": data.get("symbol"),
+            "side": data.get("side"),
+            "entry": data.get("entry"),
+            "sl": data.get("sl"),
+            "tp": data.get("tp"),
+            "size": data.get("size"),
+            "rr_ratio": data.get("rr_ratio"),
+            "bar_time": data.get("bar_time"),
+            "zone_id": data.get("zone_id"),
+            "signal_time": data.get("signal_time"),
+            "run_mode": data.get("run_mode"),
+            "event_type": data.get("event_type"),
+            "action": data.get("action"),
+        },
+        "guards": {},
+        "risk_engine": {},
+        "would_execute": False,
+    }
+
+    if not schema_ok:
+        return JSONResponse(status_code=200, content=result)
+
+    # Guard rail simulation
+    s = get_settings()
+    guards: dict[str, Any] = {}
+
+    # Staleness check
+    try:
+        from src.core.guard_rails.staleness_guard import StalenessGuard
+        sg = StalenessGuard()
+        stale_result = sg.check(data)
+        guards["staleness"] = {
+            "passed": stale_result is None,
+            "reason": stale_result,
+        }
+    except Exception as exc:
+        guards["staleness"] = {"passed": None, "error": str(exc)}
+
+    # Trading hours check
+    bar_time = data.get("bar_time")
+    pine_start = getattr(s, "pine_trading_start_hour", 0)
+    pine_end = getattr(s, "pine_trading_end_hour", 23)
+    if bar_time and (pine_start != 0 or pine_end != 23):
+        try:
+            from datetime import datetime, timezone
+            dt = datetime.fromisoformat(str(bar_time).replace("Z", "+00:00"))
+            in_hours = pine_start <= dt.hour < pine_end
+            guards["trading_hours"] = {
+                "passed": in_hours,
+                "bar_hour_utc": dt.hour,
+                "allowed_range": f"{pine_start}:00–{pine_end}:00 UTC",
+                "reason": None if in_hours else f"Outside trading hours: hour={dt.hour}",
+            }
+        except Exception as exc:
+            guards["trading_hours"] = {"passed": None, "error": str(exc)}
+    else:
+        guards["trading_hours"] = {"passed": True, "note": "No bar_time or trading hours filter disabled"}
+
+    # RR ratio check
+    rr = data.get("rr_ratio")
+    min_rr = getattr(s, "min_rr_ratio", 0.0)
+    if rr is not None and min_rr > 0:
+        rr_ok = float(rr) >= min_rr
+        guards["rr_ratio"] = {
+            "passed": rr_ok,
+            "provided": float(rr),
+            "minimum": min_rr,
+            "reason": None if rr_ok else f"R:R {rr} < minimum {min_rr}",
+        }
+    else:
+        guards["rr_ratio"] = {
+            "passed": True,
+            "note": f"min_rr_ratio={min_rr} (disabled=0)" if min_rr == 0 else f"rr_ratio not provided in payload",
+        }
+
+    result["guards"] = guards
+
+    # Risk engine simulation
+    try:
+        from src.core.risk_engine import calculate_lot_size
+        entry = float(data.get("entry") or 0)
+        sl = float(data.get("sl") or 0)
+        symbol = str(data.get("symbol", "")).upper()
+        if entry and sl and symbol:
+            lot_result = calculate_lot_size(
+                account_balance=float(s.account_balance),
+                risk_percent=float(s.risk_percent),
+                entry=entry,
+                sl=sl,
+                symbol=symbol,
+                risk_multiplier=1.0,
+            )
+            result["risk_engine"] = {
+                "account_balance": s.account_balance,
+                "risk_percent": s.risk_percent,
+                "computed_lot_size": lot_result.get("final_lots") if isinstance(lot_result, dict) else str(lot_result),
+                "sl_distance": abs(entry - sl),
+                "note": "Size from Pine Script payload is used as-is when risk engine is not overriding",
+            }
+    except Exception as exc:
+        result["risk_engine"] = {"error": str(exc)}
+
+    # Overall pass/fail
+    all_passed = all(
+        g.get("passed") is True
+        for g in guards.values()
+        if g.get("passed") is not None
+    )
+    result["would_execute"] = schema_ok and all_passed
+    result["rejection_reason"] = next(
+        (g["reason"] for g in guards.values() if g.get("reason")),
+        None,
+    )
+
+    return JSONResponse(status_code=200, content=result)
+
+
+
+
 @app.post("/api/backtest/import")
 async def backtest_import(
     request: Request,
