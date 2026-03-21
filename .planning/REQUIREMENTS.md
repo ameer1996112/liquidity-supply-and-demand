@@ -1,51 +1,79 @@
-# Requirements: v1.1 Position Management & Risk Intelligence
+# Requirements: Trade Journal v2
 
-## v1.1 Requirements
+**Defined:** 2026-03-21
+**Core Value:** Every closed trade is visible, analyzable, and actionable directly from the journal.
 
-### Position Lifecycle (BE + Trailing)
+## v1 Requirements (Complete)
 
-- [ ] **POS-01**: System moves SL to `entry + N pips` (configurable, default 3) when breakeven is triggered — not exact entry price
-- [ ] **POS-02**: System activates trailing stop automatically after breakeven fires on any position
-- [ ] **POS-03**: Trailing stop distance is configurable per instrument type (forex: pips, indices: points) via `.env` or DB config
-- [ ] **POS-04**: Trailing stop has configurable activation threshold — only starts trailing after price moves minimum distance from entry
-- [ ] **POS-05**: Full position lifecycle is logged to `trade_events` table: entry → BE trigger → trail start → trail updates → exit
+### Journal Foundation
+- ✓ **JOUR-01**: Trade table with sortable columns (date, symbol, side, status, account, zone, model, session, entry, exit, AI score, R:R, PnL)
+- ✓ **JOUR-02**: Expandable row detail (technical setup, AI analysis, execution section, trade notes)
+- ✓ **JOUR-03**: Calendar heatmap view (PnL by day)
+- ✓ **JOUR-04**: Pattern insights panel (best/worst day, session, symbol, emotional trade detection)
+- ✓ **JOUR-05**: CSV export of filtered signals
+- ✓ **JOUR-06**: Search + status + mode filter bar
 
-### Risk Visibility
+### Journal v1.1 (Complete)
+- ✓ **JOUR-07**: Stats summary bar (total PnL, win rate, profit factor, avg R:R, expectancy)
+- ✓ **JOUR-08**: Equity curve chart (cumulative PnL over closed trades)
+- ✓ **JOUR-09**: Period filter (7D / 30D / 90D / All)
+- ✓ **JOUR-10**: Duration column in trade table
 
-- [ ] **RISK-01**: Dashboard shows current `risk_multiplier` value applied by `step_up` mode for active session
-- [ ] **RISK-02**: Signal table includes a `Risk $` column showing the calculated USD risk for each executed trade
-- [ ] **RISK-03**: Dashboard stat card shows "Effective Risk %" (actual risk after multiplier applied, not base 0.5%)
+## v2 Requirements (Active — this milestone)
 
-### Execution Monitoring
+### Per-Account Breakdown
+- [ ] **ACCT-01**: Account-level performance summary (win rate, total PnL, trade count per account)
+- [ ] **ACCT-02**: Account filter in journal (filter table + stats by specific account_name)
+- [ ] **ACCT-03**: Account comparison table (side-by-side account stats)
 
-- [ ] **EXEC-01**: System tracks webhook receipt timestamp and fill confirmation timestamp per signal, storing latency in DB
-- [ ] **EXEC-02**: System alerts (log + optional Telegram) when a signal is received but no fill confirmed within 30 seconds
-- [ ] **EXEC-03**: System detects and flags signals that arrive outside market hours (dead signals) with `staleness_rejected` status populated correctly
+### Symbol Breakdown
+- [ ] **SYM-01**: Symbol performance table (PnL, win rate, trade count per symbol)
+- [ ] **SYM-02**: Symbol filter quick-select (click symbol in table to filter)
 
-## Future Requirements (v1.2+)
+### Drawdown Visualization
+- [ ] **DD-01**: Max drawdown shown in stats bar (absolute + percentage)
+- [ ] **DD-02**: Underwater / drawdown chart below equity curve (shows depth and recovery)
 
-- Partial close at TP1 (close 50% at halfway target, let rest run to BE)
-- Per-symbol risk overrides configurable from frontend UI (not just DB)
-- Real-time trailing stop status panel in dashboard
+### Mobile Optimization
+- [ ] **MOB-01**: Journal stats bar stacks to 2x3 grid on mobile (not 1x6)
+- [ ] **MOB-02**: Trade table horizontally scrollable and usable on mobile
+- [ ] **MOB-03**: Equity curve chart visible and readable on mobile
 
-## Out of Scope (v1.1)
+### Trade Notes Enhancement
+- [ ] **NOTE-01**: Notes indicator visible in main table row (currently only shown in expanded row)
+- [ ] **NOTE-02**: Bulk notes export included in CSV (currently missing from export)
 
-- Pine Script changes — all optimizations implemented on Python/worker side
-- New signal sources — TradingView webhook is the only signal input
-- Frontend redesign — v1.0 design system stays as-is
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| Migrate notes to Supabase | DB schema change; risky for v2 |
+| TradingView chart thumbnails | External API dependency |
+| Backtesting replay | Separate feature, not journal |
+| Multi-timeframe breakdown | Out of scope for this milestone |
 
 ## Traceability
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| POS-01 | Phase 9 | Pending |
-| POS-02 | Phase 9 | Pending |
-| POS-03 | Phase 9 | Pending |
-| POS-04 | Phase 9 | Pending |
-| POS-05 | Phase 9 | Pending |
-| RISK-01 | Phase 10 | Pending |
-| RISK-02 | Phase 10 | Pending |
-| RISK-03 | Phase 10 | Pending |
-| EXEC-01 | Phase 11 | Pending |
-| EXEC-02 | Phase 11 | Pending |
-| EXEC-03 | Phase 11 | Pending |
+| ACCT-01 | Phase 1 | Pending |
+| ACCT-02 | Phase 1 | Pending |
+| ACCT-03 | Phase 1 | Pending |
+| SYM-01 | Phase 2 | Pending |
+| SYM-02 | Phase 2 | Pending |
+| DD-01 | Phase 3 | Pending |
+| DD-02 | Phase 3 | Pending |
+| MOB-01 | Phase 4 | Pending |
+| MOB-02 | Phase 4 | Pending |
+| MOB-03 | Phase 4 | Pending |
+| NOTE-01 | Phase 5 | Pending |
+| NOTE-02 | Phase 5 | Pending |
+
+**Coverage:**
+- v2 requirements: 12 total
+- Mapped to phases: 12
+- Unmapped: 0 ✓
+
+---
+*Requirements defined: 2026-03-21*
+*Last updated: 2026-03-21 after initial definition*

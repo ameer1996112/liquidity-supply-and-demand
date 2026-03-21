@@ -1,118 +1,86 @@
-# Roadmap: Trinity Trading System
+# Roadmap: Trade Journal v2
 
-## Milestones
+## Overview
 
-- ✅ **v1.0 Premium Dark Trading Terminal** — Phases 1-8 (shipped 2026-03-20)
-- 🚀 **v1.1 Position Management & Risk Intelligence** — Phases 9-11 (in progress)
+This milestone extends the Trade Journal from a solid foundation (stats bar, equity curve, period filter) to a full-featured analysis tool. Five focused phases: per-account breakdown, symbol performance table, drawdown visualization, mobile optimization, and trade notes polish.
 
 ## Phases
 
-<details>
-<summary>✅ v1.0 Premium Dark Trading Terminal (Phases 1-8) — SHIPPED 2026-03-20</summary>
+- [ ] **Phase 1: Per-Account Breakdown** - Account filter + per-account stats + comparison table
+- [ ] **Phase 2: Symbol Performance Table** - Symbol-level PnL/WR table + click-to-filter
+- [ ] **Phase 3: Drawdown Visualization** - Max drawdown in stats bar + underwater chart
+- [ ] **Phase 4: Mobile Optimization** - Responsive stats grid, scrollable table, mobile chart
+- [ ] **Phase 5: Trade Notes Polish** - Notes indicator in row, notes in CSV export
 
-- [x] Phase 1: Design System Foundation (2/2 plans) — complete
-- [x] Phase 2: Core Component Library (3/3 plans) — complete
-- [x] Phase 3: Navigation Redesign (1/1 plan) — complete
-- [x] Phase 4: Dashboard Redesign (2/2 plans) — complete
-- [x] Phase 5: Risk & Prop Firm Redesign (2/2 plans) — complete
-- [x] Phase 6: Remaining Pages Redesign (1/1 plan) — complete
-- [x] Phase 7: Responsive Polish (1/1 plan) — complete
-- [x] Phase 8: Micro-Interactions & Final Polish (1/1 plan) — complete
+## Phase Details
 
-See `.planning/milestones/v1.0-ROADMAP.md` for full phase details.
+### Phase 1: Per-Account Breakdown
+**Goal**: Filter the entire journal by account and see per-account performance side-by-side
+**Depends on**: Nothing (first phase)
+**Requirements**: ACCT-01, ACCT-02, ACCT-03
+**Success Criteria** (what must be TRUE):
+  1. Account dropdown filter appears in JournalFilters — selecting it narrows stats bar + equity curve + table to that account
+  2. New `AccountBreakdown` component shows a table of all accounts with PnL, win rate, trade count
+  3. `tsc --noEmit` returns zero errors
+**Plans**: 3 plans
 
-</details>
+Plans:
+- [ ] 01-01: Add account filter state + dropdown to JournalFilters
+- [ ] 01-02: Wire account filter into useJournalSignals + page filtered array
+- [ ] 01-03: Build AccountBreakdown component (table of account stats)
 
----
+### Phase 2: Symbol Performance Table
+**Goal**: See which symbols are performing best/worst at a glance
+**Depends on**: Phase 1
+**Requirements**: SYM-01, SYM-02
+**Success Criteria** (what must be TRUE):
+  1. Symbol performance table shows symbol, trade count, win rate, total PnL, avg PnL — sortable
+  2. Clicking a symbol in the table OR in the trade table applies a symbol search filter
+  3. `tsc --noEmit` returns zero errors
+**Plans**: 2 plans
 
-## v1.1: Position Management & Risk Intelligence
+Plans:
+- [ ] 02-01: Build SymbolBreakdown component (stats table computed from filtered signals)
+- [ ] 02-02: Wire symbol click → search filter in journal page
 
-**Goal:** Optimize the full position lifecycle and surface risk/execution health so every trade is managed smarter and every problem is caught before it costs money.
+### Phase 3: Drawdown Visualization
+**Goal**: Surface risk profile visually — how deep did we go and how long did it take to recover?
+**Depends on**: Phase 1
+**Requirements**: DD-01, DD-02
+**Success Criteria** (what must be TRUE):
+  1. Stats bar shows max drawdown cell (absolute $ + %)
+  2. Underwater chart shows depth of each drawdown period below equity peak
+  3. `tsc --noEmit` returns zero errors
+**Plans**: 2 plans
 
-**Phases:** 3 | **Requirements:** 11 | **Started:** 2026-03-21
+Plans:
+- [ ] 03-01: Add max drawdown metric to JournalStats
+- [ ] 03-02: Build DrawdownChart component (area chart showing -ve from peak)
 
----
+### Phase 4: Mobile Optimization
+**Goal**: Journal usable on phone without horizontal overflow or tiny unreadable text
+**Depends on**: Phase 1
+**Requirements**: MOB-01, MOB-02, MOB-03
+**Success Criteria** (what must be TRUE):
+  1. Stats bar wraps to 2×3 grid on screens < 640px
+  2. Trade table is horizontally scrollable with sticky date + symbol columns
+  3. Equity curve chart fits and is readable at 375px width
+**Plans**: 2 plans
 
-### Phase 9: Position Management Overhaul
+Plans:
+- [ ] 04-01: Fix stats bar, equity curve, and filter bar for mobile
+- [ ] 04-02: Add sticky first columns + horizontal scroll wrapper to trade table
 
-**Goal:** Chain breakeven and trailing stop into a unified position lifecycle — BE fires with buffer, trailing stop activates automatically, winners run to TP instead of clipping at entry.
+### Phase 5: Trade Notes Polish
+**Goal**: Notes are discoverable in the table and included in data exports
+**Depends on**: Phase 4
+**Requirements**: NOTE-01, NOTE-02
+**Success Criteria** (what must be TRUE):
+  1. Trade rows with notes show a visible ink/pen icon in the main row (not just expanded)
+  2. CSV export includes notes column populated from localStorage
+  3. `tsc --noEmit` returns zero errors
+**Plans**: 2 plans
 
-**Requirements:** POS-01, POS-02, POS-03, POS-04, POS-05
-
-**Key changes:**
-- `breakeven_manager.py` — shift `be_sl_price` by `+BREAKEVEN_BUFFER_PIPS` when firing (default 3 pips)
-- After BE marks triggered, call `TrailingStopManager.add_trailing_stop()` for same position
-- Per-symbol trail distance config: forex uses pips, indices use points (via `.env` or `symbol_risk_rules` DB table)
-- Trail activation threshold: configurable minimum distance from entry before trailing starts
-- All lifecycle events (BE trigger, trail start, trail update, exit) logged to `trade_events` table
-
-**Success criteria:**
-1. Trades that hit BE no longer close at negative PnL due to spread (must close ≥ 0)
-2. After BE fires on any live position, a trailing stop is automatically active within one worker loop
-3. Trail distance is different for GBPUSD (pips) vs NAS100 (points) without code changes
-4. `trade_events` table shows full lifecycle: entry → be_triggered → trail_started → trail_moved → closed
-5. All configurable via `.env` — no redeploy needed to tune values
-
-**Plans estimate:** 2
-
----
-
-### Phase 10: Risk Visibility
-
-**Goal:** Expose the risk multiplier and per-trade USD risk in the dashboard so the trader always knows their actual exposure — not just the base 0.5%.
-
-**Requirements:** RISK-01, RISK-02, RISK-03
-
-**Key changes:**
-- Dashboard Risk Status card — add "Multiplier" field showing current `step_up` multiplier value
-- Signal table — add "Risk $" column showing calculated USD risk for each executed trade
-- Dashboard stat card — "Effective Risk %" = base % × current multiplier
-
-**Success criteria:**
-1. Risk Status card shows live multiplier value (e.g. "0.7×") updated on each dashboard poll
-2. Every closed/open signal row in the table shows its actual USD risk at entry
-3. Effective Risk % stat card updates when multiplier changes (not static 0.5%)
-
-**Plans estimate:** 1
-
----
-
-### Phase 11: Execution Monitoring
-
-**Goal:** Track the webhook→MetaTrader pipeline latency and alert when fills are late or signals fire while markets are closed.
-
-**Requirements:** EXEC-01, EXEC-02, EXEC-03
-
-**Key changes:**
-- Store `webhook_received_at` and `fill_confirmed_at` timestamps per signal → compute latency column
-- Worker watchdog: if `fill_confirmed_at` is null 30s after `webhook_received_at` → log alert + optional Telegram
-- Market hours check on signal receipt: if symbol is outside trading hours → mark `staleness_rejected` with reason
-
-**Success criteria:**
-1. Every executed signal has `webhook_received_at`, `fill_confirmed_at`, and `fill_latency_ms` in the DB
-2. A signal without fill within 30s triggers a visible alert in the Live Log on the dashboard
-3. Signals arriving outside market hours are marked `STALENESS_REJECTED` with `"reason": "outside_market_hours"`
-
-**Plans estimate:** 1
-
----
-
-## Progress
-
-| Phase | Milestone | Plans | Status | Completed |
-|---|---|---|---|---|
-| 1. Design System Foundation | v1.0 | 2/2 | Complete | 2026-03-19 |
-| 2. Core Component Library | v1.0 | 3/3 | Complete | 2026-03-19 |
-| 3. Navigation Redesign | v1.0 | 1/1 | Complete | 2026-03-19 |
-| 4. Dashboard Redesign | v1.0 | 2/2 | Complete | 2026-03-20 |
-| 5. Risk & Prop Firm Redesign | v1.0 | 2/2 | Complete | 2026-03-20 |
-| 6. Remaining Pages Redesign | v1.0 | 1/1 | Complete | 2026-03-20 |
-| 7. Responsive Polish | v1.0 | 1/1 | Complete | 2026-03-20 |
-| 8. Micro-Interactions & Final Polish | v1.0 | 1/1 | Complete | 2026-03-20 |
-| 9. Position Management Overhaul | v1.1 | 0/2 | Pending | — |
-| 10. Risk Visibility | v1.1 | 0/1 | Pending | — |
-| 11. Execution Monitoring | v1.1 | 0/1 | Pending | — |
-
----
-*Archive: `.planning/milestones/v1.0-ROADMAP.md`*
-*Last updated: 2026-03-21 — v1.1 milestone started*
+Plans:
+- [ ] 05-01: Add notes indicator icon to main ExpandableTradeRow cell (always visible)
+- [ ] 05-02: Pull localStorage notes into CSV export function

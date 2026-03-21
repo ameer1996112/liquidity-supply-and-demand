@@ -1,94 +1,65 @@
-# Trinity Trading System — UI Redesign
+# Trading Bot — Institutional Liquidity Journal
 
 ## What This Is
 
-A fully redesigned AI-powered prop firm trading bot dashboard. The system is production-ready with signals, execution, risk management, and analytics — now with a premium dark fintech frontend applied uniformly from a custom design system.
+An institutional-grade algorithmic trading bot for MetaTrader accounts via MetaAPI. The system receives TradingView webhook signals, runs AI/ML guardrails, executes trades, and persists results to Supabase. The Next.js frontend provides a real-time dashboard for monitoring signals, risk, and trade outcomes — including a Trade Journal for post-trade analysis.
 
 ## Core Value
 
-Every screen must look and feel like a premium fintech product — premium dark aesthetic, mobile-first responsive layout, cohesive design language applied uniformly from a single design system.
+Every closed trade is visible, analyzable, and actionable directly from the journal — giving the trader total clarity on performance without external tools.
 
 ## Requirements
 
 ### Validated
 
-- ✓ Dashboard with live signal feed and WebSocket status — existing
-- ✓ Positions page with open trades and PnL tracking — existing
-- ✓ Analytics page with trade history and performance metrics — existing
-- ✓ Risk monitor with daily PnL, drawdown, circuit breakers — existing
-- ✓ Prop firm challenge tracking (FTMO-style metrics) — existing
-- ✓ Alerts system — existing
-- ✓ Execution quality / TCA metrics — existing
-- ✓ Backtest lab — existing
-- ✓ Rules engine UI — existing
-- ✓ AI Copilot chat interface — existing
-- ✓ Settings page — existing
-- ✓ Kanban board for agent tasks — existing
-- ✓ New design system: CSS custom properties for color tokens, typography scale, spacing scale — v1.0
-- ✓ Premium dark theme: deep backgrounds, subtle gradients, glass/frosted effects on cards — v1.0
-- ✓ Mobile-first responsive layout: all pages fully usable on phone (full control, not read-only) — v1.0
-- ✓ Cohesive color palette: strong accent color, semantic colors (profit/loss/warning/neutral) — v1.0
-- ✓ Consistent typography: clear hierarchy, readable at small sizes — v1.0
-- ✓ Polished component library: buttons, cards, tables, badges, inputs — all consistent — v1.0
-- ✓ Dashboard redesign: eye-catching hero section, live data that feels alive — v1.0
-- ✓ Risk/Prop Firm redesign: high-priority pages with clear metric hierarchy — v1.0
-- ✓ Navigation redesign: mobile-friendly nav (bottom nav bar on mobile) — v1.0
-- ✓ Smooth micro-interactions: loading states, transitions, number animations — v1.0
+- ✓ Webhook signal reception, validation, and queuing — v1
+- ✓ AI/ML guardrail pipeline (LLM Guardian, ML Guardian, Trinity) — v1
+- ✓ MetaAPI trade execution (LIVE + PAPER modes) — v1
+- ✓ Real-time dashboard with signal feed and risk monitoring — v1
+- ✓ Basic Trade Journal (table view, calendar view, CSV export, pattern insights) — v1
+- ✓ Journal stats bar (PnL, win rate, profit factor, avg R:R, expectancy) — v1.1
+- ✓ Equity curve chart in journal — v1.1
+- ✓ Period filter (7D / 30D / 90D / All) in journal — v1.1
+- ✓ Duration column in trade table — v1.1
 
 ### Active
 
-*(Fresh milestone — add v1.1 requirements with `/gsd-new-milestone`)*
+- [ ] Per-account performance breakdown in journal
+- [ ] Trade annotations / inline notes improvement
+- [ ] Journal mobile view optimization
+- [ ] Symbol-level performance breakdown table
+- [ ] Max drawdown visualization (underwater chart)
 
 ### Out of Scope
 
-- Backend changes — frontend-only
-- New features or data — redesign existing screens, no new functionality
-- Light mode — dark only by design decision
-- Third-party component library swap — extend shadcn/ui + Tailwind 4.x (already in stack)
+- Mobile native app — web-first, mobile-responsive later
+- Multi-user auth / team accounts — single operator system
+- TradingView chart embedding — external tool, not in scope
+- Manual trade entry without a signal — bot-only workflow
 
 ## Context
 
-**Stack:** Next.js 16 + React 19 + Tailwind CSS 4.x + shadcn/ui (Radix UI primitives)
-
-**Current state (v1.0 shipped):** Full design system deployed. 98 `tv-card` → `glow-card` replacements across 49 files (pages + components). Zero legacy card classes remaining. DataTable mobile scroll (min-w-max). All 14 pages have animate-fade-in-up entry animations. TypeScript: 0 errors throughout entire redesign.
-
-**Timeline:** 2026-02-19 → 2026-03-20 (29 days) · 471 files changed · 84,778 insertions · 8 phases · 12 plans
-
-**Usage pattern:** Owner monitors and controls the bot on mobile while away from desk. Dashboard and Risk/Prop Firm are the most-used pages.
+- Codebase is brownfield — full architecture documented in `.planning/codebase/`
+- Frontend: Next.js 16, React 19, Tailwind v4, recharts for charts
+- `TradingSignal` type has ~60 fields; journal must handle `null` gracefully
+- PnL/exit_price only populated for closed trades — `status: closed | executed`
+- Trade notes stored in `localStorage` via `TradeNoteEditor` (not Supabase yet)
+- Pattern analysis and calendar view already working; equity curve just added
 
 ## Constraints
 
-- **Tech stack:** Must stay with Next.js + Tailwind CSS 4.x + shadcn/ui — no framework changes
-- **Backend contract:** No API shape changes — frontend only
-- **Functional parity:** All existing functionality must be preserved through the redesign
+- **Tech stack**: No new npm packages without strong justification — recharts + @tanstack already present
+- **Data**: All data from Supabase `trading_signals` table via existing `fetchSignals`
+- **Performance**: Journal fetches up to 1000 signals; client-side filtering only
+- **Compatibility**: Must compile clean (`tsc --noEmit` zero errors)
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
-|----------|-----------|---------| 
-| Dark theme only | Trader preference, fits domain, faster to build well | ✓ Confirmed |
-| Extend shadcn/ui rather than replace | Already in stack, Radix primitives are accessible | ✓ Confirmed |
-| Mobile-first approach | Owner needs full control on phone | ✓ Confirmed |
-| Design system first, then pages | Ensures coherence across all pages | ✓ Confirmed |
-| Premium fintech aesthetic (glass/gradients) | User wants eye-catching, not minimal | ✓ Confirmed |
-| `glow-card` system-wide (not mixed) | Consistency > nuance at this scale | ✓ Good — clean result |
-| Hero CompositeRiskScore (A) over side column | Full-width hero with severity theming is far more impactful | ✓ Good |
-| Class-swap only for large pages (A) | Pages 613-928 lines — low risk, high speed, correct call | ✓ Good |
-| DataTable min-w-max for mobile scroll | overflow-auto exists but needs min-w-max to trigger at 360px | ✓ Confirmed pattern |
-| Phase 6+7 caught component gap | Phase 6 only swept pages — 40 components still had tv-card; Phase 7 found and swept them | ⚠️ Lesson: sweep components AND pages together next time |
-
-## Current Milestone: v1.1 Position Management & Risk Intelligence
-
-**Goal:** Optimize the full position lifecycle (entry → breakeven → trail → exit) and add visibility into risk/execution health so every trade is managed smarter and every problem is caught before it costs money.
-
-**Target features:**
-- Breakeven buffer — move SL to entry+N pips (not exact entry) to absorb spread/commission
-- Trailing stop activation after breakeven fires — let winners run instead of clipping at entry
-- Per-symbol trail distance config (forex pips vs index points)
-- Risk multiplier visibility in dashboard — see what `step_up` mode is doing to lot sizes
-- Risk-per-trade column in signal table
-- Webhook → fill latency tracking and alerting
-- Dead signal detection (signal fires, no fill within 30s)
+|----------|-----------|---------|
+| Client-side period filter (not DB query) | Avoids extra round-trips; 1000 signals is fast enough | ✓ Good |
+| Trade notes in localStorage | Avoids DB schema change; acceptable for single-user | — Pending revisit |
+| recharts for equity curve | Already a dependency; no new packages needed | ✓ Good |
 
 ---
-*Last updated: 2026-03-21 after v1.1 milestone start*
+*Last updated: 2026-03-21 after v1.1 journal overhaul*
