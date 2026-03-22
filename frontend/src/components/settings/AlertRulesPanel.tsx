@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getApiUrl } from '@/lib/api';
+import { getApiUrl, getAlertRulePatchUrl } from '@/lib/api';
 import { Bell, Plus, Trash2, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -12,6 +12,7 @@ interface AlertRule {
   condition: Record<string, unknown>;
   severity: string;
   enabled: boolean;
+  cooldown_minutes: number;
   created_at: string;
 }
 
@@ -50,6 +51,36 @@ function useDeleteAlertRule() {
   });
 }
 
+function useToggleAlertRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ ruleId, enabled }: { ruleId: number; enabled: boolean }) => {
+      const url = getAlertRulePatchUrl(ruleId);
+      if (!url) throw new Error('API URL not configured');
+      const res = await fetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    },
+    onMutate: async ({ ruleId, enabled }) => {
+      // Optimistic update
+      await qc.cancelQueries({ queryKey: ruleKeys.all });
+      const prev = qc.getQueryData<AlertRule[]>(ruleKeys.all);
+      qc.setQueryData<AlertRule[]>(ruleKeys.all, (old) =>
+        (old ?? []).map((r) => (r.id === ruleId ? { ...r, enabled } : r)),
+      );
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(ruleKeys.all, ctx.prev);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ruleKeys.all }),
+  });
+}
+
 function useCreateAlertRule() {
   const qc = useQueryClient();
   return useMutation({
@@ -57,6 +88,7 @@ function useCreateAlertRule() {
       rule_type: string;
       condition: Record<string, unknown>;
       severity: string;
+      cooldown_minutes: number;
     }) => {
       const base = getApiUrl();
       if (!base) throw new Error('API URL not configured');
@@ -74,8 +106,9 @@ function useCreateAlertRule() {
 
 const SEVERITY_COLORS: Record<string, string> = {
   critical: 'bg-[#ef5350]/15 text-[#ef5350]',
-  warning: 'bg-amber-500/15 text-amber-400',
-  info: 'bg-blue-500/15 text-blue-400',
+  error:    'bg-orange-500/15 text-orange-400',
+  warning:  'bg-amber-500/15 text-amber-400',
+  info:     'bg-blue-500/15 text-blue-400',
 };
 
 function formatCondition(condition: Record<string, unknown>): string {
@@ -84,14 +117,50 @@ function formatCondition(condition: Record<string, unknown>): string {
     .join(', ');
 }
 
+// ── Toggle switch component ───────────────────────────────────
+
+interface ToggleProps {
+  checked: boolean;
+  onChange: (val: boolean) => void;
+  disabled?: boolean;
+}
+
+function Toggle({ checked, onChange, disabled }: ToggleProps) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={cn(
+        'relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-150',
+        'focus:outline-none disabled:cursor-not-allowed disabled:opacity-50',
+        checked ? 'bg-[var(--to-accent-green)]' : 'bg-[var(--to-border)]',
+      )}
+    >
+      <span
+        className={cn(
+          'pointer-events-none inline-block h-3 w-3 rounded-full bg-white shadow transition-transform duration-150',
+          checked ? 'translate-x-3' : 'translate-x-0',
+        )}
+      />
+    </button>
+  );
+}
+
+// ── Panel ────────────────────────────────────────────────────
+
 export function AlertRulesPanel() {
   const { data: rules = [], isLoading } = useAlertRules();
-  const deleteRule = useDeleteAlertRule();
-  const createRule = useCreateAlertRule();
+  const deleteRule  = useDeleteAlertRule();
+  const toggleRule  = useToggleAlertRule();
+  const createRule  = useCreateAlertRule();
   const [showAdd, setShowAdd] = useState(false);
   const [newType, setNewType] = useState('');
   const [newThreshold, setNewThreshold] = useState('');
   const [newSeverity, setNewSeverity] = useState('warning');
+  const [newCooldown, setNewCooldown] = useState('60');
 
   const handleAdd = () => {
     if (!newType.trim()) return;
@@ -100,6 +169,7 @@ export function AlertRulesPanel() {
         rule_type: newType.trim(),
         condition: { threshold: Number(newThreshold) || 1 },
         severity: newSeverity,
+        cooldown_minutes: Number(newCooldown) || 60,
       },
       {
         onSuccess: () => {
@@ -107,6 +177,7 @@ export function AlertRulesPanel() {
           setNewType('');
           setNewThreshold('');
           setNewSeverity('warning');
+          setNewCooldown('60');
         },
       },
     );
@@ -132,7 +203,7 @@ export function AlertRulesPanel() {
 
       {showAdd && (
         <div className='px-4 py-3 border-b border-panel-border-subtle space-y-2'>
-          <div className='grid grid-cols-3 gap-2'>
+          <div className='grid grid-cols-2 gap-2'>
             <input
               id='alert-rule-type'
               type='text'
@@ -157,8 +228,17 @@ export function AlertRulesPanel() {
             >
               <option value='info'>Info</option>
               <option value='warning'>Warning</option>
+              <option value='error'>Error</option>
               <option value='critical'>Critical</option>
             </select>
+            <input
+              id='alert-rule-cooldown'
+              type='number'
+              placeholder='Cooldown (min)'
+              value={newCooldown}
+              onChange={(e) => setNewCooldown(e.target.value)}
+              className='bg-surface border border-panel-border-subtle rounded px-2 py-1 text-xs font-mono text-text-secondary focus:outline-none focus:border-[var(--to-accent-green)]'
+            />
           </div>
           <button
             onClick={handleAdd}
@@ -187,29 +267,47 @@ export function AlertRulesPanel() {
         {rules.map((rule) => (
           <div
             key={rule.id}
-            className='px-4 py-2.5 flex items-center justify-between'
+            className={cn(
+              'px-4 py-2.5 flex items-center justify-between gap-3',
+              !rule.enabled && 'opacity-50',
+            )}
           >
-            <div className='flex items-center gap-3'>
-              <span className='font-mono text-xs text-text-secondary'>
+            {/* Toggle */}
+            <Toggle
+              checked={rule.enabled}
+              onChange={(val) => toggleRule.mutate({ ruleId: rule.id, enabled: val })}
+              disabled={toggleRule.isPending}
+            />
+
+            {/* Rule info */}
+            <div className='flex-1 flex items-center gap-3 min-w-0'>
+              <span className='font-mono text-xs text-text-secondary truncate'>
                 {rule.rule_type}
               </span>
-              <span className='font-mono text-[10px] text-text-muted'>
+              <span className='font-mono text-[10px] text-text-muted truncate'>
                 {formatCondition(rule.condition)}
               </span>
               <span
                 className={cn(
-                  'font-mono text-[10px] px-1.5 py-0.5 rounded uppercase',
+                  'font-mono text-[10px] px-1.5 py-0.5 rounded uppercase shrink-0',
                   SEVERITY_COLORS[rule.severity] ||
                     'bg-zinc-500/15 text-[var(--to-text-dim)]',
                 )}
               >
                 {rule.severity}
               </span>
+              {rule.cooldown_minutes && (
+                <span className='font-mono text-[9px] text-text-muted shrink-0'>
+                  {rule.cooldown_minutes}m cooldown
+                </span>
+              )}
             </div>
+
+            {/* Delete */}
             <button
               onClick={() => deleteRule.mutate(rule.id)}
               disabled={deleteRule.isPending}
-              className='text-text-muted hover:text-[var(--to-short)] transition-colors'
+              className='text-text-muted hover:text-[var(--to-short)] transition-colors shrink-0'
             >
               <Trash2 className='w-3.5 h-3.5' />
             </button>

@@ -1,5 +1,26 @@
 # Worklog
 
+## 2026-03-22 — Alerts System Upgrade
+
+### Changes
+- **Migration 050** (`migrations/050_alerts_upgrade.sql`): Added `snoozed_until` column to `trading_alerts`, added `error` to severity constraint (was critical/warning/info only), added `cooldown_minutes` column to `alert_rules` with per-type defaults.
+- **AlertEngine** (`src/services/alert_engine.py`): Now accepts optional `AlertService` and delegates all alert creation through it (Discord/Telegram fanout). Falls back to direct insert if no service. Rule handlers now use `cooldown_minutes` from the rule row as the dedup window (was hardcoded 5 min — caused repeated alert spam).
+- **ExecutionEngine** (`src/services/execution_engine.py`): `_create_tca_alert()` now uses `AlertService` when wired in, so TCA alerts (slippage, latency) are sent to Discord/Telegram for the first time.
+- **worker.py**: Creates `AlertService` with Discord+Telegram notifiers and wires it into `AlertEngine`.
+- **logic.py**: Creates `AlertService` and wires it into `ExecutionEngine` at TCA execution time.
+- **api_alerts.py**: Added `POST /{id}/snooze` (suppress for 1–168h), `PATCH /rules/{id}` (toggle enabled, severity, cooldown), `cooldown_minutes` in rule responses. Active alerts now exclude snoozed ones.
+- **lib/api.ts**: Added `getAlertSnoozeUrl`, `getAlertRulePatchUrl` helpers.
+- **useAlerts.ts**: Added `snoozeAlert(id, hours)` mutation with optimistic removal.
+- **AlertItem.tsx**: Full rewrite — type-specific icons, severity color-coded left border + badge, expandable metadata panel, snooze dropdown (1h/24h), renamed "Mark read" to "Done".
+- **alerts/page.tsx**: Added Info stat card (5-column grid), last-updated timestamp on Refresh, passes `onSnooze` to `AlertItem`.
+- **AlertRulesPanel.tsx**: Added enable/disable toggle per rule (optimistic update), cooldown_minutes display and input in create form, added `error` severity option.
+
+### Why
+- TCA alerts (high slippage, high latency) were written to DB but never sent to Discord/Telegram — operators couldn't react.
+- Rules fired every 60s once threshold breached → alert spam in UI and Discord.
+- `error` severity existed in frontend code but was blocked by DB constraint.
+- No way to quiet a noisy alert without fully acknowledging it.
+
 ## 2026-03-16 (session 2)
 
 ### Fix: Status case mismatch — risk/guard/evaluation queries returned empty results

@@ -148,7 +148,8 @@ function DlRow({ item, onRetry, onDiscard, retrying, discarding }: DlRowProps) {
 export default function AlertsPage() {
   const [filter, setFilter] = useState<SeverityFilter>('all');
 
-  const { alerts, isLoading, markAsRead, clearAll, refetch } = useAlerts();
+  const { alerts, isLoading, markAsRead, clearAll, snoozeAlert, refetch } = useAlerts();
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const { data: health } = useSystemHealth();
   const { data: dlData } = useDeadLetters();
   const retryMutation    = useRetryDeadLetter();
@@ -163,6 +164,10 @@ export default function AlertsPage() {
   ).length;
   const warningCount  = alerts.filter((a) => a.severity === 'warning').length;
   const infoCount     = alerts.filter((a) => a.severity === 'info').length;
+
+  const handleRefetch = () => {
+    refetch().then(() => setLastUpdated(new Date()));
+  };
 
   const filteredAlerts =
     filter === 'all'
@@ -188,15 +193,20 @@ export default function AlertsPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          {lastUpdated && (
+            <span className="font-mono text-[9px] text-[var(--to-text-dim)]" suppressHydrationWarning>
+              Updated {lastUpdated.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </span>
+          )}
           <button
             type="button"
-            onClick={() => refetch()}
+            onClick={handleRefetch}
             disabled={isLoading}
             className={cn(
               'flex items-center gap-1.5 rounded border border-[var(--to-border)] bg-[var(--to-surface)] px-3 py-1.5',
               'font-mono text-[10px] font-semibold uppercase tracking-wider text-[var(--to-text-dim)]',
               'hover:text-[var(--to-text-secondary)] transition-colors',
-              isLoading && 'animate-spin-slow opacity-60 cursor-not-allowed',
+              isLoading && 'opacity-60 cursor-not-allowed',
             )}
           >
             <RefreshCw className={cn('h-3 w-3', isLoading && 'animate-spin')} />
@@ -221,7 +231,7 @@ export default function AlertsPage() {
       </header>
 
       {/* ── Stat cards ──────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <StatCard
           label="Active Alerts"
           value={alerts.length}
@@ -248,6 +258,15 @@ export default function AlertsPage() {
           bg="bg-amber-500/10 border-amber-500/20"
           active={filter === 'warning'}
           onClick={() => setFilter('warning')}
+        />
+        <StatCard
+          label="Info"
+          value={infoCount}
+          icon={Info}
+          color="text-blue-400"
+          bg="bg-blue-500/10 border-blue-500/20"
+          active={filter === 'info'}
+          onClick={() => setFilter('info')}
         />
         <StatCard
           label="Dead Letters"
@@ -294,7 +313,7 @@ export default function AlertsPage() {
           ) : (
             <div className="divide-y divide-[var(--to-border)]">
               {filteredAlerts.map((alert) => (
-                <AlertItem key={alert.id} alert={alert} onMarkRead={markAsRead} />
+                <AlertItem key={alert.id} alert={alert} onMarkRead={markAsRead} onSnooze={snoozeAlert} />
               ))}
             </div>
           )}

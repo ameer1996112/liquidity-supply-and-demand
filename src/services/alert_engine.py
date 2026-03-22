@@ -30,8 +30,9 @@ def _is_table_missing(exc: BaseException) -> bool:
 class AlertEngine:
     """Evaluates alert rules and inserts alerts into trading_alerts table."""
 
-    def __init__(self, supabase_client) -> None:
+    def __init__(self, supabase_client, alert_service=None) -> None:
         self.supabase = supabase_client
+        self._alert_service = alert_service  # Optional AlertService for Discord/Telegram fanout
 
     def evaluate_all(self) -> None:
         """Run all enabled alert rules."""
@@ -61,6 +62,7 @@ class AlertEngine:
                 rule_type = rule.get("rule_type", "")
                 condition = rule.get("condition", {})
                 severity = rule.get("severity", "warning")
+                cooldown_minutes = int(rule.get("cooldown_minutes", 60))
 
                 handler = {
                     "consecutive_losses": self._check_consecutive_losses,
@@ -70,7 +72,7 @@ class AlertEngine:
                 }.get(rule_type)
 
                 if handler:
-                    handler(condition, severity)
+                    handler(condition, severity, cooldown_minutes)
             except Exception as exc:
                 logger.error("AlertEngine: rule %s failed: %s", rule.get("id"), exc)
 
@@ -87,10 +89,28 @@ class AlertEngine:
         message: str,
         metadata: Optional[Dict[str, Any]] = None,
         signal_id: Optional[int] = None,
+        dedupe_minutes: int = 60,
     ) -> None:
-        """Insert alert into trading_alerts. Deduplicates by checking last 5 minutes."""
+        """Insert alert into trading_alerts with deduplication and optional AlertService fanout."""
+        # Delegate to AlertService if available (handles Discord/Telegram fanout)
+        if self._alert_service is not None:
+            try:
+                self._alert_service.create_alert(
+                    alert_type=alert_type,
+                    severity=severity,
+                    title=title,
+                    message=message,
+                    metadata=metadata,
+                    signal_id=signal_id,
+                    dedupe_minutes=dedupe_minutes,
+                )
+            except Exception as exc:
+                logger.error("AlertEngine: AlertService.create_alert failed: %s", exc)
+            return
+
+        # Fallback: direct insert with deduplication (no external notifications)
         try:
-            cutoff = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+            cutoff = (datetime.now(timezone.utc) - timedelta(minutes=dedupe_minutes)).isoformat()
             existing = (
                 self.supabase.table("trading_alerts")
                 .select("id")
@@ -173,7 +193,7 @@ class AlertEngine:
 
     # ── Rule checks ──────────────────────────────────────────
 
-    def _check_consecutive_losses(self, condition: dict, severity: str) -> None:
+    def _check_consecutive_losses(self, condition: dict, severity: str, cooldown_minutes: int = 60) -> None:
         threshold = int(condition.get("threshold", 3))
         run_mode = condition.get("run_mode", "LIVE")  # Default to LIVE only
         # Only look at trades from the last N days (default 7) to avoid
@@ -221,10 +241,11 @@ class AlertEngine:
                 f"{consecutive} Consecutive Losses{mode_label}",
                 f"Last {consecutive} closed {run_mode or 'all'} trades were losses. Consider pausing.",
                 {"consecutive_count": consecutive, "run_mode": run_mode},
+                dedupe_minutes=cooldown_minutes,
             )
 
 
-    def _check_drawdown_threshold(self, condition: dict, severity: str) -> None:
+    def _check_drawdown_threshold(self, condition: dict, severity: str, cooldown_minutes: int = 60) -> None:
         from config import get_settings
 
         s = get_settings()
@@ -256,9 +277,10 @@ class AlertEngine:
                     f"Drawdown {drawdown_pct:.1f}% Exceeded{mode_label}",
                     f"Daily {run_mode or 'all'} drawdown {drawdown_pct:.1f}% >= {threshold}% limit.",
                     {"drawdown_pct": round(drawdown_pct, 2), "daily_pnl": round(daily_pnl, 2), "run_mode": run_mode},
+                    dedupe_minutes=cooldown_minutes,
                 )
 
-    def _check_dlq_spike(self, condition: dict, severity: str) -> None:
+    def _check_dlq_spike(self, condition: dict, severity: str, cooldown_minutes: int = 60) -> None:
         threshold = int(condition.get("threshold", 1))
         try:
             from src.adapters.redis_queue import get_redis, DEAD_LETTER_QUEUE
@@ -272,11 +294,12 @@ class AlertEngine:
                     f"{dlq_count} Dead Letters in Queue",
                     f"DLQ has {dlq_count} failed items. Check for processing errors.",
                     {"dlq_count": dlq_count},
+                    dedupe_minutes=cooldown_minutes,
                 )
         except Exception:
             pass
 
-    def _check_position_age(self, condition: dict, severity: str) -> None:
+    def _check_position_age(self, condition: dict, severity: str, cooldown_minutes: int = 120) -> None:
         threshold_hours = int(condition.get("threshold", 24))
         cutoff = (datetime.now(timezone.utc) - timedelta(hours=threshold_hours)).isoformat()
 
@@ -295,4 +318,5 @@ class AlertEngine:
                 f"Trade #{trade['id']} ({trade['symbol']}) has been open for over {threshold_hours} hours.",
                 {"signal_id": trade["id"], "symbol": trade["symbol"]},
                 signal_id=trade["id"],
+                dedupe_minutes=cooldown_minutes,
             )

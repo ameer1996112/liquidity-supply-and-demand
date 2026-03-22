@@ -35,10 +35,11 @@ class ExecutionEngine:
     - Alert generation (threshold violations)
     """
 
-    def __init__(self, supabase_client, settings):
+    def __init__(self, supabase_client, settings, alert_service=None):
         self.client = supabase_client
         self.settings = settings
         self.tca_analyzer = TCAAnalyzer(supabase_client)
+        self._alert_service = alert_service  # Optional AlertService for Discord/Telegram fanout
 
     def execute_with_tca(
         self,
@@ -308,25 +309,38 @@ class ExecutionEngine:
         severity: str,
         message: str
     ):
-        """
-        Create trading alert for TCA threshold violations.
+        """Create trading alert for TCA threshold violations, with Discord/Telegram fanout."""
+        title = f"Execution Quality: {alert_type.replace('_', ' ').title()}"
+        metadata = {"source": "tca_engine", "signal_id": signal_id}
 
-        Args:
-            signal_id: Related signal ID
-            alert_type: "high_slippage" or "high_latency"
-            severity: "critical", "warning", or "info"
-            message: Alert message
-        """
+        # Use AlertService if available (sends to Discord/Telegram)
+        if self._alert_service is not None:
+            try:
+                self._alert_service.create_alert(
+                    alert_type=alert_type,
+                    severity=severity,
+                    title=title,
+                    message=message,
+                    metadata=metadata,
+                    signal_id=signal_id,
+                    dedupe_minutes=30,
+                )
+                logger.warning(f"TCA alert created via AlertService: {alert_type} for signal_id={signal_id}")
+                return
+            except Exception as e:
+                logger.error(f"AlertService.create_alert failed for TCA alert: {e}")
+
+        # Fallback: direct insert (no Discord/Telegram)
         try:
             alert = {
                 "signal_id": signal_id,
                 "alert_type": alert_type,
                 "severity": severity,
-                "title": f"Execution Quality Alert: {alert_type.replace('_', ' ').title()}",
+                "title": title,
                 "message": message,
-                "metadata": {"source": "tca_engine"}
+                "metadata": metadata,
             }
             self.client.table("trading_alerts").insert(alert).execute()
-            logger.warning(f"TCA alert created: {alert_type} for signal_id={signal_id}")
+            logger.warning(f"TCA alert created (direct): {alert_type} for signal_id={signal_id}")
         except Exception as e:
             logger.error(f"Failed to create TCA alert: {e}")

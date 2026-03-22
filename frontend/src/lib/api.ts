@@ -545,6 +545,14 @@ export function getAlertAcknowledgeAllUrl(): string {
   return `${API_BASE_URL}/api/alerts/acknowledge_all`;
 }
 
+export function getAlertSnoozeUrl(alertId: number): string {
+  return `${API_BASE_URL}/api/alerts/${alertId}/snooze`;
+}
+
+export function getAlertRulePatchUrl(ruleId: number): string {
+  return `${API_BASE_URL}/api/alerts/rules/${ruleId}`;
+}
+
 /**
  * Type Definitions
  */

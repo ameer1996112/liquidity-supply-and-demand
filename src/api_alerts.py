@@ -48,6 +48,7 @@ class AlertResponse(BaseModel):
     metadata: Dict[str, Any] = {}
     signal_id: Optional[int] = None
     acknowledged_at: Optional[str] = None
+    snoozed_until: Optional[str] = None
     created_at: str
 
 
@@ -62,6 +63,7 @@ class AlertRuleResponse(BaseModel):
     condition: Dict[str, Any] = {}
     severity: str
     enabled: bool
+    cooldown_minutes: int = 60
     created_at: str
 
 
@@ -70,6 +72,17 @@ class CreateAlertRuleRequest(BaseModel):
     condition: Dict[str, Any] = Field(default_factory=dict)
     severity: str = "warning"
     enabled: bool = True
+    cooldown_minutes: int = 60
+
+
+class SnoozeAlertRequest(BaseModel):
+    hours: int = Field(1, ge=1, le=168)  # 1h to 7 days
+
+
+class PatchAlertRuleRequest(BaseModel):
+    enabled: Optional[bool] = None
+    severity: Optional[str] = None
+    cooldown_minutes: Optional[int] = None
 
 
 # ── Endpoints ────────────────────────────────────────────────
@@ -123,13 +136,41 @@ def list_active_alerts(
     severity: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=200),
 ) -> AlertsListResponse:
-    """
-    Convenience endpoint for "active" alerts, i.e. not yet acknowledged.
+    """Active (unacknowledged, not snoozed) alerts."""
+    sb = _get_supabase()
+    now_iso = datetime.now(timezone.utc).isoformat()
 
-    Mirrors `list_alerts` with `acknowledged=False` and optional severity
-    filter so the frontend can simply poll `/alerts/active`.
-    """
-    return list_alerts(severity=severity, acknowledged=False, limit=limit)
+    query = (
+        sb.table("trading_alerts")
+        .select("*")
+        .is_("acknowledged_at", "null")
+        .order("created_at", desc=True)
+        .limit(limit)
+    )
+    if severity:
+        query = query.eq("severity", severity)
+
+    try:
+        resp = query.execute()
+        alerts = resp.data or []
+    except Exception as exc:
+        if _is_table_missing(exc):
+            return AlertsListResponse(alerts=[], count=0)
+        if is_supabase_connection_error(exc):
+            reset_api_supabase()
+        logger.error("Failed to fetch active alerts: %s", exc)
+        return AlertsListResponse(alerts=[], count=0)
+
+    # Filter out snoozed alerts in Python (avoids complex PostgREST OR query)
+    active = [
+        a for a in alerts
+        if not a.get("snoozed_until") or a["snoozed_until"] < now_iso
+    ]
+
+    return AlertsListResponse(
+        alerts=[AlertResponse(**a) for a in active],
+        count=len(active),
+    )
 
 @router.post("/{alert_id}/acknowledge")
 def acknowledge_alert(alert_id: int):
@@ -182,6 +223,28 @@ def acknowledge_all_alerts():
     return {"status": "ok"}
 
 
+@router.post("/{alert_id}/snooze")
+def snooze_alert(alert_id: int, body: SnoozeAlertRequest):
+    """Suppress an alert for N hours without acknowledging it."""
+    sb = _get_supabase()
+    from datetime import timedelta
+    until = (datetime.now(timezone.utc) + timedelta(hours=body.hours)).isoformat()
+    try:
+        resp = (
+            sb.table("trading_alerts")
+            .update({"snoozed_until": until})
+            .eq("id", alert_id)
+            .execute()
+        )
+        if not resp.data:
+            raise HTTPException(status_code=404, detail="Alert not found")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to snooze: {exc}")
+    return {"status": "ok", "alert_id": alert_id, "snoozed_until": until}
+
+
 @router.get("/rules")
 def list_alert_rules():
     """List all alert rules."""
@@ -208,6 +271,37 @@ def list_alert_rules():
     return {"rules": rules}
 
 
+@router.patch("/rules/{rule_id}")
+def patch_alert_rule(rule_id: int, body: PatchAlertRuleRequest):
+    """Toggle enabled, change severity or cooldown_minutes for a rule."""
+    sb = _get_supabase()
+    updates: Dict[str, Any] = {}
+    if body.enabled is not None:
+        updates["enabled"] = body.enabled
+    if body.severity is not None:
+        updates["severity"] = body.severity
+    if body.cooldown_minutes is not None:
+        updates["cooldown_minutes"] = body.cooldown_minutes
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    try:
+        resp = (
+            sb.table("alert_rules")
+            .update(updates)
+            .eq("id", rule_id)
+            .execute()
+        )
+        if not resp.data:
+            raise HTTPException(status_code=404, detail="Rule not found")
+        return {"status": "ok", "rule": resp.data[0]}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        if _is_table_missing(exc):
+            raise HTTPException(status_code=503, detail="Alert rules table not available.")
+        raise HTTPException(status_code=500, detail=f"Failed to update rule: {exc}")
+
+
 @router.post("/rules")
 def create_alert_rule(body: CreateAlertRuleRequest):
     """Create a new alert rule."""
@@ -222,6 +316,7 @@ def create_alert_rule(body: CreateAlertRuleRequest):
                     "condition": body.condition,
                     "severity": body.severity,
                     "enabled": body.enabled,
+                    "cooldown_minutes": body.cooldown_minutes,
                 }
             )
             .execute()

@@ -33,6 +33,7 @@ from src.core.risk_engine import calculate_max_position_size
 from src.adapters import supabase as supabase_module
 from src.services.trade_events import log_event
 from src.services.execution_engine import ExecutionEngine
+from src.services.alert_service import create_default_alert_service
 
 logger = get_logger("trinity.logic")
 
@@ -649,7 +650,8 @@ def process_trade(
 
                 if client and s.tca_enabled:
                     # Use execution engine with TCA tracking
-                    execution_engine = ExecutionEngine(client, s)
+                    _tca_alert_service = create_default_alert_service(client)
+                    execution_engine = ExecutionEngine(client, s, alert_service=_tca_alert_service)
                     exec_result = execution_engine.execute_with_tca(
                         order_request=order_req,
                         signal_data=signal_data,

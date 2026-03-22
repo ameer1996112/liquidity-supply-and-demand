@@ -1629,7 +1629,9 @@ def run():
     backoff = 5
     watchdog = TradeWatchdog(supabase_client=supabase)
     from src.services.alert_engine import AlertEngine
-    alert_engine = AlertEngine(supabase_client=supabase)
+    from src.services.alert_service import create_default_alert_service
+    _worker_alert_service = create_default_alert_service(supabase)
+    alert_engine = AlertEngine(supabase_client=supabase, alert_service=_worker_alert_service)
 
     # Initialize daily reset scheduler for prop firm metrics
     daily_reset_scheduler = None

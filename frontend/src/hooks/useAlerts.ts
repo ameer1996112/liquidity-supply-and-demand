@@ -6,6 +6,7 @@ import {
   getAlertsActiveUrl,
   getAlertAcknowledgeUrl,
   getAlertAcknowledgeAllUrl,
+  getAlertSnoozeUrl,
 } from '@/lib/api';
 
 // ---------------------------------------------------------------------------
@@ -23,6 +24,7 @@ export interface Alert {
   metadata: Record<string, unknown>;
   signal_id?: number | null;
   acknowledged_at?: string | null;
+  snoozed_until?: string | null;
   created_at: string;
 }
 
@@ -112,6 +114,29 @@ export function useAlerts() {
     }
   }, [queryClient]);
 
+  const snoozeAlert = useCallback(
+    async (id: number, hours: 1 | 24) => {
+      const url = getAlertSnoozeUrl(id);
+      if (!url) return;
+      try {
+        await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ hours }),
+          signal: AbortSignal.timeout(5_000),
+        });
+        // Optimistically remove from active list (it's snoozed)
+        queryClient.setQueryData<Alert[]>(alertKeys.active, (old) =>
+          (old ?? []).filter((a) => a.id !== id),
+        );
+      } catch (err) {
+
+        console.error('Failed to snooze alert', err);
+      }
+    },
+    [queryClient],
+  );
+
   const unreadCount = useMemo(
     () => (query.data ?? []).length,
     [query.data],
@@ -125,6 +150,7 @@ export function useAlerts() {
     refetch: query.refetch,
     markAsRead,
     clearAll,
+    snoozeAlert,
   };
 }
 
