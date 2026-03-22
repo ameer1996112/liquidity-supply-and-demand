@@ -107,8 +107,35 @@ function getSortValue(signal: TradingSignal, field: SortField): string | number 
 }
 
 // =============================================================================
-// STATUS STYLES — covers all known statuses
+// SAFE RENDER WRAPPER — prevents a single cell crash from collapsing the table
 // =============================================================================
+
+/**
+ * Wraps a column render function with a try/catch. If the render throws,
+ * logs the error and shows an 'ERR' indicator instead of propagating the
+ * exception through DataTable's data.map() and silently emptying the table.
+ */
+function safeRender<T>(
+  id: string,
+  fn: (row: T) => React.ReactNode
+): (row: T) => React.ReactNode {
+  return (row: T) => {
+    try {
+      return fn(row);
+    } catch (err) {
+      console.error(`[SignalTable] ${id} render error:`, err, row);
+      return (
+        <span
+          className='font-mono text-[9px] text-[var(--to-short)]/70'
+          title={String(err)}
+        >
+          ERR
+        </span>
+      );
+    }
+  };
+}
+
 
 const STATUS_STYLES: Record<string, { label: string; bg: string; text: string }> = {
   active:              { label: 'OPEN',      bg: 'bg-[var(--to-long)]/12',          text: 'text-[var(--to-long)]' },
@@ -356,7 +383,7 @@ export function SignalTable({
       isNumeric: true,
       width: 'w-[76px]',
       header: <SortHeader field='entry' label='Entry' align='right' sortField={sortField} sortDir={sortDir} onSort={handleSort} />,
-      render: (signal) => {
+      render: safeRender('entry', (signal) => {
         const broker = brokerMap[String(signal.id)];
         const entry = signal.entry ?? signal.price;
         const currentPrice = broker?.current_price;
@@ -379,7 +406,7 @@ export function SignalTable({
             {entryFormatted}
           </span>
         );
-      },
+      }),
     },
     {
       id: 'sl_tp',
@@ -391,7 +418,7 @@ export function SignalTable({
           SL / TP
         </span>
       ),
-      render: (signal) => {
+      render: safeRender('sl_tp', (signal) => {
         const sl = signal.sl ?? signal.stop_loss;
         const tp = signal.tp ?? signal.take_profit;
         const sym = signal.symbol ?? '';
@@ -411,7 +438,7 @@ export function SignalTable({
             <span className='text-[var(--to-long)]/75'>{tpStr}</span>
           </span>
         );
-      },
+      }),
     },
     {
       id: 'pnl',
@@ -419,7 +446,7 @@ export function SignalTable({
       isNumeric: true,
       width: 'w-[80px]',
       header: <SortHeader field='pnl' label='P&L' align='right' sortField={sortField} sortDir={sortDir} onSort={handleSort} />,
-      render: (signal) => {
+      render: safeRender('pnl', (signal) => {
         const broker = brokerMap[String(signal.id)];
         const livePnl = broker?.live_pnl;
         const dbPnl = signal.pnl ?? signal.pnl_usd ?? null;
@@ -441,13 +468,16 @@ export function SignalTable({
                   isPos ? 'bg-[var(--to-long)]' : 'bg-[var(--to-short)]',
                 )}
               />
-              {livePnl > 0 ? '+' : ''}{livePnl.toFixed(2)}
+              {(() => {
+                const n = Number(livePnl);
+                return isNaN(n) ? '—' : `${n > 0 ? '+' : ''}${n.toFixed(2)}`;
+              })()}
             </span>
           );
         }
 
         return <PnLText value={dbPnl} variant='currency' size='sm' />;
-      },
+      }),
     },
     {
       id: 'score',
