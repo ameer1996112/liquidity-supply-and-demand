@@ -587,9 +587,9 @@ export default function DashboardPage() {
       )}
 
       {/* ── Middle · Bento grid: latest signals + risk side rail ── */}
-      <div className='flex min-h-0 flex-1 flex-col gap-2 xl:flex-row'>
+      <div className='flex min-h-[320px] flex-1 flex-col gap-2 xl:flex-row'>
         {/* Middle · Latest Signals table */}
-        <section className='glow-card flex min-h-0 flex-1 flex-col overflow-hidden'>
+        <section className='glow-card flex min-h-[280px] flex-1 flex-col overflow-hidden'>
           <div className='to-panel-header'>
             <div className='flex items-center gap-2'>
               <span className='panel-label'>Latest Signals</span>
@@ -608,7 +608,7 @@ export default function DashboardPage() {
             </span>
           </div>
 
-          <div className='min-h-0 flex-1 overflow-hidden p-2'>
+          <div className='h-0 flex-1 overflow-hidden p-2'>
             {signalsLoading && signals.length === 0 ? (
               <TableSkeleton rowCount={8} columnCount={6} />
             ) : (
