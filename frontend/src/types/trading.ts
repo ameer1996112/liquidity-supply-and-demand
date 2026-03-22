@@ -228,6 +228,8 @@ export interface SignalStats {
   paper_total_pnl?: number;
   /** Daily drawdown % (today's loss relative to starting equity) */
   daily_drawdown_pct: number;
+  /** Data source for PnL values: broker snapshot (most accurate) or signal records (fallback) */
+  pnl_source?: 'broker_snapshot' | 'signal_records';
 }
 
 // Filter types for queries

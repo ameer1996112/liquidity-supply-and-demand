@@ -18,7 +18,7 @@ import {
 } from '@/hooks/useTradingSignals';
 import { useRiskStatus } from '@/hooks/useRiskStatus';
 import { useConnectionHealth } from '@/hooks/useConnectionHealth';
-import { useActivePositions } from '@/hooks/usePositions';
+import { useActivePositions, useAccountStatus } from '@/hooks/usePositions';
 import { useDashboardLog } from '@/hooks/useDashboardLog';
 import { MarketSessionBanner } from '@/components/dashboard/MarketSessionBanner';
 import { PageStatusBanner } from '@/components/shared/PageStatusBanner';
@@ -183,6 +183,7 @@ export default function DashboardPage() {
 
   // Broker live positions — map by signal ID for overlay in SignalTable
   const { data: positionsData } = useActivePositions();
+  const { data: accountStatus } = useAccountStatus();
   const brokerMap = useMemo(() => {
     const map: Record<string, import('@/hooks/usePositions').ActivePosition> = {};
     for (const pos of positionsData?.positions ?? []) {
@@ -416,7 +417,9 @@ export default function DashboardPage() {
                 todayPnl != null ? (todayPnl >= 0 ? 'up' : 'down') : 'neutral'
               }
               subValue={
-                todayPnlDelta != null
+                activeMode === 'LIVE' && accountStatus?.equity != null
+                  ? `Equity ${formatCurrency(accountStatus.equity)}`
+                  : todayPnlDelta != null
                   ? `Δ ${formatCurrency(todayPnlDelta, { signed: true })}`
                   : EMPTY_VALUE
               }

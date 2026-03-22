@@ -329,6 +329,7 @@ export async function fetchSignalStats(): Promise<SignalStats> {
   // Use broker balance snapshots so dashboard matches real account PnL.
   let brokerDailyPnl: number | null = null;
   let brokerTotalPnl: number | null = null;
+  let hasAnySnapshotData = false;
   try {
     if (supabase) {
       // Get all active accounts
@@ -356,6 +357,24 @@ export async function fetchSignalStats(): Promise<SignalStats> {
           ) || 0;
         totalAllocated += allocated;
 
+        // Latest balance for this account (required to proceed)
+        const { data: currentSnap } = await supabase
+          .from('account_status_snapshots')
+          .select('balance')
+          .eq('account_name', name)
+          .order('snapshot_time', { ascending: false })
+          .limit(1);
+
+        if (!currentSnap || !currentSnap.length) continue;
+
+        const currBal = Number(
+          (currentSnap[0] as { balance: number }).balance ?? 0
+        );
+        if (!currBal) continue;
+
+        currentBalanceSum += currBal;
+        hasAnySnapshotData = true;
+
         // Balance just before today (start-of-day baseline)
         const { data: startSnap } = await supabase
           .from('account_status_snapshots')
@@ -365,27 +384,23 @@ export async function fetchSignalStats(): Promise<SignalStats> {
           .order('snapshot_time', { ascending: false })
           .limit(1);
 
-        // Latest balance for this account
-        const { data: currentSnap } = await supabase
-          .from('account_status_snapshots')
-          .select('balance')
-          .eq('account_name', name)
-          .order('snapshot_time', { ascending: false })
-          .limit(1);
-
-        if (startSnap && startSnap.length && currentSnap && currentSnap.length) {
+        if (startSnap && startSnap.length) {
+          // Normal case: use yesterday's last snapshot as today's baseline
           const startBal = Number(
             (startSnap[0] as { balance: number }).balance ?? 0
           );
-          const currBal = Number(
-            (currentSnap[0] as { balance: number }).balance ?? 0
-          );
           dailySum += currBal - startBal;
-          currentBalanceSum += currBal;
+        } else if (allocated > 0) {
+          // No snapshot before today: treat allocated capital as baseline.
+          // Covers first day of trading or when snapshots are behind.
+          dailySum += currBal - allocated;
         }
+        // If neither: skip daily contribution for this account
       }
 
-      if (currentBalanceSum !== 0) {
+      // Only set broker PnL if at least one account had current snapshot data.
+      // Guards against erroneously overriding signal-based fallback with zero.
+      if (hasAnySnapshotData && currentBalanceSum > 0) {
         brokerDailyPnl = dailySum;
         // Total PnL = current balance minus allocated capital (initial deposit)
         if (totalAllocated > 0) {
@@ -402,6 +417,9 @@ export async function fetchSignalStats(): Promise<SignalStats> {
   const effectiveLiveDailyPnl = brokerDailyPnl ?? liveDailyPnl;
   const effectiveTotalPnl = brokerTotalPnl ?? totalPnl;
   const effectiveLiveTotalPnl = brokerTotalPnl ?? liveTotalPnl;
+  const pnlSource: 'broker_snapshot' | 'signal_records' = hasAnySnapshotData
+    ? 'broker_snapshot'
+    : 'signal_records';
 
   // ── Daily Drawdown % ───────────────────────────────────────────────
   // Use account balance from closed signals if available, fallback to 50000
@@ -440,6 +458,7 @@ export async function fetchSignalStats(): Promise<SignalStats> {
     live_total_pnl: effectiveLiveTotalPnl,
     paper_total_pnl: paperTotalPnl,
     daily_drawdown_pct: dailyDrawdownPct,
+    pnl_source: pnlSource,
   };
 }
 

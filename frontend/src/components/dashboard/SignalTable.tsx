@@ -397,18 +397,13 @@ export function SignalTable({
       width: 'w-[72px]',
       header: <SortHeader field='created_at' label='Time' />,
       render: (signal) => (
-        <div className='flex flex-col gap-0.5'>
-          <span
-            className='font-mono text-[10px] tabular-nums text-[var(--to-text-primary)]'
-            style={{ fontFamily: 'var(--font-mono)' }}
-            title={new Date(signal.created_at).toLocaleString()}
-          >
-            {relativeTime(signal.created_at)} ago
-          </span>
-          <Mono size='sm' className='text-text-secondary'>
-            {formatTime(signal.created_at)}
-          </Mono>
-        </div>
+        <span
+          className='font-mono text-[10px] tabular-nums text-[var(--to-text-primary)]'
+          style={{ fontFamily: 'var(--font-mono)' }}
+          title={new Date(signal.created_at).toLocaleString()}
+        >
+          {relativeTime(signal.created_at)}
+        </span>
       ),
     },
     {
@@ -439,27 +434,27 @@ export function SignalTable({
         const broker = brokerMap[String(signal.id)];
         const entry = signal.entry ?? signal.price;
         const currentPrice = broker?.current_price;
+        const entryFormatted = formatPrice(entry, signal.symbol);
+        const dec = signal.symbol?.includes('JPY') ? 3 : 5;
+        const titleText = currentPrice != null
+          ? `Entry: ${entryFormatted?.toFixed(dec)} · Live: ${formatPrice(currentPrice, signal.symbol)?.toFixed(dec)}`
+          : undefined;
         return (
-          <div className='flex flex-col items-end gap-0.5'>
+          <span
+            className='font-mono text-[10px] tabular-nums text-text-secondary'
+            style={{ fontFamily: 'var(--font-mono)' }}
+            title={titleText}
+          >
+            {currentPrice != null && (
+              <Wifi className='inline h-2 w-2 mr-0.5 text-[var(--to-long)]/70' />
+            )}
             <MonoNumber
-              value={formatPrice(entry, signal.symbol)}
-              decimals={signal.symbol?.includes('JPY') ? 3 : 5}
+              value={entryFormatted}
+              decimals={dec}
               size='sm'
               className='text-text-secondary'
             />
-            {currentPrice != null && (
-              <span
-                className='flex items-center gap-0.5 font-mono text-[9px] tabular-nums text-[var(--to-long)]/80'
-                style={{ fontFamily: 'var(--font-mono)' }}
-                title='Live broker price'
-              >
-                <Wifi className='h-2 w-2' />
-                {formatPrice(currentPrice, signal.symbol)?.toFixed(
-                  signal.symbol?.includes('JPY') ? 3 : 5
-                )}
-              </span>
-            )}
-          </div>
+          </span>
         );
       },
     },
@@ -478,31 +473,18 @@ export function SignalTable({
         const tp = signal.tp ?? signal.take_profit;
         const sym = signal.symbol ?? '';
         const dec = sym.includes('JPY') ? 3 : sym.includes('XAU') || sym.includes('GOLD') ? 2 : 5;
+        const slStr = sl != null ? sl.toFixed(dec) : '—';
+        const tpStr = tp != null ? tp.toFixed(dec) : '—';
         return (
-          <div className='flex flex-col items-end gap-0.5'>
-            {sl != null ? (
-              <span
-                className='font-mono text-[9px] tabular-nums text-[var(--to-short)]/80'
-                style={{ fontFamily: 'var(--font-mono)' }}
-                title='Stop Loss'
-              >
-                {sl.toFixed(dec)}
-              </span>
-            ) : (
-              <span className='font-mono text-[9px] text-[var(--to-text-dim)]/40'>—</span>
-            )}
-            {tp != null ? (
-              <span
-                className='font-mono text-[9px] tabular-nums text-[var(--to-long)]/80'
-                style={{ fontFamily: 'var(--font-mono)' }}
-                title='Take Profit'
-              >
-                {tp.toFixed(dec)}
-              </span>
-            ) : (
-              <span className='font-mono text-[9px] text-[var(--to-text-dim)]/40'>—</span>
-            )}
-          </div>
+          <span
+            className='font-mono text-[9px] tabular-nums'
+            style={{ fontFamily: 'var(--font-mono)' }}
+            title={`SL: ${slStr} · TP: ${tpStr}`}
+          >
+            <span className='text-[var(--to-short)]/80'>{slStr}</span>
+            <span className='text-[var(--to-text-dim)]/40 mx-0.5'>/</span>
+            <span className='text-[var(--to-long)]/80'>{tpStr}</span>
+          </span>
         );
       },
     },
@@ -518,27 +500,19 @@ export function SignalTable({
         const dbPnl = signal.pnl ?? signal.pnl_usd ?? null;
 
         if (livePnl != null) {
-          // Live broker P&L — show with live indicator
           const isPos = livePnl >= 0;
           return (
-            <div className='flex flex-col items-end gap-0.5'>
-              <span
-                className={cn(
-                  'font-mono text-[10px] font-bold tabular-nums',
-                  isPos ? 'text-[var(--to-long)]' : 'text-[var(--to-short)]'
-                )}
-                style={{ fontFamily: 'var(--font-mono)' }}
-              >
-                {livePnl > 0 ? '+' : ''}
-                {livePnl.toFixed(2)}
-              </span>
-              <span
-                className='font-mono text-[8px] text-[var(--to-long)]/60'
-                style={{ fontFamily: 'var(--font-mono)' }}
-              >
-                live
-              </span>
-            </div>
+            <span
+              className={cn(
+                'inline-flex items-center gap-1 font-mono text-[10px] font-bold tabular-nums',
+                isPos ? 'text-[var(--to-long)]' : 'text-[var(--to-short)]'
+              )}
+              style={{ fontFamily: 'var(--font-mono)' }}
+              title='Live broker P&L'
+            >
+              <span className={cn('h-1.5 w-1.5 rounded-full shrink-0 animate-pulse', isPos ? 'bg-[var(--to-long)]' : 'bg-[var(--to-short)]')} />
+              {livePnl > 0 ? '+' : ''}{livePnl.toFixed(2)}
+            </span>
           );
         }
 
