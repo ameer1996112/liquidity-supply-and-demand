@@ -607,7 +607,7 @@ export default function DashboardPage() {
             </span>
           </div>
 
-          <div className='scrollbar-thin min-h-0 flex-1 overflow-y-auto p-2'>
+          <div className='min-h-0 flex-1 overflow-hidden p-2'>
             {signalsLoading && signals.length === 0 ? (
               <TableSkeleton rowCount={8} columnCount={6} />
             ) : (

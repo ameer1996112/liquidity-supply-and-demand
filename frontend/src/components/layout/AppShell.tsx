@@ -69,7 +69,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <div
           className={cn(
-            'relative flex min-h-screen flex-col',
+            'relative flex h-screen flex-col',
             'transition-[margin-left] duration-200 ease-out',
             isCollapsed ? SIDEBAR_WIDTH.collapsed : SIDEBAR_WIDTH.expanded
           )}

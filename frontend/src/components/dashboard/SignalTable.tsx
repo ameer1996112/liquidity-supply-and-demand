@@ -635,9 +635,9 @@ export function SignalTable({
   ];
 
   return (
-    <div className={cn('flex flex-col gap-2', className)}>
-      {/* Filter tabs */}
-      <div className='flex items-center gap-1 px-1 flex-wrap'>
+    <div className={cn('flex flex-col h-full min-h-0', className)}>
+      {/* Filter tabs — fixed height */}
+      <div className='shrink-0 flex items-center gap-1 px-1 pb-1 flex-wrap'>
         {FILTER_TABS.map((tab) => (
           <button
             key={tab.id}
@@ -673,27 +673,29 @@ export function SignalTable({
         )}
       </div>
 
-      {/* Table */}
-      {sorted.length === 0 ? (
-        <TableEmptyState
-          title={`No ${activeFilter === 'all' ? '' : activeFilter + ' '}signals`}
-          description='Try a different filter.'
-        />
-      ) : (
-        <DataTable
-          columns={columns}
-          data={sorted}
-          compact
-          stickyHeader={false}
-          getRowId={(signal) => signal.id}
-          onRowClick={(signal) => onSelectSignal?.(signal)}
-          getRowClassName={(signal) => {
-            const broker = brokerMap[String(signal.id)];
-            if (broker?.is_stale) return 'opacity-60 border-l-2 border-l-[var(--to-warning)]/50';
-            return '';
-          }}
-        />
-      )}
+      {/* Scrollable table area */}
+      <div className='flex-1 min-h-0 overflow-y-auto scrollbar-thin'>
+        {sorted.length === 0 ? (
+          <TableEmptyState
+            title={`No ${activeFilter === 'all' ? '' : activeFilter + ' '}signals`}
+            description='Try a different filter.'
+          />
+        ) : (
+          <DataTable
+            columns={columns}
+            data={sorted}
+            compact
+            stickyHeader
+            getRowId={(signal) => signal.id}
+            onRowClick={(signal) => onSelectSignal?.(signal)}
+            getRowClassName={(signal) => {
+              const broker = brokerMap[String(signal.id)];
+              if (broker?.is_stale) return 'opacity-60 border-l-2 border-l-[var(--to-warning)]/50';
+              return '';
+            }}
+          />
+        )}
+      </div>
     </div>
   );
 }
