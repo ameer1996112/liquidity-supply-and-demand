@@ -19,7 +19,6 @@ import { TableEmptyState } from '@/components/shared/TableStates';
 import {
   Mono,
   PnLText,
-  Number as MonoNumber,
 } from '@/components/ui/typography';
 
 type SortField =
@@ -398,7 +397,7 @@ export function SignalTable({
       header: <SortHeader field='created_at' label='Time' />,
       render: (signal) => (
         <span
-          className='font-mono text-[10px] tabular-nums text-[var(--to-text-primary)]'
+          className='inline-flex items-center font-mono text-[10px] tabular-nums text-[var(--to-text-primary)]'
           style={{ fontFamily: 'var(--font-mono)' }}
           title={new Date(signal.created_at).toLocaleString()}
         >
@@ -434,26 +433,21 @@ export function SignalTable({
         const broker = brokerMap[String(signal.id)];
         const entry = signal.entry ?? signal.price;
         const currentPrice = broker?.current_price;
-        const entryFormatted = formatPrice(entry, signal.symbol);
         const dec = signal.symbol?.includes('JPY') ? 3 : 5;
+        const entryFormatted = entry != null ? entry.toFixed(dec) : '—';
         const titleText = currentPrice != null
-          ? `Entry: ${entryFormatted?.toFixed(dec)} · Live: ${formatPrice(currentPrice, signal.symbol)?.toFixed(dec)}`
+          ? `Live: ${currentPrice.toFixed(dec)}`
           : undefined;
         return (
           <span
-            className='font-mono text-[10px] tabular-nums text-text-secondary'
+            className='inline-flex items-center gap-0.5 font-mono text-[10px] tabular-nums text-text-secondary justify-end'
             style={{ fontFamily: 'var(--font-mono)' }}
             title={titleText}
           >
             {currentPrice != null && (
-              <Wifi className='inline h-2 w-2 mr-0.5 text-[var(--to-long)]/70' />
+              <Wifi className='h-[9px] w-[9px] shrink-0 text-[var(--to-long)]/60' />
             )}
-            <MonoNumber
-              value={entryFormatted}
-              decimals={dec}
-              size='sm'
-              className='text-text-secondary'
-            />
+            {entryFormatted}
           </span>
         );
       },
@@ -477,13 +471,13 @@ export function SignalTable({
         const tpStr = tp != null ? tp.toFixed(dec) : '—';
         return (
           <span
-            className='font-mono text-[9px] tabular-nums'
+            className='inline-flex items-center gap-px font-mono text-[10px] tabular-nums'
             style={{ fontFamily: 'var(--font-mono)' }}
             title={`SL: ${slStr} · TP: ${tpStr}`}
           >
-            <span className='text-[var(--to-short)]/80'>{slStr}</span>
-            <span className='text-[var(--to-text-dim)]/40 mx-0.5'>/</span>
-            <span className='text-[var(--to-long)]/80'>{tpStr}</span>
+            <span className='text-[var(--to-short)]/75'>{slStr}</span>
+            <span className='text-text-secondary/30 mx-0.5'>/</span>
+            <span className='text-[var(--to-long)]/75'>{tpStr}</span>
           </span>
         );
       },
