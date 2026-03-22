@@ -417,9 +417,7 @@ export default function DashboardPage() {
                 todayPnl != null ? (todayPnl >= 0 ? 'up' : 'down') : 'neutral'
               }
               subValue={
-                activeMode === 'LIVE' && accountStatus?.equity != null
-                  ? `Equity ${formatCurrency(accountStatus.equity)}`
-                  : todayPnlDelta != null
+                todayPnlDelta != null
                   ? `Δ ${formatCurrency(todayPnlDelta, { signed: true })}`
                   : EMPTY_VALUE
               }

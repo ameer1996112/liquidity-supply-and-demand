@@ -434,9 +434,12 @@ export function SignalTable({
         const entry = signal.entry ?? signal.price;
         const currentPrice = broker?.current_price;
         const dec = signal.symbol?.includes('JPY') ? 3 : 5;
-        const entryFormatted = entry != null ? entry.toFixed(dec) : '—';
-        const titleText = currentPrice != null
-          ? `Live: ${currentPrice.toFixed(dec)}`
+        // Number() coercion covers string values Supabase may return for numeric columns
+        const entryNum = entry != null ? Number(entry) : null;
+        const entryFormatted = entryNum != null && !isNaN(entryNum) ? entryNum.toFixed(dec) : '—';
+        const currPriceNum = currentPrice != null ? Number(currentPrice) : null;
+        const titleText = currPriceNum != null && !isNaN(currPriceNum)
+          ? `Live: ${currPriceNum.toFixed(dec)}`
           : undefined;
         return (
           <span
@@ -467,8 +470,11 @@ export function SignalTable({
         const tp = signal.tp ?? signal.take_profit;
         const sym = signal.symbol ?? '';
         const dec = sym.includes('JPY') ? 3 : sym.includes('XAU') || sym.includes('GOLD') ? 2 : 5;
-        const slStr = sl != null ? sl.toFixed(dec) : '—';
-        const tpStr = tp != null ? tp.toFixed(dec) : '—';
+        // Number() coercion for safety
+        const slNum = sl != null ? Number(sl) : null;
+        const tpNum = tp != null ? Number(tp) : null;
+        const slStr = slNum != null && !isNaN(slNum) ? slNum.toFixed(dec) : '—';
+        const tpStr = tpNum != null && !isNaN(tpNum) ? tpNum.toFixed(dec) : '—';
         return (
           <span
             className='inline-flex items-center gap-px font-mono text-[10px] tabular-nums'
