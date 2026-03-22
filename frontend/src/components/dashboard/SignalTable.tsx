@@ -7,10 +7,13 @@ import {
   ArrowDown,
   Brain,
   TrendingUp,
+  Wifi,
+  AlertTriangle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { TradingSignal, SignalStatus } from '@/types/trading';
 import type { CouncilSummary } from '@/lib/api';
+import type { ActivePosition } from '@/hooks/usePositions';
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable';
 import { TableEmptyState } from '@/components/shared/TableStates';
 import {
@@ -29,9 +32,12 @@ type SortField =
   | 'score';
 type SortDir = 'asc' | 'desc';
 
+type FilterTab = 'all' | 'open' | 'closed' | 'rejected' | 'filtered';
+
 interface SignalTableProps {
   signals: TradingSignal[];
   councilMap?: Record<string, CouncilSummary>;
+  brokerMap?: Record<string, ActivePosition>;
   onSelectSignal?: (signal: TradingSignal) => void;
   maxRows?: number;
   className?: string;
@@ -71,7 +77,6 @@ function CouncilBadge({ summary }: { summary: CouncilSummary | undefined }) {
       ? 'text-[var(--to-warning)]'
       : 'text-[var(--to-short)]';
 
-  // Count bull/bear/risk votes from the votes dict
   const voteEntries = Object.entries(summary.votes || {});
   const allowCount = voteEntries.filter(([, v]) => v === 'allow').length;
   const blockCount = voteEntries.filter(([, v]) => v === 'block').length;
@@ -149,7 +154,33 @@ const STATUS_STYLES: Record<
   },
 };
 
-function StatusBadge({ status }: { status: SignalStatus }) {
+function isOpenStatus(status: string): boolean {
+  const s = String(status).toLowerCase();
+  return s === 'active' || s === 'executed' || s === 'pending';
+}
+
+function isClosedStatus(status: string): boolean {
+  const s = String(status).toLowerCase();
+  return s === 'closed';
+}
+
+function isRejectedStatus(status: string): boolean {
+  const s = String(status).toLowerCase();
+  return s === 'ai_rejected' || s === 'failed';
+}
+
+function isFilteredStatus(status: string): boolean {
+  const s = String(status).toLowerCase();
+  return s === 'filtered';
+}
+
+function StatusBadge({
+  status,
+  isStale,
+}: {
+  status: SignalStatus;
+  isStale?: boolean;
+}) {
   const normalized = String(status).toLowerCase();
   const style = STATUS_STYLES[normalized] ?? {
     label: String(status).toUpperCase(),
@@ -158,16 +189,24 @@ function StatusBadge({ status }: { status: SignalStatus }) {
   };
 
   return (
-    <span
-      className={cn(
-        'inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider',
-        style.bg,
-        style.text
+    <div className='flex flex-col items-start gap-0.5'>
+      <span
+        className={cn(
+          'inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider',
+          style.bg,
+          style.text
+        )}
+        style={{ fontFamily: 'var(--font-mono)' }}
+      >
+        {style.label}
+      </span>
+      {isStale && (
+        <span className='inline-flex items-center gap-0.5 text-[8px] text-[var(--to-warning)]'>
+          <AlertTriangle className='h-2 w-2' />
+          stale
+        </span>
       )}
-      style={{ fontFamily: 'var(--font-mono)' }}
-    >
-      {style.label}
-    </span>
+    </div>
   );
 }
 
@@ -212,15 +251,25 @@ function getSortValue(
   }
 }
 
+const FILTER_TABS: { id: FilterTab; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'open', label: 'Open' },
+  { id: 'closed', label: 'Closed' },
+  { id: 'rejected', label: 'Rejected' },
+  { id: 'filtered', label: 'Filtered' },
+];
+
 export function SignalTable({
   signals,
   councilMap = {},
+  brokerMap = {},
   onSelectSignal,
-  maxRows = 50,
+  maxRows = 100,
   className,
 }: SignalTableProps) {
   const [sortField, setSortField] = useState<SortField>('created_at');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
 
   const handleSort = useCallback(
     (field: SortField) => {
@@ -234,15 +283,42 @@ export function SignalTable({
     [sortField]
   );
 
+  // Tab counts
+  const tabCounts = useMemo(() => {
+    const counts: Record<FilterTab, number> = {
+      all: signals.length,
+      open: 0,
+      closed: 0,
+      rejected: 0,
+      filtered: 0,
+    };
+    for (const s of signals) {
+      if (isOpenStatus(s.status)) counts.open++;
+      else if (isClosedStatus(s.status)) counts.closed++;
+      else if (isRejectedStatus(s.status)) counts.rejected++;
+      else if (isFilteredStatus(s.status)) counts.filtered++;
+    }
+    return counts;
+  }, [signals]);
+
+  const filtered = useMemo(() => {
+    let list = signals;
+    if (activeFilter === 'open') list = list.filter((s) => isOpenStatus(s.status));
+    else if (activeFilter === 'closed') list = list.filter((s) => isClosedStatus(s.status));
+    else if (activeFilter === 'rejected') list = list.filter((s) => isRejectedStatus(s.status));
+    else if (activeFilter === 'filtered') list = list.filter((s) => isFilteredStatus(s.status));
+    return list;
+  }, [signals, activeFilter]);
+
   const sorted = useMemo(() => {
-    const slice = signals.slice(0, maxRows);
+    const slice = filtered.slice(0, maxRows);
     return slice.sort((a, b) => {
       const va = getSortValue(a, sortField);
       const vb = getSortValue(b, sortField);
       const cmp = va < vb ? -1 : va > vb ? 1 : 0;
       return sortDir === 'asc' ? cmp : -cmp;
     });
-  }, [signals, sortField, sortDir, maxRows]);
+  }, [filtered, sortField, sortDir, maxRows]);
 
   const formatTime = (iso: string) => {
     const d = new Date(iso);
@@ -253,14 +329,11 @@ export function SignalTable({
     });
   };
 
-  const formatPrice = (v?: number) => {
+  const formatPrice = (v?: number, symbol?: string) => {
     if (v == null) return null;
+    const sym = symbol ?? '';
+    if (sym.includes('JPY')) return Number(v.toFixed(3));
     return v >= 100 ? Number(v.toFixed(2)) : Number(v.toFixed(5));
-  };
-
-  const formatPnl = (v?: number | null) => {
-    if (v == null) return null;
-    return v;
   };
 
   if (signals.length === 0) {
@@ -271,6 +344,36 @@ export function SignalTable({
       />
     );
   }
+
+  const SortHeader = ({
+    field,
+    label,
+    align = 'left',
+  }: {
+    field: SortField;
+    label: string;
+    align?: 'left' | 'right';
+  }) => (
+    <button
+      type='button'
+      className={cn(
+        'inline-flex items-center gap-1 w-full',
+        align === 'right' && 'justify-end'
+      )}
+      onClick={() => handleSort(field)}
+    >
+      <span>{label}</span>
+      {sortField === field ? (
+        sortDir === 'asc' ? (
+          <ArrowUp className='h-2.5 w-2.5' />
+        ) : (
+          <ArrowDown className='h-2.5 w-2.5' />
+        )
+      ) : (
+        <ArrowUpDown className='h-2.5 w-2.5 opacity-30' />
+      )}
+    </button>
+  );
 
   const columns: DataTableColumn<TradingSignal>[] = [
     {
@@ -292,24 +395,7 @@ export function SignalTable({
       id: 'created_at',
       align: 'left',
       width: 'w-[72px]',
-      header: (
-        <button
-          type='button'
-          className='inline-flex items-center gap-1'
-          onClick={() => handleSort('created_at')}
-        >
-          <span>Time</span>
-          {sortField === 'created_at' ? (
-            sortDir === 'asc' ? (
-              <ArrowUp className='h-2.5 w-2.5' />
-            ) : (
-              <ArrowDown className='h-2.5 w-2.5' />
-            )
-          ) : (
-            <ArrowUpDown className='h-2.5 w-2.5 opacity-30' />
-          )}
-        </button>
-      ),
+      header: <SortHeader field='created_at' label='Time' />,
       render: (signal) => (
         <div className='flex flex-col gap-0.5'>
           <span
@@ -329,24 +415,7 @@ export function SignalTable({
       id: 'symbol',
       align: 'left',
       width: 'w-[80px]',
-      header: (
-        <button
-          type='button'
-          className='inline-flex items-center gap-1'
-          onClick={() => handleSort('symbol')}
-        >
-          <span>Pair</span>
-          {sortField === 'symbol' ? (
-            sortDir === 'asc' ? (
-              <ArrowUp className='h-2.5 w-2.5' />
-            ) : (
-              <ArrowDown className='h-2.5 w-2.5' />
-            )
-          ) : (
-            <ArrowUpDown className='h-2.5 w-2.5 opacity-30' />
-          )}
-        </button>
-      ),
+      header: <SortHeader field='symbol' label='Pair' />,
       render: (signal) => (
         <Mono size='lg' bold className='text-text-primary'>
           {signal.symbol}
@@ -357,90 +426,83 @@ export function SignalTable({
       id: 'side',
       align: 'left',
       width: 'w-[60px]',
-      header: (
-        <button
-          type='button'
-          className='inline-flex items-center gap-1'
-          onClick={() => handleSort('side')}
-        >
-          <span>Side</span>
-          {sortField === 'side' ? (
-            sortDir === 'asc' ? (
-              <ArrowUp className='h-2.5 w-2.5' />
-            ) : (
-              <ArrowDown className='h-2.5 w-2.5' />
-            )
-          ) : (
-            <ArrowUpDown className='h-2.5 w-2.5 opacity-30' />
-          )}
-        </button>
-      ),
+      header: <SortHeader field='side' label='Side' />,
       render: (signal) => <SideBadge side={signal.side} />,
     },
     {
       id: 'entry',
       align: 'right',
       isNumeric: true,
-      width: 'w-[80px]',
-      header: (
-        <button
-          type='button'
-          className='inline-flex items-center justify-end gap-1 w-full'
-          onClick={() => handleSort('entry')}
-        >
-          <span>Entry</span>
-          {sortField === 'entry' ? (
-            sortDir === 'asc' ? (
-              <ArrowUp className='h-2.5 w-2.5' />
-            ) : (
-              <ArrowDown className='h-2.5 w-2.5' />
-            )
-          ) : (
-            <ArrowUpDown className='h-2.5 w-2.5 opacity-30' />
-          )}
-        </button>
-      ),
-      render: (signal) => (
-        <MonoNumber
-          value={formatPrice(signal.entry ?? signal.price)}
-          decimals={signal.symbol.includes('JPY') ? 3 : 5}
-          size='sm'
-          className='text-text-secondary'
-        />
-      ),
+      width: 'w-[76px]',
+      header: <SortHeader field='entry' label='Entry' align='right' />,
+      render: (signal) => {
+        const broker = brokerMap[String(signal.id)];
+        const entry = signal.entry ?? signal.price;
+        const currentPrice = broker?.current_price;
+        return (
+          <div className='flex flex-col items-end gap-0.5'>
+            <MonoNumber
+              value={formatPrice(entry, signal.symbol)}
+              decimals={signal.symbol?.includes('JPY') ? 3 : 5}
+              size='sm'
+              className='text-text-secondary'
+            />
+            {currentPrice != null && (
+              <span
+                className='flex items-center gap-0.5 font-mono text-[9px] tabular-nums text-[var(--to-long)]/80'
+                style={{ fontFamily: 'var(--font-mono)' }}
+                title='Live broker price'
+              >
+                <Wifi className='h-2 w-2' />
+                {formatPrice(currentPrice, signal.symbol)?.toFixed(
+                  signal.symbol?.includes('JPY') ? 3 : 5
+                )}
+              </span>
+            )}
+          </div>
+        );
+      },
     },
     {
-      id: 'risk_usd',
+      id: 'sl_tp',
       align: 'right',
       isNumeric: true,
-      width: 'w-[64px]',
-      header: <span className='inline-flex items-center justify-end gap-0.5 w-full text-[10px]'>Risk$</span>,
+      width: 'w-[72px]',
+      header: (
+        <span className='inline-flex items-center justify-end gap-0.5 w-full text-[10px]'>
+          SL / TP
+        </span>
+      ),
       render: (signal) => {
-        const entry = signal.entry ?? signal.price;
         const sl = signal.sl ?? signal.stop_loss;
-        const size = signal.position_size;
-        if (!entry || !sl || !size) {
-          return <span className='font-mono text-[10px] text-[var(--to-text-dim)]/40'>—</span>;
-        }
-        const sym = signal.symbol?.toUpperCase() ?? '';
-        const pipSize = sym.includes('XAU') || sym.includes('GOLD')
-          ? 0.01
-          : sym.includes('JPY')
-          ? 0.01
-          : ['NAS', 'US30', 'SPX', 'GER', 'UK1', 'FRA'].some(k => sym.includes(k))
-          ? 1.0
-          : 0.0001;
-        const slPips = Math.abs(entry - sl) / pipSize;
-        // Approximate risk: pips × size × ~10 (standard lot pip value, rough USD)
-        const pipValuePerLot = sym.includes('JPY') ? 6.7 : sym.includes('XAU') ? 10 : 10;
-        const riskUsd = slPips * pipSize * size * pipValuePerLot * (1 / pipSize);
-        if (!isFinite(riskUsd) || riskUsd <= 0) {
-          return <span className='font-mono text-[10px] text-[var(--to-text-dim)]/40'>—</span>;
-        }
+        const tp = signal.tp ?? signal.take_profit;
+        const sym = signal.symbol ?? '';
+        const dec = sym.includes('JPY') ? 3 : sym.includes('XAU') || sym.includes('GOLD') ? 2 : 5;
         return (
-          <span className='font-mono text-[10px] tabular-nums text-[var(--to-warning)]'>
-            ${riskUsd < 1000 ? riskUsd.toFixed(0) : `${(riskUsd / 1000).toFixed(1)}k`}
-          </span>
+          <div className='flex flex-col items-end gap-0.5'>
+            {sl != null ? (
+              <span
+                className='font-mono text-[9px] tabular-nums text-[var(--to-short)]/80'
+                style={{ fontFamily: 'var(--font-mono)' }}
+                title='Stop Loss'
+              >
+                {sl.toFixed(dec)}
+              </span>
+            ) : (
+              <span className='font-mono text-[9px] text-[var(--to-text-dim)]/40'>—</span>
+            )}
+            {tp != null ? (
+              <span
+                className='font-mono text-[9px] tabular-nums text-[var(--to-long)]/80'
+                style={{ fontFamily: 'var(--font-mono)' }}
+                title='Take Profit'
+              >
+                {tp.toFixed(dec)}
+              </span>
+            ) : (
+              <span className='font-mono text-[9px] text-[var(--to-text-dim)]/40'>—</span>
+            )}
+          </div>
         );
       },
     },
@@ -449,31 +511,45 @@ export function SignalTable({
       align: 'right',
       isNumeric: true,
       width: 'w-[80px]',
-      header: (
-        <button
-          type='button'
-          className='inline-flex items-center justify-end gap-1 w-full'
-          onClick={() => handleSort('pnl')}
-        >
-          <span>P&amp;L</span>
-          {sortField === 'pnl' ? (
-            sortDir === 'asc' ? (
-              <ArrowUp className='h-2.5 w-2.5' />
-            ) : (
-              <ArrowDown className='h-2.5 w-2.5' />
-            )
-          ) : (
-            <ArrowUpDown className='h-2.5 w-2.5 opacity-30' />
-          )}
-        </button>
-      ),
-      render: (signal) => (
-        <PnLText
-          value={formatPnl(signal.pnl ?? signal.pnl_usd ?? null)}
-          variant='currency'
-          size='sm'
-        />
-      ),
+      header: <SortHeader field='pnl' label='P&L' align='right' />,
+      render: (signal) => {
+        const broker = brokerMap[String(signal.id)];
+        const livePnl = broker?.live_pnl;
+        const dbPnl = signal.pnl ?? signal.pnl_usd ?? null;
+
+        if (livePnl != null) {
+          // Live broker P&L — show with live indicator
+          const isPos = livePnl >= 0;
+          return (
+            <div className='flex flex-col items-end gap-0.5'>
+              <span
+                className={cn(
+                  'font-mono text-[10px] font-bold tabular-nums',
+                  isPos ? 'text-[var(--to-long)]' : 'text-[var(--to-short)]'
+                )}
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                {livePnl > 0 ? '+' : ''}
+                {livePnl.toFixed(2)}
+              </span>
+              <span
+                className='font-mono text-[8px] text-[var(--to-long)]/60'
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                live
+              </span>
+            </div>
+          );
+        }
+
+        return (
+          <PnLText
+            value={dbPnl}
+            variant='currency'
+            size='sm'
+          />
+        );
+      },
     },
     {
       id: 'score',
@@ -545,37 +621,79 @@ export function SignalTable({
       id: 'status',
       align: 'left',
       width: 'w-[80px]',
-      header: (
-        <button
-          type='button'
-          className='inline-flex items-center gap-1'
-          onClick={() => handleSort('status')}
-        >
-          <span>Status</span>
-          {sortField === 'status' ? (
-            sortDir === 'asc' ? (
-              <ArrowUp className='h-2.5 w-2.5' />
-            ) : (
-              <ArrowDown className='h-2.5 w-2.5' />
-            )
-          ) : (
-            <ArrowUpDown className='h-2.5 w-2.5 opacity-30' />
-          )}
-        </button>
-      ),
-      render: (signal) => <StatusBadge status={signal.status} />,
+      header: <SortHeader field='status' label='Status' />,
+      render: (signal) => {
+        const broker = brokerMap[String(signal.id)];
+        return (
+          <StatusBadge
+            status={signal.status}
+            isStale={broker?.is_stale}
+          />
+        );
+      },
     },
   ];
 
   return (
-    <DataTable
-      columns={columns}
-      data={sorted}
-      compact
-      stickyHeader={false}
-      className={className}
-      getRowId={(signal) => signal.id}
-      onRowClick={(signal) => onSelectSignal?.(signal)}
-    />
+    <div className={cn('flex flex-col gap-2', className)}>
+      {/* Filter tabs */}
+      <div className='flex items-center gap-1 px-1 flex-wrap'>
+        {FILTER_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type='button'
+            onClick={() => setActiveFilter(tab.id)}
+            className={cn(
+              'inline-flex items-center gap-1 rounded px-2 py-0.5 font-mono text-[9px] font-semibold uppercase tracking-wider transition-colors',
+              activeFilter === tab.id
+                ? 'bg-[var(--to-accent)]/20 text-[var(--to-accent)]'
+                : 'text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]'
+            )}
+          >
+            {tab.label}
+            {tabCounts[tab.id] > 0 && (
+              <span
+                className={cn(
+                  'rounded-full px-1 py-px text-[8px] tabular-nums',
+                  activeFilter === tab.id
+                    ? 'bg-[var(--to-accent)]/30'
+                    : 'bg-[var(--to-surface-raised)]'
+                )}
+              >
+                {tabCounts[tab.id]}
+              </span>
+            )}
+          </button>
+        ))}
+        {Object.keys(brokerMap).length > 0 && (
+          <span className='ml-auto inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[8px] text-[var(--to-long)]/70'>
+            <Wifi className='h-2.5 w-2.5' />
+            broker live
+          </span>
+        )}
+      </div>
+
+      {/* Table */}
+      {sorted.length === 0 ? (
+        <TableEmptyState
+          title={`No ${activeFilter === 'all' ? '' : activeFilter + ' '}signals`}
+          description='Try a different filter.'
+        />
+      ) : (
+        <DataTable
+          columns={columns}
+          data={sorted}
+          compact
+          stickyHeader={false}
+          getRowId={(signal) => signal.id}
+          onRowClick={(signal) => onSelectSignal?.(signal)}
+          getRowClassName={(signal) => {
+            const broker = brokerMap[String(signal.id)];
+            if (broker?.is_stale) return 'opacity-60 border-l-2 border-l-[var(--to-warning)]/50';
+            return '';
+          }}
+        />
+      )}
+    </div>
   );
 }

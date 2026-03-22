@@ -23,7 +23,7 @@ import { fetchAiRunsBulk, type CouncilSummary } from '@/lib/api';
 
 const CONFIG = {
   /** Maximum number of signals to display */
-  SIGNAL_LIMIT: 50,
+  SIGNAL_LIMIT: 200,
   /** Polling interval when Supabase realtime is unavailable (ms) */
   FALLBACK_POLL_INTERVAL: 30_000,
   /** Stats refresh interval with Supabase (ms) */

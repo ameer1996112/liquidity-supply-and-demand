@@ -18,6 +18,7 @@ import {
 } from '@/hooks/useTradingSignals';
 import { useRiskStatus } from '@/hooks/useRiskStatus';
 import { useConnectionHealth } from '@/hooks/useConnectionHealth';
+import { useActivePositions } from '@/hooks/usePositions';
 import { useDashboardLog } from '@/hooks/useDashboardLog';
 import { MarketSessionBanner } from '@/components/dashboard/MarketSessionBanner';
 import { PageStatusBanner } from '@/components/shared/PageStatusBanner';
@@ -179,6 +180,16 @@ export default function DashboardPage() {
 
   const signalIds = useMemo(() => signals.map((s) => s.id), [signals]);
   const councilMap = useCouncilSummaries(signalIds);
+
+  // Broker live positions — map by signal ID for overlay in SignalTable
+  const { data: positionsData } = useActivePositions();
+  const brokerMap = useMemo(() => {
+    const map: Record<string, import('@/hooks/usePositions').ActivePosition> = {};
+    for (const pos of positionsData?.positions ?? []) {
+      map[String(pos.id)] = pos;
+    }
+    return map;
+  }, [positionsData]);
 
   // ── Derived values ──────────────────────────────────────────────────────────
 
@@ -603,8 +614,9 @@ export default function DashboardPage() {
               <SignalTable
                 signals={signals}
                 councilMap={councilMap}
+                brokerMap={brokerMap}
                 onSelectSignal={handleSelectSignal}
-                maxRows={30}
+                maxRows={150}
               />
             )}
           </div>
