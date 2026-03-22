@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { AlertTriangle, DollarSign, Activity, Calendar } from 'lucide-react';
 import { CalendarPnlView } from '@/components/journal/CalendarPnlView';
 import {
@@ -25,6 +25,9 @@ import { HealthScoreGauge } from '@/components/prop-firm/HealthScoreGauge';
 import { ChallengeMetrics } from '@/components/prop-firm/ChallengeMetrics';
 import { ChallengeRules } from '@/components/prop-firm/ChallengeRules';
 import { PerformanceSummary } from '@/components/prop-firm/PerformanceSummary';
+import { EquityCurveChart } from '@/components/prop-firm/EquityCurveChart';
+import { DailyPnlBars } from '@/components/prop-firm/DailyPnlBars';
+import { PayoutReadiness } from '@/components/prop-firm/PayoutReadiness';
 import { usePropFirmChallenge } from '@/hooks/usePropFirmChallenge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -77,7 +80,7 @@ export default function PropFirmPage() {
     return names.length > 0 ? names : ['default'];
   }, [accounts]);
 
-  const selectedAccount = 'default';
+  const [selectedAccount, setSelectedAccount] = useState<string>('default');
   const resolvedAccount = accountOptions.includes(selectedAccount)
     ? selectedAccount
     : accountOptions[0] ?? 'default';
@@ -93,7 +96,7 @@ export default function PropFirmPage() {
     dataUpdatedAt,
   } = usePropFirmMetrics(resolvedAccount);
 
-  usePropFirmHistory(resolvedAccount, historyDays);
+  const { data: historyData } = usePropFirmHistory(resolvedAccount, historyDays);
   usePropFirmMtm(resolvedAccount);
   const resetMutation = useResetPropFirmDaily(resolvedAccount);
 
@@ -379,7 +382,7 @@ export default function PropFirmPage() {
         daysRemaining={metrics.days_remaining}
         accountOptions={accountOptions}
         selectedAccount={resolvedAccount}
-        onSelectAccount={() => {}}
+        onSelectAccount={setSelectedAccount}
         dataUpdatedAt={dataUpdatedAt}
         onReset={() => resetMutation.mutate()}
         isResetting={resetMutation.isPending}
@@ -458,6 +461,25 @@ export default function PropFirmPage() {
         </div>
       </div>
 
+      {/* Equity Curve + Daily PnL side by side on large screens */}
+      <div className='grid grid-cols-1 lg:grid-cols-2 gap-4'>
+        <EquityCurveChart
+          snapshots={historyData?.snapshots ?? []}
+          startingBalance={safeEquity.daily_start_balance}
+          dailyLimitPct={safeDrawdown.daily_limit_pct}
+          trailingLimitPct={safeDrawdown.trailing_limit_pct}
+        />
+        <DailyPnlBars
+          data={analyticsDaily}
+          bestDayLimitUsd={
+            safeConsistency.limit_pct > 0 && safeEquity.daily_start_balance > 0
+              ? (safeConsistency.limit_pct / 100) * safeEquity.daily_start_balance
+              : null
+          }
+          consistencyLimitPct={safeConsistency.limit_pct}
+        />
+      </div>
+
       {/* Challenge Metrics */}
       <ChallengeMetrics
         dailyPct={safeDrawdown.daily_pct}
@@ -481,6 +503,19 @@ export default function PropFirmPage() {
         currentTrailingPct={safeDrawdown.trailing_pct}
         currentConsistencyPct={safeConsistency.best_day_pct}
         currentProfitPct={currentProfitPct}
+      />
+
+      {/* Payout Readiness */}
+      <PayoutReadiness
+        profitTargetPct={firmInfo?.profit_target_pct ?? 0}
+        currentProfitPct={currentProfitPct}
+        minTradingDays={firmInfo?.min_trading_days ?? undefined}
+        tradingDaysCompleted={analyticsDaily.filter((d) => d.positions > 0).length}
+        dailyBreach={status.daily_loss_breach}
+        drawdownBreach={status.drawdown_breach}
+        consistencyOk={status.consistency_ok}
+        consistencyPct={safeConsistency.best_day_pct}
+        consistencyLimitPct={safeConsistency.limit_pct}
       />
 
       {/* Performance Summary */}

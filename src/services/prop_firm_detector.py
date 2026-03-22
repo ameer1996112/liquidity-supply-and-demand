@@ -17,11 +17,11 @@ class PropFirmDetector:
         """Match server prefix to a firm."""
         if not server_name:
             return None
-            
+
         try:
             response = self.supabase.table("prop_firm_server_mappings").select("*").execute()
             mappings = response.data if response.data else []
-            
+
             for mapping in mappings:
                 if server_name.upper().startswith(mapping["server_prefix"].upper()):
                     return {
@@ -29,8 +29,16 @@ class PropFirmDetector:
                         "firm_display_name": mapping["firm_display_name"]
                     }
         except Exception as e:
-            logger.error(f"Error fetching prop firm mappings: {e}")
-            
+            err_str = str(e)
+            # PGRST205 = table not found in schema cache (migration not yet run)
+            if "PGRST205" in err_str or "prop_firm_server_mappings" in err_str:
+                logger.warning(
+                    "prop_firm_server_mappings table not found — run migration 047 in Supabase SQL editor. "
+                    "Skipping firm detection until then."
+                )
+            else:
+                logger.error(f"Error fetching prop firm mappings: {e}")
+
         return {"firm_detected": False}
 
     def get_rules_for_firm(self, firm_id: str, challenge_type: str) -> Optional[Dict[str, Any]]:
@@ -44,8 +52,14 @@ class PropFirmDetector:
             if response.data:
                 return response.data[0]
         except Exception as e:
-            logger.error(f"Error fetching prop firm rules: {e}")
-            
+            err_str = str(e)
+            if "PGRST205" in err_str or "prop_firm_rules" in err_str:
+                logger.warning(
+                    "prop_firm_rules table not found — run migration 047 in Supabase SQL editor."
+                )
+            else:
+                logger.error(f"Error fetching prop firm rules: {e}")
+
         return None
 
     def get_firm_and_rules(self, server_name: str, challenge_type: str) -> Optional[Dict[str, Any]]:

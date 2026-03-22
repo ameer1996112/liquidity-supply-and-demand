@@ -1,5 +1,21 @@
 # Worklog
 
+## 2026-03-22 — Prop Firm Page Upgrade
+
+### Bug Fix
+- **`prop_firm_detector.py`**: Catches PGRST205 "table not found" error and logs a WARNING instead of ERROR, with a clear message to run migration 047. Prevents noisy error spam in the worker while the migration is pending.
+
+### Migration Required (manual step)
+- Run `migrations/047_prop_firm_data_foundation.sql` in the Supabase SQL editor to create `prop_firm_server_mappings` and `prop_firm_rules` tables and seed FTMO data.
+
+### Frontend Upgrades
+- **Account switching fixed**: `selectedAccount` is now React state (`useState`) instead of hardcoded `'default'`. `onSelectAccount` is wired to `setSelectedAccount`. Multi-account prop firm tracking now works.
+- **`EquityCurveChart.tsx`** (new): Recharts line chart of equity over time from 30-day history snapshots. Draws daily loss limit (amber dashed) and trailing drawdown floor (red dashed) as reference lines with shaded danger zones.
+- **`DailyPnlBars.tsx`** (new): 14-day daily PnL bar chart with green/red bars per day. Shows best-day consistency limit as a horizontal amber dashed line.
+- **`PayoutReadiness.tsx`** (new): Payout checklist — Profit Target, Min Trading Days, No Daily Breach, No Drawdown Breach, Consistency Rule — with pass/warn/fail status and READY/ALMOST/NOT YET badge.
+- **`ChallengeRules.tsx`** updated: Added inline mini progress bars (20px wide) next to each rule showing current vs limit fill.
+- **`page.tsx`** updated: Imports and places all new sections — equity curve + daily PnL side-by-side grid above metrics, payout readiness above performance summary.
+
 ## 2026-03-22 — Alerts System Upgrade
 
 ### Changes

@@ -19,6 +19,10 @@ interface ChallengeRule {
   applies: boolean;
   status?: 'ok' | 'warning' | 'breach';
   currentValue?: string;
+  /** 0-100 fill % for the mini progress bar */
+  progressPct?: number;
+  /** True for "higher is better" rules like profit target */
+  isInverse?: boolean;
 }
 
 interface ChallengeRulesProps {
@@ -79,6 +83,10 @@ export function ChallengeRules({
       status: getRuleStatus(currentDailyPct, dailyLimitPct),
       currentValue:
         currentDailyPct != null ? `${currentDailyPct.toFixed(2)}%` : undefined,
+      progressPct:
+        currentDailyPct != null && dailyLimitPct > 0
+          ? (currentDailyPct / dailyLimitPct) * 100
+          : undefined,
     },
     {
       name: 'Max Drawdown',
@@ -89,6 +97,10 @@ export function ChallengeRules({
       currentValue:
         currentTrailingPct != null
           ? `${currentTrailingPct.toFixed(2)}%`
+          : undefined,
+      progressPct:
+        currentTrailingPct != null && maxDrawdownPct > 0
+          ? (currentTrailingPct / maxDrawdownPct) * 100
           : undefined,
     },
     {
@@ -101,6 +113,10 @@ export function ChallengeRules({
         currentConsistencyPct != null
           ? `${currentConsistencyPct.toFixed(2)}%`
           : undefined,
+      progressPct:
+        currentConsistencyPct != null && consistencyLimitPct > 0
+          ? (currentConsistencyPct / consistencyLimitPct) * 100
+          : undefined,
     },
     {
       name: 'Profit Target',
@@ -111,6 +127,11 @@ export function ChallengeRules({
       currentValue:
         currentProfitPct != null
           ? `${currentProfitPct.toFixed(2)}%`
+          : undefined,
+      isInverse: true,
+      progressPct:
+        currentProfitPct != null && profitTargetPct > 0
+          ? (currentProfitPct / profitTargetPct) * 100
           : undefined,
     },
     {
@@ -176,6 +197,23 @@ export function ChallengeRules({
               </span>
             </div>
             <div className='flex items-center gap-3'>
+              {rule.progressPct != null && (
+                <div className='w-20 h-1.5 rounded-full bg-[#1e222d] overflow-hidden'>
+                  <div
+                    className={cn(
+                      'h-full rounded-full transition-all duration-500',
+                      rule.status === 'breach'
+                        ? 'bg-[#ef5350]'
+                        : rule.status === 'warning'
+                        ? 'bg-amber-400'
+                        : rule.isInverse
+                        ? 'bg-emerald-400'
+                        : 'bg-[#26a69a]'
+                    )}
+                    style={{ width: `${Math.min(rule.progressPct, 100)}%` }}
+                  />
+                </div>
+              )}
               {rule.currentValue && (
                 <span
                   className={cn(
