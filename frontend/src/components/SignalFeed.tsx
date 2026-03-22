@@ -24,12 +24,16 @@ import {
 import { cn } from '@/lib/utils';
 import { safeFloat, getDisplayReason, formatRelativeTime } from '@/lib/format';
 import { ClientDate } from '@/components/ui/ClientDate';
-import { Activity, AlertCircle, Zap } from 'lucide-react';
+import { AlertCircle, Zap } from 'lucide-react';
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable';
 import {
   TableEmptyState,
   TableSkeleton,
 } from '@/components/shared/TableStates';
+
+// =============================================================================
+// COLUMN DEFINITIONS — module-level (static, never recreated)
+// =============================================================================
 
 const columns: DataTableColumn<TradingSignal>[] = [
   {
@@ -124,6 +128,10 @@ const columns: DataTableColumn<TradingSignal>[] = [
   },
 ];
 
+// =============================================================================
+// ERROR STATE
+// =============================================================================
+
 function ErrorState() {
   return (
     <div className='flex items-center gap-2 rounded border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-xs text-rose-200'>
@@ -141,101 +149,7 @@ function ErrorState() {
 }
 
 // =============================================================================
-// SIGNAL ROW COMPONENT - High Density Table Row
-// =============================================================================
-
-interface SignalRowProps {
-  signal: TradingSignal;
-  onClick: () => void;
-}
-
-function SignalRow({ signal, onClick }: SignalRowProps) {
-  const symbol = getSymbol(signal);
-  const side = getSide(signal);
-  const score = getScore(signal);
-  const pnl = getPnl(signal);
-  const reason = getDisplayReason(signal);
-  const normalized = signal.status?.toLowerCase();
-  const isActive = normalized === 'active';
-
-  return (
-    <tr
-      onClick={onClick}
-      className={cn(
-        'cursor-pointer transition-all duration-150 border-b border-panel-border-subtle',
-        'hover:bg-surface-raised hover:shadow-[inset_0_0_0_1px_rgba(59,130,246,0.2)]',
-        isActive && 'bg-blue-950/20 border-l-2 border-l-blue-accent',
-        !isActive && 'border-l-2 border-l-transparent',
-      )}
-    >
-      {/* Column 1: Time - Relative "2m ago" */}
-      <td className='py-2 px-3 w-[90px]'>
-        <ClientDate
-          className='font-mono text-[11px] text-[var(--to-text-dim)] tabular-nums whitespace-nowrap'
-          render={() => formatRelativeTime(new Date(signal.created_at))}
-        />
-      </td>
-
-      {/* Column 2: Signal - Symbol + Side Badge */}
-      <td className='py-2 px-3 w-[140px]'>
-        <div className='flex items-center gap-2'>
-          <span className='font-mono text-sm font-bold text-[var(--to-text-primary)] tracking-tight'>
-            {symbol}
-          </span>
-          <SideBadge side={side} compact />
-        </div>
-      </td>
-
-      {/* Column 3: AI Brain - Score Ring + Status Badge */}
-      <td className='py-2 px-3 w-[120px]'>
-        <div className='flex items-center gap-2'>
-          <ScoreRing score={score} size='sm' />
-          <StatusBadge status={signal.status} pnl={pnl} compact />
-        </div>
-      </td>
-
-      {/* Column 4: Reason - Truncated notes (max 40 chars) */}
-      <td className='py-2 px-3'>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className='font-mono text-[11px] text-[var(--to-text-dim)] line-clamp-1 cursor-help'>
-                {reason || (
-                  <span className='text-[var(--to-text-dim)] italic'>No reason</span>
-                )}
-              </span>
-            </TooltipTrigger>
-            {(signal.notes || signal.filter_reason) && (
-              <TooltipContent
-                side='bottom'
-                className='max-w-sm bg-[var(--to-surface)] border-[var(--to-border)] text-[var(--to-text-secondary)]'
-              >
-                <p className='text-xs'>
-                  {signal.notes || signal.filter_reason}
-                </p>
-              </TooltipContent>
-            )}
-          </Tooltip>
-        </TooltipProvider>
-      </td>
-
-      {/* Column 5: R:R - Risk/Reward Ratio */}
-      <td className='py-2 px-3 w-[70px] text-right'>
-        <span className='font-mono text-[11px] text-[var(--to-text-dim)] tabular-nums'>
-          {signal.rr_ratio ? `1:${safeFloat(signal.rr_ratio, 1)}` : '--'}
-        </span>
-      </td>
-
-      {/* Column 6: PnL - Color-coded profit (Green +, Red -) */}
-      <td className='py-2 px-3 w-[80px] text-right'>
-        <PnLDisplay pnl={pnl} size='sm' />
-      </td>
-    </tr>
-  );
-}
-
-// =============================================================================
-// MAIN SIGNAL FEED COMPONENT - High Density Terminal Grid
+// MAIN SIGNAL FEED COMPONENT — High-Density Terminal Grid
 // =============================================================================
 
 interface SignalFeedProps {
@@ -244,26 +158,23 @@ interface SignalFeedProps {
 }
 
 /**
- * SignalFeed - High-Density Terminal Grid Component
+ * SignalFeed — High-density terminal table of all signals.
  *
  * Columns: Time | Signal (Symbol + Side) | AI Brain (Score + Status) | Reason | R:R | PnL
- * Click row to expand detailed Sheet with full JSON.
- * Zero filters - shows ALL signals including ai_rejected and filtered.
+ * Click any row to open the SignalInspector drawer.
+ * Shows ALL signals — no filters — including ai_rejected and filtered.
  */
 export function SignalFeed({ defaultMode, onSelectSignal }: SignalFeedProps) {
-  const [inspectedSignal, setInspectedSignal] = useState<TradingSignal | null>(
-    null,
-  );
+  const [inspectedSignal, setInspectedSignal] = useState<TradingSignal | null>(null);
   const [inspectorOpen, setInspectorOpen] = useState(false);
 
-  // Fetch ALL signals
   const {
     data: allSignals = [],
     isLoading,
     error,
   } = useTradingSignals(defaultMode);
 
-  // Count signals by status for header stats — single pass
+  // Count signals by category — single pass over the array
   const stats = useMemo(() => {
     const counts = { live: 0, veto: 0, filtered: 0, closed: 0 };
     for (const s of allSignals) {
@@ -276,20 +187,17 @@ export function SignalFeed({ defaultMode, onSelectSignal }: SignalFeedProps) {
     return { ...counts, total: allSignals.length };
   }, [allSignals]);
 
-  // Handle row click
   const handleRowClick = (signal: TradingSignal) => {
     setInspectedSignal(signal);
     setInspectorOpen(true);
     onSelectSignal?.(signal);
   };
 
-  if (error) {
-    return <ErrorState />;
-  }
+  if (error) return <ErrorState />;
 
   return (
     <div className='flex flex-col h-full'>
-      {/* HEADER - Signal Count Stats */}
+      {/* Header — signal count stats */}
       <div className='flex items-center justify-between px-4 py-3 border-b border-zinc-800 bg-zinc-950/50'>
         <div className='flex items-center gap-2'>
           <Zap className='w-4 h-4 text-[var(--to-text-dim)]' />
@@ -310,7 +218,6 @@ export function SignalFeed({ defaultMode, onSelectSignal }: SignalFeedProps) {
           )}
         </div>
 
-        {/* Quick Stats */}
         <div className='flex items-center gap-4 text-[10px] font-mono'>
           <div className='flex items-center gap-1.5'>
             <span className='w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse' />
@@ -341,7 +248,7 @@ export function SignalFeed({ defaultMode, onSelectSignal }: SignalFeedProps) {
         </div>
       </div>
 
-      {/* TABLE GRID */}
+      {/* Table */}
       <ScrollArea className='flex-1'>
         {isLoading ? (
           <TableSkeleton rowCount={8} columnCount={6} className='px-4 py-3' />
@@ -366,8 +273,7 @@ export function SignalFeed({ defaultMode, onSelectSignal }: SignalFeedProps) {
             onRowClick={handleRowClick}
             tableClassName='table-dense'
             getRowClassName={(signal) => {
-              const normalized = signal.status?.toLowerCase();
-              const isActive = normalized === 'active';
+              const isActive = signal.status?.toLowerCase() === 'active';
               return cn(
                 'border-l-2',
                 isActive ? 'bg-blue-950/20 border-l-blue-accent' : 'border-l-transparent',
@@ -377,18 +283,17 @@ export function SignalFeed({ defaultMode, onSelectSignal }: SignalFeedProps) {
         )}
       </ScrollArea>
 
-      {/* FOOTER - Connection Status */}
+      {/* Footer */}
       <div className='flex items-center justify-between px-4 py-2 border-t border-zinc-800 bg-zinc-950/50'>
         <div className='flex items-center gap-2 text-[10px] font-mono text-[var(--to-text-dim)]'>
           <span className='w-1.5 h-1.5 rounded-full bg-emerald-500/70 animate-pulse' />
           <span>Realtime Connected</span>
         </div>
         <span className='text-[10px] font-mono text-[var(--to-text-dim)]'>
-          Showing {allSignals.length} of 50 max
+          Showing {allSignals.length} of 200 max
         </span>
       </div>
 
-      {/* Signal Inspector Sheet */}
       <SignalInspector
         signal={inspectedSignal}
         open={inspectorOpen}
@@ -398,5 +303,5 @@ export function SignalFeed({ defaultMode, onSelectSignal }: SignalFeedProps) {
   );
 }
 
-// Re-export the table view as an alternative
+// Re-export alias for backward compatibility
 export { SignalFeed as SignalFeedTable };
