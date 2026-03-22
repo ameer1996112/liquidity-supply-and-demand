@@ -273,16 +273,17 @@ export function SignalTable({
   const [sortDir, setSortDir]     = useState<SortDir>('desc');
   const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
 
-  const handleSort = useCallback((field: SortField) => {
-    setSortField((prev) => {
-      if (prev === field) {
+  const handleSort = useCallback(
+    (field: SortField) => {
+      if (sortField === field) {
         setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-        return prev;
+      } else {
+        setSortField(field);
+        setSortDir('desc');
       }
-      setSortDir('desc');
-      return field;
-    });
-  }, []);
+    },
+    [sortField],
+  );
 
   // Tab counts — single pass
   const tabCounts = useMemo(() => {
@@ -314,8 +315,8 @@ export function SignalTable({
     });
   }, [filtered, sortField, sortDir, maxRows]);
 
-  // Memoize columns — depends on sort state + live data maps
-  const columns = useMemo((): DataTableColumn<TradingSignal>[] => [
+  // Columns — computed inline so headers always reflect current sort state
+  const columns: DataTableColumn<TradingSignal>[] = [
     {
       id: 'created_at',
       align: 'left',
@@ -507,7 +508,7 @@ export function SignalTable({
         return <StatusBadge status={signal.status} isStale={broker?.is_stale} />;
       },
     },
-  ], [sortField, sortDir, handleSort, brokerMap, councilMap]);
+  ];
 
   if (signals.length === 0) {
     return (
