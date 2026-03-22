@@ -1,80 +1,40 @@
-# INTEGRATIONS.md — External Services & APIs
+# External Integrations
 
-## Signal Ingestion
+## Core Infrastructure
+- **Supabase**:
+  - **Database**: PostgreSQL hosted on Supabase, acting as the primary store for trades, signals, and user data.
+  - **Authentication**: Managed identity service for secure access to the trading dashboard.
+  - **PostgREST**: Automatic API generation layer.
+- **Redis**:
+  - **Signal Queue**: Critical bridge between the Backend API (Producer) and the Worker (Consumer).
+  - **Caching**: High-speed storage for symbol rules, rate-limiting states, and ephemeral session data.
 
-### TradingView (Inbound Webhooks)
-- **Direction:** TradingView → Bot
-- **Endpoint:** `POST /webhook` on the FastAPI backend
-- **Auth:** Optional `X-Webhook-Secret` header (env: `WEBHOOK_SECRET`)
-- **Payload fields:** `symbol`, `side`, `entry`, `sl`, `tp`, `size`, `rr_ratio`, `bar_time`, `zone_id`, `run_mode`
-- **Test endpoint:** `POST /webhook/test` — dry-run without executing
-- **Docs:** `docs/webhook-payload-reference.md`
+## Trading & Brokerage
+- **MetaApi**:
+  - **Purpose**: A cloud-based bridge between the trading system and MetaTrader 4/5 (MT4/MT5).
+  - **Functionality**: Enables the system to place trades, manage orders, and monitor real-time balance on institutional brokers.
+  - **Adapters**: Custom broker-specific logic implemented for providers like **Vantage**, **IC Markets**, and **FXCM**.
 
-## Database
+## Signal & Information Sources
+- **TradingView**:
+  - **Inbound Webhooks**: Receives signals from TradingView via `POST /webhook` protected by a secret token.
+  - **Signal Schema**: Accepts JSON payloads including `symbol`, `side`, `entry`, `sl`, `tp`, and `size`.
+- **Yahoo Finance (`yfinance`)**: Integrates price history and ticker metadata for symbol verification and historical context.
 
-### Supabase (PostgreSQL)
-- **Adapter:** `src/adapters/supabase.py` (worker), `src/adapters/supabase_api.py` (API)
-- **API adapter** has auto-reconnect logic (recreates client every 90s to avoid stale HTTP/2)
-- **Env vars:** `SUPABASE_URL`, `SUPABASE_ANON_KEY` / `SUPABASE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
-- **Frontend:** `@supabase/supabase-js` — realtime subscriptions + REST
-- **Frontend env vars:** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- **Key tables:**
-  - `trading_signals` — signals, PnL, outcomes, account assignment
-  - `prop_firm_accounts` — account configs, phases, challenge state
-  - `dynamic_rules` — dynamic config picked up by `src/core/dynamic_config.py`
+## AI & LLM Ecosystem
+- **Large Language Models**:
+  - **OpenAI (GPT-4)**: Primary brain for complex signal validation and "Council" debates.
+  - **Anthropic (Claude)**: Utilized for high-reasoning tasks and alternative risk perspectives.
+  - **Groq**: Integrated for ultra-fast Llama-based inference where latency is critical.
+- **Orchestration**: Managed via `langchain` and custom implementations for the "Trinity" risk guardrail.
 
-## Message Queue
+## Monitoring & Communication
+- **Discord**:
+  - **Webhooks**: Automatic broadcast of trade executions, risk alerts, and system health status.
+  - **Bot**: Interactive interface for managing "Debate" threads where AI agents analyze potential trades.
+- **Telegram**:
+  - **Bot Integration**: Instant notifications for trade signals and account state changes directly to the user's mobile device.
 
-### Redis
-- **Adapter:** `src/adapters/redis_queue.py`
-- **URL:** env `REDIS_URL` (default: `redis://localhost:6379`)
-- **Role:** Decouples API (publisher) from Worker (consumer)
-- **Transport:** `src/core/transport.py` abstracts Redis vs in-memory (for tests)
-- **Must run before API or startup fails** — fail-fast check in API boot
-
-## Broker / Trade Execution
-
-### MetaAPI (MetaTrader connector)
-- **Adapter:** `src/adapters/metaapi.py` + `src/adapters/execution/`
-- **Env vars:** `META_API_TOKEN`, `META_API_ACCOUNT_ID`
-- **Role:** Opens/closes MT4/MT5 positions, fetches open trades
-- **Paper trader fallback:** `src/adapters/paper_trader.py` — simulates execution when `PAPER_TRADING_ENABLED=true`
-
-## AI / ML Services
-
-### AI Guardian (OpenAI / Anthropic)
-- **Module:** `src/ai/brain.py`
-- **Env var:** `AI_API_KEY` (accepts OpenAI or Anthropic key)
-- **Role:** LLM-based signal validation in worker pipeline
-- **Config flags:**
-  - `AI_FILTER_ENABLED` (bool) — enable/disable
-  - `AI_SHADOW_MODE` (bool) — log but never block
-  - `ML_GUARDIAN_ENABLED` — ML random forest layer
-  - `TRINITY_ENABLED` — full AI ensemble (AI + ML + RF)
-- **For local dev:** set `AI_FILTER_ENABLED=false` to skip
-
-## Notifications
-
-### Discord
-- **Adapter:** `src/adapters/discord.py`
-- **Env var:** `DISCORD_WEBHOOK_URL`
-- **Role:** Trade alerts, risk events, circuit breaker triggers
-
-### Telegram
-- **Env vars:** `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
-- **Role:** Mobile trade alerts
-
-## Deployment
-
-### Railway
-- **Services:** `backend` (API), `worker`, `frontend` (Next.js)
-- **Env vars** set per-service in Railway dashboard
-- **Tool:** `railway` CLI for setting env vars
-- **No docker-compose.test.yml** — use local Redis directly for tests
-
-## Frontend API Communication
-
-- Frontend talks to backend via `NEXT_PUBLIC_API_URL` (e.g. Railway backend URL)
-- Uses `@tanstack/react-query` with polling for live data
-- Supabase realtime for signal feed updates
-- Hooks in `frontend/src/hooks/` wrap all API calls
+## Deployment & Hosting
+- **Railway**: Used for hosting the full stack (API, Worker, Frontend, Redis).
+- **Environment Management**: Configuration is driven by `.env` with a centralized approach via `pydantic-settings`.

@@ -1,106 +1,54 @@
-# ARCHITECTURE.md — System Architecture
+# Codebase Architecture
 
-## Overview
+## High-Level Pattern
+The system follows an **Event-Driven Microservices-Lite** architecture. It is designed for institutional-grade reliability, utilizing a decoupled ingest-execution pipeline to handle high-frequency signals with multi-layered safety guardrails.
 
-Three decoupled services communicating via Redis and Supabase:
+## Service Boundaries
+- **Backend API (FastAPI)**: Serves as the high-availability ingestion layer. Its primary responsibility is to receive, validate, and queue signals from TradingView or other external providers.
+- **Worker (Python)**: The core execution engine. It operates as a consumer, processing signals from the queue, applying complex AI/ML filters, enforcing risk guardrails, and managing trade lifecycles across multiple accounts.
+- **Frontend (Next.js)**: A real-time dashboard for monitoring signal flow, account health, risk metrics, and manual overrides.
+- **Infrastructure (Redis & Supabase)**:
+    - **Redis**: Acts as the low-latency message broker between the API and Worker.
+    - **Supabase**: Serves as the primary persistence layer for state, historical signals, audit logs, and dynamic configuration.
 
-```
-TradingView ──webhook──▶ API (FastAPI :8000)
-                              │
-                         Redis Queue
-                              │
-                         Worker (Python)
-                              │ ├─ AI Ensemble
-                              │ ├─ Guard Rails
-                              │ └─ Account Router
-                              │
-                    ┌─────────┴─────────┐
-                MetaAPI               Supabase
-              (broker/MT4)           (persistence)
-                              ▲
-                         Frontend (Next.js :3000)
-                              │
-                        Supabase Realtime
-```
+## Data Flow: Webhook to MetaTrader
+1. **Signal Ingestion**: TradingView sends a `POST` request to the API's `/webhook` endpoint.
+2. **Validation & Initial Persistence**: `src/api.py` validates the payload against a Pydantic schema and persists the raw signal to the `trading_signals` table in Supabase for immediate visibility.
+3. **Queuing**: The signal is enqueued into a Redis list (managed via `src/adapters/redis_queue.py`).
+4. **Processing**: The Worker (`src/worker.py`) pops signals from Redis.
+5. **Guard Rails**: The Worker runs a series of global and account-specific guards (RiskEngine, NewsFilter, StalenessCheck, etc.).
+6. **AI/ML Ensemble**: The signal is passed through the `Supervisor` and `Trading Council` (multi-agent system) to determine if it meets the confidence threshold for execution.
+7. **Execution**: If cleared, `src/logic.py` uses the appropriate adapter (e.g., `MetaApiAdapter` or `PaperTrader`) to submit the order to the broker.
+8. **Audit & Feedback**: The trade status is updated in Supabase, and notifications are sent via Discord/Slack.
 
-## Service Details
+## Key Abstractions & Design Patterns
+- **Adapter Pattern**: Used extensively in `src/adapters/` to abstract communication with external services like MetaApi, Supabase, and Discord.
+- **Guard Rail Strategy**: Risk and validation logic are implemented as pluggable "Guards" that can be enabled/disabled via configuration.
+- **Observer Pattern**: Utilized in `src/core/observers/` for decoupled event auditing and metrics tracking.
+- **ThreadPool Orchestration**: The Worker uses a `ThreadPoolExecutor` to process trades across multiple accounts in parallel without blocking the main signal loop.
 
-### 1. Backend API (`src/api.py`, port 8000)
-- **FastAPI** with multiple routers mounted from separate `src/api_*.py` modules
-- **Responsibilities:**
-  - Receive TradingView webhooks (`POST /webhook`)
-  - Validate payload (Pydantic `EntryWebhookPayload` in `src/core/signal.py`)
-  - Write signal to `trading_signals` with status `"RECEIVED"`
-  - Push to Redis queue via `src/core/transport.py`
-  - Serve all REST endpoints for the frontend
+## Entry Points
+- **API**: `src/api.py` (FastAPI app)
+- **Worker**: `src/worker.py` (Continuous loop consumer)
+- **Frontend**: `frontend/src/app/` (Next.js App Router)
 
-### 2. Worker (`src/worker.py`)
-- **Single Python process** consuming from Redis queue in a loop
-- **Two-phase guard structure:**
-  - **Global guards** (run once per signal):
-    - Kill switch (env `TRADING_KILL_SWITCH`)
-    - Staleness guard (`src/core/guard_rails/staleness_guard.py`) 
-    - AI Ensemble / Trinity council (`src/ai/`)
-  - **Per-account guards** (run inside `ThreadPoolExecutor` per account):
-    - Circuit breaker (`src/core/circuit_breaker.py`)
-    - PropGuard (`src/core/guard_rails/prop_guard.py`)
-    - Correlation guard (`src/core/guard_rails/correlation.py`)
-    - VaR guard (`src/core/guard_rails/portfolio_var_guard.py`)
-    - Sector guard (`src/core/guard_rails/sector_guard.py`)
-- **Observer pattern** (`src/core/observers/`): Auditor, Risk, Executor, Metrics, AccountRouter observers
-- **Account Router** (`src/core/account_router.py`): maps signals to MetaAPI accounts
-- **Execution:** `src/logic.py` → `src/adapters/metaapi.py`
-
-### 3. Frontend (`frontend/`, port 3000)
-- **Next.js 16 App Router** — pages in `frontend/src/app/`
-- **Data pattern:** React hooks in `frontend/src/hooks/` wrapping react-query + fetch
-- **Realtime:** Supabase JS client for live signal feed updates
-- **No server-side logic** — pure client-side data fetching
-
-## Signal Data Flow
-
-```
-1. TradingView fires alert
-2. POST /webhook → EntryWebhookPayload validated
-3. Signal written to Supabase (status=RECEIVED)
-4. Signal pushed to Redis queue
-5. Worker dequeues signal
-6. Global guards run (staleness, kill-switch, AI)
-7. Account Router resolves accounts for this signal
-8. Per-account: circuit breaker + prop guards run
-9. Risk engine calculates lot size
-10. MetaAPI executes trade
-11. Signal updated in Supabase (status=EXECUTED)
-12. Frontend polls / receives realtime update
-```
-
-## Key Abstractions
-
-| Abstraction | Location | Purpose |
-|-------------|----------|---------|
-| `EntryWebhookPayload` | `src/core/signal.py` | Webhook schema |
-| `Settings` | `config/settings.py` | All env config, cached via `@lru_cache` |
-| `get_transport()` | `src/core/transport.py` | Redis vs memory queue abstraction |
-| Guard rails | `src/core/guard_rails/` | Plugin-style risk checks |
-| Observer pattern | `src/core/observers/` | Side effects (audit, metrics, routing) |
-| `AccountRouter` | `src/core/account_router.py` | Maps signals to broker accounts |
-| `calculate_max_position_size` | `src/core/risk_engine.py` | Lot size from account balance + risk% |
-
-## API Router Structure
-
-```
-src/api.py               — Main app, /webhook, /webhook/test, /health
-src/api_analytics.py     — /analytics/* (equity curve, drawdown, strategy)
-src/api_risk.py          — /risk/*
-src/api_positions.py     — /positions/*
-src/api_funding.py       — /funding/*
-src/api_evaluation.py    — /evaluation/*
-src/api_execution.py     — /execution/*
-src/api_rules.py         — /rules/* (dynamic config)
-src/api_backtests.py     — /backtests/*
-src/api_strategies.py    — /strategies/*
-src/api_board.py         — /board/*
-src/api_portfolio_control.py — /portfolio/*
-src/api_copilot.py       — /copilot/*
-src/api_traces.py        — /traces/*
+## Component Interaction Diagram
+```text
+[TradingView] --(JSON Webhook)--> [FastAPI (src/api.py)]
+                                        |
+                   (1) Write Signal     | (2) Push to Queue
+                          v             v
+                   [Supabase DB] <--- [Redis Queue]
+                          |             |
+                   (4) Read State       | (3) Pop Signal
+                          |             v
+                   [Next.js UI] <--- [Worker (src/worker.py)]
+                                        |
+                                 (5) Run Guard Rails
+                                        |
+                                 (6) AI Decisioning
+                                        |
+                                 (7) Execute Order
+                                        v
+                                 [MetaApi / MT5]
 ```
