@@ -64,7 +64,13 @@ def send_discord(
     alert_id: int,
     mode: str = "manual",
     ai_result: Optional[Dict[str, Any]] = None,
-) -> Tuple[bool, Optional[str]]:
+) -> Tuple[bool, Optional[str], Optional[str], Optional[str]]:
+    """Send a trade signal embed to Discord.
+
+    Returns (success, error, message_id, channel_id).
+    message_id and channel_id are populated when DISCORD_BOT_TOKEN is set
+    (requires ?wait=true which returns the full message object).
+    """
     s = get_settings()
     if not s.discord_webhook_url:
         return False, "DISCORD_WEBHOOK_URL not configured"
@@ -170,17 +176,27 @@ def send_discord(
             "footer": {"text": f"Alert #{alert_id} | Update: /alert/{alert_id}/taken or /skipped"},
         }
         payload = {"content": f"@here **New Trade Signal #{alert_id}!**", "embeds": [embed]}
-        r = requests.post(s.discord_webhook_url, json=payload, timeout=10)
+        # Use ?wait=true to get the message object back (needed for thread creation)
+        url = s.discord_webhook_url.rstrip("?&") + "?wait=true"
+        r = requests.post(url, json=payload, timeout=10)
+        if r.status_code == 200:
+            msg = r.json()
+            message_id = str(msg.get("id", ""))
+            channel_id = str(msg.get("channel_id", ""))
+            logger.info(f"Discord alert sent: #{alert_id} {data['symbol']} {side} msg={message_id}")
+            return True, None, message_id or None, channel_id or None
+        # Fallback: some proxies/older setups return 204 without wait
         if r.status_code == 204:
             logger.info(f"Discord alert sent: #{alert_id} {data['symbol']} {side}")
-            return True, None
-        return False, f"HTTP {r.status_code}: {r.text[:200] if r.text else 'No response'}"
+            return True, None, None, None
+        return False, f"HTTP {r.status_code}: {r.text[:200] if r.text else 'No response'}", None, None
     except Exception as e:
         logger.error(f"Discord error: {e}")
-        return False, str(e)
+        return False, str(e), None, None
 
 
-def send_telegram(data: Dict[str, Any], alert_id: int) -> bool:
+def send_telegram(data: Dict[str, Any], alert_id: int) -> Tuple[bool, Optional[int]]:
+    """Send a trade signal to Telegram. Returns (success, message_id)."""
     s = get_settings()
     if not s.telegram_bot_token or not s.telegram_chat_id:
         return False
@@ -218,13 +234,14 @@ def send_telegram(data: Dict[str, Any], alert_id: int) -> bool:
             timeout=10,
         )
         if r.status_code == 200:
-            logger.info(f"Telegram alert sent: #{alert_id}")
-            return True
+            msg_id = r.json().get("result", {}).get("message_id")
+            logger.info(f"Telegram alert sent: #{alert_id} msg_id={msg_id}")
+            return True, msg_id
         logger.error(f"Telegram failed: {r.text}")
-        return False
+        return False, None
     except Exception as e:
         logger.error(f"Telegram error: {e}")
-        return False
+        return False, None
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -236,7 +253,12 @@ def send_telegram(data: Dict[str, Any], alert_id: int) -> bool:
 def send_guard_notification(signal_id: Any, symbol: str, reason: str) -> Tuple[bool, Optional[str]]:
     """Send a lightweight Discord embed for guard/watchdog events (no trade fields needed)."""
     s = get_settings()
-    if not s.discord_webhook_url:
+    # Prefer dedicated alerts channel; fall back to main webhook
+    webhook_url = (
+        getattr(s, "discord_alerts_webhook_url", "")
+        or s.discord_webhook_url
+    )
+    if not webhook_url:
         return False, "DISCORD_WEBHOOK_URL not configured"
     try:
         embed = {
@@ -247,7 +269,7 @@ def send_guard_notification(signal_id: Any, symbol: str, reason: str) -> Tuple[b
             "footer": {"text": f"Signal #{signal_id}"},
         }
         payload = {"embeds": [embed]}
-        r = requests.post(s.discord_webhook_url, json=payload, timeout=10)
+        r = requests.post(webhook_url, json=payload, timeout=10)
         if r.status_code == 204:
             return True, None
         return False, f"HTTP {r.status_code}: {r.text[:200] if r.text else 'No response'}"
@@ -300,7 +322,7 @@ def send_discord_async(
 
     def _send():
         try:
-            success, error = send_discord(data, alert_id, mode, ai_result)
+            success, error, _, __ = send_discord(data, alert_id, mode, ai_result)
             if not success:
                 logger.warning(f"Background Discord notification failed: {error}")
         except Exception as e:
@@ -325,7 +347,7 @@ def send_telegram_async(data: Dict[str, Any], alert_id: int) -> None:
 
     def _send():
         try:
-            success = send_telegram(data, alert_id)
+            success, _ = send_telegram(data, alert_id)
             if not success:
                 logger.warning(f"Background Telegram notification failed for alert #{alert_id}")
         except Exception as e:
@@ -333,3 +355,260 @@ def send_telegram_async(data: Dict[str, Any], alert_id: int) -> None:
 
     _notification_executor.submit(_send)
     logger.debug(f"Telegram notification queued in background for alert #{alert_id}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Discord Thread-per-Trade
+# Requires DISCORD_BOT_TOKEN. Each signal gets its own thread for fill +
+# close updates. Falls back silently if bot token is not configured.
+# ═══════════════════════════════════════════════════════════════════════════
+
+def create_discord_thread(channel_id: str, message_id: str, thread_name: str) -> Optional[str]:
+    """Create a Discord thread from a message using the Bot API. Returns thread_id or None."""
+    s = get_settings()
+    bot_token = (getattr(s, "discord_bot_token", "") or "").strip()
+    if not bot_token:
+        return None
+    try:
+        r = requests.post(
+            f"https://discord.com/api/v10/channels/{channel_id}/messages/{message_id}/threads",
+            headers={
+                "Authorization": f"Bot {bot_token}",
+                "Content-Type": "application/json",
+            },
+            json={"name": thread_name[:100], "auto_archive_duration": 10080},  # 7 days
+            timeout=10,
+        )
+        if r.status_code == 201:
+            thread_id = str(r.json().get("id", ""))
+            logger.info(f"Discord thread created: {thread_id} for message {message_id}")
+            return thread_id or None
+        logger.warning(f"create_discord_thread HTTP {r.status_code}: {r.text[:200]}")
+        return None
+    except Exception as exc:
+        logger.warning(f"create_discord_thread failed: {exc}")
+        return None
+
+
+def post_to_discord_thread(thread_id: str, embed: Dict[str, Any]) -> bool:
+    """Post an embed to an existing Discord thread via webhook + thread_id param."""
+    s = get_settings()
+    webhook_url = (s.discord_webhook_url or "").strip()
+    if not webhook_url or not thread_id:
+        return False
+    try:
+        url = f"{webhook_url.rstrip('?&')}?wait=true&thread_id={thread_id}"
+        r = requests.post(url, json={"embeds": [embed]}, timeout=10)
+        return r.status_code in (200, 204)
+    except Exception as exc:
+        logger.warning(f"post_to_discord_thread failed: {exc}")
+        return False
+
+
+def post_close_to_thread_async(
+    thread_id: str,
+    symbol: str,
+    side: str,
+    pnl_usd: Optional[float],
+    outcome: str,
+    entry_price: Optional[float] = None,
+    close_price: Optional[float] = None,
+) -> None:
+    """Post a trade close summary to an existing Discord thread (non-blocking)."""
+    def _post():
+        try:
+            pnl = pnl_usd or 0.0
+            outcome_upper = (outcome or "").upper()
+            if outcome_upper == "WIN" or pnl > 0:
+                color = 0x22C55E   # green
+                icon = "🟢"
+            elif outcome_upper == "LOSS" or pnl < 0:
+                color = 0xEF4444   # red
+                icon = "🔴"
+            else:
+                color = 0x94A3B8   # slate (breakeven)
+                icon = "⚪"
+
+            pnl_str = f"+${pnl:.2f}" if pnl >= 0 else f"-${abs(pnl):.2f}"
+            fields: List[Dict[str, Any]] = [
+                {"name": "Outcome", "value": outcome_upper or "CLOSED", "inline": True},
+                {"name": "PnL", "value": pnl_str, "inline": True},
+            ]
+            if entry_price is not None:
+                fields.append({"name": "Entry", "value": str(entry_price), "inline": True})
+            if close_price is not None:
+                fields.append({"name": "Exit", "value": str(close_price), "inline": True})
+
+            embed = {
+                "title": f"{icon} Trade Closed — {symbol.upper()} {side.upper()}",
+                "color": color,
+                "fields": fields,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+            post_to_discord_thread(thread_id, embed)
+        except Exception as exc:
+            logger.warning(f"post_close_to_thread_async failed: {exc}")
+
+    _notification_executor.submit(_post)
+
+
+def send_discord_and_thread_async(
+    data: Dict[str, Any],
+    alert_id: int,
+    mode: str = "manual",
+    ai_result: Optional[Dict[str, Any]] = None,
+    supabase_client: Any = None,
+) -> None:
+    """Send signal embed + create Discord thread, store IDs to DB (non-blocking).
+
+    Drop-in replacement for send_discord_async in the main signal path.
+    If DISCORD_BOT_TOKEN is not configured, behaves identically to send_discord_async.
+    """
+    def _send():
+        try:
+            success, error, message_id, channel_id = send_discord(data, alert_id, mode, ai_result)
+            if not success:
+                logger.warning(f"Background Discord notification failed: {error}")
+                return
+
+            if not message_id or not channel_id:
+                return  # No IDs returned (204 path or bot token not needed)
+
+            # Persist message_id
+            if supabase_client:
+                try:
+                    supabase_client.table("trading_signals").update(
+                        {"discord_message_id": message_id}
+                    ).eq("id", alert_id).execute()
+                except Exception as db_exc:
+                    logger.warning(f"Could not store discord_message_id: {db_exc}")
+
+            # Create thread if bot token configured
+            thread_name = f"{data.get('symbol', '').upper()} {str(data.get('side', '')).upper()} #{alert_id}"
+            thread_id = create_discord_thread(channel_id, message_id, thread_name)
+            if not thread_id:
+                return
+
+            # Persist thread_id
+            if supabase_client:
+                try:
+                    supabase_client.table("trading_signals").update(
+                        {"discord_thread_id": thread_id}
+                    ).eq("id", alert_id).execute()
+                except Exception as db_exc:
+                    logger.warning(f"Could not store discord_thread_id: {db_exc}")
+
+            # If trade was already filled by the time we post (common in auto-execute flow),
+            # post a fill confirmation inside the thread immediately.
+            if supabase_client:
+                try:
+                    rec = supabase_client.table("trading_signals").select(
+                        "status, broker_order_id, filled_entry_price"
+                    ).eq("id", alert_id).maybe_single().execute()
+                    if rec and rec.data:
+                        status = str(rec.data.get("status", "")).upper()
+                        if status == "OPEN":
+                            broker_id = rec.data.get("broker_order_id", "")
+                            entry = rec.data.get("filled_entry_price") or data.get("entry")
+                            fill_embed = {
+                                "title": "✅ Order Filled",
+                                "description": f"Broker ticket: `{broker_id}`",
+                                "color": 0x22C55E,
+                                "fields": [
+                                    {"name": "Entry", "value": str(entry or ""), "inline": True},
+                                ],
+                                "timestamp": datetime.utcnow().isoformat(),
+                            }
+                            post_to_discord_thread(thread_id, fill_embed)
+                except Exception as fill_exc:
+                    logger.debug(f"Discord fill thread update skipped: {fill_exc}")
+
+        except Exception as e:
+            logger.error(f"Background Discord+thread notification crashed: {e}")
+
+    _notification_executor.submit(_send)
+    logger.debug(f"Discord+thread notification queued in background for alert #{alert_id}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Telegram Reply-per-Trade
+# Stores the original signal message_id so fill/close updates are posted
+# as replies, keeping each trade's history in one conversation thread.
+# ═══════════════════════════════════════════════════════════════════════════
+
+def post_telegram_close_reply_async(
+    telegram_message_id: int,
+    symbol: str,
+    side: str,
+    pnl_usd: Optional[float],
+    outcome: str,
+    entry_price: Optional[float] = None,
+    close_price: Optional[float] = None,
+) -> None:
+    """Reply to the original Telegram signal message with a close summary (non-blocking)."""
+    def _post():
+        s = get_settings()
+        if not s.telegram_bot_token or not s.telegram_chat_id:
+            return
+        try:
+            pnl = pnl_usd or 0.0
+            outcome_upper = (outcome or "").upper()
+            if outcome_upper == "WIN" or pnl > 0:
+                icon = "🟢"
+                pnl_str = f"+${pnl:.2f}"
+            elif outcome_upper == "LOSS" or pnl < 0:
+                icon = "🔴"
+                pnl_str = f"-${abs(pnl):.2f}"
+            else:
+                icon = "⚪"
+                pnl_str = f"${pnl:.2f}"
+
+            lines = [
+                f"{icon} <b>Trade Closed — {symbol.upper()} {side.upper()}</b>",
+                f"<b>Outcome:</b> {outcome_upper or 'CLOSED'}",
+                f"<b>PnL:</b> {pnl_str}",
+            ]
+            if entry_price is not None:
+                lines.append(f"<b>Entry:</b> {entry_price}")
+            if close_price is not None:
+                lines.append(f"<b>Exit:</b> {close_price}")
+
+            requests.post(
+                f"https://api.telegram.org/bot{s.telegram_bot_token}/sendMessage",
+                json={
+                    "chat_id": s.telegram_chat_id,
+                    "text": "\n".join(lines),
+                    "parse_mode": "HTML",
+                    "reply_to_message_id": telegram_message_id,
+                },
+                timeout=10,
+            )
+        except Exception as exc:
+            logger.warning(f"post_telegram_close_reply_async failed: {exc}")
+
+    _notification_executor.submit(_post)
+
+
+def send_telegram_and_store_async(
+    data: Dict[str, Any],
+    alert_id: int,
+    supabase_client: Any = None,
+) -> None:
+    """Send Telegram signal and store message_id to DB for later reply threading (non-blocking)."""
+    def _send():
+        try:
+            success, msg_id = send_telegram(data, alert_id)
+            if not success or not msg_id:
+                return
+            if supabase_client:
+                try:
+                    supabase_client.table("trading_signals").update(
+                        {"telegram_message_id": msg_id}
+                    ).eq("id", alert_id).execute()
+                except Exception as db_exc:
+                    logger.warning(f"Could not store telegram_message_id: {db_exc}")
+        except Exception as e:
+            logger.error(f"Background Telegram+store notification crashed: {e}")
+
+    _notification_executor.submit(_send)
+    logger.debug(f"Telegram+store notification queued in background for alert #{alert_id}")

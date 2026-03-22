@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     supabase_service_role_key: str = Field(default="", validation_alias=AliasChoices("SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SERVICE_KEY"))
 
     discord_webhook_url: str = ""
+    discord_alerts_webhook_url: str = ""  # Optional: separate channel for operational alerts
+    discord_bot_token: str = ""           # Optional: enables thread-per-trade (create threads from messages)
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
     paper_trading_enabled: bool = False

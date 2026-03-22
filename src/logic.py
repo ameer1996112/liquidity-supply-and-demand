@@ -18,7 +18,14 @@ from src.adapters.supabase import (
     get_alert_by_zone_id,
     get_alert_by_trade_key,
 )
-from src.adapters.discord import send_discord_async, send_telegram_async
+from src.adapters.discord import (
+    send_discord_async,
+    send_discord_and_thread_async,
+    send_telegram_async,
+    send_telegram_and_store_async,
+    post_close_to_thread_async,
+    post_telegram_close_reply_async,
+)
 from src.adapters.paper_trader import get_paper_trader
 from src.adapters.execution.interfaces import OrderRequest, CloseRequest
 from src.adapters.execution.router import get_adapter
@@ -155,6 +162,25 @@ def process_trade(
                         client.table("trading_signals").update(close_payload).eq("zone_id", data["zone_id"]).execute()
             except Exception as e:
                 logger.error("Failed to close paper trade in DB for zone_id=%s: %s", data["zone_id"], e)
+            # Discord thread + Telegram reply close updates for paper trades
+            try:
+                _paper_alert = get_alert_by_trade_key(trade_key) if trade_key else get_alert_by_zone_id(data["zone_id"])
+                _paper_close_kwargs = dict(
+                    symbol=data.get("symbol", ""),
+                    side=data.get("side", ""),
+                    pnl_usd=exit_data.get("pnl_usd"),
+                    outcome=exit_data.get("outcome", ""),
+                    entry_price=data.get("entry"),
+                    close_price=exit_data.get("close_price"),
+                )
+                _thread_id = (_paper_alert or {}).get("discord_thread_id")
+                if _thread_id:
+                    post_close_to_thread_async(thread_id=_thread_id, **_paper_close_kwargs)
+                _tg_msg_id = (_paper_alert or {}).get("telegram_message_id")
+                if _tg_msg_id:
+                    post_telegram_close_reply_async(telegram_message_id=_tg_msg_id, **_paper_close_kwargs)
+            except Exception as _te:
+                logger.debug("Paper close thread/reply update skipped: %s", _te)
         elif getattr(s, "live_trading_enabled", False):
             try:
                 # Use profile-specific adapter when available (multi-account)
@@ -367,6 +393,28 @@ def process_trade(
                         logger.error("Failed to fetch/update actual broker PnL for alert #%s: %s", alert["id"], e)
             except Exception as e:  # noqa: BLE001
                 logger.error("Broker close failed for zone_id=%s: %s", data["zone_id"], e)
+
+            # Discord thread + Telegram reply close updates (non-blocking)
+            _close_kwargs = dict(
+                symbol=alert.get("symbol", data.get("symbol", "")),
+                side=alert.get("side", data.get("side", "")),
+                pnl_usd=exit_data.get("pnl_usd"),
+                outcome=exit_data.get("outcome", ""),
+                entry_price=alert.get("filled_entry_price") or data.get("entry"),
+                close_price=exit_data.get("close_price"),
+            )
+            try:
+                _thread_id = alert.get("discord_thread_id")
+                if _thread_id:
+                    post_close_to_thread_async(thread_id=_thread_id, **_close_kwargs)
+            except Exception as _te:
+                logger.debug("Discord close thread update skipped: %s", _te)
+            try:
+                _tg_msg_id = alert.get("telegram_message_id")
+                if _tg_msg_id:
+                    post_telegram_close_reply_async(telegram_message_id=_tg_msg_id, **_close_kwargs)
+            except Exception as _te:
+                logger.debug("Telegram close reply skipped: %s", _te)
 
         return
 
@@ -726,8 +774,11 @@ def process_trade(
     # Pass through AI ensemble result (if available) so Discord can render
     # the full brain decision matrix.
     # Phase 1 Optimization: Use async notifications to avoid blocking execution
-    send_discord_async(data, alert_id, mode=mode, ai_result=ai_result)
-    send_telegram_async(data, alert_id)
+    send_discord_and_thread_async(
+        data, alert_id, mode=mode, ai_result=ai_result,
+        supabase_client=supabase_module.supabase,
+    )
+    send_telegram_and_store_async(data, alert_id, supabase_client=supabase_module.supabase)
 
 
 execute_trade = process_trade

@@ -71,9 +71,14 @@ class DiscordAlertNotifier:
 
     def __init__(self, webhook_url: Optional[str] = None) -> None:
         settings = get_settings()
-        raw = webhook_url if webhook_url is not None else getattr(
-            settings, "discord_webhook_url", ""
-        )
+        if webhook_url is not None:
+            raw = webhook_url
+        else:
+            # Prefer dedicated alerts channel; fall back to main webhook
+            raw = (
+                getattr(settings, "discord_alerts_webhook_url", "")
+                or getattr(settings, "discord_webhook_url", "")
+            )
         self.webhook_url = (raw or "").strip()
 
     def send(self, alert: AlertPayload) -> None:
@@ -169,6 +174,70 @@ class DiscordAlertNotifier:
         except Exception as exc:  # noqa: BLE001
             # Never raise from notifier — alerts must not break the core flow.
             logger.warning("DiscordAlertNotifier failed: %s", exc)
+
+
+class TelegramAlertNotifier:
+    """Telegram notifier for operational alerts.
+
+    Mirrors DiscordAlertNotifier but sends a plain HTML message via Telegram Bot API.
+    """
+
+    def __init__(
+        self,
+        bot_token: Optional[str] = None,
+        chat_id: Optional[str] = None,
+    ) -> None:
+        settings = get_settings()
+        self.bot_token = (bot_token or getattr(settings, "telegram_bot_token", "") or "").strip()
+        self.chat_id = (chat_id or getattr(settings, "telegram_chat_id", "") or "").strip()
+
+    def send(self, alert: AlertPayload) -> None:
+        if not self.bot_token or not self.chat_id:
+            return
+
+        try:
+            severity = (alert.severity or "info").lower()
+            severity_emoji = {
+                "critical": "🔴",
+                "error": "🟠",
+                "warning": "🟡",
+                "info": "🔵",
+            }.get(severity, "🔵")
+
+            lines = [
+                f"{severity_emoji} <b>{alert.title}</b>",
+                f"<i>{alert.alert_type.upper()} · {severity.upper()}</i>",
+                "",
+                alert.message or "",
+            ]
+
+            if alert.signal_id is not None:
+                lines.append(f"Signal: <code>#{alert.signal_id}</code>")
+
+            if alert.metadata:
+                meta_parts = []
+                for k, v in list(alert.metadata.items())[:6]:
+                    meta_parts.append(f"  {k}: {v}")
+                if meta_parts:
+                    lines.append("\n" + "\n".join(meta_parts))
+
+            text = "\n".join(lines)
+            if len(text) > 4000:
+                text = text[:3997] + "..."
+
+            resp = requests.post(
+                f"https://api.telegram.org/bot{self.bot_token}/sendMessage",
+                json={"chat_id": self.chat_id, "text": text, "parse_mode": "HTML"},
+                timeout=5,
+            )
+            if resp.status_code != 200:
+                logger.warning(
+                    "TelegramAlertNotifier HTTP %s: %s",
+                    resp.status_code,
+                    (resp.text or "")[:200],
+                )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("TelegramAlertNotifier failed: %s", exc)
 
 
 class AlertService:
@@ -296,9 +365,12 @@ def create_default_alert_service(
     """Factory used by worker and services to get an AlertService instance."""
     service = AlertService(supabase_client=supabase_client, notifiers=[])
     try:
-        # Attach Discord notifier if configured. Failures are logged only.
         service.add_notifier(DiscordAlertNotifier())
     except Exception as exc:  # noqa: BLE001
         logger.warning("Failed to initialize DiscordAlertNotifier: %s", exc)
+    try:
+        service.add_notifier(TelegramAlertNotifier())
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Failed to initialize TelegramAlertNotifier: %s", exc)
     return service
 
