@@ -72,6 +72,7 @@ class CreateTicketRequest(BaseModel):
     priority: str = Field("medium", pattern="^(low|medium|high|critical)$")
     assignee: Optional[str] = None
     signal_id: Optional[int] = None
+    sprint_id: Optional[int] = None
 
 
 class PatchTicketRequest(BaseModel):
@@ -82,6 +83,7 @@ class PatchTicketRequest(BaseModel):
     priority: Optional[str] = Field(None, pattern="^(low|medium|high|critical)$")
     assignee: Optional[str] = None
     signal_id: Optional[int] = None
+    sprint_id: Optional[int] = None
 
 
 class AiUpdateRequest(BaseModel):
@@ -91,6 +93,30 @@ class AiUpdateRequest(BaseModel):
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
+
+_TYPE_PREFIX = {"bug": "BUG", "feature": "FEAT", "task": "TASK"}
+
+
+def _next_ticket_id(sb: Any, ticket_type: str) -> str:
+    """Generate the next sequential ticket ID (e.g. FEAT-007)."""
+    prefix = _TYPE_PREFIX.get(ticket_type, "TASK")
+    try:
+        resp = (
+            sb.table(_TABLE)
+            .select("ticket_id")
+            .like("ticket_id", f"{prefix}-%")
+            .order("ticket_id", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if resp.data:
+            last = resp.data[0]["ticket_id"]  # e.g. "FEAT-007"
+            num = int(last.split("-")[-1]) + 1
+        else:
+            num = 1
+    except Exception:
+        num = 1
+    return f"{prefix}-{num:03d}"
 
 
 def _handle_supabase_error(exc: Exception, op: str) -> None:
@@ -153,16 +179,21 @@ def list_tickets(
 def create_ticket(body: CreateTicketRequest):
     """Create a new ticket."""
     sb = get_api_supabase()
+    ticket_id = _next_ticket_id(sb, body.type)
     insert_data: Dict[str, Any] = {
+        "ticket_id": ticket_id,
         "title": body.title,
         "description": body.description,
         "type": body.type,
         "status": body.status,
         "priority": body.priority,
-        "assignee": body.assignee,
-        "signal_id": body.signal_id,
         "ai_changelog": [],
     }
+    # Only include optional fields if they are set (avoid schema cache issues)
+    if body.assignee is not None:
+        insert_data["assignee"] = body.assignee
+    if body.signal_id is not None:
+        insert_data["signal_id"] = body.signal_id
     try:
         resp = sb.table(_TABLE).insert(insert_data).execute()
         if not resp.data:
