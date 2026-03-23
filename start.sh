@@ -76,8 +76,9 @@ trap shutdown SIGTERM SIGINT
 if [ "$MODE" = "full" ] || [ "$MODE" = "fullstack" ] || [ "$MODE" = "both" ]; then
     if [ "$MODE" != "both" ] || [ "${FULL_STACK:-0}" = "1" ]; then
         if [ -d "$ROOT_DIR/frontend" ] && [ -f "$ROOT_DIR/frontend/package.json" ]; then
-            echo "[start.sh] Starting Frontend (Next.js) in background..."
-            (cd "$ROOT_DIR/frontend" && npm run dev) &
+            FRONTEND_PORT="${FRONTEND_PORT:-3000}"
+            echo "[start.sh] Starting Frontend (Next.js) on port $FRONTEND_PORT in background..."
+            (cd "$ROOT_DIR/frontend" && PORT="$FRONTEND_PORT" npm run dev) &
             FRONTEND_PID=$!
             sleep 2
         fi
@@ -95,10 +96,8 @@ elif [ "$MODE" = "both" ]; then
 fi
 
 # 3. Start API
-if [ "$MODE" = "api" ] || [ "$MODE" = "both" ]; then
+if [ "$MODE" = "api" ] || [ "$MODE" = "both" ] || [ "$MODE" = "fullstack" ]; then
     echo "[start.sh] Starting API (Producer) on port $PORT..."
-    # If we are in 'both' mode, this runs in foreground. 
-    # If we are in 'api' mode, this also runs in foreground.
     exec python3 -m uvicorn src.api:app \
       --host 0.0.0.0 \
       --port "$PORT" \
