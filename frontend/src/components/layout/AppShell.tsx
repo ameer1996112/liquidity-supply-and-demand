@@ -110,11 +110,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           )}
 
           {/* Page content — keyed by pathname for fade-in-up transition on route change */}
-          <main className='flex-1 overflow-hidden p-3 sm:p-4 pb-20 md:pb-3'>
+          <main className='flex-1 overflow-y-auto p-3 sm:p-4 pb-20 md:pb-3'>
             <div
               key={pathname}
               className={cn(
-                'mx-auto h-full w-full animate-fade-in-up',
+                'mx-auto min-h-full w-full animate-fade-in-up',
                 CONTENT_MAX_W
               )}
             >
