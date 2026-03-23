@@ -81,7 +81,6 @@ from src.api_webhook_read import router as webhook_read_router  # E2E: signals/r
 from src.api_copilot import router as copilot_router           # AI Copilot: natural language queries
 from src.api_market import router as market_router             # Market data proxy (Yahoo Finance CORS bypass)
 from src.api_funding import router as funding_router           # Funding: daily PnL and stats for prop firm UI
-from src.api_board import router as board_router               # Board: Kanban ticket management for AI agents
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):  # noqa: ARG001
@@ -122,7 +121,6 @@ app.include_router(webhook_read_router)  # E2E: /api/v1/webhook/signals/recent, 
 app.include_router(copilot_router)       # AI Copilot: /api/copilot/chat
 app.include_router(market_router)         # Market data proxy: /api/market/*
 app.include_router(funding_router)        # Funding: /api/v1/funding/daily-pnl, stats
-app.include_router(board_router)          # Board: /api/v1/board/tickets, agent-update
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_build_cors_origins(),

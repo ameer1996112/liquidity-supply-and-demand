@@ -690,6 +690,7 @@ def process_trade(
                                 "status": "OPEN",
                                 "broker_order_id": str(broker_order_id),
                                 "filled_entry_price": float(data.get("entry", 0.0)),
+                                "size": size,  # actual broker fill size (overrides Pine signal size)
                                 "entry_time": datetime.now(timezone.utc).isoformat(),
                                 "opened_at": datetime.now(timezone.utc).isoformat(),
                             }
@@ -727,6 +728,32 @@ def process_trade(
                             alert_id,
                             db_err,
                         )
+
+                    # Belt-and-suspenders: explicitly set SL/TP on the broker position
+                    # after fill. Brokers sometimes ignore SL/TP on the initial market order
+                    # (e.g. price too close, execution quirks). This guarantees they're always set.
+                    if hasattr(adapter, "modify_position") and (sl or tp):
+                        try:
+                            modify_result = adapter.modify_position(
+                                position_id=str(broker_order_id),
+                                sl=float(sl) if sl else None,
+                                tp=float(tp) if tp else None,
+                            )
+                            if modify_result.status == "filled":
+                                logger.info(
+                                    "✅ SL/TP confirmed on broker: alert #%s position=%s SL=%.5f TP=%.5f",
+                                    alert_id, broker_order_id, sl or 0.0, tp or 0.0,
+                                )
+                            else:
+                                logger.warning(
+                                    "⚠️ SL/TP modify_position failed for alert #%s: %s",
+                                    alert_id, modify_result.message,
+                                )
+                        except Exception as sltp_err:
+                            logger.warning(
+                                "SL/TP post-fill verification failed for alert #%s: %s",
+                                alert_id, sltp_err,
+                            )
                 elif exec_result.status == "submitted" and broker_order_id:
                     # Mark as executed; PnL/outcome updated later on exit webhook.
                     # BUGFIX: also persist broker_order_id so exit webhook can close it.

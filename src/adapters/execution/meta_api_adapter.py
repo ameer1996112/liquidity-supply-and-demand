@@ -619,9 +619,11 @@ class MetaApiAdapter:
 
     def close_order(self, request: CloseRequest) -> ExecutionResult:
         """
-        Close an existing MT5 position via MetaApi.
+        Close an existing MT5 position via MetaApi using POSITION_CLOSE_ID.
 
-        For hedging accounts (e.g. FTMO), positionId is required.
+        Uses POSITION_CLOSE_ID which closes the full position by positionId
+        without requiring volume or symbol — avoids partial-close bugs caused
+        by the DB storing Pine signal size instead of the actual broker fill size.
         """
         if not request.broker_order_id:
             msg = "MetaApi close_order requires broker_order_id (positionId)"
@@ -632,37 +634,17 @@ class MetaApiAdapter:
                 message=msg,
             )
 
-        side = (request.side or "").lower()
-        if side not in {"buy", "sell"}:
-            msg = f"Invalid side '{request.side}' for MetaApi close_order"
-            logger.error(msg)
-            return ExecutionResult(
-                status="failed",
-                client_order_id=request.client_order_id,
-                message=msg,
-            )
-
-        # To close a BUY, send a SELL; to close a SELL, send a BUY
-        action_type = "ORDER_TYPE_SELL" if side == "buy" else "ORDER_TYPE_BUY"
-
-        # ✅ v5.1: Translate TradingView symbol to broker symbol
-        broker_symbol = SymbolMapper.to_broker_symbol(request.symbol)
-
         payload: Dict[str, Any] = {
-            "actionType": action_type,
+            "actionType": "POSITION_CLOSE_ID",
             "positionId": str(request.broker_order_id),
-            "symbol": broker_symbol,
-            "volume": float(request.size or 0.0),
             "comment": f"AI-Exit-{request.signal_id or request.alert_id}",
         }
 
         logger.info(
-            "MetaApi close_order: client_order_id=%s positionId=%s symbol=%s side=%s size=%s",
+            "MetaApi close_order: client_order_id=%s positionId=%s symbol=%s (POSITION_CLOSE_ID)",
             request.client_order_id,
             request.broker_order_id,
             request.symbol,
-            request.side,
-            request.size,
         )
 
         if self._check_circuit_breaker():
