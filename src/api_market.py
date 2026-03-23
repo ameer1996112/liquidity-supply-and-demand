@@ -3,14 +3,12 @@
 import logging
 from typing import Any
 
-import requests
+import yfinance as yf
 from fastapi import APIRouter, HTTPException, Query
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/market", tags=["market"])
-
-YAHOO_CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart"
 
 
 @router.get("/chart/{symbol}")
@@ -20,20 +18,24 @@ async def proxy_yahoo_chart(
     range_: str = Query("1d", alias="range", description="Time range"),
 ) -> dict[str, Any]:
     """
-    Proxy Yahoo Finance chart API to avoid CORS in the browser.
-    Returns the raw chart JSON for the given symbol.
+    Proxy Yahoo Finance chart data to avoid CORS in the browser.
+    Returns price/change data for the given symbol.
     """
-    url = f"{YAHOO_CHART_URL}/{symbol}"
-    params = {"interval": interval, "range": range_}
     try:
-        resp = requests.get(url, params=params, timeout=5)
-        resp.raise_for_status()
-        return resp.json()
-    except requests.exceptions.Timeout:
-        logger.warning("Yahoo Finance chart timeout for %s", symbol)
-        raise HTTPException(status_code=504, detail="Market data timeout")
-    except requests.exceptions.RequestException as e:
-        logger.warning("Yahoo Finance chart error for %s: %s", symbol, e)
+        ticker = yf.Ticker(symbol)
+        info = ticker.fast_info
+        price = getattr(info, "last_price", None)
+        prev_close = getattr(info, "previous_close", None)
+        change = (price - prev_close) if price is not None and prev_close is not None else None
+        change_pct = (change / prev_close * 100) if prev_close and change is not None else None
+        return {
+            "symbol": symbol,
+            "price": price,
+            "change": change,
+            "changePct": change_pct,
+        }
+    except Exception as e:
+        logger.warning("yfinance chart error for %s: %s", symbol, e)
         raise HTTPException(status_code=502, detail="Market data unavailable")
 
 
@@ -44,8 +46,8 @@ async def batch_prices(
     range_: str = Query("1d", alias="range"),
 ) -> list[dict[str, Any]]:
     """
-    Batch-fetch chart data for multiple symbols. Returns a list of
-    { symbol, yahooId, price, change, changePct } for each symbol.
+    Batch-fetch price data for multiple symbols. Returns a list of
+    { symbol, price, change, changePct } for each symbol.
     """
     sym_list = [s.strip() for s in symbols.split(",") if s.strip()]
     if not sym_list:
@@ -54,19 +56,13 @@ async def batch_prices(
     results = []
     for sym in sym_list:
         try:
-            resp = requests.get(
-                f"{YAHOO_CHART_URL}/{sym}",
-                params={"interval": interval, "range": range_},
-                timeout=5,
-            )
-            resp.raise_for_status()
-            json_data = resp.json()
-            meta = json_data.get("chart", {}).get("result", [{}])[0].get("meta", {})
-            price = meta.get("regularMarketPrice")
-            prev = meta.get("previousClose")
-            change = (price or 0) - (prev or 0) if price is not None else None
+            ticker = yf.Ticker(sym)
+            info = ticker.fast_info
+            price = getattr(info, "last_price", None)
+            prev_close = getattr(info, "previous_close", None)
+            change = (price - prev_close) if price is not None and prev_close is not None else None
             change_pct = (
-                (change / prev * 100) if prev and prev != 0 and change is not None else None
+                (change / prev_close * 100) if prev_close and prev_close != 0 and change is not None else None
             )
             results.append({
                 "symbol": sym,
@@ -75,7 +71,7 @@ async def batch_prices(
                 "change": change,
                 "changePct": change_pct,
             })
-        except (requests.exceptions.RequestException, IndexError, KeyError) as e:
+        except Exception as e:
             logger.debug("Failed to fetch %s: %s", sym, e)
             results.append({
                 "symbol": sym,
