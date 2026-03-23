@@ -167,6 +167,11 @@ class ConsistencyAnalyzer:
         """
         analysis = self.get_daily_profit_breakdown(account_name, broker_profile_id=broker_profile_id)
 
+        # Skip consistency check when account is in net drawdown — rule only
+        # protects profits that exist; no profits to protect means no violation possible.
+        if analysis["net_profit"] <= 0:
+            return True, "Consistency check skipped (account in net drawdown)", 1.0
+
         # Get today's profit so far
         today = datetime.now(timezone.utc).date().isoformat()
         today_profit = analysis["daily_profits"].get(today, 0)
@@ -185,7 +190,7 @@ class ConsistencyAnalyzer:
             # HARD BLOCK: Would violate consistency rule
             return False, (
                 f"Consistency violation risk: If this trade wins, today would be "
-                f"{simulated_best_day_pct:.1f}% of total profit (FTMO limit: {self.consistency_limit_pct}%). "
+                f"{simulated_best_day_pct:.1f}% of total profit (limit: {self.consistency_limit_pct}%). "
                 f"Trade blocked to preserve consistency."
             ), 0.0
 
