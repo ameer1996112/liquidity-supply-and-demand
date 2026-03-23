@@ -1,8 +1,9 @@
 """Position Command Center API -- manage open positions + account status."""
 
 import logging
+import time
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -10,6 +11,37 @@ from pydantic import BaseModel, Field
 from config import get_settings
 
 logger = logging.getLogger(__name__)
+
+# ── Server-side TTL cache (prevents MetaAPI from being called on every poll) ──
+# The dashboard polls /positions/active every 5s and /positions/account every 10s.
+# Without caching this floods MetaAPI with HTTP calls. We cache per account_id.
+
+_POSITIONS_TTL = 15  # seconds — fresh enough for live display
+_ACCOUNT_TTL = 30    # seconds — balance changes slowly
+
+_cache: Dict[str, Tuple[Any, float]] = {}  # key -> (value, expiry_timestamp)
+
+
+def _cached_get_open_positions(adapter) -> list:
+    """Return cached open positions; refresh from broker after TTL expires."""
+    key = f"{getattr(adapter, 'account_id', 'default')}:positions"
+    entry = _cache.get(key)
+    if entry and time.monotonic() < entry[1]:
+        return entry[0]
+    result = adapter.get_open_positions()
+    _cache[key] = (result, time.monotonic() + _POSITIONS_TTL)
+    return result
+
+
+def _cached_get_account_information(adapter) -> Dict[str, Any]:
+    """Return cached account info; refresh from broker after TTL expires."""
+    key = f"{getattr(adapter, 'account_id', 'default')}:account"
+    entry = _cache.get(key)
+    if entry and time.monotonic() < entry[1]:
+        return entry[0]
+    result = adapter.get_account_information()
+    _cache[key] = (result, time.monotonic() + _ACCOUNT_TTL)
+    return result
 
 router = APIRouter(prefix="/positions", tags=["positions"])
 
@@ -130,14 +162,14 @@ def get_active_positions(
     now = datetime.now(timezone.utc)
     adapter = _get_adapter()
 
-    # Fetch broker positions for reconciliation
+    # Fetch broker positions for reconciliation (cached to reduce MetaAPI calls)
     broker_positions = {}
     try:
         if hasattr(adapter, "get_open_positions"):
-            broker_pos_list = adapter.get_open_positions()
+            broker_pos_list = _cached_get_open_positions(adapter)
             broker_positions = {pos.get("id"): pos for pos in broker_pos_list}
         elif hasattr(adapter, "get_account_information"):
-            account_info = adapter.get_account_information()
+            account_info = _cached_get_account_information(adapter)
             broker_pos_list = account_info.get("positions", [])
             broker_positions = {pos.get("id"): pos for pos in broker_pos_list}
     except Exception as exc:
@@ -176,11 +208,11 @@ def get_active_positions(
             except Exception:
                 price_cache[sym] = (None, None)
 
-    # Get account balance for PnL % calculation
+    # Get account balance for PnL % calculation (cached)
     account_balance = 50000.0  # Default
     try:
         if hasattr(adapter, "get_account_information"):
-            account_info = adapter.get_account_information()
+            account_info = _cached_get_account_information(adapter)
             account_balance = float(account_info.get("balance", 50000.0))
     except Exception:
         pass
@@ -518,12 +550,15 @@ def cleanup_stale_positions():
     sb = _get_supabase()
     adapter = _get_adapter()
 
-    # Fetch broker positions
+    # Fetch broker positions (bypass cache for cleanup — needs fresh data)
     broker_positions = {}
     try:
         if hasattr(adapter, "get_open_positions"):
             broker_pos_list = adapter.get_open_positions()
             broker_positions = {pos.get("id"): pos for pos in broker_pos_list}
+            # Refresh cache so subsequent reads benefit
+            key = f"{getattr(adapter, 'account_id', 'default')}:positions"
+            _cache[key] = (broker_pos_list, time.monotonic() + _POSITIONS_TTL)
         elif hasattr(adapter, "get_account_information"):
             account_info = adapter.get_account_information()
             broker_pos_list = account_info.get("positions", [])
@@ -594,11 +629,11 @@ def get_account_status():
     sb = _get_supabase()
     adapter = _get_adapter()
 
-    # Get account info from broker
+    # Get account info from broker (cached to reduce MetaAPI calls)
     account_info = {"balance": 0.0, "equity": 0.0}
     if hasattr(adapter, "get_account_information"):
         try:
-            account_info = adapter.get_account_information()
+            account_info = _cached_get_account_information(adapter)
         except Exception as exc:
             logger.error("Failed to fetch account info: %s", exc)
 
