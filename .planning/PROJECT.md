@@ -88,5 +88,17 @@ An institutional-grade algorithmic trading system that receives TradingView webh
 | GSD hooks via skill middleware | `update-ticket` skill wraps GSD commands — least invasive integration point | — Pending |
 | Supabase as event store for trading→ticket bridge | Worker already writes to Supabase; DB triggers can fire ticket creation | — Pending |
 
+## Current Milestone: v1.1 — System Reliability & Trading Intelligence
+
+**Goal:** Make the system self-sustaining (backend persists, sprint closes itself) and data-driven (signal analytics, prop firm tracking, velocity charts).
+
+**Target features:**
+- Backend API runs as a persistent managed service (launchd/pm2, auto-restart)
+- Signal performance analytics — per-symbol win rate, avg RR, slippage
+- Prop firm tracker UI — FTMO phase progress + daily drawdown remaining
+- Sprint auto-close + velocity charts (burndown, cycle time)
+- Trading health widget (UI-10, deferred from v1.0)
+
 ---
-*Last updated: 2026-03-23 after project initialization (brownfield, existing codebase mapped)*
+
+*Last updated: 2026-03-24 — v1.0 archived, v1.1 started*
