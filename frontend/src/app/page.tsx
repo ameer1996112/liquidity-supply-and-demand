@@ -17,6 +17,7 @@ import {
   useCouncilSummaries,
 } from '@/hooks/useTradingSignals';
 import { useRiskStatus } from '@/hooks/useRiskStatus';
+import { useRiskMonitor } from '@/hooks/useRiskMonitor';
 import { useConnectionHealth } from '@/hooks/useConnectionHealth';
 import { useActivePositions, useAccountStatus } from '@/hooks/usePositions';
 import { useDashboardLog } from '@/hooks/useDashboardLog';
@@ -174,6 +175,7 @@ export default function DashboardPage() {
   const { mode: activeMode } = useTradingMode();
   const { data: stats, isLoading: statsLoading } = useSignalStats();
   const { data: risk, isLoading: riskLoading } = useRiskStatus();
+  const { data: riskMonitor } = useRiskMonitor();
   const { data: signals = [], isLoading: signalsLoading } =
     useTradingSignals(activeMode);
   const { status, isConnected } = useConnectionHealth();
@@ -363,7 +365,7 @@ export default function DashboardPage() {
           {mounted && todayPnl != null && (
             <SessionRing
               todayPnl={todayPnl}
-              dailyTarget={200}
+              dailyTarget={riskMonitor?.daily_risk?.profit_target_usd ?? 200}
               winCount={todayWins}
               lossCount={todayLosses}
             />
