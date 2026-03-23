@@ -60,7 +60,7 @@ function relativeTime(iso: string): string {
 
 function isOpenStatus(status: string): boolean {
   const s = String(status).toLowerCase();
-  return s === 'active' || s === 'executed' || s === 'pending';
+  return s === 'open' || s === 'active' || s === 'executed' || s === 'pending';
 }
 
 function isClosedStatus(status: string): boolean {
@@ -138,6 +138,7 @@ function safeRender<T>(
 
 
 const STATUS_STYLES: Record<string, { label: string; bg: string; text: string }> = {
+  open:                { label: 'OPEN',      bg: 'bg-[var(--to-long)]/12',          text: 'text-[var(--to-long)]' },
   active:              { label: 'OPEN',      bg: 'bg-[var(--to-long)]/12',          text: 'text-[var(--to-long)]' },
   executed:            { label: 'OPEN',      bg: 'bg-[var(--to-long)]/12',          text: 'text-[var(--to-long)]' },
   pending:             { label: 'PENDING',   bg: 'bg-[var(--to-warning)]/12',       text: 'text-[var(--to-warning)]' },
