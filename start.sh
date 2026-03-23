@@ -110,12 +110,12 @@ if [ "$MODE" = "fullstack" ]; then
         echo "[start.sh] ✅ Worker started (PID $(cat /tmp/tradeops-worker.pid)) → logs: $LOG_DIR/worker.log"
     fi
 
-    # Jira app (port 3200)
+    # Jira app (hardcoded to port 3001 in jira/package.json)
     if [ -d "$ROOT_DIR/jira" ] && [ -f "$ROOT_DIR/jira/package.json" ]; then
-        if lsof -ti:3200 &>/dev/null; then
-            echo "[start.sh] ✅ Jira app already running on port 3200"
+        if lsof -ti:3001 &>/dev/null; then
+            echo "[start.sh] ✅ Jira app already running on port 3001"
         else
-            (cd "$ROOT_DIR/jira" && PORT=3200 npm run dev >> "$LOG_DIR/jira.log" 2>&1) &
+            (cd "$ROOT_DIR/jira" && npm run dev >> "$LOG_DIR/jira.log" 2>&1) &
             echo "[start.sh] ✅ Jira app started → logs: $LOG_DIR/jira.log"
         fi
     fi
@@ -209,12 +209,12 @@ if [ "$MODE" = "fullstack" ]; then
         echo "[start.sh] ✅ Worker started (PID $(cat /tmp/tradeops-worker.pid)) → logs: $LOG_DIR/worker.log"
     fi
 
-    # Frontend (jira/ app on port 3200 to avoid conflict with main frontend)
+    # Jira app (hardcoded to port 3001 in jira/package.json — --port flag ignores PORT env)
     if [ -d "$ROOT_DIR/jira" ] && [ -f "$ROOT_DIR/jira/package.json" ]; then
-        if lsof -ti:3200 &>/dev/null; then
-            echo "[start.sh] ✅ Jira app already running on port 3200"
+        if lsof -ti:3001 &>/dev/null; then
+            echo "[start.sh] ✅ Jira app already running on port 3001"
         else
-            (cd "$ROOT_DIR/jira" && PORT=3200 npm run dev >> "$LOG_DIR/jira.log" 2>&1) &
+            (cd "$ROOT_DIR/jira" && npm run dev >> "$LOG_DIR/jira.log" 2>&1) &
             echo "[start.sh] ✅ Jira app started → logs: $LOG_DIR/jira.log"
         fi
     fi
@@ -230,7 +230,7 @@ if [ "$MODE" = "fullstack" ]; then
     echo ""
     echo "[start.sh] 🚀 Full stack running. Logs: $LOG_DIR/"
     echo "           API:     http://localhost:$PORT/health"
-    echo "           Jira:    http://localhost:3200"
+    echo "           Jira:    http://localhost:3001"
     echo "           Persist: ./install-services.sh"
     exit 0
 fi
