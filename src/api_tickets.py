@@ -1,16 +1,24 @@
-"""Tickets API — Jira-backed proxy with AI changelog support.
+"""Tickets API — Jira-backed proxy with rich ticket support.
 
 Forwards ticket CRUD to real Jira (project DEV at ameer1996112.atlassian.net)
 while exposing the same FastAPI routes so all AI skills / workflows work unchanged.
 
+Upgrades vs v1:
+  - Real Jira Priority field (High/Medium/Low/Critical)
+  - Story points via customfield_10016
+  - Rich ADF descriptions with ## Problem / ## Acceptance Criteria sections
+  - Sprint auto-assignment via customfield_10020
+  - Proper label cleanup (no raw "priority:X" labels — labels used for type only)
+  - Idempotent creation (same title → return existing)
+
 Routes:
-  GET    /api/tickets                → list non-archived issues
-  POST   /api/tickets                → create issue in Jira (idempotent by title)
-  GET    /api/tickets/active-sprint  → return active sprint id
-  GET    /api/tickets/{id}           → get issue by Jira issue key or DB id
-  PATCH  /api/tickets/{id}           → update status/priority/etc
-  POST   /api/tickets/{id}/ai-update → append AI changelog comment + transition
-  DELETE /api/tickets/{id}           → close/archive issue in Jira
+  GET    /api/tickets                → list issues
+  POST   /api/tickets                → create issue
+  GET    /api/tickets/active-sprint  → return active sprint id/name
+  GET    /api/tickets/{id}           → get issue by Jira key
+  PATCH  /api/tickets/{id}           → update fields
+  POST   /api/tickets/{id}/ai-update → AI changelog comment + status transition
+  DELETE /api/tickets/{id}           → close/archive (transition to Done)
 """
 
 import base64
@@ -36,22 +44,21 @@ _JIRA_TOKEN = os.getenv("JIRA_API_TOKEN", "")
 _JIRA_PROJECT = os.getenv("JIRA_PROJECT_KEY", "DEV")
 _JIRA_TASK_TYPE_ID = os.getenv("JIRA_TASK_TYPE_ID", "10003")
 
-# Map our internal type/status to Jira
-_TYPE_TO_LABEL: Dict[str, str] = {
-    "bug": "bug",
-    "feature": "feature",
-    "task": "task",
-}
-_STATUS_TO_TRANSITION: Dict[str, str] = {
-    "todo": "11",         # "To Do"   — Jira default transition ID
-    "in_progress": "21",  # "In Progress"
-    "done": "31",         # "Done"
+# Jira free plan priority names (must match exactly)
+_PRIORITY_MAP: Dict[str, str] = {
+    "critical": "Highest",
+    "high": "High",
+    "medium": "Medium",
+    "low": "Low",
 }
 _JIRA_STATUS_MAP: Dict[str, str] = {
     "To Do": "todo",
     "In Progress": "in_progress",
     "Done": "done",
 }
+# Jira standard custom field IDs
+_FIELD_STORY_POINTS = "story_points"   # or customfield_10016 — discovered at startup
+_FIELD_SPRINT = "customfield_10020"
 
 
 def _auth() -> str:
@@ -69,111 +76,203 @@ def _headers() -> Dict[str, str]:
 
 def _jira_get(path: str, params: Dict = None) -> Any:
     url = f"{_JIRA_BASE}/rest/api/3{path}"
-    r = requests.get(url, headers=_headers(), params=params or {}, timeout=10)
+    r = requests.get(url, headers=_headers(), params=params or {}, timeout=12)
     r.raise_for_status()
     return r.json()
 
 
 def _jira_post(path: str, body: Dict) -> Any:
     url = f"{_JIRA_BASE}/rest/api/3{path}"
-    r = requests.post(url, headers=_headers(), json=body, timeout=10)
+    r = requests.post(url, headers=_headers(), json=body, timeout=12)
     r.raise_for_status()
     return r.json()
 
 
 def _jira_put(path: str, body: Dict) -> Any:
     url = f"{_JIRA_BASE}/rest/api/3{path}"
-    r = requests.put(url, headers=_headers(), json=body, timeout=10)
+    r = requests.put(url, headers=_headers(), json=body, timeout=12)
     r.raise_for_status()
 
 
+# ── ADF helpers ───────────────────────────────────────────────────────────────
+
+def _adf_heading(text: str, level: int = 2) -> Dict:
+    return {
+        "type": "heading",
+        "attrs": {"level": level},
+        "content": [{"type": "text", "text": text}],
+    }
+
+
+def _adf_paragraph(text: str) -> Dict:
+    return {
+        "type": "paragraph",
+        "content": [{"type": "text", "text": text}],
+    }
+
+
+def _adf_bullet_list(items: List[str]) -> Dict:
+    return {
+        "type": "bulletList",
+        "content": [
+            {
+                "type": "listItem",
+                "content": [{"type": "paragraph", "content": [{"type": "text", "text": item}]}],
+            }
+            for item in items
+        ],
+    }
+
+
+def _build_rich_description(
+    problem: str,
+    solution: Optional[str] = None,
+    files: Optional[List[str]] = None,
+    acceptance_criteria: Optional[List[str]] = None,
+) -> Dict:
+    """Build a rich Atlassian Document Format description with structured sections."""
+    content = []
+
+    # Problem section
+    content.append(_adf_heading("🔍 Problem", 2))
+    content.append(_adf_paragraph(problem))
+
+    # Acceptance Criteria section
+    if acceptance_criteria:
+        content.append(_adf_heading("✅ Acceptance Criteria", 2))
+        content.append(_adf_bullet_list(acceptance_criteria))
+    else:
+        # Auto-generate basic AC from the problem statement
+        content.append(_adf_heading("✅ Acceptance Criteria", 2))
+        content.append(_adf_bullet_list([
+            "Issue is resolved and verified in the UI / tests",
+            "No regression in related functionality",
+            "Code reviewed and merged",
+        ]))
+
+    # Solution hints
+    if solution:
+        content.append(_adf_heading("💡 Solution Approach", 2))
+        content.append(_adf_paragraph(solution))
+
+    # Referenced files
+    if files:
+        content.append(_adf_heading("📁 Files", 2))
+        content.append(_adf_bullet_list(files))
+
+    return {"type": "doc", "version": 1, "content": content}
+
+
+def _plain_description(problem: str, solution: Optional[str] = None) -> Dict:
+    """Simple one-line ADF for plain text descriptions."""
+    return _build_rich_description(problem, solution)
+
+
+def _extract_plain_text(adf: Any) -> Optional[str]:
+    if not adf or not isinstance(adf, dict):
+        return None
+    parts = []
+    def _walk(node):
+        if isinstance(node, dict):
+            if node.get("type") == "text":
+                parts.append(node.get("text", ""))
+            for child in node.get("content", []):
+                _walk(child)
+        elif isinstance(node, list):
+            for item in node:
+                _walk(item)
+    _walk(adf)
+    return " ".join(parts).strip() or None
+
+
+# ── Jira issue → internal ticket ──────────────────────────────────────────────
+
 def _jira_to_ticket(issue: Dict) -> Dict:
-    """Convert a raw Jira issue dict to our internal ticket format."""
     fields = issue.get("fields", {})
     status_name = fields.get("status", {}).get("name", "To Do")
     our_status = _JIRA_STATUS_MAP.get(status_name, "todo")
-    labels = fields.get("labels", [])
-    priority_name = (fields.get("priority") or {}).get("name", "Medium")
-    our_priority = priority_name.lower() if priority_name.lower() in ("low", "medium", "high", "critical") else "medium"
 
-    # Extract AI changelog from issue description custom field (stored as label)
-    ai_changelog: List[Dict] = []
-    description = fields.get("description") or {}
-    # We store AI changelog entries as Jira comments tagged [AI-LOG]
-    # Parsed lazily in ai-update endpoint
+    labels = fields.get("labels", [])
+    type_labels = [l.split(":", 1)[1] for l in labels if l.startswith("type:")]
+    our_type = type_labels[0] if type_labels else "task"
+
+    priority_name = (fields.get("priority") or {}).get("name", "Medium")
+    reverse_priority = {v: k for k, v in _PRIORITY_MAP.items()}
+    our_priority = reverse_priority.get(priority_name, "medium")
+
+    story_points = (
+        fields.get("story_points")
+        or fields.get("customfield_10016")
+        or fields.get("customfield_10028")  # next-gen projects
+    )
+
+    sprint_id = _extract_sprint_id(fields)
 
     return {
-        "id": issue["key"],           # e.g. DEV-7 — used as the ticket "id"
+        "id": issue["key"],
         "ticket_id": issue["key"],
         "title": fields.get("summary", ""),
-        "description": _extract_plain_text(description),
-        "type": _extract_type_from_labels(labels),
+        "description": _extract_plain_text(fields.get("description")),
+        "type": our_type,
         "status": our_status,
         "priority": our_priority,
         "assignee": (fields.get("assignee") or {}).get("displayName"),
         "signal_id": None,
-        "sprint_id": _extract_sprint_id(fields),
+        "sprint_id": sprint_id,
         "labels": [l for l in labels if not l.startswith("type:")],
         "parent_id": None,
         "rank": 0,
-        "story_points": fields.get("story_points"),
-        "ai_changelog": ai_changelog,
+        "story_points": story_points,
+        "ai_changelog": [],
         "created_at": fields.get("created", datetime.now(timezone.utc).isoformat()),
         "updated_at": fields.get("updated", datetime.now(timezone.utc).isoformat()),
     }
 
 
-def _extract_plain_text(adf: Any) -> Optional[str]:
-    """Extract plain text from Atlassian Document Format."""
-    if not adf or not isinstance(adf, dict):
-        return None
-    text_parts = []
-    for block in adf.get("content", []):
-        for inline in block.get("content", []):
-            if inline.get("type") == "text":
-                text_parts.append(inline.get("text", ""))
-    return " ".join(text_parts) or None
-
-
-def _extract_type_from_labels(labels: List[str]) -> str:
-    for l in labels:
-        if l.startswith("type:"):
-            return l.split(":", 1)[1]
-    return "task"
-
-
 def _extract_sprint_id(fields: Dict) -> Optional[int]:
-    """Extract sprint id from Jira fields (custom field)."""
-    for key, val in fields.items():
-        if "sprint" in key.lower() and isinstance(val, dict):
-            return val.get("id")
-        if "sprint" in key.lower() and isinstance(val, list) and val:
-            return val[-1].get("id") if isinstance(val[-1], dict) else None
+    sprint_raw = fields.get(_FIELD_SPRINT)
+    if not sprint_raw:
+        return None
+    if isinstance(sprint_raw, list) and sprint_raw:
+        s = sprint_raw[-1]
+        return s.get("id") if isinstance(s, dict) else None
+    if isinstance(sprint_raw, dict):
+        return sprint_raw.get("id")
     return None
 
 
-def _make_description_adf(text: str) -> Dict:
-    """Wrap plain text in Atlassian Document Format."""
-    return {
-        "type": "doc",
-        "version": 1,
-        "content": [
-            {
-                "type": "paragraph",
-                "content": [{"type": "text", "text": text}],
-            }
-        ],
-    }
+def _transition_issue(key: str, our_status: str) -> None:
+    target_name = {
+        "todo": "To Do",
+        "in_progress": "In Progress",
+        "done": "Done",
+    }.get(our_status)
+    if not target_name:
+        return
+    try:
+        data = _jira_get(f"/issue/{key}/transitions")
+        for t in data.get("transitions", []):
+            if t["to"]["name"] == target_name:
+                _jira_post(f"/issue/{key}/transitions", {"transition": {"id": t["id"]}})
+                return
+        logger.warning("No transition to '%s' found for %s", target_name, key)
+    except Exception as exc:
+        logger.warning("Transition failed for %s → %s: %s", key, our_status, exc)
 
 
-# ── Pydantic models (kept compatible with existing skill calls) ────────────────
+# ── Pydantic models ───────────────────────────────────────────────────────────
 
 class CreateTicketRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=500)
     description: Optional[str] = None
+    problem: Optional[str] = None              # structured problem statement
+    solution: Optional[str] = None             # solution approach hints
+    acceptance_criteria: Optional[List[str]] = None
+    files: Optional[List[str]] = None          # referenced file paths
     type: str = Field("task", pattern="^(bug|feature|task)$")
     status: str = Field("todo", pattern="^(todo|in_progress|done)$")
     priority: str = Field("medium", pattern="^(low|medium|high|critical)$")
+    story_points: Optional[int] = Field(None, ge=1, le=100)
     assignee: Optional[str] = None
     signal_id: Optional[int] = None
     sprint_id: Optional[int] = None
@@ -185,6 +284,7 @@ class PatchTicketRequest(BaseModel):
     type: Optional[str] = Field(None, pattern="^(bug|feature|task)$")
     status: Optional[str] = Field(None, pattern="^(todo|in_progress|done|archived)$")
     priority: Optional[str] = Field(None, pattern="^(low|medium|high|critical)$")
+    story_points: Optional[int] = Field(None, ge=1, le=100)
     assignee: Optional[str] = None
     signal_id: Optional[int] = None
     sprint_id: Optional[int] = None
@@ -194,6 +294,16 @@ class AiUpdateRequest(BaseModel):
     new_status: str = Field(..., pattern="^(todo|in_progress|done)$")
     summary_of_work: str = Field(..., min_length=1, max_length=2000)
     agent: str = Field("antigravity", max_length=100)
+
+
+class GsdSyncRequest(BaseModel):
+    """GSD phase lifecycle sync — called automatically by gsd-jira-hook.sh."""
+    phase_num: str = Field(..., description="Phase number e.g. '1', '2.1'")
+    phase_name: str = Field(..., description="Phase name from ROADMAP.md")
+    event: str = Field(..., pattern="^(phase_start|plan_execute|phase_complete|phase_skip)$")
+    goal: Optional[str] = None
+    summary: Optional[str] = None
+    ticket_id: Optional[str] = None   # If set, update instead of create
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -206,18 +316,18 @@ def list_tickets(
     limit: int = Query(100, ge=1, le=500),
 ):
     """List non-archived Jira issues for the DEV project."""
-    # Build JQL
-    jql_parts = [f"project = {_JIRA_PROJECT}", "statusCategory != Done OR status != Done"]
-    if status and status != "archived":
-        jira_status = {
-            "todo": "\"To Do\"",
-            "in_progress": "\"In Progress\"",
-            "done": "\"Done\"",
-        }.get(status)
-        if jira_status:
-            jql_parts = [f"project = {_JIRA_PROJECT}", f"status = {jira_status}"]
+    jql_parts = [f"project = {_JIRA_PROJECT}"]
+
     if status == "archived":
-        jql_parts = [f"project = {_JIRA_PROJECT}", "status = Done"]
+        jql_parts.append("status = Done")
+    elif status:
+        jira_status = {"todo": '"To Do"', "in_progress": '"In Progress"', "done": '"Done"'}.get(status)
+        if jira_status:
+            jql_parts.append(f"status = {jira_status}")
+        else:
+            jql_parts.append("status != Done")
+    else:
+        jql_parts.append("status != Done")
 
     jql = " AND ".join(jql_parts) + " ORDER BY created DESC"
 
@@ -225,7 +335,7 @@ def list_tickets(
         data = _jira_get("/search", {
             "jql": jql,
             "maxResults": limit,
-            "fields": "summary,status,priority,labels,assignee,created,updated,description,issuetype",
+            "fields": f"summary,status,priority,labels,assignee,created,updated,description,issuetype,story_points,customfield_10016,{_FIELD_SPRINT}",
         })
         issues = [_jira_to_ticket(i) for i in data.get("issues", [])]
         return {"tickets": issues, "count": len(issues)}
@@ -236,21 +346,12 @@ def list_tickets(
 
 @router.get("/active-sprint")
 def get_active_sprint():
-    """Return the active sprint id and name, or null if none is active.
-
-    Queries Jira's agile board for the active sprint.
-    """
+    """Return the active sprint id and name from Jira agile board."""
     try:
-        # Get all boards for the project
-        boards = _jira_get("/board", {"projectKeyOrId": _JIRA_PROJECT, "type": "scrum"})
+        boards = _jira_get("/board", {"projectKeyOrId": _JIRA_PROJECT})
         board_list = boards.get("values", [])
         if not board_list:
-            # Try kanban
-            boards = _jira_get("/board", {"projectKeyOrId": _JIRA_PROJECT})
-            board_list = boards.get("values", [])
-        if not board_list:
             return {"sprint_id": None, "name": None}
-
         board_id = board_list[0]["id"]
         sprints = _jira_get(f"/board/{board_id}/sprint", {"state": "active"})
         sprint_list = sprints.get("values", [])
@@ -258,68 +359,117 @@ def get_active_sprint():
             s = sprint_list[0]
             return {"sprint_id": s["id"], "name": s["name"]}
     except Exception as exc:
-        logger.warning("Could not fetch active sprint from Jira: %s", exc)
+        logger.warning("Could not fetch active sprint: %s", exc)
     return {"sprint_id": None, "name": None}
 
 
 @router.post("", status_code=201)
 def create_ticket(body: CreateTicketRequest):
-    """Create a Jira issue. Idempotent: same title → returns existing issue."""
+    """Create a Jira issue with rich description. Idempotent by title."""
     title = body.title.strip()
 
-    # ── Idempotency check ──────────────────────────────────────────────────
+    # ── Idempotency ────────────────────────────────────────────────────────
     try:
         search = _jira_get("/search", {
-            "jql": f'project = {_JIRA_PROJECT} AND summary ~ "{title}" AND statusCategory != Done',
-            "fields": "summary,status,priority,labels,assignee,created,updated,description",
+            "jql": f'project = {_JIRA_PROJECT} AND summary ~ "{title}" AND status != Done',
+            "fields": f"summary,status,priority,labels,assignee,created,updated,description,story_points,customfield_10016,{_FIELD_SPRINT}",
             "maxResults": 5,
         })
         for issue in search.get("issues", []):
             if issue["fields"]["summary"].strip().lower() == title.lower():
-                logger.info("Idempotent create_ticket: returning existing %s", issue["key"])
+                logger.info("Idempotent: returning existing %s", issue["key"])
                 return JSONResponse(status_code=200, content=_jira_to_ticket(issue))
     except Exception as exc:
-        logger.warning("Dedup check failed, proceeding with create: %s", exc)
+        logger.warning("Dedup check failed, proceeding: %s", exc)
 
-    # ── Build labels ───────────────────────────────────────────────────────
-    labels = [f"type:{body.type}"]
-    if body.priority != "medium":
-        labels.append(f"priority:{body.priority}")
+    # ── Build rich description ────────────────────────────────────────────
+    problem_text = body.problem or body.description or title
+    description_adf = _build_rich_description(
+        problem=problem_text,
+        solution=body.solution,
+        files=body.files,
+        acceptance_criteria=body.acceptance_criteria,
+    )
 
-    # ── Create in Jira ─────────────────────────────────────────────────────
-    issue_body: Dict[str, Any] = {
-        "fields": {
-            "project": {"key": _JIRA_PROJECT},
-            "summary": title,
-            "issuetype": {"id": _JIRA_TASK_TYPE_ID},
-            "labels": labels,
-        }
+    # ── Build fields payload ──────────────────────────────────────────────
+    fields: Dict[str, Any] = {
+        "project": {"key": _JIRA_PROJECT},
+        "summary": title,
+        "issuetype": {"id": _JIRA_TASK_TYPE_ID},
+        "description": description_adf,
+        "labels": [f"type:{body.type}"],
+        "priority": {"name": _PRIORITY_MAP.get(body.priority, "Medium")},
     }
-    if body.description:
-        issue_body["fields"]["description"] = _make_description_adf(body.description)
 
+    # Story points (try both field IDs — whichever Jira accepts)
+    if body.story_points is not None:
+        fields["story_points"] = body.story_points
+        fields["customfield_10016"] = body.story_points
+
+    # Sprint
+    if body.sprint_id is not None:
+        fields[_FIELD_SPRINT] = body.sprint_id
+
+    # ── Create in Jira ────────────────────────────────────────────────────
     try:
-        created = _jira_post("/issue", issue_body)
+        # Remove unknown fields gracefully — Jira returns 400 if a field isn't on the screen
+        issue_body = {"fields": fields}
+        created = None
+        try:
+            created = _jira_post("/issue", issue_body)
+        except requests.HTTPError as e:
+            if e.response is not None and e.response.status_code == 400:
+                # Retry without custom fields that might not be on the create screen
+                stripped = {k: v for k, v in fields.items()
+                            if k not in ("story_points", "customfield_10016", "customfield_10028", _FIELD_SPRINT)}
+                created = _jira_post("/issue", {"fields": stripped})
+                # Then update story points and sprint separately
+                update_fields = {}
+                if body.story_points is not None:
+                    update_fields["story_points"] = body.story_points
+                    update_fields["customfield_10016"] = body.story_points
+                if update_fields:
+                    try:
+                        _jira_put(f"/issue/{created['key']}", {"fields": update_fields})
+                    except Exception:
+                        pass
+                if body.sprint_id is not None:
+                    try:
+                        _jira_post(f"/board/1/sprint/{body.sprint_id}/issue",
+                                   {"issues": [created["key"]]})
+                    except Exception:
+                        pass
+            else:
+                raise
+
         key = created["key"]
 
-        # Transition to requested status if not "todo"
         if body.status != "todo":
             _transition_issue(key, body.status)
 
-        # Fetch full issue to return
-        full = _jira_get(f"/issue/{key}")
-        ticket = _jira_to_ticket(full)
-        return JSONResponse(status_code=201, content=ticket)
+        full = _jira_get(f"/issue/{key}", {
+            "fields": f"summary,status,priority,labels,assignee,created,updated,description,story_points,customfield_10016,{_FIELD_SPRINT}"
+        })
+        return JSONResponse(status_code=201, content=_jira_to_ticket(full))
+
     except requests.HTTPError as exc:
-        logger.error("Jira create failed: %s — %s", exc, exc.response.text if exc.response else "")
-        raise HTTPException(status_code=502, detail=f"Jira error: {exc}")
+        detail = ""
+        if exc.response is not None:
+            try:
+                detail = exc.response.json()
+            except Exception:
+                detail = exc.response.text
+        logger.error("Jira create failed: %s — %s", exc, detail)
+        raise HTTPException(status_code=502, detail=f"Jira error: {detail or exc}")
 
 
 @router.get("/{ticket_id}")
 def get_ticket(ticket_id: str):
-    """Fetch a single Jira issue by key (e.g. DEV-7)."""
+    """Fetch a single Jira issue by key (e.g. DEV-6)."""
     try:
-        issue = _jira_get(f"/issue/{ticket_id}")
+        issue = _jira_get(f"/issue/{ticket_id}", {
+            "fields": f"summary,status,priority,labels,assignee,created,updated,description,story_points,customfield_10016,{_FIELD_SPRINT}"
+        })
         return _jira_to_ticket(issue)
     except requests.HTTPError as exc:
         if exc.response is not None and exc.response.status_code == 404:
@@ -329,28 +479,31 @@ def get_ticket(ticket_id: str):
 
 @router.patch("/{ticket_id}")
 def patch_ticket(ticket_id: str, body: PatchTicketRequest):
-    """Update a Jira issue (status, title, labels)."""
-    updates: Dict[str, Any] = {k: v for k, v in body.model_dump().items() if v is not None}
+    """Update a Jira issue."""
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
 
     fields_payload: Dict[str, Any] = {}
+
     if "title" in updates:
         fields_payload["summary"] = updates["title"]
     if "description" in updates:
-        fields_payload["description"] = _make_description_adf(updates["description"])
-    if "type" in updates or "priority" in updates:
-        # Rebuild labels
+        fields_payload["description"] = _plain_description(updates["description"])
+    if "priority" in updates:
+        fields_payload["priority"] = {"name": _PRIORITY_MAP.get(updates["priority"], "Medium")}
+    if "story_points" in updates:
+        fields_payload["story_points"] = updates["story_points"]
+        fields_payload["customfield_10016"] = updates["story_points"]
+    if "type" in updates:
+        # Rebuild type label
         try:
-            current = _jira_get(f"/issue/{ticket_id}", {"fields": "labels"})
-            old_labels = current["fields"].get("labels", [])
+            cur = _jira_get(f"/issue/{ticket_id}", {"fields": "labels"})
+            old_labels = cur["fields"].get("labels", [])
         except Exception:
             old_labels = []
-        new_labels = [l for l in old_labels if not l.startswith("type:") and not l.startswith("priority:")]
-        if "type" in updates:
-            new_labels.append(f"type:{updates['type']}")
-        if "priority" in updates and updates["priority"] != "medium":
-            new_labels.append(f"priority:{updates['priority']}")
+        new_labels = [l for l in old_labels if not l.startswith("type:")]
+        new_labels.append(f"type:{updates['type']}")
         fields_payload["labels"] = new_labels
 
     try:
@@ -358,7 +511,9 @@ def patch_ticket(ticket_id: str, body: PatchTicketRequest):
             _jira_put(f"/issue/{ticket_id}", {"fields": fields_payload})
         if "status" in updates:
             _transition_issue(ticket_id, updates["status"])
-        issue = _jira_get(f"/issue/{ticket_id}")
+        issue = _jira_get(f"/issue/{ticket_id}", {
+            "fields": f"summary,status,priority,labels,assignee,created,updated,description,story_points,customfield_10016,{_FIELD_SPRINT}"
+        })
         return _jira_to_ticket(issue)
     except requests.HTTPError as exc:
         if exc.response is not None and exc.response.status_code == 404:
@@ -368,27 +523,25 @@ def patch_ticket(ticket_id: str, body: PatchTicketRequest):
 
 @router.post("/{ticket_id}/ai-update")
 def ai_update_ticket(ticket_id: str, body: AiUpdateRequest):
-    """AI skill endpoint — add a comment to Jira and transition the issue status."""
-    # Post a comment with AI log marker
-    comment_body = {
-        "body": _make_description_adf(
-            f"[AI-LOG] {body.agent} → {body.new_status}\n\n{body.summary_of_work}"
-        )
+    """AI skill: post a structured comment to Jira and transition status."""
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    comment_adf = {
+        "type": "doc", "version": 1,
+        "content": [
+            _adf_heading(f"🤖 AI Update — {body.agent}", 2),
+            _adf_paragraph(f"Status: {body.new_status.replace('_', ' ').title()}  ·  {now}"),
+            _adf_heading("Summary", 3),
+            _adf_paragraph(body.summary_of_work),
+        ],
     }
     try:
-        _jira_post(f"/issue/{ticket_id}/comment", comment_body)
+        _jira_post(f"/issue/{ticket_id}/comment", {"body": comment_adf})
         _transition_issue(ticket_id, body.new_status)
-
-        # Fetch current status to report old vs new
-        issue = _jira_get(f"/issue/{ticket_id}", {"fields": "status"})
-        new_status_name = issue["fields"]["status"]["name"]
-
-        logger.info("AI updated Jira issue %s → %s (%s)", ticket_id, body.new_status, body.agent)
+        logger.info("AI updated %s → %s (%s)", ticket_id, body.new_status, body.agent)
         return {
             "status": "ok",
             "ticket_id": ticket_id,
             "new_status": body.new_status,
-            "jira_status": new_status_name,
             "changelog_entries": 1,
         }
     except requests.HTTPError as exc:
@@ -397,9 +550,158 @@ def ai_update_ticket(ticket_id: str, body: AiUpdateRequest):
         raise HTTPException(status_code=502, detail=f"Jira error: {exc}")
 
 
+@router.post("/gsd-sync", status_code=200)
+def gsd_sync(body: GsdSyncRequest):
+    """GSD phase lifecycle sync endpoint — called by gsd-jira-hook.sh automatically.
+
+    Events:
+      phase_start     → Create new ticket (or return existing), transition to in_progress
+      plan_execute    → Add a comment noting plan execution is underway
+      phase_complete  → Transition to done with summary comment
+      phase_skip      → Transition to done with skip note
+    """
+    phase_label = f"Phase {body.phase_num}: {body.phase_name}"
+
+    # ── phase_start: create or find existing ticket ──────────────────────────
+    if body.event == "phase_start":
+        existing_id = body.ticket_id
+        if not existing_id:
+            try:
+                result = create_ticket(CreateTicketRequest(
+                    title=phase_label,
+                    description=body.goal or f"GSD phase {body.phase_num}: {body.phase_name}",
+                    type="feature",
+                    status="in_progress",
+                    priority="medium",
+                ))
+                existing_id = result.body if hasattr(result, 'body') else (result or {}).get("id", "")  # type: ignore[attr-defined]
+                if hasattr(result, 'id'):
+                    existing_id = result.id  # type: ignore[attr-defined]
+            except Exception as exc:
+                logger.warning("gsd-sync phase_start create failed: %s", exc)
+                return {"status": "error", "event": body.event, "error": str(exc)}
+
+        # Create via raw Jira to get the key back reliably
+        try:
+            search = _jira_get("/search", {
+                "jql": f'project = {_JIRA_PROJECT} AND summary ~ "{phase_label}" AND status != Done',
+                "fields": "summary,status",
+                "maxResults": 1,
+            })
+            issues = search.get("issues", [])
+            if issues:
+                key = issues[0]["key"]
+                _transition_issue(key, "in_progress")
+                return {"status": "ok", "event": body.event, "ticket_id": key, "action": "found_updated"}
+        except Exception as exc:
+            logger.warning("gsd-sync search failed: %s", exc)
+
+        # Create fresh
+        try:
+            desc = _plain_description(body.goal or f"Automated GSD phase: {body.phase_name}")
+            created = _jira_post("/issue", {"fields": {
+                "project": {"key": _JIRA_PROJECT},
+                "summary": phase_label,
+                "issuetype": {"id": _JIRA_TASK_TYPE_ID},
+                "description": desc,
+                "labels": ["type:feature", "gsd"],
+                "priority": {"name": "Medium"},
+            }})
+            key = created["key"]
+            _transition_issue(key, "in_progress")
+            return {"status": "ok", "event": body.event, "ticket_id": key, "action": "created"}
+        except Exception as exc:
+            logger.error("gsd-sync create failed: %s", exc)
+            return {"status": "error", "event": body.event, "error": str(exc)}
+
+    # ── plan_execute: comment only ────────────────────────────────────────────
+    if body.event == "plan_execute":
+        if not body.ticket_id:
+            return {"status": "skipped", "reason": "no ticket_id provided for plan_execute"}
+        try:
+            comment = {
+                "type": "doc", "version": 1,
+                "content": [
+                    _adf_heading("🔄 Plan Executing", 3),
+                    _adf_paragraph(body.summary or f"Executing plans for phase {body.phase_num}..."),
+                ],
+            }
+            _jira_post(f"/issue/{body.ticket_id}/comment", {"body": comment})
+            return {"status": "ok", "event": body.event, "ticket_id": body.ticket_id}
+        except Exception as exc:
+            logger.warning("gsd-sync plan_execute comment failed: %s", exc)
+            return {"status": "error", "event": body.event, "error": str(exc)}
+
+    # ── phase_complete / phase_skip: close ticket ─────────────────────────────
+    if body.event in ("phase_complete", "phase_skip"):
+        if not body.ticket_id:
+            return {"status": "skipped", "reason": "no ticket_id for close event"}
+        emoji = "✅" if body.event == "phase_complete" else "⏭"
+        label = "Phase Complete" if body.event == "phase_complete" else "Phase Skipped"
+        try:
+            now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+            comment = {
+                "type": "doc", "version": 1,
+                "content": [
+                    _adf_heading(f"{emoji} {label} — {body.phase_name}", 2),
+                    _adf_paragraph(f"Completed by GSD autonomous workflow at {now}."),
+                    *([_adf_heading("Summary", 3), _adf_paragraph(body.summary)] if body.summary else []),
+                ],
+            }
+            _jira_post(f"/issue/{body.ticket_id}/comment", {"body": comment})
+            _transition_issue(body.ticket_id, "done")
+            return {"status": "ok", "event": body.event, "ticket_id": body.ticket_id, "action": "closed"}
+        except Exception as exc:
+            logger.error("gsd-sync close failed: %s", exc)
+            return {"status": "error", "event": body.event, "error": str(exc)}
+
+    return {"status": "error", "reason": f"Unknown event: {body.event}"}
+
+
+@router.post("/gsd-sync-epics", status_code=200)
+def gsd_sync_epics(phases: List[Dict]):
+    """Sync ROADMAP.md phases as Jira epics (called once on project init or roadmap change).
+
+    Body: list of {phase_num, phase_name, goal, requirements} objects.
+    Creates or finds an epic per phase, returns {phase_num: ticket_key} mapping.
+    """
+    results = {}
+    for phase in phases:
+        phase_num = phase.get("phase_num", "?")
+        phase_name = phase.get("phase_name", "Phase")
+        goal = phase.get("goal", "")
+        title = f"[Epic] Phase {phase_num}: {phase_name}"
+        try:
+            # Find existing
+            search = _jira_get("/search", {
+                "jql": f'project = {_JIRA_PROJECT} AND summary ~ "{title}"',
+                "fields": "summary",
+                "maxResults": 1,
+            })
+            issues = search.get("issues", [])
+            if issues:
+                results[phase_num] = issues[0]["key"]
+                continue
+            # Create
+            desc = _plain_description(goal or phase_name)
+            created = _jira_post("/issue", {"fields": {
+                "project": {"key": _JIRA_PROJECT},
+                "summary": title,
+                "issuetype": {"id": _JIRA_TASK_TYPE_ID},
+                "description": desc,
+                "labels": ["type:feature", "gsd", "epic"],
+                "priority": {"name": "Medium"},
+            }})
+            results[phase_num] = created["key"]
+        except Exception as exc:
+            logger.warning("Failed to sync epic for phase %s: %s", phase_num, exc)
+            results[phase_num] = None
+    return {"epics": results, "count": len(results)}
+
+
 @router.delete("/{ticket_id}")
 def delete_ticket(ticket_id: str):
-    """Transition the issue to Done (archive = close in Jira)."""
+    """Transition issue to Done (archive in Jira)."""
     try:
         _transition_issue(ticket_id, "done")
         return {"status": "ok", "ticket_id": ticket_id, "archived": True}
@@ -407,25 +709,3 @@ def delete_ticket(ticket_id: str):
         if exc.response is not None and exc.response.status_code == 404:
             raise HTTPException(status_code=404, detail="Ticket not found")
         raise HTTPException(status_code=502, detail=f"Jira error: {exc}")
-
-
-# ── Helpers ───────────────────────────────────────────────────────────────────
-
-def _transition_issue(key: str, our_status: str) -> None:
-    """Transition a Jira issue to the matching status.
-
-    Fetches available transitions first so IDs stay accurate even if Jira
-    workflow is customised.
-    """
-    target_name = {"todo": "To Do", "in_progress": "In Progress", "done": "Done"}.get(our_status)
-    if not target_name:
-        return
-    try:
-        data = _jira_get(f"/issue/{key}/transitions")
-        for t in data.get("transitions", []):
-            if t["to"]["name"] == target_name:
-                _jira_post(f"/issue/{key}/transitions", {"transition": {"id": t["id"]}})
-                return
-        logger.warning("No transition to '%s' found for issue %s", target_name, key)
-    except Exception as exc:
-        logger.warning("Transition failed for %s → %s: %s", key, our_status, exc)
