@@ -1,11 +1,13 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, GitBranch, Play, CheckCircle, Clock, Target, Pencil } from 'lucide-react';
+import { Plus, GitBranch, Play, CheckCircle, Clock, Target, Pencil, RefreshCw, Zap } from 'lucide-react';
 import { cn, sprintDaysLeft } from '@/lib/utils';
 import { type Sprint, type Issue } from '@/lib/types';
 import { fetchSprints, fetchIssues, updateSprint, bulkUpdateIssues, createSprint } from '@/lib/supabase';
 import { NewSprintModal } from '@/components/NewSprintModal';
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
 const STATUS_CONFIG: Record<Sprint['status'], { label: string; icon: typeof Play; color: string }> = {
   planned:   { label: 'Planned',   icon: Clock,         color: '#475569' },

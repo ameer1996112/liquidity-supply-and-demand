@@ -22,6 +22,14 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
+# Shared sprint cache from api_tickets (avoids duplicate Agile API calls)
+try:
+    from src.api_tickets import _get_active_sprint_id, _FIELD_SPRINT
+except ImportError:
+    def _get_active_sprint_id():
+        return None
+    _FIELD_SPRINT = "customfield_10020"
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/incidents", tags=["incidents"])
@@ -66,30 +74,38 @@ def _jira_create_incident_ticket(title: str, description_adf: Dict, priority: st
 
     try:
         url = f"{_JIRA_BASE}/rest/api/3/issue"
-        payload = {
-            "fields": {
-                "project": {"key": _JIRA_PROJECT},
-                "summary": title,
-                "issuetype": {"id": _JIRA_TASK_TYPE_ID},
-                "description": description_adf,
-                "labels": labels,
-                "priority": {"name": priority_map.get(priority, "High")},
-            }
+        sprint_id = _get_active_sprint_id()
+        fields: Dict[str, Any] = {
+            "project": {"key": _JIRA_PROJECT},
+            "summary": title,
+            "issuetype": {"id": _JIRA_TASK_TYPE_ID},
+            "description": description_adf,
+            "labels": labels,
+            "priority": {"name": priority_map.get(priority, "High")},
         }
+        if sprint_id:
+            fields[_FIELD_SPRINT] = sprint_id
+        payload = {"fields": fields}
         headers = {
             "Authorization": _auth(),
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
-        r = requests.post(url, headers=headers, json=payload, timeout=10)
+        r = requests.post(url, headers=headers, json=payload, timeout=90)
         r.raise_for_status()
-        key = r.json()["key"]
+        key = r.json().get("key")
+        if not key:
+            # Sprint field may be rejected — retry without it
+            fields.pop(_FIELD_SPRINT, None)
+            r2 = requests.post(url, headers=headers, json={"fields": fields}, timeout=90)
+            r2.raise_for_status()
+            key = r2.json()["key"]
         # Transition to In Progress
-        trans_r = requests.get(f"{_JIRA_BASE}/rest/api/3/issue/{key}/transitions", headers=headers, timeout=8)
+        trans_r = requests.get(f"{_JIRA_BASE}/rest/api/3/issue/{key}/transitions", headers=headers, timeout=30)
         for t in trans_r.json().get("transitions", []):
             if t["to"]["name"] == "In Progress":
                 requests.post(f"{_JIRA_BASE}/rest/api/3/issue/{key}/transitions",
-                              headers=headers, json={"transition": {"id": t["id"]}}, timeout=8)
+                              headers=headers, json={"transition": {"id": t["id"]}}, timeout=30)
                 break
         return key
     except Exception as exc:

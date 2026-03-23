@@ -39,10 +39,16 @@ router = APIRouter(prefix="/api/tickets", tags=["tickets"])
 # ── Jira config ───────────────────────────────────────────────────────────────
 
 _JIRA_BASE = os.getenv("JIRA_BASE_URL", "https://ameer1996112.atlassian.net")
+# Agile REST API has a different base path — /rest/agile/1.0 not /rest/api/3
+_JIRA_AGILE_BASE = _JIRA_BASE + "/rest/agile/1.0"
 _JIRA_EMAIL = os.getenv("JIRA_EMAIL", "")
 _JIRA_TOKEN = os.getenv("JIRA_API_TOKEN", "")
 _JIRA_PROJECT = os.getenv("JIRA_PROJECT_KEY", "DEV")
 _JIRA_TASK_TYPE_ID = os.getenv("JIRA_TASK_TYPE_ID", "10003")
+
+# Timeouts — Jira free-tier JQL can be very slow (30-90s)
+_TIMEOUT_READ = int(os.getenv("JIRA_TIMEOUT", "90"))    # JQL search / write ops
+_TIMEOUT_FAST = int(os.getenv("JIRA_TIMEOUT_FAST", "20"))  # lightweight reads
 
 # Jira free plan priority names (must match exactly)
 _PRIORITY_MAP: Dict[str, str] = {
@@ -60,6 +66,12 @@ _JIRA_STATUS_MAP: Dict[str, str] = {
 _FIELD_STORY_POINTS = "story_points"   # or customfield_10016 — discovered at startup
 _FIELD_SPRINT = "customfield_10020"
 
+# ── Active sprint cache (5-minute TTL) ────────────────────────────────────────
+import time as _time_module
+
+_sprint_cache: Dict[str, Any] = {"id": None, "name": None, "ts": 0.0}
+_SPRINT_CACHE_TTL = 300  # 5 minutes
+
 
 def _auth() -> str:
     raw = f"{_JIRA_EMAIL}:{_JIRA_TOKEN}"
@@ -74,24 +86,68 @@ def _headers() -> Dict[str, str]:
     }
 
 
-def _jira_get(path: str, params: Dict = None) -> Any:
+def _jira_get(path: str, params: Dict = None, timeout: int = None) -> Any:
     url = f"{_JIRA_BASE}/rest/api/3{path}"
-    r = requests.get(url, headers=_headers(), params=params or {}, timeout=12)
+    r = requests.get(url, headers=_headers(), params=params or {}, timeout=timeout or _TIMEOUT_READ)
     r.raise_for_status()
     return r.json()
 
 
-def _jira_post(path: str, body: Dict) -> Any:
+def _jira_agile_get(path: str, params: Dict = None) -> Any:
+    """Call the Jira Agile REST API (/rest/agile/1.0) — used for board/sprint ops."""
+    url = f"{_JIRA_AGILE_BASE}{path}"
+    r = requests.get(url, headers=_headers(), params=params or {}, timeout=_TIMEOUT_READ)
+    r.raise_for_status()
+    return r.json()
+
+
+def _jira_agile_post(path: str, body: Dict) -> Any:
+    url = f"{_JIRA_AGILE_BASE}{path}"
+    r = requests.post(url, headers=_headers(), json=body, timeout=_TIMEOUT_READ)
+    r.raise_for_status()
+    return r.json()
+
+
+def _jira_post(path: str, body: Dict, timeout: int = None) -> Any:
     url = f"{_JIRA_BASE}/rest/api/3{path}"
-    r = requests.post(url, headers=_headers(), json=body, timeout=12)
+    r = requests.post(url, headers=_headers(), json=body, timeout=timeout or _TIMEOUT_READ)
     r.raise_for_status()
     return r.json()
 
 
 def _jira_put(path: str, body: Dict) -> Any:
     url = f"{_JIRA_BASE}/rest/api/3{path}"
-    r = requests.put(url, headers=_headers(), json=body, timeout=12)
+    r = requests.put(url, headers=_headers(), json=body, timeout=_TIMEOUT_READ)
     r.raise_for_status()
+
+
+def _get_active_sprint_id() -> Optional[int]:
+    """Return the active sprint ID, using a 5-minute cache to avoid repeated Agile API calls."""
+    global _sprint_cache
+    now = _time_module.time()
+    if _sprint_cache["ts"] and (now - _sprint_cache["ts"]) < _SPRINT_CACHE_TTL:
+        return _sprint_cache["id"]
+    try:
+        boards = _jira_agile_get("/board", {"projectKeyOrId": _JIRA_PROJECT, "type": "scrum"})
+        board_list = boards.get("values", [])
+        if not board_list:
+            # Try kanban board
+            boards = _jira_agile_get("/board", {"projectKeyOrId": _JIRA_PROJECT})
+            board_list = boards.get("values", [])
+        if not board_list:
+            _sprint_cache = {"id": None, "name": None, "ts": now}
+            return None
+        board_id = board_list[0]["id"]
+        sprints = _jira_agile_get(f"/board/{board_id}/sprint", {"state": "active"})
+        sprint_list = sprints.get("values", [])
+        if sprint_list:
+            s = sprint_list[0]
+            _sprint_cache = {"id": s["id"], "name": s["name"], "ts": now}
+            return s["id"]
+    except Exception as exc:
+        logger.warning("Could not fetch active sprint (cache miss): %s", exc)
+    _sprint_cache = {"id": None, "name": None, "ts": now}
+    return None
 
 
 # ── ADF helpers ───────────────────────────────────────────────────────────────
@@ -346,21 +402,101 @@ def list_tickets(
 
 @router.get("/active-sprint")
 def get_active_sprint():
-    """Return the active sprint id and name from Jira agile board."""
+    """Return the active sprint id and name from Jira Agile board (cached 5min)."""
+    sprint_id = _get_active_sprint_id()
+    return {"sprint_id": sprint_id, "name": _sprint_cache.get("name")}
+
+
+@router.get("/sprints")
+def list_sprints(state: Optional[str] = Query(None, description="active|closed|future")):
+    """List all Jira sprints for the project."""
     try:
-        boards = _jira_get("/board", {"projectKeyOrId": _JIRA_PROJECT})
+        boards = _jira_agile_get("/board", {"projectKeyOrId": _JIRA_PROJECT})
         board_list = boards.get("values", [])
         if not board_list:
-            return {"sprint_id": None, "name": None}
+            return {"sprints": [], "board_id": None}
         board_id = board_list[0]["id"]
-        sprints = _jira_get(f"/board/{board_id}/sprint", {"state": "active"})
-        sprint_list = sprints.get("values", [])
-        if sprint_list:
-            s = sprint_list[0]
-            return {"sprint_id": s["id"], "name": s["name"]}
+        params: Dict = {}
+        if state:
+            params["state"] = state
+        sprints = _jira_agile_get(f"/board/{board_id}/sprint", params)
+        result = [{
+            "id": s["id"],
+            "name": s["name"],
+            "state": s["state"],
+            "start_date": s.get("startDate"),
+            "end_date": s.get("endDate"),
+            "complete_date": s.get("completeDate"),
+        } for s in sprints.get("values", [])]
+        return {"sprints": result, "board_id": board_id, "count": len(result)}
     except Exception as exc:
-        logger.warning("Could not fetch active sprint: %s", exc)
-    return {"sprint_id": None, "name": None}
+        logger.error("list_sprints failed: %s", exc)
+        return {"sprints": [], "board_id": None, "count": 0}
+
+
+class SprintCreateRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    start_date: Optional[str] = None   # ISO 8601
+    end_date: Optional[str] = None
+    goal: Optional[str] = None
+
+
+@router.post("/sprints/start", status_code=201)
+def start_sprint(body: SprintCreateRequest):
+    """Create a new Jira sprint and start it immediately."""
+    try:
+        boards = _jira_agile_get("/board", {"projectKeyOrId": _JIRA_PROJECT})
+        board_list = boards.get("values", [])
+        if not board_list:
+            raise HTTPException(status_code=404, detail="No Jira board found for project")
+        board_id = board_list[0]["id"]
+
+        # Create the sprint
+        sprint_payload: Dict[str, Any] = {
+            "name": body.name,
+            "originBoardId": board_id,
+        }
+        if body.start_date:
+            sprint_payload["startDate"] = body.start_date
+        if body.end_date:
+            sprint_payload["endDate"] = body.end_date
+        if body.goal:
+            sprint_payload["goal"] = body.goal
+
+        created = _jira_agile_post("/sprint", sprint_payload)
+        sprint_id = created["id"]
+
+        # Start it
+        _jira_agile_post(f"/sprint/{sprint_id}", {"state": "active"})
+
+        # Invalidate cache
+        global _sprint_cache
+        _sprint_cache = {"id": sprint_id, "name": body.name, "ts": _time_module.time()}
+
+        return {"status": "ok", "sprint_id": sprint_id, "name": body.name}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("start_sprint failed: %s", exc)
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
+@router.post("/sprints/end")
+def end_sprint():
+    """Complete (close) the active sprint. Open issues stay in the board."""
+    try:
+        sprint_id = _get_active_sprint_id()
+        if not sprint_id:
+            return {"status": "no_active_sprint"}
+        sprint_name = _sprint_cache.get("name", "")
+        _jira_agile_post(f"/sprint/{sprint_id}", {"state": "closed"})
+        # Invalidate cache
+        global _sprint_cache
+        _sprint_cache = {"id": None, "name": None, "ts": 0.0}
+        return {"status": "ok", "closed_sprint_id": sprint_id, "name": sprint_name}
+    except Exception as exc:
+        logger.error("end_sprint failed: %s", exc)
+        raise HTTPException(status_code=502, detail=str(exc))
 
 
 @router.post("", status_code=201)
@@ -406,9 +542,12 @@ def create_ticket(body: CreateTicketRequest):
         fields["story_points"] = body.story_points
         fields["customfield_10016"] = body.story_points
 
-    # Sprint
-    if body.sprint_id is not None:
-        fields[_FIELD_SPRINT] = body.sprint_id
+    # Sprint — auto-assign to active sprint if caller didn't specify one
+    effective_sprint_id = body.sprint_id
+    if effective_sprint_id is None:
+        effective_sprint_id = _get_active_sprint_id()
+    if effective_sprint_id is not None:
+        fields[_FIELD_SPRINT] = effective_sprint_id
 
     # ── Create in Jira ────────────────────────────────────────────────────
     try:
