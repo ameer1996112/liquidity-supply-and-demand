@@ -8,41 +8,51 @@ See: `.planning/PROJECT.md` (updated 2026-03-24)
 
 ---
 
-## Completed Milestone: AI-Powered PM Command Center (v1.0)
+## Active Milestone: System Reliability & Trading Intelligence (v1.1)
 
-**Status:** ✅ Archived (2026-03-24)  
-**Archive:** [.planning/milestones/v1.0-ROADMAP.md](.planning/milestones/v1.0-ROADMAP.md)
+**Status:** 🔄 In Progress  
+**Progress:** 0/4 phases started
 
-| Phase | Status | Commit |
-|-------|--------|--------|
-| 1 — Smart Kanban Board Foundation | ✅ Done | c22a3f5 |
-| 2 — GSD ↔ Jira Full Automation | ✅ Done | f178d12 |
-| 3 — Trading Events → Auto Tickets | ✅ Done | d55937d |
-| 4 — AI Command Center UI | ✅ Done | 02756a0 |
-| Sprint-Based Dev Upgrade | ✅ Done | 4cff7d9 |
+| Phase | Name | Status |
+|-------|------|--------|
+| 5 | Backend Persistence | ⬜ Not Started |
+| 6 | Signal & Prop Analytics | ⬜ Not Started |
+| 7 | Sprint Lifecycle Automation | ⬜ Not Started |
+| 8 | Trading Health Widget | ⬜ Not Started |
 
 ---
 
-## Current State
+## Completed Milestones
 
-| Component | Status |
-|-----------|--------|
-| Backend API (port 8000) | ✅ Running |
-| Active Jira Sprint | DEV Sprint 0 (sprint_id: 2) |
-| jira/ app | ✅ 12 pages, build passing |
-| Pending Todos | 2 (DEV-11: backend persistence) |
+| Version | Name | Archive |
+|---------|------|---------|
+| v1.0 | AI-Powered PM Command Center | [.planning/milestones/v1.0-ROADMAP.md](.planning/milestones/v1.0-ROADMAP.md) |
+
+---
+
+## Planning Artifacts
+
+| Artifact | Path | Status |
+|----------|------|--------|
+| Project | `.planning/PROJECT.md` | ✅ Updated |
+| Requirements | `.planning/REQUIREMENTS.md` | ✅ 16 requirements |
+| Roadmap | `.planning/ROADMAP.md` | ✅ 4 phases (5–8) |
+| State | `.planning/STATE.md` | ✅ This file |
+
+---
+
+## Open Todos
+
+- **DEV-11** — Backend API persistence (launchd/pm2) → Phase 5
 
 ---
 
 ## Next Action
 
-Run `/gsd-new-milestone` to start the next milestone cycle.
-
-*Or work on pending todos: `/gsd-check-todos`*
-
----
-
-## Open Items
-
-- **DEV-11** — Make backend API run persistently (launchd/pm2)
-- **UI-10** — Trading health widget (deferred from v1.0)
+```
+/gsd-discuss-phase 5
+```
+or skip discussion:
+```
+/gsd-plan-phase 5
+```
