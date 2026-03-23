@@ -9,15 +9,21 @@ import {
   Tag,
   Settings,
   Zap,
+  AlertTriangle,
+  BarChart3,
+  Bot,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const NAV = [
-  { label: 'Board',    icon: LayoutDashboard, path: '/board' },
-  { label: 'Backlog',  icon: Layers,          path: '/backlog' },
-  { label: 'Sprints',  icon: GitBranch,       path: '/sprints' },
-  { label: 'Labels',   icon: Tag,             path: '/labels' },
-  { label: 'Settings', icon: Settings,        path: '/settings' },
+  { label: 'Board',      icon: LayoutDashboard, path: '/board' },
+  { label: 'Backlog',    icon: Layers,          path: '/backlog' },
+  { label: 'Sprints',    icon: GitBranch,       path: '/sprints' },
+  { label: 'Labels',     icon: Tag,             path: '/labels' },
+  { label: 'Incidents',  icon: AlertTriangle,   path: '/incidents' },
+  { label: 'Analytics',  icon: BarChart3,       path: '/analytics' },
+  { label: 'AI Assist',  icon: Bot,             path: '/ai-assist' },
+  { label: 'Settings',   icon: Settings,        path: '/settings' },
 ];
 
 export function Sidebar() {
