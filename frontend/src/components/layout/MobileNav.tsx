@@ -18,7 +18,6 @@ import {
   SlidersHorizontal,
   ShieldCheck,
   BookOpen,
-  LayoutGrid,
   Settings,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -56,7 +55,6 @@ const OVERFLOW_ITEMS: NavItem[] = [
   { label: 'Strategies', icon: SlidersHorizontal, path: '/strategies' },
   { label: 'Rules', icon: ShieldCheck, path: '/rules' },
   { label: 'Journal', icon: BookOpen, path: '/journal' },
-  { label: 'Board', icon: LayoutGrid, path: '/board' },
   { label: 'Settings', icon: Settings, path: '/settings' },
 ];
 
