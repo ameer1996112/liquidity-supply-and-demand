@@ -1,0 +1,86 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg:      #0d0f14;
+  --surface: #13161e;
+  --raised:  #1a1d28;
+  --border:  #1f2335;
+  --text-primary:   #e2e8f0;
+  --text-secondary: #94a3b8;
+  --text-dim:       #475569;
+  --accent: #f59e0b;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+/* Drag overlay */
+.dragging { opacity: 0.4; }
+.drag-over { background: rgba(245,158,11,0.04); border-color: rgba(245,158,11,0.25) !important; }
+
+/* Tiptap editor */
+.tiptap {
+  outline: none;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-primary);
+  min-height: 80px;
+}
+.tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: var(--text-dim);
+  pointer-events: none;
+  float: left;
+  height: 0;
+}
+.tiptap code {
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+}
+.tiptap pre {
+  background: var(--raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px;
+  margin: 8px 0;
+  overflow-x: auto;
+}
+.tiptap pre code { background: none; border: none; padding: 0; }
+.tiptap h1 { font-size: 18px; font-weight: 700; margin: 12px 0 6px; }
+.tiptap h2 { font-size: 15px; font-weight: 600; margin: 10px 0 4px; }
+.tiptap h3 { font-size: 13px; font-weight: 600; margin: 8px 0 4px; }
+.tiptap ul, .tiptap ol { padding-left: 20px; margin: 6px 0; }
+.tiptap li { margin: 2px 0; }
+.tiptap blockquote {
+  border-left: 3px solid var(--accent);
+  padding-left: 12px;
+  margin: 8px 0;
+  color: var(--text-secondary);
+}
+
+/* Priority dot */
+.priority-critical { background: #ef4444; }
+.priority-high     { background: #f59e0b; }
+.priority-medium   { background: #3b82f6; }
+.priority-low      { background: #475569; }
