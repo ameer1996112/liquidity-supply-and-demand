@@ -186,6 +186,23 @@ def _fail_fast_config():
         raise RuntimeError("Signal transport connection failed at startup. Cannot accept webhooks without queue.")
 
     logger.info("Signal transport verified - Queue operational (%s)", type(transport).__name__)
+
+    # ── Explicit Redis ping with actionable error message ─────────────────────
+    try:
+        import redis as _redis_lib
+        _redis_url = settings.redis_url
+        _r = _redis_lib.from_url(_redis_url, socket_connect_timeout=3)
+        _r.ping()
+        logger.info("Redis connection OK: %s", _redis_url)
+    except Exception as _redis_exc:
+        logger.error(
+            "❌ Redis not reachable at %s: %s\n"
+            "  → Start with: redis-server --daemonize yes\n"
+            "  → Or set REDIS_URL in .env",
+            settings.redis_url, _redis_exc,
+        )
+        raise RuntimeError(f"Redis required but unavailable: {_redis_exc}") from _redis_exc
+
     redis_client = get_redis()
 
     # Initialize background sync worker if enabled

@@ -104,3 +104,68 @@ if [ "$MODE" = "api" ] || [ "$MODE" = "both" ] || [ "$MODE" = "fullstack" ]; the
       --log-level info
 fi
 
+# 4. Idempotent full-stack mode (covers INFRA-03, INFRA-04)
+if [ "$MODE" = "fullstack" ]; then
+    LOG_DIR="$HOME/.tradeops/logs"
+    mkdir -p "$LOG_DIR"
+
+    # Redis
+    if redis-cli ping 2>/dev/null | grep -q PONG; then
+        echo "[start.sh] ✅ Redis already running"
+    else
+        redis-server --daemonize yes
+        echo "[start.sh] ✅ Redis started"
+    fi
+
+    # API
+    if lsof -ti:"$PORT" &>/dev/null; then
+        echo "[start.sh] ✅ API already running on port $PORT"
+    elif launchctl list 2>/dev/null | grep -q "com.tradeops.api"; then
+        launchctl start com.tradeops.api 2>/dev/null || true
+        echo "[start.sh] ✅ API started via launchd"
+    else
+        python3 -m uvicorn src.api:app --host 0.0.0.0 --port "$PORT" --log-level info \
+            >> "$LOG_DIR/api.log" 2>&1 &
+        echo $! > /tmp/tradeops-api.pid
+        echo "[start.sh] ✅ API started (PID $(cat /tmp/tradeops-api.pid)) → logs: $LOG_DIR/api.log"
+    fi
+
+    # Worker
+    if pgrep -f "src.worker" &>/dev/null; then
+        echo "[start.sh] ✅ Worker already running"
+    elif launchctl list 2>/dev/null | grep -q "com.tradeops.worker"; then
+        launchctl start com.tradeops.worker 2>/dev/null || true
+        echo "[start.sh] ✅ Worker started via launchd"
+    else
+        python3 -m src.worker \
+            >> "$LOG_DIR/worker.log" 2>&1 &
+        echo $! > /tmp/tradeops-worker.pid
+        echo "[start.sh] ✅ Worker started (PID $(cat /tmp/tradeops-worker.pid)) → logs: $LOG_DIR/worker.log"
+    fi
+
+    # Frontend (jira/ app on port 3200 to avoid conflict with main frontend)
+    if [ -d "$ROOT_DIR/jira" ] && [ -f "$ROOT_DIR/jira/package.json" ]; then
+        if lsof -ti:3200 &>/dev/null; then
+            echo "[start.sh] ✅ Jira app already running on port 3200"
+        else
+            (cd "$ROOT_DIR/jira" && PORT=3200 npm run dev >> "$LOG_DIR/jira.log" 2>&1) &
+            echo "[start.sh] ✅ Jira app started → logs: $LOG_DIR/jira.log"
+        fi
+    fi
+    if [ -d "$ROOT_DIR/frontend" ] && [ -f "$ROOT_DIR/frontend/package.json" ]; then
+        if lsof -ti:3000 &>/dev/null; then
+            echo "[start.sh] ✅ Frontend already running on port 3000"
+        else
+            (cd "$ROOT_DIR/frontend" && npm run dev >> "$LOG_DIR/frontend.log" 2>&1) &
+            echo "[start.sh] ✅ Frontend started → logs: $LOG_DIR/frontend.log"
+        fi
+    fi
+
+    echo ""
+    echo "[start.sh] 🚀 Full stack running. Logs: $LOG_DIR/"
+    echo "           API:     http://localhost:$PORT/health"
+    echo "           Jira:    http://localhost:3200"
+    echo "           Persist: ./install-services.sh"
+    exit 0
+fi
+
