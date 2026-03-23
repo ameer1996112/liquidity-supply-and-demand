@@ -15,11 +15,14 @@ CREATE TABLE IF NOT EXISTS project_tickets (
     priority     TEXT        NOT NULL DEFAULT 'medium'
                              CHECK (priority IN ('low', 'medium', 'high', 'critical')),
     assignee     TEXT,
-    signal_id    INTEGER,
+    signal_id    INTEGER     REFERENCES trading_signals(id) ON DELETE SET NULL,
     ai_changelog JSONB       NOT NULL DEFAULT '[]'::jsonb,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Ensure signal_id column exists (handles tables created before this column was added)
+ALTER TABLE project_tickets ADD COLUMN IF NOT EXISTS signal_id INTEGER;
 
 -- ── updated_at trigger ───────────────────────────────────────────────────────
 
