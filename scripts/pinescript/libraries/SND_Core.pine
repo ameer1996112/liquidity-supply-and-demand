@@ -373,8 +373,18 @@ export calculate_base_quality(int base_start_idx, int base_end_idx, int current_
         quality
 
 // Calculate Departure Strength: How aggressively price left the zone (0-100 score)
-// Analyzes first 3 candles after base formation
-// @param base_end_idx The end bar index of the base
+// Analyzes first 3 candles after base formation.
+//
+// v2 improvements over original:
+//   1. Instrument-agnostic magnitude: uses 20-bar rolling high-low context range
+//      instead of ATR. ATR normalization was unfair to NAS100/XAUUSD where ATR is
+//      large (50–150 pts), making even strong departure candles score very low.
+//   2. Multi-candle accumulation: instead of taking only the single best candle,
+//      additional qualifying candles each contribute 40% of their score as a bonus.
+//      Zones with 2–3 consecutive strong departure candles now score materially higher.
+//   3. Floor lowered from 10 → 5 to avoid masking genuinely weak departures.
+//
+// @param base_end_idx The end bar offset of the base (higher = older in Pine [] notation)
 // @param isDemand True for demand zones
 // @param src_high Series of high prices
 // @param src_low Series of low prices
@@ -382,61 +392,93 @@ export calculate_base_quality(int base_start_idx, int base_end_idx, int current_
 // @param src_close Series of close prices
 // @param src_volume Series of volume
 // @param vol_sma_20 20-period SMA of volume
-// @param atr14 Current ATR(14) value for body magnitude normalization
+// @param atr14 ATR(14) — used only as emergency fallback when rolling range is degenerate
 // @returns Departure strength score 0-100
 export calculate_departure_strength(int base_end_idx, bool isDemand, series float src_high, series float src_low, series float src_open, series float src_close, series float src_volume, series float vol_sma_20, float atr14 = 0.0) =>
     if base_end_idx < 3
         50.0  // Not enough history
     else
         int departure_candles = math.min(3, base_end_idx)  // Analyze up to 3 candles
-        float max_departure_strength = 0.0
 
         // SAFETY: Ensure we don't exceed Pine Script's 10000 bar limit
         int max_lookback = 10000
 
-        // Analyze candles immediately after base
+        // ── Context range: 20 bars BEFORE the base for instrument-agnostic normalization ──
+        // base_end_idx is an OFFSET (higher = older bars in Pine's [] notation).
+        // Bars BEFORE the zone are accessed at [base_end_idx + j] (older history).
+        // A "big" departure candle is one whose range covers ≥10% of the 20-bar context.
+        float ctx_high = src_high[base_end_idx]
+        float ctx_low  = src_low[base_end_idx]
+        int   ctx_bars = math.min(20, max_lookback - base_end_idx - 1)
+
+        for j = 1 to ctx_bars
+            int ctx_idx = base_end_idx + j
+            if ctx_idx < max_lookback
+                if src_high[ctx_idx] > ctx_high
+                    ctx_high := src_high[ctx_idx]
+                if src_low[ctx_idx] < ctx_low
+                    ctx_low := src_low[ctx_idx]
+
+        // Fallback to ATR-derived range if rolling context is degenerate (e.g. very new charts)
+        float rolling_range = ctx_high - ctx_low
+        float ref_range = rolling_range > 0.0 ? rolling_range : (atr14 > 0.0 ? atr14 * 10.0 : 1.0)
+
+        // ── Per-candle scoring ──────────────────────────────────────────────────────────
+        float best_candle_score = 0.0
+        float total_score       = 0.0
+        int   qualifying_count  = 0
+
+        // Analyze candles immediately AFTER base (departure candles = newer = lower offset)
         for i = 1 to departure_candles
             int candle_idx = base_end_idx - i
-            // Skip if candle_idx exceeds max lookback
             if candle_idx >= 0 and candle_idx < max_lookback
-                float candle_high = src_high[candle_idx]
-                float candle_low = src_low[candle_idx]
-                float candle_open = src_open[candle_idx]
-                float candle_close = src_close[candle_idx]
+                float candle_high   = src_high[candle_idx]
+                float candle_low    = src_low[candle_idx]
+                float candle_open   = src_open[candle_idx]
+                float candle_close  = src_close[candle_idx]
                 float candle_volume = src_volume[candle_idx]
 
                 float candle_range = candle_high - candle_low
-                float body_size = math.abs(candle_close - candle_open)
+                float body_size    = math.abs(candle_close - candle_open)
                 float body_percent = candle_range > 0 ? body_size / candle_range : 0.0
 
-                // Check if candle is in correct direction
+                // Only score candles moving in the correct departure direction
                 bool correct_direction = isDemand ? (candle_close > candle_open) : (candle_close < candle_open)
 
                 if correct_direction
-                    // Relative volume for this candle (using pre-calculated SMA)
                     float vol_avg_at_candle = vol_sma_20[candle_idx]
                     float candle_rvol = vol_avg_at_candle > 0 ? candle_volume / vol_avg_at_candle : 1.0
 
-                    // === NEW 3-COMPONENT SCORING ===
-                    // 1. Body Magnitude (40 pts): absolute body size vs ATR — rewards large moves
-                    //    body_size / ATR capped at 2.0x so a 2×ATR body = full 40 pts
-                    float ref_atr = atr14 > 0.0 ? atr14 : candle_range  // fallback: use candle range if no ATR
-                    float body_atr_ratio = ref_atr > 0.0 ? body_size / ref_atr : 0.0
-                    float magnitude_score = math.min(body_atr_ratio / 2.0, 1.0) * 40.0
+                    // === 3-COMPONENT SCORING (v2) ===
 
-                    // 2. Body Dominance (30 pts): body as % of candle range — rewards clean bodied candles
+                    // 1. Body Magnitude (40 pts): candle range vs 10% of 20-bar context range.
+                    //    Instrument-agnostic — a candle covering ≥10% of recent structure = full score.
+                    //    Replaces ATR ratio which over-penalized NAS100/XAUUSD with large ATRs.
+                    float range_ratio     = candle_range / (ref_range * 0.10)
+                    float magnitude_score = math.min(range_ratio, 1.0) * 40.0
+
+                    // 2. Body Dominance (30 pts): clean full-body candle vs wick noise
                     float dominance_score = body_percent * 30.0
 
-                    // 3. Volume (30 pts): relative volume capped at 2.5× average
+                    // 3. Volume (30 pts): relative volume vs 20-bar SMA, capped at 2.5×
                     float rvol_score = math.min(candle_rvol / 2.5, 1.0) * 30.0
 
                     float candle_strength = magnitude_score + dominance_score + rvol_score
 
-                    if candle_strength > max_departure_strength
-                        max_departure_strength := candle_strength
+                    qualifying_count += 1
+                    total_score      += candle_strength
+                    if candle_strength > best_candle_score
+                        best_candle_score := candle_strength
 
-        // Minimum floor of 10.0 if there was no displacement at all
-        float departure_strength = math.max(max_departure_strength, 10.0)
+        // ── Multi-candle accumulation ────────────────────────────────────────────────────
+        // Best candle drives the primary score.
+        // Each additional qualifying candle contributes 40% of its strength as a bonus.
+        // This rewards zones with 2–3 consecutive strong departure candles (e.g. D-18452).
+        float extra_bonus = qualifying_count > 1 ? (total_score - best_candle_score) * 0.40 : 0.0
+        float raw_score   = best_candle_score + extra_bonus
+
+        // Floor of 5.0 (lowered from 10 to avoid masking weak departures)
+        float departure_strength = math.min(math.max(raw_score, 5.0), 100.0)
         departure_strength
 
 // ══════════════════════════════════════════════════════════
