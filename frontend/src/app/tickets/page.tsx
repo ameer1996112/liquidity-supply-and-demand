@@ -135,9 +135,9 @@ function TicketCard({
         </div>
         <div className="flex items-center gap-1">
           {ticket.ai_changelog.length > 0 && (
-            <Bot className="h-3 w-3 text-violet-400/70" title="AI updated" />
+            <Bot className="h-3 w-3 text-violet-400/70" />
           )}
-          <PriorityIcon className={cn('h-3 w-3', priority.color)} title={priority.label} />
+          <PriorityIcon className={cn('h-3 w-3', priority.color)} />
         </div>
       </div>
 
