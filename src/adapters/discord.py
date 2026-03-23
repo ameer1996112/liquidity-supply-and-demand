@@ -199,7 +199,7 @@ def send_telegram(data: Dict[str, Any], alert_id: int) -> Tuple[bool, Optional[i
     """Send a trade signal to Telegram. Returns (success, message_id)."""
     s = get_settings()
     if not s.telegram_bot_token or not s.telegram_chat_id:
-        return False
+        return False, None
     try:
         side = str(data["side"]).upper()
         emoji = "📈" if side == "BUY" else "📉"

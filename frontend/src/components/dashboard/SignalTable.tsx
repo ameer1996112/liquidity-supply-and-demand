@@ -196,7 +196,7 @@ function StatusBadge({ status, isStale }: { status: SignalStatus; isStale?: bool
   };
 
   return (
-    <div className='flex flex-col items-start gap-0.5'>
+    <div className='inline-flex items-center gap-1'>
       <span
         className={cn(
           'inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider',
@@ -208,10 +208,7 @@ function StatusBadge({ status, isStale }: { status: SignalStatus; isStale?: bool
         {style.label}
       </span>
       {isStale && (
-        <span className='inline-flex items-center gap-0.5 text-[8px] text-[var(--to-warning)]'>
-          <AlertTriangle className='h-2 w-2' />
-          stale
-        </span>
+        <span title='Stale'><AlertTriangle className='h-2.5 w-2.5 text-[var(--to-warning)]' /></span>
       )}
     </div>
   );
@@ -247,25 +244,23 @@ function CouncilBadge({ summary }: { summary: CouncilSummary | undefined }) {
   const blockCount = voteEntries.filter(([, v]) => v === 'block').length;
 
   return (
-    <div className='flex flex-col items-end gap-0.5'>
-      <div className='flex items-center gap-1'>
-        <Brain
-          className={cn('h-3 w-3', isAllow ? 'text-[var(--to-long)]/60' : 'text-[var(--to-short)]/60')}
-          strokeWidth={1.5}
-        />
-        <span
-          className={cn('font-mono text-[10px] font-bold tabular-nums', confColor)}
-          style={{ fontFamily: 'var(--font-mono)' }}
-        >
-          {conf}%
-        </span>
-      </div>
+    <div className='inline-flex items-center justify-end gap-1'>
+      <Brain
+        className={cn('h-3 w-3 shrink-0', isAllow ? 'text-[var(--to-long)]/60' : 'text-[var(--to-short)]/60')}
+        strokeWidth={1.5}
+      />
+      <span
+        className={cn('font-mono text-[10px] font-bold tabular-nums', confColor)}
+        style={{ fontFamily: 'var(--font-mono)' }}
+      >
+        {conf}%
+      </span>
       {voteEntries.length > 0 && (
         <span
           className='font-mono text-[9px] tabular-nums text-[var(--to-text-dim)]/60'
           style={{ fontFamily: 'var(--font-mono)' }}
         >
-          {allowCount}✓ {blockCount}✗
+          {allowCount}✓{blockCount}✗
         </span>
       )}
     </div>
@@ -516,19 +511,6 @@ export function SignalTable({
       },
     },
     {
-      id: 'council',
-      align: 'right',
-      isNumeric: true,
-      width: 'w-[70px]',
-      header: (
-        <span className='inline-flex items-center justify-end gap-1 w-full'>
-          <Brain className='h-2.5 w-2.5' strokeWidth={1.5} />
-          <span>Council</span>
-        </span>
-      ),
-      render: (signal) => <CouncilBadge summary={councilMap[String(signal.id)]} />,
-    },
-    {
       id: 'status',
       align: 'left',
       width: 'w-[80px]',
@@ -587,7 +569,7 @@ export function SignalTable({
       </div>
 
       {/* Scrollable table */}
-      <div className='flex-1 min-h-0 overflow-y-auto scrollbar-thin'>
+      <div className='flex-1 min-h-0 overflow-auto scrollbar-thin'>
         {sorted.length === 0 ? (
           <TableEmptyState
             title={`No ${activeFilter === 'all' ? '' : activeFilter + ' '}signals`}
