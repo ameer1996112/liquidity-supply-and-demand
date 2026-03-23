@@ -2,7 +2,7 @@
 created: 2026-03-23T21:47:23.345Z
 title: Start backend API and verify PM automation end-to-end
 area: api
-ticket_id: ""
+ticket_id: "DEV-? (created via curl, check DEV board)"
 files:
   - src/api.py
   - src/api_incidents.py
