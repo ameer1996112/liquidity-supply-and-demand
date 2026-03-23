@@ -193,14 +193,14 @@ export function IssueDrawer({ issue, onClose, onUpdate, onDelete }: Props) {
           </div>
 
           {/* ── AI Changelog ── */}
-          {issue.ai_changelog.length > 0 && (
+          {(issue.ai_changelog?.length ?? 0) > 0 && (
             <div className="space-y-2">
               <button
                 onClick={() => setShowAiLog((v) => !v)}
                 className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest text-violet-400"
               >
                 <Bot className="h-3 w-3" />
-                AI Changelog ({issue.ai_changelog.length})
+                AI Changelog ({issue.ai_changelog?.length ?? 0})
                 {showAiLog ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
               </button>
               {showAiLog && (

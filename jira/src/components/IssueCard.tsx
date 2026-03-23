@@ -49,7 +49,7 @@ export function IssueCard({ issue, onClick }: Props) {
           <TypeIcon className="h-3 w-3" style={{ color: typeConfig.color }} />
         </div>
         <div className="flex items-center gap-1.5">
-          {issue.ai_changelog.length > 0 && (
+          {(issue.ai_changelog?.length ?? 0) > 0 && (
             <span className="text-[8px] font-mono text-violet-400/70 border border-violet-500/20 rounded px-1">AI</span>
           )}
           <span
