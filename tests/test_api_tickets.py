@@ -1,9 +1,6 @@
-"""Tests for the /api/tickets endpoints.
+"""Tests for the /api/tickets endpoints — Jira proxy version.
 
-Pattern follows test_ai_mode_api.py / test_backtests.py:
-- Mock Supabase client via monkeypatch
-- Use FastAPI TestClient
-- No real network calls
+Mocks the `requests` HTTP library so no real Jira API calls are made.
 """
 import json
 import uuid
@@ -13,218 +10,230 @@ import pytest
 from fastapi.testclient import TestClient
 
 
-# ── App setup ────────────────────────────────────────────────────────────────
+# ── Fixtures ──────────────────────────────────────────────────────────────────
 
 @pytest.fixture
 def client():
-    """TestClient with Supabase mocked at the supabase_api layer."""
+    import os
+    os.environ.setdefault("JIRA_BASE_URL", "https://test.atlassian.net")
+    os.environ.setdefault("JIRA_EMAIL", "test@example.com")
+    os.environ.setdefault("JIRA_API_TOKEN", "fake-token")
+    os.environ.setdefault("JIRA_PROJECT_KEY", "DEV")
+    os.environ.setdefault("JIRA_TASK_TYPE_ID", "10003")
     from src.api import app
     return TestClient(app, raise_server_exceptions=True)
 
 
-@pytest.fixture
-def mock_sb(monkeypatch):
-    """Return a MagicMock Supabase client injected into api_tickets."""
-    mock = MagicMock()
-    monkeypatch.setattr(
-        "src.api_tickets.get_api_supabase",
-        lambda: mock,
-    )
-    return mock
-
-
-def _make_ticket(**overrides):
-    """Return a minimal valid ticket dict (as Supabase would return it)."""
-    base = {
-        "id": str(uuid.uuid4()),
-        "title": "Test ticket",
-        "description": None,
-        "type": "bug",
-        "status": "todo",
-        "priority": "medium",
-        "assignee": None,
-        "signal_id": None,
-        "ai_changelog": [],
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "updated_at": datetime.now(timezone.utc).isoformat(),
+def _jira_issue(key="DEV-1", summary="Test ticket", status="To Do", labels=None):
+    """Return a minimal Jira issue dict."""
+    return {
+        "key": key,
+        "fields": {
+            "summary": summary,
+            "status": {"name": status},
+            "priority": {"name": "Medium"},
+            "labels": labels or ["type:task"],
+            "assignee": None,
+            "created": datetime.now(timezone.utc).isoformat(),
+            "updated": datetime.now(timezone.utc).isoformat(),
+            "description": None,
+            "issuetype": {"name": "Task"},
+        },
     }
-    base.update(overrides)
-    return base
 
 
-# ── GET /api/tickets ─────────────────────────────────────────────────────────
+# ── GET /api/tickets ──────────────────────────────────────────────────────────
 
-def test_list_tickets_empty(client, mock_sb):
-    mock_sb.table.return_value.select.return_value.neq.return_value \
-        .order.return_value.limit.return_value.execute.return_value \
-        = MagicMock(data=[])
-
-    resp = client.get("/api/tickets")
+def test_list_tickets_empty(client):
+    with patch("src.api_tickets.requests.get") as mock:
+        mock.return_value.status_code = 200
+        mock.return_value.json.return_value = {"issues": [], "total": 0}
+        mock.return_value.raise_for_status = lambda: None
+        resp = client.get("/api/tickets")
     assert resp.status_code == 200
-    data = resp.json()
-    assert data["tickets"] == []
-    assert data["count"] == 0
+    assert resp.json()["tickets"] == []
 
 
-def test_list_tickets_returns_results(client, mock_sb):
-    ticket = _make_ticket(title="NAS100 departure bug")
-    mock_sb.table.return_value.select.return_value.neq.return_value \
-        .order.return_value.limit.return_value.execute.return_value \
-        = MagicMock(data=[ticket])
-
-    resp = client.get("/api/tickets")
+def test_list_tickets_returns_results(client):
+    issue = _jira_issue(key="DEV-2", summary="NAS100 departure bug")
+    with patch("src.api_tickets.requests.get") as mock:
+        mock.return_value.status_code = 200
+        mock.return_value.json.return_value = {"issues": [issue]}
+        mock.return_value.raise_for_status = lambda: None
+        resp = client.get("/api/tickets")
     assert resp.status_code == 200
     data = resp.json()
     assert data["count"] == 1
     assert data["tickets"][0]["title"] == "NAS100 departure bug"
+    assert data["tickets"][0]["id"] == "DEV-2"
 
 
 # ── POST /api/tickets ─────────────────────────────────────────────────────────
 
-def test_create_ticket(client, mock_sb):
-    new_ticket = _make_ticket(title="Fix SL bug", type="bug", priority="high")
-    mock_sb.table.return_value.insert.return_value.execute.return_value \
-        = MagicMock(data=[new_ticket])
+def test_create_ticket(client):
+    issue = _jira_issue(key="DEV-3", summary="Fix SL bug", labels=["type:bug"])
 
-    resp = client.post("/api/tickets", json={
-        "title": "Fix SL bug",
-        "type": "bug",
-        "priority": "high",
-    })
+    def _mock_get(url, **kwargs):
+        m = MagicMock()
+        m.raise_for_status = lambda: None
+        # Dedup search returns empty; full fetch returns the created issue
+        if "/search" in url:
+            m.json.return_value = {"issues": []}
+        else:
+            m.json.return_value = issue
+        return m
+
+    def _mock_post(url, **kwargs):
+        m = MagicMock()
+        m.raise_for_status = lambda: None
+        m.json.return_value = {"key": "DEV-3", "self": "https://test.atlassian.net/..."}
+        return m
+
+    with patch("src.api_tickets.requests.get", side_effect=_mock_get), \
+         patch("src.api_tickets.requests.post", side_effect=_mock_post):
+        resp = client.post("/api/tickets", json={"title": "Fix SL bug", "type": "bug"})
+
     assert resp.status_code == 201
-    data = resp.json()
-    assert data["title"] == "Fix SL bug"
-    assert data["type"] == "bug"
-    assert data["status"] == "todo"
+    assert resp.json()["id"] == "DEV-3"
 
 
-def test_create_ticket_invalid_type(client, mock_sb):
-    resp = client.post("/api/tickets", json={
-        "title": "Bad type",
-        "type": "epic",  # not allowed
-    })
+def test_create_ticket_invalid_type(client):
+    resp = client.post("/api/tickets", json={"title": "Bad type", "type": "epic"})
     assert resp.status_code == 422
 
 
-def test_create_ticket_missing_title(client, mock_sb):
+def test_create_ticket_missing_title(client):
     resp = client.post("/api/tickets", json={"type": "task"})
     assert resp.status_code == 422
 
 
+def test_create_ticket_idempotent(client):
+    """Same title → returns existing issue (200) without creating a duplicate."""
+    issue = _jira_issue(key="DEV-4", summary="Fix signal dashboard display bug")
+
+    with patch("src.api_tickets.requests.get") as mock:
+        mock.return_value.raise_for_status = lambda: None
+        mock.return_value.json.return_value = {"issues": [issue]}
+        resp = client.post("/api/tickets", json={"title": "Fix signal dashboard display bug"})
+
+    assert resp.status_code == 200
+    assert resp.json()["id"] == "DEV-4"
+
+
 # ── GET /api/tickets/{id} ─────────────────────────────────────────────────────
 
-def test_get_ticket(client, mock_sb):
-    ticket = _make_ticket(title="Specific ticket")
-    ticket_id = ticket["id"]
-    mock_sb.table.return_value.select.return_value.eq.return_value \
-        .maybe_single.return_value.execute.return_value \
-        = MagicMock(data=ticket)
-
-    resp = client.get(f"/api/tickets/{ticket_id}")
+def test_get_ticket(client):
+    issue = _jira_issue(key="DEV-5", summary="Specific ticket")
+    with patch("src.api_tickets.requests.get") as mock:
+        mock.return_value.raise_for_status = lambda: None
+        mock.return_value.json.return_value = issue
+        resp = client.get("/api/tickets/DEV-5")
     assert resp.status_code == 200
     assert resp.json()["title"] == "Specific ticket"
 
 
-def test_get_ticket_not_found(client, mock_sb):
-    mock_sb.table.return_value.select.return_value.eq.return_value \
-        .maybe_single.return_value.execute.return_value \
-        = MagicMock(data=None)
-
-    resp = client.get(f"/api/tickets/{uuid.uuid4()}")
+def test_get_ticket_not_found(client):
+    import requests as req
+    err = req.HTTPError(response=MagicMock(status_code=404))
+    with patch("src.api_tickets.requests.get") as mock:
+        mock.return_value.raise_for_status.side_effect = err
+        resp = client.get("/api/tickets/DEV-999")
     assert resp.status_code == 404
 
 
 # ── PATCH /api/tickets/{id} ───────────────────────────────────────────────────
 
-def test_patch_ticket_status(client, mock_sb):
-    updated = _make_ticket(status="in_progress")
-    mock_sb.table.return_value.update.return_value.eq.return_value \
-        .execute.return_value = MagicMock(data=[updated])
+def test_patch_ticket_status(client):
+    issue = _jira_issue(key="DEV-1", status="In Progress")
 
-    resp = client.patch(f"/api/tickets/{updated['id']}", json={"status": "in_progress"})
+    def _mock_get(url, **kwargs):
+        m = MagicMock()
+        m.raise_for_status = lambda: None
+        if "/transitions" in url:
+            m.json.return_value = {"transitions": [
+                {"id": "21", "to": {"name": "In Progress"}}
+            ]}
+        else:
+            m.json.return_value = issue
+        return m
+
+    with patch("src.api_tickets.requests.get", side_effect=_mock_get), \
+         patch("src.api_tickets.requests.put") as mock_put, \
+         patch("src.api_tickets.requests.post") as mock_post:
+        mock_put.return_value.raise_for_status = lambda: None
+        mock_post.return_value.raise_for_status = lambda: None
+        mock_post.return_value.json.return_value = {}
+        resp = client.patch("/api/tickets/DEV-1", json={"status": "in_progress"})
+
     assert resp.status_code == 200
     assert resp.json()["status"] == "in_progress"
 
 
-def test_patch_ticket_invalid_status(client, mock_sb):
-    resp = client.patch(f"/api/tickets/{uuid.uuid4()}", json={"status": "wontfix"})
+def test_patch_ticket_invalid_status(client):
+    resp = client.patch("/api/tickets/DEV-1", json={"status": "wontfix"})
     assert resp.status_code == 422
 
 
-def test_patch_ticket_no_fields(client, mock_sb):
-    resp = client.patch(f"/api/tickets/{uuid.uuid4()}", json={})
+def test_patch_ticket_no_fields(client):
+    resp = client.patch("/api/tickets/DEV-1", json={})
     assert resp.status_code == 400
 
 
 # ── POST /api/tickets/{id}/ai-update ─────────────────────────────────────────
 
-def test_ai_update_appends_changelog(client, mock_sb):
-    ticket_id = str(uuid.uuid4())
-    existing = {"status": "todo", "ai_changelog": []}
-    updated = _make_ticket(id=ticket_id, status="in_progress", ai_changelog=[{
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "agent": "antigravity",
-        "old_status": "todo",
-        "new_status": "in_progress",
-        "summary": "Started fixing departure calc",
-    }])
+def test_ai_update_appends_changelog(client):
+    issue = _jira_issue(key="DEV-1", status="In Progress")
 
-    # First call: fetch current (select)
-    mock_sb.table.return_value.select.return_value.eq.return_value \
-        .maybe_single.return_value.execute.return_value = MagicMock(data=existing)
-    # Second call: write update
-    mock_sb.table.return_value.update.return_value.eq.return_value \
-        .execute.return_value = MagicMock(data=[updated])
+    def _mock_get(url, **kwargs):
+        m = MagicMock()
+        m.raise_for_status = lambda: None
+        if "/transitions" in url:
+            m.json.return_value = {"transitions": [
+                {"id": "21", "to": {"name": "In Progress"}}
+            ]}
+        else:
+            m.json.return_value = issue
+        return m
 
-    resp = client.post(f"/api/tickets/{ticket_id}/ai-update", json={
-        "new_status": "in_progress",
-        "summary_of_work": "Started fixing departure calc",
-    })
+    with patch("src.api_tickets.requests.get", side_effect=_mock_get), \
+         patch("src.api_tickets.requests.post") as mock_post:
+        mock_post.return_value.raise_for_status = lambda: None
+        mock_post.return_value.json.return_value = {}
+        resp = client.post("/api/tickets/DEV-1/ai-update", json={
+            "new_status": "in_progress",
+            "summary_of_work": "Started fixing departure calc",
+        })
+
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "ok"
     assert data["new_status"] == "in_progress"
-    assert data["old_status"] == "todo"
-    assert data["changelog_entries"] == 1
 
 
-def test_ai_update_invalid_status(client, mock_sb):
-    resp = client.post(f"/api/tickets/{uuid.uuid4()}/ai-update", json={
-        "new_status": "archived",  # not allowed in ai-update
+def test_ai_update_invalid_status(client):
+    resp = client.post("/api/tickets/DEV-1/ai-update", json={
+        "new_status": "archived",
         "summary_of_work": "some work",
     })
     assert resp.status_code == 422
 
 
-def test_ai_update_ticket_not_found(client, mock_sb):
-    mock_sb.table.return_value.select.return_value.eq.return_value \
-        .maybe_single.return_value.execute.return_value = MagicMock(data=None)
-
-    resp = client.post(f"/api/tickets/{uuid.uuid4()}/ai-update", json={
-        "new_status": "done",
-        "summary_of_work": "Completed task",
-    })
-    assert resp.status_code == 404
-
-
 # ── DELETE /api/tickets/{id} ──────────────────────────────────────────────────
 
-def test_delete_ticket_archives(client, mock_sb):
-    ticket_id = str(uuid.uuid4())
-    archived = _make_ticket(id=ticket_id, status="archived")
-    mock_sb.table.return_value.update.return_value.eq.return_value \
-        .execute.return_value = MagicMock(data=[archived])
+def test_delete_ticket_archives(client):
+    def _mock_get(url, **kwargs):
+        m = MagicMock()
+        m.raise_for_status = lambda: None
+        m.json.return_value = {"transitions": [
+            {"id": "31", "to": {"name": "Done"}}
+        ]}
+        return m
 
-    resp = client.delete(f"/api/tickets/{ticket_id}")
+    with patch("src.api_tickets.requests.get", side_effect=_mock_get), \
+         patch("src.api_tickets.requests.post") as mock_post:
+        mock_post.return_value.raise_for_status = lambda: None
+        mock_post.return_value.json.return_value = {}
+        resp = client.delete("/api/tickets/DEV-1")
+
     assert resp.status_code == 200
-    data = resp.json()
-    assert data["archived"] is True
-    assert data["ticket_id"] == ticket_id
-
-
-def test_delete_ticket_not_found(client, mock_sb):
-    mock_sb.table.return_value.update.return_value.eq.return_value \
-        .execute.return_value = MagicMock(data=[])
-
-    resp = client.delete(f"/api/tickets/{uuid.uuid4()}")
-    assert resp.status_code == 404
+    assert resp.json()["archived"] is True

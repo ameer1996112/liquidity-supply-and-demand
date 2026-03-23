@@ -2,7 +2,7 @@
 created: 2026-03-23T17:16:20.551Z
 title: Fix the signal dashboard display bug
 area: frontend
-ticket_id: "a1a997b9-206a-4925-aecf-f2bdd8081eb0"
+ticket_id: ""
 files:
   - frontend/src/components/LatestSignals.tsx
 ---
