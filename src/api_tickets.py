@@ -108,6 +108,14 @@ def _jira_agile_post(path: str, body: Dict) -> Any:
     return r.json()
 
 
+def _jira_agile_put(path: str, body: Dict) -> Any:
+    """PUT to the Jira Agile REST API — used for updating sprint state."""
+    url = f"{_JIRA_AGILE_BASE}{path}"
+    r = requests.put(url, headers=_headers(), json=body, timeout=_TIMEOUT_READ)
+    r.raise_for_status()
+    return r.json()
+
+
 def _jira_post(path: str, body: Dict, timeout: int = None) -> Any:
     url = f"{_JIRA_BASE}/rest/api/3{path}"
     r = requests.post(url, headers=_headers(), json=body, timeout=timeout or _TIMEOUT_READ)
@@ -466,8 +474,21 @@ def start_sprint(body: SprintCreateRequest):
         created = _jira_agile_post("/sprint", sprint_payload)
         sprint_id = created["id"]
 
-        # Start it
-        _jira_agile_post(f"/sprint/{sprint_id}", {"state": "active"})
+        # Activate the sprint — Jira Agile requires PUT /sprint/{id} to change state
+        from datetime import datetime, timezone, timedelta
+        now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000+0000")
+        default_end = (datetime.now(timezone.utc) + timedelta(days=14)).strftime("%Y-%m-%dT%H:%M:%S.000+0000")
+        activate_payload: Dict[str, Any] = {
+            "state": "active",
+            "startDate": now_iso,
+            "endDate": body.end_date or default_end,
+        }
+        if body.goal:
+            activate_payload["goal"] = body.goal
+        try:
+            _jira_agile_put(f"/sprint/{sprint_id}", activate_payload)
+        except Exception as e:
+            logger.warning("Could not activate sprint %s: %s — it remains in 'future' state", sprint_id, e)
 
         # Invalidate cache
         global _sprint_cache
