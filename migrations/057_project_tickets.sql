@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS project_tickets (
     priority     TEXT        NOT NULL DEFAULT 'medium'
                              CHECK (priority IN ('low', 'medium', 'high', 'critical')),
     assignee     TEXT,
-    signal_id    INTEGER     REFERENCES trading_signals(id) ON DELETE SET NULL,
+    signal_id    INTEGER,
     ai_changelog JSONB       NOT NULL DEFAULT '[]'::jsonb,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
