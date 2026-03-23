@@ -72,9 +72,75 @@ shutdown() {
 
 trap shutdown SIGTERM SIGINT
 
-# 1. Handle Full Stack / Frontend
-if [ "$MODE" = "full" ] || [ "$MODE" = "fullstack" ] || [ "$MODE" = "both" ]; then
-    if [ "$MODE" != "both" ] || [ "${FULL_STACK:-0}" = "1" ]; then
+# 1. Idempotent full-stack mode — exits early so exec blocks below are NOT reached
+if [ "$MODE" = "fullstack" ]; then
+    LOG_DIR="$HOME/.tradeops/logs"
+    mkdir -p "$LOG_DIR"
+
+    # Redis
+    if redis-cli ping 2>/dev/null | grep -q PONG; then
+        echo "[start.sh] ✅ Redis already running"
+    else
+        redis-server --daemonize yes
+        echo "[start.sh] ✅ Redis started"
+    fi
+
+    # API
+    if lsof -ti:"$PORT" &>/dev/null; then
+        echo "[start.sh] ✅ API already running on port $PORT"
+    elif launchctl list 2>/dev/null | grep -q "com.tradeops.api"; then
+        echo "[start.sh] ✅ API managed by launchd (running)"
+    else
+        source .venv/bin/activate 2>/dev/null || true
+        python3 -m uvicorn src.api:app --host 0.0.0.0 --port "$PORT" --log-level info \
+            >> "$LOG_DIR/api.log" 2>&1 &
+        echo $! > /tmp/tradeops-api.pid
+        echo "[start.sh] ✅ API started (PID $(cat /tmp/tradeops-api.pid)) → logs: $LOG_DIR/api.log"
+    fi
+
+    # Worker
+    if pgrep -f "src.worker" &>/dev/null; then
+        echo "[start.sh] ✅ Worker already running"
+    elif launchctl list 2>/dev/null | grep -q "com.tradeops.worker"; then
+        echo "[start.sh] ✅ Worker managed by launchd (running)"
+    else
+        source .venv/bin/activate 2>/dev/null || true
+        python3 -m src.worker >> "$LOG_DIR/worker.log" 2>&1 &
+        echo $! > /tmp/tradeops-worker.pid
+        echo "[start.sh] ✅ Worker started (PID $(cat /tmp/tradeops-worker.pid)) → logs: $LOG_DIR/worker.log"
+    fi
+
+    # Jira app (port 3200)
+    if [ -d "$ROOT_DIR/jira" ] && [ -f "$ROOT_DIR/jira/package.json" ]; then
+        if lsof -ti:3200 &>/dev/null; then
+            echo "[start.sh] ✅ Jira app already running on port 3200"
+        else
+            (cd "$ROOT_DIR/jira" && PORT=3200 npm run dev >> "$LOG_DIR/jira.log" 2>&1) &
+            echo "[start.sh] ✅ Jira app started → logs: $LOG_DIR/jira.log"
+        fi
+    fi
+
+    # Main frontend (port 3000)
+    if [ -d "$ROOT_DIR/frontend" ] && [ -f "$ROOT_DIR/frontend/package.json" ]; then
+        if lsof -ti:3000 &>/dev/null; then
+            echo "[start.sh] ✅ Frontend already running on port 3000"
+        else
+            (cd "$ROOT_DIR/frontend" && npm run dev >> "$LOG_DIR/frontend.log" 2>&1) &
+            echo "[start.sh] ✅ Frontend started → logs: $LOG_DIR/frontend.log"
+        fi
+    fi
+
+    echo ""
+    echo "[start.sh] 🚀 Full stack running. Logs: $LOG_DIR/"
+    echo "           API:     http://localhost:$PORT/health"
+    echo "           Jira:    http://localhost:3200"
+    echo "           Persist: ./install-services.sh"
+    exit 0
+fi
+
+# 2. Handle legacy frontend startup (both/full modes — non-idempotent)
+if [ "$MODE" = "full" ] || [ "$MODE" = "both" ]; then
+    if [ "${FULL_STACK:-0}" = "1" ]; then
         if [ -d "$ROOT_DIR/frontend" ] && [ -f "$ROOT_DIR/frontend/package.json" ]; then
             FRONTEND_PORT="${FRONTEND_PORT:-3000}"
             echo "[start.sh] Starting Frontend (Next.js) on port $FRONTEND_PORT in background..."
@@ -85,7 +151,7 @@ if [ "$MODE" = "full" ] || [ "$MODE" = "fullstack" ] || [ "$MODE" = "both" ]; th
     fi
 fi
 
-# 2. Start Worker
+# 3. Start Worker (non-fullstack modes)
 if [ "$MODE" = "worker" ]; then
     echo "[start.sh] Starting Worker (Consumer) in FOREGROUND..."
     exec python3 -m src.worker
@@ -95,8 +161,8 @@ elif [ "$MODE" = "both" ]; then
     WORKER_PID=$!
 fi
 
-# 3. Start API
-if [ "$MODE" = "api" ] || [ "$MODE" = "both" ] || [ "$MODE" = "fullstack" ]; then
+# 4. Start API (non-fullstack modes — exec replaces this process)
+if [ "$MODE" = "api" ] || [ "$MODE" = "both" ]; then
     echo "[start.sh] Starting API (Producer) on port $PORT..."
     exec python3 -m uvicorn src.api:app \
       --host 0.0.0.0 \

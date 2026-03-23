@@ -168,6 +168,7 @@ def _maybe_autoclose_sprint() -> None:
     3. Clears the sprint cache so the new sprint is picked up
     """
     try:
+        global _sprint_cache  # must be declared before any read or write of this name
         sprint_id = _get_active_sprint_id()
         if sprint_id is None:
             return
@@ -194,7 +195,6 @@ def _maybe_autoclose_sprint() -> None:
 
         # Start a new sprint (auto-named Sprint N+1)
         sprint_name = _sprint_cache.get("name") or f"Sprint {sprint_id}"
-        # Extract number from name like "Sprint 2" → "Sprint 3"
         import re as _re
         match = _re.search(r"\d+", sprint_name)
         if match:
@@ -206,8 +206,7 @@ def _maybe_autoclose_sprint() -> None:
         _jira_agile_post(f"/sprint", {"name": new_name, "originBoardId": board_id})
         logger.info("Auto-created next sprint: %s", new_name)
 
-        # Clear sprint cache so next request picks up new sprint
-        global _sprint_cache
+        # Reset cache so next call picks up the new sprint
         _sprint_cache = {"id": None, "name": None, "ts": 0.0}
 
     except Exception as exc:
