@@ -484,6 +484,7 @@ def start_sprint(body: SprintCreateRequest):
 @router.post("/sprints/end")
 def end_sprint():
     """Complete (close) the active sprint. Open issues stay in the board."""
+    global _sprint_cache
     try:
         sprint_id = _get_active_sprint_id()
         if not sprint_id:
@@ -491,7 +492,6 @@ def end_sprint():
         sprint_name = _sprint_cache.get("name", "")
         _jira_agile_post(f"/sprint/{sprint_id}", {"state": "closed"})
         # Invalidate cache
-        global _sprint_cache
         _sprint_cache = {"id": None, "name": None, "ts": 0.0}
         return {"status": "ok", "closed_sprint_id": sprint_id, "name": sprint_name}
     except Exception as exc:
