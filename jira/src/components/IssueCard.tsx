@@ -12,6 +12,21 @@ const TYPE_ICONS = {
   task:    CheckSquare,
 } as const;
 
+function getSourceBadge(issue: Issue): { label: string; color: string } | null {
+  if (issue.title?.startsWith('Phase ') && issue.title?.includes(':')) {
+    return { label: 'GSD', color: '#a78bfa' };
+  }
+  if (issue.signal_id != null) {
+    return { label: 'SIG', color: '#38bdf8' };
+  }
+  return null;
+}
+
+function getAssigneeColor(name: string): string {
+  const colors = ['#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444', '#f97316'];
+  return colors[name.charCodeAt(0) % colors.length];
+}
+
 interface Props {
   issue: Issue;
   onClick: (issue: Issue) => void;
@@ -40,7 +55,7 @@ export function IssueCard({ issue, onClick }: Props) {
         isDragging && 'dragging shadow-2xl',
       )}
     >
-      {/* Top row: type icon + priority dot + ai badge */}
+      {/* Top row: type icon + source badge + priority dot + ai badge + assignee */}
       <div className="flex items-center justify-between">
         <div
           className="flex h-5 w-5 items-center justify-center rounded"
@@ -49,6 +64,18 @@ export function IssueCard({ issue, onClick }: Props) {
           <TypeIcon className="h-3 w-3" style={{ color: typeConfig.color }} />
         </div>
         <div className="flex items-center gap-1.5">
+          {/* Source badge */}
+          {(() => {
+            const src = getSourceBadge(issue);
+            return src ? (
+              <span
+                className="text-[8px] font-mono border rounded px-1"
+                style={{ color: src.color, borderColor: src.color + '40', background: src.color + '15' }}
+              >
+                {src.label}
+              </span>
+            ) : null;
+          })()}
           {(issue.ai_changelog?.length ?? 0) > 0 && (
             <span className="text-[8px] font-mono text-violet-400/70 border border-violet-500/20 rounded px-1">AI</span>
           )}
@@ -56,6 +83,16 @@ export function IssueCard({ issue, onClick }: Props) {
             className={cn('h-2 w-2 rounded-full', priorityConfig.dotClass)}
             title={priorityConfig.label}
           />
+          {/* Assignee avatar */}
+          {issue.assignee && (
+            <span
+              className="flex h-4 w-4 items-center justify-center rounded-full text-[7px] font-bold text-white"
+              style={{ background: getAssigneeColor(issue.assignee) }}
+              title={issue.assignee}
+            >
+              {issue.assignee.charAt(0).toUpperCase()}
+            </span>
+          )}
         </div>
       </div>
 

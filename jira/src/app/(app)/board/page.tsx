@@ -15,7 +15,7 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { Plus, RefreshCw } from 'lucide-react';
 import { cn, sprintDaysLeft } from '@/lib/utils';
 import { type Issue, type Sprint, STATUS_COLUMNS } from '@/lib/types';
-import { fetchIssues, fetchSprints, updateIssue, updateSprint, bulkUpdateIssues, createSprint } from '@/lib/supabase';
+import { fetchIssues, fetchSprints, updateIssue, updateSprint, bulkUpdateIssues, createSprint, getSupabase } from '@/lib/supabase';
 import { IssueCard } from '@/components/IssueCard';
 import { IssueDrawer } from '@/components/IssueDrawer';
 import { NewIssueModal } from '@/components/NewIssueModal';
@@ -51,6 +51,30 @@ export default function BoardPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // ── Realtime subscription ──────────────────────────────────────────────────
+  useEffect(() => {
+    const sb = getSupabase();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const channel = sb.channel('board-issues-realtime').on<any>(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'project_tickets' },
+      (payload) => {
+        const { eventType, new: next, old: prev } = payload;
+        if (eventType === 'INSERT') {
+          const added = next as unknown as Issue;
+          setIssues((all) => all.find((i) => i.id === added.id) ? all : [added, ...all]);
+        } else if (eventType === 'UPDATE') {
+          const updated = next as unknown as Issue;
+          setIssues((all) => all.map((i) => i.id === updated.id ? updated : i));
+        } else if (eventType === 'DELETE') {
+          const removed = prev as { id: string };
+          setIssues((all) => all.filter((i) => i.id !== removed.id));
+        }
+      }
+    ).subscribe();
+    return () => { sb.removeChannel(channel); };
+  }, []);
 
   // Filter issues by selected sprint
   const filteredIssues = issues.filter((i) => {
