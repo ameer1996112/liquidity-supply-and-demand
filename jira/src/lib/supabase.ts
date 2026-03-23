@@ -76,6 +76,11 @@ export async function updateIssue(id: string, payload: Record<string, unknown>) 
   return data;
 }
 
+export async function bulkUpdateIssues(ids: string[], payload: Record<string, unknown>) {
+  if (ids.length === 0) return;
+  await Promise.all(ids.map((id) => updateIssue(id, payload)));
+}
+
 export async function deleteIssue(id: string) {
   const sb = getSupabase();
   const { error } = await sb

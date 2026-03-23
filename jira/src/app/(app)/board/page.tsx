@@ -12,18 +12,19 @@ import {
   closestCorners,
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { Plus, RefreshCw, GitBranch, Zap } from 'lucide-react';
+import { Plus, RefreshCw } from 'lucide-react';
 import { cn, sprintDaysLeft } from '@/lib/utils';
 import { type Issue, type Sprint, STATUS_COLUMNS } from '@/lib/types';
-import { fetchIssues, fetchSprints, updateIssue } from '@/lib/supabase';
+import { fetchIssues, fetchSprints, updateIssue, updateSprint, bulkUpdateIssues, createSprint } from '@/lib/supabase';
 import { IssueCard } from '@/components/IssueCard';
 import { IssueDrawer } from '@/components/IssueDrawer';
 import { NewIssueModal } from '@/components/NewIssueModal';
+import { SprintTabs } from '@/components/SprintTabs';
 
 export default function BoardPage() {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [sprints, setSprints] = useState<Sprint[]>([]);
-  const [activeSprint, setActiveSprint] = useState<Sprint | null>(null);
+  const [selectedSprintId, setSelectedSprintId] = useState<number | 'backlog' | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeIssue, setActiveIssue] = useState<Issue | null>(null);
@@ -38,7 +39,12 @@ export default function BoardPage() {
       const [is, ss] = await Promise.all([fetchIssues(), fetchSprints()]);
       setIssues(is as Issue[]);
       setSprints(ss as Sprint[]);
-      setActiveSprint((ss as Sprint[]).find((s) => s.status === 'active') ?? null);
+      // Default to active sprint, or backlog if none
+      const active = (ss as Sprint[]).find((s) => s.status === 'active');
+      setSelectedSprintId((prev) => {
+        if (prev !== null) return prev; // keep user's selection on reload
+        return active ? active.id : 'backlog';
+      });
     } finally {
       setIsLoading(false);
     }
@@ -46,8 +52,28 @@ export default function BoardPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const byStatus = (status: string) =>
-    issues.filter((i) => i.status === status);
+  // Filter issues by selected sprint
+  const filteredIssues = issues.filter((i) => {
+    if (selectedSprintId === 'backlog') return i.sprint_id === null || i.sprint_id === undefined;
+    if (selectedSprintId === null) return true;
+    return i.sprint_id === selectedSprintId;
+  });
+
+  const byStatus = (status: string) => filteredIssues.filter((i) => i.status === status);
+
+  // Sprint progress for selected sprint
+  const activeSprint = sprints.find((s) => s.status === 'active') ?? null;
+  const selectedSprint = typeof selectedSprintId === 'number'
+    ? sprints.find((s) => s.id === selectedSprintId) ?? null
+    : null;
+  const displaySprint = selectedSprint;
+  const sprintIssues = typeof selectedSprintId === 'number'
+    ? issues.filter((i) => i.sprint_id === selectedSprintId)
+    : [];
+  const sprintDone = sprintIssues.filter((i) => i.status === 'done').length;
+  const sprintTotal = sprintIssues.length;
+  const sprintPct = sprintTotal > 0 ? Math.round((sprintDone / sprintTotal) * 100) : 0;
+  const daysLeft = displaySprint ? sprintDaysLeft(displaySprint.end_date) : null;
 
   const handleDragStart = (e: DragStartEvent) => {
     setActiveId(String(e.active.id));
@@ -63,12 +89,10 @@ export default function BoardPage() {
     if (!STATUS_COLUMNS.find((c) => c.key === newStatus)) return;
     const issue = issues.find((i) => i.id === active.id);
     if (!issue || issue.status === newStatus) return;
-    // Optimistic update
     setIssues((prev) => prev.map((i) => i.id === issue.id ? { ...i, status: newStatus as Issue['status'] } : i));
     try {
       await updateIssue(issue.id, { status: newStatus });
     } catch {
-      // Revert
       setIssues((prev) => prev.map((i) => i.id === issue.id ? { ...i, status: issue.status } : i));
     }
   };
@@ -82,7 +106,38 @@ export default function BoardPage() {
     setIssues((prev) => prev.filter((i) => i.id !== id));
   };
 
-  const daysLeft = activeSprint ? sprintDaysLeft(activeSprint.end_date) : null;
+  const handleCompleteSprint = async (sprint: Sprint) => {
+    // Find or create next planned sprint
+    let nextSprint = sprints.find((s) => s.status === 'planned');
+    if (!nextSprint) {
+      nextSprint = await createSprint({
+        name: 'Next Sprint',
+        status: 'planned',
+        goal: null,
+        start_date: null,
+        end_date: null,
+      }) as Sprint;
+      setSprints((prev) => [...prev, nextSprint!]);
+    }
+
+    // Move all incomplete tickets to next sprint
+    const incompleteIds = issues
+      .filter((i) => i.sprint_id === sprint.id && i.status !== 'done')
+      .map((i) => i.id);
+    await bulkUpdateIssues(incompleteIds, { sprint_id: nextSprint.id });
+
+    // Mark sprint complete
+    await updateSprint(sprint.id, { status: 'completed' });
+
+    // Reload everything
+    setSelectedSprintId(null); // reset so load() picks active/backlog default
+    await load();
+  };
+
+  const handleSprintCreated = (sprint: Sprint) => {
+    setSprints((prev) => [sprint, ...prev]);
+    setSelectedSprintId(sprint.id);
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -90,20 +145,26 @@ export default function BoardPage() {
       <header className="flex items-center justify-between border-b border-[#1f2335] px-6 py-3 shrink-0">
         <div className="flex items-center gap-3">
           <h1 className="text-[15px] font-bold font-mono text-[#e2e8f0]">Board</h1>
-          {activeSprint && (
-            <div className="flex items-center gap-2 rounded-md border border-[#1f2335] bg-[#1a1d28] px-3 py-1">
-              <GitBranch className="h-3 w-3 text-amber-400" />
-              <span className="text-[10px] font-mono text-[#94a3b8]">
-                {activeSprint.name}
+          {/* Sprint progress */}
+          {displaySprint && sprintTotal > 0 && (
+            <div className="flex items-center gap-2">
+              <div className="w-24 h-1.5 rounded-full bg-[#1a1d28] overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-500"
+                  style={{ width: `${sprintPct}%`, background: sprintPct === 100 ? '#10b981' : '#f59e0b' }}
+                />
+              </div>
+              <span className="text-[9px] font-mono text-[#475569]">
+                {sprintDone}/{sprintTotal}
+                {daysLeft !== null && (
+                  <span className={cn(
+                    'ml-1.5',
+                    daysLeft <= 2 ? 'text-rose-400' : daysLeft <= 5 ? 'text-amber-400' : 'text-emerald-400'
+                  )}>
+                    {daysLeft}d left
+                  </span>
+                )}
               </span>
-              {daysLeft !== null && (
-                <span className={cn(
-                  'text-[9px] font-mono font-bold',
-                  daysLeft <= 2 ? 'text-rose-400' : daysLeft <= 5 ? 'text-amber-400' : 'text-emerald-400'
-                )}>
-                  {daysLeft}d left
-                </span>
-              )}
             </div>
           )}
         </div>
@@ -124,6 +185,15 @@ export default function BoardPage() {
           </button>
         </div>
       </header>
+
+      {/* ── Sprint Tabs ── */}
+      <SprintTabs
+        sprints={sprints}
+        selectedId={selectedSprintId}
+        onSelect={setSelectedSprintId}
+        onCompleteSprint={handleCompleteSprint}
+        onSprintCreated={handleSprintCreated}
+      />
 
       {/* ── Kanban Columns ── */}
       <div className="flex-1 overflow-x-auto">

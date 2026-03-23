@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Plus, GitBranch, Play, CheckCircle, Clock, Target } from 'lucide-react';
+import { Plus, GitBranch, Play, CheckCircle, Clock, Target, Pencil } from 'lucide-react';
 import { cn, sprintDaysLeft } from '@/lib/utils';
 import { type Sprint, type Issue } from '@/lib/types';
-import { fetchSprints, fetchIssues, createSprint, updateSprint } from '@/lib/supabase';
+import { fetchSprints, fetchIssues, updateSprint, bulkUpdateIssues, createSprint } from '@/lib/supabase';
+import { NewSprintModal } from '@/components/NewSprintModal';
 
 const STATUS_CONFIG: Record<Sprint['status'], { label: string; icon: typeof Play; color: string }> = {
   planned:   { label: 'Planned',   icon: Clock,         color: '#475569' },
@@ -17,8 +18,7 @@ export default function SprintsPage() {
   const [issues, setIssues] = useState<Issue[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
-  const [newForm, setNewForm] = useState({ name: '', goal: '', start_date: '', end_date: '' });
-  const [isCreating, setIsCreating] = useState(false);
+  const [editingSprint, setEditingSprint] = useState<Sprint | null>(null);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -44,27 +44,7 @@ export default function SprintsPage() {
     return { total, done, totalPts, donePts, pct: total ? Math.round((done / total) * 100) : 0 };
   };
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsCreating(true);
-    try {
-      const sprint = await createSprint({
-        name: newForm.name,
-        goal: newForm.goal || null,
-        start_date: newForm.start_date || null,
-        end_date: newForm.end_date || null,
-        status: 'planned',
-      });
-      setSprints((prev) => [sprint as Sprint, ...prev]);
-      setShowNew(false);
-      setNewForm({ name: '', goal: '', start_date: '', end_date: '' });
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
   const handleActivate = async (sprint: Sprint) => {
-    // Deactivate any currently active sprint
     const active = sprints.find((s) => s.status === 'active');
     if (active) {
       await updateSprint(active.id, { status: 'planned' });
@@ -75,12 +55,34 @@ export default function SprintsPage() {
   };
 
   const handleComplete = async (sprint: Sprint) => {
-    const updated = await updateSprint(sprint.id, { status: 'completed' });
-    setSprints((prev) => prev.map((s) => s.id === sprint.id ? updated as Sprint : s));
+    // Find or create next planned sprint
+    let nextSprint = sprints.find((s) => s.status === 'planned');
+    if (!nextSprint) {
+      nextSprint = await createSprint({
+        name: 'Next Sprint',
+        status: 'planned',
+        goal: null,
+        start_date: null,
+        end_date: null,
+      }) as Sprint;
+    }
+    // Move incomplete tickets
+    const incompleteIds = issues
+      .filter((i) => i.sprint_id === sprint.id && i.status !== 'done')
+      .map((i) => i.id);
+    await bulkUpdateIssues(incompleteIds, { sprint_id: nextSprint.id });
+    await updateSprint(sprint.id, { status: 'completed' });
+    await load();
   };
 
-  const inputCls = 'w-full rounded border border-[#1f2335] bg-[#0d0f14] px-3 py-2 text-[12px] text-[#e2e8f0] placeholder:text-[#475569] outline-none focus:border-amber-500/30';
-  const labelCls = 'block text-[9px] font-mono uppercase tracking-widest text-[#475569] mb-1';
+  const handleSaved = (saved: Sprint) => {
+    setSprints((prev) => {
+      const exists = prev.find((s) => s.id === saved.id);
+      return exists
+        ? prev.map((s) => s.id === saved.id ? saved : s)
+        : [saved, ...prev];
+    });
+  };
 
   return (
     <div className="flex flex-col h-full">
@@ -127,6 +129,13 @@ export default function SprintsPage() {
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => setEditingSprint(sprint)}
+                      className="p-1.5 rounded text-[#475569] hover:text-[#94a3b8] hover:bg-[#1a1d28] transition-colors"
+                      title="Edit sprint"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
                     {sprint.status === 'planned' && (
                       <button onClick={() => handleActivate(sprint)} className="text-[10px] font-mono px-2.5 py-1 rounded border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 transition-colors">
                         Activate
@@ -171,41 +180,19 @@ export default function SprintsPage() {
         )}
       </div>
 
-      {/* New sprint form */}
       {showNew && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setShowNew(false)}>
-          <form
-            onSubmit={handleCreate}
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md rounded-xl border border-[#1f2335] bg-[#13161e] p-5 space-y-3 shadow-2xl"
-          >
-            <h2 className="text-[13px] font-bold font-mono text-[#e2e8f0]">New Sprint</h2>
-            <div>
-              <label className={labelCls}>Name *</label>
-              <input value={newForm.name} onChange={(e) => setNewForm((f) => ({ ...f, name: e.target.value }))} placeholder="Sprint 1" className={inputCls} required autoFocus />
-            </div>
-            <div>
-              <label className={labelCls}>Goal</label>
-              <input value={newForm.goal} onChange={(e) => setNewForm((f) => ({ ...f, goal: e.target.value }))} placeholder="Ship ticket tracking MVP" className={inputCls} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={labelCls}>Start date</label>
-                <input type="date" value={newForm.start_date} onChange={(e) => setNewForm((f) => ({ ...f, start_date: e.target.value }))} className={inputCls} />
-              </div>
-              <div>
-                <label className={labelCls}>End date</label>
-                <input type="date" value={newForm.end_date} onChange={(e) => setNewForm((f) => ({ ...f, end_date: e.target.value }))} className={inputCls} />
-              </div>
-            </div>
-            <div className="flex gap-2 pt-1">
-              <button type="button" onClick={() => setShowNew(false)} className="flex-1 py-2 rounded border border-[#1f2335] text-[11px] font-mono text-[#475569]">Cancel</button>
-              <button type="submit" disabled={isCreating || !newForm.name} className="flex-1 py-2 rounded border border-amber-500/40 bg-amber-500/10 text-[11px] font-mono font-semibold text-amber-400 disabled:opacity-50">
-                {isCreating ? 'Creating…' : 'Create'}
-              </button>
-            </div>
-          </form>
-        </div>
+        <NewSprintModal
+          onClose={() => setShowNew(false)}
+          onSaved={(sprint) => { handleSaved(sprint); setShowNew(false); }}
+        />
+      )}
+
+      {editingSprint && (
+        <NewSprintModal
+          sprint={editingSprint}
+          onClose={() => setEditingSprint(null)}
+          onSaved={(sprint) => { handleSaved(sprint); setEditingSprint(null); }}
+        />
       )}
     </div>
   );
