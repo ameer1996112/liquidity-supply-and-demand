@@ -82,6 +82,7 @@ from src.api_copilot import router as copilot_router           # AI Copilot: nat
 from src.api_market import router as market_router             # Market data proxy (Yahoo Finance CORS bypass)
 from src.api_funding import router as funding_router           # Funding: daily PnL and stats for prop firm UI
 from src.api_tickets import router as tickets_router           # Ticket tracker: Jira-style task/bug board
+from src.api_incidents import router as incidents_router       # Incident auto-tickets: worker errors, test failures, ML drift
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):  # noqa: ARG001
@@ -123,6 +124,7 @@ app.include_router(copilot_router)       # AI Copilot: /api/copilot/chat
 app.include_router(market_router)         # Market data proxy: /api/market/*
 app.include_router(funding_router)        # Funding: /api/v1/funding/daily-pnl, stats
 app.include_router(tickets_router)        # Ticket tracker: /api/tickets
+app.include_router(incidents_router)      # Incident auto-tickets: /api/incidents
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_build_cors_origins(),
