@@ -66,6 +66,8 @@ from src.api_admin import router as admin_router
 from src.api_positions import router as positions_router
 from src.api_alerts import router as alerts_router
 from src.api_analytics import router as analytics_router
+from src.api_analytics_signals_perf import router as analytics_signals_perf_router  # v1.1: ANALYTICS-01-03
+from src.api_health_trading import router as health_trading_router  # v1.1: HEALTH-01-03
 from src.api_evaluation import router as evaluation_router
 from src.api_execution import router as execution_router
 from src.api_portfolio import router as portfolio_router
@@ -108,6 +110,8 @@ app.include_router(admin_router)
 app.include_router(positions_router)
 app.include_router(alerts_router)
 app.include_router(analytics_router)
+app.include_router(analytics_signals_perf_router)  # v1.1 signals-perf
+app.include_router(health_trading_router)  # v1.1 trading health
 app.include_router(evaluation_router)
 app.include_router(execution_router)
 app.include_router(portfolio_router)

@@ -158,6 +158,65 @@ def _get_active_sprint_id() -> Optional[int]:
     return None
 
 
+def _maybe_autoclose_sprint() -> None:
+    """
+    Sprint auto-close hook (SPRINT-01): called when any ticket moves to 'done'.
+
+    Checks if all tickets in the active sprint are done. If so:
+    1. Closes the active sprint via Jira Agile API
+    2. Starts a new sprint (auto-named Sprint N+1)
+    3. Clears the sprint cache so the new sprint is picked up
+    """
+    try:
+        sprint_id = _get_active_sprint_id()
+        if sprint_id is None:
+            return
+
+        # Query Jira for open issues in this sprint
+        boards = _jira_agile_get("/board", {"projectKeyOrId": _JIRA_PROJECT})
+        board_list = boards.get("values", [])
+        if not board_list:
+            return
+        board_id = board_list[0]["id"]
+
+        open_issues = _jira_agile_get(
+            f"/board/{board_id}/sprint/{sprint_id}/issue",
+            {"jql": "statusCategory != Done", "maxResults": 1, "fields": "id"},
+        )
+        open_count = open_issues.get("total", 1)  # Default to 1 (not empty) if API fails
+
+        if open_count > 0:
+            return  # There are still open tickets — do nothing
+
+        # All done! Close the sprint.
+        logger.info("Sprint %s: all tickets done — auto-closing sprint", sprint_id)
+        _jira_agile_put(f"/sprint/{sprint_id}", {"state": "closed"})
+
+        # Start a new sprint (auto-named Sprint N+1)
+        sprint_name = _sprint_cache.get("name") or f"Sprint {sprint_id}"
+        # Extract number from name like "Sprint 2" → "Sprint 3"
+        import re as _re
+        match = _re.search(r"\d+", sprint_name)
+        if match:
+            next_num = int(match.group()) + 1
+            new_name = _re.sub(r"\d+", str(next_num), sprint_name, count=1)
+        else:
+            new_name = f"{sprint_name} (next)"
+
+        _jira_agile_post(f"/sprint", {"name": new_name, "originBoardId": board_id})
+        logger.info("Auto-created next sprint: %s", new_name)
+
+        # Clear sprint cache so next request picks up new sprint
+        global _sprint_cache
+        _sprint_cache = {"id": None, "name": None, "ts": 0.0}
+
+    except Exception as exc:
+        # Never crash the ticket update — log and continue silently
+        logger.warning("Sprint auto-close check failed (non-fatal): %s", exc)
+
+
+
+
 # ── ADF helpers ───────────────────────────────────────────────────────────────
 
 def _adf_heading(text: str, level: int = 2) -> Dict:
@@ -671,6 +730,11 @@ def patch_ticket(ticket_id: str, body: PatchTicketRequest):
             _jira_put(f"/issue/{ticket_id}", {"fields": fields_payload})
         if "status" in updates:
             _transition_issue(ticket_id, updates["status"])
+            # ── Sprint auto-close hook (SPRINT-01) ───────────────────────────────
+            # When a ticket moves to 'done', check if all sprint tickets are done.
+            # If so, close the active sprint and start a new one automatically.
+            if updates["status"] == "done":
+                _maybe_autoclose_sprint()
         issue = _jira_get(f"/issue/{ticket_id}", {
             "fields": f"summary,status,priority,labels,assignee,created,updated,description,story_points,customfield_10016,{_FIELD_SPRINT}"
         })
@@ -679,6 +743,7 @@ def patch_ticket(ticket_id: str, body: PatchTicketRequest):
         if exc.response is not None and exc.response.status_code == 404:
             raise HTTPException(status_code=404, detail="Ticket not found")
         raise HTTPException(status_code=502, detail=f"Jira error: {exc}")
+
 
 
 @router.post("/{ticket_id}/ai-update")
