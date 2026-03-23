@@ -1,49 +1,135 @@
-# Testing Patterns
+# TESTING.md — Test Structure & Practices
 
-The project utilizes automated testing for both backend and frontend, with dedicated configurations for local development and CI/CD pipelines.
+## Framework & Configuration
 
-## Backend Testing
+- **Backend**: `pytest` with `PYTHONPATH=/workspace`
+- **Frontend**: `vitest` v3
+- **Run backend**: `PYTHONPATH=/workspace pytest tests/ -v`
+- **Run frontend**: `cd frontend && npx vitest run`
+- **Backend lint**: `ruff check src/ config/ tests/`
+- **Frontend lint**: `cd frontend && npx eslint`
 
-### Framework
-`pytest` with `conftest.py` for global fixtures.
+## Test File Organization
 
-### Directory Structure
-All tests are located in the `tests/` directory at the project root.
+### Backend (`tests/`)
+```
+tests/
+├── conftest.py                   # Global fixtures (mocks Redis, sets env vars)
+├── test_e2e.py                   # End-to-end signal pipeline tests (21KB)
+├── test_pipeline.py              # Worker pipeline unit tests (11KB)
+├── test_pipeline_traces.py       # Pipeline trace/audit tests (19KB)
+├── test_worker_observers.py      # Observer pattern tests (17KB)
+├── test_sprint55_reliability.py  # Reliability/resilience tests (18KB)
+├── test_ai_brain.py              # AI ensemble tests (14KB)
+├── test_debate.py                # TradingCouncil debate tests (11KB)
+├── test_llm_client.py            # LLM client tests (11KB)
+├── test_account_routing.py       # Multi-account routing (20KB)
+├── test_signal_transport.py      # Redis/memory transport (9KB)
+├── test_consumer_validation.py   # Payload validation (7.7KB)
+├── test_api_tickets.py           # Ticket API integration (9.4KB)
+├── test_ai_mode_api.py           # AI mode API tests (4.6KB)
+├── test_backtests.py             # Backtest engine (15KB)
+├── test_prop_firm_phase1.py      # Prop firm compliance (3.6KB)
+├── test_graduation.py            # AI graduation/promotion (3.1KB)
+├── test_strategy_config.py       # Strategy config (3.8KB)
+├── test_reflection_memory.py     # Memory/reflection (6.4KB)
+├── test_sprint23_api_filters.py  # API filter endpoint tests (12KB)
+├── test_metaapi_auth.py          # MetaAPI auth (3.2KB)
+└── test_pnl_broker_fetch.py      # PnL fetch (trivially small)
+```
 
-### Organization
-- Files are named `test_*.py`
-- The `Makefile` categorizes tests into `unit`, `integration`, and `e2e` using pytest markers (`-m unit`, etc.)
+**Total**: 22 test files | 11 tests currently passing (full suite runs)
 
-### Fixtures and Mocking
-- **`conftest.py`**: Central configuration that sets up global fixtures, dummy environment variables, and mocks before tests run.
-- **Infrastructure Mocking**: Automatic fixture (`_mock_redis_client`) replaces the live Redis client with a mock for all backend tests unless explicitly overridden.
-- **Isolated Transport**: `SIGNAL_TRANSPORT` is set to `memory` by default in the test environment to prevent tests from hitting production-like queues.
-- **Unit Mocking**: Extensive use of `unittest.mock.MagicMock` to isolate the logic being tested from its dependencies.
+### Frontend (`frontend/`)
+- Tests live alongside components or in `__tests__/` subdirectories
+- **Vitest** + **jsdom** for React component testing
+- 1 pre-existing failure in `tradingMetrics.test.ts` (known issue)
 
-### How to Run
-- **All tests**: `PYTHONPATH=/workspace pytest tests/ -v`
-- **With Coverage**: `pytest tests --cov=src --cov-report=term-missing`
-- **By Suite**: `make test-unit`, `make test-integration`, or `make test-e2e`
+## conftest.py Patterns
 
-### Status
-- **11 tests, all pass** (as of last run)
+```python
+# tests/conftest.py — global setup before any src.* imports
+import os
+os.environ.setdefault("SUPABASE_URL", "http://dummy.supabase.test")
+os.environ.setdefault("REDIS_URL", "redis://localhost:6379")
+os.environ.setdefault("SIGNAL_TRANSPORT", "memory")  # in-memory queue for tests
+os.environ.setdefault("AI_API_KEY", "dummy-ai-key")
 
-## Frontend Testing
+# autouse fixture mocks Redis globally
+@pytest.fixture(autouse=True)
+def _mock_redis_client(monkeypatch):
+    mock_redis = MagicMock()
+    mock_redis.ping.return_value = True
+    # ... configure returns
+    monkeypatch.setattr(rq, "_redis", mock_redis)
+    yield mock_redis
+```
 
-### Framework
-`Vitest` with `jsdom` environment.
+Key patterns from conftest:
+- Dummy env vars set **before** any `src.*` imports (avoids ValidationError)
+- `SIGNAL_TRANSPORT=memory` — tests never touch real Redis
+- `SUPABASE_KEY=""` — Supabase init block skipped (guarded by `if key:`)
+- **autouse** Redis mock prevents all TCP connections in tests
 
-### Organization
-- **Co-location**: Tests are stored alongside the code they verify, using `*.test.tsx` or `*.test.ts` naming convention (e.g., `src/components/SignalInspector.test.tsx`).
+## Mocking Strategy
 
-### Mocking and Setup
-- **React Act**: Tests use the `act` utility from `react` for proper event and state update wrapping.
-- **Manual Mounting**: Tests often mount components into a real DOM node provided by `jsdom` and clean up after each test.
-- **Provider Wrappers**: Components are wrapped in necessary providers (like `QueryProvider`) during test setup to simulate the production application tree.
+### External Services
+- **Redis**: Mocked globally via `monkeypatch.setattr(rq, "_redis", MagicMock())`
+- **Supabase**: Tests needing DB must patch `src.adapters.supabase.SupabaseAdapter` directly
+- **MetaAPI**: `META_API_TOKEN=""` disables it; tests mock execution adapter
+- **LLM APIs**: `AI_API_KEY="dummy-ai-key"` — tests mock at `llm_client` level
 
-### How to Run
-- `cd frontend && npx vitest run`
+### Common Patterns
+```python
+# Mock get_settings() for specific test values
+from unittest.mock import patch
+with patch("config.settings.get_settings") as mock_settings:
+    mock_settings.return_value.ai_filter_enabled = False
+    ...
 
-### Known Gaps & Issues
-- **Pre-existing Failure**: There is a known pre-existing failure in `tradingMetrics.test.ts` that requires attention.
-- **Mock Coverage**: Some complex 3rd party components (charts, terminals) may be stubbed rather than fully integrated in tests.
+# Mock Supabase adapter
+with patch("src.adapters.supabase.SupabaseAdapter") as MockAdapter:
+    MockAdapter.return_value.get_signals.return_value = [...]
+    ...
+```
+
+## Test Categories
+
+| Category | Test Files | What's Tested |
+|---|---|---|
+| Pipeline | `test_pipeline.py`, `test_e2e.py` | Full signal flow, guard rails |
+| AI/ML | `test_ai_brain.py`, `test_debate.py`, `test_llm_client.py` | AI ensemble, debate, LLM client |
+| Worker | `test_worker_observers.py`, `test_sprint55_reliability.py` | Observer events, resilience |
+| Infra | `test_signal_transport.py`, `test_consumer_validation.py` | Transport, payload validation |
+| API | `test_api_tickets.py`, `test_ai_mode_api.py`, `test_sprint23_api_filters.py` | HTTP endpoints |
+| Domain | `test_account_routing.py`, `test_strategy_config.py` | Business logic |
+| Prop Firm | `test_prop_firm_phase1.py`, `test_graduation.py` | Compliance rules |
+| Data | `test_backtests.py`, `test_reflection_memory.py` | Backtest, memory |
+
+## Known Test State
+
+- **Backend**: 11 of 22+ test files pass; `PYTHONPATH=/workspace pytest tests/ -v` is the command
+- **Frontend**: 1 pre-existing failure in `tradingMetrics.test.ts` (metric calculation edge case)
+- **No CI pipeline**: Makefile references `docker-compose.test.yml` that doesn't exist; use local Redis directly
+- Test coverage is functional but not comprehensive — many services lack unit tests
+
+## Frontend Test Pattern (Vitest)
+
+```typescript
+// vitest.config.ts
+import { defineConfig } from "vitest/config";
+export default defineConfig({
+  test: { environment: "jsdom" }
+});
+
+// Component test pattern
+import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+
+describe("SignalCard", () => {
+  it("displays signal symbol", () => {
+    render(<SignalCard signal={mockSignal} />);
+    expect(screen.getByText("EURUSD")).toBeInTheDocument();
+  });
+});
+```
