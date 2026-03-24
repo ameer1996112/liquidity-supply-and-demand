@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: unknown
-last_updated: "2026-03-24T16:18:27.062Z"
+milestone: v1.1
+milestone_name: hosted-jira-integration
+status: not_started
+last_updated: "2026-03-24T18:32:00.000Z"
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 3
-  completed_plans: 3
+  total_phases: 2
+  completed_phases: 0
+  total_plans: 2
+  completed_plans: 0
 ---
 
 # Project State
@@ -18,14 +18,12 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-24)
 
 **Core value:** End-to-end automation of both trading execution (Flip/Directional Close mechanics) and the development lifecycle (autonomous Jira issue creation, branch management, coding, and smart commits).
-**Current focus:** Phase 1: Tooling & Setup
+**Current focus:** Planning v1.1 Next.js Kanban Dashboard.
 
 ---
-## Active Phase: 1
+## Current Position
 
-**Goal**: Build a robust local utility (Node.js/Python script) that leverages the Jira REST API and GitHub CLI to manage project boards.
-
-## Context
-- `config.json` preferences: YOLO mode, fine granularity, sequential execution, commit tracking enabled.
-- `.env` configured for `JIRA_API_TOKEN`, `JIRA_EMAIL`, `JIRA_DOMAIN`, and `GITHUB_TOKEN`.
-- The initial stub for `scripts/autonomous-jira-cli.js` exists.
+Phase: Not started (defining requirements)
+Plan: —
+Status: Ready to plan phase 4
+Last activity: 2026-03-24 — Milestone v1.1 started
