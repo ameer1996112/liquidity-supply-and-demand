@@ -101,7 +101,26 @@ async function transitionIssue(issueKey, statusId) {
   await callJiraAPI(`/issue/${issueKey}/transitions`, 'POST', {
     transition: { id: statusId }
   });
-  console.log(`Transitioned ${issueKey} to ${statusId}`);
+  console.log(`Transitioned ${issueKey} to transition ID ${statusId}`);
+}
+
+// Get transitions for issue
+async function getTransitions(issueKey) {
+  const result = await callJiraAPI(`/issue/${issueKey}/transitions`, 'GET');
+  return result ? result.transitions : [];
+}
+
+// Add comment to issue
+async function addComment(issueKey, text) {
+  const payload = {
+    body: {
+      type: "doc",
+      version: 1,
+      content: [{ type: "paragraph", content: [{ type: "text", text }] }]
+    }
+  };
+  await callJiraAPI(`/issue/${issueKey}/comment`, 'POST', payload);
+  console.log(`Added comment to ${issueKey}`);
 }
 
 // Create Issue
@@ -179,9 +198,52 @@ const command = process.argv[2];
       execSync(`git push -u origin ${branch}`, { stdio: 'inherit' });
       
       console.log('Creating GitHub Pull Request...');
-      execSync(`gh pr create --title "[${issueKey}] feat: ${summary}" --body "Automated PR from Autonomous Workflow"`, { stdio: 'inherit' });
+      // Extract URL from standard gh CLI output
+      const prOutput = execSync(`gh pr create --title "[${issueKey}] feat: ${summary}" --body "Automated PR from Autonomous Workflow"`).toString().trim();
+      const prUrlRows = prOutput.split('\n');
+      const prUrl = prUrlRows[prUrlRows.length - 1].trim(); // usually the last non-empty line
+      console.log(`Successfully created PR for ${issueKey}: ${prUrl}`);
       
-      console.log(`Successfully created PR for ${issueKey}`);
+      console.log('Syncing Jira Ticket...');
+      await addComment(issueKey, `Code has been implemented and pushed.\nGitHub Pull Request: ${prUrl}`);
+      
+      const transitions = await getTransitions(issueKey);
+      if (transitions && transitions.length > 0) {
+        // Look for typical PR flow transitions
+        const target = transitions.find(t => 
+           t.name.toLowerCase().includes('review') || 
+           t.name.toLowerCase() === 'done' || 
+           t.name.toLowerCase() === 'closed'
+        );
+        if (target) {
+            await transitionIssue(issueKey, target.id);
+        }
+      }
+      
+    } else if (command === 'sync-pr') {
+      const [issueKey, prUrl] = process.argv.slice(3);
+      if (!issueKey || !prUrl) {
+          console.log('Usage: node autonomous-jira-cli.js sync-pr "<issue-key>" "<pr-url>"'); 
+          process.exit(1);
+      }
+      console.log(`Syncing PR ${prUrl} to Jira ${issueKey}...`);
+      await addComment(issueKey, `Review attached GitHub Pull Request: ${prUrl}`);
+      
+      const transitions = await getTransitions(issueKey);
+      if (transitions && transitions.length > 0) {
+        const target = transitions.find(t => 
+           t.name.toLowerCase().includes('review') || 
+           t.name.toLowerCase() === 'done' || 
+           t.name.toLowerCase() === 'closed'
+        );
+        if (target) {
+            await transitionIssue(issueKey, target.id);
+        } else {
+            console.log("No valid 'In Review' or 'Done' transition path found currently for this ticket state.");
+        }
+      }
+      
+      console.log(`Successfully synced PR to Jira issue ${issueKey}`);
     } else {
       console.log('Usage:');
       console.log('  node scripts/autonomous-jira-cli.js start-feature "<title>" "<desc>" "Story"');
