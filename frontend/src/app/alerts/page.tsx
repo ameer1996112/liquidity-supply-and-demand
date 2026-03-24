@@ -175,7 +175,7 @@ export default function AlertsPage() {
       : alerts.filter((a) => String(a.severity).toLowerCase() === filter);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 animate-fade-in-up">
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -183,10 +183,10 @@ export default function AlertsPage() {
             <Bell className="h-4 w-4 text-amber-400" />
           </div>
           <div>
-            <h1 className="font-mono text-lg font-bold text-[var(--to-text-primary)] tracking-tight">
+            <h1 className="page-title text-lg font-semibold">
               Alerts
             </h1>
-            <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--to-text-dim)]">
+            <p className="page-subtitle mt-0.5 text-xs">
               Monitoring · Active alerts &amp; dead letters
             </p>
           </div>
