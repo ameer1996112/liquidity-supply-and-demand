@@ -121,8 +121,10 @@ const SignalRowMemo = memo(function SignalRow({
     <div
       onClick={() => onOpenDetails(signal)}
       className={cn(
-        'group flex cursor-pointer items-center gap-3 border-b border-[var(--to-border)]/60 px-3 py-3.5 transition-colors data-row',
-        isActive && 'border-l-2 border-l-indigo-500',
+        'group flex cursor-pointer items-center gap-3 border-b border-[var(--to-border)]/60 px-3 py-3.5 transition-colors data-row animate-slide-in-right',
+        isBuy
+          ? 'border-l-2 border-l-[var(--to-long)]'
+          : 'border-l-2 border-l-[var(--to-short)]',
         isReviewed && 'opacity-70',
       )}
     >
