@@ -159,7 +159,7 @@ export function StatCard({
       {/* Value — animated if numericValue provided */}
       <p
         className={cn(
-          hero ? 'text-[2rem]' : 'text-[1.15rem]',
+          hero ? 'text-[1.5rem] md:text-[2rem]' : 'text-[1.15rem]',
           'font-bold tabular-nums leading-none',
           cfg.valueClass
         )}
