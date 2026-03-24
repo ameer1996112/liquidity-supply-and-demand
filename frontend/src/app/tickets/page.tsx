@@ -225,7 +225,21 @@ function KanbanColumn({
 
 // ── TicketDrawer ──────────────────────────────────────────────────────────────
 
-function TicketDrawer({ ticket, onClose }: { ticket: Ticket; onClose: () => void }) {
+const STATUS_META: Record<TicketStatus, { label: string; color: string; bg: string }> = {
+  todo:        { label: 'Todo',        color: 'text-[var(--to-text-dim)]',    bg: 'bg-[var(--to-surface-raised)]' },
+  in_progress: { label: 'In Progress', color: 'text-[var(--to-warning)]',     bg: 'bg-[var(--to-warning)]/10' },
+  done:        { label: 'Done',        color: 'text-[var(--to-long)]',        bg: 'bg-[var(--to-long)]/10' },
+};
+
+function TicketDrawer({
+  ticket,
+  onClose,
+  onStatusChange,
+}: {
+  ticket: Ticket;
+  onClose: () => void;
+  onStatusChange: (id: string, status: TicketStatus) => void;
+}) {
   const type = TYPE_META[ticket.type];
   const priority = PRIORITY_META[ticket.priority];
   const TypeIcon = type.icon;
@@ -274,9 +288,20 @@ function TicketDrawer({ ticket, onClose }: { ticket: Ticket; onClose: () => void
           <div className="grid grid-cols-2 gap-3 text-[11px] font-mono">
             <div className="rounded-lg border border-[var(--to-border)] bg-[var(--to-surface)] px-3 py-2">
               <p className="text-[9px] uppercase tracking-widest text-[var(--to-text-dim)] mb-0.5">Status</p>
-              <p className="capitalize text-[var(--to-text-primary)] font-semibold">
-                {ticket.status.replace('_', ' ')}
-              </p>
+              <select
+                value={ticket.status}
+                onChange={(e) => onStatusChange(ticket.id, e.target.value as TicketStatus)}
+                className={cn(
+                  'w-full rounded border border-[var(--to-border)] bg-[var(--to-surface)]',
+                  'font-mono text-[11px] font-semibold capitalize px-2 py-1',
+                  'focus:outline-none cursor-pointer transition-colors',
+                  STATUS_META[ticket.status].color,
+                )}
+              >
+                <option value="todo">Todo</option>
+                <option value="in_progress">In Progress</option>
+                <option value="done">Done</option>
+              </select>
             </div>
             <div className="rounded-lg border border-[var(--to-border)] bg-[var(--to-surface)] px-3 py-2">
               <p className="text-[9px] uppercase tracking-widest text-[var(--to-text-dim)] mb-0.5">Created</p>
@@ -327,34 +352,43 @@ function TicketDrawer({ ticket, onClose }: { ticket: Ticket; onClose: () => void
                 </p>
               </div>
             ) : (
-              <div className="space-y-2">
-                {[...ticket.ai_changelog].reverse().map((entry, i) => (
-                  <div
-                    key={i}
-                    className="rounded-lg border border-[var(--to-border)] bg-[var(--to-surface)] px-3 py-2.5 space-y-1.5"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <Bot className="h-3 w-3 text-violet-400" />
-                        <span className="font-mono text-[10px] font-semibold text-violet-400">
-                          {entry.agent}
-                        </span>
-                        <span className="font-mono text-[9px] text-[var(--to-text-dim)]">
-                          {entry.old_status} → {entry.new_status}
-                        </span>
+              <div className="relative pl-4">
+                {/* vertical line */}
+                <div className="absolute left-[7px] top-2 bottom-2 w-px bg-[var(--to-border)]" />
+                <div className="space-y-4">
+                  {[...ticket.ai_changelog].reverse().map((entry, i) => {
+                    const oldS = STATUS_META[entry.old_status as TicketStatus];
+                    const newS = STATUS_META[entry.new_status as TicketStatus];
+                    return (
+                      <div key={i} className="relative flex gap-3">
+                        {/* dot */}
+                        <div className="absolute -left-4 top-1 h-3.5 w-3.5 rounded-full border border-violet-500/40 bg-violet-500/15 flex items-center justify-center shrink-0">
+                          <Bot className="h-2 w-2 text-violet-400" />
+                        </div>
+                        <div className="space-y-1 min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-mono text-[10px] font-semibold text-violet-400">{entry.agent}</span>
+                            {/* status transition pills */}
+                            <span className={cn('rounded-full px-1.5 py-0.5 font-mono text-[9px] font-bold', oldS?.bg, oldS?.color)}>
+                              {entry.old_status.replace('_', ' ')}
+                            </span>
+                            <span className="text-[var(--to-text-dim)] text-[9px]">→</span>
+                            <span className={cn('rounded-full px-1.5 py-0.5 font-mono text-[9px] font-bold', newS?.bg, newS?.color)}>
+                              {entry.new_status.replace('_', ' ')}
+                            </span>
+                            <span className="ml-auto font-mono text-[9px] text-[var(--to-text-dim)] flex items-center gap-0.5">
+                              <Clock className="h-2.5 w-2.5" />
+                              {relativeTime(entry.timestamp)}
+                            </span>
+                          </div>
+                          <p className="font-sans text-[11px] text-[var(--to-text-secondary)] leading-relaxed">
+                            {entry.summary}
+                          </p>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1 text-[var(--to-text-dim)]">
-                        <Clock className="h-2.5 w-2.5" />
-                        <span className="font-mono text-[9px]">
-                          {relativeTime(entry.timestamp)}
-                        </span>
-                      </div>
-                    </div>
-                    <p className="font-sans text-[11px] text-[var(--to-text-secondary)] leading-relaxed">
-                      {entry.summary}
-                    </p>
-                  </div>
-                ))}
+                    );
+                  })}
+                </div>
               </div>
             )}
           </section>
@@ -585,6 +619,24 @@ export default function TicketsPage() {
     }
   }, [draggingId, tickets, setTickets]);
 
+  const handleStatusChange = useCallback(async (id: string, newStatus: TicketStatus) => {
+    const ticket = tickets.find((t) => t.id === id);
+    if (!ticket || ticket.status === newStatus) return;
+    // Optimistic update (also update activeTicket so dropdown reflects change)
+    setTickets((prev) => prev.map((t) => t.id === id ? { ...t, status: newStatus } : t));
+    setActiveTicket((prev) => prev?.id === id ? { ...prev, status: newStatus } : prev);
+    try {
+      await window.fetch(`${API_BASE}/api/tickets/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+    } catch {
+      setTickets((prev) => prev.map((t) => t.id === id ? { ...t, status: ticket.status } : t));
+      setActiveTicket((prev) => prev?.id === id ? { ...prev, status: ticket.status } : prev);
+    }
+  }, [tickets, setTickets]);
+
   const byStatus = (status: TicketStatus) =>
     tickets.filter((t) => t.status === status);
 
@@ -660,7 +712,11 @@ export default function TicketsPage() {
 
       {/* ── Drawer ── */}
       {activeTicket && (
-        <TicketDrawer ticket={activeTicket} onClose={() => setActiveTicket(null)} />
+        <TicketDrawer
+          ticket={activeTicket}
+          onClose={() => setActiveTicket(null)}
+          onStatusChange={handleStatusChange}
+        />
       )}
 
       {/* ── New ticket modal ── */}
