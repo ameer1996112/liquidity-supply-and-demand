@@ -1,106 +1,107 @@
-# INTEGRATIONS.md — External Services & APIs
+# INTEGRATIONS.md — External Integrations
 
-## Databases
+## Signal Source
+- **TradingView** — webhook sender
+  - Entry point: `POST /webhook` (protected by `WEBHOOK_SECRET`)
+  - `POST /webhook/test` — dry-run mode (schema validation + guard rail simulation, no execution)
+  - Payload: `{symbol, side, entry, sl, tp, size, bar_time, zone_id, rr_ratio, event_type, run_mode}`
+  - JSON sanitization handles TradingView's unquoted `{{time}}` template values
 
-### Supabase (PostgreSQL)
-- **Python client**: `src/adapters/supabase.py` (41KB — primary data access layer)
-- **Frontend client**: `@supabase/supabase-js` — realtime subscriptions + REST queries
-- **Config**: `SUPABASE_URL` (required), `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
-- **Migration files**: `migrations/` — 57+ numbered SQL files (`001_*.sql` → `058_jira_upgrade.sql`)
-- **Key tables**: `signals`, `trades`, `positions`, `accounts`, `ai_runs`, `alerts`, `backtest_results`, `project_tickets`
-- **Realtime**: Frontend uses Supabase realtime channels for live signal feed updates
+---
 
-## Broker / Trading APIs
+## Broker / Execution
 
 ### MetaAPI (MT5 over HTTP)
-- **Python adapter**: `src/adapters/execution/` (MetaAPI execution layer)
+- **Purpose**: Live order placement, positions, account info
 - **Config**: `META_API_TOKEN`, `META_API_ACCOUNT_ID`, `META_API_REGION` (default: `new-york`)
-- **Multi-account**: `BROKER_PROFILES_JSON` — JSON array of broker profiles for Package A (one-signal-many-accounts)
-- **Execution modes**: `SHADOW` (log-only) | `METAAPI` (live broker)
-- **Caching**: `src/services/redis_cache.py` + `account_cache_ttl_seconds` setting to throttle MetaAPI calls
-- **Account sync**: Background sync service with `account_sync_interval_seconds` (default: 60s)
+- **Adapter**: `src/adapters/execution/` + `src/adapters/metaapi.py`
+- **Execution mode**: `EXECUTION_MODE=METAAPI` (vs `SHADOW`)
+- **Caching**: 30s TTL via Redis to limit MetaAPI polling frequency (bug: previously polled too frequently — fixed)
+- **Paper trading**: `src/adapters/paper_trader.py` — simulated execution, no real orders
 
-### Paper Trader
-- **Module**: `src/adapters/paper_trader.py` (11KB)
-- **Config**: `PAPER_TRADING_ENABLED`, `PAPER_AUTO_EXECUTE`, `PAPER_SYMBOLS`, `PAPER_ACCOUNT_BALANCE`
-- Simulates fills without broker API; persists results to Supabase
+---
 
-### TradingView (Webhooks — Inbound)
-- **Endpoint**: `POST /webhook` on FastAPI
-- **Payload**: `{ symbol, side, entry, sl, tp, size, ...pine_metadata }`
-- **Auth**: Optional `WEBHOOK_SECRET` header check
-- **Flow**: Webhook → Redis queue → Worker → AI/ML guardrails → execution
+## Database
 
-## Message Queue
+### Supabase (PostgreSQL)
+- **Main adapter**: `src/adapters/supabase.py` (41KB — largest adapter)
+- **Frontend direct**: `@supabase/supabase-js` for real-time subscriptions
+- **Auth keys**: `SUPABASE_ANON_KEY` (frontend) / `SUPABASE_SERVICE_ROLE_KEY` (backend)
+- **Key tables** (inferred from code):
+  - `trading_signals` — signal lifecycle (received → queued → executed → closed)
+  - `ai_runs` — debate/LLM decisions per signal
+  - `ai_mode_toggles` — shadow/enforce mode audit log
+  - `trades` — executed trade records
+  - `alerts` — risk and operational alerts
+  - `accounts` — broker account metadata
+  - `strategy_configs` — strategy-as-data configuration
+  - `incidents` — auto-created from worker errors / ML drift
+  - `tickets` — Jira-proxy task/bug board
+- **Background sync**: `src/services/background_sync_worker.py` — polls MetaAPI on interval, writes to Supabase
 
-### Redis
-- **Adapter**: `src/adapters/redis_queue.py` (3.7KB)
-- **Config**: `REDIS_URL` (required; checked on API startup)
-- **Transport**: `SIGNAL_TRANSPORT=redis` (production) | `memory` (tests)
-- Queue name: `trading:signals`; workers use BLPOP blocking pop
+---
 
 ## AI / LLM Providers
 
-### Multi-Provider LLM Client (`src/ai/llm_client.py`)
-- **Unified client** switching between: `anthropic` | `openai` | `gemini` | `local`
-- **Config**: `AI_PROVIDER`, `AI_API_KEY` (aliases: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`)
-- **Models**: `AI_QUICK_MODEL` (default: `llama-3.1-8b-instant`) + `AI_DEEP_MODEL` (default: `llama-3.3-70b-versatile`)
-- **Fallback**: `LLM_MODEL_FALLBACK` used when primary returns 404
+### OpenAI / Groq (via OpenAI-compatible API)
+- **Client**: `src/ai/llm_client.py` — unified wrapper
+- **Config**: `AI_PROVIDER=openai`, `AI_API_KEY`, `AI_BASE_URL` (empty = provider default, set for Groq)
+- **Default model**: `llama-3.3-70b-versatile` (Groq-hosted)
+- **Quick model**: `llama-3.1-8b-instant` — first-tier fast call
+- **Deep model**: `llama-3.3-70b-versatile` — second-tier escalation
 
-### AI Guardrails Stack
-1. **AI Guardian** (`src/ai/ai_guardian.py`) — LLM-based signal validation
-2. **ML Guardian** (`src/ai/ml_guardian.py`) — LightGBM win-probability model
-3. **Trading Council** (`src/ai/trading_council.py`) — Multi-agent Bull/Bear/Risk/Chair debate
-4. **Debate Engine** (`src/ai/debate.py`) — Structured debate orchestration
-5. **Brain** (`src/ai/brain.py`, 59KB) — Ensemble orchestrator
-6. **RAG Engine** (`src/ai/rag_engine.py`) — BM25 + LangChain retrieval for context
+### Anthropic (Claude)
+- **Config**: `AI_PROVIDER=anthropic`, `AI_API_KEY`
+- **Client**: same unified `src/ai/llm_client.py`
 
-### Modes
-- `AI_MODE=shadow` — log decisions only, never block
-- `AI_MODE=enforce` — LLM NO_GO blocks execution
-- `AI_SHADOW_MODE=true` — AI runs but never blocks (calibration)
-- `AI_DEBATE_ENABLED=true` — Bull/Bear debate persisted to `ai_runs` table
+### Gemini (Google)
+- **Config**: `AI_PROVIDER=gemini`
+
+---
 
 ## Notifications
 
 ### Discord
-- **Adapter**: `src/adapters/discord.py` (27KB)
-- **Config**: `DISCORD_WEBHOOK_URL` (signals), `DISCORD_ALERTS_WEBHOOK_URL` (operational alerts), `DISCORD_BOT_TOKEN` (optional, enables thread-per-trade)
-- **Features**: Thread creation per trade, rich embeds with SL/TP/size, late fill alerts, order notifications
+- **Adapter**: `src/adapters/discord.py` (27KB — complex formatting with trade embeds)
+- **Config**: `DISCORD_WEBHOOK_URL` — main channel
+- `DISCORD_ALERTS_WEBHOOK_URL` — separate operational alerts channel
+- `DISCORD_BOT_TOKEN` — enables thread-per-trade (message threads)
+- **Content**: Trade notifications, late fills, watchdog alerts, MTM events
 
 ### Telegram
-- **Config**: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
-- Sends signal notifications via Telegram bot API
+- **Config**: `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`
+- Lightweight text messages for critical alerts
+
+---
 
 ## Market Data
 
 ### Yahoo Finance (`yfinance`)
-- Used for historical data in ML feature engineering and backtesting
+- **Used for**: Historical prices for backtesting, ML feature prep
+- **CORS proxy**: `src/api_market.py` (`GET /api/market/*`) — frontend passes requests through backend to avoid CORS
 
 ### Market Data Adapter
-- `src/adapters/market_data.py` (9.5KB) — aggregates market data from multiple sources
+- `src/adapters/market_data.py` — live price quotes for spread gate validation
 
-## Project Management
+---
 
-### Jira (Real Jira API Proxy)
-- **Backend**: `src/api_tickets.py` (22KB) — proxies to Jira REST API v3
-- **Frontend app**: `jira/` — standalone Next.js 14 app with Supabase-backed ticket storage
-- **Config**: `JIRA_BASE_URL`, `JIRA_API_TOKEN`, `JIRA_USER_EMAIL`, `JIRA_PROJECT_KEY`
-- **Tables**: `project_tickets` (Supabase) — local ticket mirror
+## Jira (External Project Management)
+- **Proxy**: `src/api_tickets.py` (39KB) — forwards requests to Jira REST API
+- **Auth**: `JIRA_BASE_URL`, `JIRA_PROJECT_KEY`, `JIRA_API_TOKEN`, `JIRA_EMAIL`
+- **Usage**: AI skills auto-create/update tickets for phases and todos
+- **Frontend**: Standalone Jira Next.js app at `/jira/`
 
-## Infrastructure / Deployment
+---
 
-### Railway
-- `railway.json` — service configuration for Railway cloud deployment
-- `nixpacks.toml` / `nixpacks.worker.toml` — build configs for API and Worker services
+## Redis (Internal Queue)
+- **Transport**: `src/adapters/redis_queue.py` — LPUSH/BRPOP pattern
+- **Pub/Sub**: `trading:debate_logs` — real-time WebSocket stream to frontend AI Terminal (`/ws/debate`)
+- **Caching**: `src/services/redis_cache.py` — TTL-based cache for MetaAPI responses
 
-### Docker
-- `Dockerfile` — main container
-- `Dockerfile.api` — API service container
-- `Dockerfile.worker` — Worker service container
-- `docker-compose.yml` — local multi-service orchestration
+---
 
-## TradingView Pine Script
-- Strategy files in `data/` — Pine Script v5 strategy + library files
-- Send webhook payloads to backend `/webhook` endpoint on signal
-- `SND_Core.pine` — Supply & Demand core library with scoring functions
+## Railway (Deployment Platform)
+- `railway.json` — service definition
+- `nixpacks.toml` / `nixpacks.worker.toml` — build config for api and worker services
+- CORS: `CORS_ORIGIN_REGEX` defaults to `https://.*\.up\.railway\.app`
+- Production frontend URL: `https://frontend-production-a7cf.up.railway.app`

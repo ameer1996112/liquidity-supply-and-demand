@@ -1,163 +1,173 @@
 # ARCHITECTURE.md — System Architecture
 
-## Architectural Pattern
+## Pattern
+**Event-driven pipeline** with a TradingView → API → Redis Queue → Worker → Broker flow. The API is stateless (no business logic); all intelligence runs in the Worker.
 
-**Event-Driven Microservices with Guard Rail Pipeline**
+The system follows a layered DDD-inspired architecture with clear separation between:
+- **Adapters** (external I/O)
+- **Core** (domain logic, guard rails)
+- **Services** (orchestration & business logic)
+- **AI layer** (ML + LLM decision making)
 
-The system follows a three-tier signal processing pipeline:
-1. **Ingestion** — TradingView webhook → FastAPI validates → Redis queue
-2. **Processing** — Worker consumes Redis queue → multi-layer AI/ML guardrails → broker execution
-3. **Presentation** — Next.js dashboard subscribes to Supabase realtime for live updates
+---
 
-## Core Services
-
-### 1. Backend API (`src/api.py` — 36KB)
-- **Entry point**: FastAPI application
-- **Role**: Webhook receiver + REST API for frontend
-- **Port**: 8000
-- **Key router modules** (each prefix-mounted):
-  - `src/api_positions.py` — open positions management
-  - `src/api_analytics.py` — PnL analytics, metrics
-  - `src/api_risk.py` / `src/api_risk_monitor.py` — risk exposure
-  - `src/api_portfolio.py` / `src/api_portfolio_control.py` (83KB) — portfolio management
-  - `src/api_alerts.py` — alert configuration and history
-  - `src/api_tickets.py` — Jira proxy + local ticket management
-  - `src/api_copilot.py` — AI copilot / LLM queries
-  - `src/api_ai_runs.py` — AI decision log
-  - `src/api_backtests.py` — backtest execution
-  - `src/api_execution.py` — manual order execution
-  - `src/api_trades.py` — trade history
-
-### 2. Worker (`src/worker.py` — 85KB)
-- **Entry point**: `python -m src.worker`
-- **Role**: Signal consumer + execution orchestrator
-- **Pattern**: Blocking Redis pop (`BLPOP`) loop
-- **Pipeline stages** (in order):
-  1. Dequeue signal from Redis
-  2. Validate with `ConsumerValidator`
-  3. Apply Pine-matching pre-filters (`PineGuardian`)
-  4. Staleness guard (reject stale signals)
-  5. AI Guardian (LLM validation)
-  6. ML Guardian (LightGBM win probability)
-  7. Trinity Engine (position/drawdown limits)
-  8. Market filter (news, session timing)
-  9. Correlation + VaR guards
-  10. Risk Engine (position sizing)
-  11. Execute (MetaAPI / Paper / Shadow)
-  12. Notify (Discord + Telegram)
-  13. Persist to Supabase
-
-### 3. Frontend (`frontend/` — Next.js 16)
-- **Entry point**: `frontend/src/app/layout.tsx`
-- **Port**: 3000
-- **Pattern**: App Router (React Server + Client Components)
-- **Pages**:
-  - `/` — Main dashboard (signals feed, account summary)
-  - `/positions` — Open positions
-  - `/analytics` — PnL charts and metrics
-  - `/risk` — Risk exposure
-  - `/accounts` — Multi-account management
-  - `/alerts` — Alert configuration
-  - `/backtest` — Strategy backtesting UI
-  - `/tickets` — Jira-like project board
-  - `/strategies`, `/scanner`, `/journal`, etc.
-
-## Data Flow
+## Service Architecture
 
 ```
-TradingView Pine Script
-       │ POST /webhook
-       ▼
-FastAPI API (port 8000)
-  ├── Validates payload
-  ├── Checks WEBHOOK_SECRET
-  └── LPUSH → Redis queue
-              │
-              ▼
-        Worker (BLPOP)
-  ├── ConsumerValidator
-  ├── PineGuardian (pre-filter)
-  ├── StalenessGuard
-  ├── AI Guardian (LLM)
-  ├── ML Guardian (LightGBM)
-  ├── Trinity Engine (risk limits)
-  ├── MarketFilter (news/session)
-  ├── CorrelationGuard + VaR
-  ├── RiskEngine (position sizing)
-  ├── Execute → MetaAPI / Paper
-  ├── Discord + Telegram notify
-  └── Persist → Supabase
-              │
-              ▼
-        Supabase (PostgreSQL)
-              │ realtime
-              ▼
-     Next.js Frontend (port 3000)
+[TradingView]
+     │ POST /webhook
+     ▼
+[FastAPI API — src/api.py]  ←── CORS, rate limiting, auth
+     │ validate + enqueue
+     ▼
+[Redis Queue — signal:{account_id}]
+     │ BRPOP
+     ▼
+[Worker — src/worker.py]
+     │
+     ├── Guard Rails (src/core/guard_rails/)
+     │     ├── StalenessGuard     → reject delayed signals
+     │     ├── MarketFilter       → session hours, news filter
+     │     ├── PineGuardian       → Pine Script rule mirror (score, grade, RR, adaptive limits)
+     │     ├── CorrelationGuard   → cross-pair correlation matrix
+     │     ├── PortfolioVarGuard  → portfolio Value-at-Risk limit
+     │     ├── SectorGuard        → sector exposure limits
+     │     └── PropGuard          → prop firm phase rules
+     │
+     ├── AI/ML Layer (src/ai/)
+     │     ├── MLGuardian         → Random Forest / LightGBM win probability gate
+     │     ├── AIGuardian         → LLM-based signal quality check (shadow or enforce)
+     │     ├── TradingCouncil     → Bull/Bear/Risk/Chair multi-agent debate (shadow)
+     │     └── EnsembleBrain      → orchestrates ML + LLM + Council
+     │
+     ├── Risk Engine (src/core/risk_engine.py)
+     │     ├── Trinity Engine     → daily loss/drawdown/position count limits
+     │     ├── Dynamic risk scaling → drawdown-based size reduction
+     │     └── Adaptive trade limits → session-based + streak-based slots
+     │
+     └── Execution (src/services/execution_engine.py)
+           ├── MetaAPI adapter    → live MT5 orders
+           ├── PaperTrader        → simulated fills
+           └── HedgingEngine      → paired trade management
 ```
+
+---
+
+## Data Flow (Signal Lifecycle)
+
+1. **Receive**: TradingView fires webhook → `POST /webhook`
+2. **Validate**: Schema check (Pydantic) + secret auth
+3. **Persist early**: API inserts signal row (`status=received`) into Supabase for frontend visibility
+4. **Queue**: API serializes payload + account routing → Redis LPUSH
+5. **Consume**: Worker BRPOP from queue
+6. **Guard rails**: Sequential pre-filters (staleness → market hours → Pine rules → portfolio risk)
+7. **AI/ML vote**: ML confidence score → LLM check → Council debate (all optional / shadowed)
+8. **Risk engine**: Trinity limits, dynamic scaling, adaptive caps
+9. **Execute**: Order to MetaAPI (live) or PaperTrader (paper), or log-only (shadow)
+10. **Post-trade**: Update Supabase, notify Discord/Telegram, track TCA metrics, start watchdog
+
+---
 
 ## Key Abstractions
 
-### Signal (`src/core/signal.py`)
-Core data model passed through the entire pipeline. Contains: `symbol`, `side`, `entry`, `sl`, `tp`, `size`, plus Pine metadata (`zone_score`, `grade`, `entry_type`, `departure_strength`, etc.)
-
-### Guard Rails (`src/core/guard_rails/`)
-Each guard is an independent filter that returns APPROVE / REJECT / WARNING:
-- `pine_guardian.py` — Pine Script rule mirroring (score, grade, tiering)
-- `staleness_guard.py` — Rejects signals older than `staleness_max_age_seconds`
-- `correlation.py` — Cross-position correlation matrix
-- `market_filter.py` — News events, session hours, dead zone
-- `portfolio_var_guard.py` — Portfolio Value-at-Risk limit
-- `sector_guard.py` — Sector exposure limits
-- `prop_guard.py` — Prop firm evaluation mode guardrails
-
-### Observer Pattern (`src/core/observers/`)
-Worker emits lifecycle events that observers handle (Discord alerts, Supabase persistence, watchdog updates).
+### Signal Transport (`src/core/transport.py`)
+Pluggable queue backend: `RedisTransport` (production) | `InMemoryTransport` (tests).
+```python
+transport = get_transport()  # factory reads SIGNAL_TRANSPORT setting
+transport.enqueue(payload_str, queue_key="signal:default")
+```
 
 ### Account Router (`src/core/account_router.py`)
-Routes signals to correct broker account in multi-account (Package A) mode using `BROKER_PROFILES_JSON`.
+Maps signal symbols to broker accounts (multi-account support). Stamps `_account_id` and `queue_key` onto payload before Redis push.
 
-### Transport (`src/core/transport.py`)
-Abstraction over signal queue: `redis` (production) or `memory` (unit tests). Controlled by `SIGNAL_TRANSPORT` env var.
+### Observer Pattern (`src/core/observers/`)
+Worker executes a list of observers per signal:
+- `auditor.py` — write audit log
+- `executor.py` — trigger trade execution
+- `metrics.py` — record latency metrics
+- `risk_observer.py` — risk checks
+- `account_router_observer.py` — account routing
 
-## Background Services
+### Settings (`config/settings.py`)
+Single `Settings` class loaded via `@lru_cache`. Restart required after `.env` changes. ~90 configurable fields covering risk, AI tuning, prop firm rules, latency thresholds.
 
-| Service | File | Role |
-|---|---|---|
-| MTM Guardian | `src/services/mtm_guardian.py` | Real-time floating PnL monitoring |
-| TradeWatchdog | `src/services/watchdog.py` | Detects late fills, stuck trades |
-| BackgroundSyncWorker | `src/services/background_sync_worker.py` | MetaAPI account polling |
-| BreakevenManager | `src/services/breakeven_manager.py` | Auto-BE on profit trigger |
-| TrailingStopManager | `src/services/trailing_stop_manager.py` | Trailing stop enforcement |
-| DailyResetScheduler | `src/services/daily_reset_scheduler.py` | EOD stat reset |
-| AlertEngine | `src/services/alert_engine.py` | Configurable price/metric alerts |
-| TCAAnalyzer | `src/services/tca_analyzer.py` | Transaction cost analysis |
+---
 
-## AI/ML Pipeline
+## API Router Structure (`src/api.py`)
+
+Main app includes ~20 FastAPI routers:
+
+| Router | Prefix | Purpose |
+|--------|--------|---------|
+| `api_rules` | `/api/rules` | Trading rule management |
+| `api_risk` | `/api/risk` | Risk settings |
+| `api_risk_monitor` | `/api/risk-monitor` | Real-time risk read |
+| `api_analytics` | `/api/analytics` | Historical analytics |
+| `api_analytics_signals_perf` | `/api/analytics/signals-perf` | v1.1 signal performance |
+| `api_health_trading` | `/api/health/trading` | Real-time health widget data |
+| `api_positions` | `/api/positions` | Open positions |
+| `api_execution` | `/api/execution` | Execution quality |
+| `api_portfolio` | `/api/portfolio` | Portfolio overview |
+| `api_portfolio_control` | `/api/portfolio-control` | Portfolio Command Center |
+| `api_prop_firm` | `/api/prop-firm` | Prop firm metrics |
+| `api_traces` | `/api/traces` | Pipeline latency traces |
+| `api_accounts` | `/api/accounts` | Multi-account |
+| `api_ai_runs` | `/api/ai-runs` | AI/debate decisions |
+| `api_backtests` | `/api/backtests` | Backtest lab |
+| `api_strategies` | `/api/strategies` | Strategy-as-data configs |
+| `api_webhook_read` | `/api/v1/webhook` | Recent signals/trades/stats |
+| `api_copilot` | `/api/copilot` | AI natural language copilot |
+| `api_market` | `/api/market` | Market data CORS proxy |
+| `api_funding` | `/api/v1/funding` | Prop firm daily PnL |
+| `api_tickets` | `/api/tickets` | Jira proxy |
+| `api_incidents` | `/api/incidents` | Auto-incident tickets |
+
+---
+
+## Frontend Architecture
+
+Next.js 16 App Router with route-based page structure:
 
 ```
-Signal
-  ├── AI Guardian (LLM) ─────────────────────────────→ APPROVE/REJECT/WARNING
-  │     ├── Quick tier (llama-3.1-8b-instant)
-  │     └── Deep tier (llama-3.3-70b-versatile) on escalation
-  │
-  ├── ML Guardian (LightGBM)──────────────────────────→ win probability score
-  │     ├── Adaptive threshold (floor + margin over model base win-rate)
-  │     └── Per-entry-type models (FLIP, BREAK_CANDLE, DIR_CLOSE)
-  │
-  ├── Trading Council (multi-agent debate) ──────────→ persisted to ai_runs
-  │     ├── Bull agent
-  │     ├── Bear agent
-  │     ├── Risk agent
-  │     └── Chair (synthesis)
-  │
-  └── RAG Engine (BM25 + LangChain) ─────────────────→ context for LLM calls
-        └── Memory Service (reflection on closed trades)
+frontend/src/
+├── app/
+│   ├── page.tsx          ← Main dashboard (25KB, all widgets)
+│   ├── layout.tsx        ← Root layout + providers
+│   ├── analytics/        ← Analytics pages
+│   ├── accounts/         ← Multi-account management
+│   ├── alerts/           ← Alert feed
+│   ├── backtest/         ← Backtest lab UI
+│   ├── execution-quality/← TCA and execution metrics
+│   ├── journal/          ← Trade journal
+│   ├── positions/        ← Open positions
+│   ├── prop-firm/        ← Prop firm dashboard
+│   ├── risk/             ← Risk settings
+│   ├── rules/            ← Trading rules
+│   ├── scanner/          ← Signal scanner
+│   ├── settings/         ← App settings
+│   ├── strategies/       ← Strategy configs
+│   └── tickets/          ← Jira board
+├── components/           ← Shared UI components
+├── domain/               ← Business logic / hooks
+├── hooks/                ← Custom React hooks
+├── lib/                  ← API client utilities
+├── providers/            ← Context providers (QueryClient, etc.)
+└── types/                ← TypeScript type definitions
 ```
 
-## Deployment Architecture
+### Real-time Updates
+- **WebSocket**: `/ws/debate` — streams AI Council logs from Redis pub/sub
+- **Supabase Realtime**: direct subscriptions for trading signal feed
 
-- **API + Worker + Frontend** can run together via `./start.sh fullstack`
-- **Railway** cloud deployment (separate services per `railway.json`)
-- **Docker Compose** for local development
-- Redis must be running before API starts (fail-fast check on `startup`)
-- `PYTHONPATH=/workspace` required when running outside `start.sh`
+---
+
+## Background Processes
+
+| Service | File | Trigger |
+|---------|------|---------|
+| Background Sync Worker | `src/services/background_sync_worker.py` | API startup (if `ACCOUNT_SYNC_ENABLED`) |
+| Daily Reset Scheduler | `src/services/daily_reset_scheduler.py` | APScheduler cron |
+| TradeWatchdog | `src/services/watchdog.py` | Per-trade thread |
+| MTM Guardian | `src/services/mtm_guardian.py` | Polling loop |
+| Trailing Stop Manager | `src/services/trailing_stop_manager.py` | Active position polling |
+| Breakeven Manager | `src/services/breakeven_manager.py` | Active position polling |

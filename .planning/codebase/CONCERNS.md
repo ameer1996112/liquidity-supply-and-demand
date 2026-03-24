@@ -1,128 +1,120 @@
-# CONCERNS.md — Technical Debt, Known Issues & Areas of Concern
+# CONCERNS.md — Technical Debt & Known Issues
 
-## Critical / High Priority
+## Critical / High Risk
 
-### 1. God Files (Size & Complexity)
-Several files have grown extremely large and are potential maintenance risks:
-- `src/worker.py` — **85KB** — the entire pipeline orchestration is in one file; hard to test in isolation
-- `src/api_portfolio_control.py` — **83KB** — largest file, monolithic portfolio control logic
-- `src/ai/brain.py` — **59KB** — AI ensemble logic densely packed
-- `src/adapters/supabase.py` — **41KB** — all DB operations in one class
-- `src/logic.py` — **41KB** — unclear ownership; large utility dumping ground
+### 1. Massive File Sizes — god files
+Several files are dangerously large and hard to maintain:
 
-**Risk**: Changes to these files risk unintended side effects. Adding features requires navigating massive files.
+| File | Size | Concern |
+|------|------|---------|
+| `src/worker.py` | 87KB | Entire worker logic — god object |
+| `src/ai/brain.py` | 59KB | All AI orchestration in one file |
+| `src/api_portfolio_control.py` | 83KB | Should be split by domain |
+| `src/ai/trading_council.py` | 38KB | Could be split by agent role |
+| `src/adapters/supabase.py` | 41KB | All DB operations in one file |
+| `src/api_tickets.py` | 39KB | Jira proxy + local DB layer mixed |
+| `src/api.py` | 37KB | Router registration + inline logic |
 
-### 2. Missing CI Infrastructure
-- `Makefile` references `docker-compose.test.yml` which **does not exist** in the repo
-- No automated CI pipeline (no GitHub Actions workflows visible)
-- Tests must be run locally with `redis-server --daemonize yes` beforehand
-- **Risk**: No automated gate prevents broken tests from being merged
+**Impact**: High merge conflict risk, hard to unit test individual behaviors, long LLM context windows needed for modifications.
 
-### 3. Redis Fail-Fast Without Graceful Degradation
-- API startup **fails hard** if Redis is not reachable
-- No fallback for offline-mode or reconnect logic
-- Worker uses blocking `BLPOP` — a Redis restart kills the worker silently
-- **Risk**: Service unavailability if Redis restarts (common in cloud environments)
+---
 
-### 4. Settings Cache Gotcha
-- `get_settings()` uses `@lru_cache` — env var changes require process restarts
-- No way to hot-reload config without restarting all services
-- **Risk**: Operations team confusion when `.env` edits don't take effect
+### 2. Settings Cache (`@lru_cache`) — Silent Failures
+`config/settings.py::get_settings()` is cached via `@lru_cache`. Changes to `.env` require full process restart. This is documented in `AGENTS.md` but is a gotcha that causes silent dev confusion.
 
-## Medium Priority
+**Risk**: Dev mismatches, stale config in long-running workers.
 
-### 5. Incomplete Test Coverage
-- 22 test files but many services are not directly unit-tested
-- `test_pnl_broker_fetch.py` is trivially small (61 bytes — effectively empty)
-- No tests for `src/adapters/discord.py` (27KB, complex notification logic)
-- No tests for trailing stop / breakeven managers
-- Frontend: 1 pre-existing failure in `tradingMetrics.test.ts` (unresolved)
-- **Risk**: Regressions in critical paths go undetected
+---
 
-### 6. Multiple AI Pipeline Layers with Overlapping Concerns
-- `AI Guardian` + `ML Guardian` + `Trading Council` + `EnsembleBrain` — unclear when each is active
-- `AI_FILTER_ENABLED`, `ML_GUARDIAN_ENABLED`, `TRINITY_ENABLED`, `AI_ENABLED`, `ai_shadow_mode`, `run_shadow_mode` — too many overlapping boolean flags
-- Shadow mode semantics differ between flags (`AI_SHADOW_MODE` vs `run_shadow_mode` vs `AI_MODE=shadow`)
-- **Risk**: Misconfiguration silently disables guardrails
+### 3. Missing Makefile Target
+`Makefile` references `docker-compose.test.yml` which does not exist. Docker-based test runs silently fail.
 
-### 7. Duplicate/Legacy API Modules
-- `src/api_prop_firm.py` and `src/api_prop_firm_v1.py` coexist — unclear which is canonical
-- Jira integration split across `src/api_tickets.py` (backend proxy) and `jira/` (standalone Next.js app)
-- **Risk**: Maintenance burden, confusion about which code is active
+**Workaround**: Use local Redis directly. Documented in AGENTS.md.
 
-### 8. MetaAPI Rate Limiting / Excessive Polling
-- `get_account_info` and `get_open_positions` called excessively (documented in recent bug work)
-- Caching added in `src/services/redis_cache.py` but `account_cache_ttl_seconds=30s` default may still be too frequent
-- Background sync worker polls on `account_sync_interval_seconds=60s`
-- **Risk**: MetaAPI rate limit violations, extra latency costs
+---
 
-### 9. Inconsistent Async Patterns
-- Mix of `async def`, synchronous threading, and APScheduler scheduled jobs
-- `ASYNC_NOTIFICATIONS=False` by default — Discord/Telegram block signal pipeline
-- `ASYNC_TRADING_COUNCIL=False` by default — Council blocks pipeline too
-- **Risk**: Signal execution latency spikes when notifications are slow
+### 4. `test_pnl_broker_fetch.py` — Empty Test File
+Only 61 bytes. Broker PnL fetching has no automated test coverage.
 
-### 10. LLM Cost / Latency Without Hard Budgets
-- `AI_TIMEOUT_SECONDS=5.0` default — but Trading Council debate has no timeout
-- No token budget enforcement per request
-- Two-tier model (quick/deep) helps but escalation logic may hit deep model too frequently
-- **Risk**: High LLM costs, latency spikes on debate calls
+---
 
-## Low Priority / Maintenance Debt
+### 5. Frontend Pre-existing Test Failure
+`tradingMetrics.test.ts` has 1 persistent failure. Known but unresolved.
 
-### 11. Migration File Gaps
-- 57+ SQL migrations with some numbers skipped (jump from 050 → 057)
-- No rollback scripts for any migration
-- Migration runner (`RUN_MIGRATIONS.md`) is manual
-- **Risk**: Schema drift between environments
+---
 
-### 12. Scattered Scripts Directory
-- `scripts/` has 15+ one-off scripts (`fix_corrupted_dd.py`, `cleanup_stale_positions.py`, etc.)
-- No clear distinction between "run once ever", "run periodically" and "emergency tooling"
-- **Risk**: Accidental re-run of destructive scripts
+## Medium Risk
 
-### 13. Pine Script Coupling
-- Backend has `pine_min_score`, `pine_min_grade`, `pine_min_departure_strength` Balanceprofile hardcoded to match Pine
-- Any Pine Script update requires corresponding backend config update
-- `pine_guardian.py` (26KB) mirrors Pine Script logic in Python — dual maintenance burden
-- **Risk**: Config drift between strategy and backend filter
+### 6. Pine Script Logic Duplication
+`src/core/guard_rails/pine_guardian.py` (43KB) mirrors Pine Script rules from `SND_Strategy.pine`. Two implementations must be kept in sync manually. Any Pine Script update requires a corresponding Python update.
 
-### 14. Frontend State Management
-- No global state manager (Zustand/Redux) — relies on React Query + prop drilling
-- Dashboard `page.tsx` at 25KB is likely a god component
-- **Risk**: Difficult to share state between pages without prop drilling
+**Risk**: Divergence between Pine and Python guard rail logic leads to unexpected trade rejections or approvals.
 
-### 15. Multi-Account Complexity
-- `BROKER_PROFILES_JSON` is a raw JSON string in env var — error-prone to configure
-- Account routing adds significant complexity to the worker pipeline
-- **Risk**: Misconfiguration causes trades to go to wrong account
+---
 
-## Security Considerations
+### 7. MetaAPI Polling Frequency — Recently Fixed
+`get_account_info` and `get_open_positions` were previously polled excessively. Redis TTL caching (30s) was added to fix this. But the underlying polling architecture is fragile — tight coupling between sync intervals and MetaAPI rate limits.
 
-### 16. Webhook Authentication Optional
-- `WEBHOOK_SECRET` is optional (`default=""`) — if not set, anyone can post signals
-- No IP allowlist for webhook endpoint
-- **Risk**: Unauthorized signals if secret is not configured in production
+---
 
-### 17. Service Role Key Exposure
-- `SUPABASE_SERVICE_ROLE_KEY` bypasses Row Level Security
-- Used in Python backend — never expose to frontend
-- **Risk**: If env file is committed or leaked, full DB access bypassed
+### 8. AI/ML Guardian in Shadow Mode by Default
+`AI_MODE=shadow` means LLM never blocks a trade. ML guardian defaults to `ML_WARNING_ONLY_MODE=true`. The system can degrade to "no AI filtering" without any observable error — just warning logs.
 
-### 18. `.env` Not in .gitignore (Verify)
-- `.env` exists at repo root with real credentials
-- `.gitignore` should exclude it — verify this is correctly enforced
-- **Risk**: Credential leak if accidentally committed
+**Risk**: Invisible quality gate degradation.
 
-## Performance Hot Spots
+---
 
-### 19. Supabase Adapter (41KB)
-- All DB reads go through one adapter class; no connection pooling visible
-- Supabase Python SDK is synchronous — blocking async event loop
-- **Risk**: DB queries block the FastAPI event loop under load
+### 9. Supabase Adapter Coupling
+`src/adapters/supabase.py` (41KB) is a massive module-level singleton. Many services import it directly:
+```python
+from src.adapters.supabase import supabase
+```
+This tightly couples all service code to Supabase and makes unit testing hard without full supabase mock setup.
 
-### 20. Signal Pipeline Latency Budget
-- Each guard rail adds synchronous processing time
-- TCA threshold for total latency is 30s (`TCA_LATENCY_THRESHOLD_MS=30000`)
-- Bot processing threshold is 10s — guard rails must complete in <10s combined
-- **Risk**: Slow LLM calls push execution past TCA alert thresholds
+---
+
+### 10. Strategy Config Validation at Startup
+`validate_active_strategies_startup()` runs during API startup and can crash the API. This is intentional fail-fast behavior, but any bad data in the `strategy_configs` table will take down the API.
+
+---
+
+### 11. Ruff Pre-existing Warnings
+98 pre-existing ruff warnings in `src/`, `config/`, `tests/`. No CI enforcement prevents this number from growing.
+
+---
+
+## Low Risk / Housekeeping
+
+### 12. `venv/` Committed to Repo Structure
+A `venv/` directory exists at project root alongside `.venv` at `/workspace/.venv`. This may cause confusion about which Python environment to use.
+
+### 13. Discord Adapter Complexity
+`src/adapters/discord.py` (27KB) contains complex embed formatting. The `'sl'` KeyError bug (Discord error on LATE FILL events) was recently fixed but discord formatting remains fragile for edge case trade data shapes.
+
+### 14. Multi-Account Complexity
+`BROKER_PROFILES_JSON` supports multiple broker accounts. Account routing logic in `src/core/account_router.py` and `src/services/account_orchestrator.py` (28KB) adds significant complexity to the worker pipeline. Edge cases in multi-account routing may exist.
+
+### 15. `api_prop_firm.py` + `api_prop_firm_v1.py` — Split Versioning
+Two prop firm API files exist. The v1 file suggests a prior version was not removed. May cause confusion about which endpoints are canonical.
+
+### 16. Frontend Build Issues
+`cd frontend && npm run build` should be run to verify no TypeScript or build errors before deploys. Pre-existing ESLint warnings (`cd frontend && npx eslint`) exist.
+
+### 17. `plans/` Directory (Legacy)
+`plans/` contains legacy planning docs outside the GSD `.planning/` system. May contain outdated information.
+
+### 18. `data/` and `ml/` Directories
+`data/` and `ml/` contain files gitignored by default (datasets, model artifacts). ML model training is done offline — no automated retraining pipeline is present in the codebase.
+
+---
+
+## Security Observations
+
+### Webhook Secret Optional
+`WEBHOOK_SECRET` is optional — if not set, the `/webhook` endpoint accepts any payload. This is fine for local dev but must be set in production.
+
+### CORS Configuration
+Production CORS allows `https://.*\.up\.railway\.app` by regex. If Railway subdomain naming is predictable, this could allow unexpected origins. Consider explicit origin allowlist in production.
+
+### Supabase Service Role Key in Backend
+`SUPABASE_SERVICE_ROLE_KEY` grants full bypass of RLS. Used correctly (server-side only) but must not leak to frontend.
