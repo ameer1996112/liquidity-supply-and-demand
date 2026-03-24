@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   ClipboardList,
   Plus,
@@ -410,6 +410,31 @@ function NewTicketModal({ onClose, onCreated }: { onClose: () => void; onCreated
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [suggest, setSuggest] = useState<{ type: TicketType; priority: TicketPriority } | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // AI keyword suggest
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    const title = form.title.toLowerCase();
+    if (!title.trim()) { setSuggest(null); return; }
+    debounceRef.current = setTimeout(() => {
+      let type: TicketType = 'task';
+      let priority: TicketPriority = 'medium';
+      if (/bug|error|crash|fix|broken|issue/.test(title)) type = 'bug';
+      else if (/feat|add|new|build|implement|create|design/.test(title)) type = 'feature';
+      if (/crash|critical|urgent|down|outage/.test(title)) priority = 'critical';
+      else if (/important|high|asap/.test(title)) priority = 'high';
+      setSuggest({ type, priority });
+    }, 300);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [form.title]);
+
+  const acceptSuggest = () => {
+    if (!suggest) return;
+    setForm((f) => ({ ...f, type: suggest.type, priority: suggest.priority }));
+    setSuggest(null);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -472,6 +497,21 @@ function NewTicketModal({ onClose, onCreated }: { onClose: () => void; onCreated
               )}
               required
             />
+            {/* AI Suggestion chip */}
+            {suggest && (
+              <button
+                type="button"
+                onClick={acceptSuggest}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-full border border-violet-500/30 bg-violet-500/10 px-2.5 py-1 mt-1.5',
+                  'font-mono text-[9px] font-bold text-violet-400 hover:bg-violet-500/20 transition-colors',
+                )}
+              >
+                <Sparkles className="h-2.5 w-2.5" />
+                AI suggests: {TYPE_META[suggest.type].icon && suggest.type} · {suggest.priority}
+                <span className="opacity-60">(click to apply)</span>
+              </button>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -710,7 +750,58 @@ export default function TicketsPage() {
         </div>
       )}
 
+      {/* ── AI Activity Feed ── */}
+      {(() => {
+        const allActivity = tickets
+          .flatMap((t) => t.ai_changelog.map((e) => ({ ...e, ticketId: t.id, ticketTitle: t.title })))
+          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+          .slice(0, 5);
+        return (
+          <div className="glow-card p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <Bot className="h-3.5 w-3.5 text-violet-400" />
+              <h2 className="font-mono text-[10px] uppercase tracking-widest text-[var(--to-text-dim)]">
+                Recent AI Activity
+              </h2>
+              {allActivity.length > 0 && (
+                <span className="rounded-full bg-violet-500/15 px-2 py-0.5 font-mono text-[9px] font-bold text-violet-400">
+                  {allActivity.length}
+                </span>
+              )}
+            </div>
+            {allActivity.length === 0 ? (
+              <div className="flex flex-col items-center gap-1 py-4">
+                <div className="animate-bounce text-[var(--to-text-dim)]">
+                  <Bot className="h-5 w-5" />
+                </div>
+                <span className="font-mono text-[10px] text-[var(--to-text-dim)]">No AI activity yet</span>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                {allActivity.map((entry, i) => {
+                  const newS = STATUS_META[entry.new_status as TicketStatus];
+                  return (
+                    <div key={i} className="flex items-center gap-2 rounded-lg border border-[var(--to-border)] bg-[var(--to-surface)] px-3 py-2">
+                      <Bot className="h-3 w-3 shrink-0 text-violet-400" />
+                      <span className="font-mono text-[10px] font-semibold text-violet-400 shrink-0">{entry.agent}</span>
+                      <span className="font-mono text-[9px] text-[var(--to-text-dim)] truncate flex-1">
+                        updated <span className="text-[var(--to-text-secondary)]">{entry.ticketId}</span>
+                      </span>
+                      <span className={cn('rounded-full px-1.5 py-0.5 font-mono text-[9px] font-bold shrink-0', newS?.bg, newS?.color)}>
+                        {entry.new_status.replace('_', ' ')}
+                      </span>
+                      <span className="font-mono text-[9px] text-[var(--to-text-dim)] shrink-0">{relativeTime(entry.timestamp)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* ── Drawer ── */}
+
       {activeTicket && (
         <TicketDrawer
           ticket={activeTicket}
