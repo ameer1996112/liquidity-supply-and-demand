@@ -1,5 +1,61 @@
 # AGENTS.md
 
+## 🎫 Jira Auto-Ticket (MANDATORY — applies to EVERY agent, EVERY task)
+
+**This rule fires automatically. No CLI. No user prompting needed.**
+
+For any non-trivial task (bug fix, feature, refactor, investigation, phase execution):
+
+### 1. Before touching any code — Create ticket
+
+```bash
+curl -s -X POST http://localhost:8000/api/tickets \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "<concise task title>",
+    "description": "<what + why>",
+    "type": "bug|feature|task",
+    "priority": "low|medium|high|critical"
+  }'
+```
+
+Save the returned `id` (e.g. `DEV-42`) as `TICKET_ID`. The API auto-assigns to the active sprint.
+
+**If backend is offline**, call Jira directly:
+```bash
+curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+  -X POST "https://ameer1996112.atlassian.net/rest/api/3/issue" \
+  -H "Content-Type: application/json" \
+  -d '{"fields":{"project":{"key":"DEV"},"summary":"<title>","issuetype":{"id":"10003"},"description":{"type":"doc","version":1,"content":[{"type":"paragraph","content":[{"type":"text","text":"<description>"}]}]}}}'
+```
+
+### 2. After completing work — Close ticket
+
+```bash
+curl -s -X POST "http://localhost:8000/api/tickets/$TICKET_ID/ai-update" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "new_status": "done",
+    "summary_of_work": "<what was built/fixed, which files changed, how to verify>",
+    "agent": "antigravity"
+  }'
+```
+
+### Type mapping
+
+| Situation | type |
+|-----------|------|
+| Bug fix / error / unexpected behavior | `bug` |
+| New feature / UI / API endpoint | `feature` |
+| Refactor / config / docs / cleanup | `task` |
+
+### Skip ticket when
+- Answering a question with no code changes
+- Single-line typo fix
+- User explicitly says "no ticket"
+
+---
+
 ## Cursor Cloud specific instructions
 
 ### Architecture overview
