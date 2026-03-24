@@ -296,6 +296,54 @@ def send_guard_notification_async(signal_id: Any, symbol: str, reason: str) -> N
     _notification_executor.submit(_send)
 
 
+def send_bug_alert(title: str, description: str, jira_key: Optional[str] = None) -> Tuple[bool, Optional[str]]:
+    """Send a high-priority bug alert embed to Discord."""
+    s = get_settings()
+    webhook_url = (
+        getattr(s, "discord_alerts_webhook_url", "")
+        or s.discord_webhook_url
+    )
+    if not webhook_url:
+        return False, "DISCORD_WEBHOOK_URL not configured"
+    try:
+        embed_title = f"🚨 SYSTEM EXCEPTION — {jira_key}" if jira_key else f"🚨 SYSTEM EXCEPTION — {title}"
+        safe_desc = description[:4000] + "\n...[truncated]" if len(description) > 4000 else description
+
+        embed = {
+            "title": embed_title,
+            "description": f"```python\n{safe_desc}\n```",
+            "color": 0xFF0000,
+            "timestamp": datetime.utcnow().isoformat(),
+            "footer": {"text": "Autonomous Error-to-Ticket Pipeline"},
+        }
+        payload = {"embeds": [embed]}
+        r = requests.post(webhook_url, json=payload, timeout=10)
+        if r.status_code in (200, 204):
+            return True, None
+        return False, f"HTTP {r.status_code}: {r.text[:200] if r.text else 'No response'}"
+    except Exception as e:
+        logger.error(f"Discord bug alert error: {e}")
+        return False, str(e)
+
+
+def send_bug_alert_async(title: str, description: str, jira_key: Optional[str] = None) -> None:
+    """Non-blocking version of send_bug_alert."""
+    s = get_settings()
+    if not getattr(s, "async_notifications", False):
+        send_bug_alert(title, description, jira_key)
+        return
+
+    def _send():
+        try:
+            success, error = send_bug_alert(title, description, jira_key)
+            if not success:
+                logger.warning(f"Background Discord bug alert failed: {error}")
+        except Exception as e:
+            logger.error(f"Background Discord bug alert crashed: {e}")
+
+    _notification_executor.submit(_send)
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Async Notification Wrappers (Phase 1 Latency Optimization)
 # These functions submit notifications to background threads to avoid blocking

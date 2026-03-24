@@ -335,6 +335,7 @@ class Settings(BaseSettings):
     # External execution via MetaApi (MT5 over HTTP)
     meta_api_token: str = ""
     meta_api_account_id: str = ""
+    meta_api_accounts: str = Field(default="", description="Comma-separated List of token|account_id pairs for multi-account broadcasting")
     # Optional: JSON array of {name, account_id, token_env_key, risk_pct, max_positions, run_mode} for multi-account (Package A)
     broker_profiles_json: str = Field(default="", description="BROKER_PROFILES_JSON: optional list of broker profiles for one-signal-many-accounts")
     meta_api_region: str = Field(
@@ -460,6 +461,20 @@ class Settings(BaseSettings):
         description="Signal queue backend: 'redis' (production) or 'memory' (tests).",
         validation_alias="SIGNAL_TRANSPORT",
     )
+
+    @property
+    def get_accounts(self) -> list[dict]:
+        """Parsed list of enabled MetaApi accounts from the META_API_ACCOUNTS string."""
+        accounts = []
+        if self.meta_api_accounts:
+            for pair in self.meta_api_accounts.split(","):
+                parts = pair.split("|")
+                if len(parts) == 2:
+                    accounts.append({"token": parts[0].strip(), "account_id": parts[1].strip()})
+        else:
+            if self.meta_api_token and self.meta_api_account_id:
+                accounts.append({"token": self.meta_api_token, "account_id": self.meta_api_account_id})
+        return accounts
 
 
 @lru_cache

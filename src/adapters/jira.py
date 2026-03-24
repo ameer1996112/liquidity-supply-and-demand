@@ -59,6 +59,12 @@ def create_bug_ticket(title: str, description: str, sync_block: bool = False):
             if response.status_code in (200, 201):
                 data = response.json()
                 logger.info("Successfully filed Jira Bug: %s", data.get("key"))
+                
+                try:
+                    from src.adapters.discord import send_bug_alert_async
+                    send_bug_alert_async(title, description, data.get("key"))
+                except Exception as discord_err:
+                    logger.warning("Failed to dispatch Discord Bug Alert: %s", discord_err)
             else:
                 logger.error("Failed to automatically file Jira Bug. Status: %s. Response: %s", response.status_code, response.text)
         except Exception as e:

@@ -653,74 +653,7 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
             except Exception:
                 pass  # fail-open
 
-    # --- Adaptive daily trade limit (PineGuardian v2) ---
-    # Uses 3-dimension adaptive system: session-quality + multi-day streak + session slots
-    # Falls back to legacy static check if adaptive is off or pine_max_trades_per_day > 0
-    try:
-        from src.core.guard_rails.pine_guardian import create_pine_guardian_from_settings
-        from src.services.pine_streak import get_streak_days, get_today_summary
-        from src.adapters.redis_queue import get_redis as _get_redis_for_limit
-        import datetime as _dt_mod
 
-        _redis = _get_redis_for_limit()
-        _guardian = create_pine_guardian_from_settings()
-
-        if _guardian.adaptive_enabled:
-            # Restore today's intraday state from Redis into the guardian
-            _wins, _losses, _risk_deployed = get_today_summary(_redis)
-            _guardian.daily_wins = _wins
-            _guardian.daily_losses = _losses
-            _guardian.daily_risk_deployed_pct = _risk_deployed
-            # Approximate consecutive_losses from losses (worst-case assumption when losses > 0)
-            _guardian.consecutive_losses = _losses if _wins == 0 else 0
-            _guardian.current_day_trades = _wins + _losses
-
-            _streak_days = get_streak_days(_redis)
-            _utc_hour = _dt_mod.datetime.now(_dt_mod.timezone.utc).hour
-
-            if not _guardian.check_max_trades(streak_days=_streak_days, utc_hour=_utc_hour):
-                _state = _guardian.compute_effective_limit(_streak_days, _utc_hour)
-                return (
-                    f"Adaptive trade limit: {_state.current_session_trades}/{_state.effective_limit} "
-                    f"[{_state.session.value} | base={_state.session_base} "
-                    f"intraday={_state.intraday_adj:+d} streak={_state.streak_bonus:+d}]"
-                )
-            if not _guardian.check_risk_budget():
-                return (
-                    f"Daily risk budget exhausted: {_guardian.daily_risk_deployed_pct:.2f}% "
-                    f">= {_guardian.daily_risk_budget_pct:.2f}%"
-                )
-        elif s.pine_max_trades_per_day > 0 and supabase:
-            # Legacy static path (backward compat)
-            from datetime import datetime as _dt, timezone
-            today_start = _dt.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
-            today_count: Optional[int] = None
-            cache_key = f"daily_trade_count:{today_start[:10]}"
-            try:
-                from src.services.redis_cache import cache_get, cache_set
-                cached_count = cache_get(cache_key)
-                if cached_count is not None:
-                    today_count = int(cached_count)
-            except Exception:
-                pass
-            if today_count is None:
-                result = (
-                    supabase.table("trading_signals")
-                    .select("id")
-                    .in_("status", ["active", "executed", "closed"])
-                    .gte("created_at", today_start)
-                    .execute()
-                )
-                today_count = len(result.data)
-                try:
-                    from src.services.redis_cache import cache_set
-                    cache_set(cache_key, today_count, ttl_seconds=30)
-                except Exception:
-                    pass
-            if today_count >= s.pine_max_trades_per_day:
-                return f"Daily trade limit reached: {today_count}/{s.pine_max_trades_per_day} trades today"
-    except Exception as e:
-        logger.warning("Adaptive trade limit check failed: %s (fail-open)", e)
 
     # --- Spread gate (minimum SL pips per instrument type) ---
     if getattr(s, "spread_gate_enabled", True):
@@ -982,6 +915,46 @@ def _run_account_guards(
                 return f"Circuit breaker open for account {account_name}"
         except Exception:
             pass
+
+    # ── Per-account Adaptive daily trade limit (PineGuardian) ─
+    try:
+        from src.core.guard_rails.pine_guardian import create_pine_guardian_from_settings
+        from src.services.pine_streak import get_streak_days, get_today_summary
+        from src.adapters.redis_queue import get_redis as _get_redis_for_limit
+        import datetime as _dt_mod
+
+        _redis = _get_redis_for_limit()
+        _guardian = create_pine_guardian_from_settings()
+
+        if _guardian.adaptive_enabled:
+            _wins, _losses, _risk_deployed = get_today_summary(_redis, account_name)
+            _guardian.daily_wins = _wins
+            _guardian.daily_losses = _losses
+            _guardian.daily_risk_deployed_pct = _risk_deployed
+            _guardian.consecutive_losses = _losses if _wins == 0 else 0
+            _guardian.current_day_trades = _wins + _losses
+
+            _streak_days = get_streak_days(_redis, account_name)
+            _utc_hour = _dt_mod.datetime.now(_dt_mod.timezone.utc).hour
+
+            if not _guardian.check_max_trades(streak_days=_streak_days, utc_hour=_utc_hour):
+                _state = _guardian.compute_effective_limit(_streak_days, _utc_hour)
+                return (
+                    f"Adaptive trade limit ({account_name}): {_state.current_session_trades}/{_state.effective_limit} "
+                    f"[{_state.session.value} | base={_state.session_base} "
+                    f"intraday={_state.intraday_adj:+d} streak={_state.streak_bonus:+d}]"
+                )
+            if not _guardian.check_risk_budget():
+                return (
+                    f"Daily risk budget exhausted ({account_name}): {_guardian.daily_risk_deployed_pct:.2f}% "
+                    f">= {_guardian.daily_risk_budget_pct:.2f}%"
+                )
+        elif getattr(s, "pine_max_trades_per_day", 0) > 0:
+            today_count = _get_account_daily_trade_count(profile)
+            if today_count >= getattr(s, "pine_max_trades_per_day", 0):
+                return f"Daily trade limit reached ({account_name}): {today_count}/{s.pine_max_trades_per_day} trades today"
+    except Exception as e:
+        logger.warning("Adaptive trade limit check failed for %s: %s (fail-open)", account_name, e)
 
     # ── Per-account PropGuard ─────────────────────────────────
     acct_balance = float(payload.get("account_balance", s.account_balance))
