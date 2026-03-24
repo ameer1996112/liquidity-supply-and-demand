@@ -186,7 +186,7 @@ class StalenessGuard:
         """
         bar_time = payload.get("bar_time")
         if not bar_time:
-            logger.warning("No bar_time in payload, skipping staleness check (fail-open)")
+            logger.debug("No bar_time in payload, skipping staleness check (fail-open)")
             return True, ""
 
         try:

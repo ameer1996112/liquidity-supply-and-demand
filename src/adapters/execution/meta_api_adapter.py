@@ -443,12 +443,12 @@ class MetaApiAdapter:
             if resp.status_code in (200, 201, 204):
                 logger.info("Symbol subscribed in MetaAPI Market Watch: %s", broker_symbol)
             else:
-                logger.warning(
+                logger.debug(
                     "Symbol subscription for %s returned HTTP %s: %s",
                     broker_symbol, resp.status_code, resp.text[:200],
                 )
         except Exception as exc:  # noqa: BLE001
-            logger.warning("Symbol subscription attempt failed for %s: %s", broker_symbol, exc)
+            logger.debug("Symbol subscription attempt failed for %s: %s", broker_symbol, exc)
 
     def submit_order(self, request: OrderRequest) -> ExecutionResult:
         """Submit a market order to MetaApi.
