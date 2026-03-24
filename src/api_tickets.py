@@ -328,7 +328,7 @@ def _jira_to_ticket(issue: Dict) -> Dict:
         or fields.get("customfield_10028")  # next-gen projects
     )
 
-    sprint_id = _extract_sprint_id(fields)
+    sprint_id, sprint_name = _extract_sprint_info(fields)
 
     return {
         "id": issue["key"],
@@ -341,6 +341,7 @@ def _jira_to_ticket(issue: Dict) -> Dict:
         "assignee": (fields.get("assignee") or {}).get("displayName"),
         "signal_id": None,
         "sprint_id": sprint_id,
+        "sprint_name": sprint_name,
         "labels": [l for l in labels if not l.startswith("type:")],
         "parent_id": None,
         "rank": 0,
@@ -351,16 +352,25 @@ def _jira_to_ticket(issue: Dict) -> Dict:
     }
 
 
-def _extract_sprint_id(fields: Dict) -> Optional[int]:
+
+def _extract_sprint_info(fields: Dict) -> tuple[Optional[int], Optional[str]]:
+    """Return (sprint_id, sprint_name) from Jira customfield_10020."""
     sprint_raw = fields.get(_FIELD_SPRINT)
     if not sprint_raw:
-        return None
+        return None, None
     if isinstance(sprint_raw, list) and sprint_raw:
         s = sprint_raw[-1]
-        return s.get("id") if isinstance(s, dict) else None
+        if isinstance(s, dict):
+            return s.get("id"), s.get("name")
+        return None, None
     if isinstance(sprint_raw, dict):
-        return sprint_raw.get("id")
-    return None
+        return sprint_raw.get("id"), sprint_raw.get("name")
+    return None, None
+
+# Keep backward-compat alias
+def _extract_sprint_id(fields: Dict) -> Optional[int]:
+    return _extract_sprint_info(fields)[0]
+
 
 
 def _transition_issue(key: str, our_status: str) -> None:

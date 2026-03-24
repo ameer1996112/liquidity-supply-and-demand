@@ -12,10 +12,12 @@ import {
   AlertTriangle,
   Minus,
   ChevronUp,
+  ChevronDown,
   X,
   ExternalLink,
   Clock,
   Bot,
+  Calendar,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -44,6 +46,8 @@ export interface Ticket {
   priority: TicketPriority;
   assignee: string | null;
   signal_id: number | null;
+  sprint_id: number | null;
+  sprint_name: string | null;
   ai_changelog: AiChangelogEntry[];
   created_at: string;
   updated_at: string;
@@ -680,6 +684,11 @@ export default function TicketsPage() {
   const byStatus = (status: TicketStatus) =>
     tickets.filter((t) => t.status === status);
 
+  // ── Sprint derivation ────────────────────────────────────────────────────
+  const sprintName = tickets.find((t) => t.sprint_name)?.sprint_name ?? null;
+  const sprintTickets = tickets.filter((t) => t.sprint_name);
+  const sprintDone = sprintTickets.filter((t) => t.status === 'done').length;
+  const backlogTickets = tickets.filter((t) => !t.sprint_name);
   const totalOpen = tickets.filter((t) => t.status !== 'done').length;
 
   return (
@@ -730,6 +739,38 @@ export default function TicketsPage() {
         </div>
       </header>
 
+      {/* ── Sprint Header ── */}
+      <div className="glow-card p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Calendar className="h-3.5 w-3.5 text-[var(--to-long)]" />
+          <h2 className="font-mono text-[10px] uppercase tracking-widest text-[var(--to-text-dim)]">Active Sprint</h2>
+          {sprintName && (
+            <span className="ml-auto font-mono text-[10px] font-bold text-[var(--to-text-secondary)] truncate">{sprintName}</span>
+          )}
+        </div>
+        {!sprintName ? (
+          <div className="flex flex-col items-center gap-1 py-4">
+            <div className="animate-bounce text-[var(--to-text-dim)]"><Calendar className="h-5 w-5" /></div>
+            <span className="font-mono text-[10px] text-[var(--to-text-dim)]">No active sprint</span>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between font-mono text-[10px] text-[var(--to-text-dim)]">
+              <span>{sprintDone} of {sprintTickets.length} closed</span>
+              <span className="text-[var(--to-long)] font-bold">
+                {sprintTickets.length > 0 ? Math.round((sprintDone / sprintTickets.length) * 100) : 0}%
+              </span>
+            </div>
+            <div className="h-1.5 w-full rounded-full bg-[var(--to-surface-raised)] overflow-hidden">
+              <div
+                className="h-full rounded-full bg-[var(--to-long)] transition-all duration-500"
+                style={{ width: sprintTickets.length > 0 ? `${(sprintDone / sprintTickets.length) * 100}%` : '0%' }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* ── Kanban board ── */}
       {isLoading && tickets.length === 0 ? (
         <div className="py-16 text-center">
@@ -750,7 +791,55 @@ export default function TicketsPage() {
         </div>
       )}
 
+      {/* ── Backlog ── */}
+      {(() => {
+        const [open, setOpen] = useState(true);
+        return (
+          <div className="glow-card overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setOpen((o) => !o)}
+              className="flex w-full items-center gap-2 p-4 hover:bg-[var(--to-surface-raised)]/40 transition-colors"
+            >
+              {open ? <ChevronDown className="h-3.5 w-3.5 text-[var(--to-text-dim)]" /> : <ChevronUp className="h-3.5 w-3.5 text-[var(--to-text-dim)]" />}
+              <span className="font-mono text-[10px] uppercase tracking-widest text-[var(--to-text-dim)]">Backlog</span>
+              <span className="rounded-full bg-[var(--to-surface-raised)] px-2 py-0.5 font-mono text-[9px] font-bold text-[var(--to-text-dim)]">
+                {backlogTickets.length}
+              </span>
+            </button>
+            {open && (
+              <div className="border-t border-[var(--to-border)] divide-y divide-[var(--to-border)]">
+                {backlogTickets.length === 0 ? (
+                  <div className="flex flex-col items-center gap-1 py-6">
+                    <div className="animate-bounce text-[var(--to-text-dim)]"><Calendar className="h-4 w-4" /></div>
+                    <span className="font-mono text-[10px] text-[var(--to-text-dim)]">No backlog items</span>
+                  </div>
+                ) : backlogTickets.map((t) => {
+                  const TypeIcon = TYPE_META[t.type].icon;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setActiveTicket(t)}
+                      className="flex w-full items-center gap-3 px-4 py-2.5 hover:bg-[var(--to-surface-raised)]/40 transition-colors text-left group"
+                    >
+                      <div className={cn('flex h-5 w-5 shrink-0 items-center justify-center rounded border', TYPE_META[t.type].bg)}>
+                        <TypeIcon className={cn('h-3 w-3', TYPE_META[t.type].color)} />
+                      </div>
+                      <span className="font-mono text-[9px] text-[var(--to-text-dim)] shrink-0">{t.id}</span>
+                      <span className="font-sans text-[12px] text-[var(--to-text-secondary)] group-hover:text-[var(--to-text-primary)] truncate flex-1 transition-colors">{t.title}</span>
+                      <span className={cn('font-mono text-[9px] font-bold shrink-0', PRIORITY_META[t.priority].color)}>{t.priority}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* ── AI Activity Feed ── */}
+
       {(() => {
         const allActivity = tickets
           .flatMap((t) => t.ai_changelog.map((e) => ({ ...e, ticketId: t.id, ticketTitle: t.title })))
