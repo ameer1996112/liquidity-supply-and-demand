@@ -345,7 +345,8 @@ const command = process.argv[2];
           console.log('Usage: node scripts/autonomous-jira-cli.js create-subtask "<title>" "<desc>" "<parentKey>"'); 
           process.exit(1);
       }
-      const issueKey = await createIssue(title, desc, "Subtask", "0h", parentKey);
+      // Note: Epics strictly accept standard Tasks or Stories as children, not deep 'Subtask' objects
+      const issueKey = await createIssue(title, desc, "Task", "0h", parentKey);
       console.log(`Successfully generated Sub-task: ${issueKey} tied to parent Epic ${parentKey}`);
     } else {
       console.log('Usage:');
