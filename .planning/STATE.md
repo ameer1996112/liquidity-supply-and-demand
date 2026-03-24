@@ -1,9 +1,10 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: hosted-jira-integration
-status: not_started
-last_updated: "2026-03-24T18:32:00.000Z"
+milestone: v1.0
+milestone_name: milestone
+status: planning
+last_updated: "2026-03-24T23:23:27.075Z"
+last_activity: 2026-03-24 — Milestone v1.1 started
 progress:
   total_phases: 2
   completed_phases: 0
