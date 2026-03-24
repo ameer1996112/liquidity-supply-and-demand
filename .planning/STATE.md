@@ -24,6 +24,7 @@ Started: 2026-03-24
 
 ## Pending Todos
 
+- Auto-assign Jira tickets and map to sprints
 - Phase 09: Kanban board + premium UI
 - Phase 10: Rich ticket detail panel
 - Phase 11: AI-driven features

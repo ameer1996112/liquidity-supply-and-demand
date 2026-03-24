@@ -21,6 +21,17 @@ curl -s -X POST http://localhost:8000/api/tickets \
 
 Save the returned `id` (e.g. `DEV-42`) as `TICKET_ID`. The API auto-assigns to the active sprint.
 
+### 1.5. Sync Jira Branch (MANDATORY)
+
+We use the Jira integrated "Create Branch" button in the Development panel.
+Immediately after getting the `TICKET_ID` (or reading it from the task):
+1. Ask the user: "Please click the 'Create branch' button in Jira for ticket `$TICKET_ID` and let me know the branch name when it's ready."
+2. **STOP** and wait for the user to click the button and provide the branch name.
+3. Once the user provides the branch name, fetch and checkout that exact branch from the remote:
+```bash
+git fetch origin
+git checkout <exact-branch-name-from-jira>
+```
 **If backend is offline**, call Jira directly:
 ```bash
 curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
