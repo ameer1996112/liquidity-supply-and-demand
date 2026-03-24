@@ -81,6 +81,19 @@ class DailyResetScheduler:
             # Mark as completed for today
             self._last_reset_date = today_date
 
+            # ── Pine streak rollup (adaptive trade limit) ──────────────
+            # Updates the multi-day streak counter and clears today's intraday
+            # trade state (wins/losses/risk_deployed) in Redis so the new day
+            # starts clean.
+            try:
+                from src.services.pine_streak import rollup_day
+                from src.adapters.redis_queue import get_redis as _get_redis_streak
+                rollup_day(_get_redis_streak(), today_date)
+                logger.info("📈 Pine streak rollup completed for %s", today_date)
+            except Exception as streak_err:
+                logger.warning("Pine streak rollup failed (non-fatal): %s", streak_err)
+            # ───────────────────────────────────────────────────────────
+
             logger.info(f"🔄 Daily reset completed at {now.isoformat()}")
             return True
 
