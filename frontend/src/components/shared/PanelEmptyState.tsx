@@ -15,7 +15,7 @@ export function PanelEmptyState({
 }: PanelEmptyStateProps) {
   return (
     <div className='empty-state py-10'>
-      {icon ? <div className='mb-2 text-[var(--to-text-dim)]'>{icon}</div> : null}
+      {icon ? <div className='mb-2 text-[var(--to-text-dim)] animate-bounce'>{icon}</div> : null}
       <span className='text-sm font-medium text-slate-300'>{title}</span>
       {description ? (
         <span
