@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { Ticket, TicketStatus, TicketType, TicketPriority, STATUS_META, TYPE_META, PRIORITY_META, relativeTime } from '@/components/tickets/types';
+import { KanbanBoard } from '@/components/tickets/KanbanBoard';
 import {
   ClipboardList,
   Plus,
@@ -21,66 +23,9 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-// ── Types ────────────────────────────────────────────────────────────────────
+// ── Config ────────────────────────────────────────────────────────────────────
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
-export type TicketType = 'bug' | 'feature' | 'task';
-export type TicketStatus = 'todo' | 'in_progress' | 'done';
-export type TicketPriority = 'low' | 'medium' | 'high' | 'critical';
-
-export interface AiChangelogEntry {
-  timestamp: string;
-  agent: string;
-  old_status: string;
-  new_status: string;
-  summary: string;
-}
-
-export interface Ticket {
-  id: string;
-  title: string;
-  description: string | null;
-  type: TicketType;
-  status: TicketStatus;
-  priority: TicketPriority;
-  assignee: string | null;
-  signal_id: number | null;
-  sprint_id: number | null;
-  sprint_name: string | null;
-  ai_changelog: AiChangelogEntry[];
-  created_at: string;
-  updated_at: string;
-}
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-const TYPE_META: Record<TicketType, { icon: React.ComponentType<{ className?: string }>; color: string; bg: string }> = {
-  bug:     { icon: Bug,        color: 'text-rose-400',   bg: 'bg-rose-500/10 border-rose-500/25' },
-  feature: { icon: Sparkles,   color: 'text-violet-400', bg: 'bg-violet-500/10 border-violet-500/25' },
-  task:    { icon: CheckSquare, color: 'text-blue-400',  bg: 'bg-blue-500/10 border-blue-500/25' },
-};
-
-const PRIORITY_META: Record<TicketPriority, { icon: React.ComponentType<{ className?: string }>; color: string; label: string }> = {
-  critical: { icon: AlertCircle,   color: 'text-rose-400',   label: 'Critical' },
-  high:     { icon: AlertTriangle, color: 'text-amber-400',  label: 'High'     },
-  medium:   { icon: Minus,         color: 'text-blue-400',   label: 'Medium'   },
-  low:      { icon: ChevronUp,     color: 'text-[var(--to-text-dim)]', label: 'Low' },
-};
-
-const STATUS_COLUMNS: { key: TicketStatus; label: string; accent: string }[] = [
-  { key: 'todo',        label: 'To Do',       accent: 'border-[var(--to-text-dim)]/40' },
-  { key: 'in_progress', label: 'In Progress', accent: 'border-amber-500/40' },
-  { key: 'done',        label: 'Done',        accent: 'border-emerald-500/40' },
-];
-
-function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  if (diff < 60_000) return `${Math.floor(diff / 1000)}s ago`;
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
-  return new Date(iso).toLocaleDateString();
-}
 
 // ── Hooks ────────────────────────────────────────────────────────────────────
 
@@ -104,136 +49,7 @@ function useTickets() {
   return { tickets, setTickets, isLoading, refetch: fetch };
 }
 
-// ── TicketCard ────────────────────────────────────────────────────────────────
 
-function TicketCard({
-  ticket,
-  onDragStart,
-  onClick,
-}: {
-  ticket: Ticket;
-  onDragStart: (id: string) => void;
-  onClick: (t: Ticket) => void;
-}) {
-  const type = TYPE_META[ticket.type];
-  const priority = PRIORITY_META[ticket.priority];
-  const TypeIcon = type.icon;
-  const PriorityIcon = priority.icon;
-
-  return (
-    <div
-      draggable
-      onDragStart={() => onDragStart(ticket.id)}
-      onClick={() => onClick(ticket)}
-      className={cn(
-        'group cursor-grab active:cursor-grabbing select-none',
-        'rounded-lg border border-[var(--to-border)] bg-[var(--to-surface)]',
-        'p-3 space-y-2 transition-all duration-150',
-        'hover:border-[var(--to-border)]/80 hover:bg-[var(--to-surface-raised)] hover:shadow-sm hover:-translate-y-[1px]',
-      )}
-    >
-      {/* Type + Priority row */}
-      <div className="flex items-center justify-between">
-        <div className={cn('flex h-5 w-5 items-center justify-center rounded border', type.bg)}>
-          <TypeIcon className={cn('h-3 w-3', type.color)} />
-        </div>
-        <div className="flex items-center gap-1">
-          {ticket.ai_changelog.length > 0 && (
-            <Bot className="h-3 w-3 text-violet-400/70" />
-          )}
-          <PriorityIcon className={cn('h-3 w-3', priority.color)} />
-        </div>
-      </div>
-
-      {/* Title */}
-      <p className="font-sans text-[12px] font-medium leading-snug text-[var(--to-text-primary)] line-clamp-2">
-        {ticket.title}
-      </p>
-
-      {/* Footer */}
-      <div className="flex items-center justify-between">
-        <span className="font-mono text-[9px] font-bold text-[var(--to-text-dim)] tracking-tight">
-          {ticket.id}
-        </span>
-        <span className="font-mono text-[9px] text-[var(--to-text-dim)]">
-          {relativeTime(ticket.created_at)}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-// ── KanbanColumn ──────────────────────────────────────────────────────────────
-
-function KanbanColumn({
-  column,
-  tickets,
-  onDragStart,
-  onDrop,
-  onClick,
-}: {
-  column: (typeof STATUS_COLUMNS)[number];
-  tickets: Ticket[];
-  onDragStart: (id: string) => void;
-  onDrop: (status: TicketStatus) => void;
-  onClick: (t: Ticket) => void;
-}) {
-  const [isDragOver, setIsDragOver] = useState(false);
-
-  return (
-    <div
-      className="glass-panel flex flex-col min-h-[400px] p-3 rounded-xl"
-      onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
-      onDragLeave={() => setIsDragOver(false)}
-      onDrop={() => { setIsDragOver(false); onDrop(column.key); }}
-    >
-      {/* Column header */}
-      <div className={cn('flex items-center gap-2 mb-3 pb-2 border-b-2', column.accent)}>
-        <span className="font-mono text-[11px] font-bold uppercase tracking-widest text-[var(--to-text-secondary)]">
-          {column.label}
-        </span>
-        <span className="rounded-full bg-[var(--to-surface-raised)] px-2 py-0.5 font-mono text-[9px] font-bold text-[var(--to-text-dim)]">
-          {tickets.length}
-        </span>
-      </div>
-
-      {/* Cards */}
-      <div
-        className={cn(
-          'flex-1 space-y-2 rounded-lg transition-colors duration-150 p-1',
-          isDragOver && 'bg-[var(--to-warning)]/5 border border-dashed border-[var(--to-warning)]/30',
-        )}
-      >
-        {tickets.length === 0 && !isDragOver && (
-          <div className="py-4">
-            <div className="flex flex-col items-center gap-1 py-6 text-center">
-              <div className="mb-1 animate-bounce text-[var(--to-text-dim)]">
-                <Minus className="h-4 w-4" />
-              </div>
-              <span className="font-mono text-[10px] text-[var(--to-text-dim)]">No tickets</span>
-            </div>
-          </div>
-        )}
-        {tickets.map((t) => (
-          <TicketCard
-            key={t.id}
-            ticket={t}
-            onDragStart={onDragStart}
-            onClick={onClick}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── TicketDrawer ──────────────────────────────────────────────────────────────
-
-const STATUS_META: Record<TicketStatus, { label: string; color: string; bg: string }> = {
-  todo:        { label: 'Todo',        color: 'text-[var(--to-text-dim)]',    bg: 'bg-[var(--to-surface-raised)]' },
-  in_progress: { label: 'In Progress', color: 'text-[var(--to-warning)]',     bg: 'bg-[var(--to-warning)]/10' },
-  done:        { label: 'Done',        color: 'text-[var(--to-long)]',        bg: 'bg-[var(--to-long)]/10' },
-};
 
 function TicketDrawer({
   ticket,
@@ -772,24 +588,13 @@ export default function TicketsPage() {
       </div>
 
       {/* ── Kanban board ── */}
-      {isLoading && tickets.length === 0 ? (
-        <div className="py-16 text-center">
-          <p className="font-mono text-xs text-[var(--to-text-dim)]">Loading tickets…</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {STATUS_COLUMNS.map((col) => (
-            <KanbanColumn
-              key={col.key}
-              column={col}
-              tickets={byStatus(col.key)}
-              onDragStart={setDraggingId}
-              onDrop={handleDrop}
-              onClick={setActiveTicket}
-            />
-          ))}
-        </div>
-      )}
+      <KanbanBoard
+        tickets={tickets}
+        isLoading={isLoading}
+        onDragStart={setDraggingId}
+        onDrop={handleDrop}
+        onClickTicket={setActiveTicket}
+      />
 
       {/* ── Backlog ── */}
       {(() => {
