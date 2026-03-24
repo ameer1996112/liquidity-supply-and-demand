@@ -1846,6 +1846,16 @@ def run():
             backoff = min(backoff * 2, 60)
         except Exception as e:
             logger.error("Loop error: %s", e)
+            
+            # --- PHASE 4: AUTOMATED ERROR-TO-TICKET PIPELINE ---
+            try:
+                import traceback
+                from src.adapters.jira import create_bug_ticket
+                error_trace = traceback.format_exc()
+                create_bug_ticket(f"Worker Loop Error: {type(e).__name__}", f"Exception in worker loop:\n{error_trace}", sync_block=True)
+            except Exception as jira_err:
+                logger.error("Failed to forward exception to Jira: %s", jira_err)
+            
             try:
                 if "redis" in type(e).__module__.lower() or "ConnectionError" in type(e).__name__:
                     transport.reset()
