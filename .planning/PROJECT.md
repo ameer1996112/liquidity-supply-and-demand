@@ -14,13 +14,12 @@ Shipped v1.0 MVP:
 - Claude enforced autonomous workflow rules via CLAUDE.md.
 - Python worker natively refactored to align exactly with 5-minute timeframes dynamically.
 
-## Current Milestone: v1.1 Hosted Jira Frontend Integration
-**Goal:** Build a live Kanban board inside the Next.js frontend that syncs directly with the Atlassian Jira cloud API, avoiding the need for a local ticket database.
+## Current Milestone: v1.1 Autonomous System Jira Upgrades
+**Goal:** Upgrade the core Autonomous Workflow to support automatic Error-to-Bug Jira ticket creation from the Python worker and bi-directional PR transitions between GitHub and Atlassian.
 **Target features:**
-- Next.js proxy endpoints for Jira API calls to avoid CORS issues.
-- Kanban UI component in the dashboard.
-- Live fetching of active Sprints and Epics.
-- Drag and drop status updates syncing directly back to Hosted Jira.
+- Python global exception hooking into the Atlassian API.
+- Native `autonomous-jira-cli.js` PR tagging.
+- Jira automatic ticket transition execution.
 
 ## Requirements
 
@@ -36,14 +35,17 @@ Shipped v1.0 MVP:
 
 ### Active (v1.1)
 
-- [ ] JIR-01: Dedicated Jira dashboard page in the Next.js frontend.
-- [ ] JIR-02: Auto-fetch active Sprints and Tasks directly from Hosted Jira API.
-- [ ] JIR-03: Display tasks in a Kanban board layout (To Do, In Progress, Done).
-- [ ] JIR-04: Drag and drop Kanban tickets to instantly update Atlassian Jira status.
+- [ ] JIR-05: Global exception handler in Python worker catches critical runtime execution faults.
+- [ ] JIR-06: Automatically format the exception trace/env into a Jira Bug payload.
+- [ ] JIR-07: Create a High Priority Jira Bug via REST directly from Python.
+- [ ] JIR-08: `autonomous-jira-cli.js` command for `sync-pr` (branch + PR URL).
+- [ ] JIR-09: Post the GitHub PR link as a comment perfectly onto the Jira issue.
+- [ ] JIR-10: Automatically handle ticket status transitions.
 
 ### Out of Scope
 
-- Local Supabase database tables for Jira Tickets (Relying purely on Hosted Jira API as the source of truth).
+- Epic and Sub-task generation (Deferred to v1.2)
+- Bi-directional webhook checkouts from Atlassian -> Github.
 
 ## Context
 
@@ -65,4 +67,4 @@ Shipped v1.0 MVP:
 | Use Modulo 5 logic in Worker | Dynamically enforce 5m boundaries over static evaluation arrays. | ✓ Good |
 
 ---
-*Last updated: 2026-03-24 after v1.1 initialization*
+*Last updated: 2026-03-24 after v1.1 Autonomous Upgrades initialization*

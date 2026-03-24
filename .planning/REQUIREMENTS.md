@@ -1,22 +1,25 @@
 # Milestone v1.1 Requirements
 
-## Frontend Jira Kanban Dashboard
-- [ ] **JIR-01**: User can view a dedicated Jira dashboard page in the Next.js frontend.
-- [ ] **JIR-02**: System automatically fetches active Sprints and Tasks directly from the Hosted Atlassian Jira API (no local Supabase ticket storage).
-- [ ] **JIR-03**: User can view tasks organized in a Kanban board layout (To Do, In Progress, Done).
-- [ ] **JIR-04**: User can drag and drop tickets on the Kanban board to instantly update their status in the Atlassian Jira cloud.
+## Automated Error-to-Ticket Pipeline
+- [ ] **JIR-05**: Global exception handler in Python worker catches critical runtime execution faults (e.g., Live Order Failures, MetaAPI drops).
+- [ ] **JIR-06**: System automatically formats the exception trace and environment context into a Jira Bug Ticket payload.
+- [ ] **JIR-07**: System automatically creates a "High Priority" Bug traversing the Jira REST API directly from the Python backend.
+
+## Two-Way GitHub / Jira Sync
+- [ ] **JIR-08**: `autonomous-jira-cli.js` supports a new `sync-pr` command that takes a branch name and a PR URL.
+- [ ] **JIR-09**: The script automatically posts the GitHub PR link as a comment exactly on the corresponding Jira issue.
+- [ ] **JIR-10**: The script transitions the corresponding Jira ticket status from "In Progress" to "In Review" or "Done" based on PR state.
 
 ## Future Requirements
-- Advanced Epic planning and tracking
-- Bi-directional webhook updates (Hosted Jira updating the UI without refresh)
-
-## Out of Scope
-- Local Supabase database tables for Jira Tickets (Relying purely on Hosted Jira API as the source of truth).
+- Epic & Sub-task Architecture (AI automatically breaking down large tasks into 3+ linked tickets).
+- Webhook endpoints to receive Jira updates and auto-checkout branches locally.
 
 ## Traceability
 | Req ID | Phase | Plan | Status |
 |---|---|---|---|
-| JIR-01 | Phase 4 | 4-01 | Active |
-| JIR-02 | Phase 4 | 4-01 | Active |
-| JIR-03 | Phase 5 | 5-01 | Active |
-| JIR-04 | Phase 5 | 5-01 | Active |
+| JIR-05 | Phase 4 | 4-01 | Active |
+| JIR-06 | Phase 4 | 4-01 | Active |
+| JIR-07 | Phase 4 | 4-01 | Active |
+| JIR-08 | Phase 5 | 5-01 | Active |
+| JIR-09 | Phase 5 | 5-01 | Active |
+| JIR-10 | Phase 5 | 5-01 | Active |
