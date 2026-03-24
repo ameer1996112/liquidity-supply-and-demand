@@ -653,9 +653,45 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
             except Exception:
                 pass  # fail-open
 
-    # --- Daily trade limit (Redis-cached, TTL=30s) ---
-    if s.pine_max_trades_per_day > 0 and supabase:
-        try:
+    # --- Adaptive daily trade limit (PineGuardian v2) ---
+    # Uses 3-dimension adaptive system: session-quality + multi-day streak + session slots
+    # Falls back to legacy static check if adaptive is off or pine_max_trades_per_day > 0
+    try:
+        from src.core.guard_rails.pine_guardian import create_pine_guardian_from_settings
+        from src.services.pine_streak import get_streak_days, get_today_summary
+        from src.adapters.redis_queue import get_redis as _get_redis_for_limit
+        import datetime as _dt_mod
+
+        _redis = _get_redis_for_limit()
+        _guardian = create_pine_guardian_from_settings()
+
+        if _guardian.adaptive_enabled:
+            # Restore today's intraday state from Redis into the guardian
+            _wins, _losses, _risk_deployed = get_today_summary(_redis)
+            _guardian.daily_wins = _wins
+            _guardian.daily_losses = _losses
+            _guardian.daily_risk_deployed_pct = _risk_deployed
+            # Approximate consecutive_losses from losses (worst-case assumption when losses > 0)
+            _guardian.consecutive_losses = _losses if _wins == 0 else 0
+            _guardian.current_day_trades = _wins + _losses
+
+            _streak_days = get_streak_days(_redis)
+            _utc_hour = _dt_mod.datetime.now(_dt_mod.timezone.utc).hour
+
+            if not _guardian.check_max_trades(streak_days=_streak_days, utc_hour=_utc_hour):
+                _state = _guardian.compute_effective_limit(_streak_days, _utc_hour)
+                return (
+                    f"Adaptive trade limit: {_state.current_session_trades}/{_state.effective_limit} "
+                    f"[{_state.session.value} | base={_state.session_base} "
+                    f"intraday={_state.intraday_adj:+d} streak={_state.streak_bonus:+d}]"
+                )
+            if not _guardian.check_risk_budget():
+                return (
+                    f"Daily risk budget exhausted: {_guardian.daily_risk_deployed_pct:.2f}% "
+                    f">= {_guardian.daily_risk_budget_pct:.2f}%"
+                )
+        elif s.pine_max_trades_per_day > 0 and supabase:
+            # Legacy static path (backward compat)
             from datetime import datetime as _dt, timezone
             today_start = _dt.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
             today_count: Optional[int] = None
@@ -683,8 +719,8 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
                     pass
             if today_count >= s.pine_max_trades_per_day:
                 return f"Daily trade limit reached: {today_count}/{s.pine_max_trades_per_day} trades today"
-        except Exception as e:
-            logger.warning("Daily trade limit check failed: %s (fail-open)", e)
+    except Exception as e:
+        logger.warning("Adaptive trade limit check failed: %s (fail-open)", e)
 
     # --- Spread gate (minimum SL pips per instrument type) ---
     if getattr(s, "spread_gate_enabled", True):
@@ -1072,6 +1108,15 @@ def _execute_for_profile(
         log_event(None, "execution_started", "worker", {"symbol": symbol, "dry_run": dry_run, "profile": account_name})
         logic.process_trade(payload, dry_run=dry_run, ai_result=ai_result, profile=profile)
         logger.info("logic.process_trade completed for profile %s", account_name)
+        # Record trade in streak tracker (intraday state for adaptive limit)
+        try:
+            from src.services.pine_streak import record_trade_result as _record_streak
+            _risk_pct = float(payload.get("risk_percent", get_settings().risk_percent))
+            # pnl not known at entry; use 0 as placeholder (wins/losses tracked by watchdog later)
+            # Record as a "placed" trade so the budget gate deploys correctly
+            _record_streak(get_redis(), pnl=0.0, risk_pct=_risk_pct)
+        except Exception as _streak_err:
+            logger.debug("pine_streak record failed (non-fatal): %s", _streak_err)
     except Exception as exec_err:
         logger.error("logic.process_trade failed for %s: %s", account_name, exec_err)
         log_event(None, "execution_failed", "worker", {"symbol": symbol, "error": str(exec_err)[:200], "profile": account_name})
