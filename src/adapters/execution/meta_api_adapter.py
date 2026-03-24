@@ -421,6 +421,35 @@ class MetaApiAdapter:
         """Build trade endpoint URL for the configured MetaApi region."""
         return f"{self.base_url}/users/current/accounts/{self.account_id}/trade"
 
+    def _ensure_symbol_subscribed(self, broker_symbol: str) -> None:
+        """Subscribe a symbol in the MetaAPI cloud terminal's Market Watch.
+
+        MetaAPI cloud terminals only recognise symbols they have subscribed.
+        New symbols (e.g. NAS100.raw) cause ERR_MARKET_UNKNOWN_SYMBOL (4301)
+        if they were never added. This call is best-effort: failure is logged
+        but does not block the order attempt.
+        """
+        url = (
+            f"{self.base_url}/users/current/accounts/"
+            f"{self.account_id}/subscriptions/{broker_symbol}"
+        )
+        try:
+            resp = requests.put(
+                url,
+                headers=self._headers(),
+                json={"subscriptions": [{"type": "quotes"}]},
+                timeout=5,
+            )
+            if resp.status_code in (200, 201, 204):
+                logger.info("Symbol subscribed in MetaAPI Market Watch: %s", broker_symbol)
+            else:
+                logger.warning(
+                    "Symbol subscription for %s returned HTTP %s: %s",
+                    broker_symbol, resp.status_code, resp.text[:200],
+                )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Symbol subscription attempt failed for %s: %s", broker_symbol, exc)
+
     def submit_order(self, request: OrderRequest) -> ExecutionResult:
         """Submit a market order to MetaApi.
 
@@ -445,6 +474,13 @@ class MetaApiAdapter:
                 "Symbol translated: %s -> %s (broker-specific)",
                 request.symbol, broker_symbol
             )
+
+        # Ensure symbol is subscribed in MetaAPI cloud terminal's Market Watch.
+        # MetaAPI cloud terminals only trade symbols they have subscribed; new
+        # symbols (e.g. NAS100.raw) cause ERR_MARKET_UNKNOWN_SYMBOL (4301) if
+        # they were never added. This is a best-effort call — failure is logged
+        # but does not block the order.
+        self._ensure_symbol_subscribed(broker_symbol)
 
         # ------------------------------------------------------------------
         # OPT-1 (latency): Use signal SL/TP values directly — no pre-fetch.
