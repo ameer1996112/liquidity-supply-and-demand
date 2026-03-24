@@ -125,7 +125,7 @@ function TicketCard({
         'group cursor-grab active:cursor-grabbing select-none',
         'rounded-lg border border-[var(--to-border)] bg-[var(--to-surface)]',
         'p-3 space-y-2 transition-all duration-150',
-        'hover:border-[var(--to-border)]/80 hover:bg-[var(--to-surface-raised)] hover:shadow-sm',
+        'hover:border-[var(--to-border)]/80 hover:bg-[var(--to-surface-raised)] hover:shadow-sm hover:-translate-y-[1px]',
       )}
     >
       {/* Type + Priority row */}
@@ -148,13 +148,9 @@ function TicketCard({
 
       {/* Footer */}
       <div className="flex items-center justify-between">
-        {ticket.signal_id ? (
-          <span className="font-mono text-[9px] text-blue-400/70">
-            Signal #{ticket.signal_id}
-          </span>
-        ) : (
-          <span />
-        )}
+        <span className="font-mono text-[9px] font-bold text-[var(--to-text-dim)] tracking-tight">
+          {ticket.id}
+        </span>
         <span className="font-mono text-[9px] text-[var(--to-text-dim)]">
           {relativeTime(ticket.created_at)}
         </span>
@@ -182,7 +178,7 @@ function KanbanColumn({
 
   return (
     <div
-      className="flex flex-col min-h-[400px]"
+      className="glass-panel flex flex-col min-h-[400px] p-3 rounded-xl"
       onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
       onDragLeave={() => setIsDragOver(false)}
       onDrop={() => { setIsDragOver(false); onDrop(column.key); }}
@@ -205,8 +201,13 @@ function KanbanColumn({
         )}
       >
         {tickets.length === 0 && !isDragOver && (
-          <div className="py-8 text-center">
-            <p className="font-mono text-[10px] text-[var(--to-text-dim)]">No tickets</p>
+          <div className="py-4">
+            <div className="flex flex-col items-center gap-1 py-6 text-center">
+              <div className="mb-1 animate-bounce text-[var(--to-text-dim)]">
+                <Minus className="h-4 w-4" />
+              </div>
+              <span className="font-mono text-[10px] text-[var(--to-text-dim)]">No tickets</span>
+            </div>
           </div>
         )}
         {tickets.map((t) => (
@@ -590,7 +591,7 @@ export default function TicketsPage() {
   const totalOpen = tickets.filter((t) => t.status !== 'done').length;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4 animate-fade-in-up">
       {/* ── Header ── */}
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -598,11 +599,11 @@ export default function TicketsPage() {
             <ClipboardList className="h-4 w-4 text-violet-400" />
           </div>
           <div>
-            <h1 className="font-mono text-lg font-bold text-[var(--to-text-primary)] tracking-tight">
+            <h1 className="page-title text-lg font-semibold">
               Tickets
             </h1>
-            <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--to-text-dim)]">
-              Ops · {totalOpen} open
+            <p className="page-subtitle mt-0.5 text-xs">
+              Project tracker · {totalOpen} open
             </p>
           </div>
         </div>
