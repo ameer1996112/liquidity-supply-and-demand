@@ -8,6 +8,12 @@ An algorithmic trading system executing on a 5-minute timeframe using Liquidity,
 
 End-to-end automation of both trading execution (Flip/Directional Close mechanics) and the development lifecycle (autonomous Jira issue creation, branch management, coding, and smart commits).
 
+## Current State (v1.0)
+Shipped v1.0 MVP:
+- Jira/GitHub autonomous CLI integration configured.
+- Claude enforced autonomous workflow rules via CLAUDE.md.
+- Python worker natively refactored to align exactly with 5-minute timeframes dynamically.
+
 ## Requirements
 
 ### Validated
@@ -16,12 +22,13 @@ End-to-end automation of both trading execution (Flip/Directional Close mechanic
 - ✓ Next.js frontend
 - ✓ Docker and Next.js integrations
 - ✓ Basic Python worker structure
+- ✓ Jira/GitHub Integration Utility (Phase 1) — v1.0
+- ✓ Autonomous Workflow Pipeline (Phase 2) — v1.0
+- ✓ 5-minute timeframe trading logic refinement using Supply/Demand architecture (Phase 3) — v1.0
 
 ### Active
 
-- [ ] Jira/GitHub Integration Utility (Phase 1): Local Node.js or Python script connecting to Jira REST API and GitHub CLI.
-- [ ] Autonomous Workflow Pipeline (Phase 2): Automatic translation of feature prompts into Jira tickets, branch creation, execution, and smart-commit driven PR generation.
-- [ ] 5-minute timeframe trading logic refinement using Supply/Demand architecture.
+(Awaiting next milestone planning)
 
 ### Out of Scope
 
@@ -43,7 +50,9 @@ End-to-end automation of both trading execution (Flip/Directional Close mechanic
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Implement custom local Jira script | Enhance autonomous agent capabilities to manage sprints/epics/tasks. | — Pending |
+| Implement custom local Jira script | Enhance autonomous agent capabilities to manage sprints/epics/tasks. | ✓ Good |
+| Enforce rules via CLAUDE.md | Stop agents from breaking the Jira -> Code -> Commit loop. | ✓ Good |
+| Use Modulo 5 logic in Worker | Dynamically enforce 5m boundaries over static evaluation arrays. | ✓ Good |
 
 ---
-*Last updated: 2026-03-24 after initialization*
+*Last updated: 2026-03-24 after v1.0 milestone*
