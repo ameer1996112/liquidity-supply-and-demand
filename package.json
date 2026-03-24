@@ -1,0 +1,10 @@
+{
+  "name": "trading-project",
+  "version": "1.0.0",
+  "description": "Algorithmic trading system — Jira CLI shortcuts",
+  "private": true,
+  "scripts": {
+    "task": "node scripts/jira-sync.js",
+    "bug":  "node scripts/jira-sync.js --bug"
+  }
+}
