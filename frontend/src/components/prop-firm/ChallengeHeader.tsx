@@ -60,6 +60,7 @@ interface ChallengeHeaderProps {
   dataUpdatedAt: number | undefined;
   onReset: () => void;
   isResetting: boolean;
+  safeToTrade?: boolean;
 }
 
 export function ChallengeHeader({
@@ -72,7 +73,20 @@ export function ChallengeHeader({
   dataUpdatedAt,
   onReset,
   isResetting,
+  safeToTrade,
 }: ChallengeHeaderProps) {
+  const statusBadge =
+    safeToTrade === undefined
+      ? null
+      : safeToTrade
+      ? {
+          label: 'PASSING',
+          cls: 'border-[var(--to-long)]/40 bg-[var(--to-long)]/10 text-[var(--to-long)]',
+        }
+      : {
+          label: 'FAILING',
+          cls: 'border-[var(--to-short)]/40 bg-[var(--to-short)]/10 text-[var(--to-short)] animate-pulse',
+        };
   return (
     <div className='glow-card p-6'>
       <div className='flex flex-col md:flex-row md:items-center md:justify-between gap-4'>
@@ -85,14 +99,24 @@ export function ChallengeHeader({
               <h1 className='text-[22px] font-black text-[var(--to-text-primary)] tracking-tight'>
                 Prop Firm Challenge
               </h1>
-              <div className='flex items-center gap-2 mt-1'>
+              <div className='flex flex-wrap items-center gap-2 mt-1'>
                 <span className='text-[12px] text-[var(--to-text-dim)] font-mono'>
                   {accountName}
                 </span>
                 <ChevronRight className='h-3 w-3 text-[var(--to-text-dim)]' />
                 <PhaseBadge phase={evaluationPhase} />
+                {statusBadge && (
+                  <span
+                    className={cn(
+                      'inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-bold uppercase tracking-wider font-mono border',
+                      statusBadge.cls
+                    )}
+                  >
+                    {statusBadge.label}
+                  </span>
+                )}
                 {daysRemaining !== null && (
-                  <div className='flex items-center gap-1 ml-2 text-[11px] text-[var(--to-text-dim)] font-mono'>
+                  <div className='flex items-center gap-1 text-[11px] text-[var(--to-text-dim)] font-mono'>
                     <Clock className='h-3 w-3' />
                     {daysRemaining} days remaining
                   </div>
