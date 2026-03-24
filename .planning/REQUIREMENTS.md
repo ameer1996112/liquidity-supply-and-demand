@@ -27,12 +27,12 @@
 ## Traceability
 | Req ID | Description | Phase | Plan | Status |
 |---|---|---|---|---|
-| JIR-11 | Generate Jira Epic natively | TBD | TBD | Active |
-| JIR-12 | Attach Sub-Tasks to Epic | TBD | TBD | Active |
-| EXEC-01 | Configure Multi-Account parsing | TBD | TBD | Active |
-| EXEC-02 | Execute simultaneous trade broadcasting | TBD | TBD | Active |
-| EXEC-03 | Localize Risk engines per account | TBD | TBD | Active |
-| NOTIF-01 | Discord broadcast on Python Crash | TBD | TBD | Active |
-| NOTIF-02 | Discord broadcast on PR Sync | TBD | TBD | Active |
-| UI-01 | Agentic View frontend components | TBD | TBD | Active |
-| UI-02 | FastAPI agent status endpoint | TBD | TBD | Active |
+| JIR-11 | Generate Jira Epic natively | Phase 6 | 6-01 | Active |
+| JIR-12 | Attach Sub-Tasks to Epic | Phase 6 | 6-02 | Active |
+| EXEC-01 | Configure Multi-Account parsing | Phase 7 | 7-01 | Active |
+| EXEC-02 | Execute simultaneous trade broadcasting | Phase 7 | 7-02 | Active |
+| EXEC-03 | Localize Risk engines per account | Phase 7 | 7-03 | Active |
+| NOTIF-01 | Discord broadcast on Python Crash | Phase 8 | 8-01 | Active |
+| NOTIF-02 | Discord broadcast on PR Sync | Phase 8 | 8-02 | Active |
+| UI-01 | Agentic View frontend components | Phase 9 | 9-01 | Active |
+| UI-02 | FastAPI agent status endpoint | Phase 9 | 9-02 | Active |

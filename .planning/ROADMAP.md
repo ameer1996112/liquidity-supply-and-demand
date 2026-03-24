@@ -24,8 +24,12 @@
 
 </details>
 
-### 🚧 v1.2 (Planned)
-*(Awaiting new milestone scope)*
+### 🚧 v1.2 Agent Expansion & Multi-Account Execution (In Progress)
+
+- [ ] Phase 6: Epic Intelligence (2 plans)
+- [ ] Phase 7: Multi-Account Execution Pipeline (3 plans)
+- [ ] Phase 8: Discord Alerts Hub (2 plans)
+- [ ] Phase 9: Trading Health Agentic UI (2 plans)
 
 ## Progress
 
@@ -36,3 +40,7 @@
 | 3. Market Timer   | v1.0      | Complete    | 2026-03    |
 | 4. Error Logging  | v1.1      | Complete    | 2026-03-25 |
 | 5. Github Sync    | v1.1      | Complete    | 2026-03-25 |
+| 6. Epic Intel     | v1.2      | Not started | -          |
+| 7. Multi-Account  | v1.2      | Not started | -          |
+| 8. Discord Alerts | v1.2      | Not started | -          |
+| 9. Agentic UI     | v1.2      | Not started | -          |
