@@ -292,7 +292,16 @@ class Settings(BaseSettings):
     pine_block_dead_zone: bool = Field(default=True, description="Block entries in last 10 min of each hour (xx:50-xx:00).")
     pine_trading_start_hour: int = Field(default=7, ge=0, le=23, description="Trading start hour (UTC). 7=default.")
     pine_trading_end_hour: int = Field(default=22, ge=0, le=23, description="Trading end hour (UTC). 22=default.")
-    pine_max_trades_per_day: int = Field(default=2, ge=0, le=10, description="Max trades per day. 2=Balanced, 1=Conservative. 0=OFF.")
+    pine_max_trades_per_day: int = Field(default=0, ge=0, le=20, description="Legacy static daily trade cap (0=use adaptive system). Env: PINE_MAX_TRADES_PER_DAY.")
+
+    # ── Adaptive Daily Trade Limit (v2 multi-dimensional) ─────────────────
+    pine_adaptive_enabled: bool = Field(default=True, description="Enable session-quality adaptive trade limit. When False, uses pine_max_trades_per_day static cap. Env: PINE_ADAPTIVE_ENABLED.")
+    pine_max_trades_london: int = Field(default=2, ge=0, le=10, description="Base trade slots for London session (07:00–12:00 UTC). Env: PINE_MAX_TRADES_LONDON.")
+    pine_max_trades_ny: int = Field(default=2, ge=0, le=10, description="Base trade slots for New York session (13:00–18:00 UTC). Env: PINE_MAX_TRADES_NY.")
+    pine_max_trades_offhours: int = Field(default=1, ge=0, le=10, description="Base trade slots for off-hours (18:00–07:00 UTC). Env: PINE_MAX_TRADES_OFFHOURS.")
+    pine_max_trades_hard_cap: int = Field(default=6, ge=1, le=20, description="Absolute daily trade ceiling across all sessions. Env: PINE_MAX_TRADES_HARD_CAP.")
+    pine_daily_risk_budget_pct: float = Field(default=3.0, ge=0.1, le=20.0, description="Max cumulative risk % that may be deployed per day (parallel budget gate). Env: PINE_DAILY_RISK_BUDGET_PCT.")
+    pine_streak_enabled: bool = Field(default=True, description="Enable multi-day profitable-streak bonus (+1/+2 slots). Env: PINE_STREAK_ENABLED.")
 
     # Weekly loss limit
     enable_weekly_loss_limit: bool = Field(default=True, description="Block new trades when weekly PnL exceeds max_weekly_loss_pct. 0=OFF.")
