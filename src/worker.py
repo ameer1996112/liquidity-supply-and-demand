@@ -452,7 +452,7 @@ def _build_ml_rejection_reasoning(payload: Dict, win_prob: float, features_used:
 
 
 def _validate_flip_timing(payload: Dict[str, Any]) -> Optional[str]:
-    """Validate FLIP entry timing: bar_time minutes must be at 15-min boundary (00/15/30/45).
+    """Validate FLIP entry timing: bar_time minutes must be at 5-min boundary.
 
     Returns None if valid or not a FLIP entry, error message if invalid.
     Fail-open: missing bar_time or parse errors allow the trade through.
@@ -475,10 +475,10 @@ def _validate_flip_timing(payload: Dict[str, Any]) -> Optional[str]:
 
         dt = _parse_dt(bar_time)
 
-        if dt.minute not in {0, 15, 30, 45}:
+        if dt.minute % 5 != 0:
             return (
                 f"FLIP entry rejected: bar_time {bar_time} has minute={dt.minute}, "
-                f"but FLIP entries require 15-min boundaries (00/15/30/45)"
+                f"but FLIP entries require 5-min boundaries"
             )
         return None
     except Exception as e:
@@ -486,7 +486,7 @@ def _validate_flip_timing(payload: Dict[str, Any]) -> Optional[str]:
         return None
 
 
-# Futures symbols (Mangoe rules: BOC or Directional Close primary; Flip only on 15m/1H boundary)
+# Futures symbols (Mangoe rules: BOC or Directional Close primary; Flip only on 5m boundary)
 _FUTURES_SYMBOLS = frozenset({"CL", "NQ", "GC", "ES", "YM", "RTY", "XAUUSD", "XAU", "GOLD", "USOIL", "UKOIL"})
 
 
@@ -507,11 +507,11 @@ def _is_futures_symbol(symbol: str) -> bool:
 
 
 def _validate_futures_entry_model(payload: Dict[str, Any]) -> Optional[str]:
-    """Enforce Mangoe Futures entry rules: BOC or Directional Close primary; reject Flip unless on 15m/1H boundary.
+    """Enforce Mangoe Futures entry rules: BOC or Directional Close primary; reject Flip unless on 5m boundary.
 
     For Futures (CL, NQ, GC, XAUUSD, etc.):
     - Prefer Break of Candle or Directional Close.
-    - FLIP entries are only allowed when bar_time is on a 15-min boundary (00/15/30/45).
+    - FLIP entries are only allowed when bar_time is on a 5-min boundary.
     Returns None if valid or not a Futures symbol, rejection reason string otherwise.
     """
     symbol = (payload.get("symbol") or "").strip()
@@ -526,13 +526,13 @@ def _validate_futures_entry_model(payload: Dict[str, Any]) -> Optional[str]:
     if any(x in entry_model for x in ("boc", "break", "directional", "dir_close", "dir close")):
         return None
 
-    # FLIP: require 15m/1H boundary (strict for Futures — do not fail-open on missing bar_time)
+    # FLIP: require 5m boundary (strict for Futures — do not fail-open on missing bar_time)
     if "flip" in entry_model:
         bar_time = payload.get("bar_time")
         if not bar_time or not isinstance(bar_time, str):
             return (
-                "Futures (Mangoe): FLIP entry requires bar_time for 15m/1H boundary check. "
-                "Use Break of Candle or Directional Close, or ensure Flip occurs on 15m/1H candle open."
+                "Futures (Mangoe): FLIP entry requires bar_time for 5m boundary check. "
+                "Use Break of Candle or Directional Close, or ensure Flip occurs on 5m candle open."
             )
         reason = _validate_flip_timing(payload)
         if reason:
