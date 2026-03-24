@@ -22,8 +22,14 @@ Shipped v1.1 Autonomous System Jira Upgrades:
 - Native `autonomous-jira-cli.js` PR tagging links Github reviews natively to the matching Jira ticket.
 - Jira automatic ticket transition execution perfectly syncs Github development with Kanban board flow limits.
 
-## Next Milestone Goals (v1.2)
-- Planning next milestone...
+## Current Milestone: v1.2 Agent Expansion & Multi-Account Execution
+**Goal:** Expand the Autonomous Manager's intelligence to handle Epics and Discord alerts, while heavily upgrading the trading worker to route Multi-Account deployments and visualize its own status on the Next.js dashboard.
+
+**Target features:**
+- Autonomous Epic & Sub-task Jira generation via JavaScript CLI.
+- Multi-Account Prop Firm routing natively inside the Python execution pipeline.
+- Actionable Discord Webhook alerts for AI Agent actions (Bugs, PRs).
+- "Agentic View" visualizer on the Next.js Trading Health Dashboard.
 
 ## Requirements
 
