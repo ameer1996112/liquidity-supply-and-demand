@@ -275,7 +275,17 @@ class BrokerReconciliation:
         logger.warning(f"Updated trade {trade['id']} (fallback): outcome={outcome}, pnl={pnl:.2f}")
 
 
+def get_last_closed_timestamp(supabase_client) -> str:
+    """Module-level alias for BrokerReconciliation.get_last_closed_timestamp.
+
+    Exists so ``from src.services.broker_reconciliation import get_last_closed_timestamp``
+    works in logic.py — Python cannot directly import a @staticmethod by name.
+    """
+    return BrokerReconciliation.get_last_closed_timestamp(supabase_client)
+
+
 def run_reconciliation_for_profile(
+
     supabase_url: str,
     supabase_key: str,
     broker_profile_id: int,
