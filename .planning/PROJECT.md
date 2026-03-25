@@ -19,10 +19,10 @@ The dashboard metrics must be 100% accurate and perfectly synchronized with Meta
 
 ### Active
 
-- [ ] Fix Live PnL showing `0.00` on the dashboard for active trades
-- [ ] Fix the calculation/sync logic for Historical PnL so it exactly matches MetaTrader (including swaps, commissions, slippage)
-- [ ] Synchronize other account metrics (Account Balance, Margin, Daily Drawdown) with MetaTrader
-- [ ] Build a retroactive script/process to repair the discrepancies in historical signal data already existing in Supabase
+- [x] Fix Live PnL showing `0.00` on the dashboard for active trades
+- [x] Fix the calculation/sync logic for Historical PnL so it exactly matches MetaTrader (including swaps, commissions, slippage)
+- [x] Synchronize other account metrics (Account Balance, Margin, Daily Drawdown) with MetaTrader
+- [x] Build a retroactive script/process to repair the discrepancies in historical signal data already existing in Supabase
 
 ### Out of Scope
 
