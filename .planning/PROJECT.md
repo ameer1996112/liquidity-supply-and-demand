@@ -4,6 +4,14 @@
 
 A data synchronization project for the Next.js trading dashboard to ensure that Live PnL, Historical PnL, Account Balance, Margin, and Daily Drawdown perfectly match the real data from MetaTrader (via MetaApi). The fix will correct both past existing signals and future active signals so the dashboard provides an accurate source of truth reflecting the broker's numbers.
 
+## Current Milestone: v1.2 UI Cleanup
+
+**Goal:** Streamline the application navigation by removing unused experimental pages.
+
+**Target features:**
+- Remove Agentic View from sidebar
+- Remove Tickets from sidebar
+
 ## Core Value
 
 The dashboard metrics must be 100% accurate and perfectly synchronized with MetaTrader's actual numbers. A trading dashboard with incorrect PnL cannot be trusted by traders.
@@ -12,17 +20,18 @@ The dashboard metrics must be 100% accurate and perfectly synchronized with Meta
 
 ### Validated
 
-- ✓ Ingest TradingView webhook signals
-- ✓ Execute trades via MetaApi worker
-- ✓ Display signals and trade state on the dashboard
-- ✓ Sync basic position state to Supabase
+- ✓ Ingest TradingView webhook signals — v1.0
+- ✓ Execute trades via MetaApi worker — v1.0
+- ✓ Display signals and trade state on the dashboard — v1.0
+- ✓ Sync basic position state to Supabase — v1.0
+- ✓ Fix Live PnL showing `0.00` on the dashboard for active trades — v1.1
+- ✓ Fix the calculation/sync logic for Historical PnL so it exactly matches MetaTrader (including swaps, commissions, slippage) — v1.1
+- ✓ Synchronize other account metrics (Account Balance, Margin, Daily Drawdown) with MetaTrader — v1.1
+- ✓ Build a retroactive script/process to repair the discrepancies in historical signal data already existing in Supabase — v1.1
 
 ### Active
 
-- [x] Fix Live PnL showing `0.00` on the dashboard for active trades
-- [x] Fix the calculation/sync logic for Historical PnL so it exactly matches MetaTrader (including swaps, commissions, slippage)
-- [x] Synchronize other account metrics (Account Balance, Margin, Daily Drawdown) with MetaTrader
-- [x] Build a retroactive script/process to repair the discrepancies in historical signal data already existing in Supabase
+- [ ] Remove Agentic View and Tickets navigation links from the dashboard Sidebar component
 
 ### Out of Scope
 
@@ -41,7 +50,7 @@ The current system has existing logic to sync positions to Supabase and show the
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Include overall metrics (Balance, Drawdown) alongside PnL | If PnL is wrong, account-level metrics are usually affected too | — Pending |
+| Include overall metrics (Balance, Drawdown) alongside PnL | If PnL is wrong, account-level metrics are usually affected too | ✓ Good |
 
 ---
-*Last updated: 2026-03-25 after initialization*
+*Last updated: 2026-03-25 after v1.1 milestone*
