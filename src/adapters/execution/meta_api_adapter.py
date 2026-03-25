@@ -23,6 +23,15 @@ MAX_RETRIES = 4
 RETRY_BACKOFF = (1.0, 3.0, 5.0, 10.0)
 RATE_LIMIT_SLEEP = 60
 
+# HTTP 504 "account not connected to broker / wrong region" requires longer waits because
+# MetaAPI needs time to re-establish the MT5 terminal connection (can take 30-120s).
+# We use a separate, slower backoff schedule and fewer retries to avoid hammering the API
+# during broker-disconnect events. After exhausting these retries we open the circuit
+# breaker for BROKER_DISCONNECT_CB_TTL seconds so polling loops back off gracefully.
+MAX_RETRIES_BROKER_DISCONNECT = 2  # 3 total attempts: 0, 1, 2
+RETRY_BACKOFF_BROKER_DISCONNECT = (15.0, 30.0)  # 45s cumulative before giving up
+BROKER_DISCONNECT_CB_TTL = 120  # seconds — 2-min cool-off before next poll wave
+
 
 class MetaApiAdapter:
     """
@@ -76,8 +85,15 @@ class MetaApiAdapter:
     ) -> Optional[requests.Response]:
         """
         GET or POST with retries on timeout/5xx. On 429: open circuit breaker, sleep 60s, return None.
+
+        504 "broker not connected / wrong region" uses a separate slower backoff schedule
+        (15s, 30s) because MetaAPI needs time to re-establish the MT5 terminal connection.
+        After exhausting 504 retries the circuit breaker is opened for 2 minutes to prevent
+        polling loops from hammering MetaAPI during broker-disconnect events.
         """
         last_exc = None
+        broker_disconnect_attempt = 0  # separate counter for 504 retries
+
         for attempt in range(MAX_RETRIES + 1):
             try:
                 if method.upper() == "GET":
@@ -99,11 +115,42 @@ class MetaApiAdapter:
                     pass
                 logger.warning("MetaApi rate limited (429); circuit breaker opened, sleeping %ss", RATE_LIMIT_SLEEP)
                 time.sleep(RATE_LIMIT_SLEEP)
+
             if resp.status_code == 401:
                 logger.error("MetaApi authentication failed (401 Unauthorized for account %s). Check MetaAPI token.", self.account_id)
                 raise PermissionError("METAAPI_AUTH_FAILED")
-                
-            if 500 <= resp.status_code < 600 and attempt < MAX_RETRIES:
+
+            # 504: broker not connected yet OR wrong region — needs slow back-off
+            if resp.status_code == 504:
+                if broker_disconnect_attempt < MAX_RETRIES_BROKER_DISCONNECT:
+                    wait = RETRY_BACKOFF_BROKER_DISCONNECT[broker_disconnect_attempt] if broker_disconnect_attempt < len(RETRY_BACKOFF_BROKER_DISCONNECT) else 30.0
+                    logger.warning(
+                        "MetaApi %s %s HTTP 504 (broker not connected / region mismatch); "
+                        "attempt %s/%s, retrying in %.0fs. "
+                        "If persistent, verify META_API_REGION matches account region.",
+                        method, url[:80], broker_disconnect_attempt + 1, MAX_RETRIES_BROKER_DISCONNECT, wait,
+                    )
+                    broker_disconnect_attempt += 1
+                    time.sleep(wait)
+                    continue
+                else:
+                    # All 504 retries exhausted — open circuit breaker to stop poll flooding
+                    logger.error(
+                        "MetaApi %s %s HTTP 504 persisted after %s retries (account %s). "
+                        "Opening circuit breaker for %ss. "
+                        "Check: (1) META_API_REGION env var matches account region, "
+                        "(2) broker terminal is online in MetaAPI dashboard.",
+                        method, url[:80], MAX_RETRIES_BROKER_DISCONNECT + 1,
+                        self.account_id, BROKER_DISCONNECT_CB_TTL,
+                    )
+                    try:
+                        from src.core.circuit_breaker import set_metaapi_circuit_open
+                        set_metaapi_circuit_open(ttl_seconds=BROKER_DISCONNECT_CB_TTL)
+                    except Exception:  # noqa: BLE001
+                        pass
+                    return resp
+
+            if 500 <= resp.status_code < 600 and resp.status_code != 504 and attempt < MAX_RETRIES:
                 logger.warning("MetaApi %s %s HTTP %s; retrying in %.1fs", method, url[:80], resp.status_code, RETRY_BACKOFF[attempt] if attempt < len(RETRY_BACKOFF) else 2)
                 time.sleep(RETRY_BACKOFF[attempt] if attempt < len(RETRY_BACKOFF) else 2)
                 continue
