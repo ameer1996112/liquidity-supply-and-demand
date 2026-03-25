@@ -89,7 +89,7 @@ def fetch_closed_trades(account_id: Optional[str] = None, days: int = 30) -> Lis
             sb.table("trading_signals")
             .select("id, zone_id, symbol, side, entry, sl, tp, size, broker_order_id, broker_position_id, "
                    "pnl_usd, pnl, closed_at, exit_price, status, execution_source, account_id")
-            .eq("status", "CLOSED")
+            .in_("status", ["CLOSED", "closed", "executed", "EXECUTED", "filled", "FILLED"])
             .eq("execution_source", "metaapi")  # Only fetch LIVE trades, not PAPER
             .gte("closed_at", start_time.isoformat())
             .lte("closed_at", end_time.isoformat())
@@ -111,34 +111,56 @@ def fetch_closed_trades(account_id: Optional[str] = None, days: int = 30) -> Lis
 
 
 def fetch_broker_deals(adapter, start_time: datetime, end_time: datetime) -> List[Dict]:
-    """Fetch historical deals from MetaAPI."""
+    """Fetch historical deals from MetaAPI.
+
+    Returns synthesized closing deals where profit, commission, and swap represent
+    the full round-trip totals (opening deal commission included).
+    """
     if not hasattr(adapter, "get_historical_deals"):
         logger.error("Adapter does not support get_historical_deals()")
         return []
 
     try:
         logger.info(f"Fetching broker deals from {start_time} to {end_time}")
-        deals = adapter.get_historical_deals(
+        all_deals = adapter.get_historical_deals(
             start_time.isoformat(),
             end_time.isoformat()
         )
 
-        # Filter for closing deals only
-        closing_deals = [
-            d for d in deals
-            if d.get("entryType") in ["DEAL_ENTRY_OUT", "DEAL_ENTRY_OUT_BY"]
-        ]
+        # Group ALL deals by positionId so we can sum opening + closing commission
+        from collections import defaultdict
+        by_position: Dict[str, List] = defaultdict(list)
+        for d in all_deals:
+            pid = str(d.get("positionId") or "")
+            if pid:
+                by_position[pid].append(d)
 
-        logger.info(f"Fetched {len(closing_deals)} closing deals from broker")
+        # Build enriched closing deals with full round-trip totals
+        closing_deals = []
+        for d in all_deals:
+            if d.get("entryType") not in ("DEAL_ENTRY_OUT", "DEAL_ENTRY_OUT_BY"):
+                continue
+            pid = str(d.get("positionId") or "")
+            all_pos_deals = by_position.get(pid, [d])
+            # Sum commission and swap across ALL deals for this position
+            total_commission = sum(float(x.get("commission") or 0) for x in all_pos_deals)
+            total_swap = sum(float(x.get("swap") or 0) for x in all_pos_deals)
+            # Profit only comes from the closing deal
+            enriched = dict(d)
+            enriched["commission"] = total_commission
+            enriched["swap"] = total_swap
+            closing_deals.append(enriched)
 
-        # Debug: show what deals we got
+        logger.info(f"Fetched {len(closing_deals)} closing deals from broker (with full round-trip commission)")
+
         if closing_deals:
             logger.info("\nBroker deals found:")
-            for deal in closing_deals[:10]:  # Show first 10
+            for deal in closing_deals[:10]:
+                net = float(deal.get("profit", 0)) + float(deal.get("commission", 0)) + float(deal.get("swap", 0))
                 logger.info(
                     f"  - Deal: {deal.get('symbol')} @ {deal.get('time')} | "
-                    f"positionId={deal.get('positionId')} | orderId={deal.get('orderId')} | "
-                    f"profit=${deal.get('profit', 0):.2f}"
+                    f"positionId={deal.get('positionId')} | profit=${deal.get('profit', 0):.2f} "
+                    f"comm=${deal.get('commission', 0):.2f} net=${net:.2f}"
                 )
 
         return closing_deals
@@ -308,8 +330,8 @@ def main():
 
             logger.info(f"Matched! Broker PnL: ${actual_pnl:.2f} (diff: ${pnl_diff:.2f}, {pnl_diff_pct:.1f}%)")
 
-            # Update if difference is significant (>1%)
-            if pnl_diff_pct > 1.0 or pnl_diff > 5.0:
+            # Update if PnL was null/zero or difference is significant (>1%)
+            if old_pnl == 0 or old_pnl is None or pnl_diff_pct > 1.0 or pnl_diff > 5.0:
                 if update_trade_pnl(trade_id, matching_deal, dry_run=args.dry_run):
                     updated_count += 1
             else:
