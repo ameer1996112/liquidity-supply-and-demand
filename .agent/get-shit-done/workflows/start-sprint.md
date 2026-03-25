@@ -5,20 +5,28 @@ Start a new Jira sprint directly from the terminal so that newly created tickets
 <process>
 
 <step name="determine_name">
-Determine the sprint name from arguments. If missing, generate a default name based on the current date:
+Determine the sprint name from arguments or generate a contextual name based on the current GSD Phase constraints:
 
 ```bash
-SPRINT_NAME="${ARGUMENTS:-Sprint $(date +%Y-%m-%d)}"
+FOCUS=$(grep "Current focus:" .planning/STATE.md 2>/dev/null | sed -e 's/.*\*\*Current focus:\*\* //' -e 's/.*Current focus: //' | sed 's/^[ \t]*//' || echo "")
+if [ -n "$FOCUS" ]; then
+  RAW_NAME="${ARGUMENTS:-[Sprint] $FOCUS}"
+  SPRINT_NAME=$(echo "$RAW_NAME" | cut -c1-30 | sed 's/ *$//')
+  SPRINT_GOAL="Execute: $FOCUS"
+else
+  SPRINT_NAME="${ARGUMENTS:-Sprint $(date +%Y-%m-%d)}"
+  SPRINT_GOAL="General backlog execution"
+fi
 ```
 </step>
 
 <step name="create_sprint">
-Call the backend API to create and start the sprint natively:
+Call the backend API to create and start the contextual sprint natively:
 
 ```bash
 RESPONSE=$(curl -s -w "\n%{http_code}" -X POST http://localhost:8000/api/tickets/sprints/start \
   -H "Content-Type: application/json" \
-  -d "{\"name\": \"$SPRINT_NAME\"}")
+  -d "{\"name\": \"$SPRINT_NAME\", \"goal\": \"$SPRINT_GOAL\"}")
 
 BODY=$(echo "$RESPONSE" | sed '$d')
 STATUS=$(echo "$RESPONSE" | tail -n1)
