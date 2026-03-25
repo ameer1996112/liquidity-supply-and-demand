@@ -804,227 +804,6 @@ def get_trade_copy_log(limit: int = 50):
 
 
 
-@router.get("/accounts/{account_name}")
-def get_account_detail(account_name: str):
-    """Get detail for a single account by name."""
-    from src.services.account_orchestrator import AccountOrchestrator
-
-    for attempt in range(2):
-        try:
-            sb = _get_supabase()
-            orchestrator = AccountOrchestrator(sb)
-            accounts = orchestrator.get_account_comparison()
-            match = next(
-                (a for a in accounts if a.get("account_name") == account_name),
-                None,
-            )
-            if match is None:
-                raise HTTPException(404, detail=f"Account '{account_name}' not found")
-            return match
-        except HTTPException:
-            raise
-        except Exception as e:
-            if attempt == 0 and _is_connection_error(e):
-                logger.warning("Supabase connection error in account detail, retrying: %s", e)
-                reset_api_supabase()
-                continue
-            raise
-
-
-@router.post("/accounts/{account_name}/sync")
-def sync_account(account_name: str):
-    """
-    Manually trigger sync for a specific account.
-
-    Fetches account status and positions from MetaAPI and saves to database.
-
-    Args:
-        account_name: Name of the account to sync
-
-    Returns:
-        Sync status and results
-    """
-    from src.services.account_sync_service import AccountSyncService
-
-    sb = _get_supabase()
-    sync_service = AccountSyncService(sb)
-
-    # Sync account status
-    status_ok = sync_service.sync_account_status(account_name)
-
-    # Sync positions
-    positions_ok = sync_service.sync_account_positions(account_name)
-
-    if not status_ok and not positions_ok:
-        raise HTTPException(
-            500,
-            detail=f"Failed to sync account {account_name}. Check logs for details."
-        )
-
-    return {
-        "status": "ok",
-        "account_name": account_name,
-        "status_synced": status_ok,
-        "positions_synced": positions_ok,
-    }
-
-
-@router.post("/accounts/sync-all")
-def sync_all_accounts():
-    """
-    Manually trigger sync for all active accounts.
-
-    Returns:
-        Sync results for all accounts
-    """
-    from src.services.account_sync_service import AccountSyncService
-
-    sb = _get_supabase()
-    sync_service = AccountSyncService(sb)
-
-    results = sync_service.sync_all_active_accounts()
-
-    success_count = sum(1 for v in results.values() if v)
-
-    return {
-        "status": "ok",
-        "total_accounts": len(results),
-        "success_count": success_count,
-        "failed_count": len(results) - success_count,
-        "results": results,
-    }
-
-
-@router.get("/reconcile/status", response_model=ReconcileStatusResponse)
-def get_reconcile_status():
-    """
-    Reconciliation status per account.
-
-    Returns:
-      - last_reconcile_time per account
-      - last_reconcile_drift_count per account
-      - connection_status (broker health)
-      - last_sync_time (MetaAPI sync recency)
-    """
-    sb = _get_supabase()
-    try:
-        resp = (
-            sb.table("account_strategies")
-            .select(
-                "account_name, connection_status, last_sync_time, last_reconcile_time, last_reconcile_drift_count"
-            )
-            .eq("is_active", True)
-            .order("account_name", desc=False)
-            .execute()
-        )
-        rows = resp.data or []
-        accounts: List[ReconcileStatusRow] = []
-        for r in rows:
-            accounts.append(
-                ReconcileStatusRow(
-                    account_name=r.get("account_name"),
-                    last_reconcile_time=r.get("last_reconcile_time"),
-                    last_reconcile_drift_count=int(
-                        r.get("last_reconcile_drift_count") or 0
-                    ),
-                    connection_status=r.get("connection_status"),
-                    last_sync_time=r.get("last_sync_time") or r.get("last_sync_time")
-                    or r.get("last_sync_time"),
-                )
-            )
-        return ReconcileStatusResponse(accounts=accounts)
-    except Exception as e:
-        logger.error("Failed to fetch reconcile status: %s", e)
-        raise HTTPException(500, detail=f"Failed to fetch reconcile status: {e}")
-
-
-@router.get("/accounts/{account_name}/positions")
-def get_account_positions(account_name: str):
-    """
-    Get open positions for a specific account.
-    Returns broker positions (from MetaAPI if available) and DB positions
-    from trading_signals, with a basic reconciliation summary.
-    """
-    sb = _get_supabase()
-
-    try:
-        # Fetch active positions from DB
-        resp = (
-            sb.table("trading_signals")
-            .select("*")
-            .eq("account_name", account_name)
-            .in_("status", ["active", "executed"])
-            .order("created_at", desc=True)
-            .execute()
-        )
-        db_positions = resp.data or []
-
-        # Tag each with reconciliation status (all DB-only for now)
-        for pos in db_positions:
-            pos["reconciliation_status"] = "pending"
-
-        return {
-            "broker": [],  # MetaAPI live positions — populated when broker sync is active
-            "db": db_positions,
-            "reconciliation_summary": {
-                "matched": 0,
-                "orphaned": 0,
-                "pending": len(db_positions),
-            },
-        }
-
-    except Exception as e:
-        logger.error(f"Failed to fetch positions for {account_name}: {e}")
-        raise HTTPException(500, detail=f"Failed to fetch positions: {str(e)}")
-
-
-@router.get("/accounts/{account_name}/performance", response_model=AccountPerformanceResponse)
-def get_account_performance(account_name: str, lookback_days: int = 30):
-    """Get performance metrics for a specific account."""
-    from src.services.account_orchestrator import AccountOrchestrator
-
-    sb = _get_supabase()
-    orchestrator = AccountOrchestrator(sb)
-
-    perf = orchestrator.get_account_performance(account_name, lookback_days)
-
-    if not perf:
-        raise HTTPException(404, detail=f"Account '{account_name}' not found")
-
-    return AccountPerformanceResponse(
-        account_name=perf.account_name,
-        balance=perf.balance,
-        equity=perf.equity,
-        daily_pnl=perf.daily_pnl,
-        daily_pnl_pct=perf.daily_pnl_pct,
-        win_rate=perf.win_rate,
-        sharpe_ratio=perf.sharpe_ratio,
-        max_drawdown_pct=perf.max_drawdown_pct,
-        profit_factor=perf.profit_factor,
-        active_positions=perf.active_positions,
-        total_trades=perf.total_trades,
-        # Live broker data
-        free_margin=perf.free_margin,
-        margin_used=perf.margin_used,
-        margin_level_pct=perf.margin_level_pct,
-        # Account config
-        provider=perf.provider,
-        account_type=perf.account_type,
-        strategy_type=perf.strategy_type,
-        connection_status=perf.connection_status,
-        last_sync_time=perf.last_sync_time,
-        server_name=perf.server_name,
-        platform_type=perf.platform_type,
-        leverage=perf.leverage,
-        # Risk config
-        risk_percent=perf.risk_percent,
-        min_rr_ratio=perf.min_rr_ratio,
-        max_lot_size=perf.max_lot_size,
-        max_positions=perf.max_positions,
-        pause_trading=perf.pause_trading,
-    )
-
-
 @router.post("/accounts/test-connection")
 def test_metaapi_connection(body: TestConnectionRequest):
     """
@@ -1158,6 +937,233 @@ def create_account(body: CreateAccountRequest):
     except Exception as e:
         logger.error("Failed to create account '%s': %s", account_name, e, exc_info=True)
         raise HTTPException(500, detail=f"Failed to create account: {str(e)}")
+
+
+@router.post("/accounts/sync-all")
+def sync_all_accounts():
+    """
+    Manually trigger sync for all active accounts.
+
+    Returns:
+        Sync results for all accounts
+    """
+    from src.services.account_sync_service import AccountSyncService
+
+    sb = _get_supabase()
+    sync_service = AccountSyncService(sb)
+
+    results = sync_service.sync_all_active_accounts()
+
+    success_count = sum(1 for v in results.values() if v)
+
+    return {
+        "status": "ok",
+        "total_accounts": len(results),
+        "success_count": success_count,
+        "failed_count": len(results) - success_count,
+        "results": results,
+    }
+
+
+@router.get("/accounts/{account_name}")
+def get_account_detail(account_name: str):
+    """Get detail for a single account by name."""
+    from src.services.account_orchestrator import AccountOrchestrator
+
+    for attempt in range(2):
+        try:
+            sb = _get_supabase()
+            orchestrator = AccountOrchestrator(sb)
+            accounts = orchestrator.get_account_comparison()
+            match = next(
+                (a for a in accounts if a.get("account_name") == account_name),
+                None,
+            )
+            if match is None:
+                raise HTTPException(404, detail=f"Account '{account_name}' not found")
+            return match
+        except HTTPException:
+            raise
+        except Exception as e:
+            if attempt == 0 and _is_connection_error(e):
+                logger.warning("Supabase connection error in account detail, retrying: %s", e)
+                reset_api_supabase()
+                continue
+            raise
+
+
+@router.post("/accounts/{account_name}/sync")
+def sync_account(account_name: str):
+    """
+    Manually trigger sync for a specific account.
+
+    Fetches account status and positions from MetaAPI and saves to database.
+
+    Args:
+        account_name: Name of the account to sync
+
+    Returns:
+        Sync status and results
+    """
+    from src.services.account_sync_service import AccountSyncService
+
+    sb = _get_supabase()
+    sync_service = AccountSyncService(sb)
+
+    # Sync account status
+    status_ok = sync_service.sync_account_status(account_name)
+
+    # Sync positions
+    positions_ok = sync_service.sync_account_positions(account_name)
+
+    if not status_ok and not positions_ok:
+        raise HTTPException(
+            500,
+            detail=f"Failed to sync account {account_name}. Check logs for details."
+        )
+
+    return {
+        "status": "ok",
+        "account_name": account_name,
+        "status_synced": status_ok,
+        "positions_synced": positions_ok,
+    }
+
+
+
+
+@router.get("/reconcile/status", response_model=ReconcileStatusResponse)
+def get_reconcile_status():
+    """
+    Reconciliation status per account.
+
+    Returns:
+      - last_reconcile_time per account
+      - last_reconcile_drift_count per account
+      - connection_status (broker health)
+      - last_sync_time (MetaAPI sync recency)
+    """
+    sb = _get_supabase()
+    try:
+        resp = (
+            sb.table("account_strategies")
+            .select(
+                "account_name, connection_status, last_sync_time, last_reconcile_time, last_reconcile_drift_count"
+            )
+            .eq("is_active", True)
+            .order("account_name", desc=False)
+            .execute()
+        )
+        rows = resp.data or []
+        accounts: List[ReconcileStatusRow] = []
+        for r in rows:
+            accounts.append(
+                ReconcileStatusRow(
+                    account_name=r.get("account_name"),
+                    last_reconcile_time=r.get("last_reconcile_time"),
+                    last_reconcile_drift_count=int(
+                        r.get("last_reconcile_drift_count") or 0
+                    ),
+                    connection_status=r.get("connection_status"),
+                    last_sync_time=r.get("last_sync_time") or r.get("last_sync_time")
+                    or r.get("last_sync_time"),
+                )
+            )
+        return ReconcileStatusResponse(accounts=accounts)
+    except Exception as e:
+        logger.error("Failed to fetch reconcile status: %s", e)
+        raise HTTPException(500, detail=f"Failed to fetch reconcile status: {e}")
+
+
+@router.get("/accounts/{account_name}/positions")
+def get_account_positions(account_name: str):
+    """
+    Get open positions for a specific account.
+    Returns broker positions (from MetaAPI if available) and DB positions
+    from trading_signals, with a basic reconciliation summary.
+    """
+    sb = _get_supabase()
+
+    try:
+        # Fetch active positions from DB
+        resp = (
+            sb.table("trading_signals")
+            .select("*")
+            .eq("account_name", account_name)
+            .in_("status", ["active", "executed"])
+            .order("created_at", desc=True)
+            .execute()
+        )
+        db_positions = resp.data or []
+
+        # Tag each with reconciliation status (all DB-only for now)
+        for pos in db_positions:
+            pos["reconciliation_status"] = "pending"
+
+        return {
+            "broker": [],  # MetaAPI live positions — populated when broker sync is active
+            "db": db_positions,
+            "reconciliation_summary": {
+                "matched": 0,
+                "orphaned": 0,
+                "pending": len(db_positions),
+            },
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to fetch positions for {account_name}: {e}")
+        raise HTTPException(500, detail=f"Failed to fetch positions: {str(e)}")
+
+
+@router.get("/accounts/{account_name}/performance", response_model=AccountPerformanceResponse)
+def get_account_performance(account_name: str, lookback_days: int = 30):
+    """Get performance metrics for a specific account."""
+    from src.services.account_orchestrator import AccountOrchestrator
+
+    sb = _get_supabase()
+    orchestrator = AccountOrchestrator(sb)
+
+    perf = orchestrator.get_account_performance(account_name, lookback_days)
+
+    if not perf:
+        raise HTTPException(404, detail=f"Account '{account_name}' not found")
+
+    return AccountPerformanceResponse(
+        account_name=perf.account_name,
+        balance=perf.balance,
+        equity=perf.equity,
+        daily_pnl=perf.daily_pnl,
+        daily_pnl_pct=perf.daily_pnl_pct,
+        win_rate=perf.win_rate,
+        sharpe_ratio=perf.sharpe_ratio,
+        max_drawdown_pct=perf.max_drawdown_pct,
+        profit_factor=perf.profit_factor,
+        active_positions=perf.active_positions,
+        total_trades=perf.total_trades,
+        # Live broker data
+        free_margin=perf.free_margin,
+        margin_used=perf.margin_used,
+        margin_level_pct=perf.margin_level_pct,
+        # Account config
+        provider=perf.provider,
+        account_type=perf.account_type,
+        strategy_type=perf.strategy_type,
+        connection_status=perf.connection_status,
+        last_sync_time=perf.last_sync_time,
+        server_name=perf.server_name,
+        platform_type=perf.platform_type,
+        leverage=perf.leverage,
+        # Risk config
+        risk_percent=perf.risk_percent,
+        min_rr_ratio=perf.min_rr_ratio,
+        max_lot_size=perf.max_lot_size,
+        max_positions=perf.max_positions,
+        pause_trading=perf.pause_trading,
+    )
+
+
+
+
 
 
 @router.delete("/accounts/{account_name}")
