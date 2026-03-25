@@ -1,6 +1,7 @@
 'use client';
 
 import { useSignalStats } from '@/hooks/useTradingSignals';
+import { useActivePositions } from '@/hooks/usePositions';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Activity,
@@ -67,6 +68,10 @@ function StatItemSkeleton() {
 
 export function StatsTicker() {
   const { data: stats, isLoading, error } = useSignalStats();
+  const { data: positionsData } = useActivePositions();
+
+  const floatingPnl =
+    positionsData?.positions?.reduce((sum, p) => sum + (p.live_pnl ?? 0), 0) ?? 0;
 
   if (error) {
     return (
@@ -130,16 +135,16 @@ export function StatsTicker() {
               icon={<Filter className="w-4 h-4" />}
             />
             <StatItem
-              label="Live 24h PnL"
+              label="Live PnL (w/ Float)"
               value={
                 <PnLText
-                  value={stats?.live_pnl_24h ?? stats?.total_pnl_24h ?? 0}
+                  value={(stats?.live_pnl_24h ?? stats?.total_pnl_24h ?? 0) + floatingPnl}
                   variant="currency"
                   size="lg"
                 />
               }
               icon={<DollarSign className="w-4 h-4" />}
-              trend={(stats?.live_pnl_24h ?? stats?.total_pnl_24h ?? 0) >= 0 ? 'up' : 'down'}
+              trend={(stats?.live_pnl_24h ?? stats?.total_pnl_24h ?? 0) + floatingPnl >= 0 ? 'up' : 'down'}
             />
             <StatItem
               label="Paper PnL"

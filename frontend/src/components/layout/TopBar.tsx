@@ -17,6 +17,7 @@ import { useTradingMode } from '@/providers/TradingModeProvider';
 import { useRiskStatus, useKillSwitchMutation } from '@/hooks/useRiskStatus';
 import { useAccountsComparison, useLiveBrokerBalance } from '@/hooks/useAccounts';
 import { useSignalStats } from '@/hooks/useTradingSignals';
+import { useAccountStatus } from '@/hooks/usePositions';
 import {
   fetchReconcileStatus,
   getApiUrl,
@@ -272,6 +273,7 @@ export function TopBar() {
     useShellActions();
   const { data: accounts = [] } = useAccountsComparison();
   const { data: liveBroker } = useLiveBrokerBalance();
+  const { data: accountStatus } = useAccountStatus();
   const { isApiUp, healthStatus, hasDrift, brokerOk, lastReconcileAt } =
     useSystemStatus();
 
@@ -291,6 +293,7 @@ export function TopBar() {
 
   const netLiq =
     liveBroker?.balance ??
+    accountStatus?.equity ??
     selectedAccount?.balance ??
     (risk?.current_equity != null ? risk.current_equity : null);
 

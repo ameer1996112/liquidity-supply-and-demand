@@ -386,7 +386,7 @@ export default function DashboardPage() {
       <MarketSessionBanner />
 
       {/* ── Live P&L Ticker (open positions) ────────────────────── */}
-      {mounted && <LivePnlTicker signals={signals} />}
+      {mounted && <LivePnlTicker signals={signals} brokerMap={brokerMap} />}
 
       {/* ── Top row · Stat bento ───────────────────────────────── */}
       <section className='shrink-0'>

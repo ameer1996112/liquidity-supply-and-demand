@@ -573,11 +573,11 @@ class MetaApiAdapter:
                 message="MetaApi circuit breaker open (rate limit or failures)",
             )
 
-        # OPT-5 (latency): 5s timeout on trade POST — fail fast, don't wait 10s
+        # Timeout for trade POST: 30s to match MetaAPI broker latency (was 5s — caused EXEC FAIL on slow connections)
         resp = self._request_with_retry(
             "POST",
             self._trade_url(),
-            timeout=5,
+            timeout=30,
             json=payload,
         )
         if resp is None:
