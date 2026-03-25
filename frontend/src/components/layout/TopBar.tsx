@@ -419,7 +419,7 @@ export function TopBar() {
                 type='button'
                 onClick={() => setSelectedAccountName(null)}
                 className={cn(
-                  'rounded-md px-3 py-1.5 text-[10px] uppercase font-bold tracking-widest transition-all',
+                  'rounded-md px-3 py-2 text-[10px] uppercase font-bold tracking-widest transition-all',
                   selectedAccountName === null
                     ? 'bg-white/10 text-white shadow-sm'
                     : 'text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]'
@@ -434,7 +434,7 @@ export function TopBar() {
                   type='button'
                   onClick={() => setSelectedAccountName(acc.account_name)}
                   className={cn(
-                    'rounded-md px-3 py-1.5 text-[10px] uppercase font-bold tracking-widest transition-all',
+                    'rounded-md px-3 py-2 text-[10px] uppercase font-bold tracking-widest transition-all',
                     selectedAccountName === acc.account_name
                       ? 'bg-indigo-500/20 text-indigo-300 shadow-sm'
                       : 'text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]'

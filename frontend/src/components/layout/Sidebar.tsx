@@ -208,7 +208,7 @@ export function Sidebar() {
                       key={item.path}
                       href={item.path}
                       className={cn(
-                        'group relative flex items-center gap-2.5 rounded-lg px-2.5 py-1.5',
+                        'group relative flex items-center gap-2.5 rounded-lg px-2.5 py-2',
                         'transition-all duration-150',
                         isActive
                           ? 'bg-[var(--to-warning)]/10 text-[var(--to-warning)] border-l-[3px] border-l-[var(--to-warning)]/70 border-t-0 border-r-0 border-b-0 pl-[7px] pr-2.5'
