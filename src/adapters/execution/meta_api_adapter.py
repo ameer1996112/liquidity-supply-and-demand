@@ -18,9 +18,9 @@ from src.services.symbol_mapper import SymbolMapper
 
 logger = logging.getLogger(__name__)
 
-# Retry: max 3 attempts, backoff 1s then 2s. On 429: open circuit breaker and fail.
-MAX_RETRIES = 2
-RETRY_BACKOFF = (1.0, 2.0)
+# Retry: max 4 attempts for timeouts/5xx (e.g. MT5 wake-up). On 429: open circuit breaker.
+MAX_RETRIES = 4
+RETRY_BACKOFF = (1.0, 3.0, 5.0, 10.0)
 RATE_LIMIT_SLEEP = 60
 
 
