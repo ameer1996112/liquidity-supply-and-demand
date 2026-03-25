@@ -193,18 +193,32 @@ def _maybe_autoclose_sprint() -> None:
         logger.info("Sprint %s: all tickets done — auto-closing sprint", sprint_id)
         _jira_agile_put(f"/sprint/{sprint_id}", {"state": "closed"})
 
-        # Start a new sprint (auto-named Sprint N+1)
+        # Start a new sprint (auto-named dynamically via ROADMAP context)
+        import os, re
         sprint_name = _sprint_cache.get("name") or f"Sprint {sprint_id}"
-        import re as _re
-        match = _re.search(r"\d+", sprint_name)
-        if match:
-            next_num = int(match.group()) + 1
-            new_name = _re.sub(r"\d+", str(next_num), sprint_name, count=1)
-        else:
-            new_name = f"{sprint_name} (next)"
+        next_sprint_name = None
+        
+        try:
+            state_path = os.path.join(os.getcwd(), ".planning", "STATE.md")
+            if os.path.exists(state_path):
+                with open(state_path, "r") as f:
+                    focus_match = re.search(r"^\*?\*?Current focus:\*?\*?\s*(.*)$", f.read(), re.MULTILINE)
+                    if focus_match:
+                        next_sprint_name = f"[Sprint] {focus_match.group(1).strip()}"
+        except Exception as e:
+            logger.warning("Could not read STATE.md for sprint naming: %s", e)
 
-        _jira_agile_post(f"/sprint", {"name": new_name, "originBoardId": board_id})
-        logger.info("Auto-created next sprint: %s", new_name)
+        if not next_sprint_name:
+            match = re.search(r"\d+", sprint_name)
+            if match:
+                next_num = int(match.group()) + 1
+                next_sprint_name = re.sub(r"\d+", str(next_num), sprint_name, count=1)
+            else:
+                next_sprint_name = f"{sprint_name} (next)"
+
+        safe_name = next_sprint_name[:30].strip()
+        _jira_agile_post(f"/sprint", {"name": safe_name, "originBoardId": board_id})
+        logger.info("Auto-created next sprint: %s", safe_name)
 
         # Reset cache so next call picks up the new sprint
         _sprint_cache = {"id": None, "name": None, "ts": 0.0}
