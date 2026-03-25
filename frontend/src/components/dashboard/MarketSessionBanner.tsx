@@ -300,7 +300,7 @@ export function MarketSessionBanner() {
                       {session.name}
                     </p>
                     <p
-                      className='mt-1 text-[9px] uppercase tracking-[0.08em] text-[var(--to-text-dim)]'
+                      className='mt-1 text-[11px] uppercase tracking-[0.08em] text-[var(--to-text-dim)]'
                       style={{ fontFamily: 'var(--font-sans)' }}
                     >
                       {session.city}
@@ -329,7 +329,7 @@ export function MarketSessionBanner() {
                       />
                     )}
                     <span
-                      className='text-[9px] font-bold uppercase tracking-[0.12em]'
+                      className='text-[11px] font-bold uppercase tracking-[0.12em]'
                       style={{ fontFamily: 'var(--font-sans)' }}
                     >
                       {isWeekendClosed
