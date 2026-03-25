@@ -20,6 +20,7 @@ export interface AddAccountStrategyInput {
   account_type?: string;
   provider?: string;
   meta_api_account_id?: string;
+  meta_api_token?: string;
   meta_api_token_env_key?: string;
 }
 
@@ -40,6 +41,7 @@ async function createAccountStrategy(
     max_lot_size: input.max_lot_size ?? 1,
     min_rr_ratio: input.min_rr_ratio ?? 0,
     meta_api_account_id: (input.meta_api_account_id || '').trim() || null,
+    meta_api_token: (input.meta_api_token || '').trim() || null,
     meta_api_token_env_key: input.meta_api_token_env_key || 'META_API_TOKEN',
   };
 

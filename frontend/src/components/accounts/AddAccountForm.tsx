@@ -5,7 +5,7 @@ import { useCreateAccountStrategy } from '@/hooks/useAccountsSupabase';
 import { useUpdateChallengeSettings } from '@/hooks/useChallenge';
 import { useToast } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
-import { Plus, Loader2, X, ChevronDown, ChevronUp, Shield } from 'lucide-react';
+import { Plus, Loader2, X, ChevronDown, ChevronUp, Shield, CheckCircle, AlertCircle, Wifi } from 'lucide-react';
 
 // Bot kill thresholds per provider (set at 80% of firm limits for safety buffer)
 const PROVIDER_DEFAULTS: Record<string, { profitTarget: number; dailyLossPct: number; ddPct: number; minDays: number }> = {
@@ -37,7 +37,13 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
 
   // MetaAPI connection
   const [metaApiAccountId, setMetaApiAccountId] = useState('');
+  const [metaApiToken, setMetaApiToken] = useState('');
   const [metaApiTokenKey, setMetaApiTokenKey] = useState('META_API_TOKEN');
+
+  // Test connection state
+  const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'ok' | 'error'>('idle');
+  const [testResult, setTestResult] = useState<{ name?: string; server?: string; state?: string } | null>(null);
+  const [testError, setTestError] = useState('');
 
   // Risk settings (shown for Eval/Funded)
   const [profitTarget, setProfitTarget] = useState(5000);
@@ -84,6 +90,37 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
   const [createdAccountName, setCreatedAccountName] = useState('');
   const updateChallenge = useUpdateChallengeSettings(createdAccountName);
 
+  const handleTestConnection = async () => {
+    const accountId = metaApiAccountId.trim();
+    const token = metaApiToken.trim();
+    if (!accountId || !token) {
+      setTestStatus('error');
+      setTestError('Enter both MetaAPI Account ID and token to test.');
+      return;
+    }
+    setTestStatus('testing');
+    setTestResult(null);
+    setTestError('');
+    try {
+      const res = await fetch('/api/portfolio-control/accounts/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ meta_api_account_id: accountId, meta_api_token: token }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setTestStatus('error');
+        setTestError(data.detail || `Error ${res.status}`);
+      } else {
+        setTestStatus('ok');
+        setTestResult(data);
+      }
+    } catch {
+      setTestStatus('error');
+      setTestError('Network error — check backend is running.');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const name = accountName.trim();
@@ -101,6 +138,7 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
         max_positions: maxPositions,
         allocated_capital_usd: allocatedCapital,
         meta_api_account_id: metaApiAccountId.trim() || undefined,
+        meta_api_token: metaApiToken.trim() || undefined,
         meta_api_token_env_key: metaApiTokenKey.trim() || undefined,
       });
 
@@ -141,7 +179,11 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
       setMaxPositions(3);
       setAllocatedCapital(50000);
       setMetaApiAccountId('');
+      setMetaApiToken('');
       setMetaApiTokenKey('META_API_TOKEN');
+      setTestStatus('idle');
+      setTestResult(null);
+      setTestError('');
       setProfitTarget(5000);
       setDailyLossPct(4.0);
       setDdPct(8.0);
@@ -296,21 +338,70 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
       </div>
 
       {/* MetaAPI Connection */}
-      <div>
-        <label className='text-[10px] text-[var(--to-text-dim)] font-mono block mb-1'>
-          MetaAPI Account ID
-        </label>
-        <input
-          id='account-metaapi-id'
-          type='text'
-          value={metaApiAccountId}
-          onChange={(e) => setMetaApiAccountId(e.target.value)}
-          placeholder='Paste your MetaAPI account ID (optional)'
-          className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm text-[var(--to-text-primary)] font-mono placeholder:text-[var(--to-text-dim)] focus:outline-none focus:border-zinc-500'
-        />
-        <p className='text-[9px] text-[var(--to-text-dim)] mt-1'>
-          Connect to your broker via MetaAPI. Leave empty to configure later.
-        </p>
+      <div className='space-y-2'>
+        <div>
+          <label className='text-[10px] text-[var(--to-text-dim)] font-mono block mb-1'>
+            MetaAPI Account ID
+          </label>
+          <input
+            id='account-metaapi-id'
+            type='text'
+            value={metaApiAccountId}
+            onChange={(e) => { setMetaApiAccountId(e.target.value); setTestStatus('idle'); }}
+            placeholder='e.g. abc123def456 (from MetaAPI dashboard)'
+            className='w-full px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm text-[var(--to-text-primary)] font-mono placeholder:text-[var(--to-text-dim)] focus:outline-none focus:border-zinc-500'
+          />
+        </div>
+
+        <div>
+          <label className='text-[10px] text-[var(--to-text-dim)] font-mono block mb-1'>
+            MetaAPI Token
+          </label>
+          <div className='flex gap-2'>
+            <input
+              id='account-metaapi-token'
+              type='password'
+              value={metaApiToken}
+              onChange={(e) => { setMetaApiToken(e.target.value); setTestStatus('idle'); }}
+              placeholder='Paste your MetaAPI JWT token'
+              className='flex-1 px-3 py-2 bg-[#1e222d] border border-[#2a2e39] rounded text-sm text-[var(--to-text-primary)] font-mono placeholder:text-[var(--to-text-dim)] focus:outline-none focus:border-zinc-500'
+            />
+            <button
+              type='button'
+              onClick={handleTestConnection}
+              disabled={testStatus === 'testing' || !metaApiAccountId.trim() || !metaApiToken.trim()}
+              className='flex items-center gap-1.5 px-3 py-2 rounded text-xs font-mono bg-[#1e222d] border border-[#2a2e39] text-[var(--to-text-secondary)] hover:border-zinc-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors whitespace-nowrap'
+            >
+              {testStatus === 'testing' ? (
+                <Loader2 className='h-3 w-3 animate-spin' />
+              ) : (
+                <Wifi className='h-3 w-3' />
+              )}
+              Test
+            </button>
+          </div>
+
+          {/* Test result feedback */}
+          {testStatus === 'ok' && testResult && (
+            <div className='mt-1.5 flex items-start gap-1.5 text-[10px] text-emerald-400 font-mono'>
+              <CheckCircle className='h-3 w-3 mt-0.5 shrink-0' />
+              <span>
+                Connected — {testResult.name}{testResult.server ? ` · ${testResult.server}` : ''}{testResult.state ? ` · ${testResult.state}` : ''}
+              </span>
+            </div>
+          )}
+          {testStatus === 'error' && (
+            <div className='mt-1.5 flex items-start gap-1.5 text-[10px] text-red-400 font-mono'>
+              <AlertCircle className='h-3 w-3 mt-0.5 shrink-0' />
+              <span>{testError}</span>
+            </div>
+          )}
+          {testStatus === 'idle' && (
+            <p className='text-[9px] text-[var(--to-text-dim)] mt-1'>
+              Token stored securely in DB. Leave empty to use server env var instead.
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Advanced Settings Toggle */}
