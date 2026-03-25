@@ -189,24 +189,6 @@ export default function AccountDetailPage() {
                       })}
                   </span>
                 </div>
-                <div className='h-3 w-px bg-[var(--to-border)]'></div>
-                <div className='flex items-center gap-2'>
-                  <span className='text-xs text-[var(--to-text-dim)]'>Today:</span>
-                  <span
-                    className={`font-mono font-semibold ${
-                      account.daily_pnl >= 0
-                        ? 'text-[var(--to-long)]'
-                        : 'text-[var(--to-short)]'
-                    }`}
-                  >
-                    {account.daily_pnl >= 0 ? '+' : ''}$
-                    {account.daily_pnl.toFixed(2)}
-                    <span className='ml-1 text-xs opacity-80'>
-                      ({account.daily_pnl >= 0 ? '+' : ''}
-                      {account.daily_pnl_pct.toFixed(2)}%)
-                    </span>
-                  </span>
-                </div>
               </div>
             )}
           </div>
