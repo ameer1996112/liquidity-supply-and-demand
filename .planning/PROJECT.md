@@ -4,6 +4,14 @@
 
 A data synchronization project for the Next.js trading dashboard to ensure that Live PnL, Historical PnL, Account Balance, Margin, and Daily Drawdown perfectly match the real data from MetaTrader (via MetaApi). The fix will correct both past existing signals and future active signals so the dashboard provides an accurate source of truth reflecting the broker's numbers.
 
+## Current Milestone: v1.2 UI Cleanup
+
+**Goal:** Streamline the application navigation by removing unused experimental pages.
+
+**Target features:**
+- Remove Agentic View from sidebar
+- Remove Tickets from sidebar
+
 ## Core Value
 
 The dashboard metrics must be 100% accurate and perfectly synchronized with MetaTrader's actual numbers. A trading dashboard with incorrect PnL cannot be trusted by traders.
@@ -22,6 +30,8 @@ The dashboard metrics must be 100% accurate and perfectly synchronized with Meta
 - ✓ Build a retroactive script/process to repair the discrepancies in historical signal data already existing in Supabase — v1.1
 
 ### Active
+
+- [ ] Remove Agentic View and Tickets navigation links from the dashboard Sidebar component
 
 ### Out of Scope
 
