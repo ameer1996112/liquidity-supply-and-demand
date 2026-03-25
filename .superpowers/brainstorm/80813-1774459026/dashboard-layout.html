@@ -1,0 +1,28 @@
+<h2>How should account filtering work on the Dashboard?</h2>
+<p class="subtitle">You want to see global data, but also filter by specific account. How should we display this selector?</p>
+
+<div class="options">
+  <div class="option" data-choice="dropdown" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Dropdown Selector</h3>
+      <p>A master dropdown at the top of the dashboard ("Global", "Account 1", "Account 2"). Clean UI, and scales well if you eventually add many accounts.</p>
+      <div style="margin-top: 10px; padding: 10px; border: 1px solid #333; border-radius: 4px; background: #111;">
+        <span style="opacity: 0.5; font-size: 12px;">ACCOUNT:</span> Global ▼
+      </div>
+    </div>
+  </div>
+  
+  <div class="option" data-choice="tabs" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Quick-Switch Tabs</h3>
+      <p>Horizontal tabs above the KPIs. You can click between accounts with one tap. Great for 2-4 accounts, but gets crowded if you have more.</p>
+      <div style="margin-top: 10px; display: flex; gap: 4px;">
+        <div style="padding: 4px 12px; background: #3b82f6; border-radius: 4px; font-size: 12px;">Global</div>
+        <div style="padding: 4px 12px; border: 1px solid #333; border-radius: 4px; font-size: 12px;">Eval 1</div>
+        <div style="padding: 4px 12px; border: 1px solid #333; border-radius: 4px; font-size: 12px;">Funded</div>
+      </div>
+    </div>
+  </div>
+</div>
