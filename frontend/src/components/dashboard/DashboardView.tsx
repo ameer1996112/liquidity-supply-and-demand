@@ -359,32 +359,32 @@ export function DashboardView({ accountName, hideHeader }: DashboardViewProps) {
   return (
     <div className='flex h-full min-h-0 flex-col gap-2'>
       {/* ── Header ──────────────────────────────────────────────── */}
-      <header className={cn('flex shrink-0 items-center justify-between gap-3', hideHeader && 'justify-end')}>
-        {!hideHeader && (
+      {!hideHeader && (
+        <header className='flex shrink-0 items-center justify-between gap-3'>
           <div>
             <h1 className='page-title text-base font-semibold'>Dashboard</h1>
             <p className='page-subtitle text-[11px]'>
               Live command center · telemetry first · 5-minute zones
             </p>
           </div>
-        )}
-        <div className='flex items-center gap-2 flex-wrap justify-end'>
-          {mounted && todayPnl != null && (
-            <SessionRing
-              todayPnl={todayPnl}
-              dailyTarget={riskMonitor?.daily_risk?.profit_target_usd ?? 200}
-              winCount={todayWins}
-              lossCount={todayLosses}
-            />
-          )}
-          <ConnectionPill />
-          <span className='tf-badge'>
-            <Radio className='h-3 w-3' />
-            5M
-          </span>
-          <ModeBadge mode={activeMode} />
-        </div>
-      </header>
+          <div className='flex items-center gap-2 flex-wrap justify-end'>
+            {mounted && todayPnl != null && (
+              <SessionRing
+                todayPnl={todayPnl}
+                dailyTarget={riskMonitor?.daily_risk?.profit_target_usd ?? 200}
+                winCount={todayWins}
+                lossCount={todayLosses}
+              />
+            )}
+            <ConnectionPill />
+            <span className='tf-badge'>
+              <Radio className='h-3 w-3' />
+              5M
+            </span>
+            <ModeBadge mode={activeMode} />
+          </div>
+        </header>
+      )}
 
       {/* ── Page-level health banner ────────────────────────────── */}
       <PageStatusBanner status={status} surfaceLabel='Dashboard' />
