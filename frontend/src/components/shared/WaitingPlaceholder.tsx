@@ -19,8 +19,8 @@ export function WaitingPlaceholder({
     >
       {/* Animated dot */}
       <span className='relative flex h-3 w-3'>
-        <span className='animate-ping absolute inline-flex h-full w-full rounded-full bg-[#26a69a] opacity-40' />
-        <span className='relative inline-flex rounded-full h-3 w-3 bg-[#26a69a]/60' />
+        <span className='animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--to-long)] opacity-40' />
+        <span className='relative inline-flex rounded-full h-3 w-3 bg-[var(--to-long)]/60' />
       </span>
 
       {/* Label */}
