@@ -58,13 +58,27 @@ def create_bug_ticket(title: str, description: str, sync_block: bool = False):
             )
             if response.status_code in (200, 201):
                 data = response.json()
-                logger.info("Successfully filed Jira Bug: %s", data.get("key"))
-                
+                jira_key = data.get("key")
+                logger.info("Successfully filed Jira Bug: %s", jira_key)
+
                 try:
                     from src.adapters.discord import send_bug_alert_async
-                    send_bug_alert_async(title, description, data.get("key"))
+                    send_bug_alert_async(title, description, jira_key)
                 except Exception as discord_err:
                     logger.warning("Failed to dispatch Discord Bug Alert: %s", discord_err)
+
+                # v1.2 UI-02: Log to agent event feed (Redis Agentic View)
+                try:
+                    from src.adapters.redis_queue import get_redis as _get_redis
+                    from src.services.agent_events import log_agent_event
+                    log_agent_event(
+                        _get_redis(),
+                        event_type="jira_ticket",
+                        message=f"Bug ticket created: {jira_key} — {title[:80]}",
+                        jira_key=jira_key,
+                    )
+                except Exception as _ae:
+                    logger.debug("agent_event log failed (non-critical): %s", _ae)
             else:
                 logger.error("Failed to automatically file Jira Bug. Status: %s. Response: %s", response.status_code, response.text)
         except Exception as e:

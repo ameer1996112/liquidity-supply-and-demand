@@ -22,6 +22,7 @@ import {
   Trophy,
   ScanLine,
   ClipboardList,
+  Bot,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSidebar } from '@/providers/SidebarProvider';
@@ -119,6 +120,7 @@ const NAV_GROUPS: NavGroup[] = [
     id: 'ops',
     label: 'Ops',
     items: [
+      { label: 'Agentic View', icon: Bot, path: '/agentic' },
       { label: 'Tickets', icon: ClipboardList, path: '/tickets' },
       { label: 'Journal', icon: BookOpen, path: '/journal' },
       { label: 'Settings', icon: Settings, path: '/settings' },
