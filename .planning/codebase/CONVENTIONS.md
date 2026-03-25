@@ -1,22 +1,17 @@
 # Coding Conventions
 
-## General Principles
-- **Domain-Driven Design**: Code is grouped by business domain or feature rather than strictly by technical concern, keeping related logic together.
-- **Strict Typing**: Both the Python backend and Next.js frontend rely on strict typing.
-
 ## Backend (Python)
-- **Typing**: Use of Python type hints (`typing`), enforced via tools like `mypy` (when available) and `ruff`.
-- **Validation**: Strict schema validation using **Pydantic** models. All data entering the boundaries of the system (APIs, Webhooks, DB results) must be validated.
-- **Async First**: Use of `async def` for FastAPI routes and I/O-bound operations (Supabase calls, LLM api calls) to ensure high concurrency.
-- **Linting & Formatting**: `ruff` is the primary linter (`ruff check backend tests`). Code must conform to standard Python `PEP 8` conventions with strict formatting.
-- **Error Handling**: Use of appropriate FastAPI `HTTPException`s and custom domain errors. Standardize API responses using consistent structures.
+- **Typing**: Strong use of Python type hints throughout the codebase.
+- **Validation**: Pydantic schemas define API payloads, preventing malformed data handling.
+- **Formatting & Linting**: Managed by `ruff`. The codebase enforces strict adherence to PEP 8 standards with automated formatting checks.
+- **Async Pattern**: Heavy usage of `asyncio` (`async def` and `await`) for non-blocking I/O operations with FastAPI and HTTP requests (MetaApi, Supabase).
+- **Environment Management**: Configuration is managed via `pydantic-settings` heavily centralized around a `.env` file (`get_settings()` with `@lru_cache`).
+- **Error Handling**: Granular try-catch blocks logging structured errors into Supabase or external monitors.
 
-## Frontend (Next.js / React)
-- **TypeScript**: Strict TypeScript configuration. Avoid `any`.
-- **Next.js App Router**: Leverage Server Components by default for better performance and SEO. Use `'use client'` strategically for interactive components that require state.
-- **Tailwind with `cn()` utility**: Component styling is done via Tailwind CSS utility classes. The `cn()` helper (a wrapper around `clsx` and `tailwind-merge`) is conventionally used for dynamically combining class names without conflicts.
-- **State Management**: Client-side async state, data fetching, and caching should primarily be handled via **TanStack React Query**.
-- **Linting**: Conforms to standard Next.js `eslint` rules.
+## Frontend (TypeScript/Next.js)
+- **TypeScript**: Strict typings enforced via `tsconfig.json`.
+- **Linting**: Controlled via `eslint.config.mjs` ensuring consistent React/TS style.
+- **Component Pattern**: Standard functional React components with Hooks. Server vs. Client components are separated based on Next.js 14+ paradigms.
 
-## Git & Workflow
-- **Jira Automation**: Heavily integrated with Jira for issue tracking. Branch naming and commits are linked to Jira tickets automatically via custom workflow scripts (e.g. `scripts/jira-sync.js`).
+## Version Control & Task Management
+- Commits and pull requests are tethered to Jira tickets. Every feature/bug requires an auto-generated Jira ticket (via `AGENTS.md` rules) appended to the branch name/commit.
