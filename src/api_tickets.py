@@ -625,6 +625,9 @@ def create_ticket(body: CreateTicketRequest):
         "labels": [f"type:{body.type}"],
         "priority": {"name": _PRIORITY_MAP.get(body.priority, "Medium")},
     }
+    
+    if body.assignee:
+        fields["assignee"] = {"accountId": body.assignee}
 
     # Story points (try both field IDs — whichever Jira accepts)
     if body.story_points is not None:
@@ -671,6 +674,13 @@ def create_ticket(body: CreateTicketRequest):
                 raise
 
         key = created["key"]
+
+        # Explicitly assign post-creation to bypass unmapped create-screen schema constraints
+        if body.assignee:
+            try:
+                _jira_put(f"/issue/{key}", {"fields": {"assignee": {"accountId": body.assignee}}})
+            except Exception as e:
+                logger.warning("Could not explicitly assign ticket to %s: %s", body.assignee, e)
 
         if body.status != "todo":
             _transition_issue(key, body.status)

@@ -12,8 +12,14 @@ For any non-trivial task (bug fix, feature, refactor, investigation, phase execu
 curl -s -X POST http://localhost:8000/api/tickets \
   -H "Content-Type: application/json" \
   -d '{
-    "title": "<concise task title>",
-    "description": "<what + why>",
+    "title": "<[Type] Concise, professional title>",
+    "problem": "<Deep technical overview of the root issue or feature requirement>",
+    "solution": "<Proposed architectural or code-level changes needed to resolve it>",
+    "acceptance_criteria": [
+      "<Explicit testing bound 1>",
+      "<Explicit testing bound 2>"
+    ],
+    "assignee": "5e77682c79f5ad0c34f09c9c",
     "type": "bug|feature|task",
     "priority": "low|medium|high|critical"
   }'
