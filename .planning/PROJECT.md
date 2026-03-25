@@ -1,82 +1,47 @@
-# Algorithmic Trading System & Autonomous Management
+# PnL & Metrics Sync Fix
 
 ## What This Is
 
-An algorithmic trading system executing on a 5-minute timeframe using Liquidity, Supply, and Demand concepts, currently being extended with an autonomous AI-driven project management layer. The AI layer acts as an Autonomous Project Manager and Lead Developer, heavily integrated with Jira and GitHub for ticket creation, branching, smart commits, and PRs.
+A data synchronization project for the Next.js trading dashboard to ensure that Live PnL, Historical PnL, Account Balance, Margin, and Daily Drawdown perfectly match the real data from MetaTrader (via MetaApi). The fix will correct both past existing signals and future active signals so the dashboard provides an accurate source of truth reflecting the broker's numbers.
 
 ## Core Value
 
-End-to-end automation of both trading execution (Flip/Directional Close mechanics) and the development lifecycle (autonomous Jira issue creation, branch management, coding, and smart commits).
-
-## Current State (v1.1)
-Shipped v1.1 Autonomous System Jira Upgrades:
-<details>
-<summary>v1.0 MVP details</summary>
-
-- Jira/GitHub autonomous CLI integration configured.
-- Claude enforced autonomous workflow rules via CLAUDE.md.
-- Python worker natively refactored to align exactly with 5-minute timeframes dynamically.
-</details>
-
-- Python global exception hooking into the Atlassian API successfully catches crash logs and builds tickets autonomously.
-- Native `autonomous-jira-cli.js` PR tagging links Github reviews natively to the matching Jira ticket.
-- Jira automatic ticket transition execution perfectly syncs Github development with Kanban board flow limits.
-
-## Current Milestone: v1.2 Agent Expansion & Multi-Account Execution
-**Goal:** Expand the Autonomous Manager's intelligence to handle Epics and Discord alerts, while heavily upgrading the trading worker to route Multi-Account deployments and visualize its own status on the Next.js dashboard.
-
-**Target features:**
-- Autonomous Epic & Sub-task Jira generation via JavaScript CLI.
-- Multi-Account Prop Firm routing natively inside the Python execution pipeline.
-- Actionable Discord Webhook alerts for AI Agent actions (Bugs, PRs).
-- "Agentic View" visualizer on the Next.js Trading Health Dashboard.
+The dashboard metrics must be 100% accurate and perfectly synchronized with MetaTrader's actual numbers. A trading dashboard with incorrect PnL cannot be trusted by traders.
 
 ## Requirements
 
 ### Validated
 
-- ✓ Fast API backend — v1.0
-- ✓ Next.js frontend — v1.0
-- ✓ Docker and Next.js integrations — v1.0
-- ✓ Basic Python worker structure — v1.0
-- ✓ Jira/GitHub Integration Utility (Phase 1) — v1.0
-- ✓ Autonomous Workflow Pipeline (Phase 2) — v1.0
-- ✓ 5-minute timeframe trading logic refinement (Phase 3) — v1.0
-- ✓ JIR-05: Global exception handler in Python worker catches critical runtime execution faults. — v1.1
-- ✓ JIR-06: Automatically format the exception trace/env into a Jira Bug payload. — v1.1
-- ✓ JIR-07: Create a High Priority Jira Bug via REST directly from Python. — v1.1
-- ✓ JIR-08: `autonomous-jira-cli.js` command for `sync-pr` (branch + PR URL). — v1.1
-- ✓ JIR-09: Post the GitHub PR link as a comment perfectly onto the Jira issue. — v1.1
-- ✓ JIR-10: Automatically handle ticket status transitions. — v1.1
+- ✓ Ingest TradingView webhook signals
+- ✓ Execute trades via MetaApi worker
+- ✓ Display signals and trade state on the dashboard
+- ✓ Sync basic position state to Supabase
 
 ### Active
-(Planning next milestone)
+
+- [x] Fix Live PnL showing `0.00` on the dashboard for active trades
+- [x] Fix the calculation/sync logic for Historical PnL so it exactly matches MetaTrader (including swaps, commissions, slippage)
+- [x] Synchronize other account metrics (Account Balance, Margin, Daily Drawdown) with MetaTrader
+- [x] Build a retroactive script/process to repair the discrepancies in historical signal data already existing in Supabase
 
 ### Out of Scope
 
-- Epic and Sub-task generation (Deferred to v1.2)
-- Bi-directional webhook checkouts from Atlassian -> Github.
+- [New trading logic/strategies] — This project is strictly about data accuracy, UI display, and backend sync logic, not changing the algorithms making the trades.
 
 ## Context
 
-- **Domain**: Algorithmic trading system.
-- **Jira Workspace**: https://ameer1996112.atlassian.net/
-- **Primary User/Assignee**: Ameer
+The current system has existing logic to sync positions to Supabase and show them in Next.js. However, Live PnL is currently broken (showing 0.00) and historical PnL frequently has mismatches (dashboard vs MT), often due to partial closes or uncaptured swap/commission numbers. Since the system is brownfield, several scripts already exist (e.g. `verify_pnl_db.py`, `cleanup_stale_positions.py`) indicating prior sync work that needs to be unified or fully debugged.
 
 ## Constraints
 
-- **Process**: Must strictly follow the defined workflow (Sprint -> Ticket -> Branch -> Execute -> PR) for every task.
-- **Environment**: Requires `.env` configuration with `JIRA_API_TOKEN`, `JIRA_EMAIL`, `JIRA_DOMAIN`, and `GITHUB_TOKEN`.
+- **Accuracy**: Data must exactly match MetaTrader 1:1.
+- **Tech Stack**: Must use the existing Next.js, FastAPI, and MetaApi Worker structure. 
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Implement custom local Jira script | Enhance autonomous agent capabilities to manage sprints/epics/tasks. | ✓ Good |
-| Enforce rules via CLAUDE.md | Stop agents from breaking the Jira -> Code -> Commit loop. | ✓ Good |
-| Use Modulo 5 logic in Worker | Dynamically enforce 5m boundaries over static evaluation arrays. | ✓ Good |
-| Implement automated Error-to-Ticket integration | Reduce manual monitoring by converting runtime faults dynamically to dev actions | ✓ Good |
-| Utilize native Javascript for Github -> Jira sync | Simplify local dev dependency load via pure REST queries and static string parsing | ✓ Good |
+| Include overall metrics (Balance, Drawdown) alongside PnL | If PnL is wrong, account-level metrics are usually affected too | — Pending |
 
 ---
-*Last updated: 2026-03-25 after v1.1 Milestone Completion*
+*Last updated: 2026-03-25 after initialization*

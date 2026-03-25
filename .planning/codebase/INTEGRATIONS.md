@@ -1,21 +1,20 @@
 # External Integrations
 
-## Databases & Authentication
-- **Supabase**: Primary database and authentication provider. Utilizes `supabase` Python client on the backend and `@supabase/supabase-js` on the frontend. Expects `SUPABASE_URL` and `SUPABASE_ANON_KEY`.
-- **Redis**: Fast key-value store used for state management, worker queues, and caching.
+## Trading & Brokerage
+- **TradingView**: Inbound webhooks for trade signals / alerts.
+- **MetaApi**: Outbound API for executing trades on MT4/MT5 accounts. Supports real-time push-based trade events.
 
-## Trading & Market Data
-- **TradingView**: Webhook API integration for receiving trading signals. The backend exposes a `/webhook` endpoint (secured via `WEBHOOK_SECRET`).
-- **yfinance**: Used for fetching historical or live market data.
-- **Miscellaneous Scrapers**: `beautifulsoup4`, `youtube-transcript-api`, `scrapetube` used for sentiment analysis or data gathering.
+## Artificial Intelligence
+- **OpenAI / Anthropic**: Used via Langchain for AI filtering and Trading Council (multi-agent debate).
 
-## AI & Large Language Models
-- **OpenAI**: Core AI provider, often used via LangChain.
-- **Anthropic**: Alternative/Secondary LLM provider, likely used for complex reasoning or specialized internal debate (Trading Council).
+## Data Storage & Caching
+- **Supabase**: Primary database (PostgreSQL), real-time subscriptions, and authentication mapping.
+- **Redis**: Used as a message queue between the FastAPI webhook receiver and the Python Worker. Also stores rate limits and caching states.
 
 ## Notifications & Alerts
-- **Discord**: Webhook integration (`DISCORD_WEBHOOK_URL`) for trading alerts and system health notifications.
-- **Telegram**: Bot integration (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`) for user notifications or command interfaces.
+- **Discord**: Webhook integration for trade signals and system health alerts.
+- **Telegram**: Bot integration for notifications (via bot token and chat ID).
 
-## Prop Firm & Broker Specific (Inferred from API structure)
-- The codebase contains specific API modules (`api_prop_firm.py`, `api_prop_firm_v1.py`), suggesting integration with specific proprietary trading firm APIs or risk monitoring dashboards.
+## External Services
+- **yfinance**: Market data fetching inside Python backend.
+- **YouTube Transcripts**: Used for RAG/Information extraction on trading concepts.

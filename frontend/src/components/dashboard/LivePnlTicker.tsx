@@ -6,9 +6,11 @@ import { Activity } from 'lucide-react';
 import type { TradingSignal } from '@/types/trading';
 import { getSymbol, getSide, getPnl } from '@/types/trading';
 import { isSignalOpen } from '@/domain/metrics/tradingMetrics';
+import type { ActivePosition } from '@/hooks/usePositions';
 
 interface LivePnlTickerProps {
   signals: TradingSignal[];
+  brokerMap?: Record<string, ActivePosition>;
   className?: string;
 }
 
@@ -16,7 +18,7 @@ interface LivePnlTickerProps {
  * Horizontal scrolling ticker showing live floating P&L for open positions.
  * Auto-scrolls continuously. Pauses on hover.
  */
-export function LivePnlTicker({ signals, className }: LivePnlTickerProps) {
+export function LivePnlTicker({ signals, brokerMap, className }: LivePnlTickerProps) {
   const openPositions = signals.filter(isSignalOpen);
   const [paused, setPaused] = useState(false);
 
@@ -61,7 +63,8 @@ export function LivePnlTicker({ signals, className }: LivePnlTickerProps) {
           }}
         >
           {items.map((signal, idx) => {
-            const pnl = getPnl(signal);
+            const activePos = brokerMap?.[signal.id];
+            const pnl = activePos?.live_pnl ?? getPnl(signal);
             const symbol = getSymbol(signal);
             const side = getSide(signal);
             const isLong = side === 'buy';

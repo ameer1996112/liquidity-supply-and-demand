@@ -1,12 +1,17 @@
-# Known Concerns & Technical Debt
+# Concerns & Technical Debt
 
-## Backend Issues
-- **Linting Warnings**: There are currently around 98 pre-existing warnings when running `ruff check src/ config/ tests/` that need to be addressed to ensure clean CI/CD pipelines.
-- **Worker Logs**: There are known warnings in the worker logs, specifically `"No bar_time in payload"` in the `StalenessGuard` and `"Symbol subscription returned HTTP 404"` in the `MetaApiAdapter` that can cause unnecessary noise.
-- **Infrastructure Dependency**: The system heavily relies on Redis being available on `localhost:6379`. The backend fails-fast if Redis is not running prior to startup.
-- **Environment Caching**: `config/settings.py` uses `@lru_cache` for `get_settings()`. Modifying `.env` requires a full backend restart for changes to apply.
+## Reliability & Execution Risk
+- **Webhook Latency**: Since trading relies on fast execution, any latency between TradingView -> API -> Redis -> Worker -> MetaApi can cause slippage.
+- **API Rate Limits**: Reliance on external endpoints (MetaApi, Supabase, LLMs). Hard limits or network issues there can cascade.
+- **State Management Consistency**: Desyncs between actual position state on MetaTrader and the database state on Supabase.
 
-## Frontend Issues
-- **Test Failures**: There is a known pre-existing failure in `tradingMetrics.test.ts` when running `vitest run`, which needs fixing.
-- **Linting Errors**: The frontend has pre-existing warnings and errors when running `npx eslint`.
-- **Complexity**: The migration towards a Next.js App Router for the dashboard and the standalone Jira app introduces potential state management complexities if not strictly typed.
+## Architecture
+- **In-Memory Caching vs Redis**: Mixing local memory (`@lru_cache`, globals) with Redis limits horizontal scalability. The worker instance handles memory models.
+- **Multiple Sources of Truth**: Pine script holds rule logic, while the Python worker acts as a second enforcer (ML Guardrail). Logic divergence needs monitoring.
+
+## Testing & Quality
+- **Test Coverage**: While tests exist, complex AI decision branches (Trading Council debates) and non-deterministic ML models are notoriously hard to unit test reliably.
+- **Frontend Refactoring Needed**: There are some lingering linter errors and test failures (e.g., `tradingMetrics.test.ts`) inside Next.js that need fixing.
+
+## Security
+- Handling webhook secrets properly per endpoint (`WEBHOOK_SECRET`). Supabase Anonymous keys vs Service Role keys. Ensuring the front-end never leaks sensitive LLM or MetaApi credentials.

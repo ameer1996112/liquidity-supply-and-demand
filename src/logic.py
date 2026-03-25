@@ -340,7 +340,7 @@ def process_trade(
                             logger.debug("get_deals_by_position not available, falling back to get_historical_deals")
                             deals = adapter.get_historical_deals(start_time, end_time)
 
-                        # Process ALL exit deals for the position (DEAL_ENTRY_OUT)
+                        # Process ALL deals for the position to capture IN commissions, OUT profits/swaps
                         total_pnl = 0.0
                         total_commission = 0.0
                         total_swap = 0.0
@@ -348,24 +348,25 @@ def process_trade(
                         symbol = alert.get("symbol", "").upper()
 
                         for deal in deals:
-                            if (str(deal.get("positionId", "")) == str(broker_order_id) and
-                                deal.get("entryType") == "DEAL_ENTRY_OUT" and
-                                str(deal.get("symbol", "")).upper() == symbol):
-                                exit_deals.append(deal)
+                            if str(deal.get("positionId", "")) == str(broker_order_id) and str(deal.get("symbol", "")).upper() == symbol:
                                 total_pnl += float(deal.get("profit", 0))
                                 total_commission += float(deal.get("commission", 0))
                                 total_swap += float(deal.get("swap", 0))
+                                
+                                # Track exit deals to verify the position actually closed
+                                if deal.get("entryType") == "DEAL_ENTRY_OUT":
+                                    exit_deals.append(deal)
 
                         if exit_deals:
                             total_realized_pnl = total_pnl + total_commission + total_swap
 
                             logger.info(
                                 "🚀 INSTANT Broker PnL #%s ticket=%s | Raw: P=$%.2f C=$%.2f S=$%.2f | "
-                                "NET=$%.2f (vs TV $%.2f) | %d exit deals | Matches: %s",
+                                "NET=$%.2f (vs TV $%.2f) | %d exit deals | Last Type: %s",
                                 alert["id"], broker_order_id,
                                 total_pnl, total_commission, total_swap, total_realized_pnl,
                                 exit_data.get("pnl_usd", 0), len(exit_deals),
-                                exit_deals[0].get("entryType", "UNKNOWN")
+                                exit_deals[-1].get("entryType", "UNKNOWN")
                             )
 
                             # Update database with actual broker PnL (sum of all exit deals)

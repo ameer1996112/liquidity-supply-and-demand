@@ -1,36 +1,26 @@
-# Directory Layout & Structure
+# Directory Structure
 
 ## Root Level
-- `src/`: Root for the Python Backend (API & Worker).
-- `frontend/`: Root for the Next.js Frontend Dashboard.
-- `tests/`: Root for Python test suites.
-- `config/`, `data/`, `docs/`, `migrations/`, `ml/`, `scripts/`: Various backend support directories.
-- `plans/`, `.agent/`, `.planning/`: GSD and agent planning artifacts.
-- `docker-compose.yml`, `Dockerfile.*`, `Makefile`: DevOps and orchestration files.
+- `/frontend`: Next.js frontend application.
+- `/src`: Primary Python source code for Backend API and Worker.
+- `/scripts`: Utility scripts, Jira sync tools, and TradingView Pine Scripts.
+- `/tests`: Python end-to-end and unit test suite.
+- `/docs`: Project documentation and guides.
 
-## Backend (`src/`)
-- `api.py`: Main FastAPI application initialization.
-- `api_*.py`: Feature-specific API routers (e.g., `api_analytics.py`, `api_webhook_read.py`). Breaking these down keeps `api.py` manageable.
-- `worker.py`: Main entry point for the background processing worker.
-- `logic.py`: Shared business logic.
-- `core/`: Core trading domain logic.
-  - `guard_rails/`: Circuit breakers, news filters, AI staleness guards.
-  - `observers/`: Event listeners / telemetry.
-  - `risk_engine.py`, `account_router.py`: Risk management and routing.
-- `adapters/`: External system integrations (brokers, specific APIs).
-- `agents/`: Dedicated AI agent wrappers or system prompt logic.
-- `ai/`: ML models, LangChain implementations, or specialized LLM logic.
-- `services/`: Specialized backend services (e.g., ticket proxy, database layer).
+## Source Code (`/src`)
+- `api*.py` (e.g., `api.py`, `api_accounts.py`): FastAPI routers and endpoints. Contains modules split by domain (analytics, backtests, risk, etc.).
+- `worker.py`: The main background worker loop consuming Redis queues and executing trades.
+- `logic.py`: Core trading logic and decision trees.
+- `/ai`: AI/LLM integration logic, Trading Council agents, and prompt templates.
+- `/agents`, `/adapters`, `/services`, `/core`, `/utils`: Domain-driven modularized logic and helpers.
+- `/backtest`: Backtesting engine code utilizing scikit-learn and LightGBM.
 
-## Frontend (`frontend/src/`)
-Uses the modern Next.js App Router pattern combined with Domain-Driven concepts.
-- `app/`: Next.js file-system routing (pages, layouts).
-- `components/`: Shared UI components (often Radix/Tailwind primitives).
-- `domain/`: Business logic, custom hooks, and types separated by feature (e.g., tickets, analytics, health).
-- `hooks/`: Shared React hooks (e.g., general react-query wrapping).
-- `lib/`: Utility functions, API clients, `utils.ts` for Tailwind merge.
-- `providers/`: React Context providers (QueryClient provider, Theme provider).
-- `types/`: Global TypeScript definitions.
+## Frontend (`/frontend`)
+- `/src`: Next.js App router or standard React components.
+- `/public`: Static assets.
+- `package.json`, `next.config.ts`, `vitest.config.ts`: Frontend configuration files.
 
-## Testing (`tests/`)
-- tests are separated by scope, often named `test_*.py`. Contains unit, integration, and e2e testing suites.
+## Scripts (`/scripts`)
+- `/pinescript`: Contains `.pine` strategy files used in TradingView.
+- `/sql`: Supabase schema migrations.
+- `jira-agent.js`, `jira-sync.js`: Node.js scripts for syncing to Jira.

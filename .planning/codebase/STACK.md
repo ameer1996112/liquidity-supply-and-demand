@@ -1,29 +1,26 @@
-# Technology Stack
+# Tech Stack
+## Core Technologies
+- **Frontend**: Next.js (TypeScript, React)
+- **Backend (API)**: Python (FastAPI, uvicorn)
+- **Backend (Worker)**: Python (APScheduler, internal event loop)
+- **Strategy Logic**: Pine Script (TradingView)
 
-## Backend
-- **Language**: Python 3
-- **Framework**: FastAPI (>=0.109.0), Uvicorn
-- **State & Queue**: Redis (>=5.0.0), APScheduler
-- **Validation & Settings**: Pydantic Settings
-- **Machine Learning & Data**: scikit-learn (1.7.2), LightGBM (>=4.0.0), pandas, numpy, pyarrow, numba, backtesting
-- **AI/LLM Integration**: LangChain, OpenAI, Anthropic, Tiktoken
-- **Database & Auth**: Supabase (2.10.0)
-- **Data Visualization**: Streamlit, Plotly
-- **Scraping / External Data**: yfinance, beautifulsoup4, scrapetube, youtube-transcript-api
+## Data & State
+- **Database**: Supabase (PostgreSQL)
+- **Messaging/Queue**: Redis
+- **State Management (Frontend)**: React Context / Hooks
 
-## Frontend
-- **Framework**: Next.js 16.1.6
-- **UI Library**: React 19.2.3
-- **Styling**: Tailwind CSS v4, Class Variance Authority (CVA), tailwind-merge, clsx, tw-animate-css
-- **Component Primitives**: Radix UI (Tabs, Dialog, Popover, Tooltip, Scroll Area, etc.)
-- **Data Fetching & State**: TanStack React Query (v5)
-- **Tables**: TanStack React Table (v8)
-- **Charting**: Recharts, Lightweight Charts (TradingView)
-- **Icons**: Lucide React
-- **Date Utilities**: date-fns
+## AI & Machine Learning
+- **ML Frameworks**: scikit-learn, lightgbm, pandas, numpy
+- **LLM/AI Integration**: LangChain, OpenAI, Anthropic, TikToken
+- **Ranking/Search**: rank-bm25
 
-## Infrastructure & DevOps
-- **Containerization**: Docker, Docker Compose
-- **Deployment**: Nixpacks (`nixpacks.toml`), Railway (`railway.json`)
-- **Task Management**: `Makefile` (test-unit, test-e2e, test-int, test-coverage)
-- **Environment Management**: python-dotenv, direnv (implied)
+## Financial & External APIs
+- **Broker Integration**: MetaApi (cloud SDK)
+- **Market Data**: yfinance
+- **Backtesting**: backtesting.py, optuna
+
+## Infrastructure & DevTools
+- **Containerization**: Docker & Docker Compose
+- **Environment Management**: python-dotenv, nixpacks
+- **Linting/Testing**: ruff (Python), pytest (Python), eslint (Frontend), vitest (Frontend)
