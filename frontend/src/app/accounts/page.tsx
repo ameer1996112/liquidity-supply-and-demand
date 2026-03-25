@@ -4,8 +4,6 @@ import { useState } from 'react';
 import { Users, Plus, Table2, LayoutGrid } from 'lucide-react';
 import { EnhancedAccountCard } from '@/components/accounts/EnhancedAccountCard';
 import { AccountsTable } from '@/components/accounts/AccountsTable';
-import { CopyConfigurator } from '@/components/accounts/CopyConfigurator';
-import { CapitalAllocator } from '@/components/accounts/CapitalAllocator';
 import { AddAccountForm } from '@/components/accounts/AddAccountForm';
 import { useAccountsComparison } from '@/hooks/useAccounts';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -197,11 +195,6 @@ export default function AccountsPage() {
         )}
       </section>
 
-      {/* Copy Configurator & Capital Allocator */}
-      <div className='grid gap-4 md:grid-cols-2'>
-        <CopyConfigurator />
-        <CapitalAllocator />
-      </div>
     </div>
   );
 }
