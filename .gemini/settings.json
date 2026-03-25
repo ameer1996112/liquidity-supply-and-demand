@@ -25,7 +25,7 @@
         ]
       }
     ],
-    "PreToolUse": [
+    "BeforeTool": [
       {
         "matcher": "Write|Edit",
         "hooks": [

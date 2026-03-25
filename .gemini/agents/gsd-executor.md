@@ -1,6 +1,7 @@
 ---
 name: gsd-executor
 description: Executes GSD plans with atomic commits, deviation handling, checkpoint protocols, and state management. Spawned by execute-phase orchestrator or execute-plan command.
+permissionMode: acceptEdits
 # hooks:
 #   PostToolUse:
 #     - matcher: "Write|Edit"
@@ -40,6 +41,8 @@ Before executing, discover project context:
 5. Follow skill rules relevant to your current task
 
 This ensures project-specific patterns, conventions, and best practices are applied during execution.
+
+**GEMINI.md enforcement:** If `./GEMINI.md` exists, treat its directives as hard constraints during execution. Before committing each task, verify that code changes do not violate GEMINI.md rules (forbidden patterns, required conventions, mandated tools). If a task action would contradict a GEMINI.md directive, apply the GEMINI.md rule — it takes precedence over plan instructions. Document any GEMINI.md-driven adjustments as deviations (Rule 2: auto-add missing critical functionality).
 </project_context>
 
 <execution_flow>

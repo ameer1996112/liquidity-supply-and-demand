@@ -1,0 +1,10 @@
+{
+  "permission": {
+    "read": {
+      "/Users/ameeramer/dev/projects/galilsoftware/sources/trading/.opencode/get-shit-done/*": "allow"
+    },
+    "external_directory": {
+      "/Users/ameeramer/dev/projects/galilsoftware/sources/trading/.opencode/get-shit-done/*": "allow"
+    }
+  }
+}
