@@ -174,7 +174,13 @@ class CreateAccountRequest(BaseModel):
     max_lot_size: float = Field(default=1.0, ge=0.01, le=100)
     min_rr_ratio: float = Field(default=0.0, ge=0)
     meta_api_account_id: Optional[str] = None
+    meta_api_token: Optional[str] = Field(default=None, description="MetaAPI JWT token (stored in DB, takes priority over env var)")
     meta_api_token_env_key: str = Field(default="META_API_TOKEN")
+
+
+class TestConnectionRequest(BaseModel):
+    meta_api_account_id: str = Field(..., min_length=1)
+    meta_api_token: str = Field(..., min_length=10)
 
 
 # ── Evaluation Progress ───────────────────────────────────────────
@@ -1019,6 +1025,45 @@ def get_account_performance(account_name: str, lookback_days: int = 30):
     )
 
 
+@router.post("/accounts/test-connection")
+def test_metaapi_connection(body: TestConnectionRequest):
+    """
+    Validate MetaAPI credentials before saving an account.
+    Returns account info from MetaAPI if the token and account ID are valid.
+    """
+    import requests as _requests
+
+    account_id = body.meta_api_account_id.strip()
+    token = body.meta_api_token.strip()
+
+    try:
+        resp = _requests.get(
+            f"https://mt-provisioning-api-v1.agiliumtrade.agiliumtrade.ai/users/current/accounts/{account_id}",
+            headers={"auth-token": token},
+            timeout=15,
+        )
+    except Exception as exc:
+        raise HTTPException(503, detail=f"Could not reach MetaAPI: {exc}")
+
+    if resp.status_code == 401:
+        raise HTTPException(401, detail="Invalid MetaAPI token")
+    if resp.status_code == 404:
+        raise HTTPException(404, detail="MetaAPI account ID not found")
+    if resp.status_code != 200:
+        raise HTTPException(502, detail=f"MetaAPI returned {resp.status_code}: {resp.text[:200]}")
+
+    data = resp.json()
+    return {
+        "valid": True,
+        "account_id": account_id,
+        "name": data.get("name"),
+        "server": data.get("server"),
+        "platform": data.get("platform"),
+        "state": data.get("state"),
+        "connection_status": data.get("connectionStatus"),
+    }
+
+
 @router.post("/accounts")
 def create_account(body: CreateAccountRequest):
     """
@@ -1072,11 +1117,19 @@ def create_account(body: CreateAccountRequest):
 
             if existing_bp.data:
                 profile_id = existing_bp.data[0]["id"]
+                # Update token if provided
+                new_token = (body.meta_api_token or "").strip() or None
+                if new_token:
+                    sb.table("broker_profiles").update(
+                        {"token": new_token}
+                    ).eq("id", profile_id).execute()
             else:
+                stored_token = (body.meta_api_token or "").strip() or None
                 bp_payload = {
                     "name": account_name,
                     "meta_api_account_id": meta_api_id,
                     "token_env_key": body.meta_api_token_env_key,
+                    "token": stored_token,
                     "risk_pct": body.risk_percent,
                     "max_positions": body.max_positions,
                     "run_mode": "LIVE",
