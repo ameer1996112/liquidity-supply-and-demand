@@ -181,6 +181,8 @@ export interface TradingSignal {
   pnl?: number;
   pnl_usd?: number; // Alternative PnL field
   pnl_percentage?: number;
+  commission?: number;
+  swap?: number;
 
   // Broker execution info (LIVE)
   broker_order_id?: string;

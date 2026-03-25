@@ -441,11 +441,15 @@ export function SignalTable({
       align: 'right',
       isNumeric: true,
       width: 'w-[80px]',
-      header: <SortHeader field='pnl' label='P&L' align='right' sortField={sortField} sortDir={sortDir} onSort={handleSort} />,
+      header: <SortHeader field='pnl' label='Net P&L' align='right' sortField={sortField} sortDir={sortDir} onSort={handleSort} />,
       render: safeRender('pnl', (signal) => {
         const broker = brokerMap[String(signal.id)];
         const livePnl = broker?.live_pnl;
-        const dbPnl = signal.pnl ?? signal.pnl_usd ?? null;
+        const dbNetPnl = signal.pnl ?? signal.pnl_usd ?? null;
+        const comm = signal.commission ?? 0;
+        const swap = signal.swap ?? 0;
+        const fees = comm + swap;
+        const grossPnl = dbNetPnl != null ? dbNetPnl - fees : null;
 
         if (livePnl != null) {
           const isPos = livePnl >= 0;
@@ -456,7 +460,7 @@ export function SignalTable({
                 isPos ? 'text-[var(--to-long)]' : 'text-[var(--to-short)]',
               )}
               style={{ fontFamily: 'var(--font-mono)' }}
-              title='Live broker P&L'
+              title='Live broker P&L (Floating)'
             >
               <span
                 className={cn(
@@ -472,7 +476,20 @@ export function SignalTable({
           );
         }
 
-        return <PnLText value={dbPnl} variant='currency' size='sm' />;
+        if (grossPnl == null) {
+           return <PnLText value={null} variant='currency' size='sm' />;
+        }
+
+        return (
+          <div className="flex flex-col items-end leading-tight" title={`Gross: $${grossPnl.toFixed(2)} | Comm: $${comm.toFixed(2)} | Swap: $${swap.toFixed(2)}\nNet: $${dbNetPnl?.toFixed(2)}`}>
+            <PnLText value={grossPnl} variant='currency' size='sm' />
+            {fees !== 0 && (
+              <span className="text-[8px] text-[var(--to-text-dim)] font-mono opacity-80 mt-0.5">
+                f: {fees < 0 ? '-' : '+'}${Math.abs(fees).toFixed(2)}
+              </span>
+            )}
+          </div>
+        );
       }),
     },
     {
