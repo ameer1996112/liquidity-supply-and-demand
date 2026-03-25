@@ -411,7 +411,7 @@ export default function DashboardPage() {
         ) : (
           <div className='grid grid-cols-2 gap-1.5 md:grid-cols-4 xl:grid-cols-8 stagger-children'>
             <StatCard
-              label='Today PnL'
+              label='Net Daily'
               value={formatCurrency(todayPnl, { signed: true })}
               numericValue={todayPnl ?? undefined}
               numericFormat={(v) => formatCurrency(v, { signed: true })}
@@ -429,7 +429,7 @@ export default function DashboardPage() {
               className='col-span-1 xl:col-span-2 animate-fade-in-up'
             />
             <StatCard
-              label='Total PnL'
+              label='Net PnL'
               value={formatCurrency(totalPnl, { signed: true })}
               numericValue={totalPnl ?? undefined}
               numericFormat={(v) => formatCurrency(v, { signed: true })}

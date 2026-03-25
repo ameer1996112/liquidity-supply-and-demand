@@ -78,13 +78,22 @@ class AccountSyncService:
 
             # Determine connection status
             connection_status = "connected"
-            if account_status.get("connectionStatus") == "circuit_breaker_open":
+            adapter_status = str(account_status.get("connectionStatus", "")).lower()
+
+            if adapter_status == "circuit_breaker_open":
                 connection_status = "error"
+            elif "disconnect" in adapter_status or adapter_status == "unknown":
+                connection_status = "disconnected"
             elif account_status.get("balance", 0) == 0 and account_status.get("equity", 0) == 0:
                 connection_status = "disconnected"
 
-            # Save snapshot to database
-            snapshot_data = {
+            balance = float(account_status.get("balance", 0))
+
+            if balance == 0 and connection_status in ("disconnected", "error"):
+                logger.warning(f"Skipping 0-balance snapshot for {account_name} (Status: {connection_status})")
+            else:
+                # Save snapshot to database
+                snapshot_data = {
                 "account_name": account_name,
                 "broker_profile_id": broker_profile_id,
                 "balance": float(account_status.get("balance", 0)),
@@ -99,9 +108,9 @@ class AccountSyncService:
                 "connection_status": connection_status,
                 "sync_latency_ms": sync_latency_ms,
                 "snapshot_time": datetime.now(timezone.utc).isoformat(),
-            }
+                }
 
-            self.client.table("account_status_snapshots").insert(snapshot_data).execute()
+                self.client.table("account_status_snapshots").insert(snapshot_data).execute()
 
             # Update account_strategies with last sync time and connection status
             self.client.table("account_strategies").update({
