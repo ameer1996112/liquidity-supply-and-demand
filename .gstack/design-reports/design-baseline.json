@@ -1,0 +1,30 @@
+{
+  "date": "2026-03-26",
+  "url": "https://frontend-production-a7cf.up.railway.app",
+  "designScore": "B-",
+  "aiSlopScore": "A",
+  "categoryGrades": {
+    "hierarchy": "C",
+    "typography": "C+",
+    "color": "B+",
+    "spacing": "B",
+    "interaction": "C+",
+    "responsive": "C-",
+    "content": "C",
+    "aiSlop": "A",
+    "motion": "B",
+    "performance": "A"
+  },
+  "findings": [
+    {"id": "FINDING-001", "title": "Nav links and account tabs below 44px touch target", "impact": "high", "category": "interaction", "status": "fixed", "commit": "19eb937"},
+    {"id": "FINDING-002", "title": "9px text in session card city labels", "impact": "high", "category": "typography", "status": "fixed", "commit": "199c0f6"},
+    {"id": "FINDING-003", "title": "Pages blank when API offline — no skeleton/empty states", "impact": "high", "category": "content", "status": "deferred"},
+    {"id": "FINDING-004", "title": "Body text base 13px below 16px recommendation", "impact": "medium", "category": "typography", "status": "deferred"},
+    {"id": "FINDING-005", "title": "Rogue color #26a69a in WaitingPlaceholder", "impact": "medium", "category": "color", "status": "fixed", "commit": "f0b248a"},
+    {"id": "FINDING-006", "title": "Mixed CSS variables and hardcoded Tailwind in session cards", "impact": "medium", "category": "color", "status": "deferred"},
+    {"id": "FINDING-007", "title": "Dashboard subtitle breaks to multiple lines on mobile", "impact": "medium", "category": "responsive", "status": "fixed", "commit": "fa26dd7"},
+    {"id": "FINDING-008", "title": "No max-width constraint on full-width layout", "impact": "polish", "category": "spacing", "status": "deferred"},
+    {"id": "FINDING-009", "title": "Missing explicit transition property targets", "impact": "polish", "category": "motion", "status": "deferred"},
+    {"id": "FINDING-010", "title": "Colored left-border on alert cards (AI slop pattern)", "impact": "polish", "category": "aiSlop", "status": "deferred"}
+  ]
+}
