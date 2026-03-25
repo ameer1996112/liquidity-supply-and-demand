@@ -614,6 +614,21 @@ class MetaApiAdapter:
         # Fall back to orderId for netting-mode accounts where positionId is absent.
         order_id = data.get("positionId") or data.get("orderId") or data.get("id")
         if not order_id:
+            # ── Detect specific MT5 retcodes for actionable error messages ──
+            numeric_code = data.get("numericCode")
+            string_code = data.get("stringCode", "")
+            if numeric_code == 10017 or string_code == "TRADE_RETCODE_TRADE_DISABLED":
+                msg = (
+                    f"MT5 TRADE_DISABLED (10017): Enable 'Algo Trading' in the MT5 terminal toolbar "
+                    f"(must be GREEN). Also verify the account uses the master/trade password (not investor). "
+                    f"Full response: {data}"
+                )
+                logger.error(msg)
+                return ExecutionResult(
+                    status="failed",
+                    client_order_id=request.client_order_id,
+                    message=msg,
+                )
             msg = f"MetaApi response missing positionId/orderId: {data}"
             logger.error(msg)
             return ExecutionResult(
