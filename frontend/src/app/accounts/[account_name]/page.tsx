@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { fetchAccountDetail, syncAccount } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
-import { OverviewTab } from '@/components/accounts/detail/OverviewTab';
+import { DashboardView } from '@/components/dashboard/DashboardView';
 import { PositionsTab } from '@/components/accounts/detail/PositionsTab';
 import { HistoryTab } from '@/components/accounts/detail/HistoryTab';
 import { AnalyticsTab } from '@/components/accounts/detail/AnalyticsTab';
@@ -268,7 +268,9 @@ export default function AccountDetailPage() {
           </div>
         ) : account ? (
           <>
-            {activeTab === 'overview' && <OverviewTab account={account} />}
+            {activeTab === 'overview' && (
+              <DashboardView accountName={accountName} hideHeader={true} />
+            )}
             {activeTab === 'positions' && (
               <PositionsTab accountName={accountName} />
             )}

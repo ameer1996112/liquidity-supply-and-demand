@@ -55,6 +55,7 @@ export async function fetchSignals(
     limit?: number;
     offset?: number;
     runId?: string;
+    accountName?: string;
   } = {}
 ): Promise<TradingSignal[]> {
   if (!supabase) {
@@ -80,6 +81,10 @@ export async function fetchSignals(
     query = query.eq('run_id', runId);
   }
 
+  if (options.accountName) {
+    query = query.eq('account_name', options.accountName);
+  }
+
   const { data, error } = await query;
 
   if (error) {
@@ -93,7 +98,7 @@ export async function fetchSignals(
   );
 }
 
-export async function fetchSignalStats(): Promise<SignalStats> {
+export async function fetchSignalStats(accountName?: string): Promise<SignalStats> {
   if (!supabase) {
     return getMockStats();
   }
@@ -103,10 +108,16 @@ export async function fetchSignalStats(): Promise<SignalStats> {
     Date.now() - 24 * 60 * 60 * 1000
   ).toISOString();
 
-  const { data, error } = await supabase
+  let recentQuery = supabase
     .from('trading_signals')
     .select('*')
     .gte('created_at', twentyFourHoursAgo);
+
+  if (accountName) {
+    recentQuery = recentQuery.eq('account_name', accountName);
+  }
+
+  const { data, error } = await recentQuery;
 
   if (error) {
     console.error('Error fetching stats:', error);
@@ -247,15 +258,20 @@ export async function fetchSignalStats(): Promise<SignalStats> {
         mode?: string | null;
       }
 
-      const { data: allClosed } = await supabase
+      let closedQuery = supabase
         .from('trading_signals')
         .select(
           'pnl, pnl_usd, entry, exit_fill_price, exit_price, size, side, run_mode, status'
         )
         .or(
           'status.ilike.closed,status.ilike.executed'
-        )
-        .limit(5000);
+        );
+
+      if (accountName) {
+        closedQuery = closedQuery.eq('account_name', accountName);
+      }
+
+      const { data: allClosed } = await closedQuery.limit(5000);
 
       if (allClosed) {
         totalPnl = (allClosed as ClosedSignalRow[]).reduce((sum, s) => {
@@ -333,10 +349,16 @@ export async function fetchSignalStats(): Promise<SignalStats> {
   try {
     if (supabase) {
       // Get all active accounts
-      const { data: accounts } = await supabase
+      let accountsQuery = supabase
         .from('account_strategies')
         .select('account_name, allocated_capital_usd')
         .eq('is_active', true);
+
+      if (accountName) {
+        accountsQuery = accountsQuery.eq('account_name', accountName);
+      }
+
+      const { data: accounts } = await accountsQuery;
 
       const todayStart = new Date();
       todayStart.setUTCHours(0, 0, 0, 0);
