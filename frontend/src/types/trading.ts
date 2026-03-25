@@ -322,6 +322,8 @@ export function normalizeSignal(
     pnl: raw.pnl ?? raw.pnl_usd,
     pnl_usd: raw.pnl_usd ?? raw.pnl,
     pnl_percentage: raw.pnl_percentage,
+    commission: raw.commission,
+    swap: raw.swap,
     broker_order_id: raw.broker_order_id,
     close_broker_order_id: raw.close_broker_order_id,
     account_name: raw.account_name ?? null,
