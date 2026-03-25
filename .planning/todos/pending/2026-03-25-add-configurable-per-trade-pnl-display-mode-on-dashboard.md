@@ -2,7 +2,7 @@
 created: 2026-03-25T12:48:57.818Z
 title: Add configurable per-trade PnL display mode on dashboard
 area: ui
-ticket_id: ""
+ticket_id: "DEV-43"
 files:
   - frontend/src/components/SignalsTable.tsx
   - frontend/src/components/Dashboard.tsx
