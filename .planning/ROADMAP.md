@@ -9,7 +9,13 @@
 
 ### 🚧 v1.2 UI Cleanup (In Progress)
 
-- [ ] Phase 4: Remove Unused Sidebar Items (1 plans)
+## Phase 4: Remove Unused Sidebar Items
+**Goal:** Remove the Agentic View and Tickets links from the sidebar navigation.
+**Requirements:** SIDEBAR-01, SIDEBAR-02
+
+**Success Criteria:**
+1. Agentic View link is removed.
+2. Tickets link is removed.
 
 ## Progress
 
