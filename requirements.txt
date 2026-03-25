@@ -2,7 +2,7 @@
 # Project root requirements
 
 # MetaApi streaming (real-time push-based trade events)
-metaapi-cloud-sdk>=27.0.0
+metaapi-cloud-sdk>=29.0.0  # v29+ supports httpx>=0.28 and drops websockets<12 restriction
 
 # API
 fastapi>=0.109.0
@@ -28,8 +28,7 @@ numba>=0.58.0  # JIT compilation for high-performance backtesting
 backtesting>=0.3.3  # Python backtesting framework for trading strategies
 
 # Database & alerts
-supabase==2.10.0
-websockets>=12.0  # required by supabase realtime (websockets.asyncio added in 12.0)
+supabase>=2.12.0  # 2.12+ allows httpx>=0.28 (required by metaapi v29+)
 
 # Optional / AI / RAG
 langchain>=0.2.0
