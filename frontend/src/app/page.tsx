@@ -29,7 +29,7 @@ export default function DashboardPage() {
       <header className='flex shrink-0 items-center justify-between gap-3'>
         <div>
           <h1 className='page-title text-base font-semibold'>Dashboard</h1>
-          <p className='page-subtitle text-[11px]'>
+          <p className='page-subtitle text-[11px] hidden sm:block'>
             Live command center · telemetry first · 5-minute zones
           </p>
         </div>
