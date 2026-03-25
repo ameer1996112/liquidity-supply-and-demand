@@ -6,17 +6,17 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Eye,
   Pause,
-  Play,
   RefreshCw,
-  Settings,
   Trash2,
-  AlertTriangle,
   TrendingUp,
   TrendingDown,
+  Wifi,
+  WifiOff,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
-import { syncAccount, type AccountComparisonApi } from '@/lib/api';
+import { syncAccount, getPortfolioControlUrl, type AccountComparisonApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { toPercentFromRatioOrPercent } from '@/domain/metrics/tradingMetrics';
 
@@ -33,6 +33,36 @@ export function AccountsTable({ accounts, onDelete }: AccountsTableProps) {
     'name' | 'balance' | 'daily_pnl' | 'total_pnl'
   >('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [testingAccounts, setTestingAccounts] = useState<Record<string, 'testing' | 'ok' | 'error'>>({});
+
+  const handleTestConnection = async (accountName: string) => {
+    setTestingAccounts(prev => ({ ...prev, [accountName]: 'testing' }));
+    try {
+      const url = getPortfolioControlUrl(`/accounts/${encodeURIComponent(accountName)}/metaapi/test-connection`);
+      const res = await fetch(url, { method: 'POST' });
+      const data = await res.json();
+      if (data.status === 'success') {
+        setTestingAccounts(prev => ({ ...prev, [accountName]: 'ok' }));
+        addToast({
+          title: 'Connected',
+          message: `${accountName}: balance $${data.diagnostics?.balance?.toFixed(2) ?? '—'}`,
+          severity: 'success',
+          duration: 4000,
+        });
+      } else {
+        setTestingAccounts(prev => ({ ...prev, [accountName]: 'error' }));
+        addToast({
+          title: 'Connection failed',
+          message: data.message || 'MetaAPI test failed',
+          severity: 'critical',
+          duration: 6000,
+        });
+      }
+    } catch {
+      setTestingAccounts(prev => ({ ...prev, [accountName]: 'error' }));
+      addToast({ title: 'Network error', message: 'Could not reach backend', severity: 'critical', duration: 5000 });
+    }
+  };
 
   const syncMutation = useMutation({
     mutationFn: syncAccount,
@@ -209,12 +239,45 @@ export function AccountsTable({ accounts, onDelete }: AccountsTableProps) {
 
                   {/* Connection */}
                   <td className='px-4 py-3'>
-                    <span className='flex items-center gap-1.5 text-xs text-[var(--to-text-dim)]'>
-                      <span className='relative flex h-2 w-2'>
-                        <span className='relative inline-flex rounded-full h-2 w-2 bg-[var(--to-surface-raised)]'></span>
-                      </span>
-                      N/A
-                    </span>
+                    {(() => {
+                      const testState = testingAccounts[account.account_name];
+                      const status = testState === 'ok' ? 'connected'
+                        : testState === 'error' ? 'error'
+                        : account.connection_status;
+                      const dotColor = status === 'connected' ? 'bg-[#26a69a]'
+                        : status === 'error' ? 'bg-[#ef5350]'
+                        : status === 'disconnected' ? 'bg-amber-500'
+                        : 'bg-[var(--to-surface-raised)]';
+                      const label = status === 'connected' ? 'Connected'
+                        : status === 'error' ? 'Error'
+                        : status === 'disconnected' ? 'Disconnected'
+                        : status === 'not_configured' ? 'No MetaAPI'
+                        : status ?? 'Unknown';
+                      return (
+                        <div className='flex items-center gap-1.5'>
+                          <span className={cn('inline-flex rounded-full h-2 w-2 shrink-0', dotColor)} />
+                          <span className='text-xs text-[var(--to-text-dim)] font-mono'>{label}</span>
+                          {status !== 'not_configured' && (
+                            <button
+                              onClick={() => handleTestConnection(account.account_name)}
+                              disabled={testState === 'testing'}
+                              className='ml-1 p-0.5 rounded text-[var(--to-text-dim)] hover:text-indigo-400 disabled:opacity-40 transition-colors'
+                              title='Test connection'
+                            >
+                              {testState === 'testing' ? (
+                                <Loader2 className='h-3 w-3 animate-spin' />
+                              ) : testState === 'ok' ? (
+                                <Wifi className='h-3 w-3 text-[#26a69a]' />
+                              ) : testState === 'error' ? (
+                                <WifiOff className='h-3 w-3 text-[#ef5350]' />
+                              ) : (
+                                <Wifi className='h-3 w-3' />
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </td>
 
                   {/* Balance */}

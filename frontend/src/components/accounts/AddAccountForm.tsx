@@ -6,6 +6,7 @@ import { useUpdateChallengeSettings } from '@/hooks/useChallenge';
 import { useToast } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
 import { Plus, Loader2, X, ChevronDown, ChevronUp, Shield, CheckCircle, AlertCircle, Wifi } from 'lucide-react';
+import { getPortfolioControlUrl } from '@/lib/api';
 
 // Bot kill thresholds per provider (set at 80% of firm limits for safety buffer)
 const PROVIDER_DEFAULTS: Record<string, { profitTarget: number; dailyLossPct: number; ddPct: number; minDays: number }> = {
@@ -102,7 +103,7 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
     setTestResult(null);
     setTestError('');
     try {
-      const res = await fetch('/api/portfolio-control/accounts/test-connection', {
+      const res = await fetch(getPortfolioControlUrl('/accounts/test-connection'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ meta_api_account_id: accountId, meta_api_token: token }),
