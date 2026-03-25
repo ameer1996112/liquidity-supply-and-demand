@@ -88,7 +88,8 @@ class AccountOrchestrator:
     def get_account_performance(
         self,
         account_name: str,
-        lookback_days: int = 30
+        lookback_days: int = 30,
+        live: bool = True
     ) -> Optional[AccountPerformance]:
         """
         Calculate performance metrics for an account.
@@ -198,7 +199,8 @@ class AccountOrchestrator:
             last_sync_time = None
 
             # Try to fetch real account data from MetaApi if broker_profile_id exists
-            if broker_profile_id:
+            # Skip when live=False (e.g. comparison endpoint) to avoid per-account timeouts
+            if live and broker_profile_id:
                 try:
                     from src.adapters.execution.router import get_adapter
                     from config import get_settings
@@ -577,7 +579,7 @@ class AccountOrchestrator:
 
             comparison = []
             for account in accounts.data or []:
-                perf = self.get_account_performance(account["account_name"])
+                perf = self.get_account_performance(account["account_name"], live=False)
 
                 if perf:
                     # Calculate additional metrics
