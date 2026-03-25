@@ -91,9 +91,11 @@ async def _lifespan(app: FastAPI):  # noqa: ARG001
     """Replaces deprecated @app.on_event('startup'/'shutdown')."""
     # ── STARTUP ──────────────────────────────────────────────────────────────
     _fail_fast_config()
+    await _start_metaapi_streaming()
     yield
     # ── SHUTDOWN ─────────────────────────────────────────────────────────────
     _shutdown_worker()
+    _stop_metaapi_streaming()
 
 
 app = FastAPI(title="Trading Webhook API", version="1.0.0", lifespan=_lifespan)
@@ -265,6 +267,61 @@ def _shutdown_worker():
         shutdown_background_worker()
     except Exception as e:
         logger.error(f"Error during worker shutdown: {e}")
+
+
+async def _start_metaapi_streaming() -> None:
+    """
+    Start the MetaApi real-time streaming service (DEV-39).
+
+    Controlled by METAAPI_STREAMING_ENABLED env var (default: true when
+    META_API_TOKEN and META_API_ACCOUNT_ID are set).
+    The streaming listener catches deal-exit events and writes Net PnL
+    (profit + swap + commission) directly to the DB — Supabase Realtime
+    then pushes the update to the frontend automatically.
+    """
+    import os
+    if os.getenv("METAAPI_STREAMING_ENABLED", "true").lower() in ("false", "0", "no"):
+        logger.info("MetaApi streaming disabled (METAAPI_STREAMING_ENABLED=false)")
+        return
+
+    try:
+        from supabase import create_client
+        from src.services.metaapi_streaming_service import start_streaming
+
+        settings = get_settings()
+        token = (settings.meta_api_token or "").strip()
+        account_id = (settings.meta_api_account_id or "").strip()
+
+        if not token or not account_id:
+            logger.info(
+                "MetaApi streaming not started: META_API_TOKEN or META_API_ACCOUNT_ID not configured"
+            )
+            return
+
+        raw_key = settings.supabase_service_role_key or settings.supabase_key or ""
+        key = raw_key.strip().strip('"\'').strip()
+        if key.upper().startswith("SUPA") and "=" in key[:50]:
+            key = key.split("=", 1)[-1].strip().strip('"\'').strip()
+
+        if not settings.supabase_url or not key:
+            logger.warning("MetaApi streaming: Supabase not configured, cannot update DB")
+            return
+
+        sb_client = create_client(settings.supabase_url, key)
+        start_streaming(token, account_id, sb_client)
+        logger.info("MetaApi streaming service started (real-time deal events active)")
+
+    except Exception as exc:
+        logger.error("Failed to start MetaApi streaming service: %s", exc)
+
+
+def _stop_metaapi_streaming() -> None:
+    """Stop the MetaApi streaming service gracefully."""
+    try:
+        from src.services.metaapi_streaming_service import stop_streaming
+        stop_streaming()
+    except Exception as exc:
+        logger.error("Error stopping MetaApi streaming: %s", exc)
 
 
 def validate_webhook_secret(request: Request, secret: str | None) -> None:

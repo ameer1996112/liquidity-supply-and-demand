@@ -2150,6 +2150,7 @@ def get_health_status():
         "api_status": "healthy",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "background_worker": None,
+        "metaapi_streaming": None,
     }
 
     if worker:
@@ -2159,5 +2160,11 @@ def get_health_status():
             "worker_status": "disabled",
             "message": "Background sync is disabled (ACCOUNT_SYNC_ENABLED=false)"
         }
+
+    try:
+        from src.services.metaapi_streaming_service import get_streaming_status
+        health_data["metaapi_streaming"] = get_streaming_status()
+    except Exception:
+        health_data["metaapi_streaming"] = {"status": "unavailable"}
 
     return health_data
