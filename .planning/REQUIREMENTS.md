@@ -17,4 +17,9 @@
 - [Trading Strategy Enhancements] — Focus is entirely on fixing the reporting and data ingestion pipelines for existing PnL and metrics, not adding new trading entry logic.
 
 ## Traceability
-<!-- Will be populated by the roadmap step -->
+| Requirement | Phase |
+|-------------|-------|
+| SYNC-01     | 1     |
+| SYNC-03     | 1     |
+| SYNC-02     | 2     |
+| REM-01      | 3     |
