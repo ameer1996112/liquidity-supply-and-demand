@@ -95,10 +95,14 @@ async function callJiraAgileAPI(path, method, body = null) {
   });
 }
 
-// Get active sprint (Mocked board ID for now, queries agile/1.0/board/{id}/sprint?state=active)
+// Get active sprint
 async function getActiveSprint() {
-  console.log("Mocking getActiveSprint (requires board lookup) -> '1'");
-  return "1";
+  const boards = await callJiraAgileAPI(`/board?projectKeyOrId=${JIRA_PROJECT_KEY}&type=scrum`, 'GET');
+  const boardList = boards?.values || [];
+  if (!boardList.length) return null;
+  const sprints = await callJiraAgileAPI(`/board/${boardList[0].id}/sprint?state=active`, 'GET');
+  const list = sprints?.values || [];
+  return list.length ? list[0].id : null;
 }
 
 // Create new sprint
@@ -109,6 +113,8 @@ async function createSprint() {
 
 // Assign issue to sprint
 async function assignIssueToSprint(issueKey, sprintId) {
+  if (!sprintId) return;
+  await callJiraAgileAPI(`/sprint/${sprintId}/issue`, 'POST', { issues: [issueKey] });
   console.log(`Assigned ${issueKey} to sprint ${sprintId}`);
 }
 
@@ -203,6 +209,7 @@ async function createIssue(summary, description, type, timeEstimateStr, parentKe
         ]
       },
       issuetype: { name: type },
+      assignee: { accountId: '5e77682c79f5ad0c34f09c9c' },
       timetracking: { originalEstimate: timeEstimateStr }
     }
   };

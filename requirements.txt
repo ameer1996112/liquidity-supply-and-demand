@@ -1,6 +1,9 @@
 # TradingView -> Webhook API + Worker (v9 DDD)
 # Project root requirements
 
+# MetaApi streaming (real-time push-based trade events)
+metaapi-cloud-sdk>=27.0.0
+
 # API
 fastapi>=0.109.0
 uvicorn[standard]>=0.27.0

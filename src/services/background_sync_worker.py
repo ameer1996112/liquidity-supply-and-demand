@@ -1,8 +1,14 @@
 """
 Background Sync Worker for Multi-Account Manager
 
-Automatically syncs account status and positions from MetaAPI at regular intervals.
+Syncs account BALANCE / EQUITY / CONNECTION STATUS from MetaAPI at regular intervals.
 Uses APScheduler for job scheduling and optional Redis for caching.
+
+DEPRECATION NOTICE (DEV-39):
+  Trade closure events and Net PnL updates are now handled in real-time by
+  MetaApiStreamingService (src/services/metaapi_streaming_service.py).
+  This worker is kept only for account balance/equity snapshots
+  (account_status_snapshots table) — it no longer handles position sync.
 
 Author: Claude Code
 Created: 2026-02-09

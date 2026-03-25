@@ -205,14 +205,16 @@ async function createIssue(summary, descriptionText, type = "Task") {
 
 function buildSessionComment(prompt, sessionId) {
   const ts = new Date().toISOString();
-  return [
-    `🤖 Claude Code Session Started`,
-    `Time: ${ts}`,
-    `Session: ${sessionId || "unknown"}`,
+  const lines = [
+    `🤖 Claude Code — Session Started`,
     ``,
-    `📋 Request:`,
+    `📅 Time: ${ts}`,
+    `🔑 Session: ${sessionId || 'unknown'}`,
+    ``,
+    `📋 Task:`,
     prompt.slice(0, 2000),
-  ].join("\n");
+  ];
+  return lines.join('\n');
 }
 
 function buildCompletionComment(summary, sessionId) {
@@ -392,6 +394,14 @@ const [,, command, ...rest] = process.argv;
         if (key) {
           console.log(`✅ Created ${capitalType}: ${key}`);
           console.log(`🔗 ${JIRA_DOMAIN}/browse/${key}`);
+          const slug = prompt.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '').slice(0, 50);
+          const branchName = `feature/${key}-${slug}`;
+          try {
+            execSync(`git checkout -b ${branchName}`, { cwd: REPO_ROOT, stdio: 'pipe' });
+            console.log(`🌿 Branch: ${branchName}`);
+          } catch {
+            // Branch may already exist or git not available — skip silently
+          }
         } else {
           console.error("❌ Failed to create issue");
         }
