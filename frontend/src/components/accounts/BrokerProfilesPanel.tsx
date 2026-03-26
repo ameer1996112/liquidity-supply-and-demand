@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Server, Plus, Trash2, CheckCircle2, XCircle, Loader2,
   RadioTower, Eye, EyeOff, Zap, ChevronRight, ChevronLeft,
-  User, ClipboardList, Trophy, Copy, Check,
+  User, ClipboardList, Trophy, Copy, Check, Pencil, X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
@@ -62,6 +62,19 @@ async function deleteProfile(id: number): Promise<void> {
     const e = await r.json().catch(() => ({ detail: r.statusText }));
     throw new Error(e.detail || 'Delete failed');
   }
+}
+
+async function updateProfile(id: number, body: Record<string, unknown>): Promise<BrokerProfile> {
+  const r = await fetch(`${API_BASE}/api/broker-profiles/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) {
+    const e = await r.json().catch(() => ({ detail: r.statusText }));
+    throw new Error(e.detail || 'Update failed');
+  }
+  return r.json();
 }
 
 async function activateProfile(id: number): Promise<BrokerProfile> {
@@ -492,6 +505,7 @@ function AccountTypeBadge({ type }: { type: BrokerProfile['account_type'] }) {
 
 function ProfileRow({ profile }: { profile: BrokerProfile }) {
   const [copied, setCopied] = useState(false);
+  const [editing, setEditing] = useState(false);
   const copyAccountId = () => {
     navigator.clipboard.writeText(profile.meta_api_account_id).then(() => {
       setCopied(true);
@@ -503,6 +517,32 @@ function ProfileRow({ profile }: { profile: BrokerProfile }) {
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [isTesting, setIsTesting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // Edit form state
+  const [editForm, setEditForm] = useState({
+    name: profile.name,
+    meta_api_account_id: profile.meta_api_account_id,
+    token: '',
+    risk_pct: profile.risk_pct,
+    max_positions: profile.max_positions,
+  });
+  const [showEditToken, setShowEditToken] = useState(false);
+
+  const update = useMutation({
+    mutationFn: () => updateProfile(profile.id, {
+      name: editForm.name || undefined,
+      meta_api_account_id: editForm.meta_api_account_id || undefined,
+      ...(editForm.token ? { token: editForm.token } : {}),
+      risk_pct: editForm.risk_pct,
+      max_positions: editForm.max_positions,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['broker-profiles'] });
+      addToast({ title: 'Account updated', message: `${profile.name} saved.`, severity: 'success' });
+      setEditing(false);
+    },
+    onError: (e: Error) => addToast({ title: 'Update failed', message: e.message, severity: 'critical' }),
+  });
 
   const activate = useMutation({
     mutationFn: () => activateProfile(profile.id),
@@ -576,15 +616,54 @@ function ProfileRow({ profile }: { profile: BrokerProfile }) {
         {profile.last_tested_at && <span>Tested: {new Date(profile.last_tested_at).toLocaleDateString()}</span>}
       </div>
 
-      {testResult && (
-        <div className={cn('text-[11px] rounded-lg px-3 py-2 border', testResult.success ? 'bg-[var(--to-long)]/10 border-[var(--to-long)]/20 text-[var(--to-long)]' : 'bg-[var(--to-short)]/10 border-[var(--to-short)]/20 text-[var(--to-short)]')}>
-          {testResult.success ? '✅ ' : '❌ '}{testResult.message}
+      {/* Inline edit form */}
+      {editing && (
+        <div className="rounded-xl border border-[var(--to-warning)]/25 bg-[var(--to-warning)]/5 p-3 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <InputField label="Name">
+              <input className={inputCls} value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
+            </InputField>
+            <InputField label="Account ID">
+              <input className={cn(inputCls, 'font-mono')} value={editForm.meta_api_account_id} onChange={e => setEditForm(f => ({ ...f, meta_api_account_id: e.target.value }))} />
+            </InputField>
+            <InputField label="New Token (leave blank to keep current)">
+              <div className="relative">
+                <input
+                  className={cn(inputCls, 'font-mono pr-9')}
+                  type={showEditToken ? 'text' : 'password'}
+                  placeholder="Paste new token only if rotating…"
+                  value={editForm.token}
+                  onChange={e => setEditForm(f => ({ ...f, token: e.target.value }))}
+                />
+                <button type="button" onClick={() => setShowEditToken(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--to-text-dim)] hover:text-[var(--to-text-primary)]">
+                  {showEditToken ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                </button>
+              </div>
+            </InputField>
+            <InputField label="Risk %">
+              <input className={inputCls} type="number" min="0.1" max="10" step="0.1" value={editForm.risk_pct} onChange={e => setEditForm(f => ({ ...f, risk_pct: parseFloat(e.target.value) || 1 }))} />
+            </InputField>
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" className="h-7 text-xs bg-[var(--to-warning)] text-black" disabled={update.isPending} onClick={() => update.mutate()}>
+              {update.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : null} Save Changes
+            </Button>
+            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditing(false)}>Cancel</Button>
+          </div>
+        </div>
+      )}
+        <div className={cn('text-[11px] rounded-lg px-3 py-2 border', testResult?.success ? 'bg-[var(--to-long)]/10 border-[var(--to-long)]/20 text-[var(--to-long)]' : 'bg-[var(--to-short)]/10 border-[var(--to-short)]/20 text-[var(--to-short)]')}>
+          {testResult?.success ? '✅ ' : '❌ '}{testResult?.message}
         </div>
       )}
 
       <div className="flex flex-wrap items-center gap-2">
         <Button size="sm" variant="outline" className="h-7 text-[11px] gap-1.5 border-[var(--to-border)] text-[var(--to-text-secondary)]" disabled={isTesting} onClick={handleTest}>
           {isTesting ? <Loader2 className="h-3 w-3 animate-spin" /> : <RadioTower className="h-3 w-3" />} Test
+        </Button>
+        <Button size="sm" variant="ghost" className="h-7 text-[11px] gap-1.5 text-[var(--to-text-dim)] hover:text-[var(--to-warning)]" onClick={() => { setEditing(v => !v); setTestResult(null); }}>
+          {editing ? <X className="h-3 w-3" /> : <Pencil className="h-3 w-3" />}
+          {editing ? 'Cancel' : 'Edit'}
         </Button>
         {!profile.selected_for_trading && (
           <Button size="sm" variant="outline" className="h-7 text-[11px] gap-1.5 border-[var(--to-warning)]/30 text-[var(--to-warning)] hover:bg-[var(--to-warning)]/10" disabled={activate.isPending} onClick={() => activate.mutate()}>

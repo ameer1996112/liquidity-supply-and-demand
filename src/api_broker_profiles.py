@@ -164,9 +164,10 @@ def _test_metaapi_connection(token: str, account_id: str) -> TestConnectionRespo
     Returns connection info on success, error details on failure.
     """
     from config import get_settings
-    s = get_settings()
-    region = getattr(s, "meta_api_region", "new-york") or "new-york"
-    base_url = f"https://mt-provisioning-api-v1.{region}.agiliumtrade.ai"
+    get_settings()  # ensure settings loaded
+    # Use the global provisioning endpoint (no region prefix) — same URL the MetaAPI SDK uses.
+    # Regional subdomains (e.g. london.agiliumtrade.ai) have SSL cert issues in some environments.
+    base_url = "https://mt-provisioning-api-v1.agiliumtrade.agiliumtrade.ai"
     url = f"{base_url}/users/current/accounts/{account_id}"
     try:
         import ssl
