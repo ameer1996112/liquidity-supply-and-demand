@@ -302,6 +302,10 @@ class AccountSyncService:
         """
         Get MetaAPI adapter for an account.
 
+        Token resolution order (DB-first):
+        1. broker_profiles.token (set from the Accounts UI page)
+        2. env var named in meta_api_token_env_key (legacy fallback)
+
         Args:
             account_data: Account row from account_strategies
 
@@ -318,39 +322,53 @@ class AccountSyncService:
         if not meta_api_account_id and not broker_profile_id:
             return None
 
-        # Get token from env
-        token_env_key = account_data.get("meta_api_token_env_key", "META_API_TOKEN")
-        token = os.getenv(token_env_key, "").strip()
-
-        # Safe diagnostics string
-        token_present = bool(token)
-        token_length = len(token)
-        token_prefix = token[:3] + "..." if token_present else "None"
-        
-        logger.info(
-            f"MetaAPI Auth Check | Account: {account_data.get('account_name')} | "
-            f"EnvKey: {token_env_key} | Present: {token_present} | "
-            f"Length: {token_length} | Prefix: {token_prefix}"
-        )
-
-        if not token:
-            logger.warning(f"MetaAPI token not found or empty in env var {token_env_key}")
-            raise ValueError("METAAPI_TOKEN_MISSING")
-
-        # Get account ID (prefer meta_api_account_id, fallback to broker_profile lookup)
+        token = ""
         account_id = meta_api_account_id
 
-        if not account_id and broker_profile_id:
-            # Look up meta_api_account_id from broker_profiles
+        # --- Load token + account_id from broker_profiles (DB-first) ---
+        if broker_profile_id:
             try:
                 profile = self.client.table("broker_profiles").select(
-                    "meta_api_account_id"
+                    "meta_api_account_id,token,token_env_key"
                 ).eq("id", broker_profile_id).single().execute()
 
                 if profile.data:
-                    account_id = profile.data.get("meta_api_account_id")
+                    token = (profile.data.get("token") or "").strip()
+                    if not account_id:
+                        account_id = profile.data.get("meta_api_account_id") or ""
+                    # Store env key for fallback below
+                    _env_key_from_profile = (profile.data.get("token_env_key") or "META_API_TOKEN").strip()
+                else:
+                    _env_key_from_profile = "META_API_TOKEN"
             except Exception as e:
-                logger.warning(f"Failed to fetch broker_profile: {e}")
+                logger.warning("Failed to fetch broker_profile for token: %s", e)
+                _env_key_from_profile = "META_API_TOKEN"
+        else:
+            _env_key_from_profile = "META_API_TOKEN"
+
+        # --- Fall back to env var if DB token is empty ---
+        if not token:
+            token_env_key = account_data.get("meta_api_token_env_key") or _env_key_from_profile
+            token = os.getenv(token_env_key, "").strip()
+            logger.info(
+                "MetaAPI Auth Check | Account: %s | Source: env(%s) | Present: %s | Length: %d | Prefix: %s",
+                account_data.get("account_name"),
+                token_env_key,
+                bool(token),
+                len(token),
+                token[:3] + "..." if token else "None",
+            )
+        else:
+            logger.info(
+                "MetaAPI Auth Check | Account: %s | Source: DB (broker_profiles.token) | Present: True | Length: %d | Prefix: %s",
+                account_data.get("account_name"),
+                len(token),
+                token[:3] + "...",
+            )
+
+        if not token:
+            logger.warning("MetaAPI token not found for account %s (neither DB nor env)", account_data.get("account_name"))
+            raise ValueError("METAAPI_TOKEN_MISSING")
 
         if not account_id:
             return None
@@ -360,6 +378,7 @@ class AccountSyncService:
             account_id=account_id,
             account_name=account_data.get("account_name")
         )
+
 
     def _reconcile_positions(self, account_name: str, snapshot_time: str):
         """
