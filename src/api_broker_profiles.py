@@ -38,16 +38,29 @@ class BrokerProfileCreate(BaseModel):
     risk_pct: float = Field(default=1.0, ge=0.1, le=10.0)
     max_positions: int = Field(default=3, ge=1, le=20)
     run_mode: str = Field(default="LIVE")
+    # Account type and prop firm fields
+    account_type: str = Field(default="personal")  # personal | evaluation | funded
+    prop_firm_name: Optional[str] = Field(default=None)
+    evaluation_phase: Optional[str] = Field(default=None)  # phase1 | phase2 | funded
+    max_daily_loss_pct: Optional[float] = Field(default=None, ge=0, le=100)
+    max_drawdown_pct: Optional[float] = Field(default=None, ge=0, le=100)
+    profit_target_usd: Optional[float] = Field(default=None, ge=0)
 
     model_config = {
         "json_schema_extra": {
             "example": {
-                "name": "IC Markets Live",
+                "name": "FTMO $50K Phase 1",
                 "meta_api_account_id": "a09b89c3-cf09-45e7-9125-d95ebc9afe96",
                 "token": "eyJ0eXAiOiJKV1Q...",
                 "risk_pct": 1.0,
                 "max_positions": 3,
                 "run_mode": "LIVE",
+                "account_type": "evaluation",
+                "prop_firm_name": "FTMO",
+                "evaluation_phase": "phase1",
+                "max_daily_loss_pct": 5.0,
+                "max_drawdown_pct": 10.0,
+                "profit_target_usd": 5000,
             }
         }
     }
@@ -76,6 +89,13 @@ class BrokerProfileResponse(BaseModel):
     connection_error: Optional[str]
     last_tested_at: Optional[str]
     created_at: Optional[str]
+    # Account type metadata
+    account_type: str = "personal"
+    prop_firm_name: Optional[str] = None
+    evaluation_phase: Optional[str] = None
+    max_daily_loss_pct: Optional[float] = None
+    max_drawdown_pct: Optional[float] = None
+    profit_target_usd: Optional[float] = None
 
 
 class TestConnectionResponse(BaseModel):
@@ -91,7 +111,8 @@ class TestConnectionResponse(BaseModel):
 _SELECT = (
     "id,name,meta_api_account_id,token,risk_pct,max_positions,"
     "run_mode,is_active,selected_for_trading,connection_status,"
-    "connection_error,last_tested_at,created_at"
+    "connection_error,last_tested_at,created_at,"
+    "evaluation_mode,evaluation_phase,max_daily_loss_pct,max_drawdown_pct,profit_target_usd"
 )
 
 
@@ -101,6 +122,16 @@ def _mask_token(token: Optional[str]) -> str:
         return "***"
     t = token.strip()
     return f"***{t[-8:]}" if len(t) > 8 else "***"
+
+
+def _infer_account_type(row: Dict[str, Any]) -> str:
+    """Derive account_type string from evaluation_mode + evaluation_phase."""
+    if not row.get("evaluation_mode"):
+        return "personal"
+    phase = row.get("evaluation_phase", "phase1")
+    if phase == "funded":
+        return "funded"
+    return "evaluation"
 
 
 def _to_response(row: Dict[str, Any]) -> BrokerProfileResponse:
@@ -118,6 +149,12 @@ def _to_response(row: Dict[str, Any]) -> BrokerProfileResponse:
         connection_error=row.get("connection_error"),
         last_tested_at=row.get("last_tested_at"),
         created_at=row.get("created_at"),
+        account_type=_infer_account_type(row),
+        prop_firm_name=row.get("prop_firm_name"),
+        evaluation_phase=row.get("evaluation_phase"),
+        max_daily_loss_pct=row.get("max_daily_loss_pct"),
+        max_drawdown_pct=row.get("max_drawdown_pct"),
+        profit_target_usd=row.get("profit_target_usd"),
     )
 
 
@@ -217,7 +254,19 @@ def create_broker_profile(body: BrokerProfileCreate):
             "is_active": True,
             "selected_for_trading": False,
             "connection_status": "unknown",
+            # Account type fields
+            "evaluation_mode": body.account_type in ("evaluation", "funded"),
+            "evaluation_phase": (
+                "funded" if body.account_type == "funded"
+                else (body.evaluation_phase or "phase1")
+            ),
+            "max_daily_loss_pct": body.max_daily_loss_pct,
+            "max_drawdown_pct": body.max_drawdown_pct,
+            "profit_target_usd": body.profit_target_usd,
         }
+        # prop_firm_name is only in some DB versions — add if column exists
+        if body.prop_firm_name:
+            payload["prop_firm_name"] = body.prop_firm_name
         resp = sb.table("broker_profiles").insert(payload).execute()
         rows = resp.data or []
         if not rows:
