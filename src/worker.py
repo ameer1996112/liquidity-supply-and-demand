@@ -787,6 +787,30 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
         except (ValueError, TypeError):
             pass
 
+    # --- Parse premium_discount (Phase 5: store for Phase 6 rubric) ---
+    raw_pd = payload.get("premium_discount")
+    if raw_pd is not None:
+        try:
+            pd_val = float(raw_pd)
+            payload["premium_discount"] = max(0.0, min(1.0, pd_val))
+        except (ValueError, TypeError):
+            payload["premium_discount"] = None
+            logger.warning("premium_discount parse failed: %r", raw_pd)
+    else:
+        logger.debug("premium_discount not in payload")
+
+    # --- Parse kill_zone (Phase 5: store for Phase 6 rubric) ---
+    raw_kz = payload.get("kill_zone")
+    if raw_kz is not None:
+        try:
+            kz_val = int(raw_kz)
+            payload["kill_zone"] = kz_val if kz_val in (0, 1, 2) else 0
+        except (ValueError, TypeError):
+            payload["kill_zone"] = None
+            logger.warning("kill_zone parse failed: %r", raw_kz)
+    else:
+        logger.debug("kill_zone not in payload")
+
     # --- Sydney session veto (session=0 is illiquid) ---
     session = payload.get("session")
     if session is not None:
@@ -1037,6 +1061,40 @@ def _run_account_guards(
             except Exception:
                 pass
             return _fail_msg
+
+    # ── EV Score (Phase 5: informational only, NOT gating) ─────────────
+    # Compute after drawdown check so we have daily_loss_limit_pct and acct_balance available.
+    try:
+        entry = float(payload.get("entry", 0))
+        sl = float(payload.get("sl", 0))
+        tp = float(payload.get("tp", 0))
+
+        if tp > 0 and sl > 0 and entry > 0 and abs(entry - sl) > 1e-8:
+            estimated_rr = abs(tp - entry) / abs(entry - sl)
+        else:
+            estimated_rr = getattr(s, "default_estimated_rr", 2.0)
+
+        composite_proxy = float(payload.get("score", 0)) * 100  # Pine score 0-1 -> 0-100
+
+        # dd_pct: fraction of daily loss used (0.0 = no loss, 1.0 = limit hit)
+        if daily_loss_limit_pct > 0 and acct_balance > 0:
+            try:
+                _ev_dd_pnl = _get_account_daily_pnl(profile)
+                _ev_max_loss = -(daily_loss_limit_pct / 100.0) * acct_balance
+                dd_pct = min(1.0, max(0.0, _ev_dd_pnl / _ev_max_loss)) if _ev_max_loss != 0 else 0.0
+            except Exception:
+                dd_pct = 0.0
+        else:
+            dd_pct = 0.0
+
+        ev_score = (composite_proxy / 100.0) * estimated_rr * (1.0 - dd_pct)
+        logger.info(
+            "EV score: %.2f (composite_proxy=%.1f, rr=%.2f, dd=%.2f) [%s]",
+            ev_score, composite_proxy, estimated_rr, dd_pct, account_name,
+        )
+        payload["_ev_score"] = ev_score
+    except Exception as _ev_err:
+        logger.warning("EV score computation failed for %s: %s", account_name, _ev_err)
 
     # ── Per-account Correlation Guard ─────────────────────────
     active_positions = _get_account_positions_from_db(profile)
