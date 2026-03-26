@@ -94,7 +94,7 @@ class NewsFilter:
                 # Filter by Impact: "High" or maybe "Medium" if desired.
                 # The JSON often uses "High", "Medium", "Low" strings.
                 impact = event.get('impact', 'Low')
-                if impact != 'High':
+                if impact not in ('High', 'Medium'):
                     continue
 
                 # Filter by Currency
@@ -125,7 +125,7 @@ class NewsFilter:
                 upper_bound = event_time_utc + timedelta(minutes=self.block_minutes_after)
 
                 if lower_bound <= now_utc <= upper_bound:
-                    logger.warning(f"NEWS BLOCK: High impact event '{event.get('title')}' for {country} at {event_time_utc} is active.")
+                    logger.warning(f"NEWS BLOCK: {impact}-impact event '{event.get('title')}' for {country} at {event_time_utc} is active.")
                     return True
 
             return False
