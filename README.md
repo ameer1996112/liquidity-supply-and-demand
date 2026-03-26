@@ -64,3 +64,9 @@ See the [docs/](docs/) directory for detailed documentation on:
 - Pine Script fixes and optimizations
 - Database migration guides
 - Quick fixes and troubleshooting
+
+### Testing the Visual Annotator (LLM Council Shadow Mode)
+You can validate how the AI grades historical trades using the standalone script:
+```bash
+python scripts/test_visual_annotator.py path/to/chart.png '{"symbol":"EURUSD", "side":"buy"}'
+```

@@ -10,7 +10,9 @@ from __future__ import annotations
 import json
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Optional, Type, TypeVar
+from typing import Any, Optional, Type, TypeVar, Union, Dict, List
+import base64
+import io
 
 from pydantic import BaseModel, ValidationError
 
@@ -27,6 +29,42 @@ REPAIR_INSTRUCTION = (
 )
 
 
+
+def encode_image_for_anthropic(image_path: str, max_size_mb: float = 4.5, max_dim: int = 2000) -> dict:
+    """Read an image, resize if necessary (using Pillow), and return Anthropic vision content block."""
+    try:
+        from PIL import Image
+    except ImportError:
+        raise AIClientError("Pillow is required for image processing. Run: pip install Pillow")
+        
+    with Image.open(image_path) as img:
+        if img.mode in ('RGBA', 'P'):
+            img = img.convert('RGB')
+            
+        if img.width > max_dim or img.height > max_dim:
+            img.thumbnail((max_dim, max_dim), Image.Resampling.LANCZOS)
+            
+        quality = 95
+        while True:
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=quality)
+            size_mb = len(buf.getvalue()) / (1024 * 1024)
+            if size_mb <= max_size_mb or quality <= 20:
+                break
+            quality -= 10
+            
+        b64_data = base64.b64encode(buf.getvalue()).decode("utf-8")
+        
+    return {
+        "type": "image",
+        "source": {
+            "type": "base64",
+            "media_type": "image/jpeg",
+            "data": b64_data
+        }
+    }
+
+
 class AIClientError(Exception):
     """Raised when AI client fails after retries."""
 
@@ -41,19 +79,20 @@ class AIClient(ABC):
     @abstractmethod
     def _raw_complete(
         self,
-        prompt: str,
+        prompt: Union[str, List[Dict[str, Any]]],
         *,
         system_prompt: str = "You are a helpful assistant. Respond with valid JSON only.",
         temperature: float = 0.1,
         max_tokens: int = 256,
         timeout: float = 30.0,
+        schema: Optional[Type[T]] = None,
     ) -> str:
         """Return raw response text from the provider. Must be JSON-parseable."""
         ...
 
     def complete(
         self,
-        prompt: str,
+        prompt: Union[str, List[Dict[str, Any]]],
         schema: Type[T],
         *,
         temperature: float = 0.1,
@@ -72,6 +111,7 @@ class AIClient(ABC):
             temperature=temperature,
             max_tokens=max_tokens,
             timeout=timeout,
+            schema=schema,
         )
         result, err = _parse_and_validate(raw, schema)
         if result is not None:
@@ -86,6 +126,7 @@ class AIClient(ABC):
             temperature=temperature,
             max_tokens=max_tokens,
             timeout=timeout,
+            schema=schema,
         )
         result2, _ = _parse_and_validate(raw2, schema)
         if result2 is not None:
@@ -127,12 +168,13 @@ class AnthropicClient(AIClient):
 
     def _raw_complete(
         self,
-        prompt: str,
+        prompt: Union[str, List[Dict[str, Any]]],
         *,
         system_prompt: str = "You are a helpful assistant. Respond with valid JSON only.",
         temperature: float = 0.1,
         max_tokens: int = 256,
         timeout: float = 30.0,
+        schema: Optional[Type[T]] = None,
     ) -> str:
         try:
             from anthropic import Anthropic
@@ -171,12 +213,13 @@ class OpenAIClient(AIClient):
 
     def _raw_complete(
         self,
-        prompt: str,
+        prompt: Union[str, List[Dict[str, Any]]],
         *,
         system_prompt: str = "You are a helpful assistant. Respond with valid JSON only.",
         temperature: float = 0.1,
         max_tokens: int = 256,
         timeout: float = 30.0,
+        schema: Optional[Type[T]] = None,
     ) -> str:
         try:
             from openai import OpenAI
@@ -209,12 +252,13 @@ class GeminiClient(AIClient):
 
     def _raw_complete(
         self,
-        prompt: str,
+        prompt: Union[str, List[Dict[str, Any]]],
         *,
         system_prompt: str = "You are a helpful assistant. Respond with valid JSON only.",
         temperature: float = 0.1,
         max_tokens: int = 256,
         timeout: float = 30.0,
+        schema: Optional[Type[T]] = None,
     ) -> str:
         raise NotImplementedError("GeminiClient is a stub. Implement when needed.")
 
@@ -227,12 +271,13 @@ class LocalClient(AIClient):
 
     def _raw_complete(
         self,
-        prompt: str,
+        prompt: Union[str, List[Dict[str, Any]]],
         *,
         system_prompt: str = "You are a helpful assistant. Respond with valid JSON only.",
         temperature: float = 0.1,
         max_tokens: int = 256,
         timeout: float = 30.0,
+        schema: Optional[Type[T]] = None,
     ) -> str:
         raise NotImplementedError("LocalClient is a stub. Implement when needed.")
 
@@ -287,4 +332,5 @@ __all__ = [
     "LocalClient",
     "get_ai_client",
     "reset_ai_client",
+    "encode_image_for_anthropic",
 ]

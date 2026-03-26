@@ -74,3 +74,10 @@ deals = metaapi.get_historical_deals(watermark, now)  # NEW deals only
 - [ ] All closes show MT5 pnl_usd
 - [ ] No TradingView theoretical values
 - [ ] Dashboard matches broker statements
+
+- [ ] Build automated 5m/1H TradingView screenshot capture in Python backend.
+  - **Why:** To feed live trades to the Visual Annotator asynchronously.
+  - **Pros:** Fully automates the data collection for the Shadow Council.
+  - **Cons:** Headless scraping is brittle (login walls, slow rendering).
+  - **Context:** We are currently manually uploading screenshots to test Claude's grading. Once the rubric is proven, we need this capture mechanism.
+  - **Depends on:** Validating the 4-dimension rubric works on historical screenshots.

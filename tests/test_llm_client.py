@@ -40,8 +40,9 @@ class MockClient(AIClient):
 
     def _raw_complete(
         self,
-        prompt: str,
+        prompt: str | list,
         *,
+        schema=None,
         system_prompt: str = "You are a helpful assistant. Respond with valid JSON only.",
         temperature: float = 0.1,
         max_tokens: int = 256,
