@@ -72,7 +72,11 @@ class MetaApiAdapter:
         """True if circuit is open (should not call MetaApi)."""
         try:
             from src.core.circuit_breaker import is_metaapi_circuit_open
-            return is_metaapi_circuit_open()
+            # Check per-account first, then fall back to global.
+            # Using account_name scopes the breaker so one bad account
+            # doesn't block all other accounts.
+            acct = self._account_name_from_config or None
+            return is_metaapi_circuit_open(account_name=acct)
         except Exception:  # noqa: BLE001
             return False
 
@@ -110,7 +114,9 @@ class MetaApiAdapter:
             if resp.status_code == 429:
                 try:
                     from src.core.circuit_breaker import set_metaapi_circuit_open
-                    set_metaapi_circuit_open()
+                    # Scope to per-account so other accounts are not blocked
+                    acct = self._account_name_from_config or None
+                    set_metaapi_circuit_open(account_name=acct)
                 except Exception:  # noqa: BLE001
                     pass
                 logger.warning("MetaApi rate limited (429); circuit breaker opened, sleeping %ss", RATE_LIMIT_SLEEP)
