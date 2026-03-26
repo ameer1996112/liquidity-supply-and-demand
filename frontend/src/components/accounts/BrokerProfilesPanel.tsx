@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Server, Plus, Trash2, CheckCircle2, XCircle, Loader2,
   RadioTower, Eye, EyeOff, Zap, ChevronRight, ChevronLeft,
-  User, ClipboardList, Trophy,
+  User, ClipboardList, Trophy, Copy, Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
@@ -80,6 +80,58 @@ async function testProfile(id: number): Promise<{ success: boolean; message: str
     throw new Error(e.detail || 'Test failed');
   }
   return r.json();
+}
+
+// ── Prop firm presets ────────────────────────────────────────────────────────
+
+const PROP_FIRMS = [
+  'FTMO', 'MyFundedFX', 'The Funded Trader', 'Apex Trader Funding',
+  'E8 Markets', 'FundedNext', 'True Forex Funds', 'Maven Trading',
+  'Lux Trading Firm', 'City Traders Imperium', 'Fidelcrest',
+  'TopstepTrader', 'Earn2Trade', 'Funded Trading Plus', 'Alpha Capital Group',
+];
+
+function PropFirmSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [query, setQuery] = useState(value);
+  const [open, setOpen] = useState(false);
+
+  const filtered = PROP_FIRMS.filter(f => f.toLowerCase().includes(query.toLowerCase()));
+
+  const select = (firm: string) => {
+    setQuery(firm);
+    onChange(firm);
+    setOpen(false);
+  };
+
+  return (
+    <div className="relative">
+      <input
+        className={inputCls}
+        placeholder="Search prop firms…"
+        value={query}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onChange={e => { setQuery(e.target.value); onChange(e.target.value); setOpen(true); }}
+      />
+      {open && filtered.length > 0 && (
+        <div className="absolute z-20 mt-1 w-full rounded-lg border border-[var(--to-border)] bg-[var(--to-surface)] shadow-lg overflow-hidden">
+          {filtered.map(firm => (
+            <button
+              key={firm}
+              type="button"
+              onMouseDown={() => select(firm)}
+              className={cn(
+                'w-full px-3 py-2 text-left text-xs transition-colors hover:bg-[var(--to-warning)]/10',
+                value === firm ? 'text-[var(--to-warning)] font-medium' : 'text-[var(--to-text-secondary)]'
+              )}
+            >
+              {firm}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -211,7 +263,7 @@ function DetailsStep({ form, onChange, onBack, onNext }: {
 
         {isPropFirm && (
           <InputField label="Prop Firm">
-            <input className={inputCls} placeholder="FTMO, MyFundedFX, TFT…" value={form.prop_firm_name} onChange={e => set({ prop_firm_name: e.target.value })} />
+            <PropFirmSelect value={form.prop_firm_name} onChange={v => set({ prop_firm_name: v })} />
           </InputField>
         )}
 
@@ -439,6 +491,13 @@ function AccountTypeBadge({ type }: { type: BrokerProfile['account_type'] }) {
 }
 
 function ProfileRow({ profile }: { profile: BrokerProfile }) {
+  const [copied, setCopied] = useState(false);
+  const copyAccountId = () => {
+    navigator.clipboard.writeText(profile.meta_api_account_id).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
   const qc = useQueryClient();
   const { addToast } = useToast();
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
@@ -490,7 +549,17 @@ function ProfileRow({ profile }: { profile: BrokerProfile }) {
                 <span className="text-[9px] text-[var(--to-text-dim)] bg-[var(--to-surface-raised)] border border-[var(--to-border)] rounded px-1.5 py-0.5">{profile.prop_firm_name}</span>
               )}
             </div>
-            <span className="text-[10px] font-mono text-[var(--to-text-dim)] truncate block">{profile.meta_api_account_id}</span>
+            <div className="flex items-center gap-1 group/id">
+              <span className="text-[10px] font-mono text-[var(--to-text-dim)] truncate">{profile.meta_api_account_id}</span>
+              <button
+                type="button"
+                title="Copy full account ID"
+                onClick={copyAccountId}
+                className="shrink-0 opacity-0 group-hover/id:opacity-100 transition-opacity text-[var(--to-text-dim)] hover:text-[var(--to-text-primary)]"
+              >
+                {copied ? <Check className="h-3 w-3 text-[var(--to-long)]" /> : <Copy className="h-3 w-3" />}
+              </button>
+            </div>
           </div>
         </div>
         <ConnectionBadge status={profile.connection_status} error={profile.connection_error} />
