@@ -169,11 +169,22 @@ def _test_metaapi_connection(token: str, account_id: str) -> TestConnectionRespo
     base_url = f"https://mt-provisioning-api-v1.{region}.agiliumtrade.ai"
     url = f"{base_url}/users/current/accounts/{account_id}"
     try:
+        import ssl
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+        # Create an SSL context that skips ALL cert verification.
+        # verify=False alone can fail on some Railway Python builds where
+        # the system CA bundle enforcement happens below the requests layer.
+        ssl_ctx = ssl.create_default_context()
+        ssl_ctx.check_hostname = False
+        ssl_ctx.verify_mode = ssl.CERT_NONE
+
         resp = requests.get(
             url,
             headers={"auth-token": token.strip(), "Content-Type": "application/json"},
             timeout=15,
-            verify=False,  # MetaAPI provisioning API uses self-signed certs in some regions
+            verify=False,
         )
         if resp.status_code == 200:
             data = resp.json()
