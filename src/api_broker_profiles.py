@@ -73,6 +73,7 @@ class BrokerProfileUpdate(BaseModel):
     risk_pct: Optional[float] = Field(None, ge=0.1, le=10.0)
     max_positions: Optional[int] = Field(None, ge=1, le=20)
     run_mode: Optional[str] = None
+    is_active: Optional[bool] = None          # Deactivate / reactivate account
 
 
 class BrokerProfileResponse(BaseModel):
@@ -322,6 +323,12 @@ def update_broker_profile(profile_id: int, body: BrokerProfileUpdate):
             patch["max_positions"] = body.max_positions
         if body.run_mode is not None:
             patch["run_mode"] = body.run_mode.upper()
+        if body.is_active is not None:
+            patch["is_active"] = body.is_active
+            # When deactivating, also unset selected_for_trading to avoid
+            # an inactive account being returned as primary credential
+            if not body.is_active:
+                patch["selected_for_trading"] = False
 
         if not patch:
             raise HTTPException(status_code=422, detail="No fields to update")

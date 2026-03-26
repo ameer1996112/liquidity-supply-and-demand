@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Server, Plus, Trash2, CheckCircle2, XCircle, Loader2,
   RadioTower, Eye, EyeOff, Zap, ChevronRight, ChevronLeft,
-  User, ClipboardList, Trophy, Copy, Check, Pencil, X,
+  User, ClipboardList, Trophy, Copy, Check, Pencil, X, Power,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
@@ -84,6 +84,10 @@ async function activateProfile(id: number): Promise<BrokerProfile> {
     throw new Error(e.detail || 'Activate failed');
   }
   return r.json();
+}
+
+async function toggleActive(id: number, active: boolean): Promise<BrokerProfile> {
+  return updateProfile(id, { is_active: active });
 }
 
 async function testProfile(id: number): Promise<{ success: boolean; message: string }> {
@@ -553,6 +557,20 @@ function ProfileRow({ profile }: { profile: BrokerProfile }) {
     onError: (e: Error) => addToast({ title: 'Activate failed', message: e.message, severity: 'critical' }),
   });
 
+  const deactivateMutation = useMutation({
+    mutationFn: (active: boolean) => toggleActive(profile.id, active),
+    onSuccess: (_, active) => {
+      qc.invalidateQueries({ queryKey: ['broker-profiles'] });
+      addToast({
+        title: active ? 'Account reactivated' : 'Account deactivated',
+        message: active ? `${profile.name} is now active.` : `${profile.name} has been deactivated — no trades will execute.`,
+        severity: active ? 'success' : 'info',
+      });
+    },
+    onError: (e: Error) => addToast({ title: 'Failed', message: e.message, severity: 'critical' }),
+  });
+
+
   const remove = useMutation({
     mutationFn: () => deleteProfile(profile.id),
     onSuccess: () => {
@@ -574,7 +592,11 @@ function ProfileRow({ profile }: { profile: BrokerProfile }) {
   };
 
   return (
-    <div className={cn('rounded-xl border p-4 space-y-3 transition-colors', profile.selected_for_trading ? 'border-[var(--to-warning)]/40 bg-[var(--to-warning)]/5' : 'border-[var(--to-border)] bg-[var(--to-surface)]')}>
+    <div className={cn(
+      'rounded-xl border p-4 space-y-3 transition-all duration-200',
+      profile.selected_for_trading ? 'border-[var(--to-warning)]/40 bg-[var(--to-warning)]/5' : 'border-[var(--to-border)] bg-[var(--to-surface)]',
+      !profile.is_active && 'opacity-50 grayscale-[30%]'
+    )}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <Server className={cn('h-4 w-4 shrink-0', profile.selected_for_trading ? 'text-[var(--to-warning)]' : 'text-[var(--to-text-dim)]')} />
@@ -583,6 +605,9 @@ function ProfileRow({ profile }: { profile: BrokerProfile }) {
               <span className="text-sm font-semibold text-[var(--to-text-primary)] truncate">{profile.name}</span>
               {profile.selected_for_trading && (
                 <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--to-warning)] bg-[var(--to-warning)]/15 border border-[var(--to-warning)]/25 rounded px-1.5 py-0.5">Active</span>
+              )}
+              {!profile.is_active && (
+                <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--to-text-dim)] bg-[var(--to-surface-raised)] border border-[var(--to-border)] rounded px-1.5 py-0.5">Inactive</span>
               )}
               <AccountTypeBadge type={profile.account_type} />
               {profile.prop_firm_name && (
@@ -669,6 +694,30 @@ function ProfileRow({ profile }: { profile: BrokerProfile }) {
         {!profile.selected_for_trading && (
           <Button size="sm" variant="outline" className="h-7 text-[11px] gap-1.5 border-[var(--to-warning)]/30 text-[var(--to-warning)] hover:bg-[var(--to-warning)]/10" disabled={activate.isPending} onClick={() => activate.mutate()}>
             {activate.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />} Activate
+          </Button>
+        )}
+        {/* Deactivate / Reactivate toggle */}
+        {profile.is_active ? (
+          <Button
+            size="sm" variant="ghost"
+            className="h-7 text-[11px] gap-1.5 text-amber-500 hover:text-amber-400 hover:bg-amber-500/10"
+            disabled={deactivateMutation.isPending}
+            onClick={() => deactivateMutation.mutate(false)}
+            title="Deactivate this account — stops trading and syncing"
+          >
+            {deactivateMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Power className="h-3 w-3" />}
+            Deactivate
+          </Button>
+        ) : (
+          <Button
+            size="sm" variant="ghost"
+            className="h-7 text-[11px] gap-1.5 text-[var(--to-long)] hover:bg-[var(--to-long)]/10"
+            disabled={deactivateMutation.isPending}
+            onClick={() => deactivateMutation.mutate(true)}
+            title="Reactivate this account"
+          >
+            {deactivateMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Power className="h-3 w-3" />}
+            Reactivate
           </Button>
         )}
         {confirmDelete ? (
