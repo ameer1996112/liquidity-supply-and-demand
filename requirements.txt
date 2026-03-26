@@ -50,3 +50,4 @@ scrapetube
 
 # Trading Council (multi-agent debate — TradingAgents architecture)
 rank-bm25>=0.2
+Pillow>=10.0.0
