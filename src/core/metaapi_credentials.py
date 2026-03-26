@@ -39,8 +39,10 @@ def get_primary_credentials(supabase_client=None) -> Tuple[str, str, str]:
             logger.warning("get_primary_credentials: cannot get supabase client: %s", exc)
             return "", "", region
 
+    rows: list = []
+
+    # 1. Prefer the account marked selected_for_trading=True (requires migration 060)
     try:
-        # 1. Prefer the account marked selected_for_trading=True
         resp = (
             supabase_client
             .table("broker_profiles")
@@ -51,9 +53,13 @@ def get_primary_credentials(supabase_client=None) -> Tuple[str, str, str]:
             .execute()
         )
         rows = resp.data or []
+    except Exception as exc:
+        # Column may not exist yet (migration 060 not applied) — fall through
+        logger.debug("get_primary_credentials: selected_for_trading query failed: %s", exc)
 
-        # 2. Fallback: any active row with credentials
-        if not rows:
+    # 2. Fallback: any active row with credentials
+    if not rows:
+        try:
             resp = (
                 supabase_client
                 .table("broker_profiles")
@@ -65,19 +71,18 @@ def get_primary_credentials(supabase_client=None) -> Tuple[str, str, str]:
                 .execute()
             )
             rows = resp.data or []
+        except Exception as exc:
+            logger.warning("get_primary_credentials: fallback DB lookup failed: %s", exc)
 
-        if rows:
-            token = (rows[0].get("token") or "").strip()
-            account_id = (rows[0].get("meta_api_account_id") or "").strip()
-            if token and account_id:
-                logger.debug(
-                    "get_primary_credentials: loaded from DB (account_id prefix: %s)",
-                    account_id[:8],
-                )
-                return token, account_id, region
-
-    except Exception as exc:
-        logger.warning("get_primary_credentials: DB lookup failed: %s", exc)
+    if rows:
+        token = (rows[0].get("token") or "").strip()
+        account_id = (rows[0].get("meta_api_account_id") or "").strip()
+        if token and account_id:
+            logger.debug(
+                "get_primary_credentials: loaded from DB (account_id prefix: %s)",
+                account_id[:8],
+            )
+            return token, account_id, region
 
     return "", "", region
 
