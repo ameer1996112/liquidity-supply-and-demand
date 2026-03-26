@@ -291,14 +291,14 @@ async def _start_metaapi_streaming() -> None:
     try:
         from supabase import create_client
         from src.services.metaapi_streaming_service import start_streaming
+        from src.core.metaapi_credentials import get_primary_credentials
 
         settings = get_settings()
-        token = (settings.meta_api_token or "").strip()
-        account_id = (settings.meta_api_account_id or "").strip()
+        token, account_id, _ = get_primary_credentials()
 
         if not token or not account_id:
             logger.info(
-                "MetaApi streaming not started: META_API_TOKEN or META_API_ACCOUNT_ID not configured"
+                "MetaApi streaming not started: no MetaAPI credentials found in broker_profiles"
             )
             return
 
@@ -488,7 +488,7 @@ def get_ai_config():
             "live_trading_enabled": s.live_trading_enabled,
             "live_shadow": s.live_shadow,
             "trading_kill_switch": s.trading_kill_switch,
-            "meta_api_configured": bool(s.meta_api_token and s.meta_api_account_id),
+            "meta_api_configured": False,  # credentials now in broker_profiles DB
             "meta_api_region": s.meta_api_region,
         },
         "risk": {

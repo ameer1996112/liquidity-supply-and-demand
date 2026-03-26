@@ -56,18 +56,17 @@ def get_trades_open(
         resp = q.execute()
         db_trades = resp.data or []
 
-        # Broker positions: use MetaApiAdapter when credentials exist (read-only, works even if execution_mode=SHADOW)
+        # Broker positions: use MetaApiAdapter when credentials exist (read-only)
         broker_positions: List[Dict[str, Any]] = []
         try:
-            from config import get_settings
+            from src.core.metaapi_credentials import get_primary_credentials
+            from src.adapters.supabase_api import get_api_supabase as _get_sb
 
-            s = get_settings()
-            token = (s.meta_api_token or "").strip()
-            account_id = (s.meta_api_account_id or "").strip()
-            if token and account_id:
+            token, acc_id, _ = get_primary_credentials(_get_sb())
+            if token and acc_id:
                 from src.adapters.execution.meta_api_adapter import MetaApiAdapter
 
-                adapter = MetaApiAdapter(token=token, account_id=account_id)
+                adapter = MetaApiAdapter(token=token, account_id=acc_id)
                 raw = adapter.get_open_positions()
                 if isinstance(raw, list):
                     broker_positions = raw
@@ -76,7 +75,7 @@ def get_trades_open(
                 else:
                     broker_positions = []
             else:
-                logger.debug("Broker positions skipped: META_API_TOKEN or META_API_ACCOUNT_ID not set")
+                logger.debug("Broker positions skipped: no MetaAPI credentials in broker_profiles")
         except Exception as e:
             logger.warning("Broker positions fetch failed: %s", e)
 

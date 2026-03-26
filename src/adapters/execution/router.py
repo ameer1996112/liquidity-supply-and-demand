@@ -38,9 +38,14 @@ def get_adapter(
             return MetaApiAdapter(token=token, account_id=account_id, account_name=account_name)
         # Fall through to single-account
 
-    # Explicit override: external execution via MetaApi (single-account)
+    # Explicit override: external execution via MetaApi (single-account, DB-first)
     if env_exec_mode == "METAAPI":
-        return MetaApiAdapter(token=s.meta_api_token, account_id=s.meta_api_account_id)
+        try:
+            from src.core.metaapi_credentials import get_primary_credentials
+            token, account_id, _ = get_primary_credentials()
+        except Exception:
+            token, account_id = (s.meta_api_token or ""), (s.meta_api_account_id or "")
+        return MetaApiAdapter(token=token, account_id=account_id)
 
     mode = env_run_mode
     if mode == "DRY_RUN":

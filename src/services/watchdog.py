@@ -32,30 +32,42 @@ class TradeWatchdog:
 
     def __init__(self, supabase_client: Optional[Any] = None) -> None:
         self.settings = get_settings()
-        self.token = (self.settings.meta_api_token or "").strip()
-        self.account_id = (self.settings.meta_api_account_id or "").strip()
-        region = (getattr(self.settings, "meta_api_region", "new-york") or "new-york").strip()
-        # mt-client API (positions)
-        self.client_base_url = f"https://mt-client-api-v1.{region}.agiliumtrade.ai"
-        # MetaStats API (history-deals)
-        self.stats_base_url = f"https://metastats-api-v1.{region}.agiliumtrade.ai"
         self.supabase = supabase_client
         # Rate-limit late-fill alerts: track {signal_id: last_alerted_timestamp}
         # to avoid spamming Discord+logs every 30s for the same stuck signal.
         self._late_fill_alerted: Dict[Any, float] = {}
         self._LATE_FILL_REPEAT_INTERVAL = 300  # seconds between repeat alerts per signal
 
+        # Load credentials from DB (broker_profiles) — not from env vars
+        self._reload_credentials()
+
+    def _reload_credentials(self) -> None:
+        """Load token + account_id from the primary active broker profile in DB."""
+        try:
+            from src.core.metaapi_credentials import get_primary_credentials
+            token, account_id, region = get_primary_credentials(self.supabase)
+        except Exception as exc:
+            logger.warning("TradeWatchdog: credential reload failed: %s", exc)
+            token, account_id, region = "", "", "new-york"
+
+        self.token = token
+        self.account_id = account_id
+        # mt-client API (positions)
+        self.client_base_url = f"https://mt-client-api-v1.{region}.agiliumtrade.ai"
+        # MetaStats API (history-deals)
+        self.stats_base_url = f"https://metastats-api-v1.{region}.agiliumtrade.ai"
+
         if not self.token or not self.account_id:
             logger.warning(
-                "TradeWatchdog disabled: META_API_TOKEN or META_API_ACCOUNT_ID missing.",
+                "TradeWatchdog disabled: no MetaAPI credentials found in broker_profiles.",
             )
         else:
             logger.info(
-                "TradeWatchdog using MetaApi region '%s' (client=%s, stats=%s)",
+                "TradeWatchdog using MetaApi region '%s' (client=%s)",
                 region,
                 self.client_base_url,
-                self.stats_base_url,
             )
+
 
     # ------------------------------------------------------------------ #
     # HTTP helpers
