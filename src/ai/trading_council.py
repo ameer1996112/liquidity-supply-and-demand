@@ -629,7 +629,37 @@ def run_trading_council(
     if not enabled:
         return _fallback_result("Council disabled via AI_COUNCIL_ENABLED=false")
 
-    # ── Redis cache ────────────────────────────────────────────────────────
+    # -- Rubric Engine composite score pre-gate ---------------------------
+    # composite_score < 70  -> council skipped entirely (fallback result)
+    # composite_score 70-77 -> council fires in shadow mode (recommendation always "allow")
+    # composite_score >= 78 -> council can block execution (full mode)
+    _rubric_shadow: bool = True  # default: shadow until proven otherwise
+    try:
+        from src.rubric_engine import score_signal as _score_signal
+        _rubric = _score_signal(payload)
+        if _rubric.hard_veto:
+            logger.info(
+                "Trading Council skipped: rubric hard veto -- %s", _rubric.veto_reason
+            )
+            return _fallback_result(f"Rubric hard veto: {_rubric.veto_reason}")
+        if _rubric.composite_score < 70:
+            logger.info(
+                "Trading Council skipped: composite_score=%.1f < 70 (rubric gate)",
+                _rubric.composite_score,
+            )
+            return _fallback_result(
+                f"Rubric gate: composite_score={_rubric.composite_score:.1f} < 70"
+            )
+        _rubric_shadow = not _rubric.can_block  # shadow if 70 <= score < 78
+        logger.info(
+            "Rubric gate PASSED: composite_score=%.1f shadow=%s",
+            _rubric.composite_score,
+            _rubric_shadow,
+        )
+    except Exception as _re:
+        logger.warning("Rubric engine failed (skipping gate, running council): %s", _re)
+
+    # -- Redis cache -------------------------------------------------------
     ckey = _cache_key(payload)
     cached = _from_cache(redis_client, ckey)
     if cached:
@@ -722,8 +752,16 @@ def run_trading_council(
         judge_reasoning[:100],
     )
 
-    # ── Build result ───────────────────────────────────────────────────────
-    recommendation = "allow" if judge_decision == "APPROVE" else "block"
+    # -- Build result ------------------------------------------------------
+    # Shadow mode: rubric_score in [70, 78) -- council ran but cannot block
+    if _rubric_shadow and judge_decision == "REJECT":
+        logger.info(
+            "Trading Council: shadow mode override -- REJECT -> APPROVE "
+            "(composite_score below block threshold)"
+        )
+        recommendation = "allow"
+    else:
+        recommendation = "allow" if judge_decision == "APPROVE" else "block"
     votes_tally = sum(
         1 for v in [bull_vote, agg_vote, neu_vote, con_vote] if v == "allow"
     ) + (1 if judge_decision == "APPROVE" else 0)

@@ -100,3 +100,109 @@ def test_mtm_guardian_dynamic_jpy():
         pnl = equity["floating_pnl"]
         # Expected: -666.67
         assert -667.0 < pnl < -666.0
+
+
+# ─────────────────────────────────────────────────────────────────
+# Phase 2 — Rubric Engine Council Pre-Gate Regressions
+# ─────────────────────────────────────────────────────────────────
+
+def _build_payload_with_composite(composite_target: float) -> dict:
+    """
+    Build a payload whose rubric composite_score approximates composite_target.
+    We achieve this by engineering the 4 input dimensions exactly.
+    
+    Strategy: use departure_strength to dial in the final score
+      departure=dep → d1 = dep*0.30
+      return_strength=0 → d2 = 25.0
+      premium_discount=1.0, side=buy → d3 = 25.0
+      candles_to_return=11 → d4 = 0.0
+      composite = dep*0.30 + 50
+    
+    So for composite=65: dep = (65-50)/0.30 = 50.0
+    For composite=70: dep = (70-50)/0.30 = 66.67
+    For composite=78: dep = (78-50)/0.30 = 93.33
+    """
+    dep = (composite_target - 50.0) / 0.30
+    return {
+        "symbol": "EURUSD",
+        "side": "buy",
+        "entry": 1.1,
+        "sl": 1.09,
+        "tp": 1.12,
+        "size": 0.1,
+        "departure_strength": dep,
+        "return_strength": 0.0,
+        "premium_discount": 1.0,
+        "candles_to_return": 11,  # > 10 → bars_score = 0
+        "session": 1,
+        "sweep_candle_close": False,
+    }
+
+
+def test_council_pregate_composite_65_skips_council():
+    """composite_score=65 → council is NOT called, fallback result returned."""
+    from unittest.mock import patch, MagicMock
+    from src.ai.trading_council import run_trading_council
+
+    payload = _build_payload_with_composite(65.0)
+
+    # Patch the 9-stage LLM pipeline stages so we can detect if they were called
+    with patch("src.ai.trading_council._stage_market_analyst") as mock_stage:
+        result = run_trading_council(payload)
+
+    # Council should have been skipped — no LLM stage should fire
+    mock_stage.assert_not_called()
+    assert result["recommendation"] == "allow"  # fallback always allows
+    assert "rubric gate" in result["memo"].lower() or "composite_score" in result["memo"].lower()
+
+
+def test_council_pregate_composite_70_fires_in_shadow_mode():
+    """composite_score=70 → council fires but recommendation is always 'allow' (shadow mode)."""
+    from unittest.mock import patch, MagicMock
+    from src.ai.trading_council import run_trading_council
+
+    payload = _build_payload_with_composite(71.0)
+
+    # Make the LLM stages return a REJECT decision
+    with patch("src.ai.trading_council._stage_market_analyst", return_value="market ok"), \
+         patch("src.ai.trading_council._stage_setup_analyst", return_value="setup ok"), \
+         patch("src.ai.trading_council._stage_bull_researcher", return_value=("bull ok", "ALLOW")), \
+         patch("src.ai.trading_council._stage_bear_researcher", return_value=("bear ok", "REJECT")), \
+         patch("src.ai.trading_council._stage_research_manager", return_value="rm ok"), \
+         patch("src.ai.trading_council._stage_aggressive_debater", return_value=("allow", "ALLOW")), \
+         patch("src.ai.trading_council._stage_conservative_debater", return_value=("block", "REJECT")), \
+         patch("src.ai.trading_council._stage_neutral_debater", return_value=("block", "REJECT")), \
+         patch("src.ai.trading_council._stage_risk_judge", return_value=("REJECT", 85, "too risky")), \
+         patch("src.ai.trading_council._from_cache", return_value=None), \
+         patch("src.ai.trading_council._to_cache"):
+        result = run_trading_council(payload)
+
+    # Shadow mode: even though judge REJECTs, recommendation must be "allow"
+    assert result["recommendation"] == "allow", \
+        f"Shadow mode should override REJECT → allow, got: {result['recommendation']!r}"
+
+
+def test_council_pregate_composite_78_can_block():
+    """composite_score=78 → council fires in full mode, can block execution."""
+    from unittest.mock import patch, MagicMock
+    from src.ai.trading_council import run_trading_council
+
+    payload = _build_payload_with_composite(78.0)
+
+    # Make the LLM stages return a REJECT decision
+    with patch("src.ai.trading_council._stage_market_analyst", return_value="market ok"), \
+         patch("src.ai.trading_council._stage_setup_analyst", return_value="setup ok"), \
+         patch("src.ai.trading_council._stage_bull_researcher", return_value=("bull ok", "ALLOW")), \
+         patch("src.ai.trading_council._stage_bear_researcher", return_value=("bear ok", "REJECT")), \
+         patch("src.ai.trading_council._stage_research_manager", return_value="rm ok"), \
+         patch("src.ai.trading_council._stage_aggressive_debater", return_value=("allow", "ALLOW")), \
+         patch("src.ai.trading_council._stage_conservative_debater", return_value=("block", "REJECT")), \
+         patch("src.ai.trading_council._stage_neutral_debater", return_value=("block", "REJECT")), \
+         patch("src.ai.trading_council._stage_risk_judge", return_value=("REJECT", 85, "too risky")), \
+         patch("src.ai.trading_council._from_cache", return_value=None), \
+         patch("src.ai.trading_council._to_cache"):
+        result = run_trading_council(payload)
+
+    # Full mode: REJECT must translate to "block"
+    assert result["recommendation"] == "block", \
+        f"Full mode (score>=78) should propagate REJECT as 'block', got: {result['recommendation']!r}"

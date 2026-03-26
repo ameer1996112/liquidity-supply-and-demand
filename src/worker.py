@@ -48,8 +48,12 @@ from src.services.watchdog import TradeWatchdog
 from src.services.trailing_stop_manager import TrailingStopManager
 from src.services.breakeven_manager import BreakevenManager
 from src.core.dynamic_config import clear_settings_cache, apply_time_based_rules
+from src.core.news_filter import NewsFilter
 
 configure_logging()
+
+# Module-level singleton — shares cached calendar across all signal evaluations
+_NEWS_FILTER = NewsFilter(block_minutes_before=30, block_minutes_after=30)
 logger = get_logger("trinity.worker")
 
 MAX_OPEN_POSITIONS = 3
@@ -577,6 +581,9 @@ def _notify_guard_activation(reason: str, symbol: str, payload: Dict[str, Any]) 
     except Exception as _e:
         logger.debug("Guard notification skipped: %s", _e)
 
+def _get_now_utc():
+    import datetime
+    return datetime.datetime.now(datetime.timezone.utc)
 
 def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
     """Deterministic pre-filters mirroring SND_Strategy.pine entry conditions.
@@ -780,6 +787,32 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
         except (ValueError, TypeError):
             pass
 
+    # --- Sydney session veto (session=0 is illiquid) ---
+    session = payload.get("session")
+    if session is not None:
+        try:
+            if int(session) == 0:
+                return f"Sydney session veto: session=0 (illiquid) for {payload.get('symbol')}"
+        except (TypeError, ValueError):
+            pass
+
+    # --- Friday 14:00 UTC cutoff ---
+    _now_utc = _get_now_utc()
+    if _now_utc.weekday() == 4 and _now_utc.hour >= 14:  # Friday after 14:00 UTC
+        return (
+            f"Friday cutoff: trading halted after 14:00 UTC on Fridays "
+            f"(current UTC hour={_now_utc.hour})"
+        )
+
+    # --- News proximity veto (singleton cache refreshed hourly) ---
+    _sym = payload.get("symbol", "")
+    if _sym:
+        try:
+            if _NEWS_FILTER.is_news_imminent(_sym):
+                return f"News block: high-impact event within 30 min for {_sym}"
+        except Exception as _ne:
+            logger.warning("News filter check failed for %s (fail-open): %s", _sym, _ne)
+
     return None
 
 
@@ -971,6 +1004,39 @@ def _run_account_guards(
     logger.info("PropGuard [%s]: %s (multiplier=%.2f)", account_name, risk_label, risk_multiplier)
     # Store per-account risk multiplier
     payload[f"_risk_multiplier_{account_name}"] = risk_multiplier
+
+    # ── Per-account daily drawdown veto (80% of daily loss limit) ─
+    # Fail-CLOSED: if Supabase unavailable, block and alert rather than risk over-trading.
+    daily_loss_limit_pct = getattr(s, "pine_max_daily_loss_pct", 0.0)
+    if daily_loss_limit_pct > 0 and supabase:
+        try:
+            dd_pnl = _get_account_daily_pnl(profile)
+            max_daily_loss = -(daily_loss_limit_pct / 100.0) * acct_balance
+            veto_threshold = max_daily_loss * 0.80  # 80% of limit
+            if dd_pnl < veto_threshold:
+                msg = (
+                    f"Daily drawdown veto ({account_name}): PnL {dd_pnl:.2f} < "
+                    f"80% of daily limit {max_daily_loss:.2f} "
+                    f"({daily_loss_limit_pct:.1f}% of ${acct_balance:.0f})"
+                )
+                logger.warning(msg)
+                return msg
+        except Exception as _dd_err:
+            # Fail-closed: Supabase unavailable → block + alert
+            _fail_msg = f"Drawdown check unavailable ({account_name}) — blocking for safety"
+            logger.critical("Drawdown check failed (fail-closed) for %s: %s", account_name, _dd_err)
+            try:
+                from src.adapters.discord import send_discord_async
+                send_discord_async(
+                    {"symbol": payload.get("symbol", ""), "side": payload.get("side", ""),
+                     "size": 0, "entry": 0, "account_balance": acct_balance,
+                     "run_mode": payload.get("run_mode", "PAPER"),
+                     "_guard_reason": _fail_msg, "_guard_blocked": True},
+                    alert_id=0, mode="guard_blocked",
+                )
+            except Exception:
+                pass
+            return _fail_msg
 
     # ── Per-account Correlation Guard ─────────────────────────
     active_positions = _get_account_positions_from_db(profile)
