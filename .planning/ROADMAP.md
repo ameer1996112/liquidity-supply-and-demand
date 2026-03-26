@@ -16,6 +16,10 @@
 ### Phase 5: Pre-filter Hardening & EV Score
 **Goal:** Add 4 hard vetoes to the worker.py pre-filter stack, change the output score to EV-adjusted, and wire premium_discount and kill_zone from Pine webhook payloads into the evaluation pipeline.
 **Requirements:** RUBRIC-01, RUBRIC-02, RUBRIC-03
+**Plans:** 1 plan
+
+Plans:
+- [ ] 05-01-PLAN.md — Settings + news medium filter + payload parsing + EV score formula + tests
 
 **Success Criteria:**
 1. Signals arriving during Sydney session (session=0) are blocked before reaching any ML or LLM stage.
@@ -45,5 +49,5 @@
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 5. Pre-filter Hardening & EV Score | v1.3 | 0/? | Not started | - |
+| 5. Pre-filter Hardening & EV Score | v1.3 | 0/1 | Planning complete | - |
 | 6. Four-Dimension Rubric Engine | v1.3 | 0/? | Not started | - |
