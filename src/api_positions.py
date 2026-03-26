@@ -65,8 +65,8 @@ def _get_adapter():
         return MetaApiAdapter(token=token, account_id=account_id)
 
     # Last-resort: try env vars (legacy config)
-    env_token = getattr(s, "meta_api_token", "") or ""
-    env_account = getattr(s, "meta_api_account_id", "") or ""
+    env_token = (getattr(s, "meta_api_token", "") or "").strip()
+    env_account = (getattr(s, "meta_api_account_id", "") or "").strip()
     if env_token and env_account:
         return MetaApiAdapter(token=env_token, account_id=env_account)
 
