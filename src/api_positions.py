@@ -52,24 +52,28 @@ from src.adapters.supabase_api import get_api_supabase as _get_supabase, reset_a
 
 def _get_adapter():
     """Get the execution adapter using DB-stored credentials (primary account)."""
-    from src.adapters.execution.router import get_adapter
+    from fastapi import HTTPException
+    from src.adapters.execution.meta_api_adapter import MetaApiAdapter
     from src.core.metaapi_credentials import get_primary_credentials
     from config import get_settings
 
-    creds = get_primary_credentials()
     s = get_settings()
+    # get_primary_credentials returns (token, account_id, region) tuple
+    token, account_id, region = get_primary_credentials()
 
-    if creds and creds.get("token") and creds.get("account_id"):
-        # Temporarily patch settings with DB values for the adapter
-        class _PatchedSettings:
-            meta_api_token = creds["token"]
-            meta_api_account_id = creds["account_id"]
-            run_mode = s.run_mode
+    if token and account_id:
+        return MetaApiAdapter(token=token, account_id=account_id)
 
-        return get_adapter(run_mode=s.run_mode, settings=_PatchedSettings())
+    # Last-resort: try env vars (legacy config)
+    env_token = getattr(s, "meta_api_token", "") or ""
+    env_account = getattr(s, "meta_api_account_id", "") or ""
+    if env_token and env_account:
+        return MetaApiAdapter(token=env_token, account_id=env_account)
 
-    # Fallback to env vars (legacy or if no DB account configured yet)
-    return get_adapter(run_mode=s.run_mode, settings=s)
+    raise HTTPException(
+        status_code=503,
+        detail="No active broker account configured. Please add and activate a broker profile.",
+    )
 
 
 
