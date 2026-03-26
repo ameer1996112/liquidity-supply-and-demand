@@ -7,7 +7,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import AliasChoices, Field, SecretStr
+from pydantic import AliasChoices, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # .env at project root (parent of config/)
@@ -461,6 +461,38 @@ class Settings(BaseSettings):
         description="Signal queue backend: 'redis' (production) or 'memory' (tests).",
         validation_alias="SIGNAL_TRANSPORT",
     )
+
+    # ── Phase 5: Rubric & EV Score Settings ────────────────────────────────
+    rubric_council_gate: float = Field(
+        default=70.0,
+        ge=0.0,
+        le=100.0,
+        description="Composite score threshold for LLM council to fire. Reserved for Phase 6.",
+        validation_alias="RUBRIC_COUNCIL_GATE",
+    )
+    rubric_exec_gate: float = Field(
+        default=78.0,
+        ge=0.0,
+        le=100.0,
+        description="Composite score threshold for trade execution. Reserved for Phase 6.",
+        validation_alias="RUBRIC_EXEC_GATE",
+    )
+    default_estimated_rr: float = Field(
+        default=2.0,
+        ge=0.5,
+        le=10.0,
+        description="Default R:R ratio when TP not present in payload. Used for EV score calculation.",
+        validation_alias="DEFAULT_ESTIMATED_RR",
+    )
+
+    @model_validator(mode="after")
+    def _validate_rubric_gates(self) -> "Settings":
+        if self.rubric_exec_gate < self.rubric_council_gate:
+            raise ValueError(
+                f"RUBRIC_EXEC_GATE ({self.rubric_exec_gate}) must be >= "
+                f"RUBRIC_COUNCIL_GATE ({self.rubric_council_gate})"
+            )
+        return self
 
     @property
     def get_accounts(self) -> list[dict]:
