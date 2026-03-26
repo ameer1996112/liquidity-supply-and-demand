@@ -86,6 +86,7 @@ from src.api_funding import router as funding_router           # Funding: daily 
 from src.api_tickets import router as tickets_router           # Ticket tracker: Jira-style task/bug board
 from src.api_incidents import router as incidents_router       # Incident auto-tickets: worker errors, test failures, ML drift
 from src.api_agent_status import router as agent_status_router # v1.2: UI-02: Agent operational state
+from src.api_broker_profiles import router as broker_profiles_router  # Multi-account MetaAPI management
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):  # noqa: ARG001
@@ -133,6 +134,7 @@ app.include_router(funding_router)        # Funding: /api/v1/funding/daily-pnl, 
 app.include_router(tickets_router)        # Ticket tracker: /api/tickets
 app.include_router(incidents_router)      # Incident auto-tickets: /api/incidents
 app.include_router(agent_status_router)   # v1.2: Agent status: /api/agent/status
+app.include_router(broker_profiles_router)  # Multi-account MetaAPI credential management
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_build_cors_origins(),

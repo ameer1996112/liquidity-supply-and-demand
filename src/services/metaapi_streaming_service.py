@@ -153,6 +153,8 @@ async def _run_streaming(
 
     handler = _DealHandler(supabase_client)
     backoff = 5  # seconds, doubles on each failure up to 60
+    account_not_found_retries = 0
+    MAX_ACCOUNT_NOT_FOUND_RETRIES = 3
 
     class _Listener(SynchronizationListener):
         async def on_deal_added(
@@ -223,12 +225,35 @@ async def _run_streaming(
             break
 
         except Exception as exc:
-            logger.error(
-                "[MetaApi Stream] Connection error: %s — reconnecting in %ds",
-                exc, backoff,
-            )
-            await asyncio.sleep(backoff)
-            backoff = min(backoff * 2, 60)
+            exc_str = str(exc).lower()
+            # Detect "account not found" (404) or "forbidden" (403) — retrying forever is pointless
+            # and causes MetaAPI to rate-limit the entire API key (TooManyRequestsError 429).
+            if any(keyword in exc_str for keyword in ("not found", "notfounderror", "forbiddenerror", "forbidden")):
+                account_not_found_retries += 1
+                logger.error(
+                    "[MetaApi Stream] Account %s not accessible (attempt %d/%d): %s",
+                    account_id, account_not_found_retries, MAX_ACCOUNT_NOT_FOUND_RETRIES, exc,
+                )
+                if account_not_found_retries >= MAX_ACCOUNT_NOT_FOUND_RETRIES:
+                    logger.critical(
+                        "[MetaApi Stream] ❌ Account %s not found after %d retries — "
+                        "HALTING reconnect loop. Update credentials in the dashboard under "
+                        "Settings → Accounts.",
+                        account_id, MAX_ACCOUNT_NOT_FOUND_RETRIES,
+                    )
+                    break  # Stop the infinite reconnect loop
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, 60)
+            else:
+                # Transient error: network blip, MetaAPI restart, etc. — reconnect normally
+                account_not_found_retries = 0  # reset counter on non-auth errors
+                logger.error(
+                    "[MetaApi Stream] Connection error: %s — reconnecting in %ds",
+                    exc, backoff,
+                )
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, 60)
+
 
         finally:
             if connection is not None:

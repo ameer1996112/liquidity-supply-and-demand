@@ -7,6 +7,7 @@ import { AccountsTable } from '@/components/accounts/AccountsTable';
 import { CopyConfigurator } from '@/components/accounts/CopyConfigurator';
 import { CapitalAllocator } from '@/components/accounts/CapitalAllocator';
 import { AddAccountForm } from '@/components/accounts/AddAccountForm';
+import { BrokerProfilesPanel } from '@/components/accounts/BrokerProfilesPanel';
 import { useAccountsComparison } from '@/hooks/useAccounts';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -90,6 +91,13 @@ export default function AccountsPage() {
           trading.
         </p>
       </div>
+
+      {/* ── MetaAPI Broker Accounts ─────────────────────────────── */}
+      <section className="rounded-xl border border-[var(--to-border)] bg-[var(--to-surface)] p-4">
+        <BrokerProfilesPanel />
+      </section>
+
+      <div className="h-px bg-[var(--to-border)]" />
 
       {/* Error banner */}
       {error && (
