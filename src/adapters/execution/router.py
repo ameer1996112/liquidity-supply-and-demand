@@ -44,7 +44,12 @@ def get_adapter(
             from src.core.metaapi_credentials import get_primary_credentials
             token, account_id, _ = get_primary_credentials()
         except Exception:
-            token, account_id = (s.meta_api_token or ""), (s.meta_api_account_id or "")
+            token, account_id = "", ""
+        if not token or not account_id:
+            raise ValueError(
+                "EXECUTION_MODE=METAAPI but no active broker profile found with credentials. "
+                "Go to the Accounts page and select an account for trading."
+            )
         return MetaApiAdapter(token=token, account_id=account_id)
 
     mode = env_run_mode
