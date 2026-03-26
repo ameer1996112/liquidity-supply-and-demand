@@ -136,6 +136,7 @@ def _test_metaapi_connection(token: str, account_id: str) -> TestConnectionRespo
             url,
             headers={"auth-token": token.strip(), "Content-Type": "application/json"},
             timeout=15,
+            verify=False,  # MetaAPI provisioning API uses self-signed certs in some regions
         )
         if resp.status_code == 200:
             data = resp.json()
