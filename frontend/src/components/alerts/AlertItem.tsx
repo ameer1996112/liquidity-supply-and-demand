@@ -31,26 +31,22 @@ function alertIcon(type: string) {
 
 // ── Severity styling ─────────────────────────────────────────
 
-const SEVERITY_STYLE: Record<string, { icon: string; badge: string; border: string }> = {
+const SEVERITY_STYLE: Record<string, { icon: string; badge: string }> = {
   critical: {
     icon: 'bg-rose-500/15 text-rose-400',
     badge: 'bg-rose-500/15 text-rose-400',
-    border: 'border-l-2 border-l-rose-500/60',
   },
   error: {
     icon: 'bg-orange-500/15 text-orange-400',
     badge: 'bg-orange-500/15 text-orange-400',
-    border: 'border-l-2 border-l-orange-500/60',
   },
   warning: {
     icon: 'bg-amber-500/15 text-amber-400',
     badge: 'bg-amber-500/15 text-amber-400',
-    border: 'border-l-2 border-l-amber-500/40',
   },
   info: {
     icon: 'bg-blue-500/15 text-blue-400',
     badge: 'bg-blue-500/15 text-blue-400',
-    border: 'border-l-2 border-l-blue-500/30',
   },
 };
 
@@ -106,6 +102,7 @@ export function AlertItem({ alert, onMarkRead, onSnooze }: AlertItemProps) {
 
   const sev = String(alert.severity).toLowerCase();
   const style = severityStyle(sev);
+  // eslint-disable-next-line react-hooks/static-components
   const Icon = alertIcon(alert.alert_type);
 
   const metaEntries = Object.entries(alert.metadata ?? {}).filter(
@@ -116,8 +113,7 @@ export function AlertItem({ alert, onMarkRead, onSnooze }: AlertItemProps) {
   return (
     <div
       className={cn(
-        'flex items-start gap-3 px-3 py-2.5 transition-colors bg-[var(--to-surface)] hover:bg-[var(--to-surface-raised)]',
-        style.border,
+        'flex items-start gap-3 px-3 py-2.5 transition-colors bg-[var(--to-surface)] hover:bg-[var(--to-surface-raised)] border-b border-[var(--to-border)] last:border-b-0',
       )}
     >
       {/* Icon */}
