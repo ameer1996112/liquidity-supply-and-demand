@@ -652,6 +652,7 @@ function ProfileRow({ profile }: { profile: BrokerProfile }) {
           </div>
         </div>
       )}
+      {testResult && (
         <div className={cn('text-[11px] rounded-lg px-3 py-2 border', testResult?.success ? 'bg-[var(--to-long)]/10 border-[var(--to-long)]/20 text-[var(--to-long)]' : 'bg-[var(--to-short)]/10 border-[var(--to-short)]/20 text-[var(--to-short)]')}>
           {testResult?.success ? '✅ ' : '❌ '}{testResult?.message}
         </div>
