@@ -1485,6 +1485,39 @@ def process_trade(payload: Dict[str, Any]):
     tracker.set_metadata("used_fast_path", used_fast_path)
     tracker.set_metadata("rf_prob", ai_result.get("rf_prob", 0.0) if ai_result else 0.0)
 
+    # ── Phase 6: Rubric Engine Pre-Gate ─────────────────────────────
+    from src.rubric_engine import score_trade
+    _account_state = {
+        "account_id": profile.get("id", "") if profile else "",
+        "account_name": account_name,
+        "daily_drawdown_pct": dd_pct,   # already computed above
+        "balance": acct_balance,
+        "equity": acct_balance,
+    }
+    _rubric = score_trade(payload, _account_state)
+    payload["_rubric_score"] = {
+        "composite": _rubric.composite_score,
+        "gate_status": _rubric.gate_status,
+        "vetoed_by": _rubric.vetoed_by,
+        "ev_score": _rubric.ev_score,
+        "dimensions": _rubric.dimension_scores,
+    }
+    logger.info(
+        "Rubric: composite=%.1f gate=%s vetoed_by=%s",
+        _rubric.composite_score, _rubric.gate_status, _rubric.vetoed_by,
+    )
+    if not _rubric.proceed:
+        logger.info("Rubric blocked council (gate=%s, vetoed_by=%s)", _rubric.gate_status, _rubric.vetoed_by)
+        if _rubric.hard_veto:
+            return {
+                "status": "rubric_veto",
+                "rubric_gate": _rubric.gate_status,
+                "vetoed_by": _rubric.vetoed_by,
+                "composite_score": _rubric.composite_score,
+            }
+        # Score too low (< council_gate): skip council but allow execution
+        # (Phase 6 spec: council pre-gate, not execution pre-gate)
+
     # Trading Council — 9-stage multi-agent pipeline (SHADOW MODE, never blocks)
     # Replaces the old 4-agent Bull/Bear/Risk/Chair debate.
     # Stages: Market Analyst → Setup Analyst → Bull/Bear Researchers →

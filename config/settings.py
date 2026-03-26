@@ -485,6 +485,13 @@ class Settings(BaseSettings):
         validation_alias="DEFAULT_ESTIMATED_RR",
     )
 
+    # ── Phase 6: Rubric Engine Feature Flag ────────────────────────────────────
+    rubric_engine_enabled: bool = Field(
+        default=True,
+        description="Enable rubric engine as LLM council pre-gate. Set False for instant rollback.",
+        validation_alias="RUBRIC_ENGINE_ENABLED",
+    )
+
     @model_validator(mode="after")
     def _validate_rubric_gates(self) -> "Settings":
         if self.rubric_exec_gate < self.rubric_council_gate:
