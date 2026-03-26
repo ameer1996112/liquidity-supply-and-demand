@@ -51,11 +51,26 @@ from src.adapters.supabase_api import get_api_supabase as _get_supabase, reset_a
 
 
 def _get_adapter():
-    """Get the execution adapter for the current run mode."""
+    """Get the execution adapter using DB-stored credentials (primary account)."""
     from src.adapters.execution.router import get_adapter
+    from src.core.metaapi_credentials import get_primary_credentials
+    from config import get_settings
 
+    creds = get_primary_credentials()
     s = get_settings()
+
+    if creds and creds.get("token") and creds.get("account_id"):
+        # Temporarily patch settings with DB values for the adapter
+        class _PatchedSettings:
+            meta_api_token = creds["token"]
+            meta_api_account_id = creds["account_id"]
+            run_mode = s.run_mode
+
+        return get_adapter(run_mode=s.run_mode, settings=_PatchedSettings())
+
+    # Fallback to env vars (legacy or if no DB account configured yet)
     return get_adapter(run_mode=s.run_mode, settings=s)
+
 
 
 def _is_signal_closed(r: Dict[str, Any]) -> bool:
