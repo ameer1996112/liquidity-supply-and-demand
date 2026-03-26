@@ -112,7 +112,8 @@ _SELECT = (
     "id,name,meta_api_account_id,token,risk_pct,max_positions,"
     "run_mode,is_active,selected_for_trading,connection_status,"
     "connection_error,last_tested_at,created_at,"
-    "evaluation_mode,evaluation_phase,max_daily_loss_pct,max_drawdown_pct,profit_target_usd"
+    # DB column is 'profit_target'; code calls it 'profit_target_usd' — mapped in _to_response
+    "evaluation_mode,evaluation_phase,max_daily_loss_pct,max_drawdown_pct,profit_target"
 )
 
 
@@ -154,7 +155,7 @@ def _to_response(row: Dict[str, Any]) -> BrokerProfileResponse:
         evaluation_phase=row.get("evaluation_phase"),
         max_daily_loss_pct=row.get("max_daily_loss_pct"),
         max_drawdown_pct=row.get("max_drawdown_pct"),
-        profit_target_usd=row.get("profit_target_usd"),
+        profit_target_usd=row.get("profit_target_usd") or row.get("profit_target"),
     )
 
 
@@ -274,7 +275,7 @@ def create_broker_profile(body: BrokerProfileCreate):
             ),
             "max_daily_loss_pct": body.max_daily_loss_pct,
             "max_drawdown_pct": body.max_drawdown_pct,
-            "profit_target_usd": body.profit_target_usd,
+            "profit_target": body.profit_target_usd,
         }
         # prop_firm_name is only in some DB versions — add if column exists
         if body.prop_firm_name:
