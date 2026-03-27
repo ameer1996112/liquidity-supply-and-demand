@@ -144,7 +144,7 @@ def init_connections():
         key = key.split("=", 1)[-1].strip().strip('"\'').strip()
         
     if s.supabase_url and key:
-        logger.info(f"Supabase Auth Initializing | Key Length: {len(key)} | Prefix: '{key[:10]}'")
+        logger.info("Supabase Auth Initializing | Key present: True")
         from supabase import create_client
         import time as _time
         global _supabase_url, _supabase_key, _supabase_created_at

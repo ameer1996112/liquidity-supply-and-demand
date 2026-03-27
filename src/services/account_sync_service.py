@@ -110,9 +110,12 @@ class AccountSyncService:
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }).eq("account_name", account_name).execute()
 
-            logger.info(
-                f"Synced account {account_name}: balance=${account_status.get('balance', 0):.2f}, "
-                f"equity=${account_status.get('equity', 0):.2f}, latency={sync_latency_ms}ms"
+            logger.debug(
+                "Synced account %s: balance=$%.2f equity=$%.2f latency=%dms",
+                account_name,
+                account_status.get("balance", 0),
+                account_status.get("equity", 0),
+                sync_latency_ms,
             )
 
             return True
@@ -226,9 +229,7 @@ class AccountSyncService:
             # Run reconciliation
             self._reconcile_positions(account_name, snapshot_time)
 
-            logger.info(
-                f"Synced positions for {account_name}: {len(positions)} positions from broker"
-            )
+            logger.debug("Synced positions for %s: %d from broker", account_name, len(positions))
 
             return True
 
@@ -288,9 +289,11 @@ class AccountSyncService:
                 results[account_name] = status_ok and positions_ok
 
             success_count = sum(1 for v in results.values() if v)
-            logger.info(
-                f"Synced {success_count}/{len(results)} accounts successfully"
-            )
+            failed_count = len(results) - success_count
+            if failed_count > 0:
+                logger.warning("Account sync: %d/%d failed", failed_count, len(results))
+            else:
+                logger.debug("Account sync: %d/%d OK", success_count, len(results))
 
             return results
 
@@ -350,20 +353,16 @@ class AccountSyncService:
         if not token:
             token_env_key = account_data.get("meta_api_token_env_key") or _env_key_from_profile
             token = os.getenv(token_env_key, "").strip()
-            logger.info(
-                "MetaAPI Auth Check | Account: %s | Source: env(%s) | Present: %s | Length: %d | Prefix: %s",
+            logger.debug(
+                "MetaAPI token for %s: source=env(%s) present=%s",
                 account_data.get("account_name"),
                 token_env_key,
                 bool(token),
-                len(token),
-                token[:3] + "..." if token else "None",
             )
         else:
-            logger.info(
-                "MetaAPI Auth Check | Account: %s | Source: DB (broker_profiles.token) | Present: True | Length: %d | Prefix: %s",
+            logger.debug(
+                "MetaAPI token for %s: source=DB present=True",
                 account_data.get("account_name"),
-                len(token),
-                token[:3] + "...",
             )
 
         if not token:
