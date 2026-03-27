@@ -117,7 +117,7 @@ class BackgroundSyncWorker:
         self.total_syncs += 1
 
         try:
-            logger.info("Starting scheduled account sync...")
+            logger.debug("Starting scheduled account sync...")
 
             sync_service = AccountSyncService(self.sb)
             results = sync_service.sync_all_active_accounts()
@@ -133,9 +133,9 @@ class BackgroundSyncWorker:
 
             sync_duration = time.time() - sync_start
 
-            logger.info(
-                f"Scheduled sync complete: {success_count}/{len(results)} accounts synced "
-                f"in {sync_duration:.2f}s"
+            logger.debug(
+                "Scheduled sync complete: %d/%d accounts synced in %.2fs",
+                success_count, len(results), sync_duration,
             )
 
             # Update cache if Redis is available
