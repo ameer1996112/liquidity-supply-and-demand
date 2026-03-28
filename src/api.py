@@ -87,6 +87,7 @@ from src.api_tickets import router as tickets_router           # Ticket tracker:
 from src.api_incidents import router as incidents_router       # Incident auto-tickets: worker errors, test failures, ML drift
 from src.api_agent_status import router as agent_status_router # v1.2: UI-02: Agent operational state
 from src.api_broker_profiles import router as broker_profiles_router  # Multi-account MetaAPI management
+from src.api_dashboard import router as dashboard_router
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):  # noqa: ARG001
@@ -135,6 +136,7 @@ app.include_router(tickets_router)        # Ticket tracker: /api/tickets
 app.include_router(incidents_router)      # Incident auto-tickets: /api/incidents
 app.include_router(agent_status_router)   # v1.2: Agent status: /api/agent/status
 app.include_router(broker_profiles_router)  # Multi-account MetaAPI credential management
+app.include_router(dashboard_router)        # DEV-61: dashboard summary aggregation
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_build_cors_origins(),
