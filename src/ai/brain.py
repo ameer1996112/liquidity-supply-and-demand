@@ -1113,7 +1113,7 @@ def _get_llm_client() -> Optional[OpenAI]:
         if base_url:
             kwargs["base_url"] = base_url
         _LLM_CLIENT = OpenAI(**kwargs)
-        logger.info("LLM client initialized (base_url=%s)", base_url or "default")
+        logger.info("LLM client initialized (base_url=%s)", "custom" if base_url else "default")
     except Exception as e:
         logger.error("LLM client init failed: %s", e)
         _LLM_CLIENT = None

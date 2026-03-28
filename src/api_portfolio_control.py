@@ -2102,9 +2102,7 @@ def get_trade_history(
         }
 
     except Exception as e:
-        logger.error(f"Failed to fetch trade history for {account_name}: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.exception("Failed to fetch trade history for %s", account_name)
         raise HTTPException(500, detail=f"Failed to fetch trade history: {str(e)}")
 
 

@@ -200,16 +200,19 @@ def _fail_fast_config():
     # ── Explicit Redis ping with actionable error message ─────────────────────
     try:
         import redis as _redis_lib
+        from urllib.parse import urlparse as _urlparse
         _redis_url = settings.redis_url
         _r = _redis_lib.from_url(_redis_url, socket_connect_timeout=3)
         _r.ping()
-        logger.info("Redis connection OK: %s", _redis_url)
+        _parsed = _urlparse(_redis_url)
+        _safe_url = f"{_parsed.scheme}://{_parsed.hostname}:{_parsed.port or 6379}"
+        logger.info("Redis connection OK: %s", _safe_url)
     except Exception as _redis_exc:
         logger.error(
-            "❌ Redis not reachable at %s: %s\n"
+            "❌ Redis not reachable: %s\n"
             "  → Start with: redis-server --daemonize yes\n"
             "  → Or set REDIS_URL in .env",
-            settings.redis_url, _redis_exc,
+            _redis_exc,
         )
         raise RuntimeError(f"Redis required but unavailable: {_redis_exc}") from _redis_exc
 
