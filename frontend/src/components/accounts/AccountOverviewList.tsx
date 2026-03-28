@@ -105,9 +105,9 @@ function AccountCard({ account }: { account: AccountComparisonApi }) {
               {account.account_name}
             </span>
             <TypeBadge type={account.account_type} />
-            {account.prop_firm_name && (
+            {account.provider && account.provider !== 'Personal' && (
               <span className='text-[9px] text-[var(--to-text-dim)] bg-[var(--to-surface-raised)] border border-[var(--to-border)] rounded px-1.5 py-0.5 font-mono'>
-                {account.prop_firm_name}
+                {account.provider}
               </span>
             )}
           </div>
