@@ -113,13 +113,14 @@ class AccountOrchestrator:
             account_data = account.data
             broker_profile_id = account_data.get("broker_profile_id")
 
-            # Get trades for this account (match by account_name OR broker_profile_id for legacy trades)
+            # Get CLOSED trades only for metrics (match by account_name OR broker_profile_id for legacy trades)
             start_date = (datetime.now(timezone.utc) - timedelta(days=lookback_days)).isoformat()
+            closed_statuses = ["closed", "CLOSED", "executed", "EXECUTED"]
 
             # Strategy: Try account_name filter; if 0 results and broker_profile_id exists, also get trades by broker_profile_id
             trades_query = self.client.table("trading_signals").select(
                 "pnl_usd, pnl_r, outcome, created_at"
-            ).gte("created_at", start_date).eq("account_name", account_name)
+            ).gte("created_at", start_date).eq("account_name", account_name).in_("status", closed_statuses)
 
             trades_result = trades_query.execute()
             trades = list(trades_result.data or [])
@@ -128,17 +129,18 @@ class AccountOrchestrator:
             if len(trades) == 0 and broker_profile_id:
                 fallback_query = self.client.table("trading_signals").select(
                     "pnl_usd, pnl_r, outcome, created_at"
-                ).gte("created_at", start_date).eq("broker_profile_id", broker_profile_id).is_("account_name", "null")
-                
+                ).gte("created_at", start_date).eq("broker_profile_id", broker_profile_id).is_("account_name", "null").in_("status", closed_statuses)
+
                 fallback_result = fallback_query.execute()
                 trades.extend(fallback_result.data or [])
-                logger.info(f"Found {len(fallback_result.data or [])} legacy trades for {account_name} via broker_profile_id")
+                logger.info(f"Found {len(fallback_result.data or [])} legacy closed trades for {account_name} via broker_profile_id")
 
-            # Calculate metrics
+            # Calculate metrics from closed trades only
             total_trades = len(trades)
-            wins = [t for t in trades if t.get("outcome") == "win"]
-            losses = [t for t in trades if t.get("outcome") == "loss"]
-            win_rate = len(wins) / total_trades if total_trades > 0 else 0.0
+            wins = [t for t in trades if t.get("outcome") == "win" or (t.get("pnl_usd") is not None and float(t.get("pnl_usd") or 0) > 0)]
+            losses = [t for t in trades if t.get("outcome") == "loss" or (t.get("pnl_usd") is not None and float(t.get("pnl_usd") or 0) < 0)]
+            decided = len(wins) + len(losses)
+            win_rate = len(wins) / decided if decided > 0 else 0.0
 
             # Daily PnL (handle None values from database)
             today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
@@ -297,25 +299,23 @@ class AccountOrchestrator:
             # Max drawdown (simplified - would need equity curve)
             max_drawdown_pct = 0.0  # TODO: Calculate from equity curve
 
-            # Active positions (by account_name, or broker_profile_id if account_name is null)
-            active_query = self.client.table("trading_signals").select(
-                "id", count="exact"
-            ).in_("status", ["active", "executed"])
+            # Active positions (open/active only — executed/closed are terminal states)
+            open_statuses = ["active", "ACTIVE", "open", "OPEN"]
 
             if broker_profile_id:
-                # Include trades with this account_name OR trades with this broker_profile_id and no account_name (legacy)
-                # Note: Supabase doesn't support OR in query builder directly; we'll do two queries and combine
                 active_by_name = self.client.table("trading_signals").select(
                     "id", count="exact"
-                ).eq("account_name", account_name).in_("status", ["active", "executed"]).execute()
-                
+                ).eq("account_name", account_name).in_("status", open_statuses).execute()
+
                 active_by_profile = self.client.table("trading_signals").select(
                     "id", count="exact"
-                ).eq("broker_profile_id", broker_profile_id).is_("account_name", "null").in_("status", ["active", "executed"]).execute()
-                
+                ).eq("broker_profile_id", broker_profile_id).is_("account_name", "null").in_("status", open_statuses).execute()
+
                 active_positions = (active_by_name.count or 0) + (active_by_profile.count or 0)
             else:
-                active_result = active_query.eq("account_name", account_name).execute()
+                active_result = self.client.table("trading_signals").select(
+                    "id", count="exact"
+                ).eq("account_name", account_name).in_("status", open_statuses).execute()
                 active_positions = active_result.count or 0
 
             return AccountPerformance(
@@ -611,14 +611,23 @@ class AccountOrchestrator:
 
                     comparison.append({
                         "account_name": account["account_name"],
+                        "account_type": perf.account_type or account.get("account_type", "Personal"),
                         "strategy_type": account.get("strategy_type", "BALANCED"),
+                        "connection_status": perf.connection_status or "unknown",
+                        "status": perf.connection_status or "unknown",
                         "balance": perf.balance,
                         "equity": perf.equity,
+                        "free_margin": perf.free_margin,
+                        "margin_used": perf.margin_used or 0.0,
+                        "margin_level_pct": perf.margin_level_pct,
+                        "floating_pnl": 0.0,
+                        "realized_pnl_today": perf.daily_pnl,
                         "daily_pnl": perf.daily_pnl,
                         "daily_pnl_pct": perf.daily_pnl_pct,
                         "win_rate": perf.win_rate,
                         "sharpe_ratio": perf.sharpe_ratio,
                         "max_drawdown_pct": perf.max_drawdown_pct,
+                        "open_positions": perf.active_positions,
                         "active_positions": perf.active_positions,
                         "total_trades": perf.total_trades,
                         "profit_factor": profit_factor,
@@ -631,6 +640,10 @@ class AccountOrchestrator:
                         "allocated_capital_usd": account.get("allocated_capital_usd", 0),
                         "pause_trading": account.get("pause_trading", False),
                         "broker_profile_id": account.get("broker_profile_id"),
+                        "last_sync_time": perf.last_sync_time,
+                        "server_name": perf.server_name,
+                        "platform_type": perf.platform_type,
+                        "leverage": perf.leverage,
                         "created_at": account.get("created_at"),
                         "updated_at": account.get("updated_at"),
                     })
