@@ -29,6 +29,10 @@ venv/
 .venv/
 __pycache__/
 *.pyc
+
+# Redis
+dump.rdb
+*.rdb
 # AI Agents and Editor Settings
 .claude/
 .agent/
