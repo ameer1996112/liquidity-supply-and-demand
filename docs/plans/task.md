@@ -3,10 +3,10 @@
 | # | Task | Status |
 |---|------|--------|
 | 1 | Jira ticket + branch | `done` |
-| 2 | Create `AccountStrip.tsx` | `in_progress` |
-| 3 | Update `dashboard/page.tsx` | `not_started` |
-| 4 | Delete `AccountDrawer.tsx` | `not_started` |
-| 5 | Create `AccountOverviewList.tsx` | `not_started` |
-| 6 | Update `accounts/page.tsx` | `not_started` |
-| 7 | Delete `AccountGrid` + `AccountGridCard` | `not_started` |
-| 8 | Verify + close ticket | `not_started` |
+| 2 | Create `AccountStrip.tsx` | `done` |
+| 3 | Update `dashboard/page.tsx` | `done` |
+| 4 | Delete `AccountDrawer.tsx` | `done` |
+| 5 | Create `AccountOverviewList.tsx` | `done` |
+| 6 | Update `accounts/page.tsx` | `done` |
+| 7 | Delete `AccountGrid` + `AccountGridCard` | `done` |
+| 8 | Verify + close ticket | `done` |
