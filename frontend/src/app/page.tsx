@@ -11,6 +11,7 @@ import { ConnectionPill } from '@/components/dashboard/ConnectionPill';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useTradingMode } from '@/providers/TradingModeProvider';
+import { useActiveAccount } from '@/providers/ActiveAccountProvider';
 import {
   useSignalStats,
   useTradingSignals,
@@ -173,11 +174,12 @@ export default function DashboardPage() {
   }, []);
 
   const { mode: activeMode } = useTradingMode();
-  const { data: stats, isLoading: statsLoading } = useSignalStats();
+  const { broker_profile_id, activeProfile } = useActiveAccount();
+  const { data: stats, isLoading: statsLoading } = useSignalStats(broker_profile_id);
   const { data: risk, isLoading: riskLoading } = useRiskStatus();
   const { data: riskMonitor } = useRiskMonitor();
   const { data: signals = [], isLoading: signalsLoading } =
-    useTradingSignals(activeMode);
+    useTradingSignals(activeMode, broker_profile_id);
   const { status, isConnected } = useConnectionHealth();
 
   const signalIds = useMemo(() => signals.map((s) => s.id), [signals]);
@@ -376,6 +378,15 @@ export default function DashboardPage() {
             5M
           </span>
           <ModeBadge mode={activeMode} />
+          {activeProfile && (
+            <a
+              href="/accounts"
+              className="inline-flex items-center gap-1.5 rounded border border-panel-border bg-surface px-2 py-0.5 text-xs text-text-secondary hover:text-text-primary transition-colors"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+              {activeProfile.name}
+            </a>
+          )}
         </div>
       </header>
 
