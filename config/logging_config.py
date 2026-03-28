@@ -21,10 +21,13 @@ Usage:
 """
 
 import logging
+import re
 import sys
 from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Generator, Optional
+
+_TOKEN_PATTERN = re.compile(r"(auth-token=)[A-Za-z0-9\-._~+/]+=*", re.IGNORECASE)
 
 # ── Shared context vars (set per-signal, injected into every log line) ────────
 _ctx_trade_id: ContextVar[Optional[str]] = ContextVar("trade_id", default=None)  # type: ignore[assignment]
@@ -32,6 +35,26 @@ _ctx_symbol: ContextVar[Optional[str]] = ContextVar("symbol", default=None)  # t
 _ctx_correlation_id: ContextVar[Optional[str]] = ContextVar("correlation_id", default=None)  # type: ignore[assignment]
 
 LOG_FORMAT = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
+
+
+class _SensitiveDataFilter(logging.Filter):
+    """Redact auth tokens and credentials that appear in log messages."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.msg, str):
+            record.msg = _TOKEN_PATTERN.sub(r"\1[REDACTED]", record.msg)
+        if record.args:
+            if isinstance(record.args, dict):
+                record.args = {
+                    k: _TOKEN_PATTERN.sub(r"\1[REDACTED]", v) if isinstance(v, str) else v
+                    for k, v in record.args.items()
+                }
+            elif isinstance(record.args, tuple):
+                record.args = tuple(
+                    _TOKEN_PATTERN.sub(r"\1[REDACTED]", a) if isinstance(a, str) else a
+                    for a in record.args
+                )
+        return True
 
 
 class _ContextFilter(logging.Filter):
@@ -86,16 +109,19 @@ def configure_logging(
         root.removeHandler(h)
 
     ctx_filter = _ContextFilter()
+    sensitive_filter = _SensitiveDataFilter()
     formatter = logging.Formatter(format_str)
 
     h_stdout = logging.StreamHandler(sys.stdout)
     h_stdout.setLevel(logging.DEBUG)
+    h_stdout.addFilter(sensitive_filter)
     h_stdout.addFilter(_InfoFilter())
     h_stdout.addFilter(ctx_filter)
     h_stdout.setFormatter(formatter)
 
     h_stderr = logging.StreamHandler(sys.stderr)
     h_stderr.setLevel(logging.WARNING)
+    h_stderr.addFilter(sensitive_filter)
     h_stderr.addFilter(ctx_filter)
     h_stderr.setFormatter(formatter)
 
@@ -109,6 +135,11 @@ def configure_logging(
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     logging.getLogger("hpack").setLevel(logging.WARNING)
     logging.getLogger("asyncio").setLevel(logging.WARNING)
+    # engineio/socketio log full WebSocket URLs including auth-token JWT
+    logging.getLogger("engineio").setLevel(logging.WARNING)
+    logging.getLogger("engineio.client").setLevel(logging.WARNING)
+    logging.getLogger("socketio").setLevel(logging.WARNING)
+    logging.getLogger("socketio.client").setLevel(logging.WARNING)
 
 
 def get_logger(name: str) -> logging.Logger:
