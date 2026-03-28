@@ -13,7 +13,8 @@ export function PositionsTab({ accountName }: PositionsTabProps) {
   const { data, isLoading, error } = useQuery({
     queryKey: ['account-positions', accountName],
     queryFn: () => fetchAccountPositions(accountName),
-    staleTime: 10_000, // 10s cache
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   const brokerPositions = data?.broker || [];

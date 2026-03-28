@@ -959,6 +959,28 @@ def get_account_positions(account_name: str):
         )
         db_positions = resp.data or []
 
+        # If no positions found by account_name, try broker_profile_id fallback for legacy trades
+        if not db_positions:
+            account_lookup = (
+                sb.table("account_strategies")
+                .select("broker_profile_id")
+                .eq("account_name", account_name)
+                .limit(1)
+                .execute()
+            )
+            if account_lookup.data and account_lookup.data[0].get("broker_profile_id"):
+                broker_profile_id = account_lookup.data[0]["broker_profile_id"]
+                fallback_resp = (
+                    sb.table("trading_signals")
+                    .select("*")
+                    .eq("broker_profile_id", broker_profile_id)
+                    .is_("account_name", "null")
+                    .in_("status", ["active", "ACTIVE", "executed", "EXECUTED", "open", "OPEN"])
+                    .order("created_at", desc=True)
+                    .execute()
+                )
+                db_positions = fallback_resp.data or []
+
         # Tag each with reconciliation status (all DB-only for now)
         for pos in db_positions:
             pos["reconciliation_status"] = "pending"

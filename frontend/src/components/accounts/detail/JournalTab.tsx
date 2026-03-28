@@ -96,7 +96,8 @@ export function JournalTab({ accountName }: JournalTabProps) {
   } = useQuery({
     queryKey: ['account-journal', accountName, tagFilter],
     queryFn: () => fetchJournalEntries(accountName, tagFilter),
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   const createMutation = useMutation({
