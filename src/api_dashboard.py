@@ -1,7 +1,7 @@
 """Dashboard Summary API — aggregates multi-account PnL, positions, and stats."""
 
 import logging
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 from typing import List, Optional
 
 from fastapi import APIRouter
@@ -12,6 +12,24 @@ from src.adapters.supabase_api import get_api_supabase as _get_supabase
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/dashboard", tags=["dashboard"])
+
+
+# ── Helpers ────────────────────────────────────────────────────────────────────
+
+def _derive_account_type(profile: dict) -> str:
+    """Derive account_type string from evaluation_mode + evaluation_phase.
+    Mirrors _infer_account_type() in api_broker_profiles.py."""
+    if not profile.get("evaluation_mode"):
+        return "personal"
+    phase = profile.get("evaluation_phase", "phase1")
+    if phase == "funded":
+        return "funded"
+    return "evaluation"
+
+
+def _signal_pnl(s: dict) -> float:
+    """Return broker-actual realized PnL, falling back to legacy pnl field."""
+    return s.get("pnl_usd") or s.get("pnl") or 0
 
 
 class AccountSummaryItem(BaseModel):
@@ -43,14 +61,14 @@ async def get_dashboard_summary():
 
     # 1. Fetch all broker profiles
     profiles_resp = sb.table("broker_profiles").select(
-        "id, name, account_type, run_mode, connection_status"
+        "id, name, evaluation_mode, evaluation_phase, run_mode, connection_status"
     ).execute()
     profiles = profiles_resp.data or []
 
     # 2. Fetch closed signals for PnL stats (last 90 days)
-    since = (datetime.utcnow() - timedelta(days=90)).isoformat()
+    since = (datetime.now(timezone.utc) - timedelta(days=90)).isoformat()
     signals_resp = sb.table("trading_signals").select(
-        "broker_profile_id, status, pnl, created_at"
+        "broker_profile_id, status, pnl, pnl_usd, created_at, closed_at"
     ).gte("created_at", since).in_(
         "status", ["closed", "CLOSED", "executed", "EXECUTED"]
     ).execute()
@@ -63,6 +81,11 @@ async def get_dashboard_summary():
     open_signals = open_resp.data or []
 
     today_str = date.today().isoformat()
+
+    def _is_today(s: dict) -> bool:
+        ts = s.get("closed_at") or s.get("created_at") or ""
+        return ts.startswith(today_str)
+
     account_items = []
     total_pnl_today = 0.0
     total_pnl_all_time = 0.0
@@ -75,16 +98,10 @@ async def get_dashboard_summary():
         acct_signals = [s for s in signals if s.get("broker_profile_id") == pid]
         acct_open = [s for s in open_signals if s.get("broker_profile_id") == pid]
 
-        pnl_total = sum(s.get("pnl") or 0 for s in acct_signals)
-        pnl_today = sum(
-            s.get("pnl") or 0 for s in acct_signals
-            if (s.get("created_at") or "").startswith(today_str)
-        )
-        trades_today = sum(
-            1 for s in acct_signals
-            if (s.get("created_at") or "").startswith(today_str)
-        )
-        wins = sum(1 for s in acct_signals if (s.get("pnl") or 0) > 0)
+        pnl_total = sum(_signal_pnl(s) for s in acct_signals)
+        pnl_today = sum(_signal_pnl(s) for s in acct_signals if _is_today(s))
+        trades_today = sum(1 for s in acct_signals if _is_today(s))
+        wins = sum(1 for s in acct_signals if _signal_pnl(s) > 0)
         win_rate = round((wins / len(acct_signals) * 100), 1) if acct_signals else 0.0
 
         total_pnl_today += pnl_today
@@ -96,7 +113,7 @@ async def get_dashboard_summary():
         account_items.append(AccountSummaryItem(
             id=pid,
             name=profile["name"],
-            account_type=profile.get("account_type", "personal"),
+            account_type=_derive_account_type(profile),
             run_mode=profile.get("run_mode", "PAPER"),
             connection_status=profile.get("connection_status", "unknown"),
             pnl_today=round(pnl_today, 2),
@@ -116,8 +133,8 @@ async def get_dashboard_summary():
         ).limit(1).execute()
         if dd_resp.data:
             max_drawdown_pct = dd_resp.data[0].get("max_drawdown_pct") or 0.0
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("daily_stats unavailable for max_drawdown: %s", exc)
 
     return DashboardSummary(
         total_pnl_today=round(total_pnl_today, 2),
