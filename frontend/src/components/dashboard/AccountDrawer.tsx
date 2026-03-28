@@ -49,7 +49,8 @@ export function AccountDrawer({
     queryKey: ['account-detail', account?.account_name],
     queryFn: () => fetchAccountDetail(account!.account_name),
     enabled: !!account?.account_name && open,
-    staleTime: 30_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   if (!account) return null;

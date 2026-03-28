@@ -67,7 +67,8 @@ export function AnalyticsTab({ accountName }: AnalyticsTabProps) {
   } = useQuery({
     queryKey: ['account-analytics-pairs', accountName],
     queryFn: () => fetchPairStats(accountName),
-    staleTime: 60_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   const {
@@ -77,7 +78,8 @@ export function AnalyticsTab({ accountName }: AnalyticsTabProps) {
   } = useQuery({
     queryKey: ['account-analytics-streaks', accountName],
     queryFn: () => fetchLosingStreaks(accountName),
-    staleTime: 60_000,
+    staleTime: 0,
+    refetchOnMount: 'always',
   });
 
   return (
