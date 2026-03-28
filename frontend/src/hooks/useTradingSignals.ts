@@ -108,8 +108,10 @@ function validateSignal(signal: TradingSignal, source: string): void {
 
 export const signalKeys = {
   all: ['trading-signals'] as const,
-  list: (mode?: TradingMode) => [...signalKeys.all, 'list', mode] as const,
-  stats: ['trading-stats'] as const,
+  list: (mode?: TradingMode, broker_profile_id?: number | null) =>
+    [...signalKeys.all, 'list', mode, broker_profile_id] as const,
+  stats: (broker_profile_id?: number | null) =>
+    ['trading-stats', broker_profile_id] as const,
 };
 
 // =============================================================================
@@ -136,9 +138,9 @@ export const signalKeys = {
  *
  * @param mode - Optional filter by trading mode (LIVE/PAPER)
  */
-export function useTradingSignals(mode?: TradingMode) {
+export function useTradingSignals(mode?: TradingMode, broker_profile_id?: number | null) {
   const queryClient = useQueryClient();
-   
+
   const subscriptionRef = useRef<any>(null);
   const eventQueueRef = useRef<QueuedRealtimeEvent[]>([]);
   const batchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -162,7 +164,7 @@ export function useTradingSignals(mode?: TradingMode) {
     let didMutateList = false;
 
     queryClient.setQueryData<TradingSignal[]>(
-      signalKeys.list(mode),
+      signalKeys.list(mode, broker_profile_id),
       (old = []) => {
         let next = old;
 
@@ -203,9 +205,9 @@ export function useTradingSignals(mode?: TradingMode) {
 
     if (didMutateList) {
       // Invalidate derived stats once per effective batch change.
-      queryClient.invalidateQueries({ queryKey: signalKeys.stats });
+      queryClient.invalidateQueries({ queryKey: signalKeys.stats(broker_profile_id) });
     }
-  }, [mode, queryClient]);
+  }, [mode, broker_profile_id, queryClient]);
 
   const enqueueRealtimeEvent = useCallback(
     (event: QueuedRealtimeEvent) => {
@@ -222,13 +224,14 @@ export function useTradingSignals(mode?: TradingMode) {
 
   // Main query
   const query = useQuery({
-    queryKey: signalKeys.list(mode),
+    queryKey: signalKeys.list(mode, broker_profile_id),
     queryFn: async () => {
-      debugLog('Fetching signals', { mode, limit: CONFIG.SIGNAL_LIMIT });
+      debugLog('Fetching signals', { mode, limit: CONFIG.SIGNAL_LIMIT, broker_profile_id });
 
       const rawSignals = await fetchSignals({
         mode,
         limit: CONFIG.SIGNAL_LIMIT,
+        broker_profile_id,
       });
 
       // Normalize run_mode (uppercase) and status (lowercase) for case-insensitive filtering
@@ -359,12 +362,12 @@ export function useTradingSignals(mode?: TradingMode) {
 /**
  * Hook for fetching signal statistics (24h metrics)
  */
-export function useSignalStats() {
+export function useSignalStats(broker_profile_id?: number | null) {
   return useQuery({
-    queryKey: signalKeys.stats,
+    queryKey: signalKeys.stats(broker_profile_id),
     queryFn: async () => {
-      debugLog('Fetching stats', null);
-      const stats = await fetchSignalStats();
+      debugLog('Fetching stats', { broker_profile_id });
+      const stats = await fetchSignalStats({ broker_profile_id });
       debugLog('Received stats', stats);
       return stats;
     },
@@ -400,7 +403,7 @@ export function useRefreshSignals() {
   return useCallback(() => {
     debugLog('Manual refresh triggered', null);
     queryClient.invalidateQueries({ queryKey: signalKeys.all });
-    queryClient.invalidateQueries({ queryKey: signalKeys.stats });
+    queryClient.invalidateQueries({ queryKey: ['trading-stats'] });
   }, [queryClient]);
 }
 
