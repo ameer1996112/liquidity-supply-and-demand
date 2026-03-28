@@ -423,7 +423,7 @@ async def get_webhook_payload(
     validate_webhook_secret(request, x_webhook_secret)
     raw = await request.body()
     raw_preview = raw[:500] if len(raw) > 500 else raw
-    logger.info("Webhook raw body (len=%d, content_type=%s): %s", len(raw), request.headers.get("content-type", ""), raw_preview.decode("utf-8", errors="replace"))
+    logger.debug("Webhook raw body (len=%d, content_type=%s): %s", len(raw), request.headers.get("content-type", ""), raw_preview.decode("utf-8", errors="replace"))
     try:
         data = parse_body(raw)
     except HTTPException:
@@ -746,7 +746,6 @@ async def webhook(request: Request, payload: dict[str, Any] = Depends(get_webhoo
     logger.info("Signal: %s | Mode: %s | Account: %s | Queue: %s", symbol, run_mode, account_id, queue_key)
     payload_str = json.dumps(payload)
     get_transport().enqueue(payload_str, queue_key=queue_key)
-    logger.info("Queued payload (len=%d)", len(payload_str))
     return JSONResponse(status_code=200, content={"status": "queued", "account_id": account_id})
 
 
