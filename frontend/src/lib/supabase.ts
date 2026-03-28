@@ -55,6 +55,7 @@ export async function fetchSignals(
     limit?: number;
     offset?: number;
     runId?: string;
+    broker_profile_id?: number | null;
   } = {}
 ): Promise<TradingSignal[]> {
   if (!supabase) {
@@ -63,7 +64,7 @@ export async function fetchSignals(
     );
   }
 
-  const { mode, limit = 50, offset = 0, runId } = options;
+  const { mode, limit = 50, offset = 0, runId, broker_profile_id } = options;
 
   let query = supabase
     .from('trading_signals')
@@ -80,6 +81,10 @@ export async function fetchSignals(
     query = query.eq('run_id', runId);
   }
 
+  if (broker_profile_id) {
+    query = query.eq('broker_profile_id', broker_profile_id);
+  }
+
   const { data, error } = await query;
 
   if (error) {
@@ -93,7 +98,9 @@ export async function fetchSignals(
   );
 }
 
-export async function fetchSignalStats(): Promise<SignalStats> {
+export async function fetchSignalStats(
+  options: { broker_profile_id?: number | null } = {}
+): Promise<SignalStats> {
   if (!supabase) {
     return getMockStats();
   }
@@ -103,10 +110,16 @@ export async function fetchSignalStats(): Promise<SignalStats> {
     Date.now() - 24 * 60 * 60 * 1000
   ).toISOString();
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('trading_signals')
     .select('*')
     .gte('created_at', twentyFourHoursAgo);
+
+  if (options.broker_profile_id) {
+    query = query.eq('broker_profile_id', options.broker_profile_id);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('Error fetching stats:', error);
