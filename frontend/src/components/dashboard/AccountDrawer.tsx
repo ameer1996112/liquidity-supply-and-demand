@@ -18,6 +18,7 @@ import { PositionsTab } from '@/components/accounts/detail/PositionsTab';
 import { HistoryTab } from '@/components/accounts/detail/HistoryTab';
 import { AnalyticsTab } from '@/components/accounts/detail/AnalyticsTab';
 import { ChallengeTab } from '@/components/accounts/detail/ChallengeTab';
+import { JournalTab } from '@/components/accounts/detail/JournalTab';
 import { BrokerProfilesPanel } from '@/components/accounts/BrokerProfilesPanel';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -66,6 +67,7 @@ export function AccountDrawer({
     { value: 'positions', label: 'Positions' },
     { value: 'history', label: 'History' },
     { value: 'analytics', label: 'Analytics' },
+    { value: 'journal', label: 'Journal' },
     ...(isPropFirm ? [{ value: 'challenge', label: 'Challenge' }] : []),
     { value: 'settings', label: 'Settings' },
   ];
@@ -131,8 +133,8 @@ export function AccountDrawer({
             <TabsContent value='overview' className='p-4 mt-0'>
               {isLoading ? (
                 <DrawerSkeleton />
-              ) : accountDetail ? (
-                <OverviewTab account={accountDetail} />
+              ) : (accountDetail || account) ? (
+                <OverviewTab account={(accountDetail || account) as any} />
               ) : (
                 <DrawerError />
               )}
@@ -148,6 +150,10 @@ export function AccountDrawer({
 
             <TabsContent value='analytics' className='p-4 mt-0'>
               <AnalyticsTab accountName={account.account_name} />
+            </TabsContent>
+
+            <TabsContent value='journal' className='p-4 mt-0'>
+              <JournalTab accountName={account.account_name} />
             </TabsContent>
 
             {isPropFirm && (

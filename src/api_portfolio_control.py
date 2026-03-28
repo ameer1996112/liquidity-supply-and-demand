@@ -948,12 +948,12 @@ def get_account_positions(account_name: str):
     sb = _get_supabase()
 
     try:
-        # Fetch active positions from DB
+        # Fetch active positions from DB (cover all open-state status variants)
         resp = (
             sb.table("trading_signals")
             .select("*")
             .eq("account_name", account_name)
-            .in_("status", ["active", "executed"])
+            .in_("status", ["active", "ACTIVE", "executed", "EXECUTED", "open", "OPEN"])
             .order("created_at", desc=True)
             .execute()
         )
@@ -1717,7 +1717,9 @@ def get_losing_streaks(account_name: str, min_streak_length: int = 3):
             .execute()
         )
 
-        if not result.data or len(result.data) < min_streak_length:
+        trades = result.data
+
+        if not trades or len(trades) < min_streak_length:
             return {"streaks": []}
 
         # Detect streaks
