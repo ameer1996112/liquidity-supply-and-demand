@@ -8,9 +8,8 @@ import { ConnectionPill } from '@/components/dashboard/ConnectionPill';
 import { MarketSessionBanner } from '@/components/dashboard/MarketSessionBanner';
 import { PageStatusBanner } from '@/components/shared/PageStatusBanner';
 import { AggregateBar } from '@/components/dashboard/AggregateBar';
-import { AccountGrid } from '@/components/dashboard/AccountGrid';
+import { AccountStrip } from '@/components/dashboard/AccountStrip';
 import { OpenPositionsTable } from '@/components/dashboard/OpenPositionsTable';
-import { AccountDrawer } from '@/components/dashboard/AccountDrawer';
 import { useTradingMode } from '@/providers/TradingModeProvider';
 import { useActiveAccount } from '@/providers/ActiveAccountProvider';
 import {
@@ -24,7 +23,6 @@ import { useDashboardLog } from '@/hooks/useDashboardLog';
 import { useDashboardSummary } from '@/hooks/useDashboardSummary';
 import { useAccountsComparison } from '@/hooks/useAccounts';
 import type { TradingSignal } from '@/types/trading';
-import type { AccountComparisonApi } from '@/lib/api';
 import { TableSkeleton } from '@/components/shared/TableStates';
 import { cn } from '@/lib/utils';
 
@@ -34,9 +32,6 @@ export default function DashboardPage() {
   const [mounted, setMounted] = useState(false);
   const [showLog, setShowLog] = useState(false);
   const [signalAccountFilter, setSignalAccountFilter] = useState<string | undefined>(undefined);
-  const [drawerAccount, setDrawerAccount] = useState<AccountComparisonApi | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [drawerInitialTab, setDrawerInitialTab] = useState('overview');
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -78,24 +73,6 @@ export default function DashboardPage() {
     setInspectorOpen(true);
   }, []);
 
-  const handleOpenDrawer = useCallback(
-    (account: AccountComparisonApi, tab = 'overview') => {
-      setDrawerAccount(account);
-      setDrawerInitialTab(tab);
-      setDrawerOpen(true);
-    },
-    []
-  );
-
-  const handleAddAccount = useCallback(() => {
-    // Open drawer on settings tab; use first account as context or null
-    if (accounts.length > 0) {
-      setDrawerAccount(accounts[0]);
-    }
-    setDrawerInitialTab('settings');
-    setDrawerOpen(true);
-  }, [accounts]);
-
   return (
     <div className='flex h-full min-h-0 flex-col'>
       {/* ── Aggregate bar (pinned) ── */}
@@ -110,15 +87,10 @@ export default function DashboardPage() {
         <PageStatusBanner status={status} surfaceLabel='Dashboard' />
         <MarketSessionBanner />
 
-        {/* ── Account grid ── */}
+        {/* ── Account strip ── */}
         <section>
           <p className='kpi-meta mb-2'>Accounts</p>
-          <AccountGrid
-            accounts={accounts}
-            isLoading={accountsLoading}
-            onSelectAccount={(account) => handleOpenDrawer(account)}
-            onAddAccount={handleAddAccount}
-          />
+          <AccountStrip accounts={accounts} isLoading={accountsLoading} />
         </section>
 
         {/* ── Open positions ── */}
@@ -176,13 +148,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ── Account Drawer ── */}
-      <AccountDrawer
-        account={drawerAccount}
-        open={drawerOpen}
-        onOpenChange={setDrawerOpen}
-        initialTab={drawerInitialTab}
-      />
+
 
       <SignalInspector
         signal={selectedSignal}
