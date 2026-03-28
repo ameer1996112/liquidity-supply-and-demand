@@ -12,20 +12,26 @@ interface LivePnlTickerProps {
   signals: TradingSignal[];
   brokerMap?: Record<string, ActivePosition>;
   className?: string;
+  liveOnly?: boolean;
 }
 
 /**
  * Horizontal scrolling ticker showing live floating P&L for open positions.
  * Auto-scrolls continuously. Pauses on hover.
  */
-export function LivePnlTicker({ signals, brokerMap, className }: LivePnlTickerProps) {
+export function LivePnlTicker({ signals, brokerMap, className, liveOnly }: LivePnlTickerProps) {
   const openPositions = signals.filter(isSignalOpen);
   const [paused, setPaused] = useState(false);
+  const [includePaper, setIncludePaper] = useState(!(liveOnly ?? true));
 
-  if (openPositions.length === 0) return null;
+  const displayedPositions = includePaper
+    ? openPositions
+    : openPositions.filter(p => ((p as any).run_mode || (p as any).runMode) === 'LIVE');
+
+  if (displayedPositions.length === 0 && openPositions.length === 0) return null;
 
   // Duplicate items for seamless infinite scroll
-  const items = [...openPositions, ...openPositions];
+  const items = [...displayedPositions, ...displayedPositions];
 
   return (
     <div
@@ -46,75 +52,115 @@ export function LivePnlTicker({ signals, brokerMap, className }: LivePnlTickerPr
         >
           Live
         </span>
+        <button
+          onClick={() => setIncludePaper(p => !p)}
+          style={{
+            padding: '2px 8px',
+            borderRadius: 10,
+            border: '1px solid',
+            borderColor: includePaper ? 'var(--accent-gold)' : 'var(--border)',
+            background: includePaper ? 'var(--accent-gold-dim)' : 'transparent',
+            color: includePaper ? 'var(--accent-gold)' : 'var(--text-muted)',
+            fontSize: 9,
+            fontFamily: 'var(--font-display)',
+            fontWeight: 600,
+            cursor: 'pointer',
+            transition: 'all 120ms ease',
+            letterSpacing: '0.04em',
+          }}
+        >
+          {includePaper ? 'LIVE + PAPER' : 'LIVE ONLY ●'}
+        </button>
       </div>
 
       {/* Scrolling track */}
       <div className='relative flex-1 overflow-hidden'>
-        <div
-          className='flex items-center'
-          style={{
-            animation: paused
-              ? 'none'
-              : `ticker-scroll ${Math.max(
-                  openPositions.length * 5,
-                  15
-                )}s linear infinite`,
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {items.map((signal, idx) => {
-            const activePos = brokerMap?.[signal.id];
-            const pnl = activePos?.live_pnl ?? getPnl(signal);
-            const symbol = getSymbol(signal);
-            const side = getSide(signal);
-            const isLong = side === 'buy';
-            const pnlPositive = (pnl ?? 0) >= 0;
+        {displayedPositions.length === 0 ? (
+          <span
+            className='px-4 text-[10px] text-[var(--to-text-dim)]'
+            style={{ fontFamily: 'var(--font-mono)' }}
+          >
+            No LIVE positions
+          </span>
+        ) : (
+          <div
+            className='flex items-center'
+            style={{
+              animation: paused
+                ? 'none'
+                : `ticker-scroll ${Math.max(
+                    displayedPositions.length * 5,
+                    15
+                  )}s linear infinite`,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {items.map((signal, idx) => {
+              const activePos = brokerMap?.[signal.id];
+              const pnl = activePos?.live_pnl ?? getPnl(signal);
+              const symbol = getSymbol(signal);
+              const side = getSide(signal);
+              const isLong = side === 'buy';
+              const pnlPositive = (pnl ?? 0) >= 0;
+              const accountName = (signal as any).account_name;
 
-            return (
-              <div
-                key={`${signal.id}-${idx}`}
-                className='inline-flex items-center gap-2 px-4 border-r border-[var(--to-border)]/40'
-              >
-                <span
-                  className='text-[9px] px-1.5 py-0.5 rounded font-bold uppercase'
-                  style={{
-                    backgroundColor: isLong
-                      ? 'rgba(14,203,129,0.12)'
-                      : 'rgba(246,70,93,0.12)',
-                    color: isLong ? '#0ecb81' : '#f6465d',
-                  }}
+              return (
+                <div
+                  key={`${signal.id}-${idx}`}
+                  className='inline-flex items-center gap-2 px-4 border-r border-[var(--to-border)]/40'
                 >
-                  {isLong ? '▲' : '▼'}
-                </span>
-                <span
-                  className='text-[11px] font-semibold text-[var(--to-text-primary)]'
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                >
-                  {symbol}
-                </span>
-                {pnl != null && (
                   <span
-                    className='text-[11px] font-bold tabular-nums'
+                    className='text-[9px] px-1.5 py-0.5 rounded font-bold uppercase'
                     style={{
-                      color: pnlPositive ? '#0ecb81' : '#f6465d',
-                      fontFamily: 'var(--font-mono)',
+                      backgroundColor: isLong
+                        ? 'rgba(14,203,129,0.12)'
+                        : 'rgba(246,70,93,0.12)',
+                      color: isLong ? '#0ecb81' : '#f6465d',
                     }}
                   >
-                    {pnlPositive ? '+' : ''}${pnl.toFixed(2)}
+                    {isLong ? '▲' : '▼'}
                   </span>
-                )}
-                {signal.entry_model && (
                   <span
-                    className='text-[9px] text-[var(--to-text-dim)]'
+                    className='text-[11px] font-semibold text-[var(--to-text-primary)]'
                     style={{ fontFamily: 'var(--font-mono)' }}
                   >
-                    {signal.entry_model}
+                    {symbol}
                   </span>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                  {accountName && (
+                    <span
+                      style={{
+                        fontSize: 9,
+                        color: 'var(--text-muted)',
+                        fontFamily: 'var(--font-mono)',
+                      }}
+                    >
+                      · {accountName}
+                    </span>
+                  )}
+                  {pnl != null && (
+                    <span
+                      className='text-[11px] font-bold tabular-nums'
+                      style={{
+                        color: pnlPositive ? '#0ecb81' : '#f6465d',
+                        fontFamily: 'var(--font-mono)',
+                      }}
+                    >
+                      {pnlPositive ? '+' : ''}${pnl.toFixed(2)}
+                    </span>
+                  )}
+                  {signal.entry_model && (
+                    <span
+                      className='text-[9px] text-[var(--to-text-dim)]'
+                      style={{ fontFamily: 'var(--font-mono)' }}
+                    >
+                      {signal.entry_model}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Right fade gradient */}
