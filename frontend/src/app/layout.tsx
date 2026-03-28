@@ -11,6 +11,7 @@ import { AlertProvider } from '@/components/alerts/AlertProvider';
 import { TimezoneProvider } from '@/providers/TimezoneProvider';
 import { ActiveAccountProvider } from '@/providers/ActiveAccountProvider';
 import './globals.css';
+import '@/styles/sovereign-terminal.css';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 const jetbrainsMono = JetBrains_Mono({

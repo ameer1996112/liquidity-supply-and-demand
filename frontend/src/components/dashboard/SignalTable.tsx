@@ -43,6 +43,9 @@ interface SignalTableProps {
   onSelectSignal?: (signal: TradingSignal) => void;
   maxRows?: number;
   className?: string;
+  accountFilter?: string;
+  onAccountFilterChange?: (name: string | undefined) => void;
+  accountNames?: string[];
 }
 
 // =============================================================================
@@ -291,6 +294,9 @@ export function SignalTable({
   onSelectSignal,
   maxRows = 100,
   className,
+  accountFilter,
+  onAccountFilterChange,
+  accountNames,
 }: SignalTableProps) {
   const [sortField, setSortField] = useState<SortField>('created_at');
   const [sortDir, setSortDir]     = useState<SortDir>('desc');
@@ -321,12 +327,14 @@ export function SignalTable({
   }, [signals]);
 
   const filtered = useMemo(() => {
-    if (activeFilter === 'open')     return signals.filter((s) => isOpenStatus(s.status));
-    if (activeFilter === 'closed')   return signals.filter((s) => isClosedStatus(s.status));
-    if (activeFilter === 'rejected') return signals.filter((s) => isRejectedStatus(s.status));
-    if (activeFilter === 'filtered') return signals.filter((s) => isFilteredStatus(s.status));
-    return signals;
-  }, [signals, activeFilter]);
+    let result = signals;
+    if (activeFilter === 'open')     result = result.filter((s) => isOpenStatus(s.status));
+    else if (activeFilter === 'closed')   result = result.filter((s) => isClosedStatus(s.status));
+    else if (activeFilter === 'rejected') result = result.filter((s) => isRejectedStatus(s.status));
+    else if (activeFilter === 'filtered') result = result.filter((s) => isFilteredStatus(s.status));
+    if (accountFilter) result = result.filter((s) => (s as any).account_name === accountFilter);
+    return result;
+  }, [signals, activeFilter, accountFilter]);
 
   const sorted = useMemo(() => {
     const slice = filtered.slice(0, maxRows);
@@ -361,9 +369,28 @@ export function SignalTable({
       width: 'w-[80px]',
       header: <SortHeader field='symbol' label='Pair' sortField={sortField} sortDir={sortDir} onSort={handleSort} />,
       render: (signal) => (
-        <Mono size='lg' bold className='text-text-primary'>
-          {signal.symbol}
-        </Mono>
+        <div className='inline-flex flex-col gap-0.5'>
+          <Mono size='lg' bold className='text-text-primary'>
+            {signal.symbol}
+          </Mono>
+          {(signal as any).account_name && (
+            <span
+              style={{
+                fontSize: 9,
+                padding: '1px 5px',
+                borderRadius: 3,
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border)',
+                color: 'var(--text-muted)',
+                fontFamily: 'var(--font-mono)',
+                letterSpacing: '0.03em',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {(signal as any).account_name}
+            </span>
+          )}
+        </div>
       ),
     },
     {
@@ -534,6 +561,52 @@ export function SignalTable({
 
   return (
     <div className={cn('flex flex-col h-full min-h-0', className)}>
+      {/* Account filter pills */}
+      {accountNames && accountNames.length > 0 && (
+        <div style={{ display: 'flex', gap: 6, padding: '10px 0', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => onAccountFilterChange?.(undefined)}
+            style={{
+              padding: '4px 12px',
+              borderRadius: 20,
+              border: '1px solid',
+              borderColor: !accountFilter ? 'var(--accent-gold)' : 'var(--border)',
+              background: !accountFilter ? 'var(--accent-gold-dim)' : 'transparent',
+              color: !accountFilter ? 'var(--accent-gold)' : 'var(--text-muted)',
+              fontSize: 11,
+              fontFamily: 'var(--font-display)',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'all 120ms ease',
+              letterSpacing: '0.04em',
+            }}
+          >
+            ALL
+          </button>
+          {accountNames.map(name => (
+            <button
+              key={name}
+              onClick={() => onAccountFilterChange?.(name)}
+              style={{
+                padding: '4px 12px',
+                borderRadius: 20,
+                border: '1px solid',
+                borderColor: accountFilter === name ? 'var(--live-blue)' : 'var(--border)',
+                background: accountFilter === name ? 'var(--live-blue-dim)' : 'transparent',
+                color: accountFilter === name ? 'var(--live-blue)' : 'var(--text-muted)',
+                fontSize: 11,
+                fontFamily: 'var(--font-display)',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 120ms ease',
+                letterSpacing: '0.04em',
+              }}
+            >
+              {name.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      )}
       {/* Filter tabs */}
       <div className='shrink-0 flex items-center gap-1 px-1 pb-1 flex-wrap'>
         {FILTER_TABS.map((tab) => (

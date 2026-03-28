@@ -22,6 +22,8 @@ import { useRiskMonitor } from '@/hooks/useRiskMonitor';
 import { useConnectionHealth } from '@/hooks/useConnectionHealth';
 import { useActivePositions, useAccountStatus } from '@/hooks/usePositions';
 import { useDashboardLog } from '@/hooks/useDashboardLog';
+import { useDashboardSummary } from '@/hooks/useDashboardSummary';
+import { AccountSummaryStrip } from '@/components/dashboard/AccountSummaryStrip';
 import { MarketSessionBanner } from '@/components/dashboard/MarketSessionBanner';
 import { PageStatusBanner } from '@/components/shared/PageStatusBanner';
 import { TableSkeleton } from '@/components/shared/TableStates';
@@ -168,6 +170,7 @@ export default function DashboardPage() {
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [showLog, setShowLog] = useState(false);
+  const [signalAccountFilter, setSignalAccountFilter] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     setMounted(true);
@@ -178,6 +181,7 @@ export default function DashboardPage() {
   const { data: stats, isLoading: statsLoading } = useSignalStats(broker_profile_id);
   const { data: risk, isLoading: riskLoading } = useRiskStatus();
   const { data: riskMonitor } = useRiskMonitor();
+  const { data: dashboardSummary, isLoading: summaryLoading } = useDashboardSummary();
   const { data: signals = [], isLoading: signalsLoading } =
     useTradingSignals(activeMode, broker_profile_id);
   const { status, isConnected } = useConnectionHealth();
@@ -333,6 +337,13 @@ export default function DashboardPage() {
       ? baseDailyPnl - priorWindowPnl
       : null;
 
+  // ── Multi-account aggregated KPIs ────────────────────────────────────────────
+
+  const totalPnlToday = dashboardSummary?.total_pnl_today ?? todayPnl ?? 0;
+  const totalWinRate = dashboardSummary?.total_win_rate ?? stats?.win_rate ?? 0;
+  const totalActivePositions = dashboardSummary?.total_active_positions ?? activePositionsCount;
+  const totalDrawdown = dashboardSummary?.max_drawdown_pct ?? risk?.drawdown_pct ?? 0;
+
   // ── Live log ────────────────────────────────────────────────────────────────
 
   const { entries: logEntries, clear: clearLog } = useDashboardLog({
@@ -397,7 +408,7 @@ export default function DashboardPage() {
       <MarketSessionBanner />
 
       {/* ── Live P&L Ticker (open positions) ────────────────────── */}
-      {mounted && <LivePnlTicker signals={signals} brokerMap={brokerMap} />}
+      {mounted && <LivePnlTicker signals={signals} brokerMap={brokerMap} liveOnly={true} />}
 
       {/* ── Top row · Stat bento ───────────────────────────────── */}
       <section className='shrink-0'>
@@ -423,11 +434,11 @@ export default function DashboardPage() {
           <div className='grid grid-cols-2 gap-1.5 md:grid-cols-4 xl:grid-cols-8 stagger-children'>
             <StatCard
               label='Today PnL'
-              value={formatCurrency(todayPnl, { signed: true })}
-              numericValue={todayPnl ?? undefined}
+              value={formatCurrency(totalPnlToday, { signed: true })}
+              numericValue={totalPnlToday}
               numericFormat={(v) => formatCurrency(v, { signed: true })}
               trend={
-                todayPnl != null ? (todayPnl >= 0 ? 'up' : 'down') : 'neutral'
+                totalPnlToday >= 0 ? 'up' : 'down'
               }
               subValue={
                 todayPnlDelta != null
@@ -460,15 +471,11 @@ export default function DashboardPage() {
             />
             <StatCard
               label='Win Rate'
-              value={formatPercent(stats?.win_rate)}
-              numericValue={stats?.win_rate ?? undefined}
+              value={formatPercent(totalWinRate)}
+              numericValue={totalWinRate}
               numericFormat={(v) => formatPercent(v)}
               trend={
-                stats?.win_rate != null
-                  ? stats.win_rate >= 50
-                    ? 'up'
-                    : 'down'
-                  : 'neutral'
+                totalWinRate >= 50 ? 'up' : 'down'
               }
               subValue={
                 stats?.closed_trade_count != null
@@ -481,15 +488,11 @@ export default function DashboardPage() {
             />
             <StatCard
               label='Drawdown'
-              value={formatPercent(risk?.drawdown_pct)}
-              numericValue={risk?.drawdown_pct ?? undefined}
+              value={formatPercent(totalDrawdown)}
+              numericValue={totalDrawdown}
               numericFormat={(v) => formatPercent(v)}
               trend={
-                risk?.drawdown_pct != null
-                  ? risk.drawdown_pct > 3
-                    ? 'down'
-                    : 'neutral'
-                  : 'neutral'
+                totalDrawdown > 3 ? 'down' : 'neutral'
               }
               subValue={
                 risk?.max_drawdown_pct != null
@@ -515,11 +518,11 @@ export default function DashboardPage() {
             />
             <StatCard
               label='Positions'
-              value={formatNumber(activePositionsCount, {
+              value={formatNumber(totalActivePositions, {
                 decimals: 0,
                 empty: '0',
               })}
-              numericValue={activePositionsCount}
+              numericValue={totalActivePositions}
               numericFormat={(v) => String(Math.round(v))}
               subValue={
                 risk?.max_positions != null
@@ -579,6 +582,27 @@ export default function DashboardPage() {
         )}
       </section>
 
+      {/* ── Account Summary Strip ────────────────────────────────── */}
+      <div style={{ marginBottom: 24 }}>
+        <div
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: 10,
+            fontWeight: 600,
+            color: 'var(--text-muted)',
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+            marginBottom: 10,
+          }}
+        >
+          Accounts
+        </div>
+        <AccountSummaryStrip
+          accounts={dashboardSummary?.accounts ?? []}
+          isLoading={summaryLoading}
+        />
+      </div>
+
       {/* ── Waiting banner (no data) ─────────────────────────────── */}
       {noData && (
         <WaitingBanner
@@ -631,6 +655,9 @@ export default function DashboardPage() {
                 brokerMap={brokerMap}
                 onSelectSignal={handleSelectSignal}
                 maxRows={150}
+                accountFilter={signalAccountFilter}
+                onAccountFilterChange={setSignalAccountFilter}
+                accountNames={dashboardSummary?.accounts.map(a => a.name) ?? []}
               />
             )}
           </div>

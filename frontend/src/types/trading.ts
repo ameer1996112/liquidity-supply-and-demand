@@ -362,3 +362,26 @@ export function getNotes(signal: Partial<TradingSignal>): string | null {
   if (typeof signal.ai_reasoning === 'string') return signal.ai_reasoning;
   return null;
 }
+
+export interface AccountSummaryItem {
+  id: number
+  name: string
+  account_type: 'funded' | 'evaluation' | 'personal'
+  run_mode: 'LIVE' | 'PAPER'
+  connection_status: 'connected' | 'error' | 'unknown'
+  pnl_today: number
+  pnl_total: number
+  positions_count: number
+  win_rate: number
+  trades_today: number
+}
+
+export interface DashboardSummary {
+  total_pnl_today: number
+  total_pnl_all_time: number
+  total_win_rate: number
+  total_active_positions: number
+  total_trades_today: number
+  max_drawdown_pct: number
+  accounts: AccountSummaryItem[]
+}
