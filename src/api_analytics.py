@@ -44,7 +44,7 @@ def _fetch_closed_signals(
         .select(
             "id, symbol, side, entry, sl, tp, size, pnl_usd, pnl_r, outcome, "
             "zone_type, entry_model, ai_confidence, rr_ratio, run_mode, "
-            "created_at, closed_at, status"
+            "created_at, closed_at, status, commission, swap"
         )
         # Include both 'CLOSED' and 'EXECUTED' statuses (database uses uppercase)
         # Also include lowercase variants for backward compatibility
@@ -240,7 +240,11 @@ def get_trades(
 
     trades = []
     for sig in signals[:limit]:
-        pnl = float(sig.get("pnl_usd") or 0)
+        net_pnl = float(sig.get("pnl_usd") or 0)
+        commission = float(sig.get("commission") or 0)
+        swap = float(sig.get("swap") or 0)
+        # Gross profit matches MetaTrader "Profit" column (before commission/swap)
+        pnl = net_pnl - commission - swap
         pnl_r = float(sig.get("pnl_r") or 0)
 
         # Determine result

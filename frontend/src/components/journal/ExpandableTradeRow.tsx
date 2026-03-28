@@ -480,9 +480,17 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
                   )}
                   {pnl != null && (
                     <div className="flex justify-between">
-                      <span className="text-[var(--to-text-dim)]">PnL</span>
+                      <span className="text-[var(--to-text-dim)]">Profit (MT5)</span>
                       <span className="font-mono font-semibold">
                         <PnLText value={pnl} variant="currency" size="sm" />
+                      </span>
+                    </div>
+                  )}
+                  {signal.commission != null && signal.commission !== 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-[var(--to-text-dim)]">Commission</span>
+                      <span className="font-mono text-[var(--to-short)]">
+                        ${signal.commission.toFixed(2)}
                       </span>
                     </div>
                   )}

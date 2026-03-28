@@ -179,8 +179,10 @@ export interface TradingSignal {
   rr_ratio?: number;
   sl_pips?: number;
   pnl?: number;
-  pnl_usd?: number; // Alternative PnL field
+  pnl_usd?: number; // Alternative PnL field (net: includes commission + swap)
   pnl_percentage?: number;
+  commission?: number; // Broker commission (negative value, e.g. -17.05)
+  swap?: number;       // Overnight swap (usually 0 for intraday)
 
   // Broker execution info (LIVE)
   broker_order_id?: string;
@@ -320,6 +322,8 @@ export function normalizeSignal(
     pnl: raw.pnl ?? raw.pnl_usd,
     pnl_usd: raw.pnl_usd ?? raw.pnl,
     pnl_percentage: raw.pnl_percentage,
+    commission: raw.commission ?? undefined,
+    swap: raw.swap ?? undefined,
     broker_order_id: raw.broker_order_id,
     close_broker_order_id: raw.close_broker_order_id,
     account_name: raw.account_name ?? null,
@@ -350,9 +354,15 @@ export function getScore(signal: Partial<TradingSignal>): number | null {
   return signal.score ?? signal.ai_confidence ?? null;
 }
 
-// Get the PnL from a signal
+// Get the gross PnL from a signal (price movement only, matching MetaTrader "Profit" column).
+// The stored pnl/pnl_usd fields are NET (include commission + swap).
+// Gross = net - commission - swap.
 export function getPnl(signal: Partial<TradingSignal>): number | null {
-  return signal.pnl ?? signal.pnl_usd ?? null;
+  const net = signal.pnl ?? signal.pnl_usd ?? null;
+  if (net === null) return null;
+  const commission = signal.commission ?? 0;
+  const swap = signal.swap ?? 0;
+  return net - commission - swap;
 }
 
 // Get AI reasoning text from a signal
