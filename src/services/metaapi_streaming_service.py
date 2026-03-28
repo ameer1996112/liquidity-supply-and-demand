@@ -178,10 +178,11 @@ async def _run_streaming(
         async def on_synchronization_started(
             self,
             instance_index: str,
-            specifications_updated: bool,
-            positions_updated: bool,
-            orders_updated: bool,
+            specifications_updated: bool = False,
+            positions_updated: bool = False,
+            orders_updated: bool = False,
             synchronization_id: Optional[str] = None,
+            **kwargs,
         ) -> None:
             logger.info(
                 "[MetaApi Stream] Synchronization started — instance=%s", instance_index
