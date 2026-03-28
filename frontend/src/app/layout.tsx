@@ -9,6 +9,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { ToastProvider } from '@/components/ui/toast';
 import { AlertProvider } from '@/components/alerts/AlertProvider';
 import { TimezoneProvider } from '@/providers/TimezoneProvider';
+import { ActiveAccountProvider } from '@/providers/ActiveAccountProvider';
 import './globals.css';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
@@ -43,11 +44,13 @@ export default function RootLayout({
               <ThemeProvider>
                 <TimezoneProvider>
                   <SidebarProvider>
+                    <ActiveAccountProvider>
                     <TradingModeProvider>
                       <ShellActionsProvider>
                         <AppShell>{children}</AppShell>
                       </ShellActionsProvider>
                     </TradingModeProvider>
+                    </ActiveAccountProvider>
                   </SidebarProvider>
                 </TimezoneProvider>
               </ThemeProvider>
