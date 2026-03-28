@@ -347,14 +347,15 @@ def process_trade(
                         exit_deals = []
                         symbol = alert.get("symbol", "").upper()
 
+                        _EXIT_TYPES = {"DEAL_ENTRY_OUT", "DEAL_ENTRY_OUT_BY", "DEAL_ENTRY_INOUT"}
                         for deal in deals:
                             if str(deal.get("positionId", "")) == str(broker_order_id) and str(deal.get("symbol", "")).upper() == symbol:
                                 total_pnl += float(deal.get("profit", 0))
                                 total_commission += float(deal.get("commission", 0))
                                 total_swap += float(deal.get("swap", 0))
-                                
-                                # Track exit deals to verify the position actually closed
-                                if deal.get("entryType") == "DEAL_ENTRY_OUT":
+
+                                # Track exit deals (all types that close a position)
+                                if deal.get("entryType") in _EXIT_TYPES:
                                     exit_deals.append(deal)
 
                         if exit_deals:

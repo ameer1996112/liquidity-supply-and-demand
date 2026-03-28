@@ -639,6 +639,94 @@ def cleanup_stale_positions():
     }
 
 
+@router.post("/backfill-pnl")
+def backfill_missing_pnl(days: int = Query(default=90, ge=1, le=365)):
+    """
+    Backfill actual broker PnL for CLOSED trades that have pnl_usd=null.
+
+    Iterates through recently closed signals with no PnL, fetches their
+    deal history from MetaAPI by broker_order_id, and writes the real P&L.
+    """
+    sb = _get_supabase()
+    adapter = _get_adapter()
+
+    if not hasattr(adapter, "get_deals_by_position"):
+        return {"status": "error", "message": "Adapter does not support get_deals_by_position"}
+
+    # Find closed signals with no PnL
+    cutoff = (datetime.now(timezone.utc) - __import__("datetime").timedelta(days=days)).isoformat()
+    try:
+        resp = sb.table("trading_signals").select(
+            "id, broker_order_id, symbol"
+        ).in_(
+            "status", ["CLOSED", "closed", "executed", "EXECUTED"]
+        ).is_("pnl_usd", "null").not_.is_("broker_order_id", "null").gte(
+            "created_at", cutoff
+        ).execute()
+        candidates = resp.data or []
+    except Exception as exc:
+        return {"status": "error", "message": f"DB query failed: {exc}"}
+
+    updated = 0
+    skipped = 0
+    errors = 0
+
+    _EXIT_TYPES = {"DEAL_ENTRY_OUT", "DEAL_ENTRY_OUT_BY", "DEAL_ENTRY_INOUT"}
+
+    for sig in candidates:
+        broker_order_id = sig.get("broker_order_id")
+        signal_id = sig.get("id")
+        symbol = str(sig.get("symbol") or "").upper()
+        if not broker_order_id:
+            skipped += 1
+            continue
+        try:
+            deals = adapter.get_deals_by_position(str(broker_order_id))
+            total_pnl = 0.0
+            total_commission = 0.0
+            total_swap = 0.0
+            exit_deals = []
+            for deal in deals:
+                if str(deal.get("positionId", "")) == str(broker_order_id):
+                    total_pnl += float(deal.get("profit", 0) or 0)
+                    total_commission += float(deal.get("commission", 0) or 0)
+                    total_swap += float(deal.get("swap", 0) or 0)
+                    if deal.get("entryType") in _EXIT_TYPES:
+                        exit_deals.append(deal)
+
+            if not exit_deals:
+                skipped += 1
+                logger.debug("backfill-pnl: no exit deals for signal %s (broker_order_id=%s)", signal_id, broker_order_id)
+                continue
+
+            net_pnl = total_pnl + total_commission + total_swap
+            outcome = "win" if net_pnl > 0 else "loss" if net_pnl < 0 else "breakeven"
+            now_iso = datetime.now(timezone.utc).isoformat()
+
+            sb.table("trading_signals").update({
+                "pnl_usd": net_pnl,
+                "pnl": net_pnl,
+                "commission": total_commission,
+                "swap": total_swap,
+                "outcome": outcome,
+                "updated_at": now_iso,
+            }).eq("id", signal_id).execute()
+
+            updated += 1
+            logger.info("backfill-pnl: signal %s (broker=%s %s) → pnl=%.2f", signal_id, broker_order_id, symbol, net_pnl)
+        except Exception as exc:
+            errors += 1
+            logger.error("backfill-pnl: error for signal %s: %s", signal_id, exc)
+
+    return {
+        "status": "ok",
+        "candidates": len(candidates),
+        "updated": updated,
+        "skipped": skipped,
+        "errors": errors,
+    }
+
+
 # ── Account Status (separate prefix for cleaner API) ────────
 
 

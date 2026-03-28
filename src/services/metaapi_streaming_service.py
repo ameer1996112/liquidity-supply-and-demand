@@ -92,6 +92,11 @@ class _DealHandler:
         """
         now = datetime.now(timezone.utc).isoformat()
         try:
+            # Update any signal with this broker_order_id regardless of current status.
+            # This handles two cases:
+            # 1. SL/TP hit: signal is still "OPEN" when the deal arrives → set to CLOSED + PnL
+            # 2. TradingView exit webhook raced ahead: signal may already be "CLOSED" with null PnL
+            #    → the streaming deal is the authoritative broker PnL, always write it
             result = (
                 self._sb.table("trading_signals")
                 .update(
@@ -102,11 +107,12 @@ class _DealHandler:
                         "commission": commission,
                         "swap": swap,
                         "exit_time": now,
+                        "closed_at": now,
+                        "outcome": "win" if net_pnl > 0 else "loss" if net_pnl < 0 else "breakeven",
                         "updated_at": now,
                     }
                 )
                 .eq("broker_order_id", position_id)
-                .eq("status", "OPEN")
                 .execute()
             )
             rows = result.data or []
@@ -117,9 +123,9 @@ class _DealHandler:
                     position_id, net_pnl, len(rows),
                 )
             else:
-                logger.debug(
-                    "[MetaApi Stream] No OPEN signal for position_id=%s "
-                    "(may already be closed by Pine exit webhook or non-LIVE mode)",
+                logger.warning(
+                    "[MetaApi Stream] No signal found for broker_order_id=%s "
+                    "— trade may have been opened outside this bot",
                     position_id,
                 )
         except Exception as exc:
