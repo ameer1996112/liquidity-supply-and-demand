@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { TradingSignal, SignalStatus } from '@/types/trading';
+import { getPnl } from '@/types/trading';
 import type { CouncilSummary } from '@/lib/api';
 import type { ActivePosition } from '@/hooks/usePositions';
 import { DataTable, type DataTableColumn } from '@/components/shared/DataTable';
@@ -102,7 +103,7 @@ function getSortValue(signal: TradingSignal, field: SortField): string | number 
     case 'symbol':     return signal.symbol;
     case 'side':       return signal.side;
     case 'entry':      return signal.entry ?? signal.price ?? 0;
-    case 'pnl':        return signal.pnl ?? signal.pnl_usd ?? 0;
+    case 'pnl':        return getPnl(signal) ?? 0;
     case 'status':     return signal.status;
     case 'score':      return signal.score ?? signal.ai_confidence ?? 0;
     default:           return '';
@@ -472,7 +473,7 @@ export function SignalTable({
       render: safeRender('pnl', (signal) => {
         const broker = brokerMap[String(signal.id)];
         const livePnl = broker?.live_pnl;
-        const dbPnl = signal.pnl ?? signal.pnl_usd ?? null;
+        const dbPnl = getPnl(signal);
 
         if (livePnl != null) {
           const isPos = livePnl >= 0;

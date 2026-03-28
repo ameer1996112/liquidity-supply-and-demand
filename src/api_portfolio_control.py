@@ -1911,6 +1911,12 @@ def get_trade_history(
                 if risk_usd > 0:
                     r_multiple = float(trade.get("pnl_usd")) / risk_usd
 
+            # Gross profit = net pnl_usd minus commission/swap (matches MetaTrader "Profit" column)
+            net_pnl_usd = float(trade.get("pnl_usd", 0))
+            commission_val = float(trade.get("commission") or 0)
+            swap_val = float(trade.get("swap") or 0)
+            gross_pnl_usd = net_pnl_usd - commission_val - swap_val
+
             trade_dict = {
                 "id": trade.get("id"),
                 "symbol": trade.get("symbol"),
@@ -1920,7 +1926,7 @@ def get_trade_history(
                 "exit": float(trade.get("exit_price", 0)),
                 "sl": float(trade.get("sl", 0)) if trade.get("sl") else None,
                 "tp": float(trade.get("tp", 0)) if trade.get("tp") else None,
-                "pnl_usd": float(trade.get("pnl_usd", 0)),
+                "pnl_usd": gross_pnl_usd,
                 "pnl_percent": float(trade.get("pnl_percent", 0)) if trade.get("pnl_percent") else None,
                 "r_multiple": r_multiple,
                 "mae": float(trade.get("mae", 0)) if trade.get("mae") else None,
@@ -1928,7 +1934,7 @@ def get_trade_history(
                 "entry_time": trade.get("entry_time"),
                 "exit_time": trade.get("exit_time"),
                 "exit_reason": trade.get("exit_reason"),
-                "outcome": "win" if trade.get("pnl_usd", 0) >= 0 else "loss",
+                "outcome": "win" if gross_pnl_usd >= 0 else "loss",
                 "trade_key": trade.get("trade_key"),
                 "source": "database",
             }
@@ -2032,6 +2038,8 @@ def get_trade_history(
                             swap = float(exit_deal.get("swap", 0) or 0)
                             commission = float(exit_deal.get("commission", 0) or 0)
                             total_pnl = profit + swap + commission
+                            # Gross profit = price movement only (matches MetaTrader "Profit" column)
+                            gross_pnl = profit
 
                             # Fallback dedup: skip if fingerprint matches a DB trade
                             # (catches cases where broker_order_id is null in DB)
@@ -2055,7 +2063,7 @@ def get_trade_history(
                                 "exit": float(exit_deal.get("price", 0)),
                                 "sl": None,  # MetaAPI deals don't include SL/TP
                                 "tp": None,
-                                "pnl_usd": total_pnl,
+                                "pnl_usd": gross_pnl,
                                 "pnl_percent": None,
                                 "r_multiple": None,
                                 "mae": None,
@@ -2063,7 +2071,7 @@ def get_trade_history(
                                 "entry_time": entry_deal.get("time"),
                                 "exit_time": exit_deal.get("time"),
                                 "exit_reason": "MetaAPI",
-                                "outcome": "win" if total_pnl >= 0 else "loss",
+                                "outcome": "win" if gross_pnl >= 0 else "loss",
                                 "trade_key": position_id,
                                 "source": "metaapi",
                             }
