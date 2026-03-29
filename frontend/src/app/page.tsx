@@ -72,6 +72,30 @@ export default function DashboardPage() {
     return counts;
   }, [signals]);
 
+  // All distinct account names seen in signals (includes deleted accounts like ACG-DEMO)
+  // Used as filter options in the signal table — ensures archived account signals are reachable.
+  const signalAccountNames = useMemo(() => Object.keys(signalCounts).sort(), [signalCounts]);
+
+  // Merge live accounts with archived ones derived from signals.
+  // Archived accounts (deleted from account_strategies) appear with minimal info
+  // so the AccountStrip still shows them and their signal count badges.
+  const allAccountsForStrip = useMemo(() => {
+    const liveNames = new Set(accounts.map((a) => a.account_name));
+    const archivedEntries = signalAccountNames
+      .filter((name) => !liveNames.has(name))
+      .map((name) => ({
+        account_name: name,
+        connection_status: 'disconnected' as const,
+        balance: null,
+        equity: null,
+        account_type: undefined,
+        prop_firm_name: undefined,
+        daily_pnl: undefined,
+        daily_pnl_pct: undefined,
+      }));
+    return [...accounts, ...(archivedEntries as any[])];
+  }, [accounts, signalAccountNames]);
+
   // Keep for log
   void useSignalStats(broker_profile_id);
   const strategyName = signals[0]?.entry_model ?? signals[0]?.zone_type ?? 'Liquidity S&D';
@@ -108,7 +132,7 @@ export default function DashboardPage() {
         <section>
           <p className='kpi-meta mb-2'>Accounts</p>
           <AccountStrip
-            accounts={accounts}
+            accounts={allAccountsForStrip}
             isLoading={accountsLoading}
             activeAccount={signalAccountFilter}
             onAccountSelect={setSignalAccountFilter}
@@ -146,7 +170,7 @@ export default function DashboardPage() {
                   maxRows={150}
                   accountFilter={signalAccountFilter}
                   onAccountFilterChange={setSignalAccountFilter}
-                  accountNames={dashboardSummary?.accounts.map((a) => a.name) ?? []}
+                  accountNames={signalAccountNames}
                 />
               )}
             </div>

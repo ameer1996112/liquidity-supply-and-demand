@@ -81,6 +81,7 @@ function isRejectedStatus(status: string): boolean {
     s === 'kill_switch_blocked' ||
     s === 'staleness_rejected' ||
     s === 'execution_failed' ||
+    s === 'unexecuted' ||
     s === 'received'
   );
 }

@@ -81,6 +81,8 @@ export function AccountStrip({
       {accounts.map((account, idx) => {
         const isActive = activeAccount === account.account_name;
         const sigCount = signalCounts[account.account_name] ?? 0;
+        // An account is archived if it has no live connection status (i.e. derived from signals only)
+        const isArchived = account.connection_status === 'disconnected' && account.balance == null;
 
         return (
           <div
@@ -91,6 +93,7 @@ export function AccountStrip({
               isActive
                 ? 'bg-[var(--to-surface-raised)]'
                 : 'hover:bg-[var(--to-surface-raised)]/60',
+              isArchived && 'opacity-60',
             )}
           >
             {/* Left: click to filter signals */}
@@ -112,11 +115,16 @@ export function AccountStrip({
               >
                 {account.account_name}
               </span>
-              {account.account_type && (
+              {/* Archived badge */}
+              {isArchived ? (
+                <span className='text-[9px] text-[var(--to-text-dim)] bg-[var(--to-surface-raised)] border border-[var(--to-border)] rounded px-1.5 py-0.5 font-mono italic'>
+                  archived
+                </span>
+              ) : account.account_type ? (
                 <span className='hidden sm:inline text-[9px] text-[var(--to-text-dim)] bg-[var(--to-surface-raised)] border border-[var(--to-border)] rounded px-1.5 py-0.5 font-mono'>
                   {account.account_type}
                 </span>
-              )}
+              ) : null}
               {/* Signal count badge */}
               {sigCount > 0 && (
                 <span
@@ -132,25 +140,29 @@ export function AccountStrip({
               )}
             </button>
 
-            {/* Right: balance + navigate arrow */}
+            {/* Right: balance + navigate arrow (no arrow for archived accounts) */}
             <div className='flex items-center gap-3 flex-shrink-0 pl-2'>
-              <span className='font-mono text-xs text-[var(--to-text-secondary)]'>
-                $
-                {account.balance?.toLocaleString(undefined, {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                }) ?? '—'}
-              </span>
-              <button
-                id={`account-strip-nav-${account.account_name.replace(/\s+/g, '-').toLowerCase()}`}
-                onClick={() =>
-                  router.push(`/accounts/${encodeURIComponent(account.account_name)}`)
-                }
-                className='text-[var(--to-text-dim)] hover:text-[var(--to-text-primary)] transition-colors text-[11px] px-1'
-                title={`Go to ${account.account_name} details`}
-              >
-                →
-              </button>
+              {!isArchived && (
+                <span className='font-mono text-xs text-[var(--to-text-secondary)]'>
+                  $
+                  {account.balance?.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  }) ?? '—'}
+                </span>
+              )}
+              {!isArchived && (
+                <button
+                  id={`account-strip-nav-${account.account_name.replace(/\s+/g, '-').toLowerCase()}`}
+                  onClick={() =>
+                    router.push(`/accounts/${encodeURIComponent(account.account_name)}`)
+                  }
+                  className='text-[var(--to-text-dim)] hover:text-[var(--to-text-primary)] transition-colors text-[11px] px-1'
+                  title={`Go to ${account.account_name} details`}
+                >
+                  →
+                </button>
+              )}
             </div>
           </div>
         );
