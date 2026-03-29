@@ -189,6 +189,8 @@ export interface TradingSignal {
   close_broker_order_id?: string;
   /** Broker account name at execution (MetaApi or config). */
   account_name?: string | null;
+  /** FK to broker_profiles.id — used to derive account_name when not set directly. */
+  broker_profile_id?: number | null;
 
   // Exit information
   closed_at?: string;
