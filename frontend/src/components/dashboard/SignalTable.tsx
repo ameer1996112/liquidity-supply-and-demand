@@ -713,6 +713,7 @@ export function SignalTable({
             data={sorted}
             compact
             stickyHeader
+            className='overflow-visible'
             getRowId={(signal) => signal.id}
             onRowClick={(signal) => onSelectSignal?.(signal)}
             getRowClassName={(signal) => {
