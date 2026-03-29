@@ -1887,14 +1887,17 @@ def get_trade_history(
             .select("*")
             .eq("account_name", account_name)
             .in_("status", ["closed", "executed", "CLOSED", "EXECUTED"])
-            .not_.is_("exit_price", "null")
+            .not_.is_("pnl_usd", "null")
         )
 
-        # Date range filter
+        # Date range filter — use exit_time; fall back to closed_at for older rows where exit_time is NULL
         cutoff_time = None
         if days:
             cutoff_time = datetime.now(timezone.utc) - timedelta(days=days)
-            query = query.gte("exit_time", cutoff_time.isoformat())
+            cutoff_iso = cutoff_time.isoformat()
+            query = query.or_(
+                f"exit_time.gte.{cutoff_iso},and(exit_time.is.null,closed_at.gte.{cutoff_iso})"
+            )
 
         query = query.order("exit_time", desc=True)
         db_result = query.execute()
@@ -1913,10 +1916,13 @@ def get_trade_history(
                     .eq("broker_profile_id", broker_profile_id)
                     .is_("account_name", "null")
                     .in_("status", ["closed", "executed", "CLOSED", "EXECUTED"])
-                    .not_.is_("exit_price", "null")
+                    .not_.is_("pnl_usd", "null")
                 )
                 if cutoff_time:
-                    fallback_query = fallback_query.gte("exit_time", cutoff_time.isoformat())
+                    cutoff_iso = cutoff_time.isoformat()
+                    fallback_query = fallback_query.or_(
+                        f"exit_time.gte.{cutoff_iso},and(exit_time.is.null,closed_at.gte.{cutoff_iso})"
+                    )
                 fallback_query = fallback_query.order("exit_time", desc=True)
                 fallback_result = fallback_query.execute()
                 db_trades_data.extend(fallback_result.data or [])
@@ -1949,7 +1955,7 @@ def get_trade_history(
                 "side": trade.get("side"),
                 "size": float(trade.get("size", 0)),
                 "entry": float(trade.get("entry", 0)),
-                "exit": float(trade.get("exit_price", 0)),
+                "exit": float(trade.get("exit_price") or trade.get("close_price") or 0),
                 "sl": float(trade.get("sl", 0)) if trade.get("sl") else None,
                 "tp": float(trade.get("tp", 0)) if trade.get("tp") else None,
                 "pnl_usd": gross_pnl_usd,
@@ -1958,7 +1964,7 @@ def get_trade_history(
                 "mae": float(trade.get("mae", 0)) if trade.get("mae") else None,
                 "mfe": float(trade.get("mfe", 0)) if trade.get("mfe") else None,
                 "entry_time": trade.get("entry_time"),
-                "exit_time": trade.get("exit_time"),
+                "exit_time": trade.get("exit_time") or trade.get("closed_at"),
                 "exit_reason": trade.get("exit_reason"),
                 "outcome": "win" if gross_pnl_usd >= 0 else "loss",
                 "trade_key": trade.get("trade_key"),
