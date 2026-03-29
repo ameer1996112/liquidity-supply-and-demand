@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { Download, Filter, Loader2, ArrowUpRight, ArrowDownRight, Database, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getPortfolioControlUrl } from '@/lib/api';
@@ -17,27 +17,59 @@ interface Trade {
   side: string;
   size: number;
   entry: number;
-  exit: number;
+  exit: number | null;
   sl?: number;
   tp?: number;
-  pnl_usd: number;
+  pnl_usd: number | null;
   pnl_percent?: number;
   r_multiple?: number;
   mae?: number;
   mfe?: number;
   entry_time: string;
-  exit_time: string;
+  exit_time: string | null;
   exit_reason?: string;
-  outcome: 'win' | 'loss';
+  outcome: 'win' | 'loss' | null;
+  status?: string;
   trade_key?: string;
   source?: 'database' | 'metaapi';
+}
+
+interface HistoryStats {
+  net_pnl: number;
+  win_rate: number;
+  profit_factor: number;
+  total_executed: number;
+  total_signals: number;
+}
+
+const STATUS_BADGE: Record<string, { label: string; className: string }> = {
+  closed:             { label: 'CLOSED',    className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
+  executed:           { label: 'CLOSED',    className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
+  filtered:           { label: 'FILTERED',  className: 'bg-slate-500/10 text-slate-400 border-slate-500/20' },
+  ai_rejected:        { label: 'AI REJECT', className: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
+  staleness_rejected: { label: 'STALE',     className: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
+  guard_rejected:     { label: 'REJECTED',  className: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
+  execution_failed:   { label: 'FAILED',    className: 'bg-rose-500/10 text-rose-400 border-rose-500/20' },
+  rejected:           { label: 'REJECTED',  className: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
+  unexecuted:         { label: 'UNEXEC',    className: 'bg-slate-500/10 text-slate-400 border-slate-500/20' },
+};
+
+function StatusBadge({ status }: { status?: string }) {
+  const key = (status || '').toLowerCase();
+  const cfg = STATUS_BADGE[key] ?? { label: key.toUpperCase(), className: 'bg-slate-500/10 text-slate-400 border-slate-500/20' };
+  return (
+    <span className={`inline-flex items-center font-mono text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded border ${cfg.className}`}>
+      {cfg.label}
+    </span>
+  );
 }
 
 export function HistoryTab({ accountName }: HistoryTabProps) {
   const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d' | 'all'>('30d');
   const [outcomeFilter, setOutcomeFilter] = useState<'all' | 'win' | 'loss'>('all');
-  
+
   const [trades, setTrades] = useState<Trade[]>([]);
+  const [stats, setStats] = useState<HistoryStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,6 +103,7 @@ export function HistoryTab({ accountName }: HistoryTabProps) {
 
       const data = await response.json();
       setTrades(data.trades || []);
+      setStats(data.stats || null);
     } catch (err) {
       console.error('Error fetching trade history:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch trade history');
@@ -79,37 +112,20 @@ export function HistoryTab({ accountName }: HistoryTabProps) {
     }
   };
 
-  const stats = useMemo(() => {
-    if (!trades.length) return null;
-    const wins = trades.filter(t => t.pnl_usd > 0);
-    const losses = trades.filter(t => t.pnl_usd <= 0);
-    
-    const grossProfit = wins.reduce((sum, t) => sum + t.pnl_usd, 0);
-    const grossLoss = Math.abs(losses.reduce((sum, t) => sum + t.pnl_usd, 0));
-    const netPnl = grossProfit - grossLoss;
-    
-    return {
-      totalTrades: trades.length,
-      winRate: (wins.length / trades.length) * 100,
-      netPnl,
-      profitFactor: grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? 999 : 0
-    };
-  }, [trades]);
-
   const exportCSV = () => {
     const headers = [
-      'Symbol', 'Side', 'Size', 'Entry', 'Exit', 'P&L USD', 'R Multiple', 'MAE', 'Exit Time', 'Source'
+      'Symbol', 'Side', 'Status', 'Size', 'Entry', 'Exit', 'P&L USD', 'R Multiple', 'Exit Time', 'Source'
     ];
     const rows = trades.map((t) => [
       t.symbol,
       t.side,
-      t.size.toString(),
+      t.status || '',
+      t.size.toFixed(2),
       t.entry.toFixed(5),
-      t.exit.toFixed(5),
-      t.pnl_usd.toFixed(2),
-      t.r_multiple?.toFixed(2) || 'N/A',
-      t.mae?.toFixed(2) || 'N/A',
-      t.exit_time ? new Date(t.exit_time).toLocaleString() : '-',
+      t.exit != null ? t.exit.toFixed(5) : '',
+      t.pnl_usd != null ? t.pnl_usd.toFixed(2) : '',
+      t.r_multiple?.toFixed(2) || '',
+      t.exit_time ? new Date(t.exit_time).toLocaleString() : '',
       t.source || 'database'
     ]);
 
@@ -125,7 +141,7 @@ export function HistoryTab({ accountName }: HistoryTabProps) {
 
   return (
     <div className='flex flex-col h-full space-y-4'>
-      
+
       {/* Filters & Export Bar */}
       <div className='flex items-center justify-between bg-[#1e222d] border border-[#2a2e39] rounded-xl p-3 shadow-sm'>
         <div className='flex items-center gap-3'>
@@ -134,8 +150,8 @@ export function HistoryTab({ accountName }: HistoryTabProps) {
              <span className='text-xs font-medium text-[var(--to-text-secondary)] uppercase tracking-wider'>Filters</span>
           </div>
 
-          <select 
-            value={dateRange} 
+          <select
+            value={dateRange}
             onChange={(e: any) => setDateRange(e.target.value)}
             className="h-8 px-2 bg-[#151821] border border-[#2a2e39] text-xs font-medium text-[var(--to-text-secondary)] rounded-md outline-none focus:ring-1 focus:ring-emerald-500/50"
           >
@@ -145,12 +161,12 @@ export function HistoryTab({ accountName }: HistoryTabProps) {
             <option value="all">All Time</option>
           </select>
 
-          <select 
-            value={outcomeFilter} 
+          <select
+            value={outcomeFilter}
             onChange={(e: any) => setOutcomeFilter(e.target.value)}
             className="h-8 px-2 bg-[#151821] border border-[#2a2e39] text-xs font-medium text-[var(--to-text-secondary)] rounded-md outline-none focus:ring-1 focus:ring-emerald-500/50"
           >
-            <option value="all">All Trades</option>
+            <option value="all">All Signals</option>
             <option value="win">Wins Only</option>
             <option value="loss">Losses Only</option>
           </select>
@@ -168,31 +184,34 @@ export function HistoryTab({ accountName }: HistoryTabProps) {
         </Button>
       </div>
 
-      {/* Aggregate Stats Strip */}
+      {/* Aggregate Stats Strip — computed from executed trades only */}
       {stats && !loading && !error && (
         <div className="grid grid-cols-4 gap-4">
           <div className="bg-[#1e222d] border border-[#2a2e39] rounded-xl p-4 flex flex-col justify-center">
             <span className="text-[10px] uppercase tracking-wider text-[var(--to-text-dim)] font-medium mb-1">Period Net P&L</span>
-            <span className={`text-lg font-mono font-bold tracking-tight ${stats.netPnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-              {stats.netPnl >= 0 ? '+' : ''}{formatCurrency(stats.netPnl)}
+            <span className={`text-lg font-mono font-bold tracking-tight ${stats.net_pnl >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+              {stats.net_pnl >= 0 ? '+' : ''}{formatCurrency(stats.net_pnl)}
             </span>
           </div>
           <div className="bg-[#1e222d] border border-[#2a2e39] rounded-xl p-4 flex flex-col justify-center">
             <span className="text-[10px] uppercase tracking-wider text-[var(--to-text-dim)] font-medium mb-1">Win Rate</span>
             <span className="text-lg font-mono font-bold tracking-tight text-[var(--to-text-primary)]">
-              {stats.winRate.toFixed(1)}<span className="text-sm text-[var(--to-text-dim)]">%</span>
+              {stats.win_rate.toFixed(1)}<span className="text-sm text-[var(--to-text-dim)]">%</span>
             </span>
           </div>
           <div className="bg-[#1e222d] border border-[#2a2e39] rounded-xl p-4 flex flex-col justify-center">
             <span className="text-[10px] uppercase tracking-wider text-[var(--to-text-dim)] font-medium mb-1">Profit Factor</span>
-            <span className={`text-lg font-mono font-bold tracking-tight ${stats.profitFactor >= 1.5 ? 'text-emerald-400' : stats.profitFactor < 1 ? 'text-rose-400' : 'text-[var(--to-text-primary)]'}`}>
-              {stats.profitFactor.toFixed(2)}x
+            <span className={`text-lg font-mono font-bold tracking-tight ${stats.profit_factor >= 1.5 ? 'text-emerald-400' : stats.profit_factor < 1 ? 'text-rose-400' : 'text-[var(--to-text-primary)]'}`}>
+              {stats.profit_factor.toFixed(2)}x
             </span>
           </div>
           <div className="bg-[#1e222d] border border-[#2a2e39] rounded-xl p-4 flex flex-col justify-center">
             <span className="text-[10px] uppercase tracking-wider text-[var(--to-text-dim)] font-medium mb-1">Total Trades</span>
             <span className="text-lg font-mono font-bold tracking-tight text-[var(--to-text-primary)]">
-              {stats.totalTrades}
+              {stats.total_executed}
+              {stats.total_signals > stats.total_executed && (
+                <span className="text-sm text-[var(--to-text-dim)] font-normal ml-1">/ {stats.total_signals}</span>
+              )}
             </span>
           </div>
         </div>
@@ -200,7 +219,7 @@ export function HistoryTab({ accountName }: HistoryTabProps) {
 
       {/* Main Content Area */}
       <div className='flex-1 rounded-xl border border-[#2a2e39] bg-[#151821] overflow-hidden flex flex-col min-h-[400px]'>
-        
+
         {loading && (
           <div className='flex-1 flex flex-col items-center justify-center py-20'>
             <div className='relative flex items-center justify-center h-12 w-12 rounded-full bg-[#1e222d] border border-[#2a2e39] shadow-lg'>
@@ -228,7 +247,7 @@ export function HistoryTab({ accountName }: HistoryTabProps) {
             </div>
             <h3 className="text-[var(--to-text-secondary)] font-medium text-lg mb-2">No Historical Data</h3>
             <p className="text-sm text-[var(--to-text-dim)] text-center max-w-md">
-              No closed executions found for <span className="text-[var(--to-text-primary)]">{accountName}</span> within the selected parameters.
+              No signals found for <span className="text-[var(--to-text-primary)]">{accountName}</span> within the selected parameters.
             </p>
           </div>
         )}
@@ -240,25 +259,31 @@ export function HistoryTab({ accountName }: HistoryTabProps) {
                 <tr>
                   <th className='px-5 py-3.5 text-left text-[10px] font-bold text-[var(--to-text-dim)] uppercase tracking-wider'>Symbol</th>
                   <th className='px-5 py-3.5 text-left text-[10px] font-bold text-[var(--to-text-dim)] uppercase tracking-wider'>Type</th>
+                  <th className='px-5 py-3.5 text-left text-[10px] font-bold text-[var(--to-text-dim)] uppercase tracking-wider'>Status</th>
                   <th className='px-5 py-3.5 text-right text-[10px] font-bold text-[var(--to-text-dim)] uppercase tracking-wider'>Size</th>
                   <th className='px-5 py-3.5 text-right text-[10px] font-bold text-[var(--to-text-dim)] uppercase tracking-wider'>Entry Price</th>
                   <th className='px-5 py-3.5 text-right text-[10px] font-bold text-[var(--to-text-dim)] uppercase tracking-wider'>Exit Price</th>
                   <th className='px-5 py-3.5 text-right text-[10px] font-bold text-[var(--to-text-dim)] uppercase tracking-wider'>Net P&L</th>
                   <th className='px-5 py-3.5 text-right text-[10px] font-bold text-[var(--to-text-dim)] uppercase tracking-wider'>R:R</th>
-                  <th className='px-5 py-3.5 text-left text-[10px] font-bold text-[var(--to-text-dim)] uppercase tracking-wider'>Exit Time</th>
+                  <th className='px-5 py-3.5 text-left text-[10px] font-bold text-[var(--to-text-dim)] uppercase tracking-wider'>Time</th>
                   <th className='px-5 py-3.5 text-center text-[10px] font-bold text-[var(--to-text-dim)] uppercase tracking-wider'>Source</th>
                 </tr>
               </thead>
               <tbody className='divide-y divide-[#1e222d] bg-[#181b26]'>
                 {trades.map((trade) => {
-                  const isWin = trade.pnl_usd > 0;
-                  const isLoss = trade.pnl_usd < 0;
-                  
+                  const isExecuted = trade.status === 'closed' || trade.status === 'executed' || trade.source === 'metaapi';
+                  const isWin = (trade.pnl_usd ?? 0) > 0;
+                  const isLoss = (trade.pnl_usd ?? 0) < 0;
+                  const displayTime = trade.exit_time || trade.entry_time;
+
                   return (
-                    <tr key={trade.id} className='group hover:bg-[#1e222d]/60 transition-colors'>
+                    <tr
+                      key={trade.id}
+                      className={`group hover:bg-[#1e222d]/60 transition-colors ${!isExecuted ? 'opacity-50' : ''}`}
+                    >
                       <td className='px-5 py-3'>
                         <div className="flex items-center gap-2">
-                           <div className={`w-1 h-3 rounded-full ${isWin ? 'bg-emerald-500' : isLoss ? 'bg-rose-500' : 'bg-gray-500'}`} />
+                           <div className={`w-1 h-3 rounded-full ${isExecuted ? (isWin ? 'bg-emerald-500' : isLoss ? 'bg-rose-500' : 'bg-gray-500') : 'bg-slate-600'}`} />
                            <span className="font-mono font-medium text-[var(--to-text-primary)]">{trade.symbol}</span>
                         </div>
                       </td>
@@ -273,6 +298,9 @@ export function HistoryTab({ accountName }: HistoryTabProps) {
                           {trade.side}
                         </div>
                       </td>
+                      <td className='px-5 py-3'>
+                        <StatusBadge status={trade.status} />
+                      </td>
                       <td className='px-5 py-3 text-right font-mono text-xs text-[var(--to-text-secondary)]'>
                         {trade.size.toFixed(2)}
                       </td>
@@ -280,38 +308,42 @@ export function HistoryTab({ accountName }: HistoryTabProps) {
                         {trade.entry.toFixed(5)}
                       </td>
                       <td className='px-5 py-3 text-right font-mono text-xs text-[var(--to-text-secondary)]'>
-                        {trade.exit.toFixed(5)}
+                        {trade.exit != null ? trade.exit.toFixed(5) : <span className="text-[var(--to-text-dim)]">—</span>}
                       </td>
                       <td className='px-5 py-3 text-right font-mono text-sm font-semibold'>
-                        <span className={isWin ? 'text-emerald-400' : isLoss ? 'text-rose-400' : 'text-gray-400'}>
-                          {isWin ? '+' : ''}{formatCurrency(trade.pnl_usd)}
-                        </span>
+                        {trade.pnl_usd != null ? (
+                          <span className={isWin ? 'text-emerald-400' : isLoss ? 'text-rose-400' : 'text-gray-400'}>
+                            {isWin ? '+' : ''}{formatCurrency(trade.pnl_usd)}
+                          </span>
+                        ) : (
+                          <span className="text-[var(--to-text-dim)]">—</span>
+                        )}
                       </td>
                       <td className='px-5 py-3 text-right font-mono text-xs text-[var(--to-text-dim)]'>
                         {trade.r_multiple != null ? (
                            <span className={trade.r_multiple >= 1 ? 'text-emerald-400/80' : 'text-rose-400/80'}>{trade.r_multiple.toFixed(2)}R</span>
                         ) : (
-                           '-'
+                           <span className="text-[var(--to-text-dim)]">—</span>
                         )}
                       </td>
                       <td className='px-5 py-3 text-left font-mono text-xs text-[var(--to-text-dim)] group-hover:text-[var(--to-text-secondary)] transition-colors'>
-                        {trade.exit_time ? new Date(trade.exit_time).toLocaleString(undefined, {
+                        {displayTime ? new Date(displayTime).toLocaleString(undefined, {
                           month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit'
-                        }) : '-'}
+                        }) : '—'}
                       </td>
                       <td className='px-5 py-3 text-center'>
                         {trade.source === 'metaapi' ? (
-                          <div className="inline-flex items-center justify-center p-1 rounded-md bg-[#2a2e39]/50 text-blue-400 tooltip-trigger" title="Synced from Broker">
+                          <div className="inline-flex items-center justify-center p-1 rounded-md bg-[#2a2e39]/50 text-blue-400" title="Synced from Broker">
                             <Globe className="w-3.5 h-3.5 shadow-sm" />
                           </div>
                         ) : (
-                          <div className="inline-flex items-center justify-center p-1 rounded-md bg-[#2a2e39]/50 text-amber-500/80 tooltip-trigger" title="Database Executed">
+                          <div className="inline-flex items-center justify-center p-1 rounded-md bg-[#2a2e39]/50 text-amber-500/80" title="Database Signal">
                             <Database className="w-3.5 h-3.5 shadow-sm" />
                           </div>
                         )}
                       </td>
                     </tr>
-                  )
+                  );
                 })}
               </tbody>
             </table>
