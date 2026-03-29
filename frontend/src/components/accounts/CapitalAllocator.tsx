@@ -23,7 +23,7 @@ export function CapitalAllocator() {
   const { addToast } = useToast();
   const { data: rawAccounts = [] } = useAccountsComparison();
   const accounts = Array.isArray(rawAccounts) ? rawAccounts : [];
-  const totalFromAccounts = accounts.reduce((a, c) => a + c.balance, 0);
+  const totalFromAccounts = accounts.reduce((a, c) => a + (c.balance ?? 0), 0);
   const [totalCapital, setTotalCapital] = useState(100000);
 
   useEffect(() => {
