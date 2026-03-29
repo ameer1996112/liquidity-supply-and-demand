@@ -51,7 +51,8 @@ const COLUMNS: { key: SortKey; label: string; align?: string }[] = [
 
 function getDurationMs(signal: TradingSignal): number {
   if (!signal.closed_at) return -1;
-  return new Date(signal.closed_at).getTime() - new Date(signal.created_at).getTime();
+  const startTime = signal.opened_at || signal.created_at;
+  return new Date(signal.closed_at).getTime() - new Date(startTime).getTime();
 }
 
 export function formatDuration(ms: number): string {

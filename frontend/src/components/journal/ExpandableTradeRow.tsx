@@ -74,9 +74,9 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
   const statusClass =
     statusColors[signal.status?.toLowerCase() || ''] || 'text-[var(--to-text-dim)] bg-[var(--to-surface-raised)]/30';
 
-  // Duration
+  // Duration — use opened_at (actual trade fill time) over created_at (signal receipt time)
   const durationMs = signal.closed_at
-    ? new Date(signal.closed_at).getTime() - new Date(signal.created_at).getTime()
+    ? new Date(signal.closed_at).getTime() - new Date(signal.opened_at || signal.created_at).getTime()
     : -1;
   const durationLabel = formatDuration(durationMs);
 
