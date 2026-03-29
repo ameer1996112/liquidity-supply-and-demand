@@ -96,19 +96,64 @@ function EquityBar({ balance, equity }: { balance: number | null; equity: number
   );
 }
 
-// ─── main card ───────────────────────────────────────────────────────────────
+// ─── archived chip (compact — replaces full card for archived accounts) ─────
+
+function ArchivedChip({
+  account,
+  isActive,
+  sigCount,
+  onFilter,
+}: {
+  account: AccountComparisonApi;
+  isActive: boolean;
+  sigCount: number;
+  onFilter: () => void;
+}) {
+  return (
+    <button
+      id={`account-strip-archived-${account.account_name.replace(/\s+/g, '-').toLowerCase()}`}
+      onClick={onFilter}
+      title={`Filter signals for ${account.account_name} (archived)`}
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 transition-all duration-150 font-mono text-[9px] whitespace-nowrap',
+        isActive
+          ? 'border-[var(--to-text-dim)] bg-[var(--to-surface-raised)] text-[var(--to-text-secondary)]'
+          : 'border-[var(--to-border)] bg-transparent text-[var(--to-text-dim)] hover:border-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]',
+      )}
+    >
+      {/* Archive icon dot */}
+      <span
+        className="block rounded-sm flex-shrink-0"
+        style={{ width: 5, height: 5, backgroundColor: 'currentColor', opacity: 0.5 }}
+      />
+      <span className="uppercase tracking-widest">{account.account_name}</span>
+      {sigCount > 0 && (
+        <span
+          className={cn(
+            'ml-0.5 rounded-full px-1 tabular-nums text-[8px]',
+            isActive
+              ? 'bg-[var(--to-text-dim)]/20 text-[var(--to-text-secondary)]'
+              : 'bg-[var(--to-border)] text-[var(--to-text-dim)]',
+          )}
+        >
+          {sigCount}
+        </span>
+      )}
+    </button>
+  );
+}
+
+// ─── main card (live accounts only) ──────────────────────────────────────────
 
 function AccountCard({
   account,
   isActive,
-  isArchived,
   sigCount,
   onFilter,
   onNavigate,
 }: {
   account: AccountComparisonApi;
   isActive: boolean;
-  isArchived: boolean;
   sigCount: number;
   onFilter: () => void;
   onNavigate: () => void;
@@ -125,7 +170,6 @@ function AccountCard({
         isActive
           ? 'ring-1 ring-[var(--to-long)] shadow-[0_0_16px_rgba(14,203,129,0.12)]'
           : 'ring-1 ring-[var(--to-border)] hover:ring-[var(--to-border-glow)] hover:shadow-[0_0_12px_rgba(0,0,0,0.3)]',
-        isArchived && 'opacity-50',
       )}
       style={{ backgroundColor: 'var(--to-surface)' }}
     >
@@ -134,7 +178,7 @@ function AccountCard({
         className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl"
         style={{
           backgroundColor: rail,
-          opacity: isArchived ? 0.3 : isActive ? 1 : 0.5,
+          opacity: isActive ? 1 : 0.5,
           boxShadow: isActive ? `0 0 8px ${rail}` : undefined,
           transition: 'opacity 0.2s, box-shadow 0.2s',
         }}
@@ -169,55 +213,42 @@ function AccountCard({
                 {sigCount}
               </span>
             )}
-            {isArchived ? (
-              <span
-                className="font-mono text-[8px] px-1.5 py-0.5 rounded border italic"
-                style={{ color: 'var(--to-text-dim)', backgroundColor: 'var(--to-surface-raised)', borderColor: 'var(--to-border)' }}
-              >
-                archived
-              </span>
-            ) : (
-              <TypeChip type={account.account_type} />
-            )}
+            <TypeChip type={account.account_type} />
           </div>
         </div>
 
         {/* Row 2: status pill */}
-        {!isArchived && <StatusPill status={account.connection_status || 'unknown'} />}
+        <StatusPill status={account.connection_status || 'unknown'} />
 
         {/* Row 3: balance (big number) */}
-        {!isArchived && (
-          <p
-            className="font-mono tabular-nums mt-1.5 leading-none transition-colors"
-            style={{
-              fontSize: 15,
-              fontWeight: 600,
-              color: isActive ? 'var(--to-text-primary)' : 'var(--to-text-secondary)',
-              letterSpacing: '-0.02em',
-            }}
-          >
-            {balanceStr}
-          </p>
-        )}
+        <p
+          className="font-mono tabular-nums mt-1.5 leading-none transition-colors"
+          style={{
+            fontSize: 15,
+            fontWeight: 600,
+            color: isActive ? 'var(--to-text-primary)' : 'var(--to-text-secondary)',
+            letterSpacing: '-0.02em',
+          }}
+        >
+          {balanceStr}
+        </p>
 
         {/* Row 4: equity drift bar */}
-        {!isArchived && <EquityBar balance={account.balance} equity={account.equity} />}
+        <EquityBar balance={account.balance} equity={account.equity} />
       </button>
 
       {/* Navigate arrow — bottom-right corner */}
-      {!isArchived && (
-        <button
-          id={`account-strip-nav-${account.account_name.replace(/\s+/g, '-').toLowerCase()}`}
-          onClick={onNavigate}
-          title={`Go to ${account.account_name} details`}
-          className={cn(
-            'absolute bottom-2 right-2 p-1 rounded transition-all',
-            'text-[var(--to-text-dim)] hover:text-[var(--to-text-primary)] hover:bg-[var(--to-surface-raised)]',
-          )}
-        >
-          <ExternalLink size={10} />
-        </button>
-      )}
+      <button
+        id={`account-strip-nav-${account.account_name.replace(/\s+/g, '-').toLowerCase()}`}
+        onClick={onNavigate}
+        title={`Go to ${account.account_name} details`}
+        className={cn(
+          'absolute bottom-2 right-2 p-1 rounded transition-all',
+          'text-[var(--to-text-dim)] hover:text-[var(--to-text-primary)] hover:bg-[var(--to-surface-raised)]',
+        )}
+      >
+        <ExternalLink size={10} />
+      </button>
     </div>
   );
 }
@@ -278,6 +309,14 @@ export function AccountStrip({
     );
   }
 
+  // Split accounts into live (have balance data) vs archived (signal-only ghosts)
+  const liveAccounts = accounts.filter(
+    (a) => !(a.connection_status === 'disconnected' && a.balance == null),
+  );
+  const archivedAccounts = accounts.filter(
+    (a) => a.connection_status === 'disconnected' && a.balance == null,
+  );
+
   return (
     <>
       {/* Pulse animation for live dots */}
@@ -287,28 +326,53 @@ export function AccountStrip({
           50% { opacity: 0.4; transform: scale(0.85); }
         }
       `}</style>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-        {accounts.map((account) => {
-          const isActive = activeAccount === account.account_name;
-          const isArchived =
-            account.connection_status === 'disconnected' && account.balance == null;
-          const sigCount = signalCounts[account.account_name] ?? 0;
 
-          return (
-            <AccountCard
-              key={account.account_name}
-              account={account}
-              isActive={isActive}
-              isArchived={isArchived}
-              sigCount={sigCount}
-              onFilter={() => onAccountSelect?.(isActive ? undefined : account.account_name)}
-              onNavigate={() =>
-                router.push(`/accounts/${encodeURIComponent(account.account_name)}`)
-              }
-            />
-          );
-        })}
-      </div>
+      {/* ── Live account cards ── */}
+      {liveAccounts.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+          {liveAccounts.map((account) => {
+            const isActive = activeAccount === account.account_name;
+            const sigCount = signalCounts[account.account_name] ?? 0;
+            return (
+              <AccountCard
+                key={account.account_name}
+                account={account}
+                isActive={isActive}
+                sigCount={sigCount}
+                onFilter={() => onAccountSelect?.(isActive ? undefined : account.account_name)}
+                onNavigate={() =>
+                  router.push(`/accounts/${encodeURIComponent(account.account_name)}`)
+                }
+              />
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Archived account chips (demoted, compact row) ── */}
+      {archivedAccounts.length > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+          <span
+            className="font-mono text-[8px] uppercase tracking-widest mr-1"
+            style={{ color: 'var(--to-text-dim)' }}
+          >
+            Archived
+          </span>
+          {archivedAccounts.map((account) => {
+            const isActive = activeAccount === account.account_name;
+            const sigCount = signalCounts[account.account_name] ?? 0;
+            return (
+              <ArchivedChip
+                key={account.account_name}
+                account={account}
+                isActive={isActive}
+                sigCount={sigCount}
+                onFilter={() => onAccountSelect?.(isActive ? undefined : account.account_name)}
+              />
+            );
+          })}
+        </div>
+      )}
     </>
   );
 }
