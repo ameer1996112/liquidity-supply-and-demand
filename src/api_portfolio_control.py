@@ -1882,23 +1882,34 @@ def get_trade_history(
         # ======================================================================
         # 1. FETCH FROM DATABASE (with fallback for legacy trades)
         # ======================================================================
+        EXECUTED_STATUSES = ["closed", "executed", "CLOSED", "EXECUTED"]
+        ALL_COMPLETED_STATUSES = EXECUTED_STATUSES + [
+            "filtered", "FILTERED",
+            "ai_rejected", "staleness_rejected",
+            "guard_rejected", "execution_failed",
+            "rejected", "unexecuted",
+        ]
+
         query = (
             sb.table("trading_signals")
             .select("*")
             .eq("account_name", account_name)
-            .in_("status", ["closed", "executed", "CLOSED", "EXECUTED"])
+            .in_("status", ALL_COMPLETED_STATUSES)
         )
 
-        # Date range filter — use exit_time; fall back to closed_at for older rows where exit_time is NULL
+        # Date range filter — use exit_time for executed trades; fall back to closed_at, then
+        # created_at for rejected/filtered signals that never have an exit_time.
         cutoff_time = None
         if days:
             cutoff_time = datetime.now(timezone.utc) - timedelta(days=days)
             cutoff_iso = cutoff_time.isoformat()
             query = query.or_(
-                f"exit_time.gte.{cutoff_iso},and(exit_time.is.null,closed_at.gte.{cutoff_iso})"
+                f"exit_time.gte.{cutoff_iso},"
+                f"and(exit_time.is.null,closed_at.gte.{cutoff_iso}),"
+                f"and(exit_time.is.null,closed_at.is.null,created_at.gte.{cutoff_iso})"
             )
 
-        query = query.order("exit_time", desc=True)
+        query = query.order("created_at", desc=True)
         db_result = query.execute()
 
         db_trades_data = list(db_result.data or [])
@@ -1914,14 +1925,16 @@ def get_trade_history(
                 .select("*")
                 .eq("broker_profile_id", broker_profile_id)
                 .is_("account_name", "null")
-                .in_("status", ["closed", "executed", "CLOSED", "EXECUTED"])
+                .in_("status", ALL_COMPLETED_STATUSES)
             )
             if cutoff_time:
                 cutoff_iso = cutoff_time.isoformat()
                 fallback_query = fallback_query.or_(
-                    f"exit_time.gte.{cutoff_iso},and(exit_time.is.null,closed_at.gte.{cutoff_iso})"
+                    f"exit_time.gte.{cutoff_iso},"
+                    f"and(exit_time.is.null,closed_at.gte.{cutoff_iso}),"
+                    f"and(exit_time.is.null,closed_at.is.null,created_at.gte.{cutoff_iso})"
                 )
-            fallback_query = fallback_query.order("exit_time", desc=True)
+            fallback_query = fallback_query.order("created_at", desc=True)
             fallback_result = fallback_query.execute()
             # Deduplicate by id before merging (primary query may already include some)
             existing_ids = {t["id"] for t in db_trades_data if t.get("id")}
@@ -1957,11 +1970,21 @@ def get_trade_history(
                         else:
                             r_multiple = round((_entry - _exit) / _risk, 2)
 
+            signal_status = (trade.get("status") or "").lower()
+            is_executed = signal_status in ("closed", "executed")
+
             # Gross profit = net pnl_usd minus commission/swap (matches MetaTrader "Profit" column)
-            net_pnl_usd = float(trade.get("pnl_usd", 0))
-            commission_val = float(trade.get("commission") or 0)
-            swap_val = float(trade.get("swap") or 0)
-            gross_pnl_usd = net_pnl_usd - commission_val - swap_val
+            # For rejected/filtered signals pnl_usd may be null — keep as None (don't default to 0).
+            raw_pnl = trade.get("pnl_usd")
+            if raw_pnl is not None:
+                net_pnl_usd = float(raw_pnl)
+                commission_val = float(trade.get("commission") or 0)
+                swap_val = float(trade.get("swap") or 0)
+                gross_pnl_usd: Optional[float] = net_pnl_usd - commission_val - swap_val
+            else:
+                gross_pnl_usd = None
+
+            raw_exit = trade.get("exit_price") or trade.get("close_price")
 
             trade_dict = {
                 "id": trade.get("id"),
@@ -1969,19 +1992,20 @@ def get_trade_history(
                 "side": trade.get("side"),
                 "size": float(trade.get("size") or trade.get("position_size") or 0),
                 "entry": float(trade.get("entry") or trade.get("price") or 0),
-                "exit": float(trade.get("exit_price") or trade.get("close_price") or 0),
+                "exit": float(raw_exit) if raw_exit is not None else None,
                 "sl": float(trade.get("sl", 0)) if trade.get("sl") else None,
                 "tp": float(trade.get("tp", 0)) if trade.get("tp") else None,
                 "pnl_usd": gross_pnl_usd,
                 "pnl_percent": float(trade.get("pnl_percent", 0)) if trade.get("pnl_percent") else None,
-                "r_multiple": r_multiple,
+                "r_multiple": r_multiple if is_executed else None,
                 "mae": float(trade.get("mae", 0)) if trade.get("mae") else None,
                 "mfe": float(trade.get("mfe", 0)) if trade.get("mfe") else None,
                 "entry_time": trade.get("entry_time") or trade.get("opened_at") or trade.get("created_at"),
                 "exit_time": trade.get("exit_time") or trade.get("closed_at"),
                 "exit_reason": trade.get("exit_reason"),
-                "outcome": "win" if gross_pnl_usd >= 0 else "loss",
+                "outcome": ("win" if gross_pnl_usd >= 0 else "loss") if (is_executed and gross_pnl_usd is not None) else None,
                 "trade_key": trade.get("trade_key"),
+                "status": signal_status,
                 "source": "database",
             }
             db_trades.append(trade_dict)
@@ -2136,18 +2160,44 @@ def get_trade_history(
         # ======================================================================
         all_trades = db_trades + metaapi_trades
 
-        # Apply outcome filter
+        # Apply outcome filter only to executed trades; non-executed signals (rejected/filtered)
+        # are excluded when a win/loss filter is active because they have no PnL outcome.
         if outcome == "win":
-            all_trades = [t for t in all_trades if t["pnl_usd"] >= 0]
+            all_trades = [t for t in all_trades if t.get("outcome") == "win"]
         elif outcome == "loss":
-            all_trades = [t for t in all_trades if t["pnl_usd"] < 0]
+            all_trades = [t for t in all_trades if t.get("outcome") == "loss"]
 
-        # Sort by exit time (most recent first)
-        all_trades.sort(key=lambda t: t.get("exit_time") or "", reverse=True)
+        # Sort: executed trades by exit_time desc; rejected/filtered by entry_time desc
+        all_trades.sort(
+            key=lambda t: t.get("exit_time") or t.get("entry_time") or "",
+            reverse=True,
+        )
+
+        # ======================================================================
+        # 4. COMPUTE STATS (executed trades only — excludes rejected/filtered)
+        # ======================================================================
+        executed = [
+            t for t in all_trades
+            if t.get("status") in ("closed", "executed") or t.get("source") == "metaapi"
+        ]
+        wins = [t for t in executed if (t.get("pnl_usd") or 0) > 0]
+        losses = [t for t in executed if (t.get("pnl_usd") or 0) <= 0]
+        gross_profit = sum(t.get("pnl_usd") or 0 for t in wins)
+        gross_loss = abs(sum(t.get("pnl_usd") or 0 for t in losses))
+        net_pnl = gross_profit - gross_loss
+        profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else (999 if gross_profit > 0 else 0)
+        win_rate = (len(wins) / len(executed) * 100) if executed else 0
 
         return {
             "trades": all_trades,
             "total": len(all_trades),
+            "stats": {
+                "net_pnl": round(net_pnl, 2),
+                "win_rate": round(win_rate, 1),
+                "profit_factor": round(profit_factor, 2),
+                "total_executed": len(executed),
+                "total_signals": len(all_trades),
+            },
             "sources": {
                 "database": len(db_trades),
                 "metaapi": len(metaapi_trades),
