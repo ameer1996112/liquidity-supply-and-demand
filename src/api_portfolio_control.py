@@ -1903,27 +1903,31 @@ def get_trade_history(
 
         db_trades_data = list(db_result.data or [])
 
-        # If no trades found by account_name, try broker_profile_id fallback for legacy trades
-        # (legacy trades were stored with account_name=NULL or account_name='default')
-        if len(db_trades_data) == 0:
-            account_query = sb.table("account_strategies").select("broker_profile_id").eq("account_name", account_name).limit(1).execute()
-            if account_query.data and account_query.data[0].get("broker_profile_id"):
-                broker_profile_id = account_query.data[0]["broker_profile_id"]
-                fallback_query = (
-                    sb.table("trading_signals")
-                    .select("*")
-                    .eq("broker_profile_id", broker_profile_id)
-                    .is_("account_name", "null")
-                    .in_("status", ["closed", "executed", "CLOSED", "EXECUTED"])
+        # Always also fetch legacy trades stored with account_name=NULL but matching broker_profile_id.
+        # The original guard `if len == 0` caused mixed accounts (some trades with account_name set,
+        # some legacy trades without) to drop all legacy rows.
+        account_query = sb.table("account_strategies").select("broker_profile_id").eq("account_name", account_name).limit(1).execute()
+        if account_query.data and account_query.data[0].get("broker_profile_id"):
+            broker_profile_id = account_query.data[0]["broker_profile_id"]
+            fallback_query = (
+                sb.table("trading_signals")
+                .select("*")
+                .eq("broker_profile_id", broker_profile_id)
+                .is_("account_name", "null")
+                .in_("status", ["closed", "executed", "CLOSED", "EXECUTED"])
+            )
+            if cutoff_time:
+                cutoff_iso = cutoff_time.isoformat()
+                fallback_query = fallback_query.or_(
+                    f"exit_time.gte.{cutoff_iso},and(exit_time.is.null,closed_at.gte.{cutoff_iso})"
                 )
-                if cutoff_time:
-                    cutoff_iso = cutoff_time.isoformat()
-                    fallback_query = fallback_query.or_(
-                        f"exit_time.gte.{cutoff_iso},and(exit_time.is.null,closed_at.gte.{cutoff_iso})"
-                    )
-                fallback_query = fallback_query.order("exit_time", desc=True)
-                fallback_result = fallback_query.execute()
-                db_trades_data.extend(fallback_result.data or [])
+            fallback_query = fallback_query.order("exit_time", desc=True)
+            fallback_result = fallback_query.execute()
+            # Deduplicate by id before merging (primary query may already include some)
+            existing_ids = {t["id"] for t in db_trades_data if t.get("id")}
+            for t in (fallback_result.data or []):
+                if t.get("id") not in existing_ids:
+                    db_trades_data.append(t)
 
         # Transform database trades
         db_trades = []
@@ -1931,12 +1935,27 @@ def get_trade_history(
         db_fingerprints = set()  # Fallback dedup: symbol+exit_minute+rounded_pnl
 
         for trade in db_trades_data:
-            # Calculate R multiple — prefer stored values over formula
+            # Calculate R multiple — prefer stored values, but skip zeros (not set) and
+            # fall back to computing from entry/sl/exit when the DB value is absent or zero.
             r_multiple = None
-            if trade.get("realized_r_multiple") is not None:
+            if trade.get("realized_r_multiple"):
                 r_multiple = float(trade.get("realized_r_multiple"))
-            elif trade.get("pnl_r") is not None:
+            elif trade.get("pnl_r"):
                 r_multiple = float(trade.get("pnl_r"))
+
+            # Fallback: derive from price levels when stored value is absent/zero
+            if not r_multiple:
+                _entry = float(trade.get("entry") or 0)
+                _sl = float(trade.get("sl") or 0)
+                _exit = float(trade.get("exit_price") or trade.get("close_price") or 0)
+                _side = (trade.get("side") or "buy").lower()
+                if _entry and _sl and _exit:
+                    _risk = abs(_entry - _sl)
+                    if _risk > 0:
+                        if _side == "buy":
+                            r_multiple = round((_exit - _entry) / _risk, 2)
+                        else:
+                            r_multiple = round((_entry - _exit) / _risk, 2)
 
             # Gross profit = net pnl_usd minus commission/swap (matches MetaTrader "Profit" column)
             net_pnl_usd = float(trade.get("pnl_usd", 0))
