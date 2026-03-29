@@ -9,7 +9,6 @@ import {
   BookOpen,
   Settings,
   ShieldCheck,
-  Crosshair,
   PanelLeftClose,
   PanelLeft,
   Activity,
@@ -83,7 +82,6 @@ const NAV_GROUPS: NavGroup[] = [
     id: 'trading',
     label: 'Trading',
     items: [
-      { label: 'Positions', icon: Crosshair, path: '/positions' },
       { label: 'Accounts', icon: Users, path: '/accounts' },
       { label: 'Exec Quality', icon: Timer, path: '/execution-quality' },
     ],
