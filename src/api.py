@@ -863,20 +863,27 @@ async def webhook_test(
     except Exception as exc:
         guards["staleness"] = {"passed": None, "error": str(exc)}
 
-    # Trading hours check
+    # Trading hours check (local timezone, auto-DST)
     bar_time = data.get("bar_time")
-    pine_start = getattr(s, "pine_trading_start_hour", 0)
-    pine_end = getattr(s, "pine_trading_end_hour", 23)
+    pine_start = getattr(s, "pine_trading_start_hour_local", getattr(s, "pine_trading_start_hour", 0))
+    pine_end = getattr(s, "pine_trading_end_hour_local", getattr(s, "pine_trading_end_hour", 23))
+    tz_name = getattr(s, "pine_trading_timezone", "UTC")
     if bar_time and (pine_start != 0 or pine_end != 23):
         try:
+            import pytz as _pytz
             from datetime import datetime, timezone
-            dt = datetime.fromisoformat(str(bar_time).replace("Z", "+00:00"))
-            in_hours = pine_start <= dt.hour < pine_end
+            dt_utc = datetime.fromisoformat(str(bar_time).replace("Z", "+00:00"))
+            if dt_utc.tzinfo is None:
+                dt_utc = dt_utc.replace(tzinfo=timezone.utc)
+            local_tz = _pytz.timezone(tz_name)
+            dt_local = dt_utc.astimezone(local_tz)
+            in_hours = pine_start <= dt_local.hour < pine_end
             guards["trading_hours"] = {
                 "passed": in_hours,
-                "bar_hour_utc": dt.hour,
-                "allowed_range": f"{pine_start}:00–{pine_end}:00 UTC",
-                "reason": None if in_hours else f"Outside trading hours: hour={dt.hour}",
+                "bar_hour_local": dt_local.hour,
+                "timezone": tz_name,
+                "allowed_range": f"{pine_start}:00–{pine_end}:00 {tz_name}",
+                "reason": None if in_hours else f"Outside trading hours: local_hour={dt_local.hour}",
             }
         except Exception as exc:
             guards["trading_hours"] = {"passed": None, "error": str(exc)}
