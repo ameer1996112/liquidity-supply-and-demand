@@ -125,16 +125,8 @@ async def get_dashboard_summary():
 
     overall_win_rate = round((total_wins / total_closed * 100), 1) if total_closed else 0.0
 
-    # Max drawdown — best-effort from daily_stats
+    # Max drawdown — best-effort from daily_stats (Table unimplemented)
     max_drawdown_pct = 0.0
-    try:
-        dd_resp = sb.table("daily_stats").select("max_drawdown_pct").order(
-            "date", desc=True
-        ).limit(1).execute()
-        if dd_resp.data:
-            max_drawdown_pct = dd_resp.data[0].get("max_drawdown_pct") or 0.0
-    except Exception as exc:
-        logger.warning("daily_stats unavailable for max_drawdown: %s", exc)
 
     return DashboardSummary(
         total_pnl_today=round(total_pnl_today, 2),
@@ -142,6 +134,6 @@ async def get_dashboard_summary():
         total_win_rate=overall_win_rate,
         total_active_positions=len(open_signals),
         total_trades_today=total_trades_today,
-        max_drawdown_pct=round(max_drawdown_pct, 2),
+        max_drawdown_pct=max_drawdown_pct,
         accounts=account_items,
     )

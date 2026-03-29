@@ -2063,8 +2063,10 @@ def get_trade_history(
                 try:
                     # Get MetaAPI credentials
                     import os
-                    token_env_key = broker_profile.get("meta_api_token_env_key", "META_API_TOKEN")
+                    token_env_key = broker_profile.get("meta_api_token_env_key", "META_API_TOKEN") or "META_API_TOKEN"
                     token = os.getenv(token_env_key)
+                    if not token:
+                        token = broker_profile.get("token") or broker_profile.get("meta_api_token")
                     meta_account_id = broker_profile.get("meta_api_account_id")
 
                     if token and meta_account_id:
