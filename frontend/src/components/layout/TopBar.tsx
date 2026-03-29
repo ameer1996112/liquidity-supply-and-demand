@@ -426,22 +426,6 @@ export function TopBar() {
               >
                 Global
               </button>
-              {accounts.map((acc) => (
-                <button
-                  key={acc.account_name}
-                  type='button'
-                  onClick={() => setSelectedAccountName(acc.account_name)}
-                  className={cn(
-                    'rounded-md px-3 py-1.5 text-[10px] uppercase font-bold tracking-widest transition-all',
-                    selectedAccountName === acc.account_name
-                      ? 'bg-indigo-500/20 text-indigo-300 shadow-sm'
-                      : 'text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]'
-                  )}
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                >
-                  {acc.account_name}
-                </button>
-              ))}
             </div>
           )}
 
