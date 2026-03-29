@@ -173,6 +173,7 @@ export default function DashboardPage() {
                   accountFilter={signalAccountFilter}
                   onAccountFilterChange={setSignalAccountFilter}
                   accountNames={signalAccountNames}
+                  accountSignalCounts={signalCounts}
                 />
               )}
             </div>

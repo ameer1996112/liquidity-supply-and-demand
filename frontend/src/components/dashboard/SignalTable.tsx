@@ -47,6 +47,7 @@ interface SignalTableProps {
   accountFilter?: string;
   onAccountFilterChange?: (name: string | undefined) => void;
   accountNames?: string[];
+  accountSignalCounts?: Record<string, number>;
 }
 
 // =============================================================================
@@ -324,6 +325,7 @@ export function SignalTable({
   accountFilter,
   onAccountFilterChange,
   accountNames,
+  accountSignalCounts,
 }: SignalTableProps) {
   const [sortField, setSortField] = useState<SortField>('created_at');
   const [sortDir, setSortDir]     = useState<SortDir>('desc');
@@ -621,9 +623,15 @@ export function SignalTable({
               cursor: 'pointer',
               transition: 'all 120ms ease',
               letterSpacing: '0.04em',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
             }}
           >
             ALL
+            <span style={{ opacity: 0.6, fontSize: 10 }}>
+              {signals.length}
+            </span>
           </button>
           {accountNames.map(name => (
             <button
@@ -642,9 +650,17 @@ export function SignalTable({
                 cursor: 'pointer',
                 transition: 'all 120ms ease',
                 letterSpacing: '0.04em',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
               }}
             >
               {name.toUpperCase()}
+              {accountSignalCounts?.[name] !== undefined && (
+                <span style={{ opacity: 0.6, fontSize: 10 }}>
+                  {accountSignalCounts[name]}
+                </span>
+              )}
             </button>
           ))}
         </div>
