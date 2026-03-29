@@ -12,10 +12,9 @@ import { OverviewTab } from '@/components/accounts/detail/OverviewTab';
 import { PositionsTab } from '@/components/accounts/detail/PositionsTab';
 import { HistoryTab } from '@/components/accounts/detail/HistoryTab';
 import { AnalyticsTab } from '@/components/accounts/detail/AnalyticsTab';
-import { JournalTab } from '@/components/accounts/detail/JournalTab';
 import { ChallengeTab } from '@/components/accounts/detail/ChallengeTab';
 
-type Tab = 'overview' | 'positions' | 'history' | 'analytics' | 'journal' | 'challenge';
+type Tab = 'overview' | 'positions' | 'history' | 'analytics' | 'challenge';
 
 export default function AccountDetailPage() {
   const params = useParams();
@@ -232,7 +231,6 @@ export default function AccountDetailPage() {
               'positions',
               'history',
               'analytics',
-              'journal',
               ...(account?.account_type === 'Eval' || account?.account_type === 'Funded' ? ['challenge'] : []),
             ] as Tab[]
           ).map((tab) => (
@@ -272,9 +270,6 @@ export default function AccountDetailPage() {
             )}
             {activeTab === 'analytics' && (
               <AnalyticsTab accountName={accountName} />
-            )}
-            {activeTab === 'journal' && (
-              <JournalTab accountName={accountName} />
             )}
             {activeTab === 'challenge' && (
               <ChallengeTab accountName={accountName} />
