@@ -110,6 +110,39 @@ _SUPABASE_MAX_AGE = 90  # seconds
 _supabase_url: str = ""
 _supabase_key: str = ""
 
+# System trading mode cache — mirrors api.py's cache to avoid a DB hit on every signal
+_system_mode_cache: dict = {"value": None, "loaded_at": 0.0}
+_SYSTEM_MODE_CACHE_TTL = 30  # seconds
+
+
+def _get_system_trading_mode() -> str:
+    """Return the dashboard-authoritative trading mode from system_config (30s cache)."""
+    now = time.time()
+    if (
+        now - _system_mode_cache["loaded_at"] < _SYSTEM_MODE_CACHE_TTL
+        and _system_mode_cache["value"]
+    ):
+        return _system_mode_cache["value"]
+    try:
+        sb = _get_fresh_supabase()
+        if sb:
+            result = (
+                sb.table("system_config")
+                .select("value")
+                .eq("key", "trading_mode")
+                .single()
+                .execute()
+            )
+            mode = result.data["value"] if result.data else "PAPER"
+        else:
+            mode = "PAPER"
+    except Exception as e:
+        logger.warning("Could not load system trading mode from DB, defaulting to PAPER: %s", e)
+        mode = "PAPER"
+    _system_mode_cache["value"] = mode.upper()
+    _system_mode_cache["loaded_at"] = now
+    return _system_mode_cache["value"]
+
 
 def _get_fresh_supabase():
     """Return a Supabase client, recreating it every 90s to avoid stale HTTP/2 connections.
@@ -1523,7 +1556,8 @@ def process_trade(payload: Dict[str, Any]):
     # DRY_RUN → early exit, no profiles touched, signal saved as dry_run status
     # PAPER   → route to PAPER-tagged broker profiles, dry_run=True (no real orders)
     # LIVE    → route to LIVE-tagged broker profiles, dry_run=False (real MetaTrader orders)
-    system_mode = str(payload.get("run_mode", "DRY_RUN")).upper()
+    # Always read from DB — payload's run_mode is informational only; dashboard is authoritative.
+    system_mode = _get_system_trading_mode()
 
     if system_mode == "DRY_RUN":
         logger.info("System mode: DRY_RUN — signal acknowledged, no execution")
