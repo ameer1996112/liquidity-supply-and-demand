@@ -36,7 +36,7 @@ export function AccountCard({ account, className }: AccountCardProps) {
         <div className="flex justify-between items-baseline">
           <span className="text-[10px] text-[var(--to-text-dim)] font-mono">Balance</span>
           <span className="font-mono text-sm font-bold text-[var(--to-text-primary)] tabular-nums">
-            ${account.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            {account.balance != null ? `$${account.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}
           </span>
         </div>
 

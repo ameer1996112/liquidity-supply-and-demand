@@ -560,8 +560,8 @@ export interface AccountDetailApi {
   account_name: string;
   account_number?: string;
   account_type?: string;
-  balance: number;
-  equity: number;
+  balance: number | null;
+  equity: number | null;
   margin_used: number;
   margin_free: number;
   free_margin?: number;

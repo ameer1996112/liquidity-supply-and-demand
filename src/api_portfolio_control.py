@@ -1902,6 +1902,7 @@ def get_trade_history(
         db_trades_data = list(db_result.data or [])
 
         # If no trades found by account_name, try broker_profile_id fallback for legacy trades
+        # (legacy trades were stored with account_name=NULL or account_name='default')
         if len(db_trades_data) == 0:
             account_query = sb.table("account_strategies").select("broker_profile_id").eq("account_name", account_name).limit(1).execute()
             if account_query.data and account_query.data[0].get("broker_profile_id"):
@@ -1910,7 +1911,6 @@ def get_trade_history(
                     sb.table("trading_signals")
                     .select("*")
                     .eq("broker_profile_id", broker_profile_id)
-                    .is_("account_name", "null")
                     .not_.is_("exit_price", "null")
                     .not_.is_("pnl_usd", "null")
                 )
@@ -1986,12 +1986,11 @@ def get_trade_history(
         # ======================================================================
         metaapi_trades = []
 
-        # Get account's broker profile
+        # Get account's broker profile (include archived accounts so history still works)
         account_query = (
             sb.table("account_strategies")
             .select("*, broker_profiles(*)")
             .eq("account_name", account_name)
-            .eq("is_active", True)
             .limit(1)
         )
         account_result = account_query.execute()

@@ -39,12 +39,12 @@ export function EnhancedAccountCard({
   const dailyPositive = (account.daily_pnl ?? 0) >= 0;
   const winRatePct = toPercentFromRatioOrPercent(account.win_rate).toFixed(1);
   const isPaused = account.pause_trading ?? false;
-  const equity = account.equity || account.balance;
+  const equity = account.equity ?? account.balance;
   const equityDiffPct =
-    account.balance > 0
+    account.balance != null && account.balance > 0 && equity != null
       ? (((equity - account.balance) / account.balance) * 100).toFixed(2)
       : '0.00';
-  const equityDiffPositive = equity >= account.balance;
+  const equityDiffPositive = equity != null && account.balance != null ? equity >= account.balance : true;
 
   const avgRR =
     account.avg_win_usd && account.avg_loss_usd && account.avg_loss_usd > 0
@@ -118,7 +118,7 @@ export function EnhancedAccountCard({
             <span className='text-[10px] text-[var(--to-text-dim)] font-mono'>Balance</span>
           </div>
           <span className='font-mono text-lg font-bold text-zinc-50 tabular-nums tracking-tight'>
-            ${account.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            {account.balance != null ? `$${account.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}
           </span>
         </div>
 
@@ -126,7 +126,7 @@ export function EnhancedAccountCard({
           <span className='text-[10px] text-[var(--to-text-dim)] font-mono ml-[18px]'>Equity</span>
           <div className='flex items-baseline gap-2'>
             <span className='font-mono text-xs text-[var(--to-text-dim)] tabular-nums'>
-              ${equity.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              {equity != null ? `$${equity.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}
             </span>
             <span
               className={cn(

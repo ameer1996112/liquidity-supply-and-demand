@@ -170,23 +170,18 @@ export default function AccountDetailPage() {
                 <div className='flex items-center gap-2'>
                   <span className='text-xs text-[var(--to-text-dim)]'>Balance:</span>
                   <span className='font-mono font-semibold text-[var(--to-text-primary)]'>
-                    $
-                    {account.balance.toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                    })}
+                    {account.balance != null
+                      ? `$${account.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+                      : '—'}
                   </span>
                 </div>
                 <div className='h-3 w-px bg-[var(--to-border)]'></div>
                 <div className='flex items-center gap-2'>
                   <span className='text-xs text-[var(--to-text-dim)]'>Equity:</span>
                   <span className='font-mono font-semibold text-[var(--to-text-primary)]'>
-                    $
-                    {account.equity?.toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                    }) ||
-                      account.balance.toLocaleString(undefined, {
-                        minimumFractionDigits: 2,
-                      })}
+                    {(account.equity ?? account.balance) != null
+                      ? `$${(account.equity ?? account.balance)!.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+                      : '—'}
                   </span>
                 </div>
                 <div className='h-3 w-px bg-[var(--to-border)]'></div>
@@ -194,16 +189,16 @@ export default function AccountDetailPage() {
                   <span className='text-xs text-[var(--to-text-dim)]'>Today:</span>
                   <span
                     className={`font-mono font-semibold ${
-                      account.daily_pnl >= 0
+                      (account.daily_pnl ?? 0) >= 0
                         ? 'text-[var(--to-long)]'
                         : 'text-[var(--to-short)]'
                     }`}
                   >
-                    {account.daily_pnl >= 0 ? '+' : ''}$
-                    {account.daily_pnl.toFixed(2)}
+                    {(account.daily_pnl ?? 0) >= 0 ? '+' : ''}$
+                    {(account.daily_pnl ?? 0).toFixed(2)}
                     <span className='ml-1 text-xs opacity-80'>
-                      ({account.daily_pnl >= 0 ? '+' : ''}
-                      {account.daily_pnl_pct.toFixed(2)}%)
+                      ({(account.daily_pnl ?? 0) >= 0 ? '+' : ''}
+                      {(account.daily_pnl_pct ?? 0).toFixed(2)}%)
                     </span>
                   </span>
                 </div>

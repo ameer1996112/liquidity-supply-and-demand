@@ -219,19 +219,14 @@ export function AccountsTable({ accounts, onDelete }: AccountsTableProps) {
 
                   {/* Balance */}
                   <td className='px-4 py-3 text-right font-mono text-xs text-[var(--to-text-primary)]'>
-                    $
-                    {account.balance.toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                    })}
+                    {account.balance != null ? `$${account.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}
                   </td>
 
                   {/* Equity */}
                   <td className='px-4 py-3 text-right font-mono text-xs text-[var(--to-text-secondary)]'>
-                    $
-                    {(account.equity || account.balance).toLocaleString(
-                      undefined,
-                      { minimumFractionDigits: 2 }
-                    )}
+                    {(account.equity ?? account.balance) != null
+                      ? `$${(account.equity ?? account.balance)!.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+                      : '—'}
                   </td>
 
                   {/* Today P&L */}

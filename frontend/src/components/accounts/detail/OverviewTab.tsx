@@ -29,16 +29,16 @@ export function OverviewTab({ account }: OverviewTabProps) {
         <div className='grid grid-cols-2 md:grid-cols-4 gap-4'>
           <MetricCard
             label='Balance'
-            value={`$${account.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+            value={account.balance != null ? `$${account.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}
             valueColor='text-[var(--to-text-primary)]'
           />
           <MetricCard
             label='Equity'
-            value={`$${(account.equity || account.balance).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+            value={(account.equity ?? account.balance) != null ? `$${(account.equity ?? account.balance)!.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '—'}
             valueColor={
-              account.equity && account.equity >= account.balance
+              account.equity != null && account.balance != null && account.equity >= account.balance
                 ? 'text-[#26a69a]'
-                : account.equity && account.equity < account.balance
+                : account.equity != null && account.balance != null && account.equity < account.balance
                   ? 'text-[#ef5350]'
                   : 'text-[var(--to-text-primary)]'
             }

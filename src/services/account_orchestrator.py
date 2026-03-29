@@ -660,9 +660,19 @@ class AccountOrchestrator:
             def _build_archived_entry(account_name, account_row=None):
                 """Build a minimal entry for archived/orphaned accounts with trade history only."""
                 try:
+                    # Query by account_name first
                     trades = self.client.table("trading_signals").select(
                         "pnl_usd, outcome, created_at"
                     ).eq("account_name", account_name).not_.is_("pnl_usd", "null").execute().data or []
+
+                    # If no trades found by account_name, try broker_profile_id fallback
+                    if not trades and account_row and account_row.get("broker_profile_id"):
+                        broker_profile_id = account_row["broker_profile_id"]
+                        fallback = self.client.table("trading_signals").select(
+                            "pnl_usd, outcome, created_at"
+                        ).eq("broker_profile_id", broker_profile_id).not_.is_("pnl_usd", "null").execute().data or []
+                        trades = fallback
+
                     total_trades = len(trades)
                     wins = [float(t["pnl_usd"]) for t in trades if t.get("outcome") == "win" and t.get("pnl_usd")]
                     losses = [abs(float(t["pnl_usd"])) for t in trades if t.get("outcome") == "loss" and t.get("pnl_usd")]
@@ -671,7 +681,6 @@ class AccountOrchestrator:
                     total_trades = 0
                     wins = []
                     losses = []
-                    total_pnl = 0.0
                     win_rate = 0.0
                 return {
                     "account_name": account_name,
