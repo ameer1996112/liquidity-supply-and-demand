@@ -31,6 +31,7 @@ export default function DashboardPage() {
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [showLog, setShowLog] = useState(false);
+  // Which account row is selected in the strip — filters the signal table
   const [signalAccountFilter, setSignalAccountFilter] = useState<string | undefined>(undefined);
 
   useEffect(() => { setMounted(true); }, []);
@@ -45,7 +46,9 @@ export default function DashboardPage() {
 
   const { data: dashboardSummary, isLoading: summaryLoading } = useDashboardSummary();
   const { data: accounts = [], isLoading: accountsLoading } = useAccountsComparison();
-  const { data: signals = [], isLoading: signalsLoading } = useTradingSignals(signalMode, broker_profile_id);
+  // Fetch signals for ALL accounts (no broker_profile_id filter) so every account's
+  // signals appear in the table. The AccountStrip handles per-account filtering client-side.
+  const { data: signals = [], isLoading: signalsLoading } = useTradingSignals(signalMode);
   const { data: positionsData, isLoading: positionsLoading } = useActivePositions();
 
   const signalIds = useMemo(() => signals.map((s) => s.id), [signals]);
@@ -58,6 +61,16 @@ export default function DashboardPage() {
     }
     return map;
   }, [positionsData]);
+
+  // Signal count per account — shown as badges in the AccountStrip
+  const signalCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const s of signals) {
+      const name = (s as any).account_name;
+      if (name) counts[name] = (counts[name] ?? 0) + 1;
+    }
+    return counts;
+  }, [signals]);
 
   // Keep for log
   void useSignalStats(broker_profile_id);
@@ -91,10 +104,16 @@ export default function DashboardPage() {
         <PageStatusBanner status={status} surfaceLabel='Dashboard' />
         <MarketSessionBanner />
 
-        {/* ── Account strip ── */}
+        {/* ── Account strip — click a row to filter signals below ── */}
         <section>
           <p className='kpi-meta mb-2'>Accounts</p>
-          <AccountStrip accounts={accounts} isLoading={accountsLoading} />
+          <AccountStrip
+            accounts={accounts}
+            isLoading={accountsLoading}
+            activeAccount={signalAccountFilter}
+            onAccountSelect={setSignalAccountFilter}
+            signalCounts={signalCounts}
+          />
         </section>
 
         {/* ── Open positions ── */}
