@@ -4,8 +4,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import {
-  Radio,
-  FlaskConical,
   Power,
   Clock,
   Activity,
@@ -261,7 +259,7 @@ export function TopBar() {
   const pathname = usePathname();
   const { section, title } = derivePageMeta(pathname);
 
-  const { mode, setMode } = useTradingMode();
+  const { mode } = useTradingMode();
   const { data: risk } = useRiskStatus();
   const { data: stats } = useSignalStats();
   const killMutation = useKillSwitchMutation();
@@ -487,40 +485,6 @@ export function TopBar() {
 
         {/* Action Pills */}
         <div className='flex items-center gap-1.5 bg-[#09090b] border border-white/5 p-1 rounded-xl shadow-inner shrink-0 whitespace-nowrap'>
-          {/* Mode Switcher */}
-          <div className='flex items-center bg-black/50 rounded-lg p-0.5 border border-white/5'>
-            <button
-              onClick={() => setMode('LIVE')}
-              className={cn(
-                'flex items-center gap-1.5 rounded-md px-3 py-1.5 transition-all outline-none',
-                mode === 'LIVE'
-                  ? 'bg-[#0ecb81]/15 text-[#0ecb81] shadow-[0_0_10px_rgba(14,203,129,0.15)] ring-1 ring-[#0ecb81]/30'
-                  : 'text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]'
-              )}
-            >
-              <Radio className='h-3.5 w-3.5' />
-              <span className='text-[10px] font-bold uppercase tracking-widest font-mono'>
-                Live
-              </span>
-            </button>
-            <button
-              onClick={() => setMode('PAPER')}
-              className={cn(
-                'flex items-center gap-1.5 rounded-md px-3 py-1.5 transition-all outline-none',
-                mode === 'PAPER'
-                  ? 'bg-amber-500/15 text-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.15)] ring-1 ring-amber-500/30'
-                  : 'text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]'
-              )}
-            >
-              <FlaskConical className='h-3.5 w-3.5' />
-              <span className='text-[10px] font-bold uppercase tracking-widest font-mono'>
-                Paper
-              </span>
-            </button>
-          </div>
-
-          <div className='w-px h-6 bg-white/10 mx-1' />
-
           <button
             onClick={toggleMarket}
             className={cn(
