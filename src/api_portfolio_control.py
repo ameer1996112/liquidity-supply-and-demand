@@ -1886,8 +1886,8 @@ def get_trade_history(
             sb.table("trading_signals")
             .select("*")
             .eq("account_name", account_name)
+            .in_("status", ["closed", "executed", "CLOSED", "EXECUTED"])
             .not_.is_("exit_price", "null")
-            .not_.is_("pnl_usd", "null")
         )
 
         # Date range filter
@@ -1912,8 +1912,8 @@ def get_trade_history(
                     .select("*")
                     .eq("broker_profile_id", broker_profile_id)
                     .is_("account_name", "null")
+                    .in_("status", ["closed", "executed", "CLOSED", "EXECUTED"])
                     .not_.is_("exit_price", "null")
-                    .not_.is_("pnl_usd", "null")
                 )
                 if cutoff_time:
                     fallback_query = fallback_query.gte("exit_time", cutoff_time.isoformat())
