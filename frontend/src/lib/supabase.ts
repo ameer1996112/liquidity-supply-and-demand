@@ -98,6 +98,24 @@ export async function fetchSignals(
   );
 }
 
+export interface BrokerProfile {
+  id: number;
+  name: string;
+}
+
+export async function fetchBrokerProfiles(): Promise<BrokerProfile[]> {
+  if (!supabase) return [];
+  const { data, error } = await supabase
+    .from('broker_profiles')
+    .select('id, name')
+    .eq('is_active', true);
+  if (error) {
+    console.error('Error fetching broker profiles:', error);
+    return [];
+  }
+  return (data || []) as BrokerProfile[];
+}
+
 export async function fetchSignalStats(
   options: { broker_profile_id?: number | null } = {}
 ): Promise<SignalStats> {
