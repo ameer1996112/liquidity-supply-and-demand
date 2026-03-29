@@ -1917,9 +1917,17 @@ def get_trade_history(
         # Always also fetch legacy trades stored with account_name=NULL but matching broker_profile_id.
         # The original guard `if len == 0` caused mixed accounts (some trades with account_name set,
         # some legacy trades without) to drop all legacy rows.
+        broker_profile_id = None
         account_query = sb.table("account_strategies").select("broker_profile_id").eq("account_name", account_name).limit(1).execute()
         if account_query.data and account_query.data[0].get("broker_profile_id"):
             broker_profile_id = account_query.data[0]["broker_profile_id"]
+        else:
+            # Fallback for orphaned/archived accounts not in account_strategies:
+            signal_query = sb.table("trading_signals").select("broker_profile_id").eq("account_name", account_name).not_.is_("broker_profile_id", "null").order("created_at", desc=True).limit(1).execute()
+            if signal_query.data and signal_query.data[0].get("broker_profile_id"):
+                broker_profile_id = signal_query.data[0]["broker_profile_id"]
+
+        if broker_profile_id:
             fallback_query = (
                 sb.table("trading_signals")
                 .select("*")
@@ -2033,6 +2041,7 @@ def get_trade_history(
         metaapi_trades = []
 
         # Get account's broker profile (include archived accounts so history still works)
+        broker_profile = None
         account_query = (
             sb.table("account_strategies")
             .select("*, broker_profiles(*)")
@@ -2044,8 +2053,13 @@ def get_trade_history(
         if account_result.data and len(account_result.data) > 0:
             account = account_result.data[0]
             broker_profile = account.get("broker_profiles")
+        elif broker_profile_id:
+            # Orphaned account fallback: fetch broker profile directly using the inferred ID
+            bp_query = sb.table("broker_profiles").select("*").eq("id", broker_profile_id).limit(1).execute()
+            if bp_query.data and len(bp_query.data) > 0:
+                broker_profile = bp_query.data[0]
 
-            if broker_profile and broker_profile.get("meta_api_account_id"):
+        if broker_profile and broker_profile.get("meta_api_account_id"):
                 try:
                     # Get MetaAPI credentials
                     import os
