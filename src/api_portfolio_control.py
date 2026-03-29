@@ -1887,7 +1887,6 @@ def get_trade_history(
             .select("*")
             .eq("account_name", account_name)
             .in_("status", ["closed", "executed", "CLOSED", "EXECUTED"])
-            .not_.is_("pnl_usd", "null")
         )
 
         # Date range filter — use exit_time; fall back to closed_at for older rows where exit_time is NULL
@@ -1916,7 +1915,6 @@ def get_trade_history(
                     .eq("broker_profile_id", broker_profile_id)
                     .is_("account_name", "null")
                     .in_("status", ["closed", "executed", "CLOSED", "EXECUTED"])
-                    .not_.is_("pnl_usd", "null")
                 )
                 if cutoff_time:
                     cutoff_iso = cutoff_time.isoformat()
@@ -1933,15 +1931,12 @@ def get_trade_history(
         db_fingerprints = set()  # Fallback dedup: symbol+exit_minute+rounded_pnl
 
         for trade in db_trades_data:
-            # Calculate R multiple if possible
+            # Calculate R multiple — prefer stored values over formula
             r_multiple = None
             if trade.get("realized_r_multiple") is not None:
                 r_multiple = float(trade.get("realized_r_multiple"))
-            elif trade.get("pnl_usd") and trade.get("entry") and trade.get("sl"):
-                risk_pips = abs(float(trade.get("entry")) - float(trade.get("sl")))
-                risk_usd = risk_pips * float(trade.get("size", 0.01)) * 100000 * 0.0001
-                if risk_usd > 0:
-                    r_multiple = float(trade.get("pnl_usd")) / risk_usd
+            elif trade.get("pnl_r") is not None:
+                r_multiple = float(trade.get("pnl_r"))
 
             # Gross profit = net pnl_usd minus commission/swap (matches MetaTrader "Profit" column)
             net_pnl_usd = float(trade.get("pnl_usd", 0))
