@@ -80,7 +80,9 @@ export default function DashboardPage() {
   // Archived accounts (deleted from account_strategies) appear with minimal info
   // so the AccountStrip still shows them and their signal count badges.
   const allAccountsForStrip = useMemo(() => {
-    const liveNames = new Set(accounts.map((a) => a.account_name));
+    // Drop accounts that were explicitly archived in the DB (Paper, old ACG-DEMO, etc.)
+    const liveAccounts = accounts.filter((a) => !a.is_archived && a.status !== 'archived');
+    const liveNames = new Set(liveAccounts.map((a) => a.account_name));
     const archivedEntries = signalAccountNames
       .filter((name) => !liveNames.has(name))
       .map((name) => ({
@@ -93,7 +95,7 @@ export default function DashboardPage() {
         daily_pnl: undefined,
         daily_pnl_pct: undefined,
       }));
-    return [...accounts, ...(archivedEntries as any[])];
+    return [...liveAccounts, ...(archivedEntries as any[])];
   }, [accounts, signalAccountNames]);
 
   // Keep for log
