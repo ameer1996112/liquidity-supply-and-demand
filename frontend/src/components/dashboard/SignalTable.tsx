@@ -243,9 +243,36 @@ function CouncilBadge({ summary }: { summary: CouncilSummary | undefined }) {
 
   const isAllow = summary.recommendation === 'allow';
   const conf = summary.confidence;
+  const voteEntries = Object.entries(summary.votes || {});
+  const hasVotes = voteEntries.length > 0;
+
+  // No votes = fallback / council skipped / Risk Judge parse failed
+  // The backend emits confidence=50 + votes={} in all skip paths.
+  if (!hasVotes) {
+    return (
+      <div
+        className='inline-flex items-center justify-end gap-1'
+        title='Council skipped or timed out — no vote detail available'
+      >
+        <Brain className='h-3 w-3 shrink-0 text-[var(--to-text-dim)]/30' strokeWidth={1.5} />
+        <span
+          className='font-mono text-[10px] tabular-nums text-[var(--to-text-dim)]/50'
+          style={{ fontFamily: 'var(--font-mono)' }}
+        >
+          {conf}%
+        </span>
+        <span
+          className='font-mono text-[8px] text-[var(--to-text-dim)]/35 uppercase tracking-wider'
+          style={{ fontFamily: 'var(--font-mono)' }}
+        >
+          skip
+        </span>
+      </div>
+    );
+  }
+
   const confColor =
     conf >= 70 ? 'text-[var(--to-long)]' : conf >= 50 ? 'text-[var(--to-warning)]' : 'text-[var(--to-short)]';
-  const voteEntries = Object.entries(summary.votes || {});
   const allowCount = voteEntries.filter(([, v]) => v === 'allow').length;
   const blockCount = voteEntries.filter(([, v]) => v === 'block').length;
 
@@ -261,14 +288,12 @@ function CouncilBadge({ summary }: { summary: CouncilSummary | undefined }) {
       >
         {conf}%
       </span>
-      {voteEntries.length > 0 && (
-        <span
-          className='font-mono text-[9px] tabular-nums text-[var(--to-text-dim)]/60'
-          style={{ fontFamily: 'var(--font-mono)' }}
-        >
-          {allowCount}✓{blockCount}✗
-        </span>
-      )}
+      <span
+        className='font-mono text-[9px] tabular-nums text-[var(--to-text-dim)]/60'
+        style={{ fontFamily: 'var(--font-mono)' }}
+      >
+        {allowCount}✓{blockCount}✗
+      </span>
     </div>
   );
 }
