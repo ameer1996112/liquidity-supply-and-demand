@@ -36,12 +36,16 @@ export default function DashboardPage() {
   useEffect(() => { setMounted(true); }, []);
 
   const { mode: activeMode } = useTradingMode();
-  const { broker_profile_id } = useActiveAccount();
+  const { broker_profile_id, activeProfile } = useActiveAccount();
   const { status, isConnected } = useConnectionHealth();
+
+  // When a specific account is active, use its run_mode so PAPER accounts show their signals.
+  // Fallback to the manually selected activeMode when no account is selected.
+  const signalMode = (activeProfile?.run_mode as typeof activeMode | undefined) ?? activeMode;
 
   const { data: dashboardSummary, isLoading: summaryLoading } = useDashboardSummary();
   const { data: accounts = [], isLoading: accountsLoading } = useAccountsComparison();
-  const { data: signals = [], isLoading: signalsLoading } = useTradingSignals(activeMode, broker_profile_id);
+  const { data: signals = [], isLoading: signalsLoading } = useTradingSignals(signalMode, broker_profile_id);
   const { data: positionsData, isLoading: positionsLoading } = useActivePositions();
 
   const signalIds = useMemo(() => signals.map((s) => s.id), [signals]);
