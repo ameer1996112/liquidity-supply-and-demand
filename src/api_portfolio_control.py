@@ -1911,6 +1911,7 @@ def get_trade_history(
                     sb.table("trading_signals")
                     .select("*")
                     .eq("broker_profile_id", broker_profile_id)
+                    .is_("account_name", "null")
                     .not_.is_("exit_price", "null")
                     .not_.is_("pnl_usd", "null")
                 )
