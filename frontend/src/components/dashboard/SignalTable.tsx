@@ -541,6 +541,21 @@ export function SignalTable({
       },
     },
     {
+      id: 'council',
+      align: 'right',
+      isNumeric: true,
+      width: 'w-[80px]',
+      header: (
+        <span className='inline-flex items-center justify-end gap-1 w-full'>
+          <Brain className='h-2.5 w-2.5 opacity-60' strokeWidth={1.5} />
+          <span>Council</span>
+        </span>
+      ),
+      render: safeRender('council', (signal) => (
+        <CouncilBadge summary={councilMap[String(signal.id)]} />
+      )),
+    },
+    {
       id: 'status',
       align: 'left',
       width: 'w-[80px]',
