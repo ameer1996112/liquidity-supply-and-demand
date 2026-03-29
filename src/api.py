@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import re
+import time
 import uuid
 from typing import Any
 
@@ -39,6 +40,38 @@ from src.core.signal import validate_webhook_payload
 
 configure_logging()
 logger = get_logger("trinity.api")
+
+# ── System trading mode cache ────────────────────────────────────────────────
+# Loaded from system_config table, cached for 30 seconds to avoid DB hit on
+# every incoming webhook signal.
+_system_mode_cache: dict = {"value": None, "loaded_at": 0.0}
+_SYSTEM_MODE_CACHE_TTL = 30  # seconds
+
+
+def _get_system_trading_mode() -> str:
+    """Return the current system-level trading mode, using a 30s in-memory cache."""
+    now = time.time()
+    if now - _system_mode_cache["loaded_at"] < _SYSTEM_MODE_CACHE_TTL and _system_mode_cache["value"]:
+        return _system_mode_cache["value"]
+    try:
+        from src.adapters.supabase_api import get_api_supabase as _get_supabase
+        sb = _get_supabase()
+        result = (
+            sb.table("system_config")
+            .select("value")
+            .eq("key", "trading_mode")
+            .single()
+            .execute()
+        )
+        mode = result.data["value"] if result.data else "PAPER"
+    except Exception as e:
+        logger.warning(f"Could not load system trading mode from DB, using fallback: {e}")
+        from config.settings import get_settings
+        mode = get_settings().run_mode or "PAPER"
+    _system_mode_cache["value"] = mode
+    _system_mode_cache["loaded_at"] = now
+    logger.debug(f"System trading mode loaded: {mode}")
+    return mode
 
 
 def _build_cors_origins() -> list[str]:
@@ -83,6 +116,7 @@ from src.api_webhook_read import router as webhook_read_router  # E2E: signals/r
 from src.api_copilot import router as copilot_router           # AI Copilot: natural language queries
 from src.api_market import router as market_router             # Market data proxy (Yahoo Finance CORS bypass)
 from src.api_funding import router as funding_router           # Funding: daily PnL and stats for prop firm UI
+from src.api_config import router as config_router             # System config: trading mode control
 from src.api_tickets import router as tickets_router           # Ticket tracker: Jira-style task/bug board
 from src.api_incidents import router as incidents_router       # Incident auto-tickets: worker errors, test failures, ML drift
 from src.api_agent_status import router as agent_status_router # v1.2: UI-02: Agent operational state
@@ -132,6 +166,7 @@ app.include_router(webhook_read_router)  # E2E: /api/v1/webhook/signals/recent, 
 app.include_router(copilot_router)       # AI Copilot: /api/copilot/chat
 app.include_router(market_router)         # Market data proxy: /api/market/*
 app.include_router(funding_router)        # Funding: /api/v1/funding/daily-pnl, stats
+app.include_router(config_router)         # System config: /api/v1/config/trading-mode
 app.include_router(tickets_router)        # Ticket tracker: /api/tickets
 app.include_router(incidents_router)      # Incident auto-tickets: /api/incidents
 app.include_router(agent_status_router)   # v1.2: Agent status: /api/agent/status
@@ -685,19 +720,13 @@ async def webhook(request: Request, payload: dict[str, Any] = Depends(get_webhoo
     user_agent = request.headers.get("User-Agent", "")
     is_tradingview = "TradingView" in user_agent  # kept for logging only
 
-    # We ignore the explicit payload "run_mode" because the Pine Script
-    # (SND_Utils) hardcodes `"run_mode":"PAPER"` in its webhook payload.
-    # Instead, we rely entirely on 'force_paper' for manual overrides.
-    if payload.get("force_paper"):
-        payload["run_mode"] = "PAPER"
-        payload["_signal_source"] = "manual"
-        logger.info("Run-mode: PAPER (force_paper=true in payload)")
-    else:
-        # Default: this endpoint is protected by webhook secret and is called by
-        # TradingView in production → LIVE.
-        payload["run_mode"] = "LIVE"
-        payload["_signal_source"] = "tradingview" if is_tradingview else "webhook"
-        logger.info("Run-mode: LIVE (default, ignoring Pine payload, UA=%s)", user_agent[:60] or "<empty>")
+    # System-level trading mode: loaded from system_config DB table (cached 30s).
+    # This is the single authoritative source of truth — Pine Script's hardcoded
+    # "run_mode":"PAPER" is always ignored in favour of the operator-controlled mode.
+    system_mode = _get_system_trading_mode()
+    payload["run_mode"] = system_mode
+    payload["_signal_source"] = "tradingview" if is_tradingview else "webhook"
+    logger.info("Run-mode: %s (system config, UA=%s)", system_mode, user_agent[:60] or "<empty>")
 
     symbol = payload.get("symbol", payload.get("zone_id", "N/A"))
     run_mode = payload["run_mode"]

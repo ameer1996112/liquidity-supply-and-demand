@@ -19,16 +19,96 @@ import {
   SlidersHorizontal,
   Bell,
   Trophy,
+  FlaskConical,
+  Zap,
+  EyeOff,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSidebar } from '@/providers/SidebarProvider';
 import { useConnectionHealth } from '@/hooks/useConnectionHealth';
+import { useTradingMode, type TradingMode } from '@/hooks/useTradingMode';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+
+const MODE_CONFIG: Record<TradingMode, { label: string; icon: typeof FlaskConical; color: string; bg: string; border: string }> = {
+  PAPER:   { label: 'Paper',   icon: FlaskConical, color: 'var(--to-warning)', bg: 'var(--to-warning)', border: 'var(--to-warning)' },
+  LIVE:    { label: 'Live',    icon: Zap,          color: 'var(--to-long)',    bg: 'var(--to-long)',    border: 'var(--to-long)'    },
+  DRY_RUN: { label: 'Dry Run', icon: EyeOff,       color: 'var(--to-text-dim)', bg: 'var(--to-text-dim)', border: 'var(--to-text-dim)' },
+};
+
+const MODES: TradingMode[] = ['PAPER', 'LIVE', 'DRY_RUN'];
+
+/** Trading mode toggle — controls the system-level run mode (PAPER/LIVE/DRY_RUN). */
+function TradingModeToggle({ collapsed }: { collapsed: boolean }) {
+  const { mode, isSaving, setMode } = useTradingMode();
+  const active = MODE_CONFIG[mode] ?? MODE_CONFIG.PAPER;
+  const ActiveIcon = active.icon;
+
+  if (collapsed) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div
+            className='mx-auto flex h-7 w-7 items-center justify-center rounded-lg cursor-default'
+            style={{ background: `${active.bg}18`, border: `1px solid ${active.border}30` }}
+          >
+            <ActiveIcon className='h-3.5 w-3.5' style={{ color: active.color }} />
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side='right' sideOffset={8}>
+          Mode: {active.label}
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  return (
+    <div className='mx-1 mb-1 rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)]/50 px-2 py-1.5'>
+      <div
+        className='mb-1.5 text-[9px] uppercase tracking-[0.2em] text-[var(--to-text-dim)]'
+        style={{ fontFamily: 'var(--font-mono)' }}
+      >
+        Mode
+      </div>
+      <div className='flex gap-1'>
+        {MODES.map((m) => {
+          const cfg = MODE_CONFIG[m];
+          const Icon = cfg.icon;
+          const isActive = mode === m;
+          return (
+            <button
+              key={m}
+              disabled={isSaving}
+              onClick={() => setMode(m)}
+              className={cn(
+                'flex flex-1 items-center justify-center gap-1 rounded-md py-1 text-[10px] font-medium transition-all duration-150',
+                isActive
+                  ? 'opacity-100'
+                  : 'opacity-40 hover:opacity-70'
+              )}
+              style={isActive ? {
+                background: `${cfg.bg}18`,
+                border: `1px solid ${cfg.border}40`,
+                color: cfg.color,
+              } : {
+                background: 'transparent',
+                border: '1px solid transparent',
+                color: 'var(--to-text-dim)',
+              }}
+            >
+              <Icon className='h-3 w-3 shrink-0' />
+              {cfg.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 /** Small connection status pill shown at the bottom of the sidebar. */
 function ConnectionPill() {
@@ -252,6 +332,8 @@ export function Sidebar() {
 
         {/* ── Footer ───────────────────────────────────────────────── */}
         <div className='border-t border-[var(--to-border)] px-2 pb-3 pt-2 space-y-1'>
+          {/* Trading mode toggle */}
+          <TradingModeToggle collapsed={isCollapsed} />
           {/* Connection status pill */}
           {!isCollapsed && <ConnectionPill />}
 
