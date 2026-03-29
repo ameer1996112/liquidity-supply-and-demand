@@ -675,14 +675,26 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
             except Exception:
                 pass  # fail-open
 
-    # --- Trading hours (UTC) ---
-    if s.pine_trading_start_hour != 0 or s.pine_trading_end_hour != 23:
+    # --- Trading hours (local timezone, auto-DST) ---
+    start_local = getattr(s, "pine_trading_start_hour_local", s.pine_trading_start_hour)
+    end_local = getattr(s, "pine_trading_end_hour_local", s.pine_trading_end_hour)
+    tz_name = getattr(s, "pine_trading_timezone", "UTC")
+    if start_local != 0 or end_local != 23:
         bar_time = payload.get("bar_time")
         if bar_time and isinstance(bar_time, str):
             try:
-                dt = _parse_dt(bar_time)
-                if dt.hour < s.pine_trading_start_hour or dt.hour >= s.pine_trading_end_hour:
-                    return f"Outside trading hours: hour={dt.hour} (allowed {s.pine_trading_start_hour}-{s.pine_trading_end_hour} UTC)"
+                import pytz as _pytz
+                dt_utc = _parse_dt(bar_time)
+                if dt_utc.tzinfo is None:
+                    from datetime import timezone as _tz
+                    dt_utc = dt_utc.replace(tzinfo=_tz.utc)
+                local_tz = _pytz.timezone(tz_name)
+                dt_local = dt_utc.astimezone(local_tz)
+                if dt_local.hour < start_local or dt_local.hour >= end_local:
+                    return (
+                        f"Outside trading hours: local_hour={dt_local.hour} {tz_name} "
+                        f"(allowed {start_local}:00-{end_local}:00)"
+                    )
             except Exception:
                 pass  # fail-open
 

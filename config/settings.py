@@ -288,8 +288,11 @@ class Settings(BaseSettings):
     pine_require_liq_swept: bool = Field(default=True, description="Require liquidity swept before entry (core S&D rule).")
     pine_min_departure_strength: float = Field(default=40.0, ge=0.0, le=100.0, description="Min departure strength (arrival rule). <40=compressed=reject.")
     pine_block_dead_zone: bool = Field(default=True, description="Block entries in last 10 min of each hour (xx:50-xx:00).")
-    pine_trading_start_hour: int = Field(default=7, ge=0, le=23, description="Trading start hour (UTC). 7=default.")
-    pine_trading_end_hour: int = Field(default=22, ge=0, le=23, description="Trading end hour (UTC). 22=default.")
+    pine_trading_start_hour: int = Field(default=7, ge=0, le=23, description="[Deprecated: use pine_trading_start_hour_local] Trading start hour (UTC). Kept for backward compat.")
+    pine_trading_end_hour: int = Field(default=22, ge=0, le=23, description="[Deprecated: use pine_trading_end_hour_local] Trading end hour (UTC). Kept for backward compat.")
+    pine_trading_timezone: str = Field(default="Asia/Jerusalem", description="Timezone for trading hour interpretation. Default: Asia/Jerusalem (Israel, auto-DST). Env: PINE_TRADING_TIMEZONE.")
+    pine_trading_start_hour_local: int = Field(default=7, ge=0, le=23, description="Trading start hour in local timezone (pine_trading_timezone). 7=07:00 Israel. Env: PINE_TRADING_START_HOUR_LOCAL.")
+    pine_trading_end_hour_local: int = Field(default=22, ge=0, le=23, description="Trading end hour in local timezone (pine_trading_timezone). 22=22:00 Israel. Env: PINE_TRADING_END_HOUR_LOCAL.")
     pine_max_trades_per_day: int = Field(default=0, ge=0, le=20, description="Legacy static daily trade cap (0=use adaptive system). Env: PINE_MAX_TRADES_PER_DAY.")
 
     # ── Adaptive Daily Trade Limit (v2 multi-dimensional) ─────────────────
