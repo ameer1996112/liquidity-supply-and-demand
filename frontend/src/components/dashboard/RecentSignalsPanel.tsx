@@ -12,7 +12,6 @@ import {
 import { isSignalOpen } from '@/domain/metrics/tradingMetrics';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { PnLDisplay } from '@/components/shared/PnLDisplay';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Popover,
@@ -330,8 +329,7 @@ export function RecentSignalsPanel({
         ))}
       </div>
 
-      <div className='min-h-0 flex-1 overflow-hidden'>
-        <ScrollArea className='h-full'>
+      <div className='min-h-0 flex-1 overflow-y-auto'>
           {isLoading ? (
             <div className='space-y-1 p-2'>
               {[...Array(6)].map((_, i) => (
@@ -367,7 +365,6 @@ export function RecentSignalsPanel({
               ))}
             </div>
           )}
-        </ScrollArea>
       </div>
 
       {!isLoading && filtered.length > PAGE_SIZE && (
@@ -415,7 +412,7 @@ export function RecentSignalsPanel({
             </SheetHeader>
 
             {selectedSignal && (
-              <ScrollArea className='h-[calc(100vh-88px)]'>
+              <div className='h-[calc(100vh-88px)] overflow-y-auto'>
                 <div className='space-y-5 px-5 py-4 text-sm text-[var(--to-text-primary)]'>
                   <div className='rounded-lg border border-[var(--to-border)] bg-[var(--to-surface)]/40 p-3'>
                     <div className='flex flex-wrap items-center justify-between gap-3'>
@@ -499,7 +496,7 @@ export function RecentSignalsPanel({
                     </p>
                   </div>
                 </div>
-              </ScrollArea>
+              </div>
             )}
           </SheetContent>
         </Sheet>
