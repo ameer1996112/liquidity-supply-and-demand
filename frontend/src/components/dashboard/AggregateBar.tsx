@@ -12,7 +12,7 @@ interface AggregateBarProps {
 }
 
 export function AggregateBar({ summary, isLoading, isConnected }: AggregateBarProps) {
-  const totalPnl = summary?.total_pnl_today ?? 0;
+  const totalPnl = summary?.total_pnl_all_time ?? 0;
   const pnlPositive = totalPnl >= 0;
   const connectedCount = summary?.accounts.filter(a => a.connection_status === 'connected').length ?? 0;
   const totalAccounts = summary?.accounts.length ?? 0;

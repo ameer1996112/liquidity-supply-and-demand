@@ -1,10 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
+import { apiFetch } from '@/lib/api'
 import type { DashboardSummary } from '@/types/trading'
 
 async function fetchDashboardSummary(): Promise<DashboardSummary> {
-  const res = await fetch('/api/v1/dashboard/summary')
-  if (!res.ok) throw new Error('Failed to fetch dashboard summary')
-  return res.json()
+  return apiFetch<DashboardSummary>('/api/v1/dashboard/summary')
 }
 
 export function useDashboardSummary() {
