@@ -328,6 +328,7 @@ export function normalizeSignal(
     close_broker_order_id: raw.close_broker_order_id,
     account_name: raw.account_name ?? null,
     closed_at: raw.closed_at,
+    opened_at: raw.opened_at,
     exit_price: raw.exit_price,
     exit_type: raw.exit_type,
     signal_action: normalizedSignalAction,
