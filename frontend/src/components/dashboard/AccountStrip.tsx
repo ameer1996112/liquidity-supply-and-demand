@@ -96,53 +96,6 @@ function EquityBar({ balance, equity }: { balance: number | null; equity: number
   );
 }
 
-// ─── archived chip (compact — replaces full card for archived accounts) ─────
-
-function ArchivedChip({
-  account,
-  isActive,
-  sigCount,
-  onFilter,
-}: {
-  account: AccountComparisonApi;
-  isActive: boolean;
-  sigCount: number;
-  onFilter: () => void;
-}) {
-  return (
-    <button
-      id={`account-strip-archived-${account.account_name.replace(/\s+/g, '-').toLowerCase()}`}
-      onClick={onFilter}
-      title={`Filter signals for ${account.account_name} (archived)`}
-      className={cn(
-        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 transition-all duration-150 font-mono text-[9px] whitespace-nowrap',
-        isActive
-          ? 'border-[var(--to-text-dim)] bg-[var(--to-surface-raised)] text-[var(--to-text-secondary)]'
-          : 'border-[var(--to-border)] bg-transparent text-[var(--to-text-dim)] hover:border-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)]',
-      )}
-    >
-      {/* Archive icon dot */}
-      <span
-        className="block rounded-sm flex-shrink-0"
-        style={{ width: 5, height: 5, backgroundColor: 'currentColor', opacity: 0.5 }}
-      />
-      <span className="uppercase tracking-widest">{account.account_name}</span>
-      {sigCount > 0 && (
-        <span
-          className={cn(
-            'ml-0.5 rounded-full px-1 tabular-nums text-[8px]',
-            isActive
-              ? 'bg-[var(--to-text-dim)]/20 text-[var(--to-text-secondary)]'
-              : 'bg-[var(--to-border)] text-[var(--to-text-dim)]',
-          )}
-        >
-          {sigCount}
-        </span>
-      )}
-    </button>
-  );
-}
-
 // ─── main card (live accounts only) ──────────────────────────────────────────
 
 function AccountCard({
@@ -309,12 +262,9 @@ export function AccountStrip({
     );
   }
 
-  // Split accounts into live (have balance data) vs archived (signal-only ghosts)
+  // Split accounts to only show live (connected or having balance)
   const liveAccounts = accounts.filter(
     (a) => !(a.connection_status === 'disconnected' && a.balance == null),
-  );
-  const archivedAccounts = accounts.filter(
-    (a) => a.connection_status === 'disconnected' && a.balance == null,
   );
 
   return (
@@ -343,31 +293,6 @@ export function AccountStrip({
                 onNavigate={() =>
                   router.push(`/accounts/${encodeURIComponent(account.account_name)}`)
                 }
-              />
-            );
-          })}
-        </div>
-      )}
-
-      {/* ── Archived account chips (demoted, compact row) ── */}
-      {archivedAccounts.length > 0 && (
-        <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-          <span
-            className="font-mono text-[8px] uppercase tracking-widest mr-1"
-            style={{ color: 'var(--to-text-dim)' }}
-          >
-            Archived
-          </span>
-          {archivedAccounts.map((account) => {
-            const isActive = activeAccount === account.account_name;
-            const sigCount = signalCounts[account.account_name] ?? 0;
-            return (
-              <ArchivedChip
-                key={account.account_name}
-                account={account}
-                isActive={isActive}
-                sigCount={sigCount}
-                onFilter={() => onAccountSelect?.(isActive ? undefined : account.account_name)}
               />
             );
           })}
