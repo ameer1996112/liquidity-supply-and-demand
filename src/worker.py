@@ -1519,7 +1519,19 @@ def process_trade(payload: Dict[str, Any]):
     except Exception:
         pass
 
-    dry_run = not getattr(s, "live_trading_enabled", False)
+    # ── Execution Mode: derived from system_config (set by dashboard toggle) ──
+    # DRY_RUN → early exit, no profiles touched, signal saved as dry_run status
+    # PAPER   → route to PAPER-tagged broker profiles, dry_run=True (no real orders)
+    # LIVE    → route to LIVE-tagged broker profiles, dry_run=False (real MetaTrader orders)
+    system_mode = str(payload.get("run_mode", "DRY_RUN")).upper()
+
+    if system_mode == "DRY_RUN":
+        logger.info("System mode: DRY_RUN — signal acknowledged, no execution")
+        save_result(payload, "dry_run", "System mode: DRY_RUN — no execution", 0.0)
+        return
+
+    # dry_run: True when mode is PAPER (demo account, no real order), False when LIVE
+    dry_run = (system_mode != "LIVE")
 
     # Global equity estimate for VaR/sector (pre-account loop)
     dynamic_account_balance = float(payload.get("account_balance", s.account_balance))
@@ -1556,10 +1568,16 @@ def process_trade(payload: Dict[str, Any]):
     from src.core.broker_profiles import get_active_profiles
 
     profiles = get_active_profiles()
-    payload_run_mode = str(payload.get("run_mode", "PAPER")).upper()
-    matching = [p for p in profiles if (p.get("run_mode") or "LIVE") == payload_run_mode]
+    matching = [p for p in profiles if (p.get("run_mode") or "LIVE") == system_mode]
     if not matching:
-        matching = [None]
+        logger.warning(
+            "No broker profiles tagged run_mode=%s — signal acknowledged but no execution target",
+            system_mode,
+        )
+        save_result(payload, "no_profile", f"No profiles configured for run_mode={system_mode}", 0.0)
+        return
+
+    logger.info("Execution mode: %s | dry_run=%s | %d profile(s) matched", system_mode, dry_run, len(matching))
 
     tracker.checkpoint("before_execution")
 
@@ -1614,7 +1632,6 @@ def run():
             logger.debug("Council memory hydration skipped: %s", _mem_err)
     transport = get_transport()
     kill_sw = getattr(s, "trading_kill_switch", False)
-    live = getattr(s, "live_trading_enabled", False)
     logger.info("=" * 60)
     logger.info("WORKER v2 (MULTI-ACCOUNT ISOLATED) STARTED")
     logger.info("Transport: %s", type(transport).__name__)
@@ -1623,7 +1640,7 @@ def run():
     logger.info("Correlation Limit: %s positions", s.trinity_max_positions)
     logger.info("AI Ensemble: %s | Shadow: %s (ai_mode=%s)", "ON", "ON" if getattr(s, "run_shadow_mode", False) or getattr(s, "ai_mode", "shadow") == "shadow" else "OFF", getattr(s, "ai_mode", "shadow"))
     logger.info("Kill-Switch: %s", "ON" if kill_sw else "OFF")
-    logger.info("LIVE_TRADING: %s", "true" if live else "false")
+    logger.info("EXECUTION MODE: Controlled by dashboard (system_config.trading_mode). DRY_RUN | PAPER | LIVE.")
     logger.info("Evaluation Mode: %s", "ON" if getattr(s, "evaluation_mode", False) else "OFF")
     logger.info("--- Guards ---")
     logger.info("Global: kill-switch(env), max-lot, staleness, AI ensemble")
