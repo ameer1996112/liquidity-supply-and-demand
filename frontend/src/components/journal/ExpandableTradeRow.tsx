@@ -144,9 +144,13 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
 
         {/* Account */}
         <td className="py-2.5 px-3">
-          <span className="font-mono text-[10px] text-[var(--to-text-dim)]">
-            {signal.account_name ?? 'Unknown'}
-          </span>
+          {signal.account_name ? (
+            <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-[var(--to-surface-raised)]/60 text-[var(--to-text-secondary)]">
+              {signal.account_name}
+            </span>
+          ) : (
+            <span className="text-[var(--to-text-dim)] text-[11px]">—</span>
+          )}
         </td>
 
         {/* Zone (type + grade) */}
