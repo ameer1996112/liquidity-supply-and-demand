@@ -11,7 +11,6 @@ import {
   MoreHorizontal,
   Users,
   Timer,
-  ScanLine,
   Bell,
   BarChart3,
   LineChart,
@@ -48,7 +47,6 @@ const PRIMARY_ITEMS: NavItem[] = [
 const OVERFLOW_ITEMS: NavItem[] = [
   { label: 'Accounts', icon: Users, path: '/accounts' },
   { label: 'Exec Quality', icon: Timer, path: '/execution-quality' },
-  { label: 'Scanner', icon: ScanLine, path: '/scanner' },
   { label: 'Alerts', icon: Bell, path: '/alerts' },
   { label: 'Analytics', icon: BarChart3, path: '/analytics' },
   { label: 'Backtest', icon: LineChart, path: '/backtest' },
