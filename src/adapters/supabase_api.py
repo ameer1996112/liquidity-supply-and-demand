@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 _client = None
 _created_at: float = 0.0
-_MAX_AGE_SECONDS = 90  # Recreate client every 90s to avoid stale HTTP/2 connections
+_MAX_AGE_SECONDS = 45  # Recreate client every 45s to avoid stale HTTP/2 connections
 
 
 def get_api_supabase():
@@ -83,7 +83,6 @@ def supabase_query(fn):
         try:
             return fn(*args, **kwargs)
         except Exception as e:
-            err_str = str(e).lower()
             # Retry on HTTP/2 connection errors (RemoteProtocolError, Server disconnected, etc.)
             retryable = is_supabase_connection_error(e)
             if retryable:
