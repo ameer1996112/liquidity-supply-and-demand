@@ -1236,12 +1236,13 @@ def delete_account(account_name: str):
         except Exception:
             pass
 
-        # Delete the account
-        sb.table("account_strategies").delete().eq(
-            "account_name", account_name
-        ).execute()
+        # Soft-delete: mark inactive so historical trades remain accessible
+        sb.table("account_strategies").update({
+            "is_active": False,
+            "status": "archived",
+        }).eq("account_name", account_name).execute()
 
-        return {"success": True, "message": f"Account '{account_name}' deleted successfully"}
+        return {"success": True, "message": f"Account '{account_name}' archived successfully (history preserved)"}
 
     except HTTPException:
         raise

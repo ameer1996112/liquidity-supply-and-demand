@@ -571,82 +571,152 @@ class AccountOrchestrator:
             List of account comparison dicts with full metrics
         """
         try:
-            accounts = self.client.table("account_strategies").select("*").eq(
-                "is_active", True
-            ).execute()
+            # Fetch all accounts (active and archived soft-deleted)
+            all_accounts = self.client.table("account_strategies").select("*").execute()
+            active_accounts = [a for a in (all_accounts.data or []) if a.get("is_active", True)]
+            archived_accounts = [a for a in (all_accounts.data or []) if not a.get("is_active", True)]
+            known_names = {a["account_name"] for a in (all_accounts.data or [])}
+
+            # Find orphaned accounts: have trades in trading_signals but no account_strategies row
+            try:
+                orphan_rows = self.client.table("trading_signals").select("account_name").not_.is_(
+                    "account_name", "null"
+                ).execute()
+                orphan_names = {
+                    r["account_name"] for r in (orphan_rows.data or [])
+                    if r.get("account_name") and r["account_name"] not in known_names
+                    and r["account_name"] not in ("default", "")
+                }
+            except Exception:
+                orphan_names = set()
 
             comparison = []
-            for account in accounts.data or []:
+
+            def _build_active_entry(account):
                 perf = self.get_account_performance(account["account_name"])
+                if not perf:
+                    return None
+                profit_factor = 0.0
+                avg_win = 0.0
+                avg_loss = 0.0
+                try:
+                    broker_profile_id = account.get("broker_profile_id")
+                    trades_query = self.client.table("trading_signals").select(
+                        "pnl_usd, pnl_r, outcome"
+                    ).limit(100)
+                    if broker_profile_id:
+                        trades_query = trades_query.eq("broker_profile_id", broker_profile_id)
+                    trades = trades_query.execute().data or []
+                    wins = [float(t.get("pnl_usd") or 0) for t in trades if t.get("outcome") == "win" and t.get("pnl_usd")]
+                    losses = [abs(float(t.get("pnl_usd") or 0)) for t in trades if t.get("outcome") == "loss" and t.get("pnl_usd")]
+                    if wins:
+                        avg_win = sum(wins) / len(wins)
+                    if losses:
+                        avg_loss = sum(losses) / len(losses)
+                    if avg_loss > 0:
+                        profit_factor = sum(wins) / sum(losses) if losses else 0.0
+                except Exception as e:
+                    logger.warning(f"Failed to calculate profit metrics for {account['account_name']}: {e}")
+                return {
+                    "account_name": account["account_name"],
+                    "account_type": perf.account_type or account.get("account_type", "Personal"),
+                    "strategy_type": account.get("strategy_type", "BALANCED"),
+                    "connection_status": perf.connection_status or "unknown",
+                    "status": perf.connection_status or "unknown",
+                    "balance": perf.balance,
+                    "equity": perf.equity,
+                    "free_margin": perf.free_margin,
+                    "margin_used": perf.margin_used or 0.0,
+                    "margin_level_pct": perf.margin_level_pct,
+                    "floating_pnl": 0.0,
+                    "realized_pnl_today": perf.daily_pnl,
+                    "daily_pnl": perf.daily_pnl,
+                    "daily_pnl_pct": perf.daily_pnl_pct,
+                    "win_rate": perf.win_rate,
+                    "sharpe_ratio": perf.sharpe_ratio,
+                    "max_drawdown_pct": perf.max_drawdown_pct,
+                    "open_positions": perf.active_positions,
+                    "active_positions": perf.active_positions,
+                    "total_trades": perf.total_trades,
+                    "profit_factor": profit_factor,
+                    "avg_win_usd": avg_win,
+                    "avg_loss_usd": avg_loss,
+                    "risk_percent": account.get("risk_percent", 0.5),
+                    "max_positions": account.get("max_positions", 3),
+                    "max_lot_size": account.get("max_lot_size", 10.0),
+                    "min_rr_ratio": account.get("min_rr_ratio", 2.0),
+                    "allocated_capital_usd": account.get("allocated_capital_usd", 0),
+                    "pause_trading": account.get("pause_trading", False),
+                    "broker_profile_id": account.get("broker_profile_id"),
+                    "last_sync_time": perf.last_sync_time,
+                    "server_name": perf.server_name,
+                    "platform_type": perf.platform_type,
+                    "leverage": perf.leverage,
+                    "created_at": account.get("created_at"),
+                    "updated_at": account.get("updated_at"),
+                    "is_archived": False,
+                }
 
-                if perf:
-                    # Calculate additional metrics
-                    profit_factor = 0.0
-                    avg_win = 0.0
-                    avg_loss = 0.0
+            def _build_archived_entry(account_name, account_row=None):
+                """Build a minimal entry for archived/orphaned accounts with trade history only."""
+                try:
+                    trades = self.client.table("trading_signals").select(
+                        "pnl_usd, outcome, created_at"
+                    ).eq("account_name", account_name).not_.is_("pnl_usd", "null").execute().data or []
+                    total_trades = len(trades)
+                    wins = [float(t["pnl_usd"]) for t in trades if t.get("outcome") == "win" and t.get("pnl_usd")]
+                    losses = [abs(float(t["pnl_usd"])) for t in trades if t.get("outcome") == "loss" and t.get("pnl_usd")]
+                    win_rate = len(wins) / total_trades * 100 if total_trades > 0 else 0.0
+                except Exception:
+                    total_trades = 0
+                    wins = []
+                    losses = []
+                    total_pnl = 0.0
+                    win_rate = 0.0
+                return {
+                    "account_name": account_name,
+                    "account_type": (account_row or {}).get("account_type", "Personal"),
+                    "strategy_type": (account_row or {}).get("strategy_type", "BALANCED"),
+                    "connection_status": "archived",
+                    "status": "archived",
+                    "balance": None,
+                    "equity": None,
+                    "free_margin": None,
+                    "margin_used": 0.0,
+                    "margin_level_pct": None,
+                    "floating_pnl": 0.0,
+                    "realized_pnl_today": 0.0,
+                    "daily_pnl": 0.0,
+                    "daily_pnl_pct": 0.0,
+                    "win_rate": win_rate,
+                    "sharpe_ratio": None,
+                    "max_drawdown_pct": None,
+                    "open_positions": 0,
+                    "active_positions": 0,
+                    "total_trades": total_trades,
+                    "profit_factor": sum(wins) / sum(losses) if losses else 0.0,
+                    "avg_win_usd": sum(wins) / len(wins) if wins else 0.0,
+                    "avg_loss_usd": sum(losses) / len(losses) if losses else 0.0,
+                    "allocated_capital_usd": (account_row or {}).get("allocated_capital_usd", 0),
+                    "broker_profile_id": (account_row or {}).get("broker_profile_id"),
+                    "created_at": (account_row or {}).get("created_at"),
+                    "updated_at": (account_row or {}).get("updated_at"),
+                    "is_archived": True,
+                }
 
-                    # Get recent trades for profit factor
-                    try:
-                        broker_profile_id = account.get("broker_profile_id")
-                        trades_query = self.client.table("trading_signals").select(
-                            "pnl_usd, pnl_r, outcome"
-                        ).limit(100)
+            # Active accounts
+            for account in active_accounts:
+                entry = _build_active_entry(account)
+                if entry:
+                    comparison.append(entry)
 
-                        if broker_profile_id:
-                            trades_query = trades_query.eq("broker_profile_id", broker_profile_id)
+            # Archived (soft-deleted) accounts from account_strategies
+            for account in archived_accounts:
+                comparison.append(_build_archived_entry(account["account_name"], account))
 
-                        trades = trades_query.execute().data or []
-
-                        wins = [float(t.get("pnl_usd") or 0) for t in trades if t.get("outcome") == "win" and t.get("pnl_usd")]
-                        losses = [abs(float(t.get("pnl_usd") or 0)) for t in trades if t.get("outcome") == "loss" and t.get("pnl_usd")]
-
-                        if wins:
-                            avg_win = sum(wins) / len(wins)
-                        if losses:
-                            avg_loss = sum(losses) / len(losses)
-                        if avg_loss > 0:
-                            profit_factor = sum(wins) / sum(losses) if losses else 0.0
-                    except Exception as e:
-                        logger.warning(f"Failed to calculate profit metrics for {account['account_name']}: {e}")
-
-                    comparison.append({
-                        "account_name": account["account_name"],
-                        "account_type": perf.account_type or account.get("account_type", "Personal"),
-                        "strategy_type": account.get("strategy_type", "BALANCED"),
-                        "connection_status": perf.connection_status or "unknown",
-                        "status": perf.connection_status or "unknown",
-                        "balance": perf.balance,
-                        "equity": perf.equity,
-                        "free_margin": perf.free_margin,
-                        "margin_used": perf.margin_used or 0.0,
-                        "margin_level_pct": perf.margin_level_pct,
-                        "floating_pnl": 0.0,
-                        "realized_pnl_today": perf.daily_pnl,
-                        "daily_pnl": perf.daily_pnl,
-                        "daily_pnl_pct": perf.daily_pnl_pct,
-                        "win_rate": perf.win_rate,
-                        "sharpe_ratio": perf.sharpe_ratio,
-                        "max_drawdown_pct": perf.max_drawdown_pct,
-                        "open_positions": perf.active_positions,
-                        "active_positions": perf.active_positions,
-                        "total_trades": perf.total_trades,
-                        "profit_factor": profit_factor,
-                        "avg_win_usd": avg_win,
-                        "avg_loss_usd": avg_loss,
-                        "risk_percent": account.get("risk_percent", 0.5),
-                        "max_positions": account.get("max_positions", 3),
-                        "max_lot_size": account.get("max_lot_size", 10.0),
-                        "min_rr_ratio": account.get("min_rr_ratio", 2.0),
-                        "allocated_capital_usd": account.get("allocated_capital_usd", 0),
-                        "pause_trading": account.get("pause_trading", False),
-                        "broker_profile_id": account.get("broker_profile_id"),
-                        "last_sync_time": perf.last_sync_time,
-                        "server_name": perf.server_name,
-                        "platform_type": perf.platform_type,
-                        "leverage": perf.leverage,
-                        "created_at": account.get("created_at"),
-                        "updated_at": account.get("updated_at"),
-                    })
+            # Truly orphaned accounts (hard-deleted but have trades)
+            for name in sorted(orphan_names):
+                comparison.append(_build_archived_entry(name))
 
             return comparison
 

@@ -602,6 +602,7 @@ export interface AccountDetailApi {
   max_positions?: number;
   pause_trading?: boolean;
   created_at?: string;
+  is_archived?: boolean;
 }
 
 // AccountComparisonApi is used for individual accounts in cards/tables

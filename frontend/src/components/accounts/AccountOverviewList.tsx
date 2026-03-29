@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import type { AccountComparisonApi } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
-import { TrendingUp, TrendingDown, Wifi, WifiOff, AlertTriangle } from 'lucide-react';
+import { TrendingUp, TrendingDown, Wifi, WifiOff, AlertTriangle, Archive } from 'lucide-react';
 
 interface AccountOverviewListProps {
   accounts: AccountComparisonApi[];
@@ -12,6 +12,13 @@ interface AccountOverviewListProps {
 }
 
 function StatusBadge({ status }: { status: string }) {
+  if (status === 'archived') {
+    return (
+      <span className='flex items-center gap-1 text-[10px] text-[var(--to-text-dim)]'>
+        <Archive className='h-3 w-3' /> Archived
+      </span>
+    );
+  }
   if (status === 'connected') {
     return (
       <span className='flex items-center gap-1 text-[10px] text-[var(--to-long)]'>
@@ -93,8 +100,10 @@ function AccountCard({ account }: { account: AccountComparisonApi }) {
       className={cn(
         'w-full text-left rounded-xl border p-4 transition-all duration-150 group',
         'hover:shadow-[0_0_16px_rgba(0,0,0,0.25)] hover:border-[var(--to-border)]',
-        'border-[var(--to-border)] bg-[var(--to-surface)]',
-        account.connection_status !== 'connected' && 'opacity-80'
+        account.is_archived
+          ? 'border-[var(--to-border)] bg-[var(--to-surface-raised)]/40 opacity-60 hover:opacity-80'
+          : 'border-[var(--to-border)] bg-[var(--to-surface)]',
+        !account.is_archived && account.connection_status !== 'connected' && 'opacity-80'
       )}
     >
       {/* Header */}
@@ -189,11 +198,29 @@ export function AccountOverviewList({
     );
   }
 
+  const active = accounts.filter((a) => !a.is_archived);
+  const archived = accounts.filter((a) => a.is_archived);
+
   return (
-    <div className='grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3'>
-      {accounts.map((account) => (
-        <AccountCard key={account.account_name} account={account} />
-      ))}
+    <div className='space-y-4'>
+      <div className='grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3'>
+        {active.map((account) => (
+          <AccountCard key={account.account_name} account={account} />
+        ))}
+      </div>
+
+      {archived.length > 0 && (
+        <div className='space-y-2'>
+          <p className='text-[11px] uppercase tracking-wider text-[var(--to-text-dim)] px-1'>
+            Archived — history only
+          </p>
+          <div className='grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3'>
+            {archived.map((account) => (
+              <AccountCard key={account.account_name} account={account} />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
