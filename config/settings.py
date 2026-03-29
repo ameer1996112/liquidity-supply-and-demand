@@ -50,14 +50,12 @@ class Settings(BaseSettings):
         description="Kill-switch: when True, block all execution.",
         validation_alias=AliasChoices("TRADING_KILL_SWITCH", "KILL_SWITCH"),
     )
-    live_trading_enabled: bool = Field(
-        default=False,
-        description="Gate: False=DRY_RUN, True=allow orders.",
-        validation_alias=AliasChoices("LIVE_TRADING", "LIVE_TRADING_ENABLED"),
-    )
+    # DEPRECATED: live_trading_enabled ENV var has been removed.
+    # Execution mode is now controlled exclusively via the dashboard
+    # (system_config.trading_mode in DB). DRY_RUN | PAPER | LIVE.
     run_mode: Literal["DRY_RUN", "PAPER", "LIVE"] = Field(
         default="DRY_RUN",
-        description="Execution mode.",
+        description="Fallback execution mode if system_config DB is unreachable. Authority is system_config.trading_mode.",
         validation_alias=AliasChoices("RUN_MODE", "RUN_MODE"),
     )
     live_shadow: bool = Field(

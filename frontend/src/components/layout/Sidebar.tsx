@@ -1,6 +1,6 @@
 'use client';
 
-import type { ComponentType } from 'react';
+import { useState, useRef, useEffect, type ComponentType } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -22,6 +22,8 @@ import {
   FlaskConical,
   Zap,
   EyeOff,
+  AlertTriangle,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSidebar } from '@/providers/SidebarProvider';
@@ -42,73 +44,209 @@ const MODE_CONFIG: Record<TradingMode, { label: string; icon: typeof FlaskConica
 
 const MODES: TradingMode[] = ['PAPER', 'LIVE', 'DRY_RUN'];
 
-/** Trading mode toggle — controls the system-level run mode (PAPER/LIVE/DRY_RUN). */
-function TradingModeToggle({ collapsed }: { collapsed: boolean }) {
-  const { mode, isSaving, setMode } = useTradingMode();
-  const active = MODE_CONFIG[mode] ?? MODE_CONFIG.PAPER;
-  const ActiveIcon = active.icon;
+/** Modal: typed confirmation before enabling LIVE trading. */
+function LiveConfirmModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+  const [typed, setTyped] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const confirmed = typed === 'LIVE';
 
-  if (collapsed) {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div
-            className='mx-auto flex h-7 w-7 items-center justify-center rounded-lg cursor-default'
-            style={{ background: `${active.bg}18`, border: `1px solid ${active.border}30` }}
-          >
-            <ActiveIcon className='h-3.5 w-3.5' style={{ color: active.color }} />
-          </div>
-        </TooltipTrigger>
-        <TooltipContent side='right' sideOffset={8}>
-          Mode: {active.label}
-        </TooltipContent>
-      </Tooltip>
-    );
-  }
+  useEffect(() => {
+    // Trap focus in the modal
+    inputRef.current?.focus();
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onCancel]);
 
   return (
-    <div className='mx-1 mb-1 rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)]/50 px-2 py-1.5'>
+    /* Backdrop */
+    <div
+      className='fixed inset-0 z-50 flex items-center justify-center'
+      style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
+      onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
+    >
+      {/* Modal */}
       <div
-        className='mb-1.5 text-[9px] uppercase tracking-[0.2em] text-[var(--to-text-dim)]'
-        style={{ fontFamily: 'var(--font-mono)' }}
+        className='relative w-full max-w-sm rounded-xl border p-6 shadow-2xl'
+        style={{
+          background: '#0f0a0a',
+          borderColor: 'rgba(239,68,68,0.35)',
+          boxShadow: '0 0 40px rgba(239,68,68,0.15), 0 25px 50px rgba(0,0,0,0.5)',
+        }}
       >
-        Mode
-      </div>
-      <div className='flex gap-1'>
-        {MODES.map((m) => {
-          const cfg = MODE_CONFIG[m];
-          const Icon = cfg.icon;
-          const isActive = mode === m;
-          return (
-            <button
-              key={m}
-              disabled={isSaving}
-              onClick={() => setMode(m)}
-              className={cn(
-                'flex flex-1 items-center justify-center gap-1 rounded-md py-1 text-[10px] font-medium transition-all duration-150',
-                isActive
-                  ? 'opacity-100'
-                  : 'opacity-40 hover:opacity-70'
-              )}
-              style={isActive ? {
-                background: `${cfg.bg}18`,
-                border: `1px solid ${cfg.border}40`,
-                color: cfg.color,
-              } : {
-                background: 'transparent',
-                border: '1px solid transparent',
-                color: 'var(--to-text-dim)',
-              }}
-            >
-              <Icon className='h-3 w-3 shrink-0' />
-              {cfg.label}
-            </button>
-          );
-        })}
+        {/* Close button */}
+        <button
+          onClick={onCancel}
+          className='absolute right-3 top-3 rounded-md p-1 text-[var(--to-text-dim)] hover:text-[var(--to-text-primary)] transition-colors'
+        >
+          <X className='h-4 w-4' />
+        </button>
+
+        {/* Header */}
+        <div className='mb-4 flex items-center gap-3'>
+          <div className='flex h-9 w-9 items-center justify-center rounded-full' style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)' }}>
+            <AlertTriangle className='h-5 w-5' style={{ color: '#ef4444' }} />
+          </div>
+          <div>
+            <h2 className='text-sm font-semibold text-[var(--to-text-primary)]'>Enable Live Trading</h2>
+            <p className='text-[10px] text-[var(--to-text-dim)] mt-0.5' style={{ fontFamily: 'var(--font-mono)' }}>Real orders · MetaTrader</p>
+          </div>
+        </div>
+
+        {/* Body */}
+        <p className='mb-4 text-[11px] text-[var(--to-text-secondary)] leading-relaxed'>
+          Switching to <span className='font-semibold text-[var(--to-text-primary)]'>LIVE</span> mode
+          will place <strong>real orders</strong> on your connected MetaTrader account on the
+          next incoming webhook signal. This cannot be undone mid-trade.
+        </p>
+
+        {/* Typed confirmation */}
+        <label className='mb-1.5 block text-[10px] uppercase tracking-widest text-[var(--to-text-dim)]' style={{ fontFamily: 'var(--font-mono)' }}>
+          Type <span className='font-bold text-[#ef4444]'>LIVE</span> to confirm
+        </label>
+        <input
+          ref={inputRef}
+          type='text'
+          value={typed}
+          onChange={(e) => setTyped(e.target.value)}
+          placeholder='LIVE'
+          autoComplete='off'
+          spellCheck={false}
+          className='mb-4 w-full rounded-lg border px-3 py-2 text-sm font-mono text-[var(--to-text-primary)] outline-none transition-colors'
+          style={{
+            background: 'rgba(239,68,68,0.05)',
+            borderColor: confirmed ? 'rgba(239,68,68,0.6)' : 'var(--to-border)',
+          }}
+          onKeyDown={(e) => { if (e.key === 'Enter' && confirmed) onConfirm(); }}
+        />
+
+        {/* Actions */}
+        <div className='flex gap-2'>
+          <button
+            onClick={onCancel}
+            className='flex-1 rounded-lg border border-[var(--to-border)] py-2 text-xs font-medium text-[var(--to-text-secondary)] transition-colors hover:bg-[var(--to-surface-raised)]'
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={!confirmed}
+            className='flex-1 rounded-lg py-2 text-xs font-semibold transition-all'
+            style={{
+              background: confirmed ? 'rgba(239,68,68,0.9)' : 'rgba(239,68,68,0.2)',
+              color: confirmed ? '#fff' : 'rgba(239,68,68,0.4)',
+              cursor: confirmed ? 'pointer' : 'not-allowed',
+              border: '1px solid rgba(239,68,68,0.4)',
+            }}
+          >
+            {confirmed ? '⚡ Enable Live' : 'Confirm ▶'}
+          </button>
+        </div>
       </div>
     </div>
   );
 }
+
+/** Trading mode toggle — controls the system-level run mode (PAPER/LIVE/DRY_RUN). */
+function TradingModeToggle({ collapsed }: { collapsed: boolean }) {
+  const { mode, isSaving, setMode } = useTradingMode();
+  const [showLiveModal, setShowLiveModal] = useState(false);
+  const active = MODE_CONFIG[mode] ?? MODE_CONFIG.PAPER;
+  const ActiveIcon = active.icon;
+
+  function handleModeClick(m: TradingMode) {
+    if (m === 'LIVE' && mode !== 'LIVE') {
+      setShowLiveModal(true);
+    } else {
+      setMode(m);
+    }
+  }
+
+  function handleLiveConfirm() {
+    setShowLiveModal(false);
+    setMode('LIVE');
+  }
+
+  if (collapsed) {
+    return (
+      <>
+        {showLiveModal && (
+          <LiveConfirmModal
+            onConfirm={handleLiveConfirm}
+            onCancel={() => setShowLiveModal(false)}
+          />
+        )}
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div
+              className='mx-auto flex h-7 w-7 items-center justify-center rounded-lg cursor-default'
+              style={{ background: `${active.bg}18`, border: `1px solid ${active.border}30` }}
+            >
+              <ActiveIcon className='h-3.5 w-3.5' style={{ color: active.color }} />
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side='right' sideOffset={8}>
+            Mode: {active.label}
+          </TooltipContent>
+        </Tooltip>
+      </>
+    );
+  }
+
+  return (
+    <>
+      {showLiveModal && (
+        <LiveConfirmModal
+          onConfirm={handleLiveConfirm}
+          onCancel={() => setShowLiveModal(false)}
+        />
+      )}
+      <div className='mx-1 mb-1 rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)]/50 px-2 py-1.5'>
+        <div
+          className='mb-1.5 text-[9px] uppercase tracking-[0.2em] text-[var(--to-text-dim)]'
+          style={{ fontFamily: 'var(--font-mono)' }}
+        >
+          Mode
+        </div>
+        <div className='flex gap-1'>
+          {MODES.map((m) => {
+            const cfg = MODE_CONFIG[m];
+            const Icon = cfg.icon;
+            const isActive = mode === m;
+            return (
+              <button
+                key={m}
+                disabled={isSaving}
+                onClick={() => handleModeClick(m)}
+                className={cn(
+                  'flex flex-1 items-center justify-center gap-1 rounded-md py-1 text-[10px] font-medium transition-all duration-150',
+                  isActive
+                    ? 'opacity-100'
+                    : 'opacity-40 hover:opacity-70'
+                )}
+                style={isActive ? {
+                  background: `${cfg.bg}18`,
+                  border: `1px solid ${cfg.border}40`,
+                  color: cfg.color,
+                } : {
+                  background: 'transparent',
+                  border: '1px solid transparent',
+                  color: 'var(--to-text-dim)',
+                }}
+              >
+                <Icon className='h-3 w-3 shrink-0' />
+                {cfg.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </>
+  );
+}
+
 
 /** Small connection status pill shown at the bottom of the sidebar. */
 function ConnectionPill() {
