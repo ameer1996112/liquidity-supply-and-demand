@@ -11,10 +11,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { OverviewTab } from '@/components/accounts/detail/OverviewTab';
 import { PositionsTab } from '@/components/accounts/detail/PositionsTab';
 import { HistoryTab } from '@/components/accounts/detail/HistoryTab';
-import { AnalyticsTab } from '@/components/accounts/detail/AnalyticsTab';
 import { ChallengeTab } from '@/components/accounts/detail/ChallengeTab';
 
-type Tab = 'overview' | 'positions' | 'history' | 'analytics' | 'challenge';
+type Tab = 'overview' | 'positions' | 'history' | 'challenge';
 
 export default function AccountDetailPage() {
   const params = useParams();
@@ -230,7 +229,6 @@ export default function AccountDetailPage() {
               'overview',
               'positions',
               'history',
-              'analytics',
               ...(account?.account_type === 'Eval' || account?.account_type === 'Funded' ? ['challenge'] : []),
             ] as Tab[]
           ).map((tab) => (
@@ -267,9 +265,6 @@ export default function AccountDetailPage() {
             )}
             {activeTab === 'history' && (
               <HistoryTab accountName={accountName} />
-            )}
-            {activeTab === 'analytics' && (
-              <AnalyticsTab accountName={accountName} />
             )}
             {activeTab === 'challenge' && (
               <ChallengeTab accountName={accountName} />
