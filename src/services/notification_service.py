@@ -280,6 +280,49 @@ class NotificationService:
             signal_id=signal_id,
         )
 
+    def format_digest(self, account_name: str, stats: dict) -> NotificationPayload:
+        """
+        Formats a daily performance digest payload for Discord and Telegram.
+        
+        stats: Dictionary containing net_pnl, win_rate_pct, total_trades, etc.
+        """
+        net_pnl = stats.get("net_pnl", 0.0)
+        win_rate = stats.get("win_rate_pct", 0.0)
+        total_trades = stats.get("total_trades", 0)
+        best_trade = stats.get("best_trade_pnl", 0.0)
+        worst_trade = stats.get("worst_trade_pnl", 0.0)
+        
+        is_profitable = net_pnl > 0
+        color: NotificationColor = "buy" if is_profitable else "sell"
+        if net_pnl == 0:
+            color = "info"
+            
+        emoji = "🎯" if is_profitable else "📊"
+        
+        def format_currency(val: float) -> str:
+            sign = "+" if val >= 0 else "-"
+            return f"{sign}${abs(val):.2f}"
+
+        fields = {
+            "Net PnL": format_currency(net_pnl),
+            "Win Rate": f"{win_rate:.1f}% ({stats.get('winning_trades', 0)}/{total_trades})",
+            "Best Trade": format_currency(best_trade),
+            "Worst Trade": format_currency(worst_trade),
+            "Gross PnL": format_currency(stats.get("gross_pnl", 0.0)),
+            "Commissions": format_currency(stats.get("commission", 0.0)),
+        }
+        
+        if stats.get("swap"):
+            fields["Swap"] = format_currency(stats.get("swap", 0.0))
+
+        return NotificationPayload(
+            type="info",
+            title=f"{emoji} Daily Performance Report",
+            fields=fields,
+            color=color,
+            account_name=account_name
+        )
+
     # ─── Routing ─────────────────────────────────────────────────────────────
 
     def get_routing(self, notification_type: str) -> dict[str, Any]:
@@ -390,3 +433,4 @@ def _derive_session(bar_time_iso: Optional[str]) -> Optional[str]:
         return "🌙 Off-hours"
     except Exception:
         return None
+

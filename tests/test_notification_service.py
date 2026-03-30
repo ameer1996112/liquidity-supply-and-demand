@@ -33,3 +33,34 @@ def test_format_signal_image_url_none_when_missing():
     signal = {"id": 3, "symbol": "XAUUSD", "side": "BUY", "entry": 2650.5, "sl": 2640.0, "tp": 2676.25}
     payload = svc.format_signal(signal)
     assert payload.image_url is None
+
+def test_format_digest():
+    svc = NotificationService()
+    stats = {
+        "net_pnl": 150.50,
+        "gross_pnl": 160.0,
+        "commission": -9.5,
+        "swap": 0.0,
+        "total_trades": 5,
+        "winning_trades": 3,
+        "best_trade_pnl": 100.0,
+        "worst_trade_pnl": -50.0,
+        "win_rate_pct": 60.0
+    }
+    
+    payload = svc.format_digest(account_name="Trading Account", stats=stats)
+    
+    # Should be correctly formatted as NotificationPayload
+    assert payload.type == "info"
+    assert "Daily Performance Report" in payload.title
+    assert payload.account_name == "Trading Account"
+    
+    # Verify the stats are printed
+    assert "Net PnL" in payload.fields
+    assert payload.fields["Net PnL"].startswith("+$150.50")
+    
+    assert "Win Rate" in payload.fields
+    assert "60.0%" in payload.fields["Win Rate"]
+    
+    assert "Best Trade" in payload.fields
+    assert "+$100.00" in payload.fields["Best Trade"]
