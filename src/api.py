@@ -122,7 +122,6 @@ from src.api_incidents import router as incidents_router       # Incident auto-t
 from src.api_agent_status import router as agent_status_router # v1.2: UI-02: Agent operational state
 from src.api_broker_profiles import router as broker_profiles_router  # Multi-account MetaAPI management
 from src.api_dashboard import router as dashboard_router
-from src.api_discord_commands import discord_commands_router  # Two-way Discord commands
 from src.api_notifications import router as notifications_router  # DEV-73: notification settings
 
 @asynccontextmanager
@@ -174,7 +173,6 @@ app.include_router(incidents_router)      # Incident auto-tickets: /api/incident
 app.include_router(agent_status_router)   # v1.2: Agent status: /api/agent/status
 app.include_router(broker_profiles_router)  # Multi-account MetaAPI credential management
 app.include_router(dashboard_router)        # DEV-61: dashboard summary aggregation
-app.include_router(discord_commands_router) # DEV-73: two-way Discord slash commands
 app.include_router(notifications_router)    # DEV-73: notification settings (routing, whitelist, audit log)
 app.add_middleware(
     CORSMiddleware,
