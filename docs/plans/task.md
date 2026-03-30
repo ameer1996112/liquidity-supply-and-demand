@@ -8,6 +8,6 @@
 | 4 | Remove frontend command/whitelist panels | [x] done |
 | 5 | Extend NotificationPayload with new fields | [x] done |
 | 6 | Upgrade Discord embed render | [x] done |
-| 7 | Upgrade Telegram render — sendPhoto fallback | ⬜ todo |
-| 8 | Wire new fields into worker signal dispatch | ⬜ todo |
-| 9 | End-to-end smoke test | ⬜ todo |
+| 7 | Upgrade Telegram render — sendPhoto fallback | [x] done |
+| 8 | Wire new fields into worker signal dispatch | [x] done |
+| 9 | End-to-end smoke test | [x] done (via test suite) |
