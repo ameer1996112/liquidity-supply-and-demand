@@ -457,6 +457,10 @@ class Settings(BaseSettings):
     consistency_enabled: bool = Field(default=True, description="Enable consistency analyzer (FTMO 40% rule)")
     consistency_limit_pct: float = Field(default=40.0, ge=20.0, le=60.0, description="Max % of total profit from single day (FTMO: 40%)")
 
+    # ── Daily Performance Digest ──────────────────────────────────────────────
+    digest_enabled: bool = Field(default=True, description="Enable automated daily performance summary digests.")
+    digest_time_utc: str = Field(default="21:00", description="Time (HH:MM UTC) to schedule the daily digest broadcast.", validation_alias="DIGEST_TIME_UTC")
+
     # ── Signal Transport ──────────────────────────────────────────────────────
     signal_transport: Literal["redis", "memory"] = Field(
         default="redis",
