@@ -19,9 +19,7 @@ from src.adapters.supabase import (
     get_alert_by_trade_key,
 )
 from src.adapters.discord import (
-    send_discord_async,
     send_discord_and_thread_async,
-    send_telegram_async,
     post_close_to_thread_async,
     post_telegram_close_reply_async,
     dispatch_payload_async,
@@ -842,7 +840,14 @@ def process_trade(
             logger.warning("Could not fetch enriched signal for notification: %s", _fetch_err)
 
     _ns = NotificationService(supabase=_sb)
-    _payload = _ns.format_signal(_signal_record, ai_result=ai_result, mode=mode)
+    account_name = profile.get("name") if profile else None
+    _payload = _ns.format_signal(
+        _signal_record,
+        ai_result=ai_result,
+        mode=mode,
+        account_name=account_name,
+        image_url=_signal_record.get("image_url")
+    )
     dispatch_payload_async(_payload, supabase_client=_sb, notification_service=_ns)
 
     # Keep thread creation logic (Discord threads per trade)
