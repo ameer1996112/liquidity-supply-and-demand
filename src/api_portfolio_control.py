@@ -943,23 +943,31 @@ def get_account_positions(account_name: str):
     """
     Get open positions for a specific account.
     Returns broker positions (from MetaAPI if available) and DB positions
-    from trading_signals, with a basic reconciliation summary.
+    from trading_signals, with reconciliation summary.
     """
     sb = _get_supabase()
 
+    OPEN_STATUSES = [
+        "active", "ACTIVE",
+        "executed", "EXECUTED",
+        "open", "OPEN",
+        "pending", "PENDING",
+        "spin", "SPIN",
+    ]
+
     try:
-        # Fetch active positions from DB (cover all open-state status variants)
+        # Fetch active positions from DB
         resp = (
             sb.table("trading_signals")
             .select("*")
             .eq("account_name", account_name)
-            .in_("status", ["active", "ACTIVE", "executed", "EXECUTED", "open", "OPEN"])
+            .in_("status", OPEN_STATUSES)
             .order("created_at", desc=True)
             .execute()
         )
         db_positions = resp.data or []
 
-        # If no positions found by account_name, try broker_profile_id fallback for legacy trades
+        # Fallback: look up by broker_profile_id for legacy trades with no account_name set
         if not db_positions:
             account_lookup = (
                 sb.table("account_strategies")
@@ -975,29 +983,106 @@ def get_account_positions(account_name: str):
                     .select("*")
                     .eq("broker_profile_id", broker_profile_id)
                     .is_("account_name", "null")
-                    .in_("status", ["active", "ACTIVE", "executed", "EXECUTED", "open", "OPEN"])
+                    .in_("status", OPEN_STATUSES)
                     .order("created_at", desc=True)
                     .execute()
                 )
                 db_positions = fallback_resp.data or []
 
-        # Tag each with reconciliation status (all DB-only for now)
+        # ── Fetch live broker positions from MetaAPI ──────────────────────
+        broker_raw: list = []
+        try:
+            from src.adapters.execution.meta_api_adapter import MetaApiAdapter
+            from src.core.broker_profiles import get_active_profiles
+
+            profiles = get_active_profiles()
+            adapter: MetaApiAdapter | None = None
+
+            for profile in profiles:
+                if profile.get("name") == account_name:
+                    token = profile.get("token", "")
+                    meta_api_id = profile.get("meta_api_account_id", "")
+                    if token and meta_api_id:
+                        adapter = MetaApiAdapter(
+                            token=token,
+                            account_id=meta_api_id,
+                            account_name=account_name,
+                        )
+                    break
+
+            if adapter:
+                broker_raw = adapter.get_open_positions()
+        except Exception as broker_exc:
+            logger.warning("Could not fetch broker positions for %s: %s", account_name, broker_exc)
+
+        # ── Build broker_order_id index from DB for reconciliation ────────
+        db_by_broker_id: dict = {}
         for pos in db_positions:
-            pos["reconciliation_status"] = "pending"
+            bid = pos.get("broker_order_id") or pos.get("broker_position_id")
+            if bid:
+                db_by_broker_id[str(bid)] = pos
+
+        # ── Enrich broker positions with reconciliation status ────────────
+        broker_positions = []
+        matched_broker_ids: set = set()
+
+        for bp in broker_raw:
+            broker_id = str(bp.get("id") or bp.get("positionId") or "")
+            pos_type = (bp.get("type") or "").upper()
+            side = "buy" if "BUY" in pos_type else "sell"
+
+            is_matched = broker_id in db_by_broker_id
+            if is_matched:
+                matched_broker_ids.add(broker_id)
+                recon_status = "matched"
+            else:
+                recon_status = "orphaned"
+
+            broker_positions.append({
+                "id": broker_id,
+                "symbol": bp.get("symbol", ""),
+                "side": side,
+                "volume": float(bp.get("volume") or 0),
+                "open_price": float(bp.get("openPrice") or 0),
+                "current_price": float(bp.get("currentPrice") or bp.get("currentBidPrice") or 0) or None,
+                "sl": float(bp.get("stopLoss") or bp.get("sl") or 0) or None,
+                "tp": float(bp.get("takeProfit") or bp.get("tp") or 0) or None,
+                "profit": float(bp.get("profit") or 0),
+                "swap": float(bp.get("swap") or 0),
+                "commission": float(bp.get("commission") or 0),
+                "open_time": bp.get("time"),
+                "comment": bp.get("comment"),
+                "reconciliation_status": recon_status,
+            })
+
+        # ── Tag DB positions with reconciliation status ───────────────────
+        for pos in db_positions:
+            bid = str(pos.get("broker_order_id") or pos.get("broker_position_id") or "")
+            if bid and bid in matched_broker_ids:
+                pos["reconciliation_status"] = "matched"
+            elif bid:
+                pos["reconciliation_status"] = "pending"  # has broker_id but not in live positions
+            else:
+                pos["reconciliation_status"] = "pending"  # no broker_id yet
+
+        matched_count = sum(1 for p in broker_positions if p["reconciliation_status"] == "matched")
+        orphaned_count = sum(1 for p in broker_positions if p["reconciliation_status"] == "orphaned")
 
         return {
-            "broker": [],  # MetaAPI live positions — populated when broker sync is active
+            "broker": broker_positions,
             "db": db_positions,
             "reconciliation_summary": {
-                "matched": 0,
-                "orphaned": 0,
-                "pending": len(db_positions),
+                "matched": matched_count,
+                "orphaned": orphaned_count,
+                "pending": len(db_positions) - matched_count,
             },
         }
 
     except Exception as e:
         logger.error(f"Failed to fetch positions for {account_name}: {e}")
         raise HTTPException(500, detail=f"Failed to fetch positions: {str(e)}")
+
+
 
 
 @router.get("/accounts/{account_name}/performance", response_model=AccountPerformanceResponse)
