@@ -1695,6 +1695,22 @@ def run():
     logger.info("R:R filter: %s", f"ON (min={s.min_rr_ratio})" if s.min_rr_ratio > 0 else "OFF (Pine handles SL/TP)")
     logger.info("=" * 60)
 
+    # ── Startup: validate Discord webhook URL (once, non-blocking) ──────────
+    _discord_url = (getattr(s, "discord_webhook_url", "") or "").strip()
+    if _discord_url:
+        try:
+            import requests as _req
+            _probe = _req.get(_discord_url, timeout=5)
+            if _probe.status_code == 404:
+                logger.warning(
+                    "⚠️  Discord webhook URL is INVALID (404 Unknown Webhook). "
+                    "Update DISCORD_WEBHOOK_URL in .env — notifications will be silently skipped until fixed."
+                )
+            elif _probe.status_code in (200, 401):
+                logger.info("Discord webhook URL validated OK (HTTP %s)", _probe.status_code)
+        except Exception as _we:
+            logger.debug("Discord webhook probe failed (non-fatal): %s", _we)
+
     # ── Observer pipeline ──────────────────────────────────────────────────
     subject = WorkerSubject(process_fn=process_trade, account_router=AccountRouter())
     subject.attach(AuditorObserver())

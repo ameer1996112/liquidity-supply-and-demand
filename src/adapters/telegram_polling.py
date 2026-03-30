@@ -33,6 +33,9 @@ class TelegramPoller:
         self.meta_api = meta_api
         self._thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
+        # Track whether we've already warned about a 409 conflict in this
+        # polling episode so we don't spam WARNING every 30 s.
+        self._conflict_warned: bool = False
 
     def start(self) -> None:
         """Start the polling loop in a background daemon thread."""
@@ -89,11 +92,20 @@ class TelegramPoller:
                 if exc.response is not None and exc.response.status_code == 409:
                     # Another instance is already polling. Back off and let it run.
                     # deleteWebhook won't help here — the conflict is between two pollers.
-                    logger.warning(
-                        "TelegramPoller: 409 Conflict — another instance is polling. "
-                        "Retrying in %ds. If this persists, ensure only one worker instance is running.",
-                        _CONFLICT_RETRY_DELAY,
-                    )
+                    # Only log once as WARNING per conflict episode; subsequent retries
+                    # are downgraded to DEBUG to avoid spamming logs every 30 s.
+                    if not self._conflict_warned:
+                        logger.warning(
+                            "TelegramPoller: 409 Conflict — another instance is polling. "
+                            "Retrying every %ds until resolved. Ensure only one worker instance is running.",
+                            _CONFLICT_RETRY_DELAY,
+                        )
+                        self._conflict_warned = True
+                    else:
+                        logger.debug(
+                            "TelegramPoller: still 409 — waiting for other poller to stop (retry in %ds)",
+                            _CONFLICT_RETRY_DELAY,
+                        )
                     time.sleep(_CONFLICT_RETRY_DELAY)
                 else:
                     logger.warning("TelegramPoller: getUpdates failed, retrying in %ds", _RETRY_DELAY, exc_info=True)
@@ -103,6 +115,11 @@ class TelegramPoller:
                 logger.warning("TelegramPoller: getUpdates failed, retrying in %ds", _RETRY_DELAY, exc_info=True)
                 time.sleep(_RETRY_DELAY)
                 continue
+
+            # A successful round of getUpdates means the conflict has ended — reset flag.
+            if self._conflict_warned:
+                logger.info("TelegramPoller: 409 conflict resolved — polling resumed normally.")
+                self._conflict_warned = False
 
             for update in updates:
                 update_id = update.get("update_id", 0)

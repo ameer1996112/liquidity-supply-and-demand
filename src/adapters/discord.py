@@ -270,8 +270,11 @@ def send_guard_notification(signal_id: Any, symbol: str, reason: str) -> Tuple[b
         }
         payload = {"embeds": [embed]}
         r = requests.post(webhook_url, json=payload, timeout=10)
-        if r.status_code == 204:
+        if r.status_code in (200, 204):
             return True, None
+        # 404 = webhook deleted/invalid — tag the error so async wrapper can downgrade log level
+        if r.status_code == 404:
+            return False, f"WEBHOOK_NOT_FOUND: {r.text[:100] if r.text else 'no body'}"
         return False, f"HTTP {r.status_code}: {r.text[:200] if r.text else 'No response'}"
     except Exception as e:
         logger.error(f"Discord guard notification error: {e}")
@@ -289,7 +292,15 @@ def send_guard_notification_async(signal_id: Any, symbol: str, reason: str) -> N
         try:
             success, error = send_guard_notification(signal_id, symbol, reason)
             if not success:
-                logger.warning(f"Background Discord guard notification failed: {error}")
+                # Downgrade 404 (stale webhook) from WARNING to DEBUG — it's a config
+                # issue, not a runtime crash, and fires on every watchdog cycle otherwise.
+                if error and error.startswith("WEBHOOK_NOT_FOUND"):
+                    logger.debug(
+                        "Background Discord guard skipped: webhook URL is invalid/deleted. "
+                        "Update DISCORD_WEBHOOK_URL in .env. (%s)", error
+                    )
+                else:
+                    logger.warning(f"Background Discord guard notification failed: {error}")
         except Exception as e:
             logger.error(f"Background Discord guard notification crashed: {e}")
 
