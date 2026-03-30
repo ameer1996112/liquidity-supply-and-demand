@@ -2,8 +2,6 @@
 
 import { Bell } from 'lucide-react';
 import { RoutingPanel } from '@/components/notifications/RoutingPanel';
-import { WhitelistPanel } from '@/components/notifications/WhitelistPanel';
-import { CommandLogPanel } from '@/components/notifications/CommandLogPanel';
 
 export default function NotificationsPage() {
   return (
@@ -14,8 +12,6 @@ export default function NotificationsPage() {
       </div>
 
       <RoutingPanel />
-      <WhitelistPanel />
-      <CommandLogPanel />
     </div>
   );
 }
