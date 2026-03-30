@@ -774,11 +774,23 @@ def dispatch_payload(
     if routing.get("telegram_enabled", True) and s.telegram_bot_token and s.telegram_chat_id:
         try:
             text = _payload_to_telegram_html(payload)
-            r = requests.post(
-                f"https://api.telegram.org/bot{s.telegram_bot_token}/sendMessage",
-                json={"chat_id": s.telegram_chat_id, "text": text, "parse_mode": "HTML"},
-                timeout=10,
-            )
+            if payload.image_url:
+                r = requests.post(
+                    f"https://api.telegram.org/bot{s.telegram_bot_token}/sendPhoto",
+                    json={
+                        "chat_id": s.telegram_chat_id,
+                        "photo": payload.image_url,
+                        "caption": text,
+                        "parse_mode": "HTML",
+                    },
+                    timeout=10,
+                )
+            else:
+                r = requests.post(
+                    f"https://api.telegram.org/bot{s.telegram_bot_token}/sendMessage",
+                    json={"chat_id": s.telegram_chat_id, "text": text, "parse_mode": "HTML"},
+                    timeout=10,
+                )
             if r.status_code == 200:
                 msg_id = r.json().get("result", {}).get("message_id")
                 if msg_id and supabase_client and payload.signal_id:
