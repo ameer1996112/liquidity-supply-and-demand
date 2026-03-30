@@ -47,7 +47,10 @@ router = APIRouter(prefix="/positions", tags=["positions"])
 
 # ── Lazy Supabase client (same pattern as api_risk.py) ──────
 
-from src.adapters.supabase_api import get_api_supabase as _get_supabase, reset_api_supabase, is_supabase_connection_error
+from src.adapters.supabase_api import (
+    get_api_supabase as _get_supabase,
+    supabase_query,
+)
 
 
 def _get_adapter():
@@ -201,23 +204,25 @@ def get_active_positions(
 
     # Fetch database positions
     try:
-        q = (
-            sb.table("trading_signals")
-            .select(
-                "id, symbol, side, entry, sl, tp, size, broker_order_id, zone_id, "
-                "created_at, zone_type, entry_model, rr_ratio, "
-                "status, execution_source, broker_position_id, broker_order_id, closed_at, exit_price, pnl"
+        @supabase_query
+        def _fetch_active():
+            q = (
+                _get_supabase().table("trading_signals")
+                .select(
+                    "id, symbol, side, entry, sl, tp, size, broker_order_id, zone_id, "
+                    "created_at, zone_type, entry_model, rr_ratio, "
+                    "status, execution_source, broker_position_id, broker_order_id, closed_at, exit_price, pnl"
+                )
+                .in_("status", ["OPEN", "open", "active", "executed", "PENDING", "pending", "spin", "SPIN"])
             )
-            .in_("status", ["OPEN", "open", "active", "executed", "PENDING", "pending", "spin", "SPIN"])
-        )
-        if account_id:
-            q = q.eq("account_id", account_id)
-        resp = q.execute()
+            if account_id:
+                q = q.eq("account_id", account_id)
+            return q.execute()
+
+        resp = _fetch_active()
         raw_rows = resp.data or []
         rows = [r for r in raw_rows if _is_signal_open_strict(r)]
     except Exception as exc:
-        if is_supabase_connection_error(exc):
-            reset_api_supabase()
         logger.error("Failed to fetch active positions: %s", exc)
         rows = []
 
@@ -788,16 +793,18 @@ def get_account_status():
 
     # Count active positions
     try:
-        resp = (
-            sb.table("trading_signals")
-            .select("status, execution_source, broker_position_id, closed_at, exit_price, pnl")
-            .in_("status", ["OPEN", "open", "active", "executed", "PENDING", "pending"])
-            .execute()
-        )
+        @supabase_query
+        def _fetch_account_active():
+            return (
+                _get_supabase().table("trading_signals")
+                .select("status, execution_source, broker_position_id, broker_order_id, closed_at, exit_price, pnl")
+                .in_("status", ["OPEN", "open", "active", "executed", "PENDING", "pending"])
+                .execute()
+            )
+
+        resp = _fetch_account_active()
         active_count = sum(1 for r in (resp.data or []) if _is_signal_open_strict(r))
     except Exception as exc:
-        if is_supabase_connection_error(exc):
-            reset_api_supabase()
         logger.error("Failed to fetch count of active positions: %s", exc)
         active_count = 0
 
