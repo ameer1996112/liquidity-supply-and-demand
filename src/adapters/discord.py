@@ -698,6 +698,8 @@ def _payload_to_discord_embed(payload: NotificationPayload) -> dict:
         embed["description"] = payload.description
     if payload.footer:
         embed["footer"] = {"text": payload.footer}
+    if payload.image_url:
+        embed["image"] = {"url": payload.image_url}
     return embed
 
 
