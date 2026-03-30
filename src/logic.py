@@ -830,7 +830,7 @@ def process_trade(
         try:
             _db_rec = (
                 _sb.table("trading_signals")
-                .select("id, symbol, side, entry, sl, tp, size, risk_usd, fill_price, "
+                .select("id, symbol, side, entry, sl, tp, size, fill_price, "
                         "broker_symbol, zone_id, zone_type, broker_order_id")
                 .eq("id", alert_id)
                 .maybe_single()

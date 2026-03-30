@@ -11,16 +11,13 @@ Registration: Register slash commands with Discord via:
     python scripts/register_discord_commands.py
 """
 
-import hashlib
-import hmac
 import json
 import logging
-import os
-import asyncio
-from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
+
+from config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +34,7 @@ RESPONSE_TYPE_CHANNEL_MESSAGE = 4
 
 def _verify_discord_signature(body: bytes, signature: str, timestamp: str) -> bool:
     """Verify that the request is genuinely from Discord using Ed25519."""
-    public_key = os.environ.get("DISCORD_PUBLIC_KEY", "")
+    public_key = get_settings().discord_public_key
     if not public_key:
         logger.warning("DISCORD_PUBLIC_KEY not set — skipping signature verification")
         return True

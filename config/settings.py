@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     discord_webhook_url: str = ""
     discord_alerts_webhook_url: str = ""  # Optional: separate channel for operational alerts
     discord_bot_token: str = ""           # Optional: enables thread-per-trade (create threads from messages)
+    discord_public_key: str = ""          # Required for slash command signature verification (from Discord Dev Portal)
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
     paper_trading_enabled: bool = False
@@ -462,6 +463,11 @@ class Settings(BaseSettings):
         description="Signal queue backend: 'redis' (production) or 'memory' (tests).",
         validation_alias="SIGNAL_TRANSPORT",
     )
+
+    @property
+    def live_trading_enabled(self) -> bool:
+        """True when run_mode is LIVE (controlled by system_config.trading_mode in DB)."""
+        return self.run_mode == "LIVE"
 
     @property
     def get_accounts(self) -> list[dict]:
