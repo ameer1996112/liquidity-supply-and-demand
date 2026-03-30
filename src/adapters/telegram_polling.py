@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 _POLL_TIMEOUT = 30    # long-poll timeout in seconds
 _RETRY_DELAY = 5      # seconds to wait after a failed poll before retrying
+_CONFLICT_RETRY_DELAY = 30  # longer backoff when another instance is polling (409)
 
 
 class TelegramPoller:
@@ -56,6 +57,17 @@ class TelegramPoller:
 
     # ─── Internal ────────────────────────────────────────────────────────────
 
+    def _delete_webhook(self, base_url: str) -> None:
+        """Delete any registered Telegram webhook so long-polling can work."""
+        try:
+            resp = requests.get(f"{base_url}/deleteWebhook", timeout=10)
+            if resp.ok:
+                logger.info("TelegramPoller: webhook deleted (polling mode active)")
+            else:
+                logger.warning("TelegramPoller: deleteWebhook returned %s", resp.status_code)
+        except Exception as exc:
+            logger.warning("TelegramPoller: deleteWebhook failed: %s", exc)
+
     def _run(self) -> None:
         """Main polling loop — runs in background thread."""
         from src.services.command_router import CommandRouter
@@ -66,9 +78,27 @@ class TelegramPoller:
         base_url = f"https://api.telegram.org/bot{token}"
         offset = 0
 
+        # Clear any registered webhook before starting long-polling.
+        # A registered webhook and getUpdates cannot coexist — Telegram returns 409.
+        self._delete_webhook(base_url)
+
         while not self._stop_event.is_set():
             try:
                 updates = self._get_updates(base_url, offset)
+            except requests.exceptions.HTTPError as exc:
+                if exc.response is not None and exc.response.status_code == 409:
+                    # Another instance is already polling. Back off and let it run.
+                    # deleteWebhook won't help here — the conflict is between two pollers.
+                    logger.warning(
+                        "TelegramPoller: 409 Conflict — another instance is polling. "
+                        "Retrying in %ds. If this persists, ensure only one worker instance is running.",
+                        _CONFLICT_RETRY_DELAY,
+                    )
+                    time.sleep(_CONFLICT_RETRY_DELAY)
+                else:
+                    logger.warning("TelegramPoller: getUpdates failed, retrying in %ds", _RETRY_DELAY, exc_info=True)
+                    time.sleep(_RETRY_DELAY)
+                continue
             except Exception:
                 logger.warning("TelegramPoller: getUpdates failed, retrying in %ds", _RETRY_DELAY, exc_info=True)
                 time.sleep(_RETRY_DELAY)
