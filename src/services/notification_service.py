@@ -45,6 +45,9 @@ class NotificationPayload:
     metadata: dict = field(default_factory=dict)
     signal_id: Optional[int] = None
     alert_id: Optional[int] = None
+    image_url: Optional[str] = None
+    account_name: Optional[str] = None
+    bar_time: Optional[str] = None
 
 
 class NotificationService:
@@ -61,6 +64,8 @@ class NotificationService:
         signal: dict[str, Any],
         ai_result: Optional[dict[str, Any]] = None,
         mode: str = "manual",
+        account_name: Optional[str] = None,
+        image_url: Optional[str] = None,
     ) -> NotificationPayload:
         """
         Format a trade signal notification.
@@ -98,6 +103,23 @@ class NotificationService:
         mode_prefix = "PAPER | " if mode == "paper" else ""
         emoji = "📈" if side == "BUY" else "📉"
 
+        # Resolve image_url — prefer explicit param, fallback to signal dict
+        resolved_image_url = image_url or signal.get("image_url")
+
+        # Resolve account name
+        resolved_account = account_name or signal.get("account_name")
+
+        # Resolve bar_time
+        bar_time_raw = signal.get("bar_time") or signal.get("signal_time")
+        session = _derive_session(bar_time_raw)
+        bar_time_display = None
+        if bar_time_raw:
+            try:
+                dt = datetime.fromisoformat(str(bar_time_raw).replace("Z", "+00:00"))
+                bar_time_display = dt.strftime("%H:%M UTC")
+            except Exception:
+                bar_time_display = str(bar_time_raw)
+
         fields: dict[str, str] = {
             "Symbol":       f"**{symbol}**",
             "Side":         side,
@@ -111,6 +133,12 @@ class NotificationService:
             fields["Lot Size"] = f"{size:.2f} lots"
         if risk_usd:
             fields["Risk"] = f"${risk_usd:.2f}"
+        if resolved_account:
+            fields["Account"] = resolved_account
+        if session:
+            fields["Session"] = session
+        if bar_time_display:
+            fields["Bar Time"] = bar_time_display
 
         if signal.get("zone_id") is not None:
             fields["Zone ID"] = str(signal["zone_id"])
@@ -132,6 +160,9 @@ class NotificationService:
             footer=f"Signal #{signal_id} | /close {signal_id} to close",
             metadata={"symbol": symbol, "side": side, "mode": mode},
             signal_id=signal_id,
+            image_url=resolved_image_url,
+            account_name=resolved_account,
+            bar_time=bar_time_raw,
         )
 
     def format_close(
@@ -339,3 +370,23 @@ def _format_ai_analysis(ai_result: Optional[dict]) -> Optional[str]:
             lines.append(f"{i}. {snippet}")
 
     return "\n".join(lines)
+
+
+def _derive_session(bar_time_iso: Optional[str]) -> Optional[str]:
+    """Derive trading session from bar_time UTC hour."""
+    if not bar_time_iso:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(bar_time_iso).replace("Z", "+00:00"))
+        hour = dt.astimezone(timezone.utc).hour
+        if 0 <= hour < 8:
+            return "🌏 Asian"
+        if 8 <= hour < 13:
+            return "🇬🇧 London"
+        if 13 <= hour < 16:
+            return "🌐 London/NY Overlap"
+        if 16 <= hour < 21:
+            return "🇺🇸 New York"
+        return "🌙 Off-hours"
+    except Exception:
+        return None
