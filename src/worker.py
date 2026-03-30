@@ -1740,6 +1740,56 @@ def run():
         except Exception as exc:
             logger.warning("Daily reset scheduler init failed: %s", exc)
 
+    # Initialize Daily Digest scheduler
+    digest_scheduler = None
+    if supabase and getattr(s, "digest_enabled", True):
+        try:
+            from apscheduler.schedulers.background import BackgroundScheduler
+            from src.services.digest_service import DigestService
+            from src.services.notification_service import NotificationService
+            from src.adapters.discord import dispatch_payload_async
+            
+            digest_scheduler = BackgroundScheduler()
+            
+            def _trigger_daily_digest():
+                try:
+                    logger.info("Triggering Daily Performance Digest...")
+                    # ensure we use a fresh connection if needed
+                    from src.worker import _get_fresh_supabase
+                    sb = _get_fresh_supabase()
+                    if not sb:
+                        return
+                        
+                    digest_service = DigestService(sb)
+                    notif_service = NotificationService()
+                    
+                    report = digest_service.aggregate_daily_performance(hours_lookback=24)
+                    if report is None:
+                        return
+                    
+                    for acct, stats in report.items():
+                        payload = notif_service.format_digest(acct, stats)
+                        dispatch_payload_async(payload, supabase_client=sb, notification_service=notif_service)
+                        
+                except Exception as e:
+                    logger.error("Error in daily digest job: %s", e)
+
+            # parse schedule config "HH:MM"
+            digest_time = getattr(s, "digest_time_utc", "21:00")
+            hour, min_ = 21, 0
+            try:
+                if ":" in digest_time:
+                    parts = digest_time.split(":")
+                    hour, min_ = int(parts[0]), int(parts[1])
+            except Exception:
+                pass
+                
+            digest_scheduler.add_job(_trigger_daily_digest, 'cron', hour=hour, minute=min_, timezone="UTC")
+            digest_scheduler.start()
+            logger.info("Daily digest scheduler initialized for %02d:%02d UTC", hour, min_)
+        except Exception as exc:
+            logger.warning("Daily digest scheduler init failed: %s", exc)
+
     last_watchdog_ts = time.time()
     last_reconciliation_ts = 0  # Broker reconciliation runs every 5 minutes
     last_prop_firm_cache_ts = 0  # Prop firm metrics cache runs every 20 seconds
