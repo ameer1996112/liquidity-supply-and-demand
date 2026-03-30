@@ -157,6 +157,7 @@ export function AddAccountForm({ onSuccess, onCancel }: AddAccountFormProps) {
             max_drawdown_pct: ddPct,
             min_trading_days: minDays,
             consistency_limit_pct: 40,
+            consistency_enabled: null,  // use global setting by default
           });
         } catch {
           // Non-fatal: challenge settings can be edited later in the Challenge tab
