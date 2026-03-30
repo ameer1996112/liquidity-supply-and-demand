@@ -19,6 +19,7 @@ from fastapi.responses import JSONResponse
 
 from config import get_settings
 
+
 logger = logging.getLogger(__name__)
 
 discord_commands_router = APIRouter(prefix="/api/discord", tags=["discord"])
@@ -41,7 +42,6 @@ def _verify_discord_signature(body: bytes, signature: str, timestamp: str) -> bo
 
     try:
         from nacl.signing import VerifyKey
-        from nacl.exceptions import BadSignatureError
 
         verify_key = VerifyKey(bytes.fromhex(public_key))
         message = (timestamp + body.decode("utf-8")).encode()
