@@ -732,13 +732,16 @@ async def webhook(request: Request, payload: dict[str, Any] = Depends(get_webhoo
     run_mode = payload["run_mode"]
 
 
-    # Account routing: resolve target account + queue key, stamp onto payload
-    # before serialisation so the worker can read them without extra lookups.
-    from src.core.account_router import AccountRouter as _AccountRouter
+    # Account routing: resolve target account + stamp onto payload for tracking.
+    # NOTE: queue_key is always signals:default regardless of account_id — the
+    # worker selects accounts internally by matching broker_profiles on run_mode.
+    # Per-account queue partitioning is NOT used because the worker only polls
+    # signals:default, causing signals with account_id to get stuck permanently.
+    from src.core.account_router import AccountRouter as _AccountRouter, DEFAULT_QUEUE_KEY
     _router = _AccountRouter()
     account_id = _router.resolve_account_id(payload)
     payload["_account_id"] = account_id
-    queue_key = _router.queue_key_for(account_id)
+    queue_key = DEFAULT_QUEUE_KEY  # Always use signals:default
 
     # Persist at API level so signal appears in frontend even if worker never processes it (entry only)
     event_type = (payload.get("event_type") or "").strip().lower()
