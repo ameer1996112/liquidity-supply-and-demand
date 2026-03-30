@@ -1356,6 +1356,7 @@ class ChallengeSettingsRequest(BaseModel):
     max_drawdown_pct: float = Field(default=8.0, ge=0.1, le=50.0, description="Bot kill drawdown % (set below firm limit for buffer)")
     min_trading_days: int = Field(default=4, ge=0, description="Minimum trading days required")
     consistency_limit_pct: float = Field(default=40.0, ge=10, le=100, description="FTMO 40% rule: best day max % of total profit")
+    consistency_enabled: Optional[bool] = Field(default=None, description="None=use global setting, True=enforce rule, False=skip rule (e.g. ACG)")
 
 
 class ChallengeSettingsResponse(BaseModel):
@@ -1369,6 +1370,7 @@ class ChallengeSettingsResponse(BaseModel):
     max_drawdown_pct: float
     min_trading_days: int
     consistency_limit_pct: float
+    consistency_enabled: Optional[bool]  # None | True | False
     evaluation_start_date: Optional[str]
 
 
@@ -1399,13 +1401,14 @@ def get_challenge_settings(account_name: str):
             max_drawdown_pct=8.0,
             min_trading_days=4,
             consistency_limit_pct=40.0,
+            consistency_enabled=None,
             evaluation_start_date=None,
         )
 
     bp = sb.table("broker_profiles").select(
         "id, evaluation_mode, evaluation_phase, evaluation_start_date, "
         "starting_balance, max_daily_loss_pct, max_drawdown_pct, "
-        "profit_target, consistency_limit_pct"
+        "profit_target, consistency_limit_pct, consistency_enabled"
     ).eq("id", profile_id).limit(1).execute()
 
     if not bp.data:
@@ -1423,6 +1426,7 @@ def get_challenge_settings(account_name: str):
         max_drawdown_pct=d.get("max_drawdown_pct", 8.0),
         min_trading_days=d.get("min_trading_days", 4) if d.get("min_trading_days") is not None else 4,
         consistency_limit_pct=d.get("consistency_limit_pct", 40.0),
+        consistency_enabled=d.get("consistency_enabled"),  # None | True | False — per-account override
         evaluation_start_date=str(d["evaluation_start_date"]) if d.get("evaluation_start_date") else None,
     )
 
@@ -1458,6 +1462,7 @@ def update_challenge_settings(account_name: str, body: ChallengeSettingsRequest)
         "max_daily_loss_pct": body.max_daily_loss_pct,
         "max_drawdown_pct": body.max_drawdown_pct,
         "consistency_limit_pct": body.consistency_limit_pct,
+        "consistency_enabled": body.consistency_enabled,  # None | True | False
     }
     # Set evaluation start date when activating phase1
     if body.evaluation_mode and body.evaluation_phase == "phase1":

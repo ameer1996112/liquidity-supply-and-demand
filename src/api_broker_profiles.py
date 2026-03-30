@@ -97,6 +97,7 @@ class BrokerProfileResponse(BaseModel):
     max_daily_loss_pct: Optional[float] = None
     max_drawdown_pct: Optional[float] = None
     profit_target_usd: Optional[float] = None
+    consistency_enabled: Optional[bool] = None  # None = use global setting
 
 
 class TestConnectionResponse(BaseModel):
@@ -114,7 +115,8 @@ _SELECT = (
     "run_mode,is_active,selected_for_trading,connection_status,"
     "connection_error,last_tested_at,created_at,"
     # DB column is 'profit_target'; code calls it 'profit_target_usd' — mapped in _to_response
-    "evaluation_mode,evaluation_phase,max_daily_loss_pct,max_drawdown_pct,profit_target"
+    "evaluation_mode,evaluation_phase,max_daily_loss_pct,max_drawdown_pct,profit_target,"
+    "consistency_enabled"
 )
 
 
@@ -157,6 +159,7 @@ def _to_response(row: Dict[str, Any]) -> BrokerProfileResponse:
         max_daily_loss_pct=row.get("max_daily_loss_pct"),
         max_drawdown_pct=row.get("max_drawdown_pct"),
         profit_target_usd=row.get("profit_target_usd") or row.get("profit_target"),
+        consistency_enabled=row.get("consistency_enabled"),  # None | True | False
     )
 
 

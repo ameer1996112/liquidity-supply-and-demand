@@ -56,7 +56,8 @@ export function ChallengeTab({ accountName }: ChallengeTabProps) {
 
   // Local edit state
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState<Omit<ChallengeSettings, 'account_name' | 'broker_profile_id' | 'evaluation_start_date'>>({
+  const [form, setForm] = useState<Omit<ChallengeSettings, 'account_name' | 'broker_profile_id' | 'evaluation_start_date'>>(
+    {
     evaluation_mode: true,
     evaluation_phase: 'phase1',
     starting_balance: 50000,
@@ -65,6 +66,7 @@ export function ChallengeTab({ accountName }: ChallengeTabProps) {
     max_drawdown_pct: 8.0,
     min_trading_days: 4,
     consistency_limit_pct: 40,
+    consistency_enabled: null,  // null = use global setting
   });
 
   // Sync form when data loads
@@ -79,6 +81,7 @@ export function ChallengeTab({ accountName }: ChallengeTabProps) {
         max_drawdown_pct: settings.max_drawdown_pct,
         min_trading_days: settings.min_trading_days,
         consistency_limit_pct: settings.consistency_limit_pct,
+        consistency_enabled: settings.consistency_enabled ?? null,
       });
     }
   }, [settings]);
@@ -155,6 +158,45 @@ export function ChallengeTab({ accountName }: ChallengeTabProps) {
           )} />
         </button>
       </div>
+
+      {/* Consistency rule toggle — only meaningful when evaluation_mode is on */}
+      {current.evaluation_mode && (
+        <div className={cn(
+          'rounded-lg border px-4 py-3 flex items-center justify-between',
+          'border-[var(--to-border)] bg-[var(--to-surface-raised)]/40'
+        )}>
+          <div className='flex flex-col gap-0.5'>
+            <div className='flex items-center gap-2'>
+              <Shield className='h-4 w-4 text-[var(--to-text-dim)]' />
+              <span className='text-sm font-medium text-[var(--to-text)]'>Consistency rule (best day ≤ 40%)</span>
+            </div>
+            <span className='text-[11px] text-[var(--to-text-dim)] pl-6'>
+              {(form.consistency_enabled ?? true)
+                ? 'Enforced — FTMO / MyFundedFX accounts'
+                : 'Disabled — ACG and firms without this rule'}
+            </span>
+          </div>
+          <button
+            id={`consistency-toggle-${accountName}`}
+            type='button'
+            onClick={() => {
+              const next = !(form.consistency_enabled ?? true);
+              const updated = { ...form, consistency_enabled: next };
+              setForm(updated);
+              updateMutation.mutateAsync(updated).catch(() => {});
+            }}
+            className={cn(
+              'relative inline-flex h-5 w-9 items-center rounded-full transition-colors',
+              (form.consistency_enabled ?? true) ? 'bg-indigo-600' : 'bg-[var(--to-surface-raised)]'
+            )}
+          >
+            <span className={cn(
+              'inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform',
+              (form.consistency_enabled ?? true) ? 'translate-x-4' : 'translate-x-0.5'
+            )} />
+          </button>
+        </div>
+      )}
 
       {/* Phase switcher */}
       <section>

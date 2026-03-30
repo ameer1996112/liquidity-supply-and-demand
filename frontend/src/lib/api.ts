@@ -693,6 +693,7 @@ export interface ChallengeSettings {
   max_drawdown_pct: number;
   min_trading_days: number;
   consistency_limit_pct: number;
+  consistency_enabled: boolean | null;  // null = use global setting
   evaluation_start_date: string | null;
 }
 

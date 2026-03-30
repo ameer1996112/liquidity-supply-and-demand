@@ -1034,7 +1034,16 @@ def _run_account_guards(
         return f"Bucket Full ({account_name}): {len(active_positions)}/{max_pos}"
 
     # ── Per-account Consistency Analyzer ──────────────────────
-    if getattr(s, "evaluation_mode", False) and supabase:
+    # Resolution order:
+    #   1. profile["consistency_enabled"] from broker_profiles DB column (None | True | False)
+    #   2. global settings.consistency_enabled                           (True by default)
+    # This lets ACG (no consistency rule) set consistency_enabled=False per account
+    # while FTMO accounts keep the 40% best-day cap enforced.
+    _profile_consistency = (profile or {}).get("consistency_enabled")   # None if column absent
+    _global_consistency = getattr(s, "consistency_enabled", True)
+    _run_consistency = _profile_consistency if _profile_consistency is not None else _global_consistency
+
+    if _run_consistency and getattr(s, "evaluation_mode", False) and supabase:
         try:
             from src.services.consistency_analyzer import ConsistencyAnalyzer
             consistency = ConsistencyAnalyzer(supabase, s)
