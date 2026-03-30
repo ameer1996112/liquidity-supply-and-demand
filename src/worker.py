@@ -1714,6 +1714,16 @@ def run():
     _worker_alert_service = create_default_alert_service(supabase)
     alert_engine = AlertEngine(supabase_client=supabase, alert_service=_worker_alert_service)
 
+    # Start Telegram polling loop for two-way commands (DEV-73)
+    _telegram_poller = None
+    try:
+        from src.adapters.telegram_polling import TelegramPoller
+        _meta_api_for_commands = locals().get("adapter")
+        _telegram_poller = TelegramPoller(supabase=supabase, meta_api=_meta_api_for_commands)
+        _telegram_poller.start()
+    except Exception as _tp_exc:
+        logger.warning("TelegramPoller init failed (non-fatal): %s", _tp_exc)
+
     # Initialize daily reset scheduler for prop firm metrics
     daily_reset_scheduler = None
     if supabase and getattr(s, "evaluation_mode", False):

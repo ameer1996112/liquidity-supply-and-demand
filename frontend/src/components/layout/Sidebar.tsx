@@ -333,6 +333,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Ops',
     items: [
       { label: 'Journal', icon: BookOpen, path: '/journal' },
+      { label: 'Notifications', icon: Bell, path: '/notifications' },
       { label: 'Settings', icon: Settings, path: '/settings' },
     ],
   },
