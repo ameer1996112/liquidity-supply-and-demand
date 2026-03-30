@@ -22,10 +22,11 @@ from src.adapters.discord import (
     send_discord_async,
     send_discord_and_thread_async,
     send_telegram_async,
-    send_telegram_and_store_async,
     post_close_to_thread_async,
     post_telegram_close_reply_async,
+    dispatch_payload_async,
 )
+from src.services.notification_service import NotificationService
 from src.adapters.paper_trader import get_paper_trader
 from src.adapters.execution.interfaces import OrderRequest, CloseRequest
 from src.adapters.execution.router import get_adapter
@@ -397,11 +398,30 @@ def process_trade(
             except Exception as e:  # noqa: BLE001
                 logger.error("Broker close failed for zone_id=%s: %s", data["zone_id"], e)
 
-            # Discord thread + Telegram reply close updates (non-blocking)
+            # DEV-73: Close notification using NotificationService (broker actual PnL)
+            # Prefer total_realized_pnl (from MetaAPI deals) over exit_data.pnl_usd (TradingView)
+            _broker_pnl = locals().get("total_realized_pnl")
+            _close_signal = {
+                **alert,
+                "pnl_usd": _broker_pnl if _broker_pnl is not None else exit_data.get("pnl_usd"),
+                "pnl":     _broker_pnl if _broker_pnl is not None else exit_data.get("pnl_usd"),
+                "commission": locals().get("total_commission") or alert.get("commission"),
+                "swap":       locals().get("total_swap") or alert.get("swap"),
+                "exit_price": exit_data.get("close_price"),
+                "fill_price": alert.get("filled_entry_price") or data.get("entry"),
+            }
+            try:
+                _ns_close = NotificationService(supabase=supabase_module.supabase)
+                _close_payload = _ns_close.format_close(_close_signal)
+                dispatch_payload_async(_close_payload, supabase_client=supabase_module.supabase, notification_service=_ns_close)
+            except Exception as _nse:
+                logger.warning("NotificationService close dispatch failed: %s", _nse)
+
+            # Keep legacy thread/reply for Discord thread updates
             _close_kwargs = dict(
                 symbol=alert.get("symbol", data.get("symbol", "")),
                 side=alert.get("side", data.get("side", "")),
-                pnl_usd=exit_data.get("pnl_usd"),
+                pnl_usd=_broker_pnl if _broker_pnl is not None else exit_data.get("pnl_usd"),
                 outcome=exit_data.get("outcome", ""),
                 entry_price=alert.get("filled_entry_price") or data.get("entry"),
                 close_price=exit_data.get("close_price"),
@@ -802,14 +822,34 @@ def process_trade(
                 log_event(alert_id, "execution_failed", "logic", {"error": str(e)[:200]})
                 update_alert_status(alert_id, "execution_failed", notes=f"Execution exception: {str(e)[:200]}")
 
-    # Pass through AI ensemble result (if available) so Discord can render
-    # the full brain decision matrix.
-    # Phase 1 Optimization: Use async notifications to avoid blocking execution
+    # DEV-73: Use NotificationService to format with correct broker data, then dispatch.
+    # Fetch the latest signal record from DB so we use actual fill price / lot size.
+    _sb = supabase_module.supabase
+    _signal_record = data.copy()
+    if _sb:
+        try:
+            _db_rec = (
+                _sb.table("trading_signals")
+                .select("id, symbol, side, entry, sl, tp, size, risk_usd, fill_price, "
+                        "broker_symbol, zone_id, zone_type, broker_order_id")
+                .eq("id", alert_id)
+                .maybe_single()
+                .execute()
+            )
+            if _db_rec and _db_rec.data:
+                _signal_record.update({k: v for k, v in _db_rec.data.items() if v is not None})
+        except Exception as _fetch_err:
+            logger.warning("Could not fetch enriched signal for notification: %s", _fetch_err)
+
+    _ns = NotificationService(supabase=_sb)
+    _payload = _ns.format_signal(_signal_record, ai_result=ai_result, mode=mode)
+    dispatch_payload_async(_payload, supabase_client=_sb, notification_service=_ns)
+
+    # Keep thread creation logic (Discord threads per trade)
     send_discord_and_thread_async(
-        data, alert_id, mode=mode, ai_result=ai_result,
-        supabase_client=supabase_module.supabase,
+        _signal_record, alert_id, mode=mode, ai_result=ai_result,
+        supabase_client=_sb,
     )
-    send_telegram_and_store_async(data, alert_id, supabase_client=supabase_module.supabase)
 
 
 execute_trade = process_trade

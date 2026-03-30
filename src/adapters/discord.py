@@ -660,3 +660,140 @@ def send_telegram_and_store_async(
 
     _notification_executor.submit(_send)
     logger.debug(f"Telegram+store notification queued in background for alert #{alert_id}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# NotificationPayload dispatch — DEV-73
+# Renders NotificationPayload to Discord embed or Telegram HTML and dispatches.
+# ═══════════════════════════════════════════════════════════════════════════
+
+from src.services.notification_service import NotificationPayload, COLOR_MAP  # noqa: E402
+
+
+def _payload_to_discord_embed(payload: NotificationPayload) -> dict:
+    """Render a NotificationPayload as a Discord embed dict."""
+    color = COLOR_MAP.get(payload.color, 0x3B82F6)
+    fields = [
+        {"name": k, "value": str(v), "inline": k not in ("🧠 AI Analysis", "Details", "Reason")}
+        for k, v in payload.fields.items()
+    ]
+    embed: dict = {
+        "title": payload.title,
+        "color": color,
+        "timestamp": datetime.utcnow().isoformat(),
+        "fields": fields,
+    }
+    if payload.description:
+        embed["description"] = payload.description
+    if payload.footer:
+        embed["footer"] = {"text": payload.footer}
+    return embed
+
+
+def _payload_to_telegram_html(payload: NotificationPayload) -> str:
+    """Render a NotificationPayload as a Telegram HTML string."""
+    lines = [f"<b>{payload.title}</b>"]
+    if payload.description:
+        lines.append(payload.description)
+    lines.append("")
+    for k, v in payload.fields.items():
+        # AI analysis block: render as code-like block
+        if k == "🧠 AI Analysis":
+            lines.append(f"<b>{k}</b>\n<i>{v}</i>")
+        else:
+            lines.append(f"<b>{k}:</b> {v}")
+    if payload.footer:
+        lines.append(f"\n<i>{payload.footer}</i>")
+    return "\n".join(lines)
+
+
+def dispatch_payload(
+    payload: NotificationPayload,
+    supabase_client=None,
+    notification_service=None,
+) -> None:
+    """
+    Dispatch a NotificationPayload to Discord and/or Telegram.
+    Respects notification_routing table via notification_service.
+    Runs synchronously — wrap in _notification_executor.submit() for async.
+    """
+    s = get_settings()
+
+    # Check routing
+    routing = {"discord_enabled": True, "telegram_enabled": True, "discord_channel": "signals"}
+    if notification_service:
+        try:
+            routing = notification_service.get_routing(payload.type)
+        except Exception:
+            pass
+
+    # Discord
+    if routing.get("discord_enabled", True) and s.discord_webhook_url:
+        discord_channel = routing.get("discord_channel", "signals")
+        if discord_channel == "alerts":
+            webhook_url = getattr(s, "discord_alerts_webhook_url", "") or s.discord_webhook_url
+        else:
+            webhook_url = s.discord_webhook_url
+
+        try:
+            embed = _payload_to_discord_embed(payload)
+            r = requests.post(
+                webhook_url.rstrip("?&") + "?wait=true",
+                json={"embeds": [embed]},
+                timeout=10,
+            )
+            if r.status_code in (200, 204):
+                msg_id = r.json().get("id") if r.status_code == 200 else None
+                if msg_id and supabase_client and payload.signal_id:
+                    try:
+                        supabase_client.table("trading_signals").update(
+                            {"discord_message_id": str(msg_id)}
+                        ).eq("id", payload.signal_id).execute()
+                    except Exception:
+                        pass
+                logger.info("dispatch_payload: Discord sent (%s)", payload.title)
+            else:
+                logger.warning("dispatch_payload: Discord failed HTTP %s", r.status_code)
+        except Exception:
+            logger.error("dispatch_payload: Discord error", exc_info=True)
+
+    # Telegram
+    if routing.get("telegram_enabled", True) and s.telegram_bot_token and s.telegram_chat_id:
+        try:
+            text = _payload_to_telegram_html(payload)
+            r = requests.post(
+                f"https://api.telegram.org/bot{s.telegram_bot_token}/sendMessage",
+                json={"chat_id": s.telegram_chat_id, "text": text, "parse_mode": "HTML"},
+                timeout=10,
+            )
+            if r.status_code == 200:
+                msg_id = r.json().get("result", {}).get("message_id")
+                if msg_id and supabase_client and payload.signal_id:
+                    try:
+                        supabase_client.table("trading_signals").update(
+                            {"telegram_message_id": msg_id}
+                        ).eq("id", payload.signal_id).execute()
+                    except Exception:
+                        pass
+                logger.info("dispatch_payload: Telegram sent (%s)", payload.title)
+            else:
+                logger.warning("dispatch_payload: Telegram failed HTTP %s", r.status_code)
+        except Exception:
+            logger.error("dispatch_payload: Telegram error", exc_info=True)
+
+
+def dispatch_payload_async(
+    payload: NotificationPayload,
+    supabase_client=None,
+    notification_service=None,
+) -> None:
+    """Non-blocking version of dispatch_payload."""
+    s = get_settings()
+    if not getattr(s, "async_notifications", False):
+        dispatch_payload(payload, supabase_client, notification_service)
+        return
+
+    def _send():
+        dispatch_payload(payload, supabase_client, notification_service)
+
+    _notification_executor.submit(_send)
