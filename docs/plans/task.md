@@ -1,12 +1,13 @@
-# DEV-65 Dashboard & Accounts Cleanup — Task Tracker
+# Notification Upgrade — Task Tracker (DEV-76)
 
 | # | Task | Status |
-|---|------|--------|
-| 1 | Jira ticket + branch | `done` |
-| 2 | Create `AccountStrip.tsx` | `done` |
-| 3 | Update `dashboard/page.tsx` | `done` |
-| 4 | Delete `AccountDrawer.tsx` | `done` |
-| 5 | Create `AccountOverviewList.tsx` | `done` |
-| 6 | Update `accounts/page.tsx` | `done` |
-| 7 | Delete `AccountGrid` + `AccountGridCard` | `done` |
-| 8 | Verify + close ticket | `done` |
+|---|---|---|
+| 1 | Delete command system files | [x] done |
+| 2 | Remove TelegramPoller from worker.py | [x] done |
+| 3 | Strip whitelist/command endpoints from api_notifications.py | [x] done |
+| 4 | Remove frontend command/whitelist panels | ⬜ todo |
+| 5 | Extend NotificationPayload with new fields | ⬜ todo |
+| 6 | Upgrade Discord embed render | ⬜ todo |
+| 7 | Upgrade Telegram render — sendPhoto fallback | ⬜ todo |
+| 8 | Wire new fields into worker signal dispatch | ⬜ todo |
+| 9 | End-to-end smoke test | ⬜ todo |
