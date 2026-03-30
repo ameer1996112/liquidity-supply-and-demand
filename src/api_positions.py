@@ -266,14 +266,45 @@ def get_active_positions(
         bid, ask = price_cache.get(symbol, (None, None))
         current_price = bid if side == "buy" else ask if side == "sell" else None
 
-        # Live PnL
+        # Live PnL — SOURCE PRIORITY:
+        # 1. Use broker's reported profit directly (exact MetaTrader value, avoids need for contract size math)
+        # 2. Fall back to approximate formula for PENDING signals with no broker link yet
         live_pnl = None
         live_pnl_pct = None
-        if current_price is not None and entry is not None and size > 0:
+
+        if broker_exists and broker_order_id in broker_positions:
+            # ── BEST: use the broker's reported unrealized profit ────────────
+            broker_pos = broker_positions[broker_order_id]
+            raw_profit = broker_pos.get("profit")
+            if raw_profit is not None:
+                try:
+                    live_pnl = round(float(raw_profit), 2)
+                except (TypeError, ValueError):
+                    live_pnl = None
+        
+        if live_pnl is None and current_price is not None and entry is not None and size > 0:
+            # ── FALLBACK: estimate with correct forex contract-size math ─────
+            # Standard forex lot = 100,000 units. For JPY-quoted pairs price
+            # difference is in JPY; divide by current price to convert to USD.
             direction = 1 if side == "buy" else -1
-            live_pnl = round((current_price - entry) * size * direction, 2)
-            if account_balance > 0:
-                live_pnl_pct = round((live_pnl / account_balance) * 100, 2)
+            contract_size = 100_000  # standard lot
+            sym_upper = symbol.upper()
+            price_diff = (current_price - entry) * direction
+            if "JPY" in sym_upper:
+                # JPY pairs: P&L in JPY → convert to USD
+                live_pnl = round(price_diff * size * contract_size / current_price, 2)
+            elif any(x in sym_upper for x in ("XAU", "GOLD")):
+                # Gold: 1 lot = 100 oz, price in USD — no conversion needed
+                live_pnl = round(price_diff * size * 100, 2)
+            elif any(x in sym_upper for x in ("NAS", "US30", "SPX", "DE40", "UK100")):
+                # Indices: 1 lot = 1 contract, point value ~$1 per point
+                live_pnl = round(price_diff * size, 2)
+            else:
+                # Standard FX (e.g. EURUSD, GBPUSD): P&L already in USD
+                live_pnl = round(price_diff * size * contract_size, 2)
+
+        if live_pnl is not None and account_balance > 0:
+            live_pnl_pct = round((live_pnl / account_balance) * 100, 2)
 
         # Hold duration
         hold_seconds = 0
