@@ -65,7 +65,7 @@ function relativeTime(iso: string): string {
 
 function isOpenStatus(status: string): boolean {
   const s = String(status).toLowerCase();
-  return s === 'open' || s === 'active' || s === 'executed' || s === 'pending';
+  return s === 'open' || s === 'active' || s === 'executed' || s === 'pending' || s === 'spin';
 }
 
 function isClosedStatus(status: string): boolean {
@@ -148,6 +148,7 @@ const STATUS_STYLES: Record<string, { label: string; bg: string; text: string }>
   active:              { label: 'OPEN',      bg: 'bg-[var(--to-long)]/12',          text: 'text-[var(--to-long)]' },
   executed:            { label: 'OPEN',      bg: 'bg-[var(--to-long)]/12',          text: 'text-[var(--to-long)]' },
   pending:             { label: 'PENDING',   bg: 'bg-[var(--to-warning)]/12',       text: 'text-[var(--to-warning)]' },
+  spin:                { label: 'PENDING',   bg: 'bg-[var(--to-warning)]/12',       text: 'text-[var(--to-warning)]' },
   received:            { label: 'RECEIVED',  bg: 'bg-[var(--to-warning)]/10',       text: 'text-[var(--to-warning)]/80' },
   closed:              { label: 'CLOSED',    bg: 'bg-[var(--to-text-dim)]/12',      text: 'text-[var(--to-text-dim)]' },
   filtered:            { label: 'FILTERED',  bg: 'bg-[var(--to-short)]/8',          text: 'text-[var(--to-short)]/70' },

@@ -95,9 +95,14 @@ def _is_signal_open_strict(r: Dict[str, Any]) -> bool:
 
     if status == "open" and r.get("execution_source") == "metaapi" and has_broker_link:
         return True
-    if status in ("active", "pending", "executed") and not _is_signal_closed(r):
+    # PENDING / SPIN: signal is queued/awaiting execution — show even without broker_order_id yet
+    if status in ("pending", "spin") and not _is_signal_closed(r):
+        return True
+    # active/executed: already placed on broker, require broker link to confirm live
+    if status in ("active", "executed") and not _is_signal_closed(r):
         return has_broker_link
     return False
+
 
 
 # ── Request / Response Models ────────────────────────────────
@@ -203,7 +208,7 @@ def get_active_positions(
                 "created_at, zone_type, entry_model, rr_ratio, "
                 "status, execution_source, broker_position_id, broker_order_id, closed_at, exit_price, pnl"
             )
-            .in_("status", ["OPEN", "open", "active", "executed", "PENDING", "pending"])
+            .in_("status", ["OPEN", "open", "active", "executed", "PENDING", "pending", "spin", "SPIN"])
         )
         if account_id:
             q = q.eq("account_id", account_id)
