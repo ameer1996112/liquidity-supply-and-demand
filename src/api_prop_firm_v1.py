@@ -164,7 +164,14 @@ async def update_challenge_config(account_name: str, config: Dict[str, Any], sup
     if "consistency_enabled" in config:
         update_data["consistency_enabled"] = bool(config["consistency_enabled"]) if config["consistency_enabled"] is not None else None
         
-    resp = supabase.table("broker_profiles").update(update_data).eq("account_name", account_name).execute()
+    # Get broker_profile_id from account_strategies
+    acc_resp = supabase.table("account_strategies").select("broker_profile_id").eq("account_name", account_name).execute()
+    if not acc_resp.data or not acc_resp.data[0].get("broker_profile_id"):
+        raise HTTPException(status_code=404, detail="Account not found or no broker profile attached")
+        
+    broker_profile_id = acc_resp.data[0]["broker_profile_id"]
+    
+    resp = supabase.table("broker_profiles").update(update_data).eq("id", broker_profile_id).execute()
     if not resp.data:
         raise HTTPException(status_code=404, detail="Broker profile not found")
         
