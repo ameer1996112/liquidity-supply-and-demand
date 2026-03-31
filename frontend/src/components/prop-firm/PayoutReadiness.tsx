@@ -68,7 +68,7 @@ export function PayoutReadiness({
       detail:
         profitTargetPct > 0
           ? `${currentProfitPct.toFixed(2)}% / ${profitTargetPct}%`
-          : 'N/A (funded)',
+          : 'N/A',
       status: profitStatus,
     },
     {
