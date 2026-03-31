@@ -651,47 +651,81 @@ function HtfFilterCard() {
             </div>
           </div>
 
-          {/* Visual 5m candle slots within one HTF cycle */}
-          <div className={cn('space-y-1.5 transition-opacity duration-200', !enabled && 'opacity-30')}>
+          {/* Timeline: entry window within 15m HTF cycle */}
+          <div className={cn('space-y-2 transition-opacity duration-200', !enabled && 'opacity-30')}>
             <div
               className='text-[9px] uppercase tracking-[0.15em] text-[var(--to-text-dim)]'
               style={{ fontFamily: 'var(--font-mono)' }}
             >
-              5m candles per HTF cycle
+              Entry window · 15m HTF cycle
             </div>
-            <div className='flex gap-1.5'>
-              {/* 3 five-minute candle slots: +0, +5, +10 within the 15-min HTF cycle */}
-              {([0, 5, 10] as const).map((minuteOffset) => {
-                const isOpen = minuteOffset === 0;
-                const isBlocked = minuteOffset >= (15 - blockMins);
-                const bg = isOpen
-                  ? 'var(--to-accent-blue)'
-                  : isBlocked
-                  ? 'var(--to-short)'
-                  : 'var(--to-long)';
-                const opacity = isOpen ? 0.9 : isBlocked ? 0.55 : 0.35;
-                const label = isOpen ? 'FLIP only' : isBlocked ? 'blocked' : 'allowed';
-                return (
-                  <div key={minuteOffset} className='flex flex-1 flex-col items-center gap-1'>
-                    <div
-                      className='h-5 w-full rounded transition-all duration-300'
-                      style={{ background: bg, opacity }}
-                    />
-                    <div
-                      className='text-[9px] tabular-nums text-[var(--to-text-dim)]'
-                      style={{ fontFamily: 'var(--font-mono)', color: bg, opacity: opacity * 0.9 }}
-                    >
-                      +{minuteOffset}m
-                    </div>
-                    <div
-                      className='text-[8px] text-[var(--to-text-dim)]'
-                      style={{ fontFamily: 'var(--font-mono)' }}
-                    >
-                      {label}
-                    </div>
-                  </div>
-                );
-              })}
+
+            {/* Timeline bar */}
+            <div className='relative'>
+              <div className='relative h-5 w-full overflow-hidden rounded-md bg-[var(--to-surface-raised)]'>
+                {/* Allowed zone */}
+                <div
+                  className='absolute left-0 top-0 h-full transition-all duration-300'
+                  style={{
+                    width: `${((15 - blockMins) / 15) * 100}%`,
+                    background: 'var(--to-long)',
+                    opacity: 0.45,
+                  }}
+                />
+                {/* Blocked zone */}
+                <div
+                  className='absolute right-0 top-0 h-full transition-all duration-300'
+                  style={{
+                    width: `${(blockMins / 15) * 100}%`,
+                    background: 'var(--to-short)',
+                    opacity: 0.5,
+                  }}
+                />
+                {/* 5m segment dividers */}
+                {[5, 10].map((tick) => (
+                  <div
+                    key={tick}
+                    className='absolute top-0 h-full w-px bg-[var(--to-border)]/60'
+                    style={{ left: `${(tick / 15) * 100}%` }}
+                  />
+                ))}
+                {/* Split-point marker */}
+                <div
+                  className='absolute top-0 h-full w-0.5 bg-[var(--to-text-primary)] opacity-70 transition-all duration-300'
+                  style={{ left: `${((15 - blockMins) / 15) * 100}%` }}
+                />
+              </div>
+
+              {/* Time axis labels */}
+              <div className='relative mt-1 h-3.5'>
+                {[0, 5, 10, 15].map((tick) => (
+                  <span
+                    key={tick}
+                    className='absolute text-[8px] tabular-nums text-[var(--to-text-dim)]'
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      left: `${(tick / 15) * 100}%`,
+                      transform: tick === 0 ? 'none' : tick === 15 ? 'translateX(-100%)' : 'translateX(-50%)',
+                    }}
+                  >
+                    {tick}m
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Summary row */}
+            <div
+              className='flex items-center justify-between rounded-md px-2 py-1 text-[8px]'
+              style={{ background: 'var(--to-surface-raised)', fontFamily: 'var(--font-mono)' }}
+            >
+              <span style={{ color: 'var(--to-long)', opacity: 0.9 }}>
+                ✓ {15 - blockMins}m open
+              </span>
+              <span className='text-[var(--to-text-dim)]'>·</span>
+              <span style={{ color: 'var(--to-short)', opacity: 0.9 }}>
+                ✗ last {blockMins}m blocked
+              </span>
             </div>
           </div>
 
