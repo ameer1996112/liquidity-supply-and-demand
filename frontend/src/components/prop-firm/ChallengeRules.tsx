@@ -28,7 +28,7 @@ interface ChallengeRule {
 interface ChallengeRulesProps {
   dailyLimitPct: number;
   maxDrawdownPct: number;
-  consistencyLimitPct: number;
+  consistencyLimitPct?: number;
   profitTargetPct: number;
   minTradingDays?: number;
   maxTradingDays?: number;
@@ -64,7 +64,7 @@ function getRuleStatus(
 export function ChallengeRules({
   dailyLimitPct,
   maxDrawdownPct,
-  consistencyLimitPct,
+  consistencyLimitPct = 0,
   profitTargetPct,
   minTradingDays,
   maxTradingDays,

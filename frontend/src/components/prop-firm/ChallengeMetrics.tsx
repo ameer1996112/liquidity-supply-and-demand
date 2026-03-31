@@ -8,7 +8,7 @@ interface ChallengeMetricsProps {
   trailingPct: number;
   trailingLimitPct: number;
   consistencyPct: number;
-  consistencyLimitPct: number;
+  consistencyLimitPct?: number;
 }
 
 function ZoneLabel({
@@ -36,7 +36,7 @@ export function ChallengeMetrics({
   trailingPct,
   trailingLimitPct,
   consistencyPct,
-  consistencyLimitPct,
+  consistencyLimitPct = 0,
 }: ChallengeMetricsProps) {
   const hasDailyRule = dailyLimitPct > 0;
   const hasTrailingRule = trailingLimitPct > 0;
@@ -60,7 +60,7 @@ export function ChallengeMetrics({
     hasConsistencyRule && {
       key: 'consistency',
       value: consistencyPct,
-      limit: consistencyLimitPct,
+      limit: consistencyLimitPct = 0,
       label: 'Consistency Rule',
       thresholds: { safe: 0.75, caution: 0.9 },
     },

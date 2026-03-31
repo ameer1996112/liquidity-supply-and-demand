@@ -760,8 +760,8 @@ export interface PropFirmStatus {
 
 export interface PropFirmConsistency {
   best_day_pct: number;
-  limit_pct: number;
-  status: 'safe' | 'warning' | 'danger' | 'violated';
+  limit_pct: number | null;  // null when consistency rule is disabled for this account
+  status: 'safe' | 'warning' | 'danger' | 'violated' | null;
 }
 
 export interface PropFirmMetrics {

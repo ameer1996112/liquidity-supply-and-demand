@@ -347,7 +347,8 @@ export default function PropFirmPage() {
   };
   const safeConsistency = {
     best_day_pct: consistency?.best_day_pct ?? 0,
-    limit_pct: consistency?.limit_pct ?? 0,
+    // null means consistency rule is disabled for this account — hide label/chart line
+    limit_pct: consistency?.limit_pct ?? null,
   };
 
   const currentProfitPct =
@@ -397,7 +398,7 @@ export default function PropFirmPage() {
             trailingPct={safeDrawdown.trailing_pct}
             trailingLimitPct={safeDrawdown.trailing_limit_pct}
             consistencyPct={safeConsistency.best_day_pct}
-            consistencyLimitPct={safeConsistency.limit_pct}
+            consistencyLimitPct={safeConsistency.limit_pct ?? undefined}
             safeToTrade={status.safe_to_trade}
             currentProfitPct={currentProfitPct}
           />
@@ -472,11 +473,11 @@ export default function PropFirmPage() {
         <DailyPnlBars
           data={analyticsDaily}
           bestDayLimitUsd={
-            safeConsistency.limit_pct > 0 && safeEquity.daily_start_balance > 0
+            safeConsistency.limit_pct != null && safeConsistency.limit_pct > 0 && safeEquity.daily_start_balance > 0
               ? (safeConsistency.limit_pct / 100) * safeEquity.daily_start_balance
               : null
           }
-          consistencyLimitPct={safeConsistency.limit_pct}
+          consistencyLimitPct={safeConsistency.limit_pct ?? undefined}
         />
       </div>
 
@@ -487,14 +488,14 @@ export default function PropFirmPage() {
         trailingPct={safeDrawdown.trailing_pct}
         trailingLimitPct={safeDrawdown.trailing_limit_pct}
         consistencyPct={safeConsistency.best_day_pct}
-        consistencyLimitPct={safeConsistency.limit_pct}
+        consistencyLimitPct={safeConsistency.limit_pct ?? undefined}
       />
 
       {/* Challenge Rules */}
       <ChallengeRules
         dailyLimitPct={safeDrawdown.daily_limit_pct}
         maxDrawdownPct={safeDrawdown.trailing_limit_pct}
-        consistencyLimitPct={safeConsistency.limit_pct}
+        consistencyLimitPct={safeConsistency.limit_pct ?? undefined}
         profitTargetPct={firmInfo?.profit_target_pct ?? 0}
         minTradingDays={firmInfo?.min_trading_days ?? undefined}
         maxTradingDays={firmInfo?.max_trading_days ?? undefined}
@@ -515,7 +516,7 @@ export default function PropFirmPage() {
         drawdownBreach={status.drawdown_breach}
         consistencyOk={status.consistency_ok}
         consistencyPct={safeConsistency.best_day_pct}
-        consistencyLimitPct={safeConsistency.limit_pct}
+        consistencyLimitPct={safeConsistency.limit_pct ?? undefined}
       />
 
       {/* Performance Summary */}

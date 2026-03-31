@@ -20,7 +20,7 @@ interface PayoutReadinessProps {
   drawdownBreach: boolean;
   consistencyOk: boolean;
   consistencyPct: number;
-  consistencyLimitPct: number;
+  consistencyLimitPct?: number;
 }
 
 function StatusIcon({ status }: { status: CheckStatus }) {
@@ -39,7 +39,7 @@ export function PayoutReadiness({
   drawdownBreach,
   consistencyOk,
   consistencyPct,
-  consistencyLimitPct,
+  consistencyLimitPct = 0,
 }: PayoutReadinessProps) {
   const profitReached = profitTargetPct > 0 && currentProfitPct >= profitTargetPct;
   const profitClose = profitTargetPct > 0 && currentProfitPct >= profitTargetPct * 0.7;

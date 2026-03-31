@@ -10,7 +10,7 @@ interface HealthScoreGaugeProps {
   trailingPct: number;
   trailingLimitPct: number;
   consistencyPct: number;
-  consistencyLimitPct: number;
+  consistencyLimitPct?: number;
   safeToTrade: boolean;
   currentProfitPct: number;
 }
@@ -21,7 +21,7 @@ export function HealthScoreGauge({
   trailingPct,
   trailingLimitPct,
   consistencyPct,
-  consistencyLimitPct,
+  consistencyLimitPct = 0,
   safeToTrade,
   currentProfitPct,
 }: HealthScoreGaugeProps) {
@@ -31,7 +31,7 @@ export function HealthScoreGauge({
     trailingPct,
     trailingLimitPct,
     consistencyPct,
-    consistencyLimitPct,
+    consistencyLimitPct = 0,
     safeToTrade,
     currentProfitPct
   );

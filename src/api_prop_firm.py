@@ -56,6 +56,31 @@ async def get_prop_firm_metrics(
         settings = get_settings()
         supabase = _get_supabase()
 
+        # ── Look up per-account broker profile for consistency settings ──
+        _profile_consistency_enabled = None   # None = use global
+        _profile_consistency_limit = 40.0     # default: FTMO standard
+        try:
+            bp_row = (
+                supabase.table("broker_profiles")
+                .select("consistency_enabled, consistency_limit_pct")
+                .ilike("name", f"%{account_name}%")
+                .limit(1)
+                .execute()
+            )
+            if bp_row.data:
+                _profile_consistency_enabled = bp_row.data[0].get("consistency_enabled")
+                _profile_consistency_limit = float(bp_row.data[0].get("consistency_limit_pct") or 40.0)
+        except Exception:
+            pass  # non-fatal: fall back to defaults
+
+        # Resolve: per-account → global setting → default True
+        _global_consistency_enabled = getattr(settings, "consistency_enabled", True)
+        _consistency_active = (
+            _profile_consistency_enabled
+            if _profile_consistency_enabled is not None
+            else _global_consistency_enabled
+        )
+
         # Get metrics
         tracker = PropFirmTracker(supabase, settings)
         metrics = await tracker.get_current_metrics(
@@ -99,11 +124,14 @@ async def get_prop_firm_metrics(
                 },
                 "consistency": {
                     "best_day_pct": round(metrics.consistency_pct, 2),
-                    "limit_pct": 40.0,  # FTMO standard
+                    # None when consistency rule is disabled for this account — hides the UI label/line
+                    "limit_pct": _profile_consistency_limit if _consistency_active else None,
+                    "enabled": _consistency_active,
                     "status": (
-                        "violated" if metrics.consistency_pct > 40 else
-                        "danger" if metrics.consistency_pct > 38 else
-                        "warning" if metrics.consistency_pct > 35 else
+                        None if not _consistency_active else
+                        "violated" if metrics.consistency_pct > _profile_consistency_limit else
+                        "danger" if metrics.consistency_pct > (_profile_consistency_limit - 2) else
+                        "warning" if metrics.consistency_pct > (_profile_consistency_limit - 5) else
                         "safe"
                     )
                 },
@@ -114,6 +142,8 @@ async def get_prop_firm_metrics(
     except Exception as e:
         logger.error(f"Failed to get prop firm metrics: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
 
 
 @router.get("/history")
