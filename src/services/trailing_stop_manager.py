@@ -35,6 +35,10 @@ class TrailingStop:
     lowest_price_seen: Optional[float]
     entry_price: float
     times_moved: int
+    # R-ladder fields (added by migration 068)
+    sl_distance_pips: Optional[float] = None
+    r2_locked: bool = False
+    r3_locked: bool = False
 
 
 class TrailingStopManager:
@@ -104,6 +108,9 @@ class TrailingStopManager:
                     lowest_price_seen=row.get("lowest_price_seen"),
                     entry_price=signal.get("entry", 0),
                     times_moved=row.get("times_moved", 0),
+                    sl_distance_pips=row.get("sl_distance_pips"),
+                    r2_locked=row.get("r2_locked", False),
+                    r3_locked=row.get("r3_locked", False),
                 )
                 trailing_stops.append(ts)
 
@@ -333,7 +340,8 @@ class TrailingStopManager:
         signal_id: int,
         trail_distance_pips: float,
         activation_price: Optional[float] = None,
-        wait_for_breakeven: bool = False
+        wait_for_breakeven: bool = False,
+        sl_distance_pips: Optional[float] = None,
     ) -> Optional[int]:
         """
         Add a trailing stop to an active position.
@@ -378,6 +386,9 @@ class TrailingStopManager:
 
             if wait_for_breakeven:
                 data["wait_for_breakeven"] = True
+
+            if sl_distance_pips is not None:
+                data["sl_distance_pips"] = sl_distance_pips
 
             result = self.client.table("trailing_stops").insert(data).execute()
 
