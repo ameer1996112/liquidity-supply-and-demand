@@ -651,38 +651,47 @@ function HtfFilterCard() {
             </div>
           </div>
 
-          {/* Visual 15-min cycle timeline */}
-          <div className={cn('space-y-1 transition-opacity duration-200', !enabled && 'opacity-30')}>
+          {/* Visual 5m candle slots within one HTF cycle */}
+          <div className={cn('space-y-1.5 transition-opacity duration-200', !enabled && 'opacity-30')}>
             <div
               className='text-[9px] uppercase tracking-[0.15em] text-[var(--to-text-dim)]'
               style={{ fontFamily: 'var(--font-mono)' }}
             >
-              15-min cycle
+              5m candles per HTF cycle
             </div>
-            <div className='flex gap-px'>
-              {Array.from({ length: 15 }, (_, i) => {
-                const isOpen = i === 0;
-                const isBlocked = i >= (15 - blockMins);
+            <div className='flex gap-1.5'>
+              {/* 3 five-minute candle slots: +0, +5, +10 within the 15-min HTF cycle */}
+              {([0, 5, 10] as const).map((minuteOffset) => {
+                const isOpen = minuteOffset === 0;
+                const isBlocked = minuteOffset >= (15 - blockMins);
                 const bg = isOpen
                   ? 'var(--to-accent-blue)'
                   : isBlocked
                   ? 'var(--to-short)'
                   : 'var(--to-long)';
-                const opacity = isOpen ? 0.9 : isBlocked ? 0.55 : 0.3;
+                const opacity = isOpen ? 0.9 : isBlocked ? 0.55 : 0.35;
+                const label = isOpen ? 'FLIP only' : isBlocked ? 'blocked' : 'allowed';
                 return (
-                  <div
-                    key={i}
-                    title={isOpen ? `:XX — FLIP only` : isBlocked ? `:+${i} — blocked` : `:+${i} — allowed`}
-                    className='h-2.5 flex-1 rounded-sm transition-all duration-300'
-                    style={{ background: bg, opacity }}
-                  />
+                  <div key={minuteOffset} className='flex flex-1 flex-col items-center gap-1'>
+                    <div
+                      className='h-5 w-full rounded transition-all duration-300'
+                      style={{ background: bg, opacity }}
+                    />
+                    <div
+                      className='text-[9px] tabular-nums text-[var(--to-text-dim)]'
+                      style={{ fontFamily: 'var(--font-mono)', color: bg, opacity: opacity * 0.9 }}
+                    >
+                      +{minuteOffset}m
+                    </div>
+                    <div
+                      className='text-[8px] text-[var(--to-text-dim)]'
+                      style={{ fontFamily: 'var(--font-mono)' }}
+                    >
+                      {label}
+                    </div>
+                  </div>
                 );
               })}
-            </div>
-            <div className='flex justify-between text-[9px]' style={{ fontFamily: 'var(--font-mono)' }}>
-              <span style={{ color: 'var(--to-accent-blue)', opacity: 0.9 }}>▪ FLIP</span>
-              <span style={{ color: 'var(--to-long)', opacity: 0.6 }}>▪ allowed</span>
-              <span style={{ color: 'var(--to-short)', opacity: 0.8 }}>▪ blocked</span>
             </div>
           </div>
 
