@@ -25,7 +25,7 @@ export type SignalStatus =
   | 'CANCELLED'
   | 'ERROR';
 
-export type TradingMode = 'LIVE' | 'PAPER';
+export type TradingMode = 'LIVE' | 'PAPER' | 'DRY_RUN';
 
 // AI Reasoning - structured JSON from the AI model
 export interface AIReasoning {

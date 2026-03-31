@@ -8,8 +8,9 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
+import type { TradingMode } from '@/types/trading';
 
-export type TradingMode = 'LIVE' | 'PAPER' | 'DRY_RUN';
+export type { TradingMode };
 
 interface TradingModeContextValue {
   mode: TradingMode;
