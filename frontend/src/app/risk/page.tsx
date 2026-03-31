@@ -551,28 +551,24 @@ function ActiveSettingsCard({ data }: { data: any }) {
   );
 }
 
-const HTF_MINUTE_PRESETS = [5, 7, 10, 12, 14] as const;
-
 function HtfFilterCard() {
   const { settings, isLoading, isSaving, update } = useHtfFilter();
   const enabled = settings.htf_candle_filter_enabled;
-  const blockMins = settings.htf_candle_block_minutes;
 
   return (
     <PanelCard
       icon={<Activity className='h-3.5 w-3.5 text-[var(--to-accent-blue)]' />}
-      title='HTF Candle Filter'
+      title='HTF Signal Gate'
     >
       {isLoading ? (
         <div className='space-y-2'>
           <Skeleton className='h-8 w-full rounded-lg bg-[var(--to-surface-raised)]/60' />
-          <Skeleton className='h-6 w-full rounded bg-[var(--to-surface-raised)]/60' />
-          <Skeleton className='h-4 w-full rounded bg-[var(--to-surface-raised)]/60' />
+          <Skeleton className='h-16 w-full rounded bg-[var(--to-surface-raised)]/60' />
         </div>
       ) : (
         <div className='space-y-3'>
 
-          {/* ON / OFF pill group — matches TradingModeToggle pattern */}
+          {/* ON / OFF toggle */}
           <div className='mx-0 rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)]/50 p-0.5'>
             <div
               className='mb-1 px-1.5 pt-0.5 text-[9px] uppercase tracking-[0.2em] text-[var(--to-text-dim)]'
@@ -612,120 +608,73 @@ function HtfFilterCard() {
             </div>
           </div>
 
-          {/* Block minutes — preset pill buttons */}
-          <div className={cn('transition-opacity duration-200', !enabled && 'pointer-events-none opacity-30')}>
-            <div className='mx-0 rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)]/50 p-0.5'>
-              <div
-                className='mb-1 px-1.5 pt-0.5 text-[9px] uppercase tracking-[0.2em] text-[var(--to-text-dim)]'
-                style={{ fontFamily: 'var(--font-mono)' }}
-              >
-                Block window
-              </div>
-              <div className='flex gap-1'>
-                {HTF_MINUTE_PRESETS.map((min) => {
-                  const isActive = blockMins === min;
-                  return (
-                    <button
-                      key={min}
-                      disabled={isSaving}
-                      onClick={() => update({ htf_candle_block_minutes: min })}
-                      className={cn(
-                        'flex flex-1 items-center justify-center rounded-md py-1 text-[10px] font-medium transition-all duration-150',
-                        isActive ? 'opacity-100' : 'opacity-40 hover:opacity-70'
-                      )}
-                      style={isActive ? {
-                        background: 'var(--to-accent-blue)18',
-                        border: '1px solid var(--to-accent-blue)40',
-                        color: 'var(--to-accent-blue)',
-                      } : {
-                        background: 'transparent',
-                        border: '1px solid transparent',
-                        color: 'var(--to-text-dim)',
-                      }}
-                    >
-                      {min}m
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* Timeline: entry window within 15m HTF cycle */}
-          <div className={cn('space-y-2 transition-opacity duration-200', !enabled && 'opacity-30')}>
+          {/* Signal rules */}
+          <div className={cn('space-y-1.5 transition-opacity duration-200', !enabled && 'pointer-events-none opacity-30')}>
             <div
-              className='text-[9px] uppercase tracking-[0.15em] text-[var(--to-text-dim)]'
+              className='px-0.5 text-[9px] uppercase tracking-[0.2em] text-[var(--to-text-dim)]'
               style={{ fontFamily: 'var(--font-mono)' }}
             >
-              Entry window · 15m HTF cycle
+              Entry rules
             </div>
 
-            {/* Timeline bar */}
-            <div className='relative'>
-              <div className='relative h-5 w-full overflow-hidden rounded-md bg-[var(--to-surface-raised)]'>
-                {/* Allowed zone */}
-                <div
-                  className='absolute left-0 top-0 h-full transition-all duration-300'
-                  style={{
-                    width: `${((15 - blockMins) / 15) * 100}%`,
-                    background: 'var(--to-long)',
-                    opacity: 0.45,
-                  }}
-                />
-                {/* Blocked zone */}
-                <div
-                  className='absolute right-0 top-0 h-full transition-all duration-300'
-                  style={{
-                    width: `${(blockMins / 15) * 100}%`,
-                    background: 'var(--to-short)',
-                    opacity: 0.5,
-                  }}
-                />
-                {/* 5m segment dividers */}
-                {[5, 10].map((tick) => (
-                  <div
-                    key={tick}
-                    className='absolute top-0 h-full w-px bg-[var(--to-border)]/60'
-                    style={{ left: `${(tick / 15) * 100}%` }}
-                  />
-                ))}
-                {/* Split-point marker */}
-                <div
-                  className='absolute top-0 h-full w-0.5 bg-[var(--to-text-primary)] opacity-70 transition-all duration-300'
-                  style={{ left: `${((15 - blockMins) / 15) * 100}%` }}
-                />
-              </div>
-
-              {/* Time axis labels */}
-              <div className='relative mt-1 h-3.5'>
-                {[0, 5, 10, 15].map((tick) => (
-                  <span
-                    key={tick}
-                    className='absolute text-[8px] tabular-nums text-[var(--to-text-dim)]'
-                    style={{
-                      fontFamily: 'var(--font-mono)',
-                      left: `${(tick / 15) * 100}%`,
-                      transform: tick === 0 ? 'none' : tick === 15 ? 'translateX(-100%)' : 'translateX(-50%)',
-                    }}
-                  >
-                    {tick}m
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {/* Summary row */}
+            {/* FLIP rule */}
             <div
-              className='flex items-center justify-between rounded-md px-2 py-1 text-[8px]'
-              style={{ background: 'var(--to-surface-raised)', fontFamily: 'var(--font-mono)' }}
+              className='flex items-start gap-2 rounded-lg px-2.5 py-2'
+              style={{
+                background: 'var(--to-accent-blue)0d',
+                border: '1px solid var(--to-accent-blue)25',
+              }}
             >
-              <span style={{ color: 'var(--to-long)', opacity: 0.9 }}>
-                ✓ {15 - blockMins}m open
+              <span
+                className='mt-px shrink-0 text-[10px] font-bold'
+                style={{ color: 'var(--to-accent-blue)', fontFamily: 'var(--font-mono)' }}
+              >
+                FLIP
               </span>
-              <span className='text-[var(--to-text-dim)]'>·</span>
-              <span style={{ color: 'var(--to-short)', opacity: 0.9 }}>
-                ✗ last {blockMins}m blocked
+              <div className='min-w-0'>
+                <div
+                  className='text-[9px] font-medium'
+                  style={{ color: 'var(--to-text-primary)', fontFamily: 'var(--font-mono)' }}
+                >
+                  HTF candle open only
+                </div>
+                <div
+                  className='mt-0.5 text-[8px] leading-tight text-[var(--to-text-dim)]'
+                  style={{ fontFamily: 'var(--font-mono)' }}
+                >
+                  allowed within ±1m of :00 :15 :30 :45
+                </div>
+              </div>
+            </div>
+
+            {/* CONTINUATION rule */}
+            <div
+              className='flex items-start gap-2 rounded-lg px-2.5 py-2'
+              style={{
+                background: 'var(--to-long)0d',
+                border: '1px solid var(--to-long)25',
+              }}
+            >
+              <span
+                className='mt-px shrink-0 text-[10px] font-bold'
+                style={{ color: 'var(--to-long)', fontFamily: 'var(--font-mono)' }}
+              >
+                CONT
               </span>
+              <div className='min-w-0'>
+                <div
+                  className='text-[9px] font-medium'
+                  style={{ color: 'var(--to-text-primary)', fontFamily: 'var(--font-mono)' }}
+                >
+                  Always allowed
+                </div>
+                <div
+                  className='mt-0.5 text-[8px] leading-tight text-[var(--to-text-dim)]'
+                  style={{ fontFamily: 'var(--font-mono)' }}
+                >
+                  no time restriction on continuation signals
+                </div>
+              </div>
             </div>
           </div>
 
