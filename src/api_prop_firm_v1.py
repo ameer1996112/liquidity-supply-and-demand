@@ -100,6 +100,8 @@ async def get_challenge_status(account_name: str, supabase=Depends(get_api_supab
                         rules["max_drawdown_pct"] = float(bp["max_drawdown_pct"])
                     if not rules.get("min_trading_days") and bp.get("min_trading_days"):
                         rules["min_trading_days"] = int(bp["min_trading_days"])
+                    if "consistency_enabled" not in rules and "consistency_enabled" in bp:
+                        rules["consistency_enabled"] = bp["consistency_enabled"]
                 else:
                     # No firm rules at all — build from broker profile directly
                     if profile_profit_target_pct > 0 or bp.get("max_daily_loss_pct"):
@@ -110,6 +112,7 @@ async def get_challenge_status(account_name: str, supabase=Depends(get_api_supab
                             "max_daily_loss_pct": float(bp.get("max_daily_loss_pct") or 0),
                             "max_drawdown_pct": float(bp.get("max_drawdown_pct") or 0),
                             "min_trading_days": int(bp.get("min_trading_days") or 0),
+                            "consistency_enabled": bp.get("consistency_enabled", True),
                         }
         except Exception as enrich_err:
             logger.warning("Could not enrich firm rules from broker profile: %s", enrich_err)

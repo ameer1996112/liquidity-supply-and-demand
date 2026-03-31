@@ -10,6 +10,8 @@ export interface FirmInfo {
   profit_target_pct?: number;
   min_trading_days?: number;
   max_trading_days?: number;
+  consistency_enabled?: boolean;
+  consistency_rule_percentage?: number;
 }
 
 export interface ChallengeStatusResponse {

@@ -347,8 +347,8 @@ export default function PropFirmPage() {
   };
   const safeConsistency = {
     best_day_pct: consistency?.best_day_pct ?? 0,
-    // null means consistency rule is disabled for this account — hide label/chart line
-    limit_pct: consistency?.limit_pct ?? null,
+    // If consistency is explicitly disabled (or firm_info says so), limit is 0
+    limit_pct: firmInfo?.consistency_enabled === false ? 0 : (firmInfo?.consistency_rule_percentage ?? consistency?.limit_pct ?? 40),
   };
 
   const currentProfitPct =
