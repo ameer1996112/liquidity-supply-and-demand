@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import { ClientDate } from '@/components/ui/ClientDate';
 import {
   Shield,
+  ShieldOff,
   TrendingDown,
   Target,
   Settings,
@@ -550,8 +551,12 @@ function ActiveSettingsCard({ data }: { data: any }) {
   );
 }
 
+const HTF_MINUTE_PRESETS = [5, 7, 10, 12, 14] as const;
+
 function HtfFilterCard() {
   const { settings, isLoading, isSaving, update } = useHtfFilter();
+  const enabled = settings.htf_candle_filter_enabled;
+  const blockMins = settings.htf_candle_block_minutes;
 
   return (
     <PanelCard
@@ -560,79 +565,127 @@ function HtfFilterCard() {
     >
       {isLoading ? (
         <div className='space-y-2'>
+          <Skeleton className='h-8 w-full rounded-lg bg-[var(--to-surface-raised)]/60' />
           <Skeleton className='h-6 w-full rounded bg-[var(--to-surface-raised)]/60' />
-          <Skeleton className='h-6 w-full rounded bg-[var(--to-surface-raised)]/60' />
+          <Skeleton className='h-4 w-full rounded bg-[var(--to-surface-raised)]/60' />
         </div>
       ) : (
         <div className='space-y-3'>
-          {/* Toggle row */}
-          <div className='flex items-center justify-between'>
-            <div>
-              <div className='text-xs text-[var(--to-text-secondary)]' style={{ fontFamily: 'var(--font-sans)' }}>
-                Block before HTF candles
-              </div>
-              <div className='text-[10px] text-[var(--to-text-dim)]' style={{ fontFamily: 'var(--font-mono)' }}>
-                :00 :15 :30 :45 boundaries
-              </div>
-            </div>
-            <button
-              disabled={isSaving}
-              onClick={() => update({ htf_candle_filter_enabled: !settings.htf_candle_filter_enabled })}
-              className={cn(
-                'relative h-5 w-9 rounded-full transition-colors duration-200 focus:outline-none disabled:opacity-50',
-                settings.htf_candle_filter_enabled
-                  ? 'bg-[var(--to-long)]'
-                  : 'bg-[var(--to-border)]'
-              )}
-              aria-label='Toggle HTF candle filter'
+
+          {/* ON / OFF pill group — matches TradingModeToggle pattern */}
+          <div className='mx-0 rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)]/50 p-0.5'>
+            <div
+              className='mb-1 px-1.5 pt-0.5 text-[9px] uppercase tracking-[0.2em] text-[var(--to-text-dim)]'
+              style={{ fontFamily: 'var(--font-mono)' }}
             >
-              <span
-                className={cn(
-                  'absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200',
-                  settings.htf_candle_filter_enabled ? 'translate-x-4' : 'translate-x-0.5'
-                )}
-              />
-            </button>
+              Filter
+            </div>
+            <div className='flex gap-1'>
+              {([true, false] as const).map((val) => {
+                const isActive = enabled === val;
+                const color = val ? 'var(--to-long)' : 'var(--to-short)';
+                const Icon = val ? Shield : ShieldOff;
+                return (
+                  <button
+                    key={String(val)}
+                    disabled={isSaving}
+                    onClick={() => update({ htf_candle_filter_enabled: val })}
+                    className={cn(
+                      'flex flex-1 items-center justify-center gap-1 rounded-md py-1 text-[10px] font-medium transition-all duration-150',
+                      isActive ? 'opacity-100' : 'opacity-40 hover:opacity-70'
+                    )}
+                    style={isActive ? {
+                      background: `${color}18`,
+                      border: `1px solid ${color}40`,
+                      color,
+                    } : {
+                      background: 'transparent',
+                      border: '1px solid transparent',
+                      color: 'var(--to-text-dim)',
+                    }}
+                  >
+                    <Icon className='h-3 w-3 shrink-0' />
+                    {val ? 'Enabled' : 'Disabled'}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          {/* Block minutes row */}
-          <div className='flex items-center justify-between border-t border-[var(--to-border)] pt-2'>
-            <div className='text-xs text-[var(--to-text-secondary)]' style={{ fontFamily: 'var(--font-sans)' }}>
-              Block minutes before candle
-            </div>
-            <div className='flex items-center gap-1'>
-              <button
-                disabled={isSaving || settings.htf_candle_block_minutes <= 1}
-                onClick={() => update({ htf_candle_block_minutes: settings.htf_candle_block_minutes - 1 })}
-                className='flex h-5 w-5 items-center justify-center rounded border border-[var(--to-border)] text-xs text-[var(--to-text-secondary)] hover:border-[var(--to-accent-blue)] hover:text-[var(--to-text-primary)] disabled:opacity-30 transition-colors'
-              >
-                −
-              </button>
-              <span
-                className='w-5 text-center text-xs tabular-nums text-[var(--to-text-primary)]'
+          {/* Block minutes — preset pill buttons */}
+          <div className={cn('transition-opacity duration-200', !enabled && 'pointer-events-none opacity-30')}>
+            <div className='mx-0 rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)]/50 p-0.5'>
+              <div
+                className='mb-1 px-1.5 pt-0.5 text-[9px] uppercase tracking-[0.2em] text-[var(--to-text-dim)]'
                 style={{ fontFamily: 'var(--font-mono)' }}
               >
-                {settings.htf_candle_block_minutes}
-              </span>
-              <button
-                disabled={isSaving || settings.htf_candle_block_minutes >= 14}
-                onClick={() => update({ htf_candle_block_minutes: settings.htf_candle_block_minutes + 1 })}
-                className='flex h-5 w-5 items-center justify-center rounded border border-[var(--to-border)] text-xs text-[var(--to-text-secondary)] hover:border-[var(--to-accent-blue)] hover:text-[var(--to-text-primary)] disabled:opacity-30 transition-colors'
-              >
-                +
-              </button>
+                Block window
+              </div>
+              <div className='flex gap-1'>
+                {HTF_MINUTE_PRESETS.map((min) => {
+                  const isActive = blockMins === min;
+                  return (
+                    <button
+                      key={min}
+                      disabled={isSaving}
+                      onClick={() => update({ htf_candle_block_minutes: min })}
+                      className={cn(
+                        'flex flex-1 items-center justify-center rounded-md py-1 text-[10px] font-medium transition-all duration-150',
+                        isActive ? 'opacity-100' : 'opacity-40 hover:opacity-70'
+                      )}
+                      style={isActive ? {
+                        background: 'var(--to-accent-blue)18',
+                        border: '1px solid var(--to-accent-blue)40',
+                        color: 'var(--to-accent-blue)',
+                      } : {
+                        background: 'transparent',
+                        border: '1px solid transparent',
+                        color: 'var(--to-text-dim)',
+                      }}
+                    >
+                      {min}m
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
-          {/* Status line */}
-          <div
-            className='text-[10px] text-[var(--to-text-dim)]'
-            style={{ fontFamily: 'var(--font-mono)' }}
-          >
-            {settings.htf_candle_filter_enabled
-              ? `Blocking ${settings.htf_candle_block_minutes} min before each candle · FLIP-only at opens`
-              : 'Filter disabled — all entries pass through'}
+          {/* Visual 15-min cycle timeline */}
+          <div className={cn('space-y-1 transition-opacity duration-200', !enabled && 'opacity-30')}>
+            <div
+              className='text-[9px] uppercase tracking-[0.15em] text-[var(--to-text-dim)]'
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >
+              15-min cycle
+            </div>
+            <div className='flex gap-px'>
+              {Array.from({ length: 15 }, (_, i) => {
+                const isOpen = i === 0;
+                const isBlocked = i >= (15 - blockMins);
+                const bg = isOpen
+                  ? 'var(--to-accent-blue)'
+                  : isBlocked
+                  ? 'var(--to-short)'
+                  : 'var(--to-long)';
+                const opacity = isOpen ? 0.9 : isBlocked ? 0.55 : 0.3;
+                return (
+                  <div
+                    key={i}
+                    title={isOpen ? `:XX — FLIP only` : isBlocked ? `:+${i} — blocked` : `:+${i} — allowed`}
+                    className='h-2.5 flex-1 rounded-sm transition-all duration-300'
+                    style={{ background: bg, opacity }}
+                  />
+                );
+              })}
+            </div>
+            <div className='flex justify-between text-[9px]' style={{ fontFamily: 'var(--font-mono)' }}>
+              <span style={{ color: 'var(--to-accent-blue)', opacity: 0.9 }}>▪ FLIP</span>
+              <span style={{ color: 'var(--to-long)', opacity: 0.6 }}>▪ allowed</span>
+              <span style={{ color: 'var(--to-short)', opacity: 0.8 }}>▪ blocked</span>
+            </div>
           </div>
+
         </div>
       )}
     </PanelCard>
