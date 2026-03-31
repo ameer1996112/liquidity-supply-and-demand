@@ -704,19 +704,88 @@ def _payload_to_discord_embed(payload: NotificationPayload) -> dict:
 
 
 def _payload_to_telegram_html(payload: NotificationPayload) -> str:
-    """Render a NotificationPayload as a Telegram HTML string."""
-    lines = [f"<b>{payload.title}</b>"]
+    """Render a NotificationPayload as a premium Telegram HTML string."""
+    
+    def clean(val: str) -> str:
+        return str(val).replace("**", "")
+
+    title = clean(payload.title)
+    if "GUILD" in title.upper() or "ALERT" in title.upper():
+        header_emoji = "⚠️"
+    elif "BUY" in title.upper() or "WIN" in title.upper():
+        header_emoji = "🟢"
+    elif "SELL" in title.upper() or "LOSS" in title.upper():
+        header_emoji = "🔴"
+    else:
+        header_emoji = "🚨"
+
+    lines = [f"{header_emoji} <b>{title.upper()}</b>"]
     if payload.description:
-        lines.append(payload.description)
+        lines.append(clean(payload.description))
+    
+    if payload.metadata and "symbol" in payload.metadata:
+        symbol = clean(payload.metadata["symbol"])
+        lines.append(f"<b><a href=\"#\">#{symbol}</a></b>")
+    elif "Symbol" in payload.fields:
+        symbol = clean(payload.fields["Symbol"])
+        lines.append(f"<b><a href=\"#\">#{symbol}</a></b>")
+
     lines.append("")
+
+    trade_fields = []
+    ai_field = None
+    
     for k, v in payload.fields.items():
-        # AI analysis block: render as code-like block
-        if k == "🧠 AI Analysis":
-            lines.append(f"<b>{k}</b>\n<i>{v}</i>")
-        else:
-            lines.append(f"<b>{k}:</b> {v}")
+        if k == "Symbol":
+            continue
+        if "AI Analysis" in k:
+            ai_field = v
+            continue
+            
+        icon = "▪️"
+        if "Entry" in k: icon = "🎯"
+        elif "Take Profit" in k: icon = "💰"
+        elif "Stop Loss" in k: icon = "🛑"
+        elif "R:R" in k or "Outcome" in k: icon = "⚖️"
+        elif "Lot Size" in k or "Risk" in k: icon = "📊"
+        elif "Account" in k or "Mode" in k: icon = "🏦"
+        elif "Session" in k or "Time" in k: icon = "🕒"
+        elif "Zone" in k: icon = "🗺️"
+        elif "Commission" in k or "Swap" in k: icon = "💸"
+        elif "PnL" in k: icon = "📈" if "+" in str(v) else "📉"
+        
+        clean_v = clean(v)
+        trade_fields.append(f"<b>{icon} {k}:</b> <code>{clean_v}</code>")
+
+    if trade_fields:
+        lines.append("<blockquote>" + "\n".join(trade_fields) + "</blockquote>")
+        lines.append("")
+
+    if ai_field:
+        lines.append("<b>🧠 AI GUARDIAN</b>")
+        ai_clean = clean(ai_field)
+        
+        ai_lines = []
+        for line in ai_clean.split("\n"):
+            line = line.strip()
+            if not line: continue
+            if "Decision:" in line:
+                ai_lines.append(f"<b>⛔️ DECISION:</b> <code>{line.replace('Decision:', '').strip()}</code>")
+            elif "Confidence:" in line:
+                ai_lines.append(f"<b>🛡️ CONFIDENCE:</b> <code>{line.replace('Confidence:', '').strip()}</code>")
+            elif "Reason:" in line:
+                reason_text = line.replace('Reason:', '').strip()
+                ai_lines.append(f"<b>⚠️ REASON:</b>\n<pre>{reason_text}</pre>")
+            elif "RAG Wisdom:" in line:
+                ai_lines.append("<b>📚 RAG WISDOM:</b>")
+            else:
+                ai_lines.append(f"<i>{line}</i>")
+                
+        lines.append("<blockquote>" + "\n".join(ai_lines) + "</blockquote>")
+
     if payload.footer:
-        lines.append(f"\n<i>{payload.footer}</i>")
+        lines.append(f"\n<i>{clean(payload.footer)}</i>")
+
     return "\n".join(lines)
 
 
