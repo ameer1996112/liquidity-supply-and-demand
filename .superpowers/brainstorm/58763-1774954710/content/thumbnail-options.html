@@ -1,0 +1,59 @@
+<h2>What goes in the thumbnail (top-right of the embed)?</h2>
+<p class="subtitle">Discord embeds have a small thumbnail slot in the top-right corner</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>TradingView chart screenshot</h3>
+      <p>When a chart image URL is attached to the signal, show it as the thumbnail. Falls back to nothing if no image. You already have this field (<code>image_url</code>) in NotificationPayload.</p>
+      <div style="margin-top:12px; background:#2b2d31; border-radius:4px; border-left:4px solid #00C853; padding:12px; font-size:13px; color:#dcddde; font-family:monospace; display:flex; gap:12px; align-items:flex-start;">
+        <div style="flex:1;">
+          <div style="font-weight:bold; color:#00C853; margin-bottom:6px;">📈 BUY EURUSD — #142</div>
+          <div style="font-size:11px; color:#dcddde;">🎯 Entry: 1.08420</div>
+          <div style="font-size:11px; color:#dcddde;">🛑 SL: 1.08320</div>
+          <div style="font-size:11px; color:#dcddde;">💰 TP: 1.08620</div>
+        </div>
+        <div style="width:60px; height:60px; border-radius:4px; background:#1a1b1e; border:1px solid #40444b; display:flex; align-items:center; justify-content:center; font-size:10px; color:#72767d; text-align:center; flex-shrink:0;">📊<br>chart<br>screenshot</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Symbol badge (currency flag or colored tile)</h3>
+      <p>Always show something in the thumbnail — a colored badge with the symbol abbreviation. EUR gets an EU flag style, XAU gets a gold tile, US30 gets an index badge. No dependency on TradingView screenshots.</p>
+      <div style="margin-top:12px; background:#2b2d31; border-radius:4px; border-left:4px solid #00C853; padding:12px; font-size:13px; color:#dcddde; font-family:monospace; display:flex; gap:12px; align-items:flex-start;">
+        <div style="flex:1;">
+          <div style="font-weight:bold; color:#00C853; margin-bottom:6px;">📈 BUY EURUSD — #142</div>
+          <div style="font-size:11px; color:#dcddde;">🎯 Entry: 1.08420</div>
+          <div style="font-size:11px; color:#dcddde;">🛑 SL: 1.08320</div>
+          <div style="font-size:11px; color:#dcddde;">💰 TP: 1.08620</div>
+        </div>
+        <div style="width:60px; height:60px; border-radius:8px; background:linear-gradient(135deg,#003399,#0055AA); display:flex; align-items:center; justify-content:center; font-size:16px; font-weight:bold; color:#fff; flex-shrink:0;">EUR</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Chart when available, symbol badge as fallback</h3>
+      <p>Best of both: if the signal includes a TradingView chart URL, show the chart. If not, fall back to the symbol badge automatically. Most flexible — works for both screenshot-enabled and screenshot-less signals.</p>
+      <div style="margin-top:12px; background:#2b2d31; border-radius:4px; border-left:4px solid #3B82F6; padding:12px; font-size:12px; color:#72767d;">
+        <div style="display:flex; gap:16px;">
+          <div style="text-align:center;">
+            <div style="width:50px;height:50px;border-radius:4px;background:#1a1b1e;border:1px solid #40444b;display:flex;align-items:center;justify-content:center;font-size:9px;color:#72767d;margin:0 auto 4px;">📊 chart</div>
+            <div style="font-size:10px;">with screenshot</div>
+          </div>
+          <div style="display:flex;align-items:center;font-size:16px;">→</div>
+          <div style="text-align:center;">
+            <div style="width:50px;height:50px;border-radius:8px;background:linear-gradient(135deg,#003399,#0055AA);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:bold;color:#fff;margin:0 auto 4px;">EUR</div>
+            <div style="font-size:10px;">without screenshot</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

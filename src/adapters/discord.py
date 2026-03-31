@@ -18,6 +18,24 @@ logger = logging.getLogger(__name__)
 _notification_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="NotificationAsync")
 
 
+_CURRENCY_FLAG_MAP: dict[str, str] = {
+    "EUR": "eu", "GBP": "gb", "USD": "us", "JPY": "jp",
+    "CAD": "ca", "AUD": "au", "NZD": "nz", "CHF": "ch",
+    "NAS": "us", "SPX": "us", "DJI": "us", "US3": "us",
+}
+
+
+def _get_symbol_thumbnail_url(symbol: str, image_url: Optional[str] = None) -> Optional[str]:
+    """Return thumbnail URL: chart screenshot → currency flag → None."""
+    if image_url:
+        return image_url
+    symbol = symbol.upper()
+    for prefix, code in _CURRENCY_FLAG_MAP.items():
+        if symbol.startswith(prefix):
+            return f"https://flagcdn.com/w80/{code}.png"
+    return None
+
+
 def get_pip_divisor(symbol: str) -> float:
     s = get_settings()
     symbol = symbol.upper()
@@ -682,24 +700,43 @@ from src.services.notification_service import NotificationPayload, COLOR_MAP  # 
 
 
 def _payload_to_discord_embed(payload: NotificationPayload) -> dict:
-    """Render a NotificationPayload as a Discord embed dict."""
+    """Render a NotificationPayload as a premium Discord embed dict."""
     color = COLOR_MAP.get(payload.color, 0x3B82F6)
+
+    wide_fields = {"🧠 AI Analysis", "Details", "Reason"}
     fields = [
-        {"name": k, "value": str(v), "inline": k not in ("🧠 AI Analysis", "Details", "Reason")}
+        {"name": k, "value": str(v), "inline": k not in wide_fields}
         for k, v in payload.fields.items()
     ]
+
     embed: dict = {
         "title": payload.title,
         "color": color,
         "timestamp": datetime.utcnow().isoformat(),
         "fields": fields,
     }
+
+    # Author block: "Trading Bot · FTMO-50K"
+    author_name = "Trading Bot"
+    if payload.account_name:
+        author_name += f" · {payload.account_name}"
+    embed["author"] = {"name": author_name}
+
+    # Thumbnail (top-right small): currency flag when no chart; omit if chart present
+    # Full-width image (bottom): chart screenshot when image_url set
+    symbol = (payload.metadata or {}).get("symbol", "")
+    if payload.image_url:
+        embed["image"] = {"url": payload.image_url}
+    else:
+        flag_url = _get_symbol_thumbnail_url(symbol)
+        if flag_url:
+            embed["thumbnail"] = {"url": flag_url}
+
     if payload.description:
         embed["description"] = payload.description
     if payload.footer:
         embed["footer"] = {"text": payload.footer}
-    if payload.image_url:
-        embed["image"] = {"url": payload.image_url}
+
     return embed
 
 

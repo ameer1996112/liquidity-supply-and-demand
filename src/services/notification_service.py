@@ -146,10 +146,18 @@ class NotificationService:
             zone_emoji = "🟢" if signal["zone_type"] == "demand" else "🔴"
             fields["Zone Type"] = f"{zone_emoji} {signal['zone_type'].upper()}"
 
-        # AI analysis section
-        ai_section = _format_ai_analysis(ai_result or signal.get("ai_reasoning"))
-        if ai_section:
-            fields["🧠 AI Analysis"] = ai_section
+        # AI compact inline fields (Decision + Confidence only in embed)
+        _ai_raw = ai_result or signal.get("ai_reasoning")
+        if _ai_raw:
+            decision = str(_ai_raw.get("decision", "")).upper()
+            if decision:
+                try:
+                    rf_prob = float(_ai_raw.get("rf_prob") or _ai_raw.get("confidence") or 0) * 100
+                except Exception:
+                    rf_prob = 0.0
+                decision_emoji = "✅" if decision == "GO" else "⛔"
+                fields["🧠 AI Decision"] = f"{decision_emoji} {decision}"
+                fields["🎯 Confidence"] = f"{rf_prob:.1f}%"
 
         return NotificationPayload(
             type="signal",
@@ -158,7 +166,7 @@ class NotificationService:
             fields=fields,
             color=color,
             footer=f"Signal #{signal_id} | /close {signal_id} to close",
-            metadata={"symbol": symbol, "side": side, "mode": mode},
+            metadata={"symbol": symbol, "side": side, "mode": mode, "ai_result": _ai_raw or {}},
             signal_id=signal_id,
             image_url=resolved_image_url,
             account_name=resolved_account,
