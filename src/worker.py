@@ -690,14 +690,46 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
         except (ValueError, TypeError):
             pass
 
-    # --- Dead zone (xx:50-xx:00) ---
-    if s.pine_block_dead_zone:
+    # --- Dead zone (xx:50-xx:00) --- [legacy, superseded by HTF candle filter below]
+    if s.pine_block_dead_zone and not getattr(s, "pine_htf_candle_filter_enabled", False):
         bar_time = payload.get("bar_time")
         if bar_time and isinstance(bar_time, str):
             try:
                 dt = _parse_dt(bar_time)
                 if dt.minute >= 50:
                     return f"Dead zone: bar_time {bar_time} is in last 10 min of hour (minute={dt.minute})"
+            except Exception:
+                pass  # fail-open
+
+    # --- HTF candle filter (15-min candles: xx:00, xx:15, xx:30, xx:45) ---
+    # Block all signals N minutes before each HTF candle open.
+    # At the exact candle open minute, only FLIP entries are allowed.
+    if getattr(s, "pine_htf_candle_filter_enabled", True):
+        bar_time = payload.get("bar_time")
+        if bar_time and isinstance(bar_time, str):
+            try:
+                dt = _parse_dt(bar_time)
+                m = dt.minute
+                block_mins = getattr(s, "pine_htf_candle_block_minutes", 10)
+                # HTF candle opens at :00, :15, :30, :45
+                # Block window: (candle_open - block_mins) to (candle_open - 1) inclusive
+                # i.e. minute % 15 falls in [15 - block_mins, 14]
+                candle_offset = m % 15  # 0 = candle open, 1-14 = minutes after open
+                if candle_offset == 0:
+                    # Exact candle open — only FLIP allowed
+                    entry_model = (payload.get("entry_model") or "").lower().strip()
+                    if entry_model != "flip":
+                        return (
+                            f"HTF candle open: only FLIP entries allowed at minute :{m:02d} "
+                            f"(entry_model={payload.get('entry_model')!r})"
+                        )
+                elif candle_offset >= (15 - block_mins):
+                    # Within the pre-candle block window
+                    next_candle_min = ((m // 15) + 1) * 15 % 60
+                    return (
+                        f"HTF candle filter: signal blocked {15 - candle_offset} min before "
+                        f"next HTF candle at :{next_candle_min:02d} (bar_time minute={m})"
+                    )
             except Exception:
                 pass  # fail-open
 
