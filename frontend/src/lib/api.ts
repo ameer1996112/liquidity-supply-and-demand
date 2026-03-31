@@ -23,11 +23,14 @@ export async function apiFetch<T>(
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const url = `${API_BASE_URL}${cleanEndpoint}`;
 
+  const adminApiKey = process.env.NEXT_PUBLIC_ADMIN_API_KEY || '';
+
   const response = await fetch(url, {
     ...options,
     cache: 'no-store', // Fix: Force Next.js App Router to never cache API responses
     headers: {
       'Content-Type': 'application/json',
+      ...(adminApiKey ? { 'X-Admin-API-Key': adminApiKey } : {}),
       ...options?.headers,
     },
   });

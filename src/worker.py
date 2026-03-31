@@ -114,6 +114,40 @@ _supabase_key: str = ""
 _system_mode_cache: dict = {"value": None, "loaded_at": 0.0}
 _SYSTEM_MODE_CACHE_TTL = 30  # seconds
 
+# HTF candle filter cache — DB overrides Pydantic defaults (30s TTL)
+_htf_filter_cache: dict = {"enabled": None, "minutes": None, "loaded_at": 0.0}
+
+
+def _get_htf_filter_settings(s) -> tuple[bool, int]:
+    """Return (htf_enabled, htf_block_minutes) from DB (30s cache), falling back to Pydantic settings."""
+    now = time.time()
+    if now - _htf_filter_cache["loaded_at"] < _SYSTEM_MODE_CACHE_TTL and _htf_filter_cache["enabled"] is not None:
+        return _htf_filter_cache["enabled"], _htf_filter_cache["minutes"]
+    try:
+        sb = _get_fresh_supabase()
+        if sb:
+            rows = (
+                sb.table("system_config")
+                .select("key,value")
+                .in_("key", ["pine_htf_candle_filter_enabled", "pine_htf_candle_block_minutes"])
+                .execute()
+            )
+            kv = {r["key"]: r["value"] for r in (rows.data or [])}
+            enabled = kv.get("pine_htf_candle_filter_enabled", None)
+            minutes = kv.get("pine_htf_candle_block_minutes", None)
+            htf_enabled = (enabled.lower() != "false") if enabled is not None else getattr(s, "pine_htf_candle_filter_enabled", True)
+            htf_minutes = int(minutes) if minutes is not None else getattr(s, "pine_htf_candle_block_minutes", 10)
+        else:
+            htf_enabled = getattr(s, "pine_htf_candle_filter_enabled", True)
+            htf_minutes = getattr(s, "pine_htf_candle_block_minutes", 10)
+    except Exception:
+        htf_enabled = getattr(s, "pine_htf_candle_filter_enabled", True)
+        htf_minutes = getattr(s, "pine_htf_candle_block_minutes", 10)
+    _htf_filter_cache["enabled"] = htf_enabled
+    _htf_filter_cache["minutes"] = htf_minutes
+    _htf_filter_cache["loaded_at"] = now
+    return htf_enabled, htf_minutes
+
 
 def _get_system_trading_mode() -> str:
     """Return the dashboard-authoritative trading mode from system_config (30s cache)."""
@@ -690,14 +724,48 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
         except (ValueError, TypeError):
             pass
 
-    # --- Dead zone (xx:50-xx:00) ---
-    if s.pine_block_dead_zone:
+    # --- Dead zone (xx:50-xx:00) --- [legacy, superseded by HTF candle filter below]
+    if s.pine_block_dead_zone and not getattr(s, "pine_htf_candle_filter_enabled", False):
         bar_time = payload.get("bar_time")
         if bar_time and isinstance(bar_time, str):
             try:
                 dt = _parse_dt(bar_time)
                 if dt.minute >= 50:
                     return f"Dead zone: bar_time {bar_time} is in last 10 min of hour (minute={dt.minute})"
+            except Exception:
+                pass  # fail-open
+
+    # --- HTF candle filter (15-min candles: xx:00, xx:15, xx:30, xx:45) ---
+    # Block all signals N minutes before each HTF candle open.
+    # At the exact candle open minute, only FLIP entries are allowed.
+    # Settings are read from DB (30s cache) so the UI can control them live.
+    _htf_enabled, _htf_block_mins = _get_htf_filter_settings(s)
+    if _htf_enabled:
+        bar_time = payload.get("bar_time")
+        if bar_time and isinstance(bar_time, str):
+            try:
+                dt = _parse_dt(bar_time)
+                m = dt.minute
+                block_mins = _htf_block_mins
+                # HTF candle opens at :00, :15, :30, :45
+                # Block window: (candle_open - block_mins) to (candle_open - 1) inclusive
+                # i.e. minute % 15 falls in [15 - block_mins, 14]
+                candle_offset = m % 15  # 0 = candle open, 1-14 = minutes after open
+                if candle_offset == 0:
+                    # Exact candle open — only FLIP allowed
+                    entry_model = (payload.get("entry_model") or "").lower().strip()
+                    if entry_model != "flip":
+                        return (
+                            f"HTF candle open: only FLIP entries allowed at minute :{m:02d} "
+                            f"(entry_model={payload.get('entry_model')!r})"
+                        )
+                elif candle_offset >= (15 - block_mins):
+                    # Within the pre-candle block window
+                    next_candle_min = ((m // 15) + 1) * 15 % 60
+                    return (
+                        f"HTF candle filter: signal blocked {15 - candle_offset} min before "
+                        f"next HTF candle at :{next_candle_min:02d} (bar_time minute={m})"
+                    )
             except Exception:
                 pass  # fail-open
 

@@ -3,7 +3,7 @@
 import { createContext, useContext, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '');
+import { apiFetch } from '@/lib/api';
 
 interface ActiveBrokerProfile {
   id: number;
@@ -27,9 +27,7 @@ const ActiveAccountContext = createContext<ActiveAccountContextValue>({
 });
 
 async function fetchBrokerProfiles(): Promise<ActiveBrokerProfile[]> {
-  const r = await fetch(`${API_BASE}/api/broker-profiles`);
-  if (!r.ok) throw new Error('Failed to load broker profiles');
-  return r.json();
+  return apiFetch<ActiveBrokerProfile[]>('/api/broker-profiles');
 }
 
 export function ActiveAccountProvider({ children }: { children: ReactNode }) {
