@@ -51,7 +51,7 @@ export const isSupabaseAvailable = (): boolean => supabase !== null;
 // Query helpers
 export async function fetchSignals(
   options: {
-    mode?: 'LIVE' | 'PAPER' | 'BACKTEST';
+    mode?: 'LIVE' | 'PAPER' | 'BACKTEST' | 'DRY_RUN';
     limit?: number;
     offset?: number;
     runId?: string;
@@ -60,7 +60,7 @@ export async function fetchSignals(
 ): Promise<TradingSignal[]> {
   if (!supabase) {
     return getMockSignals(
-      options.mode === 'BACKTEST' ? undefined : options.mode
+      options.mode === 'BACKTEST' || options.mode === 'DRY_RUN' ? undefined : options.mode
     );
   }
 
@@ -495,7 +495,7 @@ export async function fetchSignalStats(
 
 // Mock data for development without Supabase
 // Uses the CORRECT field names: symbol, side, score, notes
-function getMockSignals(mode?: 'LIVE' | 'PAPER'): TradingSignal[] {
+function getMockSignals(mode?: 'LIVE' | 'PAPER' | 'DRY_RUN'): TradingSignal[] {
   const mockSignals: TradingSignal[] = [
     {
       id: '1',
