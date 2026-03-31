@@ -724,36 +724,14 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
         except (ValueError, TypeError):
             pass
 
-    # --- Dead zone (xx:50-xx:00) --- [legacy, superseded by HTF candle filter below]
-    if s.pine_block_dead_zone and not getattr(s, "pine_htf_candle_filter_enabled", False):
+    # --- Dead zone (xx:50-xx:00) --- [legacy fallback, only active if pine_block_dead_zone=true]
+    if s.pine_block_dead_zone:
         bar_time = payload.get("bar_time")
         if bar_time and isinstance(bar_time, str):
             try:
                 dt = _parse_dt(bar_time)
                 if dt.minute >= 50:
                     return f"Dead zone: bar_time {bar_time} is in last 10 min of hour (minute={dt.minute})"
-            except Exception:
-                pass  # fail-open
-
-    # --- HTF candle filter (Signal Semantic Gate) ---
-    # Rule 1: FLIP entries are only allowed at the HTF candle open (offset 0 or 1 to absorb webhook delay).
-    # Rule 2: CONTINUATION entries are always allowed — no time-based blocking.
-    # The old pre-candle block window (blockMins) has been removed.
-    _htf_enabled, _htf_block_mins = _get_htf_filter_settings(s)
-    if _htf_enabled:
-        bar_time = payload.get("bar_time")
-        if bar_time and isinstance(bar_time, str):
-            try:
-                dt = _parse_dt(bar_time)
-                m = dt.minute
-                candle_offset = m % 15  # 0 = candle open, 1-14 = minutes after open
-                entry_model = (payload.get("entry_model") or "").lower().strip()
-                if entry_model == "flip" and candle_offset > 1:
-                    # FLIP signal arrived too late — not at candle open
-                    return (
-                        f"HTF candle filter: FLIP entry rejected — not at candle open "
-                        f"(candle_offset={candle_offset}, bar_time minute={m})"
-                    )
             except Exception:
                 pass  # fail-open
 

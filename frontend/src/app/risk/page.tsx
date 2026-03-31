@@ -6,7 +6,6 @@ import { cn } from '@/lib/utils';
 import { ClientDate } from '@/components/ui/ClientDate';
 import {
   Shield,
-  ShieldOff,
   TrendingDown,
   Target,
   Settings,
@@ -15,7 +14,6 @@ import {
   Activity,
 } from 'lucide-react';
 import { useConnectionHealth } from '@/hooks/useConnectionHealth';
-import { useHtfFilter } from '@/hooks/useHtfFilter';
 import { PageStatusBanner } from '@/components/shared/PageStatusBanner';
 import { CircularGauge } from '@/components/ui/CircularGauge';
 
@@ -133,9 +131,6 @@ export default function RiskMonitorPage() {
           <div className='grid grid-cols-1 gap-3 lg:grid-cols-2'>
             <DrawdownCard data={data.drawdown} />
             <ActiveSettingsCard data={data.active_settings} />
-          </div>
-          <div className='grid grid-cols-1 gap-3 lg:grid-cols-2'>
-            <HtfFilterCard />
           </div>
           <GuardRailsCard data={data.guard_rails} />
           {data.symbol_overrides && data.symbol_overrides.length > 0 && (
@@ -551,138 +546,6 @@ function ActiveSettingsCard({ data }: { data: any }) {
   );
 }
 
-function HtfFilterCard() {
-  const { settings, isLoading, isSaving, update } = useHtfFilter();
-  const enabled = settings.htf_candle_filter_enabled;
-
-  return (
-    <PanelCard
-      icon={<Activity className='h-3.5 w-3.5 text-[var(--to-accent-blue)]' />}
-      title='HTF Signal Gate'
-    >
-      {isLoading ? (
-        <div className='space-y-2'>
-          <Skeleton className='h-8 w-full rounded-lg bg-[var(--to-surface-raised)]/60' />
-          <Skeleton className='h-16 w-full rounded bg-[var(--to-surface-raised)]/60' />
-        </div>
-      ) : (
-        <div className='space-y-3'>
-
-          {/* ON / OFF toggle */}
-          <div className='mx-0 rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)]/50 p-0.5'>
-            <div
-              className='mb-1 px-1.5 pt-0.5 text-[9px] uppercase tracking-[0.2em] text-[var(--to-text-dim)]'
-              style={{ fontFamily: 'var(--font-mono)' }}
-            >
-              Filter
-            </div>
-            <div className='flex gap-1'>
-              {([true, false] as const).map((val) => {
-                const isActive = enabled === val;
-                const color = val ? 'var(--to-long)' : 'var(--to-short)';
-                const Icon = val ? Shield : ShieldOff;
-                return (
-                  <button
-                    key={String(val)}
-                    disabled={isSaving}
-                    onClick={() => update({ htf_candle_filter_enabled: val })}
-                    className={cn(
-                      'flex flex-1 items-center justify-center gap-1 rounded-md py-1 text-[10px] font-medium transition-all duration-150',
-                      isActive ? 'opacity-100' : 'opacity-40 hover:opacity-70'
-                    )}
-                    style={isActive ? {
-                      background: `${color}18`,
-                      border: `1px solid ${color}40`,
-                      color,
-                    } : {
-                      background: 'transparent',
-                      border: '1px solid transparent',
-                      color: 'var(--to-text-dim)',
-                    }}
-                  >
-                    <Icon className='h-3 w-3 shrink-0' />
-                    {val ? 'Enabled' : 'Disabled'}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Signal rules */}
-          <div className={cn('space-y-1.5 transition-opacity duration-200', !enabled && 'pointer-events-none opacity-30')}>
-            <div
-              className='px-0.5 text-[9px] uppercase tracking-[0.2em] text-[var(--to-text-dim)]'
-              style={{ fontFamily: 'var(--font-mono)' }}
-            >
-              Entry rules
-            </div>
-
-            {/* FLIP rule */}
-            <div
-              className='flex items-start gap-2 rounded-lg px-2.5 py-2'
-              style={{
-                background: 'var(--to-accent-blue)0d',
-                border: '1px solid var(--to-accent-blue)25',
-              }}
-            >
-              <span
-                className='mt-px shrink-0 text-[10px] font-bold'
-                style={{ color: 'var(--to-accent-blue)', fontFamily: 'var(--font-mono)' }}
-              >
-                FLIP
-              </span>
-              <div className='min-w-0'>
-                <div
-                  className='text-[9px] font-medium'
-                  style={{ color: 'var(--to-text-primary)', fontFamily: 'var(--font-mono)' }}
-                >
-                  HTF candle open only
-                </div>
-                <div
-                  className='mt-0.5 text-[8px] leading-tight text-[var(--to-text-dim)]'
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                >
-                  allowed within ±1m of :00 :15 :30 :45
-                </div>
-              </div>
-            </div>
-
-            {/* CONTINUATION rule */}
-            <div
-              className='flex items-start gap-2 rounded-lg px-2.5 py-2'
-              style={{
-                background: 'var(--to-long)0d',
-                border: '1px solid var(--to-long)25',
-              }}
-            >
-              <span
-                className='mt-px shrink-0 text-[10px] font-bold'
-                style={{ color: 'var(--to-long)', fontFamily: 'var(--font-mono)' }}
-              >
-                CONT
-              </span>
-              <div className='min-w-0'>
-                <div
-                  className='text-[9px] font-medium'
-                  style={{ color: 'var(--to-text-primary)', fontFamily: 'var(--font-mono)' }}
-                >
-                  Always allowed
-                </div>
-                <div
-                  className='mt-0.5 text-[8px] leading-tight text-[var(--to-text-dim)]'
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                >
-                  no time restriction on continuation signals
-                </div>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      )}
-    </PanelCard>
-  );
-}
 
 function GuardRailsCard({ data }: { data: GuardRailStatus[] }) {
   return (
