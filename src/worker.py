@@ -735,6 +735,28 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
             except Exception:
                 pass  # fail-open
 
+    # --- HTF pre-candle block (high-volume open protection) ---
+    # The 15m HTF candle opens at :00 :15 :30 :45 with high volume that can spike price and
+    # stop out any position entered in the preceding minutes.
+    # Block ALL entries (flip and continuation) in the last block_mins of the 15m cycle.
+    # candle_offset = minute % 15: 0 = candle just opened, 14 = 1 min before next open.
+    _htf_enabled, _htf_block_mins = _get_htf_filter_settings(s)
+    if _htf_enabled:
+        bar_time = payload.get("bar_time")
+        if bar_time and isinstance(bar_time, str):
+            try:
+                dt = _parse_dt(bar_time)
+                candle_offset = dt.minute % 15
+                if candle_offset >= (15 - _htf_block_mins):
+                    next_candle_min = ((dt.minute // 15) + 1) * 15 % 60
+                    return (
+                        f"HTF pre-candle block: entry rejected {15 - candle_offset}m before "
+                        f"HTF candle open at :{next_candle_min:02d} "
+                        f"(bar_time minute={dt.minute}, block_mins={_htf_block_mins})"
+                    )
+            except Exception:
+                pass  # fail-open
+
     # --- Trading hours (local timezone, auto-DST) ---
     start_local = getattr(s, "pine_trading_start_hour_local", s.pine_trading_start_hour)
     end_local = getattr(s, "pine_trading_end_hour_local", s.pine_trading_end_hour)
