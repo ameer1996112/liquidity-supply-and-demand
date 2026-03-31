@@ -11,9 +11,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
 
-// ── API helpers ──────────────────────────────────────────────────────────────
-
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '');
+import { apiFetch } from '@/lib/api';
 
 export interface BrokerProfile {
   id: number;
@@ -38,52 +36,29 @@ export interface BrokerProfile {
 }
 
 async function fetchProfiles(): Promise<BrokerProfile[]> {
-  const r = await fetch(`${API_BASE}/api/broker-profiles`);
-  if (!r.ok) throw new Error('Failed to load broker profiles');
-  return r.json();
+  return apiFetch<BrokerProfile[]>('/api/broker-profiles');
 }
 
 async function createProfile(body: Record<string, unknown>): Promise<BrokerProfile> {
-  const r = await fetch(`${API_BASE}/api/broker-profiles`, {
+  return apiFetch<BrokerProfile>('/api/broker-profiles', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!r.ok) {
-    const e = await r.json().catch(() => ({ detail: r.statusText }));
-    throw new Error(e.detail || 'Create failed');
-  }
-  return r.json();
 }
 
 async function deleteProfile(id: number): Promise<void> {
-  const r = await fetch(`${API_BASE}/api/broker-profiles/${id}`, { method: 'DELETE' });
-  if (!r.ok) {
-    const e = await r.json().catch(() => ({ detail: r.statusText }));
-    throw new Error(e.detail || 'Delete failed');
-  }
+  return apiFetch<void>(`/api/broker-profiles/${id}`, { method: 'DELETE' });
 }
 
 async function updateProfile(id: number, body: Record<string, unknown>): Promise<BrokerProfile> {
-  const r = await fetch(`${API_BASE}/api/broker-profiles/${id}`, {
+  return apiFetch<BrokerProfile>(`/api/broker-profiles/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  if (!r.ok) {
-    const e = await r.json().catch(() => ({ detail: r.statusText }));
-    throw new Error(e.detail || 'Update failed');
-  }
-  return r.json();
 }
 
 async function activateProfile(id: number): Promise<BrokerProfile> {
-  const r = await fetch(`${API_BASE}/api/broker-profiles/${id}/activate`, { method: 'POST' });
-  if (!r.ok) {
-    const e = await r.json().catch(() => ({ detail: r.statusText }));
-    throw new Error(e.detail || 'Activate failed');
-  }
-  return r.json();
+  return apiFetch<BrokerProfile>(`/api/broker-profiles/${id}/activate`, { method: 'POST' });
 }
 
 async function toggleActive(id: number, active: boolean): Promise<BrokerProfile> {
@@ -91,12 +66,7 @@ async function toggleActive(id: number, active: boolean): Promise<BrokerProfile>
 }
 
 async function testProfile(id: number): Promise<{ success: boolean; message: string }> {
-  const r = await fetch(`${API_BASE}/api/broker-profiles/${id}/test`, { method: 'POST' });
-  if (!r.ok) {
-    const e = await r.json().catch(() => ({ detail: r.statusText }));
-    throw new Error(e.detail || 'Test failed');
-  }
-  return r.json();
+  return apiFetch<{ success: boolean; message: string }>(`/api/broker-profiles/${id}/test`, { method: 'POST' });
 }
 
 // ── Prop firm presets ────────────────────────────────────────────────────────
