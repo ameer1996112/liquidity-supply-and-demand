@@ -1,10 +1,14 @@
 from fastapi import APIRouter, HTTPException, Depends
 from typing import Dict, Any
+import json
+import logging
 
 from src.adapters.supabase_api import get_api_supabase
 from src.services.prop_firm_detector import PropFirmDetector
 from src.services.redis_cache import cache_get, cache_set
-import json
+
+logger = logging.getLogger(__name__)
+
 
 router = APIRouter(prefix="/api/v1/prop-firm", tags=["Prop Firm"])
 
@@ -65,6 +69,51 @@ async def get_challenge_status(account_name: str, supabase=Depends(get_api_supab
         except Exception:
             pass
         
+        # Enrich rules with broker_profile data as fallback
+        # When prop_firm_rules has no entry (e.g. ACG), use the values the
+        # user configured in ChallengeTab (profit_target, max_daily_loss_pct, etc.)
+        try:
+            bp_resp = supabase.table("broker_profiles")\
+                .select("profit_target, starting_balance, max_daily_loss_pct, max_drawdown_pct, min_trading_days, consistency_enabled, evaluation_mode, name")\
+                .eq("id", broker_profile_id)\
+                .limit(1)\
+                .execute() if broker_profile_id else None
+
+            if bp_resp and bp_resp.data:
+                bp = bp_resp.data[0]
+                starting_balance = float(bp.get("starting_balance") or 0)
+                profit_target_usd = float(bp.get("profit_target") or 0)
+
+                # Compute profit_target_pct from configured dollar amounts
+                profile_profit_target_pct = (
+                    round((profit_target_usd / starting_balance) * 100, 2)
+                    if starting_balance > 0 and profit_target_usd > 0 else 0
+                )
+
+                # If rules dict exists, fill in any missing fields from broker profile
+                if rules:
+                    if not rules.get("profit_target_pct") and profile_profit_target_pct > 0:
+                        rules["profit_target_pct"] = profile_profit_target_pct
+                    if not rules.get("max_daily_loss_pct") and bp.get("max_daily_loss_pct"):
+                        rules["max_daily_loss_pct"] = float(bp["max_daily_loss_pct"])
+                    if not rules.get("max_drawdown_pct") and bp.get("max_drawdown_pct"):
+                        rules["max_drawdown_pct"] = float(bp["max_drawdown_pct"])
+                    if not rules.get("min_trading_days") and bp.get("min_trading_days"):
+                        rules["min_trading_days"] = int(bp["min_trading_days"])
+                else:
+                    # No firm rules at all — build from broker profile directly
+                    if profile_profit_target_pct > 0 or bp.get("max_daily_loss_pct"):
+                        rules = {
+                            "firm_id": "custom",
+                            "firm_display_name": bp.get("name") or account_name,
+                            "profit_target_pct": profile_profit_target_pct,
+                            "max_daily_loss_pct": float(bp.get("max_daily_loss_pct") or 0),
+                            "max_drawdown_pct": float(bp.get("max_drawdown_pct") or 0),
+                            "min_trading_days": int(bp.get("min_trading_days") or 0),
+                        }
+        except Exception as enrich_err:
+            logger.warning("Could not enrich firm rules from broker profile: %s", enrich_err)
+
         res = {
             "status": "active",
             "firm_detected": bool(rules),
