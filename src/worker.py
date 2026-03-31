@@ -735,10 +735,10 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
             except Exception:
                 pass  # fail-open
 
-    # --- HTF candle filter (15-min candles: xx:00, xx:15, xx:30, xx:45) ---
-    # Block all signals N minutes before each HTF candle open.
-    # At the exact candle open minute, only FLIP entries are allowed.
-    # Settings are read from DB (30s cache) so the UI can control them live.
+    # --- HTF candle filter (Signal Semantic Gate) ---
+    # Rule 1: FLIP entries are only allowed at the HTF candle open (offset 0 or 1 to absorb webhook delay).
+    # Rule 2: CONTINUATION entries are always allowed — no time-based blocking.
+    # The old pre-candle block window (blockMins) has been removed.
     _htf_enabled, _htf_block_mins = _get_htf_filter_settings(s)
     if _htf_enabled:
         bar_time = payload.get("bar_time")
@@ -746,25 +746,13 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
             try:
                 dt = _parse_dt(bar_time)
                 m = dt.minute
-                block_mins = _htf_block_mins
-                # HTF candle opens at :00, :15, :30, :45
-                # Block window: (candle_open - block_mins) to (candle_open - 1) inclusive
-                # i.e. minute % 15 falls in [15 - block_mins, 14]
                 candle_offset = m % 15  # 0 = candle open, 1-14 = minutes after open
-                if candle_offset == 0:
-                    # Exact candle open — only FLIP allowed
-                    entry_model = (payload.get("entry_model") or "").lower().strip()
-                    if entry_model != "flip":
-                        return (
-                            f"HTF candle open: only FLIP entries allowed at minute :{m:02d} "
-                            f"(entry_model={payload.get('entry_model')!r})"
-                        )
-                elif candle_offset >= (15 - block_mins):
-                    # Within the pre-candle block window
-                    next_candle_min = ((m // 15) + 1) * 15 % 60
+                entry_model = (payload.get("entry_model") or "").lower().strip()
+                if entry_model == "flip" and candle_offset > 1:
+                    # FLIP signal arrived too late — not at candle open
                     return (
-                        f"HTF candle filter: signal blocked {15 - candle_offset} min before "
-                        f"next HTF candle at :{next_candle_min:02d} (bar_time minute={m})"
+                        f"HTF candle filter: FLIP entry rejected — not at candle open "
+                        f"(candle_offset={candle_offset}, bar_time minute={m})"
                     )
             except Exception:
                 pass  # fail-open
