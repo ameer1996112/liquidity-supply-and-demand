@@ -1039,11 +1039,16 @@ def _run_account_guards(
     #   2. global settings.consistency_enabled                           (True by default)
     # This lets ACG (no consistency rule) set consistency_enabled=False per account
     # while FTMO accounts keep the 40% best-day cap enforced.
-    _profile_consistency = (profile or {}).get("consistency_enabled")   # None if column absent
+    _profile_consistency = (profile or {}).get("consistency_enabled")   # None | True | False
     _global_consistency = getattr(s, "consistency_enabled", True)
     _run_consistency = _profile_consistency if _profile_consistency is not None else _global_consistency
 
-    if _run_consistency and getattr(s, "evaluation_mode", False) and supabase:
+    # evaluation_mode: prefer per-account profile flag, fall back to global settings
+    _profile_eval_mode = (profile or {}).get("evaluation_mode")   # True | False | None
+    _global_eval_mode = getattr(s, "evaluation_mode", False)
+    _eval_mode = _profile_eval_mode if _profile_eval_mode is not None else _global_eval_mode
+
+    if _run_consistency and _eval_mode and supabase:
         try:
             from src.services.consistency_analyzer import ConsistencyAnalyzer
             consistency = ConsistencyAnalyzer(supabase, s)

@@ -39,7 +39,7 @@ def get_active_profiles() -> List[Dict[str, Any]]:
             client = create_client(s.supabase_url, key)
             r = (
                 client.table("broker_profiles")
-                .select("id, name, meta_api_account_id, token, token_env_key, risk_pct, max_positions, run_mode")
+                .select("id, name, meta_api_account_id, token, token_env_key, risk_pct, max_positions, run_mode, evaluation_mode, evaluation_phase, consistency_enabled")
                 .eq("is_active", True)
                 .execute()
             )
@@ -63,6 +63,10 @@ def get_active_profiles() -> List[Dict[str, Any]]:
                         "risk_pct": float(row.get("risk_pct", 1.0)),
                         "max_positions": int(row.get("max_positions", 3)),
                         "run_mode": (row.get("run_mode") or "LIVE").upper(),
+                        # Prop firm guard flags — used by _run_account_guards()
+                        "evaluation_mode": row.get("evaluation_mode", False),
+                        "evaluation_phase": row.get("evaluation_phase", "phase1"),
+                        "consistency_enabled": row.get("consistency_enabled"),  # None | True | False
                     })
                 if out:
                     logger.info("Loaded %s broker profile(s) from DB", len(out))
