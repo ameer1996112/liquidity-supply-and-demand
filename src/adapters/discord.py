@@ -696,7 +696,7 @@ def send_telegram_and_store_async(
 # Renders NotificationPayload to Discord embed or Telegram HTML and dispatches.
 # ═══════════════════════════════════════════════════════════════════════════
 
-from src.services.notification_service import NotificationPayload, COLOR_MAP  # noqa: E402
+from src.services.notification_service import NotificationPayload, COLOR_MAP, _format_ai_analysis  # noqa: E402
 
 
 def _payload_to_discord_embed(payload: NotificationPayload) -> dict:
@@ -863,6 +863,7 @@ def dispatch_payload(
             )
             if r.status_code in (200, 204):
                 msg_id = r.json().get("id") if r.status_code == 200 else None
+                channel_id = r.json().get("channel_id") if r.status_code == 200 else None
                 if msg_id and supabase_client and payload.signal_id:
                     try:
                         supabase_client.table("trading_signals").update(
@@ -870,6 +871,30 @@ def dispatch_payload(
                         ).eq("id", payload.signal_id).execute()
                     except Exception:
                         pass
+                # Post full AI reasoning to thread when bot token is configured
+                if (
+                    msg_id
+                    and channel_id
+                    and payload.type == "signal"
+                    and getattr(s, "discord_bot_token", "")
+                ):
+                    ai_result = (payload.metadata or {}).get("ai_result")
+                    if ai_result:
+                        full_ai = _format_ai_analysis(ai_result)
+                        if full_ai:
+                            thread_id = create_discord_thread(
+                                channel_id,
+                                msg_id,
+                                f"AI Analysis — Signal #{payload.signal_id}",
+                            )
+                            if thread_id:
+                                ai_embed = {
+                                    "title": "🧠 Full AI Analysis",
+                                    "description": full_ai,
+                                    "color": 0x5865F2,
+                                    "timestamp": datetime.utcnow().isoformat(),
+                                }
+                                post_to_discord_thread(thread_id, ai_embed)
                 logger.info("dispatch_payload: Discord sent (%s)", payload.title)
             else:
                 logger.warning("dispatch_payload: Discord failed HTTP %s", r.status_code)

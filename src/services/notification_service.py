@@ -228,6 +228,12 @@ class NotificationService:
         if swap:
             fields["Swap"] = f"${swap:.2f}"
 
+        risk_usd = float(signal.get("risk_usd") or signal.get("risk_amount") or 0)
+        if risk_usd > 0:
+            r_multiple = pnl / risk_usd
+            sign = "+" if r_multiple >= 0 else ""
+            fields["📊 R Multiple"] = f"{sign}{r_multiple:.2f}R"
+
         return NotificationPayload(
             type="close",
             title=f"{emoji} Trade Closed — {symbol} {side}",
