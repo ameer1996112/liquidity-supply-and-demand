@@ -28,7 +28,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useSidebar } from '@/providers/SidebarProvider';
 import { useConnectionHealth } from '@/hooks/useConnectionHealth';
-import { useTradingMode, type TradingMode } from '@/hooks/useTradingMode';
+import { useTradingMode, type TradingMode } from '@/providers/TradingModeProvider';
 import {
   Tooltip,
   TooltipContent,

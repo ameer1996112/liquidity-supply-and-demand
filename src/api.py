@@ -43,14 +43,16 @@ def _require_admin_key(
     x_admin_api_key: str | None = Header(None, alias="X-Admin-API-Key"),
     authorization: str | None = Header(None),
 ) -> None:
-    """Dependency that enforces ADMIN_API_KEY on privileged operator routes."""
+    """Dependency that enforces ADMIN_API_KEY on privileged operator routes.
+
+    If ADMIN_API_KEY is not configured, all requests are allowed through
+    (single-owner self-hosted setup). If a key IS configured, it must be provided.
+    """
     settings = get_settings()
     expected = (settings.admin_api_key or "").strip()
     if not expected:
-        raise HTTPException(
-            status_code=503,
-            detail="Admin API key not configured. Set ADMIN_API_KEY in environment.",
-        )
+        # No key configured — allow all (owner is the only user)
+        return
     # Accept key via X-Admin-API-Key header or Authorization: Bearer <key>
     provided = (x_admin_api_key or "").strip()
     if not provided and authorization:
