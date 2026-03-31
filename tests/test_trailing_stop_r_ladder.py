@@ -10,7 +10,6 @@ Covers:
 6. SELL side correctness
 7. Edge cases: missing sl_distance_pips, price below 2R
 """
-import pytest
 from unittest.mock import MagicMock, patch
 from src.services.trailing_stop_manager import TrailingStopManager, TrailingStop
 
@@ -76,7 +75,7 @@ def test_activate_trailing_stop_passes_only_valid_kwargs():
         "sl": 1.09500,
     }
 
-    with patch("src.services.breakeven_manager.get_settings") as mock_settings:
+    with patch("config.get_settings") as mock_settings:
         mock_settings.return_value.trail_activation_pips = 0.0
         bm._activate_trailing_stop(signal_id=42, row=row, be_sl_price=1.10000)
 
@@ -103,7 +102,7 @@ def test_trail_distance_is_50_percent_of_sl_distance():
     # Expected trail = 50 * 0.5 = 25 pips
     row = {"symbol": "EURUSD", "side": "buy", "entry": 1.10000, "sl": 1.09500}
 
-    with patch("src.services.breakeven_manager.get_settings") as mock_settings:
+    with patch("config.get_settings") as mock_settings:
         mock_settings.return_value.trail_activation_pips = 0.0
         bm._activate_trailing_stop(signal_id=42, row=row, be_sl_price=1.10000)
 
@@ -125,7 +124,7 @@ def test_activate_trailing_stop_skips_when_no_entry():
 
     row = {"symbol": "EURUSD", "side": "buy", "entry": 0, "sl": 1.09500}
 
-    with patch("src.services.breakeven_manager.get_settings") as mock_settings:
+    with patch("config.get_settings") as mock_settings:
         mock_settings.return_value.trail_activation_pips = 0.0
         bm._activate_trailing_stop(signal_id=42, row=row, be_sl_price=1.10000)
 
