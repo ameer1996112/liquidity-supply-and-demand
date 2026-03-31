@@ -136,14 +136,35 @@ async def get_challenge_status(account_name: str, supabase=Depends(get_api_supab
 @router.patch("/challenge-config/{account_name}")
 async def update_challenge_config(account_name: str, config: Dict[str, Any], supabase=Depends(get_api_supabase)):
     """Update challenge configuration (e.g. challenge_type) for an account."""
-    if "challenge_type" not in config:
-        raise HTTPException(status_code=400, detail="Missing challenge_type")
+    if "challenge_type" not in config and "evaluation_phase" not in config:
+        raise HTTPException(status_code=400, detail="Missing challenge_type or evaluation_phase")
         
-    challenge_type = config["challenge_type"]
-    if challenge_type not in ["phase_1", "phase_2", "funded"]:
+    challenge_type = config.get("challenge_type", config.get("evaluation_phase"))
+    if challenge_type not in ["phase_1", "phase_2", "funded", "phase1", "phase2"]:
         raise HTTPException(status_code=400, detail="Invalid challenge_type")
         
-    resp = supabase.table("broker_profiles").update({"challenge_type": challenge_type}).eq("account_name", account_name).execute()
+    update_data = {}
+    
+    # Map challenge_type correctly
+    db_challenge_type = challenge_type
+    if challenge_type == "phase1": db_challenge_type = "phase_1"
+    if challenge_type == "phase2": db_challenge_type = "phase_2"
+    update_data["challenge_type"] = db_challenge_type
+    update_data["evaluation_phase"] = challenge_type if challenge_type in ["phase1", "phase2", "funded"] else challenge_type.replace("_", "")
+    
+    # Map other fields if they exist
+    allowed_fields = [
+        "starting_balance", "profit_target", "max_daily_loss_pct", 
+        "max_drawdown_pct", "min_trading_days", "consistency_limit_pct"
+    ]
+    for field in allowed_fields:
+        if field in config:
+            update_data[field] = float(config[field]) if field != "min_trading_days" else int(config[field])
+            
+    if "consistency_enabled" in config:
+        update_data["consistency_enabled"] = bool(config["consistency_enabled"]) if config["consistency_enabled"] is not None else None
+        
+    resp = supabase.table("broker_profiles").update(update_data).eq("account_name", account_name).execute()
     if not resp.data:
         raise HTTPException(status_code=404, detail="Broker profile not found")
         
