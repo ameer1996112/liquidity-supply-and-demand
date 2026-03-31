@@ -14,6 +14,7 @@ import {
   Activity,
 } from 'lucide-react';
 import { useConnectionHealth } from '@/hooks/useConnectionHealth';
+import { useHtfFilter } from '@/hooks/useHtfFilter';
 import { PageStatusBanner } from '@/components/shared/PageStatusBanner';
 import { CircularGauge } from '@/components/ui/CircularGauge';
 
@@ -131,6 +132,9 @@ export default function RiskMonitorPage() {
           <div className='grid grid-cols-1 gap-3 lg:grid-cols-2'>
             <DrawdownCard data={data.drawdown} />
             <ActiveSettingsCard data={data.active_settings} />
+          </div>
+          <div className='grid grid-cols-1 gap-3 lg:grid-cols-2'>
+            <HtfFilterCard />
           </div>
           <GuardRailsCard data={data.guard_rails} />
           {data.symbol_overrides && data.symbol_overrides.length > 0 && (
@@ -542,6 +546,95 @@ function ActiveSettingsCard({ data }: { data: any }) {
           </div>
         ))}
       </div>
+    </PanelCard>
+  );
+}
+
+function HtfFilterCard() {
+  const { settings, isLoading, isSaving, update } = useHtfFilter();
+
+  return (
+    <PanelCard
+      icon={<Activity className='h-3.5 w-3.5 text-[var(--to-accent-blue)]' />}
+      title='HTF Candle Filter'
+    >
+      {isLoading ? (
+        <div className='space-y-2'>
+          <Skeleton className='h-6 w-full rounded bg-[var(--to-surface-raised)]/60' />
+          <Skeleton className='h-6 w-full rounded bg-[var(--to-surface-raised)]/60' />
+        </div>
+      ) : (
+        <div className='space-y-3'>
+          {/* Toggle row */}
+          <div className='flex items-center justify-between'>
+            <div>
+              <div className='text-xs text-[var(--to-text-secondary)]' style={{ fontFamily: 'var(--font-sans)' }}>
+                Block before HTF candles
+              </div>
+              <div className='text-[10px] text-[var(--to-text-dim)]' style={{ fontFamily: 'var(--font-mono)' }}>
+                :00 :15 :30 :45 boundaries
+              </div>
+            </div>
+            <button
+              disabled={isSaving}
+              onClick={() => update({ htf_candle_filter_enabled: !settings.htf_candle_filter_enabled })}
+              className={cn(
+                'relative h-5 w-9 rounded-full transition-colors duration-200 focus:outline-none disabled:opacity-50',
+                settings.htf_candle_filter_enabled
+                  ? 'bg-[var(--to-long)]'
+                  : 'bg-[var(--to-border)]'
+              )}
+              aria-label='Toggle HTF candle filter'
+            >
+              <span
+                className={cn(
+                  'absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200',
+                  settings.htf_candle_filter_enabled ? 'translate-x-4' : 'translate-x-0.5'
+                )}
+              />
+            </button>
+          </div>
+
+          {/* Block minutes row */}
+          <div className='flex items-center justify-between border-t border-[var(--to-border)] pt-2'>
+            <div className='text-xs text-[var(--to-text-secondary)]' style={{ fontFamily: 'var(--font-sans)' }}>
+              Block minutes before candle
+            </div>
+            <div className='flex items-center gap-1'>
+              <button
+                disabled={isSaving || settings.htf_candle_block_minutes <= 1}
+                onClick={() => update({ htf_candle_block_minutes: settings.htf_candle_block_minutes - 1 })}
+                className='flex h-5 w-5 items-center justify-center rounded border border-[var(--to-border)] text-xs text-[var(--to-text-secondary)] hover:border-[var(--to-accent-blue)] hover:text-[var(--to-text-primary)] disabled:opacity-30 transition-colors'
+              >
+                −
+              </button>
+              <span
+                className='w-5 text-center text-xs tabular-nums text-[var(--to-text-primary)]'
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                {settings.htf_candle_block_minutes}
+              </span>
+              <button
+                disabled={isSaving || settings.htf_candle_block_minutes >= 14}
+                onClick={() => update({ htf_candle_block_minutes: settings.htf_candle_block_minutes + 1 })}
+                className='flex h-5 w-5 items-center justify-center rounded border border-[var(--to-border)] text-xs text-[var(--to-text-secondary)] hover:border-[var(--to-accent-blue)] hover:text-[var(--to-text-primary)] disabled:opacity-30 transition-colors'
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          {/* Status line */}
+          <div
+            className='text-[10px] text-[var(--to-text-dim)]'
+            style={{ fontFamily: 'var(--font-mono)' }}
+          >
+            {settings.htf_candle_filter_enabled
+              ? `Blocking ${settings.htf_candle_block_minutes} min before each candle · FLIP-only at opens`
+              : 'Filter disabled — all entries pass through'}
+          </div>
+        </div>
+      )}
     </PanelCard>
   );
 }

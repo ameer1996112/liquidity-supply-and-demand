@@ -290,6 +290,8 @@ class Settings(BaseSettings):
     pine_require_liq_swept: bool = Field(default=True, description="Require liquidity swept before entry (core S&D rule).")
     pine_min_departure_strength: float = Field(default=40.0, ge=0.0, le=100.0, description="Min departure strength (arrival rule). <40=compressed=reject.")
     pine_block_dead_zone: bool = Field(default=True, description="Block entries in last 10 min of each hour (xx:50-xx:00).")
+    pine_htf_candle_filter_enabled: bool = Field(default=True, description="Block all entries 10 min before each 15-min HTF candle open (xx:05-14, xx:20-29, xx:35-44, xx:50-59). At candle opens (xx:00/15/30/45) only FLIP entries are allowed. Env: PINE_HTF_CANDLE_FILTER_ENABLED.")
+    pine_htf_candle_block_minutes: int = Field(default=10, ge=1, le=14, description="How many minutes before each 15-min candle to block signals. Default: 10. Env: PINE_HTF_CANDLE_BLOCK_MINUTES.")
     pine_trading_start_hour: int = Field(default=7, ge=0, le=23, description="[Deprecated: use pine_trading_start_hour_local] Trading start hour (UTC). Kept for backward compat.")
     pine_trading_end_hour: int = Field(default=22, ge=0, le=23, description="[Deprecated: use pine_trading_end_hour_local] Trading end hour (UTC). Kept for backward compat.")
     pine_trading_timezone: str = Field(default="Asia/Jerusalem", description="Timezone for trading hour interpretation. Default: Asia/Jerusalem (Israel, auto-DST). Env: PINE_TRADING_TIMEZONE.")
