@@ -35,6 +35,10 @@ class TrailingStop:
     lowest_price_seen: Optional[float]
     entry_price: float
     times_moved: int
+    # R-ladder fields (added by migration 068)
+    sl_distance_pips: Optional[float] = None
+    r2_locked: bool = False
+    r3_locked: bool = False
 
 
 class TrailingStopManager:
@@ -104,6 +108,9 @@ class TrailingStopManager:
                     lowest_price_seen=row.get("lowest_price_seen"),
                     entry_price=signal.get("entry", 0),
                     times_moved=row.get("times_moved", 0),
+                    sl_distance_pips=row.get("sl_distance_pips"),
+                    r2_locked=row.get("r2_locked", False),
+                    r3_locked=row.get("r3_locked", False),
                 )
                 trailing_stops.append(ts)
 
@@ -167,6 +174,84 @@ class TrailingStopManager:
             logger.error(f"Failed to get price for {ts.symbol}: {e}")
             return None
 
+    def _check_r_ladder(self, ts: TrailingStop, current_price: float) -> None:
+        """
+        Check R-multiple milestones and lock in profit when hit.
+
+        2R reached → move SL to entry + 1R (lock 1R profit)
+        3R reached → move SL to entry + 2R (lock 2R profit)
+
+        Only fires once per milestone (guarded by r2_locked / r3_locked).
+        Skipped if sl_distance_pips is missing or zero.
+        """
+        if not ts.sl_distance_pips or ts.sl_distance_pips <= 0:
+            return
+
+        if ts.entry_price <= 0:
+            return
+
+        pip_size = self._get_pip_size(ts.symbol)
+        sl_distance_price = ts.sl_distance_pips * pip_size
+
+        if ts.side == "buy":
+            r2_price = ts.entry_price + 2 * sl_distance_price
+            r3_price = ts.entry_price + 3 * sl_distance_price
+
+            if not ts.r3_locked and current_price >= r3_price:
+                new_sl = ts.entry_price + 2 * sl_distance_price
+                logger.info(
+                    "R-Ladder [%s %s]: 3R hit at %.5f → locking SL at %.5f (2R profit)",
+                    ts.symbol, ts.side, current_price, new_sl,
+                )
+                if new_sl > ts.current_sl:
+                    self._move_stop_loss(ts, new_sl, r_milestone=3)
+                self._lock_r_milestone(ts.id, milestone=3)
+
+            elif not ts.r2_locked and current_price >= r2_price:
+                new_sl = ts.entry_price + 1 * sl_distance_price
+                logger.info(
+                    "R-Ladder [%s %s]: 2R hit at %.5f → locking SL at %.5f (1R profit)",
+                    ts.symbol, ts.side, current_price, new_sl,
+                )
+                if new_sl > ts.current_sl:
+                    self._move_stop_loss(ts, new_sl, r_milestone=2)
+                self._lock_r_milestone(ts.id, milestone=2)
+
+        else:  # sell
+            r2_price = ts.entry_price - 2 * sl_distance_price
+            r3_price = ts.entry_price - 3 * sl_distance_price
+
+            if not ts.r3_locked and current_price <= r3_price:
+                new_sl = ts.entry_price - 2 * sl_distance_price
+                logger.info(
+                    "R-Ladder [%s %s]: 3R hit at %.5f → locking SL at %.5f (2R profit)",
+                    ts.symbol, ts.side, current_price, new_sl,
+                )
+                if new_sl < ts.current_sl:
+                    self._move_stop_loss(ts, new_sl, r_milestone=3)
+                self._lock_r_milestone(ts.id, milestone=3)
+
+            elif not ts.r2_locked and current_price <= r2_price:
+                new_sl = ts.entry_price - 1 * sl_distance_price
+                logger.info(
+                    "R-Ladder [%s %s]: 2R hit at %.5f → locking SL at %.5f (1R profit)",
+                    ts.symbol, ts.side, current_price, new_sl,
+                )
+                if new_sl < ts.current_sl:
+                    self._move_stop_loss(ts, new_sl, r_milestone=2)
+                self._lock_r_milestone(ts.id, milestone=2)
+
+    def _lock_r_milestone(self, trailing_stop_id: int, milestone: int) -> None:
+        """Persist r2_locked or r3_locked to DB to prevent double-firing."""
+        column = f"r{milestone}_locked"
+        try:
+            self.client.table("trailing_stops").update({
+                column: True,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }).eq("id", trailing_stop_id).execute()
+        except Exception as e:
+            logger.error("Failed to set %s for trailing stop %s: %s", column, trailing_stop_id, e)
+
     def _update_single_trailing_stop(self, ts: TrailingStop, current_price: float):
         """
         Update a single trailing stop based on current price.
@@ -208,6 +293,9 @@ class TrailingStopManager:
                 # Activation price not hit yet
                 return
 
+        # R-ladder: lock in profit at 2R and 3R milestones
+        self._check_r_ladder(ts, current_price)
+
         # Update highest/lowest price seen
         if ts.side == "buy":
             if ts.highest_price_seen is None or current_price > ts.highest_price_seen:
@@ -233,7 +321,7 @@ class TrailingStopManager:
             if new_sl < ts.current_sl:
                 self._move_stop_loss(ts, new_sl)
 
-    def _move_stop_loss(self, ts: TrailingStop, new_sl: float):
+    def _move_stop_loss(self, ts: TrailingStop, new_sl: float, r_milestone: Optional[int] = None):
         """
         Move stop loss to new level.
 
@@ -278,6 +366,10 @@ class TrailingStopManager:
                 f"(distance: {ts.trail_distance_pips} pips, times_moved: {ts.times_moved + 1})"
             )
 
+            # Discord notification for R-milestone profit locks
+            if r_milestone is not None:
+                self._notify_r_milestone(ts, new_sl, r_milestone)
+
             # Log event
             try:
                 from src.services.trade_events import log_event
@@ -288,6 +380,7 @@ class TrailingStopManager:
                         "new_sl": new_sl,
                         "trail_distance_pips": ts.trail_distance_pips,
                         "broker_updated": broker_success,
+                        "r_milestone": r_milestone,
                     }
                 )
             except Exception:
@@ -295,6 +388,29 @@ class TrailingStopManager:
 
         except Exception as e:
             logger.error(f"Failed to update trailing stop in DB: {e}")
+
+    def _notify_r_milestone(self, ts: TrailingStop, new_sl: float, milestone: int) -> None:
+        """Send Discord notification when R-milestone profit is locked in."""
+        try:
+            from src.adapters.discord import send_discord_async
+            from src.services.notification_service import NotificationPayload
+
+            locked_r = milestone - 1  # at 2R we lock 1R; at 3R we lock 2R
+            pip_size = self._get_pip_size(ts.symbol)
+            locked_pips = abs(new_sl - ts.entry_price) / pip_size
+
+            payload = NotificationPayload(
+                title=f"🔒 {ts.symbol} — {locked_r}R Profit Locked",
+                description=(
+                    f"**{ts.side.upper()}** reached **{milestone}R**\n"
+                    f"SL moved to **{new_sl:.5f}** (locking {locked_r}R / {locked_pips:.1f} pips profit)\n"
+                    f"Entry: {ts.entry_price:.5f}"
+                ),
+                color=0x00FF88 if milestone == 2 else 0xFFAA00,
+            )
+            send_discord_async(payload, alert_id=0, mode="r_milestone")
+        except Exception as e:
+            logger.warning("R-milestone Discord notify failed (non-critical): %s", e)
 
     def _mark_activated(self, trailing_stop_id: int):
         """Mark a trailing stop as activated."""
@@ -333,7 +449,8 @@ class TrailingStopManager:
         signal_id: int,
         trail_distance_pips: float,
         activation_price: Optional[float] = None,
-        wait_for_breakeven: bool = False
+        wait_for_breakeven: bool = False,
+        sl_distance_pips: Optional[float] = None,
     ) -> Optional[int]:
         """
         Add a trailing stop to an active position.
@@ -378,6 +495,9 @@ class TrailingStopManager:
 
             if wait_for_breakeven:
                 data["wait_for_breakeven"] = True
+
+            if sl_distance_pips is not None:
+                data["sl_distance_pips"] = sl_distance_pips
 
             result = self.client.table("trailing_stops").insert(data).execute()
 

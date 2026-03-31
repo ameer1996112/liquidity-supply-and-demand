@@ -303,8 +303,21 @@ class BreakevenManager:
                 return
 
             pip_size = self._get_pip_size(symbol)
-            trail_pips = self._get_trail_distance(symbol)
             activation_pips = float(getattr(s, "trail_activation_pips", 0.0))
+
+            # Compute original SL distance in pips.
+            # row["sl"] is the original SL price (snapshot before BE moved it).
+            original_sl = float(row.get("sl") or 0)
+            if original_sl <= 0:
+                logger.warning(
+                    "BreakevenManager: cannot compute R-ladder for signal %s — no original SL",
+                    signal_id,
+                )
+                return
+
+            sl_distance_pips = abs(entry - original_sl) / pip_size
+            # Trail at 50% of original SL distance so the trade has room to breathe
+            trail_pips = sl_distance_pips * 0.5
 
             # Compute activation threshold (None = trail starts immediately)
             activation_price: Optional[float] = None
@@ -316,11 +329,9 @@ class BreakevenManager:
 
             ts_id = self.trailing_stop_manager.add_trailing_stop(
                 signal_id=signal_id,
-                symbol=symbol,
-                side=side,
                 trail_distance_pips=trail_pips,
                 activation_price=activation_price,
-                entry_price=entry,
+                sl_distance_pips=sl_distance_pips,
             )
 
             if ts_id:
