@@ -4,13 +4,15 @@ System Config API - Operator-controlled global settings.
 Endpoints:
 - GET  /api/v1/config/trading-mode  - Get current system trading mode
 - POST /api/v1/config/trading-mode  - Set system trading mode (PAPER/LIVE/DRY_RUN)
+- GET  /api/v1/config/pine-filters  - Get HTF candle filter settings
+- PATCH /api/v1/config/pine-filters - Update HTF candle filter settings
 """
 
 import logging
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from src.adapters.supabase_api import get_api_supabase as _get_supabase
 
@@ -39,6 +41,16 @@ class TradingModeResponse(BaseModel):
 
 class SetTradingModeRequest(BaseModel):
     mode: Literal["PAPER", "LIVE", "DRY_RUN"]
+
+
+class HtfFilterResponse(BaseModel):
+    htf_candle_filter_enabled: bool
+    htf_candle_block_minutes: int
+
+
+class PatchHtfFilterRequest(BaseModel):
+    htf_candle_filter_enabled: bool | None = None
+    htf_candle_block_minutes: int | None = Field(default=None, ge=1, le=14)
 
 
 # ── Endpoints ─────────────────────────────────────────────
@@ -78,3 +90,60 @@ def set_trading_mode(body: SetTradingModeRequest):
     except Exception as e:
         logger.error(f"Failed to set trading mode: {e}")
         raise HTTPException(status_code=500, detail="Could not update trading mode")
+
+
+# ── HTF Candle Filter ──────────────────────────────────────
+
+_HTF_ENABLED_KEY = "pine_htf_candle_filter_enabled"
+_HTF_MINUTES_KEY = "pine_htf_candle_block_minutes"
+
+
+def _invalidate_htf_cache() -> None:
+    try:
+        import src.worker as _worker
+        _worker._htf_filter_cache["loaded_at"] = 0.0
+    except Exception:
+        pass
+
+
+@router.get("/pine-filters", response_model=HtfFilterResponse)
+def get_pine_filters():
+    """Return current HTF candle filter settings."""
+    try:
+        sb = _get_supabase()
+        rows = (
+            sb.table("system_config")
+            .select("key,value")
+            .in_("key", [_HTF_ENABLED_KEY, _HTF_MINUTES_KEY])
+            .execute()
+        )
+        kv = {r["key"]: r["value"] for r in (rows.data or [])}
+        enabled = kv.get(_HTF_ENABLED_KEY, "true").lower() != "false"
+        minutes = int(kv.get(_HTF_MINUTES_KEY, "10"))
+        return {"htf_candle_filter_enabled": enabled, "htf_candle_block_minutes": minutes}
+    except Exception as e:
+        logger.error(f"Failed to fetch HTF filter settings: {e}")
+        raise HTTPException(status_code=500, detail="Could not fetch HTF filter settings")
+
+
+@router.patch("/pine-filters", response_model=HtfFilterResponse)
+def patch_pine_filters(body: PatchHtfFilterRequest):
+    """Update HTF candle filter settings. Only provided fields are updated."""
+    try:
+        sb = _get_supabase()
+        if body.htf_candle_filter_enabled is not None:
+            sb.table("system_config").upsert(
+                {"key": _HTF_ENABLED_KEY, "value": str(body.htf_candle_filter_enabled).lower()},
+                on_conflict="key",
+            ).execute()
+        if body.htf_candle_block_minutes is not None:
+            sb.table("system_config").upsert(
+                {"key": _HTF_MINUTES_KEY, "value": str(body.htf_candle_block_minutes)},
+                on_conflict="key",
+            ).execute()
+        _invalidate_htf_cache()
+        # Return updated state
+        return get_pine_filters()
+    except Exception as e:
+        logger.error(f"Failed to update HTF filter settings: {e}")
+        raise HTTPException(status_code=500, detail="Could not update HTF filter settings")
