@@ -38,6 +38,26 @@ from src.adapters.redis_queue import get_redis
 from src.core.transport import get_transport
 from src.core.signal import validate_webhook_payload
 
+
+def _require_admin_key(
+    x_admin_api_key: str | None = Header(None, alias="X-Admin-API-Key"),
+    authorization: str | None = Header(None),
+) -> None:
+    """Dependency that enforces ADMIN_API_KEY on privileged operator routes."""
+    settings = get_settings()
+    expected = (settings.admin_api_key or "").strip()
+    if not expected:
+        raise HTTPException(
+            status_code=503,
+            detail="Admin API key not configured. Set ADMIN_API_KEY in environment.",
+        )
+    # Accept key via X-Admin-API-Key header or Authorization: Bearer <key>
+    provided = (x_admin_api_key or "").strip()
+    if not provided and authorization:
+        provided = authorization.replace("Bearer ", "").strip()
+    if not provided or provided != expected:
+        raise HTTPException(status_code=403, detail="Forbidden: invalid admin API key")
+
 configure_logging()
 logger = get_logger("trinity.api")
 
@@ -146,7 +166,7 @@ if _RATE_LIMIT_AVAILABLE and _limiter is not None:
 app.include_router(rules_router)
 app.include_router(risk_router)
 app.include_router(risk_monitor_router)  # Read-only risk monitor
-app.include_router(admin_router)
+app.include_router(admin_router, dependencies=[Depends(_require_admin_key)])
 app.include_router(positions_router)
 app.include_router(alerts_router)
 app.include_router(analytics_router)
@@ -167,11 +187,11 @@ app.include_router(webhook_read_router)  # E2E: /api/v1/webhook/signals/recent, 
 app.include_router(copilot_router)       # AI Copilot: /api/copilot/chat
 app.include_router(market_router)         # Market data proxy: /api/market/*
 app.include_router(funding_router)        # Funding: /api/v1/funding/daily-pnl, stats
-app.include_router(config_router)         # System config: /api/v1/config/trading-mode
+app.include_router(config_router, dependencies=[Depends(_require_admin_key)])         # System config: /api/v1/config/trading-mode
 app.include_router(tickets_router)        # Ticket tracker: /api/tickets
 app.include_router(incidents_router)      # Incident auto-tickets: /api/incidents
 app.include_router(agent_status_router)   # v1.2: Agent status: /api/agent/status
-app.include_router(broker_profiles_router)  # Multi-account MetaAPI credential management
+app.include_router(broker_profiles_router, dependencies=[Depends(_require_admin_key)])  # Multi-account MetaAPI credential management
 app.include_router(dashboard_router)        # DEV-61: dashboard summary aggregation
 app.include_router(notifications_router)    # DEV-73: notification settings (routing, whitelist, audit log)
 app.add_middleware(
@@ -371,9 +391,24 @@ def _stop_metaapi_streaming() -> None:
 
 
 def validate_webhook_secret(request: Request, secret: str | None) -> None:
+    """Validate the webhook secret using constant-time comparison.
+
+    Accepts the secret via:
+    - X-Webhook-Secret header
+    - Authorization: Bearer <secret> header
+    - ?secret= query param (legacy TradingView support)
+
+    If WEBHOOK_SECRET is unset the request is rejected — callers must configure
+    a secret before the endpoint will accept any payload.
+    """
+    import hmac as _hmac
     settings = get_settings()
-    if not settings.webhook_secret:
-        return
+    expected = (settings.webhook_secret or "").strip().strip('"').strip("'")
+    if not expected:
+        raise HTTPException(
+            status_code=503,
+            detail="Webhook secret not configured. Set WEBHOOK_SECRET in environment.",
+        )
     query_secret = None
     if request.url.query:
         qs = parse_qs(request.url.query)
@@ -386,9 +421,8 @@ def validate_webhook_secret(request: Request, secret: str | None) -> None:
         or (request.query_params.get("secret") or "").strip()
         or (query_secret or "").strip()
     )
-    expected = (settings.webhook_secret or "").strip().strip('"').strip("'")
     provided = provided.strip('"').strip("'")
-    if not provided or provided != expected:
+    if not provided or not _hmac.compare_digest(provided, expected):
         raise HTTPException(status_code=401, detail="Invalid webhook secret")
 
 

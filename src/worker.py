@@ -233,6 +233,32 @@ def _exists_trade_key(trade_key: str, broker_profile_id: Optional[int] = None) -
         return False
 
 
+def _claim_trade_key(trade_key: str, broker_profile_id: Optional[int] = None, ttl: int = 300) -> bool:
+    """Atomically claim a trade_key via Redis SETNX before DB check.
+
+    Returns True if this worker instance successfully claimed the key (i.e. it
+    should proceed with execution).  Returns False if another instance already
+    holds the key — the caller must treat this as a duplicate and skip.
+
+    The key expires after *ttl* seconds (default 5 minutes) so that a crashed
+    worker does not permanently block retries.
+    """
+    try:
+        from src.adapters.redis_queue import get_redis as _get_redis
+        _redis = _get_redis()
+        bp_part = str(broker_profile_id) if broker_profile_id is not None else "none"
+        lock_key = f"trade_lock:{trade_key.strip()}:{bp_part}"
+        # SET NX EX — returns True only if key did not exist
+        acquired = _redis.set(lock_key, "1", nx=True, ex=ttl)
+        return bool(acquired)
+    except Exception as e:
+        # If Redis is unavailable, fall back to the DB-level check below.
+        # Log the failure but do not block — the DB unique constraint is the
+        # hard safety net in this case.
+        logger.warning("Trade key claim (Redis SETNX) failed: %s — falling back to DB check", e)
+        return True  # allow DB check to be the arbiter
+
+
 def _lookup_symbol_overrides(symbol: str) -> Optional[Dict[str, Any]]:
     """Fetch per-symbol risk rules from Supabase with Redis cache (TTL=60s)."""
     if not supabase or not symbol:
@@ -926,8 +952,11 @@ def _run_account_guards(
         acct_kill_key = f"trading:kill_switch:{account_name}" if account_name != "default" else "trading:kill_switch"
         if _get_redis().get(acct_kill_key) == "1":
             return f"Kill switch ON for account {account_name}"
-    except Exception:
-        pass
+    except Exception as e:
+        if run_mode == "LIVE":
+            logger.critical("Kill switch check failed for %s in LIVE mode: %s — blocking trade (fail-closed)", account_name, e)
+            return f"Kill switch dependency unavailable for account {account_name} — blocked for safety"
+        logger.warning("Kill switch check failed for %s: %s (non-LIVE, continuing)", account_name, e)
 
     # MTM Guardian (per-account)
     if supabase and getattr(s, "mtm_guardian_enabled", True):
@@ -950,7 +979,10 @@ def _run_account_guards(
                     pass
                 return mtm_reason
         except Exception as e:
-            logger.error("MTM Guardian check failed for %s: %s", account_name, e)
+            if run_mode == "LIVE":
+                logger.critical("MTM Guardian check failed for %s in LIVE mode: %s — blocking trade (fail-closed)", account_name, e)
+                return f"MTM Guardian dependency unavailable for account {account_name} — blocked for safety"
+            logger.error("MTM Guardian check failed for %s: %s (non-LIVE, continuing)", account_name, e)
 
     # ── Per-account circuit breaker ───────────────────────────
     if run_mode == "LIVE":
@@ -958,8 +990,9 @@ def _run_account_guards(
             from src.core.circuit_breaker import is_metaapi_circuit_open
             if is_metaapi_circuit_open(account_name=account_name):
                 return f"Circuit breaker open for account {account_name}"
-        except Exception:
-            pass
+        except Exception as e:
+            logger.critical("Circuit breaker check failed for %s in LIVE mode: %s — blocking trade (fail-closed)", account_name, e)
+            return f"Circuit breaker dependency unavailable for account {account_name} — blocked for safety"
 
     # ── Per-account Adaptive daily trade limit (PineGuardian) ─
     try:
@@ -999,7 +1032,10 @@ def _run_account_guards(
             if today_count >= getattr(s, "pine_max_trades_per_day", 0):
                 return f"Daily trade limit reached ({account_name}): {today_count}/{s.pine_max_trades_per_day} trades today"
     except Exception as e:
-        logger.warning("Adaptive trade limit check failed for %s: %s (fail-open)", account_name, e)
+        if run_mode == "LIVE":
+            logger.critical("Adaptive trade limit check failed for %s in LIVE mode: %s — blocking trade (fail-closed)", account_name, e)
+            return f"Adaptive trade limit dependency unavailable for account {account_name} — blocked for safety"
+        logger.warning("Adaptive trade limit check failed for %s: %s (non-LIVE, continuing)", account_name, e)
 
     # ── Per-account PropGuard ─────────────────────────────────
     acct_balance = float(payload.get("account_balance", s.account_balance))
@@ -1094,10 +1130,14 @@ def _execute_for_profile(
     win_prob = float(ai_result.get("rf_prob", 0.0))
     trade_key = (payload.get("trade_key") or "").strip()
 
-    # Idempotency check per-profile
-    if trade_key and _exists_trade_key(trade_key, profile_id):
-        logger.info("Idempotency: (trade_key=%s, profile=%s) exists, skipping", trade_key, account_name)
-        return
+    # Idempotency check per-profile (atomic Redis claim + DB fallback)
+    if trade_key:
+        if not _claim_trade_key(trade_key, profile_id):
+            logger.info("Idempotency (Redis): (trade_key=%s, profile=%s) already claimed, skipping", trade_key, account_name)
+            return
+        if _exists_trade_key(trade_key, profile_id):
+            logger.info("Idempotency (DB): (trade_key=%s, profile=%s) exists, skipping", trade_key, account_name)
+            return
 
     # Apply per-account risk multiplier from guard phase
     acct_multiplier_key = f"_risk_multiplier_{account_name}"

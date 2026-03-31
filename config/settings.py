@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     supabase_url: str = Field(..., min_length=1, description="SUPABASE_URL")
     redis_url: str = Field(..., min_length=1, description="REDIS_URL")
     webhook_secret: str = Field(default="", description="WEBHOOK_SECRET")
+    admin_api_key: str = Field(default="", description="ADMIN_API_KEY — required to access operator/admin routes")
     supabase_key: str = Field(default="", validation_alias=AliasChoices("SUPABASE_ANON_KEY", "SUPABASE_KEY"))
     supabase_service_role_key: str = Field(default="", validation_alias=AliasChoices("SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SERVICE_KEY"))
 
