@@ -38,7 +38,6 @@ type NavItem = {
 /** Primary 4 items always visible in the bottom bar */
 const PRIMARY_ITEMS: NavItem[] = [
   { label: 'Dashboard', icon: LayoutDashboard, path: '/' },
-  { label: 'Positions', icon: Crosshair, path: '/positions' },
   { label: 'Risk', icon: Gauge, path: '/risk' },
   { label: 'Prop Firm', icon: Trophy, path: '/prop-firm' },
 ];

@@ -20,12 +20,6 @@ const NAV_ITEMS: NavItem[] = [
     group: 'Overview',
   },
   {
-    label: 'Positions',
-    description: 'Active positions & optimizer',
-    path: '/positions',
-    group: 'Trading',
-  },
-  {
     label: 'Risk Monitor',
     description: 'Guard rails & limits',
     path: '/risk',
@@ -159,13 +153,7 @@ export function CommandPalette() {
       }
     }
 
-    // Quick search: order_id / ticket (non-empty, no spaces)
-    if (raw && !raw.includes(' ')) {
-      setOpen(false);
-      const encoded = encodeURIComponent(raw);
-      router.push(`/positions?order_id=${encoded}`);
-      return;
-    }
+
 
     // Fallback: first nav item
     const first = filtered[activeIndex] ?? filtered[0];
@@ -285,7 +273,7 @@ export function CommandPalette() {
           >
             Tip: type{' '}
             <span className='text-[var(--to-text-secondary)]'>#12345</span> to
-            jump to a signal, or a broker ticket ID to jump to positions.
+            jump to a signal.
           </span>
         </div>
       </div>

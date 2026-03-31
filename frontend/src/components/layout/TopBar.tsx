@@ -213,9 +213,6 @@ function derivePageMeta(pathname: string): { section: string; title: string } {
   if (pathname === '/') {
     return { section: 'Overview', title: 'Dashboard' };
   }
-  if (pathname.startsWith('/positions')) {
-    return { section: 'Trading', title: 'Positions' };
-  }
   if (pathname.startsWith('/risk')) {
     return { section: 'Monitoring', title: 'Risk Monitor' };
   }
