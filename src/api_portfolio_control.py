@@ -1995,8 +1995,9 @@ def get_trade_history(
             cutoff_iso = cutoff_time.isoformat()
             query = query.or_(
                 f"exit_time.gte.{cutoff_iso},"
-                f"and(exit_time.is.null,closed_at.gte.{cutoff_iso}),"
-                f"and(exit_time.is.null,closed_at.is.null,created_at.gte.{cutoff_iso})"
+                f"and(exit_time.is.null,close_time.gte.{cutoff_iso}),"
+                f"and(exit_time.is.null,close_time.is.null,closed_at.gte.{cutoff_iso}),"
+                f"and(exit_time.is.null,close_time.is.null,closed_at.is.null,created_at.gte.{cutoff_iso})"
             )
 
         query = query.order("created_at", desc=True)
@@ -2029,8 +2030,9 @@ def get_trade_history(
                 cutoff_iso = cutoff_time.isoformat()
                 fallback_query = fallback_query.or_(
                     f"exit_time.gte.{cutoff_iso},"
-                    f"and(exit_time.is.null,closed_at.gte.{cutoff_iso}),"
-                    f"and(exit_time.is.null,closed_at.is.null,created_at.gte.{cutoff_iso})"
+                    f"and(exit_time.is.null,close_time.gte.{cutoff_iso}),"
+                    f"and(exit_time.is.null,close_time.is.null,closed_at.gte.{cutoff_iso}),"
+                    f"and(exit_time.is.null,close_time.is.null,closed_at.is.null,created_at.gte.{cutoff_iso})"
                 )
             fallback_query = fallback_query.order("created_at", desc=True)
             fallback_result = fallback_query.execute()
@@ -2100,7 +2102,7 @@ def get_trade_history(
                 "mae": float(trade.get("mae", 0)) if trade.get("mae") else None,
                 "mfe": float(trade.get("mfe", 0)) if trade.get("mfe") else None,
                 "entry_time": trade.get("entry_time") or trade.get("opened_at") or trade.get("created_at"),
-                "exit_time": trade.get("exit_time") or trade.get("closed_at"),
+                "exit_time": trade.get("close_time") or trade.get("closed_at") or trade.get("exit_time"),
                 "exit_reason": trade.get("exit_reason"),
                 "outcome": ("win" if gross_pnl_usd >= 0 else "loss") if (is_executed and gross_pnl_usd is not None) else None,
                 "trade_key": trade.get("trade_key"),
