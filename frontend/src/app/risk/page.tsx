@@ -551,6 +551,7 @@ function ActiveSettingsCard({ data }: { data: any }) {
   );
 }
 
+
 const HTF_MINUTE_PRESETS = [5, 7, 10, 12, 14] as const;
 
 function HtfFilterCard() {
@@ -561,18 +562,18 @@ function HtfFilterCard() {
   return (
     <PanelCard
       icon={<Activity className='h-3.5 w-3.5 text-[var(--to-accent-blue)]' />}
-      title='HTF Candle Filter'
+      title='HTF Pre-Candle Block'
     >
       {isLoading ? (
         <div className='space-y-2'>
           <Skeleton className='h-8 w-full rounded-lg bg-[var(--to-surface-raised)]/60' />
           <Skeleton className='h-6 w-full rounded bg-[var(--to-surface-raised)]/60' />
-          <Skeleton className='h-4 w-full rounded bg-[var(--to-surface-raised)]/60' />
+          <Skeleton className='h-10 w-full rounded bg-[var(--to-surface-raised)]/60' />
         </div>
       ) : (
         <div className='space-y-3'>
 
-          {/* ON / OFF pill group — matches TradingModeToggle pattern */}
+          {/* ON / OFF toggle */}
           <div className='mx-0 rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)]/50 p-0.5'>
             <div
               className='mb-1 px-1.5 pt-0.5 text-[9px] uppercase tracking-[0.2em] text-[var(--to-text-dim)]'
@@ -612,7 +613,7 @@ function HtfFilterCard() {
             </div>
           </div>
 
-          {/* Block minutes — preset pill buttons */}
+          {/* Block window presets */}
           <div className={cn('transition-opacity duration-200', !enabled && 'pointer-events-none opacity-30')}>
             <div className='mx-0 rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)]/50 p-0.5'>
               <div
@@ -651,28 +652,27 @@ function HtfFilterCard() {
             </div>
           </div>
 
-          {/* Timeline: entry window within 15m HTF cycle */}
+          {/* Timeline: safe zone vs blocked zone within 15m cycle */}
           <div className={cn('space-y-2 transition-opacity duration-200', !enabled && 'opacity-30')}>
             <div
               className='text-[9px] uppercase tracking-[0.15em] text-[var(--to-text-dim)]'
               style={{ fontFamily: 'var(--font-mono)' }}
             >
-              Entry window · 15m HTF cycle
+              15m HTF cycle
             </div>
 
-            {/* Timeline bar */}
             <div className='relative'>
               <div className='relative h-5 w-full overflow-hidden rounded-md bg-[var(--to-surface-raised)]'>
-                {/* Allowed zone */}
+                {/* Safe zone */}
                 <div
                   className='absolute left-0 top-0 h-full transition-all duration-300'
                   style={{
                     width: `${((15 - blockMins) / 15) * 100}%`,
                     background: 'var(--to-long)',
-                    opacity: 0.45,
+                    opacity: 0.4,
                   }}
                 />
-                {/* Blocked zone */}
+                {/* Blocked zone — high volume approaching */}
                 <div
                   className='absolute right-0 top-0 h-full transition-all duration-300'
                   style={{
@@ -681,7 +681,7 @@ function HtfFilterCard() {
                     opacity: 0.5,
                   }}
                 />
-                {/* 5m segment dividers */}
+                {/* 5m tick dividers */}
                 {[5, 10].map((tick) => (
                   <div
                     key={tick}
@@ -689,14 +689,14 @@ function HtfFilterCard() {
                     style={{ left: `${(tick / 15) * 100}%` }}
                   />
                 ))}
-                {/* Split-point marker */}
+                {/* Split marker */}
                 <div
-                  className='absolute top-0 h-full w-0.5 bg-[var(--to-text-primary)] opacity-70 transition-all duration-300'
+                  className='absolute top-0 h-full w-0.5 bg-[var(--to-text-primary)] opacity-60 transition-all duration-300'
                   style={{ left: `${((15 - blockMins) / 15) * 100}%` }}
                 />
               </div>
 
-              {/* Time axis labels */}
+              {/* Time axis */}
               <div className='relative mt-1 h-3.5'>
                 {[0, 5, 10, 15].map((tick) => (
                   <span
@@ -714,13 +714,13 @@ function HtfFilterCard() {
               </div>
             </div>
 
-            {/* Summary row */}
+            {/* Summary */}
             <div
               className='flex items-center justify-between rounded-md px-2 py-1 text-[8px]'
               style={{ background: 'var(--to-surface-raised)', fontFamily: 'var(--font-mono)' }}
             >
               <span style={{ color: 'var(--to-long)', opacity: 0.9 }}>
-                ✓ {15 - blockMins}m open
+                ✓ enter 0–{15 - blockMins}m
               </span>
               <span className='text-[var(--to-text-dim)]'>·</span>
               <span style={{ color: 'var(--to-short)', opacity: 0.9 }}>

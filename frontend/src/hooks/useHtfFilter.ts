@@ -5,7 +5,7 @@ import { API_BASE_URL } from '@/lib/api';
 
 export interface HtfFilterSettings {
   htf_candle_filter_enabled: boolean;
-  htf_candle_block_minutes: number;
+  htf_candle_block_minutes: number; // retained for backend compat; not used by UI
 }
 
 const QUERY_KEY = ['config', 'pine-filters'] as const;
