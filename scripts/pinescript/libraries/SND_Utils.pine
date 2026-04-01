@@ -284,7 +284,10 @@ export build_webhook_payload(
      float _liq_distance_pips = na, float _liq_spread_pips = na,
      int current_time = na,
      float _be_trigger_price = na,
-     float _be_sl_price = na) =>
+     float _be_sl_price = na,
+     int _leg_candle_count = na,
+     int _liq_candle_count = na,
+     bool _is_middle_zone = false) =>
 
     string payload = '{"symbol":"' + _symbol + '"'
     payload := payload + ',"side":"' + _side + '"'
@@ -357,6 +360,13 @@ export build_webhook_payload(
         payload := payload + ',"be_trigger_price":' + to_json_num(_be_trigger_price, "#.##########")
     if not na(_be_sl_price)
         payload := payload + ',"be_sl_price":' + to_json_num(_be_sl_price, "#.##########")
+
+    // === LSD QUALITY FIELDS ===
+    if not na(_leg_candle_count)
+        payload := payload + ',"leg_candle_count":' + str.tostring(_leg_candle_count, "#")
+    if not na(_liq_candle_count)
+        payload := payload + ',"liq_candle_count":' + str.tostring(_liq_candle_count, "#")
+    payload := payload + ',"is_middle_zone":' + (_is_middle_zone ? "true" : "false")
 
     payload := payload + '}'
     payload

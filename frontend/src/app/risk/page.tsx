@@ -136,6 +136,7 @@ export default function RiskMonitorPage() {
           </div>
           <div className='grid grid-cols-1 gap-3 lg:grid-cols-2'>
             <HtfFilterCard />
+            <OneCandleLiqCard />
           </div>
           <GuardRailsCard data={data.guard_rails} />
           {data.symbol_overrides && data.symbol_overrides.length > 0 && (
@@ -726,6 +727,142 @@ function HtfFilterCard() {
               <span style={{ color: 'var(--to-short)', opacity: 0.9 }}>
                 ✗ last {blockMins}m blocked
               </span>
+            </div>
+          </div>
+
+        </div>
+      )}
+    </PanelCard>
+  );
+}
+
+const DEP_PRESETS = [40, 50, 60, 70, 80];
+
+function OneCandleLiqCard() {
+  const { settings, isLoading, isSaving, update } = useHtfFilter();
+  const enabled = settings.block_one_candle_liq;
+  const minDep = settings.one_candle_liq_min_departure;
+
+  return (
+    <PanelCard
+      icon={<Activity className='h-3.5 w-3.5 text-[var(--to-accent-blue)]' />}
+      title='1-Candle Liquidity Filter'
+    >
+      {isLoading ? (
+        <div className='space-y-2'>
+          <Skeleton className='h-8 w-full rounded-lg bg-[var(--to-surface-raised)]/60' />
+          <Skeleton className='h-6 w-full rounded bg-[var(--to-surface-raised)]/60' />
+        </div>
+      ) : (
+        <div className='space-y-3'>
+
+          {/* Description */}
+          <p className='text-[11px] text-[var(--to-text-dim)]' style={{ fontFamily: 'var(--font-sans)' }}>
+            Block trades where the liquidity was formed by a single candle, unless all
+            high-confidence conditions are met (trend, sweep, departure strength).
+          </p>
+
+          {/* ON / OFF toggle */}
+          <div className='mx-0 rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)]/50 p-0.5'>
+            <div
+              className='mb-1 px-1.5 pt-0.5 text-[9px] uppercase tracking-[0.2em] text-[var(--to-text-dim)]'
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >
+              Filter
+            </div>
+            <div className='flex gap-1'>
+              {([true, false] as const).map((val) => {
+                const isActive = enabled === val;
+                const color = val ? 'var(--to-long)' : 'var(--to-short)';
+                const Icon = val ? Shield : ShieldOff;
+                return (
+                  <button
+                    key={String(val)}
+                    disabled={isSaving}
+                    onClick={() => update({ block_one_candle_liq: val })}
+                    className={cn(
+                      'flex flex-1 items-center justify-center gap-1 rounded-md py-1 text-[10px] font-medium transition-all duration-150',
+                      isActive ? 'opacity-100' : 'opacity-40 hover:opacity-70'
+                    )}
+                    style={isActive ? {
+                      background: `${color}18`,
+                      border: `1px solid ${color}40`,
+                      color,
+                    } : {
+                      background: 'transparent',
+                      border: '1px solid transparent',
+                      color: 'var(--to-text-dim)',
+                    }}
+                  >
+                    <Icon className='h-3 w-3 shrink-0' />
+                    {val ? 'Enabled' : 'Disabled'}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Min departure strength presets */}
+          <div className={cn('transition-opacity duration-200', !enabled && 'pointer-events-none opacity-30')}>
+            <div className='mx-0 rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)]/50 p-0.5'>
+              <div
+                className='mb-1 px-1.5 pt-0.5 text-[9px] uppercase tracking-[0.2em] text-[var(--to-text-dim)]'
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                Min departure strength
+              </div>
+              <div className='flex gap-1'>
+                {DEP_PRESETS.map((val) => {
+                  const isActive = minDep === val;
+                  return (
+                    <button
+                      key={val}
+                      disabled={isSaving}
+                      onClick={() => update({ one_candle_liq_min_departure: val })}
+                      className={cn(
+                        'flex flex-1 items-center justify-center rounded-md py-1 text-[10px] font-medium transition-all duration-150',
+                        isActive ? 'opacity-100' : 'opacity-40 hover:opacity-70'
+                      )}
+                      style={isActive ? {
+                        background: 'var(--to-accent-blue)18',
+                        border: '1px solid var(--to-accent-blue)40',
+                        color: 'var(--to-accent-blue)',
+                      } : {
+                        background: 'transparent',
+                        border: '1px solid transparent',
+                        color: 'var(--to-text-dim)',
+                      }}
+                    >
+                      {val}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Conditions summary */}
+          <div className={cn('transition-opacity duration-200', !enabled && 'opacity-30')}>
+            <div
+              className='text-[9px] uppercase tracking-[0.15em] text-[var(--to-text-dim)] mb-1.5'
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >
+              Override conditions (all required)
+            </div>
+            <div className='space-y-1'>
+              {[
+                'Not a middle zone',
+                'Trend aligned (above 200 EMA)',
+                'Liquidity swept + caused sweep',
+                `Departure strength ≥ ${minDep}`,
+              ].map((cond) => (
+                <div key={cond} className='flex items-center gap-1.5'>
+                  <span className='text-[10px]' style={{ color: 'var(--to-long)' }}>✓</span>
+                  <span className='text-[11px] text-[var(--to-text-secondary)]' style={{ fontFamily: 'var(--font-sans)' }}>
+                    {cond}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
 

@@ -163,7 +163,7 @@ structure_mode      = input.string("Relaxed (Wicks)", "Structure Detection", opt
 liq_pivot_len       = input.int(5, "Pivot Strength", minval = 1, group = "💧 Liquidity")
 pvtMax              = input.int(5, "Max Liquidity Lines", minval = 1, maxval = 500, group = "💧 Liquidity")
 require_major_liquidity = input.bool(true, "Require Strong Pivots", group = "💧 Liquidity")
-useOneCandleLiquidity = input.bool(true, "Allow 1-Candle Swings", group = "💧 Liquidity")
+useOneCandleLiquidity = true  // Always allow — 1-candle liq filtering is handled by the Python backend
 
 liq_max_distance_pips_forex = input.float(20.0, "Max Distance - Forex (pips)", minval = 5.0, group = "💧 Liquidity")
 liq_max_distance_pips_gold  = input.float(400.0, "Max Distance - Gold (pips)", minval = 5.0, group = "💧 Liquidity")
@@ -3210,6 +3210,14 @@ process_long_entries() =>
                     float f_liq_dist_pips = getLiquidityDistance(z, false)
                     float f_liq_spread_pips = na(z.liqHighPrice) or na(z.liqLowPrice) ? na : math.abs(z.liqHighPrice - z.liqLowPrice) / pip_size
 
+                    // Middle zone: another valid demand zone exists below this one
+                    bool is_middle_zone_long = false
+                    for _mz_i = 0 to array.size(demandZones) - 1
+                        Core.Zone _mz_other = array.get(demandZones, _mz_i)
+                        if _mz_other.id != z.id and _mz_other.top < z.bottom
+                            is_middle_zone_long := true
+                            break
+
                     string webhook_payload = enable_webhook_alerts ? Utils.build_webhook_payload(
                         syminfo.ticker,
                         "buy",
@@ -3252,7 +3260,10 @@ process_long_entries() =>
                         f_liq_spread_pips,       // liq_spread_pips
                         time_close,              // current_time (bar close = signal fires at bar close)
                         be_trigger_price_long,   // be_trigger_price
-                        be_sl_price_long         // be_sl_price
+                        be_sl_price_long,        // be_sl_price
+                        z.legCandleCount,        // leg_candle_count
+                        z.liquidityCandleCount,  // liq_candle_count
+                        is_middle_zone_long      // is_middle_zone
                     ) : ""
 
                     if dry_run_mode
@@ -3646,6 +3657,14 @@ process_short_entries() =>
                     float f_liq_dist_pips_short = getLiquidityDistance(z, true)
                     float f_liq_spread_pips_short = na(z.liqLowPrice) or na(z.liqHighPrice) ? na : math.abs(z.liqLowPrice - z.liqHighPrice) / pip_size
 
+                    // Middle zone: another valid supply zone exists above this one
+                    bool is_middle_zone_short = false
+                    for _mz_i = 0 to array.size(supplyZones) - 1
+                        Core.Zone _mz_other = array.get(supplyZones, _mz_i)
+                        if _mz_other.id != z.id and _mz_other.bottom > z.top
+                            is_middle_zone_short := true
+                            break
+
                     string webhook_payload_short = enable_webhook_alerts ? Utils.build_webhook_payload(
                         syminfo.ticker,
                         "sell",
@@ -3688,7 +3707,10 @@ process_short_entries() =>
                         f_liq_spread_pips_short,       // liq_spread_pips
                         time_close,                    // current_time (bar close = signal fires at bar close)
                         be_trigger_price_short,        // be_trigger_price
-                        be_sl_price_short              // be_sl_price
+                        be_sl_price_short,             // be_sl_price
+                        z.legCandleCount,              // leg_candle_count
+                        z.liquidityCandleCount,        // liq_candle_count
+                        is_middle_zone_short           // is_middle_zone
                     ) : ""
 
                     if dry_run_mode

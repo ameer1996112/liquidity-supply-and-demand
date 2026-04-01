@@ -6,6 +6,8 @@ import { API_BASE_URL } from '@/lib/api';
 export interface HtfFilterSettings {
   htf_candle_filter_enabled: boolean;
   htf_candle_block_minutes: number; // retained for backend compat; not used by UI
+  block_one_candle_liq: boolean;
+  one_candle_liq_min_departure: number;
 }
 
 const QUERY_KEY = ['config', 'pine-filters'] as const;
@@ -43,7 +45,7 @@ export function useHtfFilter() {
   });
 
   return {
-    settings: query.data ?? { htf_candle_filter_enabled: true, htf_candle_block_minutes: 10 },
+    settings: query.data ?? { htf_candle_filter_enabled: true, htf_candle_block_minutes: 10, block_one_candle_liq: true, one_candle_liq_min_departure: 60 },
     isLoading: query.isLoading,
     isSaving: mutation.isPending,
     update: mutation.mutate,

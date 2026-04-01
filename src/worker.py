@@ -117,6 +117,9 @@ _SYSTEM_MODE_CACHE_TTL = 30  # seconds
 # HTF candle filter cache — DB overrides Pydantic defaults (30s TTL)
 _htf_filter_cache: dict = {"enabled": None, "minutes": None, "loaded_at": 0.0}
 
+# 1-candle liquidity filter cache — DB overrides Pydantic defaults (30s TTL)
+_one_candle_liq_cache: dict = {"enabled": None, "min_departure": None, "loaded_at": 0.0}
+
 
 def _get_htf_filter_settings(s) -> tuple[bool, int]:
     """Return (htf_enabled, htf_block_minutes) from DB (30s cache), falling back to Pydantic settings."""
@@ -147,6 +150,37 @@ def _get_htf_filter_settings(s) -> tuple[bool, int]:
     _htf_filter_cache["minutes"] = htf_minutes
     _htf_filter_cache["loaded_at"] = now
     return htf_enabled, htf_minutes
+
+
+def _get_one_candle_liq_settings(s) -> tuple[bool, float]:
+    """Return (block_enabled, min_departure) from DB (30s cache), falling back to Pydantic settings."""
+    now = time.time()
+    if now - _one_candle_liq_cache["loaded_at"] < _SYSTEM_MODE_CACHE_TTL and _one_candle_liq_cache["enabled"] is not None:
+        return _one_candle_liq_cache["enabled"], _one_candle_liq_cache["min_departure"]
+    try:
+        sb = _get_fresh_supabase()
+        if sb:
+            rows = (
+                sb.table("system_config")
+                .select("key,value")
+                .in_("key", ["pine_block_one_candle_liq", "pine_one_candle_liq_min_departure"])
+                .execute()
+            )
+            kv = {r["key"]: r["value"] for r in (rows.data or [])}
+            raw_enabled = kv.get("pine_block_one_candle_liq")
+            raw_dep = kv.get("pine_one_candle_liq_min_departure")
+            enabled = (raw_enabled.lower() != "false") if raw_enabled is not None else getattr(s, "pine_block_one_candle_liq", True)
+            min_dep = float(raw_dep) if raw_dep is not None else getattr(s, "pine_one_candle_liq_min_departure", 60.0)
+        else:
+            enabled = getattr(s, "pine_block_one_candle_liq", True)
+            min_dep = getattr(s, "pine_one_candle_liq_min_departure", 60.0)
+    except Exception:
+        enabled = getattr(s, "pine_block_one_candle_liq", True)
+        min_dep = getattr(s, "pine_one_candle_liq_min_departure", 60.0)
+    _one_candle_liq_cache["enabled"] = enabled
+    _one_candle_liq_cache["min_departure"] = min_dep
+    _one_candle_liq_cache["loaded_at"] = now
+    return enabled, min_dep
 
 
 def _get_system_trading_mode() -> str:
@@ -714,6 +748,37 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
                 return f"Compressed arrival: departure_strength {dep_str} < {s.pine_min_departure_strength}"
         except (ValueError, TypeError):
             pass
+
+    # --- 1-candle liquidity filter (LSD quality rule) ---
+    # A zone formed by a single liquidity candle is lower quality by default.
+    # Allow it only when the setup shows high confidence:
+    #   - not a middle zone (no stronger zone of the same type beyond it)
+    #   - trend aligned (200 EMA)
+    #   - liquidity was swept before entry
+    #   - departure strength is high enough (configurable, default 60)
+    _ocl_enabled, _ocl_min_dep = _get_one_candle_liq_settings(s)
+    if _ocl_enabled:
+        liq_candle_count = payload.get("liq_candle_count")
+        if liq_candle_count is not None:
+            try:
+                if int(liq_candle_count) == 1:
+                    trend_ok = payload.get("trend") == 1
+                    swept_ok = bool(payload.get("liq_swept")) and bool(payload.get("caused_sweep"))
+                    dep_ok = float(payload.get("departure_strength") or 0) >= _ocl_min_dep
+                    is_middle = bool(payload.get("is_middle_zone", False))
+                    if is_middle or not trend_ok or not swept_ok or not dep_ok:
+                        reasons = []
+                        if is_middle:
+                            reasons.append("middle zone")
+                        if not trend_ok:
+                            reasons.append("counter-trend")
+                        if not swept_ok:
+                            reasons.append("no sweep")
+                        if not dep_ok:
+                            reasons.append(f"departure_strength {payload.get('departure_strength')} < {_ocl_min_dep}")
+                        return f"1-candle liquidity blocked: {', '.join(reasons)}"
+            except (ValueError, TypeError):
+                pass
 
     # --- Return strength ---
     ret_str = payload.get("return_strength")
