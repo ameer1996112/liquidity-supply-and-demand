@@ -3250,7 +3250,7 @@ process_long_entries() =>
                         account_size_usd,         // _account_balance (Corrected)
                         f_liq_dist_pips,         // liq_distance_pips
                         f_liq_spread_pips,       // liq_spread_pips
-                        time,                    // current_time
+                        time_close,              // current_time (bar close = signal fires at bar close)
                         be_trigger_price_long,   // be_trigger_price
                         be_sl_price_long         // be_sl_price
                     ) : ""
@@ -3686,7 +3686,7 @@ process_short_entries() =>
                         account_size_usd,               // _account_balance (Corrected)
                         f_liq_dist_pips_short,         // liq_distance_pips
                         f_liq_spread_pips_short,       // liq_spread_pips
-                        time,                          // current_time
+                        time_close,                    // current_time (bar close = signal fires at bar close)
                         be_trigger_price_short,        // be_trigger_price
                         be_sl_price_short              // be_sl_price
                     ) : ""
