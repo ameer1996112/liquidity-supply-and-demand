@@ -4252,7 +4252,7 @@ if barstate.isconfirmed and array.size(demandZones) > 0 and allow_long_trades
                     account_size_usd,         // _account_balance (Corrected)
                     f_liq_dist_pips,         // liq_distance_pips
                     f_liq_spread_pips,       // liq_spread_pips
-                    time                     // current_time
+                    time_close               // current_time (bar close = signal fires at bar close)
                 ) : ""
 
                 if dry_run_mode
@@ -4754,7 +4754,7 @@ if barstate.isconfirmed and array.size(supplyZones) > 0 and allow_short_trades
                     account_size_usd,               // _account_balance (Corrected)
                     f_liq_dist_pips_short,         // liq_distance_pips
                     f_liq_spread_pips_short,       // liq_spread_pips
-                    time                           // current_time
+                    time_close                     // current_time (bar close = signal fires at bar close)
                 ) : ""
 
                 if dry_run_mode
