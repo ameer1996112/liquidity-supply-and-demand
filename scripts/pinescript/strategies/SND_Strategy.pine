@@ -3263,7 +3263,13 @@ process_long_entries() =>
                         be_sl_price_long,        // be_sl_price
                         z.legCandleCount,        // leg_candle_count
                         z.liquidityCandleCount,  // liq_candle_count
-                        is_middle_zone_long      // is_middle_zone
+                        is_middle_zone_long,     // is_middle_zone
+                        z.primed,                // primed
+                        not na(z.liquiditySweptBarIndex) and not na(z.lastTouchBar) and z.lastTouchBar >= z.liquiditySweptBarIndex ? z.lastTouchBar - z.liquiditySweptBarIndex : na, // sweep_to_touch_bars
+                        not na(z.peakBarIndex) and not na(z.lastTouchBar) and z.lastTouchBar >= z.peakBarIndex ? z.lastTouchBar - z.peakBarIndex : na,                             // peak_to_touch_bars
+                        z.liqSource,             // liq_source
+                        z.grade,                 // zone_grade
+                        bar_index - z.createdBarIndex // bars_since_zone
                     ) : ""
 
                     if dry_run_mode
@@ -3710,7 +3716,13 @@ process_short_entries() =>
                         be_sl_price_short,             // be_sl_price
                         z.legCandleCount,              // leg_candle_count
                         z.liquidityCandleCount,        // liq_candle_count
-                        is_middle_zone_short           // is_middle_zone
+                        is_middle_zone_short,          // is_middle_zone
+                        z.primed,                      // primed
+                        not na(z.liquiditySweptBarIndex) and not na(z.lastTouchBar) and z.lastTouchBar >= z.liquiditySweptBarIndex ? z.lastTouchBar - z.liquiditySweptBarIndex : na, // sweep_to_touch_bars
+                        not na(z.peakBarIndex) and not na(z.lastTouchBar) and z.lastTouchBar >= z.peakBarIndex ? z.lastTouchBar - z.peakBarIndex : na,                             // peak_to_touch_bars
+                        z.liqSource,                   // liq_source
+                        z.grade,                       // zone_grade
+                        bar_index - z.createdBarIndex  // bars_since_zone
                     ) : ""
 
                     if dry_run_mode
