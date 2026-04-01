@@ -6,7 +6,6 @@ import {
   type ReactNode,
 } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiFetch } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import type { TradingMode } from '@/types/trading';
 
@@ -29,15 +28,22 @@ const TradingModeContext = createContext<TradingModeContextValue>({
 const QUERY_KEY = ['system', 'trading-mode'] as const;
 
 async function fetchTradingMode(): Promise<TradingMode> {
-  const data = await apiFetch<{ trading_mode: string }>('/api/v1/config/trading-mode');
+  // Use the server-side proxy so ADMIN_API_KEY is read at runtime, not baked into the bundle.
+  const res = await fetch('/api/config/trading-mode', { cache: 'no-store' });
+  if (!res.ok) throw new Error(`API Error (${res.status})`);
+  const data: { trading_mode: string } = await res.json();
   return data.trading_mode as TradingMode;
 }
 
 async function saveTradingMode(mode: TradingMode): Promise<TradingMode> {
-  const data = await apiFetch<{ trading_mode: string }>('/api/v1/config/trading-mode', {
+  // Use the server-side proxy so ADMIN_API_KEY is read at runtime, not baked into the bundle.
+  const res = await fetch('/api/config/trading-mode', {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ mode }),
   });
+  if (!res.ok) throw new Error(`API Error (${res.status}): ${await res.text()}`);
+  const data: { trading_mode: string } = await res.json();
   return data.trading_mode as TradingMode;
 }
 
@@ -59,7 +65,7 @@ export function TradingModeProvider({ children }: { children: ReactNode }) {
     },
     onError: (err: Error) => {
       const message = err.message.includes('403')
-        ? 'Access denied — check NEXT_PUBLIC_ADMIN_API_KEY is set.'
+        ? 'Access denied — check ADMIN_API_KEY matches on frontend and backend servers.'
         : err.message.includes('503')
         ? 'Backend error — ADMIN_API_KEY not configured on server.'
         : `Failed to change mode: ${err.message}`;
