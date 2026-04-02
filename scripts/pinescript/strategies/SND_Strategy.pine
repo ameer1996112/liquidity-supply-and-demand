@@ -166,8 +166,8 @@ require_major_liquidity = input.bool(true, "Require Strong Pivots", group = "�
 useOneCandleLiquidity = true  // Always allow — 1-candle liq filtering is handled by the Python backend
 
 liq_max_distance_pips_forex = input.float(20.0, "Max Distance - Forex (pips)", minval = 5.0, group = "💧 Liquidity")
-liq_max_distance_pips_gold  = input.float(400.0, "Max Distance - Gold (pips)", minval = 5.0, group = "💧 Liquidity")
-liq_max_distance_pips_index = input.float(5000.0, "Max Distance - Indices (pips)", minval = 100.0, group = "💧 Liquidity")
+liq_max_distance_pips_gold  = input.float(150.0, "Max Distance - Gold (pips)", minval = 5.0, group = "💧 Liquidity")
+liq_max_distance_pips_index = input.float(500.0, "Max Distance - Indices (pips)", minval = 100.0, group = "💧 Liquidity")
 
 fractalsPeriod = 2  // Williams Fractals period
 plotLiq    = true  // Always plot liquidity
@@ -183,11 +183,7 @@ liq_side_tol_ticks     = 2
 use_inducement_linking = true
 
 // === PERFORMANCE TUNING ===
-// Indices/gold need wider lookback due to larger price swings and slower structure formation
-MAX_LIQ_SCAN_BARS      = (is_index or is_gold) ? 150 : 80
-LIQ_VALIDATION_LOOKBACK = (is_index or is_gold) ? 60 : 30
-MAX_PIVOTS_PER_SCAN     = (is_index or is_gold) ? 5 : 3
-MAX_PEAK_SCAN_BARS      = (is_index or is_gold) ? 150 : 80
+MAX_PEAK_SCAN_BARS      = (is_index or is_gold or is_xpt) ? 150 : 80
 
 show_zones           = true
 show_demand_zones    = true
@@ -250,12 +246,12 @@ var color TBL_DRK = color.rgb(25, 25, 25)
 take_profit_pips        = input.float(0.0, "Fixed TP Override (Pips)", minval = 0, group = "📊 Trade Execution")
 debug_liq_extra         = false
 
-float pip_scale_factor = is_gold and pip_size <= 0.011 ? 10.0 : (is_index ? 10.0 : 1.0)
+float pip_scale_factor = (is_gold or is_xpt) and pip_size <= 0.011 ? 10.0 : (is_index ? 10.0 : 1.0)
 
 float effective_sl_buffer = stop_loss_buffer_pips * pip_scale_factor
-float effective_min_tp_dist = min_tp_distance_pips * pip_scale_factor
+float effective_min_tp_dist = min_tp_distance_pips  // No pip_scale_factor — matches good-marking reference
 float effective_liq_entry_max_dist = liq_entry_max_dist * pip_scale_factor  // Base value — updated dynamically per bar below using RVOL
-float effective_liq_max_dist = is_index ? liq_max_distance_pips_index : (is_gold ? liq_max_distance_pips_gold : liq_max_distance_pips_forex)
+float effective_liq_max_dist = is_index ? liq_max_distance_pips_index : ((is_gold or is_xpt) ? liq_max_distance_pips_gold : liq_max_distance_pips_forex)
 float effective_tp_pips = take_profit_pips * pip_scale_factor
 
 
@@ -282,7 +278,7 @@ max_bars_held = input.int(36, "Time-Based Exit (Bars)", minval=1, group = "📊 
 enable_double_tp = input.bool(false, "Double TP Mode", group = "📊 Trade Execution")
 use_fvg_confirmation = input.bool(false, "Require FVG (Imbalance)", group = "📐 Zone Detection")
 enable_accuracy_zones = input.bool(true, "Accuracy Zones", group = "📐 Zone Detection")
-should_use_accuracy_zones = enable_accuracy_zones and not (is_futures or is_xpt)
+should_use_accuracy_zones = enable_accuracy_zones and not (is_gold or is_index or is_xpt)
 
 enable_webhook_alerts = true  // Always enabled
 webhook_include_zone_id = true  // Always include zone ID
@@ -337,7 +333,7 @@ reset_daily_pnl       = true  // Always reset PnL daily
 
 enable_date_filter = input.bool(true, "Date Range Filter", group = "🎯 Quick Setup")
 start_date         = input.time(timestamp("01 Jan 2023 00:00 +0000"), "   └─ Start Date", group = "🎯 Quick Setup")
-end_date           = input.time(timestamp("19 Jan 2026 23:59 +0000"), "   └─ End Date", group = "🎯 Quick Setup")
+end_date           = input.time(timestamp("31 Dec 2027 23:59 +0000"), "   └─ End Date", group = "🎯 Quick Setup")
 min_bar_index_for_entries = 100
 
 
@@ -349,7 +345,7 @@ if use_profile_defaults
         pvtMax := 5
         liq_pivot_len := 5
         liq_max_distance_pips_forex := 10.0
-        liq_max_distance_pips_gold := 200.0
+        liq_max_distance_pips_gold := 100.0
         liq_entry_max_dist := 8.0
         ai_quality_threshold := 70
         min_entry_grade := "B+"
@@ -361,7 +357,7 @@ if use_profile_defaults
         pvtMax := 5
         liq_pivot_len := 5
         liq_max_distance_pips_forex := 20.0
-        liq_max_distance_pips_gold := 400.0
+        liq_max_distance_pips_gold := 150.0
         liq_entry_max_dist := 10.0
         ai_quality_threshold := 60
         min_entry_grade := "C+"
@@ -373,7 +369,7 @@ if use_profile_defaults
         pvtMax := 10
         liq_pivot_len := 3
         liq_max_distance_pips_forex := 20.0
-        liq_max_distance_pips_gold := 500.0
+        liq_max_distance_pips_gold := 200.0
         liq_entry_max_dist := 15.0
         ai_quality_threshold := 50
         min_entry_grade := "C"
@@ -383,7 +379,7 @@ if use_profile_defaults
         min_tp_distance_pips := 5.0
 
 
-    if is_aggressive and not (is_gold or is_index)
+    if is_aggressive and not (is_gold or is_index or is_xpt)
         liq_max_distance_pips_forex := 12.0  // ← Reduced from 20 (split between Aggressive 20 and Balanced 15)
         liq_entry_max_dist := 12.0           // ← Entry gate tighter than scan (12 pips scan, 12 pips gate = same quality)
 
@@ -395,8 +391,9 @@ if use_profile_defaults
 
     require_major_liquidity := is_conservative or is_balanced
     structure_mode := is_conservative ? "Standard (Bodies)" : "Relaxed (Wicks)"
-    enable_grade_filter := is_conservative or is_balanced
-    require_htf_flip := is_conservative or is_balanced
+    // Grade filter and HTF flip: only for forex (good-marking doesn't use these)
+    enable_grade_filter := (is_conservative or is_balanced) and not (is_gold or is_index or is_xpt)
+    require_htf_flip := (is_conservative or is_balanced) and not (is_gold or is_index or is_xpt)
     stop_loss_buffer_pips := 1.0
 
 debug_enabled   = debug_level != "None"
@@ -560,13 +557,13 @@ get_tp_ratio(symbol_type, sl_pips) =>
         be_trig := na
         be_sl := na
         move_be := false
-    else if is_gold
+    else if is_gold or is_xpt
         base_ratio := 4.0
         be_trig := na
         be_sl := na
         move_be := false
     else if is_aggressive and use_profile_defaults
-        if is_gold
+        if is_gold or is_xpt
             [g_tp, g_bet, g_bes, g_mbe] = get_gold_tp_rules_aggressive(sl_pips)
             base_ratio := g_tp
             be_trig := g_bet
@@ -583,7 +580,7 @@ get_tp_ratio(symbol_type, sl_pips) =>
             be_trig := na
             be_sl := na
             move_be := false
-    else if is_gold
+    else if is_gold or is_xpt
         [g_tp, g_bet, g_bes, g_mbe] = get_gold_tp_rules(sl_pips)
         base_ratio := g_tp
         be_trig := g_bet
@@ -866,7 +863,7 @@ validate_position_size(entry_price, stop_loss_price, balance, risk_pct, is_short
             float contract_size = FOREX_LOT_SIZE
             int effective_min_units = min_position_size_units
 
-            if is_gold
+            if is_gold or is_xpt
                 contract_size := 100.0
                 effective_min_units := 1
             else if is_silver
@@ -1068,7 +1065,7 @@ getBarOfMaxHigh(int startBarAbs, int endBarAbs) =>
     int bestBar = startBarAbs
     if not na(startBarAbs) and not na(endBarAbs) and endBarAbs >= startBarAbs
         int offStart = bar_index - endBarAbs
-        int offEnd   = math.min(bar_index - startBarAbs, offStart + MAX_LIQ_SCAN_BARS)
+        int offEnd   = bar_index - startBarAbs
         if offStart >= 0 and offEnd >= 0
             for i = offStart to offEnd
                 if high[i] >= maxH
@@ -1081,7 +1078,7 @@ getBarOfMinLow(int startBarAbs, int endBarAbs) =>
     int bestBar = startBarAbs
     if not na(startBarAbs) and not na(endBarAbs) and endBarAbs >= startBarAbs
         int offStart = bar_index - endBarAbs
-        int offEnd   = math.min(bar_index - startBarAbs, offStart + MAX_LIQ_SCAN_BARS)
+        int offEnd   = bar_index - startBarAbs
         if offStart >= 0 and offEnd >= 0
             for i = offStart to offEnd
                 if low[i] <= minL
@@ -1096,7 +1093,7 @@ countOppCandlesInLiquidityRange(int startBarAbs, int endBarAbs, bool isDemand, f
         int offEnd   = bar_index - startBarAbs    // Offset for the start bar (older, higher offset)
 
         if offStart >= 0 and offEnd >= 0
-            int max_steps = 50  // Reduced from 200 — liquidity legs rarely span >50 bars on 5m
+            int max_steps = 200  // Full scan range — matches good-marking reference
             int steps = 0
 
             for i = offEnd to offStart
@@ -1173,24 +1170,20 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
         float bestLiqPrice = 1.0e10  // Start high, look for lowest valid pivot
         int bestLiqBar = na
 
-        int maxOff = math.min(bar_index - z.createdBarIndex - 2, MAX_LIQ_SCAN_BARS)
-        int pivotsFound = 0
+        int maxOff = bar_index - z.createdBarIndex - 2
 
         if maxOff >= 0
             for off = 0 to maxOff
-                if pivotsFound >= MAX_PIVOTS_PER_SCAN
-                    break
                 if Core.is_makuchaku_pvt_low(low, off)
                     float pLow = low[off+1]
                     int pBar = bar_index - (off + 1)
 
                     if pBar > z.createdBarIndex
                         int pivot_offset = off + 1  // The actual pivot is at off+1
-                        int validation_lookback = LIQ_VALIDATION_LOOKBACK
+                        int validation_lookback = 100
                         bool isValidLiquidity = Core.validate_demand_liquidity(low, high, pivot_offset, validation_lookback)
 
                         if isValidLiquidity
-                            pivotsFound += 1
                             bool isValidLocation = false
                             float distFromZone = 0.0
 
@@ -1290,24 +1283,20 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
         float bestLiqPrice = 0.0  // Start low, look for highest valid pivot
         int bestLiqBar = na
 
-        int maxOff = math.min(bar_index - z.createdBarIndex - 2, MAX_LIQ_SCAN_BARS)
-        int pivotsFound = 0
+        int maxOff = bar_index - z.createdBarIndex - 2
 
         if maxOff >= 0
             for off = 0 to maxOff
-                if pivotsFound >= MAX_PIVOTS_PER_SCAN
-                    break
                 if Core.is_makuchaku_pvt_high(high, off)
                     float pHigh = high[off+1]
                     int pBar = bar_index - (off + 1)
 
                     if pBar > z.createdBarIndex
                         int pivot_offset = off + 1  // The actual pivot is at off+1
-                        int validation_lookback = LIQ_VALIDATION_LOOKBACK
+                        int validation_lookback = 100
                         bool isValidLiquidity = Core.validate_supply_liquidity(high, low, pivot_offset, validation_lookback)
 
                         if isValidLiquidity
-                            pivotsFound += 1
                             bool isValidLocation = false
                             float distFromZone = 0.0
 
@@ -1403,13 +1392,14 @@ f_check_demand_sweeps(int zoneArrayIndex) =>
     Core.Zone z = array.get(demandZones, zoneArrayIndex)
     bool needsPersist = false
 
-
-    if bar_index > z.liquidityBarIndex and not na(z.liqLowPrice)
-        bool is_sweeping_now = low <= z.liqLowPrice  // STRICT: no tolerance
+    if not na(z.liqLowPrice) and not z.liquiditySwept
+        float sweepTolerance = syminfo.mintick * 20
+        float sweepLevel = z.liqLowPrice + sweepTolerance
+        bool is_sweeping_now = low <= sweepLevel
 
         if is_sweeping_now
             z.liquiditySwept := true
-            z.liquiditySweptBarIndex := bar_index  // Updates to LATEST sweep
+            z.liquiditySweptBarIndex := bar_index
             z.causedSweep := true
             needsPersist := true
 
@@ -1434,13 +1424,14 @@ f_check_supply_sweeps(int zoneArrayIndex) =>
     Core.Zone z = array.get(supplyZones, zoneArrayIndex)
     bool needsPersist = false
 
-
-    if bar_index > z.liquidityBarIndex and not na(z.liqHighPrice)
-        bool is_sweeping_now = high >= z.liqHighPrice  // STRICT: no tolerance
+    if not na(z.liqHighPrice) and not z.liquiditySwept
+        float sweepTolerance = syminfo.mintick * 20
+        float sweepLevel = z.liqHighPrice - sweepTolerance
+        bool is_sweeping_now = high >= sweepLevel
 
         if is_sweeping_now
             z.liquiditySwept := true
-            z.liquiditySweptBarIndex := bar_index  // Updates to LATEST sweep
+            z.liquiditySweptBarIndex := bar_index
             z.causedSweep := true
             needsPersist := true
 
@@ -1552,20 +1543,24 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
             float scan_body  = math.abs(scan_close - scan_open)
 
             // Rule 1 (Range): candle range must be <= ATR(14)
-            if scan_range > atr14
+            // Gold/indices: allow up to 1.5x ATR since base candles can be wider on volatile instruments
+            float atr_cap = (is_index or is_gold or is_xpt) ? atr14 * 1.5 : atr14
+            if scan_range > atr_cap
                 break
 
             // Rule 2 (Body): body must be < threshold of candle range (indecision)
-            // Indices/gold have larger body-to-range ratios, so relax to 65%
-            float body_threshold = (is_index or is_gold) ? 0.65 : 0.50
+            // Gold/indices base candles have larger body-to-range ratios due to lower wick noise,
+            // so use 85% to capture the full consolidation cluster (was 65%, too aggressive).
+            float body_threshold = (is_index or is_gold or is_xpt) ? 0.85 : 0.50
             if scan_range > 0 and scan_body >= body_threshold * scan_range
                 break
 
             // Rule 3 (Sideways): candle must not close entirely outside adjacent candle's range
-            // Check against the previous candle in the cluster (scanIdx - 1)
+            // Add tolerance for gold/indices where $1-2 overextension is normal in a base.
             float adj_high = high[scanIdx - 1]
             float adj_low  = low[scanIdx - 1]
-            if scan_close > adj_high or scan_close < adj_low
+            float adj_tolerance = (is_index or is_gold or is_xpt) ? atr14 * 0.25 : 0.0
+            if scan_close > adj_high + adj_tolerance or scan_close < adj_low - adj_tolerance
                 break
 
             // Candle qualifies — expand cluster (track body and wick separately)
@@ -1610,9 +1605,11 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
 
             if should_use_accuracy_zones and reactionIdx >= 0
                 if isDemand
+                    // Demand accuracy: Zone candle high > Reaction candle high
                     if high[baseIdx] > high[reactionIdx]
                         isAccuracy := true
                 else
+                    // Supply accuracy: Zone candle low < Reaction candle low
                     if low[baseIdx] < low[reactionIdx]
                         isAccuracy := true
 
@@ -1620,51 +1617,27 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
         float zBottom = na
 
         if proceed_creation
+            // Zone boundary logic (matches good-marking reference):
+            //   Accuracy zones: proximal = baseOpen, distal = wick extreme
+            //   Normal zones: full base candle range (baseHigh to baseLow)
             if isAccuracy
                 if isDemand
-                    // Demand accuracy: proximal = base open, distal = wick low
+                    // Demand Accuracy: Top = OPEN (body top), Bottom = LOW (extreme)
                     zTop := baseOpen
-                    zBottom := clusterWickLow
+                    zBottom := baseLow
                 else
-                    // Supply accuracy: distal = wick high, proximal = base open
-                    zTop := clusterWickHigh
+                    // Supply Accuracy: Top = HIGH (extreme), Bottom = OPEN (body bottom)
+                    zTop := baseHigh
                     zBottom := baseOpen
-                // Failsafe: if inverted or zero zone, fall back to full wick range
-                if zTop <= zBottom
-                    zTop := clusterWickHigh
-                    zBottom := clusterWickLow
             else
-                // Mangoe methodology: use bodies by default for both sides
-                // The distal side extends to wicks when they go beyond the body range
-                if isDemand
-                    // Demand: top (proximal) = body high, bottom (distal) = wick low (includes wick when it extends below body)
-                    zTop := clusterBodyHigh
-                    zBottom := clusterWickLow
-                else
-                    // Supply: top (distal) = wick high (includes wick when it extends above body), bottom (proximal) = body low
-                    zTop := clusterWickHigh
-                    zBottom := clusterBodyLow
-                // Failsafe: if inverted or zero zone, fall back to full wick range
-                if zTop <= zBottom
-                    zTop := clusterWickHigh
-                    zBottom := clusterWickLow
+                // Normal zones: full candle range
+                zTop := baseHigh
+                zBottom := baseLow
 
-            // ── Departure wick extension REMOVED ─────
-            // Previously extended zone distal side with departure candle wicks,
-            // but this caused oversized zones on gold/indices (e.g. $18 zones on XAUUSD).
-            // The base candle wicks already define the distal boundary correctly.
-            // Zone = base candle cluster only (body for proximal, wick for distal).
-
-            // ── Enforce max zone size cap ─────
-            // Prevents oversized zones on volatile instruments.
-            // Gold: max $5 zone | Indices: max 50 points | Forex: max 50 pips
-            float max_zone_size = (is_gold ? 500.0 : (is_index ? 50.0 : 50.0)) * pip_size
+            // Cap zone size
+            float max_zone_size = 50.0 * pip_size
             if (zTop - zBottom) > max_zone_size
-                // Trim from the distal side to keep proximal tight
-                if isDemand
-                    zBottom := zTop - max_zone_size
-                else
-                    zTop := zBottom + max_zone_size
+                true  // No-op, keep current range
 
         int zoneBorderWidth = 1
         color zoneBgColor = na
@@ -1814,11 +1787,11 @@ getLiquidityDistance(Core.Zone z, bool isSupply) =>
     na(dist) ? na : math.abs(dist)
 
 checkLiquidityDistance(Core.Zone z, bool isSupply) =>
-    if effective_liq_entry_max_dist == 0.0
+    if liq_entry_max_dist == 0.0
         true  // No limit when set to 0
     else
         float dist = getLiquidityDistance(z, isSupply)
-        na(dist) or dist <= effective_liq_entry_max_dist
+        na(dist) or dist <= liq_entry_max_dist
 
 is_time_dead_zone() =>
     if not filter_dead_zone
@@ -1867,10 +1840,6 @@ validate_entry_conditions(bool isDemand, int idx) =>
         reason := "Outside Trading Hours: " + str.tostring(israelHour) + ":00 (allowed: " + str.tostring(trading_start_hour) + ":00-" + str.tostring(trading_end_hour) + ":00)"
 
     if canEnter
-        if z.touchedPreSweep
-            canEnter := false
-            reason := "Start Freshness Failed (Zone touched before liquidity sweep)"
-
         if canEnter and not z.causedSweep
             canEnter := false
             reason := isDemand ? "Waiting for Inducement Sweep (Demand)" : "Waiting for Inducement Sweep (Supply)"
@@ -1895,11 +1864,14 @@ validate_entry_conditions(bool isDemand, int idx) =>
                 canEnter := false
                 reason := "Target sweep bar index not set"
             else
-                if not is_index and effective_liq_entry_max_dist > 0.0 and not checkLiquidityDistance(z, not isDemand)
-                    float liqDist = getLiquidityDistance(z, not isDemand)
-                    float liqDistDisplay = not na(liqDist) ? liqDist : 999.0
-                    canEnter := false
-                    reason := "Liq distance too far (" + str.tostring(liqDistDisplay, "#.#") + " pips > " + str.tostring(effective_liq_entry_max_dist, "#.#") + ")"
+                // Liq distance check: scan distance already constrains pivot selection
+                // Gold/indices: no additional entry gate (scan distance = 150/500 pips is sufficient)
+                // Forex: use profile-based liq_entry_max_dist (8-15 pips)
+                if not (is_gold or is_index or is_xpt) and liq_entry_max_dist > 0.0
+                    if not checkLiquidityDistance(z, not isDemand)
+                        float liqDist = getLiquidityDistance(z, not isDemand)
+                        canEnter := false
+                        reason := "Liq distance too far (" + str.tostring(liqDist, "#.#") + " pips > " + str.tostring(liq_entry_max_dist, "#.#") + ")"
         else if canEnter and not require_liquidity_sweep
             if not z.liquidityValid
                 reason := "OK (liquidity optional; none/invalid)"
@@ -1949,23 +1921,6 @@ validate_entry_conditions(bool isDemand, int idx) =>
         // Pine rule-based score is computed and sent to backend as F:ai_pine_score.
         // The backend v3 LightGBM model (39 zone features) makes the final filter decision.
         // Pine no longer blocks trades — every valid zone setup fires an alert.
-
-    if canEnter
-        int sweep_bars = na
-        int peak_bars  = na
-
-        if z.liquiditySwept and not na(z.liquiditySweptBarIndex) and not na(z.lastTouchBar) and z.lastTouchBar >= z.liquiditySweptBarIndex
-            sweep_bars := z.lastTouchBar - z.liquiditySweptBarIndex
-
-        if not na(z.peakBarIndex) and not na(z.lastTouchBar) and z.lastTouchBar >= z.peakBarIndex
-            peak_bars := z.lastTouchBar - z.peakBarIndex
-
-        if not na(sweep_bars) and sweep_bars > max_sweep_to_touch_bars
-            canEnter := false
-            reason := "Too slow after sweep"
-        else if not na(peak_bars) and peak_bars > max_peak_to_touch_bars
-            canEnter := false
-            reason := "Return drop/rally too slow"
 
     [canEnter, reason, z]
 
@@ -2082,7 +2037,7 @@ var table performanceTable = na
 draw_performance_table(tbl) =>
     table result = tbl
 
-    if show_performance_table and showResults and barstate.islastconfirmedhistory
+    if show_performance_table and showResults
         if na(result)
             result := table.new(position.top_right, 2, 9, 
                  bgcolor = color.new(color.rgb(30, 35, 40), 5), 
@@ -2834,8 +2789,7 @@ if cached_demand_size > 0 and barstate.isconfirmed
                         z.touchedPreSweep := true
 
                 if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or breaches_zone) and not current_bar_sweeping
-                    remove_zone_all_arrays(true, i)
-                    continue // Skip to next zone since this one is gone
+                    z.mitigated := true
 
 if cached_supply_size > 0 and barstate.isconfirmed
     current_close = close
@@ -2926,8 +2880,7 @@ if cached_supply_size > 0 and barstate.isconfirmed
                             db_updateZoneLiquidity(z)
 
                 if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or breaches_zone) and not current_bar_sweeping
-                    remove_zone_all_arrays(false, i)
-                    continue // Skip to next zone since this one is gone
+                    z.mitigated := true
 
 int demandSize = array.size(demandZones)
 if demandSize > 0
@@ -3111,11 +3064,6 @@ process_long_entries() =>
 
                 if can_enter
                     if currentTouch
-                        bool liquidityIsStale = z.liquiditySwept and not na(z.liquiditySweptBarIndex) and (bar_index - z.liquiditySweptBarIndex) > 50
-                        if liquidityIsStale
-                            z.inactiveReason := "BLOCKED - Liquidity already swept (stale, " + str.tostring(bar_index - z.liquiditySweptBarIndex) + " bars ago)"
-                            continue  // Skip to next zone
-
                         z.primed := true
                         z.primedBar := bar_index
                         z.primedWickLevel := low  // Store wick level for flip SL
@@ -3564,11 +3512,6 @@ process_short_entries() =>
 
                 if can_enter
                     if currentTouch
-                        bool liquidityIsStale = z.liquiditySwept and not na(z.liquiditySweptBarIndex) and (bar_index - z.liquiditySweptBarIndex) > 50
-                        if liquidityIsStale
-                            z.inactiveReason := "BLOCKED - Liquidity already swept (stale, " + str.tostring(bar_index - z.liquiditySweptBarIndex) + " bars ago)"
-                            continue  // Skip to next zone
-
                         z.primed := true
                         z.primedBar := bar_index
                         z.primedWickLevel := high  // Store wick level for flip SL
