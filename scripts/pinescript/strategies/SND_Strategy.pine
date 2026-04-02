@@ -1504,9 +1504,16 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
         float baseOpen = open[baseIdx]
         float baseClose = close[baseIdx]
 
-        // ── v3.1: Dynamic consolidation base detection ────────────────────────
-        // Scan backward from base candle to find consolidation cluster
-        // Criteria: Range <= ATR(14), body < 50% of range, contained sideways
+        // ── v3.2: Body/wick split zone detection (Mangoe methodology) ──────
+        // Tracks both body range and wick range separately:
+        //   - Proximal line (entry side) = candle BODIES → tighter entries
+        //   - Distal line (far side)     = candle WICKS  → captures liquidity grabs
+        // Demand: top=bodyHigh, bottom=wickLow | Supply: top=wickHigh, bottom=bodyLow
+        float clusterBodyHigh = math.max(baseOpen, baseClose)
+        float clusterBodyLow  = math.min(baseOpen, baseClose)
+        float clusterWickHigh = baseHigh
+        float clusterWickLow  = baseLow
+        // Legacy clusterHigh/clusterLow still used downstream (full wick range)
         float clusterHigh = baseHigh
         float clusterLow  = baseLow
         int   actualCandlesInBase = 1
@@ -1539,7 +1546,17 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
             if scan_close > adj_high or scan_close < adj_low
                 break
 
-            // Candle qualifies — expand cluster
+            // Candle qualifies — expand cluster (track body and wick separately)
+            float scanBodyHigh = math.max(scan_open, scan_close)
+            float scanBodyLow  = math.min(scan_open, scan_close)
+            if scanBodyHigh > clusterBodyHigh
+                clusterBodyHigh := scanBodyHigh
+            if scanBodyLow < clusterBodyLow
+                clusterBodyLow := scanBodyLow
+            if scan_high > clusterWickHigh
+                clusterWickHigh := scan_high
+            if scan_low < clusterWickLow
+                clusterWickLow := scan_low
             if scan_high > clusterHigh
                 clusterHigh := scan_high
             if scan_low < clusterLow
@@ -1583,20 +1600,48 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
         if proceed_creation
             if isAccuracy
                 if isDemand
-                    // Demand accuracy: proximal = base open, distal = cluster low
+                    // Demand accuracy: proximal = base open, distal = wick low
                     zTop := baseOpen
-                    zBottom := clusterLow
+                    zBottom := clusterWickLow
                 else
-                    // Supply accuracy: distal = cluster high, proximal = base open
-                    zTop := clusterHigh
+                    // Supply accuracy: distal = wick high, proximal = base open
+                    zTop := clusterWickHigh
                     zBottom := baseOpen
-                // Failsafe: if inverted or zero zone, fall back to full cluster
+                // Failsafe: if inverted or zero zone, fall back to full wick range
                 if zTop <= zBottom
-                    zTop := clusterHigh
-                    zBottom := clusterLow
+                    zTop := clusterWickHigh
+                    zBottom := clusterWickLow
             else
-                zTop := clusterHigh
-                zBottom := clusterLow
+                // Mangoe methodology: use bodies by default for both sides
+                // The distal side extends to wicks when they go beyond the body range
+                if isDemand
+                    // Demand: top (proximal) = body high, bottom (distal) = wick low (includes wick when it extends below body)
+                    zTop := clusterBodyHigh
+                    zBottom := clusterWickLow
+                else
+                    // Supply: top (distal) = wick high (includes wick when it extends above body), bottom (proximal) = body low
+                    zTop := clusterWickHigh
+                    zBottom := clusterBodyLow
+                // Failsafe: if inverted or zero zone, fall back to full wick range
+                if zTop <= zBottom
+                    zTop := clusterWickHigh
+                    zBottom := clusterWickLow
+
+            // ── Include ALL departure candle wicks on DISTAL side only ─────
+            // Scan every departure candle (from base to current bar).
+            // For demand: departure low wicks extend the zone BOTTOM (distal).
+            // For supply: departure high wicks extend the zone TOP (distal).
+            // Proximal side stays at body level for tighter entries.
+            for depOff = 1 to baseIdx
+                int depIdx = baseIdx - depOff
+                if depIdx < 0
+                    break
+                if isDemand
+                    float dep_low = low[depIdx]
+                    zBottom := math.min(zBottom, dep_low)
+                else
+                    float dep_high = high[depIdx]
+                    zTop := math.max(zTop, dep_high)
 
             max_zone_size = 50.0 * pip_size
             if (zTop - zBottom) > max_zone_size
