@@ -275,6 +275,14 @@ class SymbolMapper:
                 tv_symbol = row.get("tv_symbol")
                 broker_symbol = row.get("broker_symbol")
                 if tv_symbol and broker_symbol:
+                    # Warn if DB override conflicts with hardcoded map
+                    builtin = cls.SYMBOL_MAP.get(tv_symbol.upper())
+                    if builtin and builtin != broker_symbol:
+                        logger.warning(
+                            "DB symbol override conflicts with hardcoded map: "
+                            "%s -> %s (DB) vs %s (hardcoded). DB takes priority.",
+                            tv_symbol, broker_symbol, builtin,
+                        )
                     cls.set_custom_map(tv_symbol, broker_symbol)
                     count += 1
 
