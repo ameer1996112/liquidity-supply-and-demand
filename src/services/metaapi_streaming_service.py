@@ -160,7 +160,10 @@ async def _run_streaming(
     handler = _DealHandler(supabase_client)
     backoff = 5  # seconds, doubles on each failure up to 60
     account_not_found_retries = 0
+    broker_not_connected_retries = 0
     MAX_ACCOUNT_NOT_FOUND_RETRIES = 3
+    MAX_BROKER_NOT_CONNECTED_RETRIES = 10  # ~5 min with backoff before halting
+    BROKER_NOT_CONNECTED_MAX_BACKOFF = 120  # 2 min max between retries
 
     class _Listener(SynchronizationListener):
         async def on_deal_added(
@@ -222,6 +225,7 @@ async def _run_streaming(
                 account_id,
             )
             backoff = 5  # reset on successful connection
+            broker_not_connected_retries = 0  # reset on successful connection
 
             # Keep alive until cancelled or exception
             while True:
@@ -251,9 +255,38 @@ async def _run_streaming(
                     break  # Stop the infinite reconnect loop
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, 60)
+            elif any(keyword in exc_str for keyword in (
+                "not connected to broker",
+                "timeoutexception",
+                "does not match the account region",
+            )):
+                # Broker not connected or region mismatch — semi-permanent issue.
+                # Back off more aggressively and halt after MAX retries to avoid
+                # hammering MetaAPI (which triggers 429 rate-limits).
+                broker_not_connected_retries += 1
+                account_not_found_retries = 0
+                logger.error(
+                    "[MetaApi Stream] Account %s not connected to broker "
+                    "(attempt %d/%d): %s — retrying in %ds",
+                    account_id, broker_not_connected_retries,
+                    MAX_BROKER_NOT_CONNECTED_RETRIES, exc, backoff,
+                )
+                if broker_not_connected_retries >= MAX_BROKER_NOT_CONNECTED_RETRIES:
+                    logger.critical(
+                        "[MetaApi Stream] ❌ Account %s broker connection failed after "
+                        "%d retries — HALTING reconnect loop. "
+                        "Check: (1) MetaAPI dashboard — is account DEPLOYED & CONNECTED? "
+                        "(2) Broker MT5 server is reachable. "
+                        "(3) META_API_REGION env var matches account region.",
+                        account_id, MAX_BROKER_NOT_CONNECTED_RETRIES,
+                    )
+                    break
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, BROKER_NOT_CONNECTED_MAX_BACKOFF)
             else:
                 # Transient error: network blip, MetaAPI restart, etc. — reconnect normally
-                account_not_found_retries = 0  # reset counter on non-auth errors
+                account_not_found_retries = 0
+                broker_not_connected_retries = 0  # reset on different error type
                 logger.error(
                     "[MetaApi Stream] Connection error: %s — reconnecting in %ds",
                     exc, backoff,

@@ -27,7 +27,7 @@
 // === LIBRARY IMPORTS ===
 // Import helper functions from external libraries to reduce script size
 import ameer_1996112/SND_Utils/20 as Utils
-import ameer_1996112/SND_Core/21 as Core
+import ameer_1996112/SND_Core/23 as Core
 
 strategy("Institutional Liquidity Protocol [Pro]",
      shorttitle = "S&D Algo [Pro]",
@@ -1676,7 +1676,7 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
 
             int baseEndAbsolute = baseBarIdx + actualCandlesInBase - 1
             float temp_base_quality = Core.calculate_base_quality(baseEndAbsolute, baseBarIdx, bar_index, high, low, open, close)
-            float temp_departure_strength = Core.calculate_departure_strength(baseIdx, isDemand, high, low, open, close, volume, vol_sma_20, atr14, base_width, actualCandlesInBase)
+            float temp_departure_strength = Core.calculate_departure_strength(baseIdx, isDemand, high, low, open, close, atr14, base_width, actualCandlesInBase)
 
             if enable_v6_v7_features
                 z.baseQuality := temp_base_quality

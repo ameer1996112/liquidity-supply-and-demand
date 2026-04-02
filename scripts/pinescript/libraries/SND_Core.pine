@@ -386,11 +386,11 @@ export calculate_base_quality(int base_start_idx, int base_end_idx, int current_
 // @param src_low Series of low prices
 // @param src_open Series of open prices
 // @param src_close Series of close prices
-// @param src_volume Series of volume
-// @param vol_sma_20 20-period SMA of volume
-// @param atr14 ATR(14) — used only as emergency fallback
+// @param atr14 ATR(14) — used for context range fallback
+// @param base_width Width of the consolidation base zone (zTop - zBottom)
+// @param candlesInBase Number of candles in the consolidation base
 // @returns Departure strength score 0-100
-export calculate_departure_strength(int base_end_idx, bool isDemand, series float src_high, series float src_low, series float src_open, series float src_close, series float src_volume, series float vol_sma_20, float atr14 = 0.0, float base_width = 0.0, int candlesInBase = 1) =>
+export calculate_departure_strength(int base_end_idx, bool isDemand, series float src_high, series float src_low, series float src_open, series float src_close, float atr14 = 0.0, float base_width = 0.0, int candlesInBase = 1) =>
     if base_end_idx < 1
         10.0  // Insufficient data — clearly below average (was 50.0 in v3)
     else
@@ -414,9 +414,6 @@ export calculate_departure_strength(int base_end_idx, bool isDemand, series floa
 
         float rolling_range = ctx_high - ctx_low
         float ref_range = rolling_range > 0.0 ? rolling_range : (atr14 > 0.0 ? atr14 * 10.0 : 1.0)
-
-        // Reference unused params to satisfy Pine v6 compiler (kept for signature compatibility)
-        float _vol_noop = nz(src_volume[0] * 0.0) + nz(vol_sma_20 * 0.0)
 
         // ── Per-candle scoring (Components 1-3) ───────────────────────────────────────
         float best_candle_score  = 0.0
@@ -519,7 +516,7 @@ export calculate_departure_strength(int base_end_idx, bool isDemand, series floa
         // Zone-level components (4-7) max = 50pts
         float raw_score = per_candle_total + compression_score + fvg_score + dir_score + time_score
 
-        float departure_strength = math.min(math.max(raw_score + _vol_noop, 5.0), 100.0)
+        float departure_strength = math.min(math.max(raw_score, 5.0), 100.0)
         departure_strength
 
 // ══════════════════════════════════════════════════════════
