@@ -182,6 +182,13 @@ liq_link_lookback_bars = 400
 liq_side_tol_ticks     = 2
 use_inducement_linking = true
 
+// === PERFORMANCE TUNING ===
+// Indices/gold need wider lookback due to larger price swings and slower structure formation
+MAX_LIQ_SCAN_BARS      = (is_index or is_gold) ? 150 : 80
+LIQ_VALIDATION_LOOKBACK = (is_index or is_gold) ? 60 : 30
+MAX_PIVOTS_PER_SCAN     = (is_index or is_gold) ? 5 : 3
+MAX_PEAK_SCAN_BARS      = (is_index or is_gold) ? 150 : 80
+
 show_zones           = true
 show_demand_zones    = true
 show_supply_zones    = true
@@ -243,7 +250,7 @@ var color TBL_DRK = color.rgb(25, 25, 25)
 take_profit_pips        = input.float(0.0, "Fixed TP Override (Pips)", minval = 0, group = "📊 Trade Execution")
 debug_liq_extra         = false
 
-float pip_scale_factor = is_gold and pip_size <= 0.011 ? 10.0 : 1.0
+float pip_scale_factor = is_gold and pip_size <= 0.011 ? 10.0 : (is_index ? 10.0 : 1.0)
 
 float effective_sl_buffer = stop_loss_buffer_pips * pip_scale_factor
 float effective_min_tp_dist = min_tp_distance_pips * pip_scale_factor
@@ -275,7 +282,7 @@ max_bars_held = input.int(36, "Time-Based Exit (Bars)", minval=1, group = "📊 
 enable_double_tp = input.bool(false, "Double TP Mode", group = "📊 Trade Execution")
 use_fvg_confirmation = input.bool(false, "Require FVG (Imbalance)", group = "📐 Zone Detection")
 enable_accuracy_zones = input.bool(true, "Accuracy Zones", group = "📐 Zone Detection")
-should_use_accuracy_zones = enable_accuracy_zones and not (is_gold or is_index or is_futures or is_xpt)
+should_use_accuracy_zones = enable_accuracy_zones and not (is_futures or is_xpt)
 
 enable_webhook_alerts = true  // Always enabled
 webhook_include_zone_id = true  // Always include zone ID
@@ -669,7 +676,7 @@ countOppositeCandlesInBand(bool isDemand, int fromBar, int toBar, float top, flo
     if na(fromBar) or na(toBar) or na(top) or na(bottom) or fromBar > toBar
         oppCount
     else
-        float overlapTolerance = is_gold ? pip_size * 0.5 : syminfo.mintick / 2.0
+        float overlapTolerance = pip_size * 0.5
         scanEndBar = math.min(toBar, bar_index)
 
         if scanEndBar >= fromBar
@@ -1061,7 +1068,7 @@ getBarOfMaxHigh(int startBarAbs, int endBarAbs) =>
     int bestBar = startBarAbs
     if not na(startBarAbs) and not na(endBarAbs) and endBarAbs >= startBarAbs
         int offStart = bar_index - endBarAbs
-        int offEnd   = bar_index - startBarAbs
+        int offEnd   = math.min(bar_index - startBarAbs, offStart + MAX_LIQ_SCAN_BARS)
         if offStart >= 0 and offEnd >= 0
             for i = offStart to offEnd
                 if high[i] >= maxH
@@ -1074,7 +1081,7 @@ getBarOfMinLow(int startBarAbs, int endBarAbs) =>
     int bestBar = startBarAbs
     if not na(startBarAbs) and not na(endBarAbs) and endBarAbs >= startBarAbs
         int offStart = bar_index - endBarAbs
-        int offEnd   = bar_index - startBarAbs
+        int offEnd   = math.min(bar_index - startBarAbs, offStart + MAX_LIQ_SCAN_BARS)
         if offStart >= 0 and offEnd >= 0
             for i = offStart to offEnd
                 if low[i] <= minL
@@ -1089,7 +1096,7 @@ countOppCandlesInLiquidityRange(int startBarAbs, int endBarAbs, bool isDemand, f
         int offEnd   = bar_index - startBarAbs    // Offset for the start bar (older, higher offset)
 
         if offStart >= 0 and offEnd >= 0
-            int max_steps = 200
+            int max_steps = 50  // Reduced from 200 — liquidity legs rarely span >50 bars on 5m
             int steps = 0
 
             for i = offEnd to offStart
@@ -1166,20 +1173,24 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
         float bestLiqPrice = 1.0e10  // Start high, look for lowest valid pivot
         int bestLiqBar = na
 
-        int maxOff = bar_index - z.createdBarIndex - 2
+        int maxOff = math.min(bar_index - z.createdBarIndex - 2, MAX_LIQ_SCAN_BARS)
+        int pivotsFound = 0
 
         if maxOff >= 0
             for off = 0 to maxOff
+                if pivotsFound >= MAX_PIVOTS_PER_SCAN
+                    break
                 if Core.is_makuchaku_pvt_low(low, off)
                     float pLow = low[off+1]
                     int pBar = bar_index - (off + 1)
 
                     if pBar > z.createdBarIndex
                         int pivot_offset = off + 1  // The actual pivot is at off+1
-                        int validation_lookback = 100  // Scan up to 100 bars back
+                        int validation_lookback = LIQ_VALIDATION_LOOKBACK
                         bool isValidLiquidity = Core.validate_demand_liquidity(low, high, pivot_offset, validation_lookback)
 
                         if isValidLiquidity
+                            pivotsFound += 1
                             bool isValidLocation = false
                             float distFromZone = 0.0
 
@@ -1279,20 +1290,24 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
         float bestLiqPrice = 0.0  // Start low, look for highest valid pivot
         int bestLiqBar = na
 
-        int maxOff = bar_index - z.createdBarIndex - 2
+        int maxOff = math.min(bar_index - z.createdBarIndex - 2, MAX_LIQ_SCAN_BARS)
+        int pivotsFound = 0
 
         if maxOff >= 0
             for off = 0 to maxOff
+                if pivotsFound >= MAX_PIVOTS_PER_SCAN
+                    break
                 if Core.is_makuchaku_pvt_high(high, off)
                     float pHigh = high[off+1]
                     int pBar = bar_index - (off + 1)
 
                     if pBar > z.createdBarIndex
                         int pivot_offset = off + 1  // The actual pivot is at off+1
-                        int validation_lookback = 100  // Scan up to 100 bars back
+                        int validation_lookback = LIQ_VALIDATION_LOOKBACK
                         bool isValidLiquidity = Core.validate_supply_liquidity(high, low, pivot_offset, validation_lookback)
 
                         if isValidLiquidity
+                            pivotsFound += 1
                             bool isValidLocation = false
                             float distFromZone = 0.0
 
@@ -1540,8 +1555,10 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
             if scan_range > atr14
                 break
 
-            // Rule 2 (Body): body must be < 50% of candle range (indecision)
-            if scan_range > 0 and scan_body >= 0.5 * scan_range
+            // Rule 2 (Body): body must be < threshold of candle range (indecision)
+            // Indices/gold have larger body-to-range ratios, so relax to 65%
+            float body_threshold = (is_index or is_gold) ? 0.65 : 0.50
+            if scan_range > 0 and scan_body >= body_threshold * scan_range
                 break
 
             // Rule 3 (Sideways): candle must not close entirely outside adjacent candle's range
@@ -1632,25 +1649,22 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
                     zTop := clusterWickHigh
                     zBottom := clusterWickLow
 
-            // ── Include ALL departure candle wicks on DISTAL side only ─────
-            // Scan every departure candle (from base to current bar).
-            // For demand: departure low wicks extend the zone BOTTOM (distal).
-            // For supply: departure high wicks extend the zone TOP (distal).
-            // Proximal side stays at body level for tighter entries.
-            for depOff = 1 to baseIdx
-                int depIdx = baseIdx - depOff
-                if depIdx < 0
-                    break
-                if isDemand
-                    float dep_low = low[depIdx]
-                    zBottom := math.min(zBottom, dep_low)
-                else
-                    float dep_high = high[depIdx]
-                    zTop := math.max(zTop, dep_high)
+            // ── Departure wick extension REMOVED ─────
+            // Previously extended zone distal side with departure candle wicks,
+            // but this caused oversized zones on gold/indices (e.g. $18 zones on XAUUSD).
+            // The base candle wicks already define the distal boundary correctly.
+            // Zone = base candle cluster only (body for proximal, wick for distal).
 
-            max_zone_size = 50.0 * pip_size
+            // ── Enforce max zone size cap ─────
+            // Prevents oversized zones on volatile instruments.
+            // Gold: max $5 zone | Indices: max 50 points | Forex: max 50 pips
+            float max_zone_size = (is_gold ? 500.0 : (is_index ? 50.0 : 50.0)) * pip_size
             if (zTop - zBottom) > max_zone_size
-                true  // No-op, just for syntax
+                // Trim from the distal side to keep proximal tight
+                if isDemand
+                    zBottom := zTop - max_zone_size
+                else
+                    zTop := zBottom + max_zone_size
 
         int zoneBorderWidth = 1
         color zoneBgColor = na
@@ -2757,7 +2771,7 @@ if cached_demand_size > 0 and barstate.isconfirmed
                 z.structureSweepLevel := na
                 z.inactiveReason := "Ghost Data Cleared"
 
-            if not z.liquidityValid or na(z.lastEntryBar)
+            if not z.liquidityValid
                 f_scan_demand_liquidity(i)
 
             f_check_demand_sweeps(i)
@@ -2785,7 +2799,7 @@ if cached_demand_size > 0 and barstate.isconfirmed
                     z.wasTouched := true
 
                     if not na(z.liquidityBarIndex)
-                        int steps_back = touchBarNow - z.liquidityBarIndex
+                        int steps_back = math.min(touchBarNow - z.liquidityBarIndex, MAX_PEAK_SCAN_BARS)
                         if steps_back >= 0
                             float max_p = high
                             int max_idx = touchBarNow
@@ -2871,7 +2885,7 @@ if cached_supply_size > 0 and barstate.isconfirmed
                 z.structureSweepLevel := na
                 z.inactiveReason := "Ghost Data Cleared"
 
-            if not z.liquidityValid or na(z.lastEntryBar)
+            if not z.liquidityValid
                 f_scan_supply_liquidity(i)
 
             f_check_supply_sweeps(i)
@@ -2898,7 +2912,7 @@ if cached_supply_size > 0 and barstate.isconfirmed
                     z.touchedPreSweep := true
 
                     if not na(z.liquidityBarIndex)
-                        int steps_back = bar_index - z.liquidityBarIndex
+                        int steps_back = math.min(bar_index - z.liquidityBarIndex, MAX_PEAK_SCAN_BARS)
                         if steps_back >= 0
                             float min_p = low
                             int min_idx = bar_index
@@ -3062,7 +3076,7 @@ process_long_entries() =>
                     z.wasTouched := true
 
                     if not na(z.liquidityBarIndex)
-                        int steps_back = bar_index - z.liquidityBarIndex
+                        int steps_back = math.min(bar_index - z.liquidityBarIndex, MAX_PEAK_SCAN_BARS)
                         if steps_back >= 0
                             float max_p = high
                             int max_idx = bar_index
@@ -3515,7 +3529,7 @@ process_short_entries() =>
                     z.wasTouched := true
 
                     if not na(z.liquidityBarIndex)
-                        int steps_back = bar_index - z.liquidityBarIndex
+                        int steps_back = math.min(bar_index - z.liquidityBarIndex, MAX_PEAK_SCAN_BARS)
                         if steps_back >= 0
                             float min_p = low
                             int min_idx = bar_index
@@ -4154,58 +4168,11 @@ if strategy.position_size != 0 and use_stop_loss and not na(trade_entry_price) a
     float new_sl = na
     bool should_update_sl = false
 
-    if tp1_hit and false  // jpy_close_at_2r functionality removed
-        [one_min_close, one_min_open, one_min_high, one_min_low] = request.security(syminfo.tickerid, "1", [close, open, high, low], lookahead = barmerge.lookahead_off)
-
-        float candidate_sl = na
-
-        if strategy.position_size > 0  // Long position
-            if one_min_close > one_min_open
-                candidate_sl := one_min_low
-            else if one_min_close < one_min_open
-                candle_size = one_min_high - one_min_low
-                large_candle_threshold = math.abs(trade_entry_price - trade_original_sl) * 0.5  // 50% of initial risk
-                if candle_size > large_candle_threshold
-                    candidate_sl := one_min_low + (candle_size * 0.5)  // Halfway inside
-                else
-                    candidate_sl := one_min_low
-            else
-                candidate_sl := one_min_low
-
-            if not na(candidate_sl)
-                if not na(trade_be_sl_pips) and trade_be_sl_pips > 0
-                    min_sl_price = trade_entry_price + (trade_be_sl_pips * pip_size)
-                    candidate_sl := math.max(candidate_sl, min_sl_price)
-
-                if na(trade_current_sl) or candidate_sl > trade_current_sl
-                    new_sl := candidate_sl
-                    should_update_sl := true
-        else if strategy.position_size < 0  // Short position
-            if one_min_close < one_min_open
-                candidate_sl := one_min_high
-            else if one_min_close > one_min_open
-                candle_size = one_min_high - one_min_low
-                large_candle_threshold = math.abs(trade_original_sl - trade_entry_price) * 0.5  // 50% of initial risk
-                if candle_size > large_candle_threshold
-                    candidate_sl := one_min_high - (candle_size * 0.5)  // Halfway inside
-                else
-                    candidate_sl := one_min_high
-            else
-                candidate_sl := one_min_high
-
-            if not na(candidate_sl)
-                if not na(trade_be_sl_pips) and trade_be_sl_pips > 0
-                    max_sl_price = trade_entry_price - (trade_be_sl_pips * pip_size)
-                    candidate_sl := math.min(candidate_sl, max_sl_price)
-
-                if na(trade_current_sl) or candidate_sl < trade_current_sl
-                    new_sl := candidate_sl
-                    should_update_sl := true
-    else
-        if strategy.position_size > 0  // Long: move SL up
-            should_update_sl := na(trade_current_sl) or new_sl > trade_current_sl
-        else if strategy.position_size < 0  // Short: move SL down
-            should_update_sl := na(trade_current_sl) or new_sl < trade_current_sl
+    // 1-min request.security block removed (was dead code behind `and false`) — saves one security call per bar
+    if strategy.position_size > 0  // Long: move SL up
+        should_update_sl := na(trade_current_sl) or new_sl > trade_current_sl
+    else if strategy.position_size < 0  // Short: move SL down
+        should_update_sl := na(trade_current_sl) or new_sl < trade_current_sl
 
     if should_update_sl and (tp1_hit or not trade_be_moved)
         if active_entry_id == "Long"
