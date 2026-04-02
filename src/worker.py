@@ -116,41 +116,48 @@ _system_mode_cache: dict = {"value": None, "loaded_at": 0.0}
 _SYSTEM_MODE_CACHE_TTL = 30  # seconds
 
 # HTF candle filter cache — DB overrides Pydantic defaults (30s TTL)
-_htf_filter_cache: dict = {"enabled": None, "minutes": None, "loaded_at": 0.0}
+_htf_filter_cache: dict = {"enabled": None, "minutes": None, "period": None, "loaded_at": 0.0}
 
 # 1-candle liquidity filter cache — DB overrides Pydantic defaults (30s TTL)
 _one_candle_liq_cache: dict = {"enabled": None, "min_departure": None, "loaded_at": 0.0}
 
 
-def _get_htf_filter_settings(s) -> tuple[bool, int]:
-    """Return (htf_enabled, htf_block_minutes) from DB (30s cache), falling back to Pydantic settings."""
+def _get_htf_filter_settings(s) -> tuple[bool, int, int]:
+    """Return (htf_enabled, htf_block_minutes, htf_period) from DB (30s cache), falling back to Pydantic settings."""
     now = time.time()
     if now - _htf_filter_cache["loaded_at"] < _SYSTEM_MODE_CACHE_TTL and _htf_filter_cache["enabled"] is not None:
-        return _htf_filter_cache["enabled"], _htf_filter_cache["minutes"]
+        return _htf_filter_cache["enabled"], _htf_filter_cache["minutes"], _htf_filter_cache["period"]
     try:
         sb = _get_fresh_supabase()
         if sb:
             rows = (
                 sb.table("system_config")
                 .select("key,value")
-                .in_("key", ["pine_htf_candle_filter_enabled", "pine_htf_candle_block_minutes"])
+                .in_("key", ["pine_htf_candle_filter_enabled", "pine_htf_candle_block_minutes", "pine_htf_candle_period"])
                 .execute()
             )
             kv = {r["key"]: r["value"] for r in (rows.data or [])}
             enabled = kv.get("pine_htf_candle_filter_enabled", None)
             minutes = kv.get("pine_htf_candle_block_minutes", None)
+            period = kv.get("pine_htf_candle_period", None)
             htf_enabled = (enabled.lower() != "false") if enabled is not None else getattr(s, "pine_htf_candle_filter_enabled", True)
             htf_minutes = int(minutes) if minutes is not None else getattr(s, "pine_htf_candle_block_minutes", 10)
+            htf_period = int(period) if period is not None else 15
+            if htf_period not in (30, 60):
+                htf_period = 30
         else:
             htf_enabled = getattr(s, "pine_htf_candle_filter_enabled", True)
             htf_minutes = getattr(s, "pine_htf_candle_block_minutes", 10)
+            htf_period = 30
     except Exception:
         htf_enabled = getattr(s, "pine_htf_candle_filter_enabled", True)
         htf_minutes = getattr(s, "pine_htf_candle_block_minutes", 10)
+        htf_period = 15
     _htf_filter_cache["enabled"] = htf_enabled
     _htf_filter_cache["minutes"] = htf_minutes
+    _htf_filter_cache["period"] = htf_period
     _htf_filter_cache["loaded_at"] = now
-    return htf_enabled, htf_minutes
+    return htf_enabled, htf_minutes, htf_period
 
 
 def _get_one_candle_liq_settings(s) -> tuple[bool, float]:
@@ -807,22 +814,21 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
                 pass  # fail-open
 
     # --- HTF pre-candle block (high-volume open protection) ---
-    # The 15m HTF candle opens at :00 :15 :30 :45 with high volume that can spike price and
+    # The HTF candle (15m/30m/1h) opens with high volume that can spike price and
     # stop out any position entered in the preceding minutes.
-    # Block ALL entries (flip and continuation) in the last block_mins of the 15m cycle.
-    # candle_offset = minute % 15: 0 = candle just opened, 14 = 1 min before next open.
-    _htf_enabled, _htf_block_mins = _get_htf_filter_settings(s)
+    # Block ALL entries in the last block_mins of the HTF cycle.
+    _htf_enabled, _htf_block_mins, _htf_period = _get_htf_filter_settings(s)
     if _htf_enabled:
         bar_time = payload.get("bar_time")
         if bar_time and isinstance(bar_time, str):
             try:
                 dt = _parse_dt(bar_time)
-                candle_offset = dt.minute % 15
-                if candle_offset >= (15 - _htf_block_mins):
-                    next_candle_min = ((dt.minute // 15) + 1) * 15 % 60
+                candle_offset = dt.minute % _htf_period
+                if candle_offset >= (_htf_period - _htf_block_mins):
+                    next_candle_min = ((dt.minute // _htf_period) + 1) * _htf_period % 60
                     return (
-                        f"HTF pre-candle block: entry rejected {15 - candle_offset}m before "
-                        f"HTF candle open at :{next_candle_min:02d} "
+                        f"HTF pre-candle block: entry rejected {_htf_period - candle_offset}m before "
+                        f"{_htf_period}m HTF candle open at :{next_candle_min:02d} "
                         f"(bar_time minute={dt.minute}, block_mins={_htf_block_mins})"
                     )
             except Exception:

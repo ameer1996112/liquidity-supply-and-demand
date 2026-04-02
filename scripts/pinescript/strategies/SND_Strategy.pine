@@ -247,7 +247,7 @@ float pip_scale_factor = is_gold and pip_size <= 0.011 ? 10.0 : 1.0
 
 float effective_sl_buffer = stop_loss_buffer_pips * pip_scale_factor
 float effective_min_tp_dist = min_tp_distance_pips * pip_scale_factor
-float effective_liq_entry_max_dist = liq_entry_max_dist * pip_scale_factor
+float effective_liq_entry_max_dist = liq_entry_max_dist * pip_scale_factor  // Base value — updated dynamically per bar below using RVOL
 float effective_liq_max_dist = is_index ? liq_max_distance_pips_index : (is_gold ? liq_max_distance_pips_gold : liq_max_distance_pips_forex)
 float effective_tp_pips = take_profit_pips * pip_scale_factor
 
@@ -255,7 +255,7 @@ float effective_tp_pips = take_profit_pips * pip_scale_factor
 enable_trade_limit = input.bool(true, "Limit Daily Trades", group = "⏰ Session & Limits")
 max_trades_per_day = input.int(2, "   └─ Max Trades/Day", minval = 1, maxval = 10, group = "⏰ Session & Limits")
 
-filter_dead_zone = input.bool(true, "Block Dead Zone (xx:50-xx:00)", group = "⏰ Session & Limits")
+filter_dead_zone = false  // Handled by backend risk page
 filter_trading_hours = input.bool(true, "Trading Hours Only", group = "⏰ Session & Limits")
 trading_start_hour = input.int(7, "   └─ Start Hour (UTC)", minval = 0, maxval = 23, group = "⏰ Session & Limits")
 trading_end_hour = input.int(22, "   └─ End Hour (UTC)", minval = 0, maxval = 23, group = "⏰ Session & Limits")
@@ -619,6 +619,11 @@ int feature_htf_trend = htf_close > htf_ema200 ? 1 : 0
 
 float vol_avg = ta.sma(volume, 20)
 float feature_rvol = vol_avg > 0 ? volume / vol_avg : 0.0
+
+// Dynamic liq distance threshold: scale up with RVOL so high-volume bars allow further liquidity
+// RVOL 1.0 (normal) → 1.0x base | RVOL 1.5 → 1.5x | RVOL 2.0+ → 2.0x (capped)
+float rvol_scale = math.max(1.0, math.min(feature_rvol, 2.0))
+effective_liq_entry_max_dist := (liq_entry_max_dist * pip_scale_factor) * rvol_scale
 
 var Core.Zone[] demandZones = array.new<Core.Zone>()
 var Core.Zone[] supplyZones = array.new<Core.Zone>()
@@ -1877,9 +1882,10 @@ validate_entry_conditions(bool isDemand, int idx) =>
                 reason := "Target sweep bar index not set"
             else
                 if not is_index and effective_liq_entry_max_dist > 0.0 and not checkLiquidityDistance(z, not isDemand)
-                    float liqDist = not na(z.liquidityDistance) ? z.liquidityDistance : 999.0
+                    float liqDist = getLiquidityDistance(z, not isDemand)
+                    float liqDistDisplay = not na(liqDist) ? liqDist : 999.0
                     canEnter := false
-                    reason := "Liq distance too far (" + str.tostring(liqDist, "#.#") + " pips > " + str.tostring(effective_liq_entry_max_dist, "#.#") + ")"
+                    reason := "Liq distance too far (" + str.tostring(liqDistDisplay, "#.#") + " pips > " + str.tostring(effective_liq_entry_max_dist, "#.#") + ")"
         else if canEnter and not require_liquidity_sweep
             if not z.liquidityValid
                 reason := "OK (liquidity optional; none/invalid)"
@@ -2223,7 +2229,8 @@ is_late_friday() =>
 
 is_htf_candle_open() =>
     int currentMinute = minute(time)
-    currentMinute % 15 == 0
+    int posInHTF = currentMinute % 15  // 0=HTF open, 14=last bar before next HTF
+    posInHTF == 0 or posInHTF >= 10  // HTF open + last 5 minutes before next HTF (:10-:14, :25-:29, :40-:44, :55-:59)
 
 getDeadZoneStatus() =>
     if not filter_dead_zone
@@ -2674,15 +2681,11 @@ isValidEntry(isDemand, idx) =>
 
         bool isInvertedHammer = upperWick >= candleRange * 0.6 and bodySize <= candleRange * 0.3
 
-        bool correct_direction = false
-        if isDemand
-            correct_direction := (close > open) or isHammer
-        else
-            correct_direction := (close < open) or isInvertedHammer
-
-        if not correct_direction
-            canEnter := false
-            reason := isDemand ? "Waiting for Bullish Close or Hammer" : "Waiting for Bearish Close or Inv. Hammer"
+        // Direction check removed from pre-priming validation.
+        // The priming system handles this: touch primes the zone, then the NEXT bar(s)
+        // must show a directional close (DIR_CLOSE / FLIP / BREAK_CANDLE) to trigger entry.
+        // This allows setups where price wicks into zone on a bullish candle (for supply)
+        // and then the next candle closes bearish — which is a valid and common pattern.
 
     if canEnter
 
@@ -4616,7 +4619,7 @@ if showZoneInspector and debug_enabled and isRecentBarForDebug()
                 liqDistCalc := math.abs(inspectorZone.liqLowPrice - inspectorZone.top) / pip_size
             else if zoneInspectorType == "Supply" and not na(inspectorZone.liqHighPrice) and not na(inspectorZone.bottom)
                 liqDistCalc := math.abs(inspectorZone.bottom - inspectorZone.liqHighPrice) / pip_size
-            liqDistInspector := not na(liqDistCalc) ? str.tostring(liqDistCalc, "#.#") + " pips" : "N/A"
+            liqDistInspector := not na(liqDistCalc) ? str.tostring(liqDistCalc, "#.#") + " pips (max:" + str.tostring(effective_liq_entry_max_dist, "#.#") + " rv:" + str.tostring(rvol_scale, "#.#") + "x)" : "N/A"
             liqDistExceedsMax := effective_liq_entry_max_dist > 0.0 and not na(liqDistCalc) and liqDistCalc > effective_liq_entry_max_dist
 
             zoneCausedSweepInspector := inspectorZone.causedSweep ? "Yes" : "No"

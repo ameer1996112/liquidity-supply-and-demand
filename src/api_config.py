@@ -46,13 +46,15 @@ class SetTradingModeRequest(BaseModel):
 class HtfFilterResponse(BaseModel):
     htf_candle_filter_enabled: bool
     htf_candle_block_minutes: int
+    htf_candle_period: int  # HTF cycle length in minutes (15, 30, 60)
     block_one_candle_liq: bool
     one_candle_liq_min_departure: float
 
 
 class PatchHtfFilterRequest(BaseModel):
     htf_candle_filter_enabled: bool | None = None
-    htf_candle_block_minutes: int | None = Field(default=None, ge=1, le=14)
+    htf_candle_block_minutes: int | None = Field(default=None, ge=1, le=59)
+    htf_candle_period: int | None = Field(default=None)
     block_one_candle_liq: bool | None = None
     one_candle_liq_min_departure: float | None = Field(default=None, ge=0.0, le=100.0)
 
@@ -100,8 +102,11 @@ def set_trading_mode(body: SetTradingModeRequest):
 
 _HTF_ENABLED_KEY = "pine_htf_candle_filter_enabled"
 _HTF_MINUTES_KEY = "pine_htf_candle_block_minutes"
+_HTF_PERIOD_KEY = "pine_htf_candle_period"
 _OCL_ENABLED_KEY = "pine_block_one_candle_liq"
 _OCL_MIN_DEP_KEY = "pine_one_candle_liq_min_departure"
+
+_VALID_HTF_PERIODS = (30, 60)
 
 
 def _invalidate_htf_cache() -> None:
@@ -121,17 +126,21 @@ def get_pine_filters():
         rows = (
             sb.table("system_config")
             .select("key,value")
-            .in_("key", [_HTF_ENABLED_KEY, _HTF_MINUTES_KEY, _OCL_ENABLED_KEY, _OCL_MIN_DEP_KEY])
+            .in_("key", [_HTF_ENABLED_KEY, _HTF_MINUTES_KEY, _HTF_PERIOD_KEY, _OCL_ENABLED_KEY, _OCL_MIN_DEP_KEY])
             .execute()
         )
         kv = {r["key"]: r["value"] for r in (rows.data or [])}
         htf_enabled = kv.get(_HTF_ENABLED_KEY, "true").lower() != "false"
         htf_minutes = int(kv.get(_HTF_MINUTES_KEY, "10"))
+        htf_period = int(kv.get(_HTF_PERIOD_KEY, "30"))
+        if htf_period not in _VALID_HTF_PERIODS:
+            htf_period = 30
         ocl_enabled = kv.get(_OCL_ENABLED_KEY, "true").lower() != "false"
         ocl_min_dep = float(kv.get(_OCL_MIN_DEP_KEY, "60.0"))
         return {
             "htf_candle_filter_enabled": htf_enabled,
             "htf_candle_block_minutes": htf_minutes,
+            "htf_candle_period": htf_period,
             "block_one_candle_liq": ocl_enabled,
             "one_candle_liq_min_departure": ocl_min_dep,
         }
@@ -153,6 +162,12 @@ def patch_pine_filters(body: PatchHtfFilterRequest):
         if body.htf_candle_block_minutes is not None:
             sb.table("system_config").upsert(
                 {"key": _HTF_MINUTES_KEY, "value": str(body.htf_candle_block_minutes)},
+                on_conflict="key",
+            ).execute()
+        if body.htf_candle_period is not None:
+            period = body.htf_candle_period if body.htf_candle_period in _VALID_HTF_PERIODS else 30
+            sb.table("system_config").upsert(
+                {"key": _HTF_PERIOD_KEY, "value": str(period)},
                 on_conflict="key",
             ).execute()
         if body.block_one_candle_liq is not None:

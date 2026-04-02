@@ -553,12 +553,14 @@ function ActiveSettingsCard({ data }: { data: any }) {
 }
 
 
-const HTF_MINUTE_PRESETS = [5, 7, 10, 12, 14] as const;
+const HTF_MINUTE_PRESETS = [3, 5, 7, 10, 12] as const;
+const HTF_PERIOD_OPTIONS = [30, 60] as const;
 
 function HtfFilterCard() {
   const { settings, isLoading, isSaving, update } = useHtfFilter();
   const enabled = settings.htf_candle_filter_enabled;
   const blockMins = settings.htf_candle_block_minutes;
+  const htfPeriod = settings.htf_candle_period || 15;
 
   return (
     <PanelCard
@@ -614,6 +616,46 @@ function HtfFilterCard() {
             </div>
           </div>
 
+          {/* HTF Period selector */}
+          <div className={cn('transition-opacity duration-200', !enabled && 'pointer-events-none opacity-30')}>
+            <div className='mx-0 rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)]/50 p-0.5'>
+              <div
+                className='mb-1 px-1.5 pt-0.5 text-[9px] uppercase tracking-[0.2em] text-[var(--to-text-dim)]'
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                HTF Period
+              </div>
+              <div className='flex gap-1'>
+                {HTF_PERIOD_OPTIONS.map((p) => {
+                  const isActive = htfPeriod === p;
+                  const label = p === 60 ? '1h' : `${p}m`;
+                  return (
+                    <button
+                      key={p}
+                      disabled={isSaving}
+                      onClick={() => update({ htf_candle_period: p })}
+                      className={cn(
+                        'flex flex-1 items-center justify-center rounded-md py-1 text-[10px] font-medium transition-all duration-150',
+                        isActive ? 'opacity-100' : 'opacity-40 hover:opacity-70'
+                      )}
+                      style={isActive ? {
+                        background: 'var(--to-accent-blue)18',
+                        border: '1px solid var(--to-accent-blue)40',
+                        color: 'var(--to-accent-blue)',
+                      } : {
+                        background: 'transparent',
+                        border: '1px solid transparent',
+                        color: 'var(--to-text-dim)',
+                      }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
           {/* Block window presets */}
           <div className={cn('transition-opacity duration-200', !enabled && 'pointer-events-none opacity-30')}>
             <div className='mx-0 rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)]/50 p-0.5'>
@@ -653,13 +695,13 @@ function HtfFilterCard() {
             </div>
           </div>
 
-          {/* Timeline: safe zone vs blocked zone within 15m cycle */}
+          {/* Timeline: safe zone vs blocked zone within HTF cycle */}
           <div className={cn('space-y-2 transition-opacity duration-200', !enabled && 'opacity-30')}>
             <div
               className='text-[9px] uppercase tracking-[0.15em] text-[var(--to-text-dim)]'
               style={{ fontFamily: 'var(--font-mono)' }}
             >
-              15m HTF cycle
+              {htfPeriod === 60 ? '1h' : `${htfPeriod}m`} HTF cycle
             </div>
 
             <div className='relative'>
@@ -668,45 +710,45 @@ function HtfFilterCard() {
                 <div
                   className='absolute left-0 top-0 h-full transition-all duration-300'
                   style={{
-                    width: `${((15 - blockMins) / 15) * 100}%`,
+                    width: `${((htfPeriod - blockMins) / htfPeriod) * 100}%`,
                     background: 'var(--to-long)',
                     opacity: 0.4,
                   }}
                 />
-                {/* Blocked zone — high volume approaching */}
+                {/* Blocked zone */}
                 <div
                   className='absolute right-0 top-0 h-full transition-all duration-300'
                   style={{
-                    width: `${(blockMins / 15) * 100}%`,
+                    width: `${(blockMins / htfPeriod) * 100}%`,
                     background: 'var(--to-short)',
                     opacity: 0.5,
                   }}
                 />
-                {/* 5m tick dividers */}
-                {[5, 10].map((tick) => (
+                {/* Tick dividers — every 5m */}
+                {Array.from({ length: Math.floor(htfPeriod / 5) - 1 }, (_, i) => (i + 1) * 5).map((tick) => (
                   <div
                     key={tick}
                     className='absolute top-0 h-full w-px bg-[var(--to-border)]/60'
-                    style={{ left: `${(tick / 15) * 100}%` }}
+                    style={{ left: `${(tick / htfPeriod) * 100}%` }}
                   />
                 ))}
                 {/* Split marker */}
                 <div
                   className='absolute top-0 h-full w-0.5 bg-[var(--to-text-primary)] opacity-60 transition-all duration-300'
-                  style={{ left: `${((15 - blockMins) / 15) * 100}%` }}
+                  style={{ left: `${((htfPeriod - blockMins) / htfPeriod) * 100}%` }}
                 />
               </div>
 
               {/* Time axis */}
               <div className='relative mt-1 h-3.5'>
-                {[0, 5, 10, 15].map((tick) => (
+                {[0, Math.floor(htfPeriod / 3), Math.floor(htfPeriod * 2 / 3), htfPeriod].map((tick) => (
                   <span
                     key={tick}
                     className='absolute text-[8px] tabular-nums text-[var(--to-text-dim)]'
                     style={{
                       fontFamily: 'var(--font-mono)',
-                      left: `${(tick / 15) * 100}%`,
-                      transform: tick === 0 ? 'none' : tick === 15 ? 'translateX(-100%)' : 'translateX(-50%)',
+                      left: `${(tick / htfPeriod) * 100}%`,
+                      transform: tick === 0 ? 'none' : tick === htfPeriod ? 'translateX(-100%)' : 'translateX(-50%)',
                     }}
                   >
                     {tick}m
@@ -721,7 +763,7 @@ function HtfFilterCard() {
               style={{ background: 'var(--to-surface-raised)', fontFamily: 'var(--font-mono)' }}
             >
               <span style={{ color: 'var(--to-long)', opacity: 0.9 }}>
-                ✓ enter 0–{15 - blockMins}m
+                ✓ enter 0–{htfPeriod - blockMins}m
               </span>
               <span className='text-[var(--to-text-dim)]'>·</span>
               <span style={{ color: 'var(--to-short)', opacity: 0.9 }}>
