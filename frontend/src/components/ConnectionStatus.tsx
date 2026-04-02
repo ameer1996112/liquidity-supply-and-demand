@@ -56,6 +56,15 @@ export function ConnectionStatus() {
               health.supabase ? 'Supabase Connected' : 'Supabase Disconnected'
             }
           />
+          <div
+            className={cn(
+              'w-1.5 h-1.5 rounded-full',
+              health.broker !== false ? 'bg-emerald-400' : 'bg-red-400',
+            )}
+            title={
+              health.broker !== false ? 'Broker Connected' : 'Broker Disconnected'
+            }
+          />
         </div>
       )}
     </div>

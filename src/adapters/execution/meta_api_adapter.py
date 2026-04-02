@@ -154,6 +154,8 @@ class MetaApiAdapter:
                         set_metaapi_circuit_open(ttl_seconds=BROKER_DISCONNECT_CB_TTL)
                     except Exception:  # noqa: BLE001
                         pass
+                    # Fire Telegram alert for broker disconnect
+                    self._send_broker_disconnect_alert("504_broker_not_connected")
                     return resp
 
             if 500 <= resp.status_code < 600 and resp.status_code != 504 and attempt < MAX_RETRIES:
@@ -163,7 +165,42 @@ class MetaApiAdapter:
             return resp
         if last_exc:
             logger.error("MetaApi _request_with_retry failed after %s attempts: %s", MAX_RETRIES + 1, last_exc)
+            self._send_broker_disconnect_alert("connection_exhausted")
         return None
+
+    def _send_broker_disconnect_alert(self, reason: str) -> None:
+        """Fire a Telegram/Discord alert when broker connection fails."""
+        try:
+            from src.services.alert_service import AlertService, TelegramAlertNotifier, DiscordAlertNotifier
+
+            settings = get_settings()
+            notifiers = []
+            if settings.telegram_bot_token and settings.telegram_chat_id:
+                notifiers.append(TelegramAlertNotifier())
+            if getattr(settings, "discord_alerts_webhook_url", None):
+                notifiers.append(DiscordAlertNotifier())
+
+            if not notifiers:
+                return
+
+            from src.adapters.supabase import get_supabase
+            sb = get_supabase()
+            svc = AlertService(sb, notifiers=notifiers)
+            svc.create_alert(
+                alert_type="broker_disconnect",
+                severity="critical",
+                title="Broker Disconnected",
+                message=(
+                    f"MetaAPI connection to broker failed ({reason}). "
+                    f"Account: {self.account_id[:12]}... "
+                    f"Circuit breaker opened for {BROKER_DISCONNECT_CB_TTL}s. "
+                    f"Check MetaAPI dashboard."
+                ),
+                metadata={"account_id": self.account_id, "reason": reason},
+                dedupe_minutes=10,
+            )
+        except Exception as exc:
+            logger.debug("Failed to send broker disconnect alert: %s", exc)
 
     def _get_symbol_price(self, symbol: str) -> tuple[float | None, float | None]:
         """

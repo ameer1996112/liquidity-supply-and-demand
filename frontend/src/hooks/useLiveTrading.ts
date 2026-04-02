@@ -32,6 +32,7 @@ export interface HealthCheckResponse {
   status: 'healthy' | 'degraded' | 'offline';
   redis: boolean;
   supabase: boolean;
+  broker: boolean;
   timestamp: string;
 }
 
