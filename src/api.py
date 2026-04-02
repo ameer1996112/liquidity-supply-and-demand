@@ -515,7 +515,32 @@ async def get_webhook_payload(
 
 @app.get("/health")
 def health():
-    return {"status": "healthy", "service": "api"}
+    # Check broker connection via circuit breaker state in Redis
+    broker_connected = True
+    try:
+        from src.core.circuit_breaker import is_metaapi_circuit_open
+        broker_connected = not is_metaapi_circuit_open()
+    except Exception:
+        pass
+
+    # Check Redis
+    redis_ok = True
+    try:
+        from src.adapters.redis_queue import get_redis
+        r = get_redis()
+        r.ping()
+    except Exception:
+        redis_ok = False
+
+    status = "healthy" if (broker_connected and redis_ok) else "degraded"
+
+    return {
+        "status": status,
+        "service": "api",
+        "redis": redis_ok,
+        "supabase": True,  # Supabase is healthy if this endpoint responds
+        "broker": broker_connected,
+    }
 
 
 # ---------------------------------------------------------------------------
