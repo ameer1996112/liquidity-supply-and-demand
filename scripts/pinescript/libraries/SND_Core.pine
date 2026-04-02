@@ -415,6 +415,9 @@ export calculate_departure_strength(int base_end_idx, bool isDemand, series floa
         float rolling_range = ctx_high - ctx_low
         float ref_range = rolling_range > 0.0 ? rolling_range : (atr14 > 0.0 ? atr14 * 10.0 : 1.0)
 
+        // Reference unused params to satisfy Pine v6 compiler (kept for signature compatibility)
+        float _vol_noop = nz(src_volume[0] * 0.0) + nz(vol_sma_20 * 0.0)
+
         // ── Per-candle scoring (Components 1-3) ───────────────────────────────────────
         float best_candle_score  = 0.0
         float best_candle_range  = 0.0   // Track for compression ratio
@@ -516,7 +519,7 @@ export calculate_departure_strength(int base_end_idx, bool isDemand, series floa
         // Zone-level components (4-7) max = 50pts
         float raw_score = per_candle_total + compression_score + fvg_score + dir_score + time_score
 
-        float departure_strength = math.min(math.max(raw_score, 5.0), 100.0)
+        float departure_strength = math.min(math.max(raw_score + _vol_noop, 5.0), 100.0)
         departure_strength
 
 // ══════════════════════════════════════════════════════════
