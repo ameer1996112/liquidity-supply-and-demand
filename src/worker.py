@@ -47,6 +47,7 @@ from src import logic
 from src.services.watchdog import TradeWatchdog
 from src.services.trailing_stop_manager import TrailingStopManager
 from src.services.breakeven_manager import BreakevenManager
+from src.services.liquidity_scorer import LiquidityScorer
 from src.core.dynamic_config import clear_settings_cache, apply_time_based_rules
 
 configure_logging()
@@ -181,6 +182,10 @@ def _get_one_candle_liq_settings(s) -> tuple[bool, float]:
     _one_candle_liq_cache["min_departure"] = min_dep
     _one_candle_liq_cache["loaded_at"] = now
     return enabled, min_dep
+
+
+# Singleton scorer — stateless, safe to share across threads
+_liquidity_scorer = LiquidityScorer()
 
 
 def _get_system_trading_mode() -> str:
@@ -749,34 +754,35 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
         except (ValueError, TypeError):
             pass
 
-    # --- 1-candle liquidity filter (LSD quality rule) ---
-    # A zone formed by a single liquidity candle is lower quality by default.
-    # Allow it only when the setup shows high confidence:
-    #   - not a middle zone (no stronger zone of the same type beyond it)
-    #   - trend aligned (200 EMA)
-    #   - liquidity was swept before entry
-    #   - departure strength is high enough (configurable, default 60)
+    # --- 1-candle liquidity filter (composite confidence scorer) ---
+    # Uses LiquidityScorer: hard gates + weighted zone quality + market context.
+    # Only applies when liq_candle_count == 1 and the feature is enabled.
     _ocl_enabled, _ocl_min_dep = _get_one_candle_liq_settings(s)
     if _ocl_enabled:
         liq_candle_count = payload.get("liq_candle_count")
         if liq_candle_count is not None:
             try:
                 if int(liq_candle_count) == 1:
-                    trend_ok = payload.get("trend") == 1
-                    swept_ok = bool(payload.get("liq_swept")) and bool(payload.get("caused_sweep"))
-                    dep_ok = float(payload.get("departure_strength") or 0) >= _ocl_min_dep
-                    is_middle = bool(payload.get("is_middle_zone", False))
-                    if is_middle or not trend_ok or not swept_ok or not dep_ok:
-                        reasons = []
-                        if is_middle:
-                            reasons.append("middle zone")
-                        if not trend_ok:
-                            reasons.append("counter-trend")
-                        if not swept_ok:
-                            reasons.append("no sweep")
-                        if not dep_ok:
-                            reasons.append(f"departure_strength {payload.get('departure_strength')} < {_ocl_min_dep}")
-                        return f"1-candle liquidity blocked: {', '.join(reasons)}"
+                    # Hard gate check (safety net — Pine should block these first)
+                    gate_ok, gate_reason = _liquidity_scorer.passes_hard_gates(payload)
+                    if not gate_ok:
+                        return f"1-candle liquidity blocked: {gate_reason}"
+
+                    # Middle zone hard block (no stronger zone available)
+                    if bool(payload.get("is_middle_zone", False)):
+                        return "1-candle liquidity blocked: middle zone"
+
+                    # Composite score (market_cache empty until MetaAPI cache is wired)
+                    result = _liquidity_scorer.score(payload, market_cache={})
+                    # Attach score to payload so save_alert persists it to DB
+                    payload["liquidity_score"] = result["score"]
+                    if not result["execute"]:
+                        return f"1-candle liquidity blocked: {result['reason']}"
+
+                    logger.info(
+                        "1-candle liquidity ALLOWED: %s symbol=%s",
+                        result["reason"], payload.get("symbol")
+                    )
             except (ValueError, TypeError):
                 pass
 

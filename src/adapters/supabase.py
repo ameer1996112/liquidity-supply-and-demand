@@ -152,6 +152,14 @@ def save_alert(
         'liquidity_spread_pips': data.get('liquidity_spread_pips'),
         # SL pips from Pine webhook
         'sl_pips': data.get('sl_pips'),
+        # 1-candle liquidity scoring fields (migration 070)
+        'primed': data.get('primed'),
+        'sweep_to_touch_bars': data.get('sweep_to_touch_bars'),
+        'peak_to_touch_bars': data.get('peak_to_touch_bars'),
+        'liq_source': data.get('liq_source'),
+        'zone_grade': data.get('zone_grade'),
+        'bars_since_zone': data.get('bars_since_zone'),
+        'liquidity_score': data.get('liquidity_score'),
         # V2.0 Telemetry Fields
         'run_mode': run_mode,
         'run_id': run_id,

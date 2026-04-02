@@ -287,7 +287,13 @@ export build_webhook_payload(
      float _be_sl_price = na,
      int _leg_candle_count = na,
      int _liq_candle_count = na,
-     bool _is_middle_zone = false) =>
+     bool _is_middle_zone = false,
+     bool _primed = false,
+     int _sweep_to_touch_bars = na,
+     int _peak_to_touch_bars = na,
+     string _liq_source = na,
+     string _zone_grade = na,
+     int _bars_since_zone = na) =>
 
     string payload = '{"symbol":"' + _symbol + '"'
     payload := payload + ',"side":"' + _side + '"'
@@ -367,6 +373,19 @@ export build_webhook_payload(
     if not na(_liq_candle_count)
         payload := payload + ',"liq_candle_count":' + str.tostring(_liq_candle_count, "#")
     payload := payload + ',"is_middle_zone":' + (_is_middle_zone ? "true" : "false")
+
+    // === 1-CANDLE LIQUIDITY SCORING FIELDS ===
+    payload := payload + ',"primed":' + (_primed ? "true" : "false")
+    if not na(_sweep_to_touch_bars)
+        payload := payload + ',"sweep_to_touch_bars":' + str.tostring(_sweep_to_touch_bars, "#")
+    if not na(_peak_to_touch_bars)
+        payload := payload + ',"peak_to_touch_bars":' + str.tostring(_peak_to_touch_bars, "#")
+    if not na(_liq_source)
+        payload := payload + ',"liq_source":"' + _liq_source + '"'
+    if not na(_zone_grade)
+        payload := payload + ',"zone_grade":"' + _zone_grade + '"'
+    if not na(_bars_since_zone)
+        payload := payload + ',"bars_since_zone":' + str.tostring(_bars_since_zone, "#")
 
     payload := payload + '}'
     payload

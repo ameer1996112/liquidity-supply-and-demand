@@ -26,8 +26,8 @@
 
 // === LIBRARY IMPORTS ===
 // Import helper functions from external libraries to reduce script size
-import ameer_1996112/SND_Utils/18 as Utils
-import ameer_1996112/SND_Core/19 as Core
+import ameer_1996112/SND_Utils/20 as Utils
+import ameer_1996112/SND_Core/23 as Core
 
 strategy("Institutional Liquidity Protocol [Pro]",
      shorttitle = "S&D Algo [Pro]",
@@ -1504,6 +1504,51 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
         float baseOpen = open[baseIdx]
         float baseClose = close[baseIdx]
 
+        // ── v3.1: Dynamic consolidation base detection ────────────────────────
+        // Scan backward from base candle to find consolidation cluster
+        // Criteria: Range <= ATR(14), body < 50% of range, contained sideways
+        float clusterHigh = baseHigh
+        float clusterLow  = baseLow
+        int   actualCandlesInBase = 1
+        int   max_base_lookback = 15  // Safety cap: ~1 hour of 5min candles
+
+        for j = 1 to max_base_lookback
+            int scanIdx = baseIdx + j
+            if scanIdx >= bar_index or scanIdx >= 10000
+                break
+
+            float scan_high  = high[scanIdx]
+            float scan_low   = low[scanIdx]
+            float scan_open  = open[scanIdx]
+            float scan_close = close[scanIdx]
+            float scan_range = scan_high - scan_low
+            float scan_body  = math.abs(scan_close - scan_open)
+
+            // Rule 1 (Range): candle range must be <= ATR(14)
+            if scan_range > atr14
+                break
+
+            // Rule 2 (Body): body must be < 50% of candle range (indecision)
+            if scan_range > 0 and scan_body >= 0.5 * scan_range
+                break
+
+            // Rule 3 (Sideways): candle must not close entirely outside adjacent candle's range
+            // Check against the previous candle in the cluster (scanIdx - 1)
+            float adj_high = high[scanIdx - 1]
+            float adj_low  = low[scanIdx - 1]
+            if scan_close > adj_high or scan_close < adj_low
+                break
+
+            // Candle qualifies — expand cluster
+            if scan_high > clusterHigh
+                clusterHigh := scan_high
+            if scan_low < clusterLow
+                clusterLow := scan_low
+            actualCandlesInBase += 1
+        // ── End consolidation detection ───────────────────────────────────────
+
+        float base_width = clusterHigh - clusterLow
+
         bool hasFVG = false
         if use_fvg_confirmation and (baseIdx - 2) >= 0
             if isDemand
@@ -1538,14 +1583,20 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
         if proceed_creation
             if isAccuracy
                 if isDemand
+                    // Demand accuracy: proximal = base open, distal = cluster low
                     zTop := baseOpen
-                    zBottom := baseLow
+                    zBottom := clusterLow
                 else
-                    zTop := baseHigh
+                    // Supply accuracy: distal = cluster high, proximal = base open
+                    zTop := clusterHigh
                     zBottom := baseOpen
+                // Failsafe: if inverted or zero zone, fall back to full cluster
+                if zTop <= zBottom
+                    zTop := clusterHigh
+                    zBottom := clusterLow
             else
-                zTop := baseHigh
-                zBottom := baseLow
+                zTop := clusterHigh
+                zBottom := clusterLow
 
             max_zone_size = 50.0 * pip_size
             if (zTop - zBottom) > max_zone_size
@@ -1620,12 +1671,12 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
             z.peakBarIndex := na
             z.peakPrice := na
 
-            z.score := Core.calculate_zone_score(isDemand, zTop, zBottom, baseIdx, legCandles, false, false, candlesInBase, isAccuracy, is_uptrend, is_downtrend, time[baseIdx])
+            z.score := Core.calculate_zone_score(isDemand, zTop, zBottom, baseIdx, legCandles, false, false, actualCandlesInBase, isAccuracy, is_uptrend, is_downtrend, time[baseIdx])
             z.grade := Core.get_grade_from_score(z.score)
 
-            int baseEndAbsolute = baseBarIdx + candlesInBase - 1
+            int baseEndAbsolute = baseBarIdx + actualCandlesInBase - 1
             float temp_base_quality = Core.calculate_base_quality(baseEndAbsolute, baseBarIdx, bar_index, high, low, open, close)
-            float temp_departure_strength = Core.calculate_departure_strength(baseIdx, isDemand, high, low, open, close, volume, vol_sma_20, atr14)
+            float temp_departure_strength = Core.calculate_departure_strength(baseIdx, isDemand, high, low, open, close, atr14, base_width, actualCandlesInBase)
 
             if enable_v6_v7_features
                 z.baseQuality := temp_base_quality
@@ -3263,7 +3314,13 @@ process_long_entries() =>
                         be_sl_price_long,        // be_sl_price
                         z.legCandleCount,        // leg_candle_count
                         z.liquidityCandleCount,  // liq_candle_count
-                        is_middle_zone_long      // is_middle_zone
+                        is_middle_zone_long,     // is_middle_zone
+                        z.primed,                // primed
+                        not na(z.liquiditySweptBarIndex) and not na(z.lastTouchBar) and z.lastTouchBar >= z.liquiditySweptBarIndex ? z.lastTouchBar - z.liquiditySweptBarIndex : na, // sweep_to_touch_bars
+                        not na(z.peakBarIndex) and not na(z.lastTouchBar) and z.lastTouchBar >= z.peakBarIndex ? z.lastTouchBar - z.peakBarIndex : na,                             // peak_to_touch_bars
+                        z.liqSource,             // liq_source
+                        z.grade,                 // zone_grade
+                        bar_index - z.createdBarIndex // bars_since_zone
                     ) : ""
 
                     if dry_run_mode
@@ -3710,7 +3767,13 @@ process_short_entries() =>
                         be_sl_price_short,             // be_sl_price
                         z.legCandleCount,              // leg_candle_count
                         z.liquidityCandleCount,        // liq_candle_count
-                        is_middle_zone_short           // is_middle_zone
+                        is_middle_zone_short,          // is_middle_zone
+                        z.primed,                      // primed
+                        not na(z.liquiditySweptBarIndex) and not na(z.lastTouchBar) and z.lastTouchBar >= z.liquiditySweptBarIndex ? z.lastTouchBar - z.liquiditySweptBarIndex : na, // sweep_to_touch_bars
+                        not na(z.peakBarIndex) and not na(z.lastTouchBar) and z.lastTouchBar >= z.peakBarIndex ? z.lastTouchBar - z.peakBarIndex : na,                             // peak_to_touch_bars
+                        z.liqSource,                   // liq_source
+                        z.grade,                       // zone_grade
+                        bar_index - z.createdBarIndex  // bars_since_zone
                     ) : ""
 
                     if dry_run_mode
