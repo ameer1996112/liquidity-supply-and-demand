@@ -383,13 +383,28 @@ function GuardCard({
             )}
             {guard.rejection_count_7d > 0 && (
               <span className={cn('shrink-0 inline-flex items-center rounded-md px-1.5 py-0.5 text-[9px] font-mono font-medium', t.badge)}>
-                {guard.rejection_count_7d}
+                {guard.rejection_count_7d} blocked
               </span>
             )}
           </div>
-          <p className="text-[10px] text-[var(--to-text-dim)] truncate mt-0.5">
-            {guard.user_description}
-          </p>
+          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+            {guard.thresholds.length > 0 ? (
+              guard.thresholds.filter((th) => th.value_type !== 'bool').map((th) => (
+                <span
+                  key={th.setting_key}
+                  className="inline-flex items-center gap-0.5 rounded bg-[var(--to-surface-raised)] border border-[var(--to-border-subtle)] px-1.5 py-0.5 text-[9px] font-mono text-[var(--to-text-secondary)]"
+                >
+                  <span className="text-[var(--to-text-dim)]">{th.name}:</span>
+                  <span className="text-[var(--to-text-primary)]">{th.current_value}</span>
+                  {th.unit && <span className="text-[var(--to-text-dim)]">{th.unit}</span>}
+                </span>
+              ))
+            ) : (
+              <p className="text-[10px] text-[var(--to-text-dim)] truncate">
+                {guard.user_description}
+              </p>
+            )}
+          </div>
         </div>
 
         {/* Controls */}
