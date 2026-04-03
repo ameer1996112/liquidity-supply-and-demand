@@ -302,6 +302,7 @@ class Settings(BaseSettings):
     pine_require_liq_swept: bool = Field(default=True, description="Require liquidity swept before entry (core S&D rule).")
     pine_min_departure_strength: float = Field(default=40.0, ge=0.0, le=100.0, description="Min departure strength (arrival rule). <40=compressed=reject.")
     pine_block_dead_zone: bool = Field(default=True, description="[Deprecated: merged into HTF Candle Filter as 'Block Before Hourly Close'. DB key: pine_block_before_hourly_close] Legacy fallback for hourly close block.")
+    pine_block_middle_zone: bool = Field(default=True, description="Block 1-candle liquidity trades where a better zone exists further in the trade direction. Pine only flags when the competing zone is active, has valid swept liquidity, is fresh (<24h), and unused.")
     pine_block_one_candle_liq: bool = Field(default=True, description="Block entries where liquidity was formed by a single candle, unless the setup meets high-confidence LSD criteria (no middle zone + trend aligned + swept + departure_strength>=60).")
     pine_one_candle_liq_min_departure: float = Field(default=60.0, ge=0.0, le=100.0, description="Min departure_strength required to allow a 1-candle liquidity setup when pine_block_one_candle_liq=True.")
     pine_htf_candle_filter_enabled: bool = Field(default=True, description="Block all entries 10 min before each 15-min HTF candle open (xx:05-14, xx:20-29, xx:35-44, xx:50-59). At candle opens (xx:00/15/30/45) only FLIP entries are allowed. Env: PINE_HTF_CANDLE_FILTER_ENABLED.")

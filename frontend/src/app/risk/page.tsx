@@ -893,7 +893,7 @@ function OneCandleLiqCard() {
             </div>
             <div className='space-y-1'>
               {[
-                'Not a middle zone',
+                'Not a middle zone (only trade-ready zones count)',
                 'Trend aligned (above 200 EMA)',
                 'Liquidity swept + caused sweep',
                 `Departure strength ≥ ${minDep}`,

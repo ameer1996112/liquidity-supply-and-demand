@@ -785,8 +785,8 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
                     if not gate_ok:
                         return f"1-candle liquidity blocked: {gate_reason}"
 
-                    # Middle zone hard block (no stronger zone available)
-                    if bool(payload.get("is_middle_zone", False)):
+                    # Middle zone block (toggleable via pine_block_middle_zone setting)
+                    if s.pine_block_middle_zone and bool(payload.get("is_middle_zone", False)):
                         return "1-candle liquidity blocked: middle zone"
 
                     # Composite score (market_cache empty until MetaAPI cache is wired)

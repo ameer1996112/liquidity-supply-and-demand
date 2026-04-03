@@ -3261,11 +3261,11 @@ process_long_entries() =>
                     float f_liq_dist_pips = getLiquidityDistance(z, false)
                     float f_liq_spread_pips = na(z.liqHighPrice) or na(z.liqLowPrice) ? na : math.abs(z.liqHighPrice - z.liqLowPrice) / pip_size
 
-                    // Middle zone: another valid demand zone exists below this one
+                    // Middle zone: only flag if a trade-ready demand zone exists below
                     bool is_middle_zone_long = false
                     for _mz_i = 0 to array.size(demandZones) - 1
                         Core.Zone _mz_other = array.get(demandZones, _mz_i)
-                        if _mz_other.id != z.id and _mz_other.top < z.bottom
+                        if _mz_other.id != z.id and _mz_other.active and _mz_other.top < z.bottom and _mz_other.liquidityValid and _mz_other.liquiditySwept and na(_mz_other.lastEntryBar) and (na(_mz_other.startTime) or (time - _mz_other.startTime) <= HOURS_24_MS)
                             is_middle_zone_long := true
                             break
 
@@ -3702,11 +3702,11 @@ process_short_entries() =>
                     float f_liq_dist_pips_short = getLiquidityDistance(z, true)
                     float f_liq_spread_pips_short = na(z.liqLowPrice) or na(z.liqHighPrice) ? na : math.abs(z.liqLowPrice - z.liqHighPrice) / pip_size
 
-                    // Middle zone: another valid supply zone exists above this one
+                    // Middle zone: only flag if a trade-ready supply zone exists above
                     bool is_middle_zone_short = false
                     for _mz_i = 0 to array.size(supplyZones) - 1
                         Core.Zone _mz_other = array.get(supplyZones, _mz_i)
-                        if _mz_other.id != z.id and _mz_other.bottom > z.top
+                        if _mz_other.id != z.id and _mz_other.active and _mz_other.bottom > z.top and _mz_other.liquidityValid and _mz_other.liquiditySwept and na(_mz_other.lastEntryBar) and (na(_mz_other.startTime) or (time - _mz_other.startTime) <= HOURS_24_MS)
                             is_middle_zone_short := true
                             break
 

@@ -263,6 +263,19 @@ _register(GuardDefinition(
 ))
 
 _register(GuardDefinition(
+    guard_id="middle_zone_filter",
+    setting_key="pine_block_middle_zone",
+    name="Middle Zone Filter",
+    description="Blocks trades on intermediate zones when a better zone exists",
+    user_description="Prevents entering on a zone when a stronger, trade-ready zone exists further in the same direction (active, swept liquidity, fresh <24h, unused).",
+    tier="important",
+    group="trade_quality",
+    value_type="bool",
+    default=True,
+    thresholds=[],
+))
+
+_register(GuardDefinition(
     guard_id="one_candle_liq_filter",
     setting_key="pine_block_one_candle_liq",
     name="1-Candle Liquidity Filter",
