@@ -69,7 +69,7 @@ class Settings(BaseSettings):
     paper_max_positions: int = 10
     paper_account_balance: float = 50000.0
     account_balance: float = 50000.0
-    risk_percent: float = 0.5  # Aligned with Pine Balanced profile
+    risk_percent: float = 1.0  # Base risk when healthy. Step-up scales: survival=0.5%, buffer=0.75x, normal=1.0%, aggressive=1.5%
     min_rr_ratio: float = 0.0  # Disabled: Pine Script handles SL/TP rules. Set > 0 to enable backend R:R filter.
     stop_loss_buffer_pips: float = Field(default=1.0, ge=0.0, le=5.0, description="Extra pips added to SL beyond zone boundary (Pine: 1.0)")
     max_lot_size: float = Field(default=100.0, ge=0.1, le=1000.0, description="Maximum position size in lots (Pine: 100.0)")
@@ -154,7 +154,7 @@ class Settings(BaseSettings):
     step_up_threshold_1: float = 0.02  # +2% profit buffer
     step_up_risk_1: float = 1.0       # 1.0% risk in buffer
     step_up_threshold_2: float = 0.05  # +5% profit - kill zone
-    step_up_risk_2: float = 2.0       # 2.0% risk when far ahead
+    step_up_risk_2: float = 1.5       # 1.5% risk when far ahead (capped for prop firm safety)
     survival_risk: float = 0.5        # 0.5% when below starting equity
 
     # Ensemble brain / LLM filter
