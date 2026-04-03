@@ -443,6 +443,11 @@ class Settings(BaseSettings):
     staleness_max_age_seconds: int = Field(default=5, ge=1, le=30, description="Maximum signal age before rejection (seconds)")
     staleness_max_price_deviation_pips: float = Field(default=3.0, ge=0.5, le=10.0, description="Maximum price movement from signal entry (pips)")
 
+    # ── Market Holiday Guard ──────────────────────────────────────────────
+    enable_holiday_guard: bool = Field(default=True, description="Block US index trades on exchange holidays (Good Friday, MLK Day, etc.)")
+    holiday_block_early_close: bool = Field(default=False, description="Also block trades on early-close days (Jul 3, Black Friday, Dec 24)")
+    holiday_early_close_utc_hour: int = Field(default=18, ge=12, le=23, description="UTC hour after which to block on early-close days (18 = 1PM ET)")
+
     # ── Breakeven & Trailing Stop Optimization (v1.1 Phase 9) ─────────────
     breakeven_buffer_pips: float = Field(
         default=3.0, ge=0.0, le=20.0,

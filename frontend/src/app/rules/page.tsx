@@ -2,8 +2,9 @@
 
 import { RiskRulesPanel } from '@/components/rules/RiskRulesPanel';
 import { StrategyRulesPanel } from '@/components/rules/StrategyRulesPanel';
+import { GuardsPanel } from '@/components/rules/GuardsPanel';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ShieldCheck, BookOpen } from 'lucide-react';
+import { ShieldCheck, BookOpen, Shield } from 'lucide-react';
 
 export default function RulesPage() {
   return (
@@ -11,12 +12,20 @@ export default function RulesPage() {
       <div>
         <h1 className='page-title text-lg font-semibold'>Rules</h1>
         <p className='page-subtitle mt-0.5 text-xs'>
-          Risk guardrails and strategy execution rules.
+          Guard rails, risk rules, and strategy execution rules.
         </p>
       </div>
 
-      <Tabs defaultValue='risk'>
+      <Tabs defaultValue='guards'>
         <TabsList className='surface-soft rounded-lg border border-[var(--to-border)] p-0.5'>
+          <TabsTrigger
+            value='guards'
+            className='flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[11px] font-medium data-[state=active]:bg-indigo-600/20 data-[state=active]:text-indigo-300 data-[state=inactive]:text-[var(--to-text-dim)]'
+            style={{ fontFamily: 'var(--font-sans)' }}
+          >
+            <Shield className='h-3.5 w-3.5' />
+            Guards
+          </TabsTrigger>
           <TabsTrigger
             value='risk'
             className='flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[11px] font-medium data-[state=active]:bg-indigo-600/20 data-[state=active]:text-indigo-300 data-[state=inactive]:text-[var(--to-text-dim)]'
@@ -34,6 +43,10 @@ export default function RulesPage() {
             Strategy Rules
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value='guards' className='mt-4'>
+          <GuardsPanel />
+        </TabsContent>
 
         <TabsContent value='risk' className='mt-4'>
           <RiskRulesPanel />

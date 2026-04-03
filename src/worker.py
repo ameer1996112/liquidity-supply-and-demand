@@ -1513,6 +1513,27 @@ def process_trade(payload: Dict[str, Any]):
 
     tracker.checkpoint("after_staleness_guard")
 
+    # ── Market Holiday Guard (global — block index trades on exchange holidays) ──
+    if getattr(s, "enable_holiday_guard", True):
+        try:
+            from src.core.guard_rails.holiday_guard import HolidayGuard
+            holiday_guard = HolidayGuard(
+                block_early_close=getattr(s, "holiday_block_early_close", False),
+                early_close_after_utc_hour=getattr(s, "holiday_early_close_utc_hour", 18),
+            )
+            passed, reason = holiday_guard.check(payload)
+            if not passed:
+                save_result(payload, "holiday_rejected", reason, 0.0, account_name=account_name)
+                log_event(None, "holiday_rejected", "worker", {"symbol": symbol, "reason": reason})
+                log_guard_decision("holiday", "rejected", reason, symbol)
+                logger.warning("HOLIDAY GUARD REJECTED: %s — %s", symbol, reason)
+                return
+            logger.debug("Holiday Guard: PASSED (%s)", symbol)
+        except Exception as e:
+            logger.error("Holiday guard crashed: %s", e, exc_info=True)
+
+    tracker.checkpoint("after_holiday_guard")
+
     # ══════════════════════════════════════════════════════════════════
     # PINE FILTERS + RISK GUARDS (zone quality, daily/weekly/monthly limits,
     # spread gate, consecutive loss circuit breaker)

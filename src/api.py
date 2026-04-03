@@ -137,6 +137,7 @@ from src.api_strategies import router as strategies_router # Sprint 4.4: Strateg
 from src.api_webhook_read import router as webhook_read_router  # E2E: signals/recent, trades/open, stats/summary
 from src.api_copilot import router as copilot_router           # AI Copilot: natural language queries
 from src.api_market import router as market_router             # Market data proxy (Yahoo Finance CORS bypass)
+from src.api_guards import router as guards_router            # Guard rails config management
 from src.api_funding import router as funding_router           # Funding: daily PnL and stats for prop firm UI
 from src.api_config import router as config_router             # System config: trading mode control
 from src.api_tickets import router as tickets_router           # Ticket tracker: Jira-style task/bug board
@@ -196,6 +197,7 @@ app.include_router(agent_status_router)   # v1.2: Agent status: /api/agent/statu
 app.include_router(broker_profiles_router, dependencies=[Depends(_require_admin_key)])  # Multi-account MetaAPI credential management
 app.include_router(dashboard_router)        # DEV-61: dashboard summary aggregation
 app.include_router(notifications_router)    # DEV-73: notification settings (routing, whitelist, audit log)
+app.include_router(guards_router, dependencies=[Depends(_require_admin_key)])  # DEV-92: guard rails config management
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_build_cors_origins(),
