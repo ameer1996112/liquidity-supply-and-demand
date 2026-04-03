@@ -7,17 +7,24 @@ import { ClientDate } from '@/components/ui/ClientDate';
 import {
   Shield,
   ShieldOff,
+  ShieldCheck,
   TrendingDown,
   Target,
   Settings,
   AlertCircle,
   Info,
   Activity,
+  BookOpen,
+  Gauge,
 } from 'lucide-react';
 import { useConnectionHealth } from '@/hooks/useConnectionHealth';
 import { useHtfFilter } from '@/hooks/useHtfFilter';
 import { PageStatusBanner } from '@/components/shared/PageStatusBanner';
 import { CircularGauge } from '@/components/ui/CircularGauge';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { GuardsPanel } from '@/components/rules/GuardsPanel';
+import { RiskRulesPanel } from '@/components/rules/RiskRulesPanel';
+import { StrategyRulesPanel } from '@/components/rules/StrategyRulesPanel';
 
 // ── Composite Risk Score ──────────────────────────────────────────────────────
 
@@ -51,108 +58,128 @@ function computeRiskScore(data: {
 }
 
 export default function RiskMonitorPage() {
-  const { data, isLoading, error } = useRiskMonitor();
   const { status } = useConnectionHealth();
+
+  const tabClass =
+    'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[11px] font-medium data-[state=active]:bg-indigo-600/20 data-[state=active]:text-indigo-300 data-[state=inactive]:text-[var(--to-text-dim)]';
 
   return (
     <div className='space-y-4 animate-fade-in-up'>
       {/* Header */}
-      <div>
-        <h1 className='page-title text-lg font-semibold'>Risk Monitor</h1>
-        <p className='page-subtitle mt-0.5 text-xs'>
-          Real-time risk state from Pine Script · read-only
-        </p>
+      <div className='flex items-center gap-3'>
+        <div className='flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-500/10 border border-indigo-500/20'>
+          <Shield className='h-4 w-4 text-indigo-400' />
+        </div>
+        <div>
+          <h1 className='page-title text-lg font-semibold'>Risk & Rules</h1>
+          <p className='page-subtitle mt-0.5 text-[11px]'>
+            Live risk monitoring, trade guards, and strategy rules
+          </p>
+        </div>
       </div>
 
       <PageStatusBanner status={status} surfaceLabel='Risk decisions' />
 
-      {/* Info banner */}
-      <div className='flex items-start gap-2.5 rounded-lg border border-indigo-500/20 bg-indigo-500/8 px-3 py-2.5'>
-        <Info className='mt-0.5 h-3.5 w-3.5 shrink-0 text-indigo-400' />
-        <p
-          className='text-[11px] text-indigo-300/80'
-          style={{ fontFamily: 'var(--font-sans)' }}
-        >
-          Risk settings are configured in Pine Script (TradingView). This
-          dashboard displays current state only — to adjust risk, modify
-          SND_Strategy.pine inputs.
-        </p>
+      <Tabs defaultValue='monitor'>
+        <TabsList className='surface-soft rounded-lg border border-[var(--to-border)] p-0.5'>
+          <TabsTrigger value='monitor' className={tabClass} style={{ fontFamily: 'var(--font-sans)' }}>
+            <Gauge className='h-3.5 w-3.5' />
+            Monitor
+          </TabsTrigger>
+          <TabsTrigger value='guards' className={tabClass} style={{ fontFamily: 'var(--font-sans)' }}>
+            <Shield className='h-3.5 w-3.5' />
+            Guards
+          </TabsTrigger>
+          <TabsTrigger value='risk-rules' className={tabClass} style={{ fontFamily: 'var(--font-sans)' }}>
+            <ShieldCheck className='h-3.5 w-3.5' />
+            Risk Rules
+          </TabsTrigger>
+          <TabsTrigger value='strategy' className={tabClass} style={{ fontFamily: 'var(--font-sans)' }}>
+            <BookOpen className='h-3.5 w-3.5' />
+            Strategy
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value='monitor' className='mt-4'>
+          <RiskMonitorTab />
+        </TabsContent>
+
+        <TabsContent value='guards' className='mt-4'>
+          <GuardsPanel />
+        </TabsContent>
+
+        <TabsContent value='risk-rules' className='mt-4'>
+          <RiskRulesPanel />
+        </TabsContent>
+
+        <TabsContent value='strategy' className='mt-4'>
+          <StrategyRulesPanel />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function RiskMonitorTab() {
+  const { data, isLoading, error } = useRiskMonitor();
+
+  if (isLoading || error) return <LoadingSkeleton />;
+  if (!data) return null;
+
+  return (
+    <div className='space-y-3'>
+      {/* ── Composite Risk Score — Hero Row ─────────────── */}
+      <CompositeRiskScore data={data} />
+
+      {/* ── Circular Gauges ──────────────────────────────── */}
+      <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+        <div className='glow-card flex flex-col items-center justify-center p-5'>
+          <CircularGauge
+            value={data.daily_risk.loss_pct}
+            limit={100}
+            label='Daily Loss'
+            sublabel={`$${data.daily_risk.loss_used_usd.toFixed(0)} / $${data.daily_risk.loss_limit_usd.toFixed(0)}`}
+            size={120}
+            colorZones={[{ at: 50, color: '#f0b90b' }, { at: 80, color: '#f6465d' }]}
+            unit='%'
+          />
+        </div>
+        <div className='glow-card flex flex-col items-center justify-center p-5'>
+          <CircularGauge
+            value={data.drawdown.dd_utilization_pct}
+            limit={100}
+            label='Drawdown Used'
+            sublabel={`${data.drawdown.current_dd_pct.toFixed(2)}% / ${data.drawdown.max_dd_allowed_pct.toFixed(1)}% max`}
+            size={120}
+            colorZones={[{ at: 50, color: '#f0b90b' }, { at: 80, color: '#f6465d' }]}
+            unit='%'
+          />
+        </div>
       </div>
 
-      {isLoading || error ? (
-        <LoadingSkeleton />
-      ) : data ? (
-        <>
-          {/* ── Composite Risk Score — Hero Row ─────────────── */}
-          <CompositeRiskScore data={data} />
-
-          {/* ── Circular Gauges ──────────────────────────────── */}
-          <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
-            {/* Daily Loss Gauge */}
-            <div className='glow-card flex flex-col items-center justify-center p-5'>
-              <CircularGauge
-                value={data.daily_risk.loss_pct}
-                limit={100}
-                label='Daily Loss'
-                sublabel={`$${data.daily_risk.loss_used_usd.toFixed(
-                  0
-                )} / $${data.daily_risk.loss_limit_usd.toFixed(0)}`}
-                size={120}
-                colorZones={[
-                  { at: 50, color: '#f0b90b' },
-                  { at: 80, color: '#f6465d' },
-                ]}
-                unit='%'
-              />
-            </div>
-
-            {/* Drawdown Gauge */}
-            <div className='glow-card flex flex-col items-center justify-center p-5'>
-              <CircularGauge
-                value={data.drawdown.dd_utilization_pct}
-                limit={100}
-                label='Drawdown Used'
-                sublabel={`${data.drawdown.current_dd_pct.toFixed(
-                  2
-                )}% / ${data.drawdown.max_dd_allowed_pct.toFixed(1)}% max`}
-                size={120}
-                colorZones={[
-                  { at: 50, color: '#f0b90b' },
-                  { at: 80, color: '#f6465d' },
-                ]}
-                unit='%'
-              />
-            </div>
-          </div>
-
-          {/* ── Detail cards ── */}
-          <div className='grid grid-cols-1 gap-3 lg:grid-cols-2'>
-            <DailyRiskCard data={data.daily_risk} />
-            <PositionLimitsCard data={data.position_limits} />
-          </div>
-          <div className='grid grid-cols-1 gap-3 lg:grid-cols-2'>
-            <DrawdownCard data={data.drawdown} />
-            <ActiveSettingsCard data={data.active_settings} />
-          </div>
-          <div className='grid grid-cols-1 gap-3 lg:grid-cols-2'>
-            <HtfFilterCard />
-            <OneCandleLiqCard />
-          </div>
-          {/* Guard Rails Status removed — use /rules page for full guard management */}
-          {data.symbol_overrides && data.symbol_overrides.length > 0 && (
-            <SymbolOverridesCard data={data.symbol_overrides} />
-          )}
-          <div
-            className='text-right text-[10px] text-[var(--to-text-dim)]'
-            style={{ fontFamily: 'var(--font-mono)' }}
-          >
-            updated{' '}
-            <ClientDate
-              render={() => new Date(data.last_updated).toLocaleTimeString()}
-            />
-          </div>
-        </>
-      ) : null}
+      {/* ── Detail cards ── */}
+      <div className='grid grid-cols-1 gap-3 lg:grid-cols-2'>
+        <DailyRiskCard data={data.daily_risk} />
+        <PositionLimitsCard data={data.position_limits} />
+      </div>
+      <div className='grid grid-cols-1 gap-3 lg:grid-cols-2'>
+        <DrawdownCard data={data.drawdown} />
+        <ActiveSettingsCard data={data.active_settings} />
+      </div>
+      <div className='grid grid-cols-1 gap-3 lg:grid-cols-2'>
+        <HtfFilterCard />
+        <OneCandleLiqCard />
+      </div>
+      {data.symbol_overrides && data.symbol_overrides.length > 0 && (
+        <SymbolOverridesCard data={data.symbol_overrides} />
+      )}
+      <div
+        className='text-right text-[10px] text-[var(--to-text-dim)]'
+        style={{ fontFamily: 'var(--font-mono)' }}
+      >
+        updated{' '}
+        <ClientDate render={() => new Date(data.last_updated).toLocaleTimeString()} />
+      </div>
     </div>
   );
 }

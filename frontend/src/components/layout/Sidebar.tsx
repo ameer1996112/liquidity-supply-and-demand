@@ -8,7 +8,6 @@ import {
   BarChart3,
   BookOpen,
   Settings,
-  ShieldCheck,
   PanelLeftClose,
   PanelLeft,
   Activity,
@@ -307,7 +306,7 @@ const NAV_GROUPS: NavGroup[] = [
     id: 'monitoring',
     label: 'Monitoring',
     items: [
-      { label: 'Risk Monitor', icon: Gauge, path: '/risk' },
+      { label: 'Risk & Rules', icon: Gauge, path: '/risk' },
       { label: 'Alerts', icon: Bell, path: '/alerts' },
       { label: 'Prop Firm', icon: Trophy, path: '/prop-firm' },
     ],
@@ -325,7 +324,6 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Strategy',
     items: [
       { label: 'Strategies', icon: SlidersHorizontal, path: '/strategies' },
-      { label: 'Rules', icon: ShieldCheck, path: '/rules' },
     ],
   },
   {

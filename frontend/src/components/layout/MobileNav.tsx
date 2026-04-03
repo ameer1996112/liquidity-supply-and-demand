@@ -15,7 +15,6 @@ import {
   BarChart3,
   LineChart,
   SlidersHorizontal,
-  ShieldCheck,
   BookOpen,
   Settings,
 } from 'lucide-react';
@@ -50,7 +49,6 @@ const OVERFLOW_ITEMS: NavItem[] = [
   { label: 'Analytics', icon: BarChart3, path: '/analytics' },
   { label: 'Backtest', icon: LineChart, path: '/backtest' },
   { label: 'Strategies', icon: SlidersHorizontal, path: '/strategies' },
-  { label: 'Rules', icon: ShieldCheck, path: '/rules' },
   { label: 'Journal', icon: BookOpen, path: '/journal' },
   { label: 'Settings', icon: Settings, path: '/settings' },
 ];

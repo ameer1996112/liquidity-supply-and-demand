@@ -64,7 +64,7 @@ const NAV_ITEMS: NavItem[] = [
   {
     label: 'Rules',
     description: 'Risk & routing rules',
-    path: '/rules',
+    path: '/risk',
     group: 'Config',
   },
   {
