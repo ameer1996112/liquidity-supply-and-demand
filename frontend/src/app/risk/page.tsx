@@ -138,7 +138,7 @@ export default function RiskMonitorPage() {
             <HtfFilterCard />
             <OneCandleLiqCard />
           </div>
-          <GuardRailsCard data={data.guard_rails} />
+          {/* Guard Rails Status removed — use /rules page for full guard management */}
           {data.symbol_overrides && data.symbol_overrides.length > 0 && (
             <SymbolOverridesCard data={data.symbol_overrides} />
           )}
@@ -934,39 +934,6 @@ function OneCandleLiqCard() {
   );
 }
 
-function GuardRailsCard({ data }: { data: GuardRailStatus[] }) {
-  return (
-    <PanelCard
-      icon={<Shield className='h-3.5 w-3.5 text-[var(--to-accent-blue)]' />}
-      title='Guard Rails Status'
-    >
-      <div className='space-y-0'>
-        {data.map((rail) => (
-          <div
-            key={rail.name}
-            className='flex items-center justify-between border-b border-[var(--to-border)] py-2 last:border-0'
-          >
-            <span
-              className='text-[11px] text-[var(--to-text-secondary)]'
-              style={{ fontFamily: 'var(--font-sans)' }}
-            >
-              {rail.name}
-            </span>
-            <div className='flex items-center gap-2'>
-              <span
-                className='text-[10px] text-[var(--to-text-dim)]'
-                style={{ fontFamily: 'var(--font-mono)' }}
-              >
-                {rail.message}
-              </span>
-              <StatusBadge severity={rail.severity} />
-            </div>
-          </div>
-        ))}
-      </div>
-    </PanelCard>
-  );
-}
 
  
 function SymbolOverridesCard({ data }: { data: any[] }) {
@@ -1047,33 +1014,6 @@ function SymbolOverridesCard({ data }: { data: any[] }) {
         </table>
       </div>
     </div>
-  );
-}
-
-function StatusBadge({ severity }: { severity: string }) {
-  const styles: Record<string, string> = {
-    success: 'bg-[var(--to-long)]/15 text-[var(--to-long)]',
-    warning: 'bg-[var(--to-warning)]/15 text-[var(--to-warning)]',
-    critical: 'bg-[var(--to-short)]/15 text-[var(--to-short)]',
-    info: 'bg-[var(--to-accent-blue)]/15 text-[var(--to-accent-blue)]',
-  };
-  const labels: Record<string, string> = {
-    success: '✓',
-    warning: '⚠',
-    critical: '✗',
-    info: 'i',
-  };
-
-  return (
-    <span
-      className={cn(
-        'rounded px-1.5 py-0.5 text-[9px] font-bold',
-        styles[severity] ?? styles.info
-      )}
-      style={{ fontFamily: 'var(--font-mono)' }}
-    >
-      {labels[severity] ?? '?'}
-    </span>
   );
 }
 
