@@ -222,6 +222,12 @@ def _get_rejection_stats(days: int = 7) -> dict:
         by_guard: dict[str, dict] = {}
         for row in rows:
             meta = row.get("metadata") or {}
+            if isinstance(meta, str):
+                try:
+                    import json as _json
+                    meta = _json.loads(meta)
+                except Exception:
+                    meta = {}
             guard_name = meta.get("guard_name", row.get("event_type", "unknown"))
             if guard_name not in by_guard:
                 by_guard[guard_name] = {"count": 0, "last_reason": "", "last_time": ""}
@@ -436,6 +442,12 @@ def get_recent_rejections(days: int = 7, limit: int = 50):
         entries = []
         for row in result.data or []:
             meta = row.get("metadata") or {}
+            if isinstance(meta, str):
+                try:
+                    import json as _json
+                    meta = _json.loads(meta)
+                except Exception:
+                    meta = {}
             entries.append(
                 RejectionEntry(
                     guard_name=meta.get("guard_name", row.get("event_type", "unknown")),
