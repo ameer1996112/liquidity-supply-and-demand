@@ -401,7 +401,7 @@ function GuardCard({
                   <span className="text-[var(--to-text-primary)]">{th.current_value}</span>
                   <span className="text-[#7b8cff]/40">|</span>
                   <span className="text-[#7b8cff]/60">range</span>
-                  <span>{guard.dynamic_threshold.min_val}–{guard.dynamic_threshold.max_val}</span>
+                  <span>{guard.dynamic_threshold?.min_val}–{guard.dynamic_threshold?.max_val}</span>
                 </span>
               ))
             ) : guard.thresholds.length > 0 ? (
