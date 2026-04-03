@@ -58,6 +58,8 @@ class RiskStatusResponse(BaseModel):
     risk_mode: str
     risk_multiplier: float
     risk_label: str
+    effective_risk_pct: float
+    base_risk_pct: float
 
 
 # ── Endpoints ────────────────────────────────────────────────
@@ -222,6 +224,8 @@ def get_risk_status():
         risk_mode=getattr(s, "risk_mode", "step_up"),
         risk_multiplier=round(risk_mult, 2),
         risk_label=risk_label,
+        base_risk_pct=s.risk_percent,
+        effective_risk_pct=round(s.risk_percent * risk_mult, 2),
     )
 
 

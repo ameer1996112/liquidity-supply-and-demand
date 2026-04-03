@@ -24,6 +24,8 @@ export interface RiskStatus {
   risk_mode: string;
   risk_multiplier: number;
   risk_label: string;
+  effective_risk_pct: number;
+  base_risk_pct: number;
 }
 
 interface KillSwitchResponse {
