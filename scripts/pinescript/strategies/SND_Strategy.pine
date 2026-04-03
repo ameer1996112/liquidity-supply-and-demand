@@ -61,6 +61,7 @@ is_aggressive = config_profile == "Aggressive (Paper Trading)"
 const int MAX_BACKWARD_SCAN = 200
 const int MAX_LOOP_ITERATIONS = 200
 const int PIVOT_CACHE_SIZE = 100
+const int MAX_LIQ_SCAN_BARS = 500  // Cap liquidity scan to prevent O(5000+) loops on old zones
 
 const float OVERLAP_TOLERANCE_GOLD = 0.5
 const float OVERLAP_TOLERANCE_DEFAULT = 0.0
@@ -170,11 +171,12 @@ liq_max_distance_pips_gold  = input.float(150.0, "Max Distance - Gold (pips)", m
 liq_max_distance_pips_index = input.float(500.0, "Max Distance - Indices (pips)", minval = 100.0, group = "💧 Liquidity")
 
 fractalsPeriod = 2  // Williams Fractals period
-plotLiq    = true  // Always plot liquidity
+plotLiq    = input.bool(true, "Show Liquidity Pivot Lines", group = "🎨 Display")
+show_fractals = input.bool(true, "Show Fractal Triangles", group = "🎨 Display")
 pvtTopColor = color.red  // Visual colors
 pvtBtmColor = color.green
 pvtStyle    = line.style_solid
-show_liquidity_connectors = true
+show_liquidity_connectors = input.bool(true, "Show Liquidity Connectors & Lines", group = "🎨 Display")
 liq_line_color = color.new(color.gray, 35)
 liq_fallback_lookback = 300
 liq_candle_count_max = 10
@@ -936,8 +938,8 @@ isZoneBaseBar  = (isFractalHigh_result or isFractalLow_result) ?
 fractalHigh = (not isZoneBaseBar and isFractalHigh_result) ? high[fractalsPeriod] : na
 fractalLow  = (not isZoneBaseBar and isFractalLow_result) ? low[fractalsPeriod] : na
 
-plotshape(not na(fractalHigh), style = shape.triangleup,   location = location.abovebar, color = color.green, size = size.small, offset = -fractalsPeriod)
-plotshape(not na(fractalLow),  style = shape.triangledown, location = location.belowbar, color = color.red,   size = size.small, offset = -fractalsPeriod)
+plotshape(show_fractals and not na(fractalHigh), style = shape.triangleup,   location = location.abovebar, color = color.green, size = size.small, offset = -fractalsPeriod)
+plotshape(show_fractals and not na(fractalLow),  style = shape.triangledown, location = location.belowbar, color = color.red,   size = size.small, offset = -fractalsPeriod)
 
 var array<float> liqPvtHighPrices = array.new_float()
 var array<int>   liqPvtHighBars   = array.new_int()
@@ -1216,12 +1218,12 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
                 z.liquiditySweptBarIndex := na
 
 
-            // === TARGET: Highest point WITHIN the zone's base candles ===
-            // The target for a demand zone is the highest high inside the zone itself,
-            // NOT the highest high between zone creation and inducement.
-            int baseEnd = not na(z.baseEndBarIndex) ? z.baseEndBarIndex : z.createdBarIndex
+            // === TARGET: Absolute highest point AFTER zone formation, BEFORE inducement ===
+            // Find the ABSOLUTE HIGHEST high in the strict range:
+            // [Zone Creation Bar ... Inducement Bar - 1]
+            // This ensures the target comes after the zone was formed, not just within base candles.
             int rangeStart = z.createdBarIndex
-            int rangeEnd = math.min(baseEnd, bestLiqBar - 1)
+            int rangeEnd = bestLiqBar - 1  // STRICTLY before inducement
 
             float bestTargetPrice = na
             int bestTargetBar = na
@@ -1334,12 +1336,12 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
                 z.liquiditySweptBarIndex := na
 
 
-            // === TARGET: Lowest point WITHIN the zone's base candles ===
-            // The target for a supply zone is the lowest low inside the zone itself,
-            // NOT the lowest low between zone creation and inducement.
-            int baseEnd = not na(z.baseEndBarIndex) ? z.baseEndBarIndex : z.createdBarIndex
+            // === TARGET: Absolute lowest point AFTER zone formation, BEFORE inducement ===
+            // Find the ABSOLUTE LOWEST low in the strict range:
+            // [Zone Creation Bar ... Inducement Bar - 1]
+            // This ensures the target comes after the zone was formed, not just within base candles.
             int rangeStart = z.createdBarIndex
-            int rangeEnd = math.min(baseEnd, bestLiqBar - 1)
+            int rangeEnd = bestLiqBar - 1  // STRICTLY before inducement
 
             float bestTargetPrice = na
             int bestTargetBar = na
@@ -2735,7 +2737,7 @@ if cached_demand_size > 0 and barstate.isconfirmed
                 z.structureSweepLevel := na
                 z.inactiveReason := "Ghost Data Cleared"
 
-            if not z.liquidityValid
+            if not z.liquidityValid or na(z.lastEntryBar)
                 f_scan_demand_liquidity(i)
 
             f_check_demand_sweeps(i)
@@ -2762,19 +2764,12 @@ if cached_demand_size > 0 and barstate.isconfirmed
                     z.lastTouchBar := touchBarNow
                     z.wasTouched := true
 
-                    if not na(z.liquidityBarIndex)
-                        int steps_back = math.min(touchBarNow - z.liquidityBarIndex, MAX_PEAK_SCAN_BARS)
-                        if steps_back >= 0
-                            float max_p = high
-                            int max_idx = touchBarNow
-                            for i = 0 to steps_back
-                                if high[i] > max_p
-                                    max_p := high[i]
-                                    max_idx := touchBarNow - i
-                            z.peakPrice := max_p
-                            z.peakBarIndex := max_idx
-                            array.set(demandZones, i, z)
-                            db_updateZoneLiquidity(z)
+                    // Incremental peak update: just check current bar vs stored peak (O(1) instead of O(N))
+                    if na(z.peakPrice) or high > z.peakPrice
+                        z.peakPrice := high
+                        z.peakBarIndex := bar_index
+                        array.set(demandZones, i, z)
+                        db_updateZoneLiquidity(z)
 
                     bool is_liq_bar = false
                     if not na(z.liquidityBarIndex) and touchBarNow == z.liquidityBarIndex
@@ -2848,7 +2843,7 @@ if cached_supply_size > 0 and barstate.isconfirmed
                 z.structureSweepLevel := na
                 z.inactiveReason := "Ghost Data Cleared"
 
-            if not z.liquidityValid
+            if not z.liquidityValid or na(z.lastEntryBar)
                 f_scan_supply_liquidity(i)
 
             f_check_supply_sweeps(i)
@@ -2874,19 +2869,12 @@ if cached_supply_size > 0 and barstate.isconfirmed
                     z.wasTouched := true
                     z.touchedPreSweep := true
 
-                    if not na(z.liquidityBarIndex)
-                        int steps_back = math.min(bar_index - z.liquidityBarIndex, MAX_PEAK_SCAN_BARS)
-                        if steps_back >= 0
-                            float min_p = low
-                            int min_idx = bar_index
-                            for i = 0 to steps_back
-                                if low[i] < min_p
-                                    min_p := low[i]
-                                    min_idx := bar_index - i
-                            z.peakPrice := min_p
-                            z.peakBarIndex := min_idx
-                            array.set(supplyZones, i, z)
-                            db_updateZoneLiquidity(z)
+                    // Incremental peak update: just check current bar vs stored peak (O(1) instead of O(N))
+                    if na(z.peakPrice) or low < z.peakPrice
+                        z.peakPrice := low
+                        z.peakBarIndex := bar_index
+                        array.set(supplyZones, i, z)
+                        db_updateZoneLiquidity(z)
 
                 if is_future_bar and z.leftZone and not z.liquiditySwept and (closes_inside or breaches_zone) and not current_bar_sweeping
                     z.mitigated := true
@@ -3037,19 +3025,12 @@ process_long_entries() =>
                     z.lastTouchBar := bar_index
                     z.wasTouched := true
 
-                    if not na(z.liquidityBarIndex)
-                        int steps_back = math.min(bar_index - z.liquidityBarIndex, MAX_PEAK_SCAN_BARS)
-                        if steps_back >= 0
-                            float max_p = high
-                            int max_idx = bar_index
-                            for i = 0 to steps_back
-                                if high[i] > max_p
-                                    max_p := high[i]
-                                    max_idx := bar_index - i
-                            z.peakPrice := max_p
-                            z.peakBarIndex := max_idx
-                            array.set(demandZones, i, z)
-                            db_updateZoneLiquidity(z)
+                    // Incremental peak update (O(1) instead of O(N))
+                    if na(z.peakPrice) or high > z.peakPrice
+                        z.peakPrice := high
+                        z.peakBarIndex := bar_index
+                        array.set(demandZones, i, z)
+                        db_updateZoneLiquidity(z)
 
                 [can_enter, entryReason] = isValidDemandEntry(i)
 
@@ -3485,19 +3466,12 @@ process_short_entries() =>
                     z.lastTouchBar := bar_index
                     z.wasTouched := true
 
-                    if not na(z.liquidityBarIndex)
-                        int steps_back = math.min(bar_index - z.liquidityBarIndex, MAX_PEAK_SCAN_BARS)
-                        if steps_back >= 0
-                            float min_p = low
-                            int min_idx = bar_index
-                            for i = 0 to steps_back
-                                if low[i] < min_p
-                                    min_p := low[i]
-                                    min_idx := bar_index - i
-                            z.peakPrice := min_p
-                            z.peakBarIndex := min_idx
-                            array.set(supplyZones, i, z)
-                            db_updateZoneLiquidity(z)
+                    // Incremental peak update (O(1) instead of O(N))
+                    if na(z.peakPrice) or low < z.peakPrice
+                        z.peakPrice := low
+                        z.peakBarIndex := bar_index
+                        array.set(supplyZones, i, z)
+                        db_updateZoneLiquidity(z)
 
                 [can_enter, entryReason] = isValidSupplyEntry(i)
 
