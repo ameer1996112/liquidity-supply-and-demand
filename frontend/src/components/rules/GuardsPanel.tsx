@@ -7,6 +7,7 @@ import {
   useUpdateGuard,
   type GuardConfig,
   type ThresholdConfig,
+  type DynamicThresholdInfo,
 } from '@/hooks/useGuards';
 import {
   Shield,
@@ -404,6 +405,13 @@ function GuardCard({
                 {guard.user_description}
               </p>
             )}
+            {guard.dynamic_threshold?.enabled && (
+              <span className="inline-flex items-center gap-0.5 rounded bg-[#7b8cff]/10 border border-[#7b8cff]/20 px-1.5 py-0.5 text-[9px] font-mono text-[#7b8cff]">
+                <Zap className="h-2.5 w-2.5" />
+                <span className="text-[#7b8cff]/60">dynamic:</span>
+                <span>{guard.dynamic_threshold.min_val}–{guard.dynamic_threshold.max_val}</span>
+              </span>
+            )}
           </div>
         </div>
 
@@ -466,6 +474,37 @@ function GuardCard({
               disabled={isUpdating}
             />
           ))}
+
+          {guard.dynamic_threshold?.enabled && (
+            <div className="mt-2 pt-2.5 border-t border-[var(--to-border-subtle)]">
+              <div className="flex items-center gap-1.5 mb-2">
+                <Zap className="h-3 w-3 text-[#7b8cff]" />
+                <span className="text-[10px] font-medium text-[#7b8cff]">Dynamic Threshold</span>
+              </div>
+              <p className="text-[9px] text-[var(--to-text-dim)] leading-relaxed mb-2">
+                {guard.dynamic_threshold.description}
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="rounded bg-[var(--to-bg)] border border-[var(--to-border-subtle)] px-2 py-1.5 text-center">
+                  <p className="text-[8px] text-[var(--to-text-dim)] uppercase tracking-wider">Base</p>
+                  <p className="text-xs font-mono font-semibold text-[var(--to-text-primary)]">{guard.dynamic_threshold.base}</p>
+                </div>
+                <div className="rounded bg-[#0ecb81]/5 border border-[#0ecb81]/15 px-2 py-1.5 text-center">
+                  <p className="text-[8px] text-[#0ecb81]/60 uppercase tracking-wider">Best</p>
+                  <p className="text-xs font-mono font-semibold text-[#0ecb81]">{guard.dynamic_threshold.min_val}</p>
+                </div>
+                <div className="rounded bg-[#f6465d]/5 border border-[#f6465d]/15 px-2 py-1.5 text-center">
+                  <p className="text-[8px] text-[#f6465d]/60 uppercase tracking-wider">Strictest</p>
+                  <p className="text-xs font-mono font-semibold text-[#f6465d]">{guard.dynamic_threshold.max_val}</p>
+                </div>
+              </div>
+              <div className="mt-2 space-y-0.5">
+                <p className="text-[8px] text-[var(--to-text-dim)]">London/NY: -5 | Asia/Sydney: +5</p>
+                <p className="text-[8px] text-[var(--to-text-dim)]">ADX&gt;30 (trending): -5 | ADX&lt;20 (choppy): +3</p>
+                <p className="text-[8px] text-[var(--to-text-dim)]">RVOL&gt;1.5 (high vol): +5 | RVOL&lt;0.8 (low vol): +8</p>
+              </div>
+            </div>
+          )}
 
           <div className="flex items-start gap-2 mt-2 pt-2.5 border-t border-[var(--to-border-subtle)]">
             <Info className="h-3 w-3 text-[var(--to-text-dim)] shrink-0 mt-0.5" />

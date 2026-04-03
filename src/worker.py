@@ -47,7 +47,7 @@ from src import logic
 from src.services.watchdog import TradeWatchdog
 from src.services.trailing_stop_manager import TrailingStopManager
 from src.services.breakeven_manager import BreakevenManager
-from src.services.liquidity_scorer import LiquidityScorer
+from src.services.liquidity_scorer import LiquidityScorer, compute_dynamic_departure_threshold
 from src.core.dynamic_config import clear_settings_cache, apply_time_based_rules
 
 configure_logging()
@@ -752,12 +752,17 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
         if liq_swept is not None and not bool(liq_swept):
             return "Liquidity not swept before entry (liq_swept=false)"
 
-    # --- Departure strength (arrival rule) ---
+    # --- Departure strength (arrival rule) — dynamic threshold ---
     dep_str = payload.get("departure_strength")
     if dep_str is not None and s.pine_min_departure_strength > 0:
         try:
-            if float(dep_str) < s.pine_min_departure_strength:
-                return f"Compressed arrival: departure_strength {dep_str} < {s.pine_min_departure_strength}"
+            dep_val = float(dep_str)
+            dep_threshold = compute_dynamic_departure_threshold(payload, s.pine_min_departure_strength)
+            if dep_val < dep_threshold:
+                return (
+                    f"Compressed arrival: departure_strength {dep_str} < "
+                    f"{dep_threshold:.0f} (dynamic, base={s.pine_min_departure_strength})"
+                )
         except (ValueError, TypeError):
             pass
 

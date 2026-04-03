@@ -20,6 +20,14 @@ export interface ThresholdConfig {
   unit: string;
 }
 
+export interface DynamicThresholdInfo {
+  enabled: boolean;
+  base: number;
+  min_val: number;
+  max_val: number;
+  description: string;
+}
+
 export interface GuardConfig {
   guard_id: string;
   name: string;
@@ -37,6 +45,7 @@ export interface GuardConfig {
   thresholds: ThresholdConfig[];
   rejection_count_7d: number;
   last_rejection_reason: string | null;
+  dynamic_threshold: DynamicThresholdInfo | null;
 }
 
 export interface GuardsConfigResponse {

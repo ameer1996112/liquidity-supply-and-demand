@@ -26,6 +26,7 @@ from src.core.guard_rails.guard_registry import (
     ThresholdDef,
 )
 from src.services.trade_events import log_event
+from src.services.liquidity_scorer import get_dynamic_threshold_info
 from src.adapters.supabase_api import get_api_supabase as get_supabase
 
 import logging
@@ -51,6 +52,14 @@ class ThresholdResponse(BaseModel):
     unit: str = ""
 
 
+class DynamicThresholdInfo(BaseModel):
+    enabled: bool = False
+    base: float = 0
+    min_val: float = 0
+    max_val: float = 0
+    description: str = ""
+
+
 class GuardResponse(BaseModel):
     guard_id: str
     name: str
@@ -68,6 +77,7 @@ class GuardResponse(BaseModel):
     thresholds: list[ThresholdResponse] = []
     rejection_count_7d: int = 0
     last_rejection_reason: Optional[str] = None
+    dynamic_threshold: Optional[DynamicThresholdInfo] = None
 
 
 class GuardsConfigResponse(BaseModel):
@@ -295,6 +305,19 @@ def get_guards_config():
         if not guard_stats:
             guard_stats = by_guard_stats.get(event_type, {})
 
+        # Attach dynamic threshold info for guards that use it
+        dyn_info = None
+        if guard.guard_id == "one_candle_liq_filter":
+            dt = get_dynamic_threshold_info()
+            dep_info = dt["departure"]
+            dyn_info = DynamicThresholdInfo(
+                enabled=True,
+                base=dep_info["base"],
+                min_val=dep_info["min"],
+                max_val=dep_info["max"],
+                description=dep_info["description"],
+            )
+
         resp = GuardResponse(
             guard_id=guard.guard_id,
             name=guard.name,
@@ -312,6 +335,7 @@ def get_guards_config():
             thresholds=threshold_responses,
             rejection_count_7d=guard_stats.get("count", 0),
             last_rejection_reason=guard_stats.get("last_reason"),
+            dynamic_threshold=dyn_info,
         )
 
         groups.setdefault(guard.group, []).append(resp)

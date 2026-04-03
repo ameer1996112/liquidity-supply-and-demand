@@ -26,26 +26,13 @@ MIN_EXECUTE_SCORE = 70   # Kept for backward compat (should_execute uses dynamic
 _RAW_MAX = 190           # Sum of all possible raw points (for normalization)
 
 
-def _compute_dynamic_threshold(payload: dict, market_cache: dict) -> int:
-    """Compute dynamic execution threshold based on market conditions.
+def _market_adjustments(payload: dict) -> dict:
+    """Compute market condition adjustments from payload fields.
 
-    Base: 65
-    Adjustments:
-      - RVOL (relative volume from Pine):
-          > 1.5 (high vol)  → +5 (more noise, be stricter)
-          0.8–1.5 (normal)  → 0
-          < 0.8 (low vol)   → +8 (thin market, be much stricter)
-      - Session:
-          London/NY (1,2)   → -5 (best liquidity, can relax)
-          Asia/Sydney (0,3) → +5 (thin, be stricter)
-      - ADX (trend strength from Pine):
-          > 30 (strong trend)  → -5 (trending = higher conviction setups)
-          20–30 (moderate)     → 0
-          < 20 (choppy/range)  → +3 (ranging = more false breaks)
-
-    Resulting range: 50–81 (clamped to 50–85 for safety)
+    Returns dict with individual adjustments and labels for logging/UI.
+    Used by both dynamic thresholds (composite and departure).
     """
-    threshold = _BASE_THRESHOLD
+    adj: dict = {"rvol": 0, "session": 0, "adx": 0, "labels": []}
 
     # --- RVOL adjustment ---
     rvol = payload.get("rvol")
@@ -53,10 +40,11 @@ def _compute_dynamic_threshold(payload: dict, market_cache: dict) -> int:
         try:
             rv = float(rvol)
             if rv > 1.5:
-                threshold += 5   # High vol → more noise
+                adj["rvol"] = 5    # High vol → more noise
+                adj["labels"].append(f"rvol={rv:.1f}(high)+5")
             elif rv < 0.8:
-                threshold += 8   # Low vol → thin market
-            # 0.8–1.5 = normal, no adjustment
+                adj["rvol"] = 8    # Low vol → thin market
+                adj["labels"].append(f"rvol={rv:.1f}(low)+8")
         except (ValueError, TypeError):
             pass
 
@@ -65,10 +53,13 @@ def _compute_dynamic_threshold(payload: dict, market_cache: dict) -> int:
     if session is not None:
         try:
             sv = int(session)
-            if sv in (1, 2):     # London or NY
-                threshold -= 5   # Best liquidity
-            elif sv in (0, 3):   # Asia or Sydney
-                threshold += 5   # Thin market
+            session_names = {0: "Asia", 1: "London", 2: "NY", 3: "Sydney"}
+            if sv in (1, 2):
+                adj["session"] = -5   # Best liquidity
+                adj["labels"].append(f"{session_names.get(sv, sv)}-5")
+            elif sv in (0, 3):
+                adj["session"] = 5    # Thin market
+                adj["labels"].append(f"{session_names.get(sv, sv)}+5")
         except (ValueError, TypeError):
             pass
 
@@ -78,16 +69,67 @@ def _compute_dynamic_threshold(payload: dict, market_cache: dict) -> int:
         try:
             av = float(adx)
             if av > 30:
-                threshold -= 5   # Strong trend = high conviction
+                adj["adx"] = -5   # Strong trend = high conviction
+                adj["labels"].append(f"adx={av:.0f}(trend)-5")
             elif av < 20:
-                threshold += 3   # Choppy = more false breaks
+                adj["adx"] = 3    # Choppy = more false breaks
+                adj["labels"].append(f"adx={av:.0f}(chop)+3")
         except (ValueError, TypeError):
             pass
 
-    # Clamp to safe range
-    threshold = max(50, min(85, threshold))
+    adj["total"] = adj["rvol"] + adj["session"] + adj["adx"]
+    return adj
 
-    return threshold
+
+def _compute_dynamic_threshold(payload: dict, market_cache: dict) -> int:
+    """Compute dynamic composite score threshold.
+
+    Base: 65. Adjusted by RVOL/session/ADX. Range: 50–85.
+    """
+    adj = _market_adjustments(payload)
+    return max(50, min(85, _BASE_THRESHOLD + adj["total"]))
+
+
+def compute_dynamic_departure_threshold(payload: dict, base_departure: float = 60.0) -> float:
+    """Compute dynamic departure strength threshold.
+
+    Base: from DB setting (default 60). Same market adjustments as composite,
+    but scaled ×0.8 since departure is a Pine-side pre-filter (less aggressive shift).
+
+    Range: clamped to 30–90.
+    """
+    adj = _market_adjustments(payload)
+    # Scale adjustments by 0.8 — departure is a softer pre-filter
+    scaled = adj["total"] * 0.8
+    threshold = base_departure + scaled
+    return max(30.0, min(90.0, threshold))
+
+
+def get_dynamic_threshold_info() -> dict:
+    """Return threshold range info for the UI (no payload needed)."""
+    return {
+        "composite": {
+            "base": _BASE_THRESHOLD,
+            "min": 50,
+            "max": 85,
+            "description": "Dynamic: base 65, adjusted by RVOL/session/ADX",
+        },
+        "departure": {
+            "base": 60,
+            "min": 30,
+            "max": 90,
+            "scale": 0.8,
+            "description": "Dynamic: base from setting, same adjustments scaled x0.8",
+        },
+        "adjustments": [
+            {"condition": "London/NY session", "effect": -5, "reason": "Best liquidity"},
+            {"condition": "Asia/Sydney session", "effect": 5, "reason": "Thin market"},
+            {"condition": "ADX > 30 (trending)", "effect": -5, "reason": "High conviction"},
+            {"condition": "ADX < 20 (choppy)", "effect": 3, "reason": "More false breaks"},
+            {"condition": "RVOL > 1.5 (high vol)", "effect": 5, "reason": "More noise"},
+            {"condition": "RVOL < 0.8 (low vol)", "effect": 8, "reason": "Thin market"},
+        ],
+    }
 
 # ---------------------------------------------------------------------------
 # Component weights
