@@ -953,3 +953,156 @@ def dispatch_payload_async(
         dispatch_payload(payload, supabase_client, notification_service)
 
     _notification_executor.submit(_send)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Chart screenshot delivery: edit existing messages with chart image
+# ═══════════════════════════════════════════════════════════════════════════
+
+def edit_discord_message_with_chart(
+    channel_id: str,
+    message_id: str,
+    chart_png: bytes,
+    signal_id: int,
+) -> bool:
+    """
+    Edit a Discord message to attach a chart screenshot image.
+    Uses Discord Bot API (requires DISCORD_BOT_TOKEN).
+    Returns True on success.
+    """
+    s = get_settings()
+    bot_token = getattr(s, "discord_bot_token", "")
+    if not bot_token or not channel_id or not message_id:
+        return False
+
+    try:
+        import json as _json
+
+        url = f"https://discord.com/api/v10/channels/{channel_id}/messages/{message_id}"
+        headers = {"Authorization": f"Bot {bot_token}"}
+
+        # First fetch the existing message to preserve the embed
+        get_resp = requests.get(url, headers=headers, timeout=10)
+        if get_resp.status_code != 200:
+            logger.warning("Failed to fetch Discord message for chart edit: HTTP %s", get_resp.status_code)
+            return False
+
+        existing = get_resp.json()
+        embeds = existing.get("embeds", [])
+
+        # Add chart as the embed image via attachment
+        if embeds:
+            embeds[0]["image"] = {"url": "attachment://chart.png"}
+
+        # PATCH with multipart: embed + file
+        payload_json = _json.dumps({"embeds": embeds})
+        files = {
+            "payload_json": (None, payload_json, "application/json"),
+            "files[0]": ("chart.png", chart_png, "image/png"),
+        }
+        patch_resp = requests.patch(url, headers=headers, files=files, timeout=15)
+
+        if patch_resp.status_code == 200:
+            logger.info("Chart attached to Discord message %s for signal #%s", message_id, signal_id)
+            return True
+        else:
+            logger.warning(
+                "Discord chart edit failed HTTP %s: %s",
+                patch_resp.status_code, patch_resp.text[:200] if patch_resp.text else "",
+            )
+            return False
+    except Exception:
+        logger.error("Discord chart edit error for signal #%s", signal_id, exc_info=True)
+        return False
+
+
+def send_telegram_chart(
+    chart_png: bytes,
+    signal_id: int,
+    reply_to_message_id: Optional[int] = None,
+) -> bool:
+    """
+    Send a chart screenshot as a Telegram photo.
+    Sends as reply to the original signal message if reply_to_message_id is provided.
+    Returns True on success.
+    """
+    s = get_settings()
+    if not s.telegram_bot_token or not s.telegram_chat_id:
+        return False
+
+    try:
+        url = f"https://api.telegram.org/bot{s.telegram_bot_token}/sendPhoto"
+        data = {
+            "chat_id": s.telegram_chat_id,
+            "caption": f"📊 Trade Setup Chart — Signal #{signal_id}",
+        }
+        if reply_to_message_id:
+            data["reply_to_message_id"] = reply_to_message_id
+
+        files = {"photo": ("chart.png", chart_png, "image/png")}
+        r = requests.post(url, data=data, files=files, timeout=15)
+
+        if r.status_code == 200:
+            logger.info("Chart sent to Telegram for signal #%s", signal_id)
+            return True
+        else:
+            logger.warning("Telegram chart send failed HTTP %s: %s", r.status_code, r.text[:200])
+            return False
+    except Exception:
+        logger.error("Telegram chart send error for signal #%s", signal_id, exc_info=True)
+        return False
+
+
+def send_chart_to_channels_async(
+    chart_png: bytes,
+    signal_id: int,
+    supabase_client=None,
+) -> None:
+    """
+    Non-blocking: send chart to Discord and Telegram in background.
+    Fetches message IDs from DB, then edits Discord / sends Telegram photo.
+    """
+    def _send():
+        try:
+            discord_msg_id = None
+            telegram_msg_id = None
+
+            if supabase_client and signal_id:
+                try:
+                    rec = (
+                        supabase_client.table("trading_signals")
+                        .select("discord_message_id, telegram_message_id")
+                        .eq("id", signal_id)
+                        .maybe_single()
+                        .execute()
+                    )
+                    if rec and rec.data:
+                        discord_msg_id = rec.data.get("discord_message_id")
+                        telegram_msg_id = rec.data.get("telegram_message_id")
+                except Exception:
+                    logger.warning("Could not fetch message IDs for chart delivery, signal #%s", signal_id)
+
+            # Discord: need channel_id -- extract from webhook URL or use bot token
+            s = get_settings()
+            if discord_msg_id and getattr(s, "discord_bot_token", ""):
+                # We need channel_id. Try fetching it via the bot API.
+                try:
+                    # Parse channel from webhook URL (format: .../webhooks/{id}/{token})
+                    # Or use the signals channel ID if configured
+                    channel_id = getattr(s, "discord_signals_channel_id", "")
+                    if channel_id:
+                        edit_discord_message_with_chart(channel_id, discord_msg_id, chart_png, signal_id)
+                except Exception:
+                    logger.warning("Discord chart edit skipped -- no channel_id for signal #%s", signal_id)
+
+            # Telegram: send as reply
+            if telegram_msg_id:
+                send_telegram_chart(chart_png, signal_id, reply_to_message_id=int(telegram_msg_id))
+            else:
+                # No reply target -- send standalone
+                send_telegram_chart(chart_png, signal_id)
+
+        except Exception:
+            logger.error("Chart channel delivery error for signal #%s", signal_id, exc_info=True)
+
+    _notification_executor.submit(_send)

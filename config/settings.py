@@ -269,6 +269,18 @@ class Settings(BaseSettings):
         description="Min win-rate edge (allowed - blocked) % to enable enforce.",
         validation_alias="AI_GRADUATION_MIN_EDGE_PCT",
     )
+    # Chart screenshots in notifications (default off -- enable after testing)
+    chart_notifications_enabled: bool = Field(
+        default=False,
+        description="Generate candlestick chart screenshots and attach to Discord/Telegram notifications.",
+        validation_alias="CHART_NOTIFICATIONS_ENABLED",
+    )
+    discord_signals_channel_id: str = Field(
+        default="",
+        description="Discord channel ID for signals (needed to edit messages with chart images).",
+        validation_alias="DISCORD_SIGNALS_CHANNEL_ID",
+    )
+
     # Sprint 4.3: Reflection + Memory loop (optional, default off)
     memory_enabled: bool = Field(
         default=False,
