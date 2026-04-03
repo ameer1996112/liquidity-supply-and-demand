@@ -121,6 +121,9 @@ _htf_filter_cache: dict = {"enabled": None, "minutes": None, "period": None, "ho
 # 1-candle liquidity filter cache — DB overrides Pydantic defaults (30s TTL)
 _one_candle_liq_cache: dict = {"enabled": None, "min_departure": None, "loaded_at": 0.0}
 
+# Trading hours cache — DB overrides env defaults (30s TTL)
+_trading_hours_cache: dict = {"start": None, "end": None, "loaded_at": 0.0}
+
 
 def _get_htf_filter_settings(s) -> tuple[bool, int, int, bool]:
     """Return (htf_enabled, htf_block_minutes, htf_period, htf_hourly_close) from DB (30s cache), falling back to Pydantic settings."""
@@ -194,6 +197,37 @@ def _get_one_candle_liq_settings(s) -> tuple[bool, float]:
     _one_candle_liq_cache["min_departure"] = min_dep
     _one_candle_liq_cache["loaded_at"] = now
     return enabled, min_dep
+
+
+def _get_trading_hours(s) -> tuple[int, int]:
+    """Return (start_hour, end_hour) from DB (30s cache), falling back to Pydantic settings."""
+    now = time.time()
+    if now - _trading_hours_cache["loaded_at"] < _SYSTEM_MODE_CACHE_TTL and _trading_hours_cache["start"] is not None:
+        return _trading_hours_cache["start"], _trading_hours_cache["end"]
+    try:
+        sb = _get_fresh_supabase()
+        if sb:
+            rows = (
+                sb.table("system_config")
+                .select("key,value")
+                .in_("key", ["pine_trading_start_hour_local", "pine_trading_end_hour_local"])
+                .execute()
+            )
+            kv = {r["key"]: r["value"] for r in (rows.data or [])}
+            raw_start = kv.get("pine_trading_start_hour_local")
+            raw_end = kv.get("pine_trading_end_hour_local")
+            start = int(raw_start) if raw_start is not None else getattr(s, "pine_trading_start_hour_local", 6)
+            end = int(raw_end) if raw_end is not None else getattr(s, "pine_trading_end_hour_local", 22)
+        else:
+            start = getattr(s, "pine_trading_start_hour_local", 6)
+            end = getattr(s, "pine_trading_end_hour_local", 22)
+    except Exception:
+        start = getattr(s, "pine_trading_start_hour_local", 6)
+        end = getattr(s, "pine_trading_end_hour_local", 22)
+    _trading_hours_cache["start"] = start
+    _trading_hours_cache["end"] = end
+    _trading_hours_cache["loaded_at"] = now
+    return start, end
 
 
 # Singleton scorer — stateless, safe to share across threads
@@ -838,9 +872,8 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
         except Exception:
             pass  # fail-open
 
-    # --- Trading hours (local timezone, auto-DST) ---
-    start_local = getattr(s, "pine_trading_start_hour_local", s.pine_trading_start_hour)
-    end_local = getattr(s, "pine_trading_end_hour_local", s.pine_trading_end_hour)
+    # --- Trading hours (local timezone, auto-DST) — DB-backed with env fallback ---
+    start_local, end_local = _get_trading_hours(s)
     tz_name = getattr(s, "pine_trading_timezone", "UTC")
     if start_local != 0 or end_local != 23:
         bar_time = payload.get("bar_time")

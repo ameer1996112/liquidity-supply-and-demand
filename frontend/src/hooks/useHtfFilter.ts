@@ -10,6 +10,8 @@ export interface HtfFilterSettings {
   block_before_hourly_close: boolean;
   block_one_candle_liq: boolean;
   one_candle_liq_min_departure: number;
+  trading_start_hour: number;
+  trading_end_hour: number;
 }
 
 const QUERY_KEY = ['config', 'pine-filters'] as const;
@@ -47,7 +49,7 @@ export function useHtfFilter() {
   });
 
   return {
-    settings: query.data ?? { htf_candle_filter_enabled: true, htf_candle_block_minutes: 5, htf_candle_period: 30, block_before_hourly_close: true, block_one_candle_liq: true, one_candle_liq_min_departure: 60 },
+    settings: query.data ?? { htf_candle_filter_enabled: true, htf_candle_block_minutes: 5, htf_candle_period: 30, block_before_hourly_close: true, block_one_candle_liq: true, one_candle_liq_min_departure: 60, trading_start_hour: 6, trading_end_hour: 22 },
     isLoading: query.isLoading,
     isSaving: mutation.isPending,
     update: mutation.mutate,

@@ -508,12 +508,18 @@ function DrawdownCard({ data }: { data: any }) {
 }
 
  
+const HOUR_PRESETS_START = [5, 6, 7, 8, 9] as const;
+const HOUR_PRESETS_END = [20, 21, 22, 23] as const;
+
 function ActiveSettingsCard({ data }: { data: any }) {
+  const { settings, isSaving, update } = useHtfFilter();
+  const startHour = settings.trading_start_hour;
+  const endHour = settings.trading_end_hour;
+
   const rows = [
     { label: 'Risk/Trade', value: `${data.risk_per_trade_pct}%` },
     { label: 'Min R:R', value: data.min_rr_ratio.toFixed(1) },
     { label: 'SL Buffer', value: `${data.stop_loss_buffer_pips} pips` },
-    { label: 'Trading Hours', value: `${data.trading_hours_utc} UTC` },
     { label: 'Max Trades/Day', value: String(data.max_trades_per_day) },
     {
       label: 'Hourly Close Block',
@@ -547,6 +553,78 @@ function ActiveSettingsCard({ data }: { data: any }) {
             </span>
           </div>
         ))}
+      </div>
+
+      {/* Trading Hours — editable */}
+      <div className='mt-3 pt-3 border-t border-[var(--to-border)]'>
+        <div
+          className='mb-1.5 text-[9px] uppercase tracking-[0.15em] text-[var(--to-text-dim)]'
+          style={{ fontFamily: 'var(--font-mono)' }}
+        >
+          Trading hours (Israel)
+        </div>
+        <div className='space-y-1.5'>
+          <div className='flex items-center gap-2'>
+            <span className='text-[10px] text-[var(--to-text-dim)] w-10' style={{ fontFamily: 'var(--font-mono)' }}>Start</span>
+            <div className='flex gap-1 flex-1'>
+              {HOUR_PRESETS_START.map((h) => {
+                const isActive = startHour === h;
+                return (
+                  <button
+                    key={h}
+                    disabled={isSaving}
+                    onClick={() => update({ trading_start_hour: h })}
+                    className={cn(
+                      'flex flex-1 items-center justify-center rounded-md py-1 text-[10px] font-medium transition-all duration-150',
+                      isActive ? 'opacity-100' : 'opacity-40 hover:opacity-70'
+                    )}
+                    style={isActive ? {
+                      background: 'var(--to-accent-blue)18',
+                      border: '1px solid var(--to-accent-blue)40',
+                      color: 'var(--to-accent-blue)',
+                    } : {
+                      background: 'transparent',
+                      border: '1px solid transparent',
+                      color: 'var(--to-text-dim)',
+                    }}
+                  >
+                    {h}:00
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className='flex items-center gap-2'>
+            <span className='text-[10px] text-[var(--to-text-dim)] w-10' style={{ fontFamily: 'var(--font-mono)' }}>End</span>
+            <div className='flex gap-1 flex-1'>
+              {HOUR_PRESETS_END.map((h) => {
+                const isActive = endHour === h;
+                return (
+                  <button
+                    key={h}
+                    disabled={isSaving}
+                    onClick={() => update({ trading_end_hour: h })}
+                    className={cn(
+                      'flex flex-1 items-center justify-center rounded-md py-1 text-[10px] font-medium transition-all duration-150',
+                      isActive ? 'opacity-100' : 'opacity-40 hover:opacity-70'
+                    )}
+                    style={isActive ? {
+                      background: 'var(--to-accent-blue)18',
+                      border: '1px solid var(--to-accent-blue)40',
+                      color: 'var(--to-accent-blue)',
+                    } : {
+                      background: 'transparent',
+                      border: '1px solid transparent',
+                      color: 'var(--to-text-dim)',
+                    }}
+                  >
+                    {h}:00
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       </div>
     </PanelCard>
   );

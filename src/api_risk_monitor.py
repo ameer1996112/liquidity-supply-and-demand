@@ -21,6 +21,25 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/risk", tags=["risk-monitor"])
 
 
+def _get_trading_hours_for_display(settings) -> str:
+    """Read trading hours from DB (system_config), fallback to settings."""
+    try:
+        sb = get_supabase()
+        rows = (
+            sb.table("system_config")
+            .select("key,value")
+            .in_("key", ["pine_trading_start_hour_local", "pine_trading_end_hour_local"])
+            .execute()
+        )
+        kv = {r["key"]: r["value"] for r in (rows.data or [])}
+        start = int(kv.get("pine_trading_start_hour_local", str(getattr(settings, "pine_trading_start_hour_local", 6))))
+        end = int(kv.get("pine_trading_end_hour_local", str(getattr(settings, "pine_trading_end_hour_local", 22))))
+    except Exception:
+        start = getattr(settings, "pine_trading_start_hour_local", 6)
+        end = getattr(settings, "pine_trading_end_hour_local", 22)
+    return f"{start}-{end}"
+
+
 class DailyRiskStatus(BaseModel):
     loss_used_usd: float
     loss_limit_usd: float
@@ -215,7 +234,7 @@ async def get_risk_monitor():
         risk_per_trade_pct=settings.risk_percent,
         min_rr_ratio=settings.min_rr_ratio,
         stop_loss_buffer_pips=1.0,  # Pine default
-        trading_hours_utc=f"{settings.pine_trading_start_hour}-{settings.pine_trading_end_hour}",
+        trading_hours_utc=f"{_get_trading_hours_for_display(settings)}",
         max_trades_per_day=max_trades_today,
         hourly_close_block_enabled=settings.pine_block_dead_zone,
         account_balance_usd=settings.account_balance,

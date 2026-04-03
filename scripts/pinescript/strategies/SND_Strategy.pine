@@ -262,7 +262,7 @@ max_trades_per_day = input.int(2, "   └─ Max Trades/Day", minval = 1, maxval
 
 filter_dead_zone = false  // Handled by backend risk page
 filter_trading_hours = input.bool(true, "Trading Hours Only", group = "⏰ Session & Limits")
-trading_start_hour = input.int(7, "   └─ Start Hour (UTC)", minval = 0, maxval = 23, group = "⏰ Session & Limits")
+trading_start_hour = input.int(6, "   └─ Start Hour (UTC)", minval = 0, maxval = 23, group = "⏰ Session & Limits")
 trading_end_hour = input.int(22, "   └─ End Hour (UTC)", minval = 0, maxval = 23, group = "⏰ Session & Limits")
 require_htf_flip = input.bool(true, "HTF Flip Context", group = "🤖 AI & Grade Filters")
 

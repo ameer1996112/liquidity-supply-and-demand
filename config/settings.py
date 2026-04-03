@@ -307,10 +307,10 @@ class Settings(BaseSettings):
     pine_one_candle_liq_min_departure: float = Field(default=60.0, ge=0.0, le=100.0, description="Min departure_strength required to allow a 1-candle liquidity setup when pine_block_one_candle_liq=True.")
     pine_htf_candle_filter_enabled: bool = Field(default=True, description="Block all entries 10 min before each 15-min HTF candle open (xx:05-14, xx:20-29, xx:35-44, xx:50-59). At candle opens (xx:00/15/30/45) only FLIP entries are allowed. Env: PINE_HTF_CANDLE_FILTER_ENABLED.")
     pine_htf_candle_block_minutes: int = Field(default=5, ge=1, le=14, description="How many minutes before each 15-min candle to block signals. Default: 5. Env: PINE_HTF_CANDLE_BLOCK_MINUTES.")
-    pine_trading_start_hour: int = Field(default=7, ge=0, le=23, description="[Deprecated: use pine_trading_start_hour_local] Trading start hour (UTC). Kept for backward compat.")
+    pine_trading_start_hour: int = Field(default=6, ge=0, le=23, description="[Deprecated: use pine_trading_start_hour_local] Trading start hour (UTC). Kept for backward compat.")
     pine_trading_end_hour: int = Field(default=22, ge=0, le=23, description="[Deprecated: use pine_trading_end_hour_local] Trading end hour (UTC). Kept for backward compat.")
     pine_trading_timezone: str = Field(default="Asia/Jerusalem", description="Timezone for trading hour interpretation. Default: Asia/Jerusalem (Israel, auto-DST). Env: PINE_TRADING_TIMEZONE.")
-    pine_trading_start_hour_local: int = Field(default=7, ge=0, le=23, description="Trading start hour in local timezone (pine_trading_timezone). 7=07:00 Israel. Env: PINE_TRADING_START_HOUR_LOCAL.")
+    pine_trading_start_hour_local: int = Field(default=6, ge=0, le=23, description="Trading start hour in local timezone (pine_trading_timezone). 6=06:00 Israel. Env: PINE_TRADING_START_HOUR_LOCAL.")
     pine_trading_end_hour_local: int = Field(default=22, ge=0, le=23, description="Trading end hour in local timezone (pine_trading_timezone). 22=22:00 Israel. Env: PINE_TRADING_END_HOUR_LOCAL.")
     pine_max_trades_per_day: int = Field(default=0, ge=0, le=20, description="Legacy static daily trade cap (0=use adaptive system). Env: PINE_MAX_TRADES_PER_DAY.")
 

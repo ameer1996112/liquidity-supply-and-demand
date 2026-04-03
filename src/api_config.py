@@ -50,6 +50,8 @@ class HtfFilterResponse(BaseModel):
     block_before_hourly_close: bool
     block_one_candle_liq: bool
     one_candle_liq_min_departure: float
+    trading_start_hour: int
+    trading_end_hour: int
 
 
 class PatchHtfFilterRequest(BaseModel):
@@ -59,6 +61,8 @@ class PatchHtfFilterRequest(BaseModel):
     block_before_hourly_close: bool | None = None
     block_one_candle_liq: bool | None = None
     one_candle_liq_min_departure: float | None = Field(default=None, ge=0.0, le=100.0)
+    trading_start_hour: int | None = Field(default=None, ge=0, le=23)
+    trading_end_hour: int | None = Field(default=None, ge=0, le=23)
 
 
 # ── Endpoints ─────────────────────────────────────────────
@@ -108,6 +112,8 @@ _HTF_PERIOD_KEY = "pine_htf_candle_period"
 _OCL_ENABLED_KEY = "pine_block_one_candle_liq"
 _OCL_MIN_DEP_KEY = "pine_one_candle_liq_min_departure"
 _HOURLY_CLOSE_KEY = "pine_block_before_hourly_close"
+_TRADING_START_KEY = "pine_trading_start_hour_local"
+_TRADING_END_KEY = "pine_trading_end_hour_local"
 
 _VALID_HTF_PERIODS = (30, 60)
 
@@ -117,6 +123,7 @@ def _invalidate_htf_cache() -> None:
         import src.worker as _worker
         _worker._htf_filter_cache["loaded_at"] = 0.0
         _worker._one_candle_liq_cache["loaded_at"] = 0.0
+        _worker._trading_hours_cache["loaded_at"] = 0.0
     except Exception:
         pass
 
@@ -126,10 +133,12 @@ def get_pine_filters():
     """Return current pine filter settings (HTF candle block + 1-candle liquidity filter)."""
     try:
         sb = _get_supabase()
+        from config import get_settings as _get_settings
+        _s = _get_settings()
         rows = (
             sb.table("system_config")
             .select("key,value")
-            .in_("key", [_HTF_ENABLED_KEY, _HTF_MINUTES_KEY, _HTF_PERIOD_KEY, _HOURLY_CLOSE_KEY, _OCL_ENABLED_KEY, _OCL_MIN_DEP_KEY])
+            .in_("key", [_HTF_ENABLED_KEY, _HTF_MINUTES_KEY, _HTF_PERIOD_KEY, _HOURLY_CLOSE_KEY, _OCL_ENABLED_KEY, _OCL_MIN_DEP_KEY, _TRADING_START_KEY, _TRADING_END_KEY])
             .execute()
         )
         kv = {r["key"]: r["value"] for r in (rows.data or [])}
@@ -141,6 +150,8 @@ def get_pine_filters():
         hourly_close = kv.get(_HOURLY_CLOSE_KEY, "true").lower() != "false"
         ocl_enabled = kv.get(_OCL_ENABLED_KEY, "true").lower() != "false"
         ocl_min_dep = float(kv.get(_OCL_MIN_DEP_KEY, "60.0"))
+        trading_start = int(kv.get(_TRADING_START_KEY, str(getattr(_s, "pine_trading_start_hour_local", 6))))
+        trading_end = int(kv.get(_TRADING_END_KEY, str(getattr(_s, "pine_trading_end_hour_local", 22))))
         return {
             "htf_candle_filter_enabled": htf_enabled,
             "htf_candle_block_minutes": htf_minutes,
@@ -148,6 +159,8 @@ def get_pine_filters():
             "block_before_hourly_close": hourly_close,
             "block_one_candle_liq": ocl_enabled,
             "one_candle_liq_min_departure": ocl_min_dep,
+            "trading_start_hour": trading_start,
+            "trading_end_hour": trading_end,
         }
     except Exception as e:
         logger.error(f"Failed to fetch pine filter settings: {e}")
@@ -188,6 +201,16 @@ def patch_pine_filters(body: PatchHtfFilterRequest):
         if body.one_candle_liq_min_departure is not None:
             sb.table("system_config").upsert(
                 {"key": _OCL_MIN_DEP_KEY, "value": str(body.one_candle_liq_min_departure)},
+                on_conflict="key",
+            ).execute()
+        if body.trading_start_hour is not None:
+            sb.table("system_config").upsert(
+                {"key": _TRADING_START_KEY, "value": str(body.trading_start_hour)},
+                on_conflict="key",
+            ).execute()
+        if body.trading_end_hour is not None:
+            sb.table("system_config").upsert(
+                {"key": _TRADING_END_KEY, "value": str(body.trading_end_hour)},
                 on_conflict="key",
             ).execute()
         _invalidate_htf_cache()
