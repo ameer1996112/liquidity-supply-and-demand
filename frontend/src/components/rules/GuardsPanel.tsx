@@ -389,7 +389,22 @@ function GuardCard({
             )}
           </div>
           <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-            {guard.thresholds.length > 0 ? (
+            {guard.dynamic_threshold?.enabled ? (
+              /* For guards with dynamic thresholds, show a single merged pill */
+              guard.thresholds.filter((th) => th.value_type !== 'bool').map((th) => (
+                <span
+                  key={th.setting_key}
+                  className="inline-flex items-center gap-1 rounded bg-[#7b8cff]/10 border border-[#7b8cff]/20 px-1.5 py-0.5 text-[9px] font-mono text-[#7b8cff]"
+                >
+                  <Zap className="h-2.5 w-2.5" />
+                  <span className="text-[#7b8cff]/60">{th.name}:</span>
+                  <span className="text-[var(--to-text-primary)]">{th.current_value}</span>
+                  <span className="text-[#7b8cff]/40">|</span>
+                  <span className="text-[#7b8cff]/60">range</span>
+                  <span>{guard.dynamic_threshold.min_val}–{guard.dynamic_threshold.max_val}</span>
+                </span>
+              ))
+            ) : guard.thresholds.length > 0 ? (
               guard.thresholds.filter((th) => th.value_type !== 'bool').map((th) => (
                 <span
                   key={th.setting_key}
@@ -404,13 +419,6 @@ function GuardCard({
               <p className="text-[10px] text-[var(--to-text-dim)] truncate">
                 {guard.user_description}
               </p>
-            )}
-            {guard.dynamic_threshold?.enabled && (
-              <span className="inline-flex items-center gap-0.5 rounded bg-[#7b8cff]/10 border border-[#7b8cff]/20 px-1.5 py-0.5 text-[9px] font-mono text-[#7b8cff]">
-                <Zap className="h-2.5 w-2.5" />
-                <span className="text-[#7b8cff]/60">dynamic:</span>
-                <span>{guard.dynamic_threshold.min_val}–{guard.dynamic_threshold.max_val}</span>
-              </span>
             )}
           </div>
         </div>
