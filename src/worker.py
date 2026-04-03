@@ -781,8 +781,9 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
 
                     # Composite score (market_cache empty until MetaAPI cache is wired)
                     result = _liquidity_scorer.score(payload, market_cache={})
-                    # Attach score to payload so save_alert persists it to DB
+                    # Attach score + threshold to payload so save_alert persists it to DB
                     payload["liquidity_score"] = result["score"]
+                    payload["liquidity_threshold"] = result["threshold"]
                     if not result["execute"]:
                         return f"1-candle liquidity blocked: {result['reason']}"
 

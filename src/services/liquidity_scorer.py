@@ -8,7 +8,7 @@ Score components (max ~190 raw pts, normalized to 0–100):
   2. Market Context (60s MetaAPI cache)   — up to 70 pts
   3. Historical Win Rate (Supabase query) — up to 20 pts
 
-Minimum score to execute: 70 / 100
+Dynamic threshold: base 65, adjusted by RVOL / session / ADX.
 """
 
 from __future__ import annotations
@@ -21,8 +21,73 @@ logger = logging.getLogger("trinity.liquidity_scorer")
 # ---------------------------------------------------------------------------
 # Score thresholds
 # ---------------------------------------------------------------------------
-MIN_EXECUTE_SCORE = 70   # Trades scoring below this are rejected
+_BASE_THRESHOLD = 65     # Base threshold (lowered from fixed 70)
+MIN_EXECUTE_SCORE = 70   # Kept for backward compat (should_execute uses dynamic now)
 _RAW_MAX = 190           # Sum of all possible raw points (for normalization)
+
+
+def _compute_dynamic_threshold(payload: dict, market_cache: dict) -> int:
+    """Compute dynamic execution threshold based on market conditions.
+
+    Base: 65
+    Adjustments:
+      - RVOL (relative volume from Pine):
+          > 1.5 (high vol)  → +5 (more noise, be stricter)
+          0.8–1.5 (normal)  → 0
+          < 0.8 (low vol)   → +8 (thin market, be much stricter)
+      - Session:
+          London/NY (1,2)   → -5 (best liquidity, can relax)
+          Asia/Sydney (0,3) → +5 (thin, be stricter)
+      - ADX (trend strength from Pine):
+          > 30 (strong trend)  → -5 (trending = higher conviction setups)
+          20–30 (moderate)     → 0
+          < 20 (choppy/range)  → +3 (ranging = more false breaks)
+
+    Resulting range: 50–81 (clamped to 50–85 for safety)
+    """
+    threshold = _BASE_THRESHOLD
+
+    # --- RVOL adjustment ---
+    rvol = payload.get("rvol")
+    if rvol is not None:
+        try:
+            rv = float(rvol)
+            if rv > 1.5:
+                threshold += 5   # High vol → more noise
+            elif rv < 0.8:
+                threshold += 8   # Low vol → thin market
+            # 0.8–1.5 = normal, no adjustment
+        except (ValueError, TypeError):
+            pass
+
+    # --- Session adjustment ---
+    session = payload.get("session")
+    if session is not None:
+        try:
+            sv = int(session)
+            if sv in (1, 2):     # London or NY
+                threshold -= 5   # Best liquidity
+            elif sv in (0, 3):   # Asia or Sydney
+                threshold += 5   # Thin market
+        except (ValueError, TypeError):
+            pass
+
+    # --- ADX adjustment ---
+    adx = payload.get("adx")
+    if adx is not None:
+        try:
+            av = float(adx)
+            if av > 30:
+                threshold -= 5   # Strong trend = high conviction
+            elif av < 20:
+                threshold += 3   # Choppy = more false breaks
+        except (ValueError, TypeError):
+            pass
+
+    # Clamp to safe range
+    threshold = max(50, min(85, threshold))
+
+    return threshold
 
 # ---------------------------------------------------------------------------
 # Component weights
@@ -193,6 +258,7 @@ class LiquidityScorer:
         Returns dict with keys:
           - score (int, 0–100)
           - raw (int)
+          - threshold (int, dynamic)
           - breakdown (dict of component scores)
           - execute (bool)
           - reason (str, for logging)
@@ -206,26 +272,35 @@ class LiquidityScorer:
 
         raw = c1_pts + c2_pts + c3_pts
         normalized = int((raw / _RAW_MAX) * 100)
-        execute = normalized >= MIN_EXECUTE_SCORE
+
+        # Dynamic threshold based on market conditions
+        threshold = _compute_dynamic_threshold(payload, market_cache)
+        execute = normalized >= threshold
 
         breakdown = {**c1_bd, **c2_bd, **c3_bd}
 
-        logger.debug(
-            "LiquidityScorer | symbol=%s side=%s raw=%d score=%d execute=%s | %s",
-            payload.get("symbol"), payload.get("side"), raw, normalized, execute, breakdown
+        logger.info(
+            "LiquidityScorer | symbol=%s side=%s raw=%d score=%d threshold=%d execute=%s "
+            "| rvol=%s adx=%s session=%s | %s",
+            payload.get("symbol"), payload.get("side"), raw, normalized,
+            threshold, execute,
+            payload.get("rvol"), payload.get("adx"), payload.get("session"),
+            breakdown,
         )
 
         return {
             "score": normalized,
             "raw": raw,
+            "threshold": threshold,
             "breakdown": breakdown,
             "execute": execute,
-            "reason": f"liquidity_score={normalized}/100 (raw={raw}/{_RAW_MAX})"
-                      + ("" if execute else f" — below threshold {MIN_EXECUTE_SCORE}"),
+            "reason": f"liquidity_score={normalized}/100 (threshold={threshold}, "
+                      f"raw={raw}/{_RAW_MAX})"
+                      + ("" if execute else f" — below dynamic threshold {threshold}"),
         }
 
-    def should_execute(self, score: int) -> bool:
-        return score >= MIN_EXECUTE_SCORE
+    def should_execute(self, score: int, threshold: Optional[int] = None) -> bool:
+        return score >= (threshold if threshold is not None else MIN_EXECUTE_SCORE)
 
     # ------------------------------------------------------------------
     # Hard gates — binary checks, independent of scoring
