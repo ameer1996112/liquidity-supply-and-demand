@@ -17,17 +17,53 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.services.chart_generator import generate_chart_async
 
 
-TEST_CASES = [
-    # (symbol, side, entry, sl, tp, zone_type)
-    ("EURUSD", "BUY", 1.0850, 1.0820, 1.0910, "demand"),
-    ("GBPJPY", "SELL", 193.500, 194.000, 192.500, "supply"),
-    ("USDJPY", "BUY", 149.500, 149.200, 150.100, None),
-    ("XAUUSD", "BUY", 2340.50, 2335.00, 2355.00, "demand"),
-    ("NAS100", "SELL", 18250.0, 18350.0, 18050.0, "supply"),
-    ("BTCUSD", "BUY", 68500.0, 67800.0, 70200.0, None),
-    ("NZDJPY", "BUY", 93.500, 93.200, 94.100, "demand"),
-    ("GBPCAD", "SELL", 1.7250, 1.7300, 1.7150, "supply"),
-]
+def _build_test_cases():
+    """Build test cases using current market prices so charts always look correct."""
+    import yfinance as yf
+    from src.services.chart_generator import YAHOO_TICKER_MAP
+
+    symbols = [
+        ("EURUSD", "BUY", "demand", 0.003, 0.006),    # SL 30 pips, TP 60 pips
+        ("GBPJPY", "SELL", "supply", 0.500, 1.000),
+        ("USDJPY", "BUY", None, 0.300, 0.600),
+        ("XAUUSD", "BUY", "demand", 10.0, 25.0),
+        ("BTCUSD", "BUY", None, 700.0, 1700.0),
+        ("GBPCAD", "SELL", "supply", 0.005, 0.010),
+    ]
+
+    cases = []
+    for symbol, side, zone_type, sl_dist, tp_dist in symbols:
+        ticker_str = YAHOO_TICKER_MAP.get(symbol)
+        if not ticker_str:
+            continue
+        try:
+            t = yf.Ticker(ticker_str)
+            df = t.history(period="1d", interval="15m")
+            if df.empty:
+                continue
+            price = float(df["Close"].iloc[-1])
+        except Exception:
+            continue
+
+        if side == "BUY":
+            entry = price
+            sl = price - sl_dist
+            tp = price + tp_dist
+        else:
+            entry = price
+            sl = price + sl_dist
+            tp = price - tp_dist
+
+        cases.append((symbol, side, entry, sl, tp, zone_type))
+
+    if not cases:
+        # Fallback with static prices if yfinance is unavailable
+        cases = [("EURUSD", "BUY", 1.1500, 1.1470, 1.1560, "demand")]
+
+    return cases
+
+
+TEST_CASES = None  # Built lazily
 
 
 def main():
@@ -37,7 +73,8 @@ def main():
         if arg != "--save":
             filter_symbol = arg.upper()
 
-    cases = TEST_CASES
+    print("Fetching current prices for test cases...")
+    cases = _build_test_cases()
     if filter_symbol:
         cases = [c for c in cases if c[0] == filter_symbol]
         if not cases:

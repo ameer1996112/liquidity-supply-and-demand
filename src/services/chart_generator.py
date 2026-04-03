@@ -4,6 +4,10 @@ Chart Generator Service -- Professional candlestick charts for trade notificatio
 Generates annotated candlestick charts with entry/SL/TP levels and zone shading,
 returns PNG bytes for direct upload to Discord/Telegram.
 
+Data source priority:
+  1. MetaAPI (broker candles -- most accurate, same data trades execute on)
+  2. yfinance (fallback -- free, covers all symbols)
+
 Non-blocking: uses ThreadPoolExecutor with hard timeout. Returns None on any failure.
 Trade execution is NEVER delayed -- chart generation happens after notification dispatch.
 """
@@ -20,6 +24,7 @@ matplotlib.use("Agg")  # Headless backend -- no GUI required
 import matplotlib.pyplot as plt  # noqa: E402
 import mplfinance as mpf  # noqa: E402
 import pandas as pd  # noqa: E402
+import requests as http_requests  # noqa: E402
 import yfinance as yf  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -34,7 +39,7 @@ _CIRCUIT_OPEN_DURATION = 900  # 15 minutes
 
 CHART_TIMEOUT_SEC = 10
 
-# Yahoo Finance ticker map (reuse from market_data.py, extended)
+# Yahoo Finance ticker map (fallback only)
 YAHOO_TICKER_MAP = {
     "XAUUSD": "GC=F",
     "XAGUSD": "SI=F",
@@ -59,7 +64,7 @@ YAHOO_TICKER_MAP = {
     "US30": "YM=F",
     "SPX500": "ES=F",
     "US500": "ES=F",
-    "GER40": "GC=F",  # DAX -- approximate via gold futures as fallback
+    "GER40": "GC=F",
 }
 
 # TradingView-like dark theme
@@ -145,10 +150,13 @@ def _generate_chart(
 ) -> Optional[bytes]:
     """Synchronous: fetch candles -> render -> return PNG bytes."""
 
-    # 1. Fetch candle data
-    df = _fetch_candles(symbol, count=50)
+    # 1. Fetch candle data: MetaAPI (broker) first, yfinance fallback
+    df = _fetch_candles_metaapi(symbol, count=50)
     if df is None or df.empty:
-        logger.warning("No candle data for chart: %s", symbol)
+        logger.info("MetaAPI candles unavailable for %s, falling back to yfinance", symbol)
+        df = _fetch_candles_yfinance(symbol, count=50)
+    if df is None or df.empty:
+        logger.warning("No candle data for chart from any source: %s", symbol)
         return None
 
     # 2. Render to bytes
@@ -158,13 +166,100 @@ def _generate_chart(
     )
 
 
-def _fetch_candles(symbol: str, count: int = 50) -> Optional[pd.DataFrame]:
-    """Fetch 15m candles from yfinance."""
+# ═══════════════════════════════════════════════════════════════════════════
+# Data source 1: MetaAPI (broker candles -- most accurate)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _fetch_candles_metaapi(symbol: str, count: int = 50) -> Optional[pd.DataFrame]:
+    """
+    Fetch candles from MetaAPI market data REST endpoint.
+    Uses the same broker connection that executes trades -- most accurate data.
+    """
+    try:
+        from src.core.metaapi_credentials import get_primary_credentials
+        from src.services.symbol_mapper import SymbolMapper
+    except ImportError:
+        logger.debug("MetaAPI modules not available for chart candles")
+        return None
+
+    try:
+        token, account_id, region = get_primary_credentials()
+        if not token or not account_id:
+            return None
+
+        # Translate symbol to broker format (e.g., GBPUSD -> GBPUSD.raw)
+        broker_symbol = symbol
+        try:
+            broker_symbol = SymbolMapper.to_broker_symbol(symbol) or symbol
+        except Exception:
+            pass
+
+        region = (region or "new-york").strip()
+        base_url = f"https://mt-client-api-v1.{region}.agiliumtrade.ai"
+        headers = {"auth-token": token.strip(), "Content-Type": "application/json"}
+
+        # MetaAPI historical candles endpoint: GET /users/current/accounts/{id}/historical-market-data/symbols/{symbol}/timeframes/15m/candles
+        # Fetch enough candles (request more than needed, trim to count)
+        url = (
+            f"{base_url}/users/current/accounts/{account_id.strip()}"
+            f"/historical-market-data/symbols/{broker_symbol}"
+            f"/timeframes/15m/candles"
+            f"?limit={count}"
+        )
+
+        resp = http_requests.get(url, headers=headers, timeout=8)
+
+        if resp.status_code != 200:
+            logger.debug("MetaAPI candles HTTP %s for %s", resp.status_code, symbol)
+            return None
+
+        candles = resp.json()
+        if not candles or not isinstance(candles, list) or len(candles) < 5:
+            return None
+
+        # Convert MetaAPI candle format to DataFrame
+        # MetaAPI returns: [{time, open, high, low, close, tickVolume, ...}]
+        rows = []
+        for c in candles:
+            rows.append({
+                "Date": pd.to_datetime(c.get("time")),
+                "Open": float(c.get("open", 0)),
+                "High": float(c.get("high", 0)),
+                "Low": float(c.get("low", 0)),
+                "Close": float(c.get("close", 0)),
+                "Volume": float(c.get("tickVolume", 0) or c.get("volume", 0) or 0),
+            })
+
+        df = pd.DataFrame(rows)
+        df.set_index("Date", inplace=True)
+        df.sort_index(inplace=True)
+        df = df.tail(count)
+        df.index.name = "Date"
+
+        logger.info("MetaAPI candles fetched for chart: %s (%d candles)", symbol, len(df))
+        return df
+
+    except Exception as e:
+        logger.debug("MetaAPI candle fetch failed for %s: %s", symbol, e)
+        return None
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Data source 2: yfinance (fallback -- free, delayed)
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _fetch_candles_yfinance(symbol: str, count: int = 50) -> Optional[pd.DataFrame]:
+    """Fetch 15m candles from yfinance (fallback when MetaAPI unavailable)."""
     ticker_str = YAHOO_TICKER_MAP.get(symbol.upper())
     if not ticker_str:
-        # Try common suffixes for forex
         s = symbol.upper()
-        if len(s) == 6 and s[:3].isalpha() and s[3:].isalpha():
+        # Strip broker suffixes like .raw, .ecn
+        for suffix in (".raw", ".ecn", ".std", ".pro"):
+            if s.endswith(suffix.upper()):
+                s = s[: -len(suffix)]
+        if s in YAHOO_TICKER_MAP:
+            ticker_str = YAHOO_TICKER_MAP[s]
+        elif len(s) == 6 and s[:3].isalpha() and s[3:].isalpha():
             ticker_str = f"{s}=X"
         else:
             logger.warning("No Yahoo ticker mapping for %s", symbol)
@@ -177,12 +272,12 @@ def _fetch_candles(symbol: str, count: int = 50) -> Optional[pd.DataFrame]:
             return None
         df = df.tail(count).copy()
         df.index.name = "Date"
-        # Ensure standard OHLCV columns
         for col in ["Open", "High", "Low", "Close", "Volume"]:
             if col not in df.columns:
                 cap = col.capitalize()
                 if cap in df.columns:
                     df.rename(columns={cap: col}, inplace=True)
+        logger.info("yfinance candles fetched for chart: %s (%d candles)", symbol, len(df))
         return df[["Open", "High", "Low", "Close", "Volume"]]
     except Exception as e:
         logger.warning("yfinance fetch failed for chart %s (%s): %s", symbol, ticker_str, e)
