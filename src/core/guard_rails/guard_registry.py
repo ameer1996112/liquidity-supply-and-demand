@@ -108,16 +108,16 @@ _register(GuardDefinition(
 
 _register(GuardDefinition(
     guard_id="max_lot_size",
-    setting_key="pine_max_lot_size",
+    setting_key="max_lot_size",  # Worker reads s.max_lot_size (settings.py field)
     name="Max Position Size",
     description="Rejects trades exceeding maximum lot size",
     user_description="Blocks any trade that tries to open a position larger than this limit. Prevents oversized trades from signal errors.",
     tier="critical",
     group="capital_protection",
     value_type="float",
-    default=10.0,
-    min_value=0.01,
-    max_value=100.0,
+    default=100.0,
+    min_value=0.1,
+    max_value=1000.0,
     unit="lots",
 ))
 
@@ -197,58 +197,54 @@ _register(GuardDefinition(
 ))
 
 _register(GuardDefinition(
-    guard_id="ai_filter",
-    setting_key="ai_filter_enabled",
-    name="AI Quality Filter",
-    description="ML ensemble evaluates trade quality before execution",
-    user_description="AI analyzes each trade signal and blocks low-quality setups. Can run in shadow mode (log only, never block) for testing.",
+    guard_id="ai_debate",
+    setting_key="ai_debate_enabled",  # Controls Trading Council (9-stage multi-agent pipeline)
+    name="AI Trading Council",
+    description="9-stage multi-agent debate pipeline evaluating trade quality",
+    user_description="AI analyzes each trade signal through multiple agents (Market Analyst, Bull/Bear Researchers, Risk Judge). Currently runs in shadow mode — logs analysis but does not block trades.",
+    tier="important",
+    group="trade_quality",
+    value_type="bool",
+    default=True,
+))
+
+_register(GuardDefinition(
+    guard_id="daily_trade_limit",
+    setting_key="pine_adaptive_enabled",  # Worker reads pine_guardian.adaptive_enabled
+    name="Adaptive Trade Limit",
+    description="Session-quality adaptive daily trade limit with streak adjustment",
+    user_description="Intelligently limits trades per day based on session (London/NY), your recent win streak, and risk budget. Fewer slots after losses, more after wins.",
     tier="important",
     group="trade_quality",
     value_type="bool",
     default=True,
     thresholds=[
-        ThresholdDef("ai_shadow_mode", "Shadow Mode (log only)", "bool", False, None, None, ""),
+        ThresholdDef("pine_max_trades_per_day", "Fallback Static Limit", "int", 0, 0, 20, "trades"),
+        ThresholdDef("pine_daily_risk_budget_pct", "Daily Risk Budget", "float", 3.0, 0.1, 20.0, "%"),
     ],
-))
-
-_register(GuardDefinition(
-    guard_id="daily_trade_limit",
-    setting_key="pine_daily_trade_slots",
-    name="Daily Trade Limit",
-    description="Adaptive daily trade limit based on recent performance",
-    user_description="Limits how many trades you can take per day. Automatically adjusts based on your recent win rate — fewer slots after losing streaks.",
-    tier="important",
-    group="trade_quality",
-    value_type="int",
-    default=2,
-    min_value=1,
-    max_value=10,
-    unit="trades/day",
 ))
 
 _register(GuardDefinition(
     guard_id="spread_gate",
     setting_key="spread_gate_enabled",
-    name="Spread Gate",
-    description="Blocks trades when bid-ask spread is too wide",
-    user_description="Blocks trades when the broker's spread is abnormally wide (low liquidity, news events). Prevents entering at bad prices.",
+    name="Minimum SL Distance",
+    description="Blocks trades where stop loss is too tight (spread would eat the trade)",
+    user_description="Rejects trades where the stop loss is too close to entry. If SL is smaller than the typical spread, the trade would likely be stopped out immediately. Minimum: 5 pips forex, 7 pips JPY, 30 pips gold, 10 points indices.",
     tier="important",
     group="trade_quality",
     value_type="bool",
     default=True,
+    thresholds=[
+        ThresholdDef("min_sl_pips_forex", "Min SL - Forex", "float", 5.0, 1.0, 20.0, "pips"),
+        ThresholdDef("min_sl_pips_jpy", "Min SL - JPY Pairs", "float", 7.0, 1.0, 20.0, "pips"),
+        ThresholdDef("min_sl_pips_gold", "Min SL - Gold/Silver", "float", 30.0, 5.0, 100.0, "pips"),
+        ThresholdDef("min_sl_pips_indices", "Min SL - Indices", "float", 10.0, 1.0, 50.0, "pts"),
+    ],
 ))
 
-_register(GuardDefinition(
-    guard_id="circuit_breaker",
-    setting_key="circuit_breaker_enabled",
-    name="Circuit Breaker",
-    description="Stops execution after repeated broker API failures",
-    user_description="Automatically pauses trading if the broker connection keeps failing. Prevents repeated failed orders.",
-    tier="important",
-    group="trade_quality",
-    value_type="bool",
-    default=True,
-))
+## circuit_breaker: REMOVED from registry — always runs in LIVE mode,
+## no setting key controls it. Cannot be toggled via UI.
+## Reset via API: POST /risk/circuit-breaker/reset
 
 _register(GuardDefinition(
     guard_id="htf_candle_filter",
