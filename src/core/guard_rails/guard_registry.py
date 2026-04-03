@@ -250,14 +250,15 @@ _register(GuardDefinition(
     guard_id="htf_candle_filter",
     setting_key="pine_htf_candle_filter_enabled",
     name="HTF Candle Filter",
-    description="Blocks entries near higher-timeframe candle opens",
-    user_description="Avoids entering trades in the last few minutes before a 15-minute candle closes, when price can spike unpredictably.",
+    description="Blocks entries near candle boundaries (HTF opens + hourly close)",
+    user_description="Protects against whipsaws near candle boundaries. Blocks entries before HTF candle opens and optionally in the last 10 minutes of each hour.",
     tier="important",
     group="trade_quality",
     value_type="bool",
     default=True,
     thresholds=[
         ThresholdDef("pine_htf_candle_block_minutes", "Block Minutes Before", "int", 5, 1, 14, "min"),
+        ThresholdDef("pine_block_before_hourly_close", "Block Before Hourly Close", "bool", True, None, None, ""),
     ],
 ))
 
@@ -293,17 +294,6 @@ _register(GuardDefinition(
     ],
 ))
 
-_register(GuardDefinition(
-    guard_id="dead_zone",
-    setting_key="pine_block_dead_zone",
-    name="Dead Zone Filter",
-    description="Blocks entries at xx:50-xx:00 (candle boundary)",
-    user_description="Avoids entering trades in the last 10 minutes of each hour, when price often whipsaws around the candle close.",
-    tier="convenience",
-    group="scheduling",
-    value_type="bool",
-    default=False,
-))
 
 _register(GuardDefinition(
     guard_id="mtm_guardian",

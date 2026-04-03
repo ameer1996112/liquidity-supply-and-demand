@@ -516,8 +516,8 @@ function ActiveSettingsCard({ data }: { data: any }) {
     { label: 'Trading Hours', value: `${data.trading_hours_utc} UTC` },
     { label: 'Max Trades/Day', value: String(data.max_trades_per_day) },
     {
-      label: 'Dead Zone Block',
-      value: data.dead_zone_block_enabled ? 'ON' : 'OFF',
+      label: 'Hourly Close Block',
+      value: data.hourly_close_block_enabled ? 'ON' : 'OFF',
     },
     {
       label: 'Return Strength',

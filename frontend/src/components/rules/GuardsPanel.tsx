@@ -91,7 +91,6 @@ const GUARD_ICONS: Record<string, React.ComponentType<{ className?: string }>> =
   htf_candle_filter: Clock,
   one_candle_liq_filter: Activity,
   holiday_guard: CalendarOff,
-  dead_zone: Clock,
   mtm_guardian: ShieldCheck,
 };
 

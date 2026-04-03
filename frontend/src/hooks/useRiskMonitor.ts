@@ -38,7 +38,7 @@ export interface ActiveSettings {
   stop_loss_buffer_pips: number;
   trading_hours_utc: string;
   max_trades_per_day: number;
-  dead_zone_block_enabled: boolean;
+  hourly_close_block_enabled: boolean;
   account_balance_usd: number;
   pine_min_return_strength: number;
 }

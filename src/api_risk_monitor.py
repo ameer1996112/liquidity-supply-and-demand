@@ -55,7 +55,7 @@ class ActiveSettings(BaseModel):
     stop_loss_buffer_pips: float
     trading_hours_utc: str
     max_trades_per_day: int
-    dead_zone_block_enabled: bool
+    hourly_close_block_enabled: bool
     account_balance_usd: float
     pine_min_return_strength: float
 
@@ -217,7 +217,7 @@ async def get_risk_monitor():
         stop_loss_buffer_pips=1.0,  # Pine default
         trading_hours_utc=f"{settings.pine_trading_start_hour}-{settings.pine_trading_end_hour}",
         max_trades_per_day=max_trades_today,
-        dead_zone_block_enabled=settings.pine_block_dead_zone,
+        hourly_close_block_enabled=settings.pine_block_dead_zone,
         account_balance_usd=settings.account_balance,
         pine_min_return_strength=settings.pine_min_return_strength
     )
