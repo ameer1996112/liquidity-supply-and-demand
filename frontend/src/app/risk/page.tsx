@@ -851,7 +851,7 @@ function OneCandleLiqCard() {
                 className='mb-1 px-1.5 pt-0.5 text-[9px] uppercase tracking-[0.2em] text-[var(--to-text-dim)]'
                 style={{ fontFamily: 'var(--font-mono)' }}
               >
-                Min departure strength
+                Min departure strength (base)
               </div>
               <div className='flex gap-1'>
                 {DEP_PRESETS.map((val) => {
@@ -880,6 +880,26 @@ function OneCandleLiqCard() {
                   );
                 })}
               </div>
+              {/* Dynamic range annotation */}
+              {(() => {
+                // Market adjustments: RVOL ±5, session ±5, ADX ±5 = max ±15, scaled x0.8 = ±12
+                const maxAdj = 15 * 0.8;
+                const dynMin = Math.max(30, Math.round(minDep - maxAdj));
+                const dynMax = Math.min(90, Math.round(minDep + maxAdj));
+                return (
+                  <div className='mt-1.5 px-1.5 pb-0.5 flex items-center gap-1.5'>
+                    <span className='text-[9px] text-[var(--to-text-dim)]' style={{ fontFamily: 'var(--font-mono)' }}>
+                      Effective range:
+                    </span>
+                    <span className='text-[9px] font-medium' style={{ fontFamily: 'var(--font-mono)', color: 'var(--to-accent-blue)' }}>
+                      {dynMin}–{dynMax}
+                    </span>
+                    <span className='text-[8px] text-[var(--to-text-dim)]' style={{ fontFamily: 'var(--font-sans)' }}>
+                      (adjusted by RVOL / session / ADX)
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
           </div>
 
@@ -896,7 +916,7 @@ function OneCandleLiqCard() {
                 'Not a middle zone (only trade-ready zones count)',
                 'Trend aligned (above 200 EMA)',
                 'Liquidity swept + caused sweep',
-                `Departure strength ≥ ${minDep}`,
+                `Departure strength ≥ ${minDep} (dynamic: ${Math.max(30, Math.round(minDep - 12))}–${Math.min(90, Math.round(minDep + 12))})`,
               ].map((cond) => (
                 <div key={cond} className='flex items-center gap-1.5'>
                   <span className='text-[10px]' style={{ color: 'var(--to-long)' }}>✓</span>
