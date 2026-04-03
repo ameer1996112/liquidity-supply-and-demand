@@ -12,6 +12,7 @@ import {
   Shield,
   ShieldAlert,
   ShieldCheck,
+  ShieldOff,
   TrendingDown,
   Zap,
   Brain,
@@ -25,38 +26,54 @@ import {
   ChevronDown,
   ChevronRight,
   Info,
+  Loader2,
+  ShieldX,
 } from 'lucide-react';
 
-// ── Tier Colors & Icons ────────────────────────────────
+/* ═══════════════════════════════════════════════════════════
+   TIER DESIGN TOKENS — Maps to TradeOps glow system
+   ═══════════════════════════════════════════════════════════ */
 
-const TIER_STYLES: Record<
-  string,
-  { border: string; bg: string; icon: string; badge: string }
-> = {
+const TIER_TOKENS = {
   critical: {
-    border: 'border-red-500/30',
-    bg: 'bg-red-500/5',
-    icon: 'text-red-400',
-    badge: 'bg-red-500/20 text-red-300',
+    border: 'border-[#f6465d]/25',
+    borderHover: 'hover:border-[#f6465d]/45',
+    bg: 'bg-gradient-to-br from-[#f6465d]/[0.04] to-[var(--to-surface)]',
+    bgDisabled: 'bg-[var(--to-surface)]',
+    iconBg: 'bg-[#f6465d]/10',
+    iconColor: 'text-[#f6465d]',
+    glow: 'shadow-[0_0_12px_rgba(246,70,93,0.08)]',
+    badge: 'bg-[#f6465d]/15 text-[#f6465d] border border-[#f6465d]/20',
+    accent: '#f6465d',
+    label: 'Critical',
   },
   important: {
-    border: 'border-amber-500/30',
-    bg: 'bg-amber-500/5',
-    icon: 'text-amber-400',
-    badge: 'bg-amber-500/20 text-amber-300',
+    border: 'border-[#f0b90b]/20',
+    borderHover: 'hover:border-[#f0b90b]/40',
+    bg: 'bg-gradient-to-br from-[#f0b90b]/[0.03] to-[var(--to-surface)]',
+    bgDisabled: 'bg-[var(--to-surface)]',
+    iconBg: 'bg-[#f0b90b]/10',
+    iconColor: 'text-[#f0b90b]',
+    glow: 'shadow-[0_0_12px_rgba(240,185,11,0.06)]',
+    badge: 'bg-[#f0b90b]/15 text-[#f0b90b] border border-[#f0b90b]/20',
+    accent: '#f0b90b',
+    label: 'Important',
   },
   convenience: {
-    border: 'border-emerald-500/30',
-    bg: 'bg-emerald-500/5',
-    icon: 'text-emerald-400',
-    badge: 'bg-emerald-500/20 text-emerald-300',
+    border: 'border-[#0ecb81]/20',
+    borderHover: 'hover:border-[#0ecb81]/40',
+    bg: 'bg-gradient-to-br from-[#0ecb81]/[0.03] to-[var(--to-surface)]',
+    bgDisabled: 'bg-[var(--to-surface)]',
+    iconBg: 'bg-[#0ecb81]/10',
+    iconColor: 'text-[#0ecb81]',
+    glow: '',
+    badge: 'bg-[#0ecb81]/15 text-[#0ecb81] border border-[#0ecb81]/20',
+    accent: '#0ecb81',
+    label: 'Optional',
   },
-};
+} as const;
 
-const GUARD_ICONS: Record<
-  string,
-  React.ComponentType<{ className?: string }>
-> = {
+const GUARD_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   kill_switch: ShieldAlert,
   daily_loss_limit: TrendingDown,
   max_drawdown: TrendingDown,
@@ -79,15 +96,23 @@ const GUARD_ICONS: Record<
 
 const GROUP_ORDER = ['capital_protection', 'trade_quality', 'scheduling'];
 
-// ── Toggle Switch ──────────────────────────────────────
+const GROUP_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  capital_protection: ShieldAlert,
+  trade_quality: Brain,
+  scheduling: CalendarOff,
+};
 
-function ToggleSwitch({
+/* ═══════════════════════════════════════════════════════════
+   TOGGLE SWITCH — Matches TradeOps green/neutral scheme
+   ═══════════════════════════════════════════════════════════ */
+
+function Toggle({
   checked,
   onChange,
   disabled,
 }: {
   checked: boolean;
-  onChange: (checked: boolean) => void;
+  onChange: (v: boolean) => void;
   disabled?: boolean;
 }) {
   return (
@@ -98,23 +123,24 @@ function ToggleSwitch({
       onClick={() => onChange(!checked)}
       disabled={disabled}
       className={cn(
-        'relative inline-flex h-6 w-10 shrink-0 rounded-full border border-transparent transition-colors',
-        'focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#131722]',
-        checked ? 'bg-emerald-500' : 'bg-[#2a2e39]',
-        disabled && 'opacity-50 cursor-not-allowed'
+        'relative inline-flex h-5 w-9 items-center rounded-full transition-colors',
+        checked ? 'bg-[#0ecb81]' : 'bg-[var(--to-border)]',
+        disabled && 'opacity-40 cursor-not-allowed',
       )}
     >
       <span
         className={cn(
-          'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow ring-0 transition',
-          checked ? 'translate-x-4' : 'translate-x-0.5'
+          'inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-sm transition-transform',
+          checked ? 'translate-x-[18px]' : 'translate-x-[3px]',
         )}
       />
     </button>
   );
 }
 
-// ── Confirmation Dialog ────────────────────────────────
+/* ═══════════════════════════════════════════════════════════
+   CONFIRMATION DIALOG — Glass panel overlay
+   ═══════════════════════════════════════════════════════════ */
 
 function ConfirmDialog({
   guard,
@@ -136,80 +162,94 @@ function ConfirmDialog({
     : true;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-xl border border-[#2a2e39] bg-[#1a1e2e] p-6 shadow-2xl">
-        <div className="flex items-center gap-3 mb-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+      <div
+        className={cn(
+          'glass-panel-strong w-full max-w-md p-6',
+          'border border-[var(--to-border)] rounded-xl',
+          'bg-gradient-to-br from-[var(--to-surface)] to-[var(--to-surface-raised)]',
+          'shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)]',
+        )}
+      >
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-5">
           <div
             className={cn(
-              'flex h-10 w-10 items-center justify-center rounded-lg',
-              action === 'disable' ? 'bg-red-500/20' : 'bg-emerald-500/20'
+              'flex h-10 w-10 items-center justify-center rounded-xl',
+              action === 'disable' ? 'bg-[#f6465d]/15' : 'bg-[#0ecb81]/15',
             )}
           >
             {action === 'disable' ? (
-              <AlertTriangle className="h-5 w-5 text-red-400" />
+              <ShieldOff className="h-5 w-5 text-[#f6465d]" />
             ) : (
-              <ShieldCheck className="h-5 w-5 text-emerald-400" />
+              <ShieldCheck className="h-5 w-5 text-[#0ecb81]" />
             )}
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-white">
-              {action === 'disable' ? 'Disable' : 'Enable'} {guard.name}?
+            <h3 className="text-sm font-semibold text-[var(--to-text-primary)]">
+              {action === 'disable' ? 'Disable' : 'Enable'} {guard.name}
             </h3>
-            <p className="text-xs text-[var(--to-text-dim)]">
-              {guard.tier === 'critical' ? 'Critical guard' : 'Important guard'}
+            <p className="text-[10px] uppercase tracking-wider text-[var(--to-text-dim)]">
+              {TIER_TOKENS[guard.tier as keyof typeof TIER_TOKENS]?.label ?? guard.tier} guard
             </p>
           </div>
         </div>
 
-        <p className="mb-4 text-xs text-[var(--to-text-dim)] leading-relaxed">
+        <p className="mb-4 text-xs text-[var(--to-text-secondary)] leading-relaxed">
           {action === 'disable'
             ? guard.user_description
             : `Re-enabling "${guard.name}" will restore this protection.`}
         </p>
 
+        {/* Critical type-to-confirm */}
         {isCritical && action === 'disable' && (
-          <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3">
-            <p className="text-xs text-red-300 mb-2">
-              This is a capital protection guard. Disabling it may expose your
-              account to significant risk.
+          <div className="mb-4 rounded-lg border border-[#f6465d]/30 bg-[#f6465d]/[0.06] p-3.5">
+            <p className="text-[11px] text-[#f6465d]/90 mb-2.5 leading-relaxed">
+              This is a capital protection guard. Disabling it may expose your account to significant risk.
             </p>
-            <p className="text-xs text-red-300 font-medium">
-              Type <span className="font-mono bg-red-500/20 px-1 rounded">DISABLE</span> to confirm:
+            <p className="text-[11px] text-[#f6465d] font-medium">
+              Type{' '}
+              <code className="font-mono bg-[#f6465d]/15 px-1.5 py-0.5 rounded text-[10px]">
+                DISABLE
+              </code>{' '}
+              to confirm:
             </p>
             <input
               type="text"
               value={confirmText}
               onChange={(e) => setConfirmText(e.target.value)}
-              className="mt-2 w-full rounded-md border border-red-500/30 bg-[#131722] px-3 py-2 text-xs text-white font-mono placeholder:text-[var(--to-text-dim)] focus:outline-none focus:ring-1 focus:ring-red-500"
+              className="mt-2.5 w-full rounded-lg border border-[#f6465d]/30 bg-[var(--to-bg)] px-3 py-2 text-xs text-white font-mono placeholder:text-[var(--to-text-dim)] focus:outline-none focus:ring-1 focus:ring-[#f6465d]/50"
               placeholder="Type DISABLE"
               autoFocus
             />
           </div>
         )}
 
+        {/* Reason input (critical only) */}
         {isCritical && (
-          <div className="mb-4">
-            <label className="text-xs text-[var(--to-text-dim)] mb-1 block">
-              Reason for change:
+          <div className="mb-5">
+            <label className="text-[10px] uppercase tracking-wider text-[var(--to-text-dim)] mb-1.5 block">
+              Reason for change
             </label>
             <input
               type="text"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              className="w-full rounded-md border border-[#2a2e39] bg-[#131722] px-3 py-2 text-xs text-white placeholder:text-[var(--to-text-dim)] focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="w-full rounded-lg border border-[var(--to-border)] bg-[var(--to-bg)] px-3 py-2 text-xs text-white placeholder:text-[var(--to-text-dim)] focus:outline-none focus:ring-1 focus:ring-indigo-500/50"
               placeholder="e.g., Testing new strategy parameters"
             />
           </div>
         )}
 
-        <div className="flex items-center justify-between">
-          <p className="text-[10px] text-[var(--to-text-dim)]">
-            Changes apply within ~30 seconds
+        {/* Actions */}
+        <div className="flex items-center justify-between pt-1">
+          <p className="text-[10px] text-[var(--to-text-dim)] font-mono">
+            ~30s propagation
           </p>
           <div className="flex gap-2">
             <button
               onClick={onCancel}
-              className="rounded-md border border-[#2a2e39] bg-[#1e222d] px-4 py-2 text-xs text-[var(--to-text-dim)] hover:bg-[#2a2e39] transition-colors"
+              className="rounded-lg border border-[var(--to-border)] bg-[var(--to-surface)] px-4 py-2 text-xs text-[var(--to-text-secondary)] hover:bg-[var(--to-surface-raised)] transition-colors"
             >
               Cancel
             </button>
@@ -217,10 +257,10 @@ function ConfirmDialog({
               onClick={() => onConfirm(reason)}
               disabled={!canConfirm}
               className={cn(
-                'rounded-md px-4 py-2 text-xs font-medium transition-colors',
+                'rounded-lg px-4 py-2 text-xs font-medium transition-all',
                 action === 'disable'
-                  ? 'bg-red-600 text-white hover:bg-red-700 disabled:bg-red-600/30 disabled:text-red-300/50'
-                  : 'bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-emerald-600/30'
+                  ? 'bg-[#f6465d] text-white hover:bg-[#f6465d]/90 disabled:bg-[#f6465d]/20 disabled:text-[#f6465d]/40'
+                  : 'bg-[#0ecb81] text-black hover:bg-[#0ecb81]/90 disabled:bg-[#0ecb81]/20',
               )}
             >
               {action === 'disable' ? 'Disable Guard' : 'Enable Guard'}
@@ -232,7 +272,9 @@ function ConfirmDialog({
   );
 }
 
-// ── Threshold Editor ───────────────────────────────────
+/* ═══════════════════════════════════════════════════════════
+   THRESHOLD EDITOR — Inline value controls
+   ═══════════════════════════════════════════════════════════ */
 
 function ThresholdEditor({
   threshold,
@@ -245,11 +287,11 @@ function ThresholdEditor({
 }) {
   if (threshold.value_type === 'bool') {
     return (
-      <div className="flex items-center justify-between py-1.5">
-        <span className="text-[11px] text-[var(--to-text-dim)]">
+      <div className="flex items-center justify-between py-2">
+        <span className="text-[11px] text-[var(--to-text-secondary)]">
           {threshold.name}
         </span>
-        <ToggleSwitch
+        <Toggle
           checked={Boolean(threshold.current_value)}
           onChange={(v) => onUpdate(threshold.setting_key, v)}
           disabled={disabled}
@@ -259,8 +301,8 @@ function ThresholdEditor({
   }
 
   return (
-    <div className="flex items-center justify-between gap-3 py-1.5">
-      <span className="text-[11px] text-[var(--to-text-dim)] shrink-0">
+    <div className="flex items-center justify-between gap-3 py-2">
+      <span className="text-[11px] text-[var(--to-text-secondary)] shrink-0">
         {threshold.name}
       </span>
       <div className="flex items-center gap-1.5">
@@ -278,10 +320,10 @@ function ThresholdEditor({
           max={threshold.max_value ?? undefined}
           step={threshold.value_type === 'int' ? 1 : 0.1}
           disabled={disabled}
-          className="w-20 rounded border border-[#2a2e39] bg-[#131722] px-2 py-1 text-right text-xs text-white font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50"
+          className="w-20 rounded-md border border-[var(--to-border)] bg-[var(--to-bg)] px-2 py-1 text-right text-xs text-white font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500/50 disabled:opacity-40"
         />
         {threshold.unit && (
-          <span className="text-[10px] text-[var(--to-text-dim)] w-8">
+          <span className="text-[10px] text-[var(--to-text-dim)] w-8 font-mono">
             {threshold.unit}
           </span>
         )}
@@ -290,7 +332,9 @@ function ThresholdEditor({
   );
 }
 
-// ── Guard Card ─────────────────────────────────────────
+/* ═══════════════════════════════════════════════════════════
+   GUARD CARD — Glass panel with tier-aware styling
+   ═══════════════════════════════════════════════════════════ */
 
 function GuardCard({
   guard,
@@ -300,171 +344,117 @@ function GuardCard({
 }: {
   guard: GuardConfig;
   onToggle: (guard: GuardConfig) => void;
-  onThresholdUpdate: (
-    guardId: string,
-    thresholdKey: string,
-    value: number | boolean
-  ) => void;
+  onThresholdUpdate: (guardId: string, key: string, value: number | boolean) => void;
   isUpdating: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const tier = TIER_STYLES[guard.tier] || TIER_STYLES.convenience;
-  const Icon = GUARD_ICONS[guard.guard_id] || Shield;
-  const isEnabled =
-    guard.value_type === 'bool' ? Boolean(guard.enabled) : true;
-  const hasThresholds = guard.thresholds.length > 0;
-  const isExpandable =
-    hasThresholds || guard.value_type !== 'bool';
+  const t = TIER_TOKENS[guard.tier as keyof typeof TIER_TOKENS] ?? TIER_TOKENS.convenience;
+  const Icon = GUARD_ICONS[guard.guard_id] ?? Shield;
+  const isEnabled = guard.value_type === 'bool' ? Boolean(guard.enabled) : true;
+  const isExpandable = guard.thresholds.length > 0 || guard.value_type !== 'bool';
 
   return (
     <div
       className={cn(
-        'rounded-lg border transition-all',
-        tier.border,
-        isEnabled ? tier.bg : 'bg-[#1a1e2e]/50 opacity-70',
-        'hover:border-opacity-60'
+        'group rounded-xl border transition-all duration-200',
+        isEnabled ? [t.border, t.bg, t.glow, t.borderHover] : [t.border, t.bgDisabled, 'opacity-60'],
       )}
     >
       {/* Main row */}
-      <div className="flex items-center justify-between gap-3 px-4 py-3">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          {/* Icon */}
-          <div
-            className={cn(
-              'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
-              isEnabled ? 'bg-[#2a2e39]' : 'bg-[#1e222d]'
-            )}
-          >
-            <Icon
-              className={cn('h-4 w-4', isEnabled ? tier.icon : 'text-gray-600')}
-            />
-          </div>
+      <div className="flex items-center gap-3 px-4 py-3">
+        {/* Icon */}
+        <div
+          className={cn(
+            'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors',
+            isEnabled ? t.iconBg : 'bg-[var(--to-surface-raised)]',
+          )}
+        >
+          <Icon className={cn('h-3.5 w-3.5', isEnabled ? t.iconColor : 'text-[var(--to-text-dim)]')} />
+        </div>
 
-          {/* Info */}
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-medium text-[var(--to-text-primary)]">
-                {guard.name}
-              </p>
-              {guard.tier === 'critical' && (
-                <Lock className="h-3 w-3 text-red-400" />
-              )}
-              {/* Rejection badge */}
-              {guard.rejection_count_7d > 0 && (
-                <span
-                  className={cn(
-                    'inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-mono font-medium',
-                    tier.badge
-                  )}
-                >
-                  {guard.rejection_count_7d} blocked
-                </span>
-              )}
-            </div>
-            <p className="text-[11px] text-[var(--to-text-dim)] line-clamp-1">
-              {guard.user_description}
-            </p>
+        {/* Info */}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-[13px] font-medium text-[var(--to-text-primary)] truncate">
+              {guard.name}
+            </span>
+            {guard.tier === 'critical' && (
+              <Lock className="h-3 w-3 shrink-0 text-[#f6465d]/60" />
+            )}
+            {guard.rejection_count_7d > 0 && (
+              <span className={cn('shrink-0 inline-flex items-center rounded-md px-1.5 py-0.5 text-[9px] font-mono font-medium', t.badge)}>
+                {guard.rejection_count_7d}
+              </span>
+            )}
           </div>
+          <p className="text-[10px] text-[var(--to-text-dim)] truncate mt-0.5">
+            {guard.user_description}
+          </p>
         </div>
 
         {/* Controls */}
         <div className="flex items-center gap-2 shrink-0">
-          {/* Numeric value display */}
           {guard.value_type !== 'bool' && (
-            <span className="text-xs font-mono text-[var(--to-text-primary)] bg-[#2a2e39] px-2 py-1 rounded">
+            <span className="text-xs font-mono text-[var(--to-text-primary)] bg-[var(--to-surface-raised)] border border-[var(--to-border)] px-2 py-0.5 rounded-md">
               {guard.enabled}
-              {guard.unit && (
-                <span className="text-[var(--to-text-dim)] ml-0.5">
-                  {guard.unit}
-                </span>
-              )}
+              {guard.unit && <span className="text-[var(--to-text-dim)] ml-0.5">{guard.unit}</span>}
             </span>
           )}
 
-          {isUpdating && (
-            <span className="text-[10px] font-mono text-amber-500">
-              Saving...
-            </span>
-          )}
+          {isUpdating && <Loader2 className="h-3.5 w-3.5 animate-spin text-[#f0b90b]" />}
 
           {guard.value_type === 'bool' && (
-            <ToggleSwitch
-              checked={isEnabled}
-              onChange={() => onToggle(guard)}
-              disabled={isUpdating}
-            />
+            <Toggle checked={isEnabled} onChange={() => onToggle(guard)} disabled={isUpdating} />
           )}
 
           {isExpandable && (
             <button
               onClick={() => setExpanded(!expanded)}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-[var(--to-text-dim)] hover:bg-[#2a2e39] transition-colors"
+              className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--to-text-dim)] hover:text-[var(--to-text-secondary)] hover:bg-[var(--to-surface-raised)] transition-colors"
             >
-              {expanded ? (
-                <ChevronDown className="h-4 w-4" />
-              ) : (
-                <ChevronRight className="h-4 w-4" />
-              )}
+              {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
             </button>
           )}
         </div>
       </div>
 
-      {/* Expanded section */}
+      {/* Expanded panel */}
       {expanded && (
-        <div className="border-t border-[#2a2e39]/50 px-4 py-3 space-y-1">
-          {/* Numeric primary value editor */}
+        <div className="border-t border-[var(--to-border-subtle)] mx-4 py-3 space-y-0.5">
           {guard.value_type !== 'bool' && (
-            <div className="flex items-center justify-between gap-3 py-1.5 mb-2 border-b border-[#2a2e39]/30 pb-3">
-              <span className="text-[11px] text-[var(--to-text-primary)] font-medium">
-                {guard.name}
-              </span>
+            <div className="flex items-center justify-between gap-3 py-2 mb-1 border-b border-[var(--to-border-subtle)] pb-3">
+              <span className="text-[11px] text-[var(--to-text-primary)] font-medium">{guard.name}</span>
               <div className="flex items-center gap-1.5">
                 <input
                   type="number"
                   value={guard.enabled as number}
                   onChange={(e) => {
-                    const val =
-                      guard.value_type === 'int'
-                        ? parseInt(e.target.value, 10)
-                        : parseFloat(e.target.value);
-                    if (!isNaN(val)) {
-                      onThresholdUpdate(guard.guard_id, '__primary__', val);
-                    }
+                    const val = guard.value_type === 'int' ? parseInt(e.target.value, 10) : parseFloat(e.target.value);
+                    if (!isNaN(val)) onThresholdUpdate(guard.guard_id, '__primary__', val);
                   }}
                   min={guard.min_value ?? undefined}
                   max={guard.max_value ?? undefined}
                   step={guard.value_type === 'int' ? 1 : 0.1}
                   disabled={isUpdating}
-                  className="w-20 rounded border border-[#2a2e39] bg-[#131722] px-2 py-1 text-right text-xs text-white font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50"
+                  className="w-20 rounded-md border border-[var(--to-border)] bg-[var(--to-bg)] px-2 py-1 text-right text-xs text-white font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500/50 disabled:opacity-40"
                 />
-                {guard.unit && (
-                  <span className="text-[10px] text-[var(--to-text-dim)] w-8">
-                    {guard.unit}
-                  </span>
-                )}
+                {guard.unit && <span className="text-[10px] text-[var(--to-text-dim)] w-8 font-mono">{guard.unit}</span>}
               </div>
             </div>
           )}
 
-          {/* Threshold editors */}
-          {guard.thresholds.map((t) => (
+          {guard.thresholds.map((th) => (
             <ThresholdEditor
-              key={t.setting_key}
-              threshold={t}
-              onUpdate={(key, val) =>
-                onThresholdUpdate(guard.guard_id, key, val)
-              }
+              key={th.setting_key}
+              threshold={th}
+              onUpdate={(key, val) => onThresholdUpdate(guard.guard_id, key, val)}
               disabled={isUpdating}
             />
           ))}
 
-          {/* Info tooltip */}
-          <div className="flex items-start gap-2 mt-2 pt-2 border-t border-[#2a2e39]/30">
-            <Info className="h-3.5 w-3.5 text-[var(--to-text-dim)] shrink-0 mt-0.5" />
-            <p className="text-[10px] text-[var(--to-text-dim)] leading-relaxed">
-              {guard.user_description}
-            </p>
+          <div className="flex items-start gap-2 mt-2 pt-2.5 border-t border-[var(--to-border-subtle)]">
+            <Info className="h-3 w-3 text-[var(--to-text-dim)] shrink-0 mt-0.5" />
+            <p className="text-[10px] text-[var(--to-text-dim)] leading-relaxed">{guard.user_description}</p>
           </div>
         </div>
       )}
@@ -472,7 +462,41 @@ function GuardCard({
   );
 }
 
-// ── Main Panel ─────────────────────────────────────────
+/* ═══════════════════════════════════════════════════════════
+   SUMMARY KPI CARDS — Mini stat cards for top overview
+   ═══════════════════════════════════════════════════════════ */
+
+function KpiCard({
+  label,
+  value,
+  sub,
+  accent,
+}: {
+  label: string;
+  value: string | number;
+  sub?: string;
+  accent: string;
+}) {
+  return (
+    <div className="to-panel flex-1 min-w-[140px] px-4 py-3">
+      <p className="text-[10px] uppercase tracking-wider text-[var(--to-text-dim)] mb-1">
+        {label}
+      </p>
+      <p className="text-xl font-semibold font-mono" style={{ color: accent }}>
+        {value}
+      </p>
+      {sub && (
+        <p className="text-[10px] text-[var(--to-text-dim)] mt-0.5 font-mono">
+          {sub}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MAIN PANEL
+   ═══════════════════════════════════════════════════════════ */
 
 export function GuardsPanel() {
   const { data, isLoading, error } = useGuardsConfig();
@@ -481,150 +505,93 @@ export function GuardsPanel() {
     guard: GuardConfig;
     action: 'disable' | 'enable';
   } | null>(null);
-  const [pendingThresholds, setPendingThresholds] = useState<
-    Record<string, Record<string, number | boolean>>
-  >({});
   const [savingGuards, setSavingGuards] = useState<Set<string>>(new Set());
 
-  // Handle boolean toggle (with confirmation for critical/important)
   const handleToggle = useCallback(
     (guard: GuardConfig) => {
       const newValue = !guard.enabled;
       const action = newValue ? 'enable' : 'disable';
 
-      // Critical guards always need confirmation
-      if (guard.tier === 'critical') {
+      if (guard.tier === 'critical' || (guard.tier === 'important' && action === 'disable')) {
         setConfirmDialog({ guard, action });
         return;
       }
 
-      // Important guards need confirmation only when disabling
-      if (guard.tier === 'important' && action === 'disable') {
-        setConfirmDialog({ guard, action });
-        return;
-      }
-
-      // Convenience guards toggle freely
       setSavingGuards((prev) => new Set(prev).add(guard.guard_id));
       updateGuard.mutate(
+        { guardId: guard.guard_id, value: newValue, change_reason: `${action}d via UI` },
         {
-          guardId: guard.guard_id,
-          value: newValue,
-          change_reason: `${action}d via UI`,
+          onSettled: () =>
+            setSavingGuards((prev) => { const n = new Set(prev); n.delete(guard.guard_id); return n; }),
         },
-        {
-          onSettled: () => {
-            setSavingGuards((prev) => {
-              const next = new Set(prev);
-              next.delete(guard.guard_id);
-              return next;
-            });
-          },
-        }
       );
     },
-    [updateGuard]
+    [updateGuard],
   );
 
-  // Handle confirmation dialog result
   const handleConfirm = useCallback(
     (reason: string) => {
       if (!confirmDialog) return;
       const { guard, action } = confirmDialog;
-      const newValue = action === 'enable';
-
       setSavingGuards((prev) => new Set(prev).add(guard.guard_id));
       updateGuard.mutate(
+        { guardId: guard.guard_id, value: action === 'enable', change_reason: reason || `${action}d via UI` },
         {
-          guardId: guard.guard_id,
-          value: newValue,
-          change_reason: reason || `${action}d via UI`,
+          onSettled: () =>
+            setSavingGuards((prev) => { const n = new Set(prev); n.delete(guard.guard_id); return n; }),
         },
-        {
-          onSettled: () => {
-            setSavingGuards((prev) => {
-              const next = new Set(prev);
-              next.delete(guard.guard_id);
-              return next;
-            });
-          },
-        }
       );
       setConfirmDialog(null);
     },
-    [confirmDialog, updateGuard]
+    [confirmDialog, updateGuard],
   );
 
-  // Handle threshold updates (debounced save)
   const handleThresholdUpdate = useCallback(
-    (guardId: string, thresholdKey: string, value: number | boolean) => {
-      // For primary value changes
-      if (thresholdKey === '__primary__') {
+    (guardId: string, key: string, value: number | boolean) => {
+      if (key === '__primary__') {
         setSavingGuards((prev) => new Set(prev).add(guardId));
         updateGuard.mutate(
+          { guardId, value, change_reason: 'Threshold updated via UI' },
           {
-            guardId,
-            value,
-            change_reason: 'Threshold updated via UI',
+            onSettled: () =>
+              setSavingGuards((prev) => { const n = new Set(prev); n.delete(guardId); return n; }),
           },
-          {
-            onSettled: () => {
-              setSavingGuards((prev) => {
-                const next = new Set(prev);
-                next.delete(guardId);
-                return next;
-              });
-            },
-          }
         );
         return;
       }
-
-      // For sub-threshold changes
-      const guard = Object.values(data?.groups || {})
-        .flat()
-        .find((g) => g.guard_id === guardId);
+      const guard = Object.values(data?.groups || {}).flat().find((g) => g.guard_id === guardId);
       if (!guard) return;
-
       setSavingGuards((prev) => new Set(prev).add(guardId));
       updateGuard.mutate(
+        { guardId, value: guard.enabled, thresholds: { [key]: value }, change_reason: `Threshold ${key} updated via UI` },
         {
-          guardId,
-          value: guard.enabled,
-          thresholds: { [thresholdKey]: value },
-          change_reason: `Threshold ${thresholdKey} updated via UI`,
+          onSettled: () =>
+            setSavingGuards((prev) => { const n = new Set(prev); n.delete(guardId); return n; }),
         },
-        {
-          onSettled: () => {
-            setSavingGuards((prev) => {
-              const next = new Set(prev);
-              next.delete(guardId);
-              return next;
-            });
-          },
-        }
       );
     },
-    [data, updateGuard]
+    [data, updateGuard],
   );
 
+  /* Loading state */
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="flex items-center gap-3 text-[var(--to-text-dim)]">
-          <div className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
-          <span className="text-sm">Loading guards...</span>
-        </div>
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-5 w-5 animate-spin text-[var(--to-text-dim)]" />
+        <span className="ml-2.5 text-sm text-[var(--to-text-dim)]">Loading guards...</span>
       </div>
     );
   }
 
+  /* Error state */
   if (error) {
     return (
-      <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-4">
-        <p className="text-sm text-red-300">
-          Failed to load guard configuration. Check your API connection.
-        </p>
+      <div className="to-panel p-5 border-[#f6465d]/30">
+        <div className="flex items-center gap-2 mb-2">
+          <ShieldX className="h-4 w-4 text-[#f6465d]" />
+          <p className="text-sm font-medium text-[#f6465d]">Failed to load guards</p>
+        </div>
+        <p className="text-xs text-[var(--to-text-dim)]">Check your API connection and try refreshing.</p>
       </div>
     );
   }
@@ -632,28 +599,33 @@ export function GuardsPanel() {
   if (!data) return null;
 
   const { groups, group_labels, total_rejections_7d, total_signals_7d } = data;
-  const rejectionPct =
-    total_signals_7d > 0
-      ? ((total_rejections_7d / total_signals_7d) * 100).toFixed(1)
-      : '0';
+  const allGuards = Object.values(groups).flat();
+  const enabledCount = allGuards.filter((g) => g.value_type !== 'bool' || g.enabled).length;
+  const criticalCount = allGuards.filter((g) => g.tier === 'critical').length;
+  const rejectionPct = total_signals_7d > 0 ? ((total_rejections_7d / total_signals_7d) * 100).toFixed(1) : '0';
 
   return (
     <div className="space-y-6">
-      {/* Summary bar */}
-      <div className="flex items-center gap-4 rounded-lg border border-[#2a2e39] bg-[#1e222d]/50 px-4 py-3">
-        <Shield className="h-5 w-5 text-indigo-400" />
-        <div className="flex-1">
-          <p className="text-sm font-medium text-[var(--to-text-primary)]">
-            {Object.values(groups).flat().length} Guards Active
-          </p>
-          <p className="text-[11px] text-[var(--to-text-dim)]">
-            {total_rejections_7d} signals blocked in the last 7 days
-            {total_signals_7d > 0 && ` (${rejectionPct}% of ${total_signals_7d} total)`}
-          </p>
-        </div>
-        <div className="text-[10px] text-[var(--to-text-dim)] bg-[#2a2e39] px-2 py-1 rounded font-mono">
-          ~30s propagation delay
-        </div>
+      {/* KPI row */}
+      <div className="flex gap-3 flex-wrap">
+        <KpiCard
+          label="Active Guards"
+          value={enabledCount}
+          sub={`of ${allGuards.length} total`}
+          accent="#0ecb81"
+        />
+        <KpiCard
+          label="Critical Guards"
+          value={criticalCount}
+          sub="always recommended"
+          accent="#f6465d"
+        />
+        <KpiCard
+          label="Signals Blocked (7d)"
+          value={total_rejections_7d}
+          sub={total_signals_7d > 0 ? `${rejectionPct}% of ${total_signals_7d} signals` : 'no signals yet'}
+          accent="#f0b90b"
+        />
       </div>
 
       {/* Guard groups */}
@@ -661,13 +633,23 @@ export function GuardsPanel() {
         const guards = groups[groupKey];
         if (!guards || guards.length === 0) return null;
         const label = group_labels[groupKey] || groupKey;
+        const GroupIcon = GROUP_ICONS[groupKey] ?? Shield;
 
         return (
-          <div key={groupKey}>
-            <h3 className="text-xs font-semibold text-[var(--to-text-dim)] uppercase tracking-wider mb-3">
-              {label}
-            </h3>
-            <div className="space-y-2">
+          <div key={groupKey} className="to-panel overflow-hidden">
+            {/* Group header */}
+            <div className="to-panel-header">
+              <div className="flex items-center gap-2">
+                <GroupIcon className="h-3.5 w-3.5 text-[var(--to-text-dim)]" />
+                <span className="to-panel-title">{label}</span>
+                <span className="text-[10px] font-mono text-[var(--to-text-dim)] bg-[var(--to-surface-raised)] px-1.5 py-0.5 rounded">
+                  {guards.length}
+                </span>
+              </div>
+            </div>
+
+            {/* Guard list */}
+            <div className="p-3 space-y-2">
               {guards.map((guard) => (
                 <GuardCard
                   key={guard.guard_id}

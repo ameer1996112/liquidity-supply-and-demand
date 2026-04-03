@@ -4,16 +4,22 @@ import { RiskRulesPanel } from '@/components/rules/RiskRulesPanel';
 import { StrategyRulesPanel } from '@/components/rules/StrategyRulesPanel';
 import { GuardsPanel } from '@/components/rules/GuardsPanel';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ShieldCheck, BookOpen, Shield } from 'lucide-react';
+import { Shield, ShieldCheck, BookOpen } from 'lucide-react';
 
 export default function RulesPage() {
   return (
-    <div className='space-y-4'>
-      <div>
-        <h1 className='page-title text-lg font-semibold'>Rules</h1>
-        <p className='page-subtitle mt-0.5 text-xs'>
-          Guard rails, risk rules, and strategy execution rules.
-        </p>
+    <div className='space-y-5'>
+      {/* Page header */}
+      <div className='flex items-center gap-3'>
+        <div className='flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-500/10 border border-indigo-500/20'>
+          <Shield className='h-4 w-4 text-indigo-400' />
+        </div>
+        <div>
+          <h1 className='page-title text-lg font-semibold'>Rules & Guards</h1>
+          <p className='page-subtitle mt-0.5 text-[11px]'>
+            Trade protection, risk guardrails, and strategy execution rules
+          </p>
+        </div>
       </div>
 
       <Tabs defaultValue='guards'>
