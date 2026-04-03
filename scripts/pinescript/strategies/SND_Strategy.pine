@@ -27,7 +27,7 @@
 // === LIBRARY IMPORTS ===
 // Import helper functions from external libraries to reduce script size
 import ameer_1996112/SND_Utils/20 as Utils
-import ameer_1996112/SND_Core/23 as Core
+import ameer_1996112/SND_Core/24 as Core
 
 strategy("Institutional Liquidity Protocol [Pro]",
      shorttitle = "S&D Algo [Pro]",
@@ -1216,8 +1216,12 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
                 z.liquiditySweptBarIndex := na
 
 
+            // === TARGET: Highest point WITHIN the zone's base candles ===
+            // The target for a demand zone is the highest high inside the zone itself,
+            // NOT the highest high between zone creation and inducement.
+            int baseEnd = not na(z.baseEndBarIndex) ? z.baseEndBarIndex : z.createdBarIndex
             int rangeStart = z.createdBarIndex
-            int rangeEnd = bestLiqBar - 1  // STRICTLY before inducement
+            int rangeEnd = math.min(baseEnd, bestLiqBar - 1)
 
             float bestTargetPrice = na
             int bestTargetBar = na
@@ -1330,8 +1334,12 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
                 z.liquiditySweptBarIndex := na
 
 
+            // === TARGET: Lowest point WITHIN the zone's base candles ===
+            // The target for a supply zone is the lowest low inside the zone itself,
+            // NOT the lowest low between zone creation and inducement.
+            int baseEnd = not na(z.baseEndBarIndex) ? z.baseEndBarIndex : z.createdBarIndex
             int rangeStart = z.createdBarIndex
-            int rangeEnd = bestLiqBar - 1  // STRICTLY before inducement
+            int rangeEnd = math.min(baseEnd, bestLiqBar - 1)
 
             float bestTargetPrice = na
             int bestTargetBar = na
@@ -1712,6 +1720,7 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
             z.grade := Core.get_grade_from_score(z.score)
 
             int baseEndAbsolute = baseBarIdx + actualCandlesInBase - 1
+            z.baseEndBarIndex := baseEndAbsolute
             float temp_base_quality = Core.calculate_base_quality(baseEndAbsolute, baseBarIdx, bar_index, high, low, open, close)
             float temp_departure_strength = Core.calculate_departure_strength(baseIdx, isDemand, high, low, open, close, atr14, base_width, actualCandlesInBase)
 

@@ -1722,15 +1722,12 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
                 z.liquiditySwept := false
                 z.liquiditySweptBarIndex := na
 
-            // === STEP B: STRICT TARGET SCAN (ABSOLUTE HIGHEST price BEFORE inducement) ===
-            // CRITICAL FIX: Find the ABSOLUTE HIGHEST high in the strict range:
-            // [Zone Creation Bar ... Inducement Bar - 1]
-            // This is NOT limited to 3-candle pivots - we need the true maximum!
-            // NOTE: Target scan ALWAYS runs (not gated by targetSwept) to ensure proper data storage
-
-            // Define the strict search range: must end STRICTLY BEFORE inducement bar
+            // === TARGET: Highest point WITHIN the zone's base candles ===
+            // The target for a demand zone is the highest high inside the zone itself,
+            // NOT the highest high between zone creation and inducement.
+            int baseEnd = not na(z.baseEndBarIndex) ? z.baseEndBarIndex : z.createdBarIndex
             int rangeStart = z.createdBarIndex
-            int rangeEnd = bestLiqBar - 1  // STRICTLY before inducement
+            int rangeEnd = math.min(baseEnd, bestLiqBar - 1)
 
             // Initialize target values
             float bestTargetPrice = na
@@ -1738,9 +1735,6 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
 
             // Validate range exists and is logical
             if rangeEnd >= rangeStart and rangeEnd <= bar_index and rangeStart >= 0
-                // Use getBarOfMaxHigh to find the ABSOLUTE maximum high in the range
-                // This includes ALL candles, not just 3-candle pivots
-                // Returns the bar_index of the candle with highest high in [rangeStart, rangeEnd]
                 bestTargetBar := getBarOfMaxHigh(rangeStart, rangeEnd)
 
                 // If target bar found, retrieve the high price at that bar
@@ -1750,7 +1744,6 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
                         bestTargetPrice := high[targetOffset]
 
             // === CHECK IF TARGET (LIQ HIGH) CHANGED ===
-            // If the target price has changed, reset the target sweep flag
             bool targetChanged = na(z.liqHighPrice) or z.liqHighPrice != bestTargetPrice or na(z.liqHighBar) or z.liqHighBar != bestTargetBar
 
             // Assign target values (even if na, this ensures explicit storage)
@@ -1884,9 +1877,12 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
             // This is NOT limited to 3-candle pivots - we need the true minimum!
             // NOTE: Target scan ALWAYS runs (not gated by targetSwept) to ensure proper data storage
 
-            // Define the strict search range: must end STRICTLY BEFORE inducement bar
+            // === TARGET: Lowest point WITHIN the zone's base candles ===
+            // The target for a supply zone is the lowest low inside the zone itself,
+            // NOT the lowest low between zone creation and inducement.
+            int baseEnd = not na(z.baseEndBarIndex) ? z.baseEndBarIndex : z.createdBarIndex
             int rangeStart = z.createdBarIndex
-            int rangeEnd = bestLiqBar - 1  // STRICTLY before inducement
+            int rangeEnd = math.min(baseEnd, bestLiqBar - 1)
 
             // Initialize target values
             float bestTargetPrice = na
@@ -1894,9 +1890,6 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
 
             // Validate range exists and is logical
             if rangeEnd >= rangeStart and rangeEnd <= bar_index and rangeStart >= 0
-                // Use getBarOfMinLow to find the ABSOLUTE minimum low in the range
-                // This includes ALL candles, not just 3-candle pivots
-                // Returns the bar_index of the candle with lowest low in [rangeStart, rangeEnd]
                 bestTargetBar := getBarOfMinLow(rangeStart, rangeEnd)
 
                 // If target bar found, retrieve the low price at that bar
@@ -1906,7 +1899,6 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
                         bestTargetPrice := low[targetOffset]
 
             // === CHECK IF TARGET (LIQ LOW) CHANGED ===
-            // If the target price has changed, reset the target sweep flag
             bool targetChanged = na(z.liqLowPrice) or z.liqLowPrice != bestTargetPrice or na(z.liqLowBar) or z.liqLowBar != bestTargetBar
 
             // Assign target values (even if na, this ensures explicit storage)
@@ -2304,6 +2296,7 @@ createZone(int baseIdx, bool isDemand, bool isHistorical, int candlesInBase, int
             // base spans from baseBarIdx to baseBarIdx + (candlesInBase - 1)
             // base_start_idx must be >= base_end_idx for the function to work
             int baseEndAbsolute = baseBarIdx + candlesInBase - 1
+            z.baseEndBarIndex := baseEndAbsolute
             float temp_base_quality = Core.calculate_base_quality(baseEndAbsolute, baseBarIdx, bar_index, high, low, open, close)
             float temp_departure_strength = Core.calculate_departure_strength(baseIdx, isDemand, high, low, open, close, volume, vol_sma_20, atr14)
             

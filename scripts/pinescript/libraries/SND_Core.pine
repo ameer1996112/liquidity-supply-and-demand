@@ -23,6 +23,7 @@ export type Zone
     float bottom
     bool  active
     int   createdBarIndex
+    int   baseEndBarIndex    // Absolute bar index of the last candle in the zone's base cluster
     bool  isHistorical
     int   startTime
 
