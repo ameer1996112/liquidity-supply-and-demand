@@ -27,7 +27,7 @@
 // === LIBRARY IMPORTS ===
 // Import helper functions from external libraries to reduce script size
 import ameer_1996112/SND_Utils/21 as Utils
-import ameer_1996112/SND_Core/25 as Core
+import ameer_1996112/SND_Core/26 as Core
 
 strategy("Institutional Liquidity Protocol [Pro]",
      shorttitle = "S&D Algo [Pro]",
@@ -1183,7 +1183,7 @@ f_scan_demand_liquidity(int zoneArrayIndex) =>
                     if pBar > z.createdBarIndex
                         int pivot_offset = off + 1  // The actual pivot is at off+1
                         int validation_lookback = 100
-                        bool isValidLiquidity = Core.validate_demand_liquidity(low, high, pivot_offset, validation_lookback)
+                        bool isValidLiquidity = Core.validate_demand_liquidity(low, high, pivot_offset, validation_lookback, true)
 
                         if isValidLiquidity
                             bool isValidLocation = false
@@ -1300,7 +1300,7 @@ f_scan_supply_liquidity(int zoneArrayIndex) =>
                     if pBar > z.createdBarIndex
                         int pivot_offset = off + 1  // The actual pivot is at off+1
                         int validation_lookback = 100
-                        bool isValidLiquidity = Core.validate_supply_liquidity(high, low, pivot_offset, validation_lookback)
+                        bool isValidLiquidity = Core.validate_supply_liquidity(high, low, pivot_offset, validation_lookback, true)
 
                         if isValidLiquidity
                             bool isValidLocation = false

@@ -221,6 +221,218 @@ def calculate_max_position_size(
         return 1.0
 
 
+def calculate_position_size_with_spread(
+    payload: Dict[str, Any],
+    account_balance: float,
+    risk_percent: float,
+    spread: float = 0.0,
+    broker_spec: Optional[Dict[str, Any]] = None,
+    risk_multiplier: float = 1.0,
+    symbol_overrides: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Calculate position size accounting for broker spread and contract specs.
+
+    This is the **single source of truth** for position sizing.  Pine sends a
+    signal (entry/sl/tp); the backend recalculates lots using live broker data.
+
+    Args:
+        payload: Trade payload with ``symbol``, ``entry``, ``sl``, ``side``.
+        account_balance: Live account balance from broker.
+        risk_percent: Risk per trade (e.g. 0.5 for 0.5%).
+        spread: Current spread in price terms (ask - bid).
+        broker_spec: MetaAPI symbol specification (contractSize, minVolume, volumeStep, etc.).
+        risk_multiplier: PropGuard / time-based scaling factor.
+        symbol_overrides: Per-symbol overrides from ``symbol_risk_rules`` table.
+
+    Returns:
+        Dict with ``lots``, ``risk_usd``, ``sl_pips``, ``spread_pips``,
+        ``effective_sl_pips``, ``pip_value_per_lot``, ``rejected`` (bool),
+        ``rejection_reason`` (str or None).
+    """
+    try:
+        entry = float(payload.get("entry", 0))
+        sl = float(payload.get("sl", 0))
+        symbol = payload.get("symbol", "UNKNOWN")
+
+        if entry == 0 or sl == 0:
+            return {
+                "lots": 0.0, "risk_usd": 0.0, "sl_pips": 0.0, "spread_pips": 0.0,
+                "effective_sl_pips": 0.0, "pip_value_per_lot": 0.0,
+                "rejected": True, "rejection_reason": "Missing entry or SL price",
+            }
+
+        # ── Determine pip_size and pip_value_per_lot ──
+        # Priority: broker_spec > symbol_overrides > hardcoded fallback
+        min_lot = 0.01
+        lot_step = 0.01
+        max_lot_cap = 10.0
+
+        if broker_spec:
+            # Use real broker data
+            contract_size = float(broker_spec.get("contractSize", 100000))
+            digits = int(broker_spec.get("digits", 5))
+            min_lot = float(broker_spec.get("minVolume", 0.01))
+            lot_step = float(broker_spec.get("volumeStep", 0.01))
+            max_lot_cap_broker = float(broker_spec.get("maxVolume", 1000))
+
+            # Derive pip_size from digits
+            # Forex 5-digit: pip = 0.0001, 3-digit (JPY): pip = 0.01
+            # Gold 2-digit: pip = 0.01, Index 1-digit: pip = 1.0
+            if digits >= 5:
+                pip_size = 10 ** -(digits - 1)  # 5 digits → 0.0001
+            elif digits >= 3:
+                pip_size = 10 ** -(digits - 1)  # 3 digits → 0.01
+            else:
+                pip_size = 10 ** -digits  # 2 digits → 0.01, 1 digit → 0.1
+
+            # pip_value_per_lot depends on quote currency
+            # For USD-quoted pairs: pip_value = pip_size * contract_size
+            # For non-USD-quoted: pip_value = (pip_size * contract_size) / current_price
+            sym_upper = symbol.upper()
+            if "JPY" in sym_upper:
+                pip_size = 0.01
+                pip_value_per_lot = (pip_size / entry) * contract_size if entry > 0 else 10.0
+            elif any(x in sym_upper for x in ["XAU", "GOLD", "XAG", "SILVER"]):
+                pip_size = 0.01
+                pip_value_per_lot = pip_size * contract_size
+            elif any(x in sym_upper for x in ["NAS", "US30", "SPX", "US100", "US500", "GER", "UK100"]):
+                pip_size = 1.0
+                pip_value_per_lot = 1.0 * contract_size  # $1 per point × contract
+            elif any(x in sym_upper for x in ["BTC", "ETH"]):
+                pip_size = 1.0
+                pip_value_per_lot = 1.0 * contract_size
+            elif sym_upper.endswith("USD") or "USD" in sym_upper[3:]:
+                # USD is quote currency: EURUSD, GBPUSD, etc.
+                pip_size = 0.0001
+                pip_value_per_lot = pip_size * contract_size  # = $10 per pip for 100k lot
+            else:
+                # USD is base or neither: USDCAD, EURGBP, etc.
+                pip_size = 0.0001
+                pip_value_per_lot = (pip_size * contract_size) / entry if entry > 0 else 10.0
+
+            try:
+                from config import get_settings
+                s = get_settings()
+                max_lot_cap = min(float(getattr(s, "max_lot_size", 10.0)), max_lot_cap_broker)
+            except Exception:
+                max_lot_cap = min(10.0, max_lot_cap_broker)
+
+        elif symbol_overrides and symbol_overrides.get("enabled", True):
+            # DB overrides
+            pip_size = float(symbol_overrides.get("pip_size", 0.0001))
+            pip_value_per_lot = float(symbol_overrides.get("pip_value_per_lot", 10.0))
+            risk_percent = float(symbol_overrides.get("risk_percent", risk_percent))
+            max_lot_cap = float(symbol_overrides.get("max_lot_size", 10.0))
+            min_lot = float(symbol_overrides.get("min_lot_size", 0.01))
+            lot_step = float(symbol_overrides.get("lot_step", 0.01))
+        else:
+            # Hardcoded fallback (same as calculate_max_position_size)
+            sym_upper = symbol.upper()
+            if any(idx in sym_upper for idx in ["NAS100", "US30", "SPX", "UK100", "GER", "FRA", "JPN225", "AUS200"]):
+                pip_size = 1.0
+                pip_value_per_lot = 1.0
+            elif any(crypto in sym_upper for crypto in ["BTC", "ETH", "BCH", "LTC", "XRP", "ADA", "SOL", "DOGE"]):
+                pip_size = 1.0
+                pip_value_per_lot = 1.0
+            elif "JPY" in sym_upper:
+                pip_size = 0.01
+                pip_value_per_lot = (pip_size / entry) * 100000 if entry > 0 else 10.0
+            elif "XAU" in sym_upper or "GOLD" in sym_upper or "XAG" in sym_upper:
+                pip_size = 0.01
+                pip_value_per_lot = 100.0
+            else:
+                pip_size = 0.0001
+                pip_value_per_lot = 10.0
+            try:
+                from config import get_settings
+                s = get_settings()
+                max_lot_cap = float(getattr(s, "max_lot_size", 10.0))
+            except Exception:
+                max_lot_cap = 10.0
+
+        # ── SL distance + spread compensation ──
+        sl_distance = abs(entry - sl)
+        spread_in_pips = spread / pip_size if pip_size > 0 else 0.0
+        sl_pips = sl_distance / pip_size
+
+        # Add spread to effective SL distance (spread widens your actual risk)
+        effective_sl_distance = sl_distance + spread
+        effective_sl_pips = effective_sl_distance / pip_size
+
+        # Also add SL buffer (1 pip safety margin)
+        try:
+            from config import get_settings
+            sl_buffer_pips = float(getattr(get_settings(), "stop_loss_buffer_pips", 1.0))
+        except Exception:
+            sl_buffer_pips = 1.0
+        effective_sl_pips += sl_buffer_pips
+
+        # ── Calculate risk and lots ──
+        max_risk_usd = account_balance * (risk_percent / 100.0)
+
+        if effective_sl_pips <= 0 or pip_value_per_lot <= 0:
+            return {
+                "lots": 0.0, "risk_usd": max_risk_usd, "sl_pips": sl_pips,
+                "spread_pips": spread_in_pips, "effective_sl_pips": effective_sl_pips,
+                "pip_value_per_lot": pip_value_per_lot,
+                "rejected": True, "rejection_reason": "Invalid SL distance or pip value",
+            }
+
+        base_lots = max_risk_usd / (effective_sl_pips * pip_value_per_lot)
+        scaled_lots = base_lots * max(risk_multiplier, 0.0)
+
+        if scaled_lots < min_lot:
+            logger.warning(
+                "Position size %.4f below minimum %.2f for %s "
+                "(risk=$%.2f, eff_sl=%.2f pips, pip_value=%.2f). SL too wide for account.",
+                scaled_lots, min_lot, symbol, max_risk_usd, effective_sl_pips, pip_value_per_lot,
+            )
+            return {
+                "lots": 0.0, "risk_usd": max_risk_usd, "sl_pips": sl_pips,
+                "spread_pips": spread_in_pips, "effective_sl_pips": effective_sl_pips,
+                "pip_value_per_lot": pip_value_per_lot,
+                "rejected": True,
+                "rejection_reason": f"Size {scaled_lots:.4f} below min {min_lot} — SL too wide",
+            }
+
+        # Cap and round
+        final_lots = min(scaled_lots, max_lot_cap)
+        final_lots = round(final_lots / lot_step) * lot_step
+        final_lots = max(min_lot, final_lots)
+
+        # Actual risk with this lot size
+        actual_risk_usd = final_lots * effective_sl_pips * pip_value_per_lot
+
+        logger.info(
+            "📐 Position Sizing [%s]: Balance=$%.2f | Risk=%.2f%% ($%.2f target) | "
+            "SL=%.1f pips + %.1f spread + %.1f buffer = %.1f effective | "
+            "Pip value=$%.2f | Lots=%.2f | Actual risk=$%.2f",
+            symbol, account_balance, risk_percent, max_risk_usd,
+            sl_pips, spread_in_pips, sl_buffer_pips, effective_sl_pips,
+            pip_value_per_lot, final_lots, actual_risk_usd,
+        )
+
+        return {
+            "lots": round(final_lots, 2),
+            "risk_usd": round(actual_risk_usd, 2),
+            "target_risk_usd": round(max_risk_usd, 2),
+            "sl_pips": round(sl_pips, 1),
+            "spread_pips": round(spread_in_pips, 1),
+            "effective_sl_pips": round(effective_sl_pips, 1),
+            "pip_value_per_lot": round(pip_value_per_lot, 4),
+            "rejected": False,
+            "rejection_reason": None,
+        }
+
+    except Exception as e:
+        logger.error("calculate_position_size_with_spread error: %s", e)
+        return {
+            "lots": 0.0, "risk_usd": 0.0, "sl_pips": 0.0, "spread_pips": 0.0,
+            "effective_sl_pips": 0.0, "pip_value_per_lot": 0.0,
+            "rejected": True, "rejection_reason": f"Calculation error: {e}",
+        }
+
+
 class RiskGuardian:
     """Prop firm risk rules: kill switch, daily loss limit, drawdown, anti-gambling."""
 

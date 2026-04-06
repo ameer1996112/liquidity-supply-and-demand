@@ -606,7 +606,7 @@ export is_makuchaku_pvt_high(series float src_high, int idx) =>
 // @param pivot_bar_offset The offset of the pivot low to validate
 // @param lookback Maximum bars to scan backwards for previous swing high
 // @returns True if this swing low broke a previous internal high (valid liquidity)
-export validate_demand_liquidity(series float src_low, series float src_high, int pivot_bar_offset, int lookback) =>
+export validate_demand_liquidity(series float src_low, series float src_high, int pivot_bar_offset, int lookback, bool use_impulse_fallback = true) =>
     // Safety check
     if na(pivot_bar_offset) or pivot_bar_offset < 0 or lookback <= 0
         false
@@ -623,16 +623,27 @@ export validate_demand_liquidity(series float src_low, series float src_high, in
         for i = scan_start to scan_end
             // Check if this bar is a pivot high (3-candle pattern)
             if i + 2 <= 500  // Ensure we have enough history
-                // A pivot high at offset i means: high[i] > high[i-1] AND high[i] > high[i+1]
-                // But we're scanning backwards, so we check if high[i+1] is a pivot
                 if is_makuchaku_pvt_high(src_high, i)
                     float prev_high_price = src_high[i + 1]  // The pivot high price
 
                     // Check if the pivot low broke below this previous high
-                    // "Broke" means the low went BELOW the high (taking liquidity)
                     if pivot_low_price < prev_high_price
                         broke_internal_high := true
                         break  // Found valid liquidity, exit loop
+
+        // Impulse fallback: if no 3-candle pivot found, check if a strong impulse
+        // candle (body > 60% of range) created a peak that was broken
+        if not broke_internal_high and use_impulse_fallback
+            for i = scan_start to scan_end
+                if i + 1 <= 500
+                    float candle_high = src_high[i]
+                    float candle_low = src_low[i]
+                    float candle_range = candle_high - candle_low
+                    // Strong impulse: high is a local peak (higher than neighbors)
+                    if candle_range > 0 and src_high[i] > src_high[i + 1] and src_high[i] > src_high[i - 1]
+                        if pivot_low_price < src_high[i]
+                            broke_internal_high := true
+                            break
 
         broke_internal_high
 
@@ -643,7 +654,7 @@ export validate_demand_liquidity(series float src_low, series float src_high, in
 // @param pivot_bar_offset The offset of the pivot high to validate
 // @param lookback Maximum bars to scan backwards for previous swing low
 // @returns True if this swing high broke a previous internal low (valid liquidity)
-export validate_supply_liquidity(series float src_high, series float src_low, int pivot_bar_offset, int lookback) =>
+export validate_supply_liquidity(series float src_high, series float src_low, int pivot_bar_offset, int lookback, bool use_impulse_fallback = true) =>
     // Safety check
     if na(pivot_bar_offset) or pivot_bar_offset < 0 or lookback <= 0
         false
@@ -666,5 +677,19 @@ export validate_supply_liquidity(series float src_high, series float src_low, in
                     if pivot_high_price > prev_low_price
                         broke_internal_low := true
                         break  // Found valid liquidity, exit loop
+
+        // Impulse fallback: if no 3-candle pivot found, check if a strong impulse
+        // candle created a trough that was broken
+        if not broke_internal_low and use_impulse_fallback
+            for i = scan_start to scan_end
+                if i + 1 <= 500
+                    float candle_high = src_high[i]
+                    float candle_low = src_low[i]
+                    float candle_range = candle_high - candle_low
+                    // Strong impulse: low is a local trough (lower than neighbors)
+                    if candle_range > 0 and src_low[i] < src_low[i + 1] and src_low[i] < src_low[i - 1]
+                        if pivot_high_price > src_low[i]
+                            broke_internal_low := true
+                            break
 
         broke_internal_low

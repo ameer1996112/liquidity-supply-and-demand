@@ -264,6 +264,62 @@ class MetaApiAdapter:
         ask = data.get("ask")
         return bid, ask
 
+    def get_symbol_specification(self, symbol: str) -> Dict[str, Any] | None:
+        """
+        Fetch full symbol specification from MetaAPI broker.
+
+        Returns dict with broker-specific data:
+        - minVolume: Minimum lot size (e.g. 0.01)
+        - maxVolume: Maximum lot size
+        - volumeStep: Lot step (e.g. 0.01)
+        - contractSize: Units per lot (100000 for forex, 100 for gold)
+        - digits: Price decimal places
+        - pipSize: Pip size in price terms (e.g. 0.0001 for EURUSD)
+        - tickSize: Minimum price increment
+        - spread: Current spread in points (if available)
+
+        Returns None on failure.
+        """
+        if self._check_circuit_breaker():
+            return None
+        broker_symbol = SymbolMapper.to_broker_symbol(symbol)
+        url = (
+            f"{self.base_url}/users/current/accounts/"
+            f"{self.account_id}/symbols/{broker_symbol}/specification"
+        )
+        resp = self._request_with_retry("GET", url, timeout=10)
+        if resp is None or resp.status_code != 200:
+            if resp is not None:
+                logger.warning(
+                    "MetaApi get_symbol_specification failed for %s: HTTP %s %s",
+                    symbol, resp.status_code, resp.text[:200],
+                )
+            return None
+        try:
+            data = resp.json()
+            logger.debug(
+                "MetaApi spec for %s: contractSize=%s minVol=%s volStep=%s digits=%s",
+                symbol, data.get("contractSize"), data.get("minVolume"),
+                data.get("volumeStep"), data.get("digits"),
+            )
+            return data
+        except ValueError:
+            logger.error("MetaApi get_symbol_specification invalid JSON for %s", symbol)
+            return None
+
+    def get_symbol_spread(self, symbol: str) -> float | None:
+        """
+        Get current spread in price terms (ask - bid) from broker.
+
+        Returns spread as a float (e.g. 0.00012 for EURUSD) or None on failure.
+        """
+        bid, ask = self._get_symbol_price(symbol)
+        if bid is not None and ask is not None and ask >= bid:
+            spread = ask - bid
+            logger.debug("Spread for %s: %.5f (bid=%.5f ask=%.5f)", symbol, spread, bid, ask)
+            return spread
+        return None
+
     @staticmethod
     def _infer_digits(price: float | None, symbol: str) -> int:
         """

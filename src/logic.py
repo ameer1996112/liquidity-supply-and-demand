@@ -28,7 +28,7 @@ from src.services.notification_service import NotificationService
 from src.adapters.paper_trader import get_paper_trader
 from src.adapters.execution.interfaces import OrderRequest, CloseRequest
 from src.adapters.execution.router import get_adapter
-from src.core.risk_engine import calculate_max_position_size
+from src.core.risk_engine import calculate_position_size_with_spread
 from src.adapters import supabase as supabase_module
 from src.services.trade_events import log_event
 from src.services.execution_engine import ExecutionEngine
@@ -524,7 +524,7 @@ def process_trade(
                 entry = float(data["entry"])
                 sl = float(data["sl"])
                 tp = float(data["tp"])
-                size = float(data.get("size", 0.01))
+                pine_size = float(data.get("size", 0.01))  # Pine's calculated size (for comparison only)
                 risk = abs(entry - sl)
                 reward = abs(tp - entry)
                 rr_ratio = reward / risk if risk > 0 else 0.0
@@ -596,7 +596,6 @@ def process_trade(
                     except Exception as kelly_err:
                         logger.warning("Kelly Criterion failed, using base risk: %s", kelly_err)
 
-                sl_pips = risk  # raw price distance (used for logging)
                 symbol_overrides = data.get("_symbol_overrides")
 
                 # Read PropGuard risk multiplier (set by worker.py Step-Up Protocol)
@@ -611,32 +610,64 @@ def process_trade(
                         risk_multiplier, time_multiplier, effective_multiplier,
                     )
 
-                max_lots = calculate_max_position_size(
+                # ══════════════════════════════════════════════════════════
+                # DYNAMIC RISK ENGINE: Backend is single source of truth
+                # Fetches live spread + broker specs, ignores Pine's size
+                # ══════════════════════════════════════════════════════════
+                broker_spec = None
+                spread = 0.0
+                if hasattr(adapter, "get_symbol_specification"):
+                    try:
+                        broker_spec = adapter.get_symbol_specification(symbol)
+                    except Exception as spec_err:
+                        logger.warning("Failed to fetch broker spec for %s: %s", symbol, spec_err)
+                if hasattr(adapter, "get_symbol_spread"):
+                    try:
+                        _spread = adapter.get_symbol_spread(symbol)
+                        if _spread is not None:
+                            spread = _spread
+                    except Exception as spread_err:
+                        logger.warning("Failed to fetch spread for %s: %s", symbol, spread_err)
+
+                sizing_result = calculate_position_size_with_spread(
                     payload=data,
                     account_balance=current_balance,
                     risk_percent=risk_pct,
+                    spread=spread,
+                    broker_spec=broker_spec,
                     risk_multiplier=effective_multiplier,
                     symbol_overrides=symbol_overrides,
                 )
-                if size > max_lots:
-                    logger.warning(
-                        "Size %.4f exceeds risk limit %.4f (multiplier=%.2f) — capping to max",
-                        size,
-                        max_lots,
-                        effective_multiplier,
-                    )
-                    size = max_lots
-                size = round(size, 2)
 
-                logger.info(
-                    "Risk Calc: Balance=$%.2f Risk=%.1f%% Multiplier=%.2f SL_dist=%.5f -> MaxSize=%.4f, FinalSize=%.2f",
-                    current_balance,
-                    risk_pct,
-                    effective_multiplier,
-                    sl_pips,
-                    max_lots,
-                    size,
-                )
+                if sizing_result["rejected"]:
+                    logger.warning(
+                        "Position sizing REJECTED for %s: %s (Pine sent %.2f lots)",
+                        symbol, sizing_result["rejection_reason"], pine_size,
+                    )
+                    save_result(
+                        data, "filtered",
+                        f"Dynamic sizing rejected: {sizing_result['rejection_reason']}",
+                        win_prob if 'win_prob' in dir() else 0.0,
+                        broker_profile_id=profile.get("id") if profile else None,
+                        account_name=profile.get("name") if profile else None,
+                    )
+                    return
+
+                size = sizing_result["lots"]
+
+                # Log comparison: Pine vs backend sizing
+                if abs(pine_size - size) > 0.01:
+                    logger.info(
+                        "📊 Size comparison: Pine=%.2f lots, Backend=%.2f lots (diff=%.2f). "
+                        "Backend is authoritative (spread=%.1f pips, eff_sl=%.1f pips, risk=$%.2f)",
+                        pine_size, size, size - pine_size,
+                        sizing_result["spread_pips"],
+                        sizing_result["effective_sl_pips"],
+                        sizing_result["risk_usd"],
+                    )
+
+                # Store sizing details in payload for post-execution verification
+                data["_sizing"] = sizing_result
 
                 trade_key = (data.get("trade_key") or "").strip()
 
@@ -774,6 +805,36 @@ def process_trade(
                                 "SL/TP post-fill verification failed for alert #%s: %s",
                                 alert_id, sltp_err,
                             )
+
+                    # ── Post-execution risk verification ──
+                    sizing = data.get("_sizing")
+                    if sizing:
+                        fill_price = getattr(exec_result, "fill_price", None) or entry
+                        actual_sl_dist = abs(float(fill_price) - float(sl))
+                        planned_risk = sizing.get("risk_usd", 0)
+                        target_risk = sizing.get("target_risk_usd", 0)
+                        pip_val = sizing.get("pip_value_per_lot", 0)
+                        pip_sz = 0.01 if "JPY" in symbol.upper() else 0.0001
+                        if any(x in symbol.upper() for x in ["XAU", "GOLD"]):
+                            pip_sz = 0.01
+                        elif any(x in symbol.upper() for x in ["NAS", "US30", "SPX"]):
+                            pip_sz = 1.0
+                        actual_sl_pips = actual_sl_dist / pip_sz if pip_sz > 0 else 0
+                        actual_risk_usd = size * actual_sl_pips * pip_val if pip_val > 0 else 0
+                        deviation_pct = abs(actual_risk_usd - target_risk) / target_risk * 100 if target_risk > 0 else 0
+
+                        logger.info(
+                            "📋 Risk Verification [%s]: Target=$%.2f | Planned=$%.2f | "
+                            "Actual=$%.2f (fill=%.5f, sl=%.5f, %.1f pips) | Deviation=%.1f%%",
+                            symbol, target_risk, planned_risk, actual_risk_usd,
+                            fill_price, sl, actual_sl_pips, deviation_pct,
+                        )
+                        if deviation_pct > 15:
+                            logger.warning(
+                                "⚠️ Risk deviation >15%%: expected $%.2f, actual $%.2f (%.1f%% off) for %s",
+                                target_risk, actual_risk_usd, deviation_pct, symbol,
+                            )
+
                 elif exec_result.status == "submitted" and broker_order_id:
                     # Mark as executed; PnL/outcome updated later on exit webhook.
                     # BUGFIX: also persist broker_order_id so exit webhook can close it.
