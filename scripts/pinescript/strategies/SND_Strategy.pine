@@ -26,8 +26,8 @@
 
 // === LIBRARY IMPORTS ===
 // Import helper functions from external libraries to reduce script size
-import ameer_1996112/SND_Utils/20 as Utils
-import ameer_1996112/SND_Core/24 as Core
+import ameer_1996112/SND_Utils/21 as Utils
+import ameer_1996112/SND_Core/25 as Core
 
 strategy("Institutional Liquidity Protocol [Pro]",
      shorttitle = "S&D Algo [Pro]",
@@ -3307,6 +3307,7 @@ process_long_entries() =>
                         guardian_arrival,        // arrival_type
                         guardian_structure_break, // market_structure_break
                         account_size_usd,         // _account_balance (Corrected)
+                        risk_pct,                // _risk_percent (synced to backend)
                         f_liq_dist_pips,         // liq_distance_pips
                         f_liq_spread_pips,       // liq_spread_pips
                         time_close,              // current_time (bar close = signal fires at bar close)
@@ -3748,6 +3749,7 @@ process_short_entries() =>
                         guardian_arrival_short,        // arrival_type
                         guardian_structure_break_short, // market_structure_break
                         account_size_usd,               // _account_balance (Corrected)
+                        risk_pct,                      // _risk_percent (synced to backend)
                         f_liq_dist_pips_short,         // liq_distance_pips
                         f_liq_spread_pips_short,       // liq_spread_pips
                         time_close,                    // current_time (bar close = signal fires at bar close)

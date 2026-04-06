@@ -281,6 +281,7 @@ export build_webhook_payload(
      float pip_size, bool include_zone_id,
      bool _liquidity_sweep, string _arrival_type, bool _structure_break,
      float _account_balance = 50000,
+     float _risk_percent = 0.5,
      float _liq_distance_pips = na, float _liq_spread_pips = na,
      int current_time = na,
      float _be_trigger_price = na,
@@ -302,6 +303,7 @@ export build_webhook_payload(
     payload := payload + ',"tp":' + to_json_num(_tp, "#.##########")
     payload := payload + ',"size":' + to_json_num(_size_lots, "#.##")
     payload := payload + ',"account_balance":' + to_json_num(_account_balance, "#.##")
+    payload := payload + ',"risk_percent":' + to_json_num(_risk_percent, "#.##")
     payload := payload + ',"run_mode":"PAPER"'
 
     // Zone Inspector Data
