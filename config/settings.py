@@ -359,8 +359,8 @@ class Settings(BaseSettings):
     # Optional: JSON array of {name, account_id, token_env_key, risk_pct, max_positions, run_mode} for multi-account (Package A)
     broker_profiles_json: str = Field(default="", description="BROKER_PROFILES_JSON: optional list of broker profiles for one-signal-many-accounts")
     meta_api_region: str = Field(
-        default="new-york",
-        description="MetaApi region slug (e.g. 'new-york', 'london', 'tokyo').",
+        default="london",
+        description="MetaApi region slug (e.g. 'new-york', 'london', 'singapore'). Must match account region in MetaAPI dashboard.",
         validation_alias="META_API_REGION",
     )
     execution_mode: str = "SHADOW"  # SHADOW | METAAPI (or others in future)

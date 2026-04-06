@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 import requests
@@ -31,6 +32,20 @@ RATE_LIMIT_SLEEP = 60
 MAX_RETRIES_BROKER_DISCONNECT = 2  # 3 total attempts: 0, 1, 2
 RETRY_BACKOFF_BROKER_DISCONNECT = (15.0, 30.0)  # 45s cumulative before giving up
 BROKER_DISCONNECT_CB_TTL = 120  # seconds — 2-min cool-off before next poll wave
+BROKER_DISCONNECT_CB_TTL_WEEKEND = 600  # 10-min cool-off on weekends (markets closed)
+
+
+def _is_forex_weekend() -> bool:
+    """True if forex markets are closed (Friday 22:00 UTC → Sunday 21:00 UTC)."""
+    now = datetime.now(timezone.utc)
+    wd, hr = now.weekday(), now.hour
+    if wd == 4 and hr >= 22:  # Friday after 22:00 UTC
+        return True
+    if wd == 5:  # All Saturday
+        return True
+    if wd == 6 and hr < 21:  # Sunday before 21:00 UTC
+        return True
+    return False
 
 
 class MetaApiAdapter:
@@ -141,21 +156,31 @@ class MetaApiAdapter:
                     continue
                 else:
                     # All 504 retries exhausted — open circuit breaker to stop poll flooding
-                    logger.error(
-                        "MetaApi %s %s HTTP 504 persisted after %s retries (account %s). "
-                        "Opening circuit breaker for %ss. "
-                        "Check: (1) META_API_REGION env var matches account region, "
-                        "(2) broker terminal is online in MetaAPI dashboard.",
-                        method, url[:80], MAX_RETRIES_BROKER_DISCONNECT + 1,
-                        self.account_id, BROKER_DISCONNECT_CB_TTL,
-                    )
+                    is_weekend = _is_forex_weekend()
+                    cb_ttl = BROKER_DISCONNECT_CB_TTL_WEEKEND if is_weekend else BROKER_DISCONNECT_CB_TTL
+                    if is_weekend:
+                        logger.info(
+                            "MetaApi %s %s HTTP 504 during weekend (expected — forex markets closed). "
+                            "Account %s. Circuit breaker opened for %ss.",
+                            method, url[:80], self.account_id, cb_ttl,
+                        )
+                    else:
+                        logger.error(
+                            "MetaApi %s %s HTTP 504 persisted after %s retries (account %s). "
+                            "Opening circuit breaker for %ss. "
+                            "Check: (1) META_API_REGION env var matches account region, "
+                            "(2) broker terminal is online in MetaAPI dashboard.",
+                            method, url[:80], MAX_RETRIES_BROKER_DISCONNECT + 1,
+                            self.account_id, cb_ttl,
+                        )
                     try:
                         from src.core.circuit_breaker import set_metaapi_circuit_open
-                        set_metaapi_circuit_open(ttl_seconds=BROKER_DISCONNECT_CB_TTL)
+                        set_metaapi_circuit_open(ttl_seconds=cb_ttl)
                     except Exception:  # noqa: BLE001
                         pass
-                    # Fire Telegram alert for broker disconnect
-                    self._send_broker_disconnect_alert("504_broker_not_connected")
+                    # Only fire alert on non-weekend disconnects (weekends are expected)
+                    if not is_weekend:
+                        self._send_broker_disconnect_alert("504_broker_not_connected")
                     return resp
 
             if 500 <= resp.status_code < 600 and resp.status_code != 504 and attempt < MAX_RETRIES:

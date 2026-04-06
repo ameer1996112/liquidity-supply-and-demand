@@ -163,7 +163,22 @@ async def _run_streaming(
     broker_not_connected_retries = 0
     MAX_ACCOUNT_NOT_FOUND_RETRIES = 3
     MAX_BROKER_NOT_CONNECTED_RETRIES = 10  # ~5 min with backoff before halting
+    MAX_BROKER_NOT_CONNECTED_RETRIES_WEEKEND = 3  # Fewer retries on weekends (expected)
     BROKER_NOT_CONNECTED_MAX_BACKOFF = 120  # 2 min max between retries
+    WEEKEND_POLL_INTERVAL = 300  # 5 min between weekend reconnect attempts
+
+    def _is_forex_weekend() -> bool:
+        """True if forex markets are closed (Friday 22:00 UTC → Sunday 21:00 UTC)."""
+        now = datetime.now(timezone.utc)
+        # weekday(): Mon=0 ... Sun=6
+        wd, hr = now.weekday(), now.hour
+        if wd == 4 and hr >= 22:  # Friday after 22:00 UTC
+            return True
+        if wd == 5:  # All Saturday
+            return True
+        if wd == 6 and hr < 21:  # Sunday before 21:00 UTC
+            return True
+        return False
 
     class _Listener(SynchronizationListener):
         async def on_deal_added(
@@ -265,24 +280,51 @@ async def _run_streaming(
                 # hammering MetaAPI (which triggers 429 rate-limits).
                 broker_not_connected_retries += 1
                 account_not_found_retries = 0
-                logger.error(
-                    "[MetaApi Stream] Account %s not connected to broker "
-                    "(attempt %d/%d): %s — retrying in %ds",
-                    account_id, broker_not_connected_retries,
-                    MAX_BROKER_NOT_CONNECTED_RETRIES, exc, backoff,
-                )
-                if broker_not_connected_retries >= MAX_BROKER_NOT_CONNECTED_RETRIES:
-                    logger.critical(
-                        "[MetaApi Stream] ❌ Account %s broker connection failed after "
-                        "%d retries — HALTING reconnect loop. "
-                        "Check: (1) MetaAPI dashboard — is account DEPLOYED & CONNECTED? "
-                        "(2) Broker MT5 server is reachable. "
-                        "(3) META_API_REGION env var matches account region.",
-                        account_id, MAX_BROKER_NOT_CONNECTED_RETRIES,
+                is_weekend = _is_forex_weekend()
+                max_retries = MAX_BROKER_NOT_CONNECTED_RETRIES_WEEKEND if is_weekend else MAX_BROKER_NOT_CONNECTED_RETRIES
+                wait_time = WEEKEND_POLL_INTERVAL if is_weekend else backoff
+
+                if is_weekend:
+                    logger.info(
+                        "[MetaApi Stream] Account %s broker disconnect during weekend "
+                        "(expected — forex markets closed). "
+                        "Attempt %d/%d, will retry in %ds.",
+                        account_id, broker_not_connected_retries, max_retries, wait_time,
                     )
-                    break
-                await asyncio.sleep(backoff)
-                backoff = min(backoff * 2, BROKER_NOT_CONNECTED_MAX_BACKOFF)
+                else:
+                    logger.error(
+                        "[MetaApi Stream] Account %s not connected to broker "
+                        "(attempt %d/%d): %s — retrying in %ds",
+                        account_id, broker_not_connected_retries,
+                        max_retries, exc, wait_time,
+                    )
+
+                if broker_not_connected_retries >= max_retries:
+                    if is_weekend:
+                        # Weekend: don't halt permanently, just sleep until
+                        # markets are likely open, then reset and retry.
+                        logger.info(
+                            "[MetaApi Stream] Weekend retry limit reached for account %s. "
+                            "Sleeping 30min then retrying (markets reopen Sunday ~21:00 UTC).",
+                            account_id,
+                        )
+                        broker_not_connected_retries = 0
+                        backoff = 5
+                        await asyncio.sleep(1800)  # 30 min
+                        continue
+                    else:
+                        logger.critical(
+                            "[MetaApi Stream] Account %s broker connection failed after "
+                            "%d retries — HALTING reconnect loop. "
+                            "Check: (1) MetaAPI dashboard — is account DEPLOYED & CONNECTED? "
+                            "(2) Broker MT5 server is reachable. "
+                            "(3) META_API_REGION env var matches account region.",
+                            account_id, max_retries,
+                        )
+                        break
+                await asyncio.sleep(wait_time)
+                if not is_weekend:
+                    backoff = min(backoff * 2, BROKER_NOT_CONNECTED_MAX_BACKOFF)
             else:
                 # Transient error: network blip, MetaAPI restart, etc. — reconnect normally
                 account_not_found_retries = 0
