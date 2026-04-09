@@ -52,3 +52,6 @@ scrapetube
 rank-bm25>=0.2
 Pillow>=10.0.0
 mplfinance>=0.12.10b0  # Candlestick chart generation for trade notifications
+
+# Optimizer (TradingView browser automation)
+playwright>=1.40.0

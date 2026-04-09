@@ -1,17 +1,104 @@
 {
   "$schema": "https://opencode.ai/config.json",
+
+  "model": "opencode/glm-5.1",
+  "small_model": "opencode/minimax-m2.5-free",
+
   "plugin": [
     "superpowers@git+https://github.com/obra/superpowers.git"
   ],
+
   "instructions": [
-    "./opencode-instructions.md"
+    "./opencode-instructions.md",
+    "./AGENTS.md"
   ],
-  "model": "google/gemini-2.0-flash",
-  "compaction": {
+
+  "autoupdate": "notify",
+  "share": "disabled",
+
+  "permission": {
+    "bash": "ask",
+    "edit": "allow",
+    "write": "allow"
+  },
+
+  "provider": {
+    "opencode": {
+      "options": {
+        "timeout": 120000,
+        "chunkTimeout": 30000
+      }
+    }
+  },
+
+  "agent": {
+    "planner": {
+      "description": "Plan tasks without touching any code",
+      "model": "opencode/minimax-m2.5-free",
+      "prompt": "You are a senior software architect. Analyze the problem, read relevant files, and produce a detailed step-by-step implementation plan. Do NOT write or modify any code. Output a numbered plan only.",
+      "tools": { "write": false, "edit": false, "bash": false }
+    },
+    "reviewer": {
+      "description": "Review code changes for quality and correctness",
+      "model": "opencode/minimax-m2.5-free",
+      "prompt": "You are a senior Python/TypeScript code reviewer. Check for: missing type hints, bare excepts, missing async/await, direct os.environ usage, ruff violations, DDD layer violations. Do NOT modify files.",
+      "tools": { "write": false, "edit": false, "bash": false }
+    },
+    "debugger": {
+      "description": "Investigate bugs without making changes",
+      "model": "opencode/glm-5.1",
+      "prompt": "You are a senior debugger. Read files to find the root cause. Do NOT make any changes. Report findings only.",
+      "tools": { "write": false, "edit": false }
+    }
+  },
+
+  "command": {
+    "ruff": {
+      "description": "Run ruff linter on src/",
+      "template": "Run `ruff check src/ config/ tests/` and fix any new errors (ignore the 98 pre-existing warnings).",
+      "agent": "build"
+    },
+    "test": {
+      "description": "Run backend tests",
+      "template": "Run `PYTHONPATH=/workspace pytest tests/ -v` and fix any failures.",
+      "agent": "build"
+    },
+    "plan": {
+      "description": "Plan a task without writing code",
+      "template": "Plan how to implement: $ARGUMENTS. Do not write any code yet.",
+      "agent": "planner"
+    },
+    "review": {
+      "description": "Review recent changes",
+      "template": "Review `git diff HEAD~1` and check for issues.",
+      "agent": "reviewer"
+    },
+    "debug": {
+      "description": "Debug an issue",
+      "template": "Investigate this issue without making changes: $ARGUMENTS",
+      "agent": "debugger"
+    },
+    "ticket": {
+      "description": "Create a Jira ticket",
+      "template": "Create a Jira ticket for: $ARGUMENTS. Use the curl command from AGENTS.md.",
+      "agent": "build"
+    }
+  },
+
+  "formatter": {
+    "ruff": {
+      "command": ["ruff", "format", "$FILE"],
+      "extensions": [".py"]
+    }
+  },
+
+"compaction": {
     "auto": true,
     "prune": true,
-    "reserved": 6000
+    "reserved": 6000,
+    "maxTokens": 100000 
   },
+
   "watcher": {
     "ignore": [
       ".git/**",
@@ -26,20 +113,23 @@
       "**/venv/**",
       "logs/**",
       "docs/**",
-      "docs/archive/**",
       "data/**",
-      "data/raw/**",
-      "data/historical/**",
-      "data/backtest/**",
-      "data/backtest_candles/**",
       "**/*.csv",
       "**/*.parquet",
       "**/*.log",
       "**/*.lock",
       "**/migrations/**",
       "scripts/pinescript/**",
-      "tests/**"
+      "tests/**",
+      "src/ai/**",
+      "src/backtest/**",
+      "src/agents/**",
+      "frontend/**",
+      "tests/**",
+      ".workspaces/**",
+      "scripts/jira/**"
     ]
   },
+
   "snapshot": false
 }
