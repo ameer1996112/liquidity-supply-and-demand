@@ -1,0 +1,288 @@
+{
+  "GBPJPY": {
+    "params": {},
+    "metrics": {
+      "net_profit": 0.0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "max_drawdown_pct": 0.0,
+      "score": 0.0
+    }
+  },
+  "EURJPY": {
+    "params": {},
+    "metrics": {
+      "net_profit": 0.0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "max_drawdown_pct": 0.0,
+      "score": 0.0
+    }
+  },
+  "NZDJPY": {
+    "params": {},
+    "metrics": {
+      "net_profit": 0.0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "max_drawdown_pct": 0.0,
+      "score": 0.0
+    }
+  },
+  "CADJPY": {
+    "params": {},
+    "metrics": {
+      "net_profit": 0.0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "max_drawdown_pct": 0.0,
+      "score": 0.0
+    }
+  },
+  "AUDJPY": {
+    "params": {},
+    "metrics": {
+      "net_profit": 0.0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "max_drawdown_pct": 0.0,
+      "score": 0.0
+    }
+  },
+  "CHFJPY": {
+    "params": {},
+    "metrics": {
+      "net_profit": 0.0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "max_drawdown_pct": 0.0,
+      "score": 0.0
+    }
+  },
+  "EURGBP": {
+    "params": {},
+    "metrics": {
+      "net_profit": 0.0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "max_drawdown_pct": 0.0,
+      "score": 0.0
+    }
+  },
+  "GBPAUD": {
+    "params": {},
+    "metrics": {
+      "net_profit": 0.0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "max_drawdown_pct": 0.0,
+      "score": 0.0
+    }
+  },
+  "GBPCAD": {
+    "params": {},
+    "metrics": {
+      "net_profit": 0.0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "max_drawdown_pct": 0.0,
+      "score": 0.0
+    }
+  },
+  "GBPCHF": {
+    "params": {},
+    "metrics": {
+      "net_profit": 0.0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "max_drawdown_pct": 0.0,
+      "score": 0.0
+    }
+  },
+  "GBPNZD": {
+    "params": {},
+    "metrics": {
+      "net_profit": 0.0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "max_drawdown_pct": 0.0,
+      "score": 0.0
+    }
+  },
+  "EURAUD": {
+    "params": {},
+    "metrics": {
+      "net_profit": 0.0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "max_drawdown_pct": 0.0,
+      "score": 0.0
+    }
+  },
+  "EURCAD": {
+    "params": {},
+    "metrics": {
+      "net_profit": 0.0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "max_drawdown_pct": 0.0,
+      "score": 0.0
+    }
+  },
+  "EURCHF": {
+    "params": {},
+    "metrics": {
+      "net_profit": 0.0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "max_drawdown_pct": 0.0,
+      "score": 0.0
+    }
+  },
+  "EURNZD": {
+    "params": {},
+    "metrics": {
+      "net_profit": 0.0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "max_drawdown_pct": 0.0,
+      "score": 0.0
+    }
+  },
+  "AUDNZD": {
+    "params": {},
+    "metrics": {
+      "net_profit": 0.0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "max_drawdown_pct": 0.0,
+      "score": 0.0
+    }
+  },
+  "AUDCAD": {
+    "params": {},
+    "metrics": {
+      "net_profit": 0.0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "max_drawdown_pct": 0.0,
+      "score": 0.0
+    }
+  },
+  "AUDCHF": {
+    "params": {},
+    "metrics": {
+      "net_profit": 0.0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "max_drawdown_pct": 0.0,
+      "score": 0.0
+    }
+  },
+  "CADCHF": {
+    "params": {},
+    "metrics": {
+      "net_profit": 0.0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "max_drawdown_pct": 0.0,
+      "score": 0.0
+    }
+  },
+  "NZDCAD": {
+    "params": {},
+    "metrics": {
+      "net_profit": 0.0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "max_drawdown_pct": 0.0,
+      "score": 0.0
+    }
+  },
+  "NZDCHF": {
+    "params": {},
+    "metrics": {
+      "net_profit": 0.0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "max_drawdown_pct": 0.0,
+      "score": 0.0
+    }
+  },
+  "XAUUSD": {
+    "params": {},
+    "metrics": {
+      "net_profit": 0.0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "max_drawdown_pct": 0.0,
+      "score": 0.0
+    }
+  },
+  "XAGUSD": {
+    "params": {},
+    "metrics": {
+      "net_profit": 0.0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "max_drawdown_pct": 0.0,
+      "score": 0.0
+    }
+  },
+  "NAS100": {
+    "params": {},
+    "metrics": {
+      "net_profit": 0.0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "max_drawdown_pct": 0.0,
+      "score": 0.0
+    }
+  },
+  "US30": {
+    "params": {},
+    "metrics": {
+      "net_profit": 0.0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "max_drawdown_pct": 0.0,
+      "score": 0.0
+    }
+  },
+  "US500": {
+    "params": {},
+    "metrics": {
+      "net_profit": 0.0,
+      "total_trades": 0,
+      "win_rate": 0.0,
+      "profit_factor": 0.0,
+      "max_drawdown_pct": 0.0,
+      "score": 0.0
+    }
+  }
+}
