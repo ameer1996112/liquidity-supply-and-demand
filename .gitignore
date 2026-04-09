@@ -1,71 +1,92 @@
-
-# System Files
+# ------------------------------
+# OS / Editor
+# ------------------------------
 .DS_Store
 .AppleDouble
 .LSOverride
 ._*
-
-# Editor Files
-.vscode/
-.idea/
+Thumbs.db
+*~
 *.swp
 *.swo
+*.code-workspace
 
-# Logs and Temporary Files
+.vscode/
+.idea/
+
+# ------------------------------
+# Env / Secrets
+# ------------------------------
+.env
+.env.*
+!.env.example
+backend/.env
+
+# ------------------------------
+# Logs / Temp
+# ------------------------------
 *.log
+logs/
 tmp/
 temp/
 
-# Potentially Sensitive Data
-transscripts/
-
-# Sensitive/Private Data (User Request)
-# Add any specific keys or private folders here
-.env
-backend/.env
-
+# ------------------------------
 # Python
+# ------------------------------
 venv/
 .venv/
 __pycache__/
 *.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
 
-# Redis
-dump.rdb
-*.rdb
-# AI Agents and Editor Settings
-.claude/
-.agent/
-.agents/
-.cursor/
-
-# ── GSD baseline (auto-generated) ──
-.gsd/activity/
-.gsd/forensics/
-.gsd/runtime/
-.gsd/worktrees/
-.gsd/parallel/
-.gsd/auto.lock
-.gsd/metrics.json
-.gsd/completed-units.json
-.gsd/STATE.md
-.gsd/gsd.db
-.gsd/DISCUSSION-MANIFEST.json
-.gsd/milestones/**/*-CONTINUE.md
-.gsd/milestones/**/continue.md
-Thumbs.db
-*~
-*.code-workspace
-.env.*
-!.env.example
+# ------------------------------
+# Node / Frontend
+# ------------------------------
 node_modules/
 .next/
 dist/
 build/
-target/
-vendor/
 coverage/
 .cache/
+*.tsbuildinfo
 
-# ── GSD baseline (auto-generated) ──
-.gsd
+# ------------------------------
+# Redis / Runtime
+# ------------------------------
+dump.rdb
+*.rdb
+
+# ------------------------------
+# AI tooling / local agent state
+# ------------------------------
+.claude/
+.agent/
+.agents/
+.cursor/
+.opencode/node_modules/
+.gstack/
+
+# ------------------------------
+# GSD
+# ------------------------------
+.gsd/
+
+# ------------------------------
+# Data / local files
+# ------------------------------
+data/transcripts/
+
+# Optional: uncomment if these are local/generated and should not be tracked
+# data/raw/
+# data/historical/
+# data/backtest/
+# data/backtest_candles/
+# data/test_historical/
+
+# ------------------------------
+# Misc
+# ------------------------------
+target/
+vendor/
