@@ -1,11 +1,18 @@
 #!/usr/bin/env bash
 # run.sh — Launch the optimizer under nohup and tail the log.
 #
-# Usage:
-#   bash scripts/optimizer/run.sh [--fast] [--smart] [--pairs EURUSD,XAUUSD]
+# Usage (recommended):
+#   bash scripts/optimizer/run.sh --bayesian                      # all 33 pairs overnight
+#   bash scripts/optimizer/run.sh --bayesian --pairs EURUSD       # single pair
+#   bash scripts/optimizer/run.sh --bayesian --pairs EURUSD --n-trials 100
+#
+# Legacy modes:
+#   bash scripts/optimizer/run.sh --fast
+#   bash scripts/optimizer/run.sh --smart --pairs EURUSD,XAUUSD
 #
 # All arguments are forwarded to main.py unchanged.
 # Log is written to: scripts/optimization_results/run_TIMESTAMP.log
+# Ctrl-C detaches from the log — optimizer keeps running in background.
 
 set -euo pipefail
 
@@ -65,17 +72,28 @@ echo "[run.sh] Log: $LOG_FILE"
 echo "[run.sh] Args: $*"
 echo ""
 
+# ── Prevent macOS from sleeping ───────────────────────────────────────────────
+# caffeinate -i keeps the system awake as long as the optimizer is running.
+# It exits automatically when the optimizer finishes.
+if command -v caffeinate &>/dev/null; then
+    LAUNCHER="caffeinate -i"
+    echo "[run.sh] Sleep prevention: caffeinate enabled (Mac won't sleep during run)"
+else
+    LAUNCHER=""
+    echo "[run.sh] Warning: caffeinate not found — Mac may sleep during long runs"
+fi
+
 # ── Launch under nohup ────────────────────────────────────────────────────────
 # Run as a Python *module* so relative imports in the package work correctly.
 export PYTHONPATH="$PROJECT_ROOT"
 export _OPTIMIZER_VENV_ACTIVE=1   # suppress venv re-exec inside main.py
 
-nohup "$PYTHON" -m scripts.optimizer.main "$@" \
+nohup $LAUNCHER "$PYTHON" -m scripts.optimizer.main "$@" \
     >> "$LOG_FILE" 2>&1 &
 
 PID=$!
 echo "[run.sh] Optimizer running as PID $PID"
-echo "         To stop: kill $PID"
+echo "         To stop:  kill $PID"
 echo "         Log file: $LOG_FILE"
 echo ""
 echo "[run.sh] Tailing log (Ctrl-C to detach — optimizer keeps running):"

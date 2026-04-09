@@ -1,18 +1,25 @@
 """
 tab_worker.py — TabWorker: handles optimization on a single TradingView tab.
 
-Retry logic: _apply_params and _apply_and_test each retry up to 3 times
-with a 2-second sleep between attempts.  Per-pair work is wrapped in a
-5-minute asyncio.wait_for timeout by the caller (TradingViewOptimizer.run).
+Reliability guarantees:
+  - _wait_for_update_complete(): detects the full appear→disappear cycle of
+    "Updating report" so we never read stale results.
+  - _get_results_hash(): fingerprints the current result set so we can detect
+    when TradingView has (or hasn't) recalculated.
+  - _apply_params() retries up to _MAX_RETRIES times, validates the hash
+    changed before returning.
+  - sample_params(): translates an Optuna trial into concrete TradingView
+    parameter values (resolves liq_distance per asset class).
 """
 
 import asyncio
+import hashlib
 import time
 import logging
 from datetime import datetime
 from typing import Optional, TYPE_CHECKING
 
-from .config import INPUT_INDEX, CHECKBOX_INDICES, HILL_CLIMB_PARAMS
+from .config import INPUT_INDEX, CHECKBOX_INDICES, HILL_CLIMB_PARAMS, LIQ_DISTANCE_RANGES
 from .models import BacktestResult
 
 if TYPE_CHECKING:
@@ -22,7 +29,65 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 _MAX_RETRIES = 3
-_RETRY_SLEEP = 2.0  # seconds between retry attempts
+_RETRY_SLEEP = 2.0          # seconds between retry attempts
+_UPDATE_APPEAR_TIMEOUT = 4  # seconds to wait for "Updating report" to appear
+_UPDATE_FINISH_TIMEOUT = 90 # seconds max for chart to finish recalculating
+
+_LOADING_INDICATORS = [
+    "Updating report", "Calculating...", "Loading...", "Compiling..."
+]
+
+
+# ─────────────────────────────────── JS snippets ─────────────────────────────
+
+_JS_FIND_LOADING = """
+(() => {
+    const indicators = arguments[0];
+    for (const el of document.querySelectorAll('*')) {
+        const t = el.textContent?.trim();
+        if (
+            indicators.includes(t)
+            && el.offsetParent !== null
+            && el.getBoundingClientRect().height > 0
+            && el.children.length <= 2
+        ) return t;
+    }
+    return null;
+})()
+"""
+
+_JS_RESULTS_FINGERPRINT = """
+(() => {
+    const cells = document.querySelectorAll('[class*="containerCell-"]');
+    const parts = [];
+    for (const cell of cells) {
+        const t = cell.querySelector('[class*="title-"]');
+        const vals = cell.querySelectorAll('[class*="value-"], [class*="additional-"]');
+        if (t) {
+            const vs = [];
+            for (const v of vals) { const x = v.textContent?.trim(); if (x) vs.push(x); }
+            if (vs.length) parts.push(t.textContent.trim() + '=' + vs.join('|'));
+        }
+    }
+    return parts.join(';');
+})()
+"""
+
+_JS_COLLECT_METRICS = """
+(() => {
+    const r = {};
+    for (const cell of document.querySelectorAll('[class*="containerCell-"]')) {
+        const t = cell.querySelector('[class*="title-"]');
+        const vals = cell.querySelectorAll('[class*="value-"], [class*="additional-"]');
+        if (t) {
+            const vs = [];
+            for (const v of vals) { const x = v.textContent?.trim(); if (x) vs.push(x); }
+            if (vs.length) r[t.textContent.trim()] = vs.join('|');
+        }
+    }
+    return r;
+})()
+"""
 
 
 async def page_query_snd(page: "Page"):
@@ -47,6 +112,54 @@ class TabWorker:
         self.page = page
         self.optimizer = optimizer
         self.results: list[BacktestResult] = []
+
+    # ─────────────────────────────────── asset class helpers ─────────────────
+
+    @staticmethod
+    def _asset_class(symbol: str) -> str:
+        """Return 'gold', 'index', or 'forex' for a given symbol."""
+        sym = symbol.upper()
+        if "XAU" in sym or "GOLD" in sym or "XAG" in sym:
+            return "gold"
+        if any(x in sym for x in ["NAS", "US100", "US500", "US30", "SPX", "NDX"]):
+            return "index"
+        return "forex"
+
+    def _liq_range(self, symbol: str) -> dict:
+        """Return the liquidity distance range dict for this symbol's asset class."""
+        return LIQ_DISTANCE_RANGES[self._asset_class(symbol)]
+
+    # ─────────────────────────────────── Optuna param sampler ────────────────
+
+    def sample_params(self, trial, symbol: str) -> dict:
+        """
+        Translate an Optuna trial into a concrete parameter dict for TradingView.
+        Handles liq_distance resolution per asset class and rr_mode expansion.
+        """
+        from .config import OPTUNA_SEARCH_SPACE
+
+        params: dict = {}
+        liq_range = self._liq_range(symbol)
+        liq_param_name = liq_range["param"]
+
+        for name, space in OPTUNA_SEARCH_SPACE.items():
+            if name == "liq_distance":
+                val = trial.suggest_float(
+                    "liq_distance", liq_range["low"], liq_range["high"]
+                )
+                # Round to 1 decimal place to reduce noise
+                params[liq_param_name] = round(val, 1)
+            elif space["type"] == "categorical":
+                val = trial.suggest_categorical(name, space["choices"])
+                params[name] = val
+            elif space["type"] == "int":
+                val = trial.suggest_int(name, space["low"], space["high"])
+                params[name] = val
+            elif space["type"] == "float":
+                val = trial.suggest_float(name, space["low"], space["high"])
+                params[name] = round(val, 1)
+
+        return params
 
     # ─────────────────────────────────── navigation ──────────────────────────
 
@@ -146,6 +259,85 @@ class TabWorker:
             except Exception:
                 pass
             await asyncio.sleep(0.5)
+
+    # ─────────────────────────────────── update cycle detection ──────────────
+
+    async def _check_loading_text(self) -> Optional[str]:
+        """Return the loading indicator text if visible, else None."""
+        try:
+            return await self.page.evaluate(
+                f"""
+                (() => {{
+                    const indicators = {_LOADING_INDICATORS!r};
+                    for (const el of document.querySelectorAll('*')) {{
+                        const t = el.textContent?.trim();
+                        if (
+                            indicators.includes(t)
+                            && el.offsetParent !== null
+                            && el.getBoundingClientRect().height > 0
+                            && el.children.length <= 2
+                        ) return t;
+                    }}
+                    return null;
+                }})()
+                """
+            )
+        except Exception:
+            return None
+
+    async def _wait_for_update_complete(self) -> bool:
+        """
+        Wait for TradingView to finish recalculating after a parameter change.
+
+        Detects the full cycle:
+          idle → [update starts] → updating → [update ends] → idle
+
+        Phase 1: Wait up to _UPDATE_APPEAR_TIMEOUT seconds for the loading
+                 indicator to APPEAR (confirming TV acknowledged the change).
+        Phase 2: Wait up to _UPDATE_FINISH_TIMEOUT seconds for it to DISAPPEAR.
+
+        If Phase 1 times out (TV never started updating — e.g. instant recalc
+        or param rejected), we add a 1.5 s safety buffer and return True.
+
+        Returns True on clean completion, False if Phase 2 timed out.
+        """
+        # Phase 1 — wait for loading to appear
+        appeared = False
+        deadline = time.time() + _UPDATE_APPEAR_TIMEOUT
+        while time.time() < deadline:
+            if await self._check_loading_text():
+                appeared = True
+                break
+            await asyncio.sleep(0.1)
+
+        if not appeared:
+            # TV didn't start a loading indicator; assume instant or missed.
+            await asyncio.sleep(1.5)
+            return True
+
+        # Phase 2 — wait for loading to disappear
+        deadline = time.time() + _UPDATE_FINISH_TIMEOUT
+        while time.time() < deadline:
+            if not await self._check_loading_text():
+                await asyncio.sleep(0.5)   # small buffer after disappears
+                return True
+            await asyncio.sleep(0.3)
+
+        log.warning("_wait_for_update_complete: timed out after %ds", _UPDATE_FINISH_TIMEOUT)
+        return False
+
+    # ─────────────────────────────────── results fingerprint ─────────────────
+
+    async def _get_results_hash(self) -> str:
+        """
+        Return a short hash of the current strategy-tester result cells.
+        Used to detect whether TradingView has recalculated after a param change.
+        """
+        try:
+            fingerprint: str = await self.page.evaluate(_JS_RESULTS_FINGERPRINT)
+            return hashlib.md5(fingerprint.encode()).hexdigest()[:8]
+        except Exception:
+            return ""
 
     # ─────────────────────────────────── dialog helpers ──────────────────────
 
@@ -263,15 +455,49 @@ class TabWorker:
             if idx is not None:
                 await self._set_input(idx, value)
 
-    # ─────────────────────────────────── apply + read (with retry) ───────────
+    async def _click_ok(self) -> None:
+        """Click the OK button in the settings dialog."""
+        try:
+            ok = await self.page.query_selector('button:has-text("Ok")')
+            if ok:
+                await ok.click()
+            else:
+                await self.page.keyboard.press("Enter")
+        except Exception:
+            await self.page.keyboard.press("Enter")
+
+    async def _wait_dialog_close(self) -> None:
+        """Wait for the settings dialog to close."""
+        for _ in range(20):
+            gone = await self.page.evaluate(
+                """
+                !document.querySelector(
+                    '[class*="dialog-"][class*="rounded"]'
+                )?.offsetParent
+                """
+            )
+            if gone:
+                break
+            await asyncio.sleep(0.3)
+
+    # ─────────────────────────────────── apply params (with retry) ───────────
 
     async def _apply_params(self, params: dict) -> bool:
         """
-        Open dialog, set params, click Ok, wait for recalc.
-        Retries up to _MAX_RETRIES times on failure.
+        Open dialog, set all params, click Ok, wait for full recalc cycle.
+
+        Retries up to _MAX_RETRIES times. On each attempt:
+          1. Snapshot results hash before applying.
+          2. Apply all params.
+          3. Click OK, wait for dialog to close.
+          4. Wait for the full update cycle (appear → disappear).
+          5. Verify results hash changed (stale detection).
         """
         for attempt in range(1, _MAX_RETRIES + 1):
             try:
+                # Snapshot hash BEFORE
+                hash_before = await self._get_results_hash()
+
                 if not await self._open_settings():
                     raise RuntimeError("Could not open settings dialog")
                 await asyncio.sleep(0.5)
@@ -306,57 +532,47 @@ class TabWorker:
                 if profile != "Custom":
                     print(f" [WARN: profile={profile}, need Custom]", end="")
 
-                # Set each param
+                # Apply rr_mode first (special handling)
+                rr_mode = params.get("rr_mode")
+                if rr_mode is not None:
+                    await self._apply_rr_mode(rr_mode)
+                    await asyncio.sleep(0.1)
+
+                # Apply remaining params
                 for name, value in params.items():
-                    idx = INPUT_INDEX.get(name)
-                    if idx is not None:
-                        await self._set_input(idx, value)
-
-                # Click Ok
-                try:
-                    ok = await self.page.query_selector('button:has-text("Ok")')
-                    if ok:
-                        await ok.click()
+                    if name == "rr_mode":
+                        continue  # already handled
+                    if name in ("enable_ai_quality_filter", "use_break_even",
+                                "enable_double_tp"):
+                        idx = INPUT_INDEX.get(name)
+                        if idx is not None:
+                            await self._toggle_checkbox(idx, bool(value))
                     else:
-                        await self.page.keyboard.press("Enter")
-                except Exception:
-                    await self.page.keyboard.press("Enter")
+                        idx = INPUT_INDEX.get(name)
+                        if idx is not None:
+                            await self._set_input(idx, value)
 
-                # Wait for dialog to close
-                for _ in range(20):
-                    gone = await self.page.evaluate(
-                        """
-                        !document.querySelector(
-                            '[class*="dialog-"][class*="rounded"]'
-                        )?.offsetParent
-                        """
+                await self._click_ok()
+                await self._wait_dialog_close()
+
+                # ── Full update cycle detection ────────────────────────────
+                completed = await self._wait_for_update_complete()
+                if not completed:
+                    log.warning(
+                        "_apply_params attempt %d: update timed out", attempt
                     )
-                    if gone:
-                        break
-                    await asyncio.sleep(0.3)
 
-                # Wait for chart to recalculate
-                await asyncio.sleep(1.0)
-                for _ in range(60):
-                    updating = await self.page.evaluate(
-                        """
-                        (() => {
-                            for (const el of document.querySelectorAll('*')) {
-                                const t = el.textContent?.trim();
-                                if ((t === 'Updating report' || t === 'Calculating...')
-                                    && el.offsetParent
-                                    && el.getBoundingClientRect().height > 0)
-                                    return true;
-                            }
-                            return false;
-                        })()
-                        """
+                # ── Stale result detection ─────────────────────────────────
+                hash_after = await self._get_results_hash()
+                if hash_before and hash_after and hash_before == hash_after:
+                    log.warning(
+                        "_apply_params attempt %d: results hash unchanged "
+                        "(possible stale read or param rejected)", attempt
                     )
-                    if not updating:
-                        break
-                    await asyncio.sleep(0.5)
+                    if attempt < _MAX_RETRIES:
+                        await asyncio.sleep(_RETRY_SLEEP)
+                        continue
 
-                await asyncio.sleep(1.0)
                 return True
 
             except Exception as e:
@@ -368,16 +584,19 @@ class TabWorker:
                 else:
                     log.warning("_apply_params: all retries exhausted, skipping combo")
                     return False
+        return False
 
     async def _apply_and_test(
         self, param_name: str, value, param_type: str, symbol: str
     ) -> BacktestResult:
         """
-        Open dialog, change one param, click Ok, read results.
+        Open dialog, change one param, click Ok, wait for recalc, read results.
         Retries up to _MAX_RETRIES times on failure.
         """
         for attempt in range(1, _MAX_RETRIES + 1):
             try:
+                hash_before = await self._get_results_hash()
+
                 if not await self._open_settings():
                     raise RuntimeError("Could not open settings dialog")
 
@@ -396,54 +615,22 @@ class TabWorker:
                 )
                 await asyncio.sleep(0.2)
 
-                # Apply the single param
                 await self._apply_single_param(param_name, value, param_type)
                 await asyncio.sleep(0.1)
 
-                # Click Ok
-                try:
-                    ok = await self.page.query_selector('button:has-text("Ok")')
-                    if ok:
-                        await ok.click()
-                    else:
-                        await self.page.keyboard.press("Enter")
-                except Exception:
-                    await self.page.keyboard.press("Enter")
+                await self._click_ok()
+                await self._wait_dialog_close()
 
-                # Wait for dialog close
-                for _ in range(20):
-                    gone = await self.page.evaluate(
-                        """
-                        !document.querySelector(
-                            '[class*="dialog-"][class*="rounded"]'
-                        )?.offsetParent
-                        """
-                    )
-                    if gone:
-                        break
-                    await asyncio.sleep(0.3)
+                # Full update cycle
+                await self._wait_for_update_complete()
 
-                # Wait for recalculation
-                await asyncio.sleep(1.0)
-                for _ in range(60):
-                    updating = await self.page.evaluate(
-                        """
-                        (() => {
-                            for (const el of document.querySelectorAll('*')) {
-                                const t = el.textContent?.trim();
-                                if ((t === 'Updating report' || t === 'Calculating...')
-                                    && el.offsetParent
-                                    && el.getBoundingClientRect().height > 0)
-                                    return true;
-                            }
-                            return false;
-                        })()
-                        """
+                # Stale check
+                hash_after = await self._get_results_hash()
+                if hash_before and hash_after and hash_before == hash_after:
+                    log.warning(
+                        "_apply_and_test: stale result after %s=%s (attempt %d)",
+                        param_name, value, attempt
                     )
-                    if not updating:
-                        break
-                    await asyncio.sleep(0.5)
-                await asyncio.sleep(1.0)
 
                 return await self._read_results(symbol, {param_name: value})
 
@@ -473,30 +660,7 @@ class TabWorker:
             timestamp=datetime.now().isoformat(),
         )
         try:
-            metrics = await self.page.evaluate(
-                """
-                (() => {
-                    const r = {};
-                    for (const cell of document.querySelectorAll(
-                        '[class*="containerCell-"]'
-                    )) {
-                        const t = cell.querySelector('[class*="title-"]');
-                        const vals = cell.querySelectorAll(
-                            '[class*="value-"], [class*="additional-"]'
-                        );
-                        if (t) {
-                            const vs = [];
-                            for (const v of vals) {
-                                const x = v.textContent?.trim();
-                                if (x) vs.push(x);
-                            }
-                            if (vs.length) r[t.textContent.trim()] = vs.join('|');
-                        }
-                    }
-                    return r;
-                })()
-                """
-            )
+            metrics = await self.page.evaluate(_JS_COLLECT_METRICS)
             for key, value in (metrics or {}).items():
                 kl = key.lower()
                 c = (
@@ -553,7 +717,6 @@ class TabWorker:
         best: Optional[BacktestResult] = None
 
         for idx, params in enumerate(combos, 1):
-            # ── progress bar ──────────────────────────────────────────────
             _print_progress(idx, total)
 
             param_str = " | ".join(
@@ -583,12 +746,6 @@ class TabWorker:
 
         if best:
             _print_pair_summary_table(best)
-            print(
-                f"\n  {tag} BEST: PF={best.profit_factor:.2f} "
-                f"WR={best.win_rate:.1f}% T={best.total_trades} "
-                f"Score={best.score:.1f}"
-            )
-            print(f"  {tag} Settings: {best.params}")
 
         return best
 
@@ -601,7 +758,6 @@ class TabWorker:
 
         await self._switch_symbol(symbol)
 
-        # Step 1: Read baseline
         print(f"{tag} Reading baseline results...")
         baseline = await self._read_results(symbol, {"baseline": True})
         print(
@@ -632,12 +788,7 @@ class TabWorker:
 
         total_params = len(params_to_test)
         total_tests = sum(len(v) for _, v, _ in params_to_test)
-        print(
-            f"{tag} Testing {total_params} parameters, ~{total_tests} total tests"
-        )
-        print(
-            f"{tag} Estimated time: ~{total_tests * 30 // 60} minutes\n"
-        )
+        print(f"{tag} Testing {total_params} parameters, ~{total_tests} total tests")
 
         improved_params: dict = {}
 
@@ -652,28 +803,19 @@ class TabWorker:
 
             for value in values:
                 test_count += 1
-                val_str = str(value)
                 print(
-                    f"    {tag} #{test_count} {short_name}={val_str}",
-                    end="",
-                    flush=True,
+                    f"    {tag} #{test_count} {short_name}={value}",
+                    end="", flush=True,
                 )
 
                 result = await self._apply_and_test(param_name, value, ptype, symbol)
                 self.results.append(result)
 
-                pf = (
-                    f"PF={result.profit_factor:.2f}"
-                    if result.profit_factor
-                    else "PF=N/A"
-                )
+                pf = f"PF={result.profit_factor:.2f}" if result.profit_factor else "PF=N/A"
                 wr = f"WR={result.win_rate:.1f}%" if result.win_rate else "WR=N/A"
                 trades = f"T={result.total_trades}" if result.total_trades else "T=0"
                 dd = f"DD={result.max_drawdown:.0f}"
-                print(
-                    f" -> {pf} {wr} {trades} {dd} Score={result.score:.1f}",
-                    end="",
-                )
+                print(f" -> {pf} {wr} {trades} {dd} Score={result.score:.1f}", end="")
 
                 if result.score > param_best_score:
                     param_best_score = result.score
@@ -721,7 +863,6 @@ class TabWorker:
                     )
                     await asyncio.sleep(0.5)
 
-        # Final summary
         print(f"\n{tag} {'=' * 50}")
         print(f"{tag} OPTIMIZATION COMPLETE")
         print(f"{tag} Tests run: {test_count}")
@@ -749,20 +890,25 @@ def _print_progress(current: int, total: int, width: int = 30) -> None:
     filled = int(width * current / total) if total else 0
     bar = "=" * filled + ">" + " " * (width - filled - 1)
     print(f"\r  [{bar}] {current}/{total}  ", end="", flush=True)
-    print()  # newline so the next log line starts fresh
+    print()
 
 
 def _print_pair_summary_table(result: BacktestResult) -> None:
     """Print a one-row summary table for a completed pair."""
-    header = f"  {'Symbol':<10} | {'PF':>5} | {'WR':>7} | {'Trades':>6} | {'DD%':>5} | {'Score':>7}"
-    sep    = "  " + "-" * (len(header) - 2)
+    from .config import PROP_FIRM_MAX_DD_PCT
+    compliant = "✅" if result.max_drawdown_pct <= PROP_FIRM_MAX_DD_PCT else "❌"
+    header = (
+        f"  {'Symbol':<10} | {'PF':>5} | {'WR':>7} | "
+        f"{'Trades':>6} | {'DD%':>5} | {'Score':>7} | Prop"
+    )
+    sep = "  " + "-" * (len(header) - 2)
     row = (
         f"  {result.symbol:<10} | "
         f"{result.profit_factor:>5.2f} | "
         f"{result.win_rate:>6.1f}% | "
         f"{result.total_trades:>6} | "
         f"{result.max_drawdown_pct:>4.1f}% | "
-        f"{result.score:>7.1f}"
+        f"{result.score:>7.1f} | {compliant}"
     )
     print(sep)
     print(header)

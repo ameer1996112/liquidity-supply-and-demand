@@ -1,6 +1,12 @@
 """
 optimizer.py — TradingViewOptimizer: connects to Chrome, drives sequential
-per-pair optimization with checkpoint/resume and 5-minute per-pair timeout.
+per-pair optimization with checkpoint/resume.
+
+Modes:
+  default       Full grid search over PARAM_GRID_FULL / PARAM_GRID_GOLD / PARAM_GRID_INDEX
+  --fast        Reduced grid (PARAM_GRID_FAST)
+  --smart       Hill-climbing over HILL_CLIMB_PARAMS (optimize_pair_smart)
+  --bayesian    Bayesian optimization via Optuna (optimize_pair_bayesian) [recommended]
 """
 
 import asyncio
@@ -22,6 +28,8 @@ from .config import (
     PARAM_GRID_GOLD,
     PARAM_GRID_INDEX,
     INPUT_INDEX,
+    N_BAYESIAN_TRIALS,
+    PROP_FIRM_MAX_DD_PCT,
 )
 from .models import BacktestResult
 from .tab_worker import TabWorker
@@ -32,7 +40,7 @@ except ImportError:
     print("ERROR: playwright not installed. Run: pip3 install playwright")
     sys.exit(1)
 
-_PAIR_TIMEOUT_SECS = 300  # 5-minute hard limit per pair
+_PAIR_TIMEOUT_SECS = 600  # 10-minute hard limit per pair (increased for bayesian)
 
 
 class TradingViewOptimizer:
@@ -44,17 +52,25 @@ class TradingViewOptimizer:
         param_grid: Optional[dict] = None,
         fast_mode: bool = False,
         smart_mode: bool = False,
+        bayesian_mode: bool = False,
+        n_trials: int = N_BAYESIAN_TRIALS,
+        dd_limit: float = PROP_FIRM_MAX_DD_PCT,
+        generate_report: bool = True,
     ):
         self.pairs = pairs
         self.fast_mode = fast_mode
         self.smart_mode = smart_mode
+        self.bayesian_mode = bayesian_mode
+        self.n_trials = n_trials
+        self.dd_limit = dd_limit
+        self.generate_report = generate_report
         self.results: list[BacktestResult] = []
         self.best_per_pair: dict[str, BacktestResult] = {}
         self.page: Optional[Page] = None
         self.browser: Optional[Browser] = None
         self.tv_pages: list[Page] = []
 
-        # Select parameter grid based on mode
+        # Select parameter grid based on mode (legacy grid/smart modes)
         if param_grid:
             self.default_param_grid = param_grid
         elif fast_mode:
@@ -65,7 +81,7 @@ class TradingViewOptimizer:
     # ─────────────────────────────────── param helpers ───────────────────────
 
     def get_param_grid(self, symbol: str) -> dict:
-        """Return the appropriate parameter grid for a symbol."""
+        """Return the appropriate parameter grid for a symbol (legacy modes)."""
         sym = symbol.upper()
         if "XAU" in sym or "GOLD" in sym:
             return (
@@ -144,9 +160,17 @@ class TradingViewOptimizer:
         print("\n" + "=" * 70)
         print("TRADINGVIEW STRATEGY OPTIMIZER")
         print("=" * 70)
+        mode_label = (
+            "BAYESIAN (Optuna)" if self.bayesian_mode
+            else "SMART (hill-climb)" if self.smart_mode
+            else "FAST grid" if self.fast_mode
+            else "FULL grid"
+        )
+        print(f"Mode: {mode_label}")
+        if self.bayesian_mode:
+            print(f"Trials per pair: {self.n_trials}")
+            print(f"Prop-firm DD limit: {self.dd_limit}%")
         print("\nConnecting to Chrome browser on port 9222...")
-        print("Make sure you started Chrome with:")
-        print('  open -a "Google Chrome" --args --remote-debugging-port=9222\n')
 
         self._pw = await async_playwright().start()
 
@@ -167,7 +191,6 @@ class TradingViewOptimizer:
             print("4. Run this script again")
             sys.exit(1)
 
-        # Find ALL TradingView chart tabs
         self.tv_pages = []
         for context in self.browser.contexts:
             for page in context.pages:
@@ -184,13 +207,102 @@ class TradingViewOptimizer:
         print(f"\nFound {len(self.tv_pages)} TradingView tab(s)")
         print("Ready to optimize!\n")
 
+    # ─────────────────────────────────── bayesian optimization ───────────────
+
+    async def optimize_pair_bayesian(
+        self, worker: TabWorker, symbol: str, n_trials: int
+    ) -> Optional[BacktestResult]:
+        """
+        Bayesian optimization using Optuna TPE (Tree-structured Parzen Estimator).
+
+        Uses ask()/tell() API for async compatibility — each trial is run
+        sequentially in the browser, results fed back to Optuna after each one.
+
+        Phase 1 (trials 1–25): random exploration (Optuna's startup sampler)
+        Phase 2 (trials 26–N): Bayesian exploitation of promising regions
+        """
+        try:
+            import optuna
+        except ImportError:
+            print("ERROR: optuna not installed. Run: pip install optuna")
+            sys.exit(1)
+
+        optuna.logging.set_verbosity(optuna.logging.WARNING)
+
+        study = optuna.create_study(
+            direction="maximize",
+            sampler=optuna.samplers.TPESampler(n_startup_trials=25, seed=42),
+        )
+
+        await worker._switch_symbol(symbol)
+
+        print(f"\n[{symbol}] Bayesian optimization: {n_trials} trials")
+        print(f"[{symbol}] Phase 1: random exploration (trials 1–25)")
+        print(f"[{symbol}] Phase 2: Bayesian focus (trials 26–{n_trials})")
+        print(f"[{symbol}] DD limit: {self.dd_limit}% (hard reject above this)\n")
+
+        best: Optional[BacktestResult] = None
+        start = time.time()
+
+        for trial_num in range(1, n_trials + 1):
+            if trial_num == 26:
+                print(f"\n[{symbol}] ── Phase 2: Bayesian focus ──\n")
+
+            trial = study.ask()
+            params = worker.sample_params(trial, symbol)
+
+            elapsed = time.time() - start
+            avg_secs = elapsed / trial_num if trial_num > 1 else 0
+            remaining = (n_trials - trial_num) * avg_secs
+            eta = f"{int(remaining // 60)}m{int(remaining % 60)}s" if remaining else "?"
+
+            print(
+                f"  [{symbol}] Trial {trial_num:>3}/{n_trials}  ETA={eta}",
+                end="", flush=True,
+            )
+
+            success = await worker._apply_params(params)
+            if not success:
+                study.tell(trial, 0.0)
+                print("  -> SKIP (apply failed)")
+                continue
+
+            result = await worker._read_results(symbol, params)
+            worker.results.append(result)
+            study.tell(trial, result.score)
+
+            # Inline metrics
+            pf = f"PF={result.profit_factor:.2f}" if result.profit_factor else "PF=N/A"
+            dd = f"DD={result.max_drawdown_pct:.1f}%"
+            compliant = "✅" if result.is_prop_firm_compliant() else "❌"
+            print(f"  {pf}  {dd}  T={result.total_trades}  S={result.score:.2f}  {compliant}")
+
+            if best is None or result.score > best.score:
+                best = result
+                print(
+                    f"  [{symbol}] ★ NEW BEST  Score={result.score:.2f}  "
+                    f"PF={result.profit_factor:.2f}  DD={result.max_drawdown_pct:.1f}%  "
+                    f"T={result.total_trades}"
+                )
+
+        elapsed = time.time() - start
+        print(
+            f"\n[{symbol}] Done — {n_trials} trials in "
+            f"{int(elapsed // 60)}m{int(elapsed % 60)}s"
+        )
+
+        if best:
+            from .tab_worker import _print_pair_summary_table
+            _print_pair_summary_table(best)
+
+        return best
+
     # ─────────────────────────────────── main run loop ───────────────────────
 
     async def run(self) -> None:
         """Run the full optimization pipeline (sequential, with checkpoint & timeout)."""
         await self.connect_to_brave()
 
-        # Load checkpoint — skip already-completed pairs
         checkpoint = self._load_checkpoint()
         completed_set = set(checkpoint.get("completed", []))
 
@@ -204,15 +316,21 @@ class TradingViewOptimizer:
         print(f"\nRunning {len(pending)} pairs sequentially on one tab...\n")
 
         for symbol in pending:
-            print(f"\n--- Starting {symbol} (5 min timeout) ---")
+            print(f"\n--- Starting {symbol} ---")
             try:
                 worker = TabWorker(page, self)
-                coro = (
-                    worker.optimize_pair_smart(symbol)
-                    if self.smart_mode
-                    else worker.optimize_pair(symbol)
-                )
-                result = await asyncio.wait_for(coro, timeout=_PAIR_TIMEOUT_SECS)
+
+                if self.bayesian_mode:
+                    timeout = self.n_trials * 20  # ~20s per trial worst case
+                    coro = self.optimize_pair_bayesian(worker, symbol, self.n_trials)
+                elif self.smart_mode:
+                    timeout = _PAIR_TIMEOUT_SECS
+                    coro = worker.optimize_pair_smart(symbol)
+                else:
+                    timeout = _PAIR_TIMEOUT_SECS
+                    coro = worker.optimize_pair(symbol)
+
+                result = await asyncio.wait_for(coro, timeout=timeout)
 
                 if result:
                     self.best_per_pair[symbol] = result
@@ -220,10 +338,7 @@ class TradingViewOptimizer:
                     self._save_checkpoint(checkpoint, symbol, result)
 
             except asyncio.TimeoutError:
-                print(
-                    f"\n  WARNING: {symbol} hit the {_PAIR_TIMEOUT_SECS // 60}-minute "
-                    "timeout — skipping."
-                )
+                print(f"\n  WARNING: {symbol} hit the timeout — skipping.")
                 continue
             except Exception as e:
                 print(f"\n  ERROR optimizing {symbol}: {e}")
@@ -234,9 +349,20 @@ class TradingViewOptimizer:
         minutes = int(elapsed // 60)
         seconds = int(elapsed % 60)
 
-        # Persist CSV + Pine presets
+        # Persist CSV + JSON
         self.save_results()
-        self.generate_pine_presets()
+
+        # Generate HTML report (bayesian mode default, opt-in for others)
+        if self.generate_report and self.best_per_pair:
+            from .report import generate_html_report
+            report_path = generate_html_report(
+                best_per_pair=self.best_per_pair,
+                all_results=self.results,
+                dd_limit=self.dd_limit,
+            )
+            print(f"\nHTML Report: {report_path}")
+            import webbrowser
+            webbrowser.open(f"file://{report_path}")
 
         print(f"\n{'=' * 60}")
         print("OPTIMIZATION COMPLETE")
@@ -244,39 +370,39 @@ class TradingViewOptimizer:
         print(f"Time elapsed: {minutes}m {seconds}s")
         print(f"Pairs optimized: {len(self.best_per_pair)}/{len(self.pairs)}")
         print(f"Total combinations tested: {len(self.results)}")
-        print(f"\nResults saved to: {RESULTS_DIR}/")
 
-        # ── Final leaderboard ranked by score descending ───────────────────
+        # Final leaderboard
         if self.best_per_pair:
             ranked = sorted(
                 self.best_per_pair.items(), key=lambda kv: kv[1].score, reverse=True
             )
-            print(f"\n{'─' * 60}")
+            print(f"\n{'─' * 70}")
             print("FINAL LEADERBOARD (by score, best first)")
-            print(f"{'─' * 60}")
+            print(f"{'─' * 70}")
             header = (
                 f"  {'#':>3}  {'Symbol':<10} | {'PF':>5} | {'WR':>7} | "
-                f"{'Trades':>6} | {'DD%':>5} | {'Score':>7}"
+                f"{'Trades':>6} | {'DD%':>5} | {'Score':>8} | Prop"
             )
-            sep = "  " + "-" * (len(header) - 2)
+            sep = "  " + "─" * (len(header) - 2)
             print(sep)
             print(header)
             print(sep)
             for rank, (sym, res) in enumerate(ranked, 1):
+                compliant = "✅" if res.is_prop_firm_compliant() else "❌"
                 print(
                     f"  {rank:>3}  {sym:<10} | "
                     f"{res.profit_factor:>5.2f} | "
                     f"{res.win_rate:>6.1f}% | "
                     f"{res.total_trades:>6} | "
                     f"{res.max_drawdown_pct:>4.1f}% | "
-                    f"{res.score:>7.1f}"
+                    f"{res.score:>8.2f} | {compliant}"
                 )
             print(sep)
 
     # ─────────────────────────────────── persistence ─────────────────────────
 
     def save_results(self) -> None:
-        """Save all results to CSV."""
+        """Save all results to CSV and best-per-pair to JSON."""
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
         if self.results:
@@ -323,109 +449,9 @@ class TradingViewOptimizer:
                     "profit_factor": res.profit_factor,
                     "max_drawdown_pct": res.max_drawdown_pct,
                     "score": res.score,
+                    "prop_firm_compliant": res.is_prop_firm_compliant(),
                 },
             }
         with open(best_file, "w") as f:
             json.dump(best_data, f, indent=2)
         print(f"Best settings: {best_file}")
-
-    def generate_pine_presets(self) -> None:
-        """Generate Pine Script code for the best presets per asset class."""
-        if not self.best_per_pair:
-            return
-
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        preset_file = RESULTS_DIR / f"pine_presets_{timestamp}.pine"
-
-        groups: dict[str, list] = {
-            "Major USD": [], "Cross/Minor": [], "JPY Pairs": [],
-            "Gold": [], "Indices": [], "Other": [],
-        }
-        for sym, res in self.best_per_pair.items():
-            su = sym.upper()
-            if "XAU" in su or "GOLD" in su:
-                groups["Gold"].append((sym, res))
-            elif any(idx in su for idx in ["NAS", "US100", "US500", "US30", "SPX"]):
-                groups["Indices"].append((sym, res))
-            elif "JPY" in su:
-                groups["JPY Pairs"].append((sym, res))
-            elif su in ["EURUSD", "GBPUSD", "AUDUSD", "NZDUSD", "USDCAD", "USDCHF"]:
-                groups["Major USD"].append((sym, res))
-            elif any(x in su for x in ["EUR", "GBP", "AUD", "NZD", "CAD", "CHF"]):
-                groups["Cross/Minor"].append((sym, res))
-            else:
-                groups["Other"].append((sym, res))
-
-        lines = [
-            f"// === AUTO-GENERATED PRESETS ({datetime.now().strftime('%Y-%m-%d %H:%M')}) ===",
-            "// Generated by scripts/optimizer/main.py",
-            "// Timeframe: 5-minute | Scoring: PF * sqrt(trades) * (1 - DD%/100)",
-            "//",
-            '// Paste inside the \'if use_profile_defaults\' section,',
-            '// after adding "Per-Asset-Class (Optimized)" to config_profile options.',
-            "",
-            '    if config_profile == "Per-Asset-Class (Optimized)"',
-        ]
-
-        for group_name, pairs in groups.items():
-            if not pairs:
-                continue
-
-            avg_params: dict = {}
-            for _, res in pairs:
-                for k, v in res.params.items():
-                    avg_params.setdefault(k, []).append(v)
-
-            for k in list(avg_params.keys()):
-                vals = avg_params[k]
-                if isinstance(vals[0], str):
-                    avg_params[k] = Counter(vals).most_common(1)[0][0]
-                elif isinstance(vals[0], bool):
-                    avg_params[k] = sum(vals) > len(vals) / 2
-                elif isinstance(vals[0], int):
-                    avg_params[k] = int(round(sum(vals) / len(vals)))
-                else:
-                    avg_params[k] = round(sum(vals) / len(vals), 1)
-
-            avg_pf = sum(r.profit_factor for _, r in pairs) / len(pairs)
-            avg_wr = sum(r.win_rate for _, r in pairs) / len(pairs)
-            avg_trades = sum(r.total_trades for _, r in pairs) / len(pairs)
-            pair_names = ", ".join(s for s, _ in pairs)
-
-            lines += [
-                "",
-                f"        // {group_name}: {pair_names}",
-                f"        // Avg PF={avg_pf:.2f} WR={avg_wr:.1f}% Trades={avg_trades:.0f}",
-            ]
-
-            if group_name == "Gold":
-                lines.append("        if is_gold or is_xpt")
-            elif group_name == "Indices":
-                lines.append("        else if is_index")
-            elif group_name == "JPY Pairs":
-                lines.append("        else if is_jpy_pair")
-            elif group_name == "Major USD":
-                lines.append("        else if is_usd_quote or is_usd_base")
-            else:
-                lines.append(f"        else  // {group_name}")
-
-            for param, val in avg_params.items():
-                lines.append(f"            {param} := {val}")
-
-        lines += [
-            "",
-            "        // Common settings for all Per-Asset-Class presets",
-            "        require_major_liquidity := true",
-            '        structure_mode := "Relaxed (Wicks)"',
-            "        stop_loss_buffer_pips := 1.0",
-        ]
-
-        preset_code = "\n".join(lines)
-        with open(preset_file, "w") as f:
-            f.write(preset_code)
-        print(f"Pine presets: {preset_file}")
-
-        print(f"\n{'=' * 60}")
-        print("GENERATED PINE PRESET CODE")
-        print(f"{'=' * 60}")
-        print(preset_code)

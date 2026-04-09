@@ -1,6 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "opencode/glm-5",
+  "model": "opencode/kimi-k2.5",
   "small_model": "opencode/minimax-m2.5-free",
   "instructions": ["./opencode-instructions.md", "./AGENTS.md"],
   "share": "disabled",
@@ -9,6 +9,13 @@
   "permission": { "bash": "ask", "edit": "allow", "write": "allow" },
   "compaction": { "auto": true, "prune": true, "reserved": 6000 },
   "lsp": {},
+  "mcp": {
+    "token-saver": {
+      "type": "local",
+      "command": ["node", "/Users/ameeramer/token-saver/server.js"],
+      "enabled": true
+    }
+  },
   "watcher": {
     "ignore": [
       ".git/**", ".planning/**", ".antigravity/**", ".workspaces/**",

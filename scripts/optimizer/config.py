@@ -12,6 +12,43 @@ RESULTS_DIR.mkdir(exist_ok=True)
 
 CHECKPOINT_FILE = RESULTS_DIR / "checkpoint.json"
 
+# ─── Prop-firm constraints ────────────────────────────────────────────────────
+
+PROP_FIRM_MAX_DD_PCT = 10.0   # Hard limit: score = 0 if DD% exceeds this
+
+# ─── Bayesian optimization ────────────────────────────────────────────────────
+
+N_BAYESIAN_TRIALS = 100        # Total Optuna trials per pair
+N_STARTUP_TRIALS = 25          # Random exploration before TPE kicks in
+
+# Full Optuna search space across all 16 tunable parameters.
+# "liq_distance" is a placeholder — resolved per asset class at runtime.
+OPTUNA_SEARCH_SPACE: dict = {
+    "rr_mode":                  {"type": "categorical", "choices": ["dynamic", "fixed_2.5", "fixed_4.0"]},
+    "enable_ai_quality_filter": {"type": "categorical", "choices": [True, False]},
+    "ai_quality_threshold":     {"type": "int",         "low": 40,   "high": 75},
+    "min_tp_distance_pips":     {"type": "float",       "low": 5.0,  "high": 20.0},
+    "liq_distance":             {"type": "float",       "low": None, "high": None},  # resolved per pair
+    "max_bars_held":            {"type": "int",         "low": 24,   "high": 96},
+    "stop_loss_buffer_pips":    {"type": "float",       "low": 0.5,  "high": 3.0},
+    "use_break_even":           {"type": "categorical", "choices": [True, False]},
+    "enable_double_tp":         {"type": "categorical", "choices": [True, False]},
+    "liq_pivot_len":            {"type": "int",         "low": 2,    "high": 10},
+    "pvtMax":                   {"type": "int",         "low": 3,    "high": 15},
+    "max_sweep_to_touch_bars":  {"type": "int",         "low": 8,    "high": 25},
+    "max_peak_to_touch_bars":   {"type": "int",         "low": 20,   "high": 60},
+    "min_body_perc":            {"type": "int",         "low": 20,   "high": 80},
+    "max_zones":                {"type": "int",         "low": 10,   "high": 30},
+    "max_trades_per_day":       {"type": "int",         "low": 1,    "high": 4},
+}
+
+# Per-asset-class liquidity distance ranges (pips)
+LIQ_DISTANCE_RANGES: dict = {
+    "forex": {"low": 10.0,  "high": 35.0,  "param": "liq_max_distance_pips_forex"},
+    "gold":  {"low": 80.0,  "high": 250.0, "param": "liq_max_distance_pips_gold"},
+    "index": {"low": 250.0, "high": 800.0, "param": "liq_max_distance_pips_index"},
+}
+
 # ─── Default pairs ────────────────────────────────────────────────────────────
 
 DEFAULT_PAIRS = [
@@ -33,7 +70,7 @@ DEFAULT_PAIRS = [
     "NAS100", "US30", "US500",
 ]
 
-# ─── Parameter grids ──────────────────────────────────────────────────────────
+# ─── Legacy parameter grids (kept for --fast / --smart backward compat) ───────
 
 PARAM_GRID_FULL = {
     "liq_max_distance_pips_forex": [10.0, 15.0, 20.0, 25.0, 30.0],
@@ -69,7 +106,7 @@ PARAM_GRID_INDEX = {
     "max_peak_to_touch_bars": [25, 35, 50],
 }
 
-# ─── Input index mapping ───────────────────────────────────────────────────────
+# ─── Input index mapping ──────────────────────────────────────────────────────
 # Map parameter names to their INPUT INDEX in TradingView settings dialog.
 # Discovered by tv_debug3.py on 2026-04-06 — dialog has inputs[0..56].
 
@@ -109,41 +146,23 @@ INPUT_INDEX = {
 # CHECKBOX indices — these need special handling (toggle, not fill)
 CHECKBOX_INDICES = {32, 36, 38, 51}
 
-# ─── Hill-climbing params ─────────────────────────────────────────────────────
-# Ordered by expected impact. Each entry: (param_name, [values_to_test], type)
-# type: "numeric" = fill(), "checkbox" = toggle, "rr_mode" = special handling
+# ─── Hill-climbing params (kept for --smart backward compat) ──────────────────
 
 HILL_CLIMB_PARAMS = [
-    # 1. RR Mode: dynamic rules vs fixed 2.5 vs fixed 4.0
     ("rr_mode", ["dynamic", "fixed_2.5", "fixed_4.0"], "rr_mode"),
-    # 2. AI Filter on/off
     ("enable_ai_quality_filter", [True, False], "checkbox"),
-    # 3. AI threshold (only matters if AI filter is on)
     ("ai_quality_threshold", [50, 60, 70], "numeric"),
-    # 4. Min TP Distance
     ("min_tp_distance_pips", [5, 10, 15], "numeric"),
-    # 5. Liq Distance (asset-class dependent — resolved at runtime)
     ("liq_distance", [10, 20, 30], "liq_distance"),
-    # 6. Time-Based Exit
     ("max_bars_held", [24, 48, 72], "numeric"),
-    # 7. SL Buffer
     ("stop_loss_buffer_pips", [0.5, 1.0, 2.0], "numeric"),
-    # 8. Break-Even Mode
     ("use_break_even", [True, False], "checkbox"),
-    # 9. Double TP Mode
     ("enable_double_tp", [True, False], "checkbox"),
-    # 10. Pivot Strength
     ("liq_pivot_len", [3, 5, 8], "numeric"),
-    # 11. Max Liquidity Lines
     ("pvtMax", [3, 5, 10], "numeric"),
-    # 12. Max Sweep to Touch Bars
     ("max_sweep_to_touch_bars", [10, 15, 20], "numeric"),
-    # 13. Max Peak to Touch Bars
     ("max_peak_to_touch_bars", [25, 35, 50], "numeric"),
-    # 14. Min Body %
     ("min_body_perc", [30, 50, 70], "numeric"),
-    # 15. Max Zones Displayed
     ("max_zones", [10, 20, 30], "numeric"),
-    # 16. Max Trades/Day
     ("max_trades_per_day", [1, 2, 3], "numeric"),
 ]

@@ -24,17 +24,36 @@ class BacktestResult:
 
     def calculate_score(self) -> None:
         """
-        Composite score: PF * sqrt(trades) * (1 - DD%/100)²
+        Prop-firm Calmar score: (net_profit / max_drawdown) × √trades
 
-        DD penalty is squared to heavily penalise high drawdown,
-        which is the priority for prop-firm accounts.
+        Hard rejects (score = 0):
+          - max_drawdown_pct > PROP_FIRM_MAX_DD_PCT (10%)  — fails prop-firm limit
+          - total_trades < 10                              — insufficient sample
+          - net_profit <= 0                                — unprofitable
+          - max_drawdown <= 0                              — no drawdown data (invalid)
+
+        For passing results: Calmar ratio × √trades rewards strategies
+        that generate high return-per-risk with many trades, which is
+        exactly what prop firms evaluate.
         """
-        if self.total_trades < 10 or self.profit_factor <= 0:
+        from .config import PROP_FIRM_MAX_DD_PCT
+
+        if (
+            self.total_trades < 10
+            or self.net_profit <= 0
+            or self.max_drawdown <= 0
+            or self.max_drawdown_pct > PROP_FIRM_MAX_DD_PCT
+        ):
             self.score = 0.0
             return
-        trade_factor = math.sqrt(self.total_trades)
-        dd_penalty = max(0.0, 1.0 - self.max_drawdown_pct / 100.0)
-        self.score = self.profit_factor * trade_factor * (dd_penalty ** 2)
+
+        calmar = self.net_profit / self.max_drawdown
+        self.score = calmar * math.sqrt(self.total_trades)
+
+    def is_prop_firm_compliant(self) -> bool:
+        """Return True if this result passes the prop-firm DD limit."""
+        from .config import PROP_FIRM_MAX_DD_PCT
+        return self.max_drawdown_pct <= PROP_FIRM_MAX_DD_PCT and self.net_profit > 0
 
     def to_dict(self) -> dict[str, Any]:
         """Serialise to a plain dict (for JSON checkpoint / CSV)."""

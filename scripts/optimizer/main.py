@@ -3,10 +3,24 @@
 main.py — Entry point for the TradingView Strategy Optimizer.
 
 Usage:
-    python -m scripts.optimizer.main [--pairs EURUSD,GBPJPY] [--fast] [--smart] [--dry-run]
+    # Recommended — Bayesian optimization (finds true global best, ~9h for 33 pairs)
+    python -m scripts.optimizer.main --bayesian
+
+    # Custom trial count
+    python -m scripts.optimizer.main --bayesian --n-trials 150
+
+    # Single pair test (5 trials, quick smoke test)
+    python -m scripts.optimizer.main --bayesian --pairs EURUSD --n-trials 5
+
+    # Legacy modes (kept for backward compatibility)
+    python -m scripts.optimizer.main --fast
+    python -m scripts.optimizer.main --smart
+
+    # Dry run (no browser)
+    python -m scripts.optimizer.main --bayesian --dry-run
 
 Or use the convenience wrapper:
-    bash scripts/optimizer/run.sh [--fast] [--smart] [--pairs EURUSD,XAUUSD]
+    bash scripts/optimizer/run.sh [--bayesian] [--fast] [--smart] [--pairs EURUSD,XAUUSD]
 """
 
 # Auto-activate venv if not already active
@@ -34,6 +48,10 @@ from scripts.optimizer.config import (
     PARAM_GRID_INDEX,
     RESULTS_DIR,
     CHECKPOINT_FILE,
+    N_BAYESIAN_TRIALS,
+    PROP_FIRM_MAX_DD_PCT,
+    OPTUNA_SEARCH_SPACE,
+    LIQ_DISTANCE_RANGES,
 )
 
 
@@ -42,9 +60,10 @@ from scripts.optimizer.config import (
 class _DryRunOptimizer:
     """Lightweight stand-in used only for --dry-run (no browser imports)."""
 
-    def __init__(self, fast_mode: bool, smart_mode: bool) -> None:
+    def __init__(self, fast_mode: bool, smart_mode: bool, bayesian_mode: bool) -> None:
         self.fast_mode = fast_mode
         self.smart_mode = smart_mode
+        self.bayesian_mode = bayesian_mode
 
     def get_param_grid(self, symbol: str) -> dict:
         sym = symbol.upper()
@@ -75,67 +94,162 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="TradingView Strategy Optimizer",
         formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python -m scripts.optimizer.main --bayesian
+  python -m scripts.optimizer.main --bayesian --pairs EURUSD,GBPUSD --n-trials 80
+  python -m scripts.optimizer.main --smart --pairs XAUUSD
+  python -m scripts.optimizer.main --bayesian --dry-run
+        """,
     )
+
+    # ── Mode flags ──
+    mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument(
+        "--bayesian",
+        action="store_true",
+        help="[RECOMMENDED] Bayesian optimization via Optuna — finds true global best",
+    )
+    mode_group.add_argument(
+        "--smart",
+        action="store_true",
+        help="Hill-climbing: one param at a time (~48 tests/pair, fast but local optima)",
+    )
+    mode_group.add_argument(
+        "--fast",
+        action="store_true",
+        help="Fast grid search: reduced parameter grid",
+    )
+
+    # ── Pair selection ──
     parser.add_argument(
         "--pairs",
         type=str,
         help="Comma-separated list of pairs (default: all 33 pairs)",
     )
+
+    # ── Bayesian options ──
     parser.add_argument(
-        "--fast",
-        action="store_true",
-        help="Fast mode: fewer combinations — grid search",
+        "--n-trials",
+        type=int,
+        default=N_BAYESIAN_TRIALS,
+        help=f"Optuna trials per pair (default: {N_BAYESIAN_TRIALS}, bayesian mode only)",
     )
     parser.add_argument(
-        "--smart",
-        action="store_true",
-        help="Smart mode: hill-climbing, one param at a time (~48 tests/pair)",
+        "--dd-limit",
+        type=float,
+        default=PROP_FIRM_MAX_DD_PCT,
+        help=f"Prop-firm max DD%% hard limit (default: {PROP_FIRM_MAX_DD_PCT}%%)",
     )
+
+    # ── Report ──
+    parser.add_argument(
+        "--no-report",
+        action="store_true",
+        help="Skip HTML report generation",
+    )
+
+    # ── Checkpoint ──
+    parser.add_argument(
+        "--reset",
+        action="store_true",
+        help="Delete checkpoint and restart from scratch",
+    )
+
+    # ── Dry run ──
     parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Show what would be tested without launching a browser",
     )
+
     args = parser.parse_args()
 
     pairs = args.pairs.split(",") if args.pairs else DEFAULT_PAIRS
     pairs = [p.strip().upper() for p in pairs if p.strip()]
 
+    # Reset checkpoint if requested
+    if args.reset and CHECKPOINT_FILE.exists():
+        CHECKPOINT_FILE.unlink()
+        print(f"[checkpoint] Deleted {CHECKPOINT_FILE}")
+
     if args.dry_run:
-        helper = _DryRunOptimizer(fast_mode=args.fast, smart_mode=args.smart)
-        _dry_run(helper, pairs)
+        helper = _DryRunOptimizer(
+            fast_mode=args.fast,
+            smart_mode=args.smart,
+            bayesian_mode=args.bayesian,
+        )
+        _dry_run(helper, pairs, args)
         return
 
-    # Defer the playwright-dependent import until we actually need the browser
-    from scripts.optimizer.optimizer import TradingViewOptimizer  # noqa: PLC0415
+    # ── Check optuna is installed if using bayesian mode ──
+    if args.bayesian:
+        try:
+            import optuna  # noqa: F401
+        except ImportError:
+            print("\nERROR: optuna is not installed.")
+            print("Install it with: pip install optuna")
+            print("Or: source .venv/bin/activate && pip install optuna")
+            sys.exit(1)
+
+    from scripts.optimizer.optimizer import TradingViewOptimizer
     optimizer = TradingViewOptimizer(
-        pairs=pairs, fast_mode=args.fast, smart_mode=args.smart
+        pairs=pairs,
+        fast_mode=args.fast,
+        smart_mode=args.smart,
+        bayesian_mode=args.bayesian,
+        n_trials=args.n_trials,
+        dd_limit=args.dd_limit,
+        generate_report=not args.no_report,
     )
     asyncio.run(optimizer.run())
 
 
-def _dry_run(helper: _DryRunOptimizer, pairs: list[str]) -> None:
-    """Print parameter combinations that would be tested, then exit."""
-    print(f"\nDRY RUN — Parameter combinations that would be tested:\n")
-    total_combos = 0
+def _dry_run(helper: _DryRunOptimizer, pairs: list[str], args) -> None:
+    """Print what would be tested, then exit."""
+    print(f"\nDRY RUN — Mode: {'bayesian' if args.bayesian else 'smart' if args.smart else 'fast' if args.fast else 'full-grid'}\n")
 
-    for symbol in pairs:
-        grid = helper.get_param_grid(symbol)
-        combos = helper.generate_combinations(grid)
-        total_combos += len(combos)
-        print(f"  {symbol}: {len(combos)} combinations")
-        print(f"    Params: {list(grid.keys())}")
-        for k, v in grid.items():
-            print(f"      {k}: {v}")
+    if args.bayesian:
+        # Bayesian: same search space for all pairs (liq_distance range differs)
+        n_total = len(pairs) * args.n_trials
+        est_seconds = n_total * 12  # ~12s per trial
+        print(f"  Bayesian optimization:")
+        print(f"    Pairs        : {len(pairs)}")
+        print(f"    Trials/pair  : {args.n_trials}")
+        print(f"    Total trials : {n_total}")
+        print(f"    Params       : {len(OPTUNA_SEARCH_SPACE)} (all 16 tunable)")
+        print(f"    DD limit     : {args.dd_limit}%")
         print()
+        for p in pairs:
+            sym = p.upper()
+            if "XAU" in sym or "GOLD" in sym or "XAG" in sym:
+                ac = "gold"
+            elif any(x in sym for x in ["NAS", "US100", "US500", "US30"]):
+                ac = "index"
+            else:
+                ac = "forex"
+            liq = LIQ_DISTANCE_RANGES[ac]
+            print(f"  {p:<12} asset_class={ac:<6} liq_range=[{liq['low']}, {liq['high']}]")
+        print()
+        est_hours = est_seconds / 3600
+        est_mins = (est_seconds % 3600) / 60
+        print(f"  Estimated time: ~{int(est_hours)}h {int(est_mins)}m")
+    else:
+        total_combos = 0
+        for symbol in pairs:
+            grid = helper.get_param_grid(symbol)
+            combos = helper.generate_combinations(grid)
+            total_combos += len(combos)
+            print(f"  {symbol}: {len(combos)} combinations")
+            for k, v in grid.items():
+                print(f"      {k}: {v}")
+            print()
+        est_minutes = total_combos * 8 // 60
+        print(f"  TOTAL : {total_combos} combinations across {len(pairs)} pairs")
+        print(f"  Est.  : ~{est_minutes} minutes ({est_minutes // 60}h {est_minutes % 60}m)")
 
-    est_minutes = total_combos * 8 // 60
-    print(f"  TOTAL : {total_combos} combinations across {len(pairs)} pairs")
-    print(f"  Est.  : ~{est_minutes} minutes ({est_minutes // 60}h {est_minutes % 60}m)")
     print(f"\n  Results dir : {RESULTS_DIR}")
     print(f"  Checkpoint  : {CHECKPOINT_FILE}")
-    print(f"  Smart mode  : {helper.smart_mode}")
-    print(f"  Fast mode   : {helper.fast_mode}")
 
 
 if __name__ == "__main__":
