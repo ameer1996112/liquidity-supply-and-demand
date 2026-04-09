@@ -1,4 +1,4 @@
-# Trading System
+ # Trading System
 
 Institutional liquidity-based trading system with TradingView Pine Script strategies and Python backend.
 
