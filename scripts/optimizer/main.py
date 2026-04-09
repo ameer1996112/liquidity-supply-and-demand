@@ -26,7 +26,7 @@ print("Starting TradingView Strategy Optimizer...")
 import argparse
 import asyncio
 
-from .config import (
+from scripts.optimizer.config import (
     DEFAULT_PAIRS,
     PARAM_GRID_FULL,
     PARAM_GRID_FAST,
@@ -107,7 +107,7 @@ def main() -> None:
         return
 
     # Defer the playwright-dependent import until we actually need the browser
-    from .optimizer import TradingViewOptimizer  # noqa: PLC0415
+    from scripts.optimizer.optimizer import TradingViewOptimizer  # noqa: PLC0415
     optimizer = TradingViewOptimizer(
         pairs=pairs, fast_mode=args.fast, smart_mode=args.smart
     )

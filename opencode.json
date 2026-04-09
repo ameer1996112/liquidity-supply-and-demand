@@ -1,8 +1,8 @@
 {
   "$schema": "https://opencode.ai/config.json",
 
-  "model": "opencode/glm-5.1",
-  "small_model": "opencode/minimax-m2.5-free",
+  "model": "deepseek/deepseek-chat",
+  "small_model": "deepseek/deepseek-chat",
 
   "plugin": [
     "superpowers@git+https://github.com/obra/superpowers.git"
@@ -46,7 +46,7 @@
     },
     "debugger": {
       "description": "Investigate bugs without making changes",
-      "model": "opencode/glm-5.1",
+      "model": "deepseek/deepseek-chat",
       "prompt": "You are a senior debugger. Read files to find the root cause. Do NOT make any changes. Report findings only.",
       "tools": { "write": false, "edit": false }
     }

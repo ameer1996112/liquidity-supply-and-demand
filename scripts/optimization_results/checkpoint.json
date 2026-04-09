@@ -1,9 +1,81 @@
 {
   "completed": [
-    "GBPJPY"
+    "GBPJPY",
+    "EURJPY",
+    "NZDJPY",
+    "CADJPY",
+    "AUDJPY",
+    "CHFJPY",
+    "EURGBP"
   ],
   "results": {
     "GBPJPY": {
+      "params": {},
+      "metrics": {
+        "net_profit": 0.0,
+        "total_trades": 0,
+        "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "max_drawdown_pct": 0.0,
+        "score": 0.0
+      }
+    },
+    "EURJPY": {
+      "params": {},
+      "metrics": {
+        "net_profit": 0.0,
+        "total_trades": 0,
+        "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "max_drawdown_pct": 0.0,
+        "score": 0.0
+      }
+    },
+    "NZDJPY": {
+      "params": {},
+      "metrics": {
+        "net_profit": 0.0,
+        "total_trades": 0,
+        "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "max_drawdown_pct": 0.0,
+        "score": 0.0
+      }
+    },
+    "CADJPY": {
+      "params": {},
+      "metrics": {
+        "net_profit": 0.0,
+        "total_trades": 0,
+        "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "max_drawdown_pct": 0.0,
+        "score": 0.0
+      }
+    },
+    "AUDJPY": {
+      "params": {},
+      "metrics": {
+        "net_profit": 0.0,
+        "total_trades": 0,
+        "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "max_drawdown_pct": 0.0,
+        "score": 0.0
+      }
+    },
+    "CHFJPY": {
+      "params": {},
+      "metrics": {
+        "net_profit": 0.0,
+        "total_trades": 0,
+        "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "max_drawdown_pct": 0.0,
+        "score": 0.0
+      }
+    },
+    "EURGBP": {
       "params": {},
       "metrics": {
         "net_profit": 0.0,
