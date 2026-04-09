@@ -341,9 +341,11 @@ class GuardAuditInvariantTests(unittest.TestCase):
         self.assertTrue(note_arg.strip())
         self.assertEqual(prob_arg, 0.0)
         # Audit hook must record the guard decision.
+        # Note: since DEV-98, size checks are unified under 'global_safety' guard name.
         mock_log_guard.assert_called_once()
         guard_name, result, reason, symbol = mock_log_guard.call_args[0][:4]
-        self.assertEqual(guard_name, "size_guard")
+        self.assertIn(guard_name, ("size_guard", "global_safety"),
+                      "Guard name must be 'global_safety' (new) or 'size_guard' (legacy)")
         self.assertEqual(result, "rejected")
         self.assertEqual(symbol, payload["symbol"])
         self.assertIn("size", reason)

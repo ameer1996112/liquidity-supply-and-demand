@@ -614,6 +614,12 @@ def save_result(
         logger.error("DB write failed: %s", e)
 
 
+# _validate_flip_timing, _is_futures_symbol, _validate_futures_entry_model
+# have been extracted to src/core/safety.py (DEV-98).
+# See: check_flip_timing(), check_futures_entry_model() in that module.
+# Those functions are now fail-closed for LIVE accounts (BUG-02, BUG-03 fix).
+
+
 def _build_ml_rejection_reasoning(payload: Dict, win_prob: float, features_used: Dict, note: str) -> Dict[str, Any]:
     reasoning = {
         "decision": "rejected",
@@ -627,97 +633,6 @@ def _build_ml_rejection_reasoning(payload: Dict, win_prob: float, features_used:
     if features_used:
         reasoning["features_used"] = {k: float(v) if isinstance(v, (int, float)) else v for k, v in features_used.items() if v is not None}
     return reasoning
-
-
-def _validate_flip_timing(payload: Dict[str, Any]) -> Optional[str]:
-    """Validate FLIP entry timing: bar_time minutes must be at 5-min boundary.
-
-    Returns None if valid or not a FLIP entry, error message if invalid.
-    Fail-open: missing bar_time or parse errors allow the trade through.
-    """
-    entry_model = str(payload.get("entry_model", "")).strip()
-    if not entry_model or "flip" not in entry_model.lower():
-        return None
-
-    bar_time = payload.get("bar_time")
-    if not bar_time:
-        logger.warning("FLIP entry but no bar_time in payload — allowing (no data to validate)")
-        return None
-
-    try:
-        from dateutil.parser import parse as _parse_dt
-
-        if not isinstance(bar_time, str):
-            logger.warning("bar_time is not a string (%s) — skipping FLIP timing check", type(bar_time))
-            return None
-
-        dt = _parse_dt(bar_time)
-
-        if dt.minute % 5 != 0:
-            return (
-                f"FLIP entry rejected: bar_time {bar_time} has minute={dt.minute}, "
-                f"but FLIP entries require 5-min boundaries"
-            )
-        return None
-    except Exception as e:
-        logger.warning("FLIP timing validation error: %s — allowing trade (fail-open)", e)
-        return None
-
-
-# Futures symbols (Mangoe rules: BOC or Directional Close primary; Flip only on 5m boundary)
-_FUTURES_SYMBOLS = frozenset({"CL", "NQ", "GC", "ES", "YM", "RTY", "XAUUSD", "XAU", "GOLD", "USOIL", "UKOIL"})
-
-
-def _is_futures_symbol(symbol: str) -> bool:
-    """True if symbol is a Future (Crude, Nasdaq, Gold, etc.) for Mangoe rules."""
-    if not symbol:
-        return False
-    u = symbol.upper().strip()
-    if u in _FUTURES_SYMBOLS:
-        return True
-    # Prefix match for broker suffixes (e.g. CL.c, NQZ4, GCJ24, XAUUSD.a)
-    for prefix in ("CL", "NQ", "GC", "ES", "YM", "RTY", "XAU"):
-        if u.startswith(prefix) or u.startswith(prefix + ".") or u.startswith(prefix + " "):
-            return True
-    if "XAU" in u or "GOLD" in u:
-        return True
-    return False
-
-
-def _validate_futures_entry_model(payload: Dict[str, Any]) -> Optional[str]:
-    """Enforce Mangoe Futures entry rules: BOC or Directional Close primary; reject Flip unless on 5m boundary.
-
-    For Futures (CL, NQ, GC, XAUUSD, etc.):
-    - Prefer Break of Candle or Directional Close.
-    - FLIP entries are only allowed when bar_time is on a 5-min boundary.
-    Returns None if valid or not a Futures symbol, rejection reason string otherwise.
-    """
-    symbol = (payload.get("symbol") or "").strip()
-    if not _is_futures_symbol(symbol):
-        return None
-
-    entry_model = str(payload.get("entry_model", "")).strip().lower()
-    if not entry_model:
-        return None  # No model info — allow (Pine may not send it)
-
-    # BOC / Directional Close / Break of Candle / Dir Close — allow
-    if any(x in entry_model for x in ("boc", "break", "directional", "dir_close", "dir close")):
-        return None
-
-    # FLIP: require 5m boundary (strict for Futures — do not fail-open on missing bar_time)
-    if "flip" in entry_model:
-        bar_time = payload.get("bar_time")
-        if not bar_time or not isinstance(bar_time, str):
-            return (
-                "Futures (Mangoe): FLIP entry requires bar_time for 5m boundary check. "
-                "Use Break of Candle or Directional Close, or ensure Flip occurs on 5m candle open."
-            )
-        reason = _validate_flip_timing(payload)
-        if reason:
-            return f"Futures (Mangoe): {reason}"
-        return None
-
-    return None  # Other models (e.g. AUTO) — allow
 
 
 _GRADE_VALUES = {"A+": 6, "A": 5, "B+": 4, "B": 3, "C+": 2, "C": 1}
@@ -1388,8 +1303,20 @@ def process_trade(payload: Dict[str, Any]):
     s = get_settings()
 
     # ══════════════════════════════════════════════════════════════════
+    # STEP 1 — ENV KILL-SWITCH (BUG-05 fix: must be the very first guard)
+    # Zero I/O, zero DB calls. Fail-fast before any work is done.
+    # ══════════════════════════════════════════════════════════════════
+    from src.core.safety import check_env_kill_switch, run_global_guards
+    ks_reason = check_env_kill_switch(s)
+    if ks_reason:
+        save_result(payload, "kill_switch_blocked", ks_reason, 0.0)
+        log_event(None, "kill_switch_blocked", "worker", {"symbol": symbol, "reason": ks_reason})
+        log_guard_decision("kill_switch", "blocked", ks_reason, symbol)
+        logger.warning("KILL-SWITCH: execution blocked — %s", ks_reason)
+        return
+
+    # ══════════════════════════════════════════════════════════════════
     # LATENCY INSTRUMENTATION (Phase 1 Optimization)
-    # Track execution time at each stage to identify bottlenecks
     # ══════════════════════════════════════════════════════════════════
     from src.utils.latency_tracker import LatencyTracker
     latency_enabled = getattr(s, "enable_latency_instrumentation", False)
@@ -1429,98 +1356,17 @@ def process_trade(payload: Dict[str, Any]):
         payload["_time_risk_multiplier"] = time_based_multiplier
 
     # ══════════════════════════════════════════════════════════════════
-    # GLOBAL GUARDS (run once, affect all accounts)
+    # STEP 2 — GLOBAL SAFETY GUARDS (size, lot cap, futures entry model)
+    # Extracted to src/core/safety.py (DEV-98).
+    # BUG-02 fix: check_flip_timing is fail-closed on LIVE.
+    # BUG-03 fix: check_futures_entry_model is fail-closed on LIVE.
     # ══════════════════════════════════════════════════════════════════
-
-    # ── Invalid size (e.g. TradingView sent size=0 or risk engine returned 0) ──────
-    if size <= 0 or not isinstance(payload.get("size"), (int, float)):
-        # ✅ v5.1: Provide detailed error explanation
-        entry = float(payload.get("entry", 0))
-        sl = float(payload.get("sl", 0))
-        sl_distance = abs(entry - sl) if entry and sl else 0
-        account_balance = float(payload.get("account_balance", s.account_balance))
-        risk_pct = float(payload.get("risk_percent", s.risk_percent))
-
-        rejection_reason = (
-            f"Position size must be positive (got size={payload.get('size')}). "
-        )
-
-        # Diagnose the root cause
-        if sl_distance > 0:
-            # Calculate what the min account balance would need to be
-            min_lot = 0.01  # Typical broker minimum
-            pip_size = 0.01 if "JPY" in symbol.upper() else 0.0001
-            sl_pips = sl_distance / pip_size
-            pip_value = 10.0  # Approximate for forex
-            min_risk_needed = min_lot * sl_pips * pip_value
-            min_balance_needed = (min_risk_needed / (risk_pct / 100))
-
-            rejection_reason += (
-                f"This usually means the stop loss is TOO WIDE relative to account size. "
-                f"Details: SL distance={sl_distance:.5f} ({sl_pips:.1f} pips), "
-                f"Account balance=${account_balance:.2f}, Risk={risk_pct}%. "
-                f"To place min trade (0.01 lots), you need ~${min_balance_needed:.0f} account balance "
-                f"OR reduce SL distance by {(sl_pips / 50):.0f}x. "
-                f"Alternatively, check TradingView Pine 'account_size_usd' input (should match ${account_balance:.0f}, not initial_capital)."
-            )
-        else:
-            rejection_reason += (
-                "Missing entry/SL prices. Check TradingView webhook payload."
-            )
-
-        save_result(
-            payload,
-            "filtered",
-            rejection_reason,
-            0.0,
-            account_name=account_name,
-        )
-        log_guard_decision("size_guard", "rejected", rejection_reason, symbol)
-        logger.warning(
-            "SIZE REJECTED: size=%s (must be > 0). Reason: %s",
-            payload.get("size"),
-            rejection_reason[:200],
-        )
-        return
-
-    # ── Max Lot Size Guard ────────────────────────────────────
-    max_lot_size = s.max_lot_size if hasattr(s, 'max_lot_size') else 10.0
-    if size > max_lot_size:
-        reason = (
-            f"Position size {size} lots exceeds max_lot_size={max_lot_size}. "
-            f"Check TradingView Pine initial_capital vs actual account balance."
-        )
-        save_result(
-            payload,
-            "filtered",
-            reason,
-            0.0,
-            account_name=account_name,
-        )
-        log_guard_decision("max_lot_size", "rejected", reason, symbol)
-        logger.warning(
-            "MAX LOT SIZE REJECTED: size=%s > max=%s lots.",
-            size,
-            max_lot_size,
-        )
-        return
-
-    # ── Futures (Mangoe) entry model: BOC/Dir Close preferred; Flip only on 15m/1H boundary ──
-    futures_reason = _validate_futures_entry_model(payload)
-    if futures_reason:
-        save_result(payload, "filtered", futures_reason, 0.0, account_name=account_name)
-        log_guard_decision("futures_entry_model", "rejected", futures_reason, symbol)
-        logger.warning("FUTURES ENTRY MODEL REJECTED: %s", futures_reason)
-        return
-
-    # ── Global Kill Switch (ENV only — Redis/MTM are now per-account) ──
-    env_kill = getattr(s, "trading_kill_switch", False)
-    if env_kill:
-        reason = "Trading kill-switch is ON (env)"
-        save_result(payload, "kill_switch_blocked", reason, 0.0, account_name=account_name)
-        log_event(None, "kill_switch_blocked", "worker", {"symbol": symbol, "reason": reason})
-        log_guard_decision("kill_switch", "blocked", reason, symbol)
-        logger.warning("KILL-SWITCH: execution blocked - %s", reason)
+    global_rejection = run_global_guards(payload, s)
+    if global_rejection:
+        guard_tag = global_rejection.split(":")[0].lower().replace(" ", "_")[:40]
+        save_result(payload, "filtered", global_rejection, 0.0, account_name=account_name)
+        log_guard_decision("global_safety", "rejected", global_rejection, symbol, {"tag": guard_tag})
+        logger.warning("GLOBAL SAFETY REJECTED [%s]: %s", symbol, global_rejection)
         return
 
     # ── Signal Staleness Guard (global — same signal for all accounts) ──
