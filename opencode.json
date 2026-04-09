@@ -6,14 +6,17 @@
   "instructions": [
     "./opencode-instructions.md"
   ],
+  "model": "google/gemini-2.0-flash",
   "compaction": {
     "auto": true,
     "prune": true,
-    "reserved": 10000
+    "reserved": 6000
   },
   "watcher": {
     "ignore": [
       ".git/**",
+      ".planning/**",
+      ".antigravity/**",
       "**/node_modules/**",
       "**/.next/**",
       "**/__pycache__/**",
@@ -22,14 +25,20 @@
       "**/.venv/**",
       "**/venv/**",
       "logs/**",
+      "docs/**",
       "docs/archive/**",
+      "data/**",
       "data/raw/**",
       "data/historical/**",
       "data/backtest/**",
       "data/backtest_candles/**",
       "**/*.csv",
       "**/*.parquet",
-      "**/*.log"
+      "**/*.log",
+      "**/*.lock",
+      "**/migrations/**",
+      "scripts/pinescript/**",
+      "tests/**"
     ]
   },
   "snapshot": false
