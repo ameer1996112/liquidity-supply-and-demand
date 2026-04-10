@@ -1,0 +1,93 @@
+{
+  "completed": [
+    "EURUSD",
+    "GBPUSD",
+    "USDCAD"
+  ],
+  "results": {
+    "EURUSD": {
+      "params": {
+        "rr_mode": "fixed_3.0",
+        "enable_ai_quality_filter": true,
+        "ai_quality_threshold": 73,
+        "min_tp_distance_pips": 18.2,
+        "liq_max_distance_pips_forex": 16.4,
+        "max_bars_held": 72,
+        "stop_loss_buffer_pips": 2.5,
+        "use_break_even": true,
+        "enable_double_tp": true,
+        "liq_pivot_len": 10,
+        "pvtMax": 14,
+        "max_sweep_to_touch_bars": 19,
+        "max_peak_to_touch_bars": 33,
+        "min_body_perc": 41,
+        "max_zones": 25,
+        "max_trades_per_day": 4
+      },
+      "metrics": {
+        "net_profit": 2253.27,
+        "total_trades": 479,
+        "win_rate": 22.76,
+        "profit_factor": 1.023,
+        "max_drawdown_pct": 17.2215,
+        "score": 15.341876955147262
+      }
+    },
+    "GBPUSD": {
+      "params": {
+        "rr_mode": "fixed_2.5",
+        "enable_ai_quality_filter": false,
+        "ai_quality_threshold": 63,
+        "min_tp_distance_pips": 7.2,
+        "liq_max_distance_pips_forex": 14.5,
+        "max_bars_held": 49,
+        "stop_loss_buffer_pips": 3.0,
+        "use_break_even": false,
+        "enable_double_tp": false,
+        "liq_pivot_len": 9,
+        "pvtMax": 13,
+        "max_sweep_to_touch_bars": 25,
+        "max_peak_to_touch_bars": 27,
+        "min_body_perc": 72,
+        "max_zones": 28,
+        "max_trades_per_day": 2
+      },
+      "metrics": {
+        "net_profit": 8102.67,
+        "total_trades": 508,
+        "win_rate": 34.84,
+        "profit_factor": 1.111,
+        "max_drawdown_pct": 10.137920000000001,
+        "score": 20.220823978997032
+      }
+    },
+    "USDCAD": {
+      "params": {
+        "rr_mode": "fixed_3.0",
+        "enable_ai_quality_filter": false,
+        "ai_quality_threshold": 45,
+        "min_tp_distance_pips": 8.3,
+        "liq_max_distance_pips_forex": 20.4,
+        "max_bars_held": 83,
+        "stop_loss_buffer_pips": 2.6,
+        "use_break_even": true,
+        "enable_double_tp": false,
+        "liq_pivot_len": 3,
+        "pvtMax": 3,
+        "max_sweep_to_touch_bars": 13,
+        "max_peak_to_touch_bars": 56,
+        "min_body_perc": 24,
+        "max_zones": 14,
+        "max_trades_per_day": 2
+      },
+      "metrics": {
+        "net_profit": 3083.55,
+        "total_trades": 457,
+        "win_rate": 30.63,
+        "profit_factor": 1.041,
+        "max_drawdown_pct": 13.60034,
+        "score": 16.612419766778437
+      }
+    }
+  }
+}

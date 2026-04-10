@@ -98,11 +98,13 @@ async def page_query_snd(page: "Page"):
             text = await el.inner_text()
             if text.strip() == "S&D Algo [Pro]":
                 box = await el.bounding_box()
-                if box and box["width"] < 300 and box["y"] < 150:
+                # Only check width — y-position varies with window/panel layout
+                if box and 0 < box["width"] < 400:
                     return el
         except Exception:
             continue
     return None
+
 
 
 class TabWorker:
@@ -250,6 +252,8 @@ class TabWorker:
 
         # Always lock the backtest range to "Last 365 days" so optimizer
         # results are consistent and don't trigger slow Deep Backtesting mode.
+        # NOTE: This is also called unconditionally in optimize_pair_bayesian
+        # so it runs even when the symbol doesn't need to switch.
         await self._set_backtest_range("Last 365 days")
 
 
@@ -329,9 +333,25 @@ class TabWorker:
             )
 
             if set_ok:
-                await asyncio.sleep(1.5)  # wait for backtest to recalculate
+                await asyncio.sleep(1.5)  # let dropdown close
+
+                # TradingView sometimes shows "Update report" instead of auto-refreshing
+                await self.page.evaluate(
+                    """
+                    (() => {
+                        for (const btn of document.querySelectorAll('button')) {
+                            if (btn.textContent?.trim() === 'Update report') {
+                                btn.click(); return true;
+                            }
+                        }
+                        return false;
+                    })()
+                    """
+                )
+                await asyncio.sleep(3.0)  # wait for recalculation
                 print(f"  [backtest range → {range_label}]", flush=True)
                 return True
+
             else:
                 await self.page.keyboard.press("Escape")
                 return False
@@ -417,6 +437,20 @@ class TabWorker:
         appeared = False
         deadline = time.time() + _UPDATE_APPEAR_TIMEOUT
         while time.time() < deadline:
+            # TradingView sometimes stops auto-refreshing and shows this button instead
+            await self.page.evaluate(
+                """
+                (() => {
+                    const els = document.querySelectorAll('*');
+                    for (const el of els) {
+                        if (el.textContent?.trim() === 'Update report' && el.childElementCount === 0) {
+                            el.click();
+                        }
+                    }
+                })()
+                """
+            )
+
             if await self._check_loading_text():
                 appeared = True
                 break
@@ -425,10 +459,23 @@ class TabWorker:
         if not appeared:
             # TV didn't start a loading indicator; assume instant or missed.
             await asyncio.sleep(1.5)
+            # Try one last time in case it just appeared
+            await self.page.evaluate(
+                """
+                (() => {
+                    for (const el of document.querySelectorAll('*')) {
+                        if (el.textContent?.trim() === 'Update report' && el.childElementCount === 0) {
+                            el.click();
+                        }
+                    }
+                })()
+                """
+            )
             return True
 
         # Phase 2 — wait for loading to disappear
         deadline = time.time() + _UPDATE_FINISH_TIMEOUT
+
         while time.time() < deadline:
             if not await self._check_loading_text():
                 await asyncio.sleep(0.5)   # small buffer after disappears
@@ -679,7 +726,7 @@ class TabWorker:
                 # Close the current (broken) dialog with Escape and reopen it
                 await self.page.keyboard.press("Escape")
                 await asyncio.sleep(0.8)
-                await self._open_strategy_settings()
+                await self._open_settings()
                 await asyncio.sleep(1.0)
 
                 # Re-read the profile

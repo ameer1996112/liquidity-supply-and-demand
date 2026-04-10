@@ -250,6 +250,9 @@ class TradingViewOptimizer:
         best: Optional[BacktestResult] = None
         start = time.time()
 
+        # ── Always set backtest range (even if symbol didn't change) ───────────
+        await worker._set_backtest_range("Last 365 days")
+
         # ── Reset risk to 0.5% before every pair ───────────────────────────────
         # Ensures TradingView isn't left at a different risk from a previous run.
         # 0.5% is the baseline for optimization (1% interacts badly with the
@@ -334,7 +337,7 @@ class TradingViewOptimizer:
                 worker = TabWorker(page, self)
 
                 if self.bayesian_mode:
-                    timeout = self.n_trials * 60  # 60s per trial — TradingView can be slow
+                    timeout = self.n_trials * 120  # 120s per trial — TV can hang for 90s on a single trial
                     coro = self.optimize_pair_bayesian(worker, symbol, self.n_trials)
                 elif self.smart_mode:
                     timeout = _PAIR_TIMEOUT_SECS
