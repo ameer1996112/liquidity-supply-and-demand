@@ -24,31 +24,42 @@ class BacktestResult:
 
     def calculate_score(self) -> None:
         """
-        Prop-firm Calmar score: (net_profit / max_drawdown) × √trades
+        Scoring formula for prop-firm optimization.
+
+        IMPORTANT: The strategy tester shows ALL-TIME max drawdown over the
+        entire backtest (years). Prop firm limits apply to a 30-60 day window,
+        which is typically 3-5x lower than the all-time backtest max DD.
+        Therefore we do NOT hard-reject on DD — we use it as a heavy penalty.
+
+        Formula:  PF × √trades × (1 - DD%/100)²
 
         Hard rejects (score = 0):
-          - max_drawdown_pct > PROP_FIRM_MAX_DD_PCT (10%)  — fails prop-firm limit
-          - total_trades < 10                              — insufficient sample
-          - net_profit <= 0                                — unprofitable
-          - max_drawdown <= 0                              — no drawdown data (invalid)
+          - total_trades < 10   — insufficient sample
+          - net_profit <= 0     — strategy is losing money
+          - max_drawdown <= 0   — no drawdown data (invalid read)
 
-        For passing results: Calmar ratio × √trades rewards strategies
-        that generate high return-per-risk with many trades, which is
-        exactly what prop firms evaluate.
+        DD penalty (soft, not a hard cutoff):
+          - (1 - DD%/100)² terms heavily penalises high-drawdown configs.
+          - At DD=10%: penalty = 0.81   (minor)
+          - At DD=20%: penalty = 0.64   (moderate)
+          - At DD=40%: penalty = 0.36   (severe)
+          - At DD=60%: penalty = 0.16   (nearly zero)
+
+        Prop-firm compliance reporting (is_prop_firm_compliant) uses a separate
+        threshold to flag results that are likely safe for the evaluation window.
+        This does NOT affect scoring or which params are selected.
         """
-        from .config import PROP_FIRM_MAX_DD_PCT
-
         if (
             self.total_trades < 10
             or self.net_profit <= 0
             or self.max_drawdown <= 0
-            or self.max_drawdown_pct > PROP_FIRM_MAX_DD_PCT
         ):
             self.score = 0.0
             return
 
-        calmar = self.net_profit / self.max_drawdown
-        self.score = calmar * math.sqrt(self.total_trades)
+        dd_pct = min(self.max_drawdown_pct, 99.0)   # cap to avoid negative score
+        dd_penalty = max(0.0, 1.0 - dd_pct / 100.0) ** 2
+        self.score = self.profit_factor * math.sqrt(self.total_trades) * dd_penalty
 
     def is_prop_firm_compliant(self) -> bool:
         """Return True if this result passes the prop-firm DD limit."""

@@ -56,6 +56,7 @@ class TradingViewOptimizer:
         n_trials: int = N_BAYESIAN_TRIALS,
         dd_limit: float = PROP_FIRM_MAX_DD_PCT,
         generate_report: bool = True,
+        fixed_overrides: dict = None,
     ):
         self.pairs = pairs
         self.fast_mode = fast_mode
@@ -64,6 +65,7 @@ class TradingViewOptimizer:
         self.n_trials = n_trials
         self.dd_limit = dd_limit
         self.generate_report = generate_report
+        self.fixed_overrides = fixed_overrides or {}
         self.results: list[BacktestResult] = []
         self.best_per_pair: dict[str, BacktestResult] = {}
         self.page: Optional[Page] = None
@@ -239,17 +241,27 @@ class TradingViewOptimizer:
         print(f"\n[{symbol}] Bayesian optimization: {n_trials} trials")
         print(f"[{symbol}] Phase 1: random exploration (trials 1–25)")
         print(f"[{symbol}] Phase 2: Bayesian focus (trials 26–{n_trials})")
-        print(f"[{symbol}] DD limit: {self.dd_limit}% (hard reject above this)\n")
+        if self.fixed_overrides:
+            locked = ", ".join(f"{k}={v}" for k, v in self.fixed_overrides.items())
+            print(f"[{symbol}] 🔒 Locked params: {locked}")
+        print(f"[{symbol}] DD penalty: higher DD = lower score (✅ = profitable + DD≤{self.dd_limit}%)\n")
+
 
         best: Optional[BacktestResult] = None
         start = time.time()
+
+        # ── Reset risk to 0.5% before every pair ───────────────────────────────
+        # Ensures TradingView isn't left at a different risk from a previous run.
+        # 0.5% is the baseline for optimization (1% interacts badly with the
+        # 4% daily loss limit, killing good trades and destroying backtest PF).
+        await worker._apply_params({"risk_per_trade_pct": 0.5})
 
         for trial_num in range(1, n_trials + 1):
             if trial_num == 26:
                 print(f"\n[{symbol}] ── Phase 2: Bayesian focus ──\n")
 
             trial = study.ask()
-            params = worker.sample_params(trial, symbol)
+            params = worker.sample_params(trial, symbol, self.fixed_overrides)
 
             elapsed = time.time() - start
             avg_secs = elapsed / trial_num if trial_num > 1 else 0
@@ -279,6 +291,7 @@ class TradingViewOptimizer:
 
             if best is None or result.score > best.score:
                 best = result
+                worker.best_result = result  # persist on worker so TimeoutError can recover it
                 print(
                     f"  [{symbol}] ★ NEW BEST  Score={result.score:.2f}  "
                     f"PF={result.profit_factor:.2f}  DD={result.max_drawdown_pct:.1f}%  "
@@ -321,7 +334,7 @@ class TradingViewOptimizer:
                 worker = TabWorker(page, self)
 
                 if self.bayesian_mode:
-                    timeout = self.n_trials * 20  # ~20s per trial worst case
+                    timeout = self.n_trials * 60  # 60s per trial — TradingView can be slow
                     coro = self.optimize_pair_bayesian(worker, symbol, self.n_trials)
                 elif self.smart_mode:
                     timeout = _PAIR_TIMEOUT_SECS
@@ -338,7 +351,19 @@ class TradingViewOptimizer:
                     self._save_checkpoint(checkpoint, symbol, result)
 
             except asyncio.TimeoutError:
-                print(f"\n  WARNING: {symbol} hit the timeout — skipping.")
+                # Save whatever partial results the worker accumulated before timeout
+                partial_best = getattr(worker, 'best_result', None)
+                n_done = len(getattr(worker, 'results', []))
+                if partial_best and partial_best.score > 0:
+                    print(
+                        f"\n  WARNING: {symbol} timed out after {n_done} trials — "
+                        f"saving partial best (score={partial_best.score:.2f})"
+                    )
+                    self.best_per_pair[symbol] = partial_best
+                    self.results.extend(worker.results)
+                    self._save_checkpoint(checkpoint, symbol, partial_best)
+                else:
+                    print(f"\n  WARNING: {symbol} timed out — no valid result found yet")
                 continue
             except Exception as e:
                 print(f"\n  ERROR optimizing {symbol}: {e}")

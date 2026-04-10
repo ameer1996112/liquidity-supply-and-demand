@@ -73,11 +73,13 @@ echo "[run.sh] Args: $*"
 echo ""
 
 # ── Prevent macOS from sleeping ───────────────────────────────────────────────
-# caffeinate -i keeps the system awake as long as the optimizer is running.
-# It exits automatically when the optimizer finishes.
+# caffeinate flags:
+#   -i  prevent idle sleep
+#   -d  prevent display sleep (monitor stays on)
+#   -s  prevent system sleep on AC power
 if command -v caffeinate &>/dev/null; then
-    LAUNCHER="caffeinate -i"
-    echo "[run.sh] Sleep prevention: caffeinate enabled (Mac won't sleep during run)"
+    LAUNCHER="caffeinate -ids"
+    echo "[run.sh] Sleep prevention: caffeinate -ids (Mac + monitor won't sleep)"
 else
     LAUNCHER=""
     echo "[run.sh] Warning: caffeinate not found — Mac may sleep during long runs"

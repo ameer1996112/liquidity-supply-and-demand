@@ -24,7 +24,7 @@ N_STARTUP_TRIALS = 25          # Random exploration before TPE kicks in
 # Full Optuna search space across all 16 tunable parameters.
 # "liq_distance" is a placeholder — resolved per asset class at runtime.
 OPTUNA_SEARCH_SPACE: dict = {
-    "rr_mode":                  {"type": "categorical", "choices": ["dynamic", "fixed_2.5", "fixed_4.0"]},
+    "rr_mode":                  {"type": "categorical", "choices": ["dynamic", "fixed_2.5", "fixed_3.0", "fixed_4.0"]},
     "enable_ai_quality_filter": {"type": "categorical", "choices": [True, False]},
     "ai_quality_threshold":     {"type": "int",         "low": 40,   "high": 75},
     "min_tp_distance_pips":     {"type": "float",       "low": 5.0,  "high": 20.0},

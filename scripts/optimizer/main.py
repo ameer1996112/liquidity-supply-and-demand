@@ -163,6 +163,16 @@ Examples:
         help="Show what would be tested without launching a browser",
     )
 
+    parser.add_argument(
+        "--fix",
+        type=str,
+        default="",
+        help=(
+            "Comma-separated key=value pairs to pin for every trial. "
+            "e.g. --fix rr_mode=fixed_4.0  or  --fix rr_mode=fixed_3.0,use_break_even=True"
+        ),
+    )
+
     args = parser.parse_args()
 
     pairs = args.pairs.split(",") if args.pairs else DEFAULT_PAIRS
@@ -192,6 +202,25 @@ Examples:
             print("Or: source .venv/bin/activate && pip install optuna")
             sys.exit(1)
 
+    # Parse --fix into a dict
+    fixed_overrides: dict = {}
+    if args.fix:
+        for pair in args.fix.split(","):
+            pair = pair.strip()
+            if "=" in pair:
+                k, v = pair.split("=", 1)
+                # Auto-convert booleans
+                if v.lower() == "true":  v = True
+                elif v.lower() == "false": v = False
+                else:
+                    try: v = int(v)
+                    except ValueError:
+                        try: v = float(v)
+                        except ValueError: pass
+                fixed_overrides[k.strip()] = v
+        if fixed_overrides:
+            print(f"[main] Fixed params: {fixed_overrides}")
+
     from scripts.optimizer.optimizer import TradingViewOptimizer
     optimizer = TradingViewOptimizer(
         pairs=pairs,
@@ -201,6 +230,7 @@ Examples:
         n_trials=args.n_trials,
         dd_limit=args.dd_limit,
         generate_report=not args.no_report,
+        fixed_overrides=fixed_overrides,
     )
     asyncio.run(optimizer.run())
 

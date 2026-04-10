@@ -131,23 +131,42 @@ class TabWorker:
 
     # ─────────────────────────────────── Optuna param sampler ────────────────
 
-    def sample_params(self, trial, symbol: str) -> dict:
+    def sample_params(self, trial, symbol: str, fixed_overrides: dict = None) -> dict:
         """
         Translate an Optuna trial into a concrete parameter dict for TradingView.
         Handles liq_distance resolution per asset class and rr_mode expansion.
+
+        fixed_overrides: dict of param→value to pin (bypasses Optuna's suggestion).
+        e.g. {"rr_mode": "fixed_4.0"} locks RR and lets Bayesian explore the rest.
         """
         from .config import OPTUNA_SEARCH_SPACE
 
         params: dict = {}
         liq_range = self._liq_range(symbol)
         liq_param_name = liq_range["param"]
+        overrides = fixed_overrides or {}
 
         for name, space in OPTUNA_SEARCH_SPACE.items():
+            # Fixed override — bypass Optuna entirely for this param
+            if name in overrides:
+                if name == "liq_distance":
+                    params[liq_param_name] = overrides[name]
+                else:
+                    params[name] = overrides[name]
+                # Still need to register with Optuna so it doesn't complain
+                # Use a dummy suggest that stays within bounds
+                if space["type"] == "categorical":
+                    trial.suggest_categorical(name, [overrides[name]])
+                elif space["type"] == "int":
+                    trial.suggest_int(name, space["low"], space["high"])
+                elif space["type"] == "float":
+                    trial.suggest_float(name, space["low"], space["high"])
+                continue
+
             if name == "liq_distance":
                 val = trial.suggest_float(
                     "liq_distance", liq_range["low"], liq_range["high"]
                 )
-                # Round to 1 decimal place to reduce noise
                 params[liq_param_name] = round(val, 1)
             elif space["type"] == "categorical":
                 val = trial.suggest_categorical(name, space["choices"])
@@ -160,6 +179,7 @@ class TabWorker:
                 params[name] = round(val, 1)
 
         return params
+
 
     # ─────────────────────────────────── navigation ──────────────────────────
 
@@ -227,6 +247,98 @@ class TabWorker:
                 )
         except Exception:
             pass
+
+        # Always lock the backtest range to "Last 365 days" so optimizer
+        # results are consistent and don't trigger slow Deep Backtesting mode.
+        await self._set_backtest_range("Last 365 days")
+
+
+    async def _set_backtest_range(self, range_label: str = "Entire history") -> bool:
+        """
+        Set the strategy tester date range to a fixed option.
+
+        Valid range_label values (must match TradingView's dropdown text exactly):
+          "Range from chart", "Last 7 days", "Last 30 days", "Last 90 days",
+          "Last 365 days", "Entire history"
+
+        Returns True if the range was set successfully.
+        """
+        try:
+            # Click the date-range button in the strategy tester panel
+            clicked_btn = await self.page.evaluate(
+                """
+                (() => {
+                    // The range button is inside the strategy report toolbar
+                    // It contains a calendar icon and shows the current date range text
+                    const candidates = [
+                        // Try data-name first
+                        document.querySelector('[data-name="report-range-button"]'),
+                        // Then look for the button that contains a date range text
+                        ...Array.from(document.querySelectorAll('button')).filter(b =>
+                            b.textContent?.match(/Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec/) &&
+                            b.textContent?.includes('—')
+                        ),
+                    ].filter(Boolean);
+                    if (candidates[0]) { candidates[0].click(); return true; }
+                    return false;
+                })()
+                """
+            )
+
+            if not clicked_btn:
+                # Fallback: look for any element with date range text
+                clicked_btn = await self.page.evaluate(
+                    f"""
+                    (() => {{
+                        for (const el of document.querySelectorAll(
+                            '[class*="report"] button, [class*="tester"] button, '
+                            + '[class*="strategy"] button'
+                        )) {{
+                            if (el.textContent?.includes('—') ||
+                                el.textContent?.includes('Range from chart') ||
+                                el.textContent?.includes('history')) {{
+                                el.click(); return true;
+                            }}
+                        }}
+                        return false;
+                    }})()
+                    """
+                )
+
+            if not clicked_btn:
+                return False
+
+            await asyncio.sleep(0.5)
+
+            # Click the desired range option from the dropdown
+            set_ok = await self.page.evaluate(
+                f"""
+                (() => {{
+                    const target = "{range_label}";
+                    for (const el of document.querySelectorAll(
+                        '[role="option"], [role="menuitem"], [class*="item"], li, '
+                        + '[class*="listItem"], [class*="menuItem"]'
+                    )) {{
+                        if (el.textContent?.trim() === target) {{
+                            el.click(); return true;
+                        }}
+                    }}
+                    return false;
+                }})()
+                """
+            )
+
+            if set_ok:
+                await asyncio.sleep(1.5)  # wait for backtest to recalculate
+                print(f"  [backtest range → {range_label}]", flush=True)
+                return True
+            else:
+                await self.page.keyboard.press("Escape")
+                return False
+
+        except Exception as e:
+            log.warning("_set_backtest_range failed: %s", e)
+            return False
 
     async def _wait_for_load(self, timeout: int = 30) -> None:
         """Wait for chart and strategy tester to finish loading."""
@@ -428,6 +540,233 @@ class TabWorker:
         except Exception:
             return False
 
+    async def _reload_strategy_script(self) -> None:
+        """
+        Toggle the strategy visibility (eye icon) off then on.
+        This is TradingView's standard way to restart a 'Script calculation timed out' error.
+        Equivalent to clicking the eye icon in the chart legend twice.
+        """
+        try:
+            # Click the eye/visibility button in the chart legend
+            toggled = await self.page.evaluate(
+                """
+                (() => {
+                    // Try data-name attribute first (most reliable)
+                    let btn = document.querySelector(
+                        '[data-name="legend-visibility-action"]'
+                    );
+                    // Fallback: find strategy row by name and grab first button
+                    if (!btn) {
+                        const rows = document.querySelectorAll(
+                            '[class*="legendItem"], [class*="legend-"]'
+                        );
+                        for (const row of rows) {
+                            if (row.textContent?.includes('S&D Algo')) {
+                                btn = row.querySelector('button');
+                                break;
+                            }
+                        }
+                    }
+                    if (btn) { btn.click(); return true; }
+                    return false;
+                })()
+                """
+            )
+            if toggled:
+                await asyncio.sleep(1.5)   # wait for script to unload
+                # Click again to re-enable
+                await self.page.evaluate(
+                    """
+                    (() => {
+                        let btn = document.querySelector(
+                            '[data-name="legend-visibility-action"]'
+                        );
+                        if (!btn) {
+                            const rows = document.querySelectorAll(
+                                '[class*="legendItem"], [class*="legend-"]'
+                            );
+                            for (const row of rows) {
+                                if (row.textContent?.includes('S&D Algo')) {
+                                    btn = row.querySelector('button'); break;
+                                }
+                            }
+                        }
+                        if (btn) btn.click();
+                    })()
+                    """
+                )
+                await asyncio.sleep(3.0)   # wait for script to reload & recalculate
+                print(" [script reloaded via eye toggle]", end="", flush=True)
+        except Exception as e:
+            log.warning("_reload_strategy_script failed: %s", e)
+
+    async def _dismiss_tv_errors(self) -> None:
+        """Dismiss TradingView error toasts. If 'Script calculation timed out' detected,
+        also reloads the strategy via eye-click toggle."""
+        try:
+            # Check if the timeout error is visible
+            timed_out = await self.page.evaluate(
+                """
+                (() => {
+                    const all = document.querySelectorAll('*');
+                    for (const el of all) {
+                        if (el.childElementCount === 0 &&
+                            el.textContent?.includes('timed out')) return true;
+                    }
+                    return false;
+                })()
+                """
+            )
+            if timed_out:
+                print(" [⚠ script timed out, reloading...]", end="", flush=True)
+                await self._reload_strategy_script()
+
+            # Close any visible close/dismiss buttons on toasts
+            dismissed = await self.page.evaluate(
+                """
+                (() => {
+                    let count = 0;
+                    for (const btn of document.querySelectorAll(
+                        '[class*="close-"][class*="button"], [data-name="close-button"], '
+                        + '[class*="toast"] button, [class*="notification"] button'
+                    )) {
+                        btn.click();
+                        count++;
+                    }
+                    for (const btn of document.querySelectorAll('button')) {
+                        const t = btn.textContent?.trim();
+                        if (t === 'OK' || t === 'Dismiss' || t === 'Close') {
+                            const inSettings = btn.closest('[class*="dialog-"][class*="rounded"]');
+                            if (!inSettings) { btn.click(); count++; }
+                        }
+                    }
+                    return count;
+                })()
+                """
+            )
+            if dismissed:
+                await asyncio.sleep(0.5)
+        except Exception:
+            pass
+
+
+    async def _ensure_custom_profile(self) -> bool:
+        """
+        Switch the strategy profile dropdown to 'Custom' if it isn't already.
+        When any preset profile is active (e.g. 'Balanced (Recommended)'),
+        TradingView locks inputs and ignores our changes — params never apply.
+        This must be called before setting any param values.
+        Returns True if profile is Custom (or was switched), False on failure.
+        """
+        try:
+            profile = await self.page.evaluate(
+                """
+                (() => {
+                    const d = document.querySelector('[class*="dialog-"][class*="rounded"]');
+                    if (!d) return '';
+                    const combo = d.querySelector('button[role="combobox"]');
+                    return combo?.textContent?.trim() || '';
+                })()
+                """
+            )
+
+            # profile='' means dialog isn't ready (TV error state / script timeout)
+            if profile == '':
+                # Dismiss any error toasts first
+                await self._dismiss_tv_errors()
+                await asyncio.sleep(0.5)
+
+                # Close the current (broken) dialog with Escape and reopen it
+                await self.page.keyboard.press("Escape")
+                await asyncio.sleep(0.8)
+                await self._open_strategy_settings()
+                await asyncio.sleep(1.0)
+
+                # Re-read the profile
+                profile = await self.page.evaluate(
+                    """
+                    (() => {
+                        const d = document.querySelector('[class*="dialog-"][class*="rounded"]');
+                        if (!d) return '';
+                        const combo = d.querySelector('button[role="combobox"]');
+                        return combo?.textContent?.trim() || '';
+                    })()
+                    """
+                )
+
+            if profile == "Custom":
+                return True
+
+            print(f" [profile='{profile}', switching to Custom...]", end="", flush=True)
+
+            # Click the combobox to open the dropdown
+            await self.page.evaluate(
+                """
+                (() => {
+                    const d = document.querySelector('[class*="dialog-"][class*="rounded"]');
+                    if (!d) return;
+                    const combo = d.querySelector('button[role="combobox"]');
+                    if (combo) combo.click();
+                })()
+                """
+            )
+            await asyncio.sleep(0.6)
+
+            # Click the "Custom" option — it can appear in a portal outside the dialog
+            clicked = await self.page.evaluate(
+                """
+                (() => {
+                    const selectors = [
+                        '[role="option"]', '[class*="option"]',
+                        '[class*="item-"]', 'li', '[class*="listItem"]',
+                        '[class*="menuItem"]', '[class*="dropdownItem"]',
+                    ];
+                    for (const sel of selectors) {
+                        for (const el of document.querySelectorAll(sel)) {
+                            if (el.textContent?.trim() === 'Custom') {
+                                el.click();
+                                return true;
+                            }
+                        }
+                    }
+                    return false;
+                })()
+                """
+            )
+
+            if not clicked:
+                # Couldn't find "Custom" option — press Escape to close dropdown
+                await self.page.keyboard.press("Escape")
+                await asyncio.sleep(0.3)
+                log.warning("_ensure_custom_profile: could not find 'Custom' option in dropdown")
+                return False
+
+            await asyncio.sleep(0.5)
+
+            # Verify the switch worked
+            new_profile = await self.page.evaluate(
+                """
+                (() => {
+                    const d = document.querySelector('[class*="dialog-"][class*="rounded"]');
+                    if (!d) return '';
+                    const combo = d.querySelector('button[role="combobox"]');
+                    return combo?.textContent?.trim() || '';
+                })()
+                """
+            )
+            if new_profile == "Custom":
+                print(" [switched ✓]", end="", flush=True)
+                return True
+            else:
+                log.warning(
+                    "_ensure_custom_profile: still showing '%s' after click", new_profile
+                )
+                return False
+
+        except Exception as e:
+            log.warning("_ensure_custom_profile failed: %s", e)
+            return False
+
     async def _apply_rr_mode(self, mode: str) -> None:
         """Set RR mode: 'dynamic' = uncheck override, 'fixed_X' = check + value."""
         if mode == "dynamic":
@@ -516,21 +855,8 @@ class TabWorker:
                 )
                 await asyncio.sleep(0.3)
 
-                # Check profile is Custom
-                profile = await self.page.evaluate(
-                    """
-                    (() => {
-                        const d = document.querySelector(
-                            '[class*="dialog-"][class*="rounded"]'
-                        );
-                        if (!d) return '';
-                        const combo = d.querySelector('button[role="combobox"]');
-                        return combo?.textContent?.trim() || '';
-                    })()
-                    """
-                )
-                if profile != "Custom":
-                    print(f" [WARN: profile={profile}, need Custom]", end="")
+                # Ensure profile is Custom — preset profiles lock inputs and ignore changes
+                await self._ensure_custom_profile()
 
                 # Apply rr_mode first (special handling)
                 rr_mode = params.get("rr_mode")
