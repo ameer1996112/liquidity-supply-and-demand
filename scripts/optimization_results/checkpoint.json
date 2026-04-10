@@ -2,7 +2,8 @@
   "completed": [
     "EURUSD",
     "GBPUSD",
-    "USDCAD"
+    "USDCAD",
+    "USDCHF"
   ],
   "results": {
     "EURUSD": {
@@ -87,6 +88,34 @@
         "profit_factor": 1.041,
         "max_drawdown_pct": 13.60034,
         "score": 16.612419766778437
+      }
+    },
+    "USDCHF": {
+      "params": {
+        "rr_mode": "fixed_4.0",
+        "enable_ai_quality_filter": false,
+        "ai_quality_threshold": 74,
+        "min_tp_distance_pips": 17.8,
+        "liq_max_distance_pips_forex": 17.4,
+        "max_bars_held": 52,
+        "stop_loss_buffer_pips": 2.6,
+        "use_break_even": true,
+        "enable_double_tp": false,
+        "liq_pivot_len": 8,
+        "pvtMax": 10,
+        "max_sweep_to_touch_bars": 9,
+        "max_peak_to_touch_bars": 45,
+        "min_body_perc": 80,
+        "max_zones": 12,
+        "max_trades_per_day": 3
+      },
+      "metrics": {
+        "net_profit": 6441.85,
+        "total_trades": 380,
+        "win_rate": 32.11,
+        "profit_factor": 1.082,
+        "max_drawdown_pct": 13.70524,
+        "score": 15.70680708138835
       }
     }
   }

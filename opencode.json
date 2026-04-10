@@ -13,7 +13,7 @@
     "token-saver": {
       "type": "local",
       "command": ["node", "/Users/ameeramer/token-saver/server.js"],
-      "enabled": true
+      "enabled": false
     }
   },
   "watcher": {

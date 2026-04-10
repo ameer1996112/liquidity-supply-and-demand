@@ -1,3 +1,18 @@
+# ═══════════════════════════════════════════════════════════════
+# OpenCode Context Exclusions
+# ═══════════════════════════════════════════════════════════════
+# Philosophy: Exclude EVERYTHING from indexing. Agent reads files
+# on-demand using MODULE_MAP.md. Only AGENTS.md (loaded via
+# opencode.json instructions) and root metadata are indexed.
+# ═══════════════════════════════════════════════════════════════
+
+# ── ALL source code (read on demand via MODULE_MAP) ──
+src/**
+config/**
+scripts/**
+frontend/**
+tests/**
+
 # ── Agent tooling (other agents' workspace data) ──
 .antigravity/**
 .gstack/**
@@ -5,12 +20,24 @@
 .agents/**
 .ralph/**
 .bg-shell/**
+.opencode/**
 
-# ── ML model files ──
+# ── Planning docs (read on demand) ──
+.planning/**
+
+# ── ML + Data ──
 ml/**
-
-# ── Database migrations ──
+data/**
 migrations/**
+
+# ── Logs ──
+logs/**
+
+# ── Docs ──
+docs/**
+
+# ── Workspaces ──
+.workspaces/**
 
 # ── Secrets ──
 .env
@@ -23,11 +50,8 @@ docker-compose.yml
 nixpacks*.toml
 railway.json
 Makefile
-
-# ── Data and logs ──
-scripts/optimization_results/**
-data/**
-logs/**
+install-services.sh
+start.sh
 
 # ── Binary and generated formats ──
 **/*.csv
@@ -37,8 +61,9 @@ logs/**
 **/*.pkl
 **/*.rdb
 **/*.pyc
+**/*.pyc
 
-# ── Virtual environments and caches ──
+# ── Runtime caches ──
 .venv/**
 venv/**
 node_modules/**
@@ -47,12 +72,3 @@ __pycache__/**
 .pytest_cache/**
 .ruff_cache/**
 .mypy_cache/**
-
-# ── Non-core source directories ──
-.workspaces/**
-docs/**
-src/backtest/**
-src/ai/**
-tests/**
-frontend/**
-scripts/jira/**
