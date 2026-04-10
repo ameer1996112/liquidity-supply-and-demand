@@ -19,13 +19,15 @@
   "watcher": {
     "ignore": [
       ".git/**", ".planning/**", ".antigravity/**", ".workspaces/**",
-      ".opencode/**", "**/node_modules/**", "**/.next/**",
+      ".opencode/**", ".gstack/**", ".claude/**", ".agents/**",
+      ".ralph/**", ".bg-shell/**",
+      "**/node_modules/**", "**/.next/**",
       "**/__pycache__/**", "**/.pytest_cache/**", "**/.ruff_cache/**",
       "**/.venv/**", "**/venv/**", "logs/**", "docs/**", "data/**",
-      "scripts/optimization_results/**", "scripts/jira/**",
+      "scripts/optimization_results/**", "scripts/jira/**", "ml/**",
       "src/ai/**", "src/backtest/**", "src/agents/**",
       "frontend/**", "tests/**",
-      "**/*.csv", "**/*.parquet", "**/*.log", "**/*.lock",
+      "**/*.csv", "**/*.parquet", "**/*.log", "**/*.lock", "**/*.pkl",
       "**/migrations/**"
     ]
   }

@@ -1,16 +1,54 @@
+# ── Agent tooling (other agents' workspace data) ──
+.antigravity/**
+.gstack/**
+.claude/**
+.agents/**
+.ralph/**
+.bg-shell/**
 
+# ── ML model files ──
+ml/**
+
+# ── Database migrations ──
+migrations/**
+
+# ── Secrets ──
+.env
+.env.*
+!.env.example
+
+# ── Build / deploy artifacts ──
+Dockerfile*
+docker-compose.yml
+nixpacks*.toml
+railway.json
+Makefile
+
+# ── Data and logs ──
 scripts/optimization_results/**
 data/**
 logs/**
+
+# ── Binary and generated formats ──
 **/*.csv
 **/*.parquet
 **/*.log
 **/*.lock
+**/*.pkl
+**/*.rdb
+**/*.pyc
+
+# ── Virtual environments and caches ──
 .venv/**
 venv/**
 node_modules/**
 __pycache__/**
 .next/**
+.pytest_cache/**
+.ruff_cache/**
+.mypy_cache/**
+
+# ── Non-core source directories ──
 .workspaces/**
 docs/**
 src/backtest/**
