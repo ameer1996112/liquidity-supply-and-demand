@@ -1,7 +1,5 @@
 # Codebase Concerns
 
-**Analysis Date:** 2026-04-09
-
 ## Known Active Bugs (Tracked)
 
 **BUG-06: Per-Account Redis Kill-Switch Issues**
@@ -156,4 +154,3 @@ Files with multiple bare `except Exception:` patterns:
 
 ---
 
-*Concerns audit: 2026-04-09*

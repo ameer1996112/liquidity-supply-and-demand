@@ -1,12 +1,47 @@
 # AGENTS.md — Agent Entry Point
 
-## 🚦 Before You Touch Code
+## ⛔ STOP — Read This Before Any File
 
-1. **Read the module map:** `.planning/codebase/MODULE_MAP.md`
-2. **Read conventions:** `.planning/codebase/CONVENTIONS.md`
-3. **Check concerns:** `.planning/codebase/CONCERNS.md`
-4. **Never scan the full repo.** Use MODULE_MAP to find the right files.
-5. **Plan first.** Write your change plan before editing any source code.
+Before touching **any** file or tool, you MUST state out loud:
+
+1. **Which module** from MODULE_MAP covers this task
+2. **Which 1-3 files** you will read (by name)
+3. **What you expect to find** in each
+
+If you cannot answer all three → read `.planning/codebase/MODULE_MAP.md` first. Nothing else.
+
+**Never do this:**
+- `find .` or `ls` from root
+- Read more than 3 files before stating a plan
+- Open files "just to understand the codebase"
+
+---
+
+## 🔧 Mandatory Tools
+
+| Task | Tool to use |
+|------|-------------|
+| Read a file | `Read` — use `limit` + `offset` for large files (never read >200 lines blind) |
+| Find files by name/pattern | `Glob` — faster than Bash find |
+| Search code content | `Grep` — use `output_mode: files_with_matches` first, then `content` |
+| Explore unfamiliar area | `Agent` with subagent_type `Explore` |
+| Library/framework docs | context7 `resolve-library-id` + `get-library-docs` |
+
+---
+
+## 🗺️ Where to Start
+
+| I need to… | Read this first |
+|------------|----------------|
+| Find which files to touch | `.planning/codebase/MODULE_MAP.md` |
+| Understand data flow | `.planning/codebase/ARCHITECTURE.md` |
+| Know coding rules | `.planning/codebase/CONVENTIONS.md` |
+| See known bugs / TODOs | `.planning/codebase/CONCERNS.md` |
+| Find env vars / API keys | `.planning/codebase/INTEGRATIONS.md` |
+| Check dependencies | `.planning/codebase/STACK.md` |
+| Write tests | `.planning/codebase/TESTING.md` |
+
+**Read these only if relevant to your task. Never read all of them upfront.**
 
 ---
 
@@ -29,34 +64,10 @@ curl -s -X POST "http://localhost:8000/api/tickets/$TICKET_ID/ai-update" \
   -d '{"new_status":"done","summary_of_work":"<what changed>","agent":"antigravity"}'
 ```
 
-### Type mapping
-| Situation | type |
-|-----------|------|
-| Bug / error | `bug` |
-| New feature / endpoint | `feature` |
-| Refactor / docs / cleanup | `task` |
-
 ### Skip ticket when
 - Answering a question with no code changes
 - Single-line typo fix
 - User says "no ticket"
-
----
-
-## 🏗️ Codebase Reference
-
-Read these documents **before** making changes. They are the single source of truth.
-
-| Document | Purpose |
-|----------|---------|
-| `.planning/codebase/MODULE_MAP.md` | **Start here.** Which files belong to which module |
-| `.planning/codebase/ARCHITECTURE.md` | System architecture, data flows, layer responsibilities |
-| `.planning/codebase/STRUCTURE.md` | Directory layout, naming conventions, where to add code |
-| `.planning/codebase/CONVENTIONS.md` | Coding rules (Python, TypeScript, Git, API contracts) |
-| `.planning/codebase/CONCERNS.md` | Known bugs, TODOs, tech debt, security issues |
-| `.planning/codebase/INTEGRATIONS.md` | External services, env vars, API keys |
-| `.planning/codebase/STACK.md` | Dependencies, versions, runtime requirements |
-| `.planning/codebase/TESTING.md` | Test patterns, fixtures, what to test |
 
 ---
 
@@ -96,14 +107,6 @@ PYTHONPATH=. pytest tests/ -v           # 11 tests, all pass
 cd frontend && npx vitest run           # 1 pre-existing failure in tradingMetrics.test.ts — ignore
 cd frontend && npm run build
 ```
-
----
-
-## Gotchas
-
-- Makefile references `docker-compose.test.yml` — doesn't exist, use local Redis instead
-- Disable guardrails locally: set `AI_FILTER_ENABLED=false`, `ML_GUARDIAN_ENABLED=false`, `TRINITY_ENABLED=false`
-- Webhook `POST /webhook` fields: `symbol`, `side`, `entry`, `sl`, `tp`, `size`. `WEBHOOK_SECRET` only checked if set.
 
 ---
 

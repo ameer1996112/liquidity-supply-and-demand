@@ -1,7 +1,5 @@
 # External Integrations
 
-**Analysis Date:** 2025-01-09
-
 ## Trading & Execution
 
 **MetaApi Cloud**

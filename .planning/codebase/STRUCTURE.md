@@ -1,11 +1,9 @@
 # Codebase Structure
 
-**Analysis Date:** 2026-01-19
-
 ## Directory Layout
 
 ```
-/Users/ameeramer/dev/projects/galilsoftware/sources/trading/
+./
 ├── .planning/                    # GSD planning artifacts
 │   └── codebase/                 # Architecture docs (this dir)
 │       ├── ARCHITECTURE.md       # System architecture
@@ -165,26 +163,26 @@
 ## Key File Locations
 
 ### Entry Points
-- `/Users/ameeramer/dev/projects/galilsoftware/sources/trading/src/api.py` - FastAPI application factory
-- `/Users/ameeramer/dev/projects/galilsoftware/sources/trading/src/worker.py` - Redis consumer main loop
+- `src/api.py` - FastAPI application factory
+- `src/worker.py` - Redis consumer main loop
 
 ### Configuration
-- `/Users/ameeramer/dev/projects/galilsoftware/sources/trading/config/settings.py` - Pydantic-settings (env var mapping)
-- `/Users/ameeramer/dev/projects/galilsoftware/sources/trading/docker-compose.yml` - 4-service infrastructure
-- `/Users/ameeramer/dev/projects/galilsoftware/sources/trading/.env` - Environment variables (not committed)
+- `config/settings.py` - Pydantic-settings (env var mapping)
+- `docker-compose.yml` - 4-service infrastructure
+- `.env` - Environment variables (not committed)
 
 ### Core Logic
-- `/Users/ameeramer/dev/projects/galilsoftware/sources/trading/src/logic.py` - Trading decision engine (946 lines)
-- `/Users/ameeramer/dev/projects/galilsoftware/sources/trading/src/core/risk_engine.py` - Risk calculations (601 lines)
-- `/Users/ameeramer/dev/projects/galilsoftware/sources/trading/src/core/broker_profiles.py` - Multi-account config (132 lines)
+- `src/logic.py` - Trading decision engine (946 lines)
+- `src/core/risk_engine.py` - Risk calculations (601 lines)
+- `src/core/broker_profiles.py` - Multi-account config (132 lines)
 
 ### Execution
-- `/Users/ameeramer/dev/projects/galilsoftware/sources/trading/src/adapters/execution/meta_api_adapter.py` - MT5 bridge (974 lines)
-- `/Users/ameeramer/dev/projects/galilsoftware/sources/trading/src/pipeline/profile_executor.py` - Trade execution pipeline (144 lines)
+- `src/adapters/execution/meta_api_adapter.py` - MT5 bridge (974 lines)
+- `src/pipeline/profile_executor.py` - Trade execution pipeline (144 lines)
 
 ### Frontend
-- `/Users/ameeramer/dev/projects/galilsoftware/sources/trading/frontend/next.config.ts` - Next.js configuration
-- `/Users/ameeramer/dev/projects/galilsoftware/sources/trading/frontend/src/lib/supabase.ts` - Supabase client
+- `frontend/next.config.ts` - Next.js configuration
+- `frontend/src/lib/supabase.ts` - Supabase client
 
 ## Naming Conventions
 
@@ -209,27 +207,27 @@
 ## Where to Add New Code
 
 ### New API Endpoint
-- **Route definition:** `/Users/ameeramer/dev/projects/galilsoftware/sources/trading/src/api_{domain}.py`
+- **Route definition:** `src/api_{domain}.py`
 - **Schema:** Co-located in same file or `src/schemas/{domain}.py`
-- **Registration:** Import and include in `/Users/ameeramer/dev/projects/galilsoftware/sources/trading/src/api.py`
+- **Registration:** Import and include in `src/api.py`
 
 ### New Guard Rail
-- **Implementation:** `/Users/ameeramer/dev/projects/galilsoftware/sources/trading/src/core/guard_rails/{guard_name}.py`
+- **Implementation:** `src/core/guard_rails/{guard_name}.py`
 - **Interface:** Implement `check(signal, context) → GuardResult`
 - **Registration:** Auto-discovered by pipeline (add to `__init__.py` exports)
 
 ### New React Component
-- **Feature component:** `/Users/ameeramer/dev/projects/galilsoftware/sources/trading/frontend/src/components/{feature}/{ComponentName}.tsx`
-- **Page component:** `/Users/ameeramer/dev/projects/galilsoftware/sources/trading/frontend/src/app/{route}/page.tsx`
+- **Feature component:** `frontend/src/components/{feature}/{ComponentName}.tsx`
+- **Page component:** `frontend/src/app/{route}/page.tsx`
 - **Client component:** Add `"use client"` directive if using hooks/interactivity
 
 ### New Service
-- **Implementation:** `/Users/ameeramer/dev/projects/galilsoftware/sources/trading/src/services/{domain}_service.py`
+- **Implementation:** `src/services/{domain}_service.py`
 - **Pattern:** Async functions with typed parameters, return domain objects
 - **Error handling:** Raise domain exceptions, catch in API layer
 
 ### New Database Table
-- **Migration:** `/Users/ameeramer/dev/projects/galilsoftware/sources/trading/scripts/sql/{timestamp}_{change}.sql`
+- **Migration:** `scripts/sql/{timestamp}_{change}.sql`
 - **Supabase types:** Update `src/adapters/supabase.py` TypedDicts
 - **Frontend types:** Update `frontend/src/lib/supabase.ts` TypeScript interfaces
 
@@ -254,4 +252,3 @@
 
 ---
 
-*Structure analysis: 2026-01-19*

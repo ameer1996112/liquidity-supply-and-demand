@@ -1,7 +1,5 @@
 # Module Map
 
-**Last updated:** 2026-04-11
-
 ## How to Use
 
 When asked to work on a feature, find the module below and read **only** those files.

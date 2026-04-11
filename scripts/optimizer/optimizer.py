@@ -247,7 +247,8 @@ class TradingViewOptimizer:
         print(f"[{symbol}] DD penalty: higher DD = lower score (✅ = profitable + DD≤{self.dd_limit}%)\n")
 
 
-        best: Optional[BacktestResult] = None
+        best: Optional[BacktestResult] = None           # highest raw score (any DD)
+        best_compliant: Optional[BacktestResult] = None  # highest score that passes DD limit
         start = time.time()
 
         # ── Always set backtest range (even if symbol didn't change) ───────────
@@ -276,13 +277,32 @@ class TradingViewOptimizer:
                 end="", flush=True,
             )
 
-            success = await worker._apply_params(params)
+            # Hard per-trial timeout — prevents a frozen Playwright call from
+            # deadlocking the entire run (as seen with CADJPY trial 22).
+            _TRIAL_HARD_TIMEOUT = 180  # 3 minutes max per trial
+
+            try:
+                success = await asyncio.wait_for(
+                    worker._apply_params(params), timeout=_TRIAL_HARD_TIMEOUT
+                )
+            except asyncio.TimeoutError:
+                print(f"  -> SKIP (trial hard-timeout {_TRIAL_HARD_TIMEOUT}s)")
+                study.tell(trial, 0.0)
+                continue
+
             if not success:
                 study.tell(trial, 0.0)
                 print("  -> SKIP (apply failed)")
                 continue
 
-            result = await worker._read_results(symbol, params)
+            try:
+                result = await asyncio.wait_for(
+                    worker._read_results(symbol, params), timeout=_TRIAL_HARD_TIMEOUT
+                )
+            except asyncio.TimeoutError:
+                print(f"  -> SKIP (read_results hard-timeout {_TRIAL_HARD_TIMEOUT}s)")
+                study.tell(trial, 0.0)
+                continue
             worker.results.append(result)
             study.tell(trial, result.score)
 
@@ -292,11 +312,27 @@ class TradingViewOptimizer:
             compliant = "✅" if result.is_prop_firm_compliant() else "❌"
             print(f"  {pf}  {dd}  T={result.total_trades}  S={result.score:.2f}  {compliant}")
 
+            # Track best overall (highest raw score)
             if best is None or result.score > best.score:
                 best = result
-                worker.best_result = result  # persist on worker so TimeoutError can recover it
+                # Only update worker.best_result (used for timeout recovery) with the
+                # compliant version if available, otherwise fall back to raw best
+                if not best_compliant:
+                    worker.best_result = result
                 print(
                     f"  [{symbol}] ★ NEW BEST  Score={result.score:.2f}  "
+                    f"PF={result.profit_factor:.2f}  DD={result.max_drawdown_pct:.1f}%  "
+                    f"T={result.total_trades}"
+                )
+
+            # Track best compliant (highest score that passes DD limit)
+            if result.is_prop_firm_compliant() and (
+                best_compliant is None or result.score > best_compliant.score
+            ):
+                best_compliant = result
+                worker.best_result = result  # prefer compliant for timeout recovery
+                print(
+                    f"  [{symbol}] ✅ NEW BEST COMPLIANT  Score={result.score:.2f}  "
                     f"PF={result.profit_factor:.2f}  DD={result.max_drawdown_pct:.1f}%  "
                     f"T={result.total_trades}"
                 )
@@ -307,11 +343,25 @@ class TradingViewOptimizer:
             f"{int(elapsed // 60)}m{int(elapsed % 60)}s"
         )
 
-        if best:
-            from .tab_worker import _print_pair_summary_table
-            _print_pair_summary_table(best)
+        # Prefer the best compliant result for deployment; fall back to overall best
+        # only if no compliant result was found at all.
+        final = best_compliant if best_compliant is not None else best
 
-        return best
+        if final:
+            from .tab_worker import _print_pair_summary_table
+            if best_compliant is None and best is not None:
+                print(
+                    f"  [{symbol}] ⚠ No prop-firm compliant result found. "
+                    f"Saving best overall (DD={best.max_drawdown_pct:.1f}%)."
+                )
+            elif best_compliant is not None and best is not None and best is not best_compliant:
+                print(
+                    f"  [{symbol}] ℹ Best overall had DD={best.max_drawdown_pct:.1f}% (non-compliant). "
+                    f"Saving best compliant instead (DD={best_compliant.max_drawdown_pct:.1f}%)."
+                )
+            _print_pair_summary_table(final)
+
+        return final
 
     # ─────────────────────────────────── main run loop ───────────────────────
 
