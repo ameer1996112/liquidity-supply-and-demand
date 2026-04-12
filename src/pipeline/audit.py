@@ -263,17 +263,7 @@ def notify_guard_activation(
     if not any(reason_lower.startswith(p) for p in _NOTIFY_GUARD_PREFIXES):
         return
     try:
-        from src.adapters.discord import send_discord_async
-        notification_payload = {
-            "symbol": symbol,
-            "side": payload.get("side", ""),
-            "size": payload.get("size", 0),
-            "entry": payload.get("entry", 0),
-            "account_balance": payload.get("account_balance", 0),
-            "run_mode": payload.get("run_mode", "PAPER"),
-            "_guard_reason": reason,
-            "_guard_blocked": True,
-        }
-        send_discord_async(notification_payload, alert_id=0, mode="guard_blocked")
+        from src.adapters.discord import send_guard_notification_async
+        send_guard_notification_async(signal_id=0, symbol=symbol, reason=reason)
     except Exception as _e:
         logger.debug("Guard notification skipped: %s", _e)

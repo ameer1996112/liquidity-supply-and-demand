@@ -182,11 +182,11 @@ def process_trade(
             except Exception as _te:
                 logger.debug("Paper close thread/reply update skipped: %s", _te)
         elif getattr(s, "live_trading_enabled", False):
+            alert = None
             try:
                 # Use profile-specific adapter when available (multi-account)
                 adapter = get_adapter(run_mode=s.run_mode, settings=s, profile=profile)
 
-                alert = None
                 if trade_key:
                     alert = get_alert_by_trade_key(trade_key)
                 if not alert:
@@ -398,6 +398,8 @@ def process_trade(
 
             # DEV-73: Close notification using NotificationService (broker actual PnL)
             # Prefer total_realized_pnl (from MetaAPI deals) over exit_data.pnl_usd (TradingView)
+            if not alert:
+                return
             _broker_pnl = locals().get("total_realized_pnl")
             _close_signal = {
                 **alert,
