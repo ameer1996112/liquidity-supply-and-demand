@@ -1407,6 +1407,29 @@ def process_trade(payload: Dict[str, Any]):
 
     tracker.checkpoint("after_holiday_guard")
 
+    # ── Swap / Rollover Guard (global — block all entries during rollover window) ──
+    if getattr(s, "enable_swap_guard", True):
+        try:
+            from src.core.guard_rails.swap_guard import SwapGuard
+            swap_guard = SwapGuard(
+                swap_time=getattr(s, "swap_time", "00:00"),
+                timezone_name=getattr(s, "swap_timezone", "Asia/Jerusalem"),
+                close_before_minutes=getattr(s, "swap_close_before_min", 15),
+                block_after_minutes=getattr(s, "swap_block_after_min", 15),
+            )
+            passed, reason = swap_guard.check(payload)
+            if not passed:
+                save_result(payload, "swap_rejected", reason, 0.0, account_name=account_name)
+                log_event(None, "swap_rejected", "worker", {"symbol": symbol, "reason": reason})
+                log_guard_decision("swap", "rejected", reason, symbol)
+                logger.info("SWAP GUARD REJECTED: %s — %s", symbol, reason)
+                return
+            logger.debug("Swap Guard: PASSED (%s)", symbol)
+        except Exception as e:
+            logger.error("Swap guard crashed: %s", e, exc_info=True)
+
+    tracker.checkpoint("after_swap_guard")
+
     # ══════════════════════════════════════════════════════════════════
     # PINE FILTERS + RISK GUARDS (zone quality, daily/weekly/monthly limits,
     # spread gate, consecutive loss circuit breaker)
