@@ -123,7 +123,7 @@ class _DealHandler:
                     position_id, net_pnl, len(rows),
                 )
             else:
-                logger.warning(
+                logger.info(
                     "[MetaApi Stream] No signal found for broker_order_id=%s "
                     "— trade may have been opened outside this bot",
                     position_id,
@@ -195,7 +195,7 @@ async def _run_streaming(
             )
 
         async def on_disconnected(self, instance_index: str) -> None:
-            logger.warning(
+            logger.info(
                 "[MetaApi Stream] Disconnected — instance=%s", instance_index
             )
 
