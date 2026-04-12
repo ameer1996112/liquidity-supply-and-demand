@@ -345,7 +345,9 @@ async def _run_streaming(
                     pass
             if api is not None:
                 try:
-                    api.close()
+                    result = api.close()
+                    if asyncio.iscoroutine(result):
+                        await result
                 except Exception:
                     pass
 

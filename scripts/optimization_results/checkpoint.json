@@ -12,7 +12,11 @@
     "NZDJPY",
     "CADJPY",
     "AUDJPY",
-    "CHFJPY"
+    "CHFJPY",
+    "EURGBP",
+    "GBPAUD",
+    "GBPCAD",
+    "GBPCHF"
   ],
   "results": {
     "EURUSD": {
@@ -377,6 +381,118 @@
         "profit_factor": 1.009,
         "max_drawdown_pct": 12.48534,
         "score": 16.429411350527626
+      }
+    },
+    "EURGBP": {
+      "params": {
+        "rr_mode": "fixed_2.5",
+        "enable_ai_quality_filter": true,
+        "ai_quality_threshold": 42,
+        "min_tp_distance_pips": 18.0,
+        "liq_max_distance_pips_forex": 25.0,
+        "max_bars_held": 75,
+        "stop_loss_buffer_pips": 0.6,
+        "use_break_even": true,
+        "enable_double_tp": true,
+        "liq_pivot_len": 3,
+        "pvtMax": 6,
+        "max_sweep_to_touch_bars": 17,
+        "max_peak_to_touch_bars": 37,
+        "min_body_perc": 37,
+        "max_zones": 22,
+        "max_trades_per_day": 1
+      },
+      "metrics": {
+        "net_profit": -13599.54,
+        "total_trades": 231,
+        "win_rate": 33.77,
+        "profit_factor": 0.647,
+        "max_drawdown_pct": 27.734019999999997,
+        "score": 0.0
+      }
+    },
+    "GBPAUD": {
+      "params": {
+        "rr_mode": "fixed_3.0",
+        "enable_ai_quality_filter": false,
+        "ai_quality_threshold": 53,
+        "min_tp_distance_pips": 19.6,
+        "liq_max_distance_pips_forex": 34.1,
+        "max_bars_held": 42,
+        "stop_loss_buffer_pips": 1.7,
+        "use_break_even": true,
+        "enable_double_tp": false,
+        "liq_pivot_len": 6,
+        "pvtMax": 3,
+        "max_sweep_to_touch_bars": 13,
+        "max_peak_to_touch_bars": 57,
+        "min_body_perc": 34,
+        "max_zones": 13,
+        "max_trades_per_day": 2
+      },
+      "metrics": {
+        "net_profit": 3786.47,
+        "total_trades": 412,
+        "win_rate": 31.07,
+        "profit_factor": 1.06,
+        "max_drawdown_pct": 9.91262,
+        "score": 17.46153369847569
+      }
+    },
+    "GBPCAD": {
+      "params": {
+        "rr_mode": "fixed_4.0",
+        "enable_ai_quality_filter": false,
+        "ai_quality_threshold": 60,
+        "min_tp_distance_pips": 14.2,
+        "liq_max_distance_pips_forex": 23.1,
+        "max_bars_held": 82,
+        "stop_loss_buffer_pips": 2.8,
+        "use_break_even": false,
+        "enable_double_tp": true,
+        "liq_pivot_len": 7,
+        "pvtMax": 13,
+        "max_sweep_to_touch_bars": 13,
+        "max_peak_to_touch_bars": 34,
+        "min_body_perc": 61,
+        "max_zones": 16,
+        "max_trades_per_day": 2
+      },
+      "metrics": {
+        "net_profit": 11215.5,
+        "total_trades": 477,
+        "win_rate": 21.38,
+        "profit_factor": 1.129,
+        "max_drawdown_pct": 23.393119999999996,
+        "score": 14.470671392947
+      }
+    },
+    "GBPCHF": {
+      "params": {
+        "rr_mode": "fixed_2.5",
+        "enable_ai_quality_filter": false,
+        "ai_quality_threshold": 69,
+        "min_tp_distance_pips": 17.0,
+        "liq_max_distance_pips_forex": 15.5,
+        "max_bars_held": 64,
+        "stop_loss_buffer_pips": 1.7,
+        "use_break_even": false,
+        "enable_double_tp": false,
+        "liq_pivot_len": 7,
+        "pvtMax": 12,
+        "max_sweep_to_touch_bars": 13,
+        "max_peak_to_touch_bars": 23,
+        "min_body_perc": 41,
+        "max_zones": 28,
+        "max_trades_per_day": 4
+      },
+      "metrics": {
+        "net_profit": 3835.11,
+        "total_trades": 281,
+        "win_rate": 35.59,
+        "profit_factor": 1.071,
+        "max_drawdown_pct": 9.99112,
+        "score": 14.544987294490314
       }
     }
   }

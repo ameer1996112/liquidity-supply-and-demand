@@ -146,16 +146,16 @@ async def optimize_pair_on_page(
     )
     opt_shell.page = page
 
-    worker = TabWorker(opt_shell, page, symbol)
+    # TabWorker signature is (page, optimizer) — not (optimizer, page, symbol)
+    worker = TabWorker(page, opt_shell)
 
     if mode == "bayesian":
-        return await worker.optimize_pair_bayesian(symbol)
+        # optimize_pair_bayesian lives on TradingViewOptimizer, takes (worker, symbol, n_trials)
+        return await opt_shell.optimize_pair_bayesian(worker, symbol, n_trials)
     elif mode == "smart":
         return await worker.optimize_pair_smart(symbol)
     else:
-        param_grid = opt_shell.get_param_grid(symbol)
-        combos = opt_shell.generate_combinations(param_grid)
-        return await worker.optimize_pair_grid(symbol, combos)
+        return await worker.optimize_pair(symbol)
 
 
 async def worker_task(

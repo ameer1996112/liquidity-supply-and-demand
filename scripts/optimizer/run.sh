@@ -1,16 +1,20 @@
 #!/usr/bin/env bash
 # run.sh — Launch the optimizer under nohup and tail the log.
 #
-# Usage (recommended):
+# Usage (recommended — single-process):
 #   bash scripts/optimizer/run.sh --bayesian                      # all 33 pairs overnight
 #   bash scripts/optimizer/run.sh --bayesian --pairs EURUSD       # single pair
 #   bash scripts/optimizer/run.sh --bayesian --pairs EURUSD --n-trials 100
+#
+# Parallel mode (N browser tabs at once):
+#   bash scripts/optimizer/run.sh --parallel --workers 3 --bayesian
+#   bash scripts/optimizer/run.sh --parallel --workers 3 --dry-run
 #
 # Legacy modes:
 #   bash scripts/optimizer/run.sh --fast
 #   bash scripts/optimizer/run.sh --smart --pairs EURUSD,XAUUSD
 #
-# All arguments are forwarded to main.py unchanged.
+# All arguments (except --parallel) are forwarded to the chosen module.
 # Log is written to: scripts/optimization_results/run_TIMESTAMP.log
 # Ctrl-C detaches from the log — optimizer keeps running in background.
 
@@ -85,12 +89,54 @@ else
     echo "[run.sh] Warning: caffeinate not found — Mac may sleep during long runs"
 fi
 
+# ── Detect --parallel flag and translate mode shorthands ──────────────────────
+# main.py accepts: --bayesian / --smart / --fast / --full
+# parallel_runner.py accepts: --mode bayesian|smart|fast|full
+# When --parallel is set we translate the shorthand flags automatically.
+PARALLEL_MODE=0
+RAW_ARGS=()
+for arg in "$@"; do
+    if [[ "$arg" == "--parallel" ]]; then
+        PARALLEL_MODE=1
+    else
+        RAW_ARGS+=("$arg")
+    fi
+done
+
+if [[ $PARALLEL_MODE -eq 1 ]]; then
+    MODULE="scripts.optimizer.parallel_runner"
+    echo "[run.sh] Mode: PARALLEL → $MODULE"
+    # Translate --bayesian/--smart/--fast/--full → --mode X
+    PASSABLE_ARGS=()
+    i=0
+    while [[ $i -lt ${#RAW_ARGS[@]} ]]; do
+        arg="${RAW_ARGS[$i]}"
+        case "$arg" in
+            --bayesian) PASSABLE_ARGS+=("--mode" "bayesian") ;;
+            --smart)    PASSABLE_ARGS+=("--mode" "smart")    ;;
+            --fast)     PASSABLE_ARGS+=("--mode" "fast")     ;;
+            --full)     PASSABLE_ARGS+=("--mode" "full")     ;;
+            # --n-trials N → --trials N
+            --n-trials)
+                i=$(( i + 1 ))
+                PASSABLE_ARGS+=("--trials" "${RAW_ARGS[$i]}")
+                ;;
+            *)          PASSABLE_ARGS+=("$arg")              ;;
+        esac
+        i=$(( i + 1 ))
+    done
+else
+    MODULE="scripts.optimizer.main"
+    PASSABLE_ARGS=("${RAW_ARGS[@]}")
+    echo "[run.sh] Mode: sequential → $MODULE"
+fi
+
 # ── Launch under nohup ────────────────────────────────────────────────────────
 # Run as a Python *module* so relative imports in the package work correctly.
 export PYTHONPATH="$PROJECT_ROOT"
 export _OPTIMIZER_VENV_ACTIVE=1   # suppress venv re-exec inside main.py
 
-nohup $LAUNCHER "$PYTHON" -m scripts.optimizer.main "$@" \
+nohup $LAUNCHER "$PYTHON" -m "$MODULE" "${PASSABLE_ARGS[@]}" \
     >> "$LOG_FILE" 2>&1 &
 
 PID=$!

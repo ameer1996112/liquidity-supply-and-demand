@@ -29,6 +29,7 @@ from .config import (
     PARAM_GRID_INDEX,
     INPUT_INDEX,
     N_BAYESIAN_TRIALS,
+    N_STARTUP_TRIALS,
     PROP_FIRM_MAX_DD_PCT,
 )
 from .models import BacktestResult
@@ -233,7 +234,7 @@ class TradingViewOptimizer:
 
         study = optuna.create_study(
             direction="maximize",
-            sampler=optuna.samplers.TPESampler(n_startup_trials=25, seed=42),
+            sampler=optuna.samplers.TPESampler(n_startup_trials=N_STARTUP_TRIALS, seed=42),
         )
 
         await worker._switch_symbol(symbol)

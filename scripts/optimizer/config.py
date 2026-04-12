@@ -18,28 +18,48 @@ PROP_FIRM_MAX_DD_PCT = 10.0   # Hard limit: score = 0 if DD% exceeds this
 
 # ─── Bayesian optimization ────────────────────────────────────────────────────
 
-N_BAYESIAN_TRIALS = 100        # Total Optuna trials per pair
-N_STARTUP_TRIALS = 25          # Random exploration before TPE kicks in
+N_BAYESIAN_TRIALS = 150        # Total Optuna trials per pair (increased: 21 params now vs 16)
+N_STARTUP_TRIALS = 35          # Random exploration before TPE kicks in (≈25% of trials)
 
 # Full Optuna search space across all 16 tunable parameters.
 # "liq_distance" is a placeholder — resolved per asset class at runtime.
 OPTUNA_SEARCH_SPACE: dict = {
+    # ── Risk/Reward ───────────────────────────────────────────────────────────
     "rr_mode":                  {"type": "categorical", "choices": ["dynamic", "fixed_2.5", "fixed_3.0", "fixed_4.0"]},
+
+    # ── AI Quality Filter ─────────────────────────────────────────────────────
     "enable_ai_quality_filter": {"type": "categorical", "choices": [True, False]},
     "ai_quality_threshold":     {"type": "int",         "low": 40,   "high": 75},
+
+    # ── Entry distance filters ────────────────────────────────────────────────
     "min_tp_distance_pips":     {"type": "float",       "low": 5.0,  "high": 20.0},
-    "liq_distance":             {"type": "float",       "low": None, "high": None},  # resolved per pair
+    "liq_distance":             {"type": "float",       "low": None, "high": None},  # resolved per asset class
+    "liq_entry_max_dist":       {"type": "float",       "low": 5.0,  "high": 20.0},  # max zone-to-liq distance
+
+    # ── Trade management ──────────────────────────────────────────────────────
     "max_bars_held":            {"type": "int",         "low": 24,   "high": 96},
     "stop_loss_buffer_pips":    {"type": "float",       "low": 0.5,  "high": 3.0},
     "use_break_even":           {"type": "categorical", "choices": [True, False]},
     "enable_double_tp":         {"type": "categorical", "choices": [True, False]},
+
+    # ── Zone detection ────────────────────────────────────────────────────────
     "liq_pivot_len":            {"type": "int",         "low": 2,    "high": 10},
     "pvtMax":                   {"type": "int",         "low": 3,    "high": 15},
     "max_sweep_to_touch_bars":  {"type": "int",         "low": 8,    "high": 25},
     "max_peak_to_touch_bars":   {"type": "int",         "low": 20,   "high": 60},
     "min_body_perc":            {"type": "int",         "low": 20,   "high": 80},
     "max_zones":                {"type": "int",         "low": 10,   "high": 30},
+
+    # ── Daily trade limits ────────────────────────────────────────────────────
     "max_trades_per_day":       {"type": "int",         "low": 1,    "high": 4},
+    "max_daily_loss_pct":       {"type": "float",       "low": 2.0,  "high": 5.0},   # prop firm safe range
+    "max_daily_profit_pct":     {"type": "float",       "low": 3.0,  "high": 8.0},   # lock profits early
+
+    # ── Session hours (key insight: different pairs peak in different sessions)
+    # London open: 7, NY open: 13, overlap end: 17, Asian: 0-7
+    # We use presets to avoid nonsensical combinations (e.g. start=20, end=8)
+    "trading_start_hour":       {"type": "categorical", "choices": [0, 2, 5, 7, 8, 13]},
+    "trading_end_hour":         {"type": "categorical", "choices": [12, 15, 17, 20, 22, 24]},
 }
 
 # Per-asset-class liquidity distance ranges (pips)
