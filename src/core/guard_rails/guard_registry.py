@@ -309,6 +309,24 @@ _register(GuardDefinition(
 
 
 _register(GuardDefinition(
+    guard_id="swap_guard",
+    setting_key="enable_swap_guard",
+    name="Swap / Rollover Guard",
+    description="Closes positions and blocks entries during broker rollover spread spike",
+    user_description="Closes all open trades 15 minutes before broker rollover and blocks new entries for 15 minutes after. Protects against the extreme spread widening that occurs at daily swap time.",
+    tier="important",
+    group="scheduling",
+    value_type="bool",
+    default=True,
+    thresholds=[
+        ThresholdDef("swap_time", "Rollover Time (HH:MM)", "str", "00:00", None, None, ""),
+        ThresholdDef("swap_timezone", "Rollover Timezone", "str", "Asia/Jerusalem", None, None, ""),
+        ThresholdDef("swap_close_before_min", "Close Positions Before (min)", "int", 15, 1, 60, "min"),
+        ThresholdDef("swap_block_after_min", "Block Entries After (min)", "int", 15, 1, 60, "min"),
+    ],
+))
+
+_register(GuardDefinition(
     guard_id="mtm_guardian",
     setting_key="mtm_guardian_enabled",
     name="Real-Time Balance Check",
