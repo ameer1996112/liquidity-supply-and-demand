@@ -93,31 +93,31 @@ def send_discord(
     if not s.discord_webhook_url:
         return False, "DISCORD_WEBHOOK_URL not configured"
     try:
-        side = str(data["side"]).upper()
+        side = str(data.get("side", "")).upper()
         emoji = "📈" if side == "BUY" else "📉"
         color = 0x3498DB if mode == "paper" else (0x00FF00 if side == "BUY" else 0xFF0000)
         mode_prefix = "🔵 PAPER | " if mode == "paper" else ""
-        entry = float(data["entry"])
-        sl = float(data["sl"])
-        tp = float(data["tp"])
+        entry = float(data.get("entry") or 0)
+        sl = float(data.get("sl") or 0)
+        tp = float(data.get("tp") or 0)
         risk = abs(entry - sl)
         reward = abs(tp - entry)
         rr_ratio = reward / risk if risk > 0 else 0
-        symbol = str(data["symbol"]).upper()
+        symbol = str(data.get("symbol", "")).upper()
         pip_divisor = get_pip_divisor(symbol)
         unit_label = "pts" if pip_divisor == 1.0 else "pips"
-        sl_pips = abs(entry - sl) / pip_divisor
-        tp_pips = abs(tp - entry) / pip_divisor
+        sl_pips = abs(entry - sl) / pip_divisor if pip_divisor else 0
+        tp_pips = abs(tp - entry) / pip_divisor if pip_divisor else 0
         # For indices (pts): also show TradingView-style pips (1 pip = 0.01 pt) so Discord matches TV
         is_index = pip_divisor == 1.0
-        sl_display = f"{data['sl']} ({sl_pips:.1f} pts, {round(sl_pips * 100):.0f} pips)" if is_index else f"{data['sl']} ({sl_pips:.1f} {unit_label})"
-        tp_display = f"{data['tp']} ({tp_pips:.1f} pts, {round(tp_pips * 100):.0f} pips)" if is_index else f"{data['tp']} ({tp_pips:.1f} {unit_label})"
+        sl_display = f"{sl} ({sl_pips:.1f} pts, {round(sl_pips * 100):.0f} pips)" if is_index else f"{sl} ({sl_pips:.1f} {unit_label})"
+        tp_display = f"{tp} ({tp_pips:.1f} pts, {round(tp_pips * 100):.0f} pips)" if is_index else f"{tp} ({tp_pips:.1f} {unit_label})"
         position_info = calculate_position_size(sl_pips, symbol)
         fields = [
-            {"name": "Symbol", "value": f"**{data['symbol']}**", "inline": True},
+            {"name": "Symbol", "value": f"**{symbol}**", "inline": True},
             {"name": "Type", "value": side, "inline": True},
             {"name": "R:R", "value": f"1:{rr_ratio:.2f}", "inline": True},
-            {"name": "Entry", "value": str(data["entry"]), "inline": True},
+            {"name": "Entry", "value": str(entry), "inline": True},
             {"name": "Stop Loss", "value": sl_display, "inline": True},
             {"name": "Take Profit", "value": tp_display, "inline": True},
             {"name": "Suggested Size", "value": f"{position_info['lots']:.2f} lots", "inline": True},
@@ -219,23 +219,23 @@ def send_telegram(data: Dict[str, Any], alert_id: int) -> Tuple[bool, Optional[i
     if not s.telegram_bot_token or not s.telegram_chat_id:
         return False, None
     try:
-        side = str(data["side"]).upper()
+        side = str(data.get("side", "")).upper()
         emoji = "📈" if side == "BUY" else "📉"
-        entry = float(data["entry"])
-        sl = float(data["sl"])
-        tp = float(data["tp"])
+        entry = float(data.get("entry") or 0)
+        sl = float(data.get("sl") or 0)
+        tp = float(data.get("tp") or 0)
         risk = abs(entry - sl)
         reward = abs(tp - entry)
         rr_ratio = reward / risk if risk > 0 else 0
-        symbol = str(data["symbol"]).upper()
+        symbol = str(data.get("symbol", "")).upper()
         pip_divisor = get_pip_divisor(symbol)
-        sl_pips = abs(entry - sl) / pip_divisor
-        tp_pips = abs(tp - entry) / pip_divisor
+        sl_pips = abs(entry - sl) / pip_divisor if pip_divisor else 0
+        tp_pips = abs(tp - entry) / pip_divisor if pip_divisor else 0
         pos = calculate_position_size(sl_pips, symbol)
         text = (
             f"{emoji} <b>NEW {side} SIGNAL #{alert_id}</b>\n\n"
-            f"<b>Symbol:</b> {data['symbol']}\n<b>Entry:</b> {data['entry']}\n"
-            f"<b>Stop Loss:</b> {data['sl']} ({sl_pips:.1f} pips)\n<b>Take Profit:</b> {data['tp']} ({tp_pips:.1f} pips)\n"
+            f"<b>Symbol:</b> {symbol}\n<b>Entry:</b> {entry}\n"
+            f"<b>Stop Loss:</b> {sl} ({sl_pips:.1f} pips)\n<b>Take Profit:</b> {tp} ({tp_pips:.1f} pips)\n"
             f"<b>R:R:</b> 1:{rr_ratio:.2f}\n\n<b>Suggested Size:</b> {pos['lots']:.2f} lots\n<b>Risk:</b> ${pos['risk_amount']:.2f}"
         )
         if data.get("ai_decision"):
