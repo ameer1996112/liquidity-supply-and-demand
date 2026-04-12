@@ -44,6 +44,12 @@ class Settings(BaseSettings):
     discord_public_key: str = ""          # Required for slash command signature verification (from Discord Dev Portal)
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
+    jira_base_url: str = Field(default="https://ameer1996112.atlassian.net", validation_alias="JIRA_BASE_URL")
+    jira_domain: str = Field(default="", validation_alias="JIRA_DOMAIN")
+    jira_email: str = Field(default="", validation_alias="JIRA_EMAIL")
+    jira_api_token: SecretStr = Field(default=SecretStr(""), validation_alias="JIRA_API_TOKEN")
+    jira_project_key: str = Field(default="DEV", validation_alias="JIRA_PROJECT_KEY")
+    jira_task_type_id: str = Field(default="10003", validation_alias="JIRA_TASK_TYPE_ID")
     paper_trading_enabled: bool = False
     paper_auto_execute: bool = True
 

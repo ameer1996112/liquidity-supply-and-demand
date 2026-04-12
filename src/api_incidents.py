@@ -13,7 +13,6 @@ Incident types:
 """
 
 import logging
-import os
 import time
 import traceback
 from datetime import datetime, timezone
@@ -21,6 +20,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
+from config.settings import get_settings
 
 # Shared sprint cache from api_tickets (avoids duplicate Agile API calls)
 try:
@@ -51,11 +51,14 @@ def _add_incident(incident: Dict) -> None:
 
 # ── Jira integration ──────────────────────────────────────────────────────────
 
-_JIRA_BASE = os.getenv("JIRA_BASE_URL", "https://ameer1996112.atlassian.net")
-_JIRA_EMAIL = os.getenv("JIRA_EMAIL", "")
-_JIRA_TOKEN = os.getenv("JIRA_API_TOKEN", "")
-_JIRA_PROJECT = os.getenv("JIRA_PROJECT_KEY", "DEV")
-_JIRA_TASK_TYPE_ID = os.getenv("JIRA_TASK_TYPE_ID", "10003")
+_settings = get_settings()
+_JIRA_BASE = (_settings.jira_base_url or _settings.jira_domain or "https://ameer1996112.atlassian.net").rstrip("/")
+if _JIRA_BASE and not _JIRA_BASE.startswith("http"):
+    _JIRA_BASE = f"https://{_JIRA_BASE}"
+_JIRA_EMAIL = _settings.jira_email
+_JIRA_TOKEN = _settings.jira_api_token.get_secret_value()
+_JIRA_PROJECT = _settings.jira_project_key
+_JIRA_TASK_TYPE_ID = _settings.jira_task_type_id
 
 
 def _jira_create_incident_ticket(title: str, description_adf: Dict, priority: str, labels: List[str]) -> Optional[str]:

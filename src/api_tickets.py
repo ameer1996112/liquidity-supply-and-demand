@@ -31,6 +31,7 @@ import requests
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from config.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -38,13 +39,16 @@ router = APIRouter(prefix="/api/tickets", tags=["tickets"])
 
 # ── Jira config ───────────────────────────────────────────────────────────────
 
-_JIRA_BASE = os.getenv("JIRA_BASE_URL", "https://ameer1996112.atlassian.net")
+_settings = get_settings()
+_JIRA_BASE = (_settings.jira_base_url or _settings.jira_domain or "https://ameer1996112.atlassian.net").rstrip("/")
+if _JIRA_BASE and not _JIRA_BASE.startswith("http"):
+    _JIRA_BASE = f"https://{_JIRA_BASE}"
 # Agile REST API has a different base path — /rest/agile/1.0 not /rest/api/3
 _JIRA_AGILE_BASE = _JIRA_BASE + "/rest/agile/1.0"
-_JIRA_EMAIL = os.getenv("JIRA_EMAIL", "")
-_JIRA_TOKEN = os.getenv("JIRA_API_TOKEN", "")
-_JIRA_PROJECT = os.getenv("JIRA_PROJECT_KEY", "DEV")
-_JIRA_TASK_TYPE_ID = os.getenv("JIRA_TASK_TYPE_ID", "10003")
+_JIRA_EMAIL = _settings.jira_email
+_JIRA_TOKEN = _settings.jira_api_token.get_secret_value()
+_JIRA_PROJECT = _settings.jira_project_key
+_JIRA_TASK_TYPE_ID = _settings.jira_task_type_id
 
 # Timeouts — Jira free-tier JQL can be very slow (30-90s)
 _TIMEOUT_READ = int(os.getenv("JIRA_TIMEOUT", "90"))    # JQL search / write ops

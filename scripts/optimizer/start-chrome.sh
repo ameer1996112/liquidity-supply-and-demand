@@ -41,11 +41,22 @@ echo "[start-chrome] Launching Chrome with CDP on port $PORT"
 echo "[start-chrome] Profile dir: $PROFILE_DIR (login saved here)"
 echo ""
 
+# Keep long-running TradingView tabs responsive overnight.
+# These flags reduce the chance that Chrome backgrounds or throttles the tab
+# while the optimizer is driving it through CDP.
+CHROME_FLAGS=(
+    --remote-debugging-port=$PORT
+    --user-data-dir="$PROFILE_DIR"
+    --no-first-run
+    --no-default-browser-check
+    --disable-background-timer-throttling
+    --disable-backgrounding-occluded-windows
+    --disable-renderer-backgrounding
+    --disable-features=CalculateNativeWinOcclusion
+)
+
 nohup "$CHROME" \
-    --remote-debugging-port=$PORT \
-    --user-data-dir="$PROFILE_DIR" \
-    --no-first-run \
-    --no-default-browser-check \
+    "${CHROME_FLAGS[@]}" \
     > /tmp/chrome-cdp.log 2>&1 &
 
 CHROME_PID=$!

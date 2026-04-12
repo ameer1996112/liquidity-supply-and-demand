@@ -199,6 +199,13 @@ async def worker_task(
             except Exception as e:
                 retries += 1
                 log.warning(f"[worker-{worker_id}] ⚠️  {symbol} attempt {retries} failed: {e}")
+                if isinstance(e, OSError) and e.errno == 28:
+                    log.error(
+                        "[worker-%d] Disk is full while optimizing %s. "
+                        "Free space and rerun; this failure can look like the optimizer is stuck.",
+                        worker_id,
+                        symbol,
+                    )
                 if retries <= MAX_PAIR_RETRIES:
                     await asyncio.sleep(5)
                 else:

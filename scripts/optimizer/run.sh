@@ -24,6 +24,26 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 RESULTS_DIR="$PROJECT_ROOT/scripts/optimization_results"
 
+warn_low_space() {
+    local path="$1"
+    local label="$2"
+    local available_kb
+    available_kb="$(df -k "$path" | awk 'NR==2 {print $4}')"
+
+    if [[ -z "$available_kb" ]]; then
+        return 0
+    fi
+
+    # 5 GiB floor so overnight optimizer runs do not die looking "stuck".
+    if (( available_kb < 5 * 1024 * 1024 )); then
+        local available_gb
+        available_gb="$(awk "BEGIN {printf \"%.1f\", $available_kb/1024/1024}")"
+        echo "[run.sh] WARNING: Low disk space on $label (${available_gb} GiB free)."
+        echo "[run.sh]          Previous optimizer runs failed with '[Errno 28] No space left on device'."
+        echo "[run.sh]          Free space before starting a long overnight run."
+    fi
+}
+
 # ── Create output dir ──────────────────────────────────────────────────────────
 mkdir -p "$RESULTS_DIR"
 
@@ -75,6 +95,10 @@ echo "[run.sh] Python: $PYTHON"
 echo "[run.sh] Log: $LOG_FILE"
 echo "[run.sh] Args: $*"
 echo ""
+
+warn_low_space "$PROJECT_ROOT" "project volume"
+warn_low_space "$HOME" "home volume"
+warn_low_space "/tmp" "tmp volume"
 
 # ── Prevent macOS from sleeping ───────────────────────────────────────────────
 # caffeinate flags:

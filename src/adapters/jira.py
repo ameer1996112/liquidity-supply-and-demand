@@ -1,9 +1,9 @@
-import os
 import json
 import logging
 import threading
 import traceback
 import requests
+from config.settings import get_settings
 
 logger = logging.getLogger("trinity.jira")
 
@@ -12,10 +12,11 @@ def create_bug_ticket(title: str, description: str, sync_block: bool = False):
     Creates a Jira ticket for bugs and exceptions directly into the configured board.
     Fires in a background thread by default so it never blocks the trading worker.
     """
-    domain = os.getenv("JIRA_DOMAIN", "")
-    email = os.getenv("JIRA_EMAIL", "")
-    token = os.getenv("JIRA_API_TOKEN", "")
-    project = os.getenv("JIRA_PROJECT_KEY", "DEV")
+    settings = get_settings()
+    domain = settings.jira_base_url or settings.jira_domain or ""
+    email = settings.jira_email
+    token = settings.jira_api_token.get_secret_value()
+    project = settings.jira_project_key
     
     if not domain.startswith("http"):
         # Default to https if missing
@@ -33,7 +34,7 @@ def create_bug_ticket(title: str, description: str, sync_block: bool = False):
             "fields": {
                 "project": {"key": project},
                 "summary": f"[BUG] {safe_title}"[:255],
-                "issuetype": {"id": os.getenv("JIRA_TASK_TYPE_ID", "10003")},
+                "issuetype": {"id": settings.jira_task_type_id},
                 "description": {
                     "type": "doc",
                     "version": 1,

@@ -31,7 +31,7 @@ log = logging.getLogger(__name__)
 _MAX_RETRIES = 3
 _RETRY_SLEEP = 2.0          # seconds between retry attempts
 _UPDATE_APPEAR_TIMEOUT = 4  # seconds to wait for "Updating report" to appear
-_UPDATE_FINISH_TIMEOUT = 90 # seconds max for chart to finish recalculating
+_UPDATE_FINISH_TIMEOUT = 150 # seconds max for chart to finish recalculating
 
 _LOADING_INDICATORS = [
     "Updating report", "Calculating...", "Loading...", "Compiling..."
@@ -511,9 +511,31 @@ class TabWorker:
             if not await self._check_loading_text():
                 await asyncio.sleep(0.5)   # small buffer after disappears
                 return True
+            # Periodically try to click "Update report" in case TV is waiting
+            if int(time.time()) % 10 == 0:
+                await self.page.evaluate(
+                    """
+                    (() => {
+                        for (const el of document.querySelectorAll('*')) {
+                            if (el.textContent?.trim() === 'Update report' && el.childElementCount === 0) {
+                                el.click();
+                            }
+                        }
+                    })()
+                    """
+                )
             await asyncio.sleep(0.3)
 
-        log.warning("_wait_for_update_complete: timed out after %ds", _UPDATE_FINISH_TIMEOUT)
+        log.warning("_wait_for_update_complete: timed out after %ds — trying recovery", _UPDATE_FINISH_TIMEOUT)
+        # Recovery: press Escape to dismiss any stuck dialog, then wait extra
+        try:
+            await self.page.keyboard.press("Escape")
+            await asyncio.sleep(2.0)
+            # One final check after recovery
+            if not await self._check_loading_text():
+                return True
+        except Exception:
+            pass
         return False
 
     # ─────────────────────────────────── results fingerprint ─────────────────
@@ -963,8 +985,14 @@ class TabWorker:
                 completed = await self._wait_for_update_complete()
                 if not completed:
                     log.warning(
-                        "_apply_params attempt %d: update timed out", attempt
+                        "_apply_params attempt %d: update timed out — pressing Escape and retrying", attempt
                     )
+                    # Try to dismiss any stuck overlay before retry
+                    try:
+                        await self.page.keyboard.press("Escape")
+                        await asyncio.sleep(1.0)
+                    except Exception:
+                        pass
 
                 # ── Stale result detection ─────────────────────────────────
                 hash_after = await self._get_results_hash()

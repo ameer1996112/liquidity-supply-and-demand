@@ -280,7 +280,7 @@ class TradingViewOptimizer:
 
             # Hard per-trial timeout — prevents a frozen Playwright call from
             # deadlocking the entire run (as seen with CADJPY trial 22).
-            _TRIAL_HARD_TIMEOUT = 180  # 3 minutes max per trial
+            _TRIAL_HARD_TIMEOUT = 360  # 6 minutes max per trial (150s update × 2 retries + buffer)
 
             try:
                 success = await asyncio.wait_for(
