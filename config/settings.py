@@ -449,6 +449,13 @@ class Settings(BaseSettings):
     holiday_block_early_close: bool = Field(default=False, description="Also block trades on early-close days (Jul 3, Black Friday, Dec 24)")
     holiday_early_close_utc_hour: int = Field(default=18, ge=12, le=23, description="UTC hour after which to block on early-close days (18 = 1PM ET)")
 
+    # ── Swap / Rollover Guard ─────────────────────────────────────────────
+    enable_swap_guard: bool = Field(default=True, description="Block new entries and close positions around broker rollover time")
+    swap_time: str = Field(default="00:00", description="Broker rollover time in HH:MM format (server time)")
+    swap_timezone: str = Field(default="Asia/Jerusalem", description="Timezone for swap_time (e.g. Asia/Jerusalem, UTC, Europe/Athens)")
+    swap_close_before_min: int = Field(default=15, ge=1, le=60, description="Minutes before swap to close all open positions")
+    swap_block_after_min: int = Field(default=15, ge=1, le=60, description="Minutes after swap to block new entries")
+
     # ── Breakeven & Trailing Stop Optimization (v1.1 Phase 9) ─────────────
     breakeven_buffer_pips: float = Field(
         default=3.0, ge=0.0, le=20.0,
