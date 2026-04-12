@@ -1894,6 +1894,31 @@ def run():
         except Exception as exc:
             logger.warning("Daily digest scheduler init failed: %s", exc)
 
+    # Initialize Swap Guard scheduler
+    swap_scheduler = None
+    swap_guard_instance = None
+    if getattr(s, "enable_swap_guard", True):
+        try:
+            from src.core.guard_rails.swap_guard import SwapGuard, SwapScheduler
+            swap_guard_instance = SwapGuard(
+                swap_time=getattr(s, "swap_time", "00:00"),
+                timezone_name=getattr(s, "swap_timezone", "Asia/Jerusalem"),
+                close_before_minutes=getattr(s, "swap_close_before_min", 15),
+                block_after_minutes=getattr(s, "swap_block_after_min", 15),
+            )
+            swap_scheduler = SwapScheduler(
+                adapter=adapter,
+                max_retries=3,
+                retry_delay_seconds=5,
+            )
+            logger.info(
+                "SwapGuard scheduler initialized: rollover=%s %s, window=-%d/+%dmin",
+                s.swap_time, s.swap_timezone,
+                s.swap_close_before_min, s.swap_block_after_min,
+            )
+        except Exception as exc:
+            logger.warning("SwapGuard scheduler init failed: %s", exc)
+
     last_watchdog_ts = time.time()
     last_reconciliation_ts = 0  # Broker reconciliation runs every 5 minutes
     last_prop_firm_cache_ts = 0  # Prop firm metrics cache runs every 20 seconds
@@ -1951,6 +1976,38 @@ def run():
                         daily_reset_scheduler.check_and_execute_reset()
                     except Exception as reset_exc:  # noqa: BLE001
                         logger.error("Daily reset check failed: %s", reset_exc)
+
+                # Swap Guard: close positions if entering the pre-swap close window
+                if swap_scheduler and swap_guard_instance:
+                    try:
+                        from datetime import timedelta
+                        now_dt = swap_guard_instance._now()
+                        swap_dt = now_dt.replace(
+                            hour=swap_guard_instance._swap_hour,
+                            minute=swap_guard_instance._swap_minute,
+                            second=0, microsecond=0,
+                        )
+                        # Handle case where swap_dt already passed today (e.g. now=23:50, swap=00:00 tomorrow)
+                        for day_offset in (0, 1):
+                            candidate = (now_dt + timedelta(days=day_offset)).replace(
+                                hour=swap_guard_instance._swap_hour,
+                                minute=swap_guard_instance._swap_minute,
+                                second=0, microsecond=0,
+                            )
+                            if candidate > now_dt:
+                                swap_dt = candidate
+                                break
+                        in_close_window = (
+                            swap_dt - timedelta(minutes=s.swap_close_before_min)
+                            <= now_dt
+                            < swap_dt
+                        )
+                        in_full_window = swap_guard_instance.is_in_blackout_window(now_dt)
+                        swap_scheduler.reset_if_outside_window(in_window=in_full_window)
+                        if in_close_window:
+                            swap_scheduler.close_all_positions_if_needed()
+                    except Exception as sg_exc:
+                        logger.warning("SwapGuard tick error: %s", sg_exc)
 
                 last_watchdog_ts = now
 
