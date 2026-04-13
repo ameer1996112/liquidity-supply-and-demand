@@ -22,48 +22,48 @@
   "active_pairs": {
     "worker-0": {
       "symbol": "CHFJPY",
-      "trial": 31,
-      "last_event_at": "2026-04-13T18:25:28.504262+03:00",
+      "trial": 36,
+      "last_event_at": "2026-04-13T18:25:48.820755+03:00",
       "status": "running"
     },
     "worker-1": {
       "symbol": "GBPAUD",
-      "trial": 31,
-      "last_event_at": "2026-04-13T18:25:28.508486+03:00",
+      "trial": 36,
+      "last_event_at": "2026-04-13T18:25:48.826205+03:00",
       "status": "running"
     },
     "worker-2": {
       "symbol": "GBPCAD",
-      "trial": 31,
-      "last_event_at": "2026-04-13T18:25:28.510231+03:00",
+      "trial": 36,
+      "last_event_at": "2026-04-13T18:25:48.828091+03:00",
       "status": "running"
     },
     "worker-3": {
       "symbol": "EURGBP",
-      "trial": 31,
-      "last_event_at": "2026-04-13T18:25:28.506661+03:00",
+      "trial": 36,
+      "last_event_at": "2026-04-13T18:25:48.823743+03:00",
       "status": "running"
     }
   },
   "worker_health": {
     "worker-0": {
       "status": "warning",
-      "stale_reads": 351,
+      "stale_reads": 356,
       "last_results_hash": ""
     },
     "worker-1": {
       "status": "warning",
-      "stale_reads": 351,
+      "stale_reads": 356,
       "last_results_hash": ""
     },
     "worker-2": {
       "status": "warning",
-      "stale_reads": 351,
+      "stale_reads": 356,
       "last_results_hash": ""
     },
     "worker-3": {
       "status": "warning",
-      "stale_reads": 351,
+      "stale_reads": 356,
       "last_results_hash": ""
     }
   }
