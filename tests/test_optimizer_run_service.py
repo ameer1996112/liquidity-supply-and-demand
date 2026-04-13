@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from src.services.optimizer_run_service import OptimizerRunService
+from src.services import optimizer_run_service as optimizer_service_module
 
 
 @dataclass
@@ -122,9 +123,32 @@ def test_start_run_persists_run_and_symbol_rows(monkeypatch) -> None:
         created_by="test-user",
     )
 
-    assert run["status"] == "running"
+    assert run["status"] == "queued"
     assert store.runs[run["id"]]["workers"] == 2
     assert store.results[(run["id"], "EURUSD")]["status"] == "pending"
+
+
+def test_start_run_expands_all_pairs_without_scripts_import(monkeypatch) -> None:
+    store = InMemoryOptimizerStore()
+    service = OptimizerRunService(store, project_root=Path("/tmp"), results_dir=Path("/tmp/results"))
+
+    monkeypatch.setattr(service, "_spawn_process", lambda **_: DummyProcess(pid=321))
+    monkeypatch.setattr(service, "_stream_process_output", lambda run_id, process: None)
+    monkeypatch.setattr(optimizer_service_module, "DEFAULT_PAIRS", ["EURUSD", "GBPUSD"], raising=False)
+
+    run = service.start_run(
+        mode="bayesian",
+        workers=2,
+        pairs=["ALL"],
+        n_trials=25,
+        dd_limit=6.0,
+        dry_run=True,
+        created_by="test-user",
+    )
+
+    assert run["pairs"] == ["EURUSD", "GBPUSD"]
+    assert store.results[(run["id"], "EURUSD")]["status"] == "pending"
+    assert store.results[(run["id"], "GBPUSD")]["status"] == "pending"
 
 
 def test_cancel_run_terminates_process_and_marks_cancelled() -> None:

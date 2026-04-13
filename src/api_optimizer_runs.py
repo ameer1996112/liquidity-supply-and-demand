@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
 
 from src.services.optimizer_run_service import get_optimizer_run_service
+from src.services.optimizer_defaults import DEFAULT_PAIRS
 
 router = APIRouter(prefix="/api/optimizer", tags=["optimizer-runs"])
 
@@ -45,7 +46,6 @@ def agent_status() -> dict[str, Any]:
 
 @router.get("/pairs")
 def list_default_pairs() -> dict[str, Any]:
-    from scripts.optimizer.config import DEFAULT_PAIRS
     return {"pairs": list(DEFAULT_PAIRS)}
 
 

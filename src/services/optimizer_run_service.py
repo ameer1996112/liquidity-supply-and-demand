@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from src.adapters.supabase_api import get_api_supabase
+from src.services.optimizer_defaults import DEFAULT_PAIRS
 
 
 def _utc_now() -> str:
@@ -196,7 +197,6 @@ class OptimizerRunService:
             raise ValueError("another optimizer run is already active")
 
         if pairs == ["ALL"]:
-            from scripts.optimizer.config import DEFAULT_PAIRS
             pairs = list(DEFAULT_PAIRS)
 
         run_id = str(uuid.uuid4())

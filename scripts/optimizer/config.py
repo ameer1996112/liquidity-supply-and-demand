@@ -4,6 +4,8 @@ config.py — All constants for the TradingView Strategy Optimizer.
 
 from pathlib import Path
 
+from src.services.optimizer_defaults import DEFAULT_PAIRS
+
 # ─── Paths ────────────────────────────────────────────────────────────────────
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
@@ -70,25 +72,6 @@ LIQ_DISTANCE_RANGES: dict = {
 }
 
 # ─── Default pairs ────────────────────────────────────────────────────────────
-
-DEFAULT_PAIRS = [
-    # Major USD Pairs
-    "EURUSD", "GBPUSD", "AUDUSD", "NZDUSD", "USDCAD", "USDCHF",
-    # JPY Pairs
-    "USDJPY", "GBPJPY", "EURJPY", "NZDJPY", "CADJPY", "AUDJPY", "CHFJPY",
-    # GBP Crosses
-    "EURGBP", "GBPAUD", "GBPCAD", "GBPCHF", "GBPNZD",
-    # EUR Crosses
-    "EURAUD", "EURCAD", "EURCHF", "EURNZD",
-    # AUD/NZD Crosses
-    "AUDNZD", "AUDCAD", "AUDCHF",
-    # CAD/CHF Crosses
-    "CADCHF", "NZDCAD", "NZDCHF",
-    # Gold & Metals
-    "XAUUSD", "XAGUSD",
-    # Indices
-    "NAS100", "US30", "US500",
-]
 
 # ─── Legacy parameter grids (kept for --fast / --smart backward compat) ───────
 
