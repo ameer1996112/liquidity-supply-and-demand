@@ -1,0 +1,9 @@
+{"ts": "2026-04-13T23:44:06.283401+03:00", "run_id": "20260413_234406_53002a", "event_type": "run_started", "mode": "bayesian", "workers": 8, "pairs": ["EURUSD", "GBPUSD", "AUDUSD", "NZDUSD", "USDCAD", "USDCHF", "USDJPY", "GBPJPY", "EURJPY", "NZDJPY", "CADJPY", "AUDJPY", "CHFJPY", "EURGBP", "GBPAUD", "GBPCAD", "GBPCHF", "GBPNZD", "EURAUD", "EURCAD", "EURCHF", "EURNZD", "AUDNZD", "AUDCAD", "AUDCHF", "CADCHF", "NZDCAD", "NZDCHF", "XAUUSD", "XAGUSD", "NAS100", "US30", "US500"], "dry_run": false}
+{"ts": "2026-04-13T23:44:22.085145+03:00", "run_id": "20260413_234406_53002a", "event_type": "pair_started", "worker_id": 0, "symbol": "EURUSD", "attempt": 1}
+{"ts": "2026-04-13T23:44:37.086747+03:00", "run_id": "20260413_234406_53002a", "event_type": "pair_started", "worker_id": 1, "symbol": "GBPUSD", "attempt": 1}
+{"ts": "2026-04-13T23:44:52.088387+03:00", "run_id": "20260413_234406_53002a", "event_type": "pair_started", "worker_id": 2, "symbol": "AUDUSD", "attempt": 1}
+{"ts": "2026-04-13T23:45:07.088390+03:00", "run_id": "20260413_234406_53002a", "event_type": "pair_started", "worker_id": 3, "symbol": "NZDUSD", "attempt": 1}
+{"ts": "2026-04-13T23:45:22.091469+03:00", "run_id": "20260413_234406_53002a", "event_type": "pair_started", "worker_id": 4, "symbol": "USDCAD", "attempt": 1}
+{"ts": "2026-04-13T23:45:37.091339+03:00", "run_id": "20260413_234406_53002a", "event_type": "pair_started", "worker_id": 5, "symbol": "USDCHF", "attempt": 1}
+{"ts": "2026-04-13T23:45:52.091326+03:00", "run_id": "20260413_234406_53002a", "event_type": "pair_started", "worker_id": 6, "symbol": "USDJPY", "attempt": 1}
+{"ts": "2026-04-13T23:46:07.098617+03:00", "run_id": "20260413_234406_53002a", "event_type": "pair_started", "worker_id": 7, "symbol": "GBPJPY", "attempt": 1}

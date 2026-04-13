@@ -108,23 +108,36 @@ _JS_COLLECT_METRICS = """
         const t = cell.querySelector('[class*="title-"]');
         const title = t?.textContent?.trim() || '';
         const vals = cell.querySelectorAll('[class*="value-"], [class*="additional-"]');
+        const cellText = (cell.textContent || '').replace(/\\s+/g, ' ').trim();
+        if (!title || !cellText) continue;
+
+        let body = cellText;
+        if (body.startsWith(title)) {
+            body = body.slice(title.length).trim();
+        }
+
         if (title) {
             const vs = [];
             for (const v of vals) { const x = v.textContent?.trim(); if (x) vs.push(x); }
             if (vs.length) {
-                r[title] = vs.join('|');
+                const joined = vs.join('|');
+                // TradingView sometimes renders the drawdown percent outside the
+                // value/additional nodes. Preserve the full cell body so the
+                // parser can still read the displayed percentage.
+                if (
+                    title.toLowerCase().includes('drawdown') &&
+                    body.includes('%') &&
+                    !joined.includes('%')
+                ) {
+                    r[title] = joined + '|' + body;
+                } else {
+                    r[title] = joined;
+                }
                 continue;
             }
 
             // Fallback: capture full cell text in case TradingView moved
             // percentage/value elements outside value/additional classes.
-            const cellText = (cell.textContent || '').replace(/\\s+/g, ' ').trim();
-            if (!cellText) continue;
-
-            let body = cellText;
-            if (body.startsWith(title)) {
-                body = body.slice(title.length).trim();
-            }
             r[title] = body || cellText;
         }
     }

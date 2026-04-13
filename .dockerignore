@@ -62,8 +62,5 @@ logs/
 .claude/
 .agent/
 
-# ===== Scripts (local dev only) =====
-scripts/
-
 # ===== Config files not needed in container =====
 docker-compose.yml

@@ -155,6 +155,25 @@ def test_read_results_extracts_drawdown_percent_from_plain_cell_text() -> None:
     assert result.drawdown_source == "percent"
 
 
+def test_read_results_extracts_drawdown_percent_when_cell_body_has_percent_only() -> None:
+    page = MetricsPage(
+        title="GBPJPY 5 Vantage",
+        metrics={
+            "Total P&L": "$1200|2.4%",
+            "Total trades": "220",
+            "Profit factor": "1.08",
+            "Max equity drawdown": "$7,059.46|$7,059.46 USD 12.02%",
+        },
+    )
+    worker = TabWorker(page, DummyOptimizer())
+
+    result = asyncio.run(worker._read_results("GBPJPY", {}))
+
+    assert result.max_drawdown == pytest.approx(7059.46, rel=1e-6)
+    assert result.max_drawdown_pct == pytest.approx(12.02, rel=1e-6)
+    assert result.drawdown_source == "percent"
+
+
 def test_format_trial_log_line_is_atomic_and_worker_scoped() -> None:
     optimizer = TradingViewOptimizer(
         pairs=["USDCAD"],
