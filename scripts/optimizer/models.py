@@ -12,6 +12,7 @@ class BacktestResult:
     """Single backtest result for a parameter combination."""
     symbol: str
     params: dict
+    verified_symbol: str = ""
     net_profit: float = 0.0
     total_trades: int = 0
     win_rate: float = 0.0
@@ -71,6 +72,7 @@ class BacktestResult:
         return {
             "symbol": self.symbol,
             "params": self.params,
+            "verified_symbol": self.verified_symbol,
             "net_profit": self.net_profit,
             "total_trades": self.total_trades,
             "win_rate": self.win_rate,

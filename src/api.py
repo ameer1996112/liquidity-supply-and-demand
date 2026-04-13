@@ -146,6 +146,7 @@ from src.api_agent_status import router as agent_status_router # v1.2: UI-02: Ag
 from src.api_broker_profiles import router as broker_profiles_router  # Multi-account MetaAPI management
 from src.api_dashboard import router as dashboard_router
 from src.api_notifications import router as notifications_router  # DEV-73: notification settings
+from src.api_optimizer_runs import router as optimizer_runs_router
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):  # noqa: ARG001
@@ -198,6 +199,7 @@ app.include_router(broker_profiles_router, dependencies=[Depends(_require_admin_
 app.include_router(dashboard_router)        # DEV-61: dashboard summary aggregation
 app.include_router(notifications_router)    # DEV-73: notification settings (routing, whitelist, audit log)
 app.include_router(guards_router, dependencies=[Depends(_require_admin_key)])  # DEV-92: guard rails config management
+app.include_router(optimizer_runs_router, dependencies=[Depends(_require_admin_key)])
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_build_cors_origins(),

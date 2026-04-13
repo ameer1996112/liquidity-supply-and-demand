@@ -1,0 +1,528 @@
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import sys
+import threading
+import uuid
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Protocol
+
+from src.adapters.supabase_api import get_api_supabase
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _coerce_event_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    return json.loads(json.dumps(payload, default=str))
+
+
+def _normalize_run(row: dict[str, Any] | None) -> dict[str, Any] | None:
+    if row is None:
+        return None
+    return {
+        "id": row["id"],
+        "status": row["status"],
+        "mode": row["mode"],
+        "workers": row["workers"],
+        "pairs": row.get("pairs") or [],
+        "n_trials": row["n_trials"],
+        "dd_limit": float(row["dd_limit"]),
+        "dry_run": bool(row.get("dry_run", False)),
+        "created_by": row.get("created_by"),
+        "summary": row.get("summary") or {},
+        "started_at": row.get("started_at"),
+        "finished_at": row.get("finished_at"),
+        "created_at": row.get("created_at"),
+        "updated_at": row.get("updated_at"),
+    }
+
+
+class OptimizerRunRepository(Protocol):
+    def create_run(self, payload: dict[str, Any]) -> dict[str, Any]: ...
+    def update_run(self, run_id: str, updates: dict[str, Any]) -> dict[str, Any]: ...
+    def get_run(self, run_id: str) -> dict[str, Any] | None: ...
+    def list_runs(self, *, limit: int = 20, status: str | None = None) -> list[dict[str, Any]]: ...
+    def list_incomplete_runs(self) -> list[dict[str, Any]]: ...
+    def create_results(self, run_id: str, symbols: list[str]) -> None: ...
+    def update_result(self, run_id: str, symbol: str, updates: dict[str, Any]) -> dict[str, Any]: ...
+    def list_results(self, run_id: str) -> list[dict[str, Any]]: ...
+    def append_event(self, payload: dict[str, Any]) -> dict[str, Any]: ...
+    def list_events(self, run_id: str, *, limit: int = 200) -> list[dict[str, Any]]: ...
+
+
+class SupabaseOptimizerRunRepository:
+    def __init__(self) -> None:
+        self._sb = get_api_supabase()
+
+    def create_run(self, payload: dict[str, Any]) -> dict[str, Any]:
+        resp = self._sb.table("optimizer_runs").insert(payload).execute()
+        return _normalize_run(resp.data[0]) if resp.data else payload
+
+    def update_run(self, run_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+        payload = {**updates, "updated_at": _utc_now()}
+        resp = (
+            self._sb.table("optimizer_runs")
+            .update(payload)
+            .eq("id", run_id)
+            .execute()
+        )
+        if resp.data:
+            return _normalize_run(resp.data[0])
+        current = self.get_run(run_id)
+        if current is None:
+            raise KeyError(run_id)
+        current.update(payload)
+        return current
+
+    def get_run(self, run_id: str) -> dict[str, Any] | None:
+        resp = (
+            self._sb.table("optimizer_runs")
+            .select("*")
+            .eq("id", run_id)
+            .limit(1)
+            .execute()
+        )
+        if not resp.data:
+            return None
+        return _normalize_run(resp.data[0])
+
+    def list_runs(self, *, limit: int = 20, status: str | None = None) -> list[dict[str, Any]]:
+        query = (
+            self._sb.table("optimizer_runs")
+            .select("*")
+            .order("created_at", desc=True)
+            .limit(limit)
+        )
+        if status:
+            query = query.eq("status", status)
+        resp = query.execute()
+        return [_normalize_run(row) for row in (resp.data or []) if row]
+
+    def list_incomplete_runs(self) -> list[dict[str, Any]]:
+        resp = (
+            self._sb.table("optimizer_runs")
+            .select("*")
+            .in_("status", ["queued", "running"])
+            .execute()
+        )
+        return [_normalize_run(row) for row in (resp.data or []) if row]
+
+    def create_results(self, run_id: str, symbols: list[str]) -> None:
+        rows = [
+            {
+                "run_id": run_id,
+                "symbol": symbol,
+                "status": "pending",
+                "params": {},
+                "metrics": {},
+            }
+            for symbol in symbols
+        ]
+        if rows:
+            self._sb.table("optimizer_run_results").insert(rows).execute()
+
+    def update_result(self, run_id: str, symbol: str, updates: dict[str, Any]) -> dict[str, Any]:
+        payload = {**updates, "updated_at": _utc_now()}
+        resp = (
+            self._sb.table("optimizer_run_results")
+            .update(payload)
+            .eq("run_id", run_id)
+            .eq("symbol", symbol)
+            .execute()
+        )
+        return resp.data[0] if resp.data else {"run_id": run_id, "symbol": symbol, **payload}
+
+    def list_results(self, run_id: str) -> list[dict[str, Any]]:
+        resp = (
+            self._sb.table("optimizer_run_results")
+            .select("*")
+            .eq("run_id", run_id)
+            .order("symbol")
+            .execute()
+        )
+        return resp.data or []
+
+    def append_event(self, payload: dict[str, Any]) -> dict[str, Any]:
+        resp = self._sb.table("optimizer_run_events").insert(payload).execute()
+        return resp.data[0] if resp.data else payload
+
+    def list_events(self, run_id: str, *, limit: int = 200) -> list[dict[str, Any]]:
+        resp = (
+            self._sb.table("optimizer_run_events")
+            .select("*")
+            .eq("run_id", run_id)
+            .order("created_at", desc=False)
+            .limit(limit)
+            .execute()
+        )
+        return resp.data or []
+
+
+@dataclass
+class _ManagedProcess:
+    process: subprocess.Popen[str]
+    reader: threading.Thread
+
+
+class OptimizerRunService:
+    def __init__(self, repository: OptimizerRunRepository, project_root: Path, results_dir: Path) -> None:
+        self._repository = repository
+        self._project_root = project_root
+        self._results_dir = results_dir
+        self._processes: dict[str, _ManagedProcess] = {}
+        self._lock = threading.Lock()
+
+    def start_run(
+        self,
+        *,
+        mode: str,
+        workers: int,
+        pairs: list[str],
+        n_trials: int,
+        dd_limit: float,
+        dry_run: bool,
+        created_by: str | None = None,
+    ) -> dict[str, Any]:
+        if not pairs:
+            raise ValueError("pairs must not be empty")
+        if self._active_run_exists():
+            raise ValueError("another optimizer run is already active")
+
+        run_id = str(uuid.uuid4())
+        created_at = _utc_now()
+        run = self._repository.create_run(
+            {
+                "id": run_id,
+                "status": "queued",
+                "mode": mode,
+                "workers": workers,
+                "pairs": pairs,
+                "n_trials": n_trials,
+                "dd_limit": dd_limit,
+                "dry_run": dry_run,
+                "created_by": created_by,
+                "summary": {
+                    "total_pairs": len(pairs),
+                    "running_pairs": 0,
+                    "completed_pairs": 0,
+                    "failed_pairs": 0,
+                },
+                "created_at": created_at,
+                "updated_at": created_at,
+            }
+        )
+        self._repository.create_results(run_id, pairs)
+        process = self._spawn_process(
+            mode=mode,
+            workers=workers,
+            pairs=pairs,
+            n_trials=n_trials,
+            dd_limit=dd_limit,
+            dry_run=dry_run,
+        )
+        reader = threading.Thread(
+            target=self._stream_process_output,
+            args=(run_id, process),
+            daemon=True,
+            name=f"optimizer-run-{run_id}",
+        )
+        with self._lock:
+            self._processes[run_id] = _ManagedProcess(process=process, reader=reader)
+        updated_run = self._repository.update_run(
+            run_id,
+            {
+                "status": "running",
+                "started_at": _utc_now(),
+                "summary": self._rebuild_summary(run_id, existing=run.get("summary") or {}),
+            },
+        )
+        self._repository.append_event(
+            {
+                "run_id": run_id,
+                "event_type": "run_started",
+                "worker_id": None,
+                "symbol": None,
+                "payload": {"pid": process.pid, "mode": mode, "workers": workers},
+            }
+        )
+        reader.start()
+        return updated_run
+
+    def list_runs(self, *, limit: int = 20, status: str | None = None) -> list[dict[str, Any]]:
+        return self._repository.list_runs(limit=limit, status=status)
+
+    def get_run(self, run_id: str) -> dict[str, Any]:
+        run = self._repository.get_run(run_id)
+        if run is None:
+            raise KeyError(run_id)
+        return run
+
+    def list_results(self, run_id: str) -> list[dict[str, Any]]:
+        return self._repository.list_results(run_id)
+
+    def list_events(self, run_id: str, *, limit: int = 200) -> list[dict[str, Any]]:
+        return self._repository.list_events(run_id, limit=limit)
+
+    def cancel_run(self, run_id: str) -> dict[str, Any]:
+        managed = self._processes.get(run_id)
+        if managed is None:
+            run = self._repository.get_run(run_id)
+            if run is None:
+                raise KeyError(run_id)
+            if run["status"] in {"completed", "failed", "cancelled", "interrupted"}:
+                return run
+            raise ValueError(f"run {run_id} is not attached to a live process")
+        managed.process.terminate()
+        self._repository.append_event(
+            {
+                "run_id": run_id,
+                "event_type": "run_cancelled",
+                "worker_id": None,
+                "symbol": None,
+                "payload": {"source": "api"},
+            }
+        )
+        cancelled_run = self._repository.update_run(
+            run_id,
+            {
+                "status": "cancelled",
+                "finished_at": _utc_now(),
+                "summary": self._rebuild_summary(run_id),
+            },
+        )
+        for result in self._repository.list_results(run_id):
+            if result["status"] in {"pending", "running"}:
+                self._repository.update_result(
+                    run_id,
+                    result["symbol"],
+                    {"status": "cancelled", "finished_at": _utc_now()},
+                )
+        return cancelled_run
+
+    def reconcile_incomplete_runs(self) -> None:
+        for run in self._repository.list_incomplete_runs():
+            if run["id"] not in self._processes:
+                self._repository.update_run(
+                    run["id"],
+                    {
+                        "status": "interrupted",
+                        "finished_at": _utc_now(),
+                        "summary": self._rebuild_summary(run["id"], existing=run.get("summary") or {}),
+                    },
+                )
+
+    def ingest_event(self, event: dict[str, Any]) -> None:
+        run_id = event["run_id"]
+        event_type = event["event_type"]
+        symbol = event.get("symbol")
+        worker_id = event.get("worker_id")
+        payload = _coerce_event_payload(event)
+        self._repository.append_event(
+            {
+                "run_id": run_id,
+                "event_type": event_type,
+                "worker_id": worker_id,
+                "symbol": symbol,
+                "payload": payload,
+            }
+        )
+        now = _utc_now()
+        if event_type == "pair_started" and symbol:
+            self._repository.update_result(run_id, symbol, {"status": "running", "started_at": now})
+        elif event_type == "pair_completed" and symbol:
+            self._repository.update_result(
+                run_id,
+                symbol,
+                {
+                    "status": "completed",
+                    "params": event.get("params", {}),
+                    "metrics": event.get("metrics", {}),
+                    "finished_at": now,
+                },
+            )
+        elif event_type == "pair_failed" and symbol:
+            self._repository.update_result(
+                run_id,
+                symbol,
+                {
+                    "status": "failed",
+                    "error_message": event.get("error_message") or "optimizer pair failed",
+                    "finished_at": now,
+                },
+            )
+        elif event_type == "run_finished":
+            updates: dict[str, Any] = {
+                "status": event.get("status", "completed"),
+                "finished_at": now,
+            }
+            updates["summary"] = self._rebuild_summary(run_id, outputs=event.get("output_paths"))
+            self._repository.update_run(run_id, updates)
+            self._cleanup_process(run_id)
+            return
+        self._repository.update_run(
+            run_id,
+            {
+                "summary": self._rebuild_summary(run_id),
+            },
+        )
+
+    def _active_run_exists(self) -> bool:
+        return any(run["status"] in {"queued", "running"} for run in self._repository.list_runs(limit=10))
+
+    def _spawn_process(
+        self,
+        *,
+        mode: str,
+        workers: int,
+        pairs: list[str],
+        n_trials: int,
+        dd_limit: float,
+        dry_run: bool,
+    ) -> subprocess.Popen[str]:
+        command = [
+            sys.executable,
+            "-m",
+            "scripts.optimizer.parallel_runner",
+            "--workers",
+            str(workers),
+            "--mode",
+            mode,
+            "--trials",
+            str(n_trials),
+            "--dd-limit",
+            str(dd_limit),
+            "--pairs",
+            ",".join(pairs),
+        ]
+        if dry_run:
+            command.append("--dry-run")
+        env = dict(**os.environ)
+        env["PYTHONPATH"] = env.get("PYTHONPATH") or "."
+        return subprocess.Popen(
+            command,
+            cwd=self._project_root,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            env=env,
+        )
+
+    def _stream_process_output(self, run_id: str, process: subprocess.Popen[str]) -> None:
+        if process.stdout is None:
+            return
+        for raw_line in process.stdout:
+            line = raw_line.strip()
+            if not line:
+                continue
+            event = self._parse_event_line(line)
+            if event is not None:
+                if "run_id" not in event:
+                    event["run_id"] = run_id
+                self.ingest_event(event)
+                continue
+            self._repository.append_event(
+                {
+                    "run_id": run_id,
+                    "event_type": "log",
+                    "worker_id": None,
+                    "symbol": None,
+                    "payload": {"message": line},
+                }
+            )
+        exit_code = process.wait()
+        run = self._repository.get_run(run_id)
+        if run is None:
+            return
+        if run["status"] == "cancelled":
+            self._cleanup_process(run_id)
+            return
+        if run["status"] in {"completed", "failed"}:
+            self._cleanup_process(run_id)
+            return
+        final_status = "completed" if exit_code == 0 else "failed"
+        self._repository.update_run(
+            run_id,
+            {
+                "status": final_status,
+                "finished_at": _utc_now(),
+                "summary": self._rebuild_summary(run_id, existing=run.get("summary") or {}),
+            },
+        )
+        self._cleanup_process(run_id)
+
+    def _parse_event_line(self, line: str) -> dict[str, Any] | None:
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            return None
+        if isinstance(payload, dict) and "event_type" in payload:
+            return payload
+        return None
+
+    def _cleanup_process(self, run_id: str) -> None:
+        with self._lock:
+            self._processes.pop(run_id, None)
+
+    def _rebuild_summary(
+        self,
+        run_id: str,
+        *,
+        existing: dict[str, Any] | None = None,
+        outputs: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        results = self._repository.list_results(run_id)
+        summary = dict(existing or {})
+        total_pairs = len(results)
+        running_pairs = sum(1 for result in results if result["status"] == "running")
+        completed_pairs = sum(1 for result in results if result["status"] == "completed")
+        failed_pairs = sum(1 for result in results if result["status"] == "failed")
+        best_symbol = summary.get("best_symbol")
+        best_score = summary.get("best_score")
+        for result in results:
+            metrics = result.get("metrics") or {}
+            score = metrics.get("score")
+            if isinstance(score, (int, float)) and (best_score is None or score > best_score):
+                best_score = float(score)
+                best_symbol = result["symbol"]
+        summary.update(
+            {
+                "total_pairs": total_pairs,
+                "running_pairs": running_pairs,
+                "completed_pairs": completed_pairs,
+                "failed_pairs": failed_pairs,
+                "best_symbol": best_symbol,
+                "best_score": best_score,
+            }
+        )
+        if outputs:
+            summary["output_paths"] = outputs
+        return summary
+
+
+_service_lock = threading.Lock()
+_service: OptimizerRunService | None = None
+
+
+def get_optimizer_run_service() -> OptimizerRunService:
+    global _service
+    if _service is None:
+        with _service_lock:
+            if _service is None:
+                project_root = Path(__file__).resolve().parents[2]
+                from scripts.optimizer.config import RESULTS_DIR
+
+                _service = OptimizerRunService(
+                    repository=SupabaseOptimizerRunRepository(),
+                    project_root=project_root,
+                    results_dir=RESULTS_DIR,
+                )
+                _service.reconcile_incomplete_runs()
+    return _service
+

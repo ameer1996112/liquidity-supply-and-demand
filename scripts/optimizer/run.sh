@@ -100,6 +100,33 @@ warn_low_space "$PROJECT_ROOT" "project volume"
 warn_low_space "$HOME" "home volume"
 warn_low_space "/tmp" "tmp volume"
 
+# ── Managed watchdog commands ─────────────────────────────────────────────────
+if [[ "${1:-}" == "--managed" || "${1:-}" == "--status" || "${1:-}" == "--force-restart" || "${1:-}" == "--stop-managed" ]]; then
+    WATCHDOG_ARGS=()
+    case "${1:-}" in
+        --managed)
+            shift
+            WATCHDOG_ARGS=("start" "$@")
+            ;;
+        --status)
+            shift
+            WATCHDOG_ARGS=("status" "$@")
+            ;;
+        --force-restart)
+            shift
+            WATCHDOG_ARGS=("force-restart" "$@")
+            ;;
+        --stop-managed)
+            shift
+            WATCHDOG_ARGS=("stop" "$@")
+            ;;
+    esac
+
+    export PYTHONPATH="$PROJECT_ROOT"
+    export _OPTIMIZER_VENV_ACTIVE=1
+    exec "$PYTHON" -m scripts.optimizer.watchdog "${WATCHDOG_ARGS[@]}"
+fi
+
 # ── Prevent macOS from sleeping ───────────────────────────────────────────────
 # caffeinate flags:
 #   -i  prevent idle sleep
