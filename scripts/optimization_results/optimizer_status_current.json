@@ -2,7 +2,7 @@
   "run_id": "20260413_210836_48dde5",
   "state": "running",
   "started_at": "2026-04-13T21:08:36.294355+03:00",
-  "last_progress_at": "2026-04-13T21:19:11.748836+03:00",
+  "last_progress_at": "2026-04-13T21:19:25.477437+03:00",
   "stuck_threshold_seconds": 720,
   "restart_count": 0,
   "optimizer_pid": 39213,
@@ -32,8 +32,8 @@
     },
     "worker-1": {
       "symbol": "GBPUSD",
-      "trial": 7,
-      "last_event_at": "2026-04-13T21:18:08.204670+03:00",
+      "trial": 8,
+      "last_event_at": "2026-04-13T21:19:25.477437+03:00",
       "status": "running"
     },
     "worker-2": {
@@ -82,7 +82,7 @@
     "worker-1": {
       "status": "healthy",
       "stale_reads": 0,
-      "last_results_hash": "6de2b036"
+      "last_results_hash": "a974f941"
     },
     "worker-2": {
       "status": "healthy",
