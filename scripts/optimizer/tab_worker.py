@@ -106,11 +106,26 @@ _JS_COLLECT_METRICS = """
     const r = {};
     for (const cell of document.querySelectorAll('[class*="containerCell-"]')) {
         const t = cell.querySelector('[class*="title-"]');
+        const title = t?.textContent?.trim() || '';
         const vals = cell.querySelectorAll('[class*="value-"], [class*="additional-"]');
-        if (t) {
+        if (title) {
             const vs = [];
             for (const v of vals) { const x = v.textContent?.trim(); if (x) vs.push(x); }
-            if (vs.length) r[t.textContent.trim()] = vs.join('|');
+            if (vs.length) {
+                r[title] = vs.join('|');
+                continue;
+            }
+
+            // Fallback: capture full cell text in case TradingView moved
+            // percentage/value elements outside value/additional classes.
+            const cellText = (cell.textContent || '').replace(/\\s+/g, ' ').trim();
+            if (!cellText) continue;
+
+            let body = cellText;
+            if (body.startsWith(title)) {
+                body = body.slice(title.length).trim();
+            }
+            r[title] = body || cellText;
         }
     }
     return r;
@@ -1394,6 +1409,16 @@ class TabWorker:
                 kl = key.lower()
                 raw_value = str(value)
                 primary_value = raw_value.split("|")[0]
+
+                if "drawdown" in kl:
+                    drawdown_abs = self._extract_first_number(primary_value)
+                    if drawdown_abs is not None:
+                        result.max_drawdown = abs(drawdown_abs)
+                    drawdown_pct = self._extract_first_percent(raw_value)
+                    if drawdown_pct is not None:
+                        result.max_drawdown_pct = abs(drawdown_pct)
+                    continue
+
                 c = (
                     primary_value
                     .replace("$", "")
@@ -1417,13 +1442,6 @@ class TabWorker:
                     result.win_rate = num
                 elif "profit factor" in kl:
                     result.profit_factor = num
-                elif "drawdown" in kl:
-                    drawdown_abs = self._extract_first_number(primary_value)
-                    if drawdown_abs is not None:
-                        result.max_drawdown = abs(drawdown_abs)
-                    drawdown_pct = self._extract_first_percent(raw_value)
-                    if drawdown_pct is not None:
-                        result.max_drawdown_pct = abs(drawdown_pct)
 
             if result.max_drawdown > 0 and result.max_drawdown_pct == 0:
                 result.max_drawdown_pct = (result.max_drawdown / 50000) * 100
