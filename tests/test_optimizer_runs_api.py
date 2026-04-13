@@ -4,7 +4,16 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from src.api import app
+from config.settings import get_settings
+
+
+def _disable_admin_auth() -> None:
+    import os
+    os.environ["ADMIN_API_KEY"] = ""
+    get_settings.cache_clear()
+
+
+from src.api import app  # noqa: E402
 
 
 class StubOptimizerService:
@@ -53,6 +62,7 @@ class StubOptimizerService:
 
 @patch("src.api_optimizer_runs.get_optimizer_run_service", return_value=StubOptimizerService())
 def test_create_optimizer_run_returns_200(_) -> None:
+    _disable_admin_auth()
     client = TestClient(app)
     response = client.post(
         "/api/optimizer/runs",
@@ -70,6 +80,7 @@ def test_create_optimizer_run_returns_200(_) -> None:
 
 
 def test_create_optimizer_run_rejects_empty_pairs() -> None:
+    _disable_admin_auth()
     client = TestClient(app)
     response = client.post(
         "/api/optimizer/runs",
@@ -79,7 +90,26 @@ def test_create_optimizer_run_rejects_empty_pairs() -> None:
 
 
 @patch("src.api_optimizer_runs.get_optimizer_run_service", return_value=StubOptimizerService())
+def test_create_optimizer_run_accepts_all_pairs_token(_) -> None:
+    _disable_admin_auth()
+    client = TestClient(app)
+    response = client.post(
+        "/api/optimizer/runs",
+        json={
+            "mode": "bayesian",
+            "workers": 2,
+            "pairs": ["ALL"],
+            "n_trials": 25,
+            "dd_limit": 6.0,
+            "dry_run": True,
+        },
+    )
+    assert response.status_code == 200
+
+
+@patch("src.api_optimizer_runs.get_optimizer_run_service", return_value=StubOptimizerService())
 def test_get_optimizer_run_results_returns_payload(_) -> None:
+    _disable_admin_auth()
     client = TestClient(app)
     response = client.get("/api/optimizer/runs/run-1/results")
     assert response.status_code == 200

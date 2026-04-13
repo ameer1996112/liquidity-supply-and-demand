@@ -95,6 +95,7 @@ export function OptimizerRunsWorkspace() {
   const [mode, setMode] = useState<'bayesian' | 'smart' | 'fast' | 'full'>('bayesian');
   const [workers, setWorkers] = useState('3');
   const [pairs, setPairs] = useState('EURUSD,GBPUSD,XAUUSD');
+  const [allPairs, setAllPairs] = useState(true);
   const [nTrials, setNTrials] = useState('25');
   const [ddLimit, setDdLimit] = useState('6');
   const [dryRun, setDryRun] = useState(true);
@@ -120,7 +121,7 @@ export function OptimizerRunsWorkspace() {
     const payload: OptimizerRunCreateApi = {
       mode,
       workers: Number(workers),
-      pairs: pairs.split(',').map((item) => item.trim()).filter(Boolean),
+      pairs: allPairs ? ['ALL'] : pairs.split(',').map((item) => item.trim()).filter(Boolean),
       n_trials: Number(nTrials),
       dd_limit: Number(ddLimit),
       dry_run: dryRun,
@@ -196,9 +197,18 @@ export function OptimizerRunsWorkspace() {
             </label>
             <label className='space-y-1 text-xs text-[var(--to-text-secondary)] md:col-span-2'>
               <span>Pairs</span>
-              <Input value={pairs} onChange={(event) => setPairs(event.target.value)} />
+              <Input
+                value={allPairs ? 'ALL (server default list)' : pairs}
+                onChange={(event) => setPairs(event.target.value)}
+                disabled={allPairs}
+              />
             </label>
           </div>
+          <label className='flex items-center gap-2 text-xs text-[var(--to-text-secondary)]'>
+            <input type='checkbox' checked={allPairs} onChange={(event) => setAllPairs(event.target.checked)} />
+            All pairs
+            <span className='text-[10px] text-[var(--to-text-dim)]'>(uses backend default list)</span>
+          </label>
           <label className='flex items-center gap-2 text-xs text-[var(--to-text-secondary)]'>
             <input type='checkbox' checked={dryRun} onChange={(event) => setDryRun(event.target.checked)} />
             Dry run

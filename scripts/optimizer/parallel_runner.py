@@ -31,7 +31,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
 
 from .config import (
     RESULTS_DIR,
@@ -45,10 +45,10 @@ from .models import BacktestResult
 from .runtime_state import OptimizerRuntimeState
 
 try:
-    from playwright.async_api import async_playwright, Page, Browser, BrowserContext
+    from playwright.async_api import async_playwright, Page
 except ImportError:
-    print("ERROR: playwright not installed. Run: pip3 install playwright")
-    sys.exit(1)
+    async_playwright = None  # type: ignore[assignment]
+    Page = Any  # type: ignore[misc,assignment]
 
 log = logging.getLogger(__name__)
 
@@ -408,7 +408,10 @@ async def run_parallel(
     start_time = time.time()
 
     try:
-        async with async_playwright() as pw:
+        if not dry_run and async_playwright is None:
+            raise RuntimeError("playwright not installed. Install in venv: python3 -m pip install playwright && python3 -m playwright install chromium")
+
+        async with async_playwright() as pw:  # type: ignore[operator]
             if dry_run:
                 # Dry-run mode never touches a real page; keep it browserless so it works
                 # even when Playwright browsers are not installed locally.

@@ -48,6 +48,9 @@ vi.mock('@/hooks/useOptimizerRuns', () => ({
       options?.onSuccess?.({ id: 'run-2026-04-13' });
     },
   }),
+  useAgentStatus: () => ({
+    data: { agent_online: true, chrome_ready: true, agent_version: 'test', last_heartbeat: Date.now() / 1000 },
+  }),
   useCancelOptimizerRun: () => ({
     isPending: false,
     mutate: () => {},

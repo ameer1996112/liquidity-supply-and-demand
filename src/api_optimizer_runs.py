@@ -43,6 +43,11 @@ def agent_status() -> dict[str, Any]:
         "last_heartbeat": last if last else None,
     }
 
+@router.get("/pairs")
+def list_default_pairs() -> dict[str, Any]:
+    from scripts.optimizer.config import DEFAULT_PAIRS
+    return {"pairs": list(DEFAULT_PAIRS)}
+
 
 class OptimizerRunCreateRequest(BaseModel):
     mode: str = Field(min_length=1)
@@ -58,6 +63,16 @@ class OptimizerRunCreateRequest(BaseModel):
         normalized = [item.strip().upper() for item in value if item.strip()]
         if not normalized:
             raise ValueError("pairs must not be empty")
+        if normalized == ["ALL"]:
+            return normalized
+        if "ALL" in normalized:
+            raise ValueError("pairs cannot include ALL with other symbols")
+        for symbol in normalized:
+            # Prevent typos like "AUDNZD.GBPNZD" and other separators.
+            if "." in symbol or " " in symbol or "/" in symbol:
+                raise ValueError(f"invalid symbol: {symbol}")
+            if not symbol.isalnum():
+                raise ValueError(f"invalid symbol: {symbol}")
         return normalized
 
 

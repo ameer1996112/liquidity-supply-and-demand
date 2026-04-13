@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import signal
+import ssl
 import subprocess
 import sys
 import time
@@ -22,6 +23,12 @@ import threading
 from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.error import URLError
+
+try:
+    import certifi
+    _SSL_CTX = ssl.create_default_context(cafile=certifi.where())
+except ImportError:
+    _SSL_CTX = ssl.create_default_context()
 
 # ── Config ───────────────────────────────────────────────────────────────────
 
@@ -40,6 +47,26 @@ log = logging.getLogger("optimizer-agent")
 # ── Env loading ──────────────────────────────────────────────────────────────
 
 
+def _maybe_reexec_into_venv() -> None:
+    """Prefer repo venv interpreter so playwright/deps resolve consistently."""
+    if os.environ.get("_OPTIMIZER_VENV_ACTIVE") == "1":
+        return
+
+    venv_py = PROJECT_ROOT / "venv" / "bin" / "python3"
+    if not venv_py.exists():
+        return
+
+    current = Path(sys.executable).resolve()
+    target = venv_py.resolve()
+    if current == target:
+        os.environ["_OPTIMIZER_VENV_ACTIVE"] = "1"
+        return
+
+    os.environ["_OPTIMIZER_VENV_ACTIVE"] = "1"
+    os.environ["PYTHONPATH"] = os.environ.get("PYTHONPATH") or str(PROJECT_ROOT)
+    os.execv(str(target), [str(target), "-m", "scripts.optimizer.local_agent", *sys.argv[1:]])
+
+
 def _load_env() -> None:
     """Load .env file into os.environ (minimal, no dependencies)."""
     if not DOTENV_PATH.exists():
@@ -56,6 +83,7 @@ def _load_env() -> None:
 
 
 _load_env()
+_maybe_reexec_into_venv()
 
 API_URL = (
     os.environ.get("API_URL")
@@ -85,7 +113,7 @@ def _api(method: str, path: str, body: dict | None = None) -> dict | None:
     req.add_header("Content-Type", "application/json")
     req.add_header("X-Admin-API-Key", ADMIN_KEY)
     try:
-        with urlopen(req, timeout=15) as resp:
+        with urlopen(req, timeout=15, context=_SSL_CTX) as resp:
             return json.loads(resp.read().decode())
     except URLError as e:
         log.warning("API %s %s failed: %s", method, path, e)
@@ -114,7 +142,7 @@ def chrome_is_alive() -> bool:
     """Check if Chrome CDP is reachable on the expected port."""
     try:
         req = Request(f"http://127.0.0.1:{CDP_PORT}/json/version")
-        with urlopen(req, timeout=3) as resp:
+        with urlopen(req, timeout=3) as resp:  # localhost, no SSL needed
             return resp.status == 200
     except Exception:
         return False
@@ -195,6 +223,33 @@ def execute_run(run: dict) -> None:
 
     # Ensure Chrome is ready (unless dry run)
     if not dry_run:
+        # Preflight: runner requires playwright in the current interpreter.
+        try:
+            import playwright.async_api  # noqa: F401
+        except Exception:
+            log.error("Cannot start run — playwright not installed in agent python (%s)", sys.executable)
+            api_patch(
+                f"/api/optimizer/runs/{run_id}",
+                {
+                    "status": "failed",
+                    "summary": {
+                        "error_message": "playwright not installed on local agent. Install in venv: python3 -m pip install playwright && python3 -m playwright install chromium",
+                    },
+                },
+            )
+            api_post(
+                f"/api/optimizer/runs/{run_id}/events",
+                {
+                    "event_type": "run_finished",
+                    "payload": {
+                        "message": "playwright missing on local agent python",
+                        "status": "failed",
+                        "python": sys.executable,
+                    },
+                },
+            )
+            return
+
         if not ensure_chrome():
             log.error("Cannot start run — Chrome CDP not available")
             api_patch(f"/api/optimizer/runs/{run_id}", {

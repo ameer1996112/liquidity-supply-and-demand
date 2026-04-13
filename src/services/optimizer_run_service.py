@@ -195,6 +195,10 @@ class OptimizerRunService:
         if self._active_run_exists():
             raise ValueError("another optimizer run is already active")
 
+        if pairs == ["ALL"]:
+            from scripts.optimizer.config import DEFAULT_PAIRS
+            pairs = list(DEFAULT_PAIRS)
+
         run_id = str(uuid.uuid4())
         created_at = _utc_now()
         run = self._repository.create_run(
@@ -536,4 +540,3 @@ def get_optimizer_run_service() -> OptimizerRunService:
                 )
                 _service.reconcile_incomplete_runs()
     return _service
-
