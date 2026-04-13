@@ -18,6 +18,7 @@ sys.modules.setdefault("supabase", supabase)
 
 dotenv = types.ModuleType("dotenv")
 dotenv.load_dotenv = lambda *args, **kwargs: None
+dotenv.dotenv_values = lambda *args, **kwargs: {}
 sys.modules.setdefault("dotenv", dotenv)
 
 from scripts.optimizer.runtime_state import OptimizerRuntimeState
@@ -62,7 +63,7 @@ def test_record_trial_event_updates_last_progress_and_worker_log(tmp_path: Path)
         params_hash="params-1",
         results_hash_before="aaaa1111",
         results_hash_after="bbbb2222",
-        metrics={"profit_factor": 1.22, "total_trades": 300},
+        metrics={"verified_symbol": "EURJPY", "profit_factor": 1.22, "total_trades": 300},
     )
 
     current = store.load_current_status()
@@ -72,7 +73,9 @@ def test_record_trial_event_updates_last_progress_and_worker_log(tmp_path: Path)
 
     event_lines = (tmp_path / f"optimizer_worker_0_{status['run_id']}.jsonl").read_text(encoding="utf-8").splitlines()
     assert len(event_lines) == 1
-    assert json.loads(event_lines[0])["outcome"] == "fresh"
+    event = json.loads(event_lines[0])
+    assert event["outcome"] == "fresh"
+    assert event["metrics"]["verified_symbol"] == "EURJPY"
 
 
 def test_mark_pair_started_and_completed_update_active_pairs(tmp_path: Path) -> None:
@@ -118,3 +121,28 @@ def test_mark_worker_unhealthy_persists_reason(tmp_path: Path) -> None:
     assert current["worker_health"]["worker-0"]["status"] == "unhealthy"
     assert current["worker_health"]["worker-0"]["stale_reads"] == 3
     assert current["worker_health"]["worker-0"]["reason"] == "repeated_stale_results"
+
+
+def test_record_run_event_writes_machine_readable_jsonl(tmp_path: Path) -> None:
+    store = OptimizerRuntimeState(results_dir=tmp_path)
+    status = store.start_run(
+        args=["--parallel", "--workers", "2", "--bayesian"],
+        mode="bayesian",
+        workers=2,
+        log_file="run.log",
+        optimizer_pid=111,
+        chrome_pid=222,
+    )
+
+    store.record_run_event(
+        run_id=status["run_id"],
+        event_type="pair_completed",
+        payload={"worker_id": 1, "symbol": "EURUSD", "metrics": {"score": 1.7}},
+    )
+
+    event_lines = (tmp_path / f"optimizer_events_{status['run_id']}.jsonl").read_text(encoding="utf-8").splitlines()
+    assert len(event_lines) == 1
+    event = json.loads(event_lines[0])
+    assert event["event_type"] == "pair_completed"
+    assert event["symbol"] == "EURUSD"
+    assert event["metrics"]["score"] == 1.7

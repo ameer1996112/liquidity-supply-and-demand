@@ -249,6 +249,103 @@ export async function rejectHedgeSuggestion(suggestionId: number) {
   );
 }
 
+export interface OptimizerRunSummaryApi {
+  total_pairs: number;
+  running_pairs: number;
+  completed_pairs: number;
+  failed_pairs: number;
+  best_symbol?: string;
+  best_score?: number;
+  output_paths?: Record<string, string>;
+  error_message?: string;
+}
+
+export interface OptimizerRunApi {
+  id: string;
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled' | 'interrupted';
+  mode: string;
+  workers: number;
+  pairs: string[];
+  n_trials: number;
+  dd_limit: number;
+  dry_run: boolean;
+  created_by?: string | null;
+  summary: OptimizerRunSummaryApi;
+  started_at?: string | null;
+  finished_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface OptimizerRunResultApi {
+  symbol: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  params?: Record<string, unknown>;
+  metrics?: {
+    score?: number;
+    net_profit?: number;
+    win_rate?: number;
+    profit_factor?: number;
+    max_drawdown_pct?: number;
+    total_trades?: number;
+  };
+  error_message?: string | null;
+}
+
+export interface OptimizerRunEventApi {
+  event_type: string;
+  run_id: string;
+  worker_id?: number | null;
+  symbol?: string | null;
+  payload?: Record<string, any>;
+  created_at?: string;
+}
+
+export interface OptimizerRunCreateApi {
+  mode: string;
+  workers: number;
+  pairs: string[];
+  n_trials: number;
+  dd_limit: number;
+  dry_run: boolean;
+}
+
+export async function fetchOptimizerRuns() {
+  const response = await apiFetch<{ runs: OptimizerRunApi[] }>('/api/optimizer/runs');
+  return response.runs || [];
+}
+
+export async function fetchOptimizerRun(runId: string) {
+  return apiFetch<OptimizerRunApi>(`/api/optimizer/runs/${runId}`);
+}
+
+export async function fetchOptimizerRunResults(runId: string) {
+  const response = await apiFetch<{ results: OptimizerRunResultApi[] }>(
+    `/api/optimizer/runs/${runId}/results`
+  );
+  return response.results || [];
+}
+
+export async function fetchOptimizerRunEvents(runId: string) {
+  const response = await apiFetch<{ events: OptimizerRunEventApi[] }>(
+    `/api/optimizer/runs/${runId}/events`
+  );
+  return response.events || [];
+}
+
+export async function createOptimizerRun(payload: OptimizerRunCreateApi) {
+  return apiFetch<OptimizerRunApi>('/api/optimizer/runs', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function cancelOptimizerRun(runId: string) {
+  return apiFetch<OptimizerRunApi>(`/api/optimizer/runs/${runId}/cancel`, {
+    method: 'POST',
+  });
+}
+
 /**
  * Portfolio Control - Trailing Stops
  */

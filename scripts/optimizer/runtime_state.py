@@ -180,6 +180,12 @@ class OptimizerRuntimeState:
             status["last_progress_at"] = _iso_now()
         self._write_status(status)
 
+    def record_run_event(self, *, run_id: str, event_type: str, payload: dict[str, Any]) -> None:
+        event_path = self.results_dir / f"optimizer_events_{run_id}.jsonl"
+        event = {"ts": _iso_now(), "run_id": run_id, "event_type": event_type, **payload}
+        with event_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(event) + "\n")
+
     def append_restart_history(self, payload: dict[str, Any]) -> None:
         with self.restart_history_path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(payload) + "\n")

@@ -55,7 +55,7 @@ log = logging.getLogger(__name__)
 PARALLEL_RESULTS_FILE = RESULTS_DIR / "parallel_results.json"
 PARALLEL_LOG_FILE = RESULTS_DIR / "parallel_run.log"
 MAX_PAIR_RETRIES = 2
-WORKER_STARTUP_DELAY = 3.0  # stagger worker starts to avoid race on Chrome
+WORKER_STARTUP_DELAY = 15.0  # stagger worker starts to avoid Chrome overload on startup
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -92,6 +92,11 @@ def detect_chrome_pid() -> int | None:
         return int(output[0])
     except ValueError:
         return None
+
+
+def emit_event(event_type: str, **payload: object) -> None:
+    event = {"event_type": event_type, **payload}
+    print(json.dumps(event), flush=True)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -221,6 +226,18 @@ async def worker_task(
                         worker_id=worker_id,
                         symbol=symbol,
                     )
+                    runtime_state.record_run_event(
+                        run_id=run_id,
+                        event_type="pair_started",
+                        payload={"worker_id": worker_id, "symbol": symbol, "attempt": retries + 1},
+                    )
+                    emit_event(
+                        "pair_started",
+                        run_id=run_id,
+                        worker_id=worker_id,
+                        symbol=symbol,
+                        attempt=retries + 1,
+                    )
                 start = time.time()
                 result = await optimize_pair_on_page(
                     page,
@@ -245,6 +262,26 @@ async def worker_task(
                         worker_id=worker_id,
                         symbol=symbol,
                     )
+                    payload = {
+                        "worker_id": worker_id,
+                        "symbol": symbol,
+                        "elapsed_seconds": elapsed,
+                        "params": result.params,
+                        "metrics": {
+                            "score": result.score,
+                            "net_profit": result.net_profit,
+                            "win_rate": result.win_rate,
+                            "profit_factor": result.profit_factor,
+                            "max_drawdown_pct": result.max_drawdown_pct,
+                            "total_trades": result.total_trades,
+                        },
+                    }
+                    runtime_state.record_run_event(
+                        run_id=run_id,
+                        event_type="pair_completed",
+                        payload=payload,
+                    )
+                    emit_event("pair_completed", run_id=run_id, **payload)
                 break
             except Exception as e:
                 retries += 1
@@ -261,6 +298,18 @@ async def worker_task(
                 else:
                     log.error(f"[worker-{worker_id}] ❌ {symbol} failed after {MAX_PAIR_RETRIES} retries")
                     error_log.append({"symbol": symbol, "worker": worker_id, "error": str(e)})
+                    if runtime_state is not None and run_id is not None:
+                        payload = {
+                            "worker_id": worker_id,
+                            "symbol": symbol,
+                            "error_message": str(e),
+                        }
+                        runtime_state.record_run_event(
+                            run_id=run_id,
+                            event_type="pair_failed",
+                            payload=payload,
+                        )
+                        emit_event("pair_failed", run_id=run_id, **payload)
 
         if result is not None:
             async with results_lock:
@@ -337,6 +386,19 @@ async def run_parallel(
         chrome_pid=detect_chrome_pid(),
     )
     run_id = run_status["run_id"]
+    runtime_state.record_run_event(
+        run_id=run_id,
+        event_type="run_started",
+        payload={"mode": mode, "workers": n_workers, "pairs": remaining_pairs, "dry_run": dry_run},
+    )
+    emit_event(
+        "run_started",
+        run_id=run_id,
+        mode=mode,
+        workers=n_workers,
+        pairs=remaining_pairs,
+        dry_run=dry_run,
+    )
 
     # Build queue
     pair_queue: asyncio.Queue = asyncio.Queue()
@@ -419,6 +481,7 @@ async def run_parallel(
         run_id=run_id,
         state="failed" if error_log else "completed",
     )
+    output_paths = {"results_file": str(PARALLEL_RESULTS_FILE)}
     log.info(f"\n{'='*60}")
     log.info(f"Parallel run complete in {elapsed:.1f}s")
     log.info(f"  Completed: {len(results)} pairs")
@@ -426,7 +489,54 @@ async def run_parallel(
     if error_log:
         log.warning(f"  Failed pairs: {[e['symbol'] for e in error_log]}")
     log.info(f"  Results: {PARALLEL_RESULTS_FILE}")
+
+    # Generate HTML report from parallel results
+    if results:
+        try:
+            from .report import generate_html_report
+
+            best_per_pair: dict[str, BacktestResult] = {}
+            for symbol, data in results.items():
+                best_per_pair[symbol] = BacktestResult(
+                    symbol=symbol,
+                    params=data.get("params", {}),
+                    net_profit=data.get("net_profit", 0.0),
+                    total_trades=data.get("total_trades", 0),
+                    win_rate=data.get("win_rate", 0.0),
+                    profit_factor=data.get("profit_factor", 0.0),
+                    max_drawdown_pct=data.get("max_drawdown_pct", 0.0),
+                    score=data.get("score", 0.0),
+                    timestamp=data.get("timestamp", ""),
+                )
+            report_path = generate_html_report(
+                best_per_pair=best_per_pair,
+                all_results=list(best_per_pair.values()),
+                dd_limit=dd_limit,
+            )
+            output_paths["report_path"] = str(report_path)
+            log.info(f"  HTML Report: {report_path}")
+            import webbrowser
+            webbrowser.open(f"file://{report_path}")
+        except Exception as e:
+            log.warning(f"  Report generation failed: {e}")
+
     log.info(f"{'='*60}")
+    runtime_state.record_run_event(
+        run_id=run_id,
+        event_type="run_finished",
+        payload={
+            "status": "failed" if error_log else "completed",
+            "output_paths": output_paths,
+            "error_count": len(error_log),
+        },
+    )
+    emit_event(
+        "run_finished",
+        run_id=run_id,
+        status="failed" if error_log else "completed",
+        output_paths=output_paths,
+        error_count=len(error_log),
+    )
 
     return results
 

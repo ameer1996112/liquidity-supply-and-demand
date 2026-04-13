@@ -1,0 +1,70 @@
+{
+  "run_id": "20260413_165310_16bab4",
+  "state": "running",
+  "started_at": "2026-04-13T16:53:10.084890+03:00",
+  "last_progress_at": "2026-04-13T17:27:30.195211+03:00",
+  "stuck_threshold_seconds": 720,
+  "restart_count": 0,
+  "optimizer_pid": 42146,
+  "chrome_pid": 9709,
+  "log_file": "/Users/ameeramer/dev/projects/galilsoftware/sources/trading/scripts/optimization_results/run_20260413_165309.log",
+  "mode": "bayesian",
+  "workers": 4,
+  "args": [
+    "--parallel",
+    "--workers",
+    "4",
+    "--mode",
+    "bayesian",
+    "--trials",
+    "80"
+  ],
+  "active_pairs": {
+    "worker-0": {
+      "symbol": "EURUSD",
+      "trial": 28,
+      "last_event_at": "2026-04-13T17:26:33.606691+03:00",
+      "status": "running"
+    },
+    "worker-1": {
+      "symbol": "GBPUSD",
+      "trial": 28,
+      "last_event_at": "2026-04-13T17:27:24.926813+03:00",
+      "status": "running"
+    },
+    "worker-2": {
+      "symbol": "AUDUSD",
+      "trial": 29,
+      "last_event_at": "2026-04-13T17:27:30.195211+03:00",
+      "status": "running"
+    },
+    "worker-3": {
+      "symbol": "NZDUSD",
+      "trial": 28,
+      "last_event_at": "2026-04-13T17:27:11.252060+03:00",
+      "status": "running"
+    }
+  },
+  "worker_health": {
+    "worker-0": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "9d568bc5"
+    },
+    "worker-1": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "fe498806"
+    },
+    "worker-2": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "54591de6"
+    },
+    "worker-3": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "a614e32d"
+    }
+  }
+}

@@ -85,6 +85,39 @@ class TradingViewOptimizer:
         else:
             self.default_param_grid = PARAM_GRID_FULL
 
+    def _worker_log_tag(self) -> str:
+        """Return a stable worker label for human-readable logs."""
+        if self.worker_id is None:
+            return "worker-?"
+        return f"worker-{self.worker_id}"
+
+    def _format_trial_log_line(
+        self,
+        *,
+        symbol: str,
+        trial_num: int,
+        n_trials: int,
+        eta: str,
+        reason: str | None = None,
+        result: Optional[BacktestResult] = None,
+    ) -> str:
+        """Build one atomic log line per trial so parallel workers do not interleave."""
+        prefix = (
+            f"  [{self._worker_log_tag()}][{symbol}] "
+            f"Trial {trial_num:>3}/{n_trials}  ETA={eta}"
+        )
+        if result is None:
+            detail = f"-> SKIP ({reason or 'unknown'})"
+            return f"{prefix}  {detail}"
+
+        pf = f"PF={result.profit_factor:.2f}" if result.profit_factor else "PF=N/A"
+        dd = f"DD={result.max_drawdown_pct:.1f}%"
+        compliant = "✅" if result.is_prop_firm_compliant() else "❌"
+        return (
+            f"{prefix}  {pf}  {dd}  T={result.total_trades}  "
+            f"S={result.score:.2f}  {compliant}"
+        )
+
     # ─────────────────────────────────── param helpers ───────────────────────
 
     def get_param_grid(self, symbol: str) -> dict:
@@ -257,7 +290,9 @@ class TradingViewOptimizer:
         start = time.time()
 
         # ── Always set backtest range (even if symbol didn't change) ───────────
-        await worker._set_backtest_range("Last 365 days")
+        range_ok = await worker._set_backtest_range("Last 365 days")
+        if not range_ok:
+            print(f"[{symbol}] WARNING: could not confirm backtest range is Last 365 days.")
 
         # ── Reset risk to 0.5% before every pair ───────────────────────────────
         # Ensures TradingView isn't left at a different risk from a previous run.
@@ -270,9 +305,27 @@ class TradingViewOptimizer:
                 f"({baseline_outcome.reason}); continuing with trial validation."
             )
 
+        consecutive_failures = 0
+        _MAX_CONSECUTIVE_FAILURES = 3
+
         for trial_num in range(1, n_trials + 1):
             if trial_num == 26:
                 print(f"\n[{symbol}] ── Phase 2: Bayesian focus ──\n")
+
+            # Recovery: if TradingView stopped responding, reload the tab and
+            # re-bind the expected symbol/range before continuing.
+            if consecutive_failures >= _MAX_CONSECUTIVE_FAILURES:
+                print(
+                    f"[{symbol}] ⚠️  {consecutive_failures} consecutive failed trials — reloading tab"
+                )
+                try:
+                    await worker.page.reload(wait_until="domcontentloaded", timeout=30000)
+                    await asyncio.sleep(5)
+                    await worker._switch_symbol(symbol)
+                    await worker._set_backtest_range("Last 365 days")
+                except Exception as e:
+                    print(f"[{symbol}] Tab reload failed: {e}")
+                consecutive_failures = 0
 
             trial = study.ask()
             params = worker.sample_params(trial, symbol, self.fixed_overrides)
@@ -281,11 +334,6 @@ class TradingViewOptimizer:
             avg_secs = elapsed / trial_num if trial_num > 1 else 0
             remaining = (n_trials - trial_num) * avg_secs
             eta = f"{int(remaining // 60)}m{int(remaining % 60)}s" if remaining else "?"
-
-            print(
-                f"  [{symbol}] Trial {trial_num:>3}/{n_trials}  ETA={eta}",
-                end="", flush=True,
-            )
 
             # Hard per-trial timeout — prevents a frozen Playwright call from
             # deadlocking the entire run (as seen with CADJPY trial 22).
@@ -304,7 +352,16 @@ class TradingViewOptimizer:
                     hash_before="",
                     hash_after="",
                 )
-                print(f"  -> SKIP (trial hard-timeout {_TRIAL_HARD_TIMEOUT}s)")
+                print(
+                    self._format_trial_log_line(
+                        symbol=symbol,
+                        trial_num=trial_num,
+                        n_trials=n_trials,
+                        eta=eta,
+                        reason=f"trial hard-timeout {_TRIAL_HARD_TIMEOUT}s",
+                    )
+                )
+                consecutive_failures += 1
                 study.tell(trial, state=optuna.trial.TrialState.FAIL)
                 continue
 
@@ -333,8 +390,15 @@ class TradingViewOptimizer:
                         reason=apply_outcome.reason,
                     )
                 print(
-                    f"  -> SKIP ({apply_outcome.reason or 'stale apply outcome'})"
+                    self._format_trial_log_line(
+                        symbol=symbol,
+                        trial_num=trial_num,
+                        n_trials=n_trials,
+                        eta=eta,
+                        reason=apply_outcome.reason or "stale apply outcome",
+                    )
                 )
+                consecutive_failures += 1
                 study.tell(trial, state=optuna.trial.TrialState.FAIL)
                 continue
 
@@ -351,7 +415,16 @@ class TradingViewOptimizer:
                     hash_before=apply_outcome.results_hash_before,
                     hash_after=apply_outcome.results_hash_after,
                 )
-                print(f"  -> SKIP (symbol mismatch: {e})")
+                print(
+                    self._format_trial_log_line(
+                        symbol=symbol,
+                        trial_num=trial_num,
+                        n_trials=n_trials,
+                        eta=eta,
+                        reason=f"symbol mismatch: {e}",
+                    )
+                )
+                consecutive_failures += 1
                 study.tell(trial, state=optuna.trial.TrialState.FAIL)
                 continue
             except asyncio.TimeoutError:
@@ -363,9 +436,19 @@ class TradingViewOptimizer:
                     hash_before=apply_outcome.results_hash_before,
                     hash_after=apply_outcome.results_hash_after,
                 )
-                print(f"  -> SKIP (read_results hard-timeout {_TRIAL_HARD_TIMEOUT}s)")
+                print(
+                    self._format_trial_log_line(
+                        symbol=symbol,
+                        trial_num=trial_num,
+                        n_trials=n_trials,
+                        eta=eta,
+                        reason=f"read_results hard-timeout {_TRIAL_HARD_TIMEOUT}s",
+                    )
+                )
+                consecutive_failures += 1
                 study.tell(trial, state=optuna.trial.TrialState.FAIL)
                 continue
+            consecutive_failures = 0
             worker.results.append(result)
             study.tell(trial, result.score)
             self._record_trial_event(
@@ -378,11 +461,15 @@ class TradingViewOptimizer:
                 result=result,
             )
 
-            # Inline metrics
-            pf = f"PF={result.profit_factor:.2f}" if result.profit_factor else "PF=N/A"
-            dd = f"DD={result.max_drawdown_pct:.1f}%"
-            compliant = "✅" if result.is_prop_firm_compliant() else "❌"
-            print(f"  {pf}  {dd}  T={result.total_trades}  S={result.score:.2f}  {compliant}")
+            print(
+                self._format_trial_log_line(
+                    symbol=symbol,
+                    trial_num=trial_num,
+                    n_trials=n_trials,
+                    eta=eta,
+                    result=result,
+                )
+            )
 
             # Track best overall (highest raw score)
             if best is None or result.score > best.score:
@@ -392,9 +479,9 @@ class TradingViewOptimizer:
                 if not best_compliant:
                     worker.best_result = result
                 print(
-                    f"  [{symbol}] ★ NEW BEST  Score={result.score:.2f}  "
-                    f"PF={result.profit_factor:.2f}  DD={result.max_drawdown_pct:.1f}%  "
-                    f"T={result.total_trades}"
+                f"  [{symbol}] ★ NEW BEST  Score={result.score:.2f}  "
+                f"PF={result.profit_factor:.2f}  DD={result.max_drawdown_pct:.1f}%  "
+                f"T={result.total_trades}  via {self._worker_log_tag()}"
                 )
 
             # Track best compliant (highest score that passes DD limit)
@@ -406,7 +493,7 @@ class TradingViewOptimizer:
                 print(
                     f"  [{symbol}] ✅ NEW BEST COMPLIANT  Score={result.score:.2f}  "
                     f"PF={result.profit_factor:.2f}  DD={result.max_drawdown_pct:.1f}%  "
-                    f"T={result.total_trades}"
+                    f"T={result.total_trades}  via {self._worker_log_tag()}"
                 )
 
         elapsed = time.time() - start
@@ -455,6 +542,7 @@ class TradingViewOptimizer:
         metrics = None
         if result is not None:
             metrics = {
+                "verified_symbol": result.verified_symbol,
                 "profit_factor": result.profit_factor,
                 "max_drawdown_pct": result.max_drawdown_pct,
                 "total_trades": result.total_trades,

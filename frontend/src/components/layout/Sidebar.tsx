@@ -20,6 +20,7 @@ import {
   Trophy,
   FlaskConical,
   Zap,
+  PlaySquare,
   EyeOff,
   AlertTriangle,
   X,
@@ -317,6 +318,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: 'Analytics', icon: BarChart3, path: '/analytics' },
       { label: 'Backtest', icon: LineChart, path: '/backtest' },
+      { label: 'Optimizer', icon: PlaySquare, path: '/optimizer' },
     ],
   },
   {

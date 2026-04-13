@@ -45,6 +45,15 @@ class DummyPage:
         raise AssertionError("metrics should not be read when the symbol mismatches")
 
 
+class MetricsPage(DummyPage):
+    def __init__(self, title: str = "EURJPY 5 Vantage", metrics: dict | None = None) -> None:
+        super().__init__(title=title)
+        self._metrics = metrics or {}
+
+    async def evaluate(self, script: str):
+        return self._metrics
+
+
 def test_apply_params_rejects_unchanged_final_results_hash(monkeypatch) -> None:
     page = DummyPage()
     worker = TabWorker(page, DummyOptimizer())
@@ -86,6 +95,112 @@ def test_read_results_rejects_symbol_mismatch_before_collecting_metrics() -> Non
         asyncio.run(worker._read_results("EURJPY", {}))
 
     assert page.evaluate_called is False
+
+
+def test_read_results_records_verified_symbol() -> None:
+    page = MetricsPage(
+        title="USDCAD 5 Vantage",
+        metrics={
+            "Total P&L": "$1200",
+            "Total trades": "42",
+            "Profitable trades": "55%",
+            "Profit factor": "1.31",
+            "Max equity drawdown": "$500|5.5%",
+        },
+    )
+    worker = TabWorker(page, DummyOptimizer())
+
+    result = asyncio.run(worker._read_results("USDCAD", {}))
+
+    assert result.symbol == "USDCAD"
+    assert result.verified_symbol == "USDCAD"
+
+
+def test_format_trial_log_line_is_atomic_and_worker_scoped() -> None:
+    optimizer = TradingViewOptimizer(
+        pairs=["USDCAD"],
+        bayesian_mode=True,
+        n_trials=2,
+        generate_report=False,
+    )
+    optimizer.worker_id = 4
+    result = BacktestResult(
+        symbol="USDCAD",
+        verified_symbol="USDCAD",
+        params={},
+        profit_factor=1.12,
+        max_drawdown_pct=9.8,
+        total_trades=211,
+        net_profit=1000,
+        max_drawdown=900,
+        score=16.42,
+    )
+
+    line = optimizer._format_trial_log_line(
+        symbol="USDCAD",
+        trial_num=7,
+        n_trials=150,
+        eta="52m1s",
+        result=result,
+    )
+
+    assert "[worker-4][USDCAD]" in line
+    assert "Trial   7/150" in line
+    assert "PF=1.12" in line
+    assert "DD=9.8%" in line
+    assert "S=16.42" in line
+
+
+def test_range_matches_label_uses_actual_day_span() -> None:
+    assert TabWorker._range_matches_label(
+        "Apr 13, 2025 — Apr 13, 2026Apr 13, 2025 — Apr 13, 2026",
+        "Last 365 days",
+    )
+    assert not TabWorker._range_matches_label(
+        "Jan 5, 2026 — Apr 13, 2026Jan 5, 2026 — Apr 13, 2026",
+        "Last 365 days",
+    )
+
+
+def test_set_backtest_range_clicks_menu_when_current_span_is_wrong(monkeypatch) -> None:
+    worker = TabWorker(DummyPage(), DummyOptimizer())
+    events: list[object] = []
+    texts = iter(
+        [
+            "Jan 5, 2026 — Apr 13, 2026Jan 5, 2026 — Apr 13, 2026",
+            "Apr 13, 2025 — Apr 13, 2026Apr 13, 2025 — Apr 13, 2026",
+        ]
+    )
+
+    async def fake_ensure_strategy_tester_open() -> None:
+        events.append("ensure-open")
+
+    async def fake_read_text() -> str:
+        return next(texts)
+
+    async def fake_select(range_label: str) -> bool:
+        events.append(("select", range_label))
+        return True
+
+    async def fake_wait_for_update_complete() -> bool:
+        events.append("wait-update")
+        return True
+
+    async def fake_wait_for_load(timeout: int = 30) -> None:
+        events.append(("wait-load", timeout))
+
+    monkeypatch.setattr(worker, "_ensure_strategy_tester_open", fake_ensure_strategy_tester_open)
+    monkeypatch.setattr(worker, "_read_backtest_range_button_text", fake_read_text)
+    monkeypatch.setattr(worker, "_select_backtest_range_preset", fake_select)
+    monkeypatch.setattr(worker, "_wait_for_update_complete", fake_wait_for_update_complete)
+    monkeypatch.setattr(worker, "_wait_for_load", fake_wait_for_load)
+
+    result = asyncio.run(worker._set_backtest_range("Last 365 days"))
+
+    assert result is True
+    assert events[0] == "ensure-open"
+    assert ("select", "Last 365 days") in events
+    assert "wait-update" in events
 
 
 def test_bayesian_optimizer_uses_only_fresh_results_for_study_and_best_tracking(
@@ -169,3 +284,86 @@ def test_bayesian_optimizer_uses_only_fresh_results_for_study_and_best_tracking(
     assert study_calls[0][2] == "FAIL"
     assert study_calls[1][1] == pytest.approx(15.0)
     assert optimizer.best_per_pair == {}
+
+
+def test_bayesian_optimizer_reloads_after_repeated_read_timeouts(monkeypatch) -> None:
+    class FakeTrial:
+        pass
+
+    class FakeStudy:
+        def ask(self) -> FakeTrial:
+            return FakeTrial()
+
+        def tell(self, trial, value=None, state=None):
+            pass
+
+    fake_optuna = SimpleNamespace(
+        logging=SimpleNamespace(WARNING=30, set_verbosity=lambda level: None),
+        create_study=lambda **kwargs: FakeStudy(),
+        samplers=SimpleNamespace(TPESampler=lambda **kwargs: object()),
+        trial=SimpleNamespace(TrialState=SimpleNamespace(FAIL="FAIL")),
+    )
+    monkeypatch.setitem(sys.modules, "optuna", fake_optuna)
+
+    async def no_sleep(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr(asyncio, "sleep", no_sleep)
+
+    class ReloadablePage:
+        def __init__(self) -> None:
+            self.reload_calls = 0
+
+        async def reload(self, **kwargs) -> None:
+            self.reload_calls += 1
+
+    class FakeWorker:
+        def __init__(self) -> None:
+            self.page = ReloadablePage()
+            self.results: list[BacktestResult] = []
+            self.best_result = None
+            self._read_attempts = 0
+            self.recovery_calls: list[tuple[str, str]] = []
+
+        async def _switch_symbol(self, symbol: str) -> None:
+            self.recovery_calls.append(("switch", symbol))
+
+        async def _set_backtest_range(self, range_label: str) -> bool:
+            self.recovery_calls.append(("range", range_label))
+            return True
+
+        async def _apply_params(self, params: dict) -> ApplyOutcome:
+            return ApplyOutcome(ok=True, fresh=True, reason="fresh")
+
+        def sample_params(self, trial, symbol: str, fixed_overrides: dict) -> dict:
+            return {"trial": self._read_attempts + 1}
+
+        async def _read_results(self, symbol: str, params: dict) -> BacktestResult:
+            self._read_attempts += 1
+            if self._read_attempts <= 3:
+                raise asyncio.TimeoutError
+            return BacktestResult(
+                symbol=symbol,
+                verified_symbol=symbol,
+                params=params,
+                profit_factor=1.18,
+                total_trades=250,
+                max_drawdown_pct=8.2,
+                win_rate=58.0,
+                score=15.0,
+            )
+
+    optimizer = TradingViewOptimizer(
+        pairs=["EURJPY"],
+        bayesian_mode=True,
+        n_trials=4,
+        generate_report=False,
+    )
+    worker = FakeWorker()
+
+    result = asyncio.run(optimizer.optimize_pair_bayesian(worker, "EURJPY", 4))
+
+    assert result is not None
+    assert worker.page.reload_calls == 1
+    assert ("switch", "EURJPY") in worker.recovery_calls
+    assert ("range", "Last 365 days") in worker.recovery_calls

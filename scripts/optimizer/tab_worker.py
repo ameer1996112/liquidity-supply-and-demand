@@ -16,6 +16,7 @@ import asyncio
 import hashlib
 import time
 import logging
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, TYPE_CHECKING
@@ -31,7 +32,7 @@ log = logging.getLogger(__name__)
 
 _MAX_RETRIES = 3
 _RETRY_SLEEP = 2.0          # seconds between retry attempts
-_UPDATE_APPEAR_TIMEOUT = 4  # seconds to wait for "Updating report" to appear
+_UPDATE_APPEAR_TIMEOUT = 20  # seconds to wait for "Updating report" to appear (needs headroom for parallel workers)
 _UPDATE_FINISH_TIMEOUT = 150 # seconds max for chart to finish recalculating
 
 _LOADING_INDICATORS = [
@@ -57,19 +58,21 @@ class ApplyOutcome:
 # ─────────────────────────────────── JS snippets ─────────────────────────────
 
 _JS_FIND_LOADING = """
-(() => {
-    const indicators = arguments[0];
-    for (const el of document.querySelectorAll('*')) {
-        const t = el.textContent?.trim();
-        if (
-            indicators.includes(t)
-            && el.offsetParent !== null
-            && el.getBoundingClientRect().height > 0
-            && el.children.length <= 2
-        ) return t;
+(indicators) => {
+    // Use TreeWalker to scan only text-bearing leaf nodes — much cheaper than querySelectorAll('*')
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
+    let node;
+    while ((node = walker.nextNode())) {
+        const t = node.textContent?.trim();
+        if (!t || !indicators.includes(t)) continue;
+        const el = node.parentElement;
+        if (!el) continue;
+        if (el.children.length > 2) continue;
+        if (el.offsetParent === null) continue;
+        return t;
     }
     return null;
-})()
+}
 """
 
 _JS_RESULTS_FINGERPRINT = """
@@ -86,6 +89,15 @@ _JS_RESULTS_FINGERPRINT = """
         }
     }
     return parts.join(';');
+})()
+"""
+
+_JS_CLICK_UPDATE_REPORT = """
+(() => {
+    for (const btn of document.querySelectorAll('button')) {
+        if (btn.textContent?.trim() === 'Update report') { btn.click(); return true; }
+    }
+    return false;
 })()
 """
 
@@ -379,6 +391,121 @@ class TabWorker:
         except Exception as e:
             log.debug("_ensure_strategy_tester_open: %s", e)
 
+    async def _read_backtest_range_button_text(self) -> str:
+        """Return the bottom Strategy Report date-span button text, if visible."""
+        try:
+            return await self.page.evaluate(
+                """
+                (() => {
+                    const visibleButtons = [...document.querySelectorAll('button, [role="button"]')]
+                        .map((el) => {
+                            const text = (el.textContent || '').trim().replace(/\\s+/g, ' ');
+                            const rect = el.getBoundingClientRect();
+                            const visible = rect.width > 0 && rect.height > 0;
+                            return { el, text, rect, visible };
+                        })
+                        .filter((item) => item.visible && item.text.includes('\\u2014'));
+
+                    if (!visibleButtons.length) {
+                        return '';
+                    }
+
+                    // Prefer the date-range control in the Strategy Report area,
+                    // which lives near the bottom of the viewport.
+                    visibleButtons.sort((a, b) => b.rect.y - a.rect.y);
+                    return visibleButtons[0].text;
+                })()
+                """
+            )
+        except Exception:
+            return ""
+
+    @staticmethod
+    def _range_matches_label(btn_text: str, range_label: str) -> bool:
+        """Return True when the Strategy Report span matches the requested preset."""
+        if not btn_text:
+            return False
+
+        normalized = " ".join(btn_text.split())
+        raw_dates = re.findall(
+            r'(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2},\s+\d{4}',
+            normalized,
+        )
+        dates: list[str] = []
+        for value in raw_dates:
+            if not dates or dates[-1] != value:
+                dates.append(value)
+
+        if len(dates) < 2:
+            return False
+
+        try:
+            start = datetime.strptime(dates[0], "%b %d, %Y")
+            end = datetime.strptime(dates[1], "%b %d, %Y")
+        except ValueError:
+            return False
+
+        delta_days = (end - start).days
+        if range_label == "Last 365 days":
+            return 330 <= delta_days <= 370
+        if range_label == "Entire history":
+            return delta_days >= 365 * 3
+        return False
+
+    async def _select_backtest_range_preset(self, range_label: str) -> bool:
+        """Open the Strategy Report range menu and click a preset item."""
+        opened = await self.page.evaluate(
+            """
+            (() => {
+                const buttons = [...document.querySelectorAll('button, [role="button"]')]
+                    .map((el) => {
+                        const text = (el.textContent || '').trim().replace(/\\s+/g, ' ');
+                        const rect = el.getBoundingClientRect();
+                        const visible = rect.width > 0 && rect.height > 0;
+                        return { el, text, rect, visible };
+                    })
+                    .filter((item) => item.visible && item.text.includes('\\u2014'));
+
+                if (!buttons.length) {
+                    return false;
+                }
+
+                buttons.sort((a, b) => b.rect.y - a.rect.y);
+                buttons[0].el.click();
+                return true;
+            })()
+            """
+        )
+        if not opened:
+            return False
+
+        await asyncio.sleep(0.4)
+
+        chosen = await self.page.evaluate(
+            """
+            (targetLabel) => {
+                const items = [...document.querySelectorAll('[role="menuitemcheckbox"], [role="menuitem"]')]
+                    .map((el) => {
+                        const text = (el.textContent || '').trim().replace(/\\s+/g, ' ');
+                        const rect = el.getBoundingClientRect();
+                        const visible = rect.width > 0 && rect.height > 0;
+                        return { el, text, visible };
+                    })
+                    .filter((item) => item.visible);
+
+                const target = items.find((item) => item.text === targetLabel);
+                if (!target) {
+                    return false;
+                }
+
+                target.el.click();
+                return true;
+            }
+            """,
+            range_label,
+        )
+        return bool(chosen)
+
     async def _set_backtest_range(self, range_label: str = "Entire history") -> bool:
         """
         Ensure the strategy tester date range covers approximately the desired period.
@@ -391,59 +518,47 @@ class TabWorker:
         Returns True (success) in all cases where the range appears correct already.
         """
         try:
-            # Read the current range button text
-            btn_text = await self.page.evaluate(
-                """
-                (() => {
-                    // Look for a button with a date-dash-date pattern in the bottom panel area
-                    for (const btn of document.querySelectorAll('button')) {
-                        const t = btn.textContent?.trim() || '';
-                        if (t.includes('\u2014') && t.match(/\\d{4}/) && t.match(/Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec/)) {
-                            return t;
-                        }
-                    }
-                    return '';
-                })()
-                """
-            )
+            await self._ensure_strategy_tester_open()
+            btn_text = await self._read_backtest_range_button_text()
 
-            if btn_text:
-                # Parse the two dates from the span text
-                # Format: "Apr 12, 2025 — Apr 12, 2026Apr 12, 2025 — Apr 12, 2026" (TV duplicates text)
-                import re
-                dates = re.findall(
-                    r'(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d+,\s+(\d{4})',
-                    btn_text
+            if self._range_matches_label(btn_text, range_label):
+                if range_label == "Last 365 days":
+                    print(f"  [backtest range ✓ already ~1 year: {btn_text[:40].strip()}]", flush=True)
+                else:
+                    print(f"  [backtest range ✓ already entire history]", flush=True)
+                return True
+
+            if not await self._select_backtest_range_preset(range_label):
+                log.warning(
+                    "_set_backtest_range: could not open preset menu for '%s' "
+                    "(button text='%s')",
+                    range_label,
+                    btn_text[:60] if btn_text else "(not found)",
                 )
-                if len(dates) >= 2:
-                    start_year = int(dates[0][1])
-                    end_year = int(dates[1][1])
-                    year_diff = end_year - start_year
+                return False
 
-                    if range_label == "Last 365 days" and year_diff == 1:
-                        print(f"  [backtest range ✓ already ~1 year: {btn_text[:40].strip()}]", flush=True)
-                        return True
-                    elif range_label == "Entire history":
-                        # If range spans many years, assume it's "entire history"
-                        if year_diff >= 3:
-                            print(f"  [backtest range ✓ already entire history]", flush=True)
-                            return True
+            await asyncio.sleep(0.4)
+            await self._wait_for_update_complete()
+            await self._wait_for_load()
 
-            # Range isn't set correctly yet or couldn't be determined.
-            # Try to open the range picker and set it.
-            # NOTE: In current TradingView, the range button click may open a date-picker
-            # rather than a preset dropdown. Log the attempt and return True to not block
-            # the optimization — the default floating range is already 1 year.
-            log.info(
-                "_set_backtest_range: range button text='%s' — "
-                "could not verify '%s', continuing with current range",
-                btn_text[:60] if btn_text else "(not found)", range_label
+            updated_text = await self._read_backtest_range_button_text()
+            if self._range_matches_label(updated_text, range_label):
+                if range_label == "Last 365 days":
+                    print(f"  [backtest range ✓ set to ~1 year: {updated_text[:40].strip()}]", flush=True)
+                else:
+                    print(f"  [backtest range ✓ set to entire history]", flush=True)
+                return True
+
+            log.warning(
+                "_set_backtest_range: attempted '%s' but final button text was '%s'",
+                range_label,
+                updated_text[:60] if updated_text else "(not found)",
             )
-            return True  # Don't block optimization over this
+            return False
 
         except Exception as e:
-            log.warning("_set_backtest_range: %s — continuing anyway", e)
-            return True  # Non-fatal
+            log.warning("_set_backtest_range: %s", e)
+            return False
 
 
 
@@ -456,23 +571,7 @@ class TabWorker:
         while time.time() - start < timeout:
             try:
                 loading = await self.page.evaluate(
-                    """
-                    (() => {
-                        const indicators = [
-                            'Updating report', 'Calculating...',
-                            'Loading...', 'Compiling...'
-                        ];
-                        for (const el of document.querySelectorAll('*')) {
-                            const t = el.textContent?.trim();
-                            if (indicators.includes(t)
-                                && el.offsetParent !== null
-                                && el.getBoundingClientRect().height > 0
-                                && el.children.length <= 2)
-                                return t;
-                        }
-                        return null;
-                    })()
-                    """
+                    _JS_FIND_LOADING, _LOADING_INDICATORS
                 )
                 if not loading:
                     await asyncio.sleep(0.5)
@@ -487,21 +586,7 @@ class TabWorker:
         """Return the loading indicator text if visible, else None."""
         try:
             return await self.page.evaluate(
-                f"""
-                (() => {{
-                    const indicators = {_LOADING_INDICATORS!r};
-                    for (const el of document.querySelectorAll('*')) {{
-                        const t = el.textContent?.trim();
-                        if (
-                            indicators.includes(t)
-                            && el.offsetParent !== null
-                            && el.getBoundingClientRect().height > 0
-                            && el.children.length <= 2
-                        ) return t;
-                    }}
-                    return null;
-                }})()
-                """
+                _JS_FIND_LOADING, _LOADING_INDICATORS
             )
         except Exception:
             return None
@@ -527,40 +612,26 @@ class TabWorker:
         deadline = time.time() + _UPDATE_APPEAR_TIMEOUT
         while time.time() < deadline:
             # TradingView sometimes stops auto-refreshing and shows this button instead
-            await self.page.evaluate(
-                """
-                (() => {
-                    const els = document.querySelectorAll('*');
-                    for (const el of els) {
-                        if (el.textContent?.trim() === 'Update report' && el.childElementCount === 0) {
-                            el.click();
-                        }
-                    }
-                })()
-                """
-            )
+            await self.page.evaluate(_JS_CLICK_UPDATE_REPORT)
 
             if await self._check_loading_text():
                 appeared = True
                 break
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.3)
 
         if not appeared:
-            # TV didn't start a loading indicator; assume instant or missed.
-            await asyncio.sleep(1.5)
-            # Try one last time in case it just appeared
-            await self.page.evaluate(
-                """
-                (() => {
-                    for (const el of document.querySelectorAll('*')) {
-                        if (el.textContent?.trim() === 'Update report' && el.childElementCount === 0) {
-                            el.click();
-                        }
-                    }
-                })()
-                """
-            )
-            return True
+            # TV didn't start a loading indicator — might be instant recalc,
+            # might be that TV hasn't started yet. Wait longer and recheck.
+            await asyncio.sleep(2.0)
+            # Click "Update report" in case TV is waiting for manual trigger
+            await self.page.evaluate(_JS_CLICK_UPDATE_REPORT)
+            # Check once more — if loading appeared after the click, fall through to Phase 2
+            if await self._check_loading_text():
+                appeared = True
+            else:
+                # Still nothing: wait an extra second for any late recalc to settle
+                await asyncio.sleep(1.0)
+                return True
 
         # Phase 2 — wait for loading to disappear
         deadline = time.time() + _UPDATE_FINISH_TIMEOUT
@@ -571,18 +642,8 @@ class TabWorker:
                 return True
             # Periodically try to click "Update report" in case TV is waiting
             if int(time.time()) % 10 == 0:
-                await self.page.evaluate(
-                    """
-                    (() => {
-                        for (const el of document.querySelectorAll('*')) {
-                            if (el.textContent?.trim() === 'Update report' && el.childElementCount === 0) {
-                                el.click();
-                            }
-                        }
-                    })()
-                    """
-                )
-            await asyncio.sleep(0.3)
+                await self.page.evaluate(_JS_CLICK_UPDATE_REPORT)
+            await asyncio.sleep(0.5)
 
         log.warning("_wait_for_update_complete: timed out after %ds — trying recovery", _UPDATE_FINISH_TIMEOUT)
         # Recovery: press Escape to dismiss any stuck dialog, then wait extra
@@ -598,11 +659,26 @@ class TabWorker:
 
     # ─────────────────────────────────── results fingerprint ─────────────────
 
+    async def _ensure_fresh_results(self) -> None:
+        """
+        If TradingView is showing an 'Update report' button, click it and wait
+        for recalculation to finish before reading results.
+        """
+        try:
+            clicked = await self.page.evaluate(_JS_CLICK_UPDATE_REPORT)
+            if clicked:
+                # Wait for the loading indicator to appear then disappear
+                await self._wait_for_update_complete()
+        except Exception:
+            pass
+
     async def _get_results_hash(self) -> str:
         """
         Return a short hash of the current strategy-tester result cells.
         Used to detect whether TradingView has recalculated after a param change.
+        Clicks 'Update report' first if the tab is showing a stale report.
         """
+        await self._ensure_fresh_results()
         try:
             fingerprint: str = await self.page.evaluate(_JS_RESULTS_FINGERPRINT)
             return hashlib.md5(fingerprint.encode()).hexdigest()[:8]
@@ -624,30 +700,50 @@ class TabWorker:
         if is_open:
             return True
 
+        # Click strategy name to reveal action buttons, then click Settings gear.
+        # Must use page.mouse.click() with real pixel coords — JS btn.click() is
+        # ignored by TradingView's React event handlers for these buttons.
         el = await page_query_snd(self.page)
+        if el:
+            box = await el.bounding_box()
+            if box:
+                await self.page.mouse.click(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
+                await asyncio.sleep(0.4)
+
+                # Find the Settings button pixel coordinates
+                settings_coords = await self.page.evaluate(
+                    """
+                    (() => {
+                        for (const btn of document.querySelectorAll('[title="Settings"]')) {
+                            const box = btn.getBoundingClientRect();
+                            if (btn.offsetParent !== null && box.width > 0)
+                                return {x: box.x + box.width / 2, y: box.y + box.height / 2};
+                        }
+                        return null;
+                    })()
+                    """
+                )
+                if settings_coords:
+                    await self.page.mouse.click(settings_coords['x'], settings_coords['y'])
+                    await asyncio.sleep(1.5)
+                    is_open = await self.page.evaluate(
+                        """
+                        (() => {
+                            const d = document.querySelector('[class*="dialog-"][class*="rounded"]');
+                            return d && d.offsetParent !== null;
+                        })()
+                        """
+                    )
+                    if is_open:
+                        return True
+
+        # Fallback: try dblclick via Playwright (works when page has focus)
         if el:
             await el.dblclick()
             await asyncio.sleep(1.5)
             return True
 
-        # Fallback
-        await self.page.evaluate(
-            """
-            (() => {
-                const divs = document.querySelectorAll('div');
-                for (const d of divs) {
-                    if (d.textContent?.trim() === 'S&D Algo [Pro]'
-                        && d.children.length <= 2
-                        && d.getBoundingClientRect().width < 300) {
-                        d.dispatchEvent(new MouseEvent('dblclick', {bubbles: true}));
-                        return;
-                    }
-                }
-            })()
-            """
-        )
-        await asyncio.sleep(1.5)
-        return True
+        return False
 
     async def _set_input(self, index: int, value) -> bool:
         """Set input by index using Playwright fill()."""
@@ -766,10 +862,15 @@ class TabWorker:
             timed_out = await self.page.evaluate(
                 """
                 (() => {
-                    const all = document.querySelectorAll('*');
-                    for (const el of all) {
-                        if (el.childElementCount === 0 &&
-                            el.textContent?.includes('timed out')) return true;
+                    const walker = document.createTreeWalker(
+                        document.body, NodeFilter.SHOW_TEXT, null
+                    );
+                    let node;
+                    while ((node = walker.nextNode())) {
+                        if (node.textContent?.includes('timed out')) {
+                            const el = node.parentElement;
+                            if (el && el.childElementCount === 0) return true;
+                        }
                     }
                     return false;
                 })()
@@ -1075,7 +1176,8 @@ class TabWorker:
                 if hash_before and hash_after and hash_before == hash_after:
                     log.warning(
                         "_apply_params attempt %d: results hash unchanged "
-                        "(possible stale read or param rejected)", attempt
+                        "(hash_before=%s hash_after=%s — possible stale read or param rejected)",
+                        attempt, hash_before, hash_after,
                     )
                     if attempt < _MAX_RETRIES:
                         await asyncio.sleep(_RETRY_SLEEP)
@@ -1228,10 +1330,11 @@ class TabWorker:
 
     async def _read_results(self, symbol: str, params: dict) -> BacktestResult:
         """Read strategy tester metrics from this tab."""
-        await self._verify_symbol(symbol)
+        observed_symbol = await self._verify_symbol(symbol)
         result = BacktestResult(
             symbol=symbol,
             params=params.copy(),
+            verified_symbol=observed_symbol,
             timestamp=datetime.now().isoformat(),
         )
         try:
