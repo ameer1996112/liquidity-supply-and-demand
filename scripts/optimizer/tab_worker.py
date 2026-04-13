@@ -16,6 +16,7 @@ import asyncio
 import hashlib
 import time
 import logging
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, TYPE_CHECKING
 
@@ -36,6 +37,21 @@ _UPDATE_FINISH_TIMEOUT = 150 # seconds max for chart to finish recalculating
 _LOADING_INDICATORS = [
     "Updating report", "Calculating...", "Loading...", "Compiling..."
 ]
+
+
+@dataclass(slots=True)
+class ApplyOutcome:
+    """Structured outcome for a TradingView param application."""
+
+    ok: bool
+    fresh: bool
+    reason: str = ""
+    attempt: int = 0
+    results_hash_before: str = ""
+    results_hash_after: str = ""
+
+    def __bool__(self) -> bool:
+        return self.ok
 
 
 # ─────────────────────────────────── JS snippets ─────────────────────────────
@@ -190,6 +206,48 @@ class TabWorker:
             params["trading_end_hour"] = valid_ends[0] if valid_ends else 24
 
         return params
+
+    @staticmethod
+    def _normalize_symbol(symbol: str) -> str:
+        """Collapse chart/title symbols into a comparable uppercase token."""
+        return symbol.split(":")[-1].upper().strip()
+
+    async def _current_symbol(self) -> str:
+        """Return the symbol TradingView currently shows for this tab."""
+        try:
+            title = await self.page.title()
+        except Exception:
+            title = ""
+
+        if title:
+            token = title.split(" ")[0].split(":")[-1].upper().strip()
+            if token:
+                return token
+
+        try:
+            current_url = self.page.url
+        except Exception:
+            current_url = ""
+
+        if "symbol=" in current_url:
+            token = current_url.split("symbol=")[-1].split("&")[0]
+            token = token.split("%3A")[-1].split(":")[-1].upper().strip()
+            if token:
+                return token
+
+        return ""
+
+    async def _verify_symbol(self, expected_symbol: str) -> str:
+        """Fail closed if the tab is not on the requested symbol."""
+        expected = self._normalize_symbol(expected_symbol)
+        observed = await self._current_symbol()
+        if not observed:
+            raise RuntimeError(f"Could not verify TradingView symbol for {expected}")
+        if observed != expected:
+            raise RuntimeError(
+                f"Symbol mismatch: expected {expected}, observed {observed}"
+            )
+        return observed
 
 
     # ─────────────────────────────────── navigation ──────────────────────────
@@ -921,7 +979,7 @@ class TabWorker:
 
     # ─────────────────────────────────── apply params (with retry) ───────────
 
-    async def _apply_params(self, params: dict) -> bool:
+    async def _apply_params(self, params: dict) -> ApplyOutcome:
         """
         Open dialog, set all params, click Ok, wait for full recalc cycle.
 
@@ -933,6 +991,8 @@ class TabWorker:
           5. Verify results hash changed (stale detection).
         """
         for attempt in range(1, _MAX_RETRIES + 1):
+            hash_before = ""
+            hash_after = ""
             try:
                 # Snapshot hash BEFORE
                 hash_before = await self._get_results_hash()
@@ -996,6 +1056,22 @@ class TabWorker:
 
                 # ── Stale result detection ─────────────────────────────────
                 hash_after = await self._get_results_hash()
+                if not hash_after:
+                    log.warning(
+                        "_apply_params attempt %d: could not read results hash",
+                        attempt,
+                    )
+                    if attempt < _MAX_RETRIES:
+                        await asyncio.sleep(_RETRY_SLEEP)
+                        continue
+                    return ApplyOutcome(
+                        ok=False,
+                        fresh=False,
+                        reason="missing_results_hash",
+                        attempt=attempt,
+                        results_hash_before=hash_before,
+                        results_hash_after=hash_after,
+                    )
                 if hash_before and hash_after and hash_before == hash_after:
                     log.warning(
                         "_apply_params attempt %d: results hash unchanged "
@@ -1005,7 +1081,23 @@ class TabWorker:
                         await asyncio.sleep(_RETRY_SLEEP)
                         continue
 
-                return True
+                    return ApplyOutcome(
+                        ok=False,
+                        fresh=False,
+                        reason="stale_result_hash",
+                        attempt=attempt,
+                        results_hash_before=hash_before,
+                        results_hash_after=hash_after,
+                    )
+
+                return ApplyOutcome(
+                    ok=True,
+                    fresh=True,
+                    reason="fresh_result",
+                    attempt=attempt,
+                    results_hash_before=hash_before,
+                    results_hash_after=hash_after,
+                )
 
             except Exception as e:
                 log.warning(
@@ -1015,8 +1107,22 @@ class TabWorker:
                     await asyncio.sleep(_RETRY_SLEEP)
                 else:
                     log.warning("_apply_params: all retries exhausted, skipping combo")
-                    return False
-        return False
+                    return ApplyOutcome(
+                        ok=False,
+                        fresh=False,
+                        reason="apply_failed",
+                        attempt=attempt,
+                        results_hash_before=hash_before,
+                        results_hash_after=hash_after,
+                    )
+        return ApplyOutcome(
+            ok=False,
+            fresh=False,
+            reason="apply_failed",
+            attempt=_MAX_RETRIES,
+            results_hash_before="",
+            results_hash_after="",
+        )
 
     async def _apply_and_test(
         self, param_name: str, value, param_type: str, symbol: str
@@ -1054,7 +1160,7 @@ class TabWorker:
                 await self._wait_dialog_close()
 
                 # Full update cycle
-                await self._wait_for_update_complete()
+                completed = await self._wait_for_update_complete()
 
                 # Stale check
                 hash_after = await self._get_results_hash()
@@ -1063,8 +1169,44 @@ class TabWorker:
                         "_apply_and_test: stale result after %s=%s (attempt %d)",
                         param_name, value, attempt
                     )
+                    if attempt < _MAX_RETRIES:
+                        await asyncio.sleep(_RETRY_SLEEP)
+                        continue
+                    return BacktestResult(
+                        symbol=symbol,
+                        params={param_name: value},
+                        timestamp=datetime.now().isoformat(),
+                    )
 
-                return await self._read_results(symbol, {param_name: value})
+                if not completed:
+                    log.warning(
+                        "_apply_and_test: update did not complete for %s=%s",
+                        param_name, value,
+                    )
+                    if attempt < _MAX_RETRIES:
+                        await asyncio.sleep(_RETRY_SLEEP)
+                        continue
+                    return BacktestResult(
+                        symbol=symbol,
+                        params={param_name: value},
+                        timestamp=datetime.now().isoformat(),
+                    )
+
+                try:
+                    return await self._read_results(symbol, {param_name: value})
+                except RuntimeError as e:
+                    log.warning(
+                        "_apply_and_test: symbol verification failed for %s=%s: %s",
+                        param_name, value, e,
+                    )
+                    if attempt < _MAX_RETRIES:
+                        await asyncio.sleep(_RETRY_SLEEP)
+                        continue
+                    return BacktestResult(
+                        symbol=symbol,
+                        params={param_name: value},
+                        timestamp=datetime.now().isoformat(),
+                    )
 
             except Exception as e:
                 log.warning(
@@ -1086,6 +1228,7 @@ class TabWorker:
 
     async def _read_results(self, symbol: str, params: dict) -> BacktestResult:
         """Read strategy tester metrics from this tab."""
+        await self._verify_symbol(symbol)
         result = BacktestResult(
             symbol=symbol,
             params=params.copy(),
@@ -1156,9 +1299,9 @@ class TabWorker:
             )
             print(f"  {tag} [{idx}/{total}] {param_str}", end="", flush=True)
 
-            success = await self._apply_params(params)
-            if not success:
-                print(" -> SKIP")
+            apply_outcome = await self._apply_params(params)
+            if not apply_outcome.fresh:
+                print(f" -> SKIP ({apply_outcome.reason or 'stale apply outcome'})")
                 continue
 
             result = await self._read_results(symbol, params)

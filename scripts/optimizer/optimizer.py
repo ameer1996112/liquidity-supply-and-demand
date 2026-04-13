@@ -11,6 +11,7 @@ Modes:
 
 import asyncio
 import csv
+import hashlib
 import json
 import sys
 import time
@@ -72,6 +73,9 @@ class TradingViewOptimizer:
         self.page: Optional[Page] = None
         self.browser: Optional[Browser] = None
         self.tv_pages: list[Page] = []
+        self.runtime_state = None
+        self.run_id: Optional[str] = None
+        self.worker_id: Optional[int] = None
 
         # Select parameter grid based on mode (legacy grid/smart modes)
         if param_grid:
@@ -259,7 +263,12 @@ class TradingViewOptimizer:
         # Ensures TradingView isn't left at a different risk from a previous run.
         # 0.5% is the baseline for optimization (1% interacts badly with the
         # 4% daily loss limit, killing good trades and destroying backtest PF).
-        await worker._apply_params({"risk_per_trade_pct": 0.5})
+        baseline_outcome = await worker._apply_params({"risk_per_trade_pct": 0.5})
+        if not baseline_outcome.fresh:
+            print(
+                f"[{symbol}] WARNING: baseline risk reset was not fresh "
+                f"({baseline_outcome.reason}); continuing with trial validation."
+            )
 
         for trial_num in range(1, n_trials + 1):
             if trial_num == 26:
@@ -283,29 +292,91 @@ class TradingViewOptimizer:
             _TRIAL_HARD_TIMEOUT = 360  # 6 minutes max per trial (150s update × 2 retries + buffer)
 
             try:
-                success = await asyncio.wait_for(
+                apply_outcome = await asyncio.wait_for(
                     worker._apply_params(params), timeout=_TRIAL_HARD_TIMEOUT
                 )
             except asyncio.TimeoutError:
+                self._record_trial_event(
+                    symbol=symbol,
+                    trial_num=trial_num,
+                    params=params,
+                    outcome="timed_out",
+                    hash_before="",
+                    hash_after="",
+                )
                 print(f"  -> SKIP (trial hard-timeout {_TRIAL_HARD_TIMEOUT}s)")
-                study.tell(trial, 0.0)
+                study.tell(trial, state=optuna.trial.TrialState.FAIL)
                 continue
 
-            if not success:
-                study.tell(trial, 0.0)
-                print("  -> SKIP (apply failed)")
+            if not apply_outcome.fresh:
+                self._record_trial_event(
+                    symbol=symbol,
+                    trial_num=trial_num,
+                    params=params,
+                    outcome=(
+                        "stale" if apply_outcome.reason == "stale_result_hash"
+                        else apply_outcome.reason or "apply_failed"
+                    ),
+                    hash_before=apply_outcome.results_hash_before,
+                    hash_after=apply_outcome.results_hash_after,
+                )
+                if (
+                    self.runtime_state is not None
+                    and self.run_id is not None
+                    and self.worker_id is not None
+                    and apply_outcome.reason == "stale_result_hash"
+                ):
+                    self.runtime_state.mark_worker_unhealthy(
+                        run_id=self.run_id,
+                        worker_id=self.worker_id,
+                        stale_reads=apply_outcome.attempt,
+                        reason=apply_outcome.reason,
+                    )
+                print(
+                    f"  -> SKIP ({apply_outcome.reason or 'stale apply outcome'})"
+                )
+                study.tell(trial, state=optuna.trial.TrialState.FAIL)
                 continue
 
             try:
                 result = await asyncio.wait_for(
                     worker._read_results(symbol, params), timeout=_TRIAL_HARD_TIMEOUT
                 )
+            except RuntimeError as e:
+                self._record_trial_event(
+                    symbol=symbol,
+                    trial_num=trial_num,
+                    params=params,
+                    outcome="symbol_mismatch",
+                    hash_before=apply_outcome.results_hash_before,
+                    hash_after=apply_outcome.results_hash_after,
+                )
+                print(f"  -> SKIP (symbol mismatch: {e})")
+                study.tell(trial, state=optuna.trial.TrialState.FAIL)
+                continue
             except asyncio.TimeoutError:
+                self._record_trial_event(
+                    symbol=symbol,
+                    trial_num=trial_num,
+                    params=params,
+                    outcome="timed_out",
+                    hash_before=apply_outcome.results_hash_before,
+                    hash_after=apply_outcome.results_hash_after,
+                )
                 print(f"  -> SKIP (read_results hard-timeout {_TRIAL_HARD_TIMEOUT}s)")
-                study.tell(trial, 0.0)
+                study.tell(trial, state=optuna.trial.TrialState.FAIL)
                 continue
             worker.results.append(result)
             study.tell(trial, result.score)
+            self._record_trial_event(
+                symbol=symbol,
+                trial_num=trial_num,
+                params=params,
+                outcome="fresh",
+                hash_before=apply_outcome.results_hash_before,
+                hash_after=apply_outcome.results_hash_after,
+                result=result,
+            )
 
             # Inline metrics
             pf = f"PF={result.profit_factor:.2f}" if result.profit_factor else "PF=N/A"
@@ -363,6 +434,43 @@ class TradingViewOptimizer:
             _print_pair_summary_table(final)
 
         return final
+
+    def _record_trial_event(
+        self,
+        *,
+        symbol: str,
+        trial_num: int,
+        params: dict,
+        outcome: str,
+        hash_before: str,
+        hash_after: str,
+        result: Optional[BacktestResult] = None,
+    ) -> None:
+        if self.runtime_state is None or self.run_id is None or self.worker_id is None:
+            return
+
+        params_hash = hashlib.md5(
+            json.dumps(params, sort_keys=True).encode("utf-8")
+        ).hexdigest()[:8]
+        metrics = None
+        if result is not None:
+            metrics = {
+                "profit_factor": result.profit_factor,
+                "max_drawdown_pct": result.max_drawdown_pct,
+                "total_trades": result.total_trades,
+                "score": result.score,
+            }
+        self.runtime_state.record_trial_event(
+            run_id=self.run_id,
+            worker_id=self.worker_id,
+            symbol=symbol,
+            trial=trial_num,
+            outcome=outcome,
+            params_hash=params_hash,
+            results_hash_before=hash_before,
+            results_hash_after=hash_after,
+            metrics=metrics,
+        )
 
     # ─────────────────────────────────── main run loop ───────────────────────
 

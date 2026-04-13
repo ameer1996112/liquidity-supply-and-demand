@@ -25,6 +25,8 @@ Each worker:
 import asyncio
 import json
 import logging
+import os
+import subprocess
 import sys
 import time
 from datetime import datetime
@@ -40,6 +42,7 @@ from .config import (
     LIQ_DISTANCE_RANGES,
 )
 from .models import BacktestResult
+from .runtime_state import OptimizerRuntimeState
 
 try:
     from playwright.async_api import async_playwright, Page, Browser, BrowserContext
@@ -70,6 +73,25 @@ def setup_logging() -> None:
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         handlers=handlers,
     )
+
+
+def detect_chrome_pid() -> int | None:
+    """Return the first PID listening on Chrome's CDP port, if any."""
+    try:
+        output = (
+            subprocess.check_output(["lsof", "-ti", ":9222"], text=True)
+            .strip()
+            .splitlines()
+        )
+    except Exception:
+        return None
+
+    if not output:
+        return None
+    try:
+        return int(output[0])
+    except ValueError:
+        return None
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -107,12 +129,15 @@ async def find_element_resilient(page: Page, strategies: list[dict]) -> Optional
 # ──────────────────────────────────────────────────────────────────────────────
 
 async def optimize_pair_on_page(
-    page: Page,
+    page: Page | None,
     symbol: str,
     mode: str,
     n_trials: int,
     dd_limit: float,
     dry_run: bool,
+    runtime_state: OptimizerRuntimeState | None = None,
+    run_id: str | None = None,
+    worker_id: int | None = None,
 ) -> Optional[BacktestResult]:
     """
     Run optimization for one pair on a given page.
@@ -145,6 +170,9 @@ async def optimize_pair_on_page(
         dd_limit=dd_limit,
     )
     opt_shell.page = page
+    opt_shell.runtime_state = runtime_state
+    opt_shell.run_id = run_id
+    opt_shell.worker_id = worker_id
 
     # TabWorker signature is (page, optimizer) — not (optimizer, page, symbol)
     worker = TabWorker(page, opt_shell)
@@ -160,7 +188,7 @@ async def optimize_pair_on_page(
 
 async def worker_task(
     worker_id: int,
-    page: Page,
+    page: Page | None,
     pair_queue: asyncio.Queue,
     results: dict,
     results_lock: asyncio.Lock,
@@ -169,6 +197,8 @@ async def worker_task(
     n_trials: int,
     dd_limit: float,
     dry_run: bool,
+    runtime_state: OptimizerRuntimeState | None,
+    run_id: str | None,
 ) -> None:
     """Worker coroutine: pulls pairs from queue, optimizes, saves results."""
     log.info(f"[worker-{worker_id}] Started")
@@ -185,9 +215,23 @@ async def worker_task(
         while retries <= MAX_PAIR_RETRIES:
             try:
                 log.info(f"[worker-{worker_id}] Starting {symbol} (attempt {retries + 1})")
+                if runtime_state is not None and run_id is not None:
+                    runtime_state.mark_pair_started(
+                        run_id=run_id,
+                        worker_id=worker_id,
+                        symbol=symbol,
+                    )
                 start = time.time()
                 result = await optimize_pair_on_page(
-                    page, symbol, mode, n_trials, dd_limit, dry_run
+                    page,
+                    symbol,
+                    mode,
+                    n_trials,
+                    dd_limit,
+                    dry_run,
+                    runtime_state=runtime_state,
+                    run_id=run_id,
+                    worker_id=worker_id,
                 )
                 elapsed = time.time() - start
                 log.info(
@@ -195,6 +239,12 @@ async def worker_task(
                     f"| score={result.score:.3f} pf={result.profit_factor:.2f} "
                     f"dd={result.max_drawdown_pct:.1f}%"
                 )
+                if runtime_state is not None and run_id is not None:
+                    runtime_state.mark_pair_completed(
+                        run_id=run_id,
+                        worker_id=worker_id,
+                        symbol=symbol,
+                    )
                 break
             except Exception as e:
                 retries += 1
@@ -245,6 +295,7 @@ async def run_parallel(
     n_trials: int,
     dd_limit: float,
     dry_run: bool,
+    raw_args: list[str] | None = None,
 ) -> dict:
     """
     Main coordinator: opens browser, distributes pairs to workers, collects results.
@@ -276,6 +327,16 @@ async def run_parallel(
     results = dict(existing_results)
     results_lock = asyncio.Lock()
     error_log = []
+    runtime_state = OptimizerRuntimeState(results_dir=RESULTS_DIR)
+    run_status = runtime_state.start_run(
+        args=["--parallel", *(raw_args or [])],
+        mode=mode,
+        workers=n_workers,
+        log_file=os.environ.get("OPTIMIZER_LAUNCH_LOG_FILE", str(PARALLEL_LOG_FILE)),
+        optimizer_pid=os.getpid(),
+        chrome_pid=detect_chrome_pid(),
+    )
+    run_id = run_status["run_id"]
 
     # Build queue
     pair_queue: asyncio.Queue = asyncio.Queue()
@@ -284,67 +345,80 @@ async def run_parallel(
 
     start_time = time.time()
 
-    async with async_playwright() as pw:
-        if dry_run:
-            # In dry run, use a real browser context but don't touch TradingView
-            browser = await pw.chromium.launch(headless=True)
-            contexts = [await browser.new_context() for _ in range(n_workers)]
-            pages = [await ctx.new_page() for ctx in contexts]
-        else:
-            # Connect to existing Chrome with remote debugging
-            try:
-                browser = await pw.chromium.connect_over_cdp("http://127.0.0.1:9222")
-                log.info("Connected to Chrome on port 9222")
-            except Exception as e:
-                log.error(f"Could not connect to Chrome: {e}")
-                log.error("Start Chrome with: open -a 'Google Chrome' --args --remote-debugging-port=9222")
-                sys.exit(1)
+    try:
+        async with async_playwright() as pw:
+            if dry_run:
+                # Dry-run mode never touches a real page; keep it browserless so it works
+                # even when Playwright browsers are not installed locally.
+                browser = None
+                pages = [None] * n_workers
+            else:
+                # Connect to existing Chrome with remote debugging
+                try:
+                    browser = await pw.chromium.connect_over_cdp("http://127.0.0.1:9222")
+                    log.info("Connected to Chrome on port 9222")
+                except Exception as e:
+                    log.error(f"Could not connect to Chrome: {e}")
+                    log.error("Start Chrome with: open -a 'Google Chrome' --args --remote-debugging-port=9222")
+                    sys.exit(1)
 
-            # Get existing TradingView pages
-            tv_pages = []
-            for context in browser.contexts:
-                for page in context.pages:
-                    if "tradingview.com/chart" in page.url:
-                        tv_pages.append(page)
+                # Get existing TradingView pages
+                tv_pages = []
+                for context in browser.contexts:
+                    for page in context.pages:
+                        if "tradingview.com/chart" in page.url:
+                            tv_pages.append(page)
 
-            if len(tv_pages) < n_workers:
-                log.warning(
-                    f"Only {len(tv_pages)} TradingView tabs open, "
-                    f"but {n_workers} workers requested. "
-                    f"Open {n_workers - len(tv_pages)} more TradingView chart tabs."
+                if len(tv_pages) < n_workers:
+                    log.warning(
+                        f"Only {len(tv_pages)} TradingView tabs open, "
+                        f"but {n_workers} workers requested. "
+                        f"Open {n_workers - len(tv_pages)} more TradingView chart tabs."
+                    )
+                    n_workers = len(tv_pages)
+
+                pages = tv_pages[:n_workers]
+
+            # Stagger worker starts to avoid race conditions
+            tasks = []
+            for i, page in enumerate(pages[:n_workers]):
+                if i > 0:
+                    await asyncio.sleep(WORKER_STARTUP_DELAY)
+                task = asyncio.create_task(
+                    worker_task(
+                        worker_id=i,
+                        page=page,
+                        pair_queue=pair_queue,
+                        results=results,
+                        results_lock=results_lock,
+                        error_log=error_log,
+                        mode=mode,
+                        n_trials=n_trials,
+                        dd_limit=dd_limit,
+                        dry_run=dry_run,
+                        runtime_state=runtime_state,
+                        run_id=run_id,
+                    ),
+                    name=f"worker-{i}",
                 )
-                n_workers = len(tv_pages)
+                tasks.append(task)
 
-            pages = tv_pages[:n_workers]
+            task_results = await asyncio.gather(*tasks, return_exceptions=True)
+            for task_result in task_results:
+                if isinstance(task_result, Exception):
+                    error_log.append({"symbol": "worker_task", "worker": -1, "error": str(task_result)})
 
-        # Stagger worker starts to avoid race conditions
-        tasks = []
-        for i, page in enumerate(pages[:n_workers]):
-            if i > 0:
-                await asyncio.sleep(WORKER_STARTUP_DELAY)
-            task = asyncio.create_task(
-                worker_task(
-                    worker_id=i,
-                    page=page,
-                    pair_queue=pair_queue,
-                    results=results,
-                    results_lock=results_lock,
-                    error_log=error_log,
-                    mode=mode,
-                    n_trials=n_trials,
-                    dd_limit=dd_limit,
-                    dry_run=dry_run,
-                ),
-                name=f"worker-{i}",
-            )
-            tasks.append(task)
-
-        await asyncio.gather(*tasks, return_exceptions=True)
-
-        if dry_run:
-            await browser.close()
+            if dry_run and browser is not None:
+                await browser.close()
+    except Exception:
+        runtime_state.set_run_state(run_id=run_id, state="failed")
+        raise
 
     elapsed = time.time() - start_time
+    runtime_state.set_run_state(
+        run_id=run_id,
+        state="failed" if error_log else "completed",
+    )
     log.info(f"\n{'='*60}")
     log.info(f"Parallel run complete in {elapsed:.1f}s")
     log.info(f"  Completed: {len(results)} pairs")
@@ -395,6 +469,7 @@ def main() -> None:
         n_trials=args.trials,
         dd_limit=args.dd_limit,
         dry_run=args.dry_run,
+        raw_args=sys.argv[1:],
     ))
 
 
