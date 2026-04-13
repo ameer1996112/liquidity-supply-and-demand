@@ -2,7 +2,7 @@
   "run_id": "20260413_165310_16bab4",
   "state": "running",
   "started_at": "2026-04-13T16:53:10.084890+03:00",
-  "last_progress_at": "2026-04-13T19:11:41.626922+03:00",
+  "last_progress_at": "2026-04-13T19:23:49.734175+03:00",
   "stuck_threshold_seconds": 720,
   "restart_count": 0,
   "optimizer_pid": 42146,
@@ -21,49 +21,49 @@
   ],
   "active_pairs": {
     "worker-0": {
-      "symbol": "AUDNZD",
-      "trial": 50,
-      "last_event_at": "2026-04-13T19:15:41.649500+03:00",
+      "symbol": "NZDCAD",
+      "trial": 56,
+      "last_event_at": "2026-04-13T19:28:14.195539+03:00",
       "status": "running"
     },
     "worker-1": {
-      "symbol": "EURCHF",
-      "trial": 50,
-      "last_event_at": "2026-04-13T19:15:40.616480+03:00",
+      "symbol": "AUDCHF",
+      "trial": 56,
+      "last_event_at": "2026-04-13T19:28:13.227457+03:00",
       "status": "running"
     },
     "worker-2": {
-      "symbol": "EURNZD",
-      "trial": 50,
-      "last_event_at": "2026-04-13T19:15:40.619168+03:00",
+      "symbol": "CADCHF",
+      "trial": 56,
+      "last_event_at": "2026-04-13T19:28:13.229545+03:00",
       "status": "running"
     },
     "worker-3": {
-      "symbol": "AUDCAD",
-      "trial": 50,
-      "last_event_at": "2026-04-13T19:15:41.655361+03:00",
+      "symbol": "NZDCHF",
+      "trial": 56,
+      "last_event_at": "2026-04-13T19:28:14.197352+03:00",
       "status": "running"
     }
   },
   "worker_health": {
     "worker-0": {
       "status": "warning",
-      "stale_reads": 1010,
+      "stale_reads": 1176,
       "last_results_hash": ""
     },
     "worker-1": {
       "status": "warning",
-      "stale_reads": 1010,
+      "stale_reads": 1176,
       "last_results_hash": ""
     },
     "worker-2": {
       "status": "warning",
-      "stale_reads": 1010,
+      "stale_reads": 1176,
       "last_results_hash": ""
     },
     "worker-3": {
       "status": "warning",
-      "stale_reads": 1010,
+      "stale_reads": 1176,
       "last_results_hash": ""
     }
   }

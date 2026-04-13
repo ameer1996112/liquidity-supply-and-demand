@@ -22,7 +22,7 @@ import time
 import threading
 from pathlib import Path
 from urllib.request import Request, urlopen
-from urllib.error import URLError
+from urllib.error import URLError, HTTPError
 
 try:
     import certifi
@@ -115,6 +115,15 @@ def _api(method: str, path: str, body: dict | None = None) -> dict | None:
     try:
         with urlopen(req, timeout=15, context=_SSL_CTX) as resp:
             return json.loads(resp.read().decode())
+    except HTTPError as e:
+        # Log response body for fast diagnosis (admin-only endpoints).
+        try:
+            body = e.read().decode(errors="replace")
+        except Exception:
+            body = ""
+        snippet = body[:800].replace("\n", " ").strip()
+        log.warning("API %s %s failed: HTTP %s %s", method, path, getattr(e, "code", "?"), snippet)
+        return None
     except URLError as e:
         log.warning("API %s %s failed: %s", method, path, e)
         return None

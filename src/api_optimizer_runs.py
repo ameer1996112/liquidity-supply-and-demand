@@ -94,6 +94,9 @@ def create_optimizer_run(payload: OptimizerRunCreateRequest) -> dict[str, Any]:
         return get_optimizer_run_service().start_run(**payload.model_dump())
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        # Admin-only route. Return concrete error so operators can fix env/migrations quickly.
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.get("/runs/{run_id}", response_model=dict[str, Any])
