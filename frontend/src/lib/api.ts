@@ -346,6 +346,17 @@ export async function cancelOptimizerRun(runId: string) {
   });
 }
 
+export interface AgentStatusApi {
+  agent_online: boolean;
+  chrome_ready: boolean;
+  agent_version: string | null;
+  last_heartbeat: number | null;
+}
+
+export async function fetchAgentStatus() {
+  return apiFetch<AgentStatusApi>('/api/optimizer/agent/status');
+}
+
 /**
  * Portfolio Control - Trailing Stops
  */

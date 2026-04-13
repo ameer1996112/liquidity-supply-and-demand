@@ -171,7 +171,7 @@ class _ManagedProcess:
 
 
 class OptimizerRunService:
-    def __init__(self, repository: OptimizerRunRepository, project_root: Path, results_dir: Path) -> None:
+    def __init__(self, repository: OptimizerRunRepository, project_root: Path | None = None, results_dir: Path | None = None) -> None:
         self._repository = repository
         self._project_root = project_root
         self._results_dir = results_dir
@@ -189,6 +189,7 @@ class OptimizerRunService:
         dry_run: bool,
         created_by: str | None = None,
     ) -> dict[str, Any]:
+        """Create a queued optimizer run for the local agent to pick up."""
         if not pairs:
             raise ValueError("pairs must not be empty")
         if self._active_run_exists():
@@ -218,41 +219,55 @@ class OptimizerRunService:
             }
         )
         self._repository.create_results(run_id, pairs)
-        process = self._spawn_process(
-            mode=mode,
-            workers=workers,
-            pairs=pairs,
-            n_trials=n_trials,
-            dd_limit=dd_limit,
-            dry_run=dry_run,
+        return run
+
+    # ── Agent-facing write methods ─────────────────────────────────────────────
+
+    def update_run_from_agent(
+        self, run_id: str, *, status: str | None = None, summary: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """Update run status/summary from the local agent."""
+        run = self._repository.get_run(run_id)
+        if run is None:
+            raise KeyError(run_id)
+        updates: dict[str, Any] = {}
+        if status is not None:
+            updates["status"] = status
+            if status == "running" and not run.get("started_at"):
+                updates["started_at"] = _utc_now()
+            if status in {"completed", "failed"}:
+                updates["finished_at"] = _utc_now()
+        if summary is not None:
+            merged = dict(run.get("summary") or {})
+            merged.update(summary)
+            updates["summary"] = merged
+        if not updates:
+            return run
+        return self._repository.update_run(run_id, updates)
+
+    def update_result_from_agent(
+        self, run_id: str, symbol: str, updates: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Update a per-symbol result from the local agent."""
+        run = self._repository.get_run(run_id)
+        if run is None:
+            raise KeyError(run_id)
+        result = self._repository.update_result(run_id, symbol, updates)
+        # Rebuild summary after result change
+        self._repository.update_run(
+            run_id, {"summary": self._rebuild_summary(run_id)}
         )
-        reader = threading.Thread(
-            target=self._stream_process_output,
-            args=(run_id, process),
-            daemon=True,
-            name=f"optimizer-run-{run_id}",
-        )
-        with self._lock:
-            self._processes[run_id] = _ManagedProcess(process=process, reader=reader)
-        updated_run = self._repository.update_run(
-            run_id,
-            {
-                "status": "running",
-                "started_at": _utc_now(),
-                "summary": self._rebuild_summary(run_id, existing=run.get("summary") or {}),
-            },
-        )
-        self._repository.append_event(
-            {
-                "run_id": run_id,
-                "event_type": "run_started",
-                "worker_id": None,
-                "symbol": None,
-                "payload": {"pid": process.pid, "mode": mode, "workers": workers},
-            }
-        )
-        reader.start()
-        return updated_run
+        return result
+
+    def push_event(self, run_id: str, event: dict[str, Any]) -> dict[str, Any]:
+        """Push a timeline event from the local agent."""
+        run = self._repository.get_run(run_id)
+        if run is None:
+            raise KeyError(run_id)
+        event["run_id"] = run_id
+        return self._repository.append_event(event)
+
+    # ── Read methods ─────────────────────────────────────────────────────────
 
     def list_runs(self, *, limit: int = 20, status: str | None = None) -> list[dict[str, Any]]:
         return self._repository.list_runs(limit=limit, status=status)
@@ -270,15 +285,16 @@ class OptimizerRunService:
         return self._repository.list_events(run_id, limit=limit)
 
     def cancel_run(self, run_id: str) -> dict[str, Any]:
+        """Mark a run as cancelled. The local agent polls for this and stops."""
+        run = self._repository.get_run(run_id)
+        if run is None:
+            raise KeyError(run_id)
+        if run["status"] in {"completed", "failed", "cancelled", "interrupted"}:
+            return run
+        # Kill local subprocess if one exists (legacy path)
         managed = self._processes.get(run_id)
-        if managed is None:
-            run = self._repository.get_run(run_id)
-            if run is None:
-                raise KeyError(run_id)
-            if run["status"] in {"completed", "failed", "cancelled", "interrupted"}:
-                return run
-            raise ValueError(f"run {run_id} is not attached to a live process")
-        managed.process.terminate()
+        if managed is not None:
+            managed.process.terminate()
         self._repository.append_event(
             {
                 "run_id": run_id,
@@ -515,13 +531,8 @@ def get_optimizer_run_service() -> OptimizerRunService:
     if _service is None:
         with _service_lock:
             if _service is None:
-                project_root = Path(__file__).resolve().parents[2]
-                from scripts.optimizer.config import RESULTS_DIR
-
                 _service = OptimizerRunService(
                     repository=SupabaseOptimizerRunRepository(),
-                    project_root=project_root,
-                    results_dir=RESULTS_DIR,
                 )
                 _service.reconcile_incomplete_runs()
     return _service

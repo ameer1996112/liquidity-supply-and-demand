@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Loader2, Play, Square, History, ListTree, Trophy } from 'lucide-react';
-import { useCancelOptimizerRun, useCreateOptimizerRun, useOptimizerRun, useOptimizerRunEvents, useOptimizerRunResults, useOptimizerRuns } from '@/hooks/useOptimizerRuns';
+import { useAgentStatus, useCancelOptimizerRun, useCreateOptimizerRun, useOptimizerRun, useOptimizerRunEvents, useOptimizerRunResults, useOptimizerRuns } from '@/hooks/useOptimizerRuns';
 import type { OptimizerRunCreateApi, OptimizerRunEventApi, OptimizerRunResultApi } from '@/lib/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -100,6 +100,7 @@ export function OptimizerRunsWorkspace() {
   const [dryRun, setDryRun] = useState(true);
 
   const { data: runs = [], isLoading: runsLoading } = useOptimizerRuns();
+  const { data: agentStatus } = useAgentStatus();
   const createRun = useCreateOptimizerRun();
   const cancelRun = useCancelOptimizerRun();
 
@@ -138,10 +139,32 @@ export function OptimizerRunsWorkspace() {
     <div className='space-y-4'>
       <Card>
         <CardHeader>
-          <CardTitle className='flex items-center gap-2'>
-            <Play className='h-4 w-4 text-[var(--to-accent-amber)]' />
-            Run launcher
-          </CardTitle>
+          <div className='flex items-center justify-between'>
+            <CardTitle className='flex items-center gap-2'>
+              <Play className='h-4 w-4 text-[var(--to-accent-amber)]' />
+              Run launcher
+            </CardTitle>
+            <div className='flex items-center gap-2 text-xs'>
+              {agentStatus?.agent_online ? (
+                agentStatus.chrome_ready ? (
+                  <Badge className='border border-emerald-500/30 bg-emerald-500/15 text-emerald-300'>
+                    <span className='mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-emerald-400' />
+                    Agent Ready
+                  </Badge>
+                ) : (
+                  <Badge className='border border-amber-500/30 bg-amber-500/15 text-amber-300'>
+                    <span className='mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-amber-400' />
+                    Chrome Offline
+                  </Badge>
+                )
+              ) : (
+                <Badge className='border border-red-500/30 bg-red-500/15 text-red-300'>
+                  <span className='mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-red-400' />
+                  Agent Offline
+                </Badge>
+              )}
+            </div>
+          </div>
           <CardDescription>Start one optimizer run at a time from the dashboard.</CardDescription>
         </CardHeader>
         <CardContent className='space-y-4'>

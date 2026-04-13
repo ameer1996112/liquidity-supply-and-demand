@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
@@ -7,7 +8,40 @@ from pydantic import BaseModel, Field, field_validator
 
 from src.services.optimizer_run_service import get_optimizer_run_service
 
-router = APIRouter(prefix="/api/optimizer/runs", tags=["optimizer-runs"])
+router = APIRouter(prefix="/api/optimizer", tags=["optimizer-runs"])
+
+# ── Agent heartbeat (in-memory) ──────────────────────────────────────────────
+
+_agent_state: dict[str, Any] = {
+    "chrome_ready": False,
+    "agent_version": None,
+    "last_heartbeat": 0.0,
+}
+
+
+class AgentHeartbeatRequest(BaseModel):
+    chrome_ready: bool = False
+    agent_version: str | None = None
+
+
+@router.post("/agent/heartbeat")
+def agent_heartbeat(payload: AgentHeartbeatRequest) -> dict[str, str]:
+    _agent_state["chrome_ready"] = payload.chrome_ready
+    _agent_state["agent_version"] = payload.agent_version
+    _agent_state["last_heartbeat"] = time.time()
+    return {"status": "ok"}
+
+
+@router.get("/agent/status")
+def agent_status() -> dict[str, Any]:
+    last = _agent_state["last_heartbeat"]
+    agent_online = (time.time() - last) < 60 if last else False
+    return {
+        "agent_online": agent_online,
+        "chrome_ready": _agent_state["chrome_ready"] if agent_online else False,
+        "agent_version": _agent_state["agent_version"],
+        "last_heartbeat": last if last else None,
+    }
 
 
 class OptimizerRunCreateRequest(BaseModel):
@@ -27,7 +61,10 @@ class OptimizerRunCreateRequest(BaseModel):
         return normalized
 
 
-@router.get("", response_model=dict[str, Any])
+# ── Run CRUD ─────────────────────────────────────────────────────────────────
+
+
+@router.get("/runs", response_model=dict[str, Any])
 def list_optimizer_runs(
     limit: int = Query(20, ge=1, le=100),
     status: str | None = Query(None),
@@ -36,7 +73,7 @@ def list_optimizer_runs(
     return {"runs": runs}
 
 
-@router.post("", response_model=dict[str, Any])
+@router.post("/runs", response_model=dict[str, Any])
 def create_optimizer_run(payload: OptimizerRunCreateRequest) -> dict[str, Any]:
     try:
         return get_optimizer_run_service().start_run(**payload.model_dump())
@@ -44,7 +81,7 @@ def create_optimizer_run(payload: OptimizerRunCreateRequest) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
-@router.get("/{run_id}", response_model=dict[str, Any])
+@router.get("/runs/{run_id}", response_model=dict[str, Any])
 def get_optimizer_run(run_id: str) -> dict[str, Any]:
     try:
         return get_optimizer_run_service().get_run(run_id)
@@ -52,7 +89,7 @@ def get_optimizer_run(run_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail=f"Unknown optimizer run: {run_id}") from exc
 
 
-@router.get("/{run_id}/results", response_model=dict[str, Any])
+@router.get("/runs/{run_id}/results", response_model=dict[str, Any])
 def get_optimizer_run_results(run_id: str) -> dict[str, Any]:
     service = get_optimizer_run_service()
     try:
@@ -62,7 +99,7 @@ def get_optimizer_run_results(run_id: str) -> dict[str, Any]:
     return {"results": service.list_results(run_id)}
 
 
-@router.get("/{run_id}/events", response_model=dict[str, Any])
+@router.get("/runs/{run_id}/events", response_model=dict[str, Any])
 def get_optimizer_run_events(
     run_id: str,
     limit: int = Query(200, ge=1, le=1000),
@@ -75,7 +112,7 @@ def get_optimizer_run_events(
     return {"events": service.list_events(run_id, limit=limit)}
 
 
-@router.post("/{run_id}/cancel", response_model=dict[str, Any])
+@router.post("/runs/{run_id}/cancel", response_model=dict[str, Any])
 def cancel_optimizer_run(run_id: str) -> dict[str, Any]:
     try:
         return get_optimizer_run_service().cancel_run(run_id)
@@ -83,3 +120,52 @@ def cancel_optimizer_run(run_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail=f"Unknown optimizer run: {run_id}") from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+# ── Agent write endpoints ────────────────────────────────────────────────────
+
+
+class AgentRunUpdateRequest(BaseModel):
+    status: str | None = None
+    summary: dict[str, Any] | None = None
+
+
+class AgentEventRequest(BaseModel):
+    event_type: str
+    worker_id: int | None = None
+    symbol: str | None = None
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class AgentResultUpdateRequest(BaseModel):
+    status: str | None = None
+    params: dict[str, Any] | None = None
+    metrics: dict[str, Any] | None = None
+    error_message: str | None = None
+
+
+@router.patch("/runs/{run_id}", response_model=dict[str, Any])
+def update_optimizer_run(run_id: str, payload: AgentRunUpdateRequest) -> dict[str, Any]:
+    try:
+        return get_optimizer_run_service().update_run_from_agent(
+            run_id, status=payload.status, summary=payload.summary
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown optimizer run: {run_id}") from exc
+
+
+@router.post("/runs/{run_id}/events", response_model=dict[str, Any])
+def push_optimizer_event(run_id: str, payload: AgentEventRequest) -> dict[str, Any]:
+    try:
+        return get_optimizer_run_service().push_event(run_id, payload.model_dump())
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown optimizer run: {run_id}") from exc
+
+
+@router.patch("/runs/{run_id}/results/{symbol}", response_model=dict[str, Any])
+def update_optimizer_result(run_id: str, symbol: str, payload: AgentResultUpdateRequest) -> dict[str, Any]:
+    try:
+        updates = {k: v for k, v in payload.model_dump().items() if v is not None}
+        return get_optimizer_run_service().update_result_from_agent(run_id, symbol, updates)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown optimizer run: {run_id}") from exc

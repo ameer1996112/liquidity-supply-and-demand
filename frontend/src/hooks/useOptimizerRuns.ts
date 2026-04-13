@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   cancelOptimizerRun,
   createOptimizerRun,
+  fetchAgentStatus,
   fetchOptimizerRun,
   fetchOptimizerRunEvents,
   fetchOptimizerRunResults,
@@ -63,6 +64,14 @@ export function useCreateOptimizerRun() {
       queryClient.invalidateQueries({ queryKey: optimizerRunKeys.list() });
       queryClient.setQueryData(optimizerRunKeys.detail(run.id), run);
     },
+  });
+}
+
+export function useAgentStatus() {
+  return useQuery({
+    queryKey: ['optimizer', 'agent-status'] as const,
+    queryFn: fetchAgentStatus,
+    refetchInterval: 15_000,
   });
 }
 
