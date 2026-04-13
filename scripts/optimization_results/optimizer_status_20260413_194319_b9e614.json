@@ -1,0 +1,28 @@
+{
+  "run_id": "20260413_194319_b9e614",
+  "state": "completed",
+  "started_at": "2026-04-13T19:43:19.930016+03:00",
+  "last_progress_at": "2026-04-13T19:43:20.256885+03:00",
+  "stuck_threshold_seconds": 720,
+  "restart_count": 0,
+  "optimizer_pid": 6979,
+  "chrome_pid": 6802,
+  "log_file": "/Users/ameeramer/dev/projects/galilsoftware/sources/trading/scripts/optimization_results/parallel_run.log",
+  "mode": "bayesian",
+  "workers": 6,
+  "args": [
+    "--parallel",
+    "--workers",
+    "6",
+    "--mode",
+    "bayesian",
+    "--trials",
+    "80",
+    "--dd-limit",
+    "10.0",
+    "--pairs",
+    "EURUSD,GBPUSD,AUDUSD,NZDUSD,USDCAD,USDCHF,USDJPY,GBPJPY,EURJPY,NZDJPY,CADJPY,AUDJPY,CHFJPY,EURGBP,GBPAUD,GBPCAD,GBPCHF,GBPNZD,EURAUD,EURCAD,EURCHF,EURNZD,AUDNZD,AUDCAD,AUDCHF,CADCHF,NZDCAD,NZDCHF,XAUUSD,XAGUSD,NAS100,US30,US500"
+  ],
+  "active_pairs": {},
+  "worker_health": {}
+}

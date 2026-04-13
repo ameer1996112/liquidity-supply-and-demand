@@ -2,7 +2,7 @@
   "run_id": "20260413_165310_16bab4",
   "state": "running",
   "started_at": "2026-04-13T16:53:10.084890+03:00",
-  "last_progress_at": "2026-04-13T19:35:57.909991+03:00",
+  "last_progress_at": "2026-04-13T19:48:10.397294+03:00",
   "stuck_threshold_seconds": 720,
   "restart_count": 0,
   "optimizer_pid": 42146,
@@ -22,48 +22,48 @@
   "active_pairs": {
     "worker-0": {
       "symbol": "NAS100",
-      "trial": 71,
-      "last_event_at": "2026-04-13T19:41:22.663940+03:00",
+      "trial": 27,
+      "last_event_at": "2026-04-13T19:50:37.673212+03:00",
       "status": "running"
     },
     "worker-1": {
       "symbol": "XAUUSD",
-      "trial": 71,
-      "last_event_at": "2026-04-13T19:41:21.621709+03:00",
+      "trial": 28,
+      "last_event_at": "2026-04-13T19:50:40.680954+03:00",
       "status": "running"
     },
     "worker-2": {
       "symbol": "XAGUSD",
-      "trial": 71,
-      "last_event_at": "2026-04-13T19:41:21.624220+03:00",
+      "trial": 28,
+      "last_event_at": "2026-04-13T19:50:40.683956+03:00",
       "status": "running"
     },
     "worker-3": {
       "symbol": "US30",
-      "trial": 71,
-      "last_event_at": "2026-04-13T19:41:22.666962+03:00",
+      "trial": 27,
+      "last_event_at": "2026-04-13T19:50:37.675142+03:00",
       "status": "running"
     }
   },
   "worker_health": {
     "worker-0": {
       "status": "warning",
-      "stale_reads": 1351,
+      "stale_reads": 1467,
       "last_results_hash": ""
     },
     "worker-1": {
       "status": "warning",
-      "stale_reads": 1351,
+      "stale_reads": 1468,
       "last_results_hash": ""
     },
     "worker-2": {
       "status": "warning",
-      "stale_reads": 1351,
+      "stale_reads": 1468,
       "last_results_hash": ""
     },
     "worker-3": {
       "status": "warning",
-      "stale_reads": 1351,
+      "stale_reads": 1467,
       "last_results_hash": ""
     }
   }

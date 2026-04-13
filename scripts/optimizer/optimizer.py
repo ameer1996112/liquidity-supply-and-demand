@@ -290,9 +290,7 @@ class TradingViewOptimizer:
         start = time.time()
 
         # ── Always set backtest range (even if symbol didn't change) ───────────
-        range_ok = await worker._set_backtest_range("Last 365 days")
-        if not range_ok:
-            print(f"[{symbol}] WARNING: could not confirm backtest range is Last 365 days.")
+        await worker._require_last_365_days()
 
         # ── Reset risk to 0.5% before every pair ───────────────────────────────
         # Ensures TradingView isn't left at a different risk from a previous run.
@@ -322,7 +320,7 @@ class TradingViewOptimizer:
                     await worker.page.reload(wait_until="domcontentloaded", timeout=30000)
                     await asyncio.sleep(5)
                     await worker._switch_symbol(symbol)
-                    await worker._set_backtest_range("Last 365 days")
+                    await worker._require_last_365_days()
                 except Exception as e:
                     print(f"[{symbol}] Tab reload failed: {e}")
                 consecutive_failures = 0

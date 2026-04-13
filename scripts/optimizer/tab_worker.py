@@ -564,6 +564,11 @@ class TabWorker:
 
 
 
+    async def _require_last_365_days(self) -> None:
+        """Fail closed unless the strategy tester range is confirmed to be ~365 days."""
+        if not await self._set_backtest_range("Last 365 days"):
+            raise RuntimeError("Could not confirm backtest range is Last 365 days")
+
     async def _wait_for_load(self, timeout: int = 30) -> None:
         """Wait for chart and strategy tester to finish loading."""
         await asyncio.sleep(1.0)
@@ -1386,6 +1391,7 @@ class TabWorker:
         print(f"{'=' * 60}")
 
         await self._switch_symbol(symbol)
+        await self._require_last_365_days()
 
         param_grid = self.optimizer.get_param_grid(symbol)
         combos = self.optimizer.generate_combinations(param_grid)
@@ -1435,6 +1441,7 @@ class TabWorker:
         print(f"{'=' * 60}")
 
         await self._switch_symbol(symbol)
+        await self._require_last_365_days()
 
         print(f"{tag} Reading baseline results...")
         baseline = await self._read_results(symbol, {"baseline": True})

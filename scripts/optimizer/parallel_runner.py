@@ -32,6 +32,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Any
+from urllib.parse import quote
 
 from .config import (
     RESULTS_DIR,
@@ -97,6 +98,74 @@ def detect_chrome_pid() -> int | None:
 def emit_event(event_type: str, **payload: object) -> None:
     event = {"event_type": event_type, **payload}
     print(json.dumps(event), flush=True)
+
+
+async def ensure_tradingview_tabs(browser, required_tabs: int, bootstrap_symbol: str) -> list[Any]:
+    """Return TradingView chart tabs, opening new ones if needed."""
+    tv_pages: list[Any] = []
+    for context in browser.contexts:
+        for page in context.pages:
+            try:
+                if "tradingview.com/chart" in page.url:
+                    tv_pages.append(page)
+            except Exception:
+                continue
+
+    if len(tv_pages) >= required_tabs:
+        return tv_pages[:required_tabs]
+
+    if not browser.contexts:
+        raise RuntimeError("Chrome has no browser contexts to open TradingView tabs")
+
+    context = browser.contexts[0]
+    missing = required_tabs - len(tv_pages)
+    target_url = f"https://www.tradingview.com/chart/?symbol=VANTAGE%3A{quote(bootstrap_symbol.upper())}"
+    log.info(
+        "Opening %d TradingView chart tab(s) using %s as bootstrap symbol",
+        missing,
+        bootstrap_symbol,
+    )
+
+    for idx in range(missing):
+        page = await context.new_page()
+        try:
+            await page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
+        except Exception as e:
+            log.warning("Bootstrap tab %d navigation warning: %s", idx + 1, e)
+
+        for _ in range(20):
+            try:
+                if "tradingview.com/chart" in page.url:
+                    break
+            except Exception:
+                pass
+            await asyncio.sleep(1)
+
+        try:
+            current_url = page.url
+        except Exception:
+            current_url = ""
+        if "tradingview.com/chart" not in current_url:
+            raise RuntimeError(
+                "Could not open a TradingView chart tab. Open TradingView manually and retry."
+            )
+        tv_pages.append(page)
+
+    tv_pages = []
+    for context in browser.contexts:
+        for page in context.pages:
+            try:
+                if "tradingview.com/chart" in page.url:
+                    tv_pages.append(page)
+            except Exception:
+                continue
+
+    if len(tv_pages) < required_tabs:
+        raise RuntimeError(
+            f"Only {len(tv_pages)} TradingView chart tab(s) available after bootstrap; need {required_tabs}."
+        )
+
+    return tv_pages[:required_tabs]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -435,12 +504,11 @@ async def run_parallel(
                             tv_pages.append(page)
 
                 if len(tv_pages) < n_workers:
-                    log.warning(
-                        f"Only {len(tv_pages)} TradingView tabs open, "
-                        f"but {n_workers} workers requested. "
-                        f"Open {n_workers - len(tv_pages)} more TradingView chart tabs."
+                    tv_pages = await ensure_tradingview_tabs(
+                        browser,
+                        n_workers,
+                        bootstrap_symbol=remaining_pairs[0],
                     )
-                    n_workers = len(tv_pages)
 
                 pages = tv_pages[:n_workers]
 
