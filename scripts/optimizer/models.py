@@ -19,6 +19,7 @@ class BacktestResult:
     profit_factor: float = 0.0
     max_drawdown: float = 0.0
     max_drawdown_pct: float = 0.0
+    drawdown_source: str = ""
     profitable_trades: int = 0
     score: float = 0.0       # Composite optimization score
     timestamp: str = ""
@@ -79,6 +80,7 @@ class BacktestResult:
             "profit_factor": self.profit_factor,
             "max_drawdown": self.max_drawdown,
             "max_drawdown_pct": self.max_drawdown_pct,
+            "drawdown_source": self.drawdown_source,
             "profitable_trades": self.profitable_trades,
             "score": self.score,
             "timestamp": self.timestamp,

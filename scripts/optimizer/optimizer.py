@@ -543,6 +543,7 @@ class TradingViewOptimizer:
                 "verified_symbol": result.verified_symbol,
                 "profit_factor": result.profit_factor,
                 "max_drawdown_pct": result.max_drawdown_pct,
+                "drawdown_source": result.drawdown_source,
                 "total_trades": result.total_trades,
                 "score": result.score,
             }

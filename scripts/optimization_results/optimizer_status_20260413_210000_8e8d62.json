@@ -1,0 +1,96 @@
+{
+  "run_id": "20260413_210000_8e8d62",
+  "state": "running",
+  "started_at": "2026-04-13T21:00:00.712623+03:00",
+  "last_progress_at": "2026-04-13T21:07:36.921320+03:00",
+  "stuck_threshold_seconds": 720,
+  "restart_count": 0,
+  "optimizer_pid": 34836,
+  "chrome_pid": 34813,
+  "log_file": "/Users/ameeramer/dev/projects/galilsoftware/sources/trading/scripts/optimization_results/parallel_run.log",
+  "mode": "bayesian",
+  "workers": 6,
+  "args": [
+    "--parallel",
+    "--workers",
+    "6",
+    "--mode",
+    "bayesian",
+    "--trials",
+    "80",
+    "--dd-limit",
+    "10.0",
+    "--pairs",
+    "EURUSD,GBPUSD,AUDUSD,NZDUSD,USDCAD,USDCHF,USDJPY,GBPJPY,EURJPY,NZDJPY,CADJPY,AUDJPY,CHFJPY,EURGBP,GBPAUD,GBPCAD,GBPCHF,GBPNZD,EURAUD,EURCAD,EURCHF,EURNZD,AUDNZD,AUDCAD,AUDCHF,CADCHF,NZDCAD,NZDCHF,XAUUSD,XAGUSD,NAS100,US30,US500"
+  ],
+  "active_pairs": {
+    "worker-0": {
+      "symbol": "EURUSD",
+      "trial": 5,
+      "last_event_at": "2026-04-13T21:07:09.600771+03:00",
+      "status": "running"
+    },
+    "worker-1": {
+      "symbol": "GBPUSD",
+      "trial": 5,
+      "last_event_at": "2026-04-13T21:07:05.757225+03:00",
+      "status": "running"
+    },
+    "worker-2": {
+      "symbol": "AUDUSD",
+      "trial": 5,
+      "last_event_at": "2026-04-13T21:07:05.768596+03:00",
+      "status": "running"
+    },
+    "worker-3": {
+      "symbol": "NZDUSD",
+      "trial": 5,
+      "last_event_at": "2026-04-13T21:07:36.921320+03:00",
+      "status": "running"
+    },
+    "worker-4": {
+      "symbol": "USDCAD",
+      "trial": 5,
+      "last_event_at": "2026-04-13T21:07:30.255175+03:00",
+      "status": "running"
+    },
+    "worker-5": {
+      "symbol": "USDCHF",
+      "trial": 4,
+      "last_event_at": "2026-04-13T21:06:53.011547+03:00",
+      "status": "running"
+    }
+  },
+  "worker_health": {
+    "worker-0": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "ec4cd30f"
+    },
+    "worker-1": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "84f2e9bf"
+    },
+    "worker-2": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "08a7911c"
+    },
+    "worker-3": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "47c3889e"
+    },
+    "worker-4": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "fc03524e"
+    },
+    "worker-5": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "9142170b"
+    }
+  }
+}

@@ -133,6 +133,7 @@ def test_read_results_prefers_drawdown_percent_from_metric_text() -> None:
     assert result.verified_symbol == "USDCHF"
     assert result.max_drawdown == pytest.approx(7059.46, rel=1e-6)
     assert result.max_drawdown_pct == pytest.approx(12.02, rel=1e-6)
+    assert result.drawdown_source == "percent"
 
 
 def test_read_results_extracts_drawdown_percent_from_plain_cell_text() -> None:
@@ -151,6 +152,7 @@ def test_read_results_extracts_drawdown_percent_from_plain_cell_text() -> None:
 
     assert result.max_drawdown == pytest.approx(7059.46, rel=1e-6)
     assert result.max_drawdown_pct == pytest.approx(12.02, rel=1e-6)
+    assert result.drawdown_source == "percent"
 
 
 def test_format_trial_log_line_is_atomic_and_worker_scoped() -> None:

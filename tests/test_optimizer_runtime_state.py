@@ -63,7 +63,7 @@ def test_record_trial_event_updates_last_progress_and_worker_log(tmp_path: Path)
         params_hash="params-1",
         results_hash_before="aaaa1111",
         results_hash_after="bbbb2222",
-        metrics={"verified_symbol": "EURJPY", "profit_factor": 1.22, "total_trades": 300},
+        metrics={"verified_symbol": "EURJPY", "profit_factor": 1.22, "total_trades": 300, "drawdown_source": "percent"},
     )
 
     current = store.load_current_status()
@@ -76,6 +76,7 @@ def test_record_trial_event_updates_last_progress_and_worker_log(tmp_path: Path)
     event = json.loads(event_lines[0])
     assert event["outcome"] == "fresh"
     assert event["metrics"]["verified_symbol"] == "EURJPY"
+    assert event["metrics"]["drawdown_source"] == "percent"
 
 
 def test_mark_pair_started_and_completed_update_active_pairs(tmp_path: Path) -> None:

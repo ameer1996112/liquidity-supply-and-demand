@@ -1417,6 +1417,7 @@ class TabWorker:
                     drawdown_pct = self._extract_first_percent(raw_value)
                     if drawdown_pct is not None:
                         result.max_drawdown_pct = abs(drawdown_pct)
+                        result.drawdown_source = "percent"
                     continue
 
                 c = (
@@ -1445,6 +1446,7 @@ class TabWorker:
 
             if result.max_drawdown > 0 and result.max_drawdown_pct == 0:
                 result.max_drawdown_pct = (result.max_drawdown / 50000) * 100
+                result.drawdown_source = "fallback_50k"
 
         except Exception as e:
             print(f" [read error: {e}]", end="")
