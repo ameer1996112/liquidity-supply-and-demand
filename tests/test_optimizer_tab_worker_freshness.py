@@ -116,6 +116,25 @@ def test_read_results_records_verified_symbol() -> None:
     assert result.verified_symbol == "USDCAD"
 
 
+def test_read_results_prefers_drawdown_percent_from_metric_text() -> None:
+    page = MetricsPage(
+        title="USDCHF 5 Vantage",
+        metrics={
+            "Total P&L": "$2902.66|5.81%",
+            "Total trades": "306",
+            "Profit factor": "1.073",
+            "Max equity drawdown": "$7,059.46|12.02%",
+        },
+    )
+    worker = TabWorker(page, DummyOptimizer())
+
+    result = asyncio.run(worker._read_results("USDCHF", {}))
+
+    assert result.verified_symbol == "USDCHF"
+    assert result.max_drawdown == pytest.approx(7059.46, rel=1e-6)
+    assert result.max_drawdown_pct == pytest.approx(12.02, rel=1e-6)
+
+
 def test_format_trial_log_line_is_atomic_and_worker_scoped() -> None:
     optimizer = TradingViewOptimizer(
         pairs=["USDCAD"],
@@ -246,8 +265,8 @@ def test_bayesian_optimizer_uses_only_fresh_results_for_study_and_best_tracking(
         async def _switch_symbol(self, symbol: str) -> None:
             self.symbol = symbol
 
-        async def _set_backtest_range(self, range_label: str) -> None:
-            self.range_label = range_label
+        async def _require_last_365_days(self) -> None:
+            self.range_label = "Last 365 days"
 
         async def _apply_params(self, params: dict) -> ApplyOutcome:
             return self.apply_outcomes.pop(0)
@@ -328,9 +347,8 @@ def test_bayesian_optimizer_reloads_after_repeated_read_timeouts(monkeypatch) ->
         async def _switch_symbol(self, symbol: str) -> None:
             self.recovery_calls.append(("switch", symbol))
 
-        async def _set_backtest_range(self, range_label: str) -> bool:
-            self.recovery_calls.append(("range", range_label))
-            return True
+        async def _require_last_365_days(self) -> None:
+            self.recovery_calls.append(("range", "Last 365 days"))
 
         async def _apply_params(self, params: dict) -> ApplyOutcome:
             return ApplyOutcome(ok=True, fresh=True, reason="fresh")

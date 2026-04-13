@@ -224,6 +224,32 @@ class TabWorker:
         """Collapse chart/title symbols into a comparable uppercase token."""
         return symbol.split(":")[-1].upper().strip()
 
+    @staticmethod
+    def _extract_first_number(text: str) -> float | None:
+        """Extract first numeric token from text (supports thousands separators)."""
+        if not text:
+            return None
+        match = re.search(r"[-+]?\d{1,3}(?:,\d{3})*(?:\.\d+)?|[-+]?\d+(?:\.\d+)?", text)
+        if not match:
+            return None
+        try:
+            return float(match.group(0).replace(",", ""))
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _extract_first_percent(text: str) -> float | None:
+        """Extract first percentage token from text (e.g. '12.02%')."""
+        if not text:
+            return None
+        match = re.search(r"([-+]?\d{1,3}(?:,\d{3})*(?:\.\d+)?|[-+]?\d+(?:\.\d+)?)\s*%", text)
+        if not match:
+            return None
+        try:
+            return float(match.group(1).replace(",", ""))
+        except ValueError:
+            return None
+
     async def _current_symbol(self) -> str:
         """Return the symbol TradingView currently shows for this tab."""
         try:
@@ -1366,8 +1392,10 @@ class TabWorker:
             metrics = await self.page.evaluate(_JS_COLLECT_METRICS)
             for key, value in (metrics or {}).items():
                 kl = key.lower()
+                raw_value = str(value)
+                primary_value = raw_value.split("|")[0]
                 c = (
-                    value.split("|")[0]
+                    primary_value
                     .replace("$", "")
                     .replace(",", "")
                     .replace("%", "")
@@ -1390,7 +1418,12 @@ class TabWorker:
                 elif "profit factor" in kl:
                     result.profit_factor = num
                 elif "drawdown" in kl:
-                    result.max_drawdown = num
+                    drawdown_abs = self._extract_first_number(primary_value)
+                    if drawdown_abs is not None:
+                        result.max_drawdown = abs(drawdown_abs)
+                    drawdown_pct = self._extract_first_percent(raw_value)
+                    if drawdown_pct is not None:
+                        result.max_drawdown_pct = abs(drawdown_pct)
 
             if result.max_drawdown > 0 and result.max_drawdown_pct == 0:
                 result.max_drawdown_pct = (result.max_drawdown / 50000) * 100
