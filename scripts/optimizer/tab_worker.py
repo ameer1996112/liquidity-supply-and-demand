@@ -1150,9 +1150,16 @@ class TabWorker:
                 # ── Full update cycle detection ────────────────────────────
                 completed = await self._wait_for_update_complete()
                 if not completed:
-                    log.warning(
-                        "_apply_params attempt %d: update timed out — pressing Escape and retrying", attempt
-                    )
+                    if attempt < _MAX_RETRIES:
+                        log.debug(
+                            "_apply_params attempt %d: update timed out — pressing Escape and retrying",
+                            attempt,
+                        )
+                    else:
+                        log.warning(
+                            "_apply_params attempt %d: update timed out — final retry",
+                            attempt,
+                        )
                     # Try to dismiss any stuck overlay before retry
                     try:
                         await self.page.keyboard.press("Escape")
@@ -1163,10 +1170,16 @@ class TabWorker:
                 # ── Stale result detection ─────────────────────────────────
                 hash_after = await self._get_results_hash()
                 if not hash_after:
-                    log.warning(
-                        "_apply_params attempt %d: could not read results hash",
-                        attempt,
-                    )
+                    if attempt < _MAX_RETRIES:
+                        log.debug(
+                            "_apply_params attempt %d: could not read results hash",
+                            attempt,
+                        )
+                    else:
+                        log.warning(
+                            "_apply_params attempt %d: could not read results hash",
+                            attempt,
+                        )
                     if attempt < _MAX_RETRIES:
                         await asyncio.sleep(_RETRY_SLEEP)
                         continue
@@ -1179,11 +1192,18 @@ class TabWorker:
                         results_hash_after=hash_after,
                     )
                 if hash_before and hash_after and hash_before == hash_after:
-                    log.warning(
-                        "_apply_params attempt %d: results hash unchanged "
-                        "(hash_before=%s hash_after=%s — possible stale read or param rejected)",
-                        attempt, hash_before, hash_after,
-                    )
+                    if attempt < _MAX_RETRIES:
+                        log.debug(
+                            "_apply_params attempt %d: results hash unchanged "
+                            "(hash_before=%s hash_after=%s — possible stale read or param rejected)",
+                            attempt, hash_before, hash_after,
+                        )
+                    else:
+                        log.warning(
+                            "_apply_params attempt %d: results hash unchanged "
+                            "(hash_before=%s hash_after=%s — possible stale read or param rejected)",
+                            attempt, hash_before, hash_after,
+                        )
                     if attempt < _MAX_RETRIES:
                         await asyncio.sleep(_RETRY_SLEEP)
                         continue

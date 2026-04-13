@@ -32,7 +32,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Any
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 
 from .config import (
     RESULTS_DIR,
@@ -100,6 +100,38 @@ def emit_event(event_type: str, **payload: object) -> None:
     print(json.dumps(event), flush=True)
 
 
+def _extract_chart_id(url: str) -> str | None:
+    """Return the TradingView chart id from a chart URL, if present."""
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return None
+
+    if "tradingview.com" not in parsed.netloc or not parsed.path.startswith("/chart/"):
+        return None
+
+    parts = [part for part in parsed.path.split("/") if part]
+    if len(parts) < 2 or parts[0] != "chart":
+        return None
+
+    chart_id = parts[1].strip()
+    return chart_id or None
+
+
+async def _wait_for_chart_id(page: Any, timeout: float = 60.0) -> str | None:
+    """Wait until TradingView assigns a real chart id to the page URL."""
+    start = time.time()
+    while time.time() - start < timeout:
+        try:
+            chart_id = _extract_chart_id(page.url)
+            if chart_id:
+                return chart_id
+        except Exception:
+            pass
+        await asyncio.sleep(1)
+    return None
+
+
 async def ensure_tradingview_tabs(browser, required_tabs: int, bootstrap_symbol: str) -> list[Any]:
     """Return TradingView chart tabs, opening new ones if needed."""
     tv_pages: list[Any] = []
@@ -119,7 +151,6 @@ async def ensure_tradingview_tabs(browser, required_tabs: int, bootstrap_symbol:
 
     context = browser.contexts[0]
     missing = required_tabs - len(tv_pages)
-    target_url = f"https://www.tradingview.com/chart/?symbol=VANTAGE%3A{quote(bootstrap_symbol.upper())}"
     log.info(
         "Opening %d TradingView chart tab(s) using %s as bootstrap symbol",
         missing,
@@ -129,26 +160,35 @@ async def ensure_tradingview_tabs(browser, required_tabs: int, bootstrap_symbol:
     for idx in range(missing):
         page = await context.new_page()
         try:
-            await page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
+            await page.goto(
+                "https://www.tradingview.com/chart/",
+                wait_until="domcontentloaded",
+                timeout=30000,
+            )
         except Exception as e:
             log.warning("Bootstrap tab %d navigation warning: %s", idx + 1, e)
 
-        for _ in range(20):
-            try:
-                if "tradingview.com/chart" in page.url:
-                    break
-            except Exception:
-                pass
-            await asyncio.sleep(1)
+        chart_id = await _wait_for_chart_id(page, timeout=60.0)
+        if not chart_id:
+            raise RuntimeError(
+                "Could not open a real TradingView chart tab. Open TradingView manually and retry."
+            )
 
         try:
-            current_url = page.url
-        except Exception:
-            current_url = ""
-        if "tradingview.com/chart" not in current_url:
-            raise RuntimeError(
-                "Could not open a TradingView chart tab. Open TradingView manually and retry."
+            await page.goto(
+                f"https://www.tradingview.com/chart/{chart_id}/?symbol=VANTAGE%3A{quote(bootstrap_symbol.upper())}",
+                wait_until="domcontentloaded",
+                timeout=30000,
             )
+        except Exception as e:
+            log.warning("Bootstrap tab %d symbol navigation warning: %s", idx + 1, e)
+
+        confirmed_id = await _wait_for_chart_id(page, timeout=30.0)
+        if not confirmed_id:
+            raise RuntimeError(
+                "TradingView chart tab did not finish initializing after bootstrap."
+            )
+        log.info("Bootstrap tab %d ready with chart id %s", idx + 1, confirmed_id)
         tv_pages.append(page)
 
     tv_pages = []

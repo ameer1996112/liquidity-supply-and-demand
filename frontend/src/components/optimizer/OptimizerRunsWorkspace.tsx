@@ -23,6 +23,89 @@ function formatNumber(value: number | undefined) {
   return value.toFixed(2);
 }
 
+function formatTimelineTimestamp(value?: string) {
+  if (!value) return '--';
+  return new Date(value).toLocaleString([], {
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function cleanTimelineMessage(message: string) {
+  return message
+    .replace(/^\d{4}-\d{2}-\d{2}[^[]*\[[A-Z]+\]\s+[^:]+:\s*/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function timelineEventLabel(eventType: string) {
+  switch (eventType) {
+    case 'run_started':
+      return 'Run started';
+    case 'pair_started':
+      return 'Pair started';
+    case 'pair_completed':
+      return 'Pair completed';
+    case 'pair_failed':
+      return 'Pair failed';
+    case 'run_finished':
+      return 'Run finished';
+    case 'run_cancelled':
+      return 'Run cancelled';
+    case 'log':
+      return 'Log';
+    default:
+      return eventType.replace(/_/g, ' ');
+  }
+}
+
+function timelineTone(eventType: string) {
+  if (eventType === 'pair_failed' || eventType === 'run_finished') {
+    return 'border-red-500/30 bg-red-500/10 text-red-200';
+  }
+  if (eventType === 'pair_completed') {
+    return 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200';
+  }
+  if (eventType === 'pair_started' || eventType === 'run_started') {
+    return 'border-amber-500/30 bg-amber-500/10 text-amber-200';
+  }
+  if (eventType === 'run_cancelled') {
+    return 'border-slate-500/30 bg-slate-500/10 text-slate-200';
+  }
+  return 'border-[var(--to-border)] bg-transparent text-[var(--to-text-secondary)]';
+}
+
+function describeTimelineEvent(event: OptimizerRunEventApi) {
+  switch (event.event_type) {
+    case 'run_started':
+      return event.payload?.mode
+        ? `Mode ${event.payload.mode} · ${event.payload.workers ?? '--'} workers`
+        : 'Run started';
+    case 'pair_started':
+      return event.symbol ? `Working on ${event.symbol}` : 'Pair started';
+    case 'pair_completed':
+      return event.symbol
+        ? `${event.symbol} completed${typeof event.payload?.elapsed_seconds === 'number' ? ` in ${event.payload.elapsed_seconds.toFixed(1)}s` : ''}`
+        : 'Pair completed';
+    case 'pair_failed':
+      return event.symbol
+        ? `${event.symbol} failed${event.payload?.error_message ? ` · ${event.payload.error_message}` : ''}`
+        : 'Pair failed';
+    case 'run_finished':
+      return event.payload?.status
+        ? `Run ${event.payload.status}`
+        : 'Run finished';
+    case 'run_cancelled':
+      return 'Run cancelled';
+    case 'log':
+      return cleanTimelineMessage(String(event.payload?.message ?? 'log'));
+    default:
+      return cleanTimelineMessage(String(event.payload?.message ?? event.event_type));
+  }
+}
+
 function OptimizerResultsTable({ results }: { results: OptimizerRunResultApi[] }) {
   if (results.length === 0) {
     return <p className='text-xs text-[var(--to-text-dim)]'>No symbol results yet.</p>;
@@ -67,25 +150,89 @@ function OptimizerTimeline({ events }: { events: OptimizerRunEventApi[] }) {
     return <p className='text-xs text-[var(--to-text-dim)]'>No timeline events yet.</p>;
   }
 
+  const structuredEvents = events.filter((event) => event.event_type !== 'log');
+  const logEvents = events.filter((event) => event.event_type === 'log');
+  const latestStructuredEvent = structuredEvents.at(-1) ?? null;
+  const latestLogEvent = logEvents.at(-1) ?? null;
+
   return (
-    <div className='space-y-2'>
-      {events.map((event, index) => (
-        <div key={`${event.event_type}-${event.created_at ?? index}`} className='rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)]/40 p-3'>
-          <div className='flex flex-wrap items-center gap-2 text-xs'>
-            <Badge className='border border-[var(--to-border)] bg-transparent text-[var(--to-text-secondary)]'>
-              {event.event_type}
+    <div className='space-y-4'>
+      <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-4'>
+        <div className='rounded-xl border border-[var(--to-border)] bg-[var(--to-surface-raised)]/50 p-3'>
+          <p className='text-[10px] uppercase tracking-[0.18em] text-[var(--to-text-dim)]'>Latest signal</p>
+          <div className='mt-2 flex flex-wrap items-center gap-2'>
+            <Badge className={cn('border', timelineTone(latestStructuredEvent?.event_type ?? 'log'))}>
+              {timelineEventLabel(latestStructuredEvent?.event_type ?? 'log')}
             </Badge>
-            {event.symbol && <span className='font-mono text-[var(--to-text-primary)]'>{event.symbol}</span>}
-            {typeof event.worker_id === 'number' && (
-              <span className='text-[var(--to-text-dim)]'>worker-{event.worker_id}</span>
-            )}
-            {event.created_at && <span className='text-[var(--to-text-dim)]'>{event.created_at}</span>}
+            <span className='text-sm text-[var(--to-text-primary)]'>
+              {latestStructuredEvent ? describeTimelineEvent(latestStructuredEvent) : '--'}
+            </span>
           </div>
-          {event.payload?.message && (
-            <p className='mt-2 text-xs text-[var(--to-text-secondary)]'>{event.payload.message}</p>
+          {latestStructuredEvent?.created_at && (
+            <p className='mt-2 text-xs text-[var(--to-text-dim)]'>{formatTimelineTimestamp(latestStructuredEvent.created_at)}</p>
           )}
         </div>
-      ))}
+        <div className='rounded-xl border border-[var(--to-border)] bg-[var(--to-surface-raised)]/50 p-3'>
+          <p className='text-[10px] uppercase tracking-[0.18em] text-[var(--to-text-dim)]'>Latest log</p>
+          <div className='mt-2 flex flex-wrap items-center gap-2'>
+            <Badge className={cn('border', timelineTone('log'))}>log</Badge>
+            <span className='text-sm text-[var(--to-text-primary)]'>
+              {latestLogEvent ? describeTimelineEvent(latestLogEvent) : '--'}
+            </span>
+          </div>
+          {latestLogEvent?.created_at && (
+            <p className='mt-2 text-xs text-[var(--to-text-dim)]'>{formatTimelineTimestamp(latestLogEvent.created_at)}</p>
+          )}
+        </div>
+        <div className='rounded-xl border border-[var(--to-border)] bg-[var(--to-surface-raised)]/50 p-3'>
+          <p className='text-[10px] uppercase tracking-[0.18em] text-[var(--to-text-dim)]'>Run events</p>
+          <p className='mt-2 text-2xl font-semibold text-[var(--to-text-primary)]'>{structuredEvents.length}</p>
+        </div>
+        <div className='rounded-xl border border-[var(--to-border)] bg-[var(--to-surface-raised)]/50 p-3'>
+          <p className='text-[10px] uppercase tracking-[0.18em] text-[var(--to-text-dim)]'>Debug logs</p>
+          <p className='mt-2 text-2xl font-semibold text-[var(--to-text-primary)]'>{logEvents.length}</p>
+        </div>
+      </div>
+
+      <div className='grid gap-4 xl:grid-cols-2'>
+        <div className='space-y-2'>
+          <p className='text-xs uppercase tracking-[0.18em] text-[var(--to-text-dim)]'>Run events</p>
+          <div className='space-y-2'>
+            {[...structuredEvents].reverse().map((event, index) => (
+              <div key={`${event.event_type}-${event.created_at ?? index}`} className='rounded-xl border border-[var(--to-border)] bg-[var(--to-surface-raised)]/40 p-3'>
+                <div className='flex flex-wrap items-center gap-2 text-xs'>
+                  <Badge className={cn('border', timelineTone(event.event_type))}>
+                    {timelineEventLabel(event.event_type)}
+                  </Badge>
+                  {event.symbol && <span className='font-mono text-[var(--to-text-primary)]'>{event.symbol}</span>}
+                  {typeof event.worker_id === 'number' && (
+                    <span className='text-[var(--to-text-dim)]'>worker-{event.worker_id}</span>
+                  )}
+                  {event.created_at && <span className='text-[var(--to-text-dim)]'>{formatTimelineTimestamp(event.created_at)}</span>}
+                </div>
+                <p className='mt-2 text-xs text-[var(--to-text-secondary)]'>{describeTimelineEvent(event)}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className='space-y-2'>
+          <p className='text-xs uppercase tracking-[0.18em] text-[var(--to-text-dim)]'>Debug logs</p>
+          <div className='space-y-2'>
+            {[...logEvents].reverse().map((event, index) => (
+              <div key={`${event.event_type}-${event.created_at ?? index}`} className='rounded-xl border border-[var(--to-border)] bg-[var(--to-surface-raised)]/25 p-3'>
+                <div className='flex flex-wrap items-center gap-2 text-xs'>
+                  <Badge className='border border-[var(--to-border)] bg-transparent text-[var(--to-text-secondary)]'>log</Badge>
+                  {event.created_at && <span className='text-[var(--to-text-dim)]'>{formatTimelineTimestamp(event.created_at)}</span>}
+                </div>
+                <p className='mt-2 text-xs text-[var(--to-text-secondary)]'>
+                  {cleanTimelineMessage(String(event.payload?.message ?? ''))}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
