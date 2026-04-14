@@ -308,3 +308,296 @@ def test_set_field_expands_collapsed_row_before_fill() -> None:
     asyncio.run(browser._set_field(page, "Webhook URL", "https://example.test/hook"))
     assert page.expanded is True
     assert page.filled is True
+
+
+def test_set_webhook_url_uses_notifications_panel_fallback() -> None:
+    class FakePage:
+        def __init__(self) -> None:
+            self.notifications_opened = False
+            self.webhook_filled = False
+            self.waited_for_notifications = False
+            self.waited_for_main = False
+            self.apply_clicked = False
+            self.main_dialog_already_mentions_notifications = True
+            self.mouse = self.Mouse(self)
+
+        class Mouse:
+            def __init__(self, outer) -> None:
+                self.outer = outer
+
+            async def click(self, x: float, y: float) -> None:
+                self.outer.notifications_opened = True
+
+        async def evaluate(self, script: str, payload: Any = None) -> Any:
+            if isinstance(payload, dict):
+                if payload["label"] == "Webhook URL" and not self.notifications_opened:
+                    return False
+                if payload["label"] == "Webhook URL" and self.notifications_opened:
+                    self.webhook_filled = True
+                    return True
+            if payload == "Notifications":
+                return {"x": 10, "y": 10}
+            if "headers.some((node) => normalize(node.textContent) === 'notifications')" in script:
+                return self.notifications_opened
+            if "headers.some((node) => normalize(node.textContent) === wanted)" in script:
+                return self.notifications_opened
+            if "text === wanted || text.startsWith(wanted + ' ')" in script:
+                return {"x": 10, "y": 10}
+            if "startsWith('webhook url ')" in script or "text === 'webhook url'" in script:
+                return True
+            if "includes('create alert on')" in script:
+                return self.apply_clicked
+            return False
+
+        async def wait_for_function(self, script: str, title: str | None = None, timeout: int = 0, arg: Any = None) -> None:
+            wanted = arg if arg is not None else title
+            if wanted == ["Notifications"] or wanted == "Notifications":
+                self.waited_for_notifications = True
+            elif "create alert on" in script:
+                self.waited_for_main = True
+
+        async def wait_for_timeout(self, ms: int) -> None:
+            return None
+
+        def get_by_role(self, role: str, name: str, exact: bool = False):
+            outer = self
+
+            class FakeLocator:
+                async def count(self) -> int:
+                    return 1 if role == "button" and name == "Apply" else 0
+
+                @property
+                def first(self):
+                    return self
+
+                async def click(self) -> None:
+                    outer.apply_clicked = True
+
+            return FakeLocator()
+
+    page = FakePage()
+    browser = TradingViewAlertBrowser()
+    asyncio.run(browser._set_webhook_url(page, "https://example.test/hook"))
+    assert page.notifications_opened is True
+    assert page.waited_for_notifications is True
+    assert page.apply_clicked is True
+    assert page.waited_for_main is True
+    assert page.webhook_filled is True
+
+
+def test_set_message_uses_message_panel_fallback() -> None:
+    class FakePage:
+        def __init__(self) -> None:
+            self.message_opened = False
+            self.message_filled = False
+            self.waited_for_message = False
+            self.waited_for_main = False
+            self.apply_clicked = False
+            self.mouse = self.Mouse(self)
+            self.keyboard = self.Keyboard(self)
+
+        class Mouse:
+            def __init__(self, outer) -> None:
+                self.outer = outer
+
+            async def click(self, x: float, y: float) -> None:
+                self.outer.message_opened = True
+
+        class Keyboard:
+            def __init__(self, outer) -> None:
+                self.outer = outer
+
+            async def press(self, key: str) -> None:
+                return None
+
+        async def evaluate(self, script: str, payload: Any = None) -> Any:
+            if isinstance(payload, dict):
+                if payload.get("panelTitles") == ["edit message", "message"] and self.message_opened:
+                    self.message_filled = True
+                    return True
+                if payload.get("label") == "Message" and not self.message_opened:
+                    return False
+            if payload == "Message":
+                return {"x": 10, "y": 10}
+            if payload == "Apply":
+                return {"x": 10, "y": 10}
+            if "create alert on" in script:
+                return self.apply_clicked
+            return False
+
+        async def wait_for_function(self, script: str, title: str | None = None, timeout: int = 0, arg: Any = None) -> None:
+            wanted = arg if arg is not None else title
+            if wanted == ["Edit message", "Message"] or wanted == ["Edit message", "Message"]:
+                self.waited_for_message = True
+            elif wanted == "Message":
+                self.waited_for_message = True
+            elif "create alert on" in script:
+                self.waited_for_main = True
+
+        async def wait_for_timeout(self, ms: int) -> None:
+            return None
+
+        def get_by_role(self, role: str, name: str, exact: bool = False):
+            outer = self
+
+            class FakeLocator:
+                async def count(self) -> int:
+                    return 1 if role == "button" and name == "Apply" else 0
+
+                @property
+                def first(self):
+                    return self
+
+                async def click(self) -> None:
+                    outer.apply_clicked = True
+
+            return FakeLocator()
+
+    page = FakePage()
+    browser = TradingViewAlertBrowser()
+    asyncio.run(browser._set_message(page, '{"ok":true}'))
+    assert page.message_opened is True
+    assert page.waited_for_message is True
+    assert page.apply_clicked is True
+    assert page.waited_for_main is True
+    assert page.message_filled is True
+
+
+def test_click_button_falls_back_to_mouse_click() -> None:
+    class FakePage:
+        def __init__(self) -> None:
+            self.clicked = False
+            self.mouse = self.Mouse(self)
+
+        class Mouse:
+            def __init__(self, outer) -> None:
+                self.outer = outer
+
+            async def click(self, x: float, y: float) -> None:
+                self.outer.clicked = True
+
+        def get_by_role(self, role: str, name: str, exact: bool = False):
+            class FakeLocator:
+                async def count(self) -> int:
+                    return 0
+
+                @property
+                def first(self):
+                    return self
+
+                async def click(self) -> None:
+                    return None
+
+            return FakeLocator()
+
+        async def evaluate(self, script: str, payload: Any = None) -> Any:
+            if isinstance(payload, dict) and payload.get("label") == "Create":
+                return {"x": 20, "y": 20}
+            return None
+
+    page = FakePage()
+    browser = TradingViewAlertBrowser()
+    clicked = asyncio.run(browser._click_button(page, ["Create"]))
+    assert clicked is True
+    assert page.clicked is True
+
+
+def test_click_button_does_not_treat_header_as_create_button() -> None:
+    class FakePage:
+        def __init__(self) -> None:
+            self.clicked = False
+            self.mouse = self.Mouse(self)
+
+        class Mouse:
+            def __init__(self, outer) -> None:
+                self.outer = outer
+
+            async def click(self, x: float, y: float) -> None:
+                self.outer.clicked = True
+
+        def get_by_role(self, role: str, name: str, exact: bool = False):
+            class FakeLocator:
+                async def count(self) -> int:
+                    return 0
+
+                @property
+                def first(self):
+                    return self
+
+                async def click(self) -> None:
+                    return None
+
+            return FakeLocator()
+
+        async def evaluate(self, script: str, payload: Any = None) -> Any:
+            # The fallback should only accept actual buttons, not the
+            # "Create alert on ..." header text.
+            if isinstance(payload, dict) and payload.get("label") == "Create":
+                return {"x": 20, "y": 20}
+            return None
+
+    page = FakePage()
+    browser = TradingViewAlertBrowser()
+    clicked = asyncio.run(browser._click_button(page, ["Create"]))
+    assert clicked is True
+    assert page.clicked is True
+
+
+def test_submit_alert_closes_main_dialog() -> None:
+    class FakePage:
+        def __init__(self) -> None:
+            self.clicked = False
+            self.enter_pressed = False
+            self.closed = False
+            self.mouse = self.Mouse(self)
+            self.keyboard = self.Keyboard(self)
+
+        class Mouse:
+            def __init__(self, outer) -> None:
+                self.outer = outer
+
+            async def click(self, x: float, y: float) -> None:
+                self.outer.clicked = True
+                self.outer.closed = True
+
+        class Keyboard:
+            def __init__(self, outer) -> None:
+                self.outer = outer
+
+            async def press(self, key: str) -> None:
+                self.outer.enter_pressed = True
+                if key == "Enter":
+                    self.outer.closed = True
+
+        def get_by_role(self, role: str, name: str, exact: bool = False):
+            class FakeLocator:
+                async def count(self) -> int:
+                    return 0
+
+                @property
+                def first(self):
+                    return self
+
+                async def click(self) -> None:
+                    return None
+
+            return FakeLocator()
+
+        async def evaluate(self, script: str, payload: Any = None) -> Any:
+            if isinstance(payload, dict) and payload.get("label") == "Create":
+                return {"x": 20, "y": 20}
+            if "create alert on" in script:
+                return self.closed
+            return None
+
+        async def wait_for_timeout(self, ms: int) -> None:
+            return None
+
+        async def wait_for_function(self, script: str, title: str | None = None, timeout: int = 0, arg: Any = None) -> None:
+            return None
+
+    page = FakePage()
+    browser = TradingViewAlertBrowser()
+    asyncio.run(browser._submit_alert(page))
+    assert page.clicked is True
+    assert page.closed is True

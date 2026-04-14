@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from dataclasses import dataclass
 from math import isclose
 from typing import Any, Callable, Protocol
@@ -24,12 +25,20 @@ def build_alert_name(prefix: str | None, pair: str, timeframe: str) -> str:
     return f"{base} · {pair} · {timeframe}"
 
 
-def build_alert_message(config_snapshot: dict[str, Any], *, batch_id: str, pair: str, timeframe: str) -> str:
+def build_alert_message(
+    config_snapshot: dict[str, Any],
+    *,
+    batch_id: str,
+    pair: str,
+    timeframe: str,
+    alert_name: str | None = None,
+) -> str:
     return json.dumps(
         {
             "batch_id": batch_id,
             "pair": pair,
             "timeframe": timeframe,
+            "alert_name": alert_name or build_alert_name(None, pair, timeframe),
             "risk_weight": config_snapshot.get("risk_weight", 1.0),
             "source_run_id": config_snapshot.get("source_run_id"),
             "params": config_snapshot.get("params") or {},
@@ -122,14 +131,8 @@ class TradingViewAlertBrowser:
             await self._wait_for_alert_dialog(page)
             await self._select_alert_function_mode(page)
             await self._set_optional_field(page, "Alert name", alert_name)
-            await self._set_field(page, "Webhook URL", webhook_url)
-            await self._set_field(
-                page,
-                "Message",
-                build_alert_message(config_snapshot, batch_id="live", pair=pair, timeframe=timeframe),
-            )
-            if not await self._click_button(page, ["Create", "Create Alert"]):
-                raise RuntimeError("could not find TradingView Create Alert button")
+            await self._set_webhook_url(page, webhook_url)
+            await self._submit_alert(page)
 
         return AlertDeployment(
             pair=pair,
@@ -190,6 +193,40 @@ class TradingViewAlertBrowser:
             }
             """,
             timeout=15000,
+        )
+
+    async def _wait_for_main_alert_dialog(self, page: Any) -> None:
+        await page.wait_for_function(
+            """
+            () => {
+              const normalize = (text) => (text || '').trim().toLowerCase().replace(/\\s+/g, ' ');
+              const dialogs = Array.from(
+                document.querySelectorAll('[role="dialog"], [class*="dialog"], [class*="modal"]')
+              ).filter((el) => {
+                const rect = el.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+              });
+              return dialogs.some((el) => normalize(el.textContent).includes('create alert on'));
+            }
+            """,
+            timeout=5000,
+        )
+
+    async def _wait_for_main_alert_dialog_close(self, page: Any) -> None:
+        await page.wait_for_function(
+            """
+            () => {
+              const normalize = (text) => (text || '').trim().toLowerCase().replace(/\\s+/g, ' ');
+              const dialogs = Array.from(
+                document.querySelectorAll('[role="dialog"], [class*="dialog"], [class*="modal"]')
+              ).filter((el) => {
+                const rect = el.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+              });
+              return !dialogs.some((el) => normalize(el.textContent).includes('create alert on'));
+            }
+            """,
+            timeout=5000,
         )
 
     async def _select_alert_function_mode(self, page: Any) -> None:
@@ -304,16 +341,322 @@ class TradingViewAlertBrowser:
         except Exception:
             return False
 
-    async def _click_button(self, page: Any, labels: list[str]) -> bool:
-        for label in labels:
-            locator = page.get_by_role("button", name=label, exact=False)
+    async def _open_labeled_panel(self, page: Any, label: str) -> bool:
+        coords = await page.evaluate(
+            """
+            (label) => {
+              const wanted = (label || '').trim().toLowerCase();
+              const normalize = (text) => (text || '').trim().toLowerCase().replace(/\\s+/g, ' ');
+              const dialogs = Array.from(
+                document.querySelectorAll('[role="dialog"], [class*="dialog"], [class*="modal"]')
+              ).filter((el) => {
+                const rect = el.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+              });
+              const mainDialog =
+                dialogs.find((el) => normalize(el.textContent).includes('create alert on')) ||
+                dialogs[dialogs.length - 1] ||
+                document;
+              const nodes = Array.from(mainDialog.querySelectorAll('button, [role="button"], div, span'));
+              const matches = [];
+              for (const node of nodes) {
+                const text = normalize(node.textContent);
+                if (!text) continue;
+                if (text === wanted || text.startsWith(wanted + ' ')) {
+                  const clickable =
+                    node.closest('button, [role="button"], [data-name], [class*="container"], [class*="content"]') ||
+                    node;
+                  const rect = clickable.getBoundingClientRect?.();
+                  if (!rect || rect.width <= 0 || rect.height <= 0) continue;
+                  matches.push({
+                    text,
+                    x: rect.left + rect.width / 2,
+                    y: rect.top + rect.height / 2,
+                  });
+                }
+              }
+              matches.sort((a, b) => a.text.length - b.text.length);
+              return matches[0] || null;
+            }
+            """,
+            label,
+        )
+        if not coords:
+            return False
+        await page.mouse.click(coords["x"], coords["y"])
+        return True
+
+    async def _wait_for_panel(self, page: Any, *titles: str) -> None:
+        wanted_titles = [title for title in titles if title]
+        await page.wait_for_function(
+            """
+            (titles) => {
+              const wanted = Array.isArray(titles) ? titles.map((title) => (title || '').trim().toLowerCase()) : [];
+              const normalize = (text) => (text || '').trim().toLowerCase().replace(/\\s+/g, ' ');
+              const dialogs = Array.from(
+                document.querySelectorAll('[role="dialog"], [class*="dialog"], [class*="modal"]')
+              ).filter((el) => {
+                const rect = el.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+              });
+              return dialogs.some((el) => {
+                const headers = Array.from(el.querySelectorAll('button, span, div, h1, h2, h3'));
+                return headers.some((node) => wanted.includes(normalize(node.textContent)));
+              });
+            }
+            """,
+            arg=wanted_titles,
+            timeout=5000,
+        )
+
+    async def _set_webhook_url(self, page: Any, webhook_url: str) -> None:
+        try:
+            await self._set_field(page, "Webhook URL", webhook_url)
+            return
+        except Exception:
+            pass
+
+        opened = await self._open_labeled_panel(page, "Notifications")
+        if opened:
+            await page.wait_for_timeout(400)
+            await self._wait_for_panel(page, "Notifications")
+            webhook_enabled = await page.evaluate(
+                """
+                () => {
+                  const dialogs = Array.from(
+                    document.querySelectorAll('[role="dialog"], [class*="dialog"], [class*="modal"]')
+                  ).filter((el) => {
+                    const rect = el.getBoundingClientRect();
+                    return rect.width > 0 && rect.height > 0;
+                  });
+                  const normalize = (text) => (text || '').trim().toLowerCase().replace(/\\s+/g, ' ');
+                  const panel =
+                    dialogs.find((el) => {
+                      const headers = Array.from(el.querySelectorAll('button, span, div, h1, h2, h3'));
+                      return headers.some((node) => normalize(node.textContent) === 'notifications');
+                    }) ||
+                    dialogs[dialogs.length - 1] ||
+                    document;
+                  const nodes = Array.from(panel.querySelectorAll('label, span, div, button'));
+                  for (const node of nodes) {
+                    const text = normalize(node.textContent);
+                    if (!text || !(text === 'webhook url' || text.startsWith('webhook url '))) continue;
+                    const root = node.closest('label, [role="group"], [class*="container"], [class*="content"], [data-name]') || node.parentElement || document;
+                    const input = root.querySelector('input[type="checkbox"]');
+                    if (input && !input.checked) {
+                      input.click();
+                      return true;
+                    }
+                    const button = root.querySelector('button, [role="button"]');
+                    button?.click?.();
+                    return true;
+                  }
+                  return false;
+                }
+                """
+            )
+            if webhook_enabled:
+                await page.wait_for_timeout(400)
+            await self._set_field(page, "Webhook URL", webhook_url)
+            applied = await self._click_button(page, ["Apply"])
+            if not applied:
+                raise RuntimeError("could not find Notifications Apply button")
+            await page.wait_for_timeout(400)
+            await self._wait_for_main_alert_dialog(page)
+            return
+
+        raise RuntimeError("could not find alert field: Webhook URL")
+
+    async def _set_message(self, page: Any, message: str) -> None:
+        opened = await self._open_labeled_panel(page, "Message")
+        if opened:
+            await page.wait_for_timeout(400)
+            await self._wait_for_panel(page, "Edit message", "Message")
+            await self._set_active_panel_text(page, message, panel_titles=["edit message", "message"])
+            applied = await self._click_button(page, ["Apply"])
+            if not applied:
+                raise RuntimeError("could not find Message Apply button")
+            await page.wait_for_timeout(400)
+            await self._wait_for_main_alert_dialog(page)
+            return
+
+        raise RuntimeError("could not find alert field: Message")
+
+    async def _set_active_panel_text(self, page: Any, value: str, *, panel_titles: list[str]) -> None:
+        ok = await page.evaluate(
+            """
+            ({ value, panelTitles }) => {
+              const normalize = (text) => (text || '').trim().toLowerCase().replace(/\\s+/g, ' ');
+              const wanted = (panelTitles || []).map((title) => normalize(title));
+              const dialogs = Array.from(
+                document.querySelectorAll('[role="dialog"], [class*="dialog"], [class*="modal"]')
+              ).filter((el) => {
+                const rect = el.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+              });
+              const panel =
+                dialogs.find((el) => {
+                  const headers = Array.from(el.querySelectorAll('button, span, div, h1, h2, h3'));
+                  return headers.some((node) => wanted.includes(normalize(node.textContent)));
+                }) ||
+                dialogs[dialogs.length - 1] ||
+                null;
+              if (!panel) return false;
+              const input = panel.querySelector('textarea, input[type="text"], input:not([type]), [contenteditable="true"]');
+              if (!input) return false;
+              input.focus?.();
+              if (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) {
+                input.value = value;
+              } else {
+                input.textContent = value;
+              }
+              input.dispatchEvent(new Event('input', { bubbles: true }));
+              input.dispatchEvent(new Event('change', { bubbles: true }));
+              return true;
+            }
+            """,
+            {"value": value, "panelTitles": panel_titles},
+        )
+        if not ok:
+            raise RuntimeError("could not fill message editor")
+
+    async def _submit_alert(self, page: Any) -> None:
+        if await self._click_button(page, ["Create", "Create Alert"], dialog_titles=["Create alert on"]):
+            await page.wait_for_timeout(500)
             try:
-                if await locator.count() > 0:
-                    await locator.first.click()
-                    return True
+                await self._wait_for_main_alert_dialog_close(page)
+                return
             except Exception:
-                continue
+                pass
+
+        # Fallback: find the submit button via broader selector inside the alert dialog
+        submitted = await page.evaluate(
+            """
+            () => {
+              const normalize = (text) => (text || '').trim().toLowerCase().replace(/\\s+/g, ' ');
+              const dialogs = Array.from(
+                document.querySelectorAll('[role="dialog"], [class*="dialog"], [class*="modal"]')
+              ).filter((el) => {
+                const rect = el.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+              });
+              const dialog =
+                dialogs.find((el) => normalize(el.textContent).includes('create alert on')) ||
+                dialogs[dialogs.length - 1] ||
+                document;
+              const buttons = Array.from(dialog.querySelectorAll('button, [role="button"]'));
+              for (const btn of buttons) {
+                const text = normalize(btn.textContent);
+                if (text.startsWith('create') && !text.includes('cancel') && !text.includes('condition')) {
+                  btn.click();
+                  return true;
+                }
+              }
+              // Try submit-style buttons (type="submit" or data-name containing submit/create)
+              for (const btn of buttons) {
+                if (btn.type === 'submit' || (btn.dataset?.name || '').toLowerCase().includes('submit')) {
+                  btn.click();
+                  return true;
+                }
+              }
+              return false;
+            }
+            """
+        )
+        if submitted:
+            await page.wait_for_timeout(500)
+            try:
+                await self._wait_for_main_alert_dialog_close(page)
+                return
+            except Exception:
+                pass
+
+        try:
+            await page.keyboard.press("Enter")
+            await page.wait_for_timeout(500)
+            await self._wait_for_main_alert_dialog_close(page)
+            return
+        except Exception:
+            raise RuntimeError("could not click TradingView Create button")
+
+    async def _click_button(
+        self,
+        page: Any,
+        labels: list[str],
+        *,
+        dialog_titles: list[str] | None = None,
+    ) -> bool:
+        if hasattr(page, "locator"):
+            dialog = self._resolve_dialog_locator(page, dialog_titles)
+            for label in labels:
+                try:
+                    locator = dialog.get_by_role("button", name=re.compile(rf"^{re.escape(label)}$", re.I))
+                    if await locator.count() > 0:
+                        await locator.first.click(force=True)
+                        return True
+                except Exception:
+                    continue
+        elif hasattr(page, "get_by_role"):
+            for label in labels:
+                locator = page.get_by_role("button", name=label, exact=False)
+                try:
+                    if await locator.count() > 0:
+                        await locator.first.click()
+                        return True
+                except Exception:
+                    continue
+        for label in labels:
+            coords = await page.evaluate(
+                """
+                ({ label, dialogTitles }) => {
+                  const wanted = (label || '').trim().toLowerCase();
+                  const wantedDialogs = Array.isArray(dialogTitles)
+                    ? dialogTitles.map((title) => (title || '').trim().toLowerCase())
+                    : [];
+                  const normalize = (text) => (text || '').trim().toLowerCase().replace(/\\s+/g, ' ');
+                  const dialogs = Array.from(
+                    document.querySelectorAll('[role="dialog"], [class*="dialog"], [class*="modal"]')
+                  ).filter((el) => {
+                    const rect = el.getBoundingClientRect();
+                    return rect.width > 0 && rect.height > 0;
+                  });
+                  const dialog = wantedDialogs.length
+                    ? dialogs.find((el) => {
+                        const text = normalize(el.textContent);
+                        return wantedDialogs.some((title) => text.includes(title));
+                      }) || dialogs[dialogs.length - 1] || document
+                    : dialogs[dialogs.length - 1] || document;
+                  const nodes = Array.from(dialog.querySelectorAll('button, [role="button"]'));
+                  for (const node of nodes) {
+                    const text = normalize(node.textContent);
+                    if (!text) continue;
+                    if (text === wanted) {
+                      const clickable =
+                        node.closest('button, [role="button"], [data-name], [class*="container"], [class*="content"]') ||
+                        node;
+                      const rect = clickable.getBoundingClientRect?.();
+                      if (!rect || rect.width <= 0 || rect.height <= 0) continue;
+                      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+                    }
+                  }
+                  return null;
+                }
+                """,
+                {"label": label, "dialogTitles": dialog_titles or []},
+            )
+            if coords:
+                await page.mouse.click(coords["x"], coords["y"])
+                return True
         return False
+
+    def _resolve_dialog_locator(self, page: Any, dialog_titles: list[str] | None) -> Any:
+        dialogs = page.locator('[role="dialog"], [class*="dialog"], [class*="modal"]')
+        if not dialog_titles:
+            return dialogs.last
+        locator = dialogs
+        for title in dialog_titles:
+            locator = locator.filter(has_text=re.compile(re.escape(title), re.I))
+        return locator.first
 
 
 class AlertBatchRunner:

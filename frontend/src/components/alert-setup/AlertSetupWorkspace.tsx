@@ -119,7 +119,7 @@ function describeTimelineEvent(event: AlertBatchEventApi) {
       return event.pair ? `Preparing ${event.pair}` : 'Pair started';
     case 'alert_created':
       return event.pair
-        ? `${event.pair} alert saved${event.payload?.alert_id ? ` · ${event.payload.alert_id}` : ''}`
+        ? `${event.pair} alert saved${event.payload?.alert_name ? ` · ${event.payload.alert_name}` : ''}${event.payload?.alert_id ? ` (${event.payload.alert_id})` : ''}`
         : 'Alert created';
     case 'pair_completed':
       return event.pair ? `${event.pair} completed` : 'Pair completed';
@@ -171,6 +171,7 @@ function AlertResultsTable({ results }: { results: AlertBatchResultApi[] }) {
           <tr className='border-b border-[var(--to-border)]'>
             <th className='py-2 pr-3'>Pair</th>
             <th className='py-2 pr-3'>Status</th>
+            <th className='py-2 pr-3'>Alert Name</th>
             <th className='py-2 pr-3'>Risk</th>
             <th className='py-2 pr-3'>Timeframe</th>
             <th className='py-2 pr-3'>Alert ID</th>
@@ -184,6 +185,7 @@ function AlertResultsTable({ results }: { results: AlertBatchResultApi[] }) {
               <td className='py-2 pr-3'>
                 <Badge className={cn('border', statusTone(result.status))}>{result.status}</Badge>
               </td>
+              <td className='py-2 pr-3 text-[var(--to-text-primary)]'>{result.alert_name ?? '--'}</td>
               <td className='py-2 pr-3'>{formatNumber(result.risk_weight)}</td>
               <td className='py-2 pr-3'>{result.timeframe ?? '--'}</td>
               <td className='py-2 pr-3 font-mono text-[var(--to-text-primary)]'>{result.alert_id ?? '--'}</td>
