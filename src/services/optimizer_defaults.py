@@ -46,6 +46,4 @@ DEFAULT_PAIRS = [
     "XAGUSD",
     # Indices
     "NAS100",
-    "US30",
-    "US500",
 ]

@@ -2,7 +2,7 @@
   "run_id": "20260413_234406_53002a",
   "state": "running",
   "started_at": "2026-04-13T23:44:06.282357+03:00",
-  "last_progress_at": "2026-04-14T00:28:01.075157+03:00",
+  "last_progress_at": "2026-04-14T00:28:09.344885+03:00",
   "stuck_threshold_seconds": 720,
   "restart_count": 0,
   "optimizer_pid": 75724,
@@ -38,8 +38,8 @@
     },
     "worker-2": {
       "symbol": "AUDUSD",
-      "trial": 36,
-      "last_event_at": "2026-04-14T00:27:18.032389+03:00",
+      "trial": 37,
+      "last_event_at": "2026-04-14T00:28:09.344885+03:00",
       "status": "running"
     },
     "worker-3": {
@@ -87,7 +87,7 @@
     "worker-2": {
       "status": "healthy",
       "stale_reads": 0,
-      "last_results_hash": "65c2ae85"
+      "last_results_hash": "177ee6de"
     },
     "worker-3": {
       "status": "healthy",
