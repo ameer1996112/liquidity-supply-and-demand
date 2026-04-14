@@ -63,6 +63,17 @@ function formatTimelineTimestamp(value?: string) {
   });
 }
 
+function formatBatchTimestamp(value?: string | null) {
+  if (!value) return '--';
+  return new Date(value).toLocaleString([], {
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+}
+
 function cleanTimelineMessage(message: string) {
   return message
     .replace(/^\d{4}-\d{2}-\d{2}[^[]*\[[A-Z]+\]\s+[^:]+:\s*/, '')
@@ -187,7 +198,13 @@ function AlertResultsTable({ results }: { results: AlertBatchResultApi[] }) {
             <tr key={result.pair} className='border-b border-[var(--to-border)]/60'>
               <td className='py-2 pr-3 font-mono text-[var(--to-text-primary)]'>{result.pair}</td>
               <td className='py-2 pr-3'>
-                <Badge className={cn('border', statusTone(result.status))}>{result.status}</Badge>
+                <Badge className={cn('border', statusTone(result.status))}>
+                  {result.status === 'created'
+                    ? 'created'
+                    : result.status === 'skipped'
+                      ? 'skipped'
+                      : result.status}
+                </Badge>
               </td>
               <td className='py-2 pr-3 text-[var(--to-text-primary)]'>{result.alert_name ?? '--'}</td>
               <td className='py-2 pr-3'>{formatNumber(result.risk_weight)}</td>
@@ -593,7 +610,7 @@ export function AlertSetupWorkspace() {
           <CardDescription>Latest running or selected historical alert batch.</CardDescription>
         </CardHeader>
         <CardContent className='space-y-4'>
-          <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-5'>
+          <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-6'>
             <div className='rounded-lg border border-[var(--to-border)] p-3'>
               <p className='text-[10px] uppercase tracking-[0.15em] text-[var(--to-text-dim)]'>Status</p>
               <div className='mt-2 flex items-center gap-2'>
@@ -618,6 +635,15 @@ export function AlertSetupWorkspace() {
               <p className='text-[10px] uppercase tracking-[0.15em] text-[var(--to-text-dim)]'>Alerts created</p>
               <p className='mt-2 text-sm font-medium text-[var(--to-text-primary)]'>{createdAlerts}</p>
               <p className='mt-1 text-xs text-[var(--to-text-dim)]'>Total pairs: {totalPairs}</p>
+            </div>
+            <div className='rounded-lg border border-[var(--to-border)] p-3'>
+              <p className='text-[10px] uppercase tracking-[0.15em] text-[var(--to-text-dim)]'>Batch timing</p>
+              <p className='mt-2 text-xs text-[var(--to-text-primary)]'>
+                Queued at: {formatBatchTimestamp(currentBatch?.created_at)}
+              </p>
+              <p className='mt-1 text-xs text-[var(--to-text-dim)]'>
+                Started at: {formatBatchTimestamp(currentBatch?.started_at)}
+              </p>
             </div>
           </div>
 
