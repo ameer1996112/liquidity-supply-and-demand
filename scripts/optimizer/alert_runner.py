@@ -111,15 +111,8 @@ class TradingViewAlertBrowser:
 
             await page.keyboard.press("Alt+A")
             await page.wait_for_timeout(1000)
-            await page.wait_for_function(
-                """
-                () => {
-                  const body = document.body?.innerText || "";
-                  return body.includes("Create Alert") || body.includes("Alert name") || body.includes("Webhook URL");
-                }
-                """,
-                timeout=15000,
-            )
+            await self._wait_for_alert_dialog(page)
+            await self._select_alert_function_mode(page)
             await self._set_field(page, "Alert name", alert_name)
             await self._set_field(page, "Webhook URL", webhook_url)
             await self._set_field(
@@ -138,6 +131,74 @@ class TradingViewAlertBrowser:
             alert_id=f"{pair.lower()}-{timeframe}",
             params=params,
         )
+
+    async def _wait_for_alert_dialog(self, page: Any) -> None:
+        await page.wait_for_function(
+            """
+            () => {
+              const dialogs = Array.from(document.querySelectorAll('[role="dialog"], [class*="dialog"], [class*="modal"]'));
+              return dialogs.some((node) => {
+                const text = (node.textContent || '').trim();
+                return text.includes('Create alert on') || text.includes('Condition') || text.includes('Notifications');
+              });
+            }
+            """,
+            timeout=15000,
+        )
+
+    async def _select_alert_function_mode(self, page: Any) -> None:
+        selected = await page.evaluate(
+            """
+            () => {
+              const body = document.body?.innerText || '';
+              return body.includes('alert() function calls only');
+            }
+            """
+        )
+        if selected:
+            return
+
+        opened = await page.evaluate(
+            """
+            () => {
+              const nodes = Array.from(document.querySelectorAll('button, div[role="button"], span'));
+              for (const node of nodes) {
+                const text = (node.textContent || '').trim();
+                if (!text) continue;
+                if (
+                  text.includes('Order fills and alert() function calls') ||
+                  text.includes('Order fills only') ||
+                  text.includes('alert() function calls only')
+                ) {
+                  node.click();
+                  return true;
+                }
+              }
+              return false;
+            }
+            """
+        )
+        if not opened:
+            raise RuntimeError("could not open alert trigger mode dropdown")
+
+        await page.wait_for_timeout(500)
+        picked = await page.evaluate(
+            """
+            () => {
+              const nodes = Array.from(document.querySelectorAll('[role="option"], button, div[role="button"], span'));
+              for (const node of nodes) {
+                const text = (node.textContent || '').trim();
+                if (text === 'alert() function calls only') {
+                  node.click();
+                  return true;
+                }
+              }
+              return false;
+            }
+            """
+        )
+        if not picked:
+            raise RuntimeError("could not select 'alert() function calls only'")
 
     async def _set_field(self, page: Any, label: str, value: str) -> None:
         ok = await page.evaluate(

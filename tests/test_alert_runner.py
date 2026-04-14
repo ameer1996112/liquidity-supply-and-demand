@@ -4,7 +4,7 @@ import asyncio
 import threading
 from typing import Any
 
-from scripts.optimizer.alert_runner import AlertBatchRunner, AlertDeployment
+from scripts.optimizer.alert_runner import AlertBatchRunner, AlertDeployment, TradingViewAlertBrowser
 from scripts.optimizer import local_agent
 
 
@@ -230,3 +230,30 @@ def test_alert_batch_agent_updates_backend_state_without_browser(monkeypatch) ->
         for event in posted_events
     )
 
+
+def test_select_alert_function_mode_picks_alert_only() -> None:
+    class FakePage:
+        def __init__(self) -> None:
+            self.dropdown_open = False
+            self.selected = False
+
+        async def evaluate(self, script: str):
+            if "return body.includes('alert() function calls only')" in script:
+                return self.selected
+            if "Order fills and alert() function calls" in script:
+                self.dropdown_open = True
+                return True
+            if "text === 'alert() function calls only'" in script:
+                if self.dropdown_open:
+                    self.selected = True
+                    return True
+                return False
+            return False
+
+        async def wait_for_timeout(self, ms: int) -> None:
+            return None
+
+    page = FakePage()
+    browser = TradingViewAlertBrowser()
+    asyncio.run(browser._select_alert_function_mode(page))
+    assert page.selected is True
