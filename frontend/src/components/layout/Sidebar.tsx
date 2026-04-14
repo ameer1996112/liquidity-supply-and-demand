@@ -309,6 +309,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: 'Risk & Rules', icon: Gauge, path: '/risk' },
       { label: 'Alerts', icon: Bell, path: '/alerts' },
+      { label: 'Alert Setup', icon: SlidersHorizontal, path: '/alert-setup' },
       { label: 'Prop Firm', icon: Trophy, path: '/prop-firm' },
     ],
   },

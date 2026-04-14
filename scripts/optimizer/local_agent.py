@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-local_agent.py — Polling-based local agent for the TradingView optimizer.
+local_agent.py — Polling-based local agent for TradingView automation.
 
-Runs on your Mac, polls the Railway backend for queued optimizer runs,
-auto-launches Chrome with CDP, executes the optimizer, and reports progress.
+Runs on your Mac, polls the Railway backend for queued optimizer runs or
+queued alert batches, auto-launches Chrome with CDP, executes the selected
+runner, and reports progress.
 
 Usage:
     python -m scripts.optimizer.local_agent
@@ -11,6 +12,7 @@ Usage:
 Requires ADMIN_API_KEY and API_URL in .env (or environment variables).
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -21,6 +23,7 @@ import sys
 import time
 import threading
 from pathlib import Path
+from typing import Any
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
 
@@ -41,14 +44,26 @@ CANCEL_CHECK_INTERVAL = 5 # seconds between cancel checks during a run
 CHROME_LAUNCH_TIMEOUT = 15
 CDP_PORT = 9222
 AGENT_VERSION = "1.0.0"
+LOCAL_AGENT_TARGET = os.environ.get("LOCAL_AGENT_TARGET", "both").strip().lower()
+ALERT_AGENT_TARGETS = {"alert", "alert-setup", "alerts"}
+OPTIMIZER_AGENT_TARGETS = {"optimizer", "optimize", "runs"}
 
 log = logging.getLogger("optimizer-agent")
+
+from scripts.optimizer.alert_runner import (  # noqa: E402
+    AlertBatchCancelled,
+    AlertBatchRunner,
+    TradingViewAlertBrowser,
+    load_batch_from_api_payload,
+)
 
 # ── Env loading ──────────────────────────────────────────────────────────────
 
 
 def _maybe_reexec_into_venv() -> None:
     """Prefer repo venv interpreter so playwright/deps resolve consistently."""
+    if "PYTEST_CURRENT_TEST" in os.environ or "pytest" in Path(sys.argv[0]).name:
+        return
     if os.environ.get("_OPTIMIZER_VENV_ACTIVE") == "1":
         return
 
@@ -142,6 +157,14 @@ def api_post(path: str, body: dict | None = None) -> dict | None:
 
 def api_patch(path: str, body: dict) -> dict | None:
     return _api("PATCH", path, body)
+
+
+def _should_poll_alert_batches() -> bool:
+    return LOCAL_AGENT_TARGET in ALERT_AGENT_TARGETS or LOCAL_AGENT_TARGET == "both"
+
+
+def _should_poll_optimizer_runs() -> bool:
+    return LOCAL_AGENT_TARGET in OPTIMIZER_AGENT_TARGETS or LOCAL_AGENT_TARGET == "both"
 
 
 # ── Chrome management ────────────────────────────────────────────────────────
@@ -334,6 +357,171 @@ def execute_run(run: dict) -> None:
     log.info("Run %s finished with status: %s (exit code %d)", run_id, final_status, exit_code)
 
 
+def _report_alert_event(batch_id: str, event_type: str, pair: str | None = None, payload: dict[str, Any] | None = None) -> None:
+    payload = payload or {}
+    api_post(
+        f"/api/alert-setup/batches/{batch_id}/events",
+        {
+            "event_type": event_type,
+            "pair": pair,
+            "payload": payload,
+        },
+    )
+    if event_type == "pair_started" and pair:
+        api_patch(
+            f"/api/alert-setup/batches/{batch_id}/results/{pair}",
+            {"status": "running"},
+        )
+    elif event_type == "alert_created" and pair:
+        updates = {
+            "alert_name": payload.get("alert_name"),
+            "alert_id": payload.get("alert_id"),
+            "config_snapshot": payload.get("config_snapshot"),
+            "params": (payload.get("config_snapshot") or {}).get("params")
+            if isinstance(payload.get("config_snapshot"), dict)
+            else None,
+        }
+        api_patch(
+            f"/api/alert-setup/batches/{batch_id}/results/{pair}",
+            {k: v for k, v in updates.items() if v is not None},
+        )
+    elif event_type == "pair_completed" and pair:
+        updates = {
+            "status": "completed",
+            "alert_name": payload.get("alert_name"),
+            "alert_id": payload.get("alert_id"),
+            "config_snapshot": payload.get("config_snapshot"),
+            "params": payload.get("params"),
+        }
+        api_patch(
+            f"/api/alert-setup/batches/{batch_id}/results/{pair}",
+            {k: v for k, v in updates.items() if v is not None},
+        )
+    elif event_type == "pair_failed" and pair:
+        api_patch(
+            f"/api/alert-setup/batches/{batch_id}/results/{pair}",
+            {
+                "status": "failed",
+                "error_message": payload.get("error_message"),
+            },
+        )
+    elif event_type in {"batch_finished", "batch_cancelled"}:
+        status = payload.get("status") or ("cancelled" if event_type == "batch_cancelled" else "completed")
+        api_patch(
+            f"/api/alert-setup/batches/{batch_id}",
+            {
+                "status": status,
+                "summary": payload.get("summary") or {},
+            },
+        )
+
+
+async def _execute_alert_batch(batch: dict[str, Any], stop_event: threading.Event) -> None:
+    batch = load_batch_from_api_payload(batch)
+    batch_id = batch["id"]
+    source_mode = batch.get("source_mode", "approved")
+    timeframe = batch.get("timeframe")
+    pairs = batch.get("pairs") or []
+    if not pairs:
+        raise ValueError("alert batch must include at least one pair")
+
+    log.info("=" * 60)
+    log.info("Picked up alert batch %s", batch_id)
+    log.info("  source_mode=%s timeframe=%s pairs=%s", source_mode, timeframe, ",".join(pairs))
+    log.info("=" * 60)
+
+    if not ensure_chrome():
+        log.error("Cannot start alert batch — Chrome CDP not available")
+        api_patch(
+            f"/api/alert-setup/batches/{batch_id}",
+            {
+                "status": "failed",
+                "summary": {"error_message": "Chrome CDP not available on local machine"},
+            },
+        )
+        api_post(
+            f"/api/alert-setup/batches/{batch_id}/events",
+            {
+                "event_type": "batch_finished",
+                "payload": {
+                    "message": "Chrome CDP not available",
+                    "status": "failed",
+                    "summary": {"error_message": "Chrome CDP not available on local machine"},
+                },
+            },
+        )
+        return
+
+    api_patch(f"/api/alert-setup/batches/{batch_id}", {"status": "running"})
+    api_post(
+        f"/api/alert-setup/batches/{batch_id}/events",
+        {
+            "event_type": "log",
+            "payload": {
+                "message": f"Alert runner picked up batch {batch_id}",
+                "source_mode": source_mode,
+                "timeframe": timeframe,
+                "pairs": pairs,
+            },
+        },
+    )
+
+    runner = AlertBatchRunner(
+        browser_factory=lambda: TradingViewAlertBrowser(chrome_port=CDP_PORT)
+    )
+
+    def should_stop() -> bool:
+        if stop_event.is_set():
+            return True
+        current = api_get(f"/api/alert-setup/batches/{batch_id}")
+        return bool(current and current.get("status") == "cancelled")
+
+    def emit_event(event_type: str, pair: str | None, payload: dict[str, Any]) -> None:
+        _report_alert_event(batch_id, event_type, pair=pair, payload=payload)
+
+    try:
+        await runner.run(batch, emit_event=emit_event, should_stop=should_stop)
+    except AlertBatchCancelled:
+        api_post(
+            f"/api/alert-setup/batches/{batch_id}/events",
+            {
+                "event_type": "batch_finished",
+                "payload": {
+                    "status": "cancelled",
+                    "summary": {"error_message": "cancelled by user"},
+                },
+            },
+        )
+        api_patch(
+            f"/api/alert-setup/batches/{batch_id}",
+            {
+                "status": "cancelled",
+                "summary": {"error_message": "cancelled by user"},
+            },
+        )
+        return
+    except Exception as e:
+        log.error("Alert batch %s failed: %s", batch_id, e, exc_info=True)
+        api_post(
+            f"/api/alert-setup/batches/{batch_id}/events",
+            {
+                "event_type": "batch_finished",
+                "payload": {
+                    "status": "failed",
+                    "summary": {"error_message": str(e)},
+                },
+            },
+        )
+        api_patch(
+            f"/api/alert-setup/batches/{batch_id}",
+            {
+                "status": "failed",
+                "summary": {"error_message": str(e)},
+            },
+        )
+        return
+
+
 class _RunCancelled(Exception):
     pass
 
@@ -441,8 +629,14 @@ def main() -> None:
     )
 
     log.info("╔══════════════════════════════════════════════════╗")
-    log.info("║  Optimizer Local Agent v%s                    ║", AGENT_VERSION)
+    log.info("║  Local Agent v%s                               ║", AGENT_VERSION)
     log.info("║  API: %s", API_URL)
+    if LOCAL_AGENT_TARGET == "both":
+        log.info("║  Target: optimizer + alert setup                ║")
+    elif _should_poll_alert_batches():
+        log.info("║  Target: alert setup batches                    ║")
+    else:
+        log.info("║  Target: optimizer runs                         ║")
     log.info("║  Polling every %ds for queued runs              ║", POLL_INTERVAL)
     log.info("╚══════════════════════════════════════════════════╝")
 
@@ -468,14 +662,26 @@ def main() -> None:
     # Main poll loop
     while not stop_event.is_set():
         try:
-            resp = api_get("/api/optimizer/runs?status=queued&limit=1")
-            runs = (resp or {}).get("runs", [])
+            if _should_poll_alert_batches():
+                resp = api_get("/api/alert-setup/batches?status=queued&limit=1")
+                batches = (resp or {}).get("batches", [])
+                if batches:
+                    batch = batches[0]
+                    asyncio.run(_execute_alert_batch(batch, stop_event))
+                    stop_event.wait(POLL_INTERVAL)
+                    continue
+                elif LOCAL_AGENT_TARGET in ALERT_AGENT_TARGETS:
+                    log.debug("No queued alert batches")
 
-            if runs:
-                run = runs[0]  # Oldest queued run
-                execute_run(run)
-            else:
-                log.debug("No queued runs")
+            if _should_poll_optimizer_runs():
+                resp = api_get("/api/optimizer/runs?status=queued&limit=1")
+                runs = (resp or {}).get("runs", [])
+
+                if runs:
+                    run = runs[0]  # Oldest queued run
+                    execute_run(run)
+                else:
+                    log.debug("No queued runs")
         except Exception as e:
             log.error("Poll loop error: %s", e, exc_info=True)
 

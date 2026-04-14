@@ -47,6 +47,7 @@ const OVERFLOW_ITEMS: NavItem[] = [
   { label: 'Accounts', icon: Users, path: '/accounts' },
   { label: 'Exec Quality', icon: Timer, path: '/execution-quality' },
   { label: 'Alerts', icon: Bell, path: '/alerts' },
+  { label: 'Alert Setup', icon: SlidersHorizontal, path: '/alert-setup' },
   { label: 'Analytics', icon: BarChart3, path: '/analytics' },
   { label: 'Backtest', icon: LineChart, path: '/backtest' },
   { label: 'Optimizer', icon: PlaySquare, path: '/optimizer' },

@@ -358,6 +358,134 @@ export async function fetchAgentStatus() {
 }
 
 /**
+ * Alert Setup
+ */
+export type AlertSetupPresetMode = 'top3' | 'top5' | 'approved' | 'custom';
+
+export interface AlertApprovedConfigApi {
+  pair: string;
+  timeframe: string;
+  status: 'candidate' | 'approved' | 'archived';
+  rank?: number | null;
+  risk_weight?: number | null;
+  score?: number | null;
+  profit_factor?: number | null;
+  max_drawdown_pct?: number | null;
+  total_trades?: number | null;
+  source_run_id?: string | null;
+  params?: Record<string, unknown> | null;
+  notes?: string | null;
+  updated_at?: string | null;
+}
+
+export interface AlertBatchSummaryApi {
+  total_pairs: number;
+  pending_pairs?: number;
+  running_pairs: number;
+  completed_pairs: number;
+  failed_pairs: number;
+  cancelled_pairs?: number;
+  skipped_pairs?: number;
+  created_alerts?: number;
+  best_pair?: string;
+  best_score?: number;
+  error_message?: string;
+}
+
+export interface AlertBatchApi {
+  id: string;
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled' | 'interrupted';
+  source_mode: AlertSetupPresetMode;
+  timeframe: string;
+  pairs: string[];
+  alert_name_prefix?: string | null;
+  webhook_url?: string | null;
+  use_approved_weights?: boolean | null;
+  pair_risk_weights?: Record<string, number> | null;
+  created_by?: string | null;
+  summary: AlertBatchSummaryApi;
+  started_at?: string | null;
+  finished_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface AlertBatchResultApi {
+  pair: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  timeframe?: string | null;
+  risk_weight?: number | null;
+  alert_name?: string | null;
+  alert_id?: string | null;
+  params?: Record<string, unknown> | null;
+  error_message?: string | null;
+  created_at?: string | null;
+}
+
+export interface AlertBatchEventApi {
+  batch_id: string;
+  event_type: string;
+  pair?: string | null;
+  worker_id?: number | null;
+  payload?: Record<string, any>;
+  created_at?: string;
+}
+
+export interface AlertBatchCreateApi {
+  source_mode: AlertSetupPresetMode;
+  pairs: string[];
+  timeframe: string;
+  alert_name_prefix?: string;
+  webhook_url?: string;
+  use_approved_weights?: boolean;
+  pair_risk_weights?: Record<string, number>;
+  notes?: string;
+}
+
+export async function fetchAlertApprovedConfigs() {
+  const response = await apiFetch<{ configs: AlertApprovedConfigApi[] }>(
+    '/api/alert-setup/approved-configs'
+  );
+  return response.configs || [];
+}
+
+export async function fetchAlertBatches() {
+  const response = await apiFetch<{ batches: AlertBatchApi[] }>('/api/alert-setup/batches');
+  return response.batches || [];
+}
+
+export async function fetchAlertBatch(batchId: string) {
+  return apiFetch<AlertBatchApi>(`/api/alert-setup/batches/${batchId}`);
+}
+
+export async function fetchAlertBatchResults(batchId: string) {
+  const response = await apiFetch<{ results: AlertBatchResultApi[] }>(
+    `/api/alert-setup/batches/${batchId}/results`
+  );
+  return response.results || [];
+}
+
+export async function fetchAlertBatchEvents(batchId: string) {
+  const response = await apiFetch<{ events: AlertBatchEventApi[] }>(
+    `/api/alert-setup/batches/${batchId}/events`
+  );
+  return response.events || [];
+}
+
+export async function createAlertBatch(payload: AlertBatchCreateApi) {
+  return apiFetch<AlertBatchApi>('/api/alert-setup/batches', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function cancelAlertBatch(batchId: string) {
+  return apiFetch<AlertBatchApi>(`/api/alert-setup/batches/${batchId}/cancel`, {
+    method: 'POST',
+  });
+}
+
+/**
  * Portfolio Control - Trailing Stops
  */
 export async function fetchTrailingStops() {
