@@ -122,7 +122,11 @@ function describeTimelineEvent(event: AlertBatchEventApi) {
         ? `${event.pair} alert saved${event.payload?.alert_name ? ` · ${event.payload.alert_name}` : ''}${event.payload?.alert_id ? ` (${event.payload.alert_id})` : ''}`
         : 'Alert created';
     case 'pair_completed':
-      return event.pair ? `${event.pair} completed` : 'Pair completed';
+      if (!event.pair) return 'Pair completed';
+      if (event.payload?.skipped_existing) {
+        return `${event.pair} skipped · alert already exists`;
+      }
+      return `${event.pair} alert created`;
     case 'pair_failed':
       return event.pair
         ? `${event.pair} failed${event.payload?.error_message ? ` · ${event.payload.error_message}` : ''}`

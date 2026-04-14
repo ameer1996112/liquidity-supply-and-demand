@@ -55,6 +55,7 @@ class AlertDeployment:
     alert_name: str
     alert_id: str
     params: dict[str, Any]
+    skipped_existing: bool = False
 
 
 class AlertBrowser(Protocol):
@@ -103,36 +104,57 @@ class TradingViewAlertBrowser:
 
         async with async_playwright() as pw:
             browser = await pw.chromium.connect_over_cdp(f"http://127.0.0.1:{self._chrome_port}")
-            pages = await ensure_tradingview_tabs(browser, 1, pair)
-            page = pages[0]
-            page.on("dialog", lambda dialog: asyncio.create_task(self._dismiss_js_dialog(dialog)))
-            optimizer = TradingViewOptimizer(
-                pairs=[pair],
-                bayesian_mode=True,
-                n_trials=1,
-                dd_limit=10.0,
-                generate_report=False,
+            page, created_for_pair = await self._prepare_pair_chart_page(
+                browser,
+                pair,
+                ensure_tradingview_tabs,
+                TabWorker,
+                optimizer_factory=lambda: TradingViewOptimizer(
+                    pairs=[pair],
+                    bayesian_mode=True,
+                    n_trials=1,
+                    dd_limit=10.0,
+                    generate_report=False,
+                ),
             )
-            worker = TabWorker(page, optimizer)
-            await worker._switch_symbol(pair)
-            await worker._require_last_365_days()
-            outcome = await worker._apply_params(params)
-            if not outcome.fresh:
-                metrics_match = await self._matches_source_metrics(worker, pair, config_snapshot)
-                # For alert setup, a stale hash or blank dialog can still be acceptable
-                # if the current chart already matches the approved snapshot.
-                if not metrics_match and outcome.reason != "stale_result_hash":
+            try:
+                page.on("dialog", lambda dialog: asyncio.create_task(self._dismiss_js_dialog(dialog)))
+                optimizer = TradingViewOptimizer(
+                    pairs=[pair],
+                    bayesian_mode=True,
+                    n_trials=1,
+                    dd_limit=10.0,
+                    generate_report=False,
+                )
+                worker = TabWorker(page, optimizer)
+                outcome = await worker._apply_params_for_alert(params)
+                if not outcome.ok:
                     raise RuntimeError(f"could not apply params for {pair}: {outcome.reason}")
-                if not metrics_match and outcome.reason == "stale_result_hash":
-                    raise RuntimeError(f"could not verify params for {pair}: {outcome.reason}")
 
-            await page.keyboard.press("Alt+A")
-            await page.wait_for_timeout(1000)
-            await self._wait_for_alert_dialog(page)
-            await self._select_alert_function_mode(page)
-            await self._set_optional_field(page, "Alert name", alert_name)
-            await self._set_webhook_url(page, webhook_url)
-            await self._submit_alert(page)
+                if await self._has_existing_alert(page, pair=pair, timeframe=timeframe):
+                    return AlertDeployment(
+                        pair=pair,
+                        timeframe=timeframe,
+                        config_snapshot=config_snapshot,
+                        alert_name=alert_name,
+                        alert_id=f"{pair.lower()}-{timeframe}",
+                        params=params,
+                        skipped_existing=True,
+                    )
+
+                await page.keyboard.press("Alt+A")
+                await page.wait_for_timeout(1000)
+                await self._wait_for_alert_dialog(page)
+                await self._select_alert_function_mode(page)
+                await self._set_optional_field(page, "Alert name", alert_name)
+                await self._set_webhook_url(page, webhook_url)
+                await self._submit_alert(page)
+            finally:
+                if created_for_pair:
+                    try:
+                        await page.close()
+                    except Exception:
+                        pass
 
         return AlertDeployment(
             pair=pair,
@@ -142,6 +164,57 @@ class TradingViewAlertBrowser:
             alert_id=f"{pair.lower()}-{timeframe}",
             params=params,
         )
+
+    async def _open_pair_chart_page(self, browser: Any, pair: str, ensure_tabs: Callable[..., Any]) -> tuple[Any, bool]:
+        existing_pages: list[Any] = []
+        for context in browser.contexts:
+            for page in context.pages:
+                try:
+                    if "tradingview.com/chart" in page.url:
+                        existing_pages.append(page)
+                except Exception:
+                    continue
+
+        if not existing_pages:
+            pages = await ensure_tabs(browser, 1, pair)
+            return pages[0], False
+
+        before_ids = {id(page) for page in existing_pages}
+        pages = await ensure_tabs(browser, len(existing_pages) + 1, pair)
+        for page in reversed(pages):
+            if id(page) not in before_ids:
+                return page, True
+
+        return pages[-1], False
+
+    async def _prepare_pair_chart_page(
+        self,
+        browser: Any,
+        pair: str,
+        ensure_tabs: Callable[..., Any],
+        worker_cls: type[Any],
+        optimizer_factory: Callable[[], Any],
+        max_attempts: int = 3,
+    ) -> tuple[Any, bool]:
+        last_error: Exception | None = None
+        for attempt in range(1, max_attempts + 1):
+            page, created_for_pair = await self._open_pair_chart_page(browser, pair, ensure_tabs)
+            try:
+                worker = worker_cls(page, optimizer_factory())
+                await worker._switch_symbol(pair)
+                return page, created_for_pair
+            except Exception as exc:
+                last_error = exc
+                if created_for_pair:
+                    try:
+                        await page.close()
+                    except Exception:
+                        pass
+                if attempt >= max_attempts:
+                    break
+                await asyncio.sleep(1.5)
+        assert last_error is not None
+        raise last_error
 
     async def _dismiss_js_dialog(self, dialog: Any) -> None:
         try:
@@ -233,8 +306,26 @@ class TradingViewAlertBrowser:
         selected = await page.evaluate(
             """
             () => {
-              const body = document.body?.innerText || '';
-              return body.includes('alert() function calls only');
+              const normalize = (text) => (text || '').trim().toLowerCase().replace(/\\s+/g, ' ');
+              const dialogs = Array.from(
+                document.querySelectorAll('[role="dialog"], [class*="dialog"], [class*="modal"]')
+              ).filter((el) => {
+                const rect = el.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+              });
+              const dialog =
+                dialogs.find((el) => normalize(el.textContent).includes('create alert on')) ||
+                dialogs[dialogs.length - 1] ||
+                document;
+              const controls = Array.from(dialog.querySelectorAll('input, button, [role="button"], [role="combobox"], select, span, div'));
+              return controls.some((node) => {
+                const text = normalize(
+                  node.value ??
+                  node.getAttribute?.('aria-label') ??
+                  node.textContent
+                );
+                return text === 'alert() function calls only';
+              });
             }
             """
         )
@@ -579,6 +670,51 @@ class TradingViewAlertBrowser:
         except Exception:
             raise RuntimeError("could not click TradingView Create button")
 
+    async def _has_existing_alert(self, page: Any, *, pair: str, timeframe: str) -> bool:
+        opened = await page.evaluate(
+            """
+            () => {
+              const buttons = Array.from(document.querySelectorAll('button, [role="button"], div[role="button"]'));
+              for (const node of buttons) {
+                const text = (node.textContent || '').trim().toLowerCase();
+                if (text === 'alerts') {
+                  node.click?.();
+                  return true;
+                }
+              }
+              return false;
+            }
+            """
+        )
+        if opened:
+            await page.wait_for_timeout(500)
+        return await page.evaluate(
+            """
+            ({ pair, timeframe }) => {
+              const normalize = (text) => (text || '').trim().toLowerCase().replace(/\\s+/g, ' ');
+              const panelCandidates = Array.from(document.querySelectorAll('aside, section, div, [role="complementary"], [role="dialog"]'))
+                .filter((node) => {
+                  const rect = node.getBoundingClientRect?.();
+                  if (!rect || rect.width <= 0 || rect.height <= 0) return false;
+                  const text = normalize(node.textContent || '');
+                  if (!text.includes('alerts')) return false;
+                  return rect.left > window.innerWidth * 0.55;
+                });
+              const panel = panelCandidates.sort((a, b) => {
+                const aRect = a.getBoundingClientRect();
+                const bRect = b.getBoundingClientRect();
+                return (bRect.width * bRect.height) - (aRect.width * aRect.height);
+              })[0];
+              if (!panel) return false;
+              const body = normalize(panel.innerText || panel.textContent || '');
+              const wantedPair = normalize(pair);
+              const wantedTf = normalize(timeframe);
+              return body.includes(wantedPair) && body.includes(wantedTf) && body.includes('s&d algo [pro]');
+            }
+            """,
+            {"pair": pair, "timeframe": timeframe},
+        )
+
     async def _click_button(
         self,
         page: Any,
@@ -681,6 +817,7 @@ class AlertBatchRunner:
 
         completed = 0
         failed = 0
+        created_alerts = 0
         for config_snapshot in results:
             if should_stop():
                 raise AlertBatchCancelled()
@@ -702,15 +839,17 @@ class AlertBatchRunner:
                     should_stop=should_stop,
                 )
                 completed += 1
-                emit_event(
-                    "alert_created",
-                    pair,
-                    {
-                        "alert_name": deployed.alert_name,
-                        "alert_id": deployed.alert_id,
-                        "config_snapshot": deployed.config_snapshot,
-                    },
-                )
+                if not deployed.skipped_existing:
+                    created_alerts += 1
+                    emit_event(
+                        "alert_created",
+                        pair,
+                        {
+                            "alert_name": deployed.alert_name,
+                            "alert_id": deployed.alert_id,
+                            "config_snapshot": deployed.config_snapshot,
+                        },
+                    )
                 emit_event(
                     "pair_completed",
                     pair,
@@ -719,6 +858,7 @@ class AlertBatchRunner:
                         "alert_id": deployed.alert_id,
                         "config_snapshot": deployed.config_snapshot,
                         "params": deployed.params,
+                        "skipped_existing": deployed.skipped_existing,
                     },
                 )
             except AlertBatchCancelled:
@@ -732,7 +872,7 @@ class AlertBatchRunner:
             "total_pairs": len(results),
             "completed_pairs": completed,
             "failed_pairs": failed,
-            "created_alerts": completed,
+            "created_alerts": created_alerts,
             "running_pairs": 0,
             "pending_pairs": max(0, len(results) - completed - failed),
         }

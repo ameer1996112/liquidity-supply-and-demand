@@ -1,17 +1,19 @@
 from __future__ import annotations
 
 import asyncio
+import sys
 import threading
 from typing import Any
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
 from scripts.optimizer.alert_runner import AlertBatchRunner, AlertDeployment, TradingViewAlertBrowser
 from scripts.optimizer import local_agent
 
 
 class FakeAlertBrowser:
-    def __init__(self, failures: set[str] | None = None) -> None:
+    def __init__(self, failures: set[str] | None = None, skipped: set[str] | None = None) -> None:
         self.failures = failures or set()
+        self.skipped = skipped or set()
         self.deployments: list[dict[str, Any]] = []
 
     async def deploy_alert(
@@ -42,6 +44,7 @@ class FakeAlertBrowser:
             alert_name=f"{pair} {timeframe}",
             alert_id=f"alert-{pair}",
             params=dict(config_snapshot.get("params") or {}),
+            skipped_existing=pair in self.skipped,
         )
 
 
@@ -98,6 +101,48 @@ def test_alert_batch_runner_emits_progress_and_summary() -> None:
     ]
     assert events[1]["payload"]["alert_id"] == "alert-EURUSD"
     assert events[4]["payload"]["error_message"] == "boom for GBPUSD"
+
+
+def test_alert_batch_runner_does_not_count_skipped_existing_as_created() -> None:
+    batch = {
+        "id": "batch-skip",
+        "timeframe": "5m",
+        "pairs": ["EURUSD"],
+        "config_snapshot": [
+            {
+                "pair": "EURUSD",
+                "timeframe": "5m",
+                "params": {"lookback": 20},
+                "risk_weight": 0.75,
+            },
+        ],
+        "alert_name_prefix": "TradeOps",
+        "webhook_url": "https://example.test/webhook",
+    }
+    browser = FakeAlertBrowser(skipped={"EURUSD"})
+    events: list[dict[str, Any]] = []
+
+    async def run() -> dict[str, Any]:
+        runner = AlertBatchRunner(browser_factory=lambda: browser)
+        return await runner.run(
+            batch,
+            emit_event=lambda event_type, pair, payload: events.append(
+                {"event_type": event_type, "pair": pair, "payload": payload}
+            ),
+            should_stop=lambda: False,
+        )
+
+    result = asyncio.run(run())
+
+    assert result["status"] == "completed"
+    assert result["summary"]["completed_pairs"] == 1
+    assert result["summary"]["created_alerts"] == 0
+    assert [event["event_type"] for event in events] == [
+        "pair_started",
+        "pair_completed",
+        "batch_finished",
+    ]
+    assert events[1]["payload"]["skipped_existing"] is True
 
 
 def test_alert_batch_agent_updates_backend_state_without_browser(monkeypatch) -> None:
@@ -223,7 +268,7 @@ def test_alert_batch_agent_updates_backend_state_without_browser(monkeypatch) ->
     )
     assert any(
         path == "/api/alert-setup/batches/batch-2/results/EURUSD"
-        and body.get("status") == "completed"
+        and body.get("status") == "created"
         for _, path, body in patched_calls
     )
     assert any(
@@ -240,7 +285,7 @@ def test_select_alert_function_mode_picks_alert_only() -> None:
             self.selected = False
 
         async def evaluate(self, script: str):
-            if "return body.includes('alert() function calls only')" in script:
+            if "const controls = Array.from(dialog.querySelectorAll" in script:
                 return self.selected
             if "Order fills and alert() function calls" in script:
                 self.dropdown_open = True
@@ -286,6 +331,50 @@ def test_matches_source_metrics_accepts_already_configured_chart() -> None:
         )
     )
     assert matched is True
+
+
+def test_has_existing_alert_detects_existing_pair() -> None:
+    class FakePage:
+        def __init__(self) -> None:
+            self.opened_alerts = False
+
+        async def evaluate(self, script: str, payload: Any = None) -> Any:
+            if "text === 'alerts'" in script:
+                self.opened_alerts = True
+                return True
+            if isinstance(payload, dict) and payload.get("pair") == "USDJPY":
+                return self.opened_alerts
+            return False
+
+        async def wait_for_timeout(self, ms: int) -> None:
+            return None
+
+    page = FakePage()
+    browser = TradingViewAlertBrowser()
+    exists = asyncio.run(browser._has_existing_alert(page, pair="USDJPY", timeframe="5m"))
+    assert exists is True
+
+
+def test_has_existing_alert_ignores_main_chart_text_without_alerts_panel_match() -> None:
+    class FakePage:
+        def __init__(self) -> None:
+            self.opened_alerts = False
+
+        async def evaluate(self, script: str, payload: Any = None) -> Any:
+            if "text === 'alerts'" in script:
+                self.opened_alerts = True
+                return True
+            if isinstance(payload, dict) and payload.get("pair") == "USDJPY":
+                return False
+            return False
+
+        async def wait_for_timeout(self, ms: int) -> None:
+            return None
+
+    page = FakePage()
+    browser = TradingViewAlertBrowser()
+    exists = asyncio.run(browser._has_existing_alert(page, pair="USDJPY", timeframe="5m"))
+    assert exists is False
 
 
 def test_set_field_expands_collapsed_row_before_fill() -> None:
@@ -601,3 +690,184 @@ def test_submit_alert_closes_main_dialog() -> None:
     asyncio.run(browser._submit_alert(page))
     assert page.clicked is True
     assert page.closed is True
+
+
+def test_prepare_pair_chart_page_retries_with_fresh_tab() -> None:
+    class FakePage:
+        def __init__(self, label: str) -> None:
+            self.label = label
+            self.closed = False
+
+        async def close(self) -> None:
+            self.closed = True
+
+    class FakeWorker:
+        attempts: list[str] = []
+
+        def __init__(self, page: Any, optimizer: Any) -> None:
+            self.page = page
+
+        async def _switch_symbol(self, symbol: str) -> None:
+            FakeWorker.attempts.append(self.page.label)
+            if self.page.label == "first":
+                raise RuntimeError("Symbol switch failed: expected GBPNZD, observed XAUUSD")
+
+    pages = [FakePage("first"), FakePage("second")]
+
+    async def fake_ensure_tabs(browser: Any, required_tabs: int, pair: str) -> list[Any]:
+        return []
+
+    browser = SimpleNamespace(contexts=[])
+    alert_browser = TradingViewAlertBrowser()
+    call_count = {"value": 0}
+
+    async def fake_open_pair_chart_page(browser: Any, pair: str, ensure_tabs: Any) -> tuple[Any, bool]:
+        idx = call_count["value"]
+        call_count["value"] += 1
+        return pages[idx], True
+
+    alert_browser._open_pair_chart_page = fake_open_pair_chart_page  # type: ignore[method-assign]
+
+    page, created = asyncio.run(
+        alert_browser._prepare_pair_chart_page(
+            browser,
+            "GBPNZD",
+            fake_ensure_tabs,
+            FakeWorker,
+            optimizer_factory=lambda: object(),
+        )
+    )
+
+    assert created is True
+    assert page is pages[1]
+    assert pages[0].closed is True
+    assert FakeWorker.attempts == ["first", "second"]
+
+
+def test_deploy_alert_does_not_force_last_365_days(monkeypatch) -> None:
+    class FakeKeyboard:
+        async def press(self, key: str) -> None:
+            return None
+
+    class FakePage:
+        def __init__(self) -> None:
+            self.keyboard = FakeKeyboard()
+
+        def on(self, event: str, callback: Any) -> None:
+            return None
+
+        async def wait_for_timeout(self, ms: int) -> None:
+            return None
+
+        async def close(self) -> None:
+            return None
+
+    class FakeBrowser:
+        contexts: list[Any] = []
+
+    class FakePlaywrightContext:
+        class Chromium:
+            async def connect_over_cdp(self, url: str) -> Any:
+                return FakeBrowser()
+
+        def __init__(self) -> None:
+            self.chromium = self.Chromium()
+
+        async def __aenter__(self) -> Any:
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb) -> None:
+            return None
+
+    class FakeOptimizer:
+        def __init__(self, **kwargs: Any) -> None:
+            self.kwargs = kwargs
+
+    class FakeTabWorker:
+        applied_params: list[dict[str, Any]] = []
+        alert_apply_called = False
+        optimizer_apply_called = False
+
+        def __init__(self, page: Any, optimizer: Any) -> None:
+            self.page = page
+            self.optimizer = optimizer
+
+        async def _switch_symbol(self, symbol: str) -> None:
+            return None
+
+        async def _apply_params(self, params: dict[str, Any]) -> Any:
+            FakeTabWorker.optimizer_apply_called = True
+            raise AssertionError("alert setup should not use optimizer retry apply path")
+
+        async def _apply_params_for_alert(self, params: dict[str, Any]) -> Any:
+            FakeTabWorker.alert_apply_called = True
+            FakeTabWorker.applied_params.append(params.copy())
+            return SimpleNamespace(ok=True, fresh=True, reason="")
+
+    playwright_module = ModuleType("playwright")
+    async_api_module = ModuleType("playwright.async_api")
+    async_api_module.async_playwright = lambda: FakePlaywrightContext()
+    parallel_runner_module = ModuleType("scripts.optimizer.parallel_runner")
+    optimizer_module = ModuleType("scripts.optimizer.optimizer")
+    tab_worker_module = ModuleType("scripts.optimizer.tab_worker")
+
+    async def fake_ensure_tradingview_tabs(browser: Any, required_tabs: int, pair: str) -> list[Any]:
+        return []
+
+    parallel_runner_module.ensure_tradingview_tabs = fake_ensure_tradingview_tabs
+    optimizer_module.TradingViewOptimizer = FakeOptimizer
+    tab_worker_module.TabWorker = FakeTabWorker
+
+    monkeypatch.setitem(sys.modules, "playwright", playwright_module)
+    monkeypatch.setitem(sys.modules, "playwright.async_api", async_api_module)
+    monkeypatch.setitem(sys.modules, "scripts.optimizer.parallel_runner", parallel_runner_module)
+    monkeypatch.setitem(sys.modules, "scripts.optimizer.optimizer", optimizer_module)
+    monkeypatch.setitem(sys.modules, "scripts.optimizer.tab_worker", tab_worker_module)
+
+    page = FakePage()
+    browser = TradingViewAlertBrowser()
+
+    async def fake_prepare_pair_chart_page(*args: Any, **kwargs: Any) -> tuple[Any, bool]:
+        return page, False
+
+    async def fake_has_existing_alert(page: Any, *, pair: str, timeframe: str) -> bool:
+        return False
+
+    async def fake_wait_for_alert_dialog(page: Any) -> None:
+        return None
+
+    async def fake_select_alert_function_mode(page: Any) -> None:
+        return None
+
+    async def fake_set_optional_field(page: Any, label: str, value: str) -> None:
+        return None
+
+    async def fake_set_webhook_url(page: Any, webhook_url: str) -> None:
+        return None
+
+    async def fake_submit_alert(page: Any) -> None:
+        return None
+
+    monkeypatch.setattr(browser, "_prepare_pair_chart_page", fake_prepare_pair_chart_page)
+    monkeypatch.setattr(browser, "_has_existing_alert", fake_has_existing_alert)
+    monkeypatch.setattr(browser, "_wait_for_alert_dialog", fake_wait_for_alert_dialog)
+    monkeypatch.setattr(browser, "_select_alert_function_mode", fake_select_alert_function_mode)
+    monkeypatch.setattr(browser, "_set_optional_field", fake_set_optional_field)
+    monkeypatch.setattr(browser, "_set_webhook_url", fake_set_webhook_url)
+    monkeypatch.setattr(browser, "_submit_alert", fake_submit_alert)
+
+    deployment = asyncio.run(
+        browser.deploy_alert(
+            pair="USDJPY",
+            timeframe="5m",
+            config_snapshot={"params": {"pvtMax": 12}},
+            alert_name_prefix="TradeOps",
+            webhook_url="https://example.test/webhook",
+            should_stop=lambda: False,
+        )
+    )
+
+    assert deployment.pair == "USDJPY"
+    assert FakeTabWorker.optimizer_apply_called is False
+    assert FakeTabWorker.alert_apply_called is True
+    assert FakeTabWorker.applied_params == [{"pvtMax": 12}]

@@ -9,6 +9,7 @@ import pytest
 
 from scripts.optimizer.models import BacktestResult
 from scripts.optimizer.tab_worker import ApplyOutcome, TabWorker
+from scripts.optimizer import tab_worker as tab_worker_module
 
 
 if "playwright.async_api" not in sys.modules:
@@ -218,6 +219,73 @@ def test_range_matches_label_uses_actual_day_span() -> None:
         "Jan 5, 2026 — Apr 13, 2026Jan 5, 2026 — Apr 13, 2026",
         "Last 365 days",
     )
+
+
+def test_wait_for_load_recovers_strategy_report_timeout(monkeypatch) -> None:
+    page = DummyPage()
+    worker = TabWorker(page, DummyOptimizer())
+    recover_calls: list[str] = []
+    loading_values = iter([None, None])
+    timeout_values = iter([True, False])
+    now = {"value": 0.0}
+
+    async def fake_check_loading() -> str | None:
+        return next(loading_values, None)
+
+    async def fake_check_timeout() -> bool:
+        return next(timeout_values, False)
+
+    async def fake_recover() -> None:
+        recover_calls.append("recover")
+
+    async def fake_sleep(seconds: float) -> None:
+        now["value"] += seconds
+
+    monkeypatch.setattr(worker, "_check_loading_text", fake_check_loading)
+    monkeypatch.setattr(worker, "_check_timeout_banner", fake_check_timeout)
+    monkeypatch.setattr(worker, "_recover_strategy_report_timeout", fake_recover)
+    monkeypatch.setattr(tab_worker_module.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(tab_worker_module.time, "time", lambda: now["value"])
+
+    asyncio.run(worker._wait_for_load(timeout=5))
+
+    assert recover_calls == ["recover"]
+
+
+def test_switch_symbol_does_not_force_backtest_range(monkeypatch) -> None:
+    page = DummyPage(title="XAUUSD 5 Vantage", url="https://www.tradingview.com/chart/test123/?symbol=VANTAGE%3AXAUUSD")
+    worker = TabWorker(page, DummyOptimizer())
+    goto_calls: list[str] = []
+    range_calls: list[str] = []
+
+    async def fake_goto(url: str, wait_until: str, timeout: int) -> None:
+        goto_calls.append(url)
+        page.url = url
+        page._title = "USDJPY 5 Vantage"
+
+    async def fake_wait_for_load(timeout: int = 30) -> None:
+        return None
+
+    async def fake_current_symbol() -> str:
+        return "USDJPY"
+
+    async def fake_set_backtest_range(label: str = "Entire history") -> bool:
+        range_calls.append(label)
+        return True
+
+    async def fake_sleep(seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr(page, "goto", fake_goto, raising=False)
+    monkeypatch.setattr(tab_worker_module.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(worker, "_wait_for_load", fake_wait_for_load)
+    monkeypatch.setattr(worker, "_current_symbol", fake_current_symbol)
+    monkeypatch.setattr(worker, "_set_backtest_range", fake_set_backtest_range)
+
+    asyncio.run(worker._switch_symbol("USDJPY"))
+
+    assert goto_calls
+    assert range_calls == []
 
 
 def test_set_backtest_range_clicks_menu_when_current_span_is_wrong(monkeypatch) -> None:

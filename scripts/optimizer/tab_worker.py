@@ -39,6 +39,8 @@ _LOADING_INDICATORS = [
     "Updating report", "Calculating...", "Loading...", "Compiling..."
 ]
 
+_REPORT_TIMEOUT_TEXT = "request took too long to process"
+
 
 @dataclass(slots=True)
 class ApplyOutcome:
@@ -99,6 +101,23 @@ _JS_CLICK_UPDATE_REPORT = """
     }
     return false;
 })()
+"""
+
+_JS_HAS_REPORT_TIMEOUT = """
+(needle) => {
+    const wanted = (needle || '').trim().toLowerCase();
+    if (!wanted) return false;
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
+    let node;
+    while ((node = walker.nextNode())) {
+        const text = node.textContent?.trim().toLowerCase();
+        if (!text || !text.includes(wanted)) continue;
+        const el = node.parentElement;
+        if (!el || el.offsetParent === null) continue;
+        return true;
+    }
+    return false;
+}
 """
 
 _JS_COLLECT_METRICS = """
@@ -366,28 +385,14 @@ class TabWorker:
         await asyncio.sleep(3.0)
         await self._wait_for_load()
 
-        # Verify
-        try:
-            new_title = await self.page.title()
-            new_sym = (
-                new_title.split(" ")[0].split(":")[-1].upper().strip()
-                if new_title
-                else ""
+        # Verify and fail closed if TradingView kept the old symbol.
+        observed = await self._current_symbol()
+        if observed == clean_symbol:
+            print(f"  Switched to {clean_symbol} (verified)")
+        else:
+            raise RuntimeError(
+                f"Symbol switch failed: expected {clean_symbol}, observed {observed or 'UNKNOWN'}"
             )
-            if clean_symbol in new_sym or new_sym in clean_symbol:
-                print(f"  Switched to {clean_symbol} (verified)")
-            else:
-                print(
-                    f"  Warning: Expected {clean_symbol}, title shows '{new_sym}'"
-                )
-        except Exception:
-            pass
-
-        # Always lock the backtest range to "Last 365 days" so optimizer
-        # results are consistent and don't trigger slow Deep Backtesting mode.
-        # NOTE: This is also called unconditionally in optimize_pair_bayesian
-        # so it runs even when the symbol doesn't need to switch.
-        await self._set_backtest_range("Last 365 days")
 
 
     async def _ensure_strategy_tester_open(self) -> None:
@@ -627,17 +632,29 @@ class TabWorker:
         """Wait for chart and strategy tester to finish loading."""
         await asyncio.sleep(1.0)
         start = time.time()
+        timeout_recovery_attempted = False
         while time.time() - start < timeout:
             try:
-                loading = await self.page.evaluate(
-                    _JS_FIND_LOADING, _LOADING_INDICATORS
-                )
+                loading = await self._check_loading_text()
+                timed_out = await self._check_timeout_banner()
+                if timed_out:
+                    if not timeout_recovery_attempted:
+                        timeout_recovery_attempted = True
+                        await self._recover_strategy_report_timeout()
+                        await asyncio.sleep(1.0)
+                        continue
+                    raise RuntimeError("Strategy report timed out loading")
                 if not loading:
                     await asyncio.sleep(0.5)
                     return
+            except RuntimeError:
+                raise
             except Exception:
                 pass
             await asyncio.sleep(0.5)
+
+        if await self._check_timeout_banner():
+            raise RuntimeError("Strategy report timed out loading")
 
     # ─────────────────────────────────── update cycle detection ──────────────
 
@@ -649,6 +666,25 @@ class TabWorker:
             )
         except Exception:
             return None
+
+    async def _check_timeout_banner(self) -> bool:
+        """Return True when Strategy Report shows TradingView's timeout banner."""
+        try:
+            return bool(await self.page.evaluate(_JS_HAS_REPORT_TIMEOUT, _REPORT_TIMEOUT_TEXT))
+        except Exception:
+            return False
+
+    async def _recover_strategy_report_timeout(self) -> None:
+        """Try to recover when Strategy Report times out."""
+        log.warning("_wait_for_load: detected Strategy Report timeout banner — trying recovery")
+        try:
+            await self.page.keyboard.press("Escape")
+        except Exception:
+            pass
+        try:
+            await self.page.evaluate(_JS_CLICK_UPDATE_REPORT)
+        except Exception:
+            pass
 
     async def _wait_for_update_complete(self) -> bool:
         """
@@ -1325,6 +1361,75 @@ class TabWorker:
             results_hash_before="",
             results_hash_after="",
         )
+
+    async def _apply_params_for_alert(self, params: dict) -> ApplyOutcome:
+        """
+        Apply alert deployment params once without optimizer-style stale-result retries.
+
+        Alert setup only needs the chart configured correctly before opening the
+        alert dialog. It should not reopen the settings dialog multiple times or
+        mutate the Strategy Report range like optimization does.
+        """
+        try:
+            if not await self._open_settings():
+                raise RuntimeError("Could not open settings dialog")
+            await asyncio.sleep(0.5)
+
+            await self.page.evaluate(
+                """
+                (() => {
+                    for (const b of document.querySelectorAll('button')) {
+                        if (b.textContent?.trim() === 'Inputs') {
+                            b.click(); return;
+                        }
+                    }
+                })()
+                """
+            )
+            await asyncio.sleep(0.3)
+
+            if not await self._ensure_custom_profile():
+                raise RuntimeError("Could not ensure Custom profile")
+
+            rr_mode = params.get("rr_mode")
+            if rr_mode is not None:
+                await self._apply_rr_mode(rr_mode)
+                await asyncio.sleep(0.1)
+
+            for name, value in params.items():
+                if name == "rr_mode":
+                    continue
+                if name in ("enable_ai_quality_filter", "use_break_even", "enable_double_tp"):
+                    idx = INPUT_INDEX.get(name)
+                    if idx is not None:
+                        await self._toggle_checkbox(idx, bool(value))
+                else:
+                    idx = INPUT_INDEX.get(name)
+                    if idx is not None:
+                        await self._set_input(idx, value)
+
+            await self._click_ok()
+            await self._wait_dialog_close()
+            await self._wait_for_update_complete()
+
+            return ApplyOutcome(
+                ok=True,
+                fresh=True,
+                reason="alert_params_applied",
+                attempt=1,
+                results_hash_before="",
+                results_hash_after="",
+            )
+        except Exception as e:
+            log.warning("_apply_params_for_alert failed: %s", e)
+            return ApplyOutcome(
+                ok=False,
+                fresh=False,
+                reason="apply_failed",
+                attempt=1,
+                results_hash_before="",
+                results_hash_after="",
+            )
 
     async def _apply_and_test(
         self, param_name: str, value, param_type: str, symbol: str

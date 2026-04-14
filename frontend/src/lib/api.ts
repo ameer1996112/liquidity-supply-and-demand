@@ -412,7 +412,7 @@ export interface AlertBatchApi {
 
 export interface AlertBatchResultApi {
   pair: string;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  status: 'pending' | 'running' | 'completed' | 'created' | 'skipped' | 'failed' | 'cancelled';
   timeframe?: string | null;
   risk_weight?: number | null;
   alert_name?: string | null;

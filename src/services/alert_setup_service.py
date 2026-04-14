@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 _CONFIG_STATUSES = {"candidate", "approved", "archived"}
 _BATCH_STATUSES = {"queued", "running", "completed", "failed", "cancelled", "interrupted"}
 _BATCH_SOURCE_MODES = {"top3", "top5", "approved", "custom"}
-_RESULT_STATUSES = {"pending", "running", "completed", "failed", "cancelled"}
+_RESULT_STATUSES = {"pending", "running", "completed", "created", "skipped", "failed", "cancelled"}
 
 
 def _utc_now() -> str:
@@ -570,9 +570,11 @@ class AlertSetupService:
         total_pairs = len(results)
         pending_pairs = sum(1 for result in results if result["status"] == "pending")
         running_pairs = sum(1 for result in results if result["status"] == "running")
-        completed_pairs = sum(1 for result in results if result["status"] == "completed")
+        completed_pairs = sum(1 for result in results if result["status"] in {"completed", "created", "skipped"})
         failed_pairs = sum(1 for result in results if result["status"] == "failed")
         cancelled_pairs = sum(1 for result in results if result["status"] == "cancelled")
+        created_alerts = sum(1 for result in results if result["status"] == "created")
+        skipped_pairs = sum(1 for result in results if result["status"] == "skipped")
         best_pair = summary.get("best_pair")
         best_score = summary.get("best_score")
         for result in results:
@@ -592,6 +594,8 @@ class AlertSetupService:
                 "completed_pairs": completed_pairs,
                 "failed_pairs": failed_pairs,
                 "cancelled_pairs": cancelled_pairs,
+                "created_alerts": created_alerts,
+                "skipped_pairs": skipped_pairs,
                 "best_pair": best_pair,
                 "best_score": best_score,
             }

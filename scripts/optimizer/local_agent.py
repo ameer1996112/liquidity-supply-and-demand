@@ -386,12 +386,14 @@ def _report_alert_event(batch_id: str, event_type: str, pair: str | None = None,
             {k: v for k, v in updates.items() if v is not None},
         )
     elif event_type == "pair_completed" and pair:
+        skipped_existing = bool(payload.get("skipped_existing"))
         updates = {
-            "status": "completed",
+            "status": "skipped" if skipped_existing else "created",
             "alert_name": payload.get("alert_name"),
             "alert_id": payload.get("alert_id"),
             "config_snapshot": payload.get("config_snapshot"),
             "params": payload.get("params"),
+            "error_message": None,
         }
         api_patch(
             f"/api/alert-setup/batches/{batch_id}/results/{pair}",
@@ -429,6 +431,48 @@ async def _execute_alert_batch(batch: dict[str, Any], stop_event: threading.Even
     log.info("Picked up alert batch %s", batch_id)
     log.info("  source_mode=%s timeframe=%s pairs=%s", source_mode, timeframe, ",".join(pairs))
     log.info("=" * 60)
+
+    try:
+        import playwright.async_api  # noqa: F401
+    except Exception:
+        message = (
+            "playwright not installed on local agent python. "
+            "Install in venv: python3 -m pip install playwright && "
+            "python3 -m playwright install chromium"
+        )
+        log.error("Cannot start alert batch — playwright not installed in agent python (%s)", sys.executable)
+        api_patch(
+            f"/api/alert-setup/batches/{batch_id}",
+            {
+                "status": "failed",
+                "summary": {
+                    "error_message": message,
+                    "python": sys.executable,
+                    "total_pairs": len(pairs),
+                    "pending_pairs": len(pairs),
+                    "running_pairs": 0,
+                    "completed_pairs": 0,
+                    "failed_pairs": 0,
+                    "cancelled_pairs": 0,
+                    "created_alerts": 0,
+                },
+            },
+        )
+        api_post(
+            f"/api/alert-setup/batches/{batch_id}/events",
+            {
+                "event_type": "batch_finished",
+                "payload": {
+                    "message": "playwright missing on local agent python",
+                    "status": "failed",
+                    "summary": {
+                        "error_message": message,
+                        "python": sys.executable,
+                    },
+                },
+            },
+        )
+        return
 
     if not ensure_chrome():
         log.error("Cannot start alert batch — Chrome CDP not available")
