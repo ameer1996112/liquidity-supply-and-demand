@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from dataclasses import dataclass
+from math import isclose
 from typing import Any, Callable, Protocol
 
 
@@ -95,6 +96,7 @@ class TradingViewAlertBrowser:
             browser = await pw.chromium.connect_over_cdp(f"http://127.0.0.1:{self._chrome_port}")
             pages = await ensure_tradingview_tabs(browser, 1, pair)
             page = pages[0]
+            page.on("dialog", lambda dialog: asyncio.create_task(self._dismiss_js_dialog(dialog)))
             optimizer = TradingViewOptimizer(
                 pairs=[pair],
                 bayesian_mode=True,
@@ -107,13 +109,19 @@ class TradingViewAlertBrowser:
             await worker._require_last_365_days()
             outcome = await worker._apply_params(params)
             if not outcome.fresh:
-                raise RuntimeError(f"could not apply params for {pair}: {outcome.reason}")
+                metrics_match = await self._matches_source_metrics(worker, pair, config_snapshot)
+                # For alert setup, a stale hash or blank dialog can still be acceptable
+                # if the current chart already matches the approved snapshot.
+                if not metrics_match and outcome.reason != "stale_result_hash":
+                    raise RuntimeError(f"could not apply params for {pair}: {outcome.reason}")
+                if not metrics_match and outcome.reason == "stale_result_hash":
+                    raise RuntimeError(f"could not verify params for {pair}: {outcome.reason}")
 
             await page.keyboard.press("Alt+A")
             await page.wait_for_timeout(1000)
             await self._wait_for_alert_dialog(page)
             await self._select_alert_function_mode(page)
-            await self._set_field(page, "Alert name", alert_name)
+            await self._set_optional_field(page, "Alert name", alert_name)
             await self._set_field(page, "Webhook URL", webhook_url)
             await self._set_field(
                 page,
@@ -131,6 +139,44 @@ class TradingViewAlertBrowser:
             alert_id=f"{pair.lower()}-{timeframe}",
             params=params,
         )
+
+    async def _dismiss_js_dialog(self, dialog: Any) -> None:
+        try:
+            await dialog.dismiss()
+        except Exception:
+            try:
+                await dialog.accept()
+            except Exception:
+                return
+
+    async def _matches_source_metrics(
+        self,
+        worker: Any,
+        pair: str,
+        config_snapshot: dict[str, Any],
+    ) -> bool:
+        source_metrics = dict(config_snapshot.get("source_metrics") or {})
+        if not source_metrics:
+            return False
+        try:
+            result = await worker._read_results(pair, dict(config_snapshot.get("params") or {}))
+        except Exception:
+            return False
+
+        target_pf = source_metrics.get("profit_factor")
+        target_dd = source_metrics.get("max_drawdown_pct")
+        target_trades = source_metrics.get("total_trades")
+        if target_pf in (None, "") or target_dd in (None, "") or target_trades in (None, ""):
+            return False
+
+        try:
+            return (
+                isclose(float(result.profit_factor or 0.0), float(target_pf), rel_tol=0.0, abs_tol=0.02)
+                and isclose(float(result.max_drawdown_pct or 0.0), float(target_dd), rel_tol=0.0, abs_tol=0.15)
+                and abs(int(result.total_trades or 0) - int(target_trades)) <= 2
+            )
+        except Exception:
+            return False
 
     async def _wait_for_alert_dialog(self, page: Any) -> None:
         await page.wait_for_function(
@@ -205,18 +251,43 @@ class TradingViewAlertBrowser:
             """
             ({ label, value }) => {
               const wanted = (label || '').trim().toLowerCase();
-              const nodes = Array.from(document.querySelectorAll('label, span, div'));
+              const normalize = (text) => (text || '').trim().toLowerCase().replace(/\\s+/g, ' ');
+              const nodes = Array.from(document.querySelectorAll('label, span, div, button'));
               for (const node of nodes) {
-                const text = (node.textContent || '').trim().toLowerCase();
+                const text = normalize(node.textContent);
                 if (!text || !text.includes(wanted)) continue;
                 const root = node.closest('label, [role="group"], [class*="container"], [class*="content"], [data-name]') || node.parentElement || document;
                 const input = root.querySelector('input, textarea');
-                if (!input) continue;
-                input.focus();
-                input.value = value;
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                input.dispatchEvent(new Event('change', { bubbles: true }));
-                return true;
+                if (input) {
+                  input.focus();
+                  input.value = value;
+                  input.dispatchEvent(new Event('input', { bubbles: true }));
+                  input.dispatchEvent(new Event('change', { bubbles: true }));
+                  return true;
+                }
+
+                // TradingView often renders Webhook URL / Message as collapsed rows.
+                // Click the row first, then try the active dialog again.
+                const clickable =
+                  node.closest('button, [role="button"], [data-name], [class*="container"], [class*="content"]') ||
+                  node;
+                clickable.click?.();
+
+                const activeDialogs = Array.from(
+                  document.querySelectorAll('[role="dialog"], [class*="dialog"], [class*="modal"]')
+                ).filter((el) => {
+                  const rect = el.getBoundingClientRect();
+                  return rect.width > 0 && rect.height > 0;
+                });
+                const dialog = activeDialogs[activeDialogs.length - 1] || document;
+                const expanded = dialog.querySelector('input, textarea');
+                if (expanded) {
+                  expanded.focus();
+                  expanded.value = value;
+                  expanded.dispatchEvent(new Event('input', { bubbles: true }));
+                  expanded.dispatchEvent(new Event('change', { bubbles: true }));
+                  return true;
+                }
               }
               return false;
             }
@@ -225,6 +296,13 @@ class TradingViewAlertBrowser:
         )
         if not ok:
             raise RuntimeError(f"could not find alert field: {label}")
+
+    async def _set_optional_field(self, page: Any, label: str, value: str) -> bool:
+        try:
+            await self._set_field(page, label, value)
+            return True
+        except Exception:
+            return False
 
     async def _click_button(self, page: Any, labels: list[str]) -> bool:
         for label in labels:

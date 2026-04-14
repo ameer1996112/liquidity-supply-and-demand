@@ -1012,6 +1012,10 @@ class TabWorker:
                     """
                 )
 
+                if profile == "":
+                    log.warning("_ensure_custom_profile: settings dialog still blank after reopen")
+                    return False
+
             if profile == "Custom":
                 return True
 
@@ -1030,7 +1034,9 @@ class TabWorker:
             )
             await asyncio.sleep(0.6)
 
-            # Click the "Custom" option — it can appear in a portal outside the dialog
+            # Click the "Custom" option — it can appear in a portal outside the dialog.
+            # TradingView changes the dropdown structure often, so search broadly
+            # and require the option to be actually visible before clicking.
             clicked = await self.page.evaluate(
                 """
                 (() => {
@@ -1038,13 +1044,27 @@ class TabWorker:
                         '[role="option"]', '[class*="option"]',
                         '[class*="item-"]', 'li', '[class*="listItem"]',
                         '[class*="menuItem"]', '[class*="dropdownItem"]',
+                        'button', '[role="button"]', '[data-name]',
                     ];
+                    const visible = (el) => {
+                        const rect = el.getBoundingClientRect?.();
+                        const style = window.getComputedStyle?.(el);
+                        return !!rect && rect.width > 0 && rect.height > 0 &&
+                               style?.visibility !== 'hidden' && style?.display !== 'none';
+                    };
                     for (const sel of selectors) {
                         for (const el of document.querySelectorAll(sel)) {
-                            if (el.textContent?.trim() === 'Custom') {
+                            if (el.textContent?.trim() === 'Custom' && visible(el)) {
                                 el.click();
                                 return true;
                             }
+                        }
+                    }
+                    const all = Array.from(document.querySelectorAll('*'));
+                    for (const el of all) {
+                        if (el.textContent?.trim() === 'Custom' && visible(el)) {
+                            el.click();
+                            return true;
                         }
                     }
                     return false;
@@ -1176,7 +1196,8 @@ class TabWorker:
                 await asyncio.sleep(0.3)
 
                 # Ensure profile is Custom — preset profiles lock inputs and ignore changes
-                await self._ensure_custom_profile()
+                if not await self._ensure_custom_profile():
+                    raise RuntimeError("Could not ensure Custom profile")
 
                 # Apply rr_mode first (special handling)
                 rr_mode = params.get("rr_mode")

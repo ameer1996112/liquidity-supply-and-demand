@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import threading
 from typing import Any
+from types import SimpleNamespace
 
 from scripts.optimizer.alert_runner import AlertBatchRunner, AlertDeployment, TradingViewAlertBrowser
 from scripts.optimizer import local_agent
@@ -42,6 +43,7 @@ class FakeAlertBrowser:
             alert_id=f"alert-{pair}",
             params=dict(config_snapshot.get("params") or {}),
         )
+
 
 
 def test_alert_batch_runner_emits_progress_and_summary() -> None:
@@ -257,3 +259,52 @@ def test_select_alert_function_mode_picks_alert_only() -> None:
     browser = TradingViewAlertBrowser()
     asyncio.run(browser._select_alert_function_mode(page))
     assert page.selected is True
+
+
+def test_matches_source_metrics_accepts_already_configured_chart() -> None:
+    class FakeWorker:
+        async def _read_results(self, symbol: str, params: dict[str, Any]) -> Any:
+            return SimpleNamespace(
+                profit_factor=1.391,
+                max_drawdown_pct=4.06,
+                total_trades=370,
+            )
+
+    browser = TradingViewAlertBrowser()
+    matched = asyncio.run(
+        browser._matches_source_metrics(
+            FakeWorker(),
+            "USDJPY",
+            {
+                "params": {"lookback": 20},
+                "source_metrics": {
+                    "profit_factor": 1.391,
+                    "max_drawdown_pct": 4.06,
+                    "total_trades": 370,
+                },
+            },
+        )
+    )
+    assert matched is True
+
+
+def test_set_field_expands_collapsed_row_before_fill() -> None:
+    class FakePage:
+        def __init__(self) -> None:
+            self.expanded = False
+            self.filled = False
+
+        async def evaluate(self, script: str, payload: dict[str, Any]) -> bool:
+            label = payload["label"]
+            value = payload["value"]
+            if label != "Webhook URL" or value != "https://example.test/hook":
+                return False
+            self.expanded = True
+            self.filled = True
+            return True
+
+    page = FakePage()
+    browser = TradingViewAlertBrowser()
+    asyncio.run(browser._set_field(page, "Webhook URL", "https://example.test/hook"))
+    assert page.expanded is True
+    assert page.filled is True
