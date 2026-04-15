@@ -25,6 +25,23 @@ load_dotenv(_root / ".env")
 
 logger = logging.getLogger(__name__)
 
+_NON_EXECUTED_STATUSES = {
+    'filtered',
+    'staleness_rejected',
+    'holiday_rejected',
+    'swap_rejected',
+    'risk_rejected',
+    'symbol_blacklisted',
+    'ai_rejected',
+    'execution_failed',
+    'failed',
+    'rejected',
+    'guard_rejected',
+    'unexecuted',
+    'received',
+    'pending',
+}
+
 # Supabase credentials
 SUPABASE_URL = os.getenv('SUPABASE_URL')
 SUPABASE_KEY = os.getenv('SUPABASE_KEY') or os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_ANON_KEY')
@@ -275,21 +292,48 @@ def update_alert_exit(zone_id: int, exit_data: dict, trade_key: str = None) -> b
         except Exception:
             pass  # fail-open: if check fails, proceed with update
 
-        # Prefer trade_key correlation if provided and non-empty
+        # Prefer trade_key correlation if provided and non-empty, but only update
+        # rows that were actually eligible for execution. This avoids stamping
+        # CLOSED + pnl_usd onto filtered/signal-only rows that share the same trade_key.
         if trade_key and trade_key.strip():
-            response = supabase.table('trading_signals').update(update_data).eq('trade_key', trade_key).execute()
+            candidates = (
+                supabase.table('trading_signals')
+                .select('id,status,execution_source,broker_order_id,account_name,broker_profile_id')
+                .eq('trade_key', trade_key)
+                .execute()
+            )
+            rows = candidates.data or []
+            target_rows = [
+                row for row in rows
+                if str(row.get('status', '')).lower() not in _NON_EXECUTED_STATUSES
+            ]
             match_type = f"trade_key={trade_key}"
         else:
-            # Fallback to zone_id (original behavior)
-            response = supabase.table('trading_signals').update(update_data).eq('zone_id', zone_id).execute()
+            candidates = (
+                supabase.table('trading_signals')
+                .select('id,status,execution_source,broker_order_id,account_name,broker_profile_id')
+                .eq('zone_id', zone_id)
+                .execute()
+            )
+            rows = candidates.data or []
+            target_rows = [
+                row for row in rows
+                if str(row.get('status', '')).lower() not in _NON_EXECUTED_STATUSES
+            ]
             match_type = f"zone_id={zone_id}"
 
-        if response.data:
+        updated_rows = []
+        for row in target_rows:
+            result = supabase.table('trading_signals').update(update_data).eq('id', row['id']).execute()
+            if result.data:
+                updated_rows.extend(result.data)
+
+        if updated_rows:
             logger.info(f"✅ Alert exit updated: {match_type}, outcome={exit_data.get('outcome')}, pnl_usd={exit_data.get('pnl_usd')}")
             # Sprint 4.3: Create reflection on close (when MEMORY_ENABLED)
             try:
                 from src.services.reflection_service import create_reflection_on_close_safe
-                row = response.data[0] if isinstance(response.data, list) else response.data
+                row = updated_rows[0] if isinstance(updated_rows, list) else updated_rows
                 merged = {**row, **exit_data} if isinstance(row, dict) else None
                 trade_id = row.get("id") if isinstance(row, dict) else None
                 if trade_id and merged:
@@ -298,7 +342,7 @@ def update_alert_exit(zone_id: int, exit_data: dict, trade_key: str = None) -> b
                 pass
             return True
         else:
-            logger.warning(f"⚠️  No alert found with {match_type}")
+            logger.warning(f"⚠️  No executable alert found with {match_type}")
             return False
     except Exception as e:
         logger.error(f"❌ Failed to update alert exit: {e}")
@@ -327,7 +371,15 @@ def get_alert_by_zone_id(zone_id: int) -> Optional[Dict[str, Any]]:
     try:
         response = supabase.table('trading_signals').select('*').eq('zone_id', zone_id).execute()
         if response.data:
-            return response.data[0]
+            rows = response.data
+            preferred = next(
+                (
+                    row for row in rows
+                    if str(row.get('status', '')).lower() not in _NON_EXECUTED_STATUSES
+                ),
+                None,
+            )
+            return preferred or rows[0]
         return None
     except Exception as e:
         logger.error(f"❌ Failed to get alert: {e}")
@@ -344,9 +396,17 @@ def get_alert_by_trade_key(trade_key: str) -> Optional[Dict[str, Any]]:
     if not supabase:
         init_supabase()
     try:
-        response = supabase.table('trading_signals').select('*').eq('trade_key', trade_key.strip()).limit(1).execute()
+        response = supabase.table('trading_signals').select('*').eq('trade_key', trade_key.strip()).execute()
         if response.data:
-            return response.data[0]
+            rows = response.data
+            preferred = next(
+                (
+                    row for row in rows
+                    if str(row.get('status', '')).lower() not in _NON_EXECUTED_STATUSES
+                ),
+                None,
+            )
+            return preferred or rows[0]
         return None
     except Exception as e:
         logger.error(f"❌ Failed to get alert by trade_key: {e}")

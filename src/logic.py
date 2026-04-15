@@ -378,7 +378,9 @@ def process_trade(
                                     "commission": total_commission,
                                     "swap": total_swap,
                                 }
-                                if trade_key:
+                                if alert.get("id"):
+                                    client.table("trading_signals").update(pnl_update).eq("id", alert["id"]).execute()
+                                elif trade_key:
                                     client.table("trading_signals").update(pnl_update).eq("trade_key", trade_key).execute()
                                 elif data.get("zone_id"):
                                     client.table("trading_signals").update(pnl_update).eq("zone_id", data.get("zone_id")).execute()
@@ -833,7 +835,9 @@ def process_trade(
                                 "broker_order_id": str(broker_order_id),
                                 "entry_time": datetime.now(timezone.utc).isoformat(),
                             }
-                            if trade_key:
+                            if alert_id:
+                                client.table("trading_signals").update(submitted_payload).eq("id", alert_id).execute()
+                            elif trade_key:
                                 client.table("trading_signals").update(submitted_payload).eq("trade_key", trade_key).execute()
                             else:
                                 client.table("trading_signals").update(submitted_payload).eq("id", alert_id).execute()
