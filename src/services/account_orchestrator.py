@@ -26,6 +26,16 @@ def _derive_account_type(profile: dict) -> str:
     return "evaluation"
 
 
+def _coerce_amount(value: object) -> Optional[float]:
+    """Return a float for non-empty numeric values, otherwise None."""
+    if value in (None, ""):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 @dataclass
 class AccountPerformance:
     """Performance metrics for an account."""
@@ -198,7 +208,10 @@ class AccountOrchestrator:
                 )
 
             # Get real balance and live data from broker (not static allocated capital)
-            balance = float(account_data.get("allocated_capital_usd") or 0)  # Fallback
+            configured_balance = _coerce_amount(account_data.get("allocated_capital_usd"))
+            profile = None
+            starting_balance = None
+            balance = configured_balance or 0.0
             equity = balance  # Default: equity = balance
             free_margin = None
             margin_used = None
@@ -222,14 +235,20 @@ class AccountOrchestrator:
 
                     if profile_query.data:
                         profile = profile_query.data
+                        starting_balance = _coerce_amount(profile.get("starting_balance"))
+                        if balance <= 0 and starting_balance is not None:
+                            balance = starting_balance
+                            equity = starting_balance
                         adapter = get_adapter(profile=profile, settings=get_settings())
 
                         # Fetch real account info from broker
                         if hasattr(adapter, "get_account_information"):
                             account_info = adapter.get_account_information()
                             if account_info:
-                                balance = float(account_info.get("balance", balance))
-                                equity = float(account_info.get("equity", balance))
+                                live_balance = _coerce_amount(account_info.get("balance"))
+                                live_equity = _coerce_amount(account_info.get("equity"))
+                                balance = live_balance if live_balance is not None else balance
+                                equity = live_equity if live_equity is not None else balance
                                 free_margin = float(account_info.get("freeMargin") or account_info.get("free_margin") or 0)
                                 margin_used = float(account_info.get("margin", 0))
                                 if free_margin and margin_used and margin_used > 0:
@@ -255,7 +274,7 @@ class AccountOrchestrator:
                     connection_status = "error"
 
             # Fallback: try account_status_snapshots (populated by AccountSyncService from MetaAPI)
-            if balance == float(account_data.get("allocated_capital_usd") or 0):
+            if configured_balance is not None and balance == configured_balance:
                 try:
                     cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
                     snap = self.client.table("account_status_snapshots")\
@@ -279,6 +298,10 @@ class AccountOrchestrator:
                         "AccountOrchestrator: failed to fetch account_status_snapshots for %s: %s",
                         account_name, snap_err
                     )
+
+            if balance <= 0 and starting_balance is not None:
+                balance = starting_balance
+                equity = starting_balance
 
             daily_pnl_pct = (daily_pnl / balance * 100) if balance > 0 else 0.0
 
@@ -593,7 +616,7 @@ class AccountOrchestrator:
             try:
                 broker_profiles = self.client.table("broker_profiles").select(
                     "id,name,venue,connection_status,run_mode,is_active,selected_for_trading,"
-                    "evaluation_mode,evaluation_phase,prop_firm_name"
+                    "evaluation_mode,evaluation_phase,prop_firm_name,starting_balance"
                 ).eq("is_active", True).eq("selected_for_trading", True).execute().data or []
             except Exception:
                 broker_profiles = []
@@ -689,8 +712,8 @@ class AccountOrchestrator:
                     "strategy_type": "BROKER_PROFILE",
                     "connection_status": profile.get("connection_status", "unknown"),
                     "status": profile.get("connection_status", "unknown"),
-                    "balance": None,
-                    "equity": None,
+                    "balance": _coerce_amount(profile.get("starting_balance")),
+                    "equity": _coerce_amount(profile.get("starting_balance")),
                     "free_margin": None,
                     "margin_used": 0.0,
                     "margin_level_pct": None,
