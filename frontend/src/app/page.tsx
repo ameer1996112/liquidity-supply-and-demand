@@ -77,6 +77,16 @@ export default function DashboardPage() {
   // Used as filter options in the signal table — ensures archived account signals are reachable.
   const signalAccountNames = useMemo(() => Object.keys(signalCounts).sort(), [signalCounts]);
 
+  const liveAccountNames = useMemo(() => {
+    const names: string[] = [];
+    for (const account of accounts) {
+      if (account.is_archived || account.status === 'archived') continue;
+      const normalized = account.account_name?.trim();
+      if (normalized) names.push(normalized);
+    }
+    return names;
+  }, [accounts]);
+
   // Merge live accounts with archived ones derived from signals.
   // Archived accounts (deleted from account_strategies) appear with minimal info
   // so the AccountStrip still shows them and their signal count badges.
@@ -99,14 +109,29 @@ export default function DashboardPage() {
     return [...liveAccounts, ...(archivedEntries as any[])];
   }, [accounts, signalAccountNames]);
 
-  // SignalTable filter pills are derived from signals (to keep deleted/archived accounts reachable),
-  // plus the currently-selected account (so selecting a 0-signal account still shows an active pill).
+  // SignalTable filter pills include live accounts (even with 0 signals), archived accounts
+  // derived from historical signals, and the currently-selected account as a final safeguard.
   const filterAccountNames = useMemo(() => {
-    const names = new Set(signalAccountNames);
+    const namesByKey = new Map<string, string>();
+
+    for (const name of liveAccountNames) {
+      namesByKey.set(name.toLowerCase(), name);
+    }
+
+    for (const name of signalAccountNames) {
+      const normalized = name.trim();
+      if (!normalized) continue;
+      const key = normalized.toLowerCase();
+      if (!namesByKey.has(key)) namesByKey.set(key, normalized);
+    }
+
     const selected = signalAccountFilter?.trim();
-    if (selected) names.add(selected);
-    return Array.from(names).sort();
-  }, [signalAccountNames, signalAccountFilter]);
+    if (selected) namesByKey.set(selected.toLowerCase(), selected);
+
+    return Array.from(namesByKey.values()).sort((left, right) =>
+      left.localeCompare(right)
+    );
+  }, [liveAccountNames, signalAccountNames, signalAccountFilter]);
 
   // Keep for log
   void useSignalStats(broker_profile_id);
