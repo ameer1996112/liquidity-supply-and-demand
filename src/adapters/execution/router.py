@@ -8,6 +8,8 @@ from config.settings import Settings
 from src.adapters.execution.dry_run_adapter import DryRunAdapter
 from src.adapters.execution.interfaces import ExecutionAdapter
 from src.adapters.execution.live_adapter import LiveAdapter
+from src.adapters.execution.binance_adapter import BinanceAdapter
+from src.adapters.execution.bybit_adapter import BybitAdapter
 from src.adapters.execution.meta_api_adapter import MetaApiAdapter
 from src.adapters.execution.paper_adapter import PaperAdapter
 
@@ -31,11 +33,29 @@ def get_adapter(
 
     # Multi-account: profile carries token, account_id, and optional name
     if profile and isinstance(profile, dict):
+        venue = (profile.get("venue") or "").strip().lower() or "metaapi_mt5"
+        if venue == "metaapi":
+            venue = "metaapi_mt5"
+
+        if venue == "binance":
+            return BinanceAdapter(
+                api_key=(profile.get("api_key") or "").strip(),
+                api_secret=(profile.get("api_secret") or "").strip(),
+                account_name=(profile.get("name") or "").strip() or None,
+            )
+        if venue == "bybit":
+            return BybitAdapter(
+                api_key=(profile.get("api_key") or "").strip(),
+                api_secret=(profile.get("api_secret") or "").strip(),
+                account_name=(profile.get("name") or "").strip() or None,
+            )
+
         token = (profile.get("token") or "").strip()
         account_id = (profile.get("meta_api_account_id") or profile.get("account_id") or "").strip()
         account_name = (profile.get("name") or "").strip() or None
+        region = (profile.get("region") or "").strip() or None
         if token and account_id:
-            return MetaApiAdapter(token=token, account_id=account_id, account_name=account_name)
+            return MetaApiAdapter(token=token, account_id=account_id, account_name=account_name, region=region)
         # Fall through to single-account
 
     # Explicit override: external execution via MetaApi (single-account, DB-first)
@@ -64,4 +84,3 @@ def get_adapter(
             return DryRunAdapter()
         return LiveAdapter()
     return DryRunAdapter()
-

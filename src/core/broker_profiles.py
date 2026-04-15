@@ -12,6 +12,7 @@ import os
 from typing import Any, Dict, List
 
 from config import get_settings
+from src.core.account_profiles import coerce_profiles
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +71,7 @@ def get_active_profiles() -> List[Dict[str, Any]]:
                     })
                 if out:
                     logger.info("Loaded %s broker profile(s) from DB", len(out))
-                    return out
+                    return coerce_profiles(out)
     except Exception as exc:
         logger.debug("broker_profiles table not available: %s", exc)
 
@@ -100,7 +101,7 @@ def get_active_profiles() -> List[Dict[str, Any]]:
                     })
                 if out:
                     logger.info("Loaded %s broker profile(s) from BROKER_PROFILES_JSON", len(out))
-                    return out
+                    return coerce_profiles(out)
         except json.JSONDecodeError as e:
             logger.warning("Invalid BROKER_PROFILES_JSON: %s", e)
 
@@ -129,4 +130,4 @@ def get_active_profiles() -> List[Dict[str, Any]]:
     
     if len(out) > 1:
         logger.info("Loaded %s broker profile(s) from META_API_ACCOUNTS configuration", len(out))
-    return out
+    return coerce_profiles(out)
