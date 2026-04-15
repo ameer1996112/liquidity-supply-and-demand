@@ -40,7 +40,23 @@ export async function apiFetch<T>(
     throw new Error(`API Error (${response.status}): ${error}`);
   }
 
-  return response.json();
+  // Some endpoints legitimately return no body (e.g. DELETE 204).
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  const contentType = response.headers.get('content-type') || '';
+  const text = await response.text();
+  if (!text) {
+    return undefined as T;
+  }
+
+  if (contentType.includes('application/json')) {
+    return JSON.parse(text) as T;
+  }
+
+  // Fallback for non-JSON responses (should be rare in this app).
+  return text as unknown as T;
 }
 
 /**
