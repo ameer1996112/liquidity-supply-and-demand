@@ -18,6 +18,7 @@ import os
 import time
 import hashlib
 import hmac
+import re
 from urllib.parse import urlencode
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -31,6 +32,38 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/broker-profiles", tags=["broker-profiles"])
 
 from src.adapters.supabase_api import get_api_supabase as _get_supabase
+
+
+_UNKNOWN_COLUMN_RE = re.compile(r"Could not find the '([^']+)' column", re.IGNORECASE)
+
+
+def _insert_with_unknown_column_retry(
+    sb: Any,
+    table: str,
+    payload: Dict[str, Any],
+):
+    """
+    Backwards-compatible insert helper.
+
+    Some deployments have older broker_profiles schemas (PostgREST schema cache)
+    which may be missing newer columns like `prop_firm_name`.
+    When PostgREST returns PGRST204 unknown-column errors, retry the insert after
+    stripping that column from the payload.
+    """
+    try:
+        return sb.table(table).insert(payload).execute()
+    except Exception as exc:
+        msg = str(exc)
+        m = _UNKNOWN_COLUMN_RE.search(msg)
+        if not m:
+            raise
+        col = m.group(1)
+        if col not in payload:
+            raise
+        patched = dict(payload)
+        patched.pop(col, None)
+        logger.warning("Insert retry: stripping unknown column %s from %s payload", col, table)
+        return sb.table(table).insert(patched).execute()
 
 
 # ── Request / Response Models ──────────────────────────────────────────────────
@@ -384,7 +417,7 @@ def create_broker_profile(body: BrokerProfileCreate):
         else:
             raise HTTPException(status_code=422, detail=f"Unsupported venue: {venue}")
 
-        resp = sb.table("broker_profiles").insert(payload).execute()
+        resp = _insert_with_unknown_column_retry(sb, "broker_profiles", payload)
         rows = resp.data or []
         if not rows:
             raise HTTPException(status_code=500, detail="Insert returned no data")
