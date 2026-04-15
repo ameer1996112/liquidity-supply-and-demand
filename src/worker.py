@@ -103,6 +103,7 @@ supabase = None
 correlation_manager = None
 trailing_stop_manager = None
 breakeven_manager = None
+execution_adapter = None
 settings = None  # Global settings instance
 
 # Supabase client rotation — recreate every 90s to prevent HTTP/2 connection staleness
@@ -287,7 +288,7 @@ def _get_fresh_supabase():
 
 
 def init_connections():
-    global supabase, correlation_manager, trailing_stop_manager, breakeven_manager, settings
+    global supabase, correlation_manager, trailing_stop_manager, breakeven_manager, execution_adapter, settings
     s = get_settings()
     settings = s  # Store in global for use in save_result
     raw_key = s.supabase_service_role_key or s.supabase_key or ""
@@ -318,11 +319,16 @@ def init_connections():
     if supabase:
         try:
             from src.adapters.execution.router import get_adapter
-            adapter = get_adapter(run_mode=s.run_mode, settings=s)
-            trailing_stop_manager = TrailingStopManager(supabase, adapter)
-            breakeven_manager = BreakevenManager(supabase, adapter, trailing_stop_manager=trailing_stop_manager)
+            execution_adapter = get_adapter(run_mode=s.run_mode, settings=s)
+            trailing_stop_manager = TrailingStopManager(supabase, execution_adapter)
+            breakeven_manager = BreakevenManager(
+                supabase,
+                execution_adapter,
+                trailing_stop_manager=trailing_stop_manager,
+            )
             logger.info("TrailingStopManager and BreakevenManager initialized (trailing stop auto-activation: enabled)")
         except Exception as exc:
+            execution_adapter = None
             logger.warning("TrailingStopManager/BreakevenManager init failed: %s", exc)
 
     # ✅ v5.1: Load custom symbol mappings from database
@@ -1906,8 +1912,11 @@ def run():
                 close_before_minutes=getattr(s, "swap_close_before_min", 15),
                 block_after_minutes=getattr(s, "swap_block_after_min", 15),
             )
+            if execution_adapter is None:
+                raise RuntimeError("execution adapter unavailable")
+
             swap_scheduler = SwapScheduler(
-                adapter=adapter,
+                adapter=execution_adapter,
                 max_retries=3,
                 retry_delay_seconds=5,
             )

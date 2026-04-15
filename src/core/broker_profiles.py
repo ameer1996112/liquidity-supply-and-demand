@@ -15,6 +15,20 @@ from config import get_settings
 from src.core.account_profiles import coerce_profiles
 
 logger = logging.getLogger(__name__)
+_unsupported_profile_warnings: set[tuple[str, str]] = set()
+
+
+def _warn_unsupported_venue_once(profile_name: str, venue: str) -> None:
+    """Avoid repeating the same unsupported-venue warning on every refresh."""
+    warning_key = (profile_name, venue)
+    if warning_key in _unsupported_profile_warnings:
+        return
+    _unsupported_profile_warnings.add(warning_key)
+    logger.warning(
+        "Skipping broker profile %s (venue=%s): execution adapter not implemented yet",
+        profile_name,
+        venue,
+    )
 
 
 def get_active_profiles() -> List[Dict[str, Any]]:
@@ -58,9 +72,9 @@ def get_active_profiles() -> List[Dict[str, Any]]:
                     api_secret = ""
 
                     if venue == "ctrader":
-                        logger.warning(
-                            "Skipping broker profile %s (venue=ctrader): execution adapter not implemented yet",
-                            row.get("name") or row.get("id"),
+                        _warn_unsupported_venue_once(
+                            str(row.get("name") or row.get("id") or "profile"),
+                            venue,
                         )
                         continue
 
@@ -115,9 +129,9 @@ def get_active_profiles() -> List[Dict[str, Any]]:
                     venue = (row.get("venue") or "").strip().lower() or "metaapi_mt5"
 
                     if venue == "ctrader":
-                        logger.warning(
-                            "Skipping profile %s (venue=ctrader): execution adapter not implemented yet",
-                            row.get("name") or row.get("id") or "profile",
+                        _warn_unsupported_venue_once(
+                            str(row.get("name") or row.get("id") or "profile"),
+                            venue,
                         )
                         continue
 
