@@ -2010,6 +2010,17 @@ def run():
                         logger.warning("SwapGuard tick error: %s", sg_exc)
 
                 last_watchdog_ts = now
+                # Optional: bootstrap private streaming channels (Binance/Bybit) once per minute.
+                # Safe by default: requires ENABLE_MULTI_VENUE_STREAMING=true.
+                try:
+                    if getattr(get_settings(), "enable_multi_venue_streaming", False) and supabase:
+                        from src.core.broker_profiles import get_active_profiles
+                        from src.services.streaming_bootstrap import ensure_streaming_for_profile
+
+                        for profile in get_active_profiles():
+                            ensure_streaming_for_profile(profile, supabase)
+                except Exception as stream_exc:  # noqa: BLE001
+                    logger.warning("Multi-venue streaming bootstrap failed: %s", stream_exc)
 
             # FIX 4: Broker reconciliation runs INDEPENDENTLY of the 60s watchdog tick.
             # It checks every loop iteration (~5s) but only fires every 300s.
