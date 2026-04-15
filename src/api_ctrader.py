@@ -25,7 +25,7 @@ from typing import Any, Dict, Optional
 import os
 
 import requests
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from config import get_settings
@@ -56,8 +56,8 @@ def _get_system_config_value(key: str) -> str:
 
 
 def _require_admin_key(
-    x_admin_api_key: str | None = Header(None, alias="X-Admin-API-Key"),
-    authorization: str | None = Header(None),
+    x_admin_api_key: str | None,
+    authorization: str | None,
 ) -> None:
     """Local copy of the admin-key gate used by src/api.py."""
     settings = get_settings()
@@ -193,7 +193,10 @@ def _refresh_access_token(refresh_token: str) -> Dict[str, Any]:
 @router.post("/oauth/start")
 def ctrader_oauth_start(body: Dict[str, Any], request: Request) -> JSONResponse:  # noqa: ARG001
     """Return the OAuth grant URL to open in a browser."""
-    _require_admin_key()
+    _require_admin_key(
+        x_admin_api_key=request.headers.get("X-Admin-API-Key"),
+        authorization=request.headers.get("Authorization"),
+    )
     profile_id = int(body.get("profile_id") or 0)
     scope = (body.get("scope") or "trading").strip().lower()
     if scope not in {"accounts", "trading"}:
@@ -298,13 +301,18 @@ def ctrader_oauth_callback(request: Request, code: str | None = None, state: str
 
 
 @router.post("/profiles/{profile_id}/test")
-async def ctrader_test_profile(profile_id: int) -> Dict[str, Any]:
+async def ctrader_test_profile(request: Request, profile_id: int) -> Dict[str, Any]:
     """
     Validate that we can:
     - refresh an access token from broker_profiles.token (refresh token)
     - perform Open API app auth + account list fetch over WebSocket (JSON)
     """
-    _require_admin_key()
+    # This endpoint is admin-gated (if ADMIN_API_KEY is set).
+    # We pull headers explicitly because _require_admin_key is not used as a FastAPI dependency here.
+    _require_admin_key(
+        x_admin_api_key=request.headers.get("X-Admin-API-Key"),
+        authorization=request.headers.get("Authorization"),
+    )
     sb = _get_supabase()
     resp = (
         sb.table("broker_profiles")
