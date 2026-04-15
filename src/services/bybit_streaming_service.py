@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import threading
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple
 
@@ -12,7 +13,7 @@ from src.adapters.execution.bybit_adapter import _bybit_sign
 
 logger = logging.getLogger(__name__)
 
-_tasks: Dict[str, asyncio.Task] = {}
+_threads: Dict[str, threading.Thread] = {}
 
 
 def _extract_realized_pnl_and_order_id(event: Dict[str, Any]) -> Optional[Tuple[float, str]]:
@@ -89,9 +90,17 @@ def ensure_bybit_streaming(
     account_name: str,
 ) -> None:
     key = (account_name or api_key or "bybit").strip()
-    t = _tasks.get(key)
-    if t and not t.done():
-        return
-    loop = asyncio.get_event_loop()
-    _tasks[key] = loop.create_task(_run(api_key, api_secret, supabase_client, account_name))
 
+    existing = _threads.get(key)
+    if existing and existing.is_alive():
+        return
+
+    def _runner() -> None:
+        try:
+            asyncio.run(_run(api_key, api_secret, supabase_client, account_name))
+        except Exception as exc:  # noqa: BLE001
+            logger.error("[Bybit Stream] Runner crashed (%s): %s", account_name, exc)
+
+    th = threading.Thread(target=_runner, daemon=True, name=f"bybit-stream:{key}")
+    _threads[key] = th
+    th.start()
