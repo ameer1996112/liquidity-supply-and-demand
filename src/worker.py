@@ -1338,10 +1338,18 @@ def process_trade(payload: Dict[str, Any]):
     payload_run_mode = str(payload.get("run_mode", "PAPER")).upper()
     try:
         profiles = get_active_profiles()
-        matching = [p for p in profiles if (p.get("run_mode") or "LIVE") == payload_run_mode]
-        if matching and matching[0].get("name"):
+        matching = [
+            p for p in profiles
+            if (p.get("run_mode") or "LIVE") == payload_run_mode
+        ]
+        if len(matching) == 1 and matching[0].get("name"):
             account_name = matching[0]["name"]
             logger.info("Account: %s (mode: %s)", account_name, payload_run_mode)
+        elif len(matching) > 1:
+            logger.info(
+                "Multiple active profiles match run_mode=%s; leaving global signal unscoped until per-account routing",
+                payload_run_mode,
+            )
     except Exception as e:
         logger.warning("Failed to determine account_name: %s", e)
 
