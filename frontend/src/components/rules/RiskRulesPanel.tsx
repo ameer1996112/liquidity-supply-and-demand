@@ -43,7 +43,6 @@ const EMPTY_ROW: EditingRow = {
 async function requestJson<T>(endpoint: string, init?: RequestInit): Promise<T> {
   return apiFetch<T>(endpoint, init);
 }
-
 export function RiskRulesPanel() {
   const [rules, setRules] = useState<SymbolRiskRule[]>([]);
   const [loading, setLoading] = useState(true);
