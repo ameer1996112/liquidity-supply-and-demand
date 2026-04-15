@@ -11,7 +11,7 @@ interface AccountOverviewListProps {
   isLoading?: boolean;
 }
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, strategyType }: { status: string; strategyType?: string }) {
   if (status === 'archived') {
     return (
       <span className='flex items-center gap-1 text-[10px] text-[var(--to-text-dim)]'>
@@ -30,6 +30,13 @@ function StatusBadge({ status }: { status: string }) {
     return (
       <span className='flex items-center gap-1 text-[10px] text-[var(--to-short)]'>
         <AlertTriangle className='h-3 w-3' /> Error
+      </span>
+    );
+  }
+  if (strategyType === 'BROKER_PROFILE') {
+    return (
+      <span className='flex items-center gap-1 text-[10px] text-[var(--to-long)]'>
+        <Wifi className='h-3 w-3' /> Enabled for trading
       </span>
     );
   }
@@ -121,7 +128,10 @@ function AccountCard({ account }: { account: AccountComparisonApi }) {
             )}
           </div>
           <div className='mt-1'>
-            <StatusBadge status={account.connection_status || 'unknown'} />
+            <StatusBadge
+              status={account.connection_status || 'unknown'}
+              strategyType={account.strategy_type}
+            />
           </div>
         </div>
         <span className='text-[var(--to-text-dim)] group-hover:text-[var(--to-text-secondary)] transition-colors text-sm flex-shrink-0'>
