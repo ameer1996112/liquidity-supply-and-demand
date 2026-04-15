@@ -85,16 +85,37 @@ def get_active_profiles() -> List[Dict[str, Any]]:
                 for row in arr:
                     if not isinstance(row, dict):
                         continue
-                    env_key = (row.get("token_env_key") or "META_API_TOKEN").strip()
-                    token = (os.environ.get(env_key) or getattr(s, "meta_api_token", "") or "").strip()
-                    if not token:
-                        logger.warning("Profile %s: no token in env %s", row.get("name"), env_key)
-                        continue
+                    venue = (row.get("venue") or "").strip().lower() or "metaapi_mt5"
+
+                    token = ""
+                    if venue in {"metaapi", "metaapi_mt5", "mt5"}:
+                        env_key = (row.get("token_env_key") or "META_API_TOKEN").strip()
+                        token = (os.environ.get(env_key) or getattr(s, "meta_api_token", "") or "").strip()
+                        if not token:
+                            logger.warning("Profile %s: no token in env %s", row.get("name"), env_key)
+                            continue
+
+                    api_key = ""
+                    api_secret = ""
+                    if venue in {"binance", "bybit"}:
+                        api_key_env = (row.get("api_key_env_key") or "").strip()
+                        api_secret_env = (row.get("api_secret_env_key") or "").strip()
+                        api_key = (os.environ.get(api_key_env) if api_key_env else (row.get("api_key") or "")).strip()
+                        api_secret = (os.environ.get(api_secret_env) if api_secret_env else (row.get("api_secret") or "")).strip()
+                        if not api_key or not api_secret:
+                            logger.warning("Profile %s: missing crypto API keys (venue=%s)", row.get("name"), venue)
+                            continue
+
                     out.append({
                         "id": row.get("id"),
                         "name": row.get("name") or "profile",
                         "meta_api_account_id": str(row.get("meta_api_account_id") or row.get("account_id") or "").strip(),
                         "token": token,
+                        "venue": venue,
+                        "mode": (row.get("mode") or "personal").strip().lower(),
+                        "asset_class": (row.get("asset_class") or ("crypto" if venue in {"binance", "bybit"} else "forex_cfd")).strip().lower(),
+                        "api_key": api_key,
+                        "api_secret": api_secret,
                         "risk_pct": float(row.get("risk_pct", 1.0)),
                         "max_positions": int(row.get("max_positions", 3)),
                         "run_mode": (row.get("run_mode") or "LIVE").upper(),
