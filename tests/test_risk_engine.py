@@ -1,4 +1,61 @@
-from src.core.risk_engine import calculate_max_position_size, calculate_position_size_with_spread
+from src.core.risk_engine import (
+    calculate_effective_risk_percent,
+    calculate_max_position_size,
+    calculate_position_size_with_spread,
+)
+
+
+def test_pass_eval_reduces_risk_for_repeated_same_day_trades() -> None:
+    effective = calculate_effective_risk_percent(
+        base_risk_percent=0.5,
+        mode="PASS_EVAL",
+        pair_performance_state="neutral",
+        same_day_trade_count=2,
+        account_safety_state="normal",
+    )
+
+    assert effective < 0.5
+    assert round(effective, 3) == 0.35
+
+
+def test_pass_eval_caps_risk_inside_mode_bounds() -> None:
+    effective = calculate_effective_risk_percent(
+        base_risk_percent=1.0,
+        mode="PASS_EVAL",
+        pair_performance_state="strong",
+        same_day_trade_count=0,
+        account_safety_state="normal",
+    )
+
+    assert effective <= 0.75
+
+
+def test_pass_eval_lockout_rejects_position_size() -> None:
+    result = calculate_position_size_with_spread(
+        payload={
+            "symbol": "EURUSD",
+            "entry": 1.1000,
+            "sl": 1.0990,
+            "side": "buy",
+            "_risk_mode": "PASS_EVAL",
+            "_account_safety_state": "lockout",
+        },
+        account_balance=10000.0,
+        risk_percent=0.5,
+        symbol_overrides={
+            "enabled": True,
+            "risk_percent": 0.5,
+            "max_lot_size": 10.0,
+            "min_lot_size": 0.01,
+            "lot_step": 0.01,
+            "pip_size": 0.0001,
+            "pip_value_per_lot": 10.0,
+            "stop_loss_buffer_pips": 1.0,
+        },
+    )
+
+    assert result["rejected"] is True
+    assert result["rejection_reason"] == "pass_eval_lockout"
 
 
 def test_calculate_position_size_with_spread_rejects_disabled_symbol() -> None:

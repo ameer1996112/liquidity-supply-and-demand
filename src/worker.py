@@ -418,6 +418,133 @@ def _lookup_symbol_overrides(symbol: str) -> Optional[Dict[str, Any]]:
     return None
 
 
+def _today_start_utc_iso() -> str:
+    from datetime import datetime as _dt, timezone
+
+    return _dt.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+
+
+def _get_same_day_trade_count(symbol: str, sb: Any, profile: Optional[Dict[str, Any]] = None) -> int:
+    """Count accepted trades for a symbol today, scoped to the current account when possible."""
+    if not sb or not symbol:
+        return 0
+    try:
+        q = (
+            sb.table("trading_signals")
+            .select("symbol")
+            .eq("symbol", symbol.upper())
+            .gte("created_at", _today_start_utc_iso())
+            .in_("status", ["executed", "closed", "active", "CLOSED", "EXECUTED"])
+        )
+        if profile and profile.get("id") is not None:
+            q = q.eq("broker_profile_id", profile["id"])
+        elif profile and profile.get("name"):
+            q = q.eq("account_name", profile["name"])
+        rows = q.execute().data or []
+        return len(rows)
+    except Exception as e:
+        logger.warning("Same-day trade count lookup failed for %s: %s", symbol, e)
+        return 0
+
+
+def _get_pair_performance_state(symbol: str, sb: Any, profile: Optional[Dict[str, Any]] = None) -> str:
+    """Summarize recent closed performance for a symbol into a conservative state bucket."""
+    if not sb or not symbol:
+        return "neutral"
+    try:
+        q = (
+            sb.table("trading_signals")
+            .select("pnl_usd")
+            .eq("symbol", symbol.upper())
+            .in_("status", ["closed", "CLOSED"])
+            .order("created_at", desc=True)
+            .limit(5)
+        )
+        if profile and profile.get("id") is not None:
+            q = q.eq("broker_profile_id", profile["id"])
+        elif profile and profile.get("name"):
+            q = q.eq("account_name", profile["name"])
+        rows = q.execute().data or []
+        pnl_values = [float(row.get("pnl_usd") or 0.0) for row in rows]
+        if not pnl_values:
+            return "neutral"
+        total = sum(pnl_values)
+        if total <= -100:
+            return "very_weak"
+        if total < 0:
+            return "weak"
+        if total >= 100:
+            return "strong"
+        return "neutral"
+    except Exception as e:
+        logger.warning("Pair performance lookup failed for %s: %s", symbol, e)
+        return "neutral"
+
+
+def _get_account_safety_state(
+    *,
+    allowed: bool,
+    risk_multiplier: float,
+    daily_pnl: float,
+    account_balance: float,
+    current_equity: float,
+    max_drawdown_pct: float,
+) -> str:
+    """Map account pressure into pass-eval risk states."""
+    if not allowed or risk_multiplier <= 0:
+        return "lockout"
+
+    drawdown_pct = 0.0
+    if account_balance > 0:
+        drawdown_pct = max(0.0, ((account_balance - current_equity) / account_balance) * 100.0)
+
+    drawdown_utilization = (drawdown_pct / max_drawdown_pct) if max_drawdown_pct > 0 else 0.0
+    daily_loss_pct = abs(daily_pnl / account_balance * 100.0) if daily_pnl < 0 and account_balance > 0 else 0.0
+
+    if risk_multiplier <= 0.25 or drawdown_utilization >= 0.9 or daily_loss_pct >= 3.5:
+        return "survival"
+    if risk_multiplier <= 0.5 or drawdown_utilization >= 0.7 or daily_loss_pct >= 2.5:
+        return "defensive"
+    if risk_multiplier < 1.0 or drawdown_utilization >= 0.4 or daily_loss_pct >= 1.5:
+        return "caution"
+    return "normal"
+
+
+def _attach_pass_eval_risk_context(
+    payload: Dict[str, Any],
+    profile: Optional[Dict[str, Any]],
+    settings: Any,
+    *,
+    symbol: str,
+    account_balance: float,
+    daily_pnl: float,
+    current_equity: float,
+    allowed: bool,
+    risk_multiplier: float,
+) -> None:
+    """Attach backend-only dynamic risk inputs for evaluation accounts."""
+    profile_eval_mode = (profile or {}).get("evaluation_mode")
+    eval_mode_enabled = profile_eval_mode if profile_eval_mode is not None else getattr(settings, "evaluation_mode", False)
+    payload["_risk_mode"] = "PASS_EVAL" if eval_mode_enabled else "NORMAL"
+
+    if payload["_risk_mode"] != "PASS_EVAL":
+        payload["_same_day_trade_count"] = 0
+        payload["_pair_performance_state"] = "neutral"
+        payload["_account_safety_state"] = "normal"
+        return
+
+    payload["_same_day_trade_count"] = _get_same_day_trade_count(symbol, supabase, profile)
+    payload["_pair_performance_state"] = _get_pair_performance_state(symbol, supabase, profile)
+    payload["_account_safety_state"] = _get_account_safety_state(
+        allowed=allowed,
+        risk_multiplier=risk_multiplier,
+        daily_pnl=daily_pnl,
+        account_balance=account_balance,
+        current_equity=current_equity,
+        max_drawdown_pct=float(getattr(settings, "trinity_max_drawdown_pct", 8.0)),
+    )
+
+
 def _max_position_size(payload: Dict[str, Any]) -> float:
     s = get_settings()
     symbol = payload.get("symbol", "UNKNOWN")
@@ -1154,6 +1281,17 @@ def _run_account_guards(
         current_equity, acct_balance, daily_pnl,
         account_name=account_name,
         risk_pct_override=profile_risk_pct,
+    )
+    _attach_pass_eval_risk_context(
+        payload,
+        profile,
+        s,
+        symbol=symbol,
+        account_balance=acct_balance,
+        daily_pnl=daily_pnl,
+        current_equity=current_equity,
+        allowed=allowed,
+        risk_multiplier=risk_multiplier,
     )
     if not allowed:
         return f"PropGuard ({account_name}): {risk_label}"
