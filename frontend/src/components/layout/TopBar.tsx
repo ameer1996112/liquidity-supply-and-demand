@@ -153,13 +153,6 @@ function formatRelativeTime(input: string | null | undefined): string {
   }
 }
 
-function getAccountLiquidity(
-  account: Pick<AccountDetailApi, 'balance' | 'equity'> | null | undefined
-): number | null {
-  if (!account) return null;
-  return account.equity ?? account.balance ?? null;
-}
-
 function useSystemStatus() {
   const { data: health } = useQuery({
     queryKey: ['topbar-health'],
@@ -297,30 +290,6 @@ export function TopBar() {
         : undefined,
     [accounts, selectedAccountName]
   );
-
-  const selectedAccountNetLiq = getAccountLiquidity(selectedAccount);
-
-  const multiAccountNetLiq = useMemo(() => {
-    if (!hasMultipleTradingAccounts) return null;
-
-    const liquidityValues = activeTradingAccounts
-      .map((account) => getAccountLiquidity(account))
-      .filter((value): value is number => value != null);
-
-    if (liquidityValues.length !== activeTradingAccounts.length) return null;
-
-    return liquidityValues.reduce((sum, value) => sum + value, 0);
-  }, [activeTradingAccounts, hasMultipleTradingAccounts]);
-
-  const netLiq = selectedAccountName
-    ? selectedAccountNetLiq
-    : hasMultipleTradingAccounts
-    ? multiAccountNetLiq
-    : liveBroker?.equity ??
-      liveBroker?.balance ??
-      accountStatus?.equity ??
-      selectedAccountNetLiq ??
-      (risk?.current_equity != null ? risk.current_equity : null);
 
   const todayPnlFromStats =
     mode === 'PAPER'
@@ -463,19 +432,6 @@ export function TopBar() {
             className='flex items-center gap-4 px-4 py-1.5'
             style={{ fontFamily: 'var(--font-mono)' }}
           >
-            <div className='flex flex-col items-end justify-center'>
-              <span className='text-[9px] text-[var(--to-text-dim)] uppercase tracking-widest leading-none mb-1'>
-                Net Liq
-              </span>
-              <span className='text-[13px] text-white font-semibold leading-none'>
-                {netLiq != null
-                  ? `$${netLiq.toLocaleString(undefined, {
-                      maximumFractionDigits: 0,
-                    })}`
-                  : '—'}
-              </span>
-            </div>
-            <div className='h-5 w-px bg-white/10' />
             <div className='flex flex-col items-end justify-center'>
               <span className='text-[9px] text-[var(--to-text-dim)] uppercase tracking-widest leading-none mb-1'>
                 Today
