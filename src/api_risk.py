@@ -146,35 +146,78 @@ def get_risk_status():
 
     # 3. Equity & drawdown
     # Try to get real balance from account_status_snapshots (MetaAPI synced by AccountSyncService)
+    # across the same account universe the dashboard surfaces: active account_strategies plus
+    # selected-for-trading broker profiles that may not yet have a strategy row.
     starting_equity = s.account_balance  # fallback
     try:
         from datetime import timedelta
         cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
 
-        # Get all active accounts
         accounts_resp = sb.table("account_strategies")\
-            .select("account_name")\
+            .select("account_name, broker_profile_id")\
             .eq("is_active", True)\
             .execute()
 
-        if accounts_resp.data:
-            total_balance = 0.0
-            found_any = False
-            for acct in accounts_resp.data:
-                acct_name = acct["account_name"]
-                snap = sb.table("account_status_snapshots")\
-                    .select("balance")\
-                    .eq("account_name", acct_name)\
-                    .gte("snapshot_time", cutoff)\
-                    .order("snapshot_time", desc=True)\
-                    .limit(1)\
-                    .execute()
-                if snap.data:
-                    total_balance += float(snap.data[0]["balance"])
-                    found_any = True
-            if found_any:
-                starting_equity = total_balance
-                logger.debug("Risk status: using live MetaAPI balance $%.2f", starting_equity)
+        strategy_rows = accounts_resp.data or []
+
+        profile_rows = (
+            sb.table("broker_profiles")
+            .select("id, name, selected_for_trading, is_active, starting_balance")
+            .eq("is_active", True)
+            .eq("selected_for_trading", True)
+            .execute()
+        ).data or []
+
+        account_names: set[str] = {
+            row["account_name"]
+            for row in strategy_rows
+            if row.get("account_name")
+        }
+        profile_ids = {
+            row.get("broker_profile_id")
+            for row in strategy_rows
+            if row.get("broker_profile_id") is not None
+        }
+
+        aggregate_balance = 0.0
+        found_any = False
+
+        def _add_snapshot_balance(account_name: str) -> bool:
+            nonlocal aggregate_balance, found_any
+            snap = sb.table("account_status_snapshots")\
+                .select("balance")\
+                .eq("account_name", account_name)\
+                .gte("snapshot_time", cutoff)\
+                .order("snapshot_time", desc=True)\
+                .limit(1)\
+                .execute()
+            if not snap.data:
+                return False
+            aggregate_balance += float(snap.data[0]["balance"])
+            found_any = True
+            return True
+
+        for acct_name in sorted(account_names):
+            _add_snapshot_balance(acct_name)
+
+        for profile in profile_rows:
+            profile_id = profile.get("id")
+            profile_name = profile.get("name")
+            if profile_id in profile_ids or not profile_name:
+                continue
+
+            has_snapshot = _add_snapshot_balance(profile_name)
+            if has_snapshot:
+                continue
+
+            starting_balance = profile.get("starting_balance")
+            if starting_balance not in (None, ""):
+                aggregate_balance += float(starting_balance)
+                found_any = True
+
+        if found_any:
+            starting_equity = aggregate_balance
+            logger.debug("Risk status: using aggregated trading account balance $%.2f", starting_equity)
     except Exception as _eq_err:
         if is_supabase_connection_error(_eq_err):
             reset_api_supabase()
