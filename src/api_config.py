@@ -64,6 +64,19 @@ class PatchHtfFilterRequest(BaseModel):
     trading_start_hour: int | None = Field(default=None, ge=0, le=23)
     trading_end_hour: int | None = Field(default=None, ge=0, le=23)
 
+class CTraderIntegrationResponse(BaseModel):
+    public_api_base_url: str
+    ctrader_client_id: str
+    has_ctrader_client_secret: bool
+    has_ctrader_oauth_state_secret: bool
+
+
+class PatchCTraderIntegrationRequest(BaseModel):
+    public_api_base_url: str | None = None
+    ctrader_client_id: str | None = None
+    ctrader_client_secret: str | None = Field(default=None, description="Optional: set/rotate secret; omit or empty to keep current")
+    ctrader_oauth_state_secret: str | None = Field(default=None, description="Optional: set/rotate state secret; omit or empty to keep current")
+
 
 # ── Endpoints ─────────────────────────────────────────────
 
@@ -218,3 +231,66 @@ def patch_pine_filters(body: PatchHtfFilterRequest):
     except Exception as e:
         logger.error(f"Failed to update pine filter settings: {e}")
         raise HTTPException(status_code=500, detail="Could not update pine filter settings")
+
+
+# ── Integrations: cTrader Open API ─────────────────────────
+
+_PUBLIC_API_BASE_URL_KEY = "public_api_base_url"
+_CTRADER_CLIENT_ID_KEY = "ctrader_client_id"
+_CTRADER_CLIENT_SECRET_KEY = "ctrader_client_secret"
+_CTRADER_STATE_SECRET_KEY = "ctrader_oauth_state_secret"
+
+
+@router.get("/integrations/ctrader", response_model=CTraderIntegrationResponse)
+def get_ctrader_integration():
+    """Return current cTrader Open API integration settings (secret values are never returned)."""
+    try:
+        sb = _get_supabase()
+        rows = (
+            sb.table("system_config")
+            .select("key,value")
+            .in_("key", [_PUBLIC_API_BASE_URL_KEY, _CTRADER_CLIENT_ID_KEY, _CTRADER_CLIENT_SECRET_KEY, _CTRADER_STATE_SECRET_KEY])
+            .execute()
+        )
+        kv = {r["key"]: (r.get("value") or "") for r in (rows.data or [])}
+        return {
+            "public_api_base_url": str(kv.get(_PUBLIC_API_BASE_URL_KEY, "") or ""),
+            "ctrader_client_id": str(kv.get(_CTRADER_CLIENT_ID_KEY, "") or ""),
+            "has_ctrader_client_secret": bool(str(kv.get(_CTRADER_CLIENT_SECRET_KEY, "") or "").strip()),
+            "has_ctrader_oauth_state_secret": bool(str(kv.get(_CTRADER_STATE_SECRET_KEY, "") or "").strip()),
+        }
+    except Exception as e:
+        logger.error(f"Failed to fetch cTrader integration settings: {e}")
+        raise HTTPException(status_code=500, detail="Could not fetch cTrader integration settings")
+
+
+@router.patch("/integrations/ctrader", response_model=CTraderIntegrationResponse)
+def patch_ctrader_integration(body: PatchCTraderIntegrationRequest):
+    """Update cTrader Open API integration settings. Secrets are write-only."""
+    try:
+        sb = _get_supabase()
+        if body.public_api_base_url is not None:
+            sb.table("system_config").upsert(
+                {"key": _PUBLIC_API_BASE_URL_KEY, "value": body.public_api_base_url.strip()},
+                on_conflict="key",
+            ).execute()
+        if body.ctrader_client_id is not None:
+            sb.table("system_config").upsert(
+                {"key": _CTRADER_CLIENT_ID_KEY, "value": body.ctrader_client_id.strip()},
+                on_conflict="key",
+            ).execute()
+        if body.ctrader_client_secret is not None and body.ctrader_client_secret.strip():
+            sb.table("system_config").upsert(
+                {"key": _CTRADER_CLIENT_SECRET_KEY, "value": body.ctrader_client_secret.strip()},
+                on_conflict="key",
+            ).execute()
+        if body.ctrader_oauth_state_secret is not None and body.ctrader_oauth_state_secret.strip():
+            sb.table("system_config").upsert(
+                {"key": _CTRADER_STATE_SECRET_KEY, "value": body.ctrader_oauth_state_secret.strip()},
+                on_conflict="key",
+            ).execute()
+
+        return get_ctrader_integration()
+    except Exception as e:
+        logger.error(f"Failed to update cTrader integration settings: {e}")
+        raise HTTPException(status_code=500, detail="Could not update cTrader integration settings")

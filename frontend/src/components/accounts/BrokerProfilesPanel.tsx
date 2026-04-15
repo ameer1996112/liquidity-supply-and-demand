@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Server, Plus, Trash2, CheckCircle2, XCircle, Loader2,
   RadioTower, Eye, EyeOff, Zap, ChevronRight, ChevronLeft,
-  User, ClipboardList, Trophy, Copy, Check, Pencil, X, Power,
+  User, ClipboardList, Trophy, Copy, Check, Pencil, X, Power, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
@@ -82,6 +82,29 @@ async function startCTraderOauth(profile_id: number): Promise<{ authorize_url: s
 async function testCTraderProfile(id: number): Promise<{ success: boolean; message: string }> {
   const res = await apiFetch<{ success: boolean; message: string }>(`/api/ctrader/profiles/${id}/test`, { method: 'POST' });
   return res;
+}
+
+type CTraderIntegrationConfig = {
+  public_api_base_url: string;
+  ctrader_client_id: string;
+  has_ctrader_client_secret: boolean;
+  has_ctrader_oauth_state_secret: boolean;
+};
+
+async function fetchCTraderIntegration(): Promise<CTraderIntegrationConfig> {
+  return apiFetch<CTraderIntegrationConfig>('/api/v1/config/integrations/ctrader');
+}
+
+async function patchCTraderIntegration(body: {
+  public_api_base_url?: string;
+  ctrader_client_id?: string;
+  ctrader_client_secret?: string;
+  ctrader_oauth_state_secret?: string;
+}): Promise<CTraderIntegrationConfig> {
+  return apiFetch<CTraderIntegrationConfig>('/api/v1/config/integrations/ctrader', {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
 }
 
 // ── Prop firm presets ────────────────────────────────────────────────────────
@@ -906,11 +929,38 @@ function ProfileRow({ profile }: { profile: BrokerProfile }) {
 
 export function BrokerProfilesPanel() {
   const [showAdd, setShowAdd] = useState(false);
+  const [showCTraderConfig, setShowCTraderConfig] = useState(false);
+  const [ctraderClientSecret, setCTraderClientSecret] = useState('');
+  const [ctraderStateSecret, setCTraderStateSecret] = useState('');
+  const { addToast } = useToast();
   const { data: profiles, isLoading, error } = useQuery<BrokerProfile[]>({
     queryKey: ['broker-profiles'],
     queryFn: fetchProfiles,
     refetchInterval: 30_000,
   });
+  const { data: ctraderConfig, isLoading: ctraderLoading, error: ctraderError } = useQuery<CTraderIntegrationConfig>({
+    queryKey: ['ctrader-integration'],
+    queryFn: fetchCTraderIntegration,
+    refetchInterval: false,
+    retry: false,
+  });
+  const qc = useQueryClient();
+  const saveCTraderConfig = useMutation({
+    mutationFn: (patch: {
+      public_api_base_url?: string;
+      ctrader_client_id?: string;
+      ctrader_client_secret?: string;
+      ctrader_oauth_state_secret?: string;
+    }) => patchCTraderIntegration(patch),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['ctrader-integration'] });
+      setCTraderClientSecret('');
+      setCTraderStateSecret('');
+      addToast({ title: 'Saved', message: 'cTrader integration updated.', severity: 'success' });
+    },
+    onError: (e: Error) => addToast({ title: 'Save failed', message: e.message, severity: 'critical' }),
+  });
+  const hasCTraderProfile = !!profiles?.some((p) => p.venue === 'ctrader');
 
   return (
     <div className="space-y-4">
@@ -934,6 +984,97 @@ export function BrokerProfilesPanel() {
       <p className="text-[11px] text-[var(--to-text-dim)] leading-relaxed">
         Store broker/exchange credentials in the database. <strong>Test</strong> validates connectivity where supported, then <strong>Activate</strong> routes new trades through that account.
       </p>
+
+      {hasCTraderProfile && (
+        <div className="rounded-xl border border-[var(--to-border)] bg-[var(--to-surface)] overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setShowCTraderConfig(v => !v)}
+            className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-[var(--to-text-secondary)] hover:text-[var(--to-text-primary)] transition-colors"
+          >
+            <span className="flex items-center gap-2">
+              <Zap className="h-4 w-4 text-[var(--to-warning)]" />
+              cTrader Integration
+            </span>
+            {showCTraderConfig ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </button>
+          {showCTraderConfig && (
+            <div className="border-t border-[var(--to-border)] p-4 space-y-3">
+              {ctraderLoading && <div className="text-xs text-[var(--to-text-dim)]">Loading…</div>}
+              {ctraderError && (
+                <div className="text-xs text-[var(--to-short)]">
+                  Failed to load cTrader integration. If you didn’t set an admin key, this should work without any env vars.
+                </div>
+              )}
+              {ctraderConfig && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <InputField label="Public API Base URL" required>
+                    <input
+                      className={inputCls}
+                      placeholder="https://your-api.up.railway.app"
+                      value={ctraderConfig.public_api_base_url || ''}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        qc.setQueryData(['ctrader-integration'], { ...ctraderConfig, public_api_base_url: v });
+                      }}
+                    />
+                  </InputField>
+                  <InputField label="cTrader Client ID" required>
+                    <input
+                      className={cn(inputCls, 'font-mono')}
+                      placeholder="xxxx_..."
+                      value={ctraderConfig.ctrader_client_id || ''}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        qc.setQueryData(['ctrader-integration'], { ...ctraderConfig, ctrader_client_id: v });
+                      }}
+                    />
+                  </InputField>
+                  <InputField label={`cTrader Client Secret ${ctraderConfig.has_ctrader_client_secret ? '(set)' : '(missing)'}`}>
+                    <input
+                      className={cn(inputCls, 'font-mono')}
+                      type="password"
+                      placeholder={ctraderConfig.has_ctrader_client_secret ? '•••••••• (leave blank to keep)' : 'paste client secret…'}
+                      value={ctraderClientSecret}
+                      onChange={(e) => setCTraderClientSecret(e.target.value)}
+                    />
+                  </InputField>
+                  <InputField label={`OAuth State Secret ${ctraderConfig.has_ctrader_oauth_state_secret ? '(set)' : '(missing)'}`}>
+                    <input
+                      className={cn(inputCls, 'font-mono')}
+                      type="password"
+                      placeholder={ctraderConfig.has_ctrader_oauth_state_secret ? '•••••••• (leave blank to keep)' : 'random long secret…'}
+                      value={ctraderStateSecret}
+                      onChange={(e) => setCTraderStateSecret(e.target.value)}
+                    />
+                  </InputField>
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  className="h-7 text-xs bg-[var(--to-warning)] text-black"
+                  disabled={!ctraderConfig || saveCTraderConfig.isPending}
+                  onClick={() => {
+                    if (!ctraderConfig) return;
+                    saveCTraderConfig.mutate({
+                      public_api_base_url: ctraderConfig.public_api_base_url,
+                      ctrader_client_id: ctraderConfig.ctrader_client_id,
+                      ctrader_client_secret: ctraderClientSecret || undefined,
+                      ctrader_oauth_state_secret: ctraderStateSecret || undefined,
+                    });
+                  }}
+                >
+                  {saveCTraderConfig.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : null} Save
+                </Button>
+                <div className="text-[10px] text-[var(--to-text-dim)]">
+                  Secrets are stored in DB (write-only here). Rotate the leaked secret in Spotware first.
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {showAdd && <AddAccountWizard onSuccess={() => setShowAdd(false)} onCancel={() => setShowAdd(false)} />}
 

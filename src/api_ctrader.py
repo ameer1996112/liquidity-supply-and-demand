@@ -38,6 +38,22 @@ router = APIRouter(prefix="/api/ctrader", tags=["ctrader"])
 _OAUTH_GRANT_URL = "https://id.ctrader.com/my/settings/openapi/grantingaccess/"
 _OAUTH_TOKEN_URL = "https://openapi.ctrader.com/apps/token"
 
+_PUBLIC_API_BASE_URL_KEY = "public_api_base_url"
+_CTRADER_CLIENT_ID_KEY = "ctrader_client_id"
+_CTRADER_CLIENT_SECRET_KEY = "ctrader_client_secret"
+_CTRADER_STATE_SECRET_KEY = "ctrader_oauth_state_secret"
+
+
+def _get_system_config_value(key: str) -> str:
+    try:
+        sb = _get_supabase()
+        r = sb.table("system_config").select("value").eq("key", key).single().execute()
+        if r.data and r.data.get("value") is not None:
+            return str(r.data["value"] or "").strip()
+    except Exception:
+        pass
+    return ""
+
 
 def _require_admin_key(
     x_admin_api_key: str | None = Header(None, alias="X-Admin-API-Key"),
@@ -68,6 +84,8 @@ def _state_secret_bytes() -> bytes:
     s = get_settings()
     # Prefer dedicated secret; fall back to WEBHOOK_SECRET.
     secret = (s.ctrader_oauth_state_secret.get_secret_value() if s.ctrader_oauth_state_secret else "").strip()
+    if not secret:
+        secret = _get_system_config_value(_CTRADER_STATE_SECRET_KEY)
     if not secret:
         secret = (s.webhook_secret or "").strip()
     if not secret:
@@ -113,14 +131,16 @@ def _public_callback_url() -> str:
     s = get_settings()
     base = (s.public_api_base_url or "").strip().rstrip("/")
     if not base:
+        base = _get_system_config_value(_PUBLIC_API_BASE_URL_KEY).rstrip("/")
+    if not base:
         raise HTTPException(status_code=500, detail="Set PUBLIC_API_BASE_URL to enable cTrader OAuth")
     return f"{base}/api/ctrader/oauth/callback"
 
 
 def _exchange_code_for_tokens(code: str) -> Dict[str, Any]:
     s = get_settings()
-    client_id = (s.ctrader_client_id or "").strip()
-    client_secret = (s.ctrader_client_secret.get_secret_value() if s.ctrader_client_secret else "").strip()
+    client_id = (s.ctrader_client_id or "").strip() or _get_system_config_value(_CTRADER_CLIENT_ID_KEY)
+    client_secret = (s.ctrader_client_secret.get_secret_value() if s.ctrader_client_secret else "").strip() or _get_system_config_value(_CTRADER_CLIENT_SECRET_KEY)
     if not client_id or not client_secret:
         raise HTTPException(status_code=500, detail="Missing CTRADER_CLIENT_ID/CTRADER_CLIENT_SECRET")
 
@@ -146,8 +166,8 @@ def _exchange_code_for_tokens(code: str) -> Dict[str, Any]:
 
 def _refresh_access_token(refresh_token: str) -> Dict[str, Any]:
     s = get_settings()
-    client_id = (s.ctrader_client_id or "").strip()
-    client_secret = (s.ctrader_client_secret.get_secret_value() if s.ctrader_client_secret else "").strip()
+    client_id = (s.ctrader_client_id or "").strip() or _get_system_config_value(_CTRADER_CLIENT_ID_KEY)
+    client_secret = (s.ctrader_client_secret.get_secret_value() if s.ctrader_client_secret else "").strip() or _get_system_config_value(_CTRADER_CLIENT_SECRET_KEY)
     if not client_id or not client_secret:
         raise HTTPException(status_code=500, detail="Missing CTRADER_CLIENT_ID/CTRADER_CLIENT_SECRET")
 
@@ -182,8 +202,9 @@ def ctrader_oauth_start(body: Dict[str, Any], request: Request) -> JSONResponse:
         raise HTTPException(status_code=422, detail="profile_id is required")
 
     s = get_settings()
-    if not (s.ctrader_client_id or "").strip():
-        raise HTTPException(status_code=500, detail="Missing CTRADER_CLIENT_ID")
+    client_id = (s.ctrader_client_id or "").strip() or _get_system_config_value(_CTRADER_CLIENT_ID_KEY)
+    if not client_id:
+        raise HTTPException(status_code=500, detail="Missing cTrader client id (set in Settings → cTrader Integration)")
 
     # Verify profile exists and is ctrader
     sb = _get_supabase()
@@ -205,7 +226,7 @@ def ctrader_oauth_start(body: Dict[str, Any], request: Request) -> JSONResponse:
     state = _sign_state(payload)
 
     params = {
-        "client_id": s.ctrader_client_id,
+        "client_id": client_id,
         "redirect_uri": _public_callback_url(),
         "scope": scope,
         "product": "web",
