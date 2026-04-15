@@ -11,7 +11,9 @@ const fs = require('fs');
 const path = require('path');
 
 // Auto-load .env file safely
-const envPath = path.resolve(process.cwd(), '.env');
+// scripts/jira/* lives two levels below the repo root
+const REPO_ROOT = path.resolve(__dirname, '..', '..');
+const envPath = path.join(REPO_ROOT, '.env');
 if (fs.existsSync(envPath)) {
   const envConfig = fs.readFileSync(envPath, 'utf-8').split('\n');
   envConfig.forEach(line => {
@@ -32,12 +34,14 @@ const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
 
 // Validation
 if (!JIRA_DOMAIN || !JIRA_EMAIL || !JIRA_API_TOKEN) {
-  console.error('Error: Please add JIRA_API_TOKEN, JIRA_EMAIL, and JIRA_DOMAIN to your .env file.');
+  console.error('Error: Please add JIRA_API_TOKEN, JIRA_EMAIL, and JIRA_DOMAIN (or JIRA_BASE_URL) to your repo .env file.');
   process.exit(1);
 }
 
 const authHeader = 'Basic ' + Buffer.from(`${JIRA_EMAIL}:${JIRA_API_TOKEN}`).toString('base64');
-const hostname = JIRA_DOMAIN.replace('https://', '').replace('/', '');
+const jiraBase = (JIRA_DOMAIN || '').trim().replace(/\/$/, '');
+const jiraUrl = jiraBase.startsWith('http') ? jiraBase : `https://${jiraBase}`;
+const hostname = new URL(jiraUrl).hostname;
 
 // Utility: Call Jira API
 async function callJiraAPI(path, method, body = null) {

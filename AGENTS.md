@@ -49,8 +49,15 @@ If you cannot answer all three → read `.planning/codebase/MODULE_MAP.md` first
 
 For any non-trivial task (bug fix, feature, refactor):
 
-### Before touching code — Create ticket
+### Before touching code — Create ticket (recommended)
 ```bash
+# Reads Jira creds from the repo `.env` (no need to export JIRA_* manually)
+node scripts/jira/jira-sync.js --no-branch "<title>"
+```
+
+### Alternate — Create ticket via curl (requires exported env vars)
+```bash
+set -a; source .env; set +a  # export JIRA_* from .env into your shell
 curl -s -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
   -X POST "https://ameer1996112.atlassian.net/rest/api/3/issue" \
   -H "Content-Type: application/json" \

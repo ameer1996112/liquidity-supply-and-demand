@@ -3,9 +3,9 @@
  * jira-sync.js — Jira CLI for the trading project
  *
  * Usage:
- *   node scripts/jira-sync.js "Add 5-minute timeframe liquidity check"
- *   node scripts/jira-sync.js --bug "Fix order execution delay"
- *   node scripts/jira-sync.js "Some task" --no-branch
+ *   node scripts/jira/jira-sync.js "Add 5-minute timeframe liquidity check"
+ *   node scripts/jira/jira-sync.js --bug "Fix order execution delay"
+ *   node scripts/jira/jira-sync.js "Some task" --no-branch
  *   npm run task "Add 5-minute timeframe liquidity check"
  *   npm run bug  "Fix order execution delay"
  *
@@ -60,7 +60,8 @@ function loadEnv(envPath) {
   return out;
 }
 
-const repoRoot   = path.resolve(__dirname, "..");
+// scripts/jira/* lives two levels below the repo root
+const repoRoot   = path.resolve(__dirname, "..", "..");
 const env        = loadEnv(path.join(repoRoot, ".env"));
 
 const JIRA_EMAIL   = env.JIRA_EMAIL   || process.env.JIRA_EMAIL   || "";

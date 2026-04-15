@@ -25,7 +25,8 @@ const path    = require("path");
 // 1. Load .env
 // ─────────────────────────────────────────────────────────────
 
-const REPO_ROOT = path.resolve(__dirname, "..");
+// scripts/jira/* lives two levels below the repo root
+const REPO_ROOT = path.resolve(__dirname, "..", "..");
 
 function loadEnv(p) {
   if (!fs.existsSync(p)) return {};
@@ -366,7 +367,7 @@ const [,, command, ...rest] = process.argv;
       case "branch-ticket": {
         const ticket = detectTicketFromBranch(rest[0] || REPO_ROOT);
         if (ticket) { console.log(ticket); }
-        else { console.error("No ticket key found in current branch"); process.exit(1); }
+        else { console.error("No ticket key found in current branch"); }
         break;
       }
 
