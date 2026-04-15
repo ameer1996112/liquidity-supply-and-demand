@@ -308,7 +308,6 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: 'Risk & Rules', icon: Gauge, path: '/risk' },
       { label: 'Alerts', icon: Bell, path: '/alerts' },
-      { label: 'Alert Setup', icon: SlidersHorizontal, path: '/alert-setup' },
       { label: 'Prop Firm', icon: Trophy, path: '/prop-firm' },
     ],
   },
@@ -317,6 +316,13 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Analytics',
     items: [
       { label: 'Analytics', icon: BarChart3, path: '/analytics' },
+    ],
+  },
+  {
+    id: 'automation',
+    label: 'Automation',
+    items: [
+      { label: 'Alert Setup', icon: Bell, path: '/alert-setup' },
       { label: 'Optimizer', icon: PlaySquare, path: '/optimizer' },
     ],
   },

@@ -44,6 +44,18 @@ const NAV_ITEMS: NavItem[] = [
     group: 'Analytics',
   },
   {
+    label: 'Alert Setup',
+    description: 'TradingView alert deployment',
+    path: '/alert-setup',
+    group: 'Automation',
+  },
+  {
+    label: 'Optimizer',
+    description: 'Optimizer runs',
+    path: '/optimizer',
+    group: 'Automation',
+  },
+  {
     label: 'Strategies',
     description: 'Strategy Studio',
     path: '/strategies',
