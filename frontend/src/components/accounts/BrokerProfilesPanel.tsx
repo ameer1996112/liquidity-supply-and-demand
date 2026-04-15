@@ -612,7 +612,15 @@ function AccountTypeBadge({ type }: { type: BrokerProfile['account_type'] }) {
   );
 }
 
-function ProfileRow({ profile }: { profile: BrokerProfile }) {
+function ProfileRow({
+  profile,
+  ctraderConfig,
+  openCTraderConfig,
+}: {
+  profile: BrokerProfile;
+  ctraderConfig?: CTraderIntegrationConfig | null;
+  openCTraderConfig?: () => void;
+}) {
   const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(false);
   const copyAccountId = () => {
@@ -707,6 +715,19 @@ function ProfileRow({ profile }: { profile: BrokerProfile }) {
   };
 
   const handleConnectCTrader = async () => {
+    if (isCTrader) {
+      const missingClientId = !ctraderConfig?.ctrader_client_id?.trim();
+      const missingSecret = !ctraderConfig?.has_ctrader_client_secret;
+      if (missingClientId || missingSecret) {
+        addToast({
+          title: 'cTrader not configured',
+          message: 'Open “cTrader Integration” and set Client ID + Secret first.',
+          severity: 'info',
+        });
+        openCTraderConfig?.();
+        return;
+      }
+    }
     try {
       const { authorize_url } = await startCTraderOauth(profile.id);
       window.open(authorize_url, '_blank', 'noopener,noreferrer');
@@ -1089,7 +1110,14 @@ export function BrokerProfilesPanel() {
       )}
       {profiles && profiles.length > 0 && (
         <div className="space-y-3">
-          {profiles.map(p => <ProfileRow key={p.id} profile={p} />)}
+          {profiles.map(p => (
+            <ProfileRow
+              key={p.id}
+              profile={p}
+              ctraderConfig={ctraderConfig}
+              openCTraderConfig={() => setShowCTraderConfig(true)}
+            />
+          ))}
         </div>
       )}
     </div>

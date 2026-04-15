@@ -127,13 +127,30 @@ def _verify_state(state: str, max_age_seconds: int = 10 * 60) -> Dict[str, Any]:
     return payload
 
 
-def _public_callback_url() -> str:
+def _infer_public_base_url(request: Request) -> str:
+    """
+    Infer the public base URL from common reverse-proxy headers.
+    Works on Railway (X-Forwarded-*).
+    """
+    proto = (request.headers.get("x-forwarded-proto") or request.url.scheme or "https").strip()
+    host = (request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.hostname or "").strip()
+    if not host:
+        return ""
+    return f"{proto}://{host}".rstrip("/")
+
+
+def _public_callback_url(request: Request | None = None) -> str:
     s = get_settings()
     base = (s.public_api_base_url or "").strip().rstrip("/")
     if not base:
         base = _get_system_config_value(_PUBLIC_API_BASE_URL_KEY).rstrip("/")
+    if not base and request is not None:
+        base = _infer_public_base_url(request)
     if not base:
-        raise HTTPException(status_code=500, detail="Set PUBLIC_API_BASE_URL to enable cTrader OAuth")
+        raise HTTPException(
+            status_code=500,
+            detail="Missing public API base URL. Set it in Accounts → cTrader Integration (or PUBLIC_API_BASE_URL env var).",
+        )
     return f"{base}/api/ctrader/oauth/callback"
 
 
@@ -207,7 +224,10 @@ def ctrader_oauth_start(body: Dict[str, Any], request: Request) -> JSONResponse:
     s = get_settings()
     client_id = (s.ctrader_client_id or "").strip() or _get_system_config_value(_CTRADER_CLIENT_ID_KEY)
     if not client_id:
-        raise HTTPException(status_code=500, detail="Missing cTrader client id (set in Settings → cTrader Integration)")
+        raise HTTPException(
+            status_code=500,
+            detail="Missing cTrader client id (set in Accounts → cTrader Integration).",
+        )
 
     # Verify profile exists and is ctrader
     sb = _get_supabase()
@@ -230,7 +250,7 @@ def ctrader_oauth_start(body: Dict[str, Any], request: Request) -> JSONResponse:
 
     params = {
         "client_id": client_id,
-        "redirect_uri": _public_callback_url(),
+        "redirect_uri": _public_callback_url(request),
         "scope": scope,
         "product": "web",
         "state": state,
