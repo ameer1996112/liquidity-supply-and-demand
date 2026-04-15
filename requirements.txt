@@ -4,6 +4,9 @@
 # MetaApi streaming (real-time push-based trade events)
 metaapi-cloud-sdk>=29.0.0  # v29+ supports httpx>=0.28 and drops websockets<12 restriction
 
+# Streaming (Binance/Bybit)
+websockets>=12.0
+
 # API
 fastapi>=0.109.0
 uvicorn[standard]>=0.27.0

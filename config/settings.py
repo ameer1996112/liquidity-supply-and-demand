@@ -238,6 +238,12 @@ class Settings(BaseSettings):
         description="Log detailed latency breakdowns per execution stage.",
         validation_alias="ENABLE_LATENCY_INSTRUMENTATION",
     )
+
+    enable_multi_venue_streaming: bool = Field(
+        default=False,
+        description="Enable Binance/Bybit streaming bootstrap in worker loop. Env: ENABLE_MULTI_VENUE_STREAMING.",
+        validation_alias=AliasChoices("ENABLE_MULTI_VENUE_STREAMING", "enable_multi_venue_streaming"),
+    )
     tca_latency_threshold_ms: int = Field(
         default=30000,
         ge=100,
