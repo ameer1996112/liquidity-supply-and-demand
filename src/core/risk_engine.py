@@ -19,6 +19,30 @@ DEFAULT_STARTING_EQUITY = 10_000.0
 DEFAULT_MIN_LOT_SIZE = 0.01
 DEFAULT_LOT_STEP = 0.01
 DEFAULT_STOP_LOSS_BUFFER_PIPS = 1.0
+PASS_EVAL_MIN_RISK_PCT = 0.25
+PASS_EVAL_MAX_RISK_PCT = 0.75
+
+PAIR_PERFORMANCE_MULTIPLIERS = {
+    "strong": 1.05,
+    "neutral": 1.00,
+    "weak": 0.75,
+    "very_weak": 0.50,
+}
+
+ACCOUNT_SAFETY_MULTIPLIERS = {
+    "normal": 1.00,
+    "caution": 0.75,
+    "defensive": 0.50,
+    "survival": 0.25,
+    "lockout": 0.00,
+}
+
+FREQUENCY_MULTIPLIERS = {
+    0: 1.00,
+    1: 0.85,
+    2: 0.70,
+    3: 0.50,
+}
 
 
 class RiskRejectionReason(str, Enum):
@@ -60,6 +84,33 @@ def _normalize_symbol_overrides(symbol_overrides: Optional[Dict[str, Any]]) -> D
         overrides.get("stop_loss_buffer_pips") or DEFAULT_STOP_LOSS_BUFFER_PIPS
     )
     return overrides
+
+
+def calculate_effective_risk_percent(
+    *,
+    base_risk_percent: float,
+    mode: str,
+    pair_performance_state: str = "neutral",
+    same_day_trade_count: int = 0,
+    account_safety_state: str = "normal",
+) -> float:
+    """Return the effective per-trade risk after pass-eval multipliers and clamps."""
+    normalized_mode = str(mode or "NORMAL").upper()
+    if normalized_mode != "PASS_EVAL":
+        return float(base_risk_percent)
+
+    performance_multiplier = PAIR_PERFORMANCE_MULTIPLIERS.get(
+        str(pair_performance_state or "neutral").lower(), 1.0
+    )
+    frequency_multiplier = FREQUENCY_MULTIPLIERS.get(max(int(same_day_trade_count or 0), 0), 0.25)
+    safety_multiplier = ACCOUNT_SAFETY_MULTIPLIERS.get(
+        str(account_safety_state or "normal").lower(), 1.0
+    )
+
+    effective = float(base_risk_percent) * performance_multiplier * frequency_multiplier * safety_multiplier
+    if safety_multiplier <= 0.0:
+        return 0.0
+    return max(PASS_EVAL_MIN_RISK_PCT, min(PASS_EVAL_MAX_RISK_PCT, effective))
 
 
 def calculate_max_position_size(
@@ -158,8 +209,19 @@ def calculate_max_position_size(
         else:
             sl_adjusted = sl + sl_buffer
 
+        effective_risk_percent = calculate_effective_risk_percent(
+            base_risk_percent=risk_percent,
+            mode=str(payload.get("_risk_mode", "NORMAL")),
+            pair_performance_state=str(payload.get("_pair_performance_state", "neutral")),
+            same_day_trade_count=int(payload.get("_same_day_trade_count", 0)),
+            account_safety_state=str(payload.get("_account_safety_state", "normal")),
+        )
+        if effective_risk_percent <= 0:
+            logger.warning("Position sizing blocked for %s due to pass-eval lockout", symbol)
+            return 0.0
+
         # Base risk in USD from percentage
-        max_risk_usd = account_balance * (risk_percent / 100.0)
+        max_risk_usd = account_balance * (effective_risk_percent / 100.0)
 
         # Optional volatility targeting via ATR
         use_vol_targeting = False
@@ -184,7 +246,7 @@ def calculate_max_position_size(
                 final_atr_lots = min(max(scaled_max_lots, 0.0), max_lot_cap)
                 logger.info(
                     "💰 Risk Calculation: Bal=$%.2f | Risk=%.2f%% ($%.2f) | SL_Dist=ATR(%.4f) | Calc_Lots=%.2f",
-                    account_balance, risk_percent, max_risk_usd, atr_val, final_atr_lots,
+                    account_balance, effective_risk_percent, max_risk_usd, atr_val, final_atr_lots,
                 )
                 return final_atr_lots
 
@@ -209,7 +271,7 @@ def calculate_max_position_size(
                 )
                 logger.info(
                     "💰 Risk Calculation: Bal=$%.2f | Risk=%.2f%% ($%.2f) | SL_Dist=%.5f | Calc_Lots=0.00 (rejected: below min)",
-                    account_balance, risk_percent, max_risk_usd, sl_distance,
+                    account_balance, effective_risk_percent, max_risk_usd, sl_distance,
                 )
                 return 0.0  # Signal rejection to caller
 
@@ -224,7 +286,7 @@ def calculate_max_position_size(
 
             logger.info(
                 "💰 Risk Calculation: Bal=$%.2f | Risk=%.2f%% ($%.2f) | SL_Dist=%.5f | Calc_Lots=%.2f",
-                account_balance, risk_percent, max_risk_usd, sl_distance, final_lots,
+                account_balance, effective_risk_percent, max_risk_usd, sl_distance, final_lots,
             )
             logger.info(
                 "Position sizing: %s | base=%.4f | scaled=%.4f | final=%.2f lots "
@@ -397,8 +459,24 @@ def calculate_position_size_with_spread(
         sl_buffer_pips = float(overrides.get("stop_loss_buffer_pips", default_buffer))
         effective_sl_pips += sl_buffer_pips
 
+        effective_risk_percent = calculate_effective_risk_percent(
+            base_risk_percent=risk_percent,
+            mode=str(payload.get("_risk_mode", "NORMAL")),
+            pair_performance_state=str(payload.get("_pair_performance_state", "neutral")),
+            same_day_trade_count=int(payload.get("_same_day_trade_count", 0)),
+            account_safety_state=str(payload.get("_account_safety_state", "normal")),
+        )
+        if effective_risk_percent <= 0:
+            return {
+                "lots": 0.0, "risk_usd": 0.0, "target_risk_usd": 0.0,
+                "sl_pips": sl_pips, "spread_pips": spread_in_pips,
+                "effective_sl_pips": effective_sl_pips, "pip_value_per_lot": pip_value_per_lot,
+                "effective_risk_percent": 0.0,
+                "rejected": True, "rejection_reason": "pass_eval_lockout",
+            }
+
         # ── Calculate risk and lots ──
-        max_risk_usd = account_balance * (risk_percent / 100.0)
+        max_risk_usd = account_balance * (effective_risk_percent / 100.0)
 
         if effective_sl_pips <= 0 or pip_value_per_lot <= 0:
             return {
@@ -437,7 +515,7 @@ def calculate_position_size_with_spread(
             "📐 Position Sizing [%s]: Balance=$%.2f | Risk=%.2f%% ($%.2f target) | "
             "SL=%.1f pips + %.1f spread + %.1f buffer = %.1f effective | "
             "Pip value=$%.2f | Lots=%.2f | Actual risk=$%.2f",
-            symbol, account_balance, risk_percent, max_risk_usd,
+            symbol, account_balance, effective_risk_percent, max_risk_usd,
             sl_pips, spread_in_pips, sl_buffer_pips, effective_sl_pips,
             pip_value_per_lot, final_lots, actual_risk_usd,
         )
@@ -446,6 +524,7 @@ def calculate_position_size_with_spread(
             "lots": round(final_lots, 2),
             "risk_usd": round(actual_risk_usd, 2),
             "target_risk_usd": round(max_risk_usd, 2),
+            "effective_risk_percent": round(effective_risk_percent, 4),
             "sl_pips": round(sl_pips, 1),
             "spread_pips": round(spread_in_pips, 1),
             "effective_sl_pips": round(effective_sl_pips, 1),

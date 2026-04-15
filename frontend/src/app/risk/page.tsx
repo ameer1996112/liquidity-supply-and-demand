@@ -1,61 +1,29 @@
 'use client';
 
-import { useRiskMonitor, type GuardRailStatus } from '@/hooks/useRiskMonitor';
+import {
+  useRiskMonitor,
+  type AccountGuardCard,
+  type GuardRailStatus,
+  type RiskMonitorData,
+} from '@/hooks/useRiskMonitor';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { ClientDate } from '@/components/ui/ClientDate';
 import {
-  Shield,
-  ShieldOff,
-  ShieldCheck,
-  TrendingDown,
-  Target,
-  Settings,
-  AlertCircle,
-  Info,
   Activity,
+  AlertCircle,
   BookOpen,
   Gauge,
+  Shield,
+  ShieldCheck,
+  TrendingDown,
 } from 'lucide-react';
 import { useConnectionHealth } from '@/hooks/useConnectionHealth';
-import { useHtfFilter } from '@/hooks/useHtfFilter';
 import { PageStatusBanner } from '@/components/shared/PageStatusBanner';
-import { CircularGauge } from '@/components/ui/CircularGauge';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { GuardsPanel } from '@/components/rules/GuardsPanel';
 import { RiskRulesPanel } from '@/components/rules/RiskRulesPanel';
 import { StrategyRulesPanel } from '@/components/rules/StrategyRulesPanel';
-
-// ── Composite Risk Score ──────────────────────────────────────────────────────
-
-function computeRiskScore(data: {
-  daily_risk: { loss_pct: number };
-  drawdown: { dd_utilization_pct: number };
-  position_limits: { open_positions: number; max_positions: number };
-  guard_rails: GuardRailStatus[];
-}): { score: number; label: string; color: string } {
-  const dailyLossScore = Math.min(data.daily_risk.loss_pct, 100);
-  const ddScore = Math.min(data.drawdown.dd_utilization_pct, 100);
-  const posScore =
-    data.position_limits.max_positions > 0
-      ? (data.position_limits.open_positions /
-          data.position_limits.max_positions) *
-        100
-      : 0;
-  const criticalRails = data.guard_rails.filter(
-    (r) => r.severity === 'critical'
-  ).length;
-  const railScore = Math.min(criticalRails * 25, 100);
-
-  const score = Math.round(
-    dailyLossScore * 0.35 + ddScore * 0.35 + posScore * 0.15 + railScore * 0.15
-  );
-
-  if (score >= 75) return { score, label: 'Critical', color: '#f6465d' };
-  if (score >= 50) return { score, label: 'Elevated', color: '#f0b90b' };
-  if (score >= 25) return { score, label: 'Moderate', color: '#3b82f6' };
-  return { score, label: 'Low', color: '#0ecb81' };
-}
 
 export default function RiskMonitorPage() {
   const { status } = useConnectionHealth();
@@ -65,7 +33,6 @@ export default function RiskMonitorPage() {
 
   return (
     <div className='space-y-4 animate-fade-in-up'>
-      {/* Header */}
       <div className='flex items-center gap-3'>
         <div className='flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-500/10 border border-indigo-500/20'>
           <Shield className='h-4 w-4 text-indigo-400' />
@@ -128,991 +95,243 @@ function RiskMonitorTab() {
 
   return (
     <div className='space-y-3'>
-      {/* ── Composite Risk Score — Hero Row ─────────────── */}
-      <CompositeRiskScore data={data} />
-
-      {/* ── Circular Gauges ──────────────────────────────── */}
-      <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
-        <div className='glow-card flex flex-col items-center justify-center p-5'>
-          <CircularGauge
-            value={data.daily_risk.loss_pct}
-            limit={100}
-            label='Daily Loss'
-            sublabel={`$${data.daily_risk.loss_used_usd.toFixed(0)} / $${data.daily_risk.loss_limit_usd.toFixed(0)}`}
-            size={120}
-            colorZones={[{ at: 50, color: '#f0b90b' }, { at: 80, color: '#f6465d' }]}
-            unit='%'
-          />
-        </div>
-        <div className='glow-card flex flex-col items-center justify-center p-5'>
-          <CircularGauge
-            value={data.drawdown.dd_utilization_pct}
-            limit={100}
-            label='Drawdown Used'
-            sublabel={`${data.drawdown.current_dd_pct.toFixed(2)}% / ${data.drawdown.max_dd_allowed_pct.toFixed(1)}% max`}
-            size={120}
-            colorZones={[{ at: 50, color: '#f0b90b' }, { at: 80, color: '#f6465d' }]}
-            unit='%'
-          />
-        </div>
+      <SummaryStrip data={data} />
+      <div className='grid grid-cols-1 gap-3 xl:grid-cols-2'>
+        {data.accounts.map((account) => (
+          <AccountCard key={account.account_name} account={account} />
+        ))}
       </div>
-
-      {/* ── Detail cards ── */}
-      <div className='grid grid-cols-1 gap-3 lg:grid-cols-2'>
-        <DailyRiskCard data={data.daily_risk} />
-        <PositionLimitsCard data={data.position_limits} />
-      </div>
-      <div className='grid grid-cols-1 gap-3 lg:grid-cols-2'>
-        <DrawdownCard data={data.drawdown} />
-        <ActiveSettingsCard data={data.active_settings} />
-      </div>
-      <div className='grid grid-cols-1 gap-3 lg:grid-cols-2'>
-        <HtfFilterCard />
-        <OneCandleLiqCard />
-      </div>
-      {data.symbol_overrides && data.symbol_overrides.length > 0 && (
-        <SymbolOverridesCard data={data.symbol_overrides} />
-      )}
+      {data.symbol_overrides.length > 0 && <SymbolOverridesCard data={data.symbol_overrides} />}
       <div
         className='text-right text-[10px] text-[var(--to-text-dim)]'
         style={{ fontFamily: 'var(--font-mono)' }}
       >
-        updated{' '}
-        <ClientDate render={() => new Date(data.last_updated).toLocaleTimeString()} />
+        updated <ClientDate render={() => new Date(data.last_updated).toLocaleTimeString()} />
       </div>
     </div>
   );
 }
 
-// ── Composite Risk Score Card ─────────────────────────────────────────────────
-
- 
-function CompositeRiskScore({ data }: { data: any }) {
-  const { score, label, color } = computeRiskScore(data);
-
-  const severityBg =
-    score >= 75
-      ? 'bg-[var(--to-short)]/5 border-l-4 border-l-[var(--to-short)]'
-      : score >= 50
-      ? 'bg-[var(--to-warning)]/5 border-l-4 border-l-[var(--to-warning)]'
-      : score >= 25
-      ? 'bg-blue-500/5 border-l-4 border-l-blue-500/60'
-      : 'bg-[var(--to-long)]/5 border-l-4 border-l-[var(--to-long)]';
-
-  return (
-    <div className={cn('glow-card flex items-center gap-6 p-5', severityBg)}>
-      {/* Score ring */}
-      <div className='relative flex shrink-0 items-center justify-center'>
-        <svg width={96} height={96} viewBox='0 0 120 120'>
-          <circle
-            cx={60} cy={60} r={46} fill='none'
-            stroke='#1e2329' strokeWidth={10}
-          />
-          <circle
-            cx={60} cy={60} r={46} fill='none'
-            stroke={color} strokeWidth={10} strokeLinecap='round'
-            strokeDasharray={`${(score / 100) * 289} 289`}
-            transform='rotate(-90 60 60)'
-            style={{ transition: 'stroke-dasharray 0.6s ease' }}
-          />
-        </svg>
-        <div className='absolute flex flex-col items-center'>
-          <span
-            className='text-[22px] font-bold tabular-nums leading-none'
-            style={{ color, fontFamily: 'var(--font-mono)' }}
-          >
-            {score}
-          </span>
-          <span
-            className='text-[8px] font-bold uppercase tracking-widest mt-0.5'
-            style={{ color, fontFamily: 'var(--font-mono)' }}
-          >
-            {label}
-          </span>
-        </div>
-      </div>
-
-      {/* Label + breakdown bars */}
-      <div className='flex flex-1 flex-col gap-1'>
-        <div className='flex items-center gap-2 mb-2'>
-          <Activity className='h-3.5 w-3.5' style={{ color }} />
-          <span
-            className='text-[10px] font-bold uppercase tracking-[0.18em]'
-            style={{ color, fontFamily: 'var(--font-mono)' }}
-          >
-            Composite Risk Score
-          </span>
-        </div>
-        {[
-          { label: 'Daily Loss', value: data.daily_risk.loss_pct },
-          { label: 'Drawdown', value: data.drawdown.dd_utilization_pct },
-          {
-            label: 'Positions',
-            value:
-              data.position_limits.max_positions > 0
-                ? (data.position_limits.open_positions /
-                    data.position_limits.max_positions) *
-                  100
-                : 0,
-          },
-        ].map((item) => (
-          <div key={item.label} className='flex items-center gap-2'>
-            <span
-              className='w-20 text-[9px] text-[var(--to-text-dim)]'
-              style={{ fontFamily: 'var(--font-mono)' }}
-            >
-              {item.label}
-            </span>
-            <div className='flex-1 h-1 rounded-full bg-[#1e2329] overflow-hidden'>
-              <div
-                className='h-full rounded-full transition-all'
-                style={{
-                  width: `${Math.min(item.value, 100)}%`,
-                  backgroundColor:
-                    item.value > 80
-                      ? '#f6465d'
-                      : item.value > 50
-                      ? '#f0b90b'
-                      : '#0ecb81',
-                }}
-              />
-            </div>
-            <span
-              className='w-8 text-right text-[9px] tabular-nums text-[var(--to-text-dim)]'
-              style={{ fontFamily: 'var(--font-mono)' }}
-            >
-              {item.value.toFixed(0)}%
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── Panel Card wrapper ────────────────────────────────────────────────────────
-
-function PanelCard({
-  icon,
-  title,
-  children,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className='glow-card'>
-      <div className='to-panel-header'>
-        <div className='flex items-center gap-2'>
-          {icon}
-          <span
-            className='panel-label'
-            style={{ fontFamily: 'var(--font-sans)' }}
-          >
-            {title}
-          </span>
-        </div>
-      </div>
-      <div className='space-y-3 p-3'>{children}</div>
-    </div>
-  );
-}
-
- 
-function DailyRiskCard({ data }: { data: any }) {
-  const utilizationColor =
-    data.loss_pct > 80
-      ? 'bg-[var(--to-short)]'
-      : data.loss_pct > 50
-      ? 'bg-[var(--to-warning)]'
-      : 'bg-[var(--to-long)]';
-
-  return (
-    <PanelCard
-      icon={<Target className='h-3.5 w-3.5 text-[var(--to-accent-blue)]' />}
-      title='Daily Risk Status'
-    >
-      <div>
-        <div className='mb-1 flex items-baseline justify-between'>
-          <span
-            className='text-[10px] text-[var(--to-text-dim)]'
-            style={{ fontFamily: 'var(--font-sans)' }}
-          >
-            Daily Loss
-          </span>
-          <span
-            className='text-xs text-[var(--to-text-primary)] tabular-nums'
-            style={{ fontFamily: 'var(--font-mono)' }}
-          >
-            ${data.loss_used_usd.toFixed(2)} / ${data.loss_limit_usd.toFixed(2)}
-          </span>
-        </div>
-        <div className='h-1.5 overflow-hidden rounded-full bg-[var(--to-border)]'>
-          <div
-            className={cn('h-full transition-all', utilizationColor)}
-            style={{ width: `${Math.min(data.loss_pct, 100)}%` }}
-          />
-        </div>
-        <div
-          className='mt-1 text-[9px] text-[var(--to-text-dim)]'
-          style={{ fontFamily: 'var(--font-mono)' }}
-        >
-          {data.loss_pct.toFixed(1)}% utilization
-        </div>
-      </div>
-      <div className='border-t border-[var(--to-border)] pt-2'>
-        <div className='flex justify-between text-xs'>
-          <span
-            className='text-[var(--to-text-secondary)]'
-            style={{ fontFamily: 'var(--font-sans)' }}
-          >
-            Remaining
-          </span>
-          <span
-            className='tabular-nums text-[var(--to-long)]'
-            style={{ fontFamily: 'var(--font-mono)' }}
-          >
-            ${data.remaining_usd.toFixed(2)}
-          </span>
-        </div>
-      </div>
-      {data.profit_current_usd > 0 && (
-        <div className='border-t border-[var(--to-border)] pt-2'>
-          <div className='flex justify-between text-xs'>
-            <span
-              className='text-[var(--to-text-secondary)]'
-              style={{ fontFamily: 'var(--font-sans)' }}
-            >
-              Daily Profit
-            </span>
-            <span
-              className='tabular-nums text-[var(--to-long)]'
-              style={{ fontFamily: 'var(--font-mono)' }}
-            >
-              +${data.profit_current_usd.toFixed(2)}
-            </span>
-          </div>
-          {data.is_profit_target_hit && (
-            <div
-              className='mt-1 text-[10px] text-[var(--to-long)]'
-              style={{ fontFamily: 'var(--font-mono)' }}
-            >
-              target hit: ${data.profit_target_usd.toFixed(0)}
-            </div>
-          )}
-        </div>
-      )}
-    </PanelCard>
-  );
-}
-
- 
-function PositionLimitsCard({ data }: { data: any }) {
-  return (
-    <PanelCard
-      icon={<Shield className='h-3.5 w-3.5 text-[var(--to-accent-blue)]' />}
-      title='Position Limits'
-    >
-      <div className='flex items-center justify-between'>
-        <span
-          className='text-[10px] text-[var(--to-text-dim)]'
-          style={{ fontFamily: 'var(--font-sans)' }}
-        >
-          Open Positions
-        </span>
-        <span
-          className='text-base font-semibold tabular-nums text-[var(--to-text-primary)]'
-          style={{ fontFamily: 'var(--font-mono)' }}
-        >
-          {data.open_positions} / {data.max_positions}
-        </span>
-      </div>
-      <div className='flex items-center justify-between'>
-        <span
-          className='text-[10px] text-[var(--to-text-dim)]'
-          style={{ fontFamily: 'var(--font-sans)' }}
-        >
-          Trades Today
-        </span>
-        <span
-          className='text-base font-semibold tabular-nums text-[var(--to-text-primary)]'
-          style={{ fontFamily: 'var(--font-mono)' }}
-        >
-          {data.trades_today} / {data.max_trades_today}
-        </span>
-      </div>
-      {data.warning && (
-        <div className='flex items-center gap-2 border-t border-[var(--to-border)] pt-2'>
-          <AlertCircle className='h-3 w-3 text-[var(--to-warning)]' />
-          <span
-            className='text-[10px] text-[var(--to-warning)]'
-            style={{ fontFamily: 'var(--font-sans)' }}
-          >
-            {data.warning}
-          </span>
-        </div>
-      )}
-    </PanelCard>
-  );
-}
-
- 
-function DrawdownCard({ data }: { data: any }) {
-  const ddColor =
-    data.dd_utilization_pct > 80
-      ? 'bg-[var(--to-short)]'
-      : data.dd_utilization_pct > 50
-      ? 'bg-[var(--to-warning)]'
-      : 'bg-[var(--to-long)]';
-
-  return (
-    <PanelCard
-      icon={<TrendingDown className='h-3.5 w-3.5 text-[var(--to-accent-blue)]' />}
-      title='Drawdown Status'
-    >
-      <div>
-        <div className='mb-1 flex items-baseline justify-between'>
-          <span
-            className='text-[10px] text-[var(--to-text-dim)]'
-            style={{ fontFamily: 'var(--font-sans)' }}
-          >
-            Current DD
-          </span>
-          <span
-            className='text-xs text-[var(--to-text-primary)] tabular-nums'
-            style={{ fontFamily: 'var(--font-mono)' }}
-          >
-            {data.current_dd_pct.toFixed(2)}% /{' '}
-            {data.max_dd_allowed_pct.toFixed(1)}%
-          </span>
-        </div>
-        <div className='h-1.5 overflow-hidden rounded-full bg-[var(--to-border)]'>
-          <div
-            className={cn('h-full transition-all', ddColor)}
-            style={{ width: `${Math.min(data.dd_utilization_pct, 100)}%` }}
-          />
-        </div>
-        <div
-          className='mt-1 text-[9px] text-[var(--to-text-dim)]'
-          style={{ fontFamily: 'var(--font-mono)' }}
-        >
-          {data.dd_utilization_pct.toFixed(0)}% of max drawdown used
-        </div>
-      </div>
-      <div className='grid grid-cols-2 gap-3 border-t border-[var(--to-border)] pt-2'>
-        <div>
-          <div
-            className='text-[10px] text-[var(--to-text-dim)]'
-            style={{ fontFamily: 'var(--font-sans)' }}
-          >
-            Peak Equity
-          </div>
-          <div
-            className='text-xs tabular-nums text-[var(--to-text-secondary)]'
-            style={{ fontFamily: 'var(--font-mono)' }}
-          >
-            ${data.peak_equity_usd.toFixed(2)}
-          </div>
-        </div>
-        <div>
-          <div
-            className='text-[10px] text-[var(--to-text-dim)]'
-            style={{ fontFamily: 'var(--font-sans)' }}
-          >
-            Current
-          </div>
-          <div
-            className='text-xs tabular-nums text-[var(--to-text-secondary)]'
-            style={{ fontFamily: 'var(--font-mono)' }}
-          >
-            ${data.current_equity_usd.toFixed(2)}
-          </div>
-        </div>
-      </div>
-    </PanelCard>
-  );
-}
-
- 
-const HOUR_PRESETS_START = [5, 6, 7, 8, 9] as const;
-const HOUR_PRESETS_END = [20, 21, 22, 23] as const;
-
-function ActiveSettingsCard({ data }: { data: any }) {
-  const { settings, isSaving, update } = useHtfFilter();
-  const startHour = settings.trading_start_hour;
-  const endHour = settings.trading_end_hour;
-
-  const rows = [
-    { label: 'Risk/Trade', value: `${data.risk_per_trade_pct}%` },
-    { label: 'Min R:R', value: data.min_rr_ratio.toFixed(1) },
-    { label: 'SL Buffer', value: `${data.stop_loss_buffer_pips} pips` },
-    { label: 'Max Trades/Day', value: String(data.max_trades_per_day) },
+function SummaryStrip({ data }: { data: RiskMonitorData }) {
+  const cards = [
+    { label: 'Total Accounts', value: String(data.summary.total_accounts) },
+    { label: 'Total Equity', value: usd(data.summary.total_equity_usd) },
     {
-      label: 'Hourly Close Block',
-      value: data.hourly_close_block_enabled ? 'ON' : 'OFF',
+      label: 'Daily PnL',
+      value: signedUsd(data.summary.total_daily_pnl_usd),
+      tone: data.summary.total_daily_pnl_usd < 0 ? 'text-[var(--to-short)]' : 'text-[var(--to-long)]',
     },
-    {
-      label: 'Return Strength',
-      value: data.pine_min_return_strength > 0 ? `≥ ${data.pine_min_return_strength}` : 'OFF',
-    },
+    { label: 'Open Positions', value: String(data.summary.total_open_positions) },
+    { label: 'Warnings', value: String(data.summary.accounts_in_warning) },
+    { label: 'Blocked', value: String(data.summary.accounts_blocked) },
   ];
 
   return (
-    <PanelCard
-      icon={<Settings className='h-3.5 w-3.5 text-[var(--to-accent-blue)]' />}
-      title='Active Settings'
-    >
-      <div className='space-y-1.5'>
-        {rows.map((r) => (
-          <div key={r.label} className='flex justify-between text-xs'>
-            <span
-              className='text-[var(--to-text-secondary)]'
-              style={{ fontFamily: 'var(--font-sans)' }}
-            >
-              {r.label}
-            </span>
-            <span
-              className='tabular-nums text-[var(--to-text-primary)]'
+    <div className='glow-card p-4'>
+      <div className='mb-3 flex items-center gap-2'>
+        <Activity className='h-3.5 w-3.5 text-[var(--to-accent-blue)]' />
+        <span className='panel-label'>Fleet Summary</span>
+      </div>
+      <div className='grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6'>
+        {cards.map((card) => (
+          <div key={card.label} className='rounded-lg border border-[var(--to-border)] bg-[var(--to-panel)]/60 p-3'>
+            <div className='text-[10px] text-[var(--to-text-dim)]' style={{ fontFamily: 'var(--font-sans)' }}>
+              {card.label}
+            </div>
+            <div
+              className={cn('mt-1 text-sm font-semibold tabular-nums text-[var(--to-text-primary)]', card.tone)}
               style={{ fontFamily: 'var(--font-mono)' }}
             >
-              {r.value}
-            </span>
+              {card.value}
+            </div>
           </div>
         ))}
       </div>
+      {data.summary.global_kill_switch_active && (
+        <div className='mt-3 flex items-center gap-2 rounded-lg border border-[var(--to-short)]/30 bg-[var(--to-short)]/10 p-2 text-[11px] text-[var(--to-short)]'>
+          <AlertCircle className='h-3.5 w-3.5' />
+          Global kill switch is active.
+        </div>
+      )}
+    </div>
+  );
+}
 
-      {/* Trading Hours — editable */}
-      <div className='mt-3 pt-3 border-t border-[var(--to-border)]'>
+function AccountCard({ account }: { account: AccountGuardCard }) {
+  return (
+    <div className='glow-card p-4'>
+      <div className='flex items-start justify-between gap-3 border-b border-[var(--to-border)] pb-3'>
+        <div>
+          <div className='text-sm font-semibold text-[var(--to-text-primary)]'>{account.account_name}</div>
+          <div className='mt-1 flex flex-wrap items-center gap-2 text-[10px] text-[var(--to-text-dim)]'>
+            <span>{account.account_type}</span>
+            {account.evaluation_phase && <span>{account.evaluation_phase}</span>}
+            {account.prop_firm_name && <span>{account.prop_firm_name}</span>}
+            <span>{account.run_mode}</span>
+            {account.connection_status && <span>{account.connection_status}</span>}
+          </div>
+        </div>
         <div
-          className='mb-1.5 text-[9px] uppercase tracking-[0.15em] text-[var(--to-text-dim)]'
+          className={cn(
+            'rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.14em]',
+            account.blocked
+              ? 'border-[var(--to-short)]/40 bg-[var(--to-short)]/10 text-[var(--to-short)]'
+              : account.warning_message
+              ? 'border-[var(--to-warning)]/40 bg-[var(--to-warning)]/10 text-[var(--to-warning)]'
+              : 'border-[var(--to-long)]/30 bg-[var(--to-long)]/10 text-[var(--to-long)]'
+          )}
           style={{ fontFamily: 'var(--font-mono)' }}
         >
-          Trading hours (Israel)
-        </div>
-        <div className='space-y-1.5'>
-          <div className='flex items-center gap-2'>
-            <span className='text-[10px] text-[var(--to-text-dim)] w-10' style={{ fontFamily: 'var(--font-mono)' }}>Start</span>
-            <div className='flex gap-1 flex-1'>
-              {HOUR_PRESETS_START.map((h) => {
-                const isActive = startHour === h;
-                return (
-                  <button
-                    key={h}
-                    disabled={isSaving}
-                    onClick={() => update({ trading_start_hour: h })}
-                    className={cn(
-                      'flex flex-1 items-center justify-center rounded-md py-1 text-[10px] font-medium transition-all duration-150',
-                      isActive ? 'opacity-100' : 'opacity-40 hover:opacity-70'
-                    )}
-                    style={isActive ? {
-                      background: 'var(--to-accent-blue)18',
-                      border: '1px solid var(--to-accent-blue)40',
-                      color: 'var(--to-accent-blue)',
-                    } : {
-                      background: 'transparent',
-                      border: '1px solid transparent',
-                      color: 'var(--to-text-dim)',
-                    }}
-                  >
-                    {h}:00
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-          <div className='flex items-center gap-2'>
-            <span className='text-[10px] text-[var(--to-text-dim)] w-10' style={{ fontFamily: 'var(--font-mono)' }}>End</span>
-            <div className='flex gap-1 flex-1'>
-              {HOUR_PRESETS_END.map((h) => {
-                const isActive = endHour === h;
-                return (
-                  <button
-                    key={h}
-                    disabled={isSaving}
-                    onClick={() => update({ trading_end_hour: h })}
-                    className={cn(
-                      'flex flex-1 items-center justify-center rounded-md py-1 text-[10px] font-medium transition-all duration-150',
-                      isActive ? 'opacity-100' : 'opacity-40 hover:opacity-70'
-                    )}
-                    style={isActive ? {
-                      background: 'var(--to-accent-blue)18',
-                      border: '1px solid var(--to-accent-blue)40',
-                      color: 'var(--to-accent-blue)',
-                    } : {
-                      background: 'transparent',
-                      border: '1px solid transparent',
-                      color: 'var(--to-text-dim)',
-                    }}
-                  >
-                    {h}:00
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          {account.blocked ? 'Blocked' : account.warning_message ? 'Warning' : 'Healthy'}
         </div>
       </div>
-    </PanelCard>
-  );
-}
 
+      <div className='mt-3 grid grid-cols-2 gap-3 md:grid-cols-4'>
+        <Metric label='Starting' value={usd(account.starting_balance_usd)} />
+        <Metric label='Equity' value={usd(account.current_equity_usd)} />
+        <Metric
+          label='Daily PnL'
+          value={signedUsd(account.daily_pnl_usd)}
+          tone={account.daily_pnl_usd < 0 ? 'text-[var(--to-short)]' : 'text-[var(--to-long)]'}
+        />
+        <Metric label='Risk %' value={`${account.effective_risk_pct.toFixed(2)}%`} />
+      </div>
 
-const HTF_MINUTE_PRESETS = [3, 5, 7, 10, 12] as const;
-const HTF_PERIOD_OPTIONS = [30, 60] as const;
+      <div className='mt-3 grid grid-cols-1 gap-3 md:grid-cols-2'>
+        <ProgressBlock
+          title='Drawdown'
+          current={`${account.current_drawdown_pct.toFixed(2)}% / ${account.max_drawdown_allowed_pct.toFixed(1)}%`}
+          percent={account.drawdown_utilization_pct}
+        />
+        <ProgressBlock
+          title='Daily Loss Used'
+          current={`${usd(account.daily_loss_used_usd)} / ${usd(account.daily_loss_limit_usd)}`}
+          percent={account.daily_loss_limit_usd > 0 ? (account.daily_loss_used_usd / account.daily_loss_limit_usd) * 100 : 0}
+        />
+      </div>
 
-function HtfFilterCard() {
-  const { settings, isLoading, isSaving, update } = useHtfFilter();
-  const enabled = settings.htf_candle_filter_enabled;
-  const blockMins = settings.htf_candle_block_minutes;
-  const htfPeriod = settings.htf_candle_period || 15;
+      <div className='mt-3 grid grid-cols-2 gap-3 md:grid-cols-4'>
+        <Metric label='Open Pos' value={`${account.open_positions} / ${account.max_positions}`} />
+        <Metric label='Trades Today' value={`${account.trades_today} / ${account.max_trades_today}`} />
+        <Metric label='Risk Mult' value={`${account.risk_multiplier.toFixed(2)}x`} />
+        <Metric label='Base Risk' value={`${account.base_risk_pct.toFixed(2)}%`} />
+      </div>
 
-  return (
-    <PanelCard
-      icon={<Activity className='h-3.5 w-3.5 text-[var(--to-accent-blue)]' />}
-      title='HTF Pre-Candle Block'
-    >
-      {isLoading ? (
-        <div className='space-y-2'>
-          <Skeleton className='h-8 w-full rounded-lg bg-[var(--to-surface-raised)]/60' />
-          <Skeleton className='h-6 w-full rounded bg-[var(--to-surface-raised)]/60' />
-          <Skeleton className='h-10 w-full rounded bg-[var(--to-surface-raised)]/60' />
-        </div>
-      ) : (
-        <div className='space-y-3'>
-
-          {/* ON / OFF toggle */}
-          <div className='mx-0 rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)]/50 p-0.5'>
-            <div
-              className='mb-1 px-1.5 pt-0.5 text-[9px] uppercase tracking-[0.2em] text-[var(--to-text-dim)]'
-              style={{ fontFamily: 'var(--font-mono)' }}
-            >
-              Filter
-            </div>
-            <div className='flex gap-1'>
-              {([true, false] as const).map((val) => {
-                const isActive = enabled === val;
-                const color = val ? 'var(--to-long)' : 'var(--to-short)';
-                const Icon = val ? Shield : ShieldOff;
-                return (
-                  <button
-                    key={String(val)}
-                    disabled={isSaving}
-                    onClick={() => update({ htf_candle_filter_enabled: val })}
-                    className={cn(
-                      'flex flex-1 items-center justify-center gap-1 rounded-md py-1 text-[10px] font-medium transition-all duration-150',
-                      isActive ? 'opacity-100' : 'opacity-40 hover:opacity-70'
-                    )}
-                    style={isActive ? {
-                      background: `${color}18`,
-                      border: `1px solid ${color}40`,
-                      color,
-                    } : {
-                      background: 'transparent',
-                      border: '1px solid transparent',
-                      color: 'var(--to-text-dim)',
-                    }}
-                  >
-                    <Icon className='h-3 w-3 shrink-0' />
-                    {val ? 'Enabled' : 'Disabled'}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* HTF Period selector */}
-          <div className={cn('transition-opacity duration-200', !enabled && 'pointer-events-none opacity-30')}>
-            <div className='mx-0 rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)]/50 p-0.5'>
-              <div
-                className='mb-1 px-1.5 pt-0.5 text-[9px] uppercase tracking-[0.2em] text-[var(--to-text-dim)]'
-                style={{ fontFamily: 'var(--font-mono)' }}
-              >
-                HTF Period
-              </div>
-              <div className='flex gap-1'>
-                {HTF_PERIOD_OPTIONS.map((p) => {
-                  const isActive = htfPeriod === p;
-                  const label = p === 60 ? '1h' : `${p}m`;
-                  return (
-                    <button
-                      key={p}
-                      disabled={isSaving}
-                      onClick={() => update({ htf_candle_period: p })}
-                      className={cn(
-                        'flex flex-1 items-center justify-center rounded-md py-1 text-[10px] font-medium transition-all duration-150',
-                        isActive ? 'opacity-100' : 'opacity-40 hover:opacity-70'
-                      )}
-                      style={isActive ? {
-                        background: 'var(--to-accent-blue)18',
-                        border: '1px solid var(--to-accent-blue)40',
-                        color: 'var(--to-accent-blue)',
-                      } : {
-                        background: 'transparent',
-                        border: '1px solid transparent',
-                        color: 'var(--to-text-dim)',
-                      }}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* Block window presets */}
-          <div className={cn('transition-opacity duration-200', !enabled && 'pointer-events-none opacity-30')}>
-            <div className='mx-0 rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)]/50 p-0.5'>
-              <div
-                className='mb-1 px-1.5 pt-0.5 text-[9px] uppercase tracking-[0.2em] text-[var(--to-text-dim)]'
-                style={{ fontFamily: 'var(--font-mono)' }}
-              >
-                Block window
-              </div>
-              <div className='flex gap-1'>
-                {HTF_MINUTE_PRESETS.map((min) => {
-                  const isActive = blockMins === min;
-                  return (
-                    <button
-                      key={min}
-                      disabled={isSaving}
-                      onClick={() => update({ htf_candle_block_minutes: min })}
-                      className={cn(
-                        'flex flex-1 items-center justify-center rounded-md py-1 text-[10px] font-medium transition-all duration-150',
-                        isActive ? 'opacity-100' : 'opacity-40 hover:opacity-70'
-                      )}
-                      style={isActive ? {
-                        background: 'var(--to-accent-blue)18',
-                        border: '1px solid var(--to-accent-blue)40',
-                        color: 'var(--to-accent-blue)',
-                      } : {
-                        background: 'transparent',
-                        border: '1px solid transparent',
-                        color: 'var(--to-text-dim)',
-                      }}
-                    >
-                      {min}m
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* Timeline: safe zone vs blocked zone within HTF cycle */}
-          <div className={cn('space-y-2 transition-opacity duration-200', !enabled && 'opacity-30')}>
-            <div
-              className='text-[9px] uppercase tracking-[0.15em] text-[var(--to-text-dim)]'
-              style={{ fontFamily: 'var(--font-mono)' }}
-            >
-              {htfPeriod === 60 ? '1h' : `${htfPeriod}m`} HTF cycle
-            </div>
-
-            <div className='relative'>
-              <div className='relative h-5 w-full overflow-hidden rounded-md bg-[var(--to-surface-raised)]'>
-                {/* Safe zone */}
-                <div
-                  className='absolute left-0 top-0 h-full transition-all duration-300'
-                  style={{
-                    width: `${((htfPeriod - blockMins) / htfPeriod) * 100}%`,
-                    background: 'var(--to-long)',
-                    opacity: 0.4,
-                  }}
-                />
-                {/* Blocked zone */}
-                <div
-                  className='absolute right-0 top-0 h-full transition-all duration-300'
-                  style={{
-                    width: `${(blockMins / htfPeriod) * 100}%`,
-                    background: 'var(--to-short)',
-                    opacity: 0.5,
-                  }}
-                />
-                {/* Tick dividers — every 5m */}
-                {Array.from({ length: Math.floor(htfPeriod / 5) - 1 }, (_, i) => (i + 1) * 5).map((tick) => (
-                  <div
-                    key={tick}
-                    className='absolute top-0 h-full w-px bg-[var(--to-border)]/60'
-                    style={{ left: `${(tick / htfPeriod) * 100}%` }}
-                  />
-                ))}
-                {/* Split marker */}
-                <div
-                  className='absolute top-0 h-full w-0.5 bg-[var(--to-text-primary)] opacity-60 transition-all duration-300'
-                  style={{ left: `${((htfPeriod - blockMins) / htfPeriod) * 100}%` }}
-                />
-              </div>
-
-              {/* Time axis */}
-              <div className='relative mt-1 h-3.5'>
-                {[0, Math.floor(htfPeriod / 3), Math.floor(htfPeriod * 2 / 3), htfPeriod].map((tick) => (
-                  <span
-                    key={tick}
-                    className='absolute text-[8px] tabular-nums text-[var(--to-text-dim)]'
-                    style={{
-                      fontFamily: 'var(--font-mono)',
-                      left: `${(tick / htfPeriod) * 100}%`,
-                      transform: tick === 0 ? 'none' : tick === htfPeriod ? 'translateX(-100%)' : 'translateX(-50%)',
-                    }}
-                  >
-                    {tick}m
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {/* Summary */}
-            <div
-              className='flex items-center justify-between rounded-md px-2 py-1 text-[8px]'
-              style={{ background: 'var(--to-surface-raised)', fontFamily: 'var(--font-mono)' }}
-            >
-              <span style={{ color: 'var(--to-long)', opacity: 0.9 }}>
-                ✓ enter 0–{htfPeriod - blockMins}m
-              </span>
-              <span className='text-[var(--to-text-dim)]'>·</span>
-              <span style={{ color: 'var(--to-short)', opacity: 0.9 }}>
-                ✗ last {blockMins}m blocked
-              </span>
-            </div>
-          </div>
-
+      {(account.warning_message || account.blocked_reason) && (
+        <div className='mt-3 rounded-lg border border-[var(--to-warning)]/30 bg-[var(--to-warning)]/10 p-2 text-[11px] text-[var(--to-warning)]'>
+          {account.blocked_reason || account.warning_message}
         </div>
       )}
-    </PanelCard>
-  );
-}
 
-const DEP_PRESETS = [40, 50, 60, 70, 80];
-
-function OneCandleLiqCard() {
-  const { settings, isLoading, isSaving, update } = useHtfFilter();
-  const enabled = settings.block_one_candle_liq;
-  const minDep = settings.one_candle_liq_min_departure;
-
-  return (
-    <PanelCard
-      icon={<Activity className='h-3.5 w-3.5 text-[var(--to-accent-blue)]' />}
-      title='1-Candle Liquidity Filter'
-    >
-      {isLoading ? (
+      <div className='mt-3 space-y-2 border-t border-[var(--to-border)] pt-3'>
+        <div className='text-[10px] uppercase tracking-[0.16em] text-[var(--to-text-dim)]' style={{ fontFamily: 'var(--font-mono)' }}>
+          Guard Rails
+        </div>
         <div className='space-y-2'>
-          <Skeleton className='h-8 w-full rounded-lg bg-[var(--to-surface-raised)]/60' />
-          <Skeleton className='h-6 w-full rounded bg-[var(--to-surface-raised)]/60' />
-        </div>
-      ) : (
-        <div className='space-y-3'>
-
-          {/* Description */}
-          <p className='text-[11px] text-[var(--to-text-dim)]' style={{ fontFamily: 'var(--font-sans)' }}>
-            Block trades where the liquidity was formed by a single candle, unless all
-            high-confidence conditions are met (trend, sweep, departure strength).
-          </p>
-
-          {/* ON / OFF toggle */}
-          <div className='mx-0 rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)]/50 p-0.5'>
-            <div
-              className='mb-1 px-1.5 pt-0.5 text-[9px] uppercase tracking-[0.2em] text-[var(--to-text-dim)]'
-              style={{ fontFamily: 'var(--font-mono)' }}
-            >
-              Filter
-            </div>
-            <div className='flex gap-1'>
-              {([true, false] as const).map((val) => {
-                const isActive = enabled === val;
-                const color = val ? 'var(--to-long)' : 'var(--to-short)';
-                const Icon = val ? Shield : ShieldOff;
-                return (
-                  <button
-                    key={String(val)}
-                    disabled={isSaving}
-                    onClick={() => update({ block_one_candle_liq: val })}
-                    className={cn(
-                      'flex flex-1 items-center justify-center gap-1 rounded-md py-1 text-[10px] font-medium transition-all duration-150',
-                      isActive ? 'opacity-100' : 'opacity-40 hover:opacity-70'
-                    )}
-                    style={isActive ? {
-                      background: `${color}18`,
-                      border: `1px solid ${color}40`,
-                      color,
-                    } : {
-                      background: 'transparent',
-                      border: '1px solid transparent',
-                      color: 'var(--to-text-dim)',
-                    }}
-                  >
-                    <Icon className='h-3 w-3 shrink-0' />
-                    {val ? 'Enabled' : 'Disabled'}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Min departure strength presets */}
-          <div className={cn('transition-opacity duration-200', !enabled && 'pointer-events-none opacity-30')}>
-            <div className='mx-0 rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)]/50 p-0.5'>
-              <div
-                className='mb-1 px-1.5 pt-0.5 text-[9px] uppercase tracking-[0.2em] text-[var(--to-text-dim)]'
-                style={{ fontFamily: 'var(--font-mono)' }}
-              >
-                Min departure strength (base)
-              </div>
-              <div className='flex gap-1'>
-                {DEP_PRESETS.map((val) => {
-                  const isActive = minDep === val;
-                  return (
-                    <button
-                      key={val}
-                      disabled={isSaving}
-                      onClick={() => update({ one_candle_liq_min_departure: val })}
-                      className={cn(
-                        'flex flex-1 items-center justify-center rounded-md py-1 text-[10px] font-medium transition-all duration-150',
-                        isActive ? 'opacity-100' : 'opacity-40 hover:opacity-70'
-                      )}
-                      style={isActive ? {
-                        background: 'var(--to-accent-blue)18',
-                        border: '1px solid var(--to-accent-blue)40',
-                        color: 'var(--to-accent-blue)',
-                      } : {
-                        background: 'transparent',
-                        border: '1px solid transparent',
-                        color: 'var(--to-text-dim)',
-                      }}
-                    >
-                      {val}
-                    </button>
-                  );
-                })}
-              </div>
-              {/* Dynamic range annotation */}
-              {(() => {
-                // Market adjustments: RVOL ±5, session ±5, ADX ±5 = max ±15, scaled x0.8 = ±12
-                const maxAdj = 15 * 0.8;
-                const dynMin = Math.max(30, Math.round(minDep - maxAdj));
-                const dynMax = Math.min(90, Math.round(minDep + maxAdj));
-                return (
-                  <div className='mt-1.5 px-1.5 pb-0.5 flex items-center gap-1.5'>
-                    <span className='text-[9px] text-[var(--to-text-dim)]' style={{ fontFamily: 'var(--font-mono)' }}>
-                      Effective range:
-                    </span>
-                    <span className='text-[9px] font-medium' style={{ fontFamily: 'var(--font-mono)', color: 'var(--to-accent-blue)' }}>
-                      {dynMin}–{dynMax}
-                    </span>
-                    <span className='text-[8px] text-[var(--to-text-dim)]' style={{ fontFamily: 'var(--font-sans)' }}>
-                      (adjusted by RVOL / session / ADX)
-                    </span>
-                  </div>
-                );
-              })()}
-            </div>
-          </div>
-
-          {/* Conditions summary */}
-          <div className={cn('transition-opacity duration-200', !enabled && 'opacity-30')}>
-            <div
-              className='text-[9px] uppercase tracking-[0.15em] text-[var(--to-text-dim)] mb-1.5'
-              style={{ fontFamily: 'var(--font-mono)' }}
-            >
-              Override conditions (all required)
-            </div>
-            <div className='space-y-1'>
-              {[
-                'Not a middle zone (only trade-ready zones count)',
-                'Trend aligned (above 200 EMA)',
-                'Liquidity swept + caused sweep',
-                `Departure strength ≥ ${minDep} (dynamic: ${Math.max(30, Math.round(minDep - 12))}–${Math.min(90, Math.round(minDep + 12))})`,
-              ].map((cond) => (
-                <div key={cond} className='flex items-center gap-1.5'>
-                  <span className='text-[10px]' style={{ color: 'var(--to-long)' }}>✓</span>
-                  <span className='text-[11px] text-[var(--to-text-secondary)]' style={{ fontFamily: 'var(--font-sans)' }}>
-                    {cond}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-        </div>
-      )}
-    </PanelCard>
-  );
-}
-
-
- 
-function SymbolOverridesCard({ data }: { data: any[] }) {
-  return (
-    <div className='glow-card'>
-      <div className='to-panel-header'>
-        <div className='flex items-center gap-2'>
-          <span
-            className='panel-label'
-            style={{ fontFamily: 'var(--font-sans)' }}
-          >
-            Symbol Overrides
-          </span>
-          <span
-            className='text-[9px] text-[var(--to-text-dim)]'
-            style={{ fontFamily: 'var(--font-mono)' }}
-          >
-            read-only
-          </span>
+          {account.guard_rails.map((rail) => (
+            <GuardRailRow key={`${account.account_name}-${rail.name}`} rail={rail} />
+          ))}
         </div>
       </div>
-      <div className='overflow-x-auto p-3'>
-        <table className='w-full text-xs'>
-          <thead>
-            <tr className='border-b border-[var(--to-border)]'>
-              {['Symbol', 'Risk%', 'Max Lots', 'SL Buffer', 'Pip Size'].map(
-                (h) => (
-                  <th
-                    key={h}
-                    className='py-1.5 text-left text-[9px] uppercase tracking-wider text-[var(--to-text-dim)] last:text-right'
-                    style={{ fontFamily: 'var(--font-mono)' }}
-                  >
-                    {h}
-                  </th>
-                )
-              )}
+    </div>
+  );
+}
+
+function Metric({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: string;
+}) {
+  return (
+    <div className='rounded-lg border border-[var(--to-border)] bg-[var(--to-panel)]/60 p-3'>
+      <div className='text-[10px] text-[var(--to-text-dim)]'>{label}</div>
+      <div className={cn('mt-1 text-sm font-semibold tabular-nums text-[var(--to-text-primary)]', tone)} style={{ fontFamily: 'var(--font-mono)' }}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function ProgressBlock({
+  title,
+  current,
+  percent,
+}: {
+  title: string;
+  current: string;
+  percent: number;
+}) {
+  const color =
+    percent >= 80 ? 'bg-[var(--to-short)]' : percent >= 50 ? 'bg-[var(--to-warning)]' : 'bg-[var(--to-long)]';
+  return (
+    <div className='rounded-lg border border-[var(--to-border)] bg-[var(--to-panel)]/60 p-3'>
+      <div className='mb-1 flex items-baseline justify-between gap-2'>
+        <span className='text-[10px] text-[var(--to-text-dim)]'>{title}</span>
+        <span className='text-[11px] tabular-nums text-[var(--to-text-primary)]' style={{ fontFamily: 'var(--font-mono)' }}>
+          {current}
+        </span>
+      </div>
+      <div className='h-1.5 overflow-hidden rounded-full bg-[var(--to-border)]'>
+        <div className={cn('h-full transition-all', color)} style={{ width: `${Math.min(percent, 100)}%` }} />
+      </div>
+      <div className='mt-1 text-[9px] text-[var(--to-text-dim)]' style={{ fontFamily: 'var(--font-mono)' }}>
+        {percent.toFixed(0)}% utilization
+      </div>
+    </div>
+  );
+}
+
+function GuardRailRow({ rail }: { rail: GuardRailStatus }) {
+  const tone =
+    rail.severity === 'critical'
+      ? 'text-[var(--to-short)] border-[var(--to-short)]/30 bg-[var(--to-short)]/10'
+      : rail.severity === 'warning'
+      ? 'text-[var(--to-warning)] border-[var(--to-warning)]/30 bg-[var(--to-warning)]/10'
+      : 'text-[var(--to-text-secondary)] border-[var(--to-border)] bg-[var(--to-panel)]/50';
+
+  return (
+    <div className={cn('rounded-lg border p-2', tone)}>
+      <div className='flex items-center justify-between gap-2'>
+        <span className='text-[11px] font-medium'>{rail.name}</span>
+        <span className='text-[10px] uppercase tracking-[0.14em]' style={{ fontFamily: 'var(--font-mono)' }}>
+          {rail.status}
+        </span>
+      </div>
+      <div className='mt-1 text-[10px] opacity-90'>{rail.message}</div>
+    </div>
+  );
+}
+
+function SymbolOverridesCard({ data }: { data: RiskMonitorData['symbol_overrides'] }) {
+  return (
+    <div className='glow-card p-4'>
+      <div className='mb-3 flex items-center gap-2'>
+        <ShieldCheck className='h-3.5 w-3.5 text-[var(--to-accent-blue)]' />
+        <span className='panel-label'>Symbol Overrides</span>
+      </div>
+      <div className='overflow-x-auto'>
+        <table className='w-full text-left text-[11px]'>
+          <thead className='text-[var(--to-text-dim)]'>
+            <tr>
+              <th className='pb-2 font-medium'>Symbol</th>
+              <th className='pb-2 font-medium'>Risk %</th>
+              <th className='pb-2 font-medium'>Max Lots</th>
+              <th className='pb-2 font-medium'>SL Buffer</th>
+              <th className='pb-2 font-medium'>Pip Size</th>
             </tr>
           </thead>
           <tbody>
-            {data.map((o) => (
-              <tr
-                key={o.symbol}
-                className='border-b border-[var(--to-border)]/50 last:border-0 data-row'
-              >
-                <td
-                  className='py-1.5 text-[var(--to-text-secondary)]'
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                >
-                  {o.symbol}
-                </td>
-                <td
-                  className='py-1.5 text-right tabular-nums text-[var(--to-text-dim)]'
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                >
-                  {o.risk_pct}%
-                </td>
-                <td
-                  className='py-1.5 text-right tabular-nums text-[var(--to-text-dim)]'
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                >
-                  {o.max_lots}
-                </td>
-                <td
-                  className='py-1.5 text-right tabular-nums text-[var(--to-text-dim)]'
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                >
-                  {o.sl_buffer_pips} pips
-                </td>
-                <td
-                  className='py-1.5 text-right tabular-nums text-[var(--to-text-dim)]'
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                >
-                  {o.pip_size}
-                </td>
+            {data.map((row) => (
+              <tr key={row.symbol} className='border-t border-[var(--to-border)]'>
+                <td className='py-2 font-medium text-[var(--to-text-primary)]'>{row.symbol}</td>
+                <td className='py-2 tabular-nums'>{row.risk_pct}</td>
+                <td className='py-2 tabular-nums'>{row.max_lots}</td>
+                <td className='py-2 tabular-nums'>{row.sl_buffer_pips}</td>
+                <td className='py-2 tabular-nums'>{row.pip_size}</td>
               </tr>
             ))}
           </tbody>
@@ -1122,22 +341,21 @@ function SymbolOverridesCard({ data }: { data: any[] }) {
   );
 }
 
+function usd(value: number) {
+  return `$${value.toFixed(2)}`;
+}
+
+function signedUsd(value: number) {
+  return `${value >= 0 ? '+' : '-'}$${Math.abs(value).toFixed(2)}`;
+}
+
 function LoadingSkeleton() {
   return (
-    <div aria-label='Loading risk metrics' className='space-y-3'>
-      <div className='grid grid-cols-1 gap-3 lg:grid-cols-3'>
-        <Skeleton className='h-32 w-32 rounded-full bg-[var(--to-surface-raised)]/60 mx-auto' />
-        <Skeleton className='h-32 w-32 rounded-full bg-[var(--to-surface-raised)]/60 mx-auto' />
-        <Skeleton className='h-32 w-32 rounded-full bg-[var(--to-surface-raised)]/60 mx-auto' />
-      </div>
-      <div className='space-y-2'>
-        {Array.from({ length: 3 }).map((_, i) => (
-          <Skeleton key={i} className='h-10 w-full rounded-xl bg-[var(--to-surface-raised)]/60' />
-        ))}
-      </div>
-      <div className='grid grid-cols-1 gap-3 lg:grid-cols-2'>
-        <Skeleton className='h-44 rounded-xl bg-[var(--to-surface-raised)]/60' />
-        <Skeleton className='h-44 rounded-xl bg-[var(--to-surface-raised)]/60' />
+    <div className='space-y-3'>
+      <Skeleton className='h-32 w-full rounded-xl' />
+      <div className='grid grid-cols-1 gap-3 xl:grid-cols-2'>
+        <Skeleton className='h-72 w-full rounded-xl' />
+        <Skeleton className='h-72 w-full rounded-xl' />
       </div>
     </div>
   );
