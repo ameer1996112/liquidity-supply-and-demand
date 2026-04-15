@@ -387,9 +387,10 @@ def create_broker_profile(body: BrokerProfileCreate):
                 "funded" if body.account_type == "funded"
                 else (body.evaluation_phase or "phase1")
             ),
-            "max_daily_loss_pct": body.max_daily_loss_pct,
-            "max_drawdown_pct": body.max_drawdown_pct,
-            "profit_target": body.profit_target_usd,
+            # These columns are NOT NULL in some DB versions; never send NULL.
+            "max_daily_loss_pct": body.max_daily_loss_pct if body.max_daily_loss_pct is not None else 5.0,
+            "max_drawdown_pct": body.max_drawdown_pct if body.max_drawdown_pct is not None else 10.0,
+            "profit_target": body.profit_target_usd if body.profit_target_usd is not None else 0.0,
         }
         # prop_firm_name is only in some DB versions — add if column exists
         if body.prop_firm_name:
