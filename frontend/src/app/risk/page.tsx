@@ -101,7 +101,6 @@ function RiskMonitorTab() {
           <AccountCard key={account.account_name} account={account} />
         ))}
       </div>
-      {data.symbol_overrides.length > 0 && <SymbolOverridesCard data={data.symbol_overrides} />}
       <div
         className='text-right text-[10px] text-[var(--to-text-dim)]'
         style={{ fontFamily: 'var(--font-mono)' }}
@@ -302,41 +301,6 @@ function GuardRailRow({ rail }: { rail: GuardRailStatus }) {
         </span>
       </div>
       <div className='mt-1 text-[10px] opacity-90'>{rail.message}</div>
-    </div>
-  );
-}
-
-function SymbolOverridesCard({ data }: { data: RiskMonitorData['symbol_overrides'] }) {
-  return (
-    <div className='glow-card p-4'>
-      <div className='mb-3 flex items-center gap-2'>
-        <ShieldCheck className='h-3.5 w-3.5 text-[var(--to-accent-blue)]' />
-        <span className='panel-label'>Symbol Overrides</span>
-      </div>
-      <div className='overflow-x-auto'>
-        <table className='w-full text-left text-[11px]'>
-          <thead className='text-[var(--to-text-dim)]'>
-            <tr>
-              <th className='pb-2 font-medium'>Symbol</th>
-              <th className='pb-2 font-medium'>Risk %</th>
-              <th className='pb-2 font-medium'>Max Lots</th>
-              <th className='pb-2 font-medium'>SL Buffer</th>
-              <th className='pb-2 font-medium'>Pip Size</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((row) => (
-              <tr key={row.symbol} className='border-t border-[var(--to-border)]'>
-                <td className='py-2 font-medium text-[var(--to-text-primary)]'>{row.symbol}</td>
-                <td className='py-2 tabular-nums'>{row.risk_pct}</td>
-                <td className='py-2 tabular-nums'>{row.max_lots}</td>
-                <td className='py-2 tabular-nums'>{row.sl_buffer_pips}</td>
-                <td className='py-2 tabular-nums'>{row.pip_size}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 }
