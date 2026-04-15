@@ -130,7 +130,26 @@ class AccountOrchestrator:
             from config import get_settings
             from src.adapters.execution.router import get_adapter
 
-            adapter = get_adapter(profile=profile, settings=get_settings())
+            profile_id = profile.get("id")
+            profile_for_adapter = dict(profile)
+            if profile_id is not None and (
+                not profile_for_adapter.get("token")
+                or not (
+                    profile_for_adapter.get("meta_api_account_id")
+                    or profile_for_adapter.get("account_id")
+                )
+            ):
+                full_profile_resp = (
+                    self.client.table("broker_profiles")
+                    .select("*")
+                    .eq("id", profile_id)
+                    .single()
+                    .execute()
+                )
+                if full_profile_resp and full_profile_resp.data:
+                    profile_for_adapter.update(full_profile_resp.data)
+
+            adapter = get_adapter(profile=profile_for_adapter, settings=get_settings())
             if hasattr(adapter, "get_account_information"):
                 account_info = adapter.get_account_information()
                 if account_info:
@@ -163,11 +182,17 @@ class AccountOrchestrator:
                         result["equity"] or 0.0,
                     )
 
-            snapshot = self.client.table("account_status_snapshots").select("snapshot_time").eq(
-                "broker_profile_id", profile.get("id")
-            ).order("snapshot_time", desc=True).limit(1).maybe_single().execute()
-            if snapshot.data:
-                result["last_sync_time"] = snapshot.data.get("snapshot_time")
+            snapshot_resp = (
+                self.client.table("account_status_snapshots")
+                .select("snapshot_time")
+                .eq("broker_profile_id", profile.get("id"))
+                .order("snapshot_time", desc=True)
+                .limit(1)
+                .execute()
+            )
+            snapshot_rows = snapshot_resp.data if snapshot_resp else None
+            if snapshot_rows:
+                result["last_sync_time"] = snapshot_rows[0].get("snapshot_time")
         except Exception as exc:
             logger.warning(
                 "Failed to fetch live data for standalone profile %s: %s",
