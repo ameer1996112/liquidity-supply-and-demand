@@ -163,6 +163,10 @@ fi
 
 # 4. Start API (non-fullstack modes — exec replaces this process)
 if [ "$MODE" = "api" ] || [ "$MODE" = "both" ]; then
+    if [ "$MODE" = "api" ]; then
+      echo "[start.sh] ⚠️  MODE=api runs ONLY the webhook producer. Signals will queue to Redis but will NOT be executed."
+      echo "[start.sh]    → Run a separate consumer with: ./start.sh worker (or use ./start.sh both/fullstack)."
+    fi
     echo "[start.sh] Starting API (Producer) on port $PORT..."
     exec python3 -m uvicorn src.api:app \
       --host 0.0.0.0 \
@@ -234,4 +238,3 @@ if [ "$MODE" = "fullstack" ]; then
     echo "           Persist: ./install-services.sh"
     exit 0
 fi
-

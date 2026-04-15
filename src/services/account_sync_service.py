@@ -53,15 +53,20 @@ class AccountSyncService:
         """
         try:
             # Get account configuration
-            account = self.client.table("account_strategies").select(
-                "*, broker_profile_id, meta_api_account_id, meta_api_token_env_key"
-            ).eq("account_name", account_name).eq("is_active", True).single().execute()
-
-            if not account.data:
-                logger.warning(f"Account {account_name} not found or inactive")
+            resp = (
+                self.client.table("account_strategies")
+                .select("*, broker_profile_id, meta_api_account_id, meta_api_token_env_key")
+                .eq("account_name", account_name)
+                .eq("is_active", True)
+                .limit(1)
+                .execute()
+            )
+            rows = resp.data or []
+            if not rows:
+                logger.warning("Account %s not found or inactive (account_strategies)", account_name)
                 return False
 
-            account_data = account.data
+            account_data = rows[0]
             broker_profile_id = account_data.get("broker_profile_id")
             meta_api_account_id = account_data.get("meta_api_account_id")
 
@@ -169,15 +174,20 @@ class AccountSyncService:
         """
         try:
             # Get account configuration
-            account = self.client.table("account_strategies").select(
-                "*, broker_profile_id"
-            ).eq("account_name", account_name).eq("is_active", True).single().execute()
-
-            if not account.data:
-                logger.warning(f"Account {account_name} not found or inactive")
+            resp = (
+                self.client.table("account_strategies")
+                .select("*, broker_profile_id")
+                .eq("account_name", account_name)
+                .eq("is_active", True)
+                .limit(1)
+                .execute()
+            )
+            rows = resp.data or []
+            if not rows:
+                logger.warning("Account %s not found or inactive (account_strategies)", account_name)
                 return False
 
-            account_data = account.data
+            account_data = rows[0]
             broker_profile_id = account_data.get("broker_profile_id")
 
             # Get MetaAPI adapter

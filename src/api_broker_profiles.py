@@ -551,8 +551,14 @@ def delete_broker_profile(profile_id: int):
 @router.post("/{profile_id}/activate", response_model=BrokerProfileResponse)
 def activate_broker_profile(profile_id: int):
     """
-    Mark this profile as trading-enabled.
-    Multiple profiles can be enabled at the same time.
+    Select this profile as the **primary** trading profile (exclusive).
+
+    Notes:
+    - Multi-account execution is controlled by `is_active` + `run_mode`.
+      Multiple profiles can be active/enabled at the same time.
+    - `selected_for_trading` is a single-selection flag used to choose the
+      "primary" profile (e.g. streaming credentials), and is enforced by a DB
+      unique constraint in some deployments.
     """
     try:
         sb = _get_supabase()
@@ -576,7 +582,9 @@ def activate_broker_profile(profile_id: int):
                 detail="cTrader activation is disabled until execution adapter is implemented.",
             )
 
-        # Select this profile without clearing others so multiple accounts can trade at once.
+        # Enforce exclusive selection (DB may enforce this via unique constraint).
+        # Clear existing selection first, then select the requested profile.
+        sb.table("broker_profiles").update({"selected_for_trading": False}).eq("selected_for_trading", True).execute()
         sb.table("broker_profiles").update({"selected_for_trading": True}).eq("id", profile_id).execute()
 
         resp = (
