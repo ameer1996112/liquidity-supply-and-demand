@@ -13,7 +13,7 @@ import {
   fetchLiveBrokerBalance,
 } from '@/lib/api';
 
-const ACCOUNTS_COMPARISON_KEY = [
+export const ACCOUNTS_COMPARISON_KEY = [
   'portfolio-control',
   'accounts',
   'comparison',

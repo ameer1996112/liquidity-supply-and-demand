@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/toast';
 import { cn } from '@/lib/utils';
+import { ACCOUNTS_COMPARISON_KEY } from '@/hooks/useAccounts';
 
 import { apiFetch } from '@/lib/api';
 
@@ -665,6 +666,7 @@ function ProfileRow({
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['broker-profiles'] });
+      qc.invalidateQueries({ queryKey: ACCOUNTS_COMPARISON_KEY });
       addToast({ title: 'Account updated', message: `${profile.name} saved.`, severity: 'success' });
       setEditing(false);
     },
@@ -675,6 +677,7 @@ function ProfileRow({
     mutationFn: () => activateProfile(profile.id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['broker-profiles'] });
+      qc.invalidateQueries({ queryKey: ACCOUNTS_COMPARISON_KEY });
       addToast({ title: 'Account enabled', message: `${profile.name} is now enabled for trading.`, severity: 'success' });
     },
     onError: (e: Error) => addToast({ title: 'Activate failed', message: e.message, severity: 'critical' }),
@@ -684,6 +687,7 @@ function ProfileRow({
     mutationFn: (active: boolean) => toggleActive(profile.id, active),
     onSuccess: (_, active) => {
       qc.invalidateQueries({ queryKey: ['broker-profiles'] });
+      qc.invalidateQueries({ queryKey: ACCOUNTS_COMPARISON_KEY });
       addToast({
         title: active ? 'Account reactivated' : 'Account deactivated',
         message: active ? `${profile.name} is now active.` : `${profile.name} has been deactivated — no trades will execute.`,
@@ -698,6 +702,7 @@ function ProfileRow({
     mutationFn: () => deleteProfile(profile.id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['broker-profiles'] });
+      qc.invalidateQueries({ queryKey: ACCOUNTS_COMPARISON_KEY });
       addToast({ title: 'Account deleted', message: `${profile.name} removed.`, severity: 'success' });
     },
     onError: (e: Error) => { addToast({ title: 'Delete failed', message: e.message, severity: 'critical' }); setConfirmDelete(false); },
