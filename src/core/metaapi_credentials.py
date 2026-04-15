@@ -41,14 +41,16 @@ def get_primary_credentials(supabase_client=None) -> Tuple[str, str, str]:
 
     rows: list = []
 
-    # 1. Prefer the account marked selected_for_trading=True (requires migration 060)
+    # 1. Prefer the first account marked selected_for_trading=True.
+    # Multiple profiles can now be enabled, so we use a deterministic order.
     try:
         resp = (
             supabase_client
             .table("broker_profiles")
-            .select("token,meta_api_account_id")
+            .select("id,token,meta_api_account_id")
             .eq("is_active", True)
             .eq("selected_for_trading", True)
+            .order("id", desc=False)
             .limit(1)
             .execute()
         )
@@ -63,10 +65,11 @@ def get_primary_credentials(supabase_client=None) -> Tuple[str, str, str]:
             resp = (
                 supabase_client
                 .table("broker_profiles")
-                .select("token,meta_api_account_id")
+                .select("id,token,meta_api_account_id")
                 .eq("is_active", True)
                 .neq("token", "")
                 .neq("meta_api_account_id", "")
+                .order("id", desc=False)
                 .limit(1)
                 .execute()
             )

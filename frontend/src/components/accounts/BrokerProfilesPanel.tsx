@@ -675,7 +675,7 @@ function ProfileRow({
     mutationFn: () => activateProfile(profile.id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['broker-profiles'] });
-      addToast({ title: 'Account activated', message: `${profile.name} is now the active trading account.`, severity: 'success' });
+      addToast({ title: 'Account enabled', message: `${profile.name} is now enabled for trading.`, severity: 'success' });
     },
     onError: (e: Error) => addToast({ title: 'Activate failed', message: e.message, severity: 'critical' }),
   });
@@ -901,7 +901,7 @@ function ProfileRow({
             className="h-7 text-[11px] gap-1.5 border-[var(--to-warning)]/30 text-[var(--to-warning)] hover:bg-[var(--to-warning)]/10"
             disabled={activate.isPending || profile.venue === 'ctrader'}
             onClick={() => activate.mutate()}
-            title={profile.venue === 'ctrader' ? 'cTrader activation is disabled until execution adapter is implemented' : undefined}
+            title={profile.venue === 'ctrader' ? 'cTrader activation is disabled until execution adapter is implemented' : 'Enable this account for trading'}
           >
             {activate.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />} Activate
           </Button>
@@ -936,7 +936,7 @@ function ProfileRow({
             <Button size="sm" className="h-6 text-[10px] bg-[var(--to-short)] text-white" disabled={remove.isPending} onClick={() => remove.mutate()}>Yes</Button>
             <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => setConfirmDelete(false)}>No</Button>
           </div>
-        ) : !profile.selected_for_trading && (
+        ) : (
           <Button size="sm" variant="ghost" className="h-7 text-[11px] gap-1.5 text-[var(--to-text-dim)] hover:text-[var(--to-short)]" onClick={() => setConfirmDelete(true)}>
             <Trash2 className="h-3 w-3" />
           </Button>
@@ -1003,7 +1003,7 @@ export function BrokerProfilesPanel() {
       </div>
 
       <p className="text-[11px] text-[var(--to-text-dim)] leading-relaxed">
-        Store broker/exchange credentials in the database. <strong>Test</strong> validates connectivity where supported, then <strong>Activate</strong> routes new trades through that account.
+        Store broker/exchange credentials in the database. <strong>Test</strong> validates connectivity where supported, then <strong>Activate</strong> marks the account as trading-enabled. Multiple accounts can be enabled at once.
       </p>
 
       {hasCTraderProfile && (

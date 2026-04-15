@@ -7,7 +7,7 @@ GET    /api/broker-profiles              List all profiles
 POST   /api/broker-profiles              Create new profile
 PUT    /api/broker-profiles/{id}         Update profile
 DELETE /api/broker-profiles/{id}         Delete profile
-POST   /api/broker-profiles/{id}/activate   Set as active trading account
+POST   /api/broker-profiles/{id}/activate   Mark as trading-enabled
 POST   /api/broker-profiles/{id}/test    Test MetaAPI connection
 """
 
@@ -540,11 +540,6 @@ def delete_broker_profile(profile_id: int):
         rows = check.data or []
         if not rows:
             raise HTTPException(status_code=404, detail=f"Profile {profile_id} not found")
-        if rows[0].get("selected_for_trading"):
-            raise HTTPException(
-                status_code=409,
-                detail="Cannot delete the active trading account. Activate another account first.",
-            )
         sb.table("broker_profiles").delete().eq("id", profile_id).execute()
     except HTTPException:
         raise
@@ -556,15 +551,15 @@ def delete_broker_profile(profile_id: int):
 @router.post("/{profile_id}/activate", response_model=BrokerProfileResponse)
 def activate_broker_profile(profile_id: int):
     """
-    Set this profile as the active trading account.
-    Deactivates all other profiles (selected_for_trading = false).
+    Mark this profile as trading-enabled.
+    Multiple profiles can be enabled at the same time.
     """
     try:
         sb = _get_supabase()
         # Verify exists
         check = (
             sb.table("broker_profiles")
-            .select("id, is_active, venue")
+            .select("id, is_active, venue, selected_for_trading")
             .eq("id", profile_id)
             .limit(1)
             .execute()
@@ -581,9 +576,7 @@ def activate_broker_profile(profile_id: int):
                 detail="cTrader activation is disabled until execution adapter is implemented.",
             )
 
-        # Deselect all profiles first (bypass unique constraint)
-        sb.table("broker_profiles").update({"selected_for_trading": False}).neq("id", 0).execute()
-        # Then select only this one
+        # Select this profile without clearing others so multiple accounts can trade at once.
         sb.table("broker_profiles").update({"selected_for_trading": True}).eq("id", profile_id).execute()
 
         resp = (
