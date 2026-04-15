@@ -9,6 +9,7 @@ Provides a single GET /api/health/trading endpoint that returns:
 
 import logging
 import os
+import json
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
@@ -17,6 +18,8 @@ from fastapi import APIRouter
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/health", tags=["health-v11"])
+WORKER_HEARTBEAT_KEY = "trading:worker:heartbeat"
+WORKER_HEARTBEAT_STALE_SECONDS = 120
 
 
 def _get_meta_api_cache() -> Optional[Dict]:
@@ -48,17 +51,31 @@ def _get_redis_status() -> str:
         return "stopped"
 
 
-def _get_worker_status() -> str:
-    """Check if the worker process is alive by looking at its PID file."""
-    import subprocess
+def _get_worker_snapshot() -> Dict[str, Any]:
+    """Check worker liveness via Redis heartbeat shared across services."""
     try:
-        result = subprocess.run(
-            ["pgrep", "-f", "src.worker"],
-            capture_output=True, timeout=3
-        )
-        return "running" if result.returncode == 0 else "stopped"
+        from src.adapters.redis_queue import QUEUE_NAME, get_redis
+
+        redis_client = get_redis()
+        raw = redis_client.get(WORKER_HEARTBEAT_KEY)
+        queue_depth = int(redis_client.llen(QUEUE_NAME))
+        if not raw:
+            return {"status": "stopped", "queue_depth": queue_depth}
+
+        payload = json.loads(raw)
+        heartbeat_ts = float(payload.get("ts") or 0.0)
+        age_seconds = max(0, int(datetime.now(timezone.utc).timestamp() - heartbeat_ts))
+        status = "running" if age_seconds <= WORKER_HEARTBEAT_STALE_SECONDS else "stale"
+        return {
+            "status": status,
+            "last_seen_at": datetime.fromtimestamp(heartbeat_ts, tz=timezone.utc).isoformat() if heartbeat_ts else None,
+            "age_seconds": age_seconds,
+            "queue_depth": queue_depth,
+            "host": payload.get("host"),
+            "pid": payload.get("pid"),
+        }
     except Exception:
-        return "unknown"
+        return {"status": "unknown", "queue_depth": None}
 
 
 def _get_todays_trades() -> Dict[str, Any]:
@@ -126,7 +143,8 @@ def get_trading_health():
 
     # Pipeline status
     redis_status = _get_redis_status()
-    worker_status = _get_worker_status()
+    worker = _get_worker_snapshot()
+    worker_status = worker["status"]
 
     overall = "healthy" if redis_status == "running" and worker_status == "running" else "degraded"
 
@@ -146,6 +164,10 @@ def get_trading_health():
         "pipeline": {
             "redis": redis_status,
             "worker": worker_status,
+            "worker_last_seen_at": worker.get("last_seen_at"),
+            "worker_age_seconds": worker.get("age_seconds"),
+            "worker_host": worker.get("host"),
+            "queue_depth": worker.get("queue_depth"),
             "overall": overall,
         },
         "refreshed_at": datetime.now(timezone.utc).isoformat(),

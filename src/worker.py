@@ -11,6 +11,7 @@ Architecture (v2 - multi-account isolated):
 """
 
 import json
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -124,6 +125,38 @@ _one_candle_liq_cache: dict = {"enabled": None, "min_departure": None, "loaded_a
 
 # Trading hours cache — DB overrides env defaults (30s TTL)
 _trading_hours_cache: dict = {"start": None, "end": None, "loaded_at": 0.0}
+
+WORKER_HEARTBEAT_KEY = "trading:worker:heartbeat"
+WORKER_HEARTBEAT_TTL_SECONDS = 120
+
+
+def _publish_worker_heartbeat(*, queue_depth: int | None = None) -> None:
+    """Publish worker liveness to Redis so other services can observe it."""
+    try:
+        heartbeat = {
+            "ts": time.time(),
+            "pid": os.getpid(),
+            "host": os.getenv("RAILWAY_SERVICE_NAME") or os.getenv("HOSTNAME") or "unknown",
+        }
+        if queue_depth is not None:
+            heartbeat["queue_depth"] = queue_depth
+        get_redis().setex(
+            WORKER_HEARTBEAT_KEY,
+            WORKER_HEARTBEAT_TTL_SECONDS,
+            json.dumps(heartbeat),
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Worker heartbeat publish failed: %s", exc)
+
+
+def _get_default_queue_depth() -> int | None:
+    """Return current depth of the default signal queue."""
+    try:
+        from src.adapters.redis_queue import QUEUE_NAME
+        return int(get_redis().llen(QUEUE_NAME))
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Queue depth read failed: %s", exc)
+        return None
 
 
 def _get_htf_filter_settings(s) -> tuple[bool, int, int, bool]:
@@ -1993,6 +2026,10 @@ def run():
     logger.info("Pine pre-filters: DISABLED (Pine Script handles entry rules)")
     logger.info("R:R filter: %s", f"ON (min={s.min_rr_ratio})" if s.min_rr_ratio > 0 else "OFF (Pine handles SL/TP)")
     logger.info("=" * 60)
+    startup_queue_depth = _get_default_queue_depth()
+    if startup_queue_depth is not None:
+        logger.info("Default signal queue depth on startup: %d", startup_queue_depth)
+    _publish_worker_heartbeat(queue_depth=startup_queue_depth)
 
     # ── Startup: validate Discord webhook URL (once, non-blocking) ──────────
     _discord_url = (getattr(s, "discord_webhook_url", "") or "").strip()
@@ -2127,6 +2164,7 @@ def run():
             # Periodic tasks: every 60 seconds (watchdog, alerts, trailing stops, config refresh)
             now = time.time()
             if now - last_watchdog_ts >= 60:
+                _publish_worker_heartbeat(queue_depth=_get_default_queue_depth())
                 try:
                     watchdog.run_sync()
                 except Exception as w_exc:  # noqa: BLE001
@@ -2298,6 +2336,7 @@ def run():
                 last_prop_firm_cache_ts = now
 
             task = transport.dequeue(timeout=5)
+            _publish_worker_heartbeat(queue_depth=_get_default_queue_depth())
             backoff = 5
             if task is None:
                 continue
