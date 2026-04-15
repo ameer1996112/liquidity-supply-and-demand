@@ -144,6 +144,7 @@ from src.api_tickets import router as tickets_router           # Ticket tracker:
 from src.api_incidents import router as incidents_router       # Incident auto-tickets: worker errors, test failures, ML drift
 from src.api_agent_status import router as agent_status_router # v1.2: UI-02: Agent operational state
 from src.api_broker_profiles import router as broker_profiles_router  # Multi-account MetaAPI management
+from src.api_ctrader import router as ctrader_router
 from src.api_dashboard import router as dashboard_router
 from src.api_notifications import router as notifications_router  # DEV-73: notification settings
 from src.api_alert_setup import router as alert_setup_router
@@ -197,6 +198,7 @@ app.include_router(tickets_router)        # Ticket tracker: /api/tickets
 app.include_router(incidents_router)      # Incident auto-tickets: /api/incidents
 app.include_router(agent_status_router)   # v1.2: Agent status: /api/agent/status
 app.include_router(broker_profiles_router, dependencies=[Depends(_require_admin_key)])  # Multi-account MetaAPI credential management
+app.include_router(ctrader_router)  # cTrader OAuth + connection test (callback is public, start/test admin-gated)
 app.include_router(dashboard_router)        # DEV-61: dashboard summary aggregation
 app.include_router(notifications_router)    # DEV-73: notification settings (routing, whitelist, audit log)
 app.include_router(alert_setup_router, dependencies=[Depends(_require_admin_key)])

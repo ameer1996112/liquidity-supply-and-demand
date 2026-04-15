@@ -87,10 +87,9 @@ class BrokerProfileCreate(BaseModel):
             if not (self.token or "").strip():
                 raise ValueError("token is required for venue=metaapi_mt5")
         elif venue == "ctrader":
-            if not (self.meta_api_account_id or "").strip():
-                raise ValueError("meta_api_account_id is required for venue=ctrader")
-            if not (self.token or "").strip():
-                raise ValueError("token is required for venue=ctrader")
+            # cTrader uses OAuth connect flow; allow saving profile without credentials.
+            # Tokens are stored later via /api/ctrader/oauth/callback.
+            pass
         elif venue in {"binance", "bybit"}:
             if not (self.api_key or "").strip() or not (self.api_secret or "").strip():
                 raise ValueError("api_key and api_secret are required for venue=binance/bybit")
@@ -180,12 +179,13 @@ def _infer_account_type(row: Dict[str, Any]) -> str:
 
 def _to_response(row: Dict[str, Any]) -> BrokerProfileResponse:
     venue = (row.get("venue") or "metaapi_mt5").strip().lower()
+    token_val = (row.get("token") or "").strip()
     return BrokerProfileResponse(
         id=row["id"],
         name=row["name"],
         venue=venue,
         meta_api_account_id=row.get("meta_api_account_id"),
-        token_masked=_mask_secret(row.get("token"), last=8) if venue in {"metaapi", "metaapi_mt5", "mt5", "ctrader"} else None,
+        token_masked=_mask_secret(token_val, last=8) if token_val and venue in {"metaapi", "metaapi_mt5", "mt5", "ctrader"} else None,
         api_key_masked=_mask_secret(row.get("api_key"), last=6) if venue in {"binance", "bybit"} else None,
         api_secret_masked=_mask_secret(row.get("api_secret"), last=4) if venue in {"binance", "bybit"} else None,
         risk_pct=float(row.get("risk_pct") or 1.0),

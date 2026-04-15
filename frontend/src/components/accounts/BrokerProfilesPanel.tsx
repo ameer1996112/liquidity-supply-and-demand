@@ -72,6 +72,18 @@ async function testProfile(id: number): Promise<{ success: boolean; message: str
   return apiFetch<{ success: boolean; message: string }>(`/api/broker-profiles/${id}/test`, { method: 'POST' });
 }
 
+async function startCTraderOauth(profile_id: number): Promise<{ authorize_url: string }> {
+  return apiFetch<{ authorize_url: string }>(`/api/ctrader/oauth/start`, {
+    method: 'POST',
+    body: JSON.stringify({ profile_id, scope: 'trading' }),
+  });
+}
+
+async function testCTraderProfile(id: number): Promise<{ success: boolean; message: string }> {
+  const res = await apiFetch<{ success: boolean; message: string }>(`/api/ctrader/profiles/${id}/test`, { method: 'POST' });
+  return res;
+}
+
 // ── Prop firm presets ────────────────────────────────────────────────────────
 
 const PROP_FIRMS = [
@@ -240,6 +252,8 @@ function DetailsStep({ form, onChange, onBack, onNext }: {
   const isPropFirm = form.accountType !== 'personal';
   const isEval = form.accountType === 'evaluation';
   const isCrypto = form.venue === 'binance' || form.venue === 'bybit';
+  const needsMetaApiCreds = form.venue === 'metaapi_mt5';
+  const isCTrader = form.venue === 'ctrader';
   const venueOptions: { value: Venue; label: string }[] = isPropFirm
     ? [
         { value: 'metaapi_mt5', label: 'MT5 (MetaApi)' },
@@ -254,7 +268,9 @@ function DetailsStep({ form, onChange, onBack, onNext }: {
   const invalid = !form.name || (
     isCrypto
       ? !form.api_key || !form.api_secret
-      : !form.meta_api_account_id || !form.token
+      : needsMetaApiCreds
+        ? !form.meta_api_account_id || !form.token
+        : false
   );
 
   return (
@@ -322,29 +338,35 @@ function DetailsStep({ form, onChange, onBack, onNext }: {
 
         {!isCrypto ? (
           <>
-            <InputField label={form.venue === 'ctrader' ? 'cTrader Account ID' : 'MetaAPI Account ID'} required>
-              <input
-                className={cn(inputCls, 'font-mono')}
-                placeholder={form.venue === 'ctrader' ? '12345678' : 'a09b89c3-cf09-45e7-…'}
-                value={form.meta_api_account_id}
-                onChange={e => set({ meta_api_account_id: e.target.value })}
-              />
-            </InputField>
+            {needsMetaApiCreds ? (
+              <>
+                <InputField label="MetaAPI Account ID" required>
+                  <input className={cn(inputCls, 'font-mono')} placeholder="a09b89c3-cf09-45e7-…" value={form.meta_api_account_id} onChange={e => set({ meta_api_account_id: e.target.value })} />
+                </InputField>
 
-            <InputField label={form.venue === 'ctrader' ? 'cTrader Access Token' : 'MetaAPI Token'} required>
-              <div className="relative">
-                <input
-                  className={cn(inputCls, 'font-mono pr-9')}
-                  placeholder={form.venue === 'ctrader' ? 'ctrader-token…' : 'eyJ0eXAiOiJKV1Q…'}
-                  type={showToken ? 'text' : 'password'}
-                  value={form.token}
-                  onChange={e => set({ token: e.target.value })}
-                />
-                <button type="button" onClick={() => setShowToken(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--to-text-dim)] hover:text-[var(--to-text-primary)]">
-                  {showToken ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                </button>
+                <InputField label="MetaAPI Token" required>
+                  <div className="relative">
+                    <input
+                      className={cn(inputCls, 'font-mono pr-9')}
+                      placeholder="eyJ0eXAiOiJKV1Q…"
+                      type={showToken ? 'text' : 'password'}
+                      value={form.token}
+                      onChange={e => set({ token: e.target.value })}
+                    />
+                    <button type="button" onClick={() => setShowToken(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--to-text-dim)] hover:text-[var(--to-text-primary)]">
+                      {showToken ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
+                </InputField>
+              </>
+            ) : isCTrader ? (
+              <div className="sm:col-span-2 rounded-xl border border-[var(--to-border)] bg-[var(--to-surface-raised)]/40 p-3">
+                <div className="text-[11px] text-[var(--to-text-secondary)] font-medium">cTrader connects via OAuth</div>
+                <div className="mt-1 text-[10px] text-[var(--to-text-dim)]">
+                  Save the account first, then click <span className="text-[var(--to-warning)] font-medium">Connect cTrader</span> on the account row to authorize access.
+                </div>
               </div>
-            </InputField>
+            ) : null}
           </>
         ) : (
           <>
@@ -488,7 +510,9 @@ function AddAccountWizard({ onSuccess, onCancel }: { onSuccess: () => void; onCa
       name: f.name,
       ...((f.venue === 'binance' || f.venue === 'bybit')
         ? { api_key: f.api_key, api_secret: f.api_secret }
-        : { meta_api_account_id: f.meta_api_account_id, token: f.token }),
+        : (f.venue === 'metaapi_mt5'
+          ? { meta_api_account_id: f.meta_api_account_id, token: f.token }
+          : {})),
       risk_pct: f.risk_pct,
       max_positions: f.max_positions,
       account_type: f.accountType,
@@ -581,6 +605,7 @@ function ProfileRow({ profile }: { profile: BrokerProfile }) {
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [isTesting, setIsTesting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const isCTrader = profile.venue === 'ctrader';
 
   // Edit form state
   const [editForm, setEditForm] = useState({
@@ -650,12 +675,22 @@ function ProfileRow({ profile }: { profile: BrokerProfile }) {
   const handleTest = async () => {
     setIsTesting(true); setTestResult(null);
     try {
-      const res = await testProfile(profile.id);
+      const res = isCTrader ? await testCTraderProfile(profile.id) : await testProfile(profile.id);
       setTestResult(res);
       qc.invalidateQueries({ queryKey: ['broker-profiles'] });
     } catch (e: unknown) {
       setTestResult({ success: false, message: e instanceof Error ? e.message : 'Test failed' });
     } finally { setIsTesting(false); }
+  };
+
+  const handleConnectCTrader = async () => {
+    try {
+      const { authorize_url } = await startCTraderOauth(profile.id);
+      window.open(authorize_url, '_blank', 'noopener,noreferrer');
+      addToast({ title: 'cTrader connect', message: 'Complete authorization in the new tab, then return here and click Test.', severity: 'info' });
+    } catch (e: unknown) {
+      addToast({ title: 'Connect failed', message: e instanceof Error ? e.message : 'Failed to start cTrader OAuth', severity: 'critical' });
+    }
   };
 
   return (
@@ -683,7 +718,9 @@ function ProfileRow({ profile }: { profile: BrokerProfile }) {
             </div>
             {(profile.venue === 'metaapi_mt5' || profile.venue === 'ctrader') ? (
               <div className="flex items-center gap-1 group/id">
-                <span className="text-[10px] font-mono text-[var(--to-text-dim)] truncate">{profile.meta_api_account_id}</span>
+                <span className="text-[10px] font-mono text-[var(--to-text-dim)] truncate">
+                  {profile.meta_api_account_id || (profile.venue === 'ctrader' ? 'Not connected' : '—')}
+                </span>
                 <button
                   type="button"
                   title="Copy full account ID"
@@ -783,17 +820,27 @@ function ProfileRow({ profile }: { profile: BrokerProfile }) {
       )}
 
       <div className="flex flex-wrap items-center gap-2">
+        {profile.venue === 'ctrader' && !profile.token_masked && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-[11px] gap-1.5 border-[var(--to-warning)]/30 text-[var(--to-warning)] hover:bg-[var(--to-warning)]/10"
+            onClick={handleConnectCTrader}
+          >
+            <Zap className="h-3 w-3" /> Connect cTrader
+          </Button>
+        )}
         <Button
           size="sm"
           variant="outline"
           className="h-7 text-[11px] gap-1.5 border-[var(--to-border)] text-[var(--to-text-secondary)]"
-          disabled={isTesting || profile.venue === 'bybit' || profile.venue === 'ctrader'}
+          disabled={isTesting || profile.venue === 'bybit' || (profile.venue === 'ctrader' && !profile.token_masked)}
           onClick={handleTest}
           title={
             profile.venue === 'bybit'
               ? 'Bybit connection test not implemented yet'
               : profile.venue === 'ctrader'
-                ? 'cTrader connection test not implemented yet'
+                ? (!profile.token_masked ? 'Connect cTrader first' : undefined)
                 : undefined
           }
         >

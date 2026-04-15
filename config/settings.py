@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     redis_url: str = Field(..., min_length=1, description="REDIS_URL")
     webhook_secret: str = Field(default="", description="WEBHOOK_SECRET")
     admin_api_key: str = Field(default="", description="ADMIN_API_KEY — required to access operator/admin routes")
+    public_api_base_url: str = Field(
+        default="",
+        description="Public base URL for the API (used for OAuth redirect URIs), e.g. https://your-api.up.railway.app",
+        validation_alias=AliasChoices("PUBLIC_API_BASE_URL", "API_PUBLIC_BASE_URL"),
+    )
     supabase_key: str = Field(default="", validation_alias=AliasChoices("SUPABASE_ANON_KEY", "SUPABASE_KEY"))
     supabase_service_role_key: str = Field(default="", validation_alias=AliasChoices("SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SERVICE_KEY"))
 
@@ -52,6 +57,18 @@ class Settings(BaseSettings):
     jira_task_type_id: str = Field(default="10003", validation_alias="JIRA_TASK_TYPE_ID")
     paper_trading_enabled: bool = False
     paper_auto_execute: bool = True
+
+    # cTrader Open API (Spotware) OAuth + Open API proxy auth
+    ctrader_client_id: str = Field(default="", validation_alias=AliasChoices("CTRADER_CLIENT_ID", "CTRADER_OPENAPI_CLIENT_ID"))
+    ctrader_client_secret: SecretStr = Field(
+        default=SecretStr(""),
+        validation_alias=AliasChoices("CTRADER_CLIENT_SECRET", "CTRADER_OPENAPI_CLIENT_SECRET"),
+    )
+    ctrader_oauth_state_secret: SecretStr = Field(
+        default=SecretStr(""),
+        validation_alias=AliasChoices("CTRADER_OAUTH_STATE_SECRET", "CTRADER_STATE_SECRET"),
+        description="Optional: HMAC secret for cTrader OAuth state signing (fallbacks to WEBHOOK_SECRET).",
+    )
 
     trading_kill_switch: bool = Field(
         default=False,
