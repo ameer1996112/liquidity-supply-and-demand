@@ -133,6 +133,26 @@ export default function DashboardPage() {
     );
   }, [liveAccountNames, signalAccountNames, signalAccountFilter]);
 
+  useEffect(() => {
+    if (signalAccountFilter && filterAccountNames.includes(signalAccountFilter)) {
+      return;
+    }
+
+    const preferredAccount =
+      activeProfile?.name?.trim() ||
+      liveAccountNames[0] ||
+      filterAccountNames[0];
+
+    if (preferredAccount && preferredAccount !== signalAccountFilter) {
+      setSignalAccountFilter(preferredAccount);
+    }
+  }, [
+    activeProfile?.name,
+    filterAccountNames,
+    liveAccountNames,
+    signalAccountFilter,
+  ]);
+
   // Keep for log
   void useSignalStats(broker_profile_id);
   const strategyName = signals[0]?.entry_model ?? signals[0]?.zone_type ?? 'Liquidity S&D';

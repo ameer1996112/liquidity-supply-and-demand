@@ -510,6 +510,7 @@ def save_result(
     ai_reasoning: Optional[Dict[str, Any]] = None,
     broker_profile_id: Optional[int] = None,
     account_name: Optional[str] = None,
+    use_receipt_update: bool = True,
 ):
     if not supabase:
         logger.warning("Supabase unavailable - result not saved: %s", status)
@@ -573,7 +574,7 @@ def save_result(
         merged_reason.setdefault("reason", note)
         data["ai_reasoning"] = json.dumps(merged_reason)
 
-    receipt_id = (payload.get("_webhook_receipt_id") or "").strip()
+    receipt_id = (payload.get("_webhook_receipt_id") or "").strip() if use_receipt_update else ""
     try:
         if receipt_id:
             # API pre-inserted; update existing row instead of inserting
@@ -618,6 +619,32 @@ def save_result(
             logger.info("Saved: %s | %s", status, note)
     except Exception as e:
         logger.error("DB write failed: %s", e)
+
+
+def save_result_for_profiles(
+    payload: Dict[str, Any],
+    status: str,
+    note: str,
+    prob: float,
+    profiles: list[Dict[str, Any]],
+    ai_reasoning: Optional[Dict[str, Any]] = None,
+) -> None:
+    """Persist one signal row per matched profile for global outcomes."""
+    if not profiles:
+        save_result(payload, status, note, prob, ai_reasoning=ai_reasoning)
+        return
+
+    for index, profile in enumerate(profiles):
+        save_result(
+            payload,
+            status,
+            note,
+            prob,
+            ai_reasoning=ai_reasoning,
+            broker_profile_id=profile.get("id"),
+            account_name=profile.get("name"),
+            use_receipt_update=index == 0,
+        )
 
 
 # _validate_flip_timing, _is_futures_symbol, _validate_futures_entry_model
@@ -1335,19 +1362,20 @@ def process_trade(payload: Dict[str, Any]):
     from src.core.broker_profiles import get_active_profiles
 
     account_name = None
+    matching_profiles = []
     payload_run_mode = str(payload.get("run_mode", "PAPER")).upper()
     try:
         profiles = get_active_profiles()
-        matching = [
+        matching_profiles = [
             p for p in profiles
             if (p.get("run_mode") or "LIVE") == payload_run_mode
         ]
-        if len(matching) == 1 and matching[0].get("name"):
-            account_name = matching[0]["name"]
+        if len(matching_profiles) == 1 and matching_profiles[0].get("name"):
+            account_name = matching_profiles[0]["name"]
             logger.info("Account: %s (mode: %s)", account_name, payload_run_mode)
-        elif len(matching) > 1:
+        elif len(matching_profiles) > 1:
             logger.info(
-                "Multiple active profiles match run_mode=%s; leaving global signal unscoped until per-account routing",
+                "Multiple active profiles match run_mode=%s; global outcomes will fan out per account",
                 payload_run_mode,
             )
     except Exception as e:
@@ -1368,7 +1396,10 @@ def process_trade(payload: Dict[str, Any]):
     global_rejection = run_global_guards(payload, s)
     if global_rejection:
         guard_tag = global_rejection.split(":")[0].lower().replace(" ", "_")[:40]
-        save_result(payload, "filtered", global_rejection, 0.0, account_name=account_name)
+        if len(matching_profiles) > 1:
+            save_result_for_profiles(payload, "filtered", global_rejection, 0.0, matching_profiles)
+        else:
+            save_result(payload, "filtered", global_rejection, 0.0, account_name=account_name)
         log_guard_decision("global_safety", "rejected", global_rejection, symbol, {"tag": guard_tag})
         logger.warning("GLOBAL SAFETY REJECTED [%s]: %s", symbol, global_rejection)
         return
@@ -1389,7 +1420,10 @@ def process_trade(payload: Dict[str, Any]):
             )
             passed, reason = staleness_guard.check(payload)
             if not passed:
-                save_result(payload, "staleness_rejected", reason, 0.0, account_name=account_name)
+                if len(matching_profiles) > 1:
+                    save_result_for_profiles(payload, "staleness_rejected", reason, 0.0, matching_profiles)
+                else:
+                    save_result(payload, "staleness_rejected", reason, 0.0, account_name=account_name)
                 log_event(None, "staleness_rejected", "worker", {"symbol": symbol, "reason": reason})
                 log_guard_decision("staleness", "rejected", reason, symbol)
                 logger.warning("STALENESS REJECTED: %s", reason)
@@ -1410,7 +1444,10 @@ def process_trade(payload: Dict[str, Any]):
             )
             passed, reason = holiday_guard.check(payload)
             if not passed:
-                save_result(payload, "holiday_rejected", reason, 0.0, account_name=account_name)
+                if len(matching_profiles) > 1:
+                    save_result_for_profiles(payload, "holiday_rejected", reason, 0.0, matching_profiles)
+                else:
+                    save_result(payload, "holiday_rejected", reason, 0.0, account_name=account_name)
                 log_event(None, "holiday_rejected", "worker", {"symbol": symbol, "reason": reason})
                 log_guard_decision("holiday", "rejected", reason, symbol)
                 logger.warning("HOLIDAY GUARD REJECTED: %s — %s", symbol, reason)
@@ -1433,7 +1470,10 @@ def process_trade(payload: Dict[str, Any]):
             )
             passed, reason = swap_guard.check(payload)
             if not passed:
-                save_result(payload, "swap_rejected", reason, 0.0, account_name=account_name)
+                if len(matching_profiles) > 1:
+                    save_result_for_profiles(payload, "swap_rejected", reason, 0.0, matching_profiles)
+                else:
+                    save_result(payload, "swap_rejected", reason, 0.0, account_name=account_name)
                 log_event(None, "swap_rejected", "worker", {"symbol": symbol, "reason": reason})
                 log_guard_decision("swap", "rejected", reason, symbol)
                 logger.info("SWAP GUARD REJECTED: %s — %s", symbol, reason)
@@ -1450,7 +1490,10 @@ def process_trade(payload: Dict[str, Any]):
     # ══════════════════════════════════════════════════════════════════
     pine_rejection = _validate_pine_filters(payload)
     if pine_rejection:
-        save_result(payload, "filtered", pine_rejection, 0.0, account_name=account_name)
+        if len(matching_profiles) > 1:
+            save_result_for_profiles(payload, "filtered", pine_rejection, 0.0, matching_profiles)
+        else:
+            save_result(payload, "filtered", pine_rejection, 0.0, account_name=account_name)
         _tag = pine_rejection.split(":")[0].lower().replace(" ", "_")[:40]
         log_guard_decision("pine_filters", "rejected", pine_rejection, symbol, {"tag": _tag})
         logger.warning("PINE/RISK FILTER BLOCKED [%s]: %s", symbol, pine_rejection)

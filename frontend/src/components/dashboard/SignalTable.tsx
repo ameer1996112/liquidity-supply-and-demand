@@ -616,31 +616,6 @@ export function SignalTable({
       {/* Account filter pills */}
       {accountNames && accountNames.length > 0 && (
         <div style={{ display: 'flex', gap: 6, padding: '10px 0', flexWrap: 'wrap' }}>
-          <button
-            onClick={() => onAccountFilterChange?.(undefined)}
-            style={{
-              padding: '4px 12px',
-              borderRadius: 20,
-              border: '1px solid',
-              borderColor: !accountFilter ? 'var(--accent-gold)' : 'var(--border)',
-              background: !accountFilter ? 'var(--accent-gold-dim)' : 'transparent',
-              color: !accountFilter ? 'var(--accent-gold)' : 'var(--text-muted)',
-              fontSize: 11,
-              fontFamily: 'var(--font-display)',
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'all 120ms ease',
-              letterSpacing: '0.04em',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-          >
-            ALL
-            <span style={{ opacity: 0.6, fontSize: 10 }}>
-              {signals.length}
-            </span>
-          </button>
           {accountNames.map(name => (
             <button
               key={name}
