@@ -577,6 +577,17 @@ class AccountOrchestrator:
             archived_accounts = [a for a in (all_accounts.data or []) if not a.get("is_active", True)]
             known_names = {a["account_name"] for a in (all_accounts.data or [])}
 
+            # Also surface active broker profiles that have not been promoted into
+            # account_strategies yet. These are still live trading accounts and
+            # should appear in the overview so multi-account activation is visible.
+            try:
+                broker_profiles = self.client.table("broker_profiles").select(
+                    "id,name,venue,connection_status,run_mode,is_active,selected_for_trading,"
+                    "evaluation_mode,evaluation_phase,prop_firm_name"
+                ).eq("is_active", True).eq("selected_for_trading", True).execute().data or []
+            except Exception:
+                broker_profiles = []
+
             # Find orphaned accounts: have trades in trading_signals but no account_strategies row
             try:
                 orphan_rows = self.client.table("trading_signals").select("account_name").not_.is_(
@@ -657,6 +668,51 @@ class AccountOrchestrator:
                     "is_archived": False,
                 }
 
+            def _build_profile_entry(profile):
+                """Build a lightweight entry for active broker profiles without strategy rows."""
+                account_name = profile.get("name") or f"Profile-{profile.get('id')}"
+                if account_name in known_names:
+                    return None
+                return {
+                    "account_name": account_name,
+                    "account_type": _derive_account_type(profile),
+                    "strategy_type": "BROKER_PROFILE",
+                    "connection_status": profile.get("connection_status", "unknown"),
+                    "status": profile.get("connection_status", "unknown"),
+                    "balance": None,
+                    "equity": None,
+                    "free_margin": None,
+                    "margin_used": 0.0,
+                    "margin_level_pct": None,
+                    "floating_pnl": 0.0,
+                    "realized_pnl_today": 0.0,
+                    "daily_pnl": 0.0,
+                    "daily_pnl_pct": 0.0,
+                    "win_rate": 0.0,
+                    "sharpe_ratio": None,
+                    "max_drawdown_pct": None,
+                    "open_positions": 0,
+                    "active_positions": 0,
+                    "total_trades": 0,
+                    "profit_factor": 0.0,
+                    "avg_win_usd": 0.0,
+                    "avg_loss_usd": 0.0,
+                    "risk_percent": 0.0,
+                    "max_positions": 0,
+                    "max_lot_size": 0.0,
+                    "min_rr_ratio": 0.0,
+                    "allocated_capital_usd": 0.0,
+                    "pause_trading": False,
+                    "broker_profile_id": profile.get("id"),
+                    "last_sync_time": None,
+                    "server_name": None,
+                    "platform_type": profile.get("venue"),
+                    "leverage": None,
+                    "created_at": None,
+                    "updated_at": None,
+                    "is_archived": False,
+                }
+
             def _build_archived_entry(account_name, account_row=None):
                 """Build a minimal entry for archived/orphaned accounts with trade history only."""
                 try:
@@ -716,6 +772,12 @@ class AccountOrchestrator:
             # Active accounts
             for account in active_accounts:
                 entry = _build_active_entry(account)
+                if entry:
+                    comparison.append(entry)
+
+            # Standalone active broker profiles
+            for profile in broker_profiles:
+                entry = _build_profile_entry(profile)
                 if entry:
                     comparison.append(entry)
 
