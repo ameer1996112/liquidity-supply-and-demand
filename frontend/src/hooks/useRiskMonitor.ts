@@ -4,45 +4,6 @@ const API_URL = (
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 ).replace(/\/$/, '');
 
-export interface DailyRiskStatus {
-  loss_used_usd: number;
-  loss_limit_usd: number;
-  loss_pct: number;
-  remaining_usd: number;
-  profit_target_usd: number;
-  profit_current_usd: number;
-  is_profit_target_hit: boolean;
-  is_loss_limit_hit: boolean;
-}
-
-export interface PositionLimitsStatus {
-  open_positions: number;
-  max_positions: number;
-  trades_today: number;
-  max_trades_today: number;
-  warning: string | null;
-}
-
-export interface DrawdownStatus {
-  current_dd_pct: number;
-  max_dd_allowed_pct: number;
-  dd_utilization_pct: number;
-  remaining_dd_pct: number;
-  peak_equity_usd: number;
-  current_equity_usd: number;
-}
-
-export interface ActiveSettings {
-  risk_per_trade_pct: number;
-  min_rr_ratio: number;
-  stop_loss_buffer_pips: number;
-  trading_hours_utc: string;
-  max_trades_per_day: number;
-  hourly_close_block_enabled: boolean;
-  account_balance_usd: number;
-  pine_min_return_strength: number;
-}
-
 export interface GuardRailStatus {
   name: string;
   status: 'passed' | 'warning' | 'critical' | 'unknown';
@@ -58,12 +19,54 @@ export interface SymbolOverride {
   pip_size: number;
 }
 
-export interface RiskMonitorData {
-  daily_risk: DailyRiskStatus;
-  position_limits: PositionLimitsStatus;
-  drawdown: DrawdownStatus;
-  active_settings: ActiveSettings;
+export interface RiskMonitorSummary {
+  total_accounts: number;
+  active_accounts: number;
+  total_equity_usd: number;
+  total_starting_balance_usd: number;
+  total_daily_pnl_usd: number;
+  total_open_positions: number;
+  accounts_in_warning: number;
+  accounts_blocked: number;
+  global_kill_switch_active: boolean;
+}
+
+export interface AccountGuardCard {
+  account_name: string;
+  broker_profile_id?: number | null;
+  account_type: string;
+  evaluation_phase?: string | null;
+  prop_firm_name?: string | null;
+  run_mode: string;
+  connection_status?: string | null;
+  starting_balance_usd: number;
+  current_equity_usd: number;
+  daily_pnl_usd: number;
+  daily_pnl_pct: number;
+  peak_equity_usd: number;
+  current_drawdown_pct: number;
+  max_drawdown_allowed_pct: number;
+  drawdown_utilization_pct: number;
+  daily_loss_used_usd: number;
+  daily_loss_limit_usd: number;
+  open_positions: number;
+  max_positions: number;
+  trades_today: number;
+  max_trades_today: number;
+  risk_multiplier: number;
+  risk_label: string;
+  effective_risk_pct: number;
+  base_risk_pct: number;
+  kill_switch_active: boolean;
+  blocked: boolean;
+  warning_message?: string | null;
+  blocked_reason?: string | null;
   guard_rails: GuardRailStatus[];
+}
+
+export interface RiskMonitorData {
+  summary: RiskMonitorSummary;
+  accounts: AccountGuardCard[];
   symbol_overrides: SymbolOverride[];
   last_updated: string;
   data_source: string;
@@ -81,7 +84,7 @@ export function useRiskMonitor() {
   return useQuery({
     queryKey: ['risk-monitor'],
     queryFn: fetchRiskMonitor,
-    refetchInterval: 30000, // Auto-refresh every 30 seconds
-    staleTime: 20000, // Consider data stale after 20 seconds
+    refetchInterval: 30000,
+    staleTime: 20000,
   });
 }
