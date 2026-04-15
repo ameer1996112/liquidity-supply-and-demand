@@ -38,7 +38,7 @@ from src.adapters.supabase_api import get_api_supabase as _get_supabase
 class BrokerProfileCreate(BaseModel):
     venue: str = Field(
         default="metaapi_mt5",
-        description="Execution venue: metaapi_mt5 | binance | bybit",
+        description="Execution venue: metaapi_mt5 | ctrader | binance | bybit",
     )
     name: str = Field(..., min_length=1, max_length=255)
     # MetaApi/MT5
@@ -86,6 +86,11 @@ class BrokerProfileCreate(BaseModel):
                 raise ValueError("meta_api_account_id is required for venue=metaapi_mt5")
             if not (self.token or "").strip():
                 raise ValueError("token is required for venue=metaapi_mt5")
+        elif venue == "ctrader":
+            if not (self.meta_api_account_id or "").strip():
+                raise ValueError("meta_api_account_id is required for venue=ctrader")
+            if not (self.token or "").strip():
+                raise ValueError("token is required for venue=ctrader")
         elif venue in {"binance", "bybit"}:
             if not (self.api_key or "").strip() or not (self.api_secret or "").strip():
                 raise ValueError("api_key and api_secret are required for venue=binance/bybit")
@@ -180,7 +185,7 @@ def _to_response(row: Dict[str, Any]) -> BrokerProfileResponse:
         name=row["name"],
         venue=venue,
         meta_api_account_id=row.get("meta_api_account_id"),
-        token_masked=_mask_secret(row.get("token"), last=8) if venue in {"metaapi", "metaapi_mt5", "mt5"} else None,
+        token_masked=_mask_secret(row.get("token"), last=8) if venue in {"metaapi", "metaapi_mt5", "mt5", "ctrader"} else None,
         api_key_masked=_mask_secret(row.get("api_key"), last=6) if venue in {"binance", "bybit"} else None,
         api_secret_masked=_mask_secret(row.get("api_secret"), last=4) if venue in {"binance", "bybit"} else None,
         risk_pct=float(row.get("risk_pct") or 1.0),
@@ -363,6 +368,14 @@ def create_broker_profile(body: BrokerProfileCreate):
                 raise HTTPException(status_code=422, detail="meta_api_account_id and token are required for metaapi_mt5")
             payload["api_key"] = None
             payload["api_secret"] = None
+        elif venue == "ctrader":
+            # Persist for later, but disable trading selection until adapter exists.
+            payload["meta_api_account_id"] = None
+            payload["token"] = None
+            payload["api_key"] = None
+            payload["api_secret"] = None
+            payload["is_active"] = False
+            payload["selected_for_trading"] = False
         elif venue in {"binance", "bybit"}:
             if not payload["api_key"] or not payload["api_secret"]:
                 raise HTTPException(status_code=422, detail="api_key and api_secret are required for binance/bybit")
@@ -446,6 +459,11 @@ def update_broker_profile(profile_id: int, body: BrokerProfileUpdate):
         if venue in {"metaapi", "metaapi_mt5", "mt5"}:
             if "api_key" in patch or "api_secret" in patch:
                 raise HTTPException(status_code=422, detail="api_key/api_secret updates are not valid for metaapi_mt5 profiles")
+        if venue == "ctrader":
+            if any(k in patch for k in ("token", "meta_api_account_id", "api_key", "api_secret")):
+                raise HTTPException(status_code=422, detail="Credential updates are not supported for ctrader profiles yet")
+            if patch.get("selected_for_trading") is True:
+                raise HTTPException(status_code=422, detail="ctrader profiles cannot be activated yet")
         if venue in {"binance", "bybit"}:
             if "meta_api_account_id" in patch or "token" in patch:
                 raise HTTPException(status_code=422, detail="meta_api_account_id/token updates are not valid for crypto profiles")
@@ -512,7 +530,7 @@ def activate_broker_profile(profile_id: int):
         # Verify exists
         check = (
             sb.table("broker_profiles")
-            .select("id, is_active")
+            .select("id, is_active, venue")
             .eq("id", profile_id)
             .limit(1)
             .execute()
@@ -522,6 +540,12 @@ def activate_broker_profile(profile_id: int):
             raise HTTPException(status_code=404, detail=f"Profile {profile_id} not found")
         if not rows[0].get("is_active", True):
             raise HTTPException(status_code=409, detail="Cannot activate a disabled profile")
+        venue = (rows[0].get("venue") or "metaapi_mt5").strip().lower()
+        if venue == "ctrader":
+            raise HTTPException(
+                status_code=409,
+                detail="cTrader activation is disabled until execution adapter is implemented.",
+            )
 
         # Deselect all profiles first (bypass unique constraint)
         sb.table("broker_profiles").update({"selected_for_trading": False}).neq("id", 0).execute()
@@ -591,6 +615,8 @@ def test_broker_profile_connection(profile_id: int):
         elif venue == "bybit":
             # Bybit auth-validation differs by endpoint; implement later.
             result = TestConnectionResponse(success=False, message="Bybit test not implemented yet")
+        elif venue == "ctrader":
+            result = TestConnectionResponse(success=False, message="cTrader test not implemented yet")
         else:
             raise HTTPException(status_code=422, detail=f"Unsupported venue: {venue}")
 

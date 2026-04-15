@@ -57,6 +57,13 @@ def get_active_profiles() -> List[Dict[str, Any]]:
                     api_key = ""
                     api_secret = ""
 
+                    if venue == "ctrader":
+                        logger.warning(
+                            "Skipping broker profile %s (venue=ctrader): execution adapter not implemented yet",
+                            row.get("name") or row.get("id"),
+                        )
+                        continue
+
                     if venue in {"binance", "bybit"}:
                         api_key = (row.get("api_key") or "").strip()
                         api_secret = (row.get("api_secret") or "").strip()
@@ -106,6 +113,13 @@ def get_active_profiles() -> List[Dict[str, Any]]:
                     if not isinstance(row, dict):
                         continue
                     venue = (row.get("venue") or "").strip().lower() or "metaapi_mt5"
+
+                    if venue == "ctrader":
+                        logger.warning(
+                            "Skipping profile %s (venue=ctrader): execution adapter not implemented yet",
+                            row.get("name") or row.get("id") or "profile",
+                        )
+                        continue
 
                     token = ""
                     if venue in {"metaapi", "metaapi_mt5", "mt5"}:

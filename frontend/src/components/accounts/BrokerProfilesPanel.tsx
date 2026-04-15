@@ -16,7 +16,7 @@ import { apiFetch } from '@/lib/api';
 export interface BrokerProfile {
   id: number;
   name: string;
-  venue: 'metaapi_mt5' | 'binance' | 'bybit';
+  venue: 'metaapi_mt5' | 'ctrader' | 'binance' | 'bybit';
   meta_api_account_id?: string | null;
   token_masked?: string | null;
   api_key_masked?: string | null;
@@ -240,6 +240,17 @@ function DetailsStep({ form, onChange, onBack, onNext }: {
   const isPropFirm = form.accountType !== 'personal';
   const isEval = form.accountType === 'evaluation';
   const isCrypto = form.venue === 'binance' || form.venue === 'bybit';
+  const venueOptions: { value: Venue; label: string }[] = isPropFirm
+    ? [
+        { value: 'metaapi_mt5', label: 'MT5 (MetaApi)' },
+        { value: 'ctrader', label: 'cTrader' },
+      ]
+    : [
+        { value: 'metaapi_mt5', label: 'MT5 (MetaApi)' },
+        { value: 'ctrader', label: 'cTrader' },
+        { value: 'binance', label: 'Binance' },
+        { value: 'bybit', label: 'Bybit' },
+      ];
   const invalid = !form.name || (
     isCrypto
       ? !form.api_key || !form.api_secret
@@ -267,14 +278,17 @@ function DetailsStep({ form, onChange, onBack, onNext }: {
             className={inputCls}
             value={form.venue}
             onChange={(e) => set({ venue: e.target.value as Venue })}
-            disabled={isPropFirm} // keep prop-firm profiles on MT5/MetaApi for now
           >
-            <option value="metaapi_mt5">MT5 (MetaApi)</option>
-            <option value="binance">Binance</option>
-            <option value="bybit">Bybit</option>
+            {venueOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
           </select>
           {isPropFirm && (
-            <p className="mt-1 text-[10px] text-[var(--to-text-dim)]">Prop firm accounts use MT5 (MetaApi) in v1.</p>
+            <p className="mt-1 text-[10px] text-[var(--to-text-dim)]">
+              Prop firm accounts can be MT5 (MetaApi) or cTrader. (cTrader is stored in DB, but execution is not implemented yet.)
+            </p>
           )}
         </InputField>
 
@@ -308,15 +322,20 @@ function DetailsStep({ form, onChange, onBack, onNext }: {
 
         {!isCrypto ? (
           <>
-            <InputField label="MetaAPI Account ID" required>
-              <input className={cn(inputCls, 'font-mono')} placeholder="a09b89c3-cf09-45e7-…" value={form.meta_api_account_id} onChange={e => set({ meta_api_account_id: e.target.value })} />
+            <InputField label={form.venue === 'ctrader' ? 'cTrader Account ID' : 'MetaAPI Account ID'} required>
+              <input
+                className={cn(inputCls, 'font-mono')}
+                placeholder={form.venue === 'ctrader' ? '12345678' : 'a09b89c3-cf09-45e7-…'}
+                value={form.meta_api_account_id}
+                onChange={e => set({ meta_api_account_id: e.target.value })}
+              />
             </InputField>
 
-            <InputField label="MetaAPI Token" required>
+            <InputField label={form.venue === 'ctrader' ? 'cTrader Access Token' : 'MetaAPI Token'} required>
               <div className="relative">
                 <input
                   className={cn(inputCls, 'font-mono pr-9')}
-                  placeholder="eyJ0eXAiOiJKV1Q…"
+                  placeholder={form.venue === 'ctrader' ? 'ctrader-token…' : 'eyJ0eXAiOiJKV1Q…'}
                   type={showToken ? 'text' : 'password'}
                   value={form.token}
                   onChange={e => set({ token: e.target.value })}
@@ -407,10 +426,16 @@ function ReviewStep({ form, onBack, onSave, isSaving }: {
 }) {
   const typeInfo = ACCOUNT_TYPE_OPTIONS.find(o => o.type === form.accountType)!;
   const isCrypto = form.venue === 'binance' || form.venue === 'bybit';
+  const venueLabel =
+    form.venue === 'metaapi_mt5'
+      ? 'MT5 (MetaApi)'
+      : form.venue === 'ctrader'
+        ? 'cTrader'
+        : form.venue.toUpperCase();
   const rows = [
     { label: 'Type', value: `${typeInfo.emoji} ${typeInfo.label}` },
     { label: 'Name', value: form.name },
-    { label: 'Venue', value: form.venue === 'metaapi_mt5' ? 'MT5 (MetaApi)' : form.venue.toUpperCase() },
+    { label: 'Venue', value: venueLabel },
     ...(form.prop_firm_name ? [{ label: 'Prop Firm', value: form.prop_firm_name }] : []),
     ...(form.accountType === 'evaluation' ? [{ label: 'Phase', value: form.evaluation_phase === 'phase1' ? 'Phase 1' : 'Phase 2' }] : []),
     ...(!isCrypto ? [
@@ -461,13 +486,9 @@ function AddAccountWizard({ onSuccess, onCancel }: { onSuccess: () => void; onCa
     mutationFn: (f: WizardForm) => createProfile({
       venue: f.venue,
       name: f.name,
-      ...(f.venue === 'metaapi_mt5' ? {
-        meta_api_account_id: f.meta_api_account_id,
-        token: f.token,
-      } : {
-        api_key: f.api_key,
-        api_secret: f.api_secret,
-      }),
+      ...((f.venue === 'binance' || f.venue === 'bybit')
+        ? { api_key: f.api_key, api_secret: f.api_secret }
+        : { meta_api_account_id: f.meta_api_account_id, token: f.token }),
       risk_pct: f.risk_pct,
       max_positions: f.max_positions,
       account_type: f.accountType,
@@ -576,7 +597,7 @@ function ProfileRow({ profile }: { profile: BrokerProfile }) {
   const update = useMutation({
     mutationFn: () => updateProfile(profile.id, {
       name: editForm.name || undefined,
-      ...(profile.venue === 'metaapi_mt5' ? {
+      ...((profile.venue === 'metaapi_mt5' || profile.venue === 'ctrader') ? {
         meta_api_account_id: editForm.meta_api_account_id || undefined,
         ...(editForm.token ? { token: editForm.token } : {}),
       } : {
@@ -660,7 +681,7 @@ function ProfileRow({ profile }: { profile: BrokerProfile }) {
                 <span className="text-[9px] text-[var(--to-text-dim)] bg-[var(--to-surface-raised)] border border-[var(--to-border)] rounded px-1.5 py-0.5">{profile.prop_firm_name}</span>
               )}
             </div>
-            {profile.venue === 'metaapi_mt5' ? (
+            {(profile.venue === 'metaapi_mt5' || profile.venue === 'ctrader') ? (
               <div className="flex items-center gap-1 group/id">
                 <span className="text-[10px] font-mono text-[var(--to-text-dim)] truncate">{profile.meta_api_account_id}</span>
                 <button
@@ -689,7 +710,7 @@ function ProfileRow({ profile }: { profile: BrokerProfile }) {
         <span>Risk: {profile.risk_pct}%</span>
         <span>Max pos: {profile.max_positions}</span>
         <span>Mode: {profile.run_mode}</span>
-        <span>{profile.venue === 'metaapi_mt5' ? `Token: ${profile.token_masked || '***'}` : `Secret: ${profile.api_secret_masked || '***'}`}</span>
+        <span>{(profile.venue === 'metaapi_mt5' || profile.venue === 'ctrader') ? `Token: ${profile.token_masked || '***'}` : `Secret: ${profile.api_secret_masked || '***'}`}</span>
         {profile.evaluation_phase && profile.account_type !== 'personal' && (
           <span>Phase: {profile.evaluation_phase === 'funded' ? 'Funded' : profile.evaluation_phase === 'phase1' ? 'Phase 1' : 'Phase 2'}</span>
         )}
@@ -703,7 +724,7 @@ function ProfileRow({ profile }: { profile: BrokerProfile }) {
             <InputField label="Name">
               <input className={inputCls} value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
             </InputField>
-            {profile.venue === 'metaapi_mt5' ? (
+            {(profile.venue === 'metaapi_mt5' || profile.venue === 'ctrader') ? (
               <>
                 <InputField label="Account ID">
                   <input className={cn(inputCls, 'font-mono')} value={editForm.meta_api_account_id} onChange={e => setEditForm(f => ({ ...f, meta_api_account_id: e.target.value }))} />
@@ -766,9 +787,15 @@ function ProfileRow({ profile }: { profile: BrokerProfile }) {
           size="sm"
           variant="outline"
           className="h-7 text-[11px] gap-1.5 border-[var(--to-border)] text-[var(--to-text-secondary)]"
-          disabled={isTesting || profile.venue === 'bybit'}
+          disabled={isTesting || profile.venue === 'bybit' || profile.venue === 'ctrader'}
           onClick={handleTest}
-          title={profile.venue === 'bybit' ? 'Bybit connection test not implemented yet' : undefined}
+          title={
+            profile.venue === 'bybit'
+              ? 'Bybit connection test not implemented yet'
+              : profile.venue === 'ctrader'
+                ? 'cTrader connection test not implemented yet'
+                : undefined
+          }
         >
           {isTesting ? <Loader2 className="h-3 w-3 animate-spin" /> : <RadioTower className="h-3 w-3" />} Test
         </Button>
@@ -777,7 +804,14 @@ function ProfileRow({ profile }: { profile: BrokerProfile }) {
           {editing ? 'Cancel' : 'Edit'}
         </Button>
         {!profile.selected_for_trading && (
-          <Button size="sm" variant="outline" className="h-7 text-[11px] gap-1.5 border-[var(--to-warning)]/30 text-[var(--to-warning)] hover:bg-[var(--to-warning)]/10" disabled={activate.isPending} onClick={() => activate.mutate()}>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-[11px] gap-1.5 border-[var(--to-warning)]/30 text-[var(--to-warning)] hover:bg-[var(--to-warning)]/10"
+            disabled={activate.isPending || profile.venue === 'ctrader'}
+            onClick={() => activate.mutate()}
+            title={profile.venue === 'ctrader' ? 'cTrader activation is disabled until execution adapter is implemented' : undefined}
+          >
             {activate.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />} Activate
           </Button>
         )}
