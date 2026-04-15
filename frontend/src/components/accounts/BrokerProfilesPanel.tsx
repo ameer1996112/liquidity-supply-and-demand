@@ -750,7 +750,7 @@ function ProfileRow({
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-sm font-semibold text-[var(--to-text-primary)] truncate">{profile.name}</span>
               {profile.selected_for_trading && (
-                <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--to-warning)] bg-[var(--to-warning)]/15 border border-[var(--to-warning)]/25 rounded px-1.5 py-0.5">Active</span>
+                <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--to-warning)] bg-[var(--to-warning)]/15 border border-[var(--to-warning)]/25 rounded px-1.5 py-0.5">Enabled for trading</span>
               )}
               {!profile.is_active && (
                 <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--to-text-dim)] bg-[var(--to-surface-raised)] border border-[var(--to-border)] rounded px-1.5 py-0.5">Inactive</span>
