@@ -66,7 +66,8 @@ export default function DashboardPage() {
   const signalCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const s of signals) {
-      const name = (s as any).account_name;
+      const nameRaw = (s as any).account_name;
+      const name = typeof nameRaw === 'string' ? nameRaw.trim() : nameRaw;
       if (name) counts[name] = (counts[name] ?? 0) + 1;
     }
     return counts;
@@ -97,6 +98,15 @@ export default function DashboardPage() {
       }));
     return [...liveAccounts, ...(archivedEntries as any[])];
   }, [accounts, signalAccountNames]);
+
+  // SignalTable filter pills are derived from signals (to keep deleted/archived accounts reachable),
+  // plus the currently-selected account (so selecting a 0-signal account still shows an active pill).
+  const filterAccountNames = useMemo(() => {
+    const names = new Set(signalAccountNames);
+    const selected = signalAccountFilter?.trim();
+    if (selected) names.add(selected);
+    return Array.from(names).sort();
+  }, [signalAccountNames, signalAccountFilter]);
 
   // Keep for log
   void useSignalStats(broker_profile_id);
@@ -137,7 +147,7 @@ export default function DashboardPage() {
             accounts={allAccountsForStrip}
             isLoading={accountsLoading}
             activeAccount={signalAccountFilter}
-            onAccountSelect={setSignalAccountFilter}
+            onAccountSelect={(name) => setSignalAccountFilter(name?.trim() || undefined)}
             signalCounts={signalCounts}
           />
         </section>
@@ -171,8 +181,8 @@ export default function DashboardPage() {
                   onSelectSignal={handleSelectSignal}
                   maxRows={150}
                   accountFilter={signalAccountFilter}
-                  onAccountFilterChange={setSignalAccountFilter}
-                  accountNames={signalAccountNames}
+                  onAccountFilterChange={(name) => setSignalAccountFilter(name?.trim() || undefined)}
+                  accountNames={filterAccountNames}
                   accountSignalCounts={signalCounts}
                 />
               )}

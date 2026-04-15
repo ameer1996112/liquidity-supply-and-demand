@@ -270,6 +270,9 @@ export function normalizeSignal(
     typeof rawSignalAction === 'string'
       ? (rawSignalAction.toLowerCase() as SignalActionType | string)
       : rawSignalAction ?? undefined;
+
+  const normalizedAccountName =
+    typeof raw.account_name === 'string' ? raw.account_name.trim() : raw.account_name ?? null;
   return {
     id: raw.id || '',
     created_at: raw.created_at || new Date().toISOString(),
@@ -328,7 +331,7 @@ export function normalizeSignal(
     swap: raw.swap ?? undefined,
     broker_order_id: raw.broker_order_id,
     close_broker_order_id: raw.close_broker_order_id,
-    account_name: raw.account_name ?? null,
+    account_name: normalizedAccountName,
     closed_at: raw.closed_at,
     opened_at: raw.opened_at,
     exit_price: raw.exit_price,

@@ -362,7 +362,14 @@ export function SignalTable({
     else if (activeFilter === 'closed')   result = result.filter((s) => isClosedStatus(s.status));
     else if (activeFilter === 'rejected') result = result.filter((s) => isRejectedStatus(s.status));
     else if (activeFilter === 'filtered') result = result.filter((s) => isFilteredStatus(s.status));
-    if (accountFilter) result = result.filter((s) => (s as any).account_name === accountFilter);
+    if (accountFilter) {
+      const normalizedFilter = accountFilter.trim();
+      result = result.filter((s) => {
+        const raw = (s as any).account_name;
+        const normalized = typeof raw === 'string' ? raw.trim() : raw;
+        return normalized === normalizedFilter;
+      });
+    }
     return result;
   }, [signals, activeFilter, accountFilter]);
 
