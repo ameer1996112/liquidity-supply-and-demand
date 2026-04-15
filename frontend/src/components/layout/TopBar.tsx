@@ -153,6 +153,13 @@ function formatRelativeTime(input: string | null | undefined): string {
   }
 }
 
+function getAccountLiquidity(
+  account: Pick<AccountDetailApi, 'balance' | 'equity'> | null | undefined
+): number | null {
+  if (!account) return null;
+  return account.equity ?? account.balance ?? null;
+}
+
 function useSystemStatus() {
   const { data: health } = useQuery({
     queryKey: ['topbar-health'],
@@ -276,7 +283,12 @@ export function TopBar() {
     null
   );
 
-  const hasMultipleAccounts = accounts.length > 1;
+  const activeTradingAccounts = useMemo(
+    () => accounts.filter((account) => !account.is_archived),
+    [accounts]
+  );
+
+  const hasMultipleTradingAccounts = activeTradingAccounts.length > 1;
 
   const selectedAccount: AccountDetailApi | undefined = useMemo(
     () =>
@@ -286,31 +298,51 @@ export function TopBar() {
     [accounts, selectedAccountName]
   );
 
-  const netLiq =
-    liveBroker?.balance ??
-    accountStatus?.equity ??
-    selectedAccount?.balance ??
-    (risk?.current_equity != null ? risk.current_equity : null);
+  const selectedAccountNetLiq = getAccountLiquidity(selectedAccount);
+
+  const multiAccountNetLiq = useMemo(() => {
+    if (!hasMultipleTradingAccounts) return null;
+
+    const liquidityValues = activeTradingAccounts
+      .map((account) => getAccountLiquidity(account))
+      .filter((value): value is number => value != null);
+
+    if (liquidityValues.length !== activeTradingAccounts.length) return null;
+
+    return liquidityValues.reduce((sum, value) => sum + value, 0);
+  }, [activeTradingAccounts, hasMultipleTradingAccounts]);
+
+  const netLiq = selectedAccountName
+    ? selectedAccountNetLiq
+    : hasMultipleTradingAccounts
+    ? multiAccountNetLiq
+    : liveBroker?.equity ??
+      liveBroker?.balance ??
+      accountStatus?.equity ??
+      selectedAccountNetLiq ??
+      (risk?.current_equity != null ? risk.current_equity : null);
 
   const todayPnlFromStats =
     mode === 'PAPER'
       ? stats?.paper_daily_pnl ?? stats?.paper_pnl_24h
       : stats?.live_daily_pnl ?? stats?.live_pnl_24h;
 
-  // Sum daily_pnl across all accounts for Global view.
+  // Sum daily_pnl across all active trading accounts for Global view.
   // Accounts are populated from the backend which uses MetaAPI balance snapshots
   // (account_status_snapshots: current_balance − start_of_day_balance).
   const accountsTodayPnl = useMemo(() => {
-    if (accounts.length === 0) return null;
-    return accounts.reduce(
+    if (activeTradingAccounts.length === 0) return null;
+    return activeTradingAccounts.reduce(
       (sum, acc) => sum + (acc.daily_pnl ?? acc.realized_pnl_today ?? 0),
       0
     );
-  }, [accounts]);
+  }, [activeTradingAccounts]);
 
   const todayPnl =
     selectedAccount != null
       ? selectedAccount.daily_pnl ?? selectedAccount.realized_pnl_today ?? 0
+      : hasMultipleTradingAccounts
+      ? accountsTodayPnl
       : todayPnlFromStats != null
       ? todayPnlFromStats
       : accountsTodayPnl !== null
@@ -408,7 +440,7 @@ export function TopBar() {
 
         {/* Global / Account Selector & Financials */}
         <div className='hidden lg:flex items-center bg-[#09090b] border border-white/5 rounded-xl shadow-inner overflow-hidden shrink-0 whitespace-nowrap'>
-          {hasMultipleAccounts && (
+          {hasMultipleTradingAccounts && (
             <div className='flex items-center bg-white/[0.02] p-1 border-r border-white/5'>
               <button
                 type='button'
