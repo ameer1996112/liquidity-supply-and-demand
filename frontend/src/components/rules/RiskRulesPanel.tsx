@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import type { SymbolRiskRule } from '@/types/rules';
+import { apiFetch } from '@/lib/api';
 import {
   Table,
   TableHeader,
@@ -39,21 +40,8 @@ const EMPTY_ROW: EditingRow = {
   enabled: true,
 };
 
-async function requestJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
-  const response = await fetch(input, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
-  });
-
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(payload.detail || 'Request failed');
-  }
-
-  return payload as T;
+async function requestJson<T>(endpoint: string, init?: RequestInit): Promise<T> {
+  return apiFetch<T>(endpoint, init);
 }
 
 export function RiskRulesPanel() {

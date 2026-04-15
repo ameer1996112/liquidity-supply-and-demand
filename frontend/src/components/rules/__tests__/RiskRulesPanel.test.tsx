@@ -4,6 +4,17 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 
 import { RiskRulesPanel } from '../RiskRulesPanel';
 
+function mockJsonResponse(body: unknown) {
+  return {
+    ok: true,
+    status: 200,
+    headers: {
+      get: () => 'application/json',
+    },
+    text: async () => JSON.stringify(body),
+  };
+}
+
 describe('RiskRulesPanel', () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -28,9 +39,8 @@ describe('RiskRulesPanel', () => {
   it('loads symbol rules from backend api', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        json: async () => ({
+      vi.fn().mockResolvedValue(
+        mockJsonResponse({
           rules: [
             {
               symbol: 'EURUSD',
@@ -46,8 +56,8 @@ describe('RiskRulesPanel', () => {
             },
           ],
           count: 1,
-        }),
-      })
+        })
+      )
     );
 
     await act(async () => {
@@ -61,18 +71,9 @@ describe('RiskRulesPanel', () => {
   it('saves edited symbol rules to backend api', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ rules: [], count: 0 }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ rule: { symbol: 'XAUUSD' } }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ rules: [], count: 0 }),
-      });
+      .mockResolvedValueOnce(mockJsonResponse({ rules: [], count: 0 }))
+      .mockResolvedValueOnce(mockJsonResponse({ rule: { symbol: 'XAUUSD' } }))
+      .mockResolvedValueOnce(mockJsonResponse({ rules: [], count: 0 }));
 
     vi.stubGlobal('fetch', fetchMock);
 
@@ -109,7 +110,7 @@ describe('RiskRulesPanel', () => {
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
-      '/api/rules/symbols',
+      'http://localhost:8000/api/rules/symbols',
       expect.objectContaining({
         method: 'POST',
       })
