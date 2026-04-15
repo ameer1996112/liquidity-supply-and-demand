@@ -60,61 +60,6 @@ export async function apiFetch<T>(
 }
 
 /**
- * Backtest API client
- */
-export const backtestAPI = {
-  /**
-   * Run a backtest
-   */
-  async runBacktest(request: {
-    symbol: string;
-    start_date: string;
-    end_date: string;
-    timeframe: string;
-    initial_cash: number;
-    commission: number;
-    risk_percent: number;
-    min_rr_ratio: number;
-    require_liquidity_sweep?: boolean;
-    reject_compression_arrival?: boolean;
-    require_structure_break?: boolean;
-  }) {
-    return apiFetch<any>('/api/backtest/run', {
-      method: 'POST',
-      body: JSON.stringify(request),
-    });
-  },
-
-  /**
-   * Validate strategy before deploying to live bot
-   */
-  async validateStrategy(request: {
-    symbol: string;
-    days_to_test: number;
-    timeframe: string;
-    risk_percent: number;
-    min_rr_ratio: number;
-    reject_compression_arrival: boolean;
-    min_trades: number;
-    min_win_rate: number;
-    min_profit_factor: number;
-    max_drawdown: number;
-  }) {
-    return apiFetch<any>('/api/bot/validate-strategy', {
-      method: 'POST',
-      body: JSON.stringify(request),
-    });
-  },
-
-  /**
-   * Health check
-   */
-  async healthCheck() {
-    return apiFetch<{ status: string }>('/api/backtest/health');
-  },
-};
-
-/**
  * Portfolio Control - Account Management
  */
 export async function fetchAccountsComparison(): Promise<AccountDetailApi[]> {

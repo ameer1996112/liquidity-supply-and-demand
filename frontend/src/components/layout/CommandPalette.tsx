@@ -44,18 +44,6 @@ const NAV_ITEMS: NavItem[] = [
     group: 'Analytics',
   },
   {
-    label: 'Backtest',
-    description: 'Single-strategy backtest',
-    path: '/backtest',
-    group: 'Research',
-  },
-  {
-    label: 'Backtests',
-    description: 'Backtest runs library',
-    path: '/backtests',
-    group: 'Research',
-  },
-  {
     label: 'Strategies',
     description: 'Strategy Studio',
     path: '/strategies',

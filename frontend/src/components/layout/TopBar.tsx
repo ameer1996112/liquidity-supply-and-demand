@@ -225,12 +225,6 @@ function derivePageMeta(pathname: string): { section: string; title: string } {
   if (pathname.startsWith('/analytics')) {
     return { section: 'Analytics', title: 'Analytics' };
   }
-  if (pathname.startsWith('/backtest')) {
-    return { section: 'Research', title: 'Backtest' };
-  }
-  if (pathname.startsWith('/backtests')) {
-    return { section: 'Research', title: 'Backtests' };
-  }
   if (pathname.startsWith('/strategies')) {
     return { section: 'Strategy', title: 'Strategies' };
   }

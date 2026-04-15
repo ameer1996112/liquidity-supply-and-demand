@@ -471,23 +471,7 @@ def process_trade(
         logger.info("Alert #%s filtered: %s", alert_id, reason_str)
         return
 
-    if run_mode == "BACKTEST":
-        # ── BACKTEST: imported historical data — save to DB only, no broker ──
-        logger.info("BACKTEST signal #%s for %s — stored only, no execution", alert_id, symbol)
-        try:
-            supabase_module.init_supabase()
-            client = supabase_module.supabase
-            if client:
-                client.table("trading_signals").update({
-                    "status": "backtest",
-                    "account_name": (profile.get("name") if profile else None) or "Backtest",
-                }).eq("id", alert_id).execute()
-            log_event(alert_id, "backtest_stored", "logic", {"symbol": symbol})
-        except Exception as e:
-            logger.error("Failed to update backtest status for alert #%s: %s", alert_id, e)
-        return
-
-    elif run_mode == "PAPER":
+    if run_mode == "PAPER":
         # ── PAPER: simulate execution, skip broker ─────────────────────
         mock_broker_id = f"paper_{uuid.uuid4().hex[:8]}"
         logger.info("Simulating PAPER execution for %s (broker_id=%s)", symbol, mock_broker_id)
