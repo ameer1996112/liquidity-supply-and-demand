@@ -16,6 +16,16 @@ from typing import Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 
+def _derive_account_type(profile: dict) -> str:
+    """Derive account_type string from evaluation_mode + evaluation_phase."""
+    if not profile.get("evaluation_mode"):
+        return "personal"
+    phase = profile.get("evaluation_phase", "phase1")
+    if phase == "funded":
+        return "funded"
+    return "evaluation"
+
+
 @dataclass
 class AccountPerformance:
     """Performance metrics for an account."""
