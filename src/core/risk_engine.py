@@ -16,6 +16,9 @@ DEFAULT_MAX_DAILY_LOSS_PCT = 4.0
 DEFAULT_MAX_DRAWDOWN_PCT = 8.0
 DEFAULT_MAX_RISK_PER_TRADE_PCT = 1.0
 DEFAULT_STARTING_EQUITY = 10_000.0
+DEFAULT_MIN_LOT_SIZE = 0.01
+DEFAULT_LOT_STEP = 0.01
+DEFAULT_STOP_LOSS_BUFFER_PIPS = 1.0
 
 
 class RiskRejectionReason(str, Enum):
@@ -48,6 +51,17 @@ class TradeRiskParams(BaseModel):
         return abs(self.entry_price - self.stop_loss)
 
 
+def _normalize_symbol_overrides(symbol_overrides: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    overrides = dict(symbol_overrides or {})
+    overrides["enabled"] = bool(overrides.get("enabled", True))
+    overrides["min_lot_size"] = float(overrides.get("min_lot_size") or DEFAULT_MIN_LOT_SIZE)
+    overrides["lot_step"] = float(overrides.get("lot_step") or DEFAULT_LOT_STEP)
+    overrides["stop_loss_buffer_pips"] = float(
+        overrides.get("stop_loss_buffer_pips") or DEFAULT_STOP_LOSS_BUFFER_PIPS
+    )
+    return overrides
+
+
 def calculate_max_position_size(
     payload: Dict[str, Any],
     account_balance: float,
@@ -75,13 +89,20 @@ def calculate_max_position_size(
         if entry == 0 or sl == 0:
             return 1.0
 
+        overrides = _normalize_symbol_overrides(symbol_overrides)
+        if symbol_overrides and not overrides.get("enabled", True):
+            logger.warning("Position sizing blocked for disabled symbol rule: %s", symbol)
+            return 0.0
+
         # Per-symbol overrides from DB (if provided and enabled)
-        if symbol_overrides and symbol_overrides.get("enabled", True):
-            pip_size = float(symbol_overrides.get("pip_size", 0.0001))
-            pip_value_per_lot = float(symbol_overrides.get("pip_value_per_lot", 10.0))
-            risk_percent = float(symbol_overrides.get("risk_percent", risk_percent))
-            max_lot_cap = float(symbol_overrides.get("max_lot_size", 10.0))
-            sl_buffer_pips = float(symbol_overrides.get("stop_loss_buffer_pips", 1.0))
+        if symbol_overrides and overrides.get("enabled", True):
+            pip_size = float(overrides.get("pip_size", 0.0001))
+            pip_value_per_lot = float(overrides.get("pip_value_per_lot", 10.0))
+            risk_percent = float(overrides.get("risk_percent", risk_percent))
+            max_lot_cap = float(overrides.get("max_lot_size", 10.0))
+            min_lot_size = float(overrides.get("min_lot_size", DEFAULT_MIN_LOT_SIZE))
+            lot_step = float(overrides.get("lot_step", DEFAULT_LOT_STEP))
+            sl_buffer_pips = float(overrides.get("stop_loss_buffer_pips", DEFAULT_STOP_LOSS_BUFFER_PIPS))
         else:
             # Hardcoded fallback for unknown symbols
             # IMPORTANT: Check indices and crypto FIRST before forex
@@ -125,6 +146,8 @@ def calculate_max_position_size(
             except Exception:
                 max_lot_cap = 10.0
                 sl_buffer_pips = 1.0
+            min_lot_size = DEFAULT_MIN_LOT_SIZE
+            lot_step = DEFAULT_LOT_STEP
 
         # Apply stop loss buffer (Pine: adds 1 pip safety margin beyond zone)
         # For buy: SL is below entry, so subtract buffer (more conservative)
@@ -174,9 +197,6 @@ def calculate_max_position_size(
             scaled_max_lots = base_max_lots * max(risk_multiplier, 0.0)
 
             # ✅ Enforce minimum lot size (v5.1 - Zero Size Bug Fix)
-            min_lot_size = float(symbol_overrides.get("min_lot_size", 0.01)) if symbol_overrides else 0.01
-            lot_step = float(symbol_overrides.get("lot_step", 0.01)) if symbol_overrides else 0.01
-
             # If calculated size is below minimum, return 0.0 to signal rejection
             # (Caller should provide clear error message about stop loss being too wide)
             if scaled_max_lots < min_lot_size:
@@ -254,6 +274,8 @@ def calculate_position_size_with_spread(
         sl = float(payload.get("sl", 0))
         symbol = payload.get("symbol", "UNKNOWN")
 
+        overrides = _normalize_symbol_overrides(symbol_overrides)
+
         if entry == 0 or sl == 0:
             return {
                 "lots": 0.0, "risk_usd": 0.0, "sl_pips": 0.0, "spread_pips": 0.0,
@@ -266,6 +288,13 @@ def calculate_position_size_with_spread(
         min_lot = 0.01
         lot_step = 0.01
         max_lot_cap = 10.0
+
+        if symbol_overrides is not None and not overrides.get("enabled", True):
+            return {
+                "lots": 0.0, "risk_usd": 0.0, "sl_pips": 0.0, "spread_pips": 0.0,
+                "effective_sl_pips": 0.0, "pip_value_per_lot": 0.0,
+                "rejected": True, "rejection_reason": "symbol_disabled",
+            }
 
         if broker_spec:
             # Use real broker data
@@ -317,14 +346,14 @@ def calculate_position_size_with_spread(
             except Exception:
                 max_lot_cap = min(10.0, max_lot_cap_broker)
 
-        elif symbol_overrides and symbol_overrides.get("enabled", True):
+        elif symbol_overrides and overrides.get("enabled", True):
             # DB overrides
-            pip_size = float(symbol_overrides.get("pip_size", 0.0001))
-            pip_value_per_lot = float(symbol_overrides.get("pip_value_per_lot", 10.0))
-            risk_percent = float(symbol_overrides.get("risk_percent", risk_percent))
-            max_lot_cap = float(symbol_overrides.get("max_lot_size", 10.0))
-            min_lot = float(symbol_overrides.get("min_lot_size", 0.01))
-            lot_step = float(symbol_overrides.get("lot_step", 0.01))
+            pip_size = float(overrides.get("pip_size", 0.0001))
+            pip_value_per_lot = float(overrides.get("pip_value_per_lot", 10.0))
+            risk_percent = float(overrides.get("risk_percent", risk_percent))
+            max_lot_cap = float(overrides.get("max_lot_size", 10.0))
+            min_lot = float(overrides.get("min_lot_size", DEFAULT_MIN_LOT_SIZE))
+            lot_step = float(overrides.get("lot_step", DEFAULT_LOT_STEP))
         else:
             # Hardcoded fallback (same as calculate_max_position_size)
             sym_upper = symbol.upper()
@@ -362,9 +391,10 @@ def calculate_position_size_with_spread(
         # Also add SL buffer (1 pip safety margin)
         try:
             from config import get_settings
-            sl_buffer_pips = float(getattr(get_settings(), "stop_loss_buffer_pips", 1.0))
+            default_buffer = float(getattr(get_settings(), "stop_loss_buffer_pips", DEFAULT_STOP_LOSS_BUFFER_PIPS))
         except Exception:
-            sl_buffer_pips = 1.0
+            default_buffer = DEFAULT_STOP_LOSS_BUFFER_PIPS
+        sl_buffer_pips = float(overrides.get("stop_loss_buffer_pips", default_buffer))
         effective_sl_pips += sl_buffer_pips
 
         # ── Calculate risk and lots ──
