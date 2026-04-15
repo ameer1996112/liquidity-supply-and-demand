@@ -15,12 +15,16 @@ from __future__ import annotations
 
 import logging
 import os
+import time
+import hashlib
+import hmac
+from urllib.parse import urlencode
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import requests
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 logger = logging.getLogger(__name__)
 
@@ -32,9 +36,17 @@ from src.adapters.supabase_api import get_api_supabase as _get_supabase
 # ── Request / Response Models ──────────────────────────────────────────────────
 
 class BrokerProfileCreate(BaseModel):
+    venue: str = Field(
+        default="metaapi_mt5",
+        description="Execution venue: metaapi_mt5 | binance | bybit",
+    )
     name: str = Field(..., min_length=1, max_length=255)
-    meta_api_account_id: str = Field(..., min_length=10)
-    token: str = Field(..., min_length=20, description="MetaAPI JWT token")
+    # MetaApi/MT5
+    meta_api_account_id: Optional[str] = Field(default=None, min_length=10)
+    token: Optional[str] = Field(default=None, min_length=20, description="MetaAPI JWT token")
+    # Crypto exchanges
+    api_key: Optional[str] = Field(default=None, min_length=5, description="Exchange API key (Binance/Bybit)")
+    api_secret: Optional[str] = Field(default=None, min_length=5, description="Exchange API secret (Binance/Bybit)")
     risk_pct: float = Field(default=1.0, ge=0.1, le=10.0)
     max_positions: int = Field(default=3, ge=1, le=20)
     run_mode: str = Field(default="LIVE")
@@ -49,6 +61,7 @@ class BrokerProfileCreate(BaseModel):
     model_config = {
         "json_schema_extra": {
             "example": {
+                "venue": "metaapi_mt5",
                 "name": "FTMO $50K Phase 1",
                 "meta_api_account_id": "a09b89c3-cf09-45e7-9125-d95ebc9afe96",
                 "token": "eyJ0eXAiOiJKV1Q...",
@@ -65,11 +78,30 @@ class BrokerProfileCreate(BaseModel):
         }
     }
 
+    @model_validator(mode="after")
+    def _validate_by_venue(self) -> "BrokerProfileCreate":
+        venue = (self.venue or "").strip().lower() or "metaapi_mt5"
+        if venue in {"metaapi", "metaapi_mt5", "mt5"}:
+            if not (self.meta_api_account_id or "").strip():
+                raise ValueError("meta_api_account_id is required for venue=metaapi_mt5")
+            if not (self.token or "").strip():
+                raise ValueError("token is required for venue=metaapi_mt5")
+        elif venue in {"binance", "bybit"}:
+            if not (self.api_key or "").strip() or not (self.api_secret or "").strip():
+                raise ValueError("api_key and api_secret are required for venue=binance/bybit")
+        else:
+            raise ValueError(f"Unsupported venue: {venue}")
+        self.venue = venue
+        return self
 
 class BrokerProfileUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
+    # MetaApi/MT5
     meta_api_account_id: Optional[str] = Field(None, min_length=10)
     token: Optional[str] = Field(None, min_length=20)
+    # Crypto exchanges
+    api_key: Optional[str] = Field(default=None, min_length=5)
+    api_secret: Optional[str] = Field(default=None, min_length=5)
     risk_pct: Optional[float] = Field(None, ge=0.1, le=10.0)
     max_positions: Optional[int] = Field(None, ge=1, le=20)
     run_mode: Optional[str] = None
@@ -79,8 +111,11 @@ class BrokerProfileUpdate(BaseModel):
 class BrokerProfileResponse(BaseModel):
     id: int
     name: str
-    meta_api_account_id: str
-    token_masked: str                   # Only last 8 chars shown for security
+    venue: str
+    meta_api_account_id: Optional[str] = None
+    token_masked: Optional[str] = None          # Only last chars shown for security
+    api_key_masked: Optional[str] = None
+    api_secret_masked: Optional[str] = None
     risk_pct: float
     max_positions: int
     run_mode: str
@@ -111,7 +146,7 @@ class TestConnectionResponse(BaseModel):
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 _SELECT = (
-    "id,name,meta_api_account_id,token,risk_pct,max_positions,"
+    "id,name,venue,meta_api_account_id,token,api_key,api_secret,risk_pct,max_positions,"
     "run_mode,is_active,selected_for_trading,connection_status,"
     "connection_error,last_tested_at,created_at,"
     # DB column is 'profit_target'; code calls it 'profit_target_usd' — mapped in _to_response
@@ -120,12 +155,12 @@ _SELECT = (
 )
 
 
-def _mask_token(token: Optional[str]) -> str:
-    """Show only last 8 chars of token for security."""
-    if not token:
+def _mask_secret(secret: Optional[str], last: int = 8) -> str:
+    """Show only last N chars of a secret for display."""
+    if not secret:
         return "***"
-    t = token.strip()
-    return f"***{t[-8:]}" if len(t) > 8 else "***"
+    s = str(secret).strip()
+    return f"***{s[-last:]}" if len(s) > last else "***"
 
 
 def _infer_account_type(row: Dict[str, Any]) -> str:
@@ -139,11 +174,15 @@ def _infer_account_type(row: Dict[str, Any]) -> str:
 
 
 def _to_response(row: Dict[str, Any]) -> BrokerProfileResponse:
+    venue = (row.get("venue") or "metaapi_mt5").strip().lower()
     return BrokerProfileResponse(
         id=row["id"],
         name=row["name"],
-        meta_api_account_id=row["meta_api_account_id"],
-        token_masked=_mask_token(row.get("token")),
+        venue=venue,
+        meta_api_account_id=row.get("meta_api_account_id"),
+        token_masked=_mask_secret(row.get("token"), last=8) if venue in {"metaapi", "metaapi_mt5", "mt5"} else None,
+        api_key_masked=_mask_secret(row.get("api_key"), last=6) if venue in {"binance", "bybit"} else None,
+        api_secret_masked=_mask_secret(row.get("api_secret"), last=4) if venue in {"binance", "bybit"} else None,
         risk_pct=float(row.get("risk_pct") or 1.0),
         max_positions=int(row.get("max_positions") or 3),
         run_mode=(row.get("run_mode") or "LIVE").upper(),
@@ -255,15 +294,48 @@ def list_broker_profiles():
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+def _test_binance_connection(api_key: str, api_secret: str) -> TestConnectionResponse:
+    """
+    Validate Binance API credentials by calling a signed futures endpoint.
+
+    Uses: GET /fapi/v2/account
+    """
+    ts = int(time.time() * 1000)
+    query = urlencode({"timestamp": ts})
+    sig = hmac.new(api_secret.encode(), query.encode(), hashlib.sha256).hexdigest()
+    url = f"https://fapi.binance.com/fapi/v2/account?{query}&signature={sig}"
+    try:
+        resp = requests.get(url, headers={"X-MBX-APIKEY": api_key}, timeout=15)
+        if resp.status_code == 200:
+            data = resp.json() or {}
+            bal = None
+            try:
+                bal = float(data.get("totalWalletBalance")) if data.get("totalWalletBalance") is not None else None
+            except (TypeError, ValueError):
+                bal = None
+            return TestConnectionResponse(
+                success=True,
+                message="Connected successfully",
+                balance=bal,
+            )
+        return TestConnectionResponse(success=False, message=f"Binance error {resp.status_code}: {resp.text[:120]}")
+    except Exception as exc:  # noqa: BLE001
+        return TestConnectionResponse(success=False, message=f"Binance connection test failed: {str(exc)[:120]}")
+
+
 @router.post("", response_model=BrokerProfileResponse, status_code=201)
 def create_broker_profile(body: BrokerProfileCreate):
-    """Create a new broker profile with MetaAPI credentials stored in DB."""
+    """Create a new broker profile. Credentials are stored in DB (masked in API responses)."""
     try:
         sb = _get_supabase()
+        venue = (body.venue or "metaapi_mt5").strip().lower()
         payload = {
             "name": body.name,
-            "meta_api_account_id": body.meta_api_account_id.strip(),
-            "token": body.token.strip(),
+            "venue": venue,
+            "meta_api_account_id": (body.meta_api_account_id or "").strip() or None,
+            "token": (body.token or "").strip() or None,
+            "api_key": (body.api_key or "").strip() or None,
+            "api_secret": (body.api_secret or "").strip() or None,
             "token_env_key": "META_API_TOKEN",   # legacy fallback key
             "risk_pct": body.risk_pct,
             "max_positions": body.max_positions,
@@ -284,6 +356,21 @@ def create_broker_profile(body: BrokerProfileCreate):
         # prop_firm_name is only in some DB versions — add if column exists
         if body.prop_firm_name:
             payload["prop_firm_name"] = body.prop_firm_name
+
+        # Enforce per-venue required fields (defense-in-depth; validator also checks)
+        if venue in {"metaapi", "metaapi_mt5", "mt5"}:
+            if not payload["meta_api_account_id"] or not payload["token"]:
+                raise HTTPException(status_code=422, detail="meta_api_account_id and token are required for metaapi_mt5")
+            payload["api_key"] = None
+            payload["api_secret"] = None
+        elif venue in {"binance", "bybit"}:
+            if not payload["api_key"] or not payload["api_secret"]:
+                raise HTTPException(status_code=422, detail="api_key and api_secret are required for binance/bybit")
+            payload["meta_api_account_id"] = None
+            payload["token"] = None
+        else:
+            raise HTTPException(status_code=422, detail=f"Unsupported venue: {venue}")
+
         resp = sb.table("broker_profiles").insert(payload).execute()
         rows = resp.data or []
         if not rows:
@@ -309,6 +396,18 @@ def update_broker_profile(profile_id: int, body: BrokerProfileUpdate):
     """Update broker profile fields. Only provided fields are updated."""
     try:
         sb = _get_supabase()
+        current = (
+            sb.table("broker_profiles")
+            .select("id, venue")
+            .eq("id", profile_id)
+            .limit(1)
+            .execute()
+        )
+        cur_rows = current.data or []
+        if not cur_rows:
+            raise HTTPException(status_code=404, detail=f"Profile {profile_id} not found")
+        venue = (cur_rows[0].get("venue") or "metaapi_mt5").strip().lower()
+
         # Build patch dict from non-None fields only
         patch: Dict[str, Any] = {}
         if body.name is not None:
@@ -318,6 +417,16 @@ def update_broker_profile(profile_id: int, body: BrokerProfileUpdate):
         if body.token is not None:
             patch["token"] = body.token.strip()
             patch["connection_status"] = "unknown"   # reset status on credential change
+            patch["connection_error"] = None
+            patch["last_tested_at"] = None
+        if body.api_key is not None:
+            patch["api_key"] = body.api_key.strip()
+            patch["connection_status"] = "unknown"
+            patch["connection_error"] = None
+            patch["last_tested_at"] = None
+        if body.api_secret is not None:
+            patch["api_secret"] = body.api_secret.strip()
+            patch["connection_status"] = "unknown"
             patch["connection_error"] = None
             patch["last_tested_at"] = None
         if body.risk_pct is not None:
@@ -332,6 +441,14 @@ def update_broker_profile(profile_id: int, body: BrokerProfileUpdate):
             # an inactive account being returned as primary credential
             if not body.is_active:
                 patch["selected_for_trading"] = False
+
+        # Venue-specific guardrails
+        if venue in {"metaapi", "metaapi_mt5", "mt5"}:
+            if "api_key" in patch or "api_secret" in patch:
+                raise HTTPException(status_code=422, detail="api_key/api_secret updates are not valid for metaapi_mt5 profiles")
+        if venue in {"binance", "bybit"}:
+            if "meta_api_account_id" in patch or "token" in patch:
+                raise HTTPException(status_code=422, detail="meta_api_account_id/token updates are not valid for crypto profiles")
 
         if not patch:
             raise HTTPException(status_code=422, detail="No fields to update")
@@ -429,15 +546,15 @@ def activate_broker_profile(profile_id: int):
 @router.post("/{profile_id}/test", response_model=TestConnectionResponse)
 def test_broker_profile_connection(profile_id: int):
     """
-    Test MetaAPI connectivity for a broker profile.
+    Test broker connectivity for a broker profile.
     Updates connection_status and last_tested_at in DB.
     """
     try:
         sb = _get_supabase()
-        # Fetch token + account_id from DB
+        # Fetch creds from DB
         resp = (
             sb.table("broker_profiles")
-            .select("id, token, meta_api_account_id, token_env_key")
+            .select("id, venue, token, meta_api_account_id, token_env_key, api_key, api_secret")
             .eq("id", profile_id)
             .limit(1)
             .execute()
@@ -447,23 +564,35 @@ def test_broker_profile_connection(profile_id: int):
             raise HTTPException(status_code=404, detail=f"Profile {profile_id} not found")
 
         row = rows[0]
-        token = (row.get("token") or "").strip()
-        if not token:
-            # Fall back to env var
-            env_key = (row.get("token_env_key") or "META_API_TOKEN").strip()
-            token = os.environ.get(env_key, "").strip()
-        if not token:
-            raise HTTPException(
-                status_code=422,
-                detail="No token set for this profile. Add a token before testing.",
-            )
+        venue = (row.get("venue") or "metaapi_mt5").strip().lower()
+        if venue in {"metaapi", "metaapi_mt5", "mt5"}:
+            token = (row.get("token") or "").strip()
+            if not token:
+                # Fall back to env var
+                env_key = (row.get("token_env_key") or "META_API_TOKEN").strip()
+                token = os.environ.get(env_key, "").strip()
+            if not token:
+                raise HTTPException(
+                    status_code=422,
+                    detail="No token set for this profile. Add a token before testing.",
+                )
 
-        account_id = str(row.get("meta_api_account_id") or "").strip()
-        if not account_id:
-            raise HTTPException(status_code=422, detail="No account ID set for this profile.")
+            account_id = str(row.get("meta_api_account_id") or "").strip()
+            if not account_id:
+                raise HTTPException(status_code=422, detail="No MetaAPI account ID set for this profile.")
 
-        # Run the connection test
-        result = _test_metaapi_connection(token, account_id)
+            result = _test_metaapi_connection(token, account_id)
+        elif venue == "binance":
+            api_key = (row.get("api_key") or "").strip()
+            api_secret = (row.get("api_secret") or "").strip()
+            if not api_key or not api_secret:
+                raise HTTPException(status_code=422, detail="No Binance api_key/api_secret set for this profile.")
+            result = _test_binance_connection(api_key, api_secret)
+        elif venue == "bybit":
+            # Bybit auth-validation differs by endpoint; implement later.
+            result = TestConnectionResponse(success=False, message="Bybit test not implemented yet")
+        else:
+            raise HTTPException(status_code=422, detail=f"Unsupported venue: {venue}")
 
         # Persist result to DB
         now = datetime.now(timezone.utc).isoformat()

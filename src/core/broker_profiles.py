@@ -40,27 +40,47 @@ def get_active_profiles() -> List[Dict[str, Any]]:
             client = create_client(s.supabase_url, key)
             r = (
                 client.table("broker_profiles")
-                .select("id, name, meta_api_account_id, token, token_env_key, risk_pct, max_positions, run_mode, evaluation_mode, evaluation_phase, consistency_enabled")
+                .select(
+                    "id, name, venue, meta_api_account_id, token, token_env_key, "
+                    "api_key, api_secret, "
+                    "risk_pct, max_positions, run_mode, "
+                    "evaluation_mode, evaluation_phase, consistency_enabled"
+                )
                 .eq("is_active", True)
                 .execute()
             )
             if r.data and len(r.data) > 0:
                 out = []
                 for row in r.data:
-                    # Prefer token stored directly in DB; fall back to env var
-                    token = (row.get("token") or "").strip()
-                    if not token:
-                        env_key = (row.get("token_env_key") or "META_API_TOKEN").strip()
-                        token = (os.environ.get(env_key) or getattr(s, "meta_api_token", "") or "").strip()
-                    if not token:
-                        env_key = (row.get("token_env_key") or "META_API_TOKEN").strip()
-                        logger.warning("Broker profile %s: no token in DB or env %s", row.get("name"), env_key)
-                        continue
+                    venue = (row.get("venue") or "metaapi_mt5").strip().lower()
+                    token = ""
+                    api_key = ""
+                    api_secret = ""
+
+                    if venue in {"binance", "bybit"}:
+                        api_key = (row.get("api_key") or "").strip()
+                        api_secret = (row.get("api_secret") or "").strip()
+                        if not api_key or not api_secret:
+                            logger.warning("Broker profile %s: missing %s API keys in DB", row.get("name"), venue)
+                            continue
+                    else:
+                        # Prefer token stored directly in DB; fall back to env var
+                        token = (row.get("token") or "").strip()
+                        if not token:
+                            env_key = (row.get("token_env_key") or "META_API_TOKEN").strip()
+                            token = (os.environ.get(env_key) or getattr(s, "meta_api_token", "") or "").strip()
+                        if not token:
+                            env_key = (row.get("token_env_key") or "META_API_TOKEN").strip()
+                            logger.warning("Broker profile %s: no token in DB or env %s", row.get("name"), env_key)
+                            continue
                     out.append({
                         "id": row.get("id"),
                         "name": row.get("name") or "profile",
+                        "venue": venue,
                         "meta_api_account_id": str(row.get("meta_api_account_id", "")).strip(),
                         "token": token,
+                        "api_key": api_key,
+                        "api_secret": api_secret,
                         "risk_pct": float(row.get("risk_pct", 1.0)),
                         "max_positions": int(row.get("max_positions", 3)),
                         "run_mode": (row.get("run_mode") or "LIVE").upper(),

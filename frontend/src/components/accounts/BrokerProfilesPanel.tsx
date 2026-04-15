@@ -16,8 +16,11 @@ import { apiFetch } from '@/lib/api';
 export interface BrokerProfile {
   id: number;
   name: string;
-  meta_api_account_id: string;
-  token_masked: string;
+  venue: 'metaapi_mt5' | 'binance' | 'bybit';
+  meta_api_account_id?: string | null;
+  token_masked?: string | null;
+  api_key_masked?: string | null;
+  api_secret_masked?: string | null;
   risk_pct: number;
   max_positions: number;
   run_mode: string;
@@ -125,12 +128,16 @@ function PropFirmSelect({ value, onChange }: { value: string; onChange: (v: stri
 
 type AccountType = 'personal' | 'evaluation' | 'funded';
 type WizardStep = 1 | 2 | 3;
+type Venue = BrokerProfile['venue'];
 
 interface WizardForm {
   accountType: AccountType;
+  venue: Venue;
   name: string;
   meta_api_account_id: string;
   token: string;
+  api_key: string;
+  api_secret: string;
   risk_pct: number;
   max_positions: number;
   prop_firm_name: string;
@@ -143,7 +150,9 @@ interface WizardForm {
 function defaultForm(type: AccountType): WizardForm {
   return {
     accountType: type,
+    venue: 'metaapi_mt5',
     name: '', meta_api_account_id: '', token: '',
+    api_key: '', api_secret: '',
     risk_pct: 1.0, max_positions: 3,
     prop_firm_name: '', evaluation_phase: 'phase1',
     max_daily_loss_pct: '', max_drawdown_pct: '', profit_target_usd: '',
@@ -230,7 +239,12 @@ function DetailsStep({ form, onChange, onBack, onNext }: {
   const set = (patch: Partial<WizardForm>) => onChange({ ...form, ...patch });
   const isPropFirm = form.accountType !== 'personal';
   const isEval = form.accountType === 'evaluation';
-  const invalid = !form.name || !form.meta_api_account_id || !form.token;
+  const isCrypto = form.venue === 'binance' || form.venue === 'bybit';
+  const invalid = !form.name || (
+    isCrypto
+      ? !form.api_key || !form.api_secret
+      : !form.meta_api_account_id || !form.token
+  );
 
   return (
     <div className="space-y-4">
@@ -246,6 +260,22 @@ function DetailsStep({ form, onChange, onBack, onNext }: {
         {/* Shared fields */}
         <InputField label="Account Name" required>
           <input className={inputCls} placeholder={isPropFirm ? 'FTMO $50K Phase 1' : 'IC Markets Live'} value={form.name} onChange={e => set({ name: e.target.value })} />
+        </InputField>
+
+        <InputField label="Venue" required>
+          <select
+            className={inputCls}
+            value={form.venue}
+            onChange={(e) => set({ venue: e.target.value as Venue })}
+            disabled={isPropFirm} // keep prop-firm profiles on MT5/MetaApi for now
+          >
+            <option value="metaapi_mt5">MT5 (MetaApi)</option>
+            <option value="binance">Binance</option>
+            <option value="bybit">Bybit</option>
+          </select>
+          {isPropFirm && (
+            <p className="mt-1 text-[10px] text-[var(--to-text-dim)]">Prop firm accounts use MT5 (MetaApi) in v1.</p>
+          )}
         </InputField>
 
         {isPropFirm && (
@@ -276,24 +306,48 @@ function DetailsStep({ form, onChange, onBack, onNext }: {
           </InputField>
         )}
 
-        <InputField label="MetaAPI Account ID" required>
-          <input className={cn(inputCls, 'font-mono')} placeholder="a09b89c3-cf09-45e7-…" value={form.meta_api_account_id} onChange={e => set({ meta_api_account_id: e.target.value })} />
-        </InputField>
+        {!isCrypto ? (
+          <>
+            <InputField label="MetaAPI Account ID" required>
+              <input className={cn(inputCls, 'font-mono')} placeholder="a09b89c3-cf09-45e7-…" value={form.meta_api_account_id} onChange={e => set({ meta_api_account_id: e.target.value })} />
+            </InputField>
 
-        <InputField label="MetaAPI Token" required>
-          <div className="relative">
-            <input
-              className={cn(inputCls, 'font-mono pr-9')}
-              placeholder="eyJ0eXAiOiJKV1Q…"
-              type={showToken ? 'text' : 'password'}
-              value={form.token}
-              onChange={e => set({ token: e.target.value })}
-            />
-            <button type="button" onClick={() => setShowToken(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--to-text-dim)] hover:text-[var(--to-text-primary)]">
-              {showToken ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-            </button>
-          </div>
-        </InputField>
+            <InputField label="MetaAPI Token" required>
+              <div className="relative">
+                <input
+                  className={cn(inputCls, 'font-mono pr-9')}
+                  placeholder="eyJ0eXAiOiJKV1Q…"
+                  type={showToken ? 'text' : 'password'}
+                  value={form.token}
+                  onChange={e => set({ token: e.target.value })}
+                />
+                <button type="button" onClick={() => setShowToken(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--to-text-dim)] hover:text-[var(--to-text-primary)]">
+                  {showToken ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                </button>
+              </div>
+            </InputField>
+          </>
+        ) : (
+          <>
+            <InputField label={`${form.venue === 'binance' ? 'Binance' : 'Bybit'} API Key`} required>
+              <input className={cn(inputCls, 'font-mono')} placeholder="api-key…" value={form.api_key} onChange={e => set({ api_key: e.target.value })} />
+            </InputField>
+            <InputField label={`${form.venue === 'binance' ? 'Binance' : 'Bybit'} API Secret`} required>
+              <div className="relative">
+                <input
+                  className={cn(inputCls, 'font-mono pr-9')}
+                  placeholder="api-secret…"
+                  type={showToken ? 'text' : 'password'}
+                  value={form.api_secret}
+                  onChange={e => set({ api_secret: e.target.value })}
+                />
+                <button type="button" onClick={() => setShowToken(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--to-text-dim)] hover:text-[var(--to-text-primary)]">
+                  {showToken ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                </button>
+              </div>
+            </InputField>
+          </>
+        )}
 
         <InputField label="Risk % per trade">
           <input className={inputCls} type="number" min="0.1" max="10" step="0.1" value={form.risk_pct} onChange={e => set({ risk_pct: parseFloat(e.target.value) || 1 })} />
@@ -305,7 +359,7 @@ function DetailsStep({ form, onChange, onBack, onNext }: {
       </div>
 
       {/* Advanced risk rules for prop firm accounts */}
-      {isPropFirm && (
+      {isPropFirm && !isCrypto && (
         <div className="rounded-xl border border-[var(--to-border)]/60 bg-[var(--to-surface-raised)]/40">
           <button
             type="button"
@@ -352,13 +406,20 @@ function ReviewStep({ form, onBack, onSave, isSaving }: {
   isSaving: boolean;
 }) {
   const typeInfo = ACCOUNT_TYPE_OPTIONS.find(o => o.type === form.accountType)!;
+  const isCrypto = form.venue === 'binance' || form.venue === 'bybit';
   const rows = [
     { label: 'Type', value: `${typeInfo.emoji} ${typeInfo.label}` },
     { label: 'Name', value: form.name },
+    { label: 'Venue', value: form.venue === 'metaapi_mt5' ? 'MT5 (MetaApi)' : form.venue.toUpperCase() },
     ...(form.prop_firm_name ? [{ label: 'Prop Firm', value: form.prop_firm_name }] : []),
     ...(form.accountType === 'evaluation' ? [{ label: 'Phase', value: form.evaluation_phase === 'phase1' ? 'Phase 1' : 'Phase 2' }] : []),
-    { label: 'Account ID', value: `${form.meta_api_account_id.slice(0, 8)}…` },
-    { label: 'Token', value: `••••••••${form.token.slice(-4)}` },
+    ...(!isCrypto ? [
+      { label: 'Account ID', value: `${form.meta_api_account_id.slice(0, 8)}…` },
+      { label: 'Token', value: `••••••••${form.token.slice(-4)}` },
+    ] : [
+      { label: 'API Key', value: `••••••${form.api_key.slice(-4)}` },
+      { label: 'API Secret', value: `••••••${form.api_secret.slice(-4)}` },
+    ]),
     { label: 'Risk %', value: `${form.risk_pct}%` },
     { label: 'Max Positions', value: String(form.max_positions) },
     ...(form.max_daily_loss_pct ? [{ label: 'Max Daily Loss', value: `${form.max_daily_loss_pct}%` }] : []),
@@ -398,9 +459,15 @@ function AddAccountWizard({ onSuccess, onCancel }: { onSuccess: () => void; onCa
 
   const save = useMutation({
     mutationFn: (f: WizardForm) => createProfile({
+      venue: f.venue,
       name: f.name,
-      meta_api_account_id: f.meta_api_account_id,
-      token: f.token,
+      ...(f.venue === 'metaapi_mt5' ? {
+        meta_api_account_id: f.meta_api_account_id,
+        token: f.token,
+      } : {
+        api_key: f.api_key,
+        api_secret: f.api_secret,
+      }),
       risk_pct: f.risk_pct,
       max_positions: f.max_positions,
       account_type: f.accountType,
@@ -422,7 +489,7 @@ function AddAccountWizard({ onSuccess, onCancel }: { onSuccess: () => void; onCa
     <div className="border border-[var(--to-warning)]/30 rounded-xl bg-[var(--to-warning)]/5 p-4 space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-xs font-semibold text-[var(--to-text-primary)] flex items-center gap-2">
-          <Plus className="h-3.5 w-3.5 text-[var(--to-warning)]" /> Add MetaAPI Account
+          <Plus className="h-3.5 w-3.5 text-[var(--to-warning)]" /> Add Account
         </h3>
         <StepIndicator step={step} />
       </div>
@@ -481,7 +548,9 @@ function ProfileRow({ profile }: { profile: BrokerProfile }) {
   const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(false);
   const copyAccountId = () => {
-    navigator.clipboard.writeText(profile.meta_api_account_id).then(() => {
+    const v = profile.meta_api_account_id || '';
+    if (!v) return;
+    navigator.clipboard.writeText(v).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     });
@@ -495,8 +564,10 @@ function ProfileRow({ profile }: { profile: BrokerProfile }) {
   // Edit form state
   const [editForm, setEditForm] = useState({
     name: profile.name,
-    meta_api_account_id: profile.meta_api_account_id,
+    meta_api_account_id: profile.meta_api_account_id || '',
     token: '',
+    api_key: '',
+    api_secret: '',
     risk_pct: profile.risk_pct,
     max_positions: profile.max_positions,
   });
@@ -505,8 +576,13 @@ function ProfileRow({ profile }: { profile: BrokerProfile }) {
   const update = useMutation({
     mutationFn: () => updateProfile(profile.id, {
       name: editForm.name || undefined,
-      meta_api_account_id: editForm.meta_api_account_id || undefined,
-      ...(editForm.token ? { token: editForm.token } : {}),
+      ...(profile.venue === 'metaapi_mt5' ? {
+        meta_api_account_id: editForm.meta_api_account_id || undefined,
+        ...(editForm.token ? { token: editForm.token } : {}),
+      } : {
+        ...(editForm.api_key ? { api_key: editForm.api_key } : {}),
+        ...(editForm.api_secret ? { api_secret: editForm.api_secret } : {}),
+      }),
       risk_pct: editForm.risk_pct,
       max_positions: editForm.max_positions,
     }),
@@ -584,17 +660,26 @@ function ProfileRow({ profile }: { profile: BrokerProfile }) {
                 <span className="text-[9px] text-[var(--to-text-dim)] bg-[var(--to-surface-raised)] border border-[var(--to-border)] rounded px-1.5 py-0.5">{profile.prop_firm_name}</span>
               )}
             </div>
-            <div className="flex items-center gap-1 group/id">
-              <span className="text-[10px] font-mono text-[var(--to-text-dim)] truncate">{profile.meta_api_account_id}</span>
-              <button
-                type="button"
-                title="Copy full account ID"
-                onClick={copyAccountId}
-                className="shrink-0 opacity-0 group-hover/id:opacity-100 transition-opacity text-[var(--to-text-dim)] hover:text-[var(--to-text-primary)]"
-              >
-                {copied ? <Check className="h-3 w-3 text-[var(--to-long)]" /> : <Copy className="h-3 w-3" />}
-              </button>
-            </div>
+            {profile.venue === 'metaapi_mt5' ? (
+              <div className="flex items-center gap-1 group/id">
+                <span className="text-[10px] font-mono text-[var(--to-text-dim)] truncate">{profile.meta_api_account_id}</span>
+                <button
+                  type="button"
+                  title="Copy full account ID"
+                  onClick={copyAccountId}
+                  className="shrink-0 opacity-0 group-hover/id:opacity-100 transition-opacity text-[var(--to-text-dim)] hover:text-[var(--to-text-primary)]"
+                >
+                  {copied ? <Check className="h-3 w-3 text-[var(--to-long)]" /> : <Copy className="h-3 w-3" />}
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 text-[10px] font-mono text-[var(--to-text-dim)]">
+                <span className="rounded px-1.5 py-0.5 border border-[var(--to-border)] bg-[var(--to-surface-raised)]">
+                  {profile.venue.toUpperCase()}
+                </span>
+                <span>Key: {profile.api_key_masked || '***'}</span>
+              </div>
+            )}
           </div>
         </div>
         <ConnectionBadge status={profile.connection_status} error={profile.connection_error} />
@@ -604,7 +689,7 @@ function ProfileRow({ profile }: { profile: BrokerProfile }) {
         <span>Risk: {profile.risk_pct}%</span>
         <span>Max pos: {profile.max_positions}</span>
         <span>Mode: {profile.run_mode}</span>
-        <span>Token: {profile.token_masked}</span>
+        <span>{profile.venue === 'metaapi_mt5' ? `Token: ${profile.token_masked || '***'}` : `Secret: ${profile.api_secret_masked || '***'}`}</span>
         {profile.evaluation_phase && profile.account_type !== 'personal' && (
           <span>Phase: {profile.evaluation_phase === 'funded' ? 'Funded' : profile.evaluation_phase === 'phase1' ? 'Phase 1' : 'Phase 2'}</span>
         )}
@@ -618,23 +703,46 @@ function ProfileRow({ profile }: { profile: BrokerProfile }) {
             <InputField label="Name">
               <input className={inputCls} value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
             </InputField>
-            <InputField label="Account ID">
-              <input className={cn(inputCls, 'font-mono')} value={editForm.meta_api_account_id} onChange={e => setEditForm(f => ({ ...f, meta_api_account_id: e.target.value }))} />
-            </InputField>
-            <InputField label="New Token (leave blank to keep current)">
-              <div className="relative">
-                <input
-                  className={cn(inputCls, 'font-mono pr-9')}
-                  type={showEditToken ? 'text' : 'password'}
-                  placeholder="Paste new token only if rotating…"
-                  value={editForm.token}
-                  onChange={e => setEditForm(f => ({ ...f, token: e.target.value }))}
-                />
-                <button type="button" onClick={() => setShowEditToken(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--to-text-dim)] hover:text-[var(--to-text-primary)]">
-                  {showEditToken ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                </button>
-              </div>
-            </InputField>
+            {profile.venue === 'metaapi_mt5' ? (
+              <>
+                <InputField label="Account ID">
+                  <input className={cn(inputCls, 'font-mono')} value={editForm.meta_api_account_id} onChange={e => setEditForm(f => ({ ...f, meta_api_account_id: e.target.value }))} />
+                </InputField>
+                <InputField label="New Token (leave blank to keep current)">
+                  <div className="relative">
+                    <input
+                      className={cn(inputCls, 'font-mono pr-9')}
+                      type={showEditToken ? 'text' : 'password'}
+                      placeholder="Paste new token only if rotating…"
+                      value={editForm.token}
+                      onChange={e => setEditForm(f => ({ ...f, token: e.target.value }))}
+                    />
+                    <button type="button" onClick={() => setShowEditToken(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--to-text-dim)] hover:text-[var(--to-text-primary)]">
+                      {showEditToken ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
+                </InputField>
+              </>
+            ) : (
+              <>
+                <InputField label="New API Key (leave blank to keep current)">
+                  <input className={cn(inputCls, 'font-mono')} value={editForm.api_key} onChange={e => setEditForm(f => ({ ...f, api_key: e.target.value }))} />
+                </InputField>
+                <InputField label="New API Secret (leave blank to keep current)">
+                  <div className="relative">
+                    <input
+                      className={cn(inputCls, 'font-mono pr-9')}
+                      type={showEditToken ? 'text' : 'password'}
+                      value={editForm.api_secret}
+                      onChange={e => setEditForm(f => ({ ...f, api_secret: e.target.value }))}
+                    />
+                    <button type="button" onClick={() => setShowEditToken(v => !v)} className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--to-text-dim)] hover:text-[var(--to-text-primary)]">
+                      {showEditToken ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
+                </InputField>
+              </>
+            )}
             <InputField label="Risk %">
               <input className={inputCls} type="number" min="0.1" max="10" step="0.1" value={editForm.risk_pct} onChange={e => setEditForm(f => ({ ...f, risk_pct: parseFloat(e.target.value) || 1 }))} />
             </InputField>
@@ -654,7 +762,14 @@ function ProfileRow({ profile }: { profile: BrokerProfile }) {
       )}
 
       <div className="flex flex-wrap items-center gap-2">
-        <Button size="sm" variant="outline" className="h-7 text-[11px] gap-1.5 border-[var(--to-border)] text-[var(--to-text-secondary)]" disabled={isTesting} onClick={handleTest}>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-[11px] gap-1.5 border-[var(--to-border)] text-[var(--to-text-secondary)]"
+          disabled={isTesting || profile.venue === 'bybit'}
+          onClick={handleTest}
+          title={profile.venue === 'bybit' ? 'Bybit connection test not implemented yet' : undefined}
+        >
           {isTesting ? <Loader2 className="h-3 w-3 animate-spin" /> : <RadioTower className="h-3 w-3" />} Test
         </Button>
         <Button size="sm" variant="ghost" className="h-7 text-[11px] gap-1.5 text-[var(--to-text-dim)] hover:text-[var(--to-warning)]" onClick={() => { setEditing(v => !v); setTestResult(null); }}>
@@ -721,7 +836,7 @@ export function BrokerProfilesPanel() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Server className="h-4 w-4 text-[var(--to-warning)]" />
-          <h2 className="text-sm font-semibold text-[var(--to-text-primary)]">MetaAPI Broker Accounts</h2>
+          <h2 className="text-sm font-semibold text-[var(--to-text-primary)]">Broker Accounts</h2>
           {profiles && profiles.length > 0 && (
             <span className="text-[10px] text-[var(--to-text-dim)] bg-[var(--to-surface-raised)] border border-[var(--to-border)] rounded px-1.5 py-0.5">
               {profiles.length} {profiles.length === 1 ? 'account' : 'accounts'}
@@ -736,7 +851,7 @@ export function BrokerProfilesPanel() {
       </div>
 
       <p className="text-[11px] text-[var(--to-text-dim)] leading-relaxed">
-        Store MetaAPI credentials securely in the database. <strong>Test</strong> to validate connectivity, then <strong>Activate</strong> to route all new trades through that account.
+        Store broker/exchange credentials in the database. <strong>Test</strong> validates connectivity where supported, then <strong>Activate</strong> routes new trades through that account.
       </p>
 
       {showAdd && <AddAccountWizard onSuccess={() => setShowAdd(false)} onCancel={() => setShowAdd(false)} />}

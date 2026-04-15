@@ -32,7 +32,7 @@ export default function AccountsPage() {
         >
           <span className='flex items-center gap-2'>
             <Settings2 className='h-4 w-4 text-[var(--to-warning)]' />
-            Manage MetaAPI Credentials
+            Manage Broker Credentials
           </span>
           {credentialsOpen ? (
             <ChevronUp className='h-4 w-4' />
