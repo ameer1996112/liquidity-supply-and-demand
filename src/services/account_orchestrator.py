@@ -105,6 +105,78 @@ class AccountOrchestrator:
         """
         self.client = supabase_client
 
+    def _fetch_live_profile_snapshot(self, profile: dict) -> dict:
+        """
+        Best-effort live account snapshot for broker-profile-only cards.
+
+        These profiles can exist in broker_profiles before an account_strategies row
+        is created, but we still want the dashboard to show real broker balance/equity
+        instead of a placeholder card.
+        """
+        result = {
+            "balance": _coerce_amount(profile.get("starting_balance")),
+            "equity": _coerce_amount(profile.get("starting_balance")),
+            "free_margin": None,
+            "margin_used": 0.0,
+            "margin_level_pct": None,
+            "server_name": None,
+            "platform_type": profile.get("venue"),
+            "leverage": None,
+            "last_sync_time": None,
+            "connection_status": profile.get("connection_status", "unknown"),
+        }
+
+        try:
+            from config import get_settings
+            from src.adapters.execution.router import get_adapter
+
+            adapter = get_adapter(profile=profile, settings=get_settings())
+            if hasattr(adapter, "get_account_information"):
+                account_info = adapter.get_account_information()
+                if account_info:
+                    live_balance = _coerce_amount(account_info.get("balance"))
+                    live_equity = _coerce_amount(account_info.get("equity"))
+                    result["balance"] = live_balance if live_balance is not None else result["balance"]
+                    result["equity"] = live_equity if live_equity is not None else result["equity"]
+                    result["free_margin"] = float(
+                        account_info.get("freeMargin")
+                        or account_info.get("free_margin")
+                        or 0
+                    )
+                    result["margin_used"] = float(account_info.get("margin", 0))
+                    if result["free_margin"] and result["margin_used"] and result["margin_used"] > 0:
+                        result["margin_level_pct"] = (
+                            (result["free_margin"] + result["margin_used"]) / result["margin_used"]
+                        ) * 100
+                    result["server_name"] = account_info.get("server") or account_info.get("broker")
+                    result["platform_type"] = account_info.get("platform", result["platform_type"])
+                    result["leverage"] = (
+                        int(account_info.get("leverage"))
+                        if account_info.get("leverage")
+                        else None
+                    )
+                    result["connection_status"] = "connected"
+                    logger.info(
+                        "Fetched live data for standalone profile %s: balance=$%.2f, equity=$%.2f",
+                        profile.get("name") or profile.get("id"),
+                        result["balance"] or 0.0,
+                        result["equity"] or 0.0,
+                    )
+
+            snapshot = self.client.table("account_status_snapshots").select("snapshot_time").eq(
+                "broker_profile_id", profile.get("id")
+            ).order("snapshot_time", desc=True).limit(1).maybe_single().execute()
+            if snapshot.data:
+                result["last_sync_time"] = snapshot.data.get("snapshot_time")
+        except Exception as exc:
+            logger.warning(
+                "Failed to fetch live data for standalone profile %s: %s",
+                profile.get("name") or profile.get("id"),
+                exc,
+            )
+
+        return result
+
     def get_account_performance(
         self,
         account_name: str,
@@ -706,17 +778,18 @@ class AccountOrchestrator:
                 account_name = profile.get("name") or f"Profile-{profile.get('id')}"
                 if account_name in known_names:
                     return None
+                live_data = self._fetch_live_profile_snapshot(profile)
                 return {
                     "account_name": account_name,
                     "account_type": _derive_account_type(profile),
                     "strategy_type": "BROKER_PROFILE",
-                    "connection_status": profile.get("connection_status", "unknown"),
-                    "status": profile.get("connection_status", "unknown"),
-                    "balance": _coerce_amount(profile.get("starting_balance")),
-                    "equity": _coerce_amount(profile.get("starting_balance")),
-                    "free_margin": None,
-                    "margin_used": 0.0,
-                    "margin_level_pct": None,
+                    "connection_status": live_data["connection_status"],
+                    "status": live_data["connection_status"],
+                    "balance": live_data["balance"],
+                    "equity": live_data["equity"],
+                    "free_margin": live_data["free_margin"],
+                    "margin_used": live_data["margin_used"],
+                    "margin_level_pct": live_data["margin_level_pct"],
                     "floating_pnl": 0.0,
                     "realized_pnl_today": 0.0,
                     "daily_pnl": 0.0,
@@ -737,10 +810,10 @@ class AccountOrchestrator:
                     "allocated_capital_usd": 0.0,
                     "pause_trading": False,
                     "broker_profile_id": profile.get("id"),
-                    "last_sync_time": None,
-                    "server_name": None,
-                    "platform_type": profile.get("venue"),
-                    "leverage": None,
+                    "last_sync_time": live_data["last_sync_time"],
+                    "server_name": live_data["server_name"],
+                    "platform_type": live_data["platform_type"],
+                    "leverage": live_data["leverage"],
                     "created_at": None,
                     "updated_at": None,
                     "is_archived": False,
