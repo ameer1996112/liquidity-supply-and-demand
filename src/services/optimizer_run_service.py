@@ -55,6 +55,8 @@ class OptimizerRunRepository(Protocol):
     def list_results(self, run_id: str) -> list[dict[str, Any]]: ...
     def append_event(self, payload: dict[str, Any]) -> dict[str, Any]: ...
     def list_events(self, run_id: str, *, limit: int = 200) -> list[dict[str, Any]]: ...
+    def create_rule_suggestion(self, payload: dict[str, Any]) -> dict[str, Any]: ...
+    def supersede_rule_suggestions(self, symbol: str) -> None: ...
 
 
 class SupabaseOptimizerRunRepository:
@@ -164,6 +166,19 @@ class SupabaseOptimizerRunRepository:
         )
         return resp.data or []
 
+    def create_rule_suggestion(self, payload: dict[str, Any]) -> dict[str, Any]:
+        resp = self._sb.table("symbol_risk_rule_suggestions").insert(payload).execute()
+        return resp.data[0] if resp.data else payload
+
+    def supersede_rule_suggestions(self, symbol: str) -> None:
+        (
+            self._sb.table("symbol_risk_rule_suggestions")
+            .update({"status": "superseded"})
+            .eq("symbol", symbol.upper().strip())
+            .eq("status", "pending")
+            .execute()
+        )
+
 
 @dataclass
 class _ManagedProcess:
@@ -263,6 +278,26 @@ class OptimizerRunService:
         )
         return result
 
+    def _persist_rule_suggestion(self, run_id: str, symbol: str, metrics: dict[str, Any]) -> None:
+        required = ("risk_percent", "max_lot_size", "pip_size", "pip_value_per_lot")
+        if not all(metrics.get(key) is not None for key in required):
+            return
+        normalized_symbol = symbol.upper().strip()
+        self._repository.supersede_rule_suggestions(normalized_symbol)
+        self._repository.create_rule_suggestion(
+            {
+                "symbol": normalized_symbol,
+                "optimizer_run_id": run_id,
+                "suggested_risk_percent": float(metrics["risk_percent"]),
+                "suggested_max_lot_size": float(metrics["max_lot_size"]),
+                "suggested_pip_size": float(metrics["pip_size"]),
+                "suggested_pip_value_per_lot": float(metrics["pip_value_per_lot"]),
+                "status": "pending",
+                "source_payload": metrics,
+                "created_at": _utc_now(),
+            }
+        )
+
     def push_event(self, run_id: str, event: dict[str, Any]) -> dict[str, Any]:
         """Push a timeline event from the local agent."""
         run = self._repository.get_run(run_id)
@@ -356,16 +391,18 @@ class OptimizerRunService:
         if event_type == "pair_started" and symbol:
             self._repository.update_result(run_id, symbol, {"status": "running", "started_at": now})
         elif event_type == "pair_completed" and symbol:
+            metrics = event.get("metrics", {})
             self._repository.update_result(
                 run_id,
                 symbol,
                 {
                     "status": "completed",
                     "params": event.get("params", {}),
-                    "metrics": event.get("metrics", {}),
+                    "metrics": metrics,
                     "finished_at": now,
                 },
             )
+            self._persist_rule_suggestion(run_id, symbol, metrics)
         elif event_type == "pair_failed" and symbol:
             self._repository.update_result(
                 run_id,

@@ -2,7 +2,11 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { cn } from '@/lib/utils';
-import type { SymbolRiskRule } from '@/types/rules';
+import type {
+  SymbolRiskRule,
+  SymbolRiskRuleReviewRow,
+  SymbolRiskRuleSuggestion,
+} from '@/types/rules';
 import { apiFetch } from '@/lib/api';
 import {
   Table,
@@ -24,7 +28,7 @@ import {
 
 type EditingRow = Omit<SymbolRiskRule, 'id' | 'created_at' | 'updated_at'>;
 
-type SymbolRulesResponse = { rules: SymbolRiskRule[]; count: number };
+type SymbolRulesResponse = { rules: SymbolRiskRuleReviewRow[]; count: number };
 type SymbolRuleResponse = { rule: SymbolRiskRule };
 
 const EMPTY_ROW: EditingRow = {
@@ -44,7 +48,7 @@ async function requestJson<T>(endpoint: string, init?: RequestInit): Promise<T> 
   return apiFetch<T>(endpoint, init);
 }
 export function RiskRulesPanel() {
-  const [rules, setRules] = useState<SymbolRiskRule[]>([]);
+  const [rows, setRows] = useState<SymbolRiskRuleReviewRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -57,7 +61,7 @@ export function RiskRulesPanel() {
     setError('');
     try {
       const payload = await requestJson<SymbolRulesResponse>('/api/rules/symbols');
-      setRules(payload.rules || []);
+      setRows(payload.rules || []);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to load rules');
     } finally {
@@ -84,6 +88,30 @@ export function RiskRulesPanel() {
       enabled: rule.enabled,
     });
     setAddingNew(false);
+  };
+
+  const approveSuggestion = async (symbol: string) => {
+    setError('');
+    try {
+      await requestJson<SymbolRuleResponse>(`/api/rules/symbols/${encodeURIComponent(symbol)}/approve-suggestion`, {
+        method: 'POST',
+      });
+      await fetchRules();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Approve failed');
+    }
+  };
+
+  const rejectSuggestion = async (symbol: string) => {
+    setError('');
+    try {
+      await requestJson<{ status: string }>(`/api/rules/symbols/${encodeURIComponent(symbol)}/reject-suggestion`, {
+        method: 'POST',
+      });
+      await fetchRules();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Reject failed');
+    }
   };
 
   const cancelEdit = () => {
@@ -166,6 +194,21 @@ export function RiskRulesPanel() {
 
   const inputCls =
     'bg-[#1e222d] border border-[#2a2e39] rounded px-2 py-1 text-xs font-mono text-[var(--to-text-primary)] focus:outline-none focus:border-emerald-500 w-full';
+
+  const hasSuggestedChange = (
+    activeRule: SymbolRiskRule | null | undefined,
+    suggestion: SymbolRiskRuleSuggestion | null | undefined,
+    key: 'risk_percent' | 'max_lot_size' | 'pip_size' | 'pip_value_per_lot'
+  ): boolean => {
+    if (!activeRule || !suggestion) return false;
+    const suggestionKeyMap = {
+      risk_percent: 'suggested_risk_percent',
+      max_lot_size: 'suggested_max_lot_size',
+      pip_size: 'suggested_pip_size',
+      pip_value_per_lot: 'suggested_pip_value_per_lot',
+    } as const;
+    return activeRule[key] !== suggestion[suggestionKeyMap[key]];
+  };
 
   const renderEditableRow = (symbolLocked: boolean) => (
     <>
@@ -325,7 +368,7 @@ export function RiskRulesPanel() {
               Per-Symbol Risk Configuration
             </span>
             <Badge variant="secondary" className="text-[10px]">
-              {rules.length} symbols
+              {rows.length} symbols
             </Badge>
           </div>
           <p className="text-[11px] text-[var(--to-text-dim)]">
@@ -379,53 +422,106 @@ export function RiskRulesPanel() {
                 </TableRow>
               )}
 
-              {rules.map((rule) =>
-                editId === (rule.id ?? rule.symbol) ? (
-                  <TableRow key={rule.id ?? rule.symbol} className="border-[#2a2e39] bg-blue-500/5">
+              {rows.map((row) => {
+                const activeRule = row.active_rule ?? undefined;
+                const suggestion = row.latest_suggestion ?? undefined;
+                if (!activeRule && !suggestion) return null;
+                const displayRule = activeRule ?? {
+                  symbol: row.symbol,
+                  max_lot_size: 0,
+                  min_lot_size: 0.01,
+                  lot_step: 0.01,
+                  risk_percent: 0,
+                  pip_size: 0,
+                  pip_value_per_lot: 0,
+                  stop_loss_buffer_pips: 1,
+                  max_positions: 1,
+                  enabled: false,
+                };
+
+                return editId === (activeRule?.id ?? row.symbol) ? (
+                  <TableRow key={activeRule?.id ?? row.symbol} className="border-[#2a2e39] bg-blue-500/5">
                     {renderEditableRow(true)}
                   </TableRow>
                 ) : (
-                  <TableRow key={rule.id ?? rule.symbol} className="border-[#2a2e39]">
+                  <TableRow key={activeRule?.id ?? row.symbol} className="border-[#2a2e39]">
                     <TableCell className="text-xs font-mono text-[var(--to-text-primary)] font-semibold">
-                      {rule.symbol}
+                      <div className="flex items-center gap-2">
+                        <span>{row.symbol}</span>
+                        {row.has_pending_changes && (
+                          <Badge variant="secondary" className="text-[10px]">
+                            {row.suggestion_status ?? 'pending'}
+                          </Badge>
+                        )}
+                      </div>
                     </TableCell>
-                    <TableCell className="text-xs font-mono text-[var(--to-text-dim)]">{rule.max_lot_size}</TableCell>
-                    <TableCell className="text-xs font-mono text-[var(--to-text-dim)]">{rule.min_lot_size}</TableCell>
-                    <TableCell className="text-xs font-mono text-[var(--to-text-dim)]">{rule.lot_step}</TableCell>
-                    <TableCell className="text-xs font-mono text-[var(--to-text-dim)]">{rule.risk_percent}%</TableCell>
-                    <TableCell className="text-xs font-mono text-[var(--to-text-dim)]">{rule.pip_size}</TableCell>
-                    <TableCell className="text-xs font-mono text-[var(--to-text-dim)]">${rule.pip_value_per_lot}</TableCell>
-                    <TableCell className="text-xs font-mono text-[var(--to-text-dim)]">{rule.stop_loss_buffer_pips}</TableCell>
-                    <TableCell className="text-xs font-mono text-[var(--to-text-dim)]">{rule.max_positions}</TableCell>
+                    <TableCell className={cn('text-xs font-mono', hasSuggestedChange(activeRule, suggestion, 'max_lot_size') ? 'text-amber-300' : 'text-[var(--to-text-dim)]')}>
+                      {displayRule.max_lot_size}
+                      {suggestion && hasSuggestedChange(activeRule, suggestion, 'max_lot_size') ? ` -> ${suggestion.suggested_max_lot_size}` : ''}
+                    </TableCell>
+                    <TableCell className="text-xs font-mono text-[var(--to-text-dim)]">{displayRule.min_lot_size}</TableCell>
+                    <TableCell className="text-xs font-mono text-[var(--to-text-dim)]">{displayRule.lot_step}</TableCell>
+                    <TableCell className={cn('text-xs font-mono', hasSuggestedChange(activeRule, suggestion, 'risk_percent') ? 'text-amber-300' : 'text-[var(--to-text-dim)]')}>
+                      {displayRule.risk_percent}%
+                      {suggestion && hasSuggestedChange(activeRule, suggestion, 'risk_percent') ? ` -> ${suggestion.suggested_risk_percent}%` : ''}
+                    </TableCell>
+                    <TableCell className={cn('text-xs font-mono', hasSuggestedChange(activeRule, suggestion, 'pip_size') ? 'text-amber-300' : 'text-[var(--to-text-dim)]')}>
+                      {displayRule.pip_size}
+                      {suggestion && hasSuggestedChange(activeRule, suggestion, 'pip_size') ? ` -> ${suggestion.suggested_pip_size}` : ''}
+                    </TableCell>
+                    <TableCell className={cn('text-xs font-mono', hasSuggestedChange(activeRule, suggestion, 'pip_value_per_lot') ? 'text-amber-300' : 'text-[var(--to-text-dim)]')}>
+                      ${displayRule.pip_value_per_lot}
+                      {suggestion && hasSuggestedChange(activeRule, suggestion, 'pip_value_per_lot') ? ` -> $${suggestion.suggested_pip_value_per_lot}` : ''}
+                    </TableCell>
+                    <TableCell className="text-xs font-mono text-[var(--to-text-dim)]">{displayRule.stop_loss_buffer_pips}</TableCell>
+                    <TableCell className="text-xs font-mono text-[var(--to-text-dim)]">{displayRule.max_positions}</TableCell>
                     <TableCell>
                       <button
-                        aria-label={`Toggle ${rule.symbol}`}
-                        onClick={() => toggleEnabled(rule)}
+                        aria-label={`Toggle ${row.symbol}`}
+                        onClick={() => activeRule && toggleEnabled(activeRule)}
                         className={cn(
                           'w-8 h-4 rounded-full relative transition-colors',
-                          rule.enabled ? 'bg-emerald-500' : 'bg-[var(--to-surface-raised)]'
+                          displayRule.enabled ? 'bg-emerald-500' : 'bg-[var(--to-surface-raised)]'
                         )}
                       >
                         <span
                           className={cn(
                             'absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform',
-                            rule.enabled ? 'left-4' : 'left-0.5'
+                            displayRule.enabled ? 'left-4' : 'left-0.5'
                           )}
                         />
                       </button>
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
+                        {row.has_pending_changes && (
+                          <>
+                            <button
+                              aria-label={`Approve ${row.symbol}`}
+                              onClick={() => approveSuggestion(row.symbol)}
+                              className="px-2 py-1 text-[10px] font-mono text-emerald-300 hover:text-emerald-200"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              aria-label={`Reject ${row.symbol}`}
+                              onClick={() => rejectSuggestion(row.symbol)}
+                              className="px-2 py-1 text-[10px] font-mono text-[var(--to-short)] hover:text-red-300"
+                            >
+                              Reject
+                            </button>
+                          </>
+                        )}
                         <button
-                          aria-label={`Edit ${rule.symbol}`}
-                          onClick={() => startEdit(rule)}
+                          aria-label={`Edit ${row.symbol}`}
+                          onClick={() => startEdit(displayRule)}
                           className="p-1 text-[var(--to-text-dim)] hover:text-blue-400 transition-colors"
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
                         <button
-                          aria-label={`Delete ${rule.symbol}`}
-                          onClick={() => deleteRule(rule.symbol)}
+                          aria-label={`Delete ${row.symbol}`}
+                          onClick={() => deleteRule(row.symbol)}
                           className="p-1 text-[var(--to-text-dim)] hover:text-[var(--to-short)] transition-colors"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -434,8 +530,8 @@ export function RiskRulesPanel() {
                     </TableCell>
                   </TableRow>
                 )
-              )}
-              {rules.length === 0 && !addingNew && (
+              })}
+              {rows.length === 0 && !addingNew && (
                 <TableRow className="border-[#2a2e39]">
                   <TableCell colSpan={11} className="text-center text-[var(--to-text-dim)] text-xs py-8">
                     No symbol rules configured. Click &quot;Add Symbol&quot; to create one.

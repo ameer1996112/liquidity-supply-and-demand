@@ -44,15 +44,28 @@ describe('RiskRulesPanel', () => {
           rules: [
             {
               symbol: 'EURUSD',
-              max_lot_size: 2,
-              min_lot_size: 0.01,
-              lot_step: 0.01,
-              risk_percent: 0.5,
-              pip_size: 0.0001,
-              pip_value_per_lot: 10,
-              stop_loss_buffer_pips: 1,
-              max_positions: 3,
-              enabled: true,
+              active_rule: {
+                symbol: 'EURUSD',
+                max_lot_size: 2,
+                min_lot_size: 0.01,
+                lot_step: 0.01,
+                risk_percent: 0.5,
+                pip_size: 0.0001,
+                pip_value_per_lot: 10,
+                stop_loss_buffer_pips: 1,
+                max_positions: 3,
+                enabled: true,
+              },
+              latest_suggestion: {
+                symbol: 'EURUSD',
+                suggested_risk_percent: 0.4,
+                suggested_max_lot_size: 1.5,
+                suggested_pip_size: 0.0001,
+                suggested_pip_value_per_lot: 10,
+                status: 'pending',
+              },
+              suggestion_status: 'pending',
+              has_pending_changes: true,
             },
           ],
           count: 1,
@@ -66,6 +79,8 @@ describe('RiskRulesPanel', () => {
 
     expect(container.textContent).toContain('EURUSD');
     expect(container.textContent).toContain('Backend calculates final position size');
+    expect(container.textContent).toContain('pending');
+    expect(container.textContent).toContain('Approve');
   });
 
   it('saves edited symbol rules to backend api', async () => {
@@ -111,6 +126,66 @@ describe('RiskRulesPanel', () => {
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       'http://localhost:8000/api/rules/symbols',
+      expect.objectContaining({
+        method: 'POST',
+      })
+    );
+  });
+
+  it('approves a pending optimizer suggestion', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        mockJsonResponse({
+          rules: [
+            {
+              symbol: 'EURUSD',
+              active_rule: {
+                symbol: 'EURUSD',
+                max_lot_size: 2,
+                min_lot_size: 0.01,
+                lot_step: 0.01,
+                risk_percent: 0.5,
+                pip_size: 0.0001,
+                pip_value_per_lot: 10,
+                stop_loss_buffer_pips: 1,
+                max_positions: 3,
+                enabled: true,
+              },
+              latest_suggestion: {
+                symbol: 'EURUSD',
+                suggested_risk_percent: 0.4,
+                suggested_max_lot_size: 1.5,
+                suggested_pip_size: 0.0001,
+                suggested_pip_value_per_lot: 10,
+                status: 'pending',
+              },
+              suggestion_status: 'pending',
+              has_pending_changes: true,
+            },
+          ],
+          count: 1,
+        })
+      )
+      .mockResolvedValueOnce(mockJsonResponse({ rule: { symbol: 'EURUSD' } }))
+      .mockResolvedValueOnce(mockJsonResponse({ rules: [], count: 0 }));
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    await act(async () => {
+      root.render(<RiskRulesPanel />);
+    });
+
+    const approveButton = container.querySelector('button[aria-label="Approve EURUSD"]');
+    expect(approveButton).not.toBeNull();
+
+    await act(async () => {
+      approveButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'http://localhost:8000/api/rules/symbols/EURUSD/approve-suggestion',
       expect.objectContaining({
         method: 'POST',
       })

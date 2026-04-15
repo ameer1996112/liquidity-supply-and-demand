@@ -74,6 +74,24 @@ class StrategyRuleCreate(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=lambda: {"timeframe": "5m"})
 
 
+class SymbolRiskRuleSuggestion(BaseModel):
+    id: int | None = None
+    symbol: str
+    suggested_risk_percent: float
+    suggested_max_lot_size: float
+    suggested_pip_size: float
+    suggested_pip_value_per_lot: float
+    status: str
+
+
+class SymbolRiskRuleReviewRow(BaseModel):
+    symbol: str
+    active_rule: Dict[str, Any] | None = None
+    latest_suggestion: Dict[str, Any] | None = None
+    suggestion_status: str | None = None
+    has_pending_changes: bool
+
+
 def _normalize_symbol_rule(row: Dict[str, Any]) -> Dict[str, Any]:
     normalized = dict(row)
     normalized["symbol"] = str(row.get("symbol", "")).upper().strip()
@@ -93,6 +111,30 @@ def _validate_symbol_rule_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     return payload
 
 
+def _load_latest_suggestions(sb: Any) -> Dict[str, Dict[str, Any]]:
+    result = (
+        sb.table("symbol_risk_rule_suggestions")
+        .select("*")
+        .order("created_at", desc=True)
+        .execute()
+    )
+    latest: Dict[str, Dict[str, Any]] = {}
+    for row in result.data or []:
+        symbol = str(row.get("symbol", "")).upper().strip()
+        if symbol and symbol not in latest and row.get("status") == "pending":
+            latest[symbol] = row
+    return latest
+
+
+def _copy_suggestion_fields(active_rule: Dict[str, Any], suggestion: Dict[str, Any]) -> Dict[str, Any]:
+    updated = dict(active_rule)
+    updated["risk_percent"] = float(suggestion["suggested_risk_percent"])
+    updated["max_lot_size"] = float(suggestion["suggested_max_lot_size"])
+    updated["pip_size"] = float(suggestion["suggested_pip_size"])
+    updated["pip_value_per_lot"] = float(suggestion["suggested_pip_value_per_lot"])
+    return updated
+
+
 # ── Symbol Risk Rules ────────────────────────────────────
 
 
@@ -100,8 +142,22 @@ def _validate_symbol_rule_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
 def list_symbol_rules():
     sb = _get_supabase()
     result = sb.table("symbol_risk_rules").select("*").order("symbol").execute()
-    rules = [_normalize_symbol_rule(rule) for rule in (result.data or [])]
-    return {"rules": rules, "count": len(rules)}
+    active_rules = [_normalize_symbol_rule(rule) for rule in (result.data or [])]
+    active_by_symbol = {rule["symbol"]: rule for rule in active_rules}
+    suggestions = _load_latest_suggestions(sb)
+    symbols = sorted(set(active_by_symbol) | set(suggestions))
+
+    rows = [
+        {
+            "symbol": symbol,
+            "active_rule": active_by_symbol.get(symbol),
+            "latest_suggestion": suggestions.get(symbol),
+            "suggestion_status": suggestions.get(symbol, {}).get("status") if suggestions.get(symbol) else None,
+            "has_pending_changes": symbol in suggestions,
+        }
+        for symbol in symbols
+    ]
+    return {"rules": rows, "count": len(rows)}
 
 
 @router.post("/symbols", status_code=201)
@@ -174,6 +230,70 @@ def delete_symbol_rule(symbol: str):
     except Exception:
         pass
     return {"status": "deleted", "symbol": symbol.upper().strip()}
+
+
+@router.post("/symbols/{symbol}/approve-suggestion")
+def approve_symbol_rule_suggestion(symbol: str):
+    sb = _get_supabase()
+    normalized_symbol = symbol.upper().strip()
+    active_result = (
+        sb.table("symbol_risk_rules")
+        .select("*")
+        .eq("symbol", normalized_symbol)
+        .limit(1)
+        .execute()
+    )
+    suggestion = _load_latest_suggestions(sb).get(normalized_symbol)
+    if suggestion is None:
+        raise HTTPException(status_code=404, detail=f"No pending suggestion for {normalized_symbol}")
+
+    active_rule = (
+        _normalize_symbol_rule(active_result.data[0])
+        if active_result.data
+        else _normalize_symbol_rule({"symbol": normalized_symbol})
+    )
+    updated_rule = _copy_suggestion_fields(active_rule, suggestion)
+    _validate_symbol_rule_payload(updated_rule)
+
+    if active_result.data:
+        result = (
+            sb.table("symbol_risk_rules")
+            .update(updated_rule)
+            .eq("symbol", normalized_symbol)
+            .execute()
+        )
+    else:
+        result = sb.table("symbol_risk_rules").insert(updated_rule).execute()
+
+    (
+        sb.table("symbol_risk_rule_suggestions")
+        .update({"status": "approved"})
+        .eq("symbol", normalized_symbol)
+        .eq("status", "pending")
+        .execute()
+    )
+    try:
+        from src.services.redis_cache import invalidate_symbol_rules_cache
+        invalidate_symbol_rules_cache()
+    except Exception:
+        pass
+    return {"rule": _normalize_symbol_rule(result.data[0] if result.data else updated_rule)}
+
+
+@router.post("/symbols/{symbol}/reject-suggestion")
+def reject_symbol_rule_suggestion(symbol: str):
+    sb = _get_supabase()
+    normalized_symbol = symbol.upper().strip()
+    result = (
+        sb.table("symbol_risk_rule_suggestions")
+        .update({"status": "rejected"})
+        .eq("symbol", normalized_symbol)
+        .eq("status", "pending")
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail=f"No pending suggestion for {normalized_symbol}")
+    return {"status": "rejected", "symbol": normalized_symbol}
 
 
 # ── RAG Strategy Rules ───────────────────────────────────

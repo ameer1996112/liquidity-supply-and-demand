@@ -21,6 +21,7 @@ class InMemoryOptimizerStore:
         self.runs: dict[str, dict] = {}
         self.results: dict[tuple[str, str], dict] = {}
         self.events: list[dict] = []
+        self.rule_suggestions: list[dict] = []
 
     @classmethod
     def with_running_run(cls) -> "InMemoryOptimizerStore":
@@ -105,6 +106,15 @@ class InMemoryOptimizerStore:
     def list_events(self, run_id: str, *, limit: int = 200) -> list[dict]:
         return [event for event in self.events if event["run_id"] == run_id][:limit]
 
+    def create_rule_suggestion(self, payload: dict) -> dict:
+        self.rule_suggestions.append(payload.copy())
+        return self.rule_suggestions[-1]
+
+    def supersede_rule_suggestions(self, symbol: str) -> None:
+        for row in self.rule_suggestions:
+            if row["symbol"] == symbol.upper().strip() and row["status"] == "pending":
+                row["status"] = "superseded"
+
 
 def test_start_run_persists_run_and_symbol_rows(monkeypatch) -> None:
     store = InMemoryOptimizerStore()
@@ -174,7 +184,15 @@ def test_ingest_pair_completed_event_updates_summary_and_result() -> None:
             "run_id": "run-1",
             "worker_id": 0,
             "symbol": "EURUSD",
-            "metrics": {"score": 2.1, "net_profit": 250.0, "win_rate": 61.0},
+            "metrics": {
+                "score": 2.1,
+                "net_profit": 250.0,
+                "win_rate": 61.0,
+                "risk_percent": 0.4,
+                "max_lot_size": 1.5,
+                "pip_size": 0.0001,
+                "pip_value_per_lot": 10.0,
+            },
             "params": {"lookback": 20},
         }
     )
@@ -184,6 +202,46 @@ def test_ingest_pair_completed_event_updates_summary_and_result() -> None:
     assert result["metrics"]["score"] == 2.1
     assert store.runs["run-1"]["summary"]["completed_pairs"] == 1
     assert store.runs["run-1"]["summary"]["best_symbol"] == "EURUSD"
+    assert store.rule_suggestions[0]["symbol"] == "EURUSD"
+    assert store.rule_suggestions[0]["suggested_risk_percent"] == 0.4
+    assert store.rule_suggestions[0]["status"] == "pending"
+
+
+def test_ingest_pair_completed_event_supersedes_older_pending_suggestion() -> None:
+    store = InMemoryOptimizerStore.with_run_and_pending_symbol("run-1", "EURUSD")
+    store.rule_suggestions.append(
+        {
+            "symbol": "EURUSD",
+            "optimizer_run_id": "old-run",
+            "suggested_risk_percent": 0.6,
+            "suggested_max_lot_size": 2.0,
+            "suggested_pip_size": 0.0001,
+            "suggested_pip_value_per_lot": 10.0,
+            "status": "pending",
+        }
+    )
+    service = OptimizerRunService(store, project_root=Path("/tmp"), results_dir=Path("/tmp/results"))
+
+    service.ingest_event(
+        {
+            "event_type": "pair_completed",
+            "run_id": "run-1",
+            "worker_id": 0,
+            "symbol": "EURUSD",
+            "metrics": {
+                "score": 2.4,
+                "risk_percent": 0.3,
+                "max_lot_size": 1.0,
+                "pip_size": 0.0001,
+                "pip_value_per_lot": 10.0,
+            },
+            "params": {},
+        }
+    )
+
+    assert store.rule_suggestions[0]["status"] == "superseded"
+    assert store.rule_suggestions[-1]["status"] == "pending"
+    assert store.rule_suggestions[-1]["optimizer_run_id"] == "run-1"
 
 
 def test_reconcile_incomplete_runs_marks_orphans_interrupted() -> None:

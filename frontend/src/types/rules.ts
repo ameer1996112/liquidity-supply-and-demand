@@ -14,6 +14,29 @@ export interface SymbolRiskRule {
   updated_at?: string;
 }
 
+export interface SymbolRiskRuleSuggestion {
+  id?: number;
+  symbol: string;
+  suggested_risk_percent: number;
+  suggested_max_lot_size: number;
+  suggested_pip_size: number;
+  suggested_pip_value_per_lot: number;
+  status: 'pending' | 'approved' | 'rejected' | 'superseded';
+  optimizer_run_id?: string;
+  created_at?: string;
+  approved_at?: string;
+  approved_by?: string;
+  source_payload?: Record<string, unknown>;
+}
+
+export interface SymbolRiskRuleReviewRow {
+  symbol: string;
+  active_rule?: SymbolRiskRule | null;
+  latest_suggestion?: SymbolRiskRuleSuggestion | null;
+  suggestion_status?: string | null;
+  has_pending_changes: boolean;
+}
+
 export interface StrategyRule {
   id: string;
   content: string;
