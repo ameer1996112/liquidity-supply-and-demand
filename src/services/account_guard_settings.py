@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from src.adapters.supabase_api import get_api_supabase as get_supabase
+
+logger = logging.getLogger(__name__)
 
 
 def get_effective_account_guard_value(
@@ -22,16 +25,24 @@ def get_effective_account_guard_value(
 
 def load_account_guard_overrides(account_id: str) -> dict[str, Any]:
     """Load sparse per-account guard overrides."""
-    sb = get_supabase()
-    row = (
-        sb.table("account_guard_settings")
-        .select("settings")
-        .eq("account_id", account_id)
-        .limit(1)
-        .execute()
-    )
-    data = row.data[0] if row.data else {}
-    return data.get("settings") or {}
+    try:
+        sb = get_supabase()
+        row = (
+            sb.table("account_guard_settings")
+            .select("settings")
+            .eq("account_id", account_id)
+            .limit(1)
+            .execute()
+        )
+        data = row.data[0] if row.data else {}
+        return data.get("settings") or {}
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "Account guard overrides unavailable for %s, falling back to global defaults: %s",
+            account_id,
+            exc,
+        )
+        return {}
 
 
 def update_account_guard_override(account_id: str, setting_key: str, value: Any) -> dict[str, Any]:
