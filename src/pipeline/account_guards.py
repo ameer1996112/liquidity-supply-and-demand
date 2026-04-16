@@ -296,6 +296,12 @@ def run_account_guards(
                 if risk_mult < 1.0:
                     payload[f"_consistency_risk_multiplier_{account_name}"] = risk_mult
         except Exception as e:
+            if run_mode == "LIVE":
+                logger.critical(
+                    "Consistency analyzer failed for %s in LIVE mode: %s — blocking (fail-closed)",
+                    account_name, e,
+                )
+                return f"Consistency dependency unavailable for account {account_name} — blocked for safety"
             logger.error("Consistency analyzer crashed for %s: %s", account_name, e)
 
     return None  # All per-account guards passed

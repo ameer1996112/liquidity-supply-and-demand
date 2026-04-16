@@ -155,3 +155,51 @@ def test_evaluation_signal_guards_can_block_account(monkeypatch):
 
     assert result == "SignalGuard (ACG-DEMO-3): RR ratio 1.00 below minimum 1.5 (phase1)"
     assert captured["kwargs"]["profile"]["id"] == "acct-1"
+
+
+def test_live_eval_blocks_when_consistency_analyzer_crashes(monkeypatch):
+    monkeypatch.setattr(
+        _ACCOUNT_GUARDS,
+        "load_account_guard_overrides",
+        lambda account_id: {"mtm_guardian_enabled": False, "pine_adaptive_enabled": False},
+    )
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "_get_sb", lambda: object())
+    monkeypatch.setattr("src.adapters.redis_queue.get_redis", lambda: SimpleNamespace(get=lambda key: None))
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "get_account_daily_pnl", lambda profile: 0.0)
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "get_account_positions_from_db", lambda profile: [])
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "check_safety", lambda *args, **kwargs: (True, 1.0, "ok"))
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "check_signal_guards", lambda *args, **kwargs: (True, None), raising=False)
+
+    class _BrokenConsistency:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def check_trade_consistency_risk(self, *args, **kwargs):
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr("src.services.consistency_analyzer.ConsistencyAnalyzer", _BrokenConsistency)
+
+    result = run_account_guards(
+        payload={
+            "symbol": "EURUSD",
+            "side": "buy",
+            "run_mode": "LIVE",
+            "account_balance": 50000,
+            "entry": 1.1,
+            "tp": 1.12,
+            "size": 1.0,
+        },
+        profile={
+            "id": "acct-1",
+            "name": "ACG-DEMO-3",
+            "risk_pct": 0.5,
+            "max_positions": 3,
+            "evaluation_mode": True,
+            "consistency_enabled": True,
+        },
+        s=_settings(evaluation_mode=True, consistency_enabled=True),
+        current_equity_global=50000,
+        correlation_manager=None,
+    )
+
+    assert result == "Consistency dependency unavailable for account ACG-DEMO-3 — blocked for safety"
