@@ -9,6 +9,8 @@ PROVIDER_PID_FILE="$RUNTIME_DIR/provider.pid"
 CLOUDFLARED_PID_FILE="$RUNTIME_DIR/cloudflared.pid"
 STATE_FILE="$RUNTIME_DIR/state.env"
 VENV_PYTHON="$ROOT_DIR/venv/bin/python"
+CLOUDFLARED_BIN="${CHART_STACK_CLOUDFLARED_BIN:-cloudflared}"
+REMOTE_CONFIG_SYNC_LOG="$RUNTIME_DIR/remote-config-sync.log"
 FRESH_RESTART=0
 
 case "${1:-}" in
@@ -27,6 +29,14 @@ esac
 mkdir -p "$RUNTIME_DIR"
 rm -f "$STATE_FILE"
 cd "$ROOT_DIR"
+
+if [ -f "$ROOT_DIR/.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$ROOT_DIR/.env"
+  set +a
+fi
+
 export PYTHONPATH="$ROOT_DIR:${PYTHONPATH:-}"
 
 require_command() {
@@ -247,11 +257,11 @@ ensure_tunnel() {
       ;;
   esac
 
-  require_command cloudflared
+  require_command "$CLOUDFLARED_BIN"
   rm -f "$CLOUDFLARED_PID_FILE"
   : > "$CLOUDFLARED_LOG"
   echo "[chart-stack] starting cloudflared tunnel"
-  nohup cloudflared tunnel --url http://127.0.0.1:8765 >> "$CLOUDFLARED_LOG" 2>&1 &
+  nohup "$CLOUDFLARED_BIN" tunnel --url http://127.0.0.1:8765 >> "$CLOUDFLARED_LOG" 2>&1 &
   echo $! > "$CLOUDFLARED_PID_FILE"
 
   for _ in $(seq 1 20); do
@@ -274,8 +284,45 @@ CDP_URL=http://127.0.0.1:9222
 EOF
 }
 
+sync_ai_operating_layer_provider() {
+  local tunnel_url="$1"
+  local supabase_url="${SUPABASE_URL:-}"
+  local supabase_key="${SUPABASE_SERVICE_ROLE_KEY:-${SUPABASE_KEY:-}}"
+
+  if [ -z "$supabase_url" ]; then
+    echo "[chart-stack] remote provider sync skipped: SUPABASE_URL not set"
+    return 0
+  fi
+
+  if [ -z "$supabase_key" ]; then
+    echo "[chart-stack] remote provider sync skipped: SUPABASE_SERVICE_ROLE_KEY/SUPABASE_KEY not set"
+    return 0
+  fi
+
+  if ! SUPABASE_URL="$supabase_url" SUPABASE_KEY="$supabase_key" TUNNEL_URL="$tunnel_url" "$VENV_PYTHON" - >>"$REMOTE_CONFIG_SYNC_LOG" 2>&1 <<'PY'
+from supabase import create_client
+import os
+
+client = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_KEY"])
+client.table("system_config").upsert(
+    {
+        "key": "ai_operating_layer_provider_base_url",
+        "value": os.environ["TUNNEL_URL"].rstrip("/"),
+    },
+    on_conflict="key",
+).execute()
+PY
+  then
+    echo "[chart-stack] remote provider sync failed: unable to update Supabase system_config" | tee -a "$REMOTE_CONFIG_SYNC_LOG"
+    return 0
+  fi
+
+  echo "[chart-stack] synced provider endpoint to remote AI operating layer config"
+}
+
 require_command curl
 require_command lsof
+require_command "$CLOUDFLARED_BIN"
 if [ ! -x "$VENV_PYTHON" ]; then
   echo "[chart-stack] missing project venv python: $VENV_PYTHON"
   exit 1
@@ -293,6 +340,7 @@ ensure_tunnel
 
 TUNNEL_URL="$(extract_tunnel_url)"
 write_state "$TUNNEL_URL"
+sync_ai_operating_layer_provider "$TUNNEL_URL"
 
 echo "[chart-stack] CDP:        http://127.0.0.1:9222"
 echo "[chart-stack] Provider:   http://127.0.0.1:8765"
