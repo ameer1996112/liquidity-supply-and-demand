@@ -2,19 +2,22 @@
 System Config API - Operator-controlled global settings.
 
 Endpoints:
-- GET  /api/v1/config/trading-mode  - Get current system trading mode
-- POST /api/v1/config/trading-mode  - Set system trading mode (PAPER/LIVE/DRY_RUN)
-- GET  /api/v1/config/pine-filters  - Get HTF candle filter settings
-- PATCH /api/v1/config/pine-filters - Update HTF candle filter settings
+- GET  /api/v1/config/trading-mode        - Get current system trading mode
+- POST /api/v1/config/trading-mode        - Set system trading mode (PAPER/LIVE/DRY_RUN)
+- GET  /api/v1/config/pine-filters        - Get HTF candle filter settings
+- PATCH /api/v1/config/pine-filters       - Update HTF candle filter settings
+- GET  /api/v1/config/ai-operating-layer  - Get AI operating layer global config
+- PATCH /api/v1/config/ai-operating-layer - Update AI operating layer global config
 """
 
 import logging
-from typing import Literal
+from typing import Dict, Literal
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from src.adapters.supabase_api import get_api_supabase as _get_supabase
+from src.services.ai_control_plane import ModuleState
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +79,16 @@ class PatchCTraderIntegrationRequest(BaseModel):
     ctrader_client_id: str | None = None
     ctrader_client_secret: str | None = Field(default=None, description="Optional: set/rotate secret; omit or empty to keep current")
     ctrader_oauth_state_secret: str | None = Field(default=None, description="Optional: set/rotate state secret; omit or empty to keep current")
+
+
+class AiOperatingLayerConfigResponse(BaseModel):
+    panic_mode: bool
+    modules: Dict[str, str]
+
+
+class PatchAiOperatingLayerConfigRequest(BaseModel):
+    panic_mode: bool | None = None
+    modules: Dict[str, Literal["inherit", "enabled", "disabled"]] | None = None
 
 
 # ── Endpoints ─────────────────────────────────────────────
@@ -238,6 +251,65 @@ def patch_pine_filters(body: PatchHtfFilterRequest):
 _PUBLIC_API_BASE_URL_KEY = "public_api_base_url"
 _CTRADER_CLIENT_ID_KEY = "ctrader_client_id"
 _CTRADER_CLIENT_SECRET_KEY = "ctrader_client_secret"
+
+_AI_LAYER_PANIC_KEY = "ai_operating_layer_panic_mode"
+_AI_LAYER_MODULE_KEYS = {
+    "chart_context": "ai_operating_layer_module_chart_context",
+    "pine_understanding": "ai_operating_layer_module_pine_understanding",
+    "debate_review": "ai_operating_layer_module_debate_review",
+    "pretrade_advisory": "ai_operating_layer_module_pretrade_advisory",
+    "memory_learning": "ai_operating_layer_module_memory_learning",
+    "copilot": "ai_operating_layer_module_copilot",
+}
+
+
+def _read_system_config(keys: list[str]) -> dict[str, str]:
+    sb = _get_supabase()
+    rows = (
+        sb.table("system_config")
+        .select("key,value")
+        .in_("key", keys)
+        .execute()
+    )
+    return {row["key"]: row["value"] for row in (rows.data or [])}
+
+
+@router.get("/ai-operating-layer", response_model=AiOperatingLayerConfigResponse)
+def get_ai_operating_layer_config():
+    try:
+        kv = _read_system_config([_AI_LAYER_PANIC_KEY, *_AI_LAYER_MODULE_KEYS.values()])
+        modules = {
+            name: kv.get(key, ModuleState.INHERIT.value)
+            for name, key in _AI_LAYER_MODULE_KEYS.items()
+        }
+        panic_mode = str(kv.get(_AI_LAYER_PANIC_KEY, "false")).lower() == "true"
+        return {"panic_mode": panic_mode, "modules": modules}
+    except Exception as e:
+        logger.error(f"Failed to fetch AI operating layer config: {e}")
+        raise HTTPException(status_code=500, detail="Could not fetch AI operating layer config")
+
+
+@router.patch("/ai-operating-layer", response_model=AiOperatingLayerConfigResponse)
+def patch_ai_operating_layer_config(body: PatchAiOperatingLayerConfigRequest):
+    try:
+        sb = _get_supabase()
+        upserts: list[dict[str, str]] = []
+        if body.panic_mode is not None:
+            upserts.append(
+                {"key": _AI_LAYER_PANIC_KEY, "value": str(body.panic_mode).lower()}
+            )
+        if body.modules:
+            for module_name, module_state in body.modules.items():
+                key = _AI_LAYER_MODULE_KEYS.get(module_name)
+                if not key:
+                    continue
+                upserts.append({"key": key, "value": module_state})
+        if upserts:
+            sb.table("system_config").upsert(upserts, on_conflict="key").execute()
+        return get_ai_operating_layer_config()
+    except Exception as e:
+        logger.error(f"Failed to update AI operating layer config: {e}")
+        raise HTTPException(status_code=500, detail="Could not update AI operating layer config")
 _CTRADER_STATE_SECRET_KEY = "ctrader_oauth_state_secret"
 
 

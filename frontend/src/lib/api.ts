@@ -677,6 +677,11 @@ export interface AiRunResponse {
   created_at?: string;
 }
 
+export interface AiOperatingLayerConfigResponse {
+  panic_mode: boolean;
+  modules: Record<string, 'inherit' | 'enabled' | 'disabled'>;
+}
+
 export async function fetchAiRunBySignal(
   signalId: number
 ): Promise<AiRunResponse | null> {
@@ -685,6 +690,25 @@ export async function fetchAiRunBySignal(
   );
   if (res && 'data' in res && res.data === null) return null;
   return res as AiRunResponse;
+}
+
+export async function fetchAiOperatingLayerConfig(): Promise<AiOperatingLayerConfigResponse> {
+  return apiFetch<AiOperatingLayerConfigResponse>(
+    '/api/v1/config/ai-operating-layer'
+  );
+}
+
+export async function patchAiOperatingLayerConfig(payload: {
+  panic_mode?: boolean;
+  modules?: Record<string, 'inherit' | 'enabled' | 'disabled'>;
+}): Promise<AiOperatingLayerConfigResponse> {
+  return apiFetch<AiOperatingLayerConfigResponse>(
+    '/api/v1/config/ai-operating-layer',
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }
+  );
 }
 
 /** Lightweight council summary for a single signal (from bulk endpoint) */
