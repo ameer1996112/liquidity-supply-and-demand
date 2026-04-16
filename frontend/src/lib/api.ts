@@ -680,6 +680,12 @@ export interface AiRunResponse {
 export interface AiOperatingLayerConfigResponse {
   panic_mode: boolean;
   modules: Record<string, 'inherit' | 'enabled' | 'disabled'>;
+  provider: {
+    enabled: boolean;
+    base_url: string;
+    timeout_seconds: number;
+    retry_count: number;
+  };
 }
 
 export async function fetchAiRunBySignal(
@@ -701,6 +707,12 @@ export async function fetchAiOperatingLayerConfig(): Promise<AiOperatingLayerCon
 export async function patchAiOperatingLayerConfig(payload: {
   panic_mode?: boolean;
   modules?: Record<string, 'inherit' | 'enabled' | 'disabled'>;
+  provider?: {
+    enabled: boolean;
+    base_url: string;
+    timeout_seconds: number;
+    retry_count: number;
+  };
 }): Promise<AiOperatingLayerConfigResponse> {
   return apiFetch<AiOperatingLayerConfigResponse>(
     '/api/v1/config/ai-operating-layer',
