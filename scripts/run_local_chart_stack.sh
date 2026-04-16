@@ -9,6 +9,20 @@ PROVIDER_PID_FILE="$RUNTIME_DIR/provider.pid"
 CLOUDFLARED_PID_FILE="$RUNTIME_DIR/cloudflared.pid"
 STATE_FILE="$RUNTIME_DIR/state.env"
 VENV_PYTHON="$ROOT_DIR/venv/bin/python"
+FRESH_RESTART=0
+
+case "${1:-}" in
+  "")
+    ;;
+  --fresh)
+    FRESH_RESTART=1
+    ;;
+  *)
+    echo "[chart-stack] unknown argument: ${1}"
+    echo "[chart-stack] usage: ./scripts/run_local_chart_stack.sh [--fresh]"
+    exit 1
+    ;;
+esac
 
 mkdir -p "$RUNTIME_DIR"
 rm -f "$STATE_FILE"
@@ -35,11 +49,17 @@ wait_for_url() {
   return 1
 }
 
+read_pid_file() {
+  local pid_file="$1"
+  [ -f "$pid_file" ] || return 1
+  tr -d '[:space:]' < "$pid_file"
+}
+
 pid_is_running() {
   local pid_file="$1"
   [ -f "$pid_file" ] || return 1
   local pid
-  pid="$(cat "$pid_file")"
+  pid="$(read_pid_file "$pid_file")"
   kill -0 "$pid" 2>/dev/null
 }
 
@@ -48,6 +68,33 @@ cleanup_stale_pid() {
   if [ -f "$pid_file" ] && ! pid_is_running "$pid_file"; then
     rm -f "$pid_file"
   fi
+}
+
+get_listener_pid() {
+  local port="$1"
+  lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null | head -n 1
+}
+
+stop_tracked_pid() {
+  local name="$1"
+  local pid_file="$2"
+  if ! pid_is_running "$pid_file"; then
+    rm -f "$pid_file"
+    return 0
+  fi
+
+  local pid
+  pid="$(read_pid_file "$pid_file")"
+  kill "$pid"
+  echo "[chart-stack] stopped tracked $name (PID $pid)"
+  rm -f "$pid_file"
+}
+
+fresh_restart() {
+  echo "[chart-stack] --fresh requested, restarting tracked provider and tunnel"
+  stop_tracked_pid "cloudflared" "$CLOUDFLARED_PID_FILE"
+  stop_tracked_pid "provider" "$PROVIDER_PID_FILE"
+  rm -f "$STATE_FILE"
 }
 
 ensure_cdp() {
@@ -65,23 +112,97 @@ ensure_cdp() {
   fi
 }
 
-ensure_provider() {
+probe_provider() {
+  curl -fsS "http://127.0.0.1:8765/chart-context?symbol=VANTAGE:AUDUSD&timeframe=5m"
+}
+
+provider_has_current_contract() {
+  local response="$1"
+  printf '%s' "$response" | grep -q '"provider_timestamp"' &&
+    printf '%s' "$response" | grep -q '"zones"' &&
+    printf '%s' "$response" | grep -q '"pine_labels"' &&
+    printf '%s' "$response" | grep -q '"indicator_values"' &&
+    printf '%s' "$response" | grep -q '"setup_evidence"'
+}
+
+provider_state() {
   cleanup_stale_pid "$PROVIDER_PID_FILE"
 
-  if curl -fsS "http://127.0.0.1:8765/chart-context?symbol=VANTAGE:AUDUSD&timeframe=5m" >/dev/null 2>&1; then
-    echo "[chart-stack] provider already available"
+  local tracked_pid=""
+  local listener_pid=""
+  local response=""
+
+  if pid_is_running "$PROVIDER_PID_FILE"; then
+    tracked_pid="$(read_pid_file "$PROVIDER_PID_FILE")"
+  fi
+
+  listener_pid="$(get_listener_pid 8765 || true)"
+
+  if [ -n "$tracked_pid" ] && [ "$tracked_pid" = "${listener_pid:-}" ]; then
+    response="$(probe_provider 2>/dev/null || true)"
+    if [ -z "$response" ]; then
+      echo down
+      return 0
+    fi
+    if provider_has_current_contract "$response"; then
+      echo healthy
+    else
+      echo stale
+    fi
     return 0
   fi
 
-  echo "[chart-stack] starting local provider"
-  PYTHONPATH=. "$VENV_PYTHON" -m uvicorn src.local_chart_provider_app:app --host 127.0.0.1 --port 8765 \
-    >> "$PROVIDER_LOG" 2>&1 &
-  echo $! > "$PROVIDER_PID_FILE"
-
-  if ! wait_for_url "http://127.0.0.1:8765/chart-context?symbol=VANTAGE:AUDUSD&timeframe=5m" 20; then
-    echo "[chart-stack] provider failed to start; see $PROVIDER_LOG"
-    exit 1
+  if [ -n "${listener_pid:-}" ]; then
+    echo conflict
+    return 0
   fi
+
+  echo down
+}
+
+ensure_provider() {
+  local state
+  state="$(provider_state)"
+
+  case "$state" in
+    healthy)
+      echo "[chart-stack] provider healthy, reusing tracked process"
+      return 0
+      ;;
+    stale)
+      echo "[chart-stack] provider stale: missing setup_evidence; rerun with --fresh"
+      exit 1
+      ;;
+    conflict)
+      echo "[chart-stack] provider conflict on 8765: unmanaged PID $(get_listener_pid 8765)"
+      echo "[chart-stack] stop the unmanaged process or rerun after clearing the port"
+      exit 1
+      ;;
+    down)
+      echo "[chart-stack] provider down, starting tracked process"
+      : > "$PROVIDER_LOG"
+      nohup env PYTHONPATH=. "$VENV_PYTHON" -m uvicorn src.local_chart_provider_app:app --host 127.0.0.1 --port 8765 \
+        >> "$PROVIDER_LOG" 2>&1 &
+      echo $! > "$PROVIDER_PID_FILE"
+      ;;
+    *)
+      echo "[chart-stack] unknown provider state: $state"
+      exit 1
+      ;;
+  esac
+
+  local response=""
+  for _ in $(seq 1 20); do
+    response="$(probe_provider 2>/dev/null || true)"
+    if [ -n "$response" ] && provider_has_current_contract "$response"; then
+      echo "[chart-stack] provider ready with current contract"
+      return 0
+    fi
+    sleep 1
+  done
+
+  echo "[chart-stack] provider failed to satisfy current contract; see $PROVIDER_LOG"
+  exit 1
 }
 
 extract_tunnel_url() {
@@ -91,18 +212,46 @@ extract_tunnel_url() {
   grep -Eo 'https://[a-zA-Z0-9.-]+\.trycloudflare\.com' "$CLOUDFLARED_LOG" | tail -1
 }
 
-ensure_tunnel() {
+tunnel_state() {
   cleanup_stale_pid "$CLOUDFLARED_PID_FILE"
 
   if pid_is_running "$CLOUDFLARED_PID_FILE"; then
-    echo "[chart-stack] cloudflared already running"
+    if extract_tunnel_url >/dev/null 2>&1; then
+      echo healthy
+    else
+      echo stale
+    fi
     return 0
   fi
 
+  echo down
+}
+
+ensure_tunnel() {
+  local state
+  state="$(tunnel_state)"
+
+  case "$state" in
+    healthy)
+      echo "[chart-stack] tunnel healthy, reusing tracked process"
+      return 0
+      ;;
+    stale)
+      stop_tracked_pid "cloudflared" "$CLOUDFLARED_PID_FILE"
+      ;;
+    down)
+      ;;
+    *)
+      echo "[chart-stack] unknown tunnel state: $state"
+      exit 1
+      ;;
+  esac
+
   require_command cloudflared
+  rm -f "$CLOUDFLARED_PID_FILE"
   : > "$CLOUDFLARED_LOG"
   echo "[chart-stack] starting cloudflared tunnel"
-  cloudflared tunnel --url http://127.0.0.1:8765 >> "$CLOUDFLARED_LOG" 2>&1 &
+  nohup cloudflared tunnel --url http://127.0.0.1:8765 >> "$CLOUDFLARED_LOG" 2>&1 &
   echo $! > "$CLOUDFLARED_PID_FILE"
 
   for _ in $(seq 1 20); do
@@ -126,12 +275,17 @@ EOF
 }
 
 require_command curl
+require_command lsof
 if [ ! -x "$VENV_PYTHON" ]; then
   echo "[chart-stack] missing project venv python: $VENV_PYTHON"
   exit 1
 fi
 
 chmod +x "$ROOT_DIR/scripts/stop_local_chart_stack.sh"
+
+if [ "$FRESH_RESTART" -eq 1 ]; then
+  fresh_restart
+fi
 
 ensure_cdp
 ensure_provider
