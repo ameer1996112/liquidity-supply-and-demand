@@ -3,10 +3,13 @@
 import { useEffect, useState } from 'react';
 import {
   AiConfigResponse,
+  AiOperatingLayerConfigResponse,
   fetchAiConfig,
+  fetchAiOperatingLayerConfig,
   fetchGraduationStatus,
   fetchAiModeToggles,
   fetchKillSwitchLog,
+  patchAiOperatingLayerConfig,
   setAiMode,
   GraduationReadiness,
   KillSwitchLogEntry,
@@ -24,6 +27,7 @@ import {
   Loader2,
   GraduationCap,
   History,
+  Save,
 } from 'lucide-react';
 
 type LoadState = 'loading' | 'loaded' | 'error';
@@ -85,10 +89,17 @@ function SectionCard({
 
 export function AiConfigPanel() {
   const [config, setConfig] = useState<AiConfigResponse | null>(null);
+  const [aiOperatingLayerConfig, setAiOperatingLayerConfig] =
+    useState<AiOperatingLayerConfigResponse | null>(null);
+  const [draftAiOperatingLayerModules, setDraftAiOperatingLayerModules] =
+    useState<Record<string, 'inherit' | 'enabled' | 'disabled'>>({});
+  const [draftAiOperatingLayerProvider, setDraftAiOperatingLayerProvider] =
+    useState<AiOperatingLayerConfigResponse['provider'] | null>(null);
   const [graduation, setGraduation] = useState<GraduationReadiness | null>(null);
   const [state, setState] = useState<LoadState>('loading');
   const [error, setError] = useState('');
   const [modeChanging, setModeChanging] = useState(false);
+  const [aiOperatingLayerSaving, setAiOperatingLayerSaving] = useState(false);
   const [showEnforceConfirm, setShowEnforceConfirm] = useState(false);
   const [toggles, setToggles] = useState<Array<{ from_mode: string; to_mode: string; reason: string | null; created_at: string }>>([]);
   const [showToggles, setShowToggles] = useState(false);
@@ -98,10 +109,17 @@ export function AiConfigPanel() {
   const load = () => {
     setState('loading');
     setError('');
-    Promise.all([fetchAiConfig(), fetchGraduationStatus()])
-      .then(([data, grad]) => {
+    Promise.all([
+      fetchAiConfig(),
+      fetchGraduationStatus(),
+      fetchAiOperatingLayerConfig(),
+    ])
+      .then(([data, grad, aiLayer]) => {
         setConfig(data);
         setGraduation(grad);
+        setAiOperatingLayerConfig(aiLayer);
+        setDraftAiOperatingLayerModules(aiLayer.modules || {});
+        setDraftAiOperatingLayerProvider(aiLayer.provider);
         setState('loaded');
       })
       .catch((err) => {
@@ -148,6 +166,29 @@ export function AiConfigPanel() {
     }
   };
 
+  const handleSaveAiOperatingLayer = async () => {
+    if (!aiOperatingLayerConfig) return;
+    setAiOperatingLayerSaving(true);
+    try {
+      const next = await patchAiOperatingLayerConfig({
+        panic_mode: aiOperatingLayerConfig.panic_mode,
+        modules: draftAiOperatingLayerModules,
+        provider: draftAiOperatingLayerProvider || undefined,
+      });
+      setAiOperatingLayerConfig(next);
+      setDraftAiOperatingLayerModules(next.modules || {});
+      setDraftAiOperatingLayerProvider(next.provider);
+    } catch (e) {
+      setError(
+        e instanceof Error
+          ? e.message
+          : 'Failed to save AI Operating Layer config'
+      );
+    } finally {
+      setAiOperatingLayerSaving(false);
+    }
+  };
+
   useEffect(() => {
     load();
   }, []);
@@ -187,6 +228,7 @@ export function AiConfigPanel() {
   if (!config) return null;
 
   const { ai, ml, ensemble, execution, risk } = config;
+  const moduleEntries = Object.entries(draftAiOperatingLayerModules || {});
 
   return (
     <div className="space-y-4">
@@ -412,6 +454,196 @@ export function AiConfigPanel() {
         />
       </SectionCard>
 
+      {aiOperatingLayerConfig && (
+        <SectionCard
+          title="AI Operating Layer"
+          icon={<Brain className="w-4 h-4" />}
+        >
+          <div className="py-3 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-[11px] text-[var(--to-text-dim)] uppercase tracking-wider font-mono">
+                  Panic Mode
+                </div>
+                <p className="mt-1 text-[11px] text-[var(--to-text-dim)] leading-relaxed">
+                  Instantly disable the non-core AI Operating Layer and fall back
+                  to the older trusted flow.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  setAiOperatingLayerConfig((current) =>
+                    current
+                      ? { ...current, panic_mode: !current.panic_mode }
+                      : current
+                  )
+                }
+                disabled={aiOperatingLayerSaving}
+                className={cn(
+                  'rounded px-3 py-1.5 text-[10px] font-mono font-semibold uppercase tracking-wider transition-colors',
+                  aiOperatingLayerConfig.panic_mode
+                    ? 'bg-rose-600 text-white hover:bg-rose-500'
+                    : 'bg-emerald-600 text-white hover:bg-emerald-500'
+                )}
+              >
+                {aiOperatingLayerConfig.panic_mode ? 'ACTIVE' : 'OFF'}
+              </button>
+            </div>
+          </div>
+
+          <div className="py-3 space-y-3">
+            <div className="text-[11px] text-[var(--to-text-dim)] uppercase tracking-wider font-mono">
+              Global Module States
+            </div>
+            <div className="space-y-2">
+              {moduleEntries.map(([moduleName, moduleState]) => (
+                <div
+                  key={moduleName}
+                  className="flex items-center justify-between gap-3"
+                >
+                  <span className="font-mono text-xs text-[var(--to-text-secondary)]">
+                    {moduleName}
+                  </span>
+                  <select
+                    value={moduleState}
+                    onChange={(e) =>
+                      setDraftAiOperatingLayerModules((current) => ({
+                        ...current,
+                        [moduleName]: e.target.value as
+                          | 'inherit'
+                          | 'enabled'
+                          | 'disabled',
+                      }))
+                    }
+                    disabled={aiOperatingLayerSaving}
+                    className="rounded border border-[#2a2e39] bg-[#1e222d] px-2 py-1 text-[11px] font-mono text-[var(--to-text-primary)]"
+                  >
+                    <option value="inherit">inherit</option>
+                    <option value="enabled">enabled</option>
+                    <option value="disabled">disabled</option>
+                  </select>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {draftAiOperatingLayerProvider && (
+            <div className="py-3 space-y-3">
+              <div className="text-[11px] text-[var(--to-text-dim)] uppercase tracking-wider font-mono">
+                Provider Settings
+              </div>
+
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-mono text-xs text-[var(--to-text-secondary)]">
+                  Provider Enabled
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDraftAiOperatingLayerProvider((current) =>
+                      current
+                        ? { ...current, enabled: !current.enabled }
+                        : current
+                    )
+                  }
+                  disabled={aiOperatingLayerSaving}
+                  className={cn(
+                    'rounded px-3 py-1.5 text-[10px] font-mono font-semibold uppercase tracking-wider transition-colors',
+                    draftAiOperatingLayerProvider.enabled
+                      ? 'bg-emerald-600 text-white hover:bg-emerald-500'
+                      : 'bg-[var(--to-surface-raised)] text-[var(--to-text-secondary)] hover:bg-[var(--to-surface-raised)]/80'
+                  )}
+                >
+                  {draftAiOperatingLayerProvider.enabled ? 'ON' : 'OFF'}
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[11px] text-[var(--to-text-dim)] uppercase tracking-wider font-mono">
+                  Provider Endpoint
+                </label>
+                <input
+                  data-testid="ai-operating-layer-provider-endpoint"
+                  value={draftAiOperatingLayerProvider.base_url}
+                  onChange={(e) =>
+                    setDraftAiOperatingLayerProvider((current) =>
+                      current
+                        ? { ...current, base_url: e.target.value }
+                        : current
+                    )
+                  }
+                  disabled={aiOperatingLayerSaving}
+                  className="w-full rounded border border-[#2a2e39] bg-[#1e222d] px-2 py-1 text-[11px] font-mono text-[var(--to-text-primary)]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <label className="text-[11px] text-[var(--to-text-dim)] uppercase tracking-wider font-mono">
+                    Timeout Seconds
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={draftAiOperatingLayerProvider.timeout_seconds}
+                    onChange={(e) =>
+                      setDraftAiOperatingLayerProvider((current) =>
+                        current
+                          ? {
+                              ...current,
+                              timeout_seconds: Number(e.target.value || 0),
+                            }
+                          : current
+                      )
+                    }
+                    disabled={aiOperatingLayerSaving}
+                    className="w-full rounded border border-[#2a2e39] bg-[#1e222d] px-2 py-1 text-[11px] font-mono text-[var(--to-text-primary)]"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[11px] text-[var(--to-text-dim)] uppercase tracking-wider font-mono">
+                    Retry Count
+                  </label>
+                  <input
+                    type="number"
+                    value={draftAiOperatingLayerProvider.retry_count}
+                    onChange={(e) =>
+                      setDraftAiOperatingLayerProvider((current) =>
+                        current
+                          ? {
+                              ...current,
+                              retry_count: Number(e.target.value || 0),
+                            }
+                          : current
+                      )
+                    }
+                    disabled={aiOperatingLayerSaving}
+                    className="w-full rounded border border-[#2a2e39] bg-[#1e222d] px-2 py-1 text-[11px] font-mono text-[var(--to-text-primary)]"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="py-3 flex items-center justify-between gap-3">
+            <p className="text-[11px] text-[var(--to-text-dim)] leading-relaxed">
+              These controls are live dashboard config backed by `system_config`,
+              not Railway environment variables.
+            </p>
+            <button
+              type="button"
+              onClick={handleSaveAiOperatingLayer}
+              disabled={aiOperatingLayerSaving}
+              className="inline-flex items-center gap-1.5 rounded bg-[var(--to-long)]/20 px-3 py-1.5 text-[10px] font-mono font-semibold text-[var(--to-long)] hover:bg-emerald-500/30"
+            >
+              <Save className="w-3 h-3" />
+              {aiOperatingLayerSaving ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </SectionCard>
+      )}
+
       {/* Trinity Risk Engine */}
       <SectionCard title="Trinity Risk Engine" icon={<Shield className="w-4 h-4" />}>
         <ConfigRow label="Status" value={<StatusBadge enabled={risk.trinity_enabled} />} />
@@ -426,7 +658,7 @@ export function AiConfigPanel() {
       <div className="px-4 py-3 bg-surface border border-panel-border-subtle rounded-lg">
         <p className="text-[11px] text-text-muted leading-relaxed">
           These settings are read from your Railway environment variables.
-          To change them, update the environment variables in your Railway project dashboard and redeploy.
+          To change them, update the environment variables in your Railway project dashboard and redeploy. The AI Operating Layer section above is the exception: those controls are live global config.
         </p>
       </div>
     </div>

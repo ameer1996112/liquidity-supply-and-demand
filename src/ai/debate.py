@@ -49,7 +49,10 @@ class ChairOutput(BaseModel):
 # ── Trade context builder ───────────────────────────────────────────────────
 
 
-def _build_trade_context(payload: Dict[str, Any]) -> str:
+def _build_trade_context(
+    payload: Dict[str, Any],
+    enriched_context: Optional[Dict[str, Any]] = None,
+) -> str:
     """Build a concise trade context string for prompts."""
     symbol = payload.get("symbol", "UNKNOWN")
     side = (payload.get("side") or "buy").upper()
@@ -70,6 +73,11 @@ def _build_trade_context(payload: Dict[str, Any]) -> str:
         lines.append(f"Zone: {zone_id} | Grade: {zone_grade or 'N/A'} | Entry: {entry_model or 'N/A'}")
     if score is not None:
         lines.append(f"Zone Score: {score}")
+    if enriched_context:
+        chart_status = enriched_context.get("chart_context", {}).get("status", "unknown")
+        pine_name = enriched_context.get("pine_context", {}).get("script_name", "N/A")
+        lines.append(f"Chart Context Status: {chart_status}")
+        lines.append(f"Pine Script: {pine_name}")
     return "\n".join(lines)
 
 

@@ -1,0 +1,93 @@
+<h2>Current AI vs Chart-Aware AI</h2>
+<p class="subtitle">Left: what your system likely knows today. Right: what a TradingView sidecar would add without touching live execution.</p>
+
+<div class="split" style="align-items:start;">
+  <div class="mockup">
+    <div class="mockup-header">A. Current System</div>
+    <div class="mockup-body">
+      <div style="display:grid;gap:12px;">
+        <div style="padding:14px;border:1px solid #2e3440;border-radius:12px;background:#0f172a;">
+          <strong>TradingView Webhook</strong>
+          <div style="font-size:14px;opacity:.8;">signal, symbol, timeframe, indicator numbers</div>
+        </div>
+        <div style="text-align:center;font-size:22px;opacity:.65;">↓</div>
+        <div style="padding:14px;border:1px solid #2e3440;border-radius:12px;background:#111827;">
+          <strong>AI Layer</strong>
+          <div style="font-size:14px;opacity:.8;">reads numbers, rules, logs, history</div>
+        </div>
+        <div style="text-align:center;font-size:22px;opacity:.65;">↓</div>
+        <div style="padding:14px;border:1px solid #2e3440;border-radius:12px;background:#111827;">
+          <strong>Risk / Guards / Worker</strong>
+          <div style="font-size:14px;opacity:.8;">execution pipeline stays deterministic</div>
+        </div>
+        <div style="text-align:center;font-size:22px;opacity:.65;">↓</div>
+        <div style="padding:14px;border:1px solid #2e3440;border-radius:12px;background:#0b1220;">
+          <strong>Broker Execution</strong>
+        </div>
+      </div>
+
+      <div style="margin-top:16px;padding:12px;border-left:4px solid #f59e0b;background:#1f2937;border-radius:8px;">
+        <strong>Blind spot</strong>
+        <div style="font-size:14px;opacity:.9;margin-top:6px;">AI does not really see chart structure, drawn zones, setup quality, or how the pattern visually looks.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">B. Chart-Aware Upgrade</div>
+    <div class="mockup-body">
+      <div style="display:grid;gap:12px;">
+        <div style="padding:14px;border:1px solid #2e3440;border-radius:12px;background:#0f172a;">
+          <strong>TradingView Webhook</strong>
+          <div style="font-size:14px;opacity:.8;">signal still arrives the same way</div>
+        </div>
+        <div style="text-align:center;font-size:22px;opacity:.65;">↓</div>
+        <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;">
+          <div style="padding:14px;border:1px solid #2e3440;border-radius:12px;background:#111827;">
+            <strong>AI Layer</strong>
+            <div style="font-size:14px;opacity:.8;">reasoning, scoring, explanation</div>
+          </div>
+          <div style="font-size:20px;opacity:.7;">↔</div>
+          <div style="padding:14px;border:1px solid #155e75;border-radius:12px;background:#082f49;">
+            <strong>Chart Context Sidecar</strong>
+            <div style="font-size:14px;opacity:.85;">screenshot, indicator values, drawings, labels, Pine output</div>
+          </div>
+        </div>
+        <div style="text-align:center;font-size:22px;opacity:.65;">↓</div>
+        <div style="padding:14px;border:1px dashed #22c55e;border-radius:12px;background:#052e16;">
+          <strong>Protected Live Path</strong>
+          <div style="font-size:14px;opacity:.85;">risk, guards, worker, broker execution stay independent</div>
+        </div>
+      </div>
+
+      <div style="margin-top:16px;padding:12px;border-left:4px solid #22c55e;background:#1f2937;border-radius:8px;">
+        <strong>New value</strong>
+        <div style="font-size:14px;opacity:.9;margin-top:6px;">AI can judge whether the setup actually looks clean, where liquidity/zones are, whether the chart contradicts the signal, and explain the setup visually.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="options" style="margin-top:22px;">
+  <div class="option" data-choice="sidecar-right" onclick="toggleSelect(this)">
+    <div class="letter">1</div>
+    <div class="content">
+      <h3>This makes sense</h3>
+      <p>The sidecar model feels like the right way to add chart-awareness.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="need-example" onclick="toggleSelect(this)">
+    <div class="letter">2</div>
+    <div class="content">
+      <h3>I need a more concrete example</h3>
+      <p>Show me what happens for one incoming signal from webhook to AI output.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="not-clear" onclick="toggleSelect(this)">
+    <div class="letter">3</div>
+    <div class="content">
+      <h3>Still unclear</h3>
+      <p>I want a simpler visual or a different comparison.</p>
+    </div>
+  </div>
+</div>
