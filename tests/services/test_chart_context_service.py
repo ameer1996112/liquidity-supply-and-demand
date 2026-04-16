@@ -25,8 +25,10 @@ def test_normalize_chart_context_preserves_structured_signal_artifacts() -> None
             symbol="XAUUSD",
             timeframe="5m",
             structured={
+                "provider_timestamp": "2026-04-17T00:20:00Z",
                 "pine_labels": ["sweep", "entry"],
                 "zones": [{"kind": "liquidity", "top": 3300.0, "bottom": 3297.5}],
+                "indicator_values": {"ema": "3299.5"},
             },
             screenshot_url="http://example.test/xau.png",
             reason="",
