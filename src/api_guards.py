@@ -28,6 +28,12 @@ from src.core.guard_rails.guard_registry import (
 from src.services.trade_events import log_event
 from src.services.liquidity_scorer import get_dynamic_threshold_info
 from src.adapters.supabase_api import get_api_supabase as get_supabase
+from src.core.broker_profiles import get_active_profiles
+from src.services.account_guard_settings import (
+    get_effective_account_guard_value,
+    load_account_guard_overrides,
+    update_account_guard_override,
+)
 
 import logging
 
@@ -78,6 +84,7 @@ class GuardResponse(BaseModel):
     rejection_count_7d: int = 0
     last_rejection_reason: Optional[str] = None
     dynamic_threshold: Optional[DynamicThresholdInfo] = None
+    scope: str = "global"
 
 
 class GuardsConfigResponse(BaseModel):
@@ -116,6 +123,16 @@ class RejectionEntry(BaseModel):
     timestamp: str
 
 
+class GuardAccountEntry(BaseModel):
+    id: str
+    name: str
+    run_mode: str
+
+
+class GuardAccountsResponse(BaseModel):
+    accounts: list[GuardAccountEntry]
+
+
 # ══════════════════════════════════════════════════════════
 # HELPERS
 # ══════════════════════════════════════════════════════════
@@ -124,6 +141,16 @@ class RejectionEntry(BaseModel):
 def _get_current_value(guard: GuardDefinition) -> Any:
     """Read the current effective value for a guard from DB/env/default."""
     return get_dynamic_setting(guard.setting_key, guard.default)
+
+
+def _get_account_current_value(guard: GuardDefinition, account_id: str, overrides: dict[str, Any]) -> Any:
+    value, _source = get_effective_account_guard_value(
+        account_id=account_id,
+        setting_key=guard.setting_key,
+        global_default=guard.default,
+        account_overrides=overrides,
+    )
+    return value
 
 
 def _get_threshold_value(t: ThresholdDef) -> Any:
@@ -257,32 +284,19 @@ def _get_rejection_stats(days: int = 7) -> dict:
         return {"by_guard": {}, "total_rejections": 0, "total_signals": 0}
 
 
-# Guard name -> event_type mapping for rejection stats
-_GUARD_EVENT_MAP = {
-    "kill_switch": "kill_switch_blocked",
-    "staleness_guard": "staleness_rejected",
-    "holiday_guard": "holiday_rejected",
-    "ai_filter": "ai_rejected",
-}
-
-
-# ══════════════════════════════════════════════════════════
-# ENDPOINTS
-# ══════════════════════════════════════════════════════════
-
-
-@router.get("/config", response_model=GuardsConfigResponse)
-def get_guards_config():
-    """Return all guards with current values, grouped by category."""
+def _build_guards_response(guards: list[GuardDefinition], *, account_id: str | None = None) -> GuardsConfigResponse:
     stats = _get_rejection_stats(7)
     by_guard_stats = stats.get("by_guard", {})
-
     groups: dict[str, list[GuardResponse]] = {}
+    overrides = load_account_guard_overrides(account_id) if account_id else {}
 
-    for guard in get_all_guards():
-        current_value = _get_current_value(guard)
+    for guard in guards:
+        current_value = (
+            _get_account_current_value(guard, account_id, overrides)
+            if account_id
+            else _get_current_value(guard)
+        )
 
-        # Build threshold responses
         threshold_responses = []
         for t in guard.thresholds:
             if isinstance(t, ThresholdDef):
@@ -299,13 +313,11 @@ def get_guards_config():
                     )
                 )
 
-        # Match rejection stats
         guard_stats = by_guard_stats.get(guard.guard_id, {})
         event_type = _GUARD_EVENT_MAP.get(guard.guard_id, guard.guard_id)
         if not guard_stats:
             guard_stats = by_guard_stats.get(event_type, {})
 
-        # Attach dynamic threshold info for guards that use it
         dyn_info = None
         if guard.guard_id == "one_candle_liq_filter":
             dt = get_dynamic_threshold_info()
@@ -336,8 +348,8 @@ def get_guards_config():
             rejection_count_7d=guard_stats.get("count", 0),
             last_rejection_reason=guard_stats.get("last_reason"),
             dynamic_threshold=dyn_info,
+            scope=guard.scope,
         )
-
         groups.setdefault(guard.group, []).append(resp)
 
     return GuardsConfigResponse(
@@ -347,6 +359,50 @@ def get_guards_config():
         total_rejections_7d=stats.get("total_rejections", 0),
         total_signals_7d=stats.get("total_signals", 0),
     )
+
+
+# Guard name -> event_type mapping for rejection stats
+_GUARD_EVENT_MAP = {
+    "kill_switch": "kill_switch_blocked",
+    "staleness_guard": "staleness_rejected",
+    "holiday_guard": "holiday_rejected",
+    "ai_filter": "ai_rejected",
+}
+
+
+# ══════════════════════════════════════════════════════════
+# ENDPOINTS
+# ══════════════════════════════════════════════════════════
+
+
+@router.get("/config", response_model=GuardsConfigResponse)
+def get_guards_config():
+    """Return all guards with current values, grouped by category."""
+    return _build_guards_response([guard for guard in get_all_guards() if guard.scope == "global"])
+
+
+@router.get("/accounts", response_model=GuardAccountsResponse)
+def list_guard_accounts():
+    profiles = get_active_profiles()
+    accounts = []
+    for profile in profiles:
+        profile_id = profile.get("id") or profile.get("name")
+        if not profile_id:
+            continue
+        accounts.append(
+            GuardAccountEntry(
+                id=str(profile_id),
+                name=str(profile.get("name") or profile_id),
+                run_mode=str(profile.get("run_mode") or "LIVE"),
+            )
+        )
+    return GuardAccountsResponse(accounts=accounts)
+
+
+@router.get("/config/account/{account_id}", response_model=GuardsConfigResponse)
+def get_account_guards_config(account_id: str):
+    guards = [guard for guard in get_all_guards() if guard.scope == "account"]
+    return _build_guards_response(guards, account_id=account_id)
 
 
 @router.patch("/config/{guard_id}", response_model=GuardUpdateResponse)
@@ -433,6 +489,46 @@ def update_guard_config(guard_id: str, body: GuardUpdateRequest):
         new_value=validated_value,
         confirmed_value=confirmed,
         threshold_updates={k: v["new"] for k, v in threshold_updates.items()},
+    )
+
+
+@router.patch("/config/account/{account_id}/{guard_id}", response_model=GuardUpdateResponse)
+def update_account_guard_config(account_id: str, guard_id: str, body: GuardUpdateRequest):
+    guard = get_guard(guard_id)
+    if not guard or guard.scope != "account":
+        raise HTTPException(404, f"Account-scoped guard '{guard_id}' not found")
+
+    if guard.tier == "critical" and not body.change_reason.strip():
+        raise HTTPException(400, f"Guard '{guard_id}' is critical — change_reason is required")
+
+    validated_value = _validate_value(guard, body.value)
+    old_value = _get_account_current_value(guard, account_id, load_account_guard_overrides(account_id))
+    updated_overrides = update_account_guard_override(account_id, guard.setting_key, validated_value)
+    confirmed_value = updated_overrides.get(guard.setting_key, validated_value)
+
+    log_event(
+        signal_id=None,
+        event_type="guard_config_updated",
+        stage="api.guards.account",
+        metadata={
+            "guard_id": guard_id,
+            "account_id": account_id,
+            "setting_key": guard.setting_key,
+            "scope": "account",
+            "old_value": old_value,
+            "new_value": validated_value,
+            "confirmed_value": confirmed_value,
+            "change_reason": body.change_reason,
+        },
+    )
+
+    return GuardUpdateResponse(
+        guard_id=guard.guard_id,
+        setting_key=guard.setting_key,
+        old_value=old_value,
+        new_value=validated_value,
+        confirmed_value=confirmed_value,
+        threshold_updates={},
     )
 
 

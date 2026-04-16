@@ -46,6 +46,7 @@ export interface GuardConfig {
   rejection_count_7d: number;
   last_rejection_reason: string | null;
   dynamic_threshold: DynamicThresholdInfo | null;
+  scope?: 'global' | 'account' | 'mixed';
 }
 
 export interface GuardsConfigResponse {
@@ -54,6 +55,16 @@ export interface GuardsConfigResponse {
   tier_labels: Record<string, string>;
   total_rejections_7d: number;
   total_signals_7d: number;
+}
+
+export interface GuardAccount {
+  id: string;
+  name: string;
+  run_mode: string;
+}
+
+export interface GuardAccountsResponse {
+  accounts: GuardAccount[];
 }
 
 export interface GuardUpdateRequest {
@@ -80,11 +91,11 @@ export interface RejectionEntry {
 
 // ── API Functions ──────────────────────────────────────
 
-async function fetchGuardsConfig(): Promise<GuardsConfigResponse> {
+async function fetchGlobalGuardsConfig(): Promise<GuardsConfigResponse> {
   return apiFetch<GuardsConfigResponse>('/api/v1/guards/config');
 }
 
-async function updateGuard(
+async function updateGlobalGuard(
   guardId: string,
   body: GuardUpdateRequest
 ): Promise<GuardUpdateResponse> {
@@ -101,30 +112,85 @@ async function fetchRejections(days = 7): Promise<RejectionEntry[]> {
   );
 }
 
+async function fetchGuardAccounts(): Promise<GuardAccountsResponse> {
+  return apiFetch<GuardAccountsResponse>('/api/v1/guards/accounts');
+}
+
+async function fetchAccountGuardsConfig(accountId: string): Promise<GuardsConfigResponse> {
+  return apiFetch<GuardsConfigResponse>(`/api/v1/guards/config/account/${accountId}`);
+}
+
+async function updateAccountGuard(
+  accountId: string,
+  guardId: string,
+  body: GuardUpdateRequest
+): Promise<GuardUpdateResponse> {
+  return apiFetch<GuardUpdateResponse>(`/api/v1/guards/config/account/${accountId}/${guardId}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
 // ── Hooks ──────────────────────────────────────────────
 
-const GUARDS_CONFIG_KEY = ['guards', 'config'] as const;
+const GLOBAL_GUARDS_CONFIG_KEY = ['guards', 'global'] as const;
+const GUARD_ACCOUNTS_KEY = ['guards', 'accounts'] as const;
 const GUARDS_REJECTIONS_KEY = ['guards', 'rejections'] as const;
 
-export function useGuardsConfig() {
+export function useGlobalGuardsConfig() {
   return useQuery({
-    queryKey: GUARDS_CONFIG_KEY,
-    queryFn: fetchGuardsConfig,
+    queryKey: GLOBAL_GUARDS_CONFIG_KEY,
+    queryFn: fetchGlobalGuardsConfig,
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
 }
 
-export function useUpdateGuard() {
+export function useGuardAccounts() {
+  return useQuery({
+    queryKey: GUARD_ACCOUNTS_KEY,
+    queryFn: fetchGuardAccounts,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+}
+
+export function useAccountGuardsConfig(accountId: string | null) {
+  return useQuery({
+    queryKey: ['guards', 'account', accountId],
+    queryFn: () => fetchAccountGuardsConfig(accountId as string),
+    enabled: Boolean(accountId),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+}
+
+export function useUpdateGlobalGuard() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({
       guardId,
       ...body
     }: GuardUpdateRequest & { guardId: string }) =>
-      updateGuard(guardId, body),
+      updateGlobalGuard(guardId, body),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: GUARDS_CONFIG_KEY });
+      queryClient.invalidateQueries({ queryKey: GLOBAL_GUARDS_CONFIG_KEY });
+    },
+  });
+}
+
+export function useUpdateAccountGuard() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      accountId,
+      guardId,
+      ...body
+    }: GuardUpdateRequest & { accountId: string; guardId: string }) =>
+      updateAccountGuard(accountId, guardId, body),
+    onSuccess: (_result, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['guards', 'account', variables.accountId] });
     },
   });
 }

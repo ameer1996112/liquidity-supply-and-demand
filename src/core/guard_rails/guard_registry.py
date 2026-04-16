@@ -37,6 +37,7 @@ class GuardDefinition:
     min_value: Optional[float] = None
     max_value: Optional[float] = None
     unit: str = ""  # e.g., "%", "pips", "seconds", "lots"
+    scope: str = "global"  # global | account | mixed
     thresholds: list = field(default_factory=list)  # Additional threshold settings
 
 
@@ -74,6 +75,7 @@ _register(GuardDefinition(
     group="capital_protection",
     value_type="bool",
     default=False,
+    scope="global",
 ))
 
 _register(GuardDefinition(
@@ -89,6 +91,7 @@ _register(GuardDefinition(
     min_value=0.5,
     max_value=10.0,
     unit="%",
+    scope="account",
 ))
 
 _register(GuardDefinition(
@@ -104,6 +107,7 @@ _register(GuardDefinition(
     min_value=1.0,
     max_value=20.0,
     unit="%",
+    scope="account",
 ))
 
 _register(GuardDefinition(
@@ -119,6 +123,7 @@ _register(GuardDefinition(
     min_value=0.1,
     max_value=1000.0,
     unit="lots",
+    scope="account",
 ))
 
 _register(GuardDefinition(
@@ -131,6 +136,7 @@ _register(GuardDefinition(
     group="capital_protection",
     value_type="bool",
     default=True,
+    scope="account",
     thresholds=[
         ThresholdDef("weekly_max_loss_pct", "Weekly Max Loss", "float", 6.0, 1.0, 20.0, "%"),
     ],
@@ -146,6 +152,7 @@ _register(GuardDefinition(
     group="capital_protection",
     value_type="bool",
     default=True,
+    scope="account",
     thresholds=[
         ThresholdDef("monthly_max_loss_pct", "Monthly Max Loss", "float", 10.0, 2.0, 30.0, "%"),
     ],
@@ -161,6 +168,7 @@ _register(GuardDefinition(
     group="capital_protection",
     value_type="bool",
     default=True,
+    scope="account",
 ))
 
 # ── Trade Quality (important) ────────────────────────────
@@ -175,6 +183,7 @@ _register(GuardDefinition(
     group="trade_quality",
     value_type="bool",
     default=True,
+    scope="global",
     thresholds=[
         ThresholdDef("staleness_max_age_seconds", "Max Signal Age", "int", 5, 1, 30, "sec"),
         ThresholdDef("staleness_max_price_deviation_pips", "Max Price Deviation", "float", 3.0, 0.5, 10.0, "pips"),
@@ -194,6 +203,7 @@ _register(GuardDefinition(
     min_value=1,
     max_value=10,
     unit="positions",
+    scope="account",
 ))
 
 _register(GuardDefinition(
@@ -206,6 +216,7 @@ _register(GuardDefinition(
     group="trade_quality",
     value_type="bool",
     default=True,
+    scope="global",
 ))
 
 _register(GuardDefinition(
@@ -218,6 +229,7 @@ _register(GuardDefinition(
     group="trade_quality",
     value_type="bool",
     default=True,
+    scope="account",
     thresholds=[
         ThresholdDef("pine_max_trades_per_day", "Fallback Static Limit", "int", 0, 0, 20, "trades"),
         ThresholdDef("pine_daily_risk_budget_pct", "Daily Risk Budget", "float", 3.0, 0.1, 20.0, "%"),
@@ -234,6 +246,7 @@ _register(GuardDefinition(
     group="trade_quality",
     value_type="bool",
     default=True,
+    scope="global",
     thresholds=[
         ThresholdDef("min_sl_pips_forex", "Min SL - Forex", "float", 5.0, 1.0, 20.0, "pips"),
         ThresholdDef("min_sl_pips_jpy", "Min SL - JPY Pairs", "float", 7.0, 1.0, 20.0, "pips"),
@@ -256,6 +269,7 @@ _register(GuardDefinition(
     group="trade_quality",
     value_type="bool",
     default=True,
+    scope="global",
     thresholds=[
         ThresholdDef("pine_htf_candle_block_minutes", "Block Minutes Before", "int", 5, 1, 14, "min"),
         ThresholdDef("pine_block_before_hourly_close", "Block Before Hourly Close", "bool", True, None, None, ""),
@@ -273,6 +287,7 @@ _register(GuardDefinition(
     value_type="bool",
     default=True,
     thresholds=[],
+    scope="global",
 ))
 
 _register(GuardDefinition(
@@ -285,6 +300,7 @@ _register(GuardDefinition(
     group="trade_quality",
     value_type="bool",
     default=True,
+    scope="global",
     thresholds=[
         ThresholdDef("pine_one_candle_liq_min_departure", "Min Departure Score", "float", 40.0, 0.0, 100.0, ""),
     ],
@@ -302,6 +318,7 @@ _register(GuardDefinition(
     group="scheduling",
     value_type="bool",
     default=True,
+    scope="global",
     thresholds=[
         ThresholdDef("holiday_block_early_close", "Block Early Close Days", "bool", False, None, None, ""),
     ],
@@ -318,6 +335,7 @@ _register(GuardDefinition(
     group="scheduling",
     value_type="bool",
     default=True,
+    scope="global",
     thresholds=[
         ThresholdDef("swap_time", "Rollover Time (HH:MM)", "str", "00:00", None, None, ""),
         ThresholdDef("swap_timezone", "Rollover Timezone", "str", "Asia/Jerusalem", None, None, ""),
@@ -336,6 +354,7 @@ _register(GuardDefinition(
     group="capital_protection",
     value_type="bool",
     default=True,
+    scope="account",
 ))
 
 
