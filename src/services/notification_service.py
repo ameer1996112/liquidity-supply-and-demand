@@ -77,6 +77,25 @@ class NotificationService:
         image_url = signal.get("image_url")
         return str(image_url) if image_url else None
 
+    def _build_setup_evidence_summary(self, signal: dict[str, Any]) -> Optional[dict[str, Any]]:
+        setup_evidence = signal.get("setup_evidence")
+        if not isinstance(setup_evidence, dict) or not setup_evidence:
+            return None
+
+        status = str(setup_evidence.get("status") or "missing").lower()
+        focus_zone = setup_evidence.get("focus_zone")
+        focus_zone_label = "No focus zone detected"
+        if isinstance(focus_zone, dict) and focus_zone.get("label"):
+            focus_zone_label = str(focus_zone["label"])
+
+        return {
+            "status": status,
+            "status_label": f"Setup Evidence: {status.upper()}",
+            "focus_zone_label": focus_zone_label,
+            "has_image": bool(self._resolve_setup_image_url(signal)),
+            "reason": str(setup_evidence.get("reason") or ""),
+        }
+
     # ─── Public API ──────────────────────────────────────────────────────────
 
     def format_signal(
@@ -201,6 +220,11 @@ class NotificationService:
         fields = _flatten_sections(sections)
         fields["Account"] = resolved_account
 
+        metadata = {"symbol": symbol, "side": side, "mode": mode, "ai_result": _ai_raw or {}}
+        setup_evidence_summary = self._build_setup_evidence_summary(signal)
+        if setup_evidence_summary:
+            metadata["setup_evidence_summary"] = setup_evidence_summary
+
         return NotificationPayload(
             type="signal",
             title=f"[{strategy_badge}] {side} Signal - {symbol}" if strategy_badge else f"{side} Signal - {symbol}",
@@ -208,7 +232,7 @@ class NotificationService:
             fields=fields,
             color=color,
             footer=f"Signal #{signal_id} | /close {signal_id} to close",
-            metadata={"symbol": symbol, "side": side, "mode": mode, "ai_result": _ai_raw or {}},
+            metadata=metadata,
             signal_id=signal_id,
             image_url=resolved_image_url,
             account_name=resolved_account,
@@ -291,12 +315,17 @@ class NotificationService:
         if context_fields:
             sections.append({"name": "Context", "fields": context_fields})
 
+        metadata = {"symbol": symbol, "side": side, "pnl": pnl, "outcome": outcome}
+        setup_evidence_summary = self._build_setup_evidence_summary(signal)
+        if setup_evidence_summary:
+            metadata["setup_evidence_summary"] = setup_evidence_summary
+
         return NotificationPayload(
             type="close",
             title=f"[{strategy_badge}] Trade Closed - {symbol} {side}" if strategy_badge else f"Trade Closed - {symbol} {side}",
             fields=_flatten_sections(sections),
             color=color,
-            metadata={"symbol": symbol, "side": side, "pnl": pnl, "outcome": outcome},
+            metadata=metadata,
             signal_id=signal_id,
             image_url=self._resolve_setup_image_url(signal),
             account_name=resolved_account,

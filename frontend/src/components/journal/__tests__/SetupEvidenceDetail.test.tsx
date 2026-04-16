@@ -25,10 +25,34 @@ describe('SetupEvidenceDetail', () => {
     });
 
     expect(
-      container.querySelector('img[alt="Setup evidence"]')?.getAttribute('src')
+      container.querySelector('img[alt="Setup evidence preview"]')?.getAttribute('src')
     ).toBe('https://provider/setup.png');
     expect(container.textContent).toContain('Demand');
     expect(container.textContent).toContain('LONG');
+    expect(container.textContent).toContain('ok');
+    expect(container.querySelector('button[aria-label="Open setup evidence"]')).not.toBeNull();
+    root.unmount();
+  });
+
+  test('renders degraded reason without modal trigger when image is unavailable', () => {
+    const container = document.createElement('div');
+    const root = createRoot(container);
+
+    act(() => {
+      root.render(
+        <SetupEvidenceDetail
+          evidence={{
+            status: 'degraded',
+            reason: 'Focus image unavailable',
+            pine_snapshot: { zone_count: 0, label_count: 0, top_labels: [] },
+          }}
+        />
+      );
+    });
+
+    expect(container.textContent).toContain('degraded');
+    expect(container.textContent).toContain('Focus image unavailable');
+    expect(container.querySelector('button[aria-label="Open setup evidence"]')).toBeNull();
     root.unmount();
   });
 });

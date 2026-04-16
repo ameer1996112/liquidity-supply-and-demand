@@ -113,7 +113,7 @@ export interface SetupEvidenceSnapshot {
 }
 
 export interface SetupEvidence {
-  status?: 'ok' | 'degraded';
+  status?: 'ok' | 'degraded' | 'missing';
   focus_zone?: SetupEvidenceFocusZone | null;
   focus_image?: SetupEvidenceFocusImage | null;
   pine_snapshot?: SetupEvidenceSnapshot | null;

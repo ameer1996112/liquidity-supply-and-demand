@@ -708,12 +708,35 @@ def _section_to_embed_field(section: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _setup_evidence_field(summary: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
+    if not summary:
+        return None
+
+    screenshot_state = "attached" if summary.get("has_image") else "not attached"
+    lines = [
+        str(summary.get("status_label") or "Setup Evidence"),
+        f"Zone: {summary.get('focus_zone_label') or 'No focus zone detected'}",
+        f"Screenshot: {screenshot_state}",
+    ]
+    if summary.get("reason"):
+        lines.append(f"Note: {summary['reason']}")
+
+    return {
+        "name": "Setup Evidence",
+        "value": "\n".join(lines),
+        "inline": False,
+    }
+
+
 def _payload_to_discord_embed(payload: NotificationPayload) -> dict:
     """Render a NotificationPayload as a premium Discord embed dict."""
     color = COLOR_MAP.get(payload.color, 0x3B82F6)
 
     sections = payload.sections or [{"name": "Summary", "fields": payload.fields}]
     fields = [_section_to_embed_field(section) for section in sections]
+    setup_field = _setup_evidence_field((payload.metadata or {}).get("setup_evidence_summary"))
+    if setup_field:
+        fields.append(setup_field)
 
     embed: dict = {
         "title": payload.title,
@@ -789,6 +812,25 @@ def _payload_to_telegram_html(payload: NotificationPayload) -> str:
 
     if payload.footer:
         lines.append(f"\n<i>{clean(payload.footer)}</i>")
+
+    return "\n".join(lines)
+
+
+def _payload_to_telegram_setup_caption(payload: NotificationPayload) -> str:
+    summary = (payload.metadata or {}).get("setup_evidence_summary") or {}
+    lines = ["Setup Evidence"]
+
+    focus_zone_label = summary.get("focus_zone_label")
+    if focus_zone_label:
+        lines.append(str(focus_zone_label))
+
+    status_label = summary.get("status_label")
+    if status_label:
+        lines.append(str(status_label))
+
+    reason = summary.get("reason")
+    if reason:
+        lines.append(str(reason))
 
     return "\n".join(lines)
 
@@ -872,18 +914,7 @@ def dispatch_payload(
     if routing.get("telegram_enabled", True) and s.telegram_bot_token and s.telegram_chat_id:
         try:
             text = _payload_to_telegram_html(payload)
-            if payload.image_url and len(text) <= 900:
-                r = requests.post(
-                    f"https://api.telegram.org/bot{s.telegram_bot_token}/sendPhoto",
-                    json={
-                        "chat_id": s.telegram_chat_id,
-                        "photo": payload.image_url,
-                        "caption": text,
-                        "parse_mode": "HTML",
-                    },
-                    timeout=10,
-                )
-            elif payload.image_url:
+            if payload.image_url:
                 requests.post(
                     f"https://api.telegram.org/bot{s.telegram_bot_token}/sendMessage",
                     json={"chat_id": s.telegram_chat_id, "text": text, "parse_mode": "HTML"},
@@ -891,7 +922,11 @@ def dispatch_payload(
                 )
                 r = requests.post(
                     f"https://api.telegram.org/bot{s.telegram_bot_token}/sendPhoto",
-                    json={"chat_id": s.telegram_chat_id, "photo": payload.image_url},
+                    json={
+                        "chat_id": s.telegram_chat_id,
+                        "photo": payload.image_url,
+                        "caption": _payload_to_telegram_setup_caption(payload),
+                    },
                     timeout=10,
                 )
             else:

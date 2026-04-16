@@ -194,3 +194,29 @@ def test_embed_still_uses_chart_image_when_present():
     embed = _payload_to_discord_embed(payload)
 
     assert embed["image"]["url"] == "https://www.tradingview.com/x/abc123/"
+
+
+def test_embed_adds_setup_evidence_field_from_metadata():
+    payload = NotificationPayload(
+        type="signal",
+        title="BUY Signal - GBPUSD",
+        fields={"Entry": "1.35414"},
+        color="sell",
+        sections=[{"name": "Trade", "fields": {"Entry": "1.35414"}}],
+        image_url="https://provider.example/setup.png",
+        metadata={
+            "symbol": "GBPUSD",
+            "setup_evidence_summary": {
+                "status_label": "Setup Evidence: OK",
+                "focus_zone_label": "SUPPLY A+",
+                "has_image": True,
+            },
+        },
+    )
+
+    embed = _payload_to_discord_embed(payload)
+
+    assert any(field["name"] == "Setup Evidence" for field in embed["fields"])
+    setup_field = next(field for field in embed["fields"] if field["name"] == "Setup Evidence")
+    assert "SUPPLY A+" in setup_field["value"]
+    assert "attached" in setup_field["value"]
