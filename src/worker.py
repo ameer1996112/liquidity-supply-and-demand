@@ -121,7 +121,7 @@ _SYSTEM_MODE_CACHE_TTL = 30  # seconds
 _htf_filter_cache: dict = {"enabled": None, "minutes": None, "period": None, "hourly_close": None, "loaded_at": 0.0}
 
 # 1-candle liquidity filter cache — DB overrides Pydantic defaults (30s TTL)
-_one_candle_liq_cache: dict = {"enabled": None, "min_departure": None, "loaded_at": 0.0}
+_one_candle_liq_cache: dict = {"enabled": None, "min_departure": None, "middle_zone": None, "loaded_at": 0.0}
 
 # Trading hours cache — DB overrides env defaults (30s TTL)
 _trading_hours_cache: dict = {"start": None, "end": None, "loaded_at": 0.0}
@@ -202,35 +202,48 @@ def _get_htf_filter_settings(s) -> tuple[bool, int, int, bool]:
     return htf_enabled, htf_minutes, htf_period, htf_hourly_close
 
 
-def _get_one_candle_liq_settings(s) -> tuple[bool, float]:
-    """Return (block_enabled, min_departure) from DB (30s cache), falling back to Pydantic settings."""
+def _get_one_candle_liq_settings(s) -> tuple[bool, float, bool]:
+    """Return (block_enabled, min_departure, block_middle_zone) from DB (30s cache)."""
     now = time.time()
     if now - _one_candle_liq_cache["loaded_at"] < _SYSTEM_MODE_CACHE_TTL and _one_candle_liq_cache["enabled"] is not None:
-        return _one_candle_liq_cache["enabled"], _one_candle_liq_cache["min_departure"]
+        return (
+            _one_candle_liq_cache["enabled"],
+            _one_candle_liq_cache["min_departure"],
+            _one_candle_liq_cache["middle_zone"],
+        )
     try:
         sb = _get_fresh_supabase()
         if sb:
             rows = (
                 sb.table("system_config")
                 .select("key,value")
-                .in_("key", ["pine_block_one_candle_liq", "pine_one_candle_liq_min_departure"])
+                .in_("key", ["pine_block_one_candle_liq", "pine_one_candle_liq_min_departure", "pine_block_middle_zone"])
                 .execute()
             )
             kv = {r["key"]: r["value"] for r in (rows.data or [])}
             raw_enabled = kv.get("pine_block_one_candle_liq")
             raw_dep = kv.get("pine_one_candle_liq_min_departure")
+            raw_middle_zone = kv.get("pine_block_middle_zone")
             enabled = (raw_enabled.lower() != "false") if raw_enabled is not None else getattr(s, "pine_block_one_candle_liq", True)
             min_dep = float(raw_dep) if raw_dep is not None else getattr(s, "pine_one_candle_liq_min_departure", 60.0)
+            block_middle_zone = (
+                raw_middle_zone.lower() != "false"
+                if raw_middle_zone is not None
+                else getattr(s, "pine_block_middle_zone", True)
+            )
         else:
             enabled = getattr(s, "pine_block_one_candle_liq", True)
             min_dep = getattr(s, "pine_one_candle_liq_min_departure", 60.0)
+            block_middle_zone = getattr(s, "pine_block_middle_zone", True)
     except Exception:
         enabled = getattr(s, "pine_block_one_candle_liq", True)
         min_dep = getattr(s, "pine_one_candle_liq_min_departure", 60.0)
+        block_middle_zone = getattr(s, "pine_block_middle_zone", True)
     _one_candle_liq_cache["enabled"] = enabled
     _one_candle_liq_cache["min_departure"] = min_dep
+    _one_candle_liq_cache["middle_zone"] = block_middle_zone
     _one_candle_liq_cache["loaded_at"] = now
-    return enabled, min_dep
+    return enabled, min_dep, block_middle_zone
 
 
 def _get_trading_hours(s) -> tuple[int, int]:
@@ -906,7 +919,7 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
     # --- 1-candle liquidity filter (composite confidence scorer) ---
     # Uses LiquidityScorer: hard gates + weighted zone quality + market context.
     # Only applies when liq_candle_count == 1 and the feature is enabled.
-    _ocl_enabled, _ocl_min_dep = _get_one_candle_liq_settings(s)
+    _ocl_enabled, _ocl_min_dep, _block_middle_zone = _get_one_candle_liq_settings(s)
     if _ocl_enabled:
         liq_candle_count = payload.get("liq_candle_count")
         if liq_candle_count is not None:
@@ -918,7 +931,7 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
                         return f"1-candle liquidity blocked: {gate_reason}"
 
                     # Middle zone block (toggleable via pine_block_middle_zone setting)
-                    if s.pine_block_middle_zone and bool(payload.get("is_middle_zone", False)):
+                    if _block_middle_zone and bool(payload.get("is_middle_zone", False)):
                         return "1-candle liquidity blocked: middle zone"
 
                     # Composite score (market_cache empty until MetaAPI cache is wired)

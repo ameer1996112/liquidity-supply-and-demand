@@ -46,6 +46,7 @@ _SYSTEM_CONFIG_KEYS = {
     "pine_htf_candle_filter_enabled",
     "pine_htf_candle_block_minutes",
     "pine_block_before_hourly_close",
+    "pine_block_middle_zone",
     "pine_block_one_candle_liq",
     "pine_one_candle_liq_min_departure",
 }
