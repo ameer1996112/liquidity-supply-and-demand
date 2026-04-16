@@ -37,6 +37,11 @@ from config.logging_config import configure_logging, get_logger
 from src.adapters.redis_queue import get_redis
 from src.core.transport import get_transport
 from src.core.signal import validate_webhook_payload
+from src.services.webhook_strategy_context import (
+    StrategyContextError,
+    build_received_signal_row,
+    resolve_and_stamp_strategy_context,
+)
 
 
 def _require_admin_key(
@@ -811,6 +816,10 @@ async def webhook(request: Request, payload: dict[str, Any] = Depends(get_webhoo
     account_id = _router.resolve_account_id(payload)
     payload["_account_id"] = account_id
     queue_key = DEFAULT_QUEUE_KEY  # Always use signals:default
+    try:
+        payload = resolve_and_stamp_strategy_context(payload)
+    except StrategyContextError as exc:
+        raise HTTPException(status_code=400, detail=exc.detail) from exc
 
     # Persist at API level so signal appears in frontend even if worker never processes it (entry only)
     event_type = (payload.get("event_type") or "").strip().lower()
@@ -828,22 +837,13 @@ async def webhook(request: Request, payload: dict[str, Any] = Depends(get_webhoo
             from config import get_settings as _gs
             s = _gs()
             sb = get_supabase()
-            row = {
-                "symbol": payload.get("symbol", "UNKNOWN"),
-                "side": payload.get("side", "buy"),
-                "size": float(payload.get("size", 0.01)),
-                "entry": float(payload.get("entry", 0)) if payload.get("entry") else None,
-                "sl": float(payload.get("sl", 0)) if payload.get("sl") else None,
-                "tp": float(payload.get("tp", 0)) if payload.get("tp") else None,
-                "status": "received",
-                "notes": "Received by API, awaiting worker",
-                "run_mode": run_mode,
-                "account_id": account_id,
-                "webhook_receipt_id": receipt_id,
-                "account_balance": float(payload.get("account_balance", s.account_balance)),
-            }
-            if payload.get("trade_key"):
-                row["trade_key"] = payload["trade_key"]
+            row = build_received_signal_row(
+                payload,
+                run_mode=run_mode,
+                account_id=account_id,
+                receipt_id=receipt_id,
+                account_balance=float(payload.get("account_balance", s.account_balance)),
+            )
             sb.table("trading_signals").insert(row).execute()
             logger.info("API persisted signal (receipt_id=%s) for frontend visibility", receipt_id[:8])
         except Exception as e:

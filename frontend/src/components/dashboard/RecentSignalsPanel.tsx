@@ -52,6 +52,11 @@ const FILTER_TABS: { key: FilterTab; label: string }[] = [
   { key: 'rejects', label: 'Rejects' },
 ];
 
+function getStrategyBadge(signal: TradingSignal): string | null {
+  if (!signal.strategy_id) return null;
+  return `${signal.strategy_id}@${signal.strategy_version ?? '?'}`;
+}
+
 interface RecentSignalsPanelProps {
   mode?: TradingMode;
   onSelectSignal: (signal: TradingSignal) => void;
@@ -115,6 +120,7 @@ const SignalRowMemo = memo(function SignalRow({
   const pnl = getPnl(signal);
   const isBuy = side === 'buy';
   const isActive = signal.status?.toLowerCase() === 'active';
+  const strategyBadge = getStrategyBadge(signal);
 
   return (
     <div
@@ -143,6 +149,14 @@ const SignalRowMemo = memo(function SignalRow({
               })
             }
           />
+          {strategyBadge ? (
+            <span
+              className='rounded border border-[var(--to-border)] bg-[var(--to-surface-raised)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--to-text-dim)]'
+              title={strategyBadge}
+            >
+              {strategyBadge}
+            </span>
+          ) : null}
           <span
             className={cn(
               'inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-bold',

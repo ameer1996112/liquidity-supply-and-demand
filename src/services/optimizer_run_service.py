@@ -28,6 +28,8 @@ def _normalize_run(row: dict[str, Any] | None) -> dict[str, Any] | None:
         return None
     return {
         "id": row["id"],
+        "strategy_id": row.get("strategy_id"),
+        "strategy_version": row.get("strategy_version"),
         "status": row["status"],
         "mode": row["mode"],
         "workers": row["workers"],
@@ -48,7 +50,14 @@ class OptimizerRunRepository(Protocol):
     def create_run(self, payload: dict[str, Any]) -> dict[str, Any]: ...
     def update_run(self, run_id: str, updates: dict[str, Any]) -> dict[str, Any]: ...
     def get_run(self, run_id: str) -> dict[str, Any] | None: ...
-    def list_runs(self, *, limit: int = 20, status: str | None = None) -> list[dict[str, Any]]: ...
+    def list_runs(
+        self,
+        *,
+        limit: int = 20,
+        status: str | None = None,
+        strategy_id: str | None = None,
+        strategy_version: str | None = None,
+    ) -> list[dict[str, Any]]: ...
     def list_incomplete_runs(self) -> list[dict[str, Any]]: ...
     def create_results(self, run_id: str, symbols: list[str]) -> None: ...
     def update_result(self, run_id: str, symbol: str, updates: dict[str, Any]) -> dict[str, Any]: ...
@@ -93,7 +102,14 @@ class SupabaseOptimizerRunRepository:
             return None
         return _normalize_run(resp.data[0])
 
-    def list_runs(self, *, limit: int = 20, status: str | None = None) -> list[dict[str, Any]]:
+    def list_runs(
+        self,
+        *,
+        limit: int = 20,
+        status: str | None = None,
+        strategy_id: str | None = None,
+        strategy_version: str | None = None,
+    ) -> list[dict[str, Any]]:
         query = (
             self._sb.table("optimizer_runs")
             .select("*")
@@ -102,6 +118,10 @@ class SupabaseOptimizerRunRepository:
         )
         if status:
             query = query.eq("status", status)
+        if strategy_id:
+            query = query.eq("strategy_id", strategy_id)
+        if strategy_version:
+            query = query.eq("strategy_version", strategy_version)
         resp = query.execute()
         return [_normalize_run(row) for row in (resp.data or []) if row]
 
@@ -182,6 +202,8 @@ class OptimizerRunService:
     def start_run(
         self,
         *,
+        strategy_id: str,
+        strategy_version: str,
         mode: str,
         workers: int,
         pairs: list[str],
@@ -191,6 +213,10 @@ class OptimizerRunService:
         created_by: str | None = None,
     ) -> dict[str, Any]:
         """Create a queued optimizer run for the local agent to pick up."""
+        if not strategy_id:
+            raise ValueError("strategy_id is required")
+        if not strategy_version:
+            raise ValueError("strategy_version is required")
         if not pairs:
             raise ValueError("pairs must not be empty")
         if self._active_run_exists():
@@ -204,6 +230,8 @@ class OptimizerRunService:
         run = self._repository.create_run(
             {
                 "id": run_id,
+                "strategy_id": strategy_id,
+                "strategy_version": strategy_version,
                 "status": "queued",
                 "mode": mode,
                 "workers": workers,
@@ -273,8 +301,20 @@ class OptimizerRunService:
 
     # ── Read methods ─────────────────────────────────────────────────────────
 
-    def list_runs(self, *, limit: int = 20, status: str | None = None) -> list[dict[str, Any]]:
-        return self._repository.list_runs(limit=limit, status=status)
+    def list_runs(
+        self,
+        *,
+        limit: int = 20,
+        status: str | None = None,
+        strategy_id: str | None = None,
+        strategy_version: str | None = None,
+    ) -> list[dict[str, Any]]:
+        return self._repository.list_runs(
+            limit=limit,
+            status=status,
+            strategy_id=strategy_id,
+            strategy_version=strategy_version,
+        )
 
     def get_run(self, run_id: str) -> dict[str, Any]:
         run = self._repository.get_run(run_id)

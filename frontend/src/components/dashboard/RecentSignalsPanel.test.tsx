@@ -20,6 +20,8 @@ const signalFixture: TradingSignal = {
   id: 'sig-1',
   created_at: '2026-02-20T10:00:00.000Z',
   symbol: 'USDJPY',
+  strategy_id: 'liq_sd_v1',
+  strategy_version: '1',
   side: 'buy',
   status: 'ai_rejected',
   price: 155.458,
@@ -103,5 +105,13 @@ describe('RecentSignalsPanel drawer behavior', () => {
     expect(
       document.querySelector('[data-testid="legacy-signal-details-panel"]')
     ).toBeNull();
+  });
+
+  it('renders the strategy badge when signal metadata includes strategy identity', () => {
+    act(() => {
+      root.render(<DashboardHarness />);
+    });
+
+    expect(container.textContent).toContain('liq_sd_v1@1');
   });
 });

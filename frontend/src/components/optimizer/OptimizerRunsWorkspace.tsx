@@ -11,6 +11,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
+function getStrategyBadge(run?: { strategy_id?: string | null; strategy_version?: string | null } | null) {
+  if (!run?.strategy_id) return null;
+  return `${run.strategy_id}@${run.strategy_version ?? '?'}`;
+}
+
 function statusTone(status: string) {
   if (status === 'completed') return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
   if (status === 'running' || status === 'queued') return 'bg-amber-500/15 text-amber-300 border-amber-500/30';
@@ -239,6 +244,8 @@ function OptimizerTimeline({ events }: { events: OptimizerRunEventApi[] }) {
 
 export function OptimizerRunsWorkspace() {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [strategyId, setStrategyId] = useState('');
+  const [strategyVersion, setStrategyVersion] = useState('');
   const [mode, setMode] = useState<'bayesian' | 'smart' | 'fast' | 'full'>('bayesian');
   const [workers, setWorkers] = useState('3');
   const [pairs, setPairs] = useState('EURUSD,GBPUSD,XAUUSD');
@@ -264,8 +271,19 @@ export function OptimizerRunsWorkspace() {
     }
   }, [currentRunId, selectedRunId]);
 
+  useEffect(() => {
+    if (!strategyId && currentRun?.strategy_id) {
+      setStrategyId(currentRun.strategy_id);
+    }
+    if (!strategyVersion && currentRun?.strategy_version) {
+      setStrategyVersion(currentRun.strategy_version);
+    }
+  }, [currentRun, strategyId, strategyVersion]);
+
   const handleSubmit = () => {
     const payload: OptimizerRunCreateApi = {
+      strategy_id: strategyId.trim(),
+      strategy_version: strategyVersion.trim(),
       mode,
       workers: Number(workers),
       pairs: allPairs ? ['ALL'] : pairs.split(',').map((item) => item.trim()).filter(Boolean),
@@ -282,6 +300,8 @@ export function OptimizerRunsWorkspace() {
   const failedPairs = currentRun?.summary?.failed_pairs ?? 0;
   const totalPairs = currentRun?.summary?.total_pairs ?? 0;
   const runningPairs = currentRun?.summary?.running_pairs ?? 0;
+  const currentStrategyBadge = getStrategyBadge(currentRun);
+  const canStartRun = Boolean(strategyId.trim() && strategyVersion.trim()) && !createRun.isPending;
 
   return (
     <div className='space-y-4'>
@@ -317,6 +337,14 @@ export function OptimizerRunsWorkspace() {
         </CardHeader>
         <CardContent className='space-y-4'>
           <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-3'>
+            <label className='space-y-1 text-xs text-[var(--to-text-secondary)]'>
+              <span>Strategy ID</span>
+              <Input value={strategyId} onChange={(event) => setStrategyId(event.target.value)} placeholder='liq_sd_v1' />
+            </label>
+            <label className='space-y-1 text-xs text-[var(--to-text-secondary)]'>
+              <span>Strategy version</span>
+              <Input value={strategyVersion} onChange={(event) => setStrategyVersion(event.target.value)} placeholder='1' />
+            </label>
             <label className='space-y-1 text-xs text-[var(--to-text-secondary)]'>
               <span>Mode</span>
               <select
@@ -361,7 +389,7 @@ export function OptimizerRunsWorkspace() {
             Dry run
           </label>
           <div className='flex flex-wrap items-center gap-2'>
-            <Button onClick={handleSubmit} disabled={createRun.isPending}>
+            <Button onClick={handleSubmit} disabled={!canStartRun}>
               {createRun.isPending ? <Loader2 className='h-4 w-4 animate-spin' /> : <Play className='h-4 w-4' />}
               Start run
             </Button>
@@ -392,6 +420,11 @@ export function OptimizerRunsWorkspace() {
               <Badge className={cn('border', statusTone(currentRun?.status ?? 'idle'))}>
                 {currentRun?.status ?? 'idle'}
               </Badge>
+              {currentStrategyBadge ? (
+                <Badge className='border border-[var(--to-border)] bg-[var(--to-surface-raised)] text-[var(--to-text-secondary)]'>
+                  {currentStrategyBadge}
+                </Badge>
+              ) : null}
             </div>
           </div>
           <div className='rounded-lg border border-[var(--to-border)] p-3'>
@@ -480,6 +513,11 @@ export function OptimizerRunsWorkspace() {
                       <span className='block text-[10px] text-[var(--to-text-dim)]'>
                         {run.mode} • {run.pairs.length} pairs • {run.workers} workers
                       </span>
+                      {getStrategyBadge(run) ? (
+                        <span className='mt-1 inline-flex rounded border border-[var(--to-border)] bg-[var(--to-surface-raised)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--to-text-dim)]'>
+                          {getStrategyBadge(run)}
+                        </span>
+                      ) : null}
                     </span>
                     <Badge className={cn('border', statusTone(run.status))}>{run.status}</Badge>
                   </button>

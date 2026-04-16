@@ -28,6 +28,8 @@ class InMemoryOptimizerStore:
         store.create_run(
             {
                 "id": "run-1",
+                "strategy_id": "liq_sd_v1",
+                "strategy_version": "1",
                 "status": "running",
                 "mode": "bayesian",
                 "workers": 2,
@@ -48,6 +50,8 @@ class InMemoryOptimizerStore:
         store.create_run(
             {
                 "id": run_id,
+                "strategy_id": "liq_sd_v1",
+                "strategy_version": "1",
                 "status": "running",
                 "mode": "bayesian",
                 "workers": 2,
@@ -72,10 +76,21 @@ class InMemoryOptimizerStore:
     def get_run(self, run_id: str) -> dict | None:
         return self.runs.get(run_id)
 
-    def list_runs(self, *, limit: int = 20, status: str | None = None) -> list[dict]:
+    def list_runs(
+        self,
+        *,
+        limit: int = 20,
+        status: str | None = None,
+        strategy_id: str | None = None,
+        strategy_version: str | None = None,
+    ) -> list[dict]:
         runs = list(self.runs.values())
         if status:
             runs = [run for run in runs if run["status"] == status]
+        if strategy_id:
+            runs = [run for run in runs if run.get("strategy_id") == strategy_id]
+        if strategy_version:
+            runs = [run for run in runs if str(run.get("strategy_version")) == str(strategy_version)]
         return runs[:limit]
 
     def list_incomplete_runs(self) -> list[dict]:
@@ -114,6 +129,8 @@ def test_start_run_persists_run_and_symbol_rows(monkeypatch) -> None:
     monkeypatch.setattr(service, "_stream_process_output", lambda run_id, process: None)
 
     run = service.start_run(
+        strategy_id="liq_sd_v1",
+        strategy_version="1",
         mode="bayesian",
         workers=2,
         pairs=["EURUSD", "GBPUSD"],
@@ -124,6 +141,8 @@ def test_start_run_persists_run_and_symbol_rows(monkeypatch) -> None:
     )
 
     assert run["status"] == "queued"
+    assert run["strategy_id"] == "liq_sd_v1"
+    assert run["strategy_version"] == "1"
     assert store.runs[run["id"]]["workers"] == 2
     assert store.results[(run["id"], "EURUSD")]["status"] == "pending"
 
@@ -137,6 +156,8 @@ def test_start_run_expands_all_pairs_without_scripts_import(monkeypatch) -> None
     monkeypatch.setattr(optimizer_service_module, "DEFAULT_PAIRS", ["EURUSD", "GBPUSD"], raising=False)
 
     run = service.start_run(
+        strategy_id="liq_sd_v1",
+        strategy_version="1",
         mode="bayesian",
         workers=2,
         pairs=["ALL"],
@@ -149,6 +170,68 @@ def test_start_run_expands_all_pairs_without_scripts_import(monkeypatch) -> None
     assert run["pairs"] == ["EURUSD", "GBPUSD"]
     assert store.results[(run["id"], "EURUSD")]["status"] == "pending"
     assert store.results[(run["id"], "GBPUSD")]["status"] == "pending"
+
+
+def test_start_run_requires_strategy_identity(monkeypatch) -> None:
+    store = InMemoryOptimizerStore()
+    service = OptimizerRunService(store, project_root=Path("/tmp"), results_dir=Path("/tmp/results"))
+
+    monkeypatch.setattr(service, "_spawn_process", lambda **_: DummyProcess(pid=321))
+    monkeypatch.setattr(service, "_stream_process_output", lambda run_id, process: None)
+
+    try:
+        service.start_run(
+            strategy_id="",
+            strategy_version="1",
+            mode="bayesian",
+            workers=2,
+            pairs=["EURUSD"],
+            n_trials=25,
+            dd_limit=6.0,
+            dry_run=True,
+        )
+        raise AssertionError("expected ValueError")
+    except ValueError as exc:
+        assert "strategy_id" in str(exc)
+
+
+def test_list_runs_filters_by_strategy_identity() -> None:
+    store = InMemoryOptimizerStore()
+    store.create_run(
+        {
+            "id": "run-1",
+            "strategy_id": "liq_sd_v1",
+            "strategy_version": "1",
+            "status": "completed",
+            "mode": "bayesian",
+            "workers": 2,
+            "pairs": ["EURUSD"],
+            "n_trials": 25,
+            "dd_limit": 6.0,
+            "dry_run": True,
+            "summary": {},
+        }
+    )
+    store.create_run(
+        {
+            "id": "run-2",
+            "strategy_id": "breakout_v1",
+            "strategy_version": "2",
+            "status": "completed",
+            "mode": "bayesian",
+            "workers": 2,
+            "pairs": ["NAS100"],
+            "n_trials": 25,
+            "dd_limit": 6.0,
+            "dry_run": True,
+            "summary": {},
+        }
+    )
+    service = OptimizerRunService(store, project_root=Path("/tmp"), results_dir=Path("/tmp/results"))
+
+    runs = service.list_runs(strategy_id="breakout_v1", strategy_version="2")
+
+    assert [run["id"] for run in runs] == ["run-2"]
 
 
 def test_cancel_run_terminates_process_and_marks_cancelled() -> None:

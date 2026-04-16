@@ -100,6 +100,9 @@ export interface TradingSignal {
   // Asset identification
   symbol: string; // e.g., "BTCUSD", "XAUUSD"
   ticker?: string; // Legacy alias for symbol
+  strategy_id?: string | null;
+  strategy_version?: string | null;
+  strategy_name?: string | null;
 
   // Direction
   side: SignalSide; // "buy" or "sell"

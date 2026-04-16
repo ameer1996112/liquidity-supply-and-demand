@@ -223,6 +223,8 @@ export interface OptimizerRunSummaryApi {
 
 export interface OptimizerRunApi {
   id: string;
+  strategy_id?: string | null;
+  strategy_version?: string | null;
   status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled' | 'interrupted';
   mode: string;
   workers: number;
@@ -263,6 +265,8 @@ export interface OptimizerRunEventApi {
 }
 
 export interface OptimizerRunCreateApi {
+  strategy_id: string;
+  strategy_version: string;
   mode: string;
   workers: number;
   pairs: string[];

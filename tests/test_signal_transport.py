@@ -12,6 +12,9 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from pydantic import ValidationError
+
+from src.core.signal import EntryWebhookPayload
 from src.core.transport import (
     InMemoryTransport,
     RedisTransport,
@@ -234,6 +237,21 @@ class InMemoryIntegrationTests(unittest.TestCase):
         self.assertEqual(len(transport.dead_letters), 1)
         self.assertEqual(transport.dead_letters[0]["error"], "Invalid size field")
         self.assertEqual(transport.queue_size, 0)
+
+
+class EntryWebhookPayloadValidationTests(unittest.TestCase):
+    def test_entry_payload_requires_strategy_identity(self):
+        with self.assertRaises(ValidationError):
+            EntryWebhookPayload.model_validate(
+                {
+                    "symbol": "EURUSD",
+                    "side": "buy",
+                    "entry": 1.10,
+                    "sl": 1.09,
+                    "tp": 1.12,
+                    "size": 1.0,
+                }
+            )
 
 
 if __name__ == "__main__":

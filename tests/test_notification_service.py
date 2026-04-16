@@ -127,6 +127,44 @@ def test_format_signal_keeps_image_url_and_metadata():
     assert payload.metadata["symbol"] == "EURUSD"
     assert payload.metadata["ai_result"]["decision"] == "GO"
 
+
+def test_format_signal_includes_strategy_badge():
+    svc = NotificationService()
+    signal = {
+        "id": 17,
+        "symbol": "EURUSD",
+        "side": "BUY",
+        "entry": 1.08,
+        "sl": 1.07,
+        "tp": 1.10,
+        "strategy_id": "liq_sd_v1",
+        "strategy_version": "1",
+    }
+
+    payload = svc.format_signal(signal, account_name="Funded Alpha")
+
+    assert payload.fields["Strategy"] == "liq_sd_v1@1"
+    assert "liq_sd_v1@1" in payload.title
+
+
+def test_format_close_includes_strategy_badge():
+    svc = NotificationService()
+    signal = {
+        "id": 18,
+        "symbol": "EURUSD",
+        "side": "BUY",
+        "entry": 1.08,
+        "exit_price": 1.09,
+        "pnl_usd": 248.50,
+        "strategy_id": "liq_sd_v1",
+        "strategy_version": "1",
+    }
+
+    payload = svc.format_close(signal)
+
+    assert payload.fields["Strategy"] == "liq_sd_v1@1"
+    assert "liq_sd_v1@1" in payload.title
+
 def test_format_signal_includes_session_and_bar_time():
     svc = NotificationService()
     signal = {

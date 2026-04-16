@@ -9,6 +9,8 @@ vi.mock('@/hooks/useOptimizerRuns', () => ({
     data: [
       {
         id: 'run-2026-04-13',
+        strategy_id: 'liq_sd_v1',
+        strategy_version: '1',
         status: 'running',
         mode: 'bayesian',
         workers: 2,
@@ -24,6 +26,8 @@ vi.mock('@/hooks/useOptimizerRuns', () => ({
   useOptimizerRun: () => ({
     data: {
       id: 'run-2026-04-13',
+      strategy_id: 'liq_sd_v1',
+      strategy_version: '1',
       status: 'running',
       mode: 'bayesian',
       workers: 2,
@@ -83,5 +87,6 @@ describe('OptimizerRunsWorkspace', () => {
     expect(document.body.textContent).toContain('running');
     expect(document.body.textContent).toContain('Completed pairs');
     expect(document.body.textContent).toContain('EURUSD');
+    expect(document.body.textContent).toContain('liq_sd_v1@1');
   });
 });

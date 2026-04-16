@@ -169,6 +169,9 @@ class NotificationService:
             context_fields["Bar Time"] = bar_time_display
         if signal_id:
             context_fields["Signal"] = f"#{signal_id}"
+        strategy_badge = _format_strategy_badge(signal)
+        if strategy_badge:
+            context_fields["Strategy"] = strategy_badge
 
         sections: list[dict[str, Any]] = [{"name": "Trade", "fields": trade_fields}]
         if risk_fields:
@@ -183,7 +186,7 @@ class NotificationService:
 
         return NotificationPayload(
             type="signal",
-            title=f"{side} Signal - {symbol}",
+            title=f"[{strategy_badge}] {side} Signal - {symbol}" if strategy_badge else f"{side} Signal - {symbol}",
             description="Auto-executed (paper)" if mode == "paper" else "Execute manually",
             fields=fields,
             color=color,
@@ -262,12 +265,18 @@ class NotificationService:
             summary_fields["R Multiple"] = f"{sign}{r_multiple:.2f}R"
 
         sections: list[dict[str, Any]] = [{"name": "Summary", "fields": summary_fields}]
+        context_fields: dict[str, str] = {}
         if signal_id:
-            sections.append({"name": "Context", "fields": {"Signal": f"#{signal_id}"}})
+            context_fields["Signal"] = f"#{signal_id}"
+        strategy_badge = _format_strategy_badge(signal)
+        if strategy_badge:
+            context_fields["Strategy"] = strategy_badge
+        if context_fields:
+            sections.append({"name": "Context", "fields": context_fields})
 
         return NotificationPayload(
             type="close",
-            title=f"Trade Closed - {symbol} {side}",
+            title=f"[{strategy_badge}] Trade Closed - {symbol} {side}" if strategy_badge else f"Trade Closed - {symbol} {side}",
             fields=_flatten_sections(sections),
             color=color,
             metadata={"symbol": symbol, "side": side, "pnl": pnl, "outcome": outcome},
@@ -476,6 +485,14 @@ def _format_price_with_distance(price: float, distance: float, unit: str, is_ind
     if is_index:
         return f"{price:.2f} ({distance:.1f} pts, {round(distance * 100):.0f} pips)"
     return f"{price:.5g} ({distance:.1f} {unit})"
+
+
+def _format_strategy_badge(signal: dict[str, Any]) -> str:
+    strategy_id = str(signal.get("strategy_id") or "").strip()
+    if not strategy_id:
+        return ""
+    strategy_version = str(signal.get("strategy_version") or "?").strip()
+    return f"{strategy_id}@{strategy_version}"
 
 
 def _format_ai_analysis(ai_result: Optional[dict]) -> Optional[str]:

@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 import statistics
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
@@ -27,51 +27,51 @@ from src.adapters.supabase_api import get_api_supabase as _get_supabase, supabas
 # ── Response models ────────────────────────────────────────────────────────────
 
 class TraceHops(BaseModel):
-    received_at:         Optional[str] = None
-    enqueued_at:         Optional[str] = None
-    dequeued_at:         Optional[str] = None
-    validated_at:        Optional[str] = None
-    risk_started_at:     Optional[str] = None
-    risk_finished_at:    Optional[str] = None
-    exec_started_at:     Optional[str] = None
-    exec_submitted_at:   Optional[str] = None
-    broker_ack_at:       Optional[str] = None
-    broker_confirmed_at: Optional[str] = None
-    reconciled_at:       Optional[str] = None
-    error_at:            Optional[str] = None
+    received_at:         str | None = None
+    enqueued_at:         str | None = None
+    dequeued_at:         str | None = None
+    validated_at:        str | None = None
+    risk_started_at:     str | None = None
+    risk_finished_at:    str | None = None
+    exec_started_at:     str | None = None
+    exec_submitted_at:   str | None = None
+    broker_ack_at:       str | None = None
+    broker_confirmed_at: str | None = None
+    reconciled_at:       str | None = None
+    error_at:            str | None = None
 
 
 class TraceSummary(BaseModel):
-    trace_id:       Optional[str] = None
+    trace_id:       str | None = None
     correlation_id: str
-    signal_id:      Optional[int] = None
-    account_id:     Optional[str] = None
-    symbol:         Optional[str] = None
-    run_mode:       Optional[str] = None
-    received_at:    Optional[str] = None
-    total_ms:       Optional[float] = None
-    error_type:     Optional[str] = None
-    created_at:     Optional[str] = None
+    signal_id:      int | None = None
+    account_id:     str | None = None
+    symbol:         str | None = None
+    run_mode:       str | None = None
+    received_at:    str | None = None
+    total_ms:       float | None = None
+    error_type:     str | None = None
+    created_at:     str | None = None
 
 
 class TraceDetail(TraceSummary):
     hops:          TraceHops = TraceHops()
-    error_message: Optional[str] = None
+    error_message: str | None = None
 
 
 class HopStats(BaseModel):
     hop:    str
     count:  int
-    p50_ms: Optional[float] = None
-    p95_ms: Optional[float] = None
-    p99_ms: Optional[float] = None
-    avg_ms: Optional[float] = None
+    p50_ms: float | None = None
+    p95_ms: float | None = None
+    p99_ms: float | None = None
+    avg_ms: float | None = None
 
 
 class StatsResponse(BaseModel):
     window_hours: int
     total_traces: int
-    hops:         List[HopStats]
+    hops:         list[HopStats]
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -105,7 +105,7 @@ _LIST_SELECT = (
 )
 
 
-def _total_ms(row: Dict[str, Any]) -> Optional[float]:
+def _total_ms(row: dict[str, Any]) -> float | None:
     """Compute end-to-end ms from received_at to submitted/error."""
     start_str = row.get("received_at")
     end_str = row.get("exec_submitted_at") or row.get("error_at")
@@ -119,7 +119,7 @@ def _total_ms(row: Dict[str, Any]) -> Optional[float]:
         return None
 
 
-def _to_summary(row: Dict[str, Any]) -> TraceSummary:
+def _to_summary(row: dict[str, Any]) -> TraceSummary:
     return TraceSummary(
         trace_id=row.get("trace_id"),
         correlation_id=row["correlation_id"],
@@ -134,7 +134,7 @@ def _to_summary(row: Dict[str, Any]) -> TraceSummary:
     )
 
 
-def _to_detail(row: Dict[str, Any]) -> TraceDetail:
+def _to_detail(row: dict[str, Any]) -> TraceDetail:
     hops = TraceHops(**{f: row.get(f) for f in _HOP_FIELDS})
     return TraceDetail(
         trace_id=row.get("trace_id"),
@@ -152,7 +152,7 @@ def _to_detail(row: Dict[str, Any]) -> TraceDetail:
     )
 
 
-def _percentile(data: List[float], pct: float) -> Optional[float]:
+def _percentile(data: list[float], pct: float) -> float | None:
     if not data:
         return None
     data_sorted = sorted(data)
@@ -163,15 +163,15 @@ def _percentile(data: List[float], pct: float) -> Optional[float]:
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────
 
-@router.get("", response_model=List[TraceSummary])
+@router.get("", response_model=list[TraceSummary])
 @supabase_query
 def list_traces(
     limit:      int            = Query(50, ge=1, le=500),
-    account_id: Optional[str]  = Query(None),
-    symbol:     Optional[str]  = Query(None),
-    run_mode:   Optional[str]  = Query(None),
-    hours:      Optional[int]  = Query(None, ge=1, le=720, description="Look-back window in hours"),
-    has_error:  Optional[bool] = Query(None, description="Filter to only error/success traces"),
+    account_id: str | None  = Query(None),
+    symbol:     str | None  = Query(None),
+    run_mode:   str | None  = Query(None),
+    hours:      int | None  = Query(None, ge=1, le=720, description="Look-back window in hours"),
+    has_error:  bool | None = Query(None, description="Filter to only error/success traces"),
 ):
     """List recent pipeline traces with a lightweight summary per trace."""
     try:
@@ -230,7 +230,7 @@ def traces_stats(
             ("total_ms",       "received_at",        "exec_submitted_at"),
         ]
 
-        buckets: Dict[str, List[float]] = {name: [] for name, *_ in hop_pairs}
+        buckets: dict[str, list[float]] = {name: [] for name, *_ in hop_pairs}
         for row in rows:
             for name, t_start, t_end in hop_pairs:
                 s = row.get(t_start)

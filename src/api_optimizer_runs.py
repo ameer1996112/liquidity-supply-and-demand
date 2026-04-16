@@ -50,6 +50,8 @@ def list_default_pairs() -> dict[str, Any]:
 
 
 class OptimizerRunCreateRequest(BaseModel):
+    strategy_id: str = Field(min_length=1)
+    strategy_version: str = Field(min_length=1)
     mode: str = Field(min_length=1)
     workers: int = Field(ge=1, le=12)
     pairs: list[str]
@@ -83,8 +85,15 @@ class OptimizerRunCreateRequest(BaseModel):
 def list_optimizer_runs(
     limit: int = Query(20, ge=1, le=100),
     status: str | None = Query(None),
+    strategy_id: str | None = Query(None),
+    strategy_version: str | None = Query(None),
 ) -> dict[str, Any]:
-    runs = get_optimizer_run_service().list_runs(limit=limit, status=status)
+    runs = get_optimizer_run_service().list_runs(
+        limit=limit,
+        status=status,
+        strategy_id=strategy_id,
+        strategy_version=strategy_version,
+    )
     return {"runs": runs}
 
 

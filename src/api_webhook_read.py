@@ -17,6 +17,8 @@ router = APIRouter(prefix="/api/v1/webhook", tags=["webhook-read"])
 def get_signals_recent(
     limit: int = Query(10, ge=1, le=100),
     run_mode: Optional[str] = Query(None),
+    strategy_id: Optional[str] = Query(None),
+    strategy_version: Optional[str] = Query(None),
 ):
     """Get recent trading signals (any status) for E2E verification and dashboards."""
     sb = _get_supabase()
@@ -27,6 +29,10 @@ def get_signals_recent(
         q = sb.table("trading_signals").select("*").order("created_at", desc=True).limit(limit)
         if run_mode:
             q = q.eq("run_mode", run_mode)
+        if strategy_id:
+            q = q.eq("strategy_id", strategy_id)
+        if strategy_version:
+            q = q.eq("strategy_version", strategy_version)
         resp = q.execute()
         signals = resp.data or []
         return {"signals": signals, "count": len(signals)}
@@ -38,6 +44,8 @@ def get_signals_recent(
 @router.get("/trades/open")
 def get_trades_open(
     account_id: Optional[str] = Query(None),
+    strategy_id: Optional[str] = Query(None),
+    strategy_version: Optional[str] = Query(None),
 ):
     """Get open trades (DB + broker positions) for E2E verification and dashboards."""
     sb = _get_supabase()
@@ -53,6 +61,10 @@ def get_trades_open(
         )
         if account_id:
             q = q.eq("account_id", account_id)
+        if strategy_id:
+            q = q.eq("strategy_id", strategy_id)
+        if strategy_version:
+            q = q.eq("strategy_version", strategy_version)
         resp = q.execute()
         db_trades = resp.data or []
 
@@ -95,6 +107,8 @@ def get_trades_open(
 def get_stats_summary(
     run_mode: str = Query("LIVE"),
     account_id: Optional[str] = Query(None),
+    strategy_id: Optional[str] = Query(None),
+    strategy_version: Optional[str] = Query(None),
 ):
     """
     Rich performance summary for dashboards and E2E tests.
@@ -111,7 +125,10 @@ def get_stats_summary(
         return _empty_summary()
 
     # Build cache key
-    cache_key = f"cache:stats_summary:{run_mode}:{account_id or 'all'}"
+    cache_key = (
+        f"cache:stats_summary:{run_mode}:{account_id or 'all'}:"
+        f"{strategy_id or 'all'}:{strategy_version or 'all'}"
+    )
     try:
         from src.services.redis_cache import cache_get, cache_set
         cached = cache_get(cache_key)
@@ -131,6 +148,10 @@ def get_stats_summary(
             q = q.eq("run_mode", run_mode)
         if account_id:
             q = q.eq("account_id", account_id)
+        if strategy_id:
+            q = q.eq("strategy_id", strategy_id)
+        if strategy_version:
+            q = q.eq("strategy_version", strategy_version)
         resp = q.execute()
         closed = resp.data or []
 
@@ -144,6 +165,10 @@ def get_stats_summary(
             aq = aq.eq("run_mode", run_mode)
         if account_id:
             aq = aq.eq("account_id", account_id)
+        if strategy_id:
+            aq = aq.eq("strategy_id", strategy_id)
+        if strategy_version:
+            aq = aq.eq("strategy_version", strategy_version)
         active_resp = aq.execute()
         active_trades = len(active_resp.data or [])
 
@@ -159,6 +184,10 @@ def get_stats_summary(
             dq = dq.eq("run_mode", run_mode)
         if account_id:
             dq = dq.eq("account_id", account_id)
+        if strategy_id:
+            dq = dq.eq("strategy_id", strategy_id)
+        if strategy_version:
+            dq = dq.eq("strategy_version", strategy_version)
         day_resp = dq.execute()
         day_rows = day_resp.data or []
         executed_24h = sum(1 for r in day_rows if r.get("status") in ("executed", "closed", "active", "open"))
@@ -216,6 +245,8 @@ def get_stats_summary(
             "max_consecutive_wins": max_consec_wins,
             "max_consecutive_losses": max_consec_losses,
             "run_mode": run_mode,
+            "strategy_id": strategy_id,
+            "strategy_version": strategy_version,
             "generated_at": datetime.now(timezone.utc).isoformat(),
         }
 

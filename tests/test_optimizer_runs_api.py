@@ -20,6 +20,8 @@ class StubOptimizerService:
     def __init__(self) -> None:
         self._run = {
             "id": "run-1",
+            "strategy_id": "liq_sd_v1",
+            "strategy_version": "1",
             "status": "running",
             "mode": "bayesian",
             "workers": 2,
@@ -33,8 +35,19 @@ class StubOptimizerService:
     def start_run(self, **_: object) -> dict:
         return self._run
 
-    def list_runs(self, *, limit: int = 20, status: str | None = None) -> list[dict]:
+    def list_runs(
+        self,
+        *,
+        limit: int = 20,
+        status: str | None = None,
+        strategy_id: str | None = None,
+        strategy_version: str | None = None,
+    ) -> list[dict]:
         if status and self._run["status"] != status:
+            return []
+        if strategy_id and self._run["strategy_id"] != strategy_id:
+            return []
+        if strategy_version and self._run["strategy_version"] != strategy_version:
             return []
         return [self._run][:limit]
 
@@ -67,6 +80,8 @@ def test_create_optimizer_run_returns_200(_) -> None:
     response = client.post(
         "/api/optimizer/runs",
         json={
+            "strategy_id": "liq_sd_v1",
+            "strategy_version": "1",
             "mode": "bayesian",
             "workers": 2,
             "pairs": ["EURUSD", "GBPUSD"],
@@ -96,6 +111,8 @@ def test_create_optimizer_run_accepts_all_pairs_token(_) -> None:
     response = client.post(
         "/api/optimizer/runs",
         json={
+            "strategy_id": "liq_sd_v1",
+            "strategy_version": "1",
             "mode": "bayesian",
             "workers": 2,
             "pairs": ["ALL"],

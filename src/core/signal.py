@@ -24,6 +24,16 @@ class EntryWebhookPayload(BaseModel):
 
     model_config = {"extra": "allow"}
 
+    strategy_id: str = Field(
+        ...,
+        min_length=1,
+        description="Canonical strategy slug from strategy_configs.slug",
+    )
+    strategy_version: str = Field(
+        ...,
+        min_length=1,
+        description="Expected active strategy version",
+    )
     symbol: str = Field(..., min_length=1, description="Instrument symbol")
     side: str = Field(..., description="buy or sell")
     entry: float = Field(..., description="Entry price")

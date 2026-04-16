@@ -209,18 +209,11 @@ def update_strategy(strategy_id: int, body: StrategyUpdateBody):
 def activate_strategy(strategy_id: int, active: bool = True):
     """
     Activate or deactivate a strategy.
-
-    When activating, all other strategies are deactivated to ensure a single
-    global active strategy.
     """
     sb = _get_supabase()
     if not sb:
         raise HTTPException(status_code=503, detail="Database unavailable")
     try:
-        if active:
-            sb.table("strategy_configs").update({"is_active": False}).eq(
-                "is_active", True
-            ).execute()
         resp = (
             sb.table("strategy_configs")
             .update({"is_active": active})
@@ -235,4 +228,3 @@ def activate_strategy(strategy_id: int, active: bool = True):
     except Exception as e:  # noqa: BLE001
         logger.error("Failed to toggle strategy %s active=%s: %s", strategy_id, active, e)
         raise HTTPException(status_code=500, detail=str(e))
-
