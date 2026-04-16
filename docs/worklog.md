@@ -1,5 +1,18 @@
 # Worklog
 
+## 2026-04-16 — Multi-Strategy Bot Design
+
+**Problem:** The trading system still assumes one globally active strategy in key places, but the product direction is to run multiple fully mechanical strategies through one bot while keeping alerts, risk, notifications, analytics, and UI attributable per strategy.
+
+**Solution:**
+- Wrote `docs/superpowers/specs/2026-04-16-multi-strategy-bot-design.md`
+- Defined a strategy-first architecture where every Pine alert must include `strategy_id` and `strategy_version`
+- Specified hard rejection for unknown or inactive strategies
+- Defined strategy-aware execution, risk, optimizer, notifications, and page behavior
+- Chose one shared webhook channel with strategy identity in the payload, instead of backend inference
+
+**Direction:** One primary live strategy first, additional strategies paper or shadow-only until proven.
+
 ## 2026-04-12 — Swap Guard (Rollover Protection)
 
 **Problem:** Trades held through broker rollover (00:00 Israel time) were losing due to
