@@ -10,6 +10,24 @@ from src.services.strategy_config import get_active_strategy
 logger = logging.getLogger(__name__)
 
 
+def build_ai_run_row(correlation_id: str, run_payload: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "correlation_id": correlation_id,
+        "run_type": "debate",
+        "analysis_mode": run_payload.get("analysis_mode", "shadow_pretrade"),
+        "recommendation": run_payload.get("recommendation", "allow"),
+        "confidence": run_payload.get("confidence", 0),
+        "chart_context": run_payload.get("chart_context", {}),
+        "pine_context": run_payload.get("pine_context", {}),
+        "module_status": run_payload.get("module_status", {}),
+        "layered_output": run_payload.get("layered_output", {}),
+        "reason_codes": run_payload.get("reason_codes", []),
+        "memo": run_payload.get("memo", ""),
+        "votes": run_payload.get("votes", {}),
+        "transcript": run_payload.get("transcript", []),
+    }
+
+
 def _get_trace_id_by_correlation(supabase: Any, correlation_id: str) -> Optional[str]:
     """Fetch trace_id from pipeline_traces by correlation_id. Returns None if not found."""
     if not supabase or not correlation_id:
@@ -74,16 +92,22 @@ def persist_debate(
         if not isinstance(transcript, list):
             transcript = []
 
-        row = {
-            "correlation_id": correlation_id,
-            "run_type": "debate",
-            "recommendation": rec,
-            "confidence": conf,
-            "reason_codes": codes,
-            "memo": memo,
-            "votes": votes,
-            "transcript": transcript,
-        }
+        row = build_ai_run_row(
+            correlation_id,
+            {
+                "recommendation": rec,
+                "confidence": conf,
+                "reason_codes": codes,
+                "memo": memo,
+                "votes": votes,
+                "transcript": transcript,
+                "analysis_mode": debate_result.get("analysis_mode", "shadow_pretrade"),
+                "chart_context": debate_result.get("chart_context", {}),
+                "pine_context": debate_result.get("pine_context", {}),
+                "module_status": debate_result.get("module_status", {}),
+                "layered_output": debate_result.get("layered_output", {}),
+            },
+        )
         # Snapshot current active strategy (if any) onto this ai_run
         try:
             active = get_active_strategy(supabase)
