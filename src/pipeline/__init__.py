@@ -1,8 +1,11 @@
 """
 src/pipeline/__init__.py
 
-Exposes the primary entrypoint for the trade processing pipeline.
-All heavy logic lives in the sibling modules; this file is a thin
-public surface.
+Lightweight package marker for pipeline helpers.
+
+Keep this file import-safe: worker startup imports submodules such as
+``src.pipeline.account_guards``, which causes Python to execute this
+package ``__init__`` first.
 """
-from src.pipeline.trade_processor import process_trade  # noqa: F401
+
+__all__: list[str] = []
