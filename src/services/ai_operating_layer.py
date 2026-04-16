@@ -25,6 +25,20 @@ def fetch_and_normalize_chart_context(
     retry_count: int,
 ) -> Dict[str, Any]:
     raw = fetch_chart_context(base_url, symbol, timeframe, timeout_seconds, retry_count)
+    setup_evidence = raw.get(
+        "setup_evidence",
+        {
+            "status": "degraded",
+            "focus_zone": None,
+            "focus_image": None,
+            "reason": raw.get("reason", "setup evidence unavailable"),
+        },
+    )
+    screenshot_url = (
+        ((setup_evidence.get("focus_image") or {}).get("url"))
+        if isinstance(setup_evidence, dict)
+        else None
+    ) or raw.get("screenshot_url")
     return normalize_chart_context(
         ChartContextProviderResult(
             ok=raw.get("ok", False),
@@ -35,10 +49,11 @@ def fetch_and_normalize_chart_context(
                 "pine_labels": raw.get("pine_labels", []),
                 "zones": raw.get("zones", []),
                 "indicator_values": raw.get("indicator_values", {}),
+                "setup_evidence": setup_evidence,
             }
             if raw.get("ok")
-            else {},
-            screenshot_url=raw.get("screenshot_url"),
+            else {"setup_evidence": setup_evidence},
+            screenshot_url=screenshot_url,
             reason=raw.get("reason", ""),
         )
     )

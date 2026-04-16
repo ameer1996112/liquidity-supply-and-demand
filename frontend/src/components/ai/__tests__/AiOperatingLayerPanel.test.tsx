@@ -37,7 +37,20 @@ describe('AiOperatingLayerPanel', () => {
                 reason: 'TradingView MCP unavailable',
               },
             },
-            chartContext: {},
+            chartContext: {
+              status: 'degraded',
+              reason: 'TradingView MCP unavailable',
+              structured: {
+                setupEvidence: {
+                  status: 'degraded',
+                  focusZone: null,
+                  focusImage: null,
+                  reason: 'setup image unavailable',
+                },
+                zones: [],
+                pineLabels: [],
+              },
+            },
             pineContext: {},
           }}
         />
@@ -47,5 +60,6 @@ describe('AiOperatingLayerPanel', () => {
     expect(container.textContent).toContain('weak setup');
     expect(container.textContent).toContain('Chart Context');
     expect(container.textContent).toContain('TradingView MCP unavailable');
+    expect(container.textContent).toContain('Setup Evidence');
   });
 });

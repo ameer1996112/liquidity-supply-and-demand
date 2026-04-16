@@ -8,6 +8,7 @@ CLOUDFLARED_LOG="$RUNTIME_DIR/cloudflared.log"
 PROVIDER_PID_FILE="$RUNTIME_DIR/provider.pid"
 CLOUDFLARED_PID_FILE="$RUNTIME_DIR/cloudflared.pid"
 STATE_FILE="$RUNTIME_DIR/state.env"
+VENV_PYTHON="$ROOT_DIR/venv/bin/python"
 
 mkdir -p "$RUNTIME_DIR"
 rm -f "$STATE_FILE"
@@ -73,7 +74,7 @@ ensure_provider() {
   fi
 
   echo "[chart-stack] starting local provider"
-  PYTHONPATH=. python3 -m uvicorn src.local_chart_provider_app:app --host 127.0.0.1 --port 8765 \
+  PYTHONPATH=. "$VENV_PYTHON" -m uvicorn src.local_chart_provider_app:app --host 127.0.0.1 --port 8765 \
     >> "$PROVIDER_LOG" 2>&1 &
   echo $! > "$PROVIDER_PID_FILE"
 
@@ -125,7 +126,10 @@ EOF
 }
 
 require_command curl
-require_command python3
+if [ ! -x "$VENV_PYTHON" ]; then
+  echo "[chart-stack] missing project venv python: $VENV_PYTHON"
+  exit 1
+fi
 
 chmod +x "$ROOT_DIR/scripts/stop_local_chart_stack.sh"
 

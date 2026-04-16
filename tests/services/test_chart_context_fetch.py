@@ -31,6 +31,12 @@ def test_normalize_chart_context_accepts_full_structured_contract() -> None:
                 "pine_labels": [],
                 "zones": [],
                 "indicator_values": {"rsi": 54.2},
+                "setup_evidence": {
+                    "status": "ok",
+                    "focus_zone": {"label": "ILP", "high": 0.7210, "low": 0.7195},
+                    "focus_image": {"url": "https://provider/setup.png"},
+                    "reason": "",
+                },
             },
             screenshot_url=None,
             reason="",
@@ -39,3 +45,4 @@ def test_normalize_chart_context_accepts_full_structured_contract() -> None:
 
     assert payload["status"] == "ok"
     assert payload["structured"]["provider_timestamp"] == "2026-04-16T12:00:00Z"
+    assert payload["structured"]["setup_evidence"]["focus_image"]["url"] == "https://provider/setup.png"

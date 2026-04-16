@@ -677,6 +677,17 @@ export interface AiRunResponse {
   created_at?: string;
 }
 
+export interface SetupEvidenceResponse {
+  status?: string;
+  focus_zone?: Record<string, unknown> | null;
+  focus_image?: {
+    path?: string | null;
+    url?: string | null;
+    region?: string | null;
+  } | null;
+  reason?: string;
+}
+
 export interface AiOperatingLayerConfigResponse {
   panic_mode: boolean;
   modules: Record<string, 'inherit' | 'enabled' | 'disabled'>;

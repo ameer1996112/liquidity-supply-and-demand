@@ -39,6 +39,38 @@ def _normalize_zones(lines_payload: Optional[Dict[str, Any]]) -> List[Dict[str, 
     return zones
 
 
+def _normalize_box_zones(boxes_payload: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    zones: List[Dict[str, Any]] = []
+    for study in ((boxes_payload or {}).get("studies") or []):
+        verbose_boxes = study.get("all_boxes") or []
+        for item in study.get("boxes", []) or []:
+            high = item.get("high")
+            low = item.get("low")
+            if high is None or low is None:
+                continue
+            coords = next(
+                (
+                    candidate
+                    for candidate in verbose_boxes
+                    if candidate.get("high") == high and candidate.get("low") == low
+                ),
+                {},
+            )
+            zones.append(
+                {
+                    "type": "price_zone",
+                    "source": "pine",
+                    "label": study.get("name", ""),
+                    "high": high,
+                    "low": low,
+                    "study": study.get("name", ""),
+                    "x1": coords.get("x1"),
+                    "x2": coords.get("x2"),
+                }
+            )
+    return zones
+
+
 def _normalize_labels(labels_payload: Optional[Dict[str, Any]]) -> List[Dict[str, Any]]:
     labels: List[Dict[str, Any]] = []
     for study in ((labels_payload or {}).get("studies") or []):
@@ -55,6 +87,64 @@ def _normalize_labels(labels_payload: Optional[Dict[str, Any]]) -> List[Dict[str
     return labels
 
 
+def _pick_primary_zone(zones: Sequence[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    for zone in zones:
+        if zone.get("type") == "price_zone":
+            return zone
+    return None
+
+
+def _crop_focus_image(source_path: str, focus_zone: Optional[Dict[str, Any]]) -> Optional[str]:
+    if not source_path or not focus_zone:
+        return source_path
+
+    x1 = focus_zone.get("x1")
+    x2 = focus_zone.get("x2")
+    if x1 is None or x2 is None:
+        return source_path
+
+    try:
+        from PIL import Image
+
+        image = Image.open(source_path)
+        width, height = image.size
+        left = max(0, int(float(x1) - width * 0.08))
+        right = min(width, int(float(x2) + width * 0.08))
+        top = max(0, int(height * 0.18))
+        bottom = min(height, int(height * 0.82))
+        cropped = image.crop((left, top, right, bottom))
+        target = str(Path(source_path).with_name(Path(source_path).stem + "_focus.png"))
+        cropped.save(target)
+        image.close()
+        cropped.close()
+        return target
+    except Exception:
+        return source_path
+
+
+def _build_setup_evidence(
+    focus_zone: Optional[Dict[str, Any]],
+    screenshot_payload: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    if screenshot_payload and screenshot_payload.get("success") and focus_zone:
+        return {
+            "status": "ok",
+            "focus_zone": focus_zone,
+            "focus_image": {
+                "path": screenshot_payload.get("file_path", ""),
+                "region": screenshot_payload.get("region", "chart"),
+            },
+            "reason": "",
+        }
+
+    return {
+        "status": "degraded",
+        "focus_zone": focus_zone,
+        "focus_image": None,
+        "reason": (screenshot_payload or {}).get("error", "setup image unavailable"),
+    }
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
@@ -66,6 +156,8 @@ def build_chart_context_payload(
     values_payload: Optional[Dict[str, Any]],
     lines_payload: Optional[Dict[str, Any]],
     labels_payload: Optional[Dict[str, Any]],
+    boxes_payload: Optional[Dict[str, Any]] = None,
+    screenshot_payload: Optional[Dict[str, Any]] = None,
     now_iso: Optional[str] = None,
 ) -> Dict[str, Any]:
     timestamp = now_iso or _now_iso()
@@ -77,6 +169,12 @@ def build_chart_context_payload(
             "pine_labels": [],
             "zones": [],
             "indicator_values": {},
+            "setup_evidence": {
+                "status": "degraded",
+                "focus_zone": None,
+                "focus_image": None,
+                "reason": status_payload.get("error", "status failed"),
+            },
             "reason": status_payload.get("error", "status failed"),
             "metadata": {"partial_failures": []},
         }
@@ -88,14 +186,36 @@ def build_chart_context_payload(
         partial_failures.append(lines_payload.get("error", "lines failed"))
     if labels_payload and not labels_payload.get("success"):
         partial_failures.append(labels_payload.get("error", "labels failed"))
+    if boxes_payload and not boxes_payload.get("success"):
+        partial_failures.append(boxes_payload.get("error", "boxes failed"))
+
+    normalized_box_zones = _normalize_box_zones(
+        boxes_payload if boxes_payload and boxes_payload.get("success") else None
+    )
+    normalized_line_zones = _normalize_zones(
+        lines_payload if lines_payload and lines_payload.get("success") else None
+    )
+    focus_zone = _pick_primary_zone(normalized_box_zones) or (
+        normalized_line_zones[0] if normalized_line_zones else None
+    )
+
+    if screenshot_payload and screenshot_payload.get("success"):
+        screenshot_payload = {
+            **screenshot_payload,
+            "file_path": _crop_focus_image(
+                str(screenshot_payload.get("file_path", "")),
+                focus_zone,
+            ),
+        }
 
     return {
         "symbol": status_payload.get("chart_symbol", requested_symbol),
         "timeframe": _normalize_timeframe(status_payload.get("chart_resolution", requested_timeframe)),
         "provider_timestamp": timestamp,
         "pine_labels": _normalize_labels(labels_payload if labels_payload and labels_payload.get("success") else None),
-        "zones": _normalize_zones(lines_payload if lines_payload and lines_payload.get("success") else None),
+        "zones": [*normalized_box_zones, *normalized_line_zones],
         "indicator_values": _normalize_indicator_values(values_payload if values_payload and values_payload.get("success") else None),
+        "setup_evidence": _build_setup_evidence(focus_zone, screenshot_payload),
         "reason": "",
         "metadata": {
             "requested_symbol": requested_symbol,
@@ -136,11 +256,18 @@ def fetch_live_chart_context(requested_symbol: str, requested_timeframe: str) ->
             values_payload=None,
             lines_payload=None,
             labels_payload=None,
+            boxes_payload=None,
+            screenshot_payload=None,
         )
 
+    screenshot_name = f"setup_{requested_symbol}_{requested_timeframe}_{_now_iso()}".replace(":", "-")
     values_payload = run_mcp_command(["node", "src/cli/index.js", "values"])
     lines_payload = run_mcp_command(["node", "src/cli/index.js", "data", "lines"])
     labels_payload = run_mcp_command(["node", "src/cli/index.js", "data", "labels"])
+    boxes_payload = run_mcp_command(["node", "src/cli/index.js", "data", "boxes", "--verbose"])
+    screenshot_payload = run_mcp_command(
+        ["node", "src/cli/index.js", "screenshot", "--region", "chart", "--output", screenshot_name]
+    )
 
     return build_chart_context_payload(
         requested_symbol=requested_symbol,
@@ -149,4 +276,6 @@ def fetch_live_chart_context(requested_symbol: str, requested_timeframe: str) ->
         values_payload=values_payload,
         lines_payload=lines_payload,
         labels_payload=labels_payload,
+        boxes_payload=boxes_payload,
+        screenshot_payload=screenshot_payload,
     )

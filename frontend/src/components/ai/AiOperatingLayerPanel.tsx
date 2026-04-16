@@ -1,6 +1,7 @@
 import type { AiOperatingLayerRun } from '@/lib/aiRuns';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { SetupEvidencePanel } from '@/components/ai/SetupEvidencePanel';
 
 export function AiOperatingLayerPanel({
   run,
@@ -8,6 +9,7 @@ export function AiOperatingLayerPanel({
   run: AiOperatingLayerRun;
 }) {
   const chartStatus = run.moduleStatus.chartContext;
+  const setupEvidence = run.chartContext.structured.setupEvidence;
   const statusTone =
     chartStatus.status === 'ok'
       ? 'bg-[var(--to-long)]/20 text-[var(--to-long)]'
@@ -57,6 +59,12 @@ export function AiOperatingLayerPanel({
             <p className='text-xs text-muted-foreground'>{chartStatus.reason}</p>
           ) : null}
         </div>
+
+        <SetupEvidencePanel
+          evidence={setupEvidence}
+          zones={run.chartContext.structured.zones}
+          pineLabels={run.chartContext.structured.pineLabels}
+        />
 
         {Object.keys(run.pineContext || {}).length > 0 ? (
           <div className='space-y-1'>

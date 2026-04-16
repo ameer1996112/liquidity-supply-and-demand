@@ -9,6 +9,7 @@ _REQUIRED_STRUCTURED_KEYS = {
     "pine_labels",
     "zones",
     "indicator_values",
+    "setup_evidence",
 }
 
 
@@ -28,13 +29,22 @@ def _has_required_structured_fields(structured: Dict[str, Any]) -> bool:
 
 def normalize_chart_context(provider_result: ChartContextProviderResult) -> Dict[str, Any]:
     structured = provider_result.structured or {}
+    setup_evidence = structured.get(
+        "setup_evidence",
+        {
+            "status": "degraded",
+            "focus_zone": None,
+            "focus_image": None,
+            "reason": provider_result.reason or "setup evidence unavailable",
+        },
+    )
     if not provider_result.ok:
         return {
             "status": "degraded",
             "symbol": provider_result.symbol,
             "timeframe": provider_result.timeframe,
             "reason": provider_result.reason,
-            "structured": {},
+            "structured": {"setup_evidence": setup_evidence},
             "screenshot_url": provider_result.screenshot_url,
         }
     if not _has_required_structured_fields(structured):
@@ -43,7 +53,7 @@ def normalize_chart_context(provider_result: ChartContextProviderResult) -> Dict
             "symbol": provider_result.symbol,
             "timeframe": provider_result.timeframe,
             "reason": "provider returned incomplete structured state",
-            "structured": {},
+            "structured": {"setup_evidence": setup_evidence},
             "screenshot_url": provider_result.screenshot_url,
         }
 
@@ -52,6 +62,6 @@ def normalize_chart_context(provider_result: ChartContextProviderResult) -> Dict
         "symbol": provider_result.symbol,
         "timeframe": provider_result.timeframe,
         "reason": "",
-        "structured": structured,
+        "structured": {**structured, "setup_evidence": setup_evidence},
         "screenshot_url": provider_result.screenshot_url,
     }
