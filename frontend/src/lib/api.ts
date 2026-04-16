@@ -663,13 +663,23 @@ export interface AiRunResponse {
   correlation_id?: string;
   signal_id?: number;
   run_type: string;
+  analysis_mode?: string;
   recommendation: 'allow' | 'block';
   confidence: number;
   reason_codes: string[];
   memo: string;
   votes: Record<string, string>;
   transcript: Array<{ role: string; content: string }>;
+  chart_context?: Record<string, unknown>;
+  pine_context?: Record<string, unknown>;
+  module_status?: Record<string, unknown>;
+  layered_output?: Record<string, unknown>;
   created_at?: string;
+}
+
+export interface AiOperatingLayerConfigResponse {
+  panic_mode: boolean;
+  modules: Record<string, 'inherit' | 'enabled' | 'disabled'>;
 }
 
 export async function fetchAiRunBySignal(
@@ -680,6 +690,25 @@ export async function fetchAiRunBySignal(
   );
   if (res && 'data' in res && res.data === null) return null;
   return res as AiRunResponse;
+}
+
+export async function fetchAiOperatingLayerConfig(): Promise<AiOperatingLayerConfigResponse> {
+  return apiFetch<AiOperatingLayerConfigResponse>(
+    '/api/v1/config/ai-operating-layer'
+  );
+}
+
+export async function patchAiOperatingLayerConfig(payload: {
+  panic_mode?: boolean;
+  modules?: Record<string, 'inherit' | 'enabled' | 'disabled'>;
+}): Promise<AiOperatingLayerConfigResponse> {
+  return apiFetch<AiOperatingLayerConfigResponse>(
+    '/api/v1/config/ai-operating-layer',
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }
+  );
 }
 
 /** Lightweight council summary for a single signal (from bulk endpoint) */

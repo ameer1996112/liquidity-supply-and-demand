@@ -46,6 +46,8 @@ import {
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { fetchAiRunBySignal } from '@/lib/api';
+import { AiOperatingLayerPanel } from '@/components/ai/AiOperatingLayerPanel';
+import { mapAiRun } from '@/lib/aiRuns';
 
 interface SignalInspectorProps {
   signal: TradingSignal | null;
@@ -1163,6 +1165,11 @@ export function SignalInspector({
                   </div>
                 ) : aiRun ? (
                   <>
+                    {(aiRun.analysis_mode ||
+                      aiRun.module_status ||
+                      aiRun.layered_output) && (
+                      <AiOperatingLayerPanel run={mapAiRun(aiRun)} />
+                    )}
                     <div className='rounded-lg bg-card border border-border overflow-hidden'>
                       <div className='px-4 py-2.5 border-b border-border flex items-center justify-between'>
                         <span className='text-[11px] text-muted-foreground uppercase tracking-wider'>
