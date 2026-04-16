@@ -128,6 +128,9 @@ def check_safety(
 def check_signal_guards(
     payload: dict,
     supabase=None,
+    *,
+    profile: dict | None = None,
+    fail_closed: bool = False,
 ) -> tuple[bool, str | None]:
     """Phase 13: Prop-firm aware signal guards — RR ratio + consecutive loss check.
 
@@ -138,6 +141,8 @@ def check_signal_guards(
     Args:
         payload: Parsed signal dict (must contain rr_ratio field if checking RR).
         supabase: Optional Supabase client for consecutive loss lookup.
+        profile: Optional broker profile to scope account-level checks.
+        fail_closed: Block the trade if required dependencies are unavailable.
 
     Returns:
         (True, None) if all guards pass.
@@ -166,21 +171,36 @@ def check_signal_guards(
 
     # ── Consecutive Loss Circuit Breaker ─────────────────────────────────────
     max_consec = getattr(s, "max_consecutive_losses", 3)
-    if max_consec > 0 and supabase:
+    if max_consec > 0:
+        if not supabase:
+            if fail_closed:
+                return False, "Consecutive loss guard unavailable"
+            return True, None
         try:
             import datetime as _dt
-            consec_resp = (
+
+            query = (
                 supabase.table("trading_signals")
-                .select("outcome, exit_time")
-                .in_("outcome", ["loss", "Loss", "LOSS"])
+                .select("outcome, pnl_usd, exit_time, broker_profile_id, account_name")
                 .not_.is_("exit_time", "null")
-                .order("exit_time", desc=True)
-                .limit(max_consec)
-                .execute()
             )
-            trades = consec_resp.data or []
-            if len(trades) >= max_consec:
-                # All N most recent are losses → check pause window
+            if profile and profile.get("id") is not None:
+                query = query.eq("broker_profile_id", profile["id"])
+            elif profile and profile.get("name"):
+                query = query.eq("account_name", profile["name"])
+
+            trades = query.order("exit_time", desc=True).limit(max_consec).execute().data or []
+            consecutive = 0
+            for trade in trades:
+                outcome = str(trade.get("outcome") or "").lower()
+                pnl_usd = float(trade.get("pnl_usd") or 0.0)
+                is_loss = outcome == "loss" or (not outcome and pnl_usd < 0)
+                if is_loss:
+                    consecutive += 1
+                else:
+                    break
+
+            if consecutive >= max_consec and trades:
                 pause_hours = float(getattr(s, "consec_loss_pause_hours", 4.0))
                 last_exit_str = trades[0].get("exit_time")
                 if last_exit_str:
@@ -196,9 +216,11 @@ def check_signal_guards(
                                 f"paused {remaining:.1f}h remaining (resets after {pause_hours}h)"
                             )
                     except Exception:
-                        pass
+                        if fail_closed:
+                            return False, "Consecutive loss guard could not parse exit_time"
         except Exception:
-            pass  # Guard fails open — never block on DB error
+            if fail_closed:
+                return False, "Consecutive loss guard query failed"
 
     return True, None
 
@@ -213,4 +235,3 @@ __all__ = [
     "check_safety",
     "check_signal_guards",
 ]
-

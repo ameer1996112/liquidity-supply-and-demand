@@ -22,7 +22,7 @@ from typing import Any, Dict, Optional
 
 from config import get_settings
 from config.logging_config import get_logger
-from src.core.guard_rails.prop_guard import check_safety
+from src.core.guard_rails.prop_guard import check_safety, check_signal_guards
 from src.pipeline.account_state import (
     get_account_daily_pnl,
     get_account_daily_trade_count,
@@ -82,7 +82,12 @@ def run_account_guards(
 
     # ── 2. MTM Guardian ───────────────────────────────────────────────────────
     sb = _get_sb()
-    if sb and bool(_account_override(overrides, "mtm_guardian_enabled", getattr(s, "mtm_guardian_enabled", True))):
+    mtm_enabled = bool(
+        _account_override(overrides, "mtm_guardian_enabled", getattr(s, "mtm_guardian_enabled", True))
+    )
+    if mtm_enabled and not sb and run_mode == "LIVE":
+        return f"MTM Guardian dependency unavailable for account {account_name} — blocked for safety"
+    if sb and mtm_enabled:
         try:
             from src.services.mtm_guardian import MTMGuardian
             from src.adapters.redis_queue import get_redis as _get_redis
@@ -191,7 +196,30 @@ def run_account_guards(
             "Adaptive trade limit failed for %s: %s (non-LIVE, continuing)", account_name, e
         )
 
-    # ── 5. PropGuard ─────────────────────────────────────────────────────────
+    _profile_eval_mode = (profile or {}).get("evaluation_mode")
+    _global_eval_mode = getattr(s, "evaluation_mode", False)
+    _eval_mode = _profile_eval_mode if _profile_eval_mode is not None else _global_eval_mode
+
+    # ── 5. Evaluation signal guards ──────────────────────────────────────────
+    try:
+        signal_allowed, signal_reason = check_signal_guards(
+            payload,
+            sb,
+            profile=profile,
+            fail_closed=(run_mode == "LIVE"),
+        )
+        if not signal_allowed:
+            return f"SignalGuard ({account_name}): {signal_reason}"
+    except Exception as e:
+        if run_mode == "LIVE":
+            logger.critical(
+                "Signal guard failed for %s in LIVE mode: %s — blocking (fail-closed)",
+                account_name, e,
+            )
+            return f"Signal guard dependency unavailable for account {account_name} — blocked for safety"
+        logger.warning("Signal guard failed for %s: %s (non-LIVE, continuing)", account_name, e)
+
+    # ── 6. PropGuard ─────────────────────────────────────────────────────────
     acct_balance = float(payload.get("account_balance", s.account_balance))
     daily_pnl = get_account_daily_pnl(profile)
     current_equity = acct_balance + daily_pnl
@@ -209,7 +237,7 @@ def run_account_guards(
     logger.info("PropGuard [%s]: %s (multiplier=%.2f)", account_name, risk_label, risk_multiplier)
     payload[f"_risk_multiplier_{account_name}"] = risk_multiplier
 
-    # ── 6. Correlation Guard ──────────────────────────────────────────────────
+    # ── 7. Correlation Guard ──────────────────────────────────────────────────
     active_positions = get_account_positions_from_db(profile)
     max_pos = int(
         _account_override(
@@ -236,15 +264,12 @@ def run_account_guards(
     elif len(active_positions) >= max_pos:
         return f"Bucket Full ({account_name}): {len(active_positions)}/{max_pos}"
 
-    # ── 7. Consistency Analyzer (evaluation mode only) ────────────────────────
+    # ── 8. Consistency Analyzer (evaluation mode only) ────────────────────────
     _profile_consistency = (profile or {}).get("consistency_enabled")
     _global_consistency = getattr(s, "consistency_enabled", True)
     _run_consistency = _profile_consistency if _profile_consistency is not None else _global_consistency
-
-    _profile_eval_mode = (profile or {}).get("evaluation_mode")
-    _global_eval_mode = getattr(s, "evaluation_mode", False)
-    _eval_mode = _profile_eval_mode if _profile_eval_mode is not None else _global_eval_mode
-
+    if _run_consistency and _eval_mode and not sb and run_mode == "LIVE":
+        return f"Consistency dependency unavailable for account {account_name} — blocked for safety"
     if _run_consistency and _eval_mode and sb:
         try:
             from src.services.consistency_analyzer import ConsistencyAnalyzer

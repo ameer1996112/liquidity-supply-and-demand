@@ -46,6 +46,7 @@ def test_account_override_disables_mtm_guardian(monkeypatch):
     monkeypatch.setattr(_ACCOUNT_GUARDS, "get_account_daily_pnl", lambda profile: 0.0)
     monkeypatch.setattr(_ACCOUNT_GUARDS, "get_account_positions_from_db", lambda profile: [])
     monkeypatch.setattr(_ACCOUNT_GUARDS, "check_safety", lambda *args, **kwargs: (True, 1.0, "ok"))
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "check_signal_guards", lambda *args, **kwargs: (True, None), raising=False)
 
     called = {"mtm": 0}
 
@@ -73,7 +74,11 @@ def test_account_override_blocks_on_static_daily_trade_limit(monkeypatch):
     monkeypatch.setattr(
         _ACCOUNT_GUARDS,
         "load_account_guard_overrides",
-        lambda account_id: {"pine_adaptive_enabled": False, "pine_max_trades_per_day": 1},
+        lambda account_id: {
+            "mtm_guardian_enabled": False,
+            "pine_adaptive_enabled": False,
+            "pine_max_trades_per_day": 1,
+        },
     )
     monkeypatch.setattr(_ACCOUNT_GUARDS, "_get_sb", lambda: None)
     monkeypatch.setattr("src.adapters.redis_queue.get_redis", lambda: SimpleNamespace(get=lambda key: None))
@@ -81,6 +86,7 @@ def test_account_override_blocks_on_static_daily_trade_limit(monkeypatch):
     monkeypatch.setattr(_ACCOUNT_GUARDS, "get_account_daily_pnl", lambda profile: 0.0)
     monkeypatch.setattr(_ACCOUNT_GUARDS, "get_account_positions_from_db", lambda profile: [])
     monkeypatch.setattr(_ACCOUNT_GUARDS, "check_safety", lambda *args, **kwargs: (True, 1.0, "ok"))
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "check_signal_guards", lambda *args, **kwargs: (True, None), raising=False)
 
     result = run_account_guards(
         payload={"symbol": "EURUSD", "side": "buy", "run_mode": "LIVE", "account_balance": 50000},
@@ -93,12 +99,17 @@ def test_account_override_blocks_on_static_daily_trade_limit(monkeypatch):
 
 
 def test_account_override_changes_correlation_limit(monkeypatch):
-    monkeypatch.setattr(_ACCOUNT_GUARDS, "load_account_guard_overrides", lambda account_id: {"trinity_max_positions": 1})
+    monkeypatch.setattr(
+        _ACCOUNT_GUARDS,
+        "load_account_guard_overrides",
+        lambda account_id: {"mtm_guardian_enabled": False, "trinity_max_positions": 1},
+    )
     monkeypatch.setattr(_ACCOUNT_GUARDS, "_get_sb", lambda: None)
     monkeypatch.setattr("src.adapters.redis_queue.get_redis", lambda: SimpleNamespace(get=lambda key: None))
     monkeypatch.setattr(_ACCOUNT_GUARDS, "get_account_daily_pnl", lambda profile: 0.0)
     monkeypatch.setattr(_ACCOUNT_GUARDS, "get_account_positions_from_db", lambda profile: [object()])
     monkeypatch.setattr(_ACCOUNT_GUARDS, "check_safety", lambda *args, **kwargs: (True, 1.0, "ok"))
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "check_signal_guards", lambda *args, **kwargs: (True, None), raising=False)
 
     result = run_account_guards(
         payload={"symbol": "EURUSD", "side": "buy", "run_mode": "LIVE", "account_balance": 50000},
@@ -108,3 +119,39 @@ def test_account_override_changes_correlation_limit(monkeypatch):
         correlation_manager=None,
     )
     assert result == "Bucket Full (ACG-DEMO-3): 1/1"
+
+
+def test_evaluation_signal_guards_can_block_account(monkeypatch):
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "load_account_guard_overrides", lambda account_id: {})
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "_get_sb", lambda: object())
+    monkeypatch.setattr("src.adapters.redis_queue.get_redis", lambda: SimpleNamespace(get=lambda key: None))
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "get_account_daily_pnl", lambda profile: 0.0)
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "get_account_positions_from_db", lambda profile: [])
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "check_safety", lambda *args, **kwargs: (True, 1.0, "ok"))
+
+    captured = {}
+
+    def _fake_signal_guards(payload, supabase=None, **kwargs):
+        captured["payload"] = payload
+        captured["supabase"] = supabase
+        captured["kwargs"] = kwargs
+        return False, "RR ratio 1.00 below minimum 1.5 (phase1)"
+
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "check_signal_guards", _fake_signal_guards, raising=False)
+
+    result = run_account_guards(
+        payload={
+            "symbol": "EURUSD",
+            "side": "buy",
+            "run_mode": "LIVE",
+            "account_balance": 50000,
+            "rr_ratio": 1.0,
+        },
+        profile={"id": "acct-1", "name": "ACG-DEMO-3", "risk_pct": 0.5, "max_positions": 3, "evaluation_mode": True},
+        s=_settings(evaluation_mode=True),
+        current_equity_global=50000,
+        correlation_manager=None,
+    )
+
+    assert result == "SignalGuard (ACG-DEMO-3): RR ratio 1.00 below minimum 1.5 (phase1)"
+    assert captured["kwargs"]["profile"]["id"] == "acct-1"
