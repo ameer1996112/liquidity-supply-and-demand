@@ -663,12 +663,17 @@ export interface AiRunResponse {
   correlation_id?: string;
   signal_id?: number;
   run_type: string;
+  analysis_mode?: string;
   recommendation: 'allow' | 'block';
   confidence: number;
   reason_codes: string[];
   memo: string;
   votes: Record<string, string>;
   transcript: Array<{ role: string; content: string }>;
+  chart_context?: Record<string, unknown>;
+  pine_context?: Record<string, unknown>;
+  module_status?: Record<string, unknown>;
+  layered_output?: Record<string, unknown>;
   created_at?: string;
 }
 
