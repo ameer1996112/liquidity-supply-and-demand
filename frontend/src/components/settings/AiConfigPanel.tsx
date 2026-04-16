@@ -93,6 +93,8 @@ export function AiConfigPanel() {
     useState<AiOperatingLayerConfigResponse | null>(null);
   const [draftAiOperatingLayerModules, setDraftAiOperatingLayerModules] =
     useState<Record<string, 'inherit' | 'enabled' | 'disabled'>>({});
+  const [draftAiOperatingLayerProvider, setDraftAiOperatingLayerProvider] =
+    useState<AiOperatingLayerConfigResponse['provider'] | null>(null);
   const [graduation, setGraduation] = useState<GraduationReadiness | null>(null);
   const [state, setState] = useState<LoadState>('loading');
   const [error, setError] = useState('');
@@ -117,6 +119,7 @@ export function AiConfigPanel() {
         setGraduation(grad);
         setAiOperatingLayerConfig(aiLayer);
         setDraftAiOperatingLayerModules(aiLayer.modules || {});
+        setDraftAiOperatingLayerProvider(aiLayer.provider);
         setState('loaded');
       })
       .catch((err) => {
@@ -170,9 +173,11 @@ export function AiConfigPanel() {
       const next = await patchAiOperatingLayerConfig({
         panic_mode: aiOperatingLayerConfig.panic_mode,
         modules: draftAiOperatingLayerModules,
+        provider: draftAiOperatingLayerProvider || undefined,
       });
       setAiOperatingLayerConfig(next);
       setDraftAiOperatingLayerModules(next.modules || {});
+      setDraftAiOperatingLayerProvider(next.provider);
     } catch (e) {
       setError(
         e instanceof Error
@@ -522,6 +527,104 @@ export function AiConfigPanel() {
               ))}
             </div>
           </div>
+
+          {draftAiOperatingLayerProvider && (
+            <div className="py-3 space-y-3">
+              <div className="text-[11px] text-[var(--to-text-dim)] uppercase tracking-wider font-mono">
+                Provider Settings
+              </div>
+
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-mono text-xs text-[var(--to-text-secondary)]">
+                  Provider Enabled
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDraftAiOperatingLayerProvider((current) =>
+                      current
+                        ? { ...current, enabled: !current.enabled }
+                        : current
+                    )
+                  }
+                  disabled={aiOperatingLayerSaving}
+                  className={cn(
+                    'rounded px-3 py-1.5 text-[10px] font-mono font-semibold uppercase tracking-wider transition-colors',
+                    draftAiOperatingLayerProvider.enabled
+                      ? 'bg-emerald-600 text-white hover:bg-emerald-500'
+                      : 'bg-[var(--to-surface-raised)] text-[var(--to-text-secondary)] hover:bg-[var(--to-surface-raised)]/80'
+                  )}
+                >
+                  {draftAiOperatingLayerProvider.enabled ? 'ON' : 'OFF'}
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[11px] text-[var(--to-text-dim)] uppercase tracking-wider font-mono">
+                  Provider Endpoint
+                </label>
+                <input
+                  data-testid="ai-operating-layer-provider-endpoint"
+                  value={draftAiOperatingLayerProvider.base_url}
+                  onChange={(e) =>
+                    setDraftAiOperatingLayerProvider((current) =>
+                      current
+                        ? { ...current, base_url: e.target.value }
+                        : current
+                    )
+                  }
+                  disabled={aiOperatingLayerSaving}
+                  className="w-full rounded border border-[#2a2e39] bg-[#1e222d] px-2 py-1 text-[11px] font-mono text-[var(--to-text-primary)]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <label className="text-[11px] text-[var(--to-text-dim)] uppercase tracking-wider font-mono">
+                    Timeout Seconds
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={draftAiOperatingLayerProvider.timeout_seconds}
+                    onChange={(e) =>
+                      setDraftAiOperatingLayerProvider((current) =>
+                        current
+                          ? {
+                              ...current,
+                              timeout_seconds: Number(e.target.value || 0),
+                            }
+                          : current
+                      )
+                    }
+                    disabled={aiOperatingLayerSaving}
+                    className="w-full rounded border border-[#2a2e39] bg-[#1e222d] px-2 py-1 text-[11px] font-mono text-[var(--to-text-primary)]"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[11px] text-[var(--to-text-dim)] uppercase tracking-wider font-mono">
+                    Retry Count
+                  </label>
+                  <input
+                    type="number"
+                    value={draftAiOperatingLayerProvider.retry_count}
+                    onChange={(e) =>
+                      setDraftAiOperatingLayerProvider((current) =>
+                        current
+                          ? {
+                              ...current,
+                              retry_count: Number(e.target.value || 0),
+                            }
+                          : current
+                      )
+                    }
+                    disabled={aiOperatingLayerSaving}
+                    className="w-full rounded border border-[#2a2e39] bg-[#1e222d] px-2 py-1 text-[11px] font-mono text-[var(--to-text-primary)]"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="py-3 flex items-center justify-between gap-3">
             <p className="text-[11px] text-[var(--to-text-dim)] leading-relaxed">

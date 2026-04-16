@@ -60,12 +60,24 @@ vi.mock('@/lib/api', () => ({
       chart_context: 'inherit',
       debate_review: 'enabled',
     },
+    provider: {
+      enabled: false,
+      base_url: 'http://localhost:8765',
+      timeout_seconds: 1,
+      retry_count: 2,
+    },
   }),
   patchAiOperatingLayerConfig: vi.fn().mockResolvedValue({
     panic_mode: true,
     modules: {
       chart_context: 'enabled',
       debate_review: 'disabled',
+    },
+    provider: {
+      enabled: true,
+      base_url: 'http://provider.test',
+      timeout_seconds: 2,
+      retry_count: 3,
     },
   }),
   fetchAiModeToggles: vi.fn().mockResolvedValue({ toggles: [] }),
@@ -100,6 +112,8 @@ describe('AiConfigPanel AI Operating Layer controls', () => {
 
     expect(container.textContent).toContain('AI Operating Layer');
     expect(container.textContent).toContain('Panic Mode');
+    expect(container.textContent).toContain('Provider Endpoint');
+    expect(container.textContent).toContain('Retry Count');
 
     const selects = container.querySelectorAll('select');
     expect(selects.length).toBeGreaterThan(0);
@@ -114,6 +128,15 @@ describe('AiConfigPanel AI Operating Layer controls', () => {
       firstSelect.value = 'enabled';
       firstSelect.dispatchEvent(new Event('change', { bubbles: true }));
 
+      const endpointInput = container.querySelector(
+        'input[data-testid="ai-operating-layer-provider-endpoint"]'
+      ) as HTMLInputElement | null;
+      if (endpointInput) {
+        endpointInput.value = 'http://provider.test';
+        endpointInput.dispatchEvent(new Event('input', { bubbles: true }));
+        endpointInput.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+
       const saveButton = Array.from(container.querySelectorAll('button')).find(
         (button) => button.textContent?.includes('Save')
       );
@@ -125,6 +148,12 @@ describe('AiConfigPanel AI Operating Layer controls', () => {
       modules: {
         chart_context: 'enabled',
         debate_review: 'enabled',
+      },
+      provider: {
+        enabled: false,
+        base_url: 'http://localhost:8765',
+        timeout_seconds: 1,
+        retry_count: 2,
       },
     });
   });
