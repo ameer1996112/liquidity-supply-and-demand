@@ -48,6 +48,9 @@ class NotificationPayload:
     image_url: Optional[str] = None
     account_name: Optional[str] = None
     bar_time: Optional[str] = None
+    account_badge: str = "ACC: Unknown Account"
+    status_line: Optional[str] = None
+    sections: list[dict[str, Any]] = field(default_factory=list)
 
 
 class NotificationService:
@@ -107,7 +110,7 @@ class NotificationService:
         resolved_image_url = image_url or signal.get("image_url")
 
         # Resolve account name
-        resolved_account = account_name or signal.get("account_name")
+        resolved_account = _resolve_account_name(account_name, signal)
 
         # Resolve bar_time
         bar_time_raw = signal.get("bar_time") or signal.get("signal_time")
@@ -120,34 +123,10 @@ class NotificationService:
             except Exception:
                 bar_time_display = str(bar_time_raw)
 
-        fields: dict[str, str] = {
-            "Symbol":       f"**{symbol}**",
-            "Side":         side,
-            "R:R":          f"1:{rr_ratio:.2f}" if rr_ratio else "N/A",
-            "Entry":        f"{entry:.5g}" if entry else "N/A",
-            "Stop Loss":    sl_display if sl else "N/A",
-            "Take Profit":  tp_display if tp else "N/A",
-        }
-
-        if size:
-            fields["Lot Size"] = f"{size:.2f} lots"
-        if risk_usd:
-            fields["Risk"] = f"${risk_usd:.2f}"
-        if resolved_account:
-            fields["Account"] = resolved_account
-        if session:
-            fields["Session"] = session
-        if bar_time_display:
-            fields["Bar Time"] = bar_time_display
-
-        if signal.get("zone_id") is not None:
-            fields["Zone ID"] = str(signal["zone_id"])
-        if signal.get("zone_type"):
-            zone_emoji = "🟢" if signal["zone_type"] == "demand" else "🔴"
-            fields["Zone Type"] = f"{zone_emoji} {signal['zone_type'].upper()}"
-
-        # AI compact inline fields (Decision + Confidence only in embed)
         _ai_raw = ai_result or signal.get("ai_reasoning")
+        decision = ""
+        rf_prob = 0.0
+        reason = ""
         if _ai_raw:
             decision = str(_ai_raw.get("decision", "")).upper()
             if decision:
@@ -155,14 +134,57 @@ class NotificationService:
                     rf_prob = float(_ai_raw.get("rf_prob") or _ai_raw.get("confidence") or 0) * 100
                 except Exception:
                     rf_prob = 0.0
-                decision_emoji = "✅" if decision == "GO" else "⛔"
-                fields["🧠 AI Decision"] = f"{decision_emoji} {decision}"
-                fields["🎯 Confidence"] = f"{rf_prob:.1f}%"
+                reason = str(_ai_raw.get("reason") or "").strip()
+
+        trade_fields: dict[str, str] = {
+            "Symbol": symbol,
+            "Side": side,
+            "Entry": f"{entry:.5g}" if entry else "N/A",
+            "Stop Loss": sl_display if sl else "N/A",
+            "Take Profit": tp_display if tp else "N/A",
+            "R:R": f"1:{rr_ratio:.2f}" if rr_ratio else "N/A",
+        }
+
+        risk_fields: dict[str, str] = {}
+        if size:
+            risk_fields["Lot Size"] = f"{size:.2f} lots"
+        if risk_usd:
+            risk_fields["Risk"] = f"${risk_usd:.2f}"
+        if signal.get("zone_type"):
+            risk_fields["Zone"] = str(signal["zone_type"]).title()
+        if signal.get("zone_id") is not None:
+            risk_fields["Zone ID"] = str(signal["zone_id"])
+
+        ai_fields: dict[str, str] = {}
+        if decision:
+            ai_fields["AI"] = decision
+            ai_fields["Confidence"] = f"{rf_prob:.1f}%"
+            if reason:
+                ai_fields["Reason"] = reason
+
+        context_fields: dict[str, str] = {}
+        if session:
+            context_fields["Session"] = session
+        if bar_time_display:
+            context_fields["Bar Time"] = bar_time_display
+        if signal_id:
+            context_fields["Signal"] = f"#{signal_id}"
+
+        sections: list[dict[str, Any]] = [{"name": "Trade", "fields": trade_fields}]
+        if risk_fields:
+            sections.append({"name": "Risk", "fields": risk_fields})
+        if ai_fields:
+            sections.append({"name": "AI", "fields": ai_fields})
+        if context_fields:
+            sections.append({"name": "Context", "fields": context_fields})
+
+        fields = _flatten_sections(sections)
+        fields["Account"] = resolved_account
 
         return NotificationPayload(
             type="signal",
-            title=f"{mode_prefix}{emoji} New {side} Signal — #{signal_id}",
-            description=f"**{'Auto-executed (paper)' if mode == 'paper' else 'Execute manually'}**",
+            title=f"{side} Signal - {symbol}",
+            description="Auto-executed (paper)" if mode == "paper" else "Execute manually",
             fields=fields,
             color=color,
             footer=f"Signal #{signal_id} | /close {signal_id} to close",
@@ -171,6 +193,9 @@ class NotificationService:
             image_url=resolved_image_url,
             account_name=resolved_account,
             bar_time=bar_time_raw,
+            account_badge=f"ACC: {resolved_account}",
+            status_line=_build_status_line(mode, signal),
+            sections=sections,
         )
 
     def format_close(
@@ -217,30 +242,39 @@ class NotificationService:
             emoji = "⚪"
 
         pnl_sign = "+" if pnl >= 0 else ""
-        fields: dict[str, str] = {
+        resolved_account = _resolve_account_name(None, signal)
+
+        summary_fields: dict[str, str] = {
             "Outcome":    outcome,
             "PnL":        f"{pnl_sign}${pnl:.2f}",
             "Entry":      f"{entry:.5g}" if entry else "N/A",
             "Exit":       f"{exit_price:.5g}" if exit_price else "N/A",
         }
         if commission:
-            fields["Commission"] = f"${commission:.2f}"
+            summary_fields["Commission"] = f"${commission:.2f}"
         if swap:
-            fields["Swap"] = f"${swap:.2f}"
+            summary_fields["Swap"] = f"${swap:.2f}"
 
         risk_usd = float(signal.get("risk_usd") or signal.get("risk_amount") or 0)
         if risk_usd > 0:
             r_multiple = pnl / risk_usd
             sign = "+" if r_multiple >= 0 else ""
-            fields["📊 R Multiple"] = f"{sign}{r_multiple:.2f}R"
+            summary_fields["R Multiple"] = f"{sign}{r_multiple:.2f}R"
+
+        sections: list[dict[str, Any]] = [{"name": "Summary", "fields": summary_fields}]
+        if signal_id:
+            sections.append({"name": "Context", "fields": {"Signal": f"#{signal_id}"}})
 
         return NotificationPayload(
             type="close",
-            title=f"{emoji} Trade Closed — {symbol} {side}",
-            fields=fields,
+            title=f"Trade Closed - {symbol} {side}",
+            fields=_flatten_sections(sections),
             color=color,
             metadata={"symbol": symbol, "side": side, "pnl": pnl, "outcome": outcome},
             signal_id=signal_id,
+            account_name=resolved_account,
+            account_badge=f"ACC: {resolved_account}",
+            sections=sections,
         )
 
     def format_alert(self, alert: dict[str, Any]) -> NotificationPayload:
@@ -256,29 +290,42 @@ class NotificationService:
 
         metadata = alert.get("metadata") or {}
         meta_lines = "\n".join(f"{k}: {v}" for k, v in metadata.items()) if metadata else ""
+        resolved_account = _resolve_account_name(None, alert)
 
-        fields: dict[str, str] = {
+        summary_fields: dict[str, str] = {
             "Severity": severity.upper(),
             "Type":     alert.get("alert_type", ""),
         }
         if alert.get("signal_id"):
-            fields["Signal"] = f"#{alert['signal_id']}"
+            summary_fields["Signal"] = f"#{alert['signal_id']}"
         if meta_lines:
-            fields["Details"] = meta_lines
+            summary_fields["Details"] = meta_lines
+
+        sections = [{"name": "Summary", "fields": summary_fields}]
 
         return NotificationPayload(
             type="alert",
             title=alert.get("title", "Alert"),
             description=alert.get("message", ""),
-            fields=fields,
+            fields=_flatten_sections(sections),
             color=color,
             footer=f"Alert #{alert.get('id')} | /ack {alert.get('id')} to acknowledge",
             metadata=metadata,
             alert_id=alert.get("id"),
+            account_name=resolved_account,
+            account_badge=f"ACC: {resolved_account}",
+            sections=sections,
         )
 
-    def format_guard(self, symbol: str, reason: str, signal_id: Optional[int] = None) -> NotificationPayload:
+    def format_guard(
+        self,
+        symbol: str,
+        reason: str,
+        signal_id: Optional[int] = None,
+        account_name: Optional[str] = None,
+    ) -> NotificationPayload:
         """Format a guard/watchdog alert (late fill, circuit breaker, etc.)."""
+        resolved_account = _resolve_account_name(account_name, {})
         fields: dict[str, str] = {
             "Symbol": symbol,
             "Reason": reason,
@@ -286,12 +333,17 @@ class NotificationService:
         if signal_id:
             fields["Signal"] = f"#{signal_id}"
 
+        sections = [{"name": "Summary", "fields": fields}]
+
         return NotificationPayload(
             type="guard",
-            title=f"⚠️ Guard Alert — {symbol}",
+            title=f"Guard Alert - {symbol}",
             fields=fields,
             color="guard",
             signal_id=signal_id,
+            account_name=resolved_account,
+            account_badge=f"ACC: {resolved_account}",
+            sections=sections,
         )
 
     def format_digest(self, account_name: str, stats: dict) -> NotificationPayload:
@@ -334,7 +386,9 @@ class NotificationService:
             title=f"{emoji} Daily Performance Report",
             fields=fields,
             color=color,
-            account_name=account_name
+            account_name=account_name,
+            account_badge=f"ACC: {_resolve_account_name(account_name, {})}",
+            sections=[{"name": "Summary", "fields": fields}],
         )
 
     # ─── Routing ─────────────────────────────────────────────────────────────
@@ -388,6 +442,32 @@ def _get_pip_divisor(symbol: str) -> float:
     if "BTC" in symbol or "ETH" in symbol:
         return 1.0
     return 0.0001
+
+
+def _resolve_account_name(explicit_account: Optional[str], payload_source: dict[str, Any]) -> str:
+    return str(
+        explicit_account
+        or payload_source.get("account_name")
+        or payload_source.get("account")
+        or "Unknown Account"
+    )
+
+
+def _build_status_line(mode: str, source: dict[str, Any]) -> Optional[str]:
+    mode_label = "Paper" if mode == "paper" else "Live" if mode == "live" else "Manual"
+    venue = source.get("firm_name") or source.get("broker_name") or source.get("broker")
+    parts = [mode_label]
+    if venue:
+        parts.append(str(venue))
+    return " | ".join(parts)
+
+
+def _flatten_sections(sections: list[dict[str, Any]]) -> dict[str, str]:
+    flattened: dict[str, str] = {}
+    for section in sections:
+        for key, value in section["fields"].items():
+            flattened[key] = value
+    return flattened
 
 
 def _format_price_with_distance(price: float, distance: float, unit: str, is_index: bool) -> str:

@@ -699,15 +699,21 @@ def send_telegram_and_store_async(
 from src.services.notification_service import NotificationPayload, COLOR_MAP, _format_ai_analysis  # noqa: E402
 
 
+def _section_to_embed_field(section: dict[str, Any]) -> dict[str, Any]:
+    body = "\n".join(f"**{key}:** {value}" for key, value in section["fields"].items())
+    return {
+        "name": section["name"],
+        "value": body,
+        "inline": section["name"] in {"Trade", "Risk", "Context", "Summary"},
+    }
+
+
 def _payload_to_discord_embed(payload: NotificationPayload) -> dict:
     """Render a NotificationPayload as a premium Discord embed dict."""
     color = COLOR_MAP.get(payload.color, 0x3B82F6)
 
-    wide_fields = {"🧠 AI Analysis", "Details", "Reason"}
-    fields = [
-        {"name": k, "value": str(v), "inline": k not in wide_fields}
-        for k, v in payload.fields.items()
-    ]
+    sections = payload.sections or [{"name": "Summary", "fields": payload.fields}]
+    fields = [_section_to_embed_field(section) for section in sections]
 
     embed: dict = {
         "title": payload.title,
@@ -716,11 +722,10 @@ def _payload_to_discord_embed(payload: NotificationPayload) -> dict:
         "fields": fields,
     }
 
-    # Author block: "Trading Bot · FTMO-50K"
-    author_name = "Trading Bot"
-    if payload.account_name:
-        author_name += f" · {payload.account_name}"
-    embed["author"] = {"name": author_name}
+    author_name = payload.account_badge
+    if (not author_name or author_name == "ACC: Unknown Account") and payload.account_name:
+        author_name = f"ACC: {payload.account_name}"
+    embed["author"] = {"name": author_name or "ACC: Unknown Account"}
 
     # Thumbnail (top-right small): currency flag when no chart; omit if chart present
     # Full-width image (bottom): chart screenshot when image_url set
@@ -732,8 +737,13 @@ def _payload_to_discord_embed(payload: NotificationPayload) -> dict:
         if flag_url:
             embed["thumbnail"] = {"url": flag_url}
 
+    description_parts = []
+    if payload.status_line:
+        description_parts.append(payload.status_line)
     if payload.description:
-        embed["description"] = payload.description
+        description_parts.append(payload.description)
+    if description_parts:
+        embed["description"] = "\n".join(description_parts)
     if payload.footer:
         embed["footer"] = {"text": payload.footer}
 
@@ -756,69 +766,26 @@ def _payload_to_telegram_html(payload: NotificationPayload) -> str:
     else:
         header_emoji = "🚨"
 
-    lines = [f"{header_emoji} <b>{title.upper()}</b>"]
+    lines = [
+        f"<b>{clean(payload.account_badge or 'ACC: Unknown Account')}</b>",
+        f"{header_emoji} <b>{title.upper()}</b>",
+    ]
+    if payload.status_line:
+        lines.append(f"<i>{clean(payload.status_line)}</i>")
     if payload.description:
         lines.append(clean(payload.description))
-    
-    if payload.metadata and "symbol" in payload.metadata:
-        symbol = clean(payload.metadata["symbol"])
-        lines.append(f"<b><a href=\"#\">#{symbol}</a></b>")
-    elif "Symbol" in payload.fields:
-        symbol = clean(payload.fields["Symbol"])
-        lines.append(f"<b><a href=\"#\">#{symbol}</a></b>")
 
     lines.append("")
 
-    trade_fields = []
-    ai_field = None
-    
-    for k, v in payload.fields.items():
-        if k == "Symbol":
-            continue
-        if "AI Analysis" in k:
-            ai_field = v
-            continue
-            
-        icon = "▪️"
-        if "Entry" in k: icon = "🎯"
-        elif "Take Profit" in k: icon = "💰"
-        elif "Stop Loss" in k: icon = "🛑"
-        elif "R:R" in k or "Outcome" in k: icon = "⚖️"
-        elif "Lot Size" in k or "Risk" in k: icon = "📊"
-        elif "Account" in k or "Mode" in k: icon = "🏦"
-        elif "Session" in k or "Time" in k: icon = "🕒"
-        elif "Zone" in k: icon = "🗺️"
-        elif "Commission" in k or "Swap" in k: icon = "💸"
-        elif "PnL" in k: icon = "📈" if "+" in str(v) else "📉"
-        
-        clean_v = clean(v)
-        trade_fields.append(f"<b>{icon} {k}:</b> <code>{clean_v}</code>")
-
-    if trade_fields:
-        lines.append("<blockquote>" + "\n".join(trade_fields) + "</blockquote>")
+    sections = payload.sections or [{"name": "Summary", "fields": payload.fields}]
+    for section in sections:
+        lines.append(f"<b>{clean(section['name'])}</b>")
+        section_lines = [
+            f"<b>{clean(key)}:</b> <code>{clean(value)}</code>"
+            for key, value in section["fields"].items()
+        ]
+        lines.append("<blockquote>" + "\n".join(section_lines) + "</blockquote>")
         lines.append("")
-
-    if ai_field:
-        lines.append("<b>🧠 AI GUARDIAN</b>")
-        ai_clean = clean(ai_field)
-        
-        ai_lines = []
-        for line in ai_clean.split("\n"):
-            line = line.strip()
-            if not line: continue
-            if "Decision:" in line:
-                ai_lines.append(f"<b>⛔️ DECISION:</b> <code>{line.replace('Decision:', '').strip()}</code>")
-            elif "Confidence:" in line:
-                ai_lines.append(f"<b>🛡️ CONFIDENCE:</b> <code>{line.replace('Confidence:', '').strip()}</code>")
-            elif "Reason:" in line:
-                reason_text = line.replace('Reason:', '').strip()
-                ai_lines.append(f"<b>⚠️ REASON:</b>\n<pre>{reason_text}</pre>")
-            elif "RAG Wisdom:" in line:
-                ai_lines.append("<b>📚 RAG WISDOM:</b>")
-            else:
-                ai_lines.append(f"<i>{line}</i>")
-                
-        lines.append("<blockquote>" + "\n".join(ai_lines) + "</blockquote>")
 
     if payload.footer:
         lines.append(f"\n<i>{clean(payload.footer)}</i>")
