@@ -17,6 +17,7 @@ import {
 } from '@/components/analytics/InsightCard';
 import { AIConfidenceChart } from '@/components/analytics/AIConfidenceChart';
 import { SymbolPerformanceTable } from '@/components/analytics/SymbolPerformanceTable';
+import { StrategyPerformanceTable } from '@/components/analytics/StrategyPerformanceTable';
 import { DayOfWeekChart } from '@/components/analytics/DayOfWeekChart';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -254,6 +255,28 @@ export default function AnalyticsPage() {
     };
   }, [breakdown]);
 
+  const strategyHighlights = useMemo(() => {
+    const strategies = analytics?.strategyPerformance ?? [];
+    if (strategies.length === 0) {
+      return {
+        topPnl: null,
+        bestWinRate: null,
+      };
+    }
+
+    const topPnl = strategies[0];
+    const bestWinRate =
+      strategies
+        .filter((strategy) => strategy.count >= 2)
+        .sort((left, right) => right.winRate - left.winRate)[0] ??
+      topPnl;
+
+    return {
+      topPnl,
+      bestWinRate,
+    };
+  }, [analytics]);
+
   const hasData = !!analytics;
   const hasBreakdown = !!breakdown;
   const hasDrawdown = !!drawdownData && drawdownData.data.length > 0;
@@ -326,6 +349,14 @@ export default function AnalyticsPage() {
               </button>
             ))}
           </div>
+          {analytics?.activeStrategies ? (
+            <div
+              className='rounded-lg border border-[var(--to-accent)]/25 bg-[var(--to-accent)]/10 px-3 py-1 text-[10px] font-medium text-[var(--to-accent)]'
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >
+              {analytics.activeStrategies} strategies tracked
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -409,6 +440,44 @@ export default function AnalyticsPage() {
           </div>
         )}
       </Section>
+
+      {hasData && analytics!.strategyPerformance.length > 0 && (
+        <Section
+          title='Strategy Breakdown'
+          subtitle='Multi-strategy visibility by realized PnL, win rate, and trade count'
+        >
+          <div className='grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_280px]'>
+            <StrategyPerformanceTable data={analytics!.strategyPerformance} />
+            <div className='grid gap-3'>
+              <StrategyHighlightCard
+                label='Strategies Tracked'
+                value={String(analytics!.activeStrategies)}
+                detail='Strategy versions with closed trades in scope'
+              />
+              <StrategyHighlightCard
+                label='Leading PnL'
+                value={strategyHighlights.topPnl?.label ?? '—'}
+                detail={
+                  strategyHighlights.topPnl
+                    ? `${strategyHighlights.topPnl.pnl >= 0 ? '+' : ''}$${strategyHighlights.topPnl.pnl.toFixed(2)} across ${strategyHighlights.topPnl.count} trades`
+                    : 'Waiting for strategy-tagged closed trades'
+                }
+                tone='positive'
+              />
+              <StrategyHighlightCard
+                label='Best Win Rate'
+                value={strategyHighlights.bestWinRate?.label ?? '—'}
+                detail={
+                  strategyHighlights.bestWinRate
+                    ? `${strategyHighlights.bestWinRate.winRate.toFixed(0)}% win rate on ${strategyHighlights.bestWinRate.count} trades`
+                    : 'No qualifying strategy yet'
+                }
+                tone='accent'
+              />
+            </div>
+          </div>
+        </Section>
+      )}
 
       {/* ── Symbol Performance + AI Confidence ───────────────────────────────── */}
       {(breakdownLoading || hasBreakdown) && (
@@ -620,6 +689,38 @@ function EntryModelBreakdown({ data }: { data: Record<string, BucketStats> }) {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function StrategyHighlightCard({
+  label,
+  value,
+  detail,
+  tone = 'neutral',
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  tone?: 'neutral' | 'positive' | 'accent';
+}) {
+  const valueClassName =
+    tone === 'positive'
+      ? 'text-[var(--to-long)]'
+      : tone === 'accent'
+        ? 'text-[var(--to-accent)]'
+        : 'text-[var(--to-text-primary)]';
+
+  return (
+    <div className='glow-card p-4'>
+      <p
+        className='text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--to-text-dim)]'
+        style={{ fontFamily: 'var(--font-mono)' }}
+      >
+        {label}
+      </p>
+      <p className={cn('mt-3 text-sm font-semibold', valueClassName)}>{value}</p>
+      <p className='mt-1 text-[11px] text-[var(--to-text-dim)]'>{detail}</p>
     </div>
   );
 }

@@ -25,6 +25,18 @@ export interface AnalyticsData {
   }[];
   pnlByDay: { date: string; pnl: number; wins: number; losses: number }[];
   outcomeDistribution: { wins: number; losses: number; breakeven: number };
+  activeStrategies: number;
+  strategyPerformance: {
+    strategyId: string;
+    strategyVersion: string | null;
+    label: string;
+    pnl: number;
+    count: number;
+    wins: number;
+    losses: number;
+    winRate: number;
+    avgPnl: number;
+  }[];
 }
 
 export function useAnalytics(mode?: TradingMode | 'BACKTEST', runId?: string) {
@@ -139,6 +151,52 @@ function computeAnalytics(signals: TradingSignal[]): AnalyticsData {
     }))
     .sort((a, b) => b.pnl - a.pnl);
 
+  const strategyMap = new Map<
+    string,
+    {
+      strategyId: string;
+      strategyVersion: string | null;
+      pnl: number;
+      count: number;
+      wins: number;
+      losses: number;
+    }
+  >();
+
+  for (const s of closed) {
+    const strategyId = s.strategy_id?.trim() || s.strategy_name?.trim();
+    if (!strategyId) continue;
+
+    const strategyVersion = s.strategy_version?.trim() || null;
+    const key = `${strategyId}::${strategyVersion ?? ''}`;
+    const pnl = getPnl(s) ?? 0;
+    const existing = strategyMap.get(key) || {
+      strategyId,
+      strategyVersion,
+      pnl: 0,
+      count: 0,
+      wins: 0,
+      losses: 0,
+    };
+
+    existing.pnl += pnl;
+    existing.count += 1;
+    if (pnl > 0) existing.wins += 1;
+    if (pnl < 0) existing.losses += 1;
+    strategyMap.set(key, existing);
+  }
+
+  const strategyPerformance = Array.from(strategyMap.values())
+    .map((data) => ({
+      ...data,
+      label: data.strategyVersion
+        ? `${data.strategyId}@${data.strategyVersion}`
+        : data.strategyId,
+      winRate: data.count > 0 ? (data.wins / data.count) * 100 : 0,
+      avgPnl: data.count > 0 ? data.pnl / data.count : 0,
+    }))
+    .sort((a, b) => b.pnl - a.pnl);
+
   // PnL by day — group by closed_at so each day reflects realized PnL
   const dayMap = new Map<
     string,
@@ -176,5 +234,7 @@ function computeAnalytics(signals: TradingSignal[]): AnalyticsData {
     pnlBySymbol,
     pnlByDay,
     outcomeDistribution: { wins, losses, breakeven },
+    activeStrategies: strategyPerformance.length,
+    strategyPerformance,
   };
 }

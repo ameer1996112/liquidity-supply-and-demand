@@ -48,6 +48,10 @@ interface SignalTableProps {
   onAccountFilterChange?: (name: string | undefined) => void;
   accountNames?: string[];
   accountSignalCounts?: Record<string, number>;
+  strategyFilter?: string;
+  onStrategyFilterChange?: (strategyId: string | undefined) => void;
+  strategyOptions?: Array<{ value: string; label: string }>;
+  strategySignalCounts?: Record<string, number>;
 }
 
 // =============================================================================
@@ -110,6 +114,22 @@ function getSortValue(signal: TradingSignal, field: SortField): string | number 
     case 'score':      return signal.score ?? signal.ai_confidence ?? 0;
     default:           return '';
   }
+}
+
+function getSignalStrategyKey(signal: TradingSignal): string | undefined {
+  const strategyId = signal.strategy_id?.trim();
+  if (strategyId) return strategyId;
+
+  const strategyName = signal.strategy_name?.trim();
+  return strategyName || undefined;
+}
+
+function getSignalStrategyBadge(signal: TradingSignal): string | null {
+  const key = getSignalStrategyKey(signal);
+  if (!key) return null;
+
+  const version = signal.strategy_version?.trim();
+  return version ? `${key}@${version}` : key;
 }
 
 // =============================================================================
@@ -327,6 +347,10 @@ export function SignalTable({
   onAccountFilterChange,
   accountNames,
   accountSignalCounts,
+  strategyFilter,
+  onStrategyFilterChange,
+  strategyOptions,
+  strategySignalCounts,
 }: SignalTableProps) {
   const [sortField, setSortField] = useState<SortField>('created_at');
   const [sortDir, setSortDir]     = useState<SortDir>('desc');
@@ -370,8 +394,12 @@ export function SignalTable({
         return normalized === normalizedFilter;
       });
     }
+    if (strategyFilter) {
+      const normalizedStrategy = strategyFilter.trim();
+      result = result.filter((s) => getSignalStrategyKey(s) === normalizedStrategy);
+    }
     return result;
-  }, [signals, activeFilter, accountFilter]);
+  }, [signals, activeFilter, accountFilter, strategyFilter]);
 
   const sorted = useMemo(() => {
     const slice = filtered.slice(0, maxRows);
@@ -410,23 +438,42 @@ export function SignalTable({
           <Mono size='lg' bold className='text-text-primary'>
             {signal.symbol}
           </Mono>
-          {(signal as any).account_name && (
-            <span
-              style={{
-                fontSize: 9,
-                padding: '1px 5px',
-                borderRadius: 3,
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border)',
-                color: 'var(--text-muted)',
-                fontFamily: 'var(--font-mono)',
-                letterSpacing: '0.03em',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {(signal as any).account_name}
-            </span>
-          )}
+          <div className='inline-flex flex-wrap gap-1'>
+            {(signal as any).account_name && (
+              <span
+                style={{
+                  fontSize: 9,
+                  padding: '1px 5px',
+                  borderRadius: 3,
+                  background: 'var(--bg-surface)',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-muted)',
+                  fontFamily: 'var(--font-mono)',
+                  letterSpacing: '0.03em',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {(signal as any).account_name}
+              </span>
+            )}
+            {getSignalStrategyBadge(signal) && (
+              <span
+                style={{
+                  fontSize: 9,
+                  padding: '1px 5px',
+                  borderRadius: 3,
+                  background: 'color-mix(in srgb, var(--to-accent-blue) 12%, transparent)',
+                  border: '1px solid color-mix(in srgb, var(--to-accent-blue) 30%, var(--border))',
+                  color: 'var(--to-accent-blue)',
+                  fontFamily: 'var(--font-mono)',
+                  letterSpacing: '0.03em',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {getSignalStrategyBadge(signal)}
+              </span>
+            )}
+          </div>
         </div>
       ),
     },
@@ -642,6 +689,66 @@ export function SignalTable({
               {accountSignalCounts?.[name] !== undefined && (
                 <span style={{ opacity: 0.6, fontSize: 10 }}>
                   {accountSignalCounts[name]}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+      {strategyOptions && strategyOptions.length > 0 && (
+        <div style={{ display: 'flex', gap: 6, padding: '0 0 10px', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => onStrategyFilterChange?.(undefined)}
+            style={{
+              padding: '4px 12px',
+              borderRadius: 20,
+              border: '1px solid',
+              borderColor: strategyFilter == null ? 'var(--to-accent-blue)' : 'var(--border)',
+              background: strategyFilter == null
+                ? 'color-mix(in srgb, var(--to-accent-blue) 14%, transparent)'
+                : 'transparent',
+              color: strategyFilter == null ? 'var(--to-accent-blue)' : 'var(--text-muted)',
+              fontSize: 11,
+              fontFamily: 'var(--font-display)',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'all 120ms ease',
+              letterSpacing: '0.04em',
+            }}
+          >
+            ALL STRATEGIES
+          </button>
+          {strategyOptions.map((strategy) => (
+            <button
+              key={strategy.value}
+              onClick={() => onStrategyFilterChange?.(strategy.value)}
+              style={{
+                padding: '4px 12px',
+                borderRadius: 20,
+                border: '1px solid',
+                borderColor:
+                  strategyFilter === strategy.value ? 'var(--to-accent-blue)' : 'var(--border)',
+                background:
+                  strategyFilter === strategy.value
+                    ? 'color-mix(in srgb, var(--to-accent-blue) 14%, transparent)'
+                    : 'transparent',
+                color:
+                  strategyFilter === strategy.value ? 'var(--to-accent-blue)' : 'var(--text-muted)',
+                fontSize: 11,
+                fontFamily: 'var(--font-display)',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 120ms ease',
+                letterSpacing: '0.04em',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              {strategy.label}
+              {strategySignalCounts?.[strategy.value] !== undefined && (
+                <span style={{ opacity: 0.6, fontSize: 10 }}>
+                  {strategySignalCounts[strategy.value]}
                 </span>
               )}
             </button>

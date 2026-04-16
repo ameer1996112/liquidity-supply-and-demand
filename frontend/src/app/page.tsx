@@ -33,6 +33,7 @@ export default function DashboardPage() {
   const [showLog, setShowLog] = useState(false);
   // Which account row is selected in the strip — filters the signal table
   const [signalAccountFilter, setSignalAccountFilter] = useState<string | undefined>(undefined);
+  const [signalStrategyFilter, setSignalStrategyFilter] = useState<string | undefined>(undefined);
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -71,6 +72,28 @@ export default function DashboardPage() {
       if (name) counts[name] = (counts[name] ?? 0) + 1;
     }
     return counts;
+  }, [signals]);
+
+  const { strategyCounts, strategyOptions } = useMemo(() => {
+    const counts: Record<string, number> = {};
+    const labels = new Map<string, string>();
+
+    for (const signal of signals) {
+      const strategyId = signal.strategy_id?.trim();
+      const strategyName = signal.strategy_name?.trim();
+      const key = strategyId || strategyName;
+      if (!key) continue;
+
+      counts[key] = (counts[key] ?? 0) + 1;
+      labels.set(key, strategyName || strategyId || key);
+    }
+
+    return {
+      strategyCounts: counts,
+      strategyOptions: Array.from(labels.entries())
+        .sort((left, right) => left[1].localeCompare(right[1]))
+        .map(([value, label]) => ({ value, label })),
+    };
   }, [signals]);
 
   // All distinct account names seen in signals (includes deleted accounts like ACG-DEMO)
@@ -229,6 +252,10 @@ export default function DashboardPage() {
                   onAccountFilterChange={(name) => setSignalAccountFilter(name?.trim() || undefined)}
                   accountNames={filterAccountNames}
                   accountSignalCounts={signalCounts}
+                  strategyFilter={signalStrategyFilter}
+                  onStrategyFilterChange={(strategyId) => setSignalStrategyFilter(strategyId?.trim() || undefined)}
+                  strategyOptions={strategyOptions}
+                  strategySignalCounts={strategyCounts}
                 />
               )}
             </div>
