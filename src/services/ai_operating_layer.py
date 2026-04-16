@@ -2,6 +2,12 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+from src.adapters.tradingview_chart_provider import fetch_chart_context
+from src.services.chart_context_service import (
+    ChartContextProviderResult,
+    normalize_chart_context,
+)
+
 
 def _base_layered_output() -> Dict[str, Any]:
     return {
@@ -11,20 +17,54 @@ def _base_layered_output() -> Dict[str, Any]:
     }
 
 
+def fetch_and_normalize_chart_context(
+    base_url: str,
+    symbol: str,
+    timeframe: str,
+    timeout_seconds: float,
+    retry_count: int,
+) -> Dict[str, Any]:
+    raw = fetch_chart_context(base_url, symbol, timeframe, timeout_seconds, retry_count)
+    return normalize_chart_context(
+        ChartContextProviderResult(
+            ok=raw.get("ok", False),
+            symbol=raw.get("symbol", symbol),
+            timeframe=raw.get("timeframe", timeframe),
+            structured={
+                "provider_timestamp": raw.get("provider_timestamp"),
+                "pine_labels": raw.get("pine_labels", []),
+                "zones": raw.get("zones", []),
+                "indicator_values": raw.get("indicator_values", {}),
+            }
+            if raw.get("ok")
+            else {},
+            screenshot_url=raw.get("screenshot_url"),
+            reason=raw.get("reason", ""),
+        )
+    )
+
+
 def build_shadow_pretrade_run(
     signal_payload: Dict[str, Any],
-    chart_context: Dict[str, Any],
+    chart_context: Dict[str, Any] | None,
     pine_context: Dict[str, Any],
 ) -> Dict[str, Any]:
+    resolved_chart_context = chart_context or fetch_and_normalize_chart_context(
+        base_url="http://localhost:8765",
+        symbol=str(signal_payload.get("symbol", "UNKNOWN")),
+        timeframe=str(signal_payload.get("timeframe", "5m")),
+        timeout_seconds=1.0,
+        retry_count=2,
+    )
     return {
         "analysis_mode": "shadow_pretrade",
         "signal_payload": signal_payload,
-        "chart_context": chart_context,
+        "chart_context": resolved_chart_context,
         "pine_context": pine_context,
         "module_status": {
             "chart_context": {
-                "status": chart_context.get("status", "degraded"),
-                "reason": chart_context.get("reason", ""),
+                "status": resolved_chart_context.get("status", "degraded"),
+                "reason": resolved_chart_context.get("reason", ""),
             }
         },
         "layered_output": _base_layered_output(),
@@ -34,7 +74,7 @@ def build_shadow_pretrade_run(
 def build_posttrade_review_run(
     signal_payload: Dict[str, Any],
     trade_outcome: Dict[str, Any],
-    chart_context: Dict[str, Any],
+    chart_context: Dict[str, Any] | None,
     pine_context: Dict[str, Any],
 ) -> Dict[str, Any]:
     payload = build_shadow_pretrade_run(signal_payload, chart_context, pine_context)
