@@ -84,11 +84,20 @@ class PatchCTraderIntegrationRequest(BaseModel):
 class AiOperatingLayerConfigResponse(BaseModel):
     panic_mode: bool
     modules: Dict[str, str]
+    provider: "AiOperatingLayerProviderConfig"
+
+
+class AiOperatingLayerProviderConfig(BaseModel):
+    enabled: bool
+    base_url: str
+    timeout_seconds: float
+    retry_count: int
 
 
 class PatchAiOperatingLayerConfigRequest(BaseModel):
     panic_mode: bool | None = None
     modules: Dict[str, Literal["inherit", "enabled", "disabled"]] | None = None
+    provider: AiOperatingLayerProviderConfig | None = None
 
 
 # ── Endpoints ─────────────────────────────────────────────
@@ -261,6 +270,10 @@ _AI_LAYER_MODULE_KEYS = {
     "memory_learning": "ai_operating_layer_module_memory_learning",
     "copilot": "ai_operating_layer_module_copilot",
 }
+_AI_LAYER_PROVIDER_ENABLED_KEY = "ai_operating_layer_provider_enabled"
+_AI_LAYER_PROVIDER_BASE_URL_KEY = "ai_operating_layer_provider_base_url"
+_AI_LAYER_PROVIDER_TIMEOUT_KEY = "ai_operating_layer_provider_timeout_seconds"
+_AI_LAYER_PROVIDER_RETRY_KEY = "ai_operating_layer_provider_retry_count"
 
 
 def _read_system_config(keys: list[str]) -> dict[str, str]:
@@ -277,13 +290,28 @@ def _read_system_config(keys: list[str]) -> dict[str, str]:
 @router.get("/ai-operating-layer", response_model=AiOperatingLayerConfigResponse)
 def get_ai_operating_layer_config():
     try:
-        kv = _read_system_config([_AI_LAYER_PANIC_KEY, *_AI_LAYER_MODULE_KEYS.values()])
+        kv = _read_system_config(
+            [
+                _AI_LAYER_PANIC_KEY,
+                *_AI_LAYER_MODULE_KEYS.values(),
+                _AI_LAYER_PROVIDER_ENABLED_KEY,
+                _AI_LAYER_PROVIDER_BASE_URL_KEY,
+                _AI_LAYER_PROVIDER_TIMEOUT_KEY,
+                _AI_LAYER_PROVIDER_RETRY_KEY,
+            ]
+        )
         modules = {
             name: kv.get(key, ModuleState.INHERIT.value)
             for name, key in _AI_LAYER_MODULE_KEYS.items()
         }
         panic_mode = str(kv.get(_AI_LAYER_PANIC_KEY, "false")).lower() == "true"
-        return {"panic_mode": panic_mode, "modules": modules}
+        provider = {
+            "enabled": str(kv.get(_AI_LAYER_PROVIDER_ENABLED_KEY, "false")).lower() == "true",
+            "base_url": kv.get(_AI_LAYER_PROVIDER_BASE_URL_KEY, ""),
+            "timeout_seconds": float(kv.get(_AI_LAYER_PROVIDER_TIMEOUT_KEY, "1.0")),
+            "retry_count": int(kv.get(_AI_LAYER_PROVIDER_RETRY_KEY, "2")),
+        }
+        return {"panic_mode": panic_mode, "modules": modules, "provider": provider}
     except Exception as e:
         logger.error(f"Failed to fetch AI operating layer config: {e}")
         raise HTTPException(status_code=500, detail="Could not fetch AI operating layer config")
@@ -304,6 +332,27 @@ def patch_ai_operating_layer_config(body: PatchAiOperatingLayerConfigRequest):
                 if not key:
                     continue
                 upserts.append({"key": key, "value": module_state})
+        if body.provider:
+            upserts.extend(
+                [
+                    {
+                        "key": _AI_LAYER_PROVIDER_ENABLED_KEY,
+                        "value": str(body.provider.enabled).lower(),
+                    },
+                    {
+                        "key": _AI_LAYER_PROVIDER_BASE_URL_KEY,
+                        "value": body.provider.base_url,
+                    },
+                    {
+                        "key": _AI_LAYER_PROVIDER_TIMEOUT_KEY,
+                        "value": str(body.provider.timeout_seconds),
+                    },
+                    {
+                        "key": _AI_LAYER_PROVIDER_RETRY_KEY,
+                        "value": str(body.provider.retry_count),
+                    },
+                ]
+            )
         if upserts:
             sb.table("system_config").upsert(upserts, on_conflict="key").execute()
         return get_ai_operating_layer_config()
