@@ -116,7 +116,8 @@ def _build_cors_origins() -> list[str]:
     if cors_env:
         origins.extend([o.strip() for o in cors_env.split(",") if o.strip()])
 
-    return origins
+    # Preserve order while preventing duplicate origins from repeated env values.
+    return list(dict.fromkeys(origins))
 
 
 from src.api_rules import router as rules_router
@@ -531,8 +532,9 @@ def health():
     try:
         from src.core.circuit_breaker import is_metaapi_circuit_open
         broker_connected = not is_metaapi_circuit_open()
-    except Exception:
-        pass
+    except Exception as exc:
+        broker_connected = False
+        logger.warning("Health check: broker connectivity probe failed: %s", exc)
 
     # Check Redis
     redis_ok = True
@@ -540,8 +542,9 @@ def health():
         from src.adapters.redis_queue import get_redis
         r = get_redis()
         r.ping()
-    except Exception:
+    except Exception as exc:
         redis_ok = False
+        logger.warning("Health check: Redis ping failed: %s", exc)
 
     status = "healthy" if (broker_connected and redis_ok) else "degraded"
 
@@ -565,8 +568,8 @@ def _get_effective_ai_mode():
         override = get_ai_mode_override()
         if override:
             return override
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Failed to load AI mode override, falling back to settings: %s", exc)
     return getattr(get_settings(), "ai_mode", "shadow")
 
 
@@ -742,7 +745,8 @@ async def debate_ws(websocket: WebSocket):
                 continue
             try:
                 await websocket.send_text(raw["data"])
-            except Exception:
+            except Exception as exc:
+                logger.info("[WS] /ws/debate send failed, closing socket: %s", exc)
                 break
     except Exception as exc:
         logger.warning("[WS] /ws/debate error: %s", exc)
@@ -750,13 +754,13 @@ async def debate_ws(websocket: WebSocket):
         if pubsub:
             try:
                 await pubsub.unsubscribe("trading:debate_logs")
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("[WS] /ws/debate unsubscribe failed: %s", exc)
         if _r:
             try:
                 await _r.aclose()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("[WS] /ws/debate redis close failed: %s", exc)
         logger.info("[WS] /ws/debate client disconnected")
 
 
@@ -851,7 +855,20 @@ async def webhook(request: Request, payload: dict[str, Any] = Depends(get_webhoo
 
     logger.info("Signal: %s | Mode: %s | Account: %s | Queue: %s", symbol, run_mode, account_id, queue_key)
     payload_str = json.dumps(payload)
-    get_transport().enqueue(payload_str, queue_key=queue_key)
+    try:
+        get_transport().enqueue(payload_str, queue_key=queue_key)
+    except Exception as exc:
+        logger.error(
+            "Webhook queue enqueue failed for symbol=%s account=%s queue=%s: %s",
+            symbol,
+            account_id,
+            queue_key,
+            exc,
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Signal queue unavailable. Webhook not accepted.",
+        ) from exc
     return JSONResponse(status_code=200, content={"status": "queued", "account_id": account_id})
 
 

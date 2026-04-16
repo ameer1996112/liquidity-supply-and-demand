@@ -1,5 +1,8 @@
 # Worklog
 
+- [src/api.py] Silent health/AI-mode/websocket cleanup failures and unguarded queue enqueue reduced ingress observability and resilience [added explicit warning/error logging, deduped CORS origins, and return 503 when webhook queueing fails]
+- [tests/test_api_webhook_ingress.py] Ingress outage fallback and AI-mode fallback logging had no direct regression coverage [added focused FastAPI tests for queue enqueue failure and settings-based AI-mode fallback]
+
 ## 2026-04-16 — Multi-Strategy Bot Design
 
 **Problem:** The trading system still assumes one globally active strategy in key places, but the product direction is to run multiple fully mechanical strategies through one bot while keeping alerts, risk, notifications, analytics, and UI attributable per strategy.
