@@ -42,7 +42,45 @@ def test_embed_author_without_account_name():
     )
     embed = _payload_to_discord_embed(payload)
     assert "author" in embed
-    assert embed["author"]["name"] == "Trading Bot"
+    assert embed["author"]["name"] == "ACC: Unknown Account"
+
+
+def test_embed_uses_account_badge_and_status_line():
+    payload = NotificationPayload(
+        type="signal",
+        title="BUY Signal - XAUUSD",
+        fields={"Entry": "3345.2"},
+        color="buy",
+        account_name="Funded Alpha",
+        account_badge="ACC: Funded Alpha",
+        status_line="Paper | FTMO",
+        sections=[
+            {"name": "Trade", "fields": {"Entry": "3345.2", "R:R": "1:2.10"}},
+            {"name": "Risk", "fields": {"Risk": "$120.00"}},
+        ],
+        metadata={"symbol": "XAUUSD"},
+    )
+
+    embed = _payload_to_discord_embed(payload)
+
+    assert embed["author"]["name"] == "ACC: Funded Alpha"
+    assert embed["description"].startswith("Paper | FTMO")
+    assert embed["fields"][0]["name"] == "Trade"
+    assert "Entry" in embed["fields"][0]["value"]
+
+
+def test_embed_falls_back_to_unknown_account_badge():
+    payload = NotificationPayload(
+        type="alert",
+        title="Daily Loss Limit Hit",
+        fields={"Severity": "WARNING"},
+        color="warning",
+        sections=[{"name": "Summary", "fields": {"Severity": "WARNING"}}],
+    )
+
+    embed = _payload_to_discord_embed(payload)
+
+    assert embed["author"]["name"] == "ACC: Unknown Account"
 
 
 # ─── Thumbnail / flag logic ───────────────────────────────────────────────────
@@ -89,24 +127,24 @@ def test_signal_has_compact_ai_fields():
     signal = {"id": 1, "symbol": "EURUSD", "side": "BUY", "entry": 1.08, "sl": 1.07, "tp": 1.10}
     ai = {"decision": "GO", "rf_prob": 0.784, "reason": "Strong trend", "rules": []}
     payload = svc.format_signal(signal, ai_result=ai)
-    assert "🧠 AI Decision" in payload.fields
-    assert "🎯 Confidence" in payload.fields
-    assert "✅ GO" in payload.fields["🧠 AI Decision"]
-    assert "78.4%" in payload.fields["🎯 Confidence"]
+    assert "AI" in payload.fields
+    assert "Confidence" in payload.fields
+    assert payload.fields["AI"] == "GO"
+    assert "78.4%" in payload.fields["Confidence"]
 
 def test_signal_no_go_ai_decision():
     svc = NotificationService()
     signal = {"id": 2, "symbol": "GBPUSD", "side": "SELL", "entry": 1.27, "sl": 1.28, "tp": 1.25}
     ai = {"decision": "NO_GO", "rf_prob": 0.32, "reason": "Weak setup"}
     payload = svc.format_signal(signal, ai_result=ai)
-    assert "⛔ NO_GO" in payload.fields["🧠 AI Decision"]
+    assert payload.fields["AI"] == "NO_GO"
 
 def test_signal_no_ai_fields_when_no_ai():
     svc = NotificationService()
     signal = {"id": 3, "symbol": "EURUSD", "side": "BUY", "entry": 1.08, "sl": 1.07, "tp": 1.10}
     payload = svc.format_signal(signal)
-    assert "🧠 AI Decision" not in payload.fields
-    assert "🧠 AI Analysis" not in payload.fields
+    assert "AI" not in payload.fields
+    assert "Reason" not in payload.fields
 
 def test_signal_ai_result_stored_in_metadata():
     svc = NotificationService()
@@ -123,19 +161,36 @@ def test_close_has_r_multiple_on_win():
     signal = {"id": 5, "symbol": "EURUSD", "side": "BUY",
               "pnl_usd": 248.50, "risk_usd": 125.0}
     payload = svc.format_close(signal)
-    assert "📊 R Multiple" in payload.fields
-    assert "+1.99R" in payload.fields["📊 R Multiple"]
+    assert "R Multiple" in payload.fields
+    assert "+1.99R" in payload.fields["R Multiple"]
 
 def test_close_has_r_multiple_on_loss():
     svc = NotificationService()
     signal = {"id": 6, "symbol": "EURUSD", "side": "BUY",
               "pnl_usd": -62.50, "risk_usd": 125.0}
     payload = svc.format_close(signal)
-    assert "📊 R Multiple" in payload.fields
-    assert "-0.50R" in payload.fields["📊 R Multiple"]
+    assert "R Multiple" in payload.fields
+    assert "-0.50R" in payload.fields["R Multiple"]
 
 def test_close_no_r_multiple_without_risk():
     svc = NotificationService()
     signal = {"id": 7, "symbol": "EURUSD", "side": "BUY", "pnl_usd": 100.0}
     payload = svc.format_close(signal)
-    assert "📊 R Multiple" not in payload.fields
+    assert "R Multiple" not in payload.fields
+
+
+def test_embed_still_uses_chart_image_when_present():
+    payload = NotificationPayload(
+        type="signal",
+        title="BUY Signal - EURUSD",
+        fields={"Entry": "1.08"},
+        color="buy",
+        account_badge="ACC: Funded Alpha",
+        sections=[{"name": "Trade", "fields": {"Entry": "1.08"}}],
+        image_url="https://www.tradingview.com/x/abc123/",
+        metadata={"symbol": "EURUSD"},
+    )
+
+    embed = _payload_to_discord_embed(payload)
+
+    assert embed["image"]["url"] == "https://www.tradingview.com/x/abc123/"
