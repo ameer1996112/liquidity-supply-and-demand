@@ -31,6 +31,7 @@ from src.adapters.supabase_api import get_api_supabase as get_supabase
 from src.core.broker_profiles import get_active_profiles
 from src.services.account_guard_settings import (
     get_effective_account_guard_value,
+    get_effective_account_threshold_value,
     load_account_guard_overrides,
     update_account_guard_override,
 )
@@ -156,6 +157,16 @@ def _get_account_current_value(guard: GuardDefinition, account_id: str, override
 def _get_threshold_value(t: ThresholdDef) -> Any:
     """Read current value for a threshold setting."""
     return get_dynamic_setting(t.setting_key, t.default)
+
+
+def _get_account_threshold_value(t: ThresholdDef, account_id: str, overrides: dict[str, Any]) -> Any:
+    value, _source = get_effective_account_threshold_value(
+        account_id=account_id,
+        setting_key=t.setting_key,
+        global_default=_get_threshold_value(t),
+        account_overrides=overrides,
+    )
+    return value
 
 
 def _validate_value(guard: GuardDefinition, value: Any) -> Any:
@@ -305,7 +316,7 @@ def _build_guards_response(guards: list[GuardDefinition], *, account_id: str | N
                         setting_key=t.setting_key,
                         name=t.name,
                         value_type=t.value_type,
-                        current_value=_get_threshold_value(t),
+                        current_value=_get_account_threshold_value(t, account_id, overrides) if account_id else _get_threshold_value(t),
                         default=t.default,
                         min_value=t.min_value,
                         max_value=t.max_value,
@@ -505,6 +516,18 @@ def update_account_guard_config(account_id: str, guard_id: str, body: GuardUpdat
     old_value = _get_account_current_value(guard, account_id, load_account_guard_overrides(account_id))
     updated_overrides = update_account_guard_override(account_id, guard.setting_key, validated_value)
     confirmed_value = updated_overrides.get(guard.setting_key, validated_value)
+    threshold_updates = {}
+
+    if body.thresholds:
+        threshold_map = {t.setting_key: t for t in guard.thresholds if isinstance(t, ThresholdDef)}
+        for key, val in body.thresholds.items():
+            t_def = threshold_map.get(key)
+            if not t_def:
+                raise HTTPException(400, f"Unknown threshold '{key}' for guard '{guard_id}'")
+            validated_t = _validate_threshold(t_def, val)
+            old_t = _get_account_threshold_value(t_def, account_id, load_account_guard_overrides(account_id))
+            updated_overrides = update_account_guard_override(account_id, key, validated_t)
+            threshold_updates[key] = {"old": old_t, "new": updated_overrides.get(key, validated_t)}
 
     log_event(
         signal_id=None,
@@ -518,6 +541,7 @@ def update_account_guard_config(account_id: str, guard_id: str, body: GuardUpdat
             "old_value": old_value,
             "new_value": validated_value,
             "confirmed_value": confirmed_value,
+            "threshold_updates": threshold_updates,
             "change_reason": body.change_reason,
         },
     )
@@ -528,7 +552,7 @@ def update_account_guard_config(account_id: str, guard_id: str, body: GuardUpdat
         old_value=old_value,
         new_value=validated_value,
         confirmed_value=confirmed_value,
-        threshold_updates={},
+        threshold_updates={k: v["new"] for k, v in threshold_updates.items()},
     )
 
 

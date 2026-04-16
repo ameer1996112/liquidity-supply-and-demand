@@ -23,6 +23,22 @@ def get_effective_account_guard_value(
     return global_default, "global_default"
 
 
+def get_effective_account_threshold_value(
+    *,
+    account_id: str,
+    setting_key: str,
+    global_default: Any,
+    account_overrides: dict[str, Any] | None = None,
+) -> tuple[Any, str]:
+    """Return effective account-scoped threshold value with source metadata."""
+    return get_effective_account_guard_value(
+        account_id=account_id,
+        setting_key=setting_key,
+        global_default=global_default,
+        account_overrides=account_overrides,
+    )
+
+
 def load_account_guard_overrides(account_id: str) -> dict[str, Any]:
     """Load sparse per-account guard overrides."""
     try:

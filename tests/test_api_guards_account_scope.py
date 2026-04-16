@@ -76,6 +76,26 @@ def test_account_guards_config_filters_to_account_scoped_guards(client, monkeypa
     assert "staleness_guard" not in returned_ids
 
 
+def test_account_guard_thresholds_use_account_overrides(client, monkeypatch):
+    monkeypatch.setattr("src.api_guards._get_rejection_stats", lambda _days=7: {"by_guard": {}, "total_rejections": 0, "total_signals": 0})
+    monkeypatch.setattr(
+        "src.api_guards.load_account_guard_overrides",
+        lambda account_id: {"weekly_max_loss_pct": 3.5} if account_id == "acct-1" else {},
+    )
+
+    response = client.get("/api/v1/guards/config/account/acct-1")
+    assert response.status_code == 200
+    body = response.json()
+    weekly_guard = next(
+        guard
+        for group in body["groups"].values()
+        for guard in group
+        if guard["guard_id"] == "weekly_loss_limit"
+    )
+    threshold_values = {th["setting_key"]: th["current_value"] for th in weekly_guard["thresholds"]}
+    assert threshold_values["weekly_max_loss_pct"] == 3.5
+
+
 def test_patch_account_guard_does_not_update_global_setting(client, monkeypatch):
     monkeypatch.setattr("src.api_guards.load_account_guard_overrides", lambda account_id: {})
     monkeypatch.setattr(
@@ -91,3 +111,31 @@ def test_patch_account_guard_does_not_update_global_setting(client, monkeypatch)
     assert response.status_code == 200
     assert response.json()["guard_id"] == "daily_loss_limit"
     assert response.json()["new_value"] == 2
+
+
+def test_patch_account_guard_persists_threshold_overrides(client, monkeypatch):
+    captured: dict[str, object] = {}
+    monkeypatch.setattr("src.api_guards.load_account_guard_overrides", lambda account_id: {})
+    monkeypatch.setattr(
+        "src.api_guards.update_account_guard_override",
+        lambda account_id, setting_key, value: captured.setdefault("settings", {}) or {"noop": True},
+    )
+    monkeypatch.setattr("src.api_guards.log_event", lambda *args, **kwargs: None)
+
+    def _capture(account_id, setting_key, value):
+        captured.setdefault("updates", []).append((account_id, setting_key, value))
+        return {setting_key: value}
+
+    monkeypatch.setattr("src.api_guards.update_account_guard_override", _capture)
+
+    response = client.patch(
+        "/api/v1/guards/config/account/acct-1/weekly_loss_limit",
+        json={
+            "value": True,
+            "thresholds": {"weekly_max_loss_pct": 3.5},
+            "change_reason": "test",
+        },
+    )
+    assert response.status_code == 200
+    assert ("acct-1", "enable_weekly_loss_limit", True) in captured["updates"]
+    assert ("acct-1", "weekly_max_loss_pct", 3.5) in captured["updates"]

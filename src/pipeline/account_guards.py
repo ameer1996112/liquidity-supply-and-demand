@@ -28,8 +28,13 @@ from src.pipeline.account_state import (
     get_account_daily_trade_count,
     get_account_positions_from_db,
 )
+from src.services.account_guard_settings import load_account_guard_overrides
 
 logger = get_logger("trinity.pipeline.account_guards")
+
+
+def _account_override(overrides: Dict[str, Any], key: str, fallback: Any) -> Any:
+    return overrides.get(key, fallback)
 
 
 def run_account_guards(
@@ -52,6 +57,7 @@ def run_account_guards(
     profile_risk_pct = (
         float(profile.get("risk_pct", s.risk_percent)) if profile else s.risk_percent
     )
+    overrides = load_account_guard_overrides(str(profile_id or account_name))
 
     # ── 1. Per-account Redis kill-switch ─────────────────────────────────────
     try:
@@ -76,7 +82,7 @@ def run_account_guards(
 
     # ── 2. MTM Guardian ───────────────────────────────────────────────────────
     sb = _get_sb()
-    if sb and getattr(s, "mtm_guardian_enabled", True):
+    if sb and bool(_account_override(overrides, "mtm_guardian_enabled", getattr(s, "mtm_guardian_enabled", True))):
         try:
             from src.services.mtm_guardian import MTMGuardian
             from src.adapters.redis_queue import get_redis as _get_redis
@@ -129,6 +135,15 @@ def run_account_guards(
 
         _redis = _get_redis_for_limit()
         _guardian = create_pine_guardian_from_settings()
+        _guardian.adaptive_enabled = bool(
+            _account_override(overrides, "pine_adaptive_enabled", _guardian.adaptive_enabled)
+        )
+        _guardian.max_trades_per_day = int(
+            _account_override(overrides, "pine_max_trades_per_day", _guardian.max_trades_per_day)
+        )
+        _guardian.daily_risk_budget_pct = float(
+            _account_override(overrides, "pine_daily_risk_budget_pct", _guardian.daily_risk_budget_pct)
+        )
 
         if _guardian.adaptive_enabled:
             _wins, _losses, _risk_deployed = get_today_summary(_redis, account_name)
@@ -154,13 +169,17 @@ def run_account_guards(
                     f"Daily risk budget exhausted ({account_name}): "
                     f"{_guardian.daily_risk_deployed_pct:.2f}% >= {_guardian.daily_risk_budget_pct:.2f}%"
                 )
-        elif getattr(s, "pine_max_trades_per_day", 0) > 0:
-            today_count = get_account_daily_trade_count(profile)
-            if today_count >= getattr(s, "pine_max_trades_per_day", 0):
-                return (
-                    f"Daily trade limit reached ({account_name}): "
-                    f"{today_count}/{s.pine_max_trades_per_day} trades today"
-                )
+        else:
+            static_max_trades = int(_account_override(overrides, "pine_max_trades_per_day", getattr(s, "pine_max_trades_per_day", 0)))
+            if static_max_trades <= 0:
+                static_max_trades = 0
+            if static_max_trades > 0:
+                today_count = get_account_daily_trade_count(profile)
+                if today_count >= static_max_trades:
+                    return (
+                        f"Daily trade limit reached ({account_name}): "
+                        f"{today_count}/{static_max_trades} trades today"
+                    )
     except Exception as e:
         if run_mode == "LIVE":
             logger.critical(
@@ -180,6 +199,9 @@ def run_account_guards(
     allowed, risk_multiplier, risk_label = check_safety(
         current_equity, acct_balance, daily_pnl,
         account_name=account_name,
+        kill_threshold_override=float(
+            _account_override(overrides, "trinity_max_daily_loss_pct", getattr(s, "trinity_max_daily_loss_pct", 4.0))
+        ),
         risk_pct_override=profile_risk_pct,
     )
     if not allowed:
@@ -189,7 +211,13 @@ def run_account_guards(
 
     # ── 6. Correlation Guard ──────────────────────────────────────────────────
     active_positions = get_account_positions_from_db(profile)
-    max_pos = (profile.get("max_positions") if profile else None) or s.trinity_max_positions
+    max_pos = int(
+        _account_override(
+            overrides,
+            "trinity_max_positions",
+            (profile.get("max_positions") if profile else None) or s.trinity_max_positions,
+        )
+    )
 
     if correlation_manager:
         try:
