@@ -17,6 +17,7 @@ type SortKey =
   | 'side'
   | 'status'
   | 'account'
+  | 'setup'
   | 'zone'
   | 'model'
   | 'session'
@@ -36,6 +37,7 @@ const COLUMNS: { key: SortKey; label: string; align?: string }[] = [
   { key: 'side', label: 'Side' },
   { key: 'status', label: 'Status' },
   { key: 'account', label: 'Account' },
+  { key: 'setup', label: 'Setup' },
   { key: 'zone', label: 'Zone' },
   { key: 'model', label: 'Model' },
   { key: 'session', label: 'Session' },
@@ -79,6 +81,8 @@ function getSortValue(signal: TradingSignal, key: SortKey): number | string {
       return signal.status || '';
     case 'account':
       return signal.account_name || '';
+    case 'setup':
+      return signal.setup_evidence?.focus_image?.url ? 1 : 0;
     case 'zone':
       return signal.zone_type || '';
     case 'model':

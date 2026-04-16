@@ -872,7 +872,7 @@ def dispatch_payload(
     if routing.get("telegram_enabled", True) and s.telegram_bot_token and s.telegram_chat_id:
         try:
             text = _payload_to_telegram_html(payload)
-            if payload.image_url:
+            if payload.image_url and len(text) <= 900:
                 r = requests.post(
                     f"https://api.telegram.org/bot{s.telegram_bot_token}/sendPhoto",
                     json={
@@ -881,6 +881,17 @@ def dispatch_payload(
                         "caption": text,
                         "parse_mode": "HTML",
                     },
+                    timeout=10,
+                )
+            elif payload.image_url:
+                requests.post(
+                    f"https://api.telegram.org/bot{s.telegram_bot_token}/sendMessage",
+                    json={"chat_id": s.telegram_chat_id, "text": text, "parse_mode": "HTML"},
+                    timeout=10,
+                )
+                r = requests.post(
+                    f"https://api.telegram.org/bot{s.telegram_bot_token}/sendPhoto",
+                    json={"chat_id": s.telegram_chat_id, "photo": payload.image_url},
                     timeout=10,
                 )
             else:

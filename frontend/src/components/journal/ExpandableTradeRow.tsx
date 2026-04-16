@@ -16,6 +16,8 @@ import { ChevronDown, ExternalLink } from 'lucide-react';
 import { PnLText } from '@/components/ui/typography';
 import { TradeNoteEditor, TradeNoteIndicator } from './TradeNoteEditor';
 import { formatDuration } from './TradeTable';
+import { SetupEvidenceCell } from './SetupEvidenceCell';
+import { SetupEvidenceDetail } from './SetupEvidenceDetail';
 
 interface ExpandableTradeRowProps {
   signal: TradingSignal;
@@ -153,6 +155,11 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
           )}
         </td>
 
+        {/* Setup */}
+        <td className="py-2.5 px-3">
+          <SetupEvidenceCell evidence={signal.setup_evidence} />
+        </td>
+
         {/* Zone (type + grade) */}
         <td className="py-2.5 px-3">
           {zoneType ? (
@@ -287,8 +294,15 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
       {/* Expanded Detail Row */}
       {expanded && (
         <tr className="border-b border-panel-border bg-[var(--to-surface)]/80">
-          <td colSpan={16} className="p-4">
+          <td colSpan={19} className="p-4">
             <div className="grid grid-cols-4 gap-6">
+              <div className="space-y-2">
+                <span className="text-[10px] text-text-dim uppercase tracking-wider font-medium">
+                  Setup Evidence
+                </span>
+                <SetupEvidenceDetail evidence={signal.setup_evidence} />
+              </div>
+
               {/* Technical Setup */}
               <div className="space-y-2">
                 <span className="text-[10px] text-text-dim uppercase tracking-wider font-medium">
@@ -540,4 +554,3 @@ export function ExpandableTradeRow({ signal, onInspect }: ExpandableTradeRowProp
     </>
   );
 }
-

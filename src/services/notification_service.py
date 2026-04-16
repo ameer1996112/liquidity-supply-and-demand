@@ -60,6 +60,23 @@ class NotificationService:
         self._routing_cache_ts: float = 0.0
         self._ROUTING_CACHE_TTL = 60.0  # seconds
 
+    def _resolve_setup_image_url(
+        self,
+        signal: dict[str, Any],
+        explicit_image_url: Optional[str] = None,
+    ) -> Optional[str]:
+        if explicit_image_url:
+            return explicit_image_url
+
+        setup_evidence = signal.get("setup_evidence")
+        if isinstance(setup_evidence, dict):
+            focus_image = setup_evidence.get("focus_image")
+            if isinstance(focus_image, dict) and focus_image.get("url"):
+                return str(focus_image["url"])
+
+        image_url = signal.get("image_url")
+        return str(image_url) if image_url else None
+
     # ─── Public API ──────────────────────────────────────────────────────────
 
     def format_signal(
@@ -107,7 +124,7 @@ class NotificationService:
         emoji = "📈" if side == "BUY" else "📉"
 
         # Resolve image_url — prefer explicit param, fallback to signal dict
-        resolved_image_url = image_url or signal.get("image_url")
+        resolved_image_url = self._resolve_setup_image_url(signal, image_url)
 
         # Resolve account name
         resolved_account = _resolve_account_name(account_name, signal)
@@ -281,6 +298,7 @@ class NotificationService:
             color=color,
             metadata={"symbol": symbol, "side": side, "pnl": pnl, "outcome": outcome},
             signal_id=signal_id,
+            image_url=self._resolve_setup_image_url(signal),
             account_name=resolved_account,
             account_badge=f"ACC: {resolved_account}",
             sections=sections,

@@ -91,6 +91,35 @@ export interface AIReasoning {
   [key: string]: unknown;
 }
 
+export interface SetupEvidenceFocusZone {
+  type?: string;
+  label?: string;
+  price?: number;
+  high?: number;
+  low?: number;
+  study?: string;
+}
+
+export interface SetupEvidenceFocusImage {
+  path?: string | null;
+  region?: string | null;
+  url?: string | null;
+}
+
+export interface SetupEvidenceSnapshot {
+  zone_count?: number;
+  label_count?: number;
+  top_labels?: string[];
+}
+
+export interface SetupEvidence {
+  status?: 'ok' | 'degraded';
+  focus_zone?: SetupEvidenceFocusZone | null;
+  focus_image?: SetupEvidenceFocusImage | null;
+  pine_snapshot?: SetupEvidenceSnapshot | null;
+  reason?: string;
+}
+
 // Main Trading Signal Interface - matches `trading_signals` table
 export interface TradingSignal {
   id: string;
@@ -140,6 +169,8 @@ export interface TradingSignal {
   take_profit?: number;
   tp?: number; // Alternative TP field
   position_size?: number;
+  image_url?: string | null;
+  setup_evidence?: SetupEvidence | null;
 
   // AI Analysis
   score?: number; // AI confidence 0-100
@@ -291,6 +322,8 @@ export function normalizeSignal(
     take_profit: raw.take_profit ?? raw.tp,
     tp: raw.tp ?? raw.take_profit,
     position_size: raw.position_size,
+    image_url: raw.image_url ?? null,
+    setup_evidence: raw.setup_evidence ?? null,
     score: raw.score ?? raw.ai_confidence,
     ai_confidence: raw.ai_confidence ?? raw.score,
     notes: raw.notes,

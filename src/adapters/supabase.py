@@ -214,6 +214,13 @@ def save_alert(
         # Stored as numeric 0-100; frontend maps this into the AI confidence bar
         insert_data['ai_confidence'] = float(ai_conf)
 
+    setup_evidence = data.get('setup_evidence')
+    if setup_evidence is not None:
+        insert_data['setup_evidence'] = setup_evidence
+        focus_image = setup_evidence.get('focus_image') if isinstance(setup_evidence, dict) else None
+        if isinstance(focus_image, dict) and focus_image.get('url'):
+            insert_data['image_url'] = focus_image['url']
+
     # ── De-duplication: if the API already pre-inserted a 'received' row,
     # update it in-place rather than inserting a second row.
     # The worker stamps _signal_id onto the payload before calling logic.process_trade().
