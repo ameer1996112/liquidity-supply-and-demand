@@ -42,6 +42,14 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/guards", tags=["guards"])
 
+_SYSTEM_CONFIG_KEYS = {
+    "pine_htf_candle_filter_enabled",
+    "pine_htf_candle_block_minutes",
+    "pine_block_before_hourly_close",
+    "pine_block_one_candle_liq",
+    "pine_one_candle_liq_min_departure",
+}
+
 
 # ══════════════════════════════════════════════════════════
 # RESPONSE MODELS
@@ -141,6 +149,8 @@ class GuardAccountsResponse(BaseModel):
 
 def _get_current_value(guard: GuardDefinition) -> Any:
     """Read the current effective value for a guard from DB/env/default."""
+    if guard.setting_key in _SYSTEM_CONFIG_KEYS:
+        return _get_system_config_value(guard.setting_key, guard.default)
     return get_dynamic_setting(guard.setting_key, guard.default)
 
 
@@ -156,7 +166,62 @@ def _get_account_current_value(guard: GuardDefinition, account_id: str, override
 
 def _get_threshold_value(t: ThresholdDef) -> Any:
     """Read current value for a threshold setting."""
+    if t.setting_key in _SYSTEM_CONFIG_KEYS:
+        return _get_system_config_value(t.setting_key, t.default)
     return get_dynamic_setting(t.setting_key, t.default)
+
+
+def _coerce_system_config_value(raw: Any, default: Any) -> Any:
+    """Coerce `system_config.value` string payloads to the expected type."""
+    if raw is None:
+        return default
+    if isinstance(default, bool):
+        return str(raw).lower() != "false"
+    if isinstance(default, int) and not isinstance(default, bool):
+        return int(raw)
+    if isinstance(default, float):
+        return float(raw)
+    return raw
+
+
+def _get_system_config_value(setting_key: str, default: Any) -> Any:
+    """Read a setting from system_config, falling back to the provided default."""
+    try:
+        sb = get_supabase()
+        result = (
+            sb.table("system_config")
+            .select("value")
+            .eq("key", setting_key)
+            .limit(1)
+            .execute()
+        )
+        rows = result.data or []
+        if rows:
+            return _coerce_system_config_value(rows[0].get("value"), default)
+    except Exception as e:
+        logger.warning("Failed to read system_config setting '%s': %s", setting_key, e)
+    return default
+
+
+def _write_system_config_value(setting_key: str, value: Any) -> None:
+    """Persist a runtime-owned setting to system_config."""
+    sb = get_supabase()
+    sb.table("system_config").upsert(
+        {"key": setting_key, "value": str(value).lower() if isinstance(value, bool) else str(value)},
+        on_conflict="key",
+    ).execute()
+
+
+def _invalidate_runtime_guard_caches() -> None:
+    """Force worker-side pine filter caches to refresh immediately."""
+    try:
+        import src.worker as _worker
+
+        _worker._htf_filter_cache["loaded_at"] = 0.0
+        _worker._one_candle_liq_cache["loaded_at"] = 0.0
+        _worker._trading_hours_cache["loaded_at"] = 0.0
+    except Exception:
+        logger.debug("Worker cache invalidation skipped", exc_info=True)
 
 
 def _get_account_threshold_value(t: ThresholdDef, account_id: str, overrides: dict[str, Any]) -> Any:
@@ -445,6 +510,8 @@ def update_guard_config(guard_id: str, body: GuardUpdateRequest):
         updated_by="UI",
         change_reason=body.change_reason or f"Guard {guard_id} updated via UI",
     )
+    if guard.setting_key in _SYSTEM_CONFIG_KEYS:
+        _write_system_config_value(guard.setting_key, validated_value)
 
     # Handle threshold updates
     threshold_updates = {}
@@ -462,7 +529,12 @@ def update_guard_config(guard_id: str, body: GuardUpdateRequest):
                 updated_by="UI",
                 change_reason=body.change_reason or f"Threshold {key} updated via UI",
             )
+            if key in _SYSTEM_CONFIG_KEYS:
+                _write_system_config_value(key, validated_t)
             threshold_updates[key] = {"old": old_t, "new": validated_t}
+
+    if guard.setting_key in _SYSTEM_CONFIG_KEYS or any(key in _SYSTEM_CONFIG_KEYS for key in threshold_updates):
+        _invalidate_runtime_guard_caches()
 
     # Read back confirmed value
     confirmed = _get_current_value(guard)
