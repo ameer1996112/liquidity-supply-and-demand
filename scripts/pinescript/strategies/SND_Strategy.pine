@@ -46,6 +46,8 @@ strategy("Institutional Liquidity Protocol [Pro]",
      commission_type = strategy.commission.percent,
      commission_value = 0)
 
+const string WEBHOOK_STRATEGY_ID = "liq_sd_v1"
+const string WEBHOOK_STRATEGY_VERSION = "1"
 
 pip_size = Utils.get_auto_pip_size(syminfo.ticker, syminfo.mintick)
 
@@ -1960,6 +1962,7 @@ trade_be_moved         = array.get(_trade_be_moved, 0)
 var int[]   _trade_entry_bar_index  = array.new_int(1, na)     // Bar index when trade was entered
 var float[] _trade_worst_price      = array.new_float(1, na)   // Worst price during trade (for MAE)
 var int[]   _trade_zone_id          = array.new_int(1, na)     // Zone ID that triggered entry
+var string[] _trade_key             = array.new_string(1, na)  // Shared entry/exit correlation key for backend reconciliation
 var float[] _trade_zone_score       = array.new_float(1, na)   // Zone score at entry
 var int[]   _trade_zone_freshness   = array.new_int(1, na)     // Zone freshness (touch count) at entry
 var int[]   _trade_session          = array.new_int(1, na)     // Session at entry
@@ -1984,6 +1987,7 @@ var string[] _trade_zone_type       = array.new_string(1, na)  // Zone type (dem
 trade_entry_bar_index  = array.get(_trade_entry_bar_index, 0)
 trade_worst_price      = array.get(_trade_worst_price, 0)
 trade_zone_id          = array.get(_trade_zone_id, 0)
+trade_key              = array.get(_trade_key, 0)
 trade_zone_score       = array.get(_trade_zone_score, 0)
 trade_zone_freshness   = array.get(_trade_zone_freshness, 0)
 trade_session          = array.get(_trade_session, 0)
@@ -3269,6 +3273,7 @@ process_long_entries() =>
                             is_middle_zone_long := true
                             break
 
+                    string entry_trade_key = str.format("{0}|{1}|{2}|{3}", syminfo.ticker, "buy", z.id, time_close)
                     string webhook_payload = enable_webhook_alerts ? Utils.build_webhook_payload(
                         syminfo.ticker,
                         "buy",
@@ -3321,7 +3326,10 @@ process_long_entries() =>
                         not na(z.peakBarIndex) and not na(z.lastTouchBar) and z.lastTouchBar >= z.peakBarIndex ? z.lastTouchBar - z.peakBarIndex : na,                             // peak_to_touch_bars
                         z.liqSource,             // liq_source
                         z.grade,                 // zone_grade
-                        bar_index - z.createdBarIndex // bars_since_zone
+                        bar_index - z.createdBarIndex, // bars_since_zone
+                        WEBHOOK_STRATEGY_ID,
+                        WEBHOOK_STRATEGY_VERSION,
+                        entry_trade_key
                     ) : ""
 
                     if dry_run_mode
@@ -3394,6 +3402,7 @@ process_long_entries() =>
                         array.set(_trade_entry_bar_index, 0, bar_index)
                         array.set(_trade_worst_price, 0, close)  // Initialize with current price
                         array.set(_trade_zone_id, 0, z.id)
+                        array.set(_trade_key, 0, entry_trade_key)
                         array.set(_trade_zone_score, 0, z.score)
                         array.set(_trade_zone_freshness, 0, z.touchCount)
                         array.set(_trade_session, 0, feature_session)
@@ -3711,6 +3720,7 @@ process_short_entries() =>
                             is_middle_zone_short := true
                             break
 
+                    string entry_trade_key_short = str.format("{0}|{1}|{2}|{3}", syminfo.ticker, "sell", z.id, time_close)
                     string webhook_payload_short = enable_webhook_alerts ? Utils.build_webhook_payload(
                         syminfo.ticker,
                         "sell",
@@ -3763,7 +3773,10 @@ process_short_entries() =>
                         not na(z.peakBarIndex) and not na(z.lastTouchBar) and z.lastTouchBar >= z.peakBarIndex ? z.lastTouchBar - z.peakBarIndex : na,                             // peak_to_touch_bars
                         z.liqSource,                   // liq_source
                         z.grade,                       // zone_grade
-                        bar_index - z.createdBarIndex  // bars_since_zone
+                        bar_index - z.createdBarIndex, // bars_since_zone
+                        WEBHOOK_STRATEGY_ID,
+                        WEBHOOK_STRATEGY_VERSION,
+                        entry_trade_key_short
                     ) : ""
 
                     if dry_run_mode
@@ -3836,6 +3849,7 @@ process_short_entries() =>
                         array.set(_trade_entry_bar_index, 0, bar_index)
                         array.set(_trade_worst_price, 0, close)  // Initialize with current price
                         array.set(_trade_zone_id, 0, z.id)
+                        array.set(_trade_key, 0, entry_trade_key_short)
                         array.set(_trade_zone_score, 0, z.score)
                         array.set(_trade_zone_freshness, 0, z.touchCount)
                         array.set(_trade_session, 0, feature_session)
@@ -3890,6 +3904,7 @@ trade_entry_price      := array.get(_trade_entry_price, 0)
 trade_original_sl      := array.get(_trade_original_sl, 0)
 trade_current_sl       := array.get(_trade_current_sl, 0)
 trade_tp1_price        := array.get(_trade_tp1_price, 0)
+trade_key              := array.get(_trade_key, 0)
 tp1_hit                := array.get(_tp1_hit, 0)
 trade_be_trigger_rr    := array.get(_trade_be_trigger_rr, 0)
 trade_be_sl_pips       := array.get(_trade_be_sl_pips, 0)
@@ -4134,6 +4149,8 @@ if strategy.opentrades > 0
         array.set(_trade_tp1_price, 0, na)
         active_entry_id        := na
         array.set(_active_entry_id, 0, na)
+        trade_key             := na
+        array.set(_trade_key, 0, na)
         trade_be_trigger_rr    := na
         array.set(_trade_be_trigger_rr, 0, na)
         trade_be_sl_pips       := na
@@ -4203,7 +4220,8 @@ if trade_just_closed
             lastProfit,                 // pnl_usd (account currency, negative on loss)
             exit_type,                  // exit_type
             mae_pips,                   // mae_pips
-            timenow                     // current_time
+            timenow,                    // current_time
+            trade_key
         )
 
         alert(exit_payload, alert.freq_once_per_bar)
@@ -4275,6 +4293,8 @@ if trade_just_closed
     array.set(_trade_worst_price, 0, na)
     trade_zone_id := na
     array.set(_trade_zone_id, 0, na)
+    trade_key := na
+    array.set(_trade_key, 0, na)
 
 var line[] _lowLiqLines = array.new_line()
 var bool[] _lowLiqActive = array.new_bool()

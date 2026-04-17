@@ -77,6 +77,8 @@ def build_received_signal_row(
         "strategy_name": payload.get("strategy_name"),
         "strategy_config_id": payload.get("strategy_config_id"),
     }
+    if payload.get("zone_id") is not None:
+        row["zone_id"] = int(payload["zone_id"])
     if payload.get("trade_key"):
         row["trade_key"] = payload["trade_key"]
     return row

@@ -80,6 +80,8 @@ def test_build_received_signal_row_includes_strategy_fields():
             **_base_payload(),
             "strategy_name": "Liquidity",
             "strategy_config_id": 7,
+            "zone_id": 18126,
+            "trade_key": "EURUSD|buy|18126|1713356700000",
         },
         run_mode="LIVE",
         account_id="default",
@@ -92,3 +94,5 @@ def test_build_received_signal_row_includes_strategy_fields():
     assert row["strategy_version"] == "1"
     assert row["strategy_name"] == "Liquidity"
     assert row["strategy_config_id"] == 7
+    assert row["zone_id"] == 18126
+    assert row["trade_key"] == "EURUSD|buy|18126|1713356700000"
