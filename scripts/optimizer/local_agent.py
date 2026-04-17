@@ -54,6 +54,7 @@ from scripts.optimizer.alert_runner import (  # noqa: E402
     AlertBatchCancelled,
     AlertBatchRunner,
     TradingViewAlertBrowser,
+    TradingViewMcpAlertRunner,
     load_batch_from_api_payload,
 )
 
@@ -165,6 +166,14 @@ def _should_poll_alert_batches() -> bool:
 
 def _should_poll_optimizer_runs() -> bool:
     return LOCAL_AGENT_TARGET in OPTIMIZER_AGENT_TARGETS or LOCAL_AGENT_TARGET == "both"
+
+
+def _playwright_available() -> bool:
+    try:
+        import playwright.async_api  # noqa: F401
+        return True
+    except Exception:
+        return False
 
 
 # ── Chrome management ────────────────────────────────────────────────────────
@@ -432,48 +441,6 @@ async def _execute_alert_batch(batch: dict[str, Any], stop_event: threading.Even
     log.info("  source_mode=%s timeframe=%s pairs=%s", source_mode, timeframe, ",".join(pairs))
     log.info("=" * 60)
 
-    try:
-        import playwright.async_api  # noqa: F401
-    except Exception:
-        message = (
-            "playwright not installed on local agent python. "
-            "Install in venv: python3 -m pip install playwright && "
-            "python3 -m playwright install chromium"
-        )
-        log.error("Cannot start alert batch — playwright not installed in agent python (%s)", sys.executable)
-        api_patch(
-            f"/api/alert-setup/batches/{batch_id}",
-            {
-                "status": "failed",
-                "summary": {
-                    "error_message": message,
-                    "python": sys.executable,
-                    "total_pairs": len(pairs),
-                    "pending_pairs": len(pairs),
-                    "running_pairs": 0,
-                    "completed_pairs": 0,
-                    "failed_pairs": 0,
-                    "cancelled_pairs": 0,
-                    "created_alerts": 0,
-                },
-            },
-        )
-        api_post(
-            f"/api/alert-setup/batches/{batch_id}/events",
-            {
-                "event_type": "batch_finished",
-                "payload": {
-                    "message": "playwright missing on local agent python",
-                    "status": "failed",
-                    "summary": {
-                        "error_message": message,
-                        "python": sys.executable,
-                    },
-                },
-            },
-        )
-        return
-
     if not ensure_chrome():
         log.error("Cannot start alert batch — Chrome CDP not available")
         api_patch(
@@ -496,6 +463,46 @@ async def _execute_alert_batch(batch: dict[str, Any], stop_event: threading.Even
         )
         return
 
+    playwright_ready = _playwright_available()
+    mcp_ready, mcp_reason = await TradingViewMcpAlertRunner.healthcheck()
+    if not mcp_ready and not playwright_ready:
+        message = (
+            "Neither TradingView MCP nor Playwright alert automation is available. "
+            f"MCP health: {mcp_reason}. "
+            "To enable fallback install Playwright in the venv: "
+            "python3 -m pip install playwright && python3 -m playwright install chromium"
+        )
+        log.error("Cannot start alert batch — %s", message)
+        api_patch(
+            f"/api/alert-setup/batches/{batch_id}",
+            {
+                "status": "failed",
+                "summary": {
+                    "error_message": message,
+                    "python": sys.executable,
+                    "total_pairs": len(pairs),
+                    "pending_pairs": len(pairs),
+                    "running_pairs": 0,
+                    "completed_pairs": 0,
+                    "failed_pairs": 0,
+                    "cancelled_pairs": 0,
+                    "created_alerts": 0,
+                },
+            },
+        )
+        api_post(
+            f"/api/alert-setup/batches/{batch_id}/events",
+            {
+                "event_type": "batch_finished",
+                "payload": {
+                    "message": message,
+                    "status": "failed",
+                    "summary": {"error_message": message, "python": sys.executable},
+                },
+            },
+        )
+        return
+
     api_patch(f"/api/alert-setup/batches/{batch_id}", {"status": "running"})
     api_post(
         f"/api/alert-setup/batches/{batch_id}/events",
@@ -506,13 +513,26 @@ async def _execute_alert_batch(batch: dict[str, Any], stop_event: threading.Even
                 "source_mode": source_mode,
                 "timeframe": timeframe,
                 "pairs": pairs,
+                "preferred_backend": "mcp" if mcp_ready else "playwright",
+                "playwright_ready": playwright_ready,
+                "mcp_ready": mcp_ready,
+                "mcp_reason": mcp_reason,
             },
         },
     )
 
-    runner = AlertBatchRunner(
-        browser_factory=lambda: TradingViewAlertBrowser(chrome_port=CDP_PORT)
-    )
+    if mcp_ready:
+        runner = AlertBatchRunner(
+            browser_factory=lambda: TradingViewMcpAlertRunner(
+                fallback_factory=(lambda: TradingViewAlertBrowser(chrome_port=CDP_PORT))
+                if playwright_ready
+                else None,
+            )
+        )
+    else:
+        runner = AlertBatchRunner(
+            browser_factory=lambda: TradingViewAlertBrowser(chrome_port=CDP_PORT)
+        )
 
     def should_stop() -> bool:
         if stop_event.is_set():

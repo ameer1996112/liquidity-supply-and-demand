@@ -19,10 +19,25 @@ trap cleanup EXIT INT TERM
   set -euo pipefail
   cd "'"$ROOT_DIR"'"
 
-  ./scripts/run_local_chart_stack.sh --fresh
+  bootstrap_chart_stack() {
+    local bootstrap_mode="--fresh"
+    while true; do
+      if ./scripts/run_local_chart_stack.sh "$bootstrap_mode"; then
+        return 0
+      fi
+      echo "[chart-stack] bootstrap failed; retrying in 10s"
+      bootstrap_mode=""
+      sleep 10
+    done
+  }
+
+  bootstrap_chart_stack
 
   while true; do
     sleep "'"$CHECK_INTERVAL"'"
-    ./scripts/run_local_chart_stack.sh
+    if ! ./scripts/run_local_chart_stack.sh; then
+      echo "[chart-stack] health check failed; retrying in 10s"
+      sleep 10
+    fi
   done
 '

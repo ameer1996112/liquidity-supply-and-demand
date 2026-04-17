@@ -6,7 +6,12 @@ import threading
 from typing import Any
 from types import ModuleType, SimpleNamespace
 
-from scripts.optimizer.alert_runner import AlertBatchRunner, AlertDeployment, TradingViewAlertBrowser
+from scripts.optimizer.alert_runner import (
+    AlertBatchRunner,
+    AlertDeployment,
+    TradingViewAlertBrowser,
+    TradingViewMcpAlertRunner,
+)
 from scripts.optimizer import local_agent
 
 
@@ -47,6 +52,29 @@ class FakeAlertBrowser:
             skipped_existing=pair in self.skipped,
         )
 
+
+def test_tradingview_mcp_runner_falls_back_to_browser_on_failure() -> None:
+    fallback_browser = FakeAlertBrowser()
+
+    class FakeMcpRunner(TradingViewMcpAlertRunner):
+        async def _run_tv(self, *args: str) -> dict[str, Any]:
+            raise RuntimeError("mcp exploded")
+
+    async def run() -> AlertDeployment:
+        runner = FakeMcpRunner(fallback_factory=lambda: fallback_browser)
+        return await runner.deploy_alert(
+            pair="EURUSD",
+            timeframe="5m",
+            config_snapshot={"params": {"lookback": 20}},
+            alert_name_prefix="TradeOps",
+            webhook_url="https://example.test/webhook",
+            should_stop=lambda: False,
+        )
+
+    result = asyncio.run(run())
+
+    assert result.alert_id == "alert-EURUSD"
+    assert fallback_browser.deployments[0]["pair"] == "EURUSD"
 
 
 def test_alert_batch_runner_emits_progress_and_summary() -> None:
@@ -274,6 +302,102 @@ def test_alert_batch_agent_updates_backend_state_without_browser(monkeypatch) ->
     assert any(
         event["path"] == "/api/alert-setup/batches/batch-2/events"
         and event["body"]["event_type"] == "batch_finished"
+        for event in posted_events
+    )
+
+
+def test_alert_batch_agent_prefers_mcp_when_healthy(monkeypatch) -> None:
+    batch = {
+        "id": "batch-mcp",
+        "status": "queued",
+        "source_mode": "approved",
+        "timeframe": "5m",
+        "pairs": ["EURUSD"],
+        "config_snapshot": [
+            {
+                "pair": "EURUSD",
+                "timeframe": "5m",
+                "params": {"lookback": 20},
+                "risk_weight": 0.75,
+            },
+        ],
+        "alert_name_prefix": "TradeOps",
+        "webhook_url": "https://example.test/webhook",
+    }
+    posted_events: list[dict[str, Any]] = []
+    captured_backend: dict[str, str] = {}
+    state = {"status": "queued"}
+
+    monkeypatch.setattr(local_agent, "ensure_chrome", lambda: True)
+    monkeypatch.setattr(local_agent, "_playwright_available", lambda: False)
+
+    async def fake_healthcheck(cli_path=None):
+        return True, "ok"
+
+    monkeypatch.setattr(local_agent.TradingViewMcpAlertRunner, "healthcheck", fake_healthcheck)
+
+    def fake_api_get(path: str) -> dict[str, Any] | None:
+        if path == "/api/alert-setup/batches/batch-mcp":
+            return {**batch, "status": state["status"]}
+        return None
+
+    def fake_api_patch(path: str, body: dict) -> dict[str, Any] | None:
+        if path == "/api/alert-setup/batches/batch-mcp" and "status" in body:
+            state["status"] = body["status"]
+        return body
+
+    def fake_api_post(path: str, body: dict | None = None) -> dict[str, Any] | None:
+        posted_events.append({"path": path, "body": body.copy() if body else None})
+        return body
+
+    class FakeRunner:
+        def __init__(self, browser_factory=None) -> None:
+            browser = browser_factory()
+            captured_backend["name"] = type(browser).__name__
+
+        async def run(self, batch_payload, *, emit_event, should_stop=None):
+            emit_event(
+                "batch_finished",
+                None,
+                {
+                    "status": "completed",
+                    "summary": {
+                        "total_pairs": 1,
+                        "pending_pairs": 0,
+                        "running_pairs": 0,
+                        "completed_pairs": 1,
+                        "failed_pairs": 0,
+                        "cancelled_pairs": 0,
+                        "created_alerts": 1,
+                    },
+                },
+            )
+            return {
+                "status": "completed",
+                "summary": {
+                    "total_pairs": 1,
+                    "pending_pairs": 0,
+                    "running_pairs": 0,
+                    "completed_pairs": 1,
+                    "failed_pairs": 0,
+                    "cancelled_pairs": 0,
+                    "created_alerts": 1,
+                },
+            }
+
+    monkeypatch.setattr(local_agent, "api_get", fake_api_get)
+    monkeypatch.setattr(local_agent, "api_patch", fake_api_patch)
+    monkeypatch.setattr(local_agent, "api_post", fake_api_post)
+    monkeypatch.setattr(local_agent, "AlertBatchRunner", FakeRunner)
+
+    asyncio.run(local_agent._execute_alert_batch(batch, threading.Event()))
+
+    assert captured_backend["name"] == "TradingViewMcpAlertRunner"
+    assert state["status"] == "completed"
+    assert any(
+        event["path"] == "/api/alert-setup/batches/batch-mcp/events"
+        and event["body"]["event_type"] == "log"
+        and event["body"]["payload"]["preferred_backend"] == "mcp"
         for event in posted_events
     )
 
