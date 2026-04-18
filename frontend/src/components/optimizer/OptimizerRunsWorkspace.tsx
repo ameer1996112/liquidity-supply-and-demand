@@ -25,6 +25,7 @@ import {
 } from '@/hooks/useOptimizerRuns';
 import type {
   OptimizerPortfolioResultApi,
+  OptimizerRunApi,
   OptimizerRunCreateApi,
   OptimizerRunEventApi,
   OptimizerRunResultApi,
@@ -208,6 +209,31 @@ function summarizeStressScenarios(stressResults: OptimizerRunStressResultApi[]) 
   return labels.size > 0 ? Array.from(labels).join(', ') : 'Stress artifacts not available yet';
 }
 
+function getEmbeddedResults(run?: OptimizerRunApi | null) {
+  return run?.results ?? [];
+}
+
+function getEmbeddedEvents(run?: OptimizerRunApi | null) {
+  return run?.artifacts?.events ?? [];
+}
+
+function getEmbeddedTrials(run: OptimizerRunApi | null | undefined, symbol: string | null) {
+  if (!run?.artifacts?.trials || !symbol) return [];
+  return run.artifacts.trials.filter((trial) => trial.symbol === symbol);
+}
+
+function getEmbeddedStressResults(run: OptimizerRunApi | null | undefined, symbol: string | null) {
+  if (!run?.artifacts?.stress_results || !symbol) return [];
+  return run.artifacts.stress_results.filter((result) => result.symbol === symbol);
+}
+
+function preferPolledArtifacts<T>(polled: T[], embedded: T[], hasFreshPoll: boolean) {
+  if (hasFreshPoll) {
+    return polled;
+  }
+  return polled.length > 0 ? polled : embedded;
+}
+
 function deriveDecisionReason(args: {
   result: OptimizerRunResultApi;
   weight?: number;
@@ -219,8 +245,12 @@ function deriveDecisionReason(args: {
   const score = result.metrics?.score;
   const profitFactor = result.metrics?.profit_factor;
   const drawdown = result.metrics?.max_drawdown_pct;
-  const topTrial = trials[0];
-  const latestStress = stressResults[0];
+  const topTrial = trials.at(-1);
+  const latestStress = stressResults.at(-1);
+
+  if (result.reason) {
+    return result.reason;
+  }
 
   if (decision === 'pass') {
     if (typeof weight === 'number') {
@@ -461,8 +491,8 @@ function PairDrilldown({
     .forward_metrics;
   const validationMetrics = (result as OptimizerRunResultApi & { validation_metrics?: Record<string, unknown> | null })
     .validation_metrics;
-  const topTrial = trials[0];
-  const latestStress = stressResults[0];
+  const topTrial = trials.at(-1);
+  const latestStress = stressResults.at(-1);
   const decision = getResultDecision(result, weight);
   const decisionReason = deriveDecisionReason({ result, weight, trials, stressResults });
 
@@ -712,10 +742,26 @@ export function OptimizerRunsWorkspace() {
   const activeRun = runs.find((run) => run.status === 'running' || run.status === 'queued') ?? null;
   const currentRunId = selectedRunId ?? activeRun?.id ?? runs[0]?.id ?? null;
   const { data: currentRun } = useOptimizerRun(currentRunId);
-  const { data: results = [] } = useOptimizerRunResults(currentRunId);
-  const { data: events = [] } = useOptimizerRunEvents(currentRunId);
-  const { data: trials = [] } = useOptimizerRunTrials(currentRunId, selectedSymbol);
-  const { data: stressResults = [] } = useOptimizerRunStressResults(currentRunId, selectedSymbol);
+  const resultsQuery = useOptimizerRunResults(currentRunId);
+  const eventsQuery = useOptimizerRunEvents(currentRunId);
+  const trialsQuery = useOptimizerRunTrials(currentRunId, selectedSymbol);
+  const stressResultsQuery = useOptimizerRunStressResults(currentRunId, selectedSymbol);
+  const polledResults = resultsQuery.data ?? [];
+  const polledEvents = eventsQuery.data ?? [];
+  const polledTrials = trialsQuery.data ?? [];
+  const polledStressResults = stressResultsQuery.data ?? [];
+  const embeddedResults = getEmbeddedResults(currentRun);
+  const embeddedEvents = getEmbeddedEvents(currentRun);
+  const embeddedTrials = getEmbeddedTrials(currentRun, selectedSymbol);
+  const embeddedStressResults = getEmbeddedStressResults(currentRun, selectedSymbol);
+  const results = preferPolledArtifacts(polledResults, embeddedResults, resultsQuery.isFetchedAfterMount ?? false);
+  const events = preferPolledArtifacts(polledEvents, embeddedEvents, eventsQuery.isFetchedAfterMount ?? false);
+  const trials = preferPolledArtifacts(polledTrials, embeddedTrials, trialsQuery.isFetchedAfterMount ?? false);
+  const stressResults = preferPolledArtifacts(
+    polledStressResults,
+    embeddedStressResults,
+    stressResultsQuery.isFetchedAfterMount ?? false,
+  );
 
   useEffect(() => {
     if (!selectedRunId && currentRunId) {

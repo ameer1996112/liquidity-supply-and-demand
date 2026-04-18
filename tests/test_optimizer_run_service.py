@@ -154,7 +154,8 @@ class InMemoryOptimizerStore:
         return payload
 
     def list_events(self, run_id: str, *, limit: int = 200) -> list[dict]:
-        return [event for event in self.events if event["run_id"] == run_id][:limit]
+        events = [event for event in self.events if event["run_id"] == run_id]
+        return events[-limit:]
 
 
 def test_start_run_persists_run_and_symbol_rows(monkeypatch) -> None:
@@ -287,6 +288,30 @@ def test_service_exposes_survival_artifacts(monkeypatch) -> None:
 
 def test_survival_artifacts_get_run_returns_detached_payload() -> None:
     store = InMemoryOptimizerStore.with_run_and_pending_symbol("run-1", "EURUSD")
+    store.update_run("run-1", {"status": "completed"})
+    store.update_result(
+        "run-1",
+        "EURUSD",
+        {
+            "status": "completed",
+            "metrics": {"score": 2.1},
+            "validation_metrics": {"score": 1.7},
+            "forward_metrics": {"score": 1.5},
+        },
+    )
+    store.create_trial(
+        "run-1",
+        "EURUSD",
+        {"trial_number": 3, "window": "forward", "metrics": {"score": 1.5}},
+    )
+    store.create_stress_result(
+        "run-1",
+        "EURUSD",
+        {"scenario": "spread_125", "status": "pass", "metrics": {"profit_factor": 1.2}},
+    )
+    store.append_event(
+        {"run_id": "run-1", "event_type": "pair_completed", "symbol": "EURUSD", "payload": {"message": "done"}}
+    )
     store.upsert_portfolio_result(
         "run-1",
         {"combined_max_drawdown_pct": 5.2, "weights": {"EURUSD": 1.0}},
@@ -297,10 +322,107 @@ def test_survival_artifacts_get_run_returns_detached_payload() -> None:
     run["pairs"].append("GBPUSD")
     run["summary"]["completed_pairs"] = 99
     run["portfolio_result"]["weights"]["EURUSD"] = 0.5
+    run["results"][0]["metrics"]["score"] = 9.9
+    run["artifacts"]["trials"][0]["metrics"]["score"] = 7.7
+    run["artifacts"]["stress_results"][0]["metrics"]["profit_factor"] = 0.8
+    run["artifacts"]["events"][0]["payload"]["message"] = "mutated"
 
     assert store.runs["run-1"]["pairs"] == ["EURUSD"]
     assert store.runs["run-1"]["summary"]["completed_pairs"] == 0
     assert store.portfolio_results["run-1"]["weights"]["EURUSD"] == 1.0
+    assert store.results[("run-1", "EURUSD")]["metrics"]["score"] == 2.1
+    assert store.trials[0]["metrics"]["score"] == 1.5
+    assert store.stress_results[0]["metrics"]["profit_factor"] == 1.2
+    assert store.events[0]["payload"]["message"] == "done"
+
+
+def test_get_run_includes_embedded_results_and_artifact_collections() -> None:
+    store = InMemoryOptimizerStore.with_run_and_pending_symbol("run-1", "EURUSD")
+    store.update_run("run-1", {"status": "completed"})
+    store.update_result(
+        "run-1",
+        "EURUSD",
+        {
+            "status": "completed",
+            "metrics": {"score": 2.1},
+            "decision": "reduce_risk",
+            "reason": "forward window survived but DD was close to cap",
+        },
+    )
+    store.create_trial(
+        "run-1",
+        "EURUSD",
+        {"trial_number": 1, "window": "validation", "metrics": {"score": 1.8}},
+    )
+    store.create_stress_result(
+        "run-1",
+        "EURUSD",
+        {"scenario": "spread_125", "status": "pass", "metrics": {"profit_factor": 1.15}},
+    )
+    store.append_event(
+        {"run_id": "run-1", "event_type": "pair_completed", "symbol": "EURUSD", "payload": {"message": "saved"}}
+    )
+    store.upsert_portfolio_result(
+        "run-1",
+        {"combined_max_drawdown_pct": 5.2, "weights": {"EURUSD": 0.5}},
+    )
+    service = OptimizerRunService(store, project_root=Path("/tmp"), results_dir=Path("/tmp/results"))
+
+    run = service.get_run("run-1")
+
+    assert run["results"][0]["decision"] == "reduce_risk"
+    assert run["results"][0]["reason"] == "forward window survived but DD was close to cap"
+    assert run["artifacts"]["trials"][0]["window"] == "validation"
+    assert run["artifacts"]["stress_results"][0]["scenario"] == "spread_125"
+    assert run["artifacts"]["events"][0]["event_type"] == "pair_completed"
+    assert run["artifacts"]["summary"] == {
+        "trial_count": 1,
+        "stress_result_count": 1,
+        "event_count": 1,
+        "symbols": {
+            "EURUSD": {
+                "trial_count": 1,
+                "stress_result_count": 1,
+                "latest_event_type": "pair_completed",
+            }
+        },
+    }
+
+
+def test_get_run_embeds_latest_event_window_for_busy_runs() -> None:
+    store = InMemoryOptimizerStore.with_run_and_pending_symbol("run-1", "EURUSD")
+    store.update_run("run-1", {"status": "completed"})
+    for index in range(205):
+        store.append_event(
+            {
+                "run_id": "run-1",
+                "event_type": f"event_{index}",
+                "symbol": "EURUSD",
+                "payload": {"index": index},
+            }
+        )
+    service = OptimizerRunService(store, project_root=Path("/tmp"), results_dir=Path("/tmp/results"))
+
+    run = service.get_run("run-1")
+
+    assert len(run["artifacts"]["events"]) == 200
+    assert run["artifacts"]["events"][0]["event_type"] == "event_5"
+    assert run["artifacts"]["events"][-1]["event_type"] == "event_204"
+    assert run["artifacts"]["summary"]["symbols"]["EURUSD"]["latest_event_type"] == "event_204"
+
+
+def test_get_run_keeps_active_runs_lightweight() -> None:
+    store = InMemoryOptimizerStore.with_run_and_pending_symbol("run-1", "EURUSD")
+    store.update_result("run-1", "EURUSD", {"status": "running", "metrics": {"score": 1.2}})
+    store.create_trial("run-1", "EURUSD", {"trial_number": 1, "window": "validation", "metrics": {"score": 1.1}})
+    store.create_stress_result("run-1", "EURUSD", {"scenario": "spread_125", "status": "pass"})
+    store.append_event({"run_id": "run-1", "event_type": "pair_started", "symbol": "EURUSD", "payload": {}})
+    service = OptimizerRunService(store, project_root=Path("/tmp"), results_dir=Path("/tmp/results"))
+
+    run = service.get_run("run-1")
+
+    assert "results" not in run
+    assert "artifacts" not in run
 
 
 def test_portfolio_result_normalization_returns_flat_metrics_payload() -> None:

@@ -56,6 +56,54 @@ def _normalize_portfolio_result(row: dict[str, Any] | None) -> dict[str, Any] | 
     return metrics if isinstance(metrics, dict) else {}
 
 
+def _build_artifact_summary(
+    trials: list[dict[str, Any]],
+    stress_results: list[dict[str, Any]],
+    events: list[dict[str, Any]],
+) -> dict[str, Any]:
+    symbols: dict[str, dict[str, Any]] = {}
+
+    for trial in trials:
+        symbol = trial.get("symbol")
+        if not symbol:
+            continue
+        entry = symbols.setdefault(
+            symbol,
+            {"trial_count": 0, "stress_result_count": 0, "latest_event_type": None},
+        )
+        entry["trial_count"] += 1
+
+    for stress_result in stress_results:
+        symbol = stress_result.get("symbol")
+        if not symbol:
+            continue
+        entry = symbols.setdefault(
+            symbol,
+            {"trial_count": 0, "stress_result_count": 0, "latest_event_type": None},
+        )
+        entry["stress_result_count"] += 1
+
+    for event in events:
+        symbol = event.get("symbol")
+        if not symbol:
+            continue
+        entry = symbols.setdefault(
+            symbol,
+            {"trial_count": 0, "stress_result_count": 0, "latest_event_type": None},
+        )
+        entry["latest_event_type"] = event.get("event_type")
+
+    return {
+        "trial_count": len(trials),
+        "stress_result_count": len(stress_results),
+        "event_count": len(events),
+        "symbols": symbols,
+    }
+
+
+_TERMINAL_RUN_STATUSES = {"completed", "failed", "cancelled", "interrupted"}
+
+
 class OptimizerRunRepository(Protocol):
     def create_run(self, payload: dict[str, Any]) -> dict[str, Any]: ...
     def update_run(self, run_id: str, updates: dict[str, Any]) -> dict[str, Any]: ...
@@ -249,11 +297,11 @@ class SupabaseOptimizerRunRepository:
             self._sb.table("optimizer_run_events")
             .select("*")
             .eq("run_id", run_id)
-            .order("created_at", desc=False)
+            .order("created_at", desc=True)
             .limit(limit)
             .execute()
         )
-        return resp.data or []
+        return list(reversed(resp.data or []))
 
 
 @dataclass
@@ -426,6 +474,18 @@ class OptimizerRunService:
             raise KeyError(run_id)
         run = copy.deepcopy(run)
         run["portfolio_result"] = copy.deepcopy(self._repository.get_portfolio_result(run_id))
+        if run.get("status") in _TERMINAL_RUN_STATUSES:
+            results = copy.deepcopy(self._repository.list_results(run_id))
+            trials = copy.deepcopy(self._repository.list_trials(run_id))
+            stress_results = copy.deepcopy(self._repository.list_stress_results(run_id))
+            events = copy.deepcopy(self._repository.list_events(run_id, limit=200))
+            run["results"] = results
+            run["artifacts"] = {
+                "trials": trials,
+                "stress_results": stress_results,
+                "events": events,
+                "summary": _build_artifact_summary(trials, stress_results, events),
+            }
         return run
 
     def list_results(self, run_id: str) -> list[dict[str, Any]]:

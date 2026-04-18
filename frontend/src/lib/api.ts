@@ -228,31 +228,11 @@ export interface OptimizerPortfolioResultApi {
   weights?: Record<string, number>;
 }
 
-export interface OptimizerRunApi {
-  id: string;
-  strategy_id?: string | null;
-  strategy_version?: string | null;
-  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled' | 'interrupted';
-  mode: string;
-  workers: number;
-  pairs: string[];
-  n_trials: number;
-  dd_limit: number;
-  dry_run: boolean;
-  broker?: 'vantage' | 'oanda' | 'fxcm' | null;
-  market?: string | null;
-  created_by?: string | null;
-  summary: OptimizerRunSummaryApi;
-  portfolio_result?: OptimizerPortfolioResultApi | null;
-  started_at?: string | null;
-  finished_at?: string | null;
-  created_at?: string | null;
-  updated_at?: string | null;
-}
-
 export interface OptimizerRunResultApi {
   symbol: string;
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  decision?: string | null;
+  reason?: string | null;
   params?: Record<string, unknown>;
   metrics?: {
     score?: number;
@@ -262,6 +242,8 @@ export interface OptimizerRunResultApi {
     max_drawdown_pct?: number;
     total_trades?: number;
   };
+  validation_metrics?: Record<string, unknown> | null;
+  forward_metrics?: Record<string, unknown> | null;
   error_message?: string | null;
 }
 
@@ -294,6 +276,50 @@ export interface OptimizerRunStressResultApi {
   stress_type?: string | null;
   status?: string | null;
   metrics?: Record<string, unknown> | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface OptimizerRunArtifactSymbolSummaryApi {
+  trial_count?: number;
+  stress_result_count?: number;
+  latest_event_type?: string | null;
+}
+
+export interface OptimizerRunArtifactSummaryApi {
+  trial_count?: number;
+  stress_result_count?: number;
+  event_count?: number;
+  symbols?: Record<string, OptimizerRunArtifactSymbolSummaryApi>;
+}
+
+export interface OptimizerRunArtifactsApi {
+  trials?: OptimizerRunTrialApi[];
+  stress_results?: OptimizerRunStressResultApi[];
+  events?: OptimizerRunEventApi[];
+  summary?: OptimizerRunArtifactSummaryApi | null;
+}
+
+export interface OptimizerRunApi {
+  id: string;
+  strategy_id?: string | null;
+  strategy_version?: string | null;
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled' | 'interrupted';
+  mode: string;
+  workers: number;
+  pairs: string[];
+  n_trials: number;
+  dd_limit: number;
+  dry_run: boolean;
+  broker?: 'vantage' | 'oanda' | 'fxcm' | null;
+  market?: string | null;
+  created_by?: string | null;
+  summary: OptimizerRunSummaryApi;
+  portfolio_result?: OptimizerPortfolioResultApi | null;
+  results?: OptimizerRunResultApi[];
+  artifacts?: OptimizerRunArtifactsApi | null;
+  started_at?: string | null;
+  finished_at?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
 }

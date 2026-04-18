@@ -11,6 +11,7 @@ import {
   fetchOptimizerRunStressResults,
   fetchOptimizerRunTrials,
   fetchOptimizerRuns,
+  type OptimizerRunApi,
   type OptimizerRunCreateApi,
 } from '@/lib/api';
 
@@ -46,24 +47,33 @@ export function useOptimizerRun(runId: string | null) {
 }
 
 export function useOptimizerRunResults(runId: string | null) {
+  const queryClient = useQueryClient();
   return useQuery({
     queryKey: runId ? optimizerRunKeys.results(runId) : ['optimizer-runs', 'results', 'idle'],
     queryFn: () => fetchOptimizerRunResults(runId!),
     enabled: Boolean(runId),
+    initialData: runId
+      ? ((queryClient.getQueryData(optimizerRunKeys.detail(runId)) as OptimizerRunApi | undefined)?.results ?? undefined)
+      : undefined,
     refetchInterval: 3000,
   });
 }
 
 export function useOptimizerRunEvents(runId: string | null) {
+  const queryClient = useQueryClient();
   return useQuery({
     queryKey: runId ? optimizerRunKeys.events(runId) : ['optimizer-runs', 'events', 'idle'],
     queryFn: () => fetchOptimizerRunEvents(runId!),
     enabled: Boolean(runId),
+    initialData: runId
+      ? ((queryClient.getQueryData(optimizerRunKeys.detail(runId)) as OptimizerRunApi | undefined)?.artifacts?.events ?? undefined)
+      : undefined,
     refetchInterval: 3000,
   });
 }
 
 export function useOptimizerRunTrials(runId: string | null, symbol?: string | null) {
+  const queryClient = useQueryClient();
   return useQuery({
     queryKey: runId
       ? symbol
@@ -72,11 +82,17 @@ export function useOptimizerRunTrials(runId: string | null, symbol?: string | nu
       : ['optimizer-runs', 'trials', 'idle'],
     queryFn: () => fetchOptimizerRunTrials(runId!, symbol ?? undefined),
     enabled: Boolean(runId),
+    initialData: runId
+      ? (((queryClient.getQueryData(optimizerRunKeys.detail(runId)) as OptimizerRunApi | undefined)?.artifacts?.trials ?? []).filter(
+          (trial) => !symbol || trial.symbol === symbol
+        ) || undefined)
+      : undefined,
     refetchInterval: 3000,
   });
 }
 
 export function useOptimizerRunStressResults(runId: string | null, symbol?: string | null) {
+  const queryClient = useQueryClient();
   return useQuery({
     queryKey: runId
       ? symbol
@@ -85,6 +101,11 @@ export function useOptimizerRunStressResults(runId: string | null, symbol?: stri
       : ['optimizer-runs', 'stress-results', 'idle'],
     queryFn: () => fetchOptimizerRunStressResults(runId!, symbol ?? undefined),
     enabled: Boolean(runId),
+    initialData: runId
+      ? (((queryClient.getQueryData(optimizerRunKeys.detail(runId)) as OptimizerRunApi | undefined)?.artifacts?.stress_results ?? []).filter(
+          (result) => !symbol || result.symbol === symbol
+        ) || undefined)
+      : undefined,
     refetchInterval: 5000,
   });
 }

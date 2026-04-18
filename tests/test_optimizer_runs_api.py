@@ -33,6 +33,34 @@ class StubOptimizerService:
             "broker": "vantage",
             "market": "forex",
             "summary": {"total_pairs": 2, "running_pairs": 1, "completed_pairs": 0, "failed_pairs": 0},
+            "results": [
+                {
+                    "symbol": "EURUSD",
+                    "status": "completed",
+                    "decision": "pass",
+                    "reason": "forward window survived current drawdown gate",
+                    "metrics": {"score": 2.1},
+                    "validation_metrics": {"score": 1.9},
+                    "forward_metrics": {"score": 1.7},
+                }
+            ],
+            "artifacts": {
+                "trials": [{"symbol": "EURUSD", "trial_number": 1, "window": "validation"}],
+                "stress_results": [{"symbol": "EURUSD", "scenario": "spread_125", "status": "pass"}],
+                "events": [{"event_type": "pair_completed", "run_id": "run-1", "symbol": "EURUSD"}],
+                "summary": {
+                    "trial_count": 1,
+                    "stress_result_count": 1,
+                    "event_count": 1,
+                    "symbols": {
+                        "EURUSD": {
+                            "trial_count": 1,
+                            "stress_result_count": 1,
+                            "latest_event_type": "pair_completed",
+                        }
+                    },
+                },
+            },
         }
         self.portfolio_results: dict[str, dict] = {}
         self.trials: dict[str, list[dict]] = {"run-1": [{"symbol": "EURUSD", "trial_number": 1}]}
@@ -201,6 +229,21 @@ def test_get_optimizer_run_returns_portfolio_summary(
     response = client.get("/api/optimizer/runs/run-1")
     assert response.status_code == 200
     assert response.json()["run"]["portfolio_result"]["combined_max_drawdown_pct"] == 5.9
+
+
+def test_get_optimizer_run_returns_embedded_results_and_artifacts(
+    client: TestClient,
+) -> None:
+    response = client.get("/api/optimizer/runs/run-1")
+
+    assert response.status_code == 200
+    payload = response.json()["run"]
+    assert payload["results"][0]["decision"] == "pass"
+    assert payload["results"][0]["reason"] == "forward window survived current drawdown gate"
+    assert payload["artifacts"]["trials"][0]["window"] == "validation"
+    assert payload["artifacts"]["stress_results"][0]["scenario"] == "spread_125"
+    assert payload["artifacts"]["events"][0]["event_type"] == "pair_completed"
+    assert payload["artifacts"]["summary"]["symbols"]["EURUSD"]["trial_count"] == 1
 
 
 def test_get_optimizer_run_stress_results(client: TestClient) -> None:
