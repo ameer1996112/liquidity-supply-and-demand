@@ -11,6 +11,7 @@ from scripts.optimizer.alert_runner import (
     AlertDeployment,
     TradingViewAlertBrowser,
     TradingViewMcpAlertRunner,
+    build_chart_symbol,
 )
 from scripts.optimizer import local_agent
 
@@ -75,6 +76,215 @@ def test_tradingview_mcp_runner_falls_back_to_browser_on_failure() -> None:
 
     assert result.alert_id == "alert-EURUSD"
     assert fallback_browser.deployments[0]["pair"] == "EURUSD"
+
+
+def test_build_chart_symbol_forces_vantage_prefix() -> None:
+    assert build_chart_symbol("USDJPY") == "VANTAGE:USDJPY"
+    assert build_chart_symbol("OANDA:USDJPY") == "VANTAGE:USDJPY"
+
+
+def test_tradingview_mcp_runner_uses_vantage_chart_symbol() -> None:
+    class FakeMcpRunner(TradingViewMcpAlertRunner):
+        def __init__(self) -> None:
+            super().__init__()
+            self.calls: list[tuple[str, ...]] = []
+
+        async def _run_tv(self, *args: str) -> dict[str, Any]:
+            self.calls.append(args)
+            return {"success": True}
+
+        async def _apply_params(self, params: dict[str, Any]) -> None:
+            return None
+
+        async def _has_existing_alert(self, *, pair: str, timeframe: str) -> bool:
+            return True
+
+    runner = FakeMcpRunner()
+
+    async def run() -> AlertDeployment:
+        return await runner.deploy_alert(
+            pair="USDJPY",
+            timeframe="5m",
+            config_snapshot={"params": {"lookback": 20}},
+            alert_name_prefix="TradeOps",
+            webhook_url="https://example.test/webhook",
+            should_stop=lambda: False,
+        )
+
+    deployment = asyncio.run(run())
+
+    assert deployment.skipped_existing is True
+    assert ("symbol", "VANTAGE:USDJPY") in [call[0:2] for call in runner.calls]
+
+
+def test_tradingview_mcp_runner_sets_message_before_webhook() -> None:
+    class FakeMcpRunner(TradingViewMcpAlertRunner):
+        def __init__(self) -> None:
+            super().__init__()
+            self.step_order: list[str] = []
+
+        async def _run_tv(self, *args: str) -> dict[str, Any]:
+            return {"success": True}
+
+        async def _apply_params(self, params: dict[str, Any]) -> None:
+            return None
+
+        async def _has_existing_alert(self, *, pair: str, timeframe: str) -> bool:
+            return False
+
+        async def _open_alert_dialog(self) -> None:
+            self.step_order.append("open")
+
+        async def _select_alert_function_mode(self) -> None:
+            self.step_order.append("mode")
+
+        async def _set_optional_field(self, label: str, value: str) -> bool:
+            if label == "Alert name":
+                self.step_order.append("name")
+            return True
+
+        async def _set_message(self, message: str) -> None:
+            self.step_order.append("message")
+
+        async def _set_webhook_url(self, webhook_url: str) -> None:
+            self.step_order.append("webhook")
+
+        async def _submit_alert(self) -> None:
+            self.step_order.append("submit")
+
+    runner = FakeMcpRunner()
+
+    asyncio.run(
+        runner.deploy_alert(
+            pair="USDJPY",
+            timeframe="5m",
+            config_snapshot={"params": {"lookback": 20}},
+            alert_name_prefix="TradeOps",
+            webhook_url="https://example.test/webhook",
+            should_stop=lambda: False,
+        )
+    )
+
+    assert runner.step_order == ["open", "mode", "name", "message", "webhook", "submit"]
+
+
+def test_mcp_open_settings_waits_for_broad_visible_dialog_selector() -> None:
+    class FakeMcpRunner(TradingViewMcpAlertRunner):
+        def __init__(self) -> None:
+            super().__init__()
+            self.wait_expression = ""
+
+        async def _ui_eval(self, expression: str) -> Any:
+            if "const label = Array.from(document.querySelectorAll('div, span'))" in expression:
+                return {"x": 10, "y": 10}
+            if "for (const btn of document.querySelectorAll('[title=\"Settings\"]'))" in expression:
+                return None
+            return False
+
+        async def _ui_mouse_click(self, x: float, y: float, *, double_click: bool = False) -> dict[str, Any]:
+            return {"ok": True}
+
+        async def _wait_until(self, expression: str, *, timeout_s: float = 10.0, interval_s: float = 0.3) -> Any:
+            self.wait_expression = expression
+            return True
+
+    runner = FakeMcpRunner()
+    asyncio.run(runner._open_settings())
+
+    assert '[role="dialog"]' in runner.wait_expression
+    assert '[class*="dialog-"][class*="rounded"]' not in runner.wait_expression
+
+
+def test_mcp_apply_params_raises_on_verification_mismatch() -> None:
+    class FakeMcpRunner(TradingViewMcpAlertRunner):
+        async def _open_settings(self) -> None:
+            return None
+
+        async def _ui_eval(self, expression: str) -> Any:
+            if "if (b.textContent?.trim() === 'Inputs')" in expression:
+                return True
+            if "const checks =" in expression:
+                return {
+                    "max_zones": "20",
+                    "use_break_even": True,
+                }
+            if "const ok = Array.from(dialog.querySelectorAll('button')).find" in expression:
+                return True
+            return False
+
+        async def _ensure_custom_profile(self) -> bool:
+            return True
+
+        async def _set_input(self, index: int, value: Any) -> None:
+            return None
+
+        async def _toggle_checkbox(self, index: int, desired_state: bool) -> None:
+            return None
+
+        async def _wait_until(self, expression: str, *, timeout_s: float = 10.0, interval_s: float = 0.3) -> Any:
+            return True
+
+        async def _wait_for_update_complete(self) -> None:
+            return None
+
+    runner = FakeMcpRunner()
+
+    try:
+        asyncio.run(runner._apply_params({"max_zones": 28, "use_break_even": True}))
+        assert False, "expected verification mismatch"
+    except RuntimeError as exc:
+        assert "max_zones" in str(exc)
+
+
+def test_mcp_apply_params_retries_after_initial_verification_mismatch() -> None:
+    class FakeMcpRunner(TradingViewMcpAlertRunner):
+        def __init__(self) -> None:
+            super().__init__()
+            self.verify_calls = 0
+            self.inputs_set: list[tuple[int, Any]] = []
+            self.toggles_set: list[tuple[int, bool]] = []
+
+        async def _open_settings(self) -> None:
+            return None
+
+        async def _ui_eval(self, expression: str) -> Any:
+            if "if (b.textContent?.trim() === 'Inputs')" in expression:
+                return True
+            if "const checks =" in expression:
+                self.verify_calls += 1
+                if self.verify_calls == 1:
+                    return {
+                        "max_zones": "20",
+                        "use_break_even": True,
+                    }
+                return {
+                    "max_zones": "28",
+                    "use_break_even": True,
+                }
+            if "const ok = Array.from(dialog.querySelectorAll('button')).find" in expression:
+                return True
+            return False
+
+        async def _ensure_custom_profile(self) -> bool:
+            return True
+
+        async def _set_input(self, index: int, value: Any) -> None:
+            self.inputs_set.append((index, value))
+
+        async def _toggle_checkbox(self, index: int, desired_state: bool) -> None:
+            self.toggles_set.append((index, desired_state))
+
+        async def _wait_until(self, expression: str, *, timeout_s: float = 10.0, interval_s: float = 0.3) -> Any:
+            return True
+
+        async def _wait_for_update_complete(self) -> None:
+            return None
+
+    runner = FakeMcpRunner()
+    asyncio.run(runner._apply_params({"max_zones": 28, "use_break_even": True}))
+
+    assert runner.verify_calls == 2
+    assert runner.inputs_set.count((8, 28)) == 2
 
 
 def test_alert_batch_runner_emits_progress_and_summary() -> None:
@@ -596,6 +806,59 @@ def test_set_webhook_url_uses_notifications_panel_fallback() -> None:
     assert page.apply_clicked is True
     assert page.waited_for_main is True
     assert page.webhook_filled is True
+
+
+def test_mcp_set_webhook_url_uses_notifications_panel_fallback() -> None:
+    class FakeMcpRunner(TradingViewMcpAlertRunner):
+        def __init__(self) -> None:
+            super().__init__()
+            self.notifications_opened = False
+            self.webhook_filled = False
+            self.waited_for_notifications = False
+            self.waited_for_main = False
+            self.apply_clicked = False
+
+        async def _ui_eval(self, script: str) -> Any:
+            if 'const wanted = "webhook url"' in script and "expanded = dialog.querySelector('input, textarea')" in script:
+                if not self.notifications_opened:
+                    return False
+                self.webhook_filled = True
+                return True
+            if "text === wanted || text.startsWith(wanted + ' ')" in script:
+                return {"x": 10, "y": 10}
+            if "headers.some((node) => wanted.includes(normalize(node.textContent)))" in script:
+                return self.notifications_opened
+            if "normalize(node.textContent) === 'notifications'" in script and "button?.click?.()" in script:
+                return True
+            if 'const labels = ["apply"]' in script:
+                return {"x": 20, "y": 20}
+            if "normalize(el.textContent).includes('create alert on')" in script:
+                return self.apply_clicked
+            return False
+
+        async def _ui_mouse_click(self, x: float, y: float, *, double_click: bool = False) -> dict[str, Any]:
+            if x == 10 and y == 10:
+                self.notifications_opened = True
+            elif x == 20 and y == 20:
+                self.apply_clicked = True
+            return {"ok": True}
+
+        async def _wait_until(self, expression: str, *, timeout_s: float = 10.0, interval_s: float = 0.3) -> Any:
+            if "wanted.includes(normalize(node.textContent))" in expression:
+                self.waited_for_notifications = True
+                return True
+            if "normalize(el.textContent).includes('create alert on')" in expression:
+                self.waited_for_main = True
+                return True
+            return True
+
+    runner = FakeMcpRunner()
+    asyncio.run(runner._set_webhook_url("https://example.test/hook"))
+    assert runner.notifications_opened is True
+    assert runner.waited_for_notifications is True
+    assert runner.apply_clicked is True
+    assert runner.waited_for_main is True
+    assert runner.webhook_filled is True
 
 
 def test_set_message_uses_message_panel_fallback() -> None:

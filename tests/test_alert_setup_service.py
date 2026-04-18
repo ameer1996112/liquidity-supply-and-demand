@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
+import src.services.alert_setup_service as alert_setup_service
 from src.services.alert_setup_service import AlertSetupService
 
 
@@ -158,3 +160,49 @@ def test_cancel_batch_marks_pending_results_cancelled() -> None:
 
     assert cancelled["status"] == "cancelled"
     assert service.list_results(batch["id"])[0]["status"] == "cancelled"
+
+
+def test_start_batch_custom_imports_selected_pairs_from_parallel_results(tmp_path: Path, monkeypatch) -> None:
+    service, store = _make_service()
+    service.upsert_approved_config(
+        pair="USDJPY",
+        timeframe="5m",
+        params={"max_zones": 99},
+        risk_weight=0.75,
+        source_score=10.0,
+        status="approved",
+    )
+
+    results_file = tmp_path / "parallel_results.json"
+    results_file.write_text(
+        json.dumps(
+            {
+                "USDJPY": {
+                    "params": {"max_zones": 13, "rr_mode": "fixed_2.5"},
+                    "score": 24.62,
+                    "net_profit": 18507.84,
+                    "win_rate": 40.54,
+                    "profit_factor": 1.391,
+                    "max_drawdown_pct": 4.06,
+                    "total_trades": 370,
+                    "worker_id": 1,
+                    "timestamp": "2026-04-14T12:54:33.523947",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(alert_setup_service, "_PARALLEL_RESULTS_FILE", results_file)
+
+    batch = service.start_batch(
+        source_mode="custom",
+        pairs=["USDJPY"],
+        timeframe="5m",
+        created_by="operator",
+    )
+
+    assert batch["status"] == "queued"
+    assert batch["config_snapshot"][0]["params"]["max_zones"] == 13
+    assert batch["config_snapshot"][0]["source_metrics"]["profit_factor"] == 1.391
+    assert store.configs[("USDJPY", "5m")]["params"]["max_zones"] == 13
+    assert store.results[(batch["id"], "USDJPY", "5m")]["params"]["max_zones"] == 13

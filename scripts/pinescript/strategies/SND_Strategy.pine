@@ -26,7 +26,7 @@
 
 // === LIBRARY IMPORTS ===
 // Import helper functions from external libraries to reduce script size
-import ameer_1996112/SND_Utils/21 as Utils
+import ameer_1996112/SND_Utils/22 as Utils
 import ameer_1996112/SND_Core/26 as Core
 
 strategy("Institutional Liquidity Protocol [Pro]",
@@ -110,14 +110,15 @@ get_cached_usdjpy_rate() =>
 
 if is_jpy_pair and (na(usdjpy_cache_bar) or bar_index != usdjpy_cache_bar)
     float rate = na
+    bool is_vantage_chart = str.contains(syminfo.ticker, "VANTAGE")
 
-    if str.contains(syminfo.ticker, "VANTAGE")
+    if is_vantage_chart
         rate := request.security("VANTAGE:USDJPY", timeframe.period, close, lookahead = barmerge.lookahead_off)
-    if na(rate)
+    if not is_vantage_chart and na(rate)
         rate := request.security("USDJPY", timeframe.period, close, lookahead = barmerge.lookahead_off)
-    if na(rate)
+    if not is_vantage_chart and na(rate)
         rate := request.security("FX_IDC:USDJPY", timeframe.period, close, lookahead = barmerge.lookahead_off)
-    if na(rate)
+    if not is_vantage_chart and na(rate)
         rate := request.security("OANDA:USDJPY", timeframe.period, close, lookahead = barmerge.lookahead_off)
 
     usdjpy_rate_cache := na(rate) or rate <= 0 ? USDJPY_FALLBACK : rate
@@ -1962,7 +1963,7 @@ trade_be_moved         = array.get(_trade_be_moved, 0)
 var int[]   _trade_entry_bar_index  = array.new_int(1, na)     // Bar index when trade was entered
 var float[] _trade_worst_price      = array.new_float(1, na)   // Worst price during trade (for MAE)
 var int[]   _trade_zone_id          = array.new_int(1, na)     // Zone ID that triggered entry
-var string[] _trade_key             = array.new_string(1, na)  // Shared entry/exit correlation key for backend reconciliation
+var string[] _trade_key             = array.new_string(1, "")  // Shared entry/exit correlation key for backend reconciliation
 var float[] _trade_zone_score       = array.new_float(1, na)   // Zone score at entry
 var int[]   _trade_zone_freshness   = array.new_int(1, na)     // Zone freshness (touch count) at entry
 var int[]   _trade_session          = array.new_int(1, na)     // Session at entry
@@ -4149,8 +4150,8 @@ if strategy.opentrades > 0
         array.set(_trade_tp1_price, 0, na)
         active_entry_id        := na
         array.set(_active_entry_id, 0, na)
-        trade_key             := na
-        array.set(_trade_key, 0, na)
+        trade_key             := ""
+        array.set(_trade_key, 0, "")
         trade_be_trigger_rr    := na
         array.set(_trade_be_trigger_rr, 0, na)
         trade_be_sl_pips       := na
@@ -4293,8 +4294,8 @@ if trade_just_closed
     array.set(_trade_worst_price, 0, na)
     trade_zone_id := na
     array.set(_trade_zone_id, 0, na)
-    trade_key := na
-    array.set(_trade_key, 0, na)
+    trade_key := ""
+    array.set(_trade_key, 0, "")
 
 var line[] _lowLiqLines = array.new_line()
 var bool[] _lowLiqActive = array.new_bool()

@@ -4,11 +4,15 @@ import json
 import logging
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Protocol
 
 from src.adapters.supabase_api import get_api_supabase
 
 logger = logging.getLogger(__name__)
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_PARALLEL_RESULTS_FILE = _PROJECT_ROOT / "scripts" / "optimization_results" / "parallel_results.json"
 
 _CONFIG_STATUSES = {"candidate", "approved", "archived"}
 _BATCH_STATUSES = {"queued", "running", "completed", "failed", "cancelled", "interrupted"}
@@ -382,21 +386,30 @@ class AlertSetupService:
             for pair, weight in (pair_risk_weights or {}).items()
         }
 
-        configs: list[dict[str, Any]] = []
-        missing: list[str] = []
-        for pair in normalized_pairs:
-            config = self._repository.get_config(pair, timeframe)
-            if config is None or config["status"] != "approved":
-                missing.append(pair)
-            else:
-                snapshot = dict(config)
-                if normalized_risk_weights.get(pair) is not None:
-                    snapshot["risk_weight"] = normalized_risk_weights[pair]
-                elif not use_approved_weights:
-                    snapshot["risk_weight"] = 1.0
-                configs.append(snapshot)
-        if missing:
-            raise ValueError(f"missing approved configs for: {', '.join(missing)}")
+        if source_mode == "custom":
+            configs = self._load_configs_from_parallel_results(
+                pairs=normalized_pairs,
+                timeframe=timeframe,
+                use_approved_weights=use_approved_weights,
+                pair_risk_weights=normalized_risk_weights,
+                created_by=created_by,
+            )
+        else:
+            configs = []
+            missing: list[str] = []
+            for pair in normalized_pairs:
+                config = self._repository.get_config(pair, timeframe)
+                if config is None or config["status"] != "approved":
+                    missing.append(pair)
+                else:
+                    snapshot = dict(config)
+                    if normalized_risk_weights.get(pair) is not None:
+                        snapshot["risk_weight"] = normalized_risk_weights[pair]
+                    elif not use_approved_weights:
+                        snapshot["risk_weight"] = 1.0
+                    configs.append(snapshot)
+            if missing:
+                raise ValueError(f"missing approved configs for: {', '.join(missing)}")
 
         batch_id = str(uuid.uuid4())
         created_at = _utc_now()
@@ -450,6 +463,72 @@ class AlertSetupService:
             },
         )
         return batch
+
+    def _load_configs_from_parallel_results(
+        self,
+        *,
+        pairs: list[str],
+        timeframe: str,
+        use_approved_weights: bool,
+        pair_risk_weights: dict[str, float],
+        created_by: str | None,
+    ) -> list[dict[str, Any]]:
+        rows = self._read_parallel_results_file()
+        configs: list[dict[str, Any]] = []
+        missing: list[str] = []
+
+        for pair in pairs:
+            row = rows.get(pair)
+            if not isinstance(row, dict):
+                missing.append(pair)
+                continue
+
+            existing = self._repository.get_config(pair, timeframe)
+            risk_weight = pair_risk_weights.get(pair)
+            if risk_weight is None:
+                if use_approved_weights and existing is not None:
+                    risk_weight = float(existing.get("risk_weight", 1.0))
+                else:
+                    risk_weight = 1.0
+
+            source_metrics = {
+                "net_profit": row.get("net_profit"),
+                "win_rate": row.get("win_rate"),
+                "profit_factor": row.get("profit_factor"),
+                "max_drawdown_pct": row.get("max_drawdown_pct"),
+                "total_trades": row.get("total_trades"),
+                "worker_id": row.get("worker_id"),
+                "timestamp": row.get("timestamp"),
+            }
+            config = self.upsert_approved_config(
+                pair=pair,
+                timeframe=timeframe,
+                params=row.get("params") or {},
+                risk_weight=float(risk_weight),
+                status="approved",
+                source_run_id=str(row.get("timestamp") or ""),
+                source_score=float(row["score"]) if row.get("score") is not None else None,
+                source_metrics={k: v for k, v in source_metrics.items() if v is not None},
+                notes="imported from parallel_results.json",
+                created_by=created_by,
+            )
+            configs.append(config)
+
+        if missing:
+            raise ValueError(f"missing optimizer results for: {', '.join(missing)}")
+
+        return configs
+
+    def _read_parallel_results_file(self) -> dict[str, Any]:
+        if not _PARALLEL_RESULTS_FILE.exists():
+            raise ValueError(f"parallel_results.json not found at {_PARALLEL_RESULTS_FILE}")
+        try:
+            payload = json.loads(_PARALLEL_RESULTS_FILE.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"parallel_results.json is invalid JSON: {exc}") from exc
+        if not isinstance(payload, dict):
+            raise ValueError("parallel_results.json must contain an object keyed by pair")
+        return {str(key).strip().upper(): value for key, value in payload.items()}
 
     def list_batches(self, *, limit: int = 20, status: str | None = None) -> list[dict[str, Any]]:
         normalized_status = status.strip().lower() if status else None

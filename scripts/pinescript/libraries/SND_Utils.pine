@@ -297,7 +297,7 @@ export build_webhook_payload(
      int _bars_since_zone = na,
      string _strategy_id = "liq_sd_v1",
      string _strategy_version = "1",
-     string _trade_key = na) =>
+     string _trade_key = "") =>
 
     string payload = '{"strategy_id":"' + _strategy_id + '"'
     payload := payload + ',"strategy_version":"' + _strategy_version + '"'
@@ -315,7 +315,7 @@ export build_webhook_payload(
     if include_zone_id and not na(_zone_id)
         payload := payload + ',"zone_id":' + to_json_num(float(_zone_id), "#")
     payload := payload + ',"zone_type":"' + _zone_type + '"'
-    if not na(_trade_key)
+    if str.length(_trade_key) > 0
         payload := payload + ',"trade_key":"' + _trade_key + '"'
 
     if not na(_zone_top) and not na(_zone_bottom)
@@ -422,13 +422,13 @@ export build_exit_webhook_payload(
      string _exit_type,
      float  _mae_pips,
      int    current_time,
-     string _trade_key = na
+     string _trade_key = ""
  ) =>
     string payload = '{"event_type":"exit"'
     payload := payload + ',"zone_id":' + str.tostring(_zone_id, "#")
     payload := payload + ',"symbol":"' + _symbol + '"'
     payload := payload + ',"side":"' + _side + '"'
-    if not na(_trade_key)
+    if str.length(_trade_key) > 0
         payload := payload + ',"trade_key":"' + _trade_key + '"'
     payload := payload + ',"run_mode":"' + _run_mode + '"'
     payload := payload + ',"outcome":"' + _outcome + '"'

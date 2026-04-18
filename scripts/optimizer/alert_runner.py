@@ -60,6 +60,13 @@ def build_alert_message(
     )
 
 
+def build_chart_symbol(pair: str) -> str:
+    clean_pair = str(pair).split(":")[-1].strip().upper()
+    if not clean_pair:
+        raise ValueError("pair is required to build a chart symbol")
+    return f"VANTAGE:{clean_pair}"
+
+
 @dataclass
 class AlertDeployment:
     pair: str
@@ -131,7 +138,7 @@ class TradingViewMcpAlertRunner:
         )
 
         try:
-            await self._run_tv("symbol", pair)
+            await self._run_tv("symbol", build_chart_symbol(pair))
             await self._run_tv("timeframe", self._normalize_timeframe(timeframe))
             await self._apply_params(params)
             if await self._has_existing_alert(pair=pair, timeframe=timeframe):
@@ -147,8 +154,8 @@ class TradingViewMcpAlertRunner:
             await self._open_alert_dialog()
             await self._select_alert_function_mode()
             await self._set_optional_field("Alert name", alert_name)
-            await self._set_webhook_url(webhook_url)
             await self._set_message(message)
+            await self._set_webhook_url(webhook_url)
             await self._submit_alert()
             return AlertDeployment(
                 pair=pair,
@@ -222,14 +229,34 @@ class TradingViewMcpAlertRunner:
             await asyncio.sleep(interval_s)
         raise RuntimeError(f"Timed out waiting for MCP condition: {expression[:120]}")
 
+    @staticmethod
+    def _visible_dialog_expr() -> str:
+        return """
+            (() => {
+              const dialogs = Array.from(document.querySelectorAll('[role="dialog"], [class*="dialog"], [class*="modal"]'))
+                .filter((el) => {
+                  const rect = el.getBoundingClientRect();
+                  const style = window.getComputedStyle?.(el);
+                  return rect.width > 0 && rect.height > 0 &&
+                    style?.visibility !== 'hidden' && style?.display !== 'none';
+                });
+              return dialogs[dialogs.length - 1] || null;
+            })()
+        """
+
+    def _inject_visible_dialog(self, script: str) -> str:
+        return script.replace("__VISIBLE_DIALOG__", self._visible_dialog_expr())
+
     async def _open_settings(self) -> None:
         already_open = await self._ui_eval(
-            """
+            self._inject_visible_dialog(
+                """
             (() => {
-              const d = document.querySelector('[class*="dialog-"][class*="rounded"]');
+              const d = __VISIBLE_DIALOG__;
               return !!(d && d.offsetParent !== null);
             })()
             """
+            )
         )
         if already_open:
             return
@@ -270,12 +297,14 @@ class TradingViewMcpAlertRunner:
         else:
             await self._ui_mouse_click(settings["x"], settings["y"])
         await self._wait_until(
-            """
+            self._inject_visible_dialog(
+                """
             (() => {
-              const d = document.querySelector('[class*="dialog-"][class*="rounded"]');
+              const d = __VISIBLE_DIALOG__;
               return !!(d && d.offsetParent !== null);
             })()
             """,
+            ),
             timeout_s=8.0,
         )
 
@@ -298,26 +327,41 @@ class TradingViewMcpAlertRunner:
         if not await self._ensure_custom_profile():
             raise RuntimeError("could not ensure Custom profile in MCP settings flow")
 
-        rr_mode = params.get("rr_mode")
-        if rr_mode is not None:
-            await self._apply_rr_mode(str(rr_mode))
-            await asyncio.sleep(0.1)
+        last_error: RuntimeError | None = None
+        for attempt in range(2):
+            rr_mode = params.get("rr_mode")
+            if rr_mode is not None:
+                await self._apply_rr_mode(str(rr_mode))
+                await asyncio.sleep(0.1)
 
-        for name, value in params.items():
-            if name == "rr_mode":
-                continue
-            idx = INPUT_INDEX.get(name)
-            if idx is None:
-                continue
-            if name in ("enable_ai_quality_filter", "use_break_even", "enable_double_tp"):
-                await self._toggle_checkbox(idx, bool(value))
-            else:
-                await self._set_input(idx, value)
+            for name, value in params.items():
+                if name == "rr_mode":
+                    continue
+                idx = INPUT_INDEX.get(name)
+                if idx is None:
+                    continue
+                if name in ("enable_ai_quality_filter", "use_break_even", "enable_double_tp"):
+                    await self._toggle_checkbox(idx, bool(value))
+                else:
+                    await self._set_input(idx, value)
+
+            try:
+                await self._verify_applied_params(params)
+                last_error = None
+                break
+            except RuntimeError as exc:
+                last_error = exc
+                if attempt == 1:
+                    raise
+                await asyncio.sleep(0.3)
+        if last_error is not None:
+            raise last_error
 
         await self._ui_eval(
-            """
+            self._inject_visible_dialog(
+                """
             (() => {
-              const dialog = document.querySelector('[class*="dialog-"][class*="rounded"]');
+              const dialog = __VISIBLE_DIALOG__;
               if (!dialog) return false;
               const ok = Array.from(dialog.querySelectorAll('button')).find((btn) => btn.textContent?.trim() === 'Ok');
               if (ok) {
@@ -327,41 +371,48 @@ class TradingViewMcpAlertRunner:
               return false;
             })()
             """
+            )
         )
         await self._wait_until(
-            """
+            self._inject_visible_dialog(
+                """
             (() => {
-              const d = document.querySelector('[class*="dialog-"][class*="rounded"]');
+              const d = __VISIBLE_DIALOG__;
               return !d || d.offsetParent === null;
             })()
             """,
+            ),
             timeout_s=8.0,
         )
         await self._wait_for_update_complete()
 
     async def _ensure_custom_profile(self) -> bool:
         profile = await self._ui_eval(
-            """
+            self._inject_visible_dialog(
+                """
             (() => {
-              const d = document.querySelector('[class*="dialog-"][class*="rounded"]');
+              const d = __VISIBLE_DIALOG__;
               if (!d) return '';
               const combo = d.querySelector('button[role="combobox"]');
               return combo?.textContent?.trim() || '';
             })()
             """
+            )
         )
         if profile == "Custom":
             return True
         opened = await self._ui_eval(
-            """
+            self._inject_visible_dialog(
+                """
             (() => {
-              const d = document.querySelector('[class*="dialog-"][class*="rounded"]');
+              const d = __VISIBLE_DIALOG__;
               const combo = d?.querySelector('button[role="combobox"]');
               if (!combo) return false;
               combo.click();
               return true;
             })()
             """
+            )
         )
         if not opened:
             return False
@@ -389,14 +440,16 @@ class TradingViewMcpAlertRunner:
             return False
         await asyncio.sleep(0.4)
         profile = await self._ui_eval(
-            """
+            self._inject_visible_dialog(
+                """
             (() => {
-              const d = document.querySelector('[class*="dialog-"][class*="rounded"]');
+              const d = __VISIBLE_DIALOG__;
               if (!d) return '';
               const combo = d.querySelector('button[role="combobox"]');
               return combo?.textContent?.trim() || '';
             })()
             """
+            )
         )
         return profile == "Custom"
 
@@ -410,29 +463,36 @@ class TradingViewMcpAlertRunner:
 
     async def _set_input(self, index: int, value: Any) -> None:
         ok = await self._ui_eval(
-            f"""
+            self._inject_visible_dialog(
+                f"""
             (() => {{
-              const d = document.querySelector('[class*="dialog-"][class*="rounded"]');
+              const d = __VISIBLE_DIALOG__;
               if (!d) return false;
               const inputs = d.querySelectorAll('input');
               const input = {index} < inputs.length ? inputs[{index}] : null;
               if (!input || input.type === 'checkbox') return false;
+              const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
               input.focus();
-              input.value = {json.dumps(str(value))};
+              input.select?.();
+              if (nativeSetter) nativeSetter.call(input, {json.dumps(str(value))});
+              else input.value = {json.dumps(str(value))};
               input.dispatchEvent(new Event('input', {{ bubbles: true }}));
               input.dispatchEvent(new Event('change', {{ bubbles: true }}));
+              input.blur?.();
               return true;
             }})()
             """
+            )
         )
         if not ok:
             raise RuntimeError(f"could not set MCP input index {index}")
 
     async def _toggle_checkbox(self, index: int, desired_state: bool) -> None:
         ok = await self._ui_eval(
-            f"""
+            self._inject_visible_dialog(
+                f"""
             (() => {{
-              const d = document.querySelector('[class*="dialog-"][class*="rounded"]');
+              const d = __VISIBLE_DIALOG__;
               if (!d) return false;
               const inputs = d.querySelectorAll('input');
               const input = {index} < inputs.length ? inputs[{index}] : null;
@@ -443,9 +503,114 @@ class TradingViewMcpAlertRunner:
               return true;
             }})()
             """
+            )
         )
         if not ok:
             raise RuntimeError(f"could not toggle MCP checkbox index {index}")
+
+    async def _verify_applied_params(self, params: dict[str, Any]) -> None:
+        checks = self._build_param_checks(params)
+        if not checks:
+            return
+
+        observed = await self._ui_eval(
+            self._inject_visible_dialog(
+                f"""
+            (() => {{
+              const d = __VISIBLE_DIALOG__;
+              if (!d) return null;
+              const checks = {json.dumps(checks)};
+              const inputs = Array.from(d.querySelectorAll('input'));
+              const result = {{}};
+              for (const check of checks) {{
+                const input = check.index < inputs.length ? inputs[check.index] : null;
+                if (!input) {{
+                  result[check.name] = null;
+                  continue;
+                }}
+                if (check.kind === 'checkbox') {{
+                  result[check.name] = !!input.checked;
+                  continue;
+                }}
+                result[check.name] = input.value ?? null;
+              }}
+              return result;
+            }})()
+            """
+            )
+        )
+        if not isinstance(observed, dict):
+            raise RuntimeError("could not read back MCP inputs for verification")
+
+        mismatches: list[str] = []
+        for check in checks:
+            actual = observed.get(check["name"])
+            if not self._matches_expected_value(actual, check["expected"], kind=check["kind"]):
+                mismatches.append(f'{check["name"]} expected {check["expected"]} got {actual}')
+
+        if mismatches:
+            raise RuntimeError(f"MCP params did not stick after apply: {', '.join(mismatches)}")
+
+    def _build_param_checks(self, params: dict[str, Any]) -> list[dict[str, Any]]:
+        checks: list[dict[str, Any]] = []
+
+        rr_mode = params.get("rr_mode")
+        if rr_mode is not None:
+            mode = str(rr_mode).strip()
+            if mode == "dynamic":
+                checks.append({
+                    "name": "use_custom_rr",
+                    "index": INPUT_INDEX["use_custom_rr"],
+                    "kind": "checkbox",
+                    "expected": False,
+                })
+            elif mode.startswith("fixed_"):
+                checks.append({
+                    "name": "use_custom_rr",
+                    "index": INPUT_INDEX["use_custom_rr"],
+                    "kind": "checkbox",
+                    "expected": True,
+                })
+                checks.append({
+                    "name": "risk_reward_ratio",
+                    "index": INPUT_INDEX["risk_reward_ratio"],
+                    "kind": "number",
+                    "expected": float(mode.replace("fixed_", "")),
+                })
+
+        for name, value in params.items():
+            if name == "rr_mode":
+                continue
+            idx = INPUT_INDEX.get(name)
+            if idx is None:
+                continue
+            kind = "checkbox" if name in {"enable_ai_quality_filter", "use_break_even", "enable_double_tp"} else "number"
+            checks.append({
+                "name": name,
+                "index": idx,
+                "kind": kind,
+                "expected": bool(value) if kind == "checkbox" else value,
+            })
+        return checks
+
+    def _matches_expected_value(self, actual: Any, expected: Any, *, kind: str) -> bool:
+        if kind == "checkbox":
+            return bool(actual) is bool(expected)
+
+        if actual is None:
+            return False
+
+        try:
+            actual_number = float(str(actual).strip())
+        except (TypeError, ValueError):
+            return False
+
+        try:
+            expected_number = float(expected)
+        except (TypeError, ValueError):
+            return False
+
+        return isclose(actual_number, expected_number, rel_tol=0.0, abs_tol=0.05)
 
     async def _wait_for_update_complete(self) -> None:
         deadline = asyncio.get_running_loop().time() + 45.0
@@ -565,8 +730,8 @@ class TradingViewMcpAlertRunner:
         if not picked:
             raise RuntimeError("could not select MCP alert() function calls only mode")
 
-    async def _set_optional_field(self, label: str, value: str) -> None:
-        await self._ui_eval(
+    async def _set_field(self, label: str, value: str) -> None:
+        ok = await self._ui_eval(
             f"""
             (() => {{
               const wanted = {json.dumps(label.strip().lower())};
@@ -584,97 +749,261 @@ class TradingViewMcpAlertRunner:
                   input.dispatchEvent(new Event('change', {{ bubbles: true }}));
                   return true;
                 }}
+
+                const clickable =
+                  node.closest('button, [role="button"], [data-name], [class*="container"], [class*="content"]') ||
+                  node;
+                clickable.click?.();
+
+                const activeDialogs = Array.from(
+                  document.querySelectorAll('[role="dialog"], [class*="dialog"], [class*="modal"]')
+                ).filter((el) => {{
+                  const rect = el.getBoundingClientRect();
+                  return rect.width > 0 && rect.height > 0;
+                }});
+                const dialog = activeDialogs[activeDialogs.length - 1] || document;
+                const expanded = dialog.querySelector('input, textarea');
+                if (expanded) {{
+                  expanded.focus();
+                  expanded.value = {json.dumps(value)};
+                  expanded.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                  expanded.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                  return true;
+                }}
               }}
               return false;
             }})()
             """
         )
+        if not ok:
+            raise RuntimeError(f"could not find alert field: {label}")
 
-    async def _set_webhook_url(self, webhook_url: str) -> None:
-        ok = await self._ui_eval(
+    async def _set_optional_field(self, label: str, value: str) -> bool:
+        try:
+            await self._set_field(label, value)
+            return True
+        except Exception:
+            return False
+
+    async def _open_labeled_panel(self, label: str) -> bool:
+        coords = await self._ui_eval(
             f"""
             (() => {{
+              const wanted = {json.dumps(label.strip().lower())};
               const normalize = (text) => (text || '').trim().toLowerCase().replace(/\\s+/g, ' ');
-              const dialogs = Array.from(document.querySelectorAll('[role="dialog"], [class*="dialog"], [class*="modal"]'))
-                .filter((el) => {{
-                  const rect = el.getBoundingClientRect();
-                  return rect.width > 0 && rect.height > 0;
-                }});
-              const dialog = dialogs.find((el) => normalize(el.textContent).includes('create alert on')) || dialogs[dialogs.length - 1] || document;
-              const panelButton = Array.from(dialog.querySelectorAll('button, [role="button"], div, span'))
-                .find((node) => normalize(node.textContent) === 'notifications');
-              panelButton?.click?.();
-              const panel = Array.from(document.querySelectorAll('[role="dialog"], [class*="dialog"], [class*="modal"]'))
-                .filter((el) => {{
-                  const rect = el.getBoundingClientRect();
-                  return rect.width > 0 && rect.height > 0;
-                }})
-                .find((el) => normalize(el.textContent).includes('notifications'));
-              if (!panel) return false;
-              const checkbox = Array.from(panel.querySelectorAll('label, span, div'))
-                .find((node) => {{
-                  const text = normalize(node.textContent);
-                  return text === 'webhook url' || text.startsWith('webhook url ');
-                }});
-              const root = checkbox?.closest('label, [role="group"], [class*="container"], [class*="content"], [data-name]') || checkbox?.parentElement || panel;
-              const toggle = root.querySelector('input[type="checkbox"]');
-              if (toggle && !toggle.checked) toggle.click();
-              const input = root.querySelector('input:not([type="checkbox"]), textarea') || panel.querySelector('input:not([type="checkbox"]), textarea');
-              if (!input) return false;
-              input.focus();
-              input.value = {json.dumps(webhook_url)};
-              input.dispatchEvent(new Event('input', {{ bubbles: true }}));
-              input.dispatchEvent(new Event('change', {{ bubbles: true }}));
-              const apply = Array.from(panel.querySelectorAll('button, [role="button"]')).find((btn) => normalize(btn.textContent) === 'apply');
-              apply?.click?.();
-              return true;
+              const dialogs = Array.from(
+                document.querySelectorAll('[role="dialog"], [class*="dialog"], [class*="modal"]')
+              ).filter((el) => {{
+                const rect = el.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+              }});
+              const mainDialog =
+                dialogs.find((el) => normalize(el.textContent).includes('create alert on')) ||
+                dialogs[dialogs.length - 1] ||
+                document;
+              const nodes = Array.from(mainDialog.querySelectorAll('button, [role="button"], div, span'));
+              const matches = [];
+              for (const node of nodes) {{
+                const text = normalize(node.textContent);
+                if (!text) continue;
+                if (text === wanted || text.startsWith(wanted + ' ')) {{
+                  const clickable =
+                    node.closest('button, [role="button"], [data-name], [class*="container"], [class*="content"]') ||
+                    node;
+                  const rect = clickable.getBoundingClientRect?.();
+                  if (!rect || rect.width <= 0 || rect.height <= 0) continue;
+                  matches.push({{
+                    text,
+                    x: rect.left + rect.width / 2,
+                    y: rect.top + rect.height / 2,
+                  }});
+                }}
+              }}
+              matches.sort((a, b) => a.text.length - b.text.length);
+              return matches[0] || null;
             }})()
             """
         )
-        if not ok:
-            raise RuntimeError("could not set MCP webhook URL")
-        await asyncio.sleep(0.4)
+        if not coords:
+            return False
+        await self._ui_mouse_click(coords["x"], coords["y"])
+        return True
 
-    async def _set_message(self, message: str) -> None:
+    async def _wait_for_panel(self, *titles: str) -> None:
+        wanted_titles = [title.strip().lower() for title in titles if title and title.strip()]
+        await self._wait_until(
+            f"""
+            (() => {{
+              const wanted = {json.dumps(wanted_titles)};
+              const normalize = (text) => (text || '').trim().toLowerCase().replace(/\\s+/g, ' ');
+              const dialogs = Array.from(
+                document.querySelectorAll('[role="dialog"], [class*="dialog"], [class*="modal"]')
+              ).filter((el) => {{
+                const rect = el.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+              }});
+              return dialogs.some((el) => {{
+                const headers = Array.from(el.querySelectorAll('button, span, div, h1, h2, h3'));
+                return headers.some((node) => wanted.includes(normalize(node.textContent)));
+              }});
+            }})()
+            """,
+            timeout_s=5.0,
+        )
+
+    async def _wait_for_main_alert_dialog(self) -> None:
+        await self._wait_until(
+            """
+            (() => {
+              const normalize = (text) => (text || '').trim().toLowerCase().replace(/\\s+/g, ' ');
+              const dialogs = Array.from(
+                document.querySelectorAll('[role="dialog"], [class*="dialog"], [class*="modal"]')
+              ).filter((el) => {
+                const rect = el.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+              });
+              return dialogs.some((el) => normalize(el.textContent).includes('create alert on'));
+            })()
+            """,
+            timeout_s=5.0,
+        )
+
+    async def _click_button(self, *labels: str) -> bool:
+        normalized = [label.strip().lower() for label in labels if label and label.strip()]
+        if not normalized:
+            return False
+        coords = await self._ui_eval(
+            f"""
+            (() => {{
+              const labels = {json.dumps(normalized)};
+              const normalize = (text) => (text || '').trim().toLowerCase().replace(/\\s+/g, ' ');
+              const dialogs = Array.from(
+                document.querySelectorAll('[role="dialog"], [class*="dialog"], [class*="modal"]')
+              ).filter((el) => {{
+                const rect = el.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+              }});
+              const dialog = dialogs[dialogs.length - 1] || document;
+              const buttons = Array.from(dialog.querySelectorAll('button, [role="button"]'));
+              for (const button of buttons) {{
+                const text = normalize(button.textContent);
+                if (!labels.includes(text)) continue;
+                const rect = button.getBoundingClientRect?.();
+                if (!rect || rect.width <= 0 || rect.height <= 0) continue;
+                return {{ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }};
+              }}
+              return null;
+            }})()
+            """
+        )
+        if not coords:
+            return False
+        await self._ui_mouse_click(coords["x"], coords["y"])
+        return True
+
+    async def _set_active_panel_text(self, value: str, *, panel_titles: list[str]) -> None:
         ok = await self._ui_eval(
             f"""
             (() => {{
               const normalize = (text) => (text || '').trim().toLowerCase().replace(/\\s+/g, ' ');
-              const dialogs = Array.from(document.querySelectorAll('[role="dialog"], [class*="dialog"], [class*="modal"]'))
-                .filter((el) => {{
-                  const rect = el.getBoundingClientRect();
-                  return rect.width > 0 && rect.height > 0;
-                }});
-              const dialog = dialogs.find((el) => normalize(el.textContent).includes('create alert on')) || dialogs[dialogs.length - 1] || document;
-              const panelButton = Array.from(dialog.querySelectorAll('button, [role="button"], div, span'))
-                .find((node) => normalize(node.textContent) === 'message');
-              panelButton?.click?.();
-              const panel = Array.from(document.querySelectorAll('[role="dialog"], [class*="dialog"], [class*="modal"]'))
-                .filter((el) => {{
-                  const rect = el.getBoundingClientRect();
-                  return rect.width > 0 && rect.height > 0;
-                }})
-                .find((el) => {{
-                  const text = normalize(el.textContent);
-                  return text.includes('edit message') || text.includes('message');
-                }});
+              const wanted = {json.dumps([title.strip().lower() for title in panel_titles if title and title.strip()])};
+              const dialogs = Array.from(
+                document.querySelectorAll('[role="dialog"], [class*="dialog"], [class*="modal"]')
+              ).filter((el) => {{
+                const rect = el.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0;
+              }});
+              const panel =
+                dialogs.find((el) => {{
+                  const headers = Array.from(el.querySelectorAll('button, span, div, h1, h2, h3'));
+                  return headers.some((node) => wanted.includes(normalize(node.textContent)));
+                }}) ||
+                dialogs[dialogs.length - 1] ||
+                null;
               if (!panel) return false;
               const input = panel.querySelector('textarea, input[type="text"], input:not([type]), [contenteditable="true"]');
               if (!input) return false;
               input.focus?.();
-              if (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) input.value = {json.dumps(message)};
-              else input.textContent = {json.dumps(message)};
+              if (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) input.value = {json.dumps(value)};
+              else input.textContent = {json.dumps(value)};
               input.dispatchEvent(new Event('input', {{ bubbles: true }}));
               input.dispatchEvent(new Event('change', {{ bubbles: true }}));
-              const apply = Array.from(panel.querySelectorAll('button, [role="button"]')).find((btn) => normalize(btn.textContent) === 'apply');
-              apply?.click?.();
               return true;
             }})()
             """
         )
         if not ok:
-            raise RuntimeError("could not set MCP alert message")
-        await asyncio.sleep(0.4)
+            raise RuntimeError("could not fill message editor")
+
+    async def _set_webhook_url(self, webhook_url: str) -> None:
+        if await self._set_optional_field("Webhook URL", webhook_url):
+            return
+
+        opened = await self._open_labeled_panel("Notifications")
+        if opened:
+            await asyncio.sleep(0.4)
+            await self._wait_for_panel("Notifications")
+            webhook_enabled = await self._ui_eval(
+                """
+                (() => {
+                  const dialogs = Array.from(
+                    document.querySelectorAll('[role="dialog"], [class*="dialog"], [class*="modal"]')
+                  ).filter((el) => {
+                    const rect = el.getBoundingClientRect();
+                    return rect.width > 0 && rect.height > 0;
+                  });
+                  const normalize = (text) => (text || '').trim().toLowerCase().replace(/\\s+/g, ' ');
+                  const panel =
+                    dialogs.find((el) => {
+                      const headers = Array.from(el.querySelectorAll('button, span, div, h1, h2, h3'));
+                      return headers.some((node) => normalize(node.textContent) === 'notifications');
+                    }) ||
+                    dialogs[dialogs.length - 1] ||
+                    document;
+                  const nodes = Array.from(panel.querySelectorAll('label, span, div, button'));
+                  for (const node of nodes) {
+                    const text = normalize(node.textContent);
+                    if (!text || !(text === 'webhook url' || text.startsWith('webhook url '))) continue;
+                    const root = node.closest('label, [role="group"], [class*="container"], [class*="content"], [data-name]') || node.parentElement || document;
+                    const input = root.querySelector('input[type="checkbox"]');
+                    if (input && !input.checked) {
+                      input.click();
+                      return true;
+                    }
+                    const button = root.querySelector('button, [role="button"]');
+                    button?.click?.();
+                    return true;
+                  }
+                  return false;
+                })()
+                """
+            )
+            if webhook_enabled:
+                await asyncio.sleep(0.4)
+            await self._set_field("Webhook URL", webhook_url)
+            applied = await self._click_button("Apply")
+            if not applied:
+                raise RuntimeError("could not find Notifications Apply button")
+            await asyncio.sleep(0.4)
+            await self._wait_for_main_alert_dialog()
+            return
+
+        raise RuntimeError("could not set MCP webhook URL")
+
+    async def _set_message(self, message: str) -> None:
+        opened = await self._open_labeled_panel("Message")
+        if opened:
+            await asyncio.sleep(0.4)
+            await self._wait_for_panel("Edit message", "Message")
+            await self._set_active_panel_text(message, panel_titles=["edit message", "message"])
+            applied = await self._click_button("Apply")
+            if not applied:
+                raise RuntimeError("could not find Message Apply button")
+            await asyncio.sleep(0.4)
+            await self._wait_for_main_alert_dialog()
+            return
+
+        raise RuntimeError("could not set MCP alert message")
 
     async def _submit_alert(self) -> None:
         submitted = await self._ui_eval(
