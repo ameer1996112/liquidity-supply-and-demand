@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+import pytest
 from fastapi.testclient import TestClient
 
 from config.settings import get_settings
@@ -33,6 +34,9 @@ class StubOptimizerService:
             "market": "forex",
             "summary": {"total_pairs": 2, "running_pairs": 1, "completed_pairs": 0, "failed_pairs": 0},
         }
+        self.portfolio_results: dict[str, dict] = {}
+        self.trials: dict[str, list[dict]] = {"run-1": [{"symbol": "EURUSD", "trial_number": 1}]}
+        self.stress_results: dict[str, list[dict]] = {"run-1": [{"symbol": "EURUSD", "scenario": "shock"}]}
 
     def start_run(self, **_: object) -> dict:
         return self._run
@@ -56,12 +60,31 @@ class StubOptimizerService:
     def get_run(self, run_id: str) -> dict:
         if run_id != "run-1":
             raise KeyError(run_id)
+        portfolio_result = self.portfolio_results.get(run_id)
+        if portfolio_result is not None:
+            self._run["portfolio_result"] = portfolio_result
         return self._run
 
     def list_results(self, run_id: str) -> list[dict]:
         if run_id != "run-1":
             raise KeyError(run_id)
         return [{"symbol": "EURUSD", "status": "completed", "metrics": {"score": 2.1}}]
+
+    def list_trials(self, run_id: str, symbol: str | None = None) -> list[dict]:
+        if run_id != "run-1":
+            raise KeyError(run_id)
+        trials = self.trials.get(run_id, [])
+        if symbol is None:
+            return trials
+        return [trial for trial in trials if trial.get("symbol") == symbol]
+
+    def list_stress_results(self, run_id: str, symbol: str | None = None) -> list[dict]:
+        if run_id != "run-1":
+            raise KeyError(run_id)
+        results = self.stress_results.get(run_id, [])
+        if symbol is None:
+            return results
+        return [result for result in results if result.get("symbol") == symbol]
 
     def list_events(self, run_id: str, *, limit: int = 200) -> list[dict]:
         if run_id != "run-1":
@@ -73,6 +96,18 @@ class StubOptimizerService:
             raise KeyError(run_id)
         self._run["status"] = "cancelled"
         return self._run
+
+
+@pytest.fixture
+def optimizer_store() -> StubOptimizerService:
+    return StubOptimizerService()
+
+
+@pytest.fixture
+def client(optimizer_store: StubOptimizerService) -> TestClient:
+    _disable_admin_auth()
+    with patch("src.api_optimizer_runs.get_optimizer_run_service", return_value=optimizer_store):
+        yield TestClient(app)
 
 
 @patch("src.api_optimizer_runs.get_optimizer_run_service", return_value=StubOptimizerService())
@@ -156,3 +191,19 @@ def test_get_optimizer_run_results_returns_payload(_) -> None:
     response = client.get("/api/optimizer/runs/run-1/results")
     assert response.status_code == 200
     assert response.json()["results"][0]["symbol"] == "EURUSD"
+
+
+def test_get_optimizer_run_returns_portfolio_summary(
+    client: TestClient,
+    optimizer_store: StubOptimizerService,
+) -> None:
+    optimizer_store.portfolio_results["run-1"] = {"combined_max_drawdown_pct": 5.9}
+    response = client.get("/api/optimizer/runs/run-1")
+    assert response.status_code == 200
+    assert response.json()["run"]["portfolio_result"]["combined_max_drawdown_pct"] == 5.9
+
+
+def test_get_optimizer_run_stress_results(client: TestClient) -> None:
+    response = client.get("/api/optimizer/runs/run-1/stress-results")
+    assert response.status_code == 200
+    assert "results" in response.json()
