@@ -506,7 +506,7 @@ class AlertSetupService:
                 params=row.get("params") or {},
                 risk_weight=float(risk_weight),
                 status="approved",
-                source_run_id=str(row.get("timestamp") or ""),
+                source_run_id=existing.get("source_run_id") if existing is not None else None,
                 source_score=float(row["score"]) if row.get("score") is not None else None,
                 source_metrics={k: v for k, v in source_metrics.items() if v is not None},
                 notes="imported from parallel_results.json",

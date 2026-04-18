@@ -1,6 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useToast } from '@/components/ui/toast';
 import {
   cancelAlertBatch,
   createAlertBatch,
@@ -76,11 +77,20 @@ export function useAlertRunnerStatus() {
 
 export function useCreateAlertBatch() {
   const queryClient = useQueryClient();
+  const { addToast } = useToast();
   return useMutation({
     mutationFn: (payload: AlertBatchCreateApi) => createAlertBatch(payload),
     onSuccess: (batch) => {
       queryClient.invalidateQueries({ queryKey: alertSetupKeys.list() });
       queryClient.setQueryData(alertSetupKeys.detail(batch.id), batch);
+    },
+    onError: (error: Error) => {
+      addToast({
+        title: 'Start batch failed',
+        message: error.message,
+        severity: 'critical',
+        duration: 8000,
+      });
     },
   });
 }

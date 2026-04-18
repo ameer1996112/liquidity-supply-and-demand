@@ -420,6 +420,8 @@ export function AlertSetupWorkspace() {
   const skippedPairs = currentBatch?.summary?.skipped_pairs ?? 0;
   const finishedPairs = completedPairs + failedPairs + skippedPairs;
   const progressPct = totalPairs > 0 ? Math.min(100, Math.round((finishedPairs / totalPairs) * 100)) : 0;
+  const createBatchError =
+    createBatch.error instanceof Error ? createBatch.error.message : null;
 
   function handleSubmit() {
     const payload: AlertBatchCreateApi = {
@@ -598,6 +600,11 @@ export function AlertSetupWorkspace() {
               Cancel batch
             </Button>
           </div>
+          {createBatchError ? (
+            <p className='text-xs text-red-300'>
+              Start batch failed: {createBatchError}
+            </p>
+          ) : null}
         </CardContent>
       </Card>
 

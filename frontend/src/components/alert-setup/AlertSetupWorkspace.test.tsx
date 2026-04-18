@@ -4,6 +4,8 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+let mockCreateBatchError: Error | null = null;
+
 vi.mock('@/hooks/useAlertSetup', () => ({
   useAlertBatches: () => ({
     data: [
@@ -106,6 +108,7 @@ vi.mock('@/hooks/useAlertSetup', () => ({
   }),
   useCreateAlertBatch: () => ({
     isPending: false,
+    error: mockCreateBatchError,
     mutate: (_payload: unknown, options?: { onSuccess?: (batch: { id: string }) => void }) => {
       options?.onSuccess?.({ id: 'batch-2026-04-14' });
     },
@@ -123,6 +126,7 @@ describe('AlertSetupWorkspace', () => {
   let root: Root;
 
   beforeEach(() => {
+    mockCreateBatchError = null;
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -143,5 +147,15 @@ describe('AlertSetupWorkspace', () => {
     expect(document.body.textContent).toContain('Approved preview');
     expect(document.body.textContent).toContain('USDJPY');
     expect(document.body.textContent).toContain('Alert Setup runner');
+  });
+
+  it('shows batch creation error inline when start batch fails', () => {
+    mockCreateBatchError = new Error('parallel_results.json not found');
+
+    act(() => {
+      root.render(<AlertSetupWorkspace />);
+    });
+
+    expect(document.body.textContent).toContain('Start batch failed: parallel_results.json not found');
   });
 });
