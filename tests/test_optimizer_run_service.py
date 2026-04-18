@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from scripts.optimizer.parallel_runner import results_file_for_broker
-from src.services.optimizer_run_service import OptimizerRunService
+from src.services.optimizer_run_service import OptimizerRunService, _normalize_portfolio_result
 from src.services import optimizer_run_service as optimizer_service_module
 
 
@@ -258,6 +258,62 @@ def test_start_run_rejects_unknown_broker(monkeypatch) -> None:
         raise AssertionError("expected ValueError")
     except ValueError as exc:
         assert "invalid broker" in str(exc)
+
+
+def test_service_exposes_survival_artifacts(monkeypatch) -> None:
+    store = InMemoryOptimizerStore.with_run_and_pending_symbol("run-1", "EURUSD")
+    service = OptimizerRunService(store, project_root=Path("/tmp"), results_dir=Path("/tmp/results"))
+
+    service.record_trial(
+        "run-1",
+        "EURUSD",
+        {"trial_number": 3, "window": "forward", "params": {}, "metrics": {"net_profit": 200.0}},
+    )
+    service.record_stress_result(
+        "run-1",
+        "EURUSD",
+        {"stress_type": "news_blackout_30m", "status": "passed", "metrics": {"profit_factor": 1.2}},
+    )
+    service.update_portfolio_result(
+        "run-1",
+        {"combined_max_drawdown_pct": 5.2, "weights": {"EURUSD": 1.0}},
+    )
+
+    assert service.list_trials("run-1", "EURUSD")[0]["window"] == "forward"
+    assert service.list_stress_results("run-1", "EURUSD")[0]["status"] == "passed"
+    assert service.get_portfolio_result("run-1")["weights"]["EURUSD"] == 1.0
+    assert service.get_run("run-1")["portfolio_result"]["weights"]["EURUSD"] == 1.0
+
+
+def test_survival_artifacts_get_run_returns_detached_payload() -> None:
+    store = InMemoryOptimizerStore.with_run_and_pending_symbol("run-1", "EURUSD")
+    store.upsert_portfolio_result(
+        "run-1",
+        {"combined_max_drawdown_pct": 5.2, "weights": {"EURUSD": 1.0}},
+    )
+    service = OptimizerRunService(store, project_root=Path("/tmp"), results_dir=Path("/tmp/results"))
+
+    run = service.get_run("run-1")
+    run["pairs"].append("GBPUSD")
+    run["summary"]["completed_pairs"] = 99
+    run["portfolio_result"]["weights"]["EURUSD"] = 0.5
+
+    assert store.runs["run-1"]["pairs"] == ["EURUSD"]
+    assert store.runs["run-1"]["summary"]["completed_pairs"] == 0
+    assert store.portfolio_results["run-1"]["weights"]["EURUSD"] == 1.0
+
+
+def test_portfolio_result_normalization_returns_flat_metrics_payload() -> None:
+    row = {
+        "run_id": "run-1",
+        "metrics": {"combined_max_drawdown_pct": 5.2, "weights": {"EURUSD": 1.0}},
+        "created_at": "2026-04-18T00:00:00+00:00",
+        "updated_at": "2026-04-18T00:00:00+00:00",
+    }
+
+    normalized = _normalize_portfolio_result(row)
+
+    assert normalized == {"combined_max_drawdown_pct": 5.2, "weights": {"EURUSD": 1.0}}
 
 
 def test_list_runs_filters_by_strategy_identity() -> None:

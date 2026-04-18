@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import os
 import subprocess
@@ -48,6 +49,13 @@ def _normalize_run(row: dict[str, Any] | None) -> dict[str, Any] | None:
     }
 
 
+def _normalize_portfolio_result(row: dict[str, Any] | None) -> dict[str, Any] | None:
+    if row is None:
+        return None
+    metrics = row.get("metrics")
+    return metrics if isinstance(metrics, dict) else {}
+
+
 class OptimizerRunRepository(Protocol):
     def create_run(self, payload: dict[str, Any]) -> dict[str, Any]: ...
     def update_run(self, run_id: str, updates: dict[str, Any]) -> dict[str, Any]: ...
@@ -64,6 +72,12 @@ class OptimizerRunRepository(Protocol):
     def create_results(self, run_id: str, symbols: list[str]) -> None: ...
     def update_result(self, run_id: str, symbol: str, updates: dict[str, Any]) -> dict[str, Any]: ...
     def list_results(self, run_id: str) -> list[dict[str, Any]]: ...
+    def create_trial(self, run_id: str, symbol: str, payload: dict[str, Any]) -> dict[str, Any]: ...
+    def list_trials(self, run_id: str, symbol: str | None = None) -> list[dict[str, Any]]: ...
+    def create_stress_result(self, run_id: str, symbol: str, payload: dict[str, Any]) -> dict[str, Any]: ...
+    def list_stress_results(self, run_id: str, symbol: str | None = None) -> list[dict[str, Any]]: ...
+    def upsert_portfolio_result(self, run_id: str, payload: dict[str, Any]) -> dict[str, Any]: ...
+    def get_portfolio_result(self, run_id: str) -> dict[str, Any] | None: ...
     def append_event(self, payload: dict[str, Any]) -> dict[str, Any]: ...
     def list_events(self, run_id: str, *, limit: int = 200) -> list[dict[str, Any]]: ...
 
@@ -171,6 +185,61 @@ class SupabaseOptimizerRunRepository:
         )
         return resp.data or []
 
+    def create_trial(self, run_id: str, symbol: str, payload: dict[str, Any]) -> dict[str, Any]:
+        row = {"run_id": run_id, "symbol": symbol, **payload}
+        resp = self._sb.table("optimizer_run_trials").insert(row).execute()
+        return resp.data[0] if resp.data else row
+
+    def list_trials(self, run_id: str, symbol: str | None = None) -> list[dict[str, Any]]:
+        query = (
+            self._sb.table("optimizer_run_trials")
+            .select("*")
+            .eq("run_id", run_id)
+            .order("trial_number")
+        )
+        if symbol is not None:
+            query = query.eq("symbol", symbol)
+        resp = query.execute()
+        return resp.data or []
+
+    def create_stress_result(self, run_id: str, symbol: str, payload: dict[str, Any]) -> dict[str, Any]:
+        row = {"run_id": run_id, "symbol": symbol, **payload}
+        resp = self._sb.table("optimizer_run_stress_tests").insert(row).execute()
+        return resp.data[0] if resp.data else row
+
+    def list_stress_results(self, run_id: str, symbol: str | None = None) -> list[dict[str, Any]]:
+        query = (
+            self._sb.table("optimizer_run_stress_tests")
+            .select("*")
+            .eq("run_id", run_id)
+            .order("created_at")
+        )
+        if symbol is not None:
+            query = query.eq("symbol", symbol)
+        resp = query.execute()
+        return resp.data or []
+
+    def upsert_portfolio_result(self, run_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        row = {"run_id": run_id, "metrics": payload}
+        resp = (
+            self._sb.table("optimizer_portfolio_results")
+            .upsert(row, on_conflict="run_id")
+            .execute()
+        )
+        return _normalize_portfolio_result(resp.data[0]) if resp.data else payload
+
+    def get_portfolio_result(self, run_id: str) -> dict[str, Any] | None:
+        resp = (
+            self._sb.table("optimizer_portfolio_results")
+            .select("*")
+            .eq("run_id", run_id)
+            .limit(1)
+            .execute()
+        )
+        if not resp.data:
+            return None
+        return _normalize_portfolio_result(resp.data[0])
+
     def append_event(self, payload: dict[str, Any]) -> dict[str, Any]:
         resp = self._sb.table("optimizer_run_events").insert(payload).execute()
         return resp.data[0] if resp.data else payload
@@ -200,6 +269,12 @@ class OptimizerRunService:
         self._results_dir = results_dir
         self._processes: dict[str, _ManagedProcess] = {}
         self._lock = threading.Lock()
+
+    def _require_run_exists(self, run_id: str) -> dict[str, Any]:
+        run = self._repository.get_run(run_id)
+        if run is None:
+            raise KeyError(run_id)
+        return run
 
     def start_run(
         self,
@@ -300,11 +375,33 @@ class OptimizerRunService:
 
     def push_event(self, run_id: str, event: dict[str, Any]) -> dict[str, Any]:
         """Push a timeline event from the local agent."""
-        run = self._repository.get_run(run_id)
-        if run is None:
-            raise KeyError(run_id)
+        self._require_run_exists(run_id)
         event["run_id"] = run_id
         return self._repository.append_event(event)
+
+    def record_trial(self, run_id: str, symbol: str, payload: dict[str, Any]) -> dict[str, Any]:
+        self._require_run_exists(run_id)
+        return self._repository.create_trial(run_id, symbol, payload)
+
+    def list_trials(self, run_id: str, symbol: str | None = None) -> list[dict[str, Any]]:
+        self.get_run(run_id)
+        return self._repository.list_trials(run_id, symbol)
+
+    def record_stress_result(self, run_id: str, symbol: str, payload: dict[str, Any]) -> dict[str, Any]:
+        self._require_run_exists(run_id)
+        return self._repository.create_stress_result(run_id, symbol, payload)
+
+    def list_stress_results(self, run_id: str, symbol: str | None = None) -> list[dict[str, Any]]:
+        self.get_run(run_id)
+        return self._repository.list_stress_results(run_id, symbol)
+
+    def update_portfolio_result(self, run_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        self._require_run_exists(run_id)
+        return self._repository.upsert_portfolio_result(run_id, payload)
+
+    def get_portfolio_result(self, run_id: str) -> dict[str, Any] | None:
+        self._require_run_exists(run_id)
+        return self._repository.get_portfolio_result(run_id)
 
     # ── Read methods ─────────────────────────────────────────────────────────
 
@@ -327,6 +424,8 @@ class OptimizerRunService:
         run = self._repository.get_run(run_id)
         if run is None:
             raise KeyError(run_id)
+        run = copy.deepcopy(run)
+        run["portfolio_result"] = copy.deepcopy(self._repository.get_portfolio_result(run_id))
         return run
 
     def list_results(self, run_id: str) -> list[dict[str, Any]]:
