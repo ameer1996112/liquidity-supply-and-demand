@@ -22,6 +22,9 @@ class InMemoryOptimizerStore:
         self.runs: dict[str, dict] = {}
         self.results: dict[tuple[str, str], dict] = {}
         self.events: list[dict] = []
+        self.trials: list[dict] = []
+        self.stress_results: list[dict] = []
+        self.portfolio_results: dict[str, dict] = {}
 
     @classmethod
     def with_running_run(cls) -> "InMemoryOptimizerStore":
@@ -113,6 +116,38 @@ class InMemoryOptimizerStore:
 
     def list_results(self, run_id: str) -> list[dict]:
         return [value for (current_run_id, _), value in self.results.items() if current_run_id == run_id]
+
+    def create_trial(self, run_id: str, symbol: str, payload: dict) -> dict:
+        row = {"run_id": run_id, "symbol": symbol, **payload}
+        self.trials.append(row)
+        return row
+
+    def list_trials(self, run_id: str, symbol: str | None = None) -> list[dict]:
+        return [
+            row
+            for row in self.trials
+            if row["run_id"] == run_id and (symbol is None or row["symbol"] == symbol)
+        ]
+
+    def create_stress_result(self, run_id: str, symbol: str, payload: dict) -> dict:
+        row = {"run_id": run_id, "symbol": symbol, **payload}
+        self.stress_results.append(row)
+        return row
+
+    def list_stress_results(self, run_id: str, symbol: str | None = None) -> list[dict]:
+        return [
+            row
+            for row in self.stress_results
+            if row["run_id"] == run_id and (symbol is None or row["symbol"] == symbol)
+        ]
+
+    def upsert_portfolio_result(self, run_id: str, payload: dict) -> dict:
+        row = {"run_id": run_id, **payload}
+        self.portfolio_results[run_id] = row
+        return row
+
+    def get_portfolio_result(self, run_id: str) -> dict | None:
+        return self.portfolio_results.get(run_id)
 
     def append_event(self, payload: dict) -> dict:
         self.events.append(payload)
@@ -322,3 +357,39 @@ def test_rebuild_summary_keeps_broker_specific_output_path() -> None:
 
 def test_results_file_for_broker_uses_broker_specific_filename() -> None:
     assert results_file_for_broker("fxcm").name == "parallel_results_fxcm.json"
+
+
+def test_repository_persists_trials_stress_and_portfolio_results_richer_persistence() -> None:
+    store = InMemoryOptimizerStore()
+
+    store.create_trial(
+        "run-1",
+        "EURUSD",
+        {
+            "trial_number": 1,
+            "window": "train",
+            "params": {"ema_len": 200},
+            "metrics": {"net_profit": 1200.0},
+        },
+    )
+    store.create_stress_result(
+        "run-1",
+        "EURUSD",
+        {
+            "stress_type": "spread_125",
+            "status": "passed",
+            "metrics": {"max_drawdown_pct": 4.1},
+        },
+    )
+    store.upsert_portfolio_result(
+        "run-1",
+        {
+            "combined_max_drawdown_pct": 5.8,
+            "combined_daily_drawdown_pct": 2.7,
+            "weights": {"EURUSD": 1.0},
+        },
+    )
+
+    assert store.list_trials("run-1", "EURUSD")[0]["trial_number"] == 1
+    assert store.list_stress_results("run-1", "EURUSD")[0]["stress_type"] == "spread_125"
+    assert store.get_portfolio_result("run-1")["combined_max_drawdown_pct"] == 5.8
