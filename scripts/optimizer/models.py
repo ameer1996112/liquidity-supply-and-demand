@@ -23,6 +23,10 @@ class BacktestResult:
     profitable_trades: int = 0
     score: float = 0.0       # Composite optimization score
     timestamp: str = ""
+    decision: dict[str, Any] = field(default_factory=dict)
+    forward_metrics: dict[str, Any] = field(default_factory=dict)
+    validation_metrics: dict[str, Any] = field(default_factory=dict)
+    stress_results: list[dict[str, Any]] = field(default_factory=list)
 
     def calculate_score(self) -> None:
         """
@@ -84,4 +88,8 @@ class BacktestResult:
             "profitable_trades": self.profitable_trades,
             "score": self.score,
             "timestamp": self.timestamp,
+            "decision": self.decision,
+            "forward_metrics": self.forward_metrics,
+            "validation_metrics": self.validation_metrics,
+            "stress_results": self.stress_results,
         }

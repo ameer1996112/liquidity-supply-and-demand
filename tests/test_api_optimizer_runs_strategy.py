@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from scripts.optimizer.models import BacktestResult
 from src.api_optimizer_runs import router
 
 
@@ -80,6 +81,7 @@ def test_create_optimizer_run_accepts_strategy_identity(monkeypatch) -> None:
             "n_trials": 25,
             "dd_limit": 6.0,
             "dry_run": True,
+            "broker": "vantage",
         },
     )
 
@@ -95,3 +97,22 @@ def test_list_optimizer_runs_filters_by_strategy(monkeypatch) -> None:
     body = response.json()
     assert len(body["runs"]) == 1
     assert body["runs"][0]["strategy_id"] == "liq_sd_v1"
+
+
+def test_backtest_result_serializes_pair_decision() -> None:
+    result = BacktestResult(
+        symbol="EURUSD",
+        params={"ema_mode": "ema200_aligned"},
+        net_profit=1200.0,
+        total_trades=22,
+        win_rate=55.0,
+        profit_factor=1.24,
+        max_drawdown_pct=4.6,
+        score=78.0,
+    )
+
+    result.decision = {"status": "PASS", "risk_weight": 1.0}
+
+    payload = result.to_dict()
+
+    assert payload["decision"]["status"] == "PASS"
