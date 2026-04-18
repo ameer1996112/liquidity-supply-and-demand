@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from scripts.optimizer.models import BacktestResult
+from scripts.optimizer.optimizer import TradingViewOptimizer
 from src.api_optimizer_runs import router
 
 
@@ -116,3 +119,61 @@ def test_backtest_result_serializes_pair_decision() -> None:
     payload = result.to_dict()
 
     assert payload["decision"]["status"] == "PASS"
+
+
+def test_optimizer_run_enriches_timeout_partial_best(monkeypatch) -> None:
+    partial_best = BacktestResult(
+        symbol="EURUSD",
+        params={"max_daily_loss_pct": 3.5},
+        verified_symbol="EURUSD",
+        net_profit=1200.0,
+        total_trades=22,
+        win_rate=55.0,
+        profit_factor=1.24,
+        max_drawdown=500.0,
+        max_drawdown_pct=4.6,
+        drawdown_source="percent",
+        score=78.0,
+    )
+
+    class StubWorker:
+        def __init__(self, page: object, optimizer: TradingViewOptimizer) -> None:
+            self.best_result = partial_best
+            self.results = [partial_best]
+
+    async def _fake_connect(self: TradingViewOptimizer) -> None:
+        return None
+
+    async def _fake_optimize(
+        self: TradingViewOptimizer, worker: StubWorker, symbol: str, n_trials: int
+    ) -> BacktestResult:
+        raise asyncio.TimeoutError
+
+    checkpoint: dict[str, object] = {"completed": [], "results": {}}
+    saved: dict[str, BacktestResult] = {}
+
+    def _fake_save_checkpoint(
+        self: TradingViewOptimizer, checkpoint_data: dict, symbol: str, result: BacktestResult
+    ) -> None:
+        saved[symbol] = result
+
+    monkeypatch.setattr("scripts.optimizer.optimizer.TabWorker", StubWorker)
+    monkeypatch.setattr(TradingViewOptimizer, "connect_to_brave", _fake_connect)
+    monkeypatch.setattr(TradingViewOptimizer, "optimize_pair_bayesian", _fake_optimize)
+    monkeypatch.setattr(TradingViewOptimizer, "_load_checkpoint", lambda self: checkpoint)
+    monkeypatch.setattr(TradingViewOptimizer, "_save_checkpoint", _fake_save_checkpoint)
+    monkeypatch.setattr(TradingViewOptimizer, "save_results", lambda self: None)
+
+    optimizer = TradingViewOptimizer(
+        pairs=["EURUSD"],
+        bayesian_mode=True,
+        generate_report=False,
+    )
+    optimizer.tv_pages = [object()]
+
+    asyncio.run(optimizer.run())
+
+    enriched = optimizer.best_per_pair["EURUSD"]
+    assert enriched.decision["status"] == "PASS"
+    assert enriched.forward_metrics["max_daily_loss_pct"] == 3.5
+    assert saved["EURUSD"].decision["risk_weight"] == 1.0

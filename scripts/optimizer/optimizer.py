@@ -643,6 +643,7 @@ class TradingViewOptimizer:
                         f"\n  WARNING: {symbol} timed out after {n_done} trials — "
                         f"saving partial best (score={partial_best.score:.2f})"
                     )
+                    partial_best = self._apply_staged_survival_result(partial_best)
                     self.best_per_pair[symbol] = partial_best
                     self.results.extend(worker.results)
                     self._save_checkpoint(checkpoint, symbol, partial_best)
