@@ -23,6 +23,12 @@ vi.mock('@/hooks/useOptimizerRuns', () => ({
         broker: 'vantage',
         market: 'forex',
         summary: { total_pairs: 2, running_pairs: 1, completed_pairs: 1, failed_pairs: 0, best_symbol: 'EURUSD', best_score: 2.1 },
+        portfolio_result: {
+          combined_max_drawdown_pct: 4.8,
+          combined_daily_drawdown_pct: 2.1,
+          worst_day_pct: -1.4,
+          weights: { EURUSD: 0.6, GBPUSD: 0.4 },
+        },
       },
     ],
     isLoading: false,
@@ -42,6 +48,12 @@ vi.mock('@/hooks/useOptimizerRuns', () => ({
       broker: 'vantage',
       market: 'forex',
       summary: { total_pairs: 2, running_pairs: 1, completed_pairs: 1, failed_pairs: 0, best_symbol: 'EURUSD', best_score: 2.1 },
+      portfolio_result: {
+        combined_max_drawdown_pct: 4.8,
+        combined_daily_drawdown_pct: 2.1,
+        worst_day_pct: -1.4,
+        weights: { EURUSD: 0.6, GBPUSD: 0.4 },
+      },
     },
   }),
   useOptimizerRunResults: () => ({
@@ -51,6 +63,12 @@ vi.mock('@/hooks/useOptimizerRuns', () => ({
   }),
   useOptimizerRunEvents: () => ({
     data: [{ event_type: 'pair_completed', symbol: 'EURUSD', worker_id: 0, payload: {}, created_at: '2026-04-13T12:00:00Z' }],
+  }),
+  useOptimizerRunTrials: () => ({
+    data: [],
+  }),
+  useOptimizerRunStressResults: () => ({
+    data: [],
   }),
   useCreateOptimizerRun: () => ({
     isPending: false,
@@ -97,6 +115,14 @@ describe('OptimizerRunsWorkspace', () => {
     expect(document.body.textContent).toContain('EURUSD');
     expect(document.body.textContent).toContain('liq_sd_v1@1');
     expect(document.body.textContent).toContain('VANTAGE');
+  });
+
+  it('renders portfolio overview metrics from enriched run payload', async () => {
+    act(() => {
+      root.render(<OptimizerRunsWorkspace />);
+    });
+
+    await expect.poll(() => document.body.textContent ?? '').toMatch(/combined max dd/i);
   });
 
   it('defaults broker selection to Vantage and submits selected broker', () => {

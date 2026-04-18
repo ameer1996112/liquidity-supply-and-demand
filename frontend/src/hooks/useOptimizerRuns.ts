@@ -8,6 +8,8 @@ import {
   fetchOptimizerRun,
   fetchOptimizerRunEvents,
   fetchOptimizerRunResults,
+  fetchOptimizerRunStressResults,
+  fetchOptimizerRunTrials,
   fetchOptimizerRuns,
   type OptimizerRunCreateApi,
 } from '@/lib/api';
@@ -17,6 +19,10 @@ export const optimizerRunKeys = {
   detail: (runId: string) => ['optimizer-runs', 'detail', runId] as const,
   results: (runId: string) => ['optimizer-runs', 'results', runId] as const,
   events: (runId: string) => ['optimizer-runs', 'events', runId] as const,
+  trials: (runId: string, symbol?: string | null) =>
+    ['optimizer-runs', 'trials', runId, symbol ?? 'all'] as const,
+  stressResults: (runId: string, symbol?: string | null) =>
+    ['optimizer-runs', 'stress-results', runId, symbol ?? 'all'] as const,
 };
 
 export function useOptimizerRuns() {
@@ -56,6 +62,28 @@ export function useOptimizerRunEvents(runId: string | null) {
   });
 }
 
+export function useOptimizerRunTrials(runId: string | null, symbol?: string | null) {
+  return useQuery({
+    queryKey: runId
+      ? optimizerRunKeys.trials(runId, symbol)
+      : ['optimizer-runs', 'trials', 'idle', symbol ?? 'all'],
+    queryFn: () => fetchOptimizerRunTrials(runId!, symbol ?? undefined),
+    enabled: Boolean(runId),
+    refetchInterval: 3000,
+  });
+}
+
+export function useOptimizerRunStressResults(runId: string | null, symbol?: string | null) {
+  return useQuery({
+    queryKey: runId
+      ? optimizerRunKeys.stressResults(runId, symbol)
+      : ['optimizer-runs', 'stress-results', 'idle', symbol ?? 'all'],
+    queryFn: () => fetchOptimizerRunStressResults(runId!, symbol ?? undefined),
+    enabled: Boolean(runId),
+    refetchInterval: 5000,
+  });
+}
+
 export function useCreateOptimizerRun() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -84,6 +112,8 @@ export function useCancelOptimizerRun() {
       queryClient.setQueryData(optimizerRunKeys.detail(run.id), run);
       queryClient.invalidateQueries({ queryKey: optimizerRunKeys.results(run.id) });
       queryClient.invalidateQueries({ queryKey: optimizerRunKeys.events(run.id) });
+      queryClient.invalidateQueries({ queryKey: optimizerRunKeys.trials(run.id) });
+      queryClient.invalidateQueries({ queryKey: optimizerRunKeys.stressResults(run.id) });
     },
   });
 }

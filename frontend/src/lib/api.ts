@@ -221,6 +221,13 @@ export interface OptimizerRunSummaryApi {
   error_message?: string;
 }
 
+export interface OptimizerPortfolioResultApi {
+  combined_max_drawdown_pct?: number;
+  combined_daily_drawdown_pct?: number;
+  worst_day_pct?: number;
+  weights?: Record<string, number>;
+}
+
 export interface OptimizerRunApi {
   id: string;
   strategy_id?: string | null;
@@ -236,6 +243,7 @@ export interface OptimizerRunApi {
   market?: string | null;
   created_by?: string | null;
   summary: OptimizerRunSummaryApi;
+  portfolio_result?: OptimizerPortfolioResultApi | null;
   started_at?: string | null;
   finished_at?: string | null;
   created_at?: string | null;
@@ -266,6 +274,30 @@ export interface OptimizerRunEventApi {
   created_at?: string;
 }
 
+export interface OptimizerRunTrialApi {
+  id?: string | number;
+  run_id?: string;
+  symbol: string;
+  trial_number?: number | null;
+  window?: string | null;
+  params?: Record<string, unknown> | null;
+  metrics?: Record<string, unknown> | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface OptimizerRunStressResultApi {
+  id?: string | number;
+  run_id?: string;
+  symbol?: string | null;
+  scenario?: string | null;
+  stress_type?: string | null;
+  status?: string | null;
+  metrics?: Record<string, unknown> | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
 export interface OptimizerRunCreateApi {
   strategy_id: string;
   strategy_version: string;
@@ -284,7 +316,8 @@ export async function fetchOptimizerRuns() {
 }
 
 export async function fetchOptimizerRun(runId: string) {
-  return apiFetch<OptimizerRunApi>(`/api/optimizer/runs/${runId}`);
+  const response = await apiFetch<{ run: OptimizerRunApi }>(`/api/optimizer/runs/${runId}`);
+  return response.run;
 }
 
 export async function fetchOptimizerRunResults(runId: string) {
@@ -299,6 +332,22 @@ export async function fetchOptimizerRunEvents(runId: string) {
     `/api/optimizer/runs/${runId}/events`
   );
   return response.events || [];
+}
+
+export async function fetchOptimizerRunTrials(runId: string, symbol?: string) {
+  const query = symbol ? `?symbol=${encodeURIComponent(symbol)}` : '';
+  const response = await apiFetch<{ trials: OptimizerRunTrialApi[] }>(
+    `/api/optimizer/runs/${runId}/trials${query}`
+  );
+  return response.trials || [];
+}
+
+export async function fetchOptimizerRunStressResults(runId: string, symbol?: string) {
+  const query = symbol ? `?symbol=${encodeURIComponent(symbol)}` : '';
+  const response = await apiFetch<{ results: OptimizerRunStressResultApi[] }>(
+    `/api/optimizer/runs/${runId}/stress-results${query}`
+  );
+  return response.results || [];
 }
 
 export async function createOptimizerRun(payload: OptimizerRunCreateApi) {
