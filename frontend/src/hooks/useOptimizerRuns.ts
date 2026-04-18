@@ -19,10 +19,11 @@ export const optimizerRunKeys = {
   detail: (runId: string) => ['optimizer-runs', 'detail', runId] as const,
   results: (runId: string) => ['optimizer-runs', 'results', runId] as const,
   events: (runId: string) => ['optimizer-runs', 'events', runId] as const,
-  trials: (runId: string, symbol?: string | null) =>
-    ['optimizer-runs', 'trials', runId, symbol ?? 'all'] as const,
-  stressResults: (runId: string, symbol?: string | null) =>
-    ['optimizer-runs', 'stress-results', runId, symbol ?? 'all'] as const,
+  trials: (runId: string) => ['optimizer-runs', 'trials', runId] as const,
+  trialSymbol: (runId: string, symbol: string) => ['optimizer-runs', 'trials', runId, symbol] as const,
+  stressResults: (runId: string) => ['optimizer-runs', 'stress-results', runId] as const,
+  stressResultSymbol: (runId: string, symbol: string) =>
+    ['optimizer-runs', 'stress-results', runId, symbol] as const,
 };
 
 export function useOptimizerRuns() {
@@ -65,8 +66,10 @@ export function useOptimizerRunEvents(runId: string | null) {
 export function useOptimizerRunTrials(runId: string | null, symbol?: string | null) {
   return useQuery({
     queryKey: runId
-      ? optimizerRunKeys.trials(runId, symbol)
-      : ['optimizer-runs', 'trials', 'idle', symbol ?? 'all'],
+      ? symbol
+        ? optimizerRunKeys.trialSymbol(runId, symbol)
+        : optimizerRunKeys.trials(runId)
+      : ['optimizer-runs', 'trials', 'idle'],
     queryFn: () => fetchOptimizerRunTrials(runId!, symbol ?? undefined),
     enabled: Boolean(runId),
     refetchInterval: 3000,
@@ -76,8 +79,10 @@ export function useOptimizerRunTrials(runId: string | null, symbol?: string | nu
 export function useOptimizerRunStressResults(runId: string | null, symbol?: string | null) {
   return useQuery({
     queryKey: runId
-      ? optimizerRunKeys.stressResults(runId, symbol)
-      : ['optimizer-runs', 'stress-results', 'idle', symbol ?? 'all'],
+      ? symbol
+        ? optimizerRunKeys.stressResultSymbol(runId, symbol)
+        : optimizerRunKeys.stressResults(runId)
+      : ['optimizer-runs', 'stress-results', 'idle'],
     queryFn: () => fetchOptimizerRunStressResults(runId!, symbol ?? undefined),
     enabled: Boolean(runId),
     refetchInterval: 5000,
