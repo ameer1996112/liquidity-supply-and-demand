@@ -4,6 +4,8 @@ import { act } from 'react';
 import { createRoot, Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+const createRunMutate = vi.fn();
+
 vi.mock('@/hooks/useOptimizerRuns', () => ({
   useOptimizerRuns: () => ({
     data: [
@@ -18,6 +20,8 @@ vi.mock('@/hooks/useOptimizerRuns', () => ({
         n_trials: 25,
         dd_limit: 6,
         dry_run: true,
+        broker: 'vantage',
+        market: 'forex',
         summary: { total_pairs: 2, running_pairs: 1, completed_pairs: 1, failed_pairs: 0, best_symbol: 'EURUSD', best_score: 2.1 },
       },
     ],
@@ -35,6 +39,8 @@ vi.mock('@/hooks/useOptimizerRuns', () => ({
       n_trials: 25,
       dd_limit: 6,
       dry_run: true,
+      broker: 'vantage',
+      market: 'forex',
       summary: { total_pairs: 2, running_pairs: 1, completed_pairs: 1, failed_pairs: 0, best_symbol: 'EURUSD', best_score: 2.1 },
     },
   }),
@@ -48,7 +54,8 @@ vi.mock('@/hooks/useOptimizerRuns', () => ({
   }),
   useCreateOptimizerRun: () => ({
     isPending: false,
-    mutate: (_payload: unknown, options?: { onSuccess?: (run: { id: string }) => void }) => {
+    mutate: (payload: unknown, options?: { onSuccess?: (run: { id: string }) => void }) => {
+      createRunMutate(payload);
       options?.onSuccess?.({ id: 'run-2026-04-13' });
     },
   }),
@@ -68,6 +75,7 @@ describe('OptimizerRunsWorkspace', () => {
   let root: Root;
 
   beforeEach(() => {
+    createRunMutate.mockClear();
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -88,5 +96,36 @@ describe('OptimizerRunsWorkspace', () => {
     expect(document.body.textContent).toContain('Completed pairs');
     expect(document.body.textContent).toContain('EURUSD');
     expect(document.body.textContent).toContain('liq_sd_v1@1');
+    expect(document.body.textContent).toContain('VANTAGE');
+  });
+
+  it('defaults broker selection to Vantage and submits selected broker', () => {
+    act(() => {
+      root.render(<OptimizerRunsWorkspace />);
+    });
+
+    const brokerSelect = container.querySelector('select[aria-label="Broker"]') as HTMLSelectElement | null;
+    expect(brokerSelect?.value).toBe('vantage');
+
+    act(() => {
+      if (brokerSelect) {
+        brokerSelect.value = 'oanda';
+        brokerSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+
+    const startButton = Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Start run')
+    );
+
+    act(() => {
+      startButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(createRunMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        broker: 'oanda',
+      })
+    );
   });
 });

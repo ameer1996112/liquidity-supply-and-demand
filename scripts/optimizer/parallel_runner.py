@@ -53,10 +53,25 @@ except ImportError:
 
 log = logging.getLogger(__name__)
 
-PARALLEL_RESULTS_FILE = RESULTS_DIR / "parallel_results.json"
+LEGACY_PARALLEL_RESULTS_FILE = RESULTS_DIR / "parallel_results.json"
 PARALLEL_LOG_FILE = RESULTS_DIR / "parallel_run.log"
 MAX_PAIR_RETRIES = 2
 WORKER_STARTUP_DELAY = 15.0  # stagger worker starts to avoid Chrome overload on startup
+SUPPORTED_BROKERS = {"vantage", "oanda", "fxcm"}
+
+
+def results_file_for_broker(broker: str) -> Path:
+    normalized = broker.strip().lower()
+    if normalized not in SUPPORTED_BROKERS:
+        raise ValueError(f"Unsupported broker: {broker}")
+    return RESULTS_DIR / f"parallel_results_{normalized}.json"
+
+
+def write_results_snapshot(results: dict[str, Any], results_file: Path) -> None:
+    with open(results_file, "w") as handle:
+        json.dump(results, handle, indent=2)
+    with open(LEGACY_PARALLEL_RESULTS_FILE, "w") as handle:
+        json.dump(results, handle, indent=2)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -305,6 +320,7 @@ async def worker_task(
     page: Page | None,
     pair_queue: asyncio.Queue,
     results: dict,
+    results_file: Path,
     results_lock: asyncio.Lock,
     error_log: list,
     mode: str,
@@ -434,8 +450,7 @@ async def worker_task(
                     "timestamp": datetime.now().isoformat(),
                 }
                 # Write results incrementally — never lose completed work
-                with open(PARALLEL_RESULTS_FILE, "w") as f:
-                    json.dump(results, f, indent=2)
+                write_results_snapshot(results, results_file)
 
         pair_queue.task_done()
 
@@ -453,23 +468,25 @@ async def run_parallel(
     n_trials: int,
     dd_limit: float,
     dry_run: bool,
+    broker: str,
     raw_args: list[str] | None = None,
 ) -> dict:
     """
     Main coordinator: opens browser, distributes pairs to workers, collects results.
     """
     setup_logging()
+    results_file = results_file_for_broker(broker)
 
     log.info(f"Parallel optimizer starting")
-    log.info(f"  Pairs: {len(pairs)} | Workers: {n_workers} | Mode: {mode}")
+    log.info(f"  Pairs: {len(pairs)} | Workers: {n_workers} | Mode: {mode} | Broker: {broker}")
     if dry_run:
         log.info("  DRY RUN MODE — no real TradingView interaction")
 
     # Load existing results to skip already-completed pairs
     existing_results = {}
-    if PARALLEL_RESULTS_FILE.exists():
+    if results_file.exists():
         try:
-            with open(PARALLEL_RESULTS_FILE) as f:
+            with open(results_file) as f:
                 existing_results = json.load(f)
             log.info(f"Resuming — {len(existing_results)} pairs already completed")
         except Exception:
@@ -498,7 +515,7 @@ async def run_parallel(
     runtime_state.record_run_event(
         run_id=run_id,
         event_type="run_started",
-        payload={"mode": mode, "workers": n_workers, "pairs": remaining_pairs, "dry_run": dry_run},
+        payload={"mode": mode, "workers": n_workers, "pairs": remaining_pairs, "dry_run": dry_run, "broker": broker},
     )
     emit_event(
         "run_started",
@@ -507,6 +524,7 @@ async def run_parallel(
         workers=n_workers,
         pairs=remaining_pairs,
         dry_run=dry_run,
+        broker=broker,
     )
 
     # Build queue
@@ -563,6 +581,7 @@ async def run_parallel(
                         page=page,
                         pair_queue=pair_queue,
                         results=results,
+                        results_file=results_file,
                         results_lock=results_lock,
                         error_log=error_log,
                         mode=mode,
@@ -592,14 +611,17 @@ async def run_parallel(
         run_id=run_id,
         state="failed" if error_log else "completed",
     )
-    output_paths = {"results_file": str(PARALLEL_RESULTS_FILE)}
+    output_paths = {
+        "results_file": str(results_file),
+        "legacy_results_file": str(LEGACY_PARALLEL_RESULTS_FILE),
+    }
     log.info(f"\n{'='*60}")
     log.info(f"Parallel run complete in {elapsed:.1f}s")
     log.info(f"  Completed: {len(results)} pairs")
     log.info(f"  Failed: {len(error_log)} pairs")
     if error_log:
         log.warning(f"  Failed pairs: {[e['symbol'] for e in error_log]}")
-    log.info(f"  Results: {PARALLEL_RESULTS_FILE}")
+    log.info(f"  Results: {results_file}")
 
     # Generate HTML report from parallel results
     if results:
@@ -664,12 +686,15 @@ def main() -> None:
     parser.add_argument("--trials", type=int, default=N_BAYESIAN_TRIALS, help="Optuna trials per pair")
     parser.add_argument("--dd-limit", type=float, default=PROP_FIRM_MAX_DD_PCT, help="Max drawdown %")
     parser.add_argument("--pairs", type=str, help="Comma-separated list of pairs (default: all)")
+    parser.add_argument("--broker", choices=sorted(SUPPORTED_BROKERS), default="vantage", help="Broker dataset namespace")
     parser.add_argument("--dry-run", action="store_true", help="Test with fake results (2 pairs, 2 trials)")
     parser.add_argument("--reset", action="store_true", help="Clear existing results and start fresh")
     args = parser.parse_args()
 
-    if args.reset and PARALLEL_RESULTS_FILE.exists():
-        PARALLEL_RESULTS_FILE.unlink()
+    results_file = results_file_for_broker(args.broker)
+
+    if args.reset and results_file.exists():
+        results_file.unlink()
         print("Cleared existing parallel results")
 
     if args.pairs:
@@ -690,6 +715,7 @@ def main() -> None:
         n_trials=args.trials,
         dd_limit=args.dd_limit,
         dry_run=args.dry_run,
+        broker=args.broker,
         raw_args=sys.argv[1:],
     ))
 

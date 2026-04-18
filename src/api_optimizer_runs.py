@@ -58,6 +58,7 @@ class OptimizerRunCreateRequest(BaseModel):
     n_trials: int = Field(ge=1, le=1000)
     dd_limit: float = Field(gt=0)
     dry_run: bool = False
+    broker: str = Field(min_length=1)
 
     @field_validator("pairs")
     @classmethod
@@ -75,6 +76,14 @@ class OptimizerRunCreateRequest(BaseModel):
                 raise ValueError(f"invalid symbol: {symbol}")
             if not symbol.isalnum():
                 raise ValueError(f"invalid symbol: {symbol}")
+        return normalized
+
+    @field_validator("broker")
+    @classmethod
+    def _validate_broker(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"vantage", "oanda", "fxcm"}:
+            raise ValueError("invalid broker")
         return normalized
 
 

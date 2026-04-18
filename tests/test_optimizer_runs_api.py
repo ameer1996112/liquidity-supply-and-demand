@@ -29,6 +29,8 @@ class StubOptimizerService:
             "n_trials": 25,
             "dd_limit": 6.0,
             "dry_run": True,
+            "broker": "vantage",
+            "market": "forex",
             "summary": {"total_pairs": 2, "running_pairs": 1, "completed_pairs": 0, "failed_pairs": 0},
         }
 
@@ -88,10 +90,12 @@ def test_create_optimizer_run_returns_200(_) -> None:
             "n_trials": 25,
             "dd_limit": 6.0,
             "dry_run": True,
+            "broker": "vantage",
         },
     )
     assert response.status_code == 200
     assert response.json()["status"] == "running"
+    assert response.json()["broker"] == "vantage"
 
 
 def test_create_optimizer_run_rejects_empty_pairs() -> None:
@@ -99,7 +103,7 @@ def test_create_optimizer_run_rejects_empty_pairs() -> None:
     client = TestClient(app)
     response = client.post(
         "/api/optimizer/runs",
-        json={"mode": "bayesian", "workers": 2, "pairs": [], "n_trials": 25, "dd_limit": 6.0, "dry_run": True},
+        json={"mode": "bayesian", "workers": 2, "pairs": [], "n_trials": 25, "dd_limit": 6.0, "dry_run": True, "broker": "vantage"},
     )
     assert response.status_code == 422
 
@@ -119,9 +123,30 @@ def test_create_optimizer_run_accepts_all_pairs_token(_) -> None:
             "n_trials": 25,
             "dd_limit": 6.0,
             "dry_run": True,
+            "broker": "vantage",
         },
     )
     assert response.status_code == 200
+
+
+def test_create_optimizer_run_rejects_unsupported_broker() -> None:
+    _disable_admin_auth()
+    client = TestClient(app)
+    response = client.post(
+        "/api/optimizer/runs",
+        json={
+            "strategy_id": "liq_sd_v1",
+            "strategy_version": "1",
+            "mode": "bayesian",
+            "workers": 2,
+            "pairs": ["ALL"],
+            "n_trials": 25,
+            "dd_limit": 6.0,
+            "dry_run": True,
+            "broker": "bad-broker",
+        },
+    )
+    assert response.status_code == 422
 
 
 @patch("src.api_optimizer_runs.get_optimizer_run_service", return_value=StubOptimizerService())

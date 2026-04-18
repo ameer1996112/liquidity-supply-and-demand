@@ -90,7 +90,10 @@ Important files:
 - `run_*.log` — human log
 - `optimizer_status_current.json` — current machine status
 - `optimizer_worker_*_<runid>.jsonl` — per-worker machine log
-- `parallel_results.json` — completed pair summaries
+- `parallel_results_vantage.json` — latest completed Vantage forex dataset
+- `parallel_results_oanda.json` — latest completed OANDA forex dataset
+- `parallel_results_fxcm.json` — latest completed FXCM forex dataset
+- `parallel_results.json` — legacy mirror of the most recently written broker dataset for compatibility
 
 ## Which Log To Trust
 

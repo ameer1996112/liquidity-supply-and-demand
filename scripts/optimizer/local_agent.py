@@ -176,6 +176,13 @@ def _playwright_available() -> bool:
         return False
 
 
+def _normalize_broker(value: str | None) -> str:
+    normalized = (value or "vantage").strip().lower()
+    if normalized not in {"vantage", "oanda", "fxcm"}:
+        raise ValueError(f"Unsupported broker: {value}")
+    return normalized
+
+
 # ── Chrome management ────────────────────────────────────────────────────────
 
 
@@ -254,6 +261,7 @@ def execute_run(run: dict) -> None:
     n_trials = run.get("n_trials", 25)
     dd_limit = run.get("dd_limit", 6.0)
     dry_run = run.get("dry_run", False)
+    broker = _normalize_broker(run.get("broker"))
 
     log.info("=" * 60)
     log.info("Picked up run %s", run_id)
@@ -307,7 +315,7 @@ def execute_run(run: dict) -> None:
     api_patch(f"/api/optimizer/runs/{run_id}", {"status": "running"})
     api_post(f"/api/optimizer/runs/{run_id}/events", {
         "event_type": "run_started",
-        "payload": {"mode": mode, "workers": workers, "agent_version": AGENT_VERSION},
+        "payload": {"mode": mode, "workers": workers, "broker": broker, "agent_version": AGENT_VERSION},
     })
 
     # Build command
@@ -318,6 +326,7 @@ def execute_run(run: dict) -> None:
         "--trials", str(n_trials),
         "--dd-limit", str(dd_limit),
         "--pairs", ",".join(pairs),
+        "--broker", broker,
     ]
     if dry_run:
         command.append("--dry-run")

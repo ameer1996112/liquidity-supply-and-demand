@@ -37,6 +37,8 @@ def _normalize_run(row: dict[str, Any] | None) -> dict[str, Any] | None:
         "n_trials": row["n_trials"],
         "dd_limit": float(row["dd_limit"]),
         "dry_run": bool(row.get("dry_run", False)),
+        "broker": row.get("broker"),
+        "market": row.get("market"),
         "created_by": row.get("created_by"),
         "summary": row.get("summary") or {},
         "started_at": row.get("started_at"),
@@ -210,6 +212,7 @@ class OptimizerRunService:
         n_trials: int,
         dd_limit: float,
         dry_run: bool,
+        broker: str,
         created_by: str | None = None,
     ) -> dict[str, Any]:
         """Create a queued optimizer run for the local agent to pick up."""
@@ -219,6 +222,8 @@ class OptimizerRunService:
             raise ValueError("strategy_version is required")
         if not pairs:
             raise ValueError("pairs must not be empty")
+        if broker not in {"vantage", "oanda", "fxcm"}:
+            raise ValueError(f"invalid broker: {broker}")
         if self._active_run_exists():
             raise ValueError("another optimizer run is already active")
 
@@ -239,6 +244,8 @@ class OptimizerRunService:
                 "n_trials": n_trials,
                 "dd_limit": dd_limit,
                 "dry_run": dry_run,
+                "broker": broker,
+                "market": "forex",
                 "created_by": created_by,
                 "summary": {
                     "total_pairs": len(pairs),
@@ -444,6 +451,7 @@ class OptimizerRunService:
         n_trials: int,
         dd_limit: float,
         dry_run: bool,
+        broker: str,
     ) -> subprocess.Popen[str]:
         command = [
             sys.executable,
@@ -459,6 +467,8 @@ class OptimizerRunService:
             str(dd_limit),
             "--pairs",
             ",".join(pairs),
+            "--broker",
+            broker,
         ]
         if dry_run:
             command.append("--dry-run")

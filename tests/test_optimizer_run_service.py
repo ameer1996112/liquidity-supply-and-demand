@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from scripts.optimizer.parallel_runner import results_file_for_broker
 from src.services.optimizer_run_service import OptimizerRunService
 from src.services import optimizer_run_service as optimizer_service_module
 
@@ -137,12 +138,15 @@ def test_start_run_persists_run_and_symbol_rows(monkeypatch) -> None:
         n_trials=25,
         dd_limit=6.0,
         dry_run=True,
+        broker="vantage",
         created_by="test-user",
     )
 
     assert run["status"] == "queued"
     assert run["strategy_id"] == "liq_sd_v1"
     assert run["strategy_version"] == "1"
+    assert run["broker"] == "vantage"
+    assert run["market"] == "forex"
     assert store.runs[run["id"]]["workers"] == 2
     assert store.results[(run["id"], "EURUSD")]["status"] == "pending"
 
@@ -164,6 +168,7 @@ def test_start_run_expands_all_pairs_without_scripts_import(monkeypatch) -> None
         n_trials=25,
         dd_limit=6.0,
         dry_run=True,
+        broker="vantage",
         created_by="test-user",
     )
 
@@ -189,10 +194,35 @@ def test_start_run_requires_strategy_identity(monkeypatch) -> None:
             n_trials=25,
             dd_limit=6.0,
             dry_run=True,
+            broker="vantage",
         )
         raise AssertionError("expected ValueError")
     except ValueError as exc:
         assert "strategy_id" in str(exc)
+
+
+def test_start_run_rejects_unknown_broker(monkeypatch) -> None:
+    store = InMemoryOptimizerStore()
+    service = OptimizerRunService(store, project_root=Path("/tmp"), results_dir=Path("/tmp/results"))
+
+    monkeypatch.setattr(service, "_spawn_process", lambda **_: DummyProcess(pid=321))
+    monkeypatch.setattr(service, "_stream_process_output", lambda run_id, process: None)
+
+    try:
+        service.start_run(
+            strategy_id="liq_sd_v1",
+            strategy_version="1",
+            mode="bayesian",
+            workers=2,
+            pairs=["EURUSD"],
+            n_trials=25,
+            dd_limit=6.0,
+            dry_run=True,
+            broker="bad-broker",
+        )
+        raise AssertionError("expected ValueError")
+    except ValueError as exc:
+        assert "invalid broker" in str(exc)
 
 
 def test_list_runs_filters_by_strategy_identity() -> None:
@@ -276,3 +306,19 @@ def test_reconcile_incomplete_runs_marks_orphans_interrupted() -> None:
     service.reconcile_incomplete_runs()
 
     assert store.runs["run-1"]["status"] == "interrupted"
+
+
+def test_rebuild_summary_keeps_broker_specific_output_path() -> None:
+    store = InMemoryOptimizerStore.with_run_and_pending_symbol("run-1", "EURUSD")
+    service = OptimizerRunService(store, project_root=Path("/tmp"), results_dir=Path("/tmp/results"))
+
+    summary = service._rebuild_summary(
+        "run-1",
+        outputs={"results_file": "scripts/optimization_results/parallel_results_oanda.json"},
+    )
+
+    assert summary["output_paths"]["results_file"].endswith("parallel_results_oanda.json")
+
+
+def test_results_file_for_broker_uses_broker_specific_filename() -> None:
+    assert results_file_for_broker("fxcm").name == "parallel_results_fxcm.json"

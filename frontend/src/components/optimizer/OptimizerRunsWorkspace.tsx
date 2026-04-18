@@ -247,6 +247,7 @@ export function OptimizerRunsWorkspace() {
   const [strategyId, setStrategyId] = useState('');
   const [strategyVersion, setStrategyVersion] = useState('');
   const [mode, setMode] = useState<'bayesian' | 'smart' | 'fast' | 'full'>('bayesian');
+  const [broker, setBroker] = useState<'vantage' | 'oanda' | 'fxcm'>('vantage');
   const [workers, setWorkers] = useState('3');
   const [pairs, setPairs] = useState('EURUSD,GBPUSD,XAUUSD');
   const [allPairs, setAllPairs] = useState(true);
@@ -290,6 +291,7 @@ export function OptimizerRunsWorkspace() {
       n_trials: Number(nTrials),
       dd_limit: Number(ddLimit),
       dry_run: dryRun,
+      broker,
     };
     createRun.mutate(payload, {
       onSuccess: (run) => setSelectedRunId(run.id),
@@ -356,6 +358,19 @@ export function OptimizerRunsWorkspace() {
                 <option value='smart'>Smart</option>
                 <option value='fast'>Fast</option>
                 <option value='full'>Full</option>
+              </select>
+            </label>
+            <label className='space-y-1 text-xs text-[var(--to-text-secondary)]'>
+              <span>Broker</span>
+              <select
+                aria-label='Broker'
+                value={broker}
+                onChange={(event) => setBroker(event.target.value as typeof broker)}
+                className='h-9 w-full rounded-md border border-[var(--to-border)] bg-[var(--to-surface)] px-3 text-sm text-[var(--to-text-primary)]'
+              >
+                <option value='vantage'>Vantage</option>
+                <option value='oanda'>OANDA</option>
+                <option value='fxcm'>FXCM</option>
               </select>
             </label>
             <label className='space-y-1 text-xs text-[var(--to-text-secondary)]'>
@@ -440,6 +455,15 @@ export function OptimizerRunsWorkspace() {
             <p className='mt-2 text-xl font-semibold text-[var(--to-text-primary)]'>{failedPairs}</p>
           </div>
           <div className='rounded-lg border border-[var(--to-border)] p-3'>
+            <p className='text-[10px] uppercase tracking-[0.15em] text-[var(--to-text-dim)]'>Broker</p>
+            <p className='mt-2 text-sm font-medium text-[var(--to-text-primary)]'>
+              {currentRun?.broker ? currentRun.broker.toUpperCase() : 'Unknown'}
+            </p>
+            <p className='mt-1 text-xs text-[var(--to-text-dim)]'>
+              Market: {currentRun?.market ?? 'unknown'}
+            </p>
+          </div>
+          <div className='rounded-lg border border-[var(--to-border)] p-3'>
             <p className='text-[10px] uppercase tracking-[0.15em] text-[var(--to-text-dim)]'>Best result</p>
             <p className='mt-2 text-sm font-medium text-[var(--to-text-primary)]'>
               {currentRun?.summary?.best_symbol ?? '--'} / {formatNumber(currentRun?.summary?.best_score)}
@@ -511,7 +535,7 @@ export function OptimizerRunsWorkspace() {
                     <span className='min-w-0'>
                       <span className='block truncate font-mono text-xs text-[var(--to-text-primary)]'>{run.id}</span>
                       <span className='block text-[10px] text-[var(--to-text-dim)]'>
-                        {run.mode} • {run.pairs.length} pairs • {run.workers} workers
+                        {run.mode} • {(run.broker ?? 'unknown').toUpperCase()} • {run.pairs.length} pairs • {run.workers} workers
                       </span>
                       {getStrategyBadge(run) ? (
                         <span className='mt-1 inline-flex rounded border border-[var(--to-border)] bg-[var(--to-surface-raised)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--to-text-dim)]'>

@@ -232,6 +232,8 @@ export interface OptimizerRunApi {
   n_trials: number;
   dd_limit: number;
   dry_run: boolean;
+  broker?: 'vantage' | 'oanda' | 'fxcm' | null;
+  market?: string | null;
   created_by?: string | null;
   summary: OptimizerRunSummaryApi;
   started_at?: string | null;
@@ -273,6 +275,7 @@ export interface OptimizerRunCreateApi {
   n_trials: number;
   dd_limit: number;
   dry_run: boolean;
+  broker: 'vantage' | 'oanda' | 'fxcm';
 }
 
 export async function fetchOptimizerRuns() {
