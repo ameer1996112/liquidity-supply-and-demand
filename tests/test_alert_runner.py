@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import sys
 import threading
 from typing import Any
@@ -1258,3 +1259,38 @@ def test_deploy_alert_does_not_force_last_365_days(monkeypatch) -> None:
     assert FakeTabWorker.optimizer_apply_called is False
     assert FakeTabWorker.alert_apply_called is True
     assert FakeTabWorker.applied_params == [{"pvtMax": 12}]
+
+
+def test_process_line_logs_plain_runner_output_locally(caplog, monkeypatch) -> None:
+    posted: list[dict[str, Any]] = []
+
+    def fake_api_post(path: str, body: dict | None = None) -> dict | None:
+        posted.append({"path": path, "body": body})
+        return body
+
+    monkeypatch.setattr(local_agent, "api_post", fake_api_post)
+    caplog.set_level(logging.INFO, logger="optimizer-agent")
+
+    local_agent._process_line("run-1", "Traceback: boom")
+
+    assert any("run run-1" in record.getMessage() and "Traceback: boom" in record.getMessage() for record in caplog.records)
+    assert posted == [
+        {
+            "path": "/api/optimizer/runs/run-1/events",
+            "body": {"event_type": "log", "payload": {"message": "Traceback: boom"}},
+        }
+    ]
+
+
+def test_process_line_logs_when_backend_event_post_fails(caplog, monkeypatch) -> None:
+    def fake_api_post(path: str, body: dict | None = None) -> dict | None:
+        raise RuntimeError("backend down")
+
+    monkeypatch.setattr(local_agent, "api_post", fake_api_post)
+    caplog.set_level(logging.INFO, logger="optimizer-agent")
+
+    local_agent._process_line("run-1", "worker exploded")
+
+    messages = [record.getMessage() for record in caplog.records]
+    assert any("worker exploded" in message for message in messages)
+    assert any("Failed to forward optimizer run output" in message for message in messages)

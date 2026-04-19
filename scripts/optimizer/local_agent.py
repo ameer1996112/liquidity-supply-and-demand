@@ -638,18 +638,26 @@ def _stream_and_report(run_id: str, process: subprocess.Popen) -> None:
 
 def _process_line(run_id: str, line: str) -> None:
     """Parse a single line of optimizer output and push to API."""
+    def _safe_post_event(body: dict[str, Any]) -> None:
+        try:
+            api_post(f"/api/optimizer/runs/{run_id}/events", body)
+        except Exception as exc:
+            log.warning("Failed to forward optimizer run output for run %s: %s", run_id, exc)
+
     try:
         event = json.loads(line)
     except json.JSONDecodeError:
         # Plain log line
-        api_post(f"/api/optimizer/runs/{run_id}/events", {
+        log.info("[run %s] %s", run_id, line)
+        _safe_post_event({
             "event_type": "log",
             "payload": {"message": line},
         })
         return
 
     if not isinstance(event, dict) or "event_type" not in event:
-        api_post(f"/api/optimizer/runs/{run_id}/events", {
+        log.info("[run %s] %s", run_id, line)
+        _safe_post_event({
             "event_type": "log",
             "payload": {"message": line},
         })
@@ -658,13 +666,19 @@ def _process_line(run_id: str, line: str) -> None:
     event_type = event["event_type"]
     symbol = event.get("symbol")
     worker_id = event.get("worker_id")
+    log_payload = {k: v for k, v in event.items() if k not in {"event_type", "run_id"}}
+
+    if event_type in {"pair_failed", "run_finished"}:
+        log.error("[run %s] %s %s", run_id, event_type, log_payload)
+    else:
+        log.info("[run %s] %s %s", run_id, event_type, log_payload)
 
     # Push event to timeline
-    api_post(f"/api/optimizer/runs/{run_id}/events", {
+    _safe_post_event({
         "event_type": event_type,
         "worker_id": worker_id,
         "symbol": symbol,
-        "payload": {k: v for k, v in event.items() if k not in {"event_type", "run_id"}},
+        "payload": log_payload,
     })
 
     # Update per-symbol results
