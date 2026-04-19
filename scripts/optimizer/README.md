@@ -95,6 +95,65 @@ Important files:
 - `parallel_results_fxcm.json` — latest completed FXCM forex dataset
 - `parallel_results.json` — legacy mirror of the most recently written broker dataset for compatibility
 
+## Survival Optimizer Outputs
+
+The optimizer is no longer just a profit-ranking backtest runner. The current system stores survival-focused artifacts that support prop-firm evaluation and the analyst workspace.
+
+Pair decisions:
+- `PASS` — pair survived the forward window and current safety gates
+- `REDUCE_RISK` — pair is usable, but weight should stay reduced
+- `REJECT` — pair failed safety or stability requirements
+
+Stress results:
+- spread stress
+- slippage / worse-fill scenarios
+- news protection scenarios
+- trend and regime-aware variants
+
+Portfolio summary:
+- combined max drawdown
+- combined daily drawdown
+- worst day
+- per-pair weights
+
+Saved artifacts:
+- per-symbol trial history
+- stress result history
+- portfolio result summary
+- run event timeline
+- broker-specific result snapshots and JSONL worker traces
+
+## Saved Run Detail Payload
+
+Saved terminal runs now expose a richer detail payload through the optimizer API and frontend workspace.
+
+Embedded run detail includes:
+- `portfolio_result`
+- `results`
+- `artifacts.trials`
+- `artifacts.stress_results`
+- `artifacts.events`
+- `artifacts.summary`
+
+Active runs stay lighter on purpose:
+- heavy artifact collections continue to stream through the dedicated polling endpoints
+- terminal runs embed saved artifacts for faster historical inspection and reuse
+
+## Analyst Workspace
+
+The optimizer workspace now acts like an analyst console instead of a plain launcher.
+
+What you can inspect there:
+- portfolio overview with combined DD and weights
+- pair analysis table with decision and risk posture
+- pair drill-down with validation, forward, and stress context
+- run comparison/history
+
+Data precedence:
+- embedded saved-run detail is used as the bootstrap payload
+- fresher polled results, trials, stress results, and events replace embedded data when available
+- empty authoritative refreshes are accepted so stale embedded artifacts do not linger
+
 ## Which Log To Trust
 
 Trust order:
