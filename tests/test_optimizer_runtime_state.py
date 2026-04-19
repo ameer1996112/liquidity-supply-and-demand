@@ -33,13 +33,15 @@ def test_start_run_writes_current_status_pointer(tmp_path: Path) -> None:
         workers=6,
         log_file="run_20260413_010000.log",
         optimizer_pid=111,
-        chrome_pid=222,
+        desktop_cdp_pid=222,
     )
 
     current = store.load_current_status()
     assert current["run_id"] == status["run_id"]
     assert current["state"] == "starting"
     assert current["workers"] == 6
+    assert current["desktop_cdp_pid"] == 222
+    assert "chrome_pid" not in current
 
 
 def test_record_trial_event_updates_last_progress_and_worker_log(tmp_path: Path) -> None:
@@ -50,7 +52,7 @@ def test_record_trial_event_updates_last_progress_and_worker_log(tmp_path: Path)
         workers=6,
         log_file="run.log",
         optimizer_pid=111,
-        chrome_pid=222,
+        desktop_cdp_pid=222,
     )
 
     before = store.load_current_status()["last_progress_at"]
@@ -87,7 +89,7 @@ def test_mark_pair_started_and_completed_update_active_pairs(tmp_path: Path) -> 
         workers=2,
         log_file="run.log",
         optimizer_pid=111,
-        chrome_pid=222,
+        desktop_cdp_pid=222,
     )
 
     store.mark_pair_started(run_id=status["run_id"], worker_id=1, symbol="GBPJPY")
@@ -108,7 +110,7 @@ def test_mark_worker_unhealthy_persists_reason(tmp_path: Path) -> None:
         workers=2,
         log_file="run.log",
         optimizer_pid=111,
-        chrome_pid=222,
+        desktop_cdp_pid=222,
     )
 
     store.mark_worker_unhealthy(
@@ -132,7 +134,7 @@ def test_record_run_event_writes_machine_readable_jsonl(tmp_path: Path) -> None:
         workers=2,
         log_file="run.log",
         optimizer_pid=111,
-        chrome_pid=222,
+        desktop_cdp_pid=222,
     )
 
     store.record_run_event(

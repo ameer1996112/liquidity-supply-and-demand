@@ -15,7 +15,9 @@ def local_agent(monkeypatch):
     monkeypatch.setenv("LOCAL_AGENT_TARGET", "optimizer")
     monkeypatch.setenv("_OPTIMIZER_VENV_ACTIVE", "1")
     sys.modules.pop("scripts.optimizer.local_agent", None)
-    return importlib.import_module("scripts.optimizer.local_agent")
+    module = importlib.import_module("scripts.optimizer.local_agent")
+    module._optimizer_run_blocked_events.clear()
+    return module
 
 
 class _FakeProcess:
@@ -74,12 +76,23 @@ def test_execute_run_blocks_without_claim_when_optimizer_readiness_fails(local_a
         }
     )
 
-    assert not any(
-        path == "/api/optimizer/runs/run-1" and body == {"status": "running"}
-        for path, body in patch_calls
-    )
-    assert not any(body.get("status") == "failed" for _, body in patch_calls if isinstance(body, dict))
-    assert any(event_path == "/api/optimizer/runs/run-1/events" for event_path, _ in post_calls)
+    assert patch_calls == []
+    assert post_calls == [
+        (
+            "/api/optimizer/runs/run-1/events",
+            {
+                "event_type": "log",
+                "payload": {
+                    "level": "warning",
+                    "message": "TradingView MCP desktop workspace is not ready",
+                    "status": "queued",
+                    "workers": 3,
+                    "dry_run": False,
+                    "python": sys.executable,
+                },
+            },
+        )
+    ]
     assert not popen.called
     controller.ensure_optimizer_ready.assert_awaited_once_with(required_tabs=3)
 
@@ -194,3 +207,46 @@ def test_execute_run_does_not_fail_when_playwright_is_missing_before_claim(local
     )
     assert any(event_path == "/api/optimizer/runs/run-4/events" for event_path, _ in post_calls)
     assert not popen.called
+
+
+def test_execute_run_blocks_only_once_for_repeated_same_reason(local_agent, monkeypatch):
+    _, post_calls, _ = _capture_http_calls(local_agent, monkeypatch)
+    monkeypatch.setattr(local_agent, "log", mock.Mock())
+
+    monotonic_values = iter([100.0, 110.0, 120.0])
+    monkeypatch.setattr(local_agent.time, "monotonic", lambda: next(monotonic_values))
+
+    local_agent._report_optimizer_run_blocked("run-9", "desktop bridge missing", workers=2, dry_run=False)
+    local_agent._report_optimizer_run_blocked("run-9", "desktop bridge missing", workers=2, dry_run=False)
+    local_agent._report_optimizer_run_blocked("run-9", "workspace changed", workers=2, dry_run=False)
+
+    assert post_calls == [
+        (
+            "/api/optimizer/runs/run-9/events",
+            {
+                "event_type": "log",
+                "payload": {
+                    "level": "warning",
+                    "message": "desktop bridge missing",
+                    "status": "queued",
+                    "workers": 2,
+                    "dry_run": False,
+                    "python": sys.executable,
+                },
+            },
+        ),
+        (
+            "/api/optimizer/runs/run-9/events",
+            {
+                "event_type": "log",
+                "payload": {
+                    "level": "warning",
+                    "message": "workspace changed",
+                    "status": "queued",
+                    "workers": 2,
+                    "dry_run": False,
+                    "python": sys.executable,
+                },
+            },
+        ),
+    ]

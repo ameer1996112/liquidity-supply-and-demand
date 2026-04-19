@@ -39,7 +39,7 @@ class OptimizerRuntimeState:
         workers: int,
         log_file: str,
         optimizer_pid: int,
-        chrome_pid: int | None,
+        desktop_cdp_pid: int | None,
         restart_count: int = 0,
     ) -> dict[str, Any]:
         run_id = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
@@ -51,7 +51,7 @@ class OptimizerRuntimeState:
             "stuck_threshold_seconds": 12 * 60,
             "restart_count": restart_count,
             "optimizer_pid": optimizer_pid,
-            "chrome_pid": chrome_pid,
+            "desktop_cdp_pid": desktop_cdp_pid,
             "log_file": log_file,
             "mode": mode,
             "workers": workers,

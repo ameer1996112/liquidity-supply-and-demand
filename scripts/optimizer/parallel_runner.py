@@ -574,7 +574,7 @@ async def run_parallel(
         workers=n_workers,
         log_file=os.environ.get("OPTIMIZER_LAUNCH_LOG_FILE", str(PARALLEL_LOG_FILE)),
         optimizer_pid=os.getpid(),
-        chrome_pid=detect_desktop_cdp_pid(),
+        desktop_cdp_pid=detect_desktop_cdp_pid(),
     )
     run_id = run_status["run_id"]
     runtime_state.record_run_event(

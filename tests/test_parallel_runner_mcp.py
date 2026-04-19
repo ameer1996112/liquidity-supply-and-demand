@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 
 import pytest
 
@@ -48,6 +49,8 @@ class FakePlaywright:
 
 
 class FakeRuntimeState:
+    last_instance: "FakeRuntimeState | None" = None
+
     def __init__(self, results_dir) -> None:
         self.results_dir = results_dir
         self.start_run_calls: list[dict[str, object]] = []
@@ -55,6 +58,7 @@ class FakeRuntimeState:
         self.states: list[tuple[str, str]] = []
         self.pairs_started: list[tuple[int, str]] = []
         self.pairs_completed: list[tuple[int, str]] = []
+        FakeRuntimeState.last_instance = self
 
     def start_run(self, **kwargs):
         self.start_run_calls.append(kwargs)
@@ -127,6 +131,17 @@ def test_run_parallel_uses_mcp_workspace_slots_to_assign_pages(monkeypatch, tmp_
             "required_tabs": 2,
             "bootstrap_symbol": "EURUSD",
             "broker": "vantage",
+        }
+    ]
+    assert FakeRuntimeState.last_instance is not None
+    assert FakeRuntimeState.last_instance.start_run_calls == [
+        {
+            "args": ["--parallel", "--pairs", "EURUSD,GBPUSD"],
+            "mode": "bayesian",
+            "workers": 2,
+            "log_file": str(parallel_runner.PARALLEL_LOG_FILE),
+            "optimizer_pid": os.getpid(),
+            "desktop_cdp_pid": 4321,
         }
     ]
     assert connect_urls == [parallel_runner.TRADINGVIEW_DESKTOP_CDP_URL]

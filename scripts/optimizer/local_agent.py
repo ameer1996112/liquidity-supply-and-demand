@@ -47,8 +47,11 @@ AGENT_VERSION = "1.0.0"
 LOCAL_AGENT_TARGET = os.environ.get("LOCAL_AGENT_TARGET", "both").strip().lower()
 ALERT_AGENT_TARGETS = {"alert", "alert-setup", "alerts"}
 OPTIMIZER_AGENT_TARGETS = {"optimizer", "optimize", "runs"}
+OPTIMIZER_RUN_BLOCKED_BACKOFF_SECONDS = 60.0
 
 log = logging.getLogger("optimizer-agent")
+
+_optimizer_run_blocked_events: dict[str, tuple[str, float]] = {}
 
 from scripts.optimizer.alert_runner import (  # noqa: E402
     AlertBatchCancelled,
@@ -184,8 +187,21 @@ def _normalize_broker(value: str | None) -> str:
     return normalized
 
 
+def _should_report_optimizer_run_blocked(run_id: str, reason: str) -> bool:
+    last_reason, last_reported_at = _optimizer_run_blocked_events.get(run_id, (None, 0.0))
+    now = time.monotonic()
+    if reason != last_reason or now - last_reported_at >= OPTIMIZER_RUN_BLOCKED_BACKOFF_SECONDS:
+        _optimizer_run_blocked_events[run_id] = (reason, now)
+        return True
+    return False
+
+
 def _report_optimizer_run_blocked(run_id: str, reason: str, *, workers: int, dry_run: bool) -> None:
     """Record a non-terminal optimizer readiness blocker for diagnostics."""
+    if not _should_report_optimizer_run_blocked(run_id, reason):
+        log.debug("Suppressing duplicate optimizer blocked event for run %s: %s", run_id, reason)
+        return
+
     log.warning("Optimizer run %s is not ready yet: %s", run_id, reason)
     api_post(
         f"/api/optimizer/runs/{run_id}/events",
