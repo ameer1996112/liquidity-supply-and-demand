@@ -9,10 +9,10 @@ from pathlib import Path
 from typing import Any, Callable, Protocol
 
 from scripts.optimizer.config import INPUT_INDEX
+from scripts.optimizer.tradingview_mcp import DEFAULT_TV_CLI_PATH, TradingViewMcpClient
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-TV_CLI_PATH = PROJECT_ROOT / "mcp" / "tradingview-mcp" / "src" / "cli" / "index.js"
 _LOADING_INDICATORS = [
     "Updating report",
     "Calculating...",
@@ -98,19 +98,12 @@ class TradingViewMcpAlertRunner:
         cli_path: Path | None = None,
         fallback_factory: Callable[[], AlertBrowser] | None = None,
     ) -> None:
-        self._cli_path = cli_path or TV_CLI_PATH
+        self._client = TradingViewMcpClient(cli_path=cli_path or DEFAULT_TV_CLI_PATH)
         self._fallback_factory = fallback_factory
 
     @classmethod
     async def healthcheck(cls, cli_path: Path | None = None) -> tuple[bool, str]:
-        runner = cls(cli_path=cli_path)
-        try:
-            result = await runner._run_tv("status")
-        except Exception as exc:
-            return False, str(exc)
-        if not result.get("success"):
-            return False, str(result.get("error") or "unknown MCP error")
-        return True, "ok"
+        return await TradingViewMcpClient(cli_path=cli_path or DEFAULT_TV_CLI_PATH).healthcheck()
 
     async def deploy_alert(
         self,
@@ -181,26 +174,7 @@ class TradingViewMcpAlertRunner:
             )
 
     async def _run_tv(self, *args: str) -> dict[str, Any]:
-        if not self._cli_path.exists():
-            raise RuntimeError(f"TradingView MCP CLI not found at {self._cli_path}")
-        process = await asyncio.create_subprocess_exec(
-            "node",
-            str(self._cli_path),
-            *args,
-            cwd=str(PROJECT_ROOT),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await process.communicate()
-        raw = (stdout or b"").decode().strip() or (stderr or b"").decode().strip()
-        if process.returncode != 0:
-            raise RuntimeError(raw or f"tv {' '.join(args)} failed with exit {process.returncode}")
-        if not raw:
-            return {"success": True}
-        try:
-            return json.loads(raw)
-        except json.JSONDecodeError as exc:
-            raise RuntimeError(f"tv {' '.join(args)} returned non-JSON output: {raw}") from exc
+        return await self._client.run(*args)
 
     async def _ui_eval(self, expression: str) -> Any:
         result = await self._run_tv("ui", "eval", expression)

@@ -4,6 +4,7 @@ import asyncio
 import logging
 import sys
 import threading
+from pathlib import Path
 from typing import Any
 from types import ModuleType, SimpleNamespace
 
@@ -15,6 +16,7 @@ from scripts.optimizer.alert_runner import (
     build_chart_symbol,
 )
 from scripts.optimizer import local_agent
+from scripts.optimizer.tradingview_mcp import TradingViewMcpClient
 
 
 class FakeAlertBrowser:
@@ -77,6 +79,13 @@ def test_tradingview_mcp_runner_falls_back_to_browser_on_failure() -> None:
 
     assert result.alert_id == "alert-EURUSD"
     assert fallback_browser.deployments[0]["pair"] == "EURUSD"
+
+
+def test_tradingview_mcp_client_uses_repo_cli_path() -> None:
+    client = TradingViewMcpClient()
+    assert client._cli_path == (
+        Path(__file__).resolve().parents[1] / "mcp" / "tradingview-mcp" / "src" / "cli" / "index.js"
+    )
 
 
 def test_build_chart_symbol_forces_vantage_prefix() -> None:
