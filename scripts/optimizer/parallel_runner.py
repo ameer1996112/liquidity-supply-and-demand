@@ -42,6 +42,7 @@ from .config import (
     OPTUNA_SEARCH_SPACE,
     LIQ_DISTANCE_RANGES,
 )
+from .desktop_page import TradingViewDesktopPage
 from .models import BacktestResult
 from .optimizer_mcp import OptimizerMcpController, OptimizerWorkspaceSlot
 from .runtime_state import OptimizerRuntimeState
@@ -192,10 +193,13 @@ def _match_pages_to_slots(tv_pages: list[Any], slots: list[OptimizerWorkspaceSlo
     return matched_pages
 
 
-def _prepare_mcp_backed_pages(browser: Any, slots: list[OptimizerWorkspaceSlot]) -> list[Any]:
-    """Resolve real Playwright page objects from prepared MCP slots."""
-    tv_pages = _collect_tradingview_pages(browser)
-    return _match_pages_to_slots(tv_pages, slots)
+def _prepare_mcp_backed_pages(slots: list[OptimizerWorkspaceSlot]) -> list[Any]:
+    """Resolve Desktop-backed page shims from prepared MCP slots."""
+    ordered_slots = sorted(slots, key=lambda slot: slot.index)
+    return [
+        TradingViewDesktopPage(tab_id=slot.tab_id, chart_id=slot.chart_id)
+        for slot in ordered_slots
+    ]
 
 
 async def _wait_for_chart_id(page: Any, timeout: float = 60.0) -> str | None:
@@ -329,6 +333,7 @@ async def optimize_pair_on_page(
     n_trials: int,
     dd_limit: float,
     dry_run: bool,
+    broker: str = "vantage",
     runtime_state: OptimizerRuntimeState | None = None,
     run_id: str | None = None,
     worker_id: int | None = None,
@@ -357,6 +362,7 @@ async def optimize_pair_on_page(
     # Create a minimal optimizer shell just to pass to TabWorker
     opt_shell = TradingViewOptimizer(
         pairs=[symbol],
+        broker=broker,
         bayesian_mode=(mode == "bayesian"),
         smart_mode=(mode == "smart"),
         fast_mode=(mode == "fast"),
@@ -388,6 +394,7 @@ async def worker_task(
     results_file: Path,
     results_lock: asyncio.Lock,
     error_log: list,
+    broker: str,
     mode: str,
     n_trials: int,
     dd_limit: float,
@@ -436,6 +443,7 @@ async def worker_task(
                     n_trials,
                     dd_limit,
                     dry_run,
+                    broker=broker,
                     runtime_state=runtime_state,
                     run_id=run_id,
                     worker_id=worker_id,
@@ -600,13 +608,9 @@ async def run_parallel(
     start_time = time.time()
 
     try:
-        if not dry_run and async_playwright is None:
-            raise RuntimeError("playwright not installed. Install in venv: python3 -m pip install playwright && python3 -m playwright install chromium")
-
         if dry_run:
             # Dry-run mode never touches a real page; keep it browserless so it works
             # even when Playwright browsers are not installed locally.
-            browser = None
             pages = [None] * n_workers
         else:
             controller = OptimizerMcpController()
@@ -615,17 +619,8 @@ async def run_parallel(
                 bootstrap_symbol=remaining_pairs[0],
                 broker=broker,
             )
-
-            async with async_playwright() as pw:  # type: ignore[operator]
-                try:
-                    browser = await pw.chromium.connect_over_cdp(TRADINGVIEW_DESKTOP_CDP_URL)
-                except Exception as exc:
-                    raise RuntimeError(
-                        f"Could not connect to TradingView Desktop CDP target at {TRADINGVIEW_DESKTOP_CDP_URL}: {exc}"
-                    ) from exc
-
-                log.info("Connected to TradingView Desktop CDP target at %s", TRADINGVIEW_DESKTOP_CDP_URL)
-                pages = _prepare_mcp_backed_pages(browser, workspace_slots)
+            pages = _prepare_mcp_backed_pages(workspace_slots)
+            log.info("Prepared %d TradingView Desktop MCP session(s)", len(pages))
 
         # Stagger worker starts to avoid race conditions
         tasks = []
@@ -641,6 +636,7 @@ async def run_parallel(
                     results_file=results_file,
                     results_lock=results_lock,
                     error_log=error_log,
+                    broker=broker,
                     mode=mode,
                     n_trials=n_trials,
                     dd_limit=dd_limit,
@@ -656,9 +652,6 @@ async def run_parallel(
         for task_result in task_results:
             if isinstance(task_result, Exception):
                 error_log.append({"symbol": "worker_task", "worker": -1, "error": str(task_result)})
-
-        if browser is not None:
-            await browser.close()
     except Exception:
         runtime_state.set_run_state(run_id=run_id, state="failed")
         raise

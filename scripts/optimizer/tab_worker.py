@@ -166,19 +166,30 @@ _JS_COLLECT_METRICS = """
 
 
 async def page_query_snd(page: "Page"):
-    """Find the S&D Algo [Pro] strategy text element in the legend."""
-    elements = await page.query_selector_all("div")
-    for el in elements:
-        try:
-            text = await el.inner_text()
-            if text.strip() == "S&D Algo [Pro]":
-                box = await el.bounding_box()
-                # Only check width — y-position varies with window/panel layout
-                if box and 0 < box["width"] < 400:
-                    return el
-        except Exception:
-            continue
-    return None
+    """Find the S&D Algo [Pro] legend coordinates."""
+    try:
+        return await page.evaluate(
+            """
+            (() => {
+                for (const el of document.querySelectorAll('div')) {
+                    const text = el.textContent?.trim();
+                    if (text !== 'S&D Algo [Pro]') continue;
+                    const box = el.getBoundingClientRect();
+                    if (el.offsetParent !== null && box.width > 0 && box.width < 400) {
+                        return {
+                            x: box.x + box.width / 2,
+                            y: box.y + box.height / 2,
+                            width: box.width,
+                            height: box.height,
+                        };
+                    }
+                }
+                return null;
+            })()
+            """
+        )
+    except Exception:
+        return None
 
 
 
@@ -272,6 +283,15 @@ class TabWorker:
         return symbol.split(":")[-1].upper().strip()
 
     @staticmethod
+    def _looks_like_symbol(value: str) -> bool:
+        token = value.upper().strip()
+        if not token or len(token) > 32:
+            return False
+        if any(ch in token for ch in " ${}%[]()|,"):
+            return False
+        return bool(re.fullmatch(r"[A-Z0-9:._!\-]+", token))
+
+    @staticmethod
     def _extract_first_number(text: str) -> float | None:
         """Extract first numeric token from text (supports thousands separators)."""
         if not text:
@@ -299,6 +319,25 @@ class TabWorker:
 
     async def _current_symbol(self) -> str:
         """Return the symbol TradingView currently shows for this tab."""
+        if hasattr(self.page, "tab_id"):
+            try:
+                api_symbol = await self.page.evaluate(
+                    """
+                    (() => {
+                        try {
+                            return window.TradingViewApi?._activeChartWidgetWV?.value()?.symbol?.() || '';
+                        } catch (error) {
+                            return '';
+                        }
+                    })()
+                    """
+                )
+                api_symbol = self._normalize_symbol(str(api_symbol or ""))
+                if self._looks_like_symbol(api_symbol):
+                    return api_symbol
+            except Exception:
+                pass
+
         try:
             title = await self.page.title()
         except Exception:
@@ -306,7 +345,7 @@ class TabWorker:
 
         if title:
             token = title.split(" ")[0].split(":")[-1].upper().strip()
-            if token:
+            if token and token not in {"LIVE", "TRADINGVIEW"} and self._looks_like_symbol(token):
                 return token
 
         try:
@@ -371,9 +410,10 @@ class TabWorker:
 
         target_url = (
             f"https://www.tradingview.com/chart/{chart_id}/"
-            f"?symbol=VANTAGE%3A{clean_symbol}"
+            f"?symbol={getattr(self.optimizer, 'broker', 'vantage').upper()}%3A{clean_symbol}"
         )
-        print(f"  Navigating to VANTAGE:{clean_symbol}...")
+        broker = getattr(self.optimizer, "broker", "vantage").upper()
+        print(f"  Navigating to {broker}:{clean_symbol}...")
 
         try:
             await self.page.goto(
@@ -798,94 +838,104 @@ class TabWorker:
         # Click strategy name to reveal action buttons, then click Settings gear.
         # Must use page.mouse.click() with real pixel coords — JS btn.click() is
         # ignored by TradingView's React event handlers for these buttons.
-        el = await page_query_snd(self.page)
-        if el:
-            box = await el.bounding_box()
-            if box:
-                await self.page.mouse.click(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
-                await asyncio.sleep(0.4)
+        snd_coords = await page_query_snd(self.page)
+        if snd_coords:
+            await self.page.mouse.click(snd_coords["x"], snd_coords["y"])
+            await asyncio.sleep(0.4)
 
-                # Find the Settings button pixel coordinates
-                settings_coords = await self.page.evaluate(
+            # Find the Settings button pixel coordinates
+            settings_coords = await self.page.evaluate(
+                """
+                (() => {
+                    for (const btn of document.querySelectorAll('[title="Settings"]')) {
+                        const box = btn.getBoundingClientRect();
+                        if (btn.offsetParent !== null && box.width > 0)
+                            return {x: box.x + box.width / 2, y: box.y + box.height / 2};
+                    }
+                    return null;
+                })()
+                """
+            )
+            if settings_coords:
+                await self.page.mouse.click(settings_coords['x'], settings_coords['y'])
+                await asyncio.sleep(1.5)
+                is_open = await self.page.evaluate(
                     """
                     (() => {
-                        for (const btn of document.querySelectorAll('[title="Settings"]')) {
-                            const box = btn.getBoundingClientRect();
-                            if (btn.offsetParent !== null && box.width > 0)
-                                return {x: box.x + box.width / 2, y: box.y + box.height / 2};
-                        }
-                        return null;
+                        const d = document.querySelector('[class*="dialog-"][class*="rounded"]');
+                        return d && d.offsetParent !== null;
                     })()
                     """
                 )
-                if settings_coords:
-                    await self.page.mouse.click(settings_coords['x'], settings_coords['y'])
-                    await asyncio.sleep(1.5)
-                    is_open = await self.page.evaluate(
-                        """
-                        (() => {
-                            const d = document.querySelector('[class*="dialog-"][class*="rounded"]');
-                            return d && d.offsetParent !== null;
-                        })()
-                        """
-                    )
-                    if is_open:
-                        return True
+                if is_open:
+                    return True
 
-        # Fallback: try dblclick via Playwright (works when page has focus)
-        if el:
-            await el.dblclick()
+            await self.page.mouse.click(snd_coords["x"], snd_coords["y"], double=True)
             await asyncio.sleep(1.5)
-            return True
+            is_open = await self.page.evaluate(
+                """
+                (() => {
+                    const d = document.querySelector('[class*="dialog-"][class*="rounded"]');
+                    return d && d.offsetParent !== null;
+                })()
+                """
+            )
+            if is_open:
+                return True
 
         return False
 
     async def _set_input(self, index: int, value) -> bool:
-        """Set input by index using Playwright fill()."""
-        handle = await self.page.evaluate_handle(
-            f"""
-            (() => {{
-                const d = document.querySelector('[class*="dialog-"][class*="rounded"]');
-                if (!d) return null;
-                const inputs = d.querySelectorAll('input');
-                return ({index} < inputs.length) ? inputs[{index}] : null;
-            }})()
-            """
-        )
-        el = handle.as_element()
-        if not el:
-            return False
+        """Set input by index using DOM value assignment and events."""
         try:
-            inp_type = await el.get_attribute("type")
-            if inp_type == "checkbox":
-                return True
-            await el.scroll_into_view_if_needed()
-            await el.fill(str(value))
-            return True
+            return bool(
+                await self.page.evaluate(
+                    """
+                    ({ index, value }) => {
+                        const d = document.querySelector('[class*="dialog-"][class*="rounded"]');
+                        if (!d) return false;
+                        const inputs = d.querySelectorAll('input');
+                        if (index >= inputs.length) return false;
+                        const input = inputs[index];
+                        if (!input || input.type === 'checkbox') return true;
+                        input.scrollIntoView({ block: 'center' });
+                        input.focus();
+                        input.value = String(value);
+                        input.dispatchEvent(new Event('input', { bubbles: true }));
+                        input.dispatchEvent(new Event('change', { bubbles: true }));
+                        input.blur();
+                        return true;
+                    }
+                    """,
+                    {"index": index, "value": value},
+                )
+            )
         except Exception:
             return False
 
     async def _toggle_checkbox(self, index: int, desired_state: bool) -> bool:
         """Toggle a checkbox to the desired state (True=checked, False=unchecked)."""
-        handle = await self.page.evaluate_handle(
-            f"""
-            (() => {{
-                const d = document.querySelector('[class*="dialog-"][class*="rounded"]');
-                if (!d) return null;
-                const inputs = d.querySelectorAll('input');
-                return ({index} < inputs.length) ? inputs[{index}] : null;
-            }})()
-            """
-        )
-        el = handle.as_element()
-        if not el:
-            return False
         try:
-            is_checked = await el.is_checked()
-            if is_checked != desired_state:
-                await el.click()
+            changed = await self.page.evaluate(
+                """
+                ({ index, desiredState }) => {
+                    const d = document.querySelector('[class*="dialog-"][class*="rounded"]');
+                    if (!d) return false;
+                    const inputs = d.querySelectorAll('input');
+                    if (index >= inputs.length) return false;
+                    const input = inputs[index];
+                    if (!input || input.type !== 'checkbox') return false;
+                    if (Boolean(input.checked) !== Boolean(desiredState)) {
+                        input.click();
+                    }
+                    return true;
+                }
+                """,
+                {"index": index, "desiredState": desired_state},
+            )
+            if changed:
                 await asyncio.sleep(0.1)
-            return True
+            return bool(changed)
         except Exception:
             return False
 
@@ -1171,10 +1221,20 @@ class TabWorker:
     async def _click_ok(self) -> None:
         """Click the OK button in the settings dialog."""
         try:
-            ok = await self.page.query_selector('button:has-text("Ok")')
-            if ok:
-                await ok.click()
-            else:
+            clicked = await self.page.evaluate(
+                """
+                (() => {
+                    for (const btn of document.querySelectorAll('button')) {
+                        if ((btn.textContent || '').trim() === 'Ok' && btn.offsetParent !== null) {
+                            btn.click();
+                            return true;
+                        }
+                    }
+                    return false;
+                })()
+                """
+            )
+            if not clicked:
                 await self.page.keyboard.press("Enter")
         except Exception:
             await self.page.keyboard.press("Enter")

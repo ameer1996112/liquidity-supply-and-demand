@@ -6,6 +6,7 @@ import os
 import pytest
 
 from scripts.optimizer import parallel_runner
+from scripts.optimizer.desktop_page import TradingViewDesktopPage
 from scripts.optimizer.optimizer_mcp import OptimizerWorkspaceSlot
 
 
@@ -94,21 +95,15 @@ def test_run_parallel_uses_mcp_workspace_slots_to_assign_pages(monkeypatch, tmp_
                 OptimizerWorkspaceSlot(index=1, tab_id="tab-b", chart_id="BBB"),
             ]
 
-    connect_urls: list[str] = []
-    browser = FakeBrowser(
-        [
-            FakePage("https://www.tradingview.com/chart/BBB/"),
-            FakePage("https://www.tradingview.com/chart/AAA/"),
-        ]
-    )
     monkeypatch.setattr(parallel_runner, "OptimizerMcpController", lambda: FakeController())
-    monkeypatch.setattr(parallel_runner, "async_playwright", lambda: FakePlaywright(browser, connect_urls))
     monkeypatch.setattr(parallel_runner, "OptimizerRuntimeState", FakeRuntimeState)
 
-    worker_pages: list[tuple[int, str]] = []
+    worker_pages: list[tuple[int, str, str]] = []
 
     async def fake_worker_task(*args, **kwargs) -> None:
-        worker_pages.append((kwargs["worker_id"], kwargs["page"].url))
+        page = kwargs["page"]
+        assert isinstance(page, TradingViewDesktopPage)
+        worker_pages.append((kwargs["worker_id"], page.tab_id, page.url))
 
     monkeypatch.setattr(parallel_runner, "worker_task", fake_worker_task)
 
@@ -144,10 +139,9 @@ def test_run_parallel_uses_mcp_workspace_slots_to_assign_pages(monkeypatch, tmp_
             "desktop_cdp_pid": 4321,
         }
     ]
-    assert connect_urls == [parallel_runner.TRADINGVIEW_DESKTOP_CDP_URL]
     assert worker_pages == [
-        (0, "https://www.tradingview.com/chart/AAA/"),
-        (1, "https://www.tradingview.com/chart/BBB/"),
+        (0, "tab-a", "https://www.tradingview.com/chart/AAA/"),
+        (1, "tab-b", "https://www.tradingview.com/chart/BBB/"),
     ]
 
 
@@ -182,6 +176,7 @@ def test_run_parallel_dry_run_launches_workers_without_browser(monkeypatch, tmp_
         n_trials,
         dd_limit,
         dry_run,
+        broker="vantage",
         runtime_state=None,
         run_id=None,
         worker_id=None,
@@ -218,7 +213,7 @@ def test_run_parallel_dry_run_launches_workers_without_browser(monkeypatch, tmp_
     assert result["EURUSD"]["score"] == 1.5
 
 
-def test_run_parallel_reports_desktop_cdp_errors_without_chrome_language(monkeypatch, tmp_path) -> None:
+def test_run_parallel_surfaces_workspace_errors_without_chrome_language(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(parallel_runner, "setup_logging", lambda: None)
     monkeypatch.setattr(parallel_runner, "results_file_for_broker", lambda broker: tmp_path / "parallel_results.json")
     monkeypatch.setattr(parallel_runner, "detect_desktop_cdp_pid", lambda: None)
@@ -229,26 +224,9 @@ def test_run_parallel_reports_desktop_cdp_errors_without_chrome_language(monkeyp
     class FakeController:
         async def ensure_optimizer_workspace(self, **kwargs):
             controller_calls.append(kwargs)
-            return [
-                OptimizerWorkspaceSlot(index=0, tab_id="tab-a", chart_id="AAA"),
-            ]
-
-    class FailingChromium:
-        async def connect_over_cdp(self, url: str):
-            raise OSError("desktop bridge unavailable")
-
-    class FailingPlaywright:
-        def __init__(self) -> None:
-            self.chromium = FailingChromium()
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, exc_type, exc, tb) -> bool:
-            return False
+            raise RuntimeError("desktop bridge unavailable")
 
     monkeypatch.setattr(parallel_runner, "OptimizerMcpController", lambda: FakeController())
-    monkeypatch.setattr(parallel_runner, "async_playwright", lambda: FailingPlaywright())
     monkeypatch.setattr(parallel_runner, "OptimizerRuntimeState", FakeRuntimeState)
 
     with pytest.raises(RuntimeError) as exc_info:
@@ -265,7 +243,7 @@ def test_run_parallel_reports_desktop_cdp_errors_without_chrome_language(monkeyp
         )
 
     message = str(exc_info.value)
-    assert "TradingView Desktop CDP target" in message
+    assert "desktop bridge unavailable" in message
     assert "Chrome" not in message
     assert "Google Chrome" not in message
     assert controller_calls == [

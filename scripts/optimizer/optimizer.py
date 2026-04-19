@@ -53,6 +53,7 @@ class TradingViewOptimizer:
     def __init__(
         self,
         pairs: list[str],
+        broker: str = "vantage",
         param_grid: Optional[dict] = None,
         fast_mode: bool = False,
         smart_mode: bool = False,
@@ -63,6 +64,7 @@ class TradingViewOptimizer:
         fixed_overrides: dict = None,
     ):
         self.pairs = pairs
+        self.broker = broker
         self.fast_mode = fast_mode
         self.smart_mode = smart_mode
         self.bayesian_mode = bayesian_mode
