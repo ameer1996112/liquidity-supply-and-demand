@@ -47,6 +47,11 @@ class OptimizerMcpController:
         result = await self._run_command("tab list", "tab", "list")
         return list(result.get("tabs") or [])
 
+    def _workspace_bootstrap_error(self, message: str) -> RuntimeError:
+        return RuntimeError(
+            f"{message}. Retry once TradingView Desktop is ready and tab creation is working."
+        )
+
     def _build_workspace_slots(
         self,
         tabs: list[dict[str, Any]],
@@ -75,9 +80,21 @@ class OptimizerMcpController:
     ) -> list[OptimizerWorkspaceSlot]:
         await self.ensure_ready()
         tabs = await self._list_workspace_tabs()
+        max_attempts = max(required_tabs, 1)
+        attempts = 0
         while len(tabs) < required_tabs:
+            attempts += 1
+            if attempts > max_attempts:
+                raise self._workspace_bootstrap_error(
+                    f"TradingView MCP workspace bootstrap stalled after {attempts - 1} tab creation attempts"
+                )
+            before_count = len(tabs)
             await self._run_command("tab new", "tab", "new")
             tabs = await self._list_workspace_tabs()
+            if len(tabs) <= before_count:
+                raise self._workspace_bootstrap_error(
+                    "TradingView MCP tab creation did not increase the available tab count"
+                )
         return self._build_workspace_slots(tabs[:required_tabs])
 
     async def ensure_optimizer_workspace(
@@ -88,12 +105,14 @@ class OptimizerMcpController:
         bootstrap_timeframe: str | None = None,
     ) -> list[OptimizerWorkspaceSlot]:
         ready_slots = await self.ensure_optimizer_ready(required_tabs)
-        prepared_tabs: list[OptimizerWorkspaceSlot] = []
         for slot in ready_slots:
             await self._run_command("tab switch", "tab", "switch", str(slot.index))
             await self.set_symbol(bootstrap_symbol, broker)
             if bootstrap_timeframe is not None:
                 await self.set_timeframe(bootstrap_timeframe)
+        refreshed_tabs = await self._list_workspace_tabs()
+        prepared_tabs: list[OptimizerWorkspaceSlot] = []
+        for slot in self._build_workspace_slots(refreshed_tabs[:required_tabs]):
             prepared_tabs.append(
                 OptimizerWorkspaceSlot(
                     index=slot.index,

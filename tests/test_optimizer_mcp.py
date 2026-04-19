@@ -67,9 +67,17 @@ def test_optimizer_mcp_ensure_workspace_bootstraps_tabs() -> None:
                 )
                 return {"success": True, "action": "new_tab_opened", "tab_count": len(self.tab_state), "tabs": list(self.tab_state)}
             if args == ("tab", "switch", "0"):
-                return {"success": True, "action": "switched", "index": 0, "tab_id": "tab-1", "chart_id": "AAA"}
+                self.tab_state[0]["id"] = "tab-1-active"
+                self.tab_state[0]["chart_id"] = "AAA-ACTIVE"
+                return {"success": True, "action": "switched", "index": 0, "tab_id": "tab-1-active", "chart_id": "AAA-ACTIVE"}
             if args == ("tab", "switch", "1"):
-                return {"success": True, "action": "switched", "index": 1, "tab_id": "tab-2", "chart_id": "BBB"}
+                self.tab_state[1]["id"] = "tab-2-active"
+                self.tab_state[1]["chart_id"] = "BBB-ACTIVE"
+                return {"success": True, "action": "switched", "index": 1, "tab_id": "tab-2-active", "chart_id": "BBB-ACTIVE"}
+            if args == ("tab", "switch", "2"):
+                self.tab_state[2]["id"] = "tab-3-active"
+                self.tab_state[2]["chart_id"] = "CCC-ACTIVE"
+                return {"success": True, "action": "switched", "index": 2, "tab_id": "tab-3-active", "chart_id": "CCC-ACTIVE"}
             if args[0] == "symbol":
                 return {"success": True}
             if args[0] == "timeframe":
@@ -88,8 +96,8 @@ def test_optimizer_mcp_ensure_workspace_bootstraps_tabs() -> None:
     )
 
     assert [slot.index for slot in workspace] == [0, 1, 2]
-    assert [slot.tab_id for slot in workspace] == ["tab-1", "tab-2", "tab-3"]
-    assert [slot.chart_id for slot in workspace] == ["AAA", "BBB", "CCC"]
+    assert [slot.tab_id for slot in workspace] == ["tab-1-active", "tab-2-active", "tab-3-active"]
+    assert [slot.chart_id for slot in workspace] == ["AAA-ACTIVE", "BBB-ACTIVE", "CCC-ACTIVE"]
     assert [slot.broker for slot in workspace] == ["VANTAGE", "VANTAGE", "VANTAGE"]
     assert [slot.symbol for slot in workspace] == ["BTCUSDT", "BTCUSDT", "BTCUSDT"]
     assert [slot.timeframe for slot in workspace] == ["15m", "15m", "15m"]
@@ -108,7 +116,59 @@ def test_optimizer_mcp_ensure_workspace_bootstraps_tabs() -> None:
         ("tab", "switch", "2"),
         ("symbol", "VANTAGE:BTCUSDT"),
         ("timeframe", "15m"),
+        ("tab", "list"),
     ]
+
+
+def test_optimizer_mcp_ready_fails_when_tab_bootstrap_does_not_progress() -> None:
+    class FakeClient:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, ...]] = []
+
+        async def healthcheck(self) -> tuple[bool, str]:
+            return True, "ok"
+
+        async def run(self, *args: str) -> dict[str, object]:
+            self.calls.append(args)
+            if args == ("tab", "list"):
+                return {
+                    "success": True,
+                    "tab_count": 1,
+                    "tabs": [
+                        {
+                            "index": 0,
+                            "id": "tab-1",
+                            "title": "First chart",
+                            "url": "https://www.tradingview.com/chart/AAA/",
+                            "chart_id": "AAA",
+                        }
+                    ],
+                }
+            if args == ("tab", "new"):
+                return {
+                    "success": True,
+                    "action": "new_tab_opened",
+                    "tab_count": 1,
+                    "tabs": [
+                        {
+                            "index": 0,
+                            "id": "tab-1",
+                            "title": "First chart",
+                            "url": "https://www.tradingview.com/chart/AAA/",
+                            "chart_id": "AAA",
+                        }
+                    ],
+                }
+            return {"success": True}
+
+    controller = OptimizerMcpController(client=FakeClient())
+
+    try:
+        asyncio.run(controller.ensure_optimizer_ready(2))
+        assert False, "expected RuntimeError"
+    except RuntimeError as exc:
+        assert "did not increase the available tab count" in str(exc)
+        assert "Retry once TradingView Desktop is ready" in str(exc)
 
 
 def test_optimizer_mcp_raises_on_failed_command_result() -> None:
