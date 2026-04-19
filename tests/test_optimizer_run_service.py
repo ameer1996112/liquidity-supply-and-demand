@@ -466,6 +466,34 @@ def test_get_run_degrades_gracefully_when_optional_artifact_tables_are_missing()
     }
 
 
+def test_list_trials_degrades_gracefully_when_optional_artifact_tables_are_missing() -> None:
+    store = MissingOptionalArtifactsStore.with_run_and_pending_symbol("run-1", "EURUSD")
+    service = OptimizerRunService(store, project_root=Path("/tmp"), results_dir=Path("/tmp/results"))
+
+    assert service.list_trials("run-1") == []
+
+
+def test_list_stress_results_degrades_gracefully_when_optional_artifact_tables_are_missing() -> None:
+    store = MissingOptionalArtifactsStore.with_run_and_pending_symbol("run-1", "EURUSD")
+    service = OptimizerRunService(store, project_root=Path("/tmp"), results_dir=Path("/tmp/results"))
+
+    assert service.list_stress_results("run-1") == []
+
+
+def test_list_events_degrades_gracefully_when_optional_artifact_tables_are_missing() -> None:
+    store = MissingOptionalArtifactsStore.with_run_and_pending_symbol("run-1", "EURUSD")
+    service = OptimizerRunService(store, project_root=Path("/tmp"), results_dir=Path("/tmp/results"))
+
+    assert service.list_events("run-1") == []
+
+
+def test_get_portfolio_result_degrades_gracefully_when_optional_artifact_tables_are_missing() -> None:
+    store = MissingOptionalArtifactsStore.with_run_and_pending_symbol("run-1", "EURUSD")
+    service = OptimizerRunService(store, project_root=Path("/tmp"), results_dir=Path("/tmp/results"))
+
+    assert service.get_portfolio_result("run-1") is None
+
+
 def test_portfolio_result_normalization_returns_flat_metrics_payload() -> None:
     row = {
         "run_id": "run-1",

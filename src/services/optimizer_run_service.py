@@ -450,7 +450,11 @@ class OptimizerRunService:
 
     def list_trials(self, run_id: str, symbol: str | None = None) -> list[dict[str, Any]]:
         self.get_run(run_id)
-        return self._repository.list_trials(run_id, symbol)
+        return self._safe_optional_artifact_read(
+            lambda: self._repository.list_trials(run_id, symbol),
+            fallback=[],
+            artifact_name="trials",
+        )
 
     def record_stress_result(self, run_id: str, symbol: str, payload: dict[str, Any]) -> dict[str, Any]:
         self._require_run_exists(run_id)
@@ -458,7 +462,11 @@ class OptimizerRunService:
 
     def list_stress_results(self, run_id: str, symbol: str | None = None) -> list[dict[str, Any]]:
         self.get_run(run_id)
-        return self._repository.list_stress_results(run_id, symbol)
+        return self._safe_optional_artifact_read(
+            lambda: self._repository.list_stress_results(run_id, symbol),
+            fallback=[],
+            artifact_name="stress_results",
+        )
 
     def update_portfolio_result(self, run_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         self._require_run_exists(run_id)
@@ -466,7 +474,11 @@ class OptimizerRunService:
 
     def get_portfolio_result(self, run_id: str) -> dict[str, Any] | None:
         self._require_run_exists(run_id)
-        return self._repository.get_portfolio_result(run_id)
+        return self._safe_optional_artifact_read(
+            lambda: self._repository.get_portfolio_result(run_id),
+            fallback=None,
+            artifact_name="portfolio_result",
+        )
 
     # ── Read methods ─────────────────────────────────────────────────────────
 
@@ -552,7 +564,12 @@ class OptimizerRunService:
         return self._repository.list_results(run_id)
 
     def list_events(self, run_id: str, *, limit: int = 200) -> list[dict[str, Any]]:
-        return self._repository.list_events(run_id, limit=limit)
+        self.get_run(run_id)
+        return self._safe_optional_artifact_read(
+            lambda: self._repository.list_events(run_id, limit=limit),
+            fallback=[],
+            artifact_name="events",
+        )
 
     def cancel_run(self, run_id: str) -> dict[str, Any]:
         """Mark a run as cancelled. The local agent polls for this and stops."""

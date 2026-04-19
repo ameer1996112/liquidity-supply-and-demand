@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
 
 from config.settings import get_settings
+from src.services.optimizer_run_service import OptimizerRunService
 
 
 def _disable_admin_auth() -> None:
@@ -124,6 +126,53 @@ class StubOptimizerService:
             raise KeyError(run_id)
         self._run["status"] = "cancelled"
         return self._run
+
+
+class MissingArtifactTableError(RuntimeError):
+    def __init__(self, table_name: str) -> None:
+        super().__init__(f"Could not find the table '{table_name}' in the schema cache")
+        self.code = "PGRST205"
+
+
+class MissingOptionalArtifactsStore:
+    def __init__(self) -> None:
+        self.run = {
+            "id": "run-1",
+            "strategy_id": "liq_sd_v1",
+            "strategy_version": "1",
+            "status": "completed",
+            "mode": "bayesian",
+            "workers": 2,
+            "pairs": ["EURUSD"],
+            "n_trials": 25,
+            "dd_limit": 6.0,
+            "dry_run": True,
+            "broker": "vantage",
+            "market": "forex",
+            "summary": {"total_pairs": 1, "running_pairs": 0, "completed_pairs": 1, "failed_pairs": 0},
+        }
+
+    def get_run(self, run_id: str) -> dict | None:
+        if run_id != "run-1":
+            return None
+        return self.run
+
+    def list_results(self, run_id: str) -> list[dict]:
+        if run_id != "run-1":
+            return []
+        return [{"run_id": run_id, "symbol": "EURUSD", "status": "completed", "metrics": {"score": 2.1}}]
+
+    def get_portfolio_result(self, run_id: str) -> dict | None:
+        raise MissingArtifactTableError("public.optimizer_portfolio_results")
+
+    def list_trials(self, run_id: str, symbol: str | None = None) -> list[dict]:
+        raise MissingArtifactTableError("public.optimizer_run_trials")
+
+    def list_stress_results(self, run_id: str, symbol: str | None = None) -> list[dict]:
+        raise MissingArtifactTableError("public.optimizer_run_stress_tests")
+
+    def list_events(self, run_id: str, *, limit: int = 200) -> list[dict]:
+        raise MissingArtifactTableError("public.optimizer_run_events")
 
 
 @pytest.fixture
@@ -250,3 +299,48 @@ def test_get_optimizer_run_stress_results(client: TestClient) -> None:
     response = client.get("/api/optimizer/runs/run-1/stress-results")
     assert response.status_code == 200
     assert "results" in response.json()
+
+
+def test_get_optimizer_run_trials_degrades_gracefully_when_artifact_tables_are_missing() -> None:
+    _disable_admin_auth()
+    service = OptimizerRunService(
+        MissingOptionalArtifactsStore(),
+        project_root=Path("/tmp"),
+        results_dir=Path("/tmp/results"),
+    )
+    with patch("src.api_optimizer_runs.get_optimizer_run_service", return_value=service):
+        client = TestClient(app)
+        response = client.get("/api/optimizer/runs/run-1/trials")
+
+    assert response.status_code == 200
+    assert response.json() == {"trials": []}
+
+
+def test_get_optimizer_run_stress_results_degrades_gracefully_when_artifact_tables_are_missing() -> None:
+    _disable_admin_auth()
+    service = OptimizerRunService(
+        MissingOptionalArtifactsStore(),
+        project_root=Path("/tmp"),
+        results_dir=Path("/tmp/results"),
+    )
+    with patch("src.api_optimizer_runs.get_optimizer_run_service", return_value=service):
+        client = TestClient(app)
+        response = client.get("/api/optimizer/runs/run-1/stress-results")
+
+    assert response.status_code == 200
+    assert response.json() == {"results": []}
+
+
+def test_get_optimizer_run_events_degrades_gracefully_when_artifact_tables_are_missing() -> None:
+    _disable_admin_auth()
+    service = OptimizerRunService(
+        MissingOptionalArtifactsStore(),
+        project_root=Path("/tmp"),
+        results_dir=Path("/tmp/results"),
+    )
+    with patch("src.api_optimizer_runs.get_optimizer_run_service", return_value=service):
+        client = TestClient(app)
+        response = client.get("/api/optimizer/runs/run-1/events")
+
+    assert response.status_code == 200
+    assert response.json() == {"events": []}
