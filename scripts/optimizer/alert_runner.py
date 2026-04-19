@@ -103,7 +103,8 @@ class TradingViewMcpAlertRunner:
 
     @classmethod
     async def healthcheck(cls, cli_path: Path | None = None) -> tuple[bool, str]:
-        return await TradingViewMcpClient(cli_path=cli_path or DEFAULT_TV_CLI_PATH).healthcheck()
+        runner = cls(cli_path=cli_path)
+        return await runner._client.healthcheck()
 
     async def deploy_alert(
         self,

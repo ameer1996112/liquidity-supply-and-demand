@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Any
 from types import ModuleType, SimpleNamespace
 
+import pytest
+
 from scripts.optimizer.alert_runner import (
     AlertBatchRunner,
     AlertDeployment,
@@ -86,6 +88,65 @@ def test_tradingview_mcp_client_uses_repo_cli_path() -> None:
     assert client._cli_path == (
         Path(__file__).resolve().parents[1] / "mcp" / "tradingview-mcp" / "src" / "cli" / "index.js"
     )
+
+
+def test_tradingview_mcp_client_run_raises_when_cli_missing(tmp_path: Path) -> None:
+    client = TradingViewMcpClient(cli_path=tmp_path / "missing.js")
+
+    with pytest.raises(RuntimeError, match="TradingView MCP CLI not found"):
+        asyncio.run(client.run("status"))
+
+
+def test_tradingview_mcp_client_run_raises_on_non_zero_exit(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    client = TradingViewMcpClient(cli_path=tmp_path / "index.js")
+    client._cli_path.write_text("console.log('ok')\n")
+
+    class FakeProcess:
+        returncode = 1
+
+        async def communicate(self) -> tuple[bytes, bytes]:
+            return b"", b"boom"
+
+    async def fake_create_subprocess_exec(*args: Any, **kwargs: Any) -> FakeProcess:
+        return FakeProcess()
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create_subprocess_exec)
+
+    with pytest.raises(RuntimeError, match="boom"):
+        asyncio.run(client.run("status"))
+
+
+def test_tradingview_mcp_client_run_rejects_invalid_json(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    client = TradingViewMcpClient(cli_path=tmp_path / "index.js")
+    client._cli_path.write_text("console.log('ok')\n")
+
+    class FakeProcess:
+        returncode = 0
+
+        async def communicate(self) -> tuple[bytes, bytes]:
+            return b"not json", b""
+
+    async def fake_create_subprocess_exec(*args: Any, **kwargs: Any) -> FakeProcess:
+        return FakeProcess()
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_create_subprocess_exec)
+
+    with pytest.raises(RuntimeError, match="returned non-JSON output"):
+        asyncio.run(client.run("status"))
+
+
+def test_tradingview_mcp_client_healthcheck_normalizes_false_result() -> None:
+    client = TradingViewMcpClient()
+
+    async def fake_run(*args: str) -> dict[str, Any]:
+        return {"success": False, "error": "nope"}
+
+    client.run = fake_run  # type: ignore[assignment]
+
+    ok, message = asyncio.run(client.healthcheck())
+
+    assert ok is False
+    assert message == "nope"
 
 
 def test_build_chart_symbol_forces_vantage_prefix() -> None:
