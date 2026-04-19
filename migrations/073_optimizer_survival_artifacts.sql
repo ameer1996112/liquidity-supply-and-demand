@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS public.optimizer_run_trials (
     run_id UUID NOT NULL REFERENCES public.optimizer_runs(id) ON DELETE CASCADE,
     symbol VARCHAR(32) NOT NULL,
     trial_number INTEGER NOT NULL,
-    window VARCHAR(24) NOT NULL,
+    "window" VARCHAR(24) NOT NULL,
     params JSONB NOT NULL DEFAULT '{}',
     metrics JSONB NOT NULL DEFAULT '{}',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
