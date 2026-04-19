@@ -104,26 +104,21 @@ class OptimizerMcpController:
         broker: str,
         bootstrap_timeframe: str | None = None,
     ) -> list[OptimizerWorkspaceSlot]:
+        # Just verify tabs exist — workers set their own symbol when they pick up a pair.
+        # Per-tab bootstrap (switch + set_symbol for every slot) is wasteful and slow
+        # when workers=10, adding ~30s per tab before any work starts.
         ready_slots = await self.ensure_optimizer_ready(required_tabs)
-        for slot in ready_slots:
-            await self._run_command("tab switch", "tab", "switch", str(slot.index))
-            await self.set_symbol(bootstrap_symbol, broker)
-            if bootstrap_timeframe is not None:
-                await self.set_timeframe(bootstrap_timeframe)
-        refreshed_tabs = await self._list_workspace_tabs()
-        prepared_tabs: list[OptimizerWorkspaceSlot] = []
-        for slot in self._build_workspace_slots(refreshed_tabs[:required_tabs]):
-            prepared_tabs.append(
-                OptimizerWorkspaceSlot(
-                    index=slot.index,
-                    tab_id=slot.tab_id,
-                    chart_id=slot.chart_id,
-                    broker=broker.upper(),
-                    symbol=bootstrap_symbol.upper(),
-                    timeframe=bootstrap_timeframe,
-                )
+        return [
+            OptimizerWorkspaceSlot(
+                index=slot.index,
+                tab_id=slot.tab_id,
+                chart_id=slot.chart_id,
+                broker=broker.upper(),
+                symbol=bootstrap_symbol.upper(),
+                timeframe=bootstrap_timeframe,
             )
-        return prepared_tabs
+            for slot in ready_slots
+        ]
 
     async def set_symbol(self, pair: str, broker: str) -> None:
         await self._run_command("symbol", "symbol", f"{broker.upper()}:{pair.upper()}")
