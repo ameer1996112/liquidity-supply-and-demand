@@ -23,6 +23,8 @@ _OPTIONAL_OPTIMIZER_ARTIFACT_TABLES = {
     "public.optimizer_run_stress_tests",
     "public.optimizer_run_events",
 }
+_LOGGED_OPTIONAL_ARTIFACT_WARNINGS: set[tuple[str, str]] = set()
+_LOGGED_OPTIONAL_ARTIFACT_WARNINGS_LOCK = threading.Lock()
 
 
 def _utc_now() -> str:
@@ -119,6 +121,19 @@ def _is_missing_optional_optimizer_artifact_error(exc: Exception) -> bool:
     if code != "PGRST205":
         return False
     return any(table_name in message for table_name in _OPTIONAL_OPTIMIZER_ARTIFACT_TABLES)
+
+
+def _log_missing_optional_artifact_warning_once(artifact_name: str, exc: Exception) -> None:
+    warning_key = (artifact_name, str(exc))
+    with _LOGGED_OPTIONAL_ARTIFACT_WARNINGS_LOCK:
+        if warning_key in _LOGGED_OPTIONAL_ARTIFACT_WARNINGS:
+            return
+        _LOGGED_OPTIONAL_ARTIFACT_WARNINGS.add(warning_key)
+    _logger.warning(
+        "Optimizer run optional artifact '%s' unavailable because survival tables are missing: %s",
+        artifact_name,
+        exc,
+    )
 
 
 class OptimizerRunRepository(Protocol):
@@ -449,7 +464,7 @@ class OptimizerRunService:
         return self._repository.create_trial(run_id, symbol, payload)
 
     def list_trials(self, run_id: str, symbol: str | None = None) -> list[dict[str, Any]]:
-        self.get_run(run_id)
+        self._require_run_exists(run_id)
         return self._safe_optional_artifact_read(
             lambda: self._repository.list_trials(run_id, symbol),
             fallback=[],
@@ -461,7 +476,7 @@ class OptimizerRunService:
         return self._repository.create_stress_result(run_id, symbol, payload)
 
     def list_stress_results(self, run_id: str, symbol: str | None = None) -> list[dict[str, Any]]:
-        self.get_run(run_id)
+        self._require_run_exists(run_id)
         return self._safe_optional_artifact_read(
             lambda: self._repository.list_stress_results(run_id, symbol),
             fallback=[],
@@ -553,18 +568,14 @@ class OptimizerRunService:
         except Exception as exc:
             if not _is_missing_optional_optimizer_artifact_error(exc):
                 raise
-            _logger.warning(
-                "Optimizer run optional artifact '%s' unavailable because survival tables are missing: %s",
-                artifact_name,
-                exc,
-            )
+            _log_missing_optional_artifact_warning_once(artifact_name, exc)
             return fallback
 
     def list_results(self, run_id: str) -> list[dict[str, Any]]:
         return self._repository.list_results(run_id)
 
     def list_events(self, run_id: str, *, limit: int = 200) -> list[dict[str, Any]]:
-        self.get_run(run_id)
+        self._require_run_exists(run_id)
         return self._safe_optional_artifact_read(
             lambda: self._repository.list_events(run_id, limit=limit),
             fallback=[],

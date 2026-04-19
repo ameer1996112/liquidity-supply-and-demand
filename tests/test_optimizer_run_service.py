@@ -494,6 +494,24 @@ def test_get_portfolio_result_degrades_gracefully_when_optional_artifact_tables_
     assert service.get_portfolio_result("run-1") is None
 
 
+def test_optional_artifact_warning_is_logged_once_per_artifact_type(caplog) -> None:
+    store = MissingOptionalArtifactsStore.with_run_and_pending_symbol("run-1", "EURUSD")
+    service = OptimizerRunService(store, project_root=Path("/tmp"), results_dir=Path("/tmp/results"))
+
+    optimizer_service_module._LOGGED_OPTIONAL_ARTIFACT_WARNINGS.clear()
+    caplog.set_level("WARNING", logger="src.services.optimizer_run_service")
+
+    assert service.list_trials("run-1") == []
+    assert service.list_trials("run-1") == []
+    assert service.list_stress_results("run-1") == []
+    assert service.list_stress_results("run-1") == []
+
+    warnings = [record.getMessage() for record in caplog.records]
+    assert len(warnings) == 2
+    assert "optional artifact 'trials'" in warnings[0]
+    assert "optional artifact 'stress_results'" in warnings[1]
+
+
 def test_portfolio_result_normalization_returns_flat_metrics_payload() -> None:
     row = {
         "run_id": "run-1",
