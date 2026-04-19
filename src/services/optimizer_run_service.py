@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+import logging
 import os
 import subprocess
 import sys
@@ -10,10 +11,18 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Callable, Protocol
 
 from src.adapters.supabase_api import get_api_supabase
 from src.services.optimizer_defaults import DEFAULT_PAIRS
+
+_logger = logging.getLogger(__name__)
+_OPTIONAL_OPTIMIZER_ARTIFACT_TABLES = {
+    "public.optimizer_portfolio_results",
+    "public.optimizer_run_trials",
+    "public.optimizer_run_stress_tests",
+    "public.optimizer_run_events",
+}
 
 
 def _utc_now() -> str:
@@ -102,6 +111,14 @@ def _build_artifact_summary(
 
 
 _TERMINAL_RUN_STATUSES = {"completed", "failed", "cancelled", "interrupted"}
+
+
+def _is_missing_optional_optimizer_artifact_error(exc: Exception) -> bool:
+    code = getattr(exc, "code", None)
+    message = str(exc)
+    if code != "PGRST205":
+        return False
+    return any(table_name in message for table_name in _OPTIONAL_OPTIMIZER_ARTIFACT_TABLES)
 
 
 class OptimizerRunRepository(Protocol):
@@ -473,12 +490,36 @@ class OptimizerRunService:
         if run is None:
             raise KeyError(run_id)
         run = copy.deepcopy(run)
-        run["portfolio_result"] = copy.deepcopy(self._repository.get_portfolio_result(run_id))
+        run["portfolio_result"] = copy.deepcopy(
+            self._safe_optional_artifact_read(
+                lambda: self._repository.get_portfolio_result(run_id),
+                fallback=None,
+                artifact_name="portfolio_result",
+            )
+        )
         if run.get("status") in _TERMINAL_RUN_STATUSES:
             results = copy.deepcopy(self._repository.list_results(run_id))
-            trials = copy.deepcopy(self._repository.list_trials(run_id))
-            stress_results = copy.deepcopy(self._repository.list_stress_results(run_id))
-            events = copy.deepcopy(self._repository.list_events(run_id, limit=200))
+            trials = copy.deepcopy(
+                self._safe_optional_artifact_read(
+                    lambda: self._repository.list_trials(run_id),
+                    fallback=[],
+                    artifact_name="trials",
+                )
+            )
+            stress_results = copy.deepcopy(
+                self._safe_optional_artifact_read(
+                    lambda: self._repository.list_stress_results(run_id),
+                    fallback=[],
+                    artifact_name="stress_results",
+                )
+            )
+            events = copy.deepcopy(
+                self._safe_optional_artifact_read(
+                    lambda: self._repository.list_events(run_id, limit=200),
+                    fallback=[],
+                    artifact_name="events",
+                )
+            )
             run["results"] = results
             run["artifacts"] = {
                 "trials": trials,
@@ -487,6 +528,25 @@ class OptimizerRunService:
                 "summary": _build_artifact_summary(trials, stress_results, events),
             }
         return run
+
+    def _safe_optional_artifact_read(
+        self,
+        reader: Callable[[], Any],
+        *,
+        fallback: Any,
+        artifact_name: str,
+    ) -> Any:
+        try:
+            return reader()
+        except Exception as exc:
+            if not _is_missing_optional_optimizer_artifact_error(exc):
+                raise
+            _logger.warning(
+                "Optimizer run optional artifact '%s' unavailable because survival tables are missing: %s",
+                artifact_name,
+                exc,
+            )
+            return fallback
 
     def list_results(self, run_id: str) -> list[dict[str, Any]]:
         return self._repository.list_results(run_id)

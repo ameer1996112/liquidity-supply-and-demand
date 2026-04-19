@@ -158,6 +158,26 @@ class InMemoryOptimizerStore:
         return events[-limit:]
 
 
+class MissingArtifactTableError(RuntimeError):
+    def __init__(self, table_name: str) -> None:
+        super().__init__(f"Could not find the table '{table_name}' in the schema cache")
+        self.code = "PGRST205"
+
+
+class MissingOptionalArtifactsStore(InMemoryOptimizerStore):
+    def get_portfolio_result(self, run_id: str) -> dict | None:
+        raise MissingArtifactTableError("public.optimizer_portfolio_results")
+
+    def list_trials(self, run_id: str, symbol: str | None = None) -> list[dict]:
+        raise MissingArtifactTableError("public.optimizer_run_trials")
+
+    def list_stress_results(self, run_id: str, symbol: str | None = None) -> list[dict]:
+        raise MissingArtifactTableError("public.optimizer_run_stress_tests")
+
+    def list_events(self, run_id: str, *, limit: int = 200) -> list[dict]:
+        raise MissingArtifactTableError("public.optimizer_run_events")
+
+
 def test_start_run_persists_run_and_symbol_rows(monkeypatch) -> None:
     store = InMemoryOptimizerStore()
     service = OptimizerRunService(store, project_root=Path("/tmp"), results_dir=Path("/tmp/results"))
@@ -423,6 +443,27 @@ def test_get_run_keeps_active_runs_lightweight() -> None:
 
     assert "results" not in run
     assert "artifacts" not in run
+
+
+def test_get_run_degrades_gracefully_when_optional_artifact_tables_are_missing() -> None:
+    store = MissingOptionalArtifactsStore.with_run_and_pending_symbol("run-1", "EURUSD")
+    store.update_run("run-1", {"status": "completed"})
+    store.update_result("run-1", "EURUSD", {"status": "completed", "metrics": {"score": 1.2}})
+    service = OptimizerRunService(store, project_root=Path("/tmp"), results_dir=Path("/tmp/results"))
+
+    run = service.get_run("run-1")
+
+    assert run["portfolio_result"] is None
+    assert run["results"][0]["metrics"]["score"] == 1.2
+    assert run["artifacts"]["trials"] == []
+    assert run["artifacts"]["stress_results"] == []
+    assert run["artifacts"]["events"] == []
+    assert run["artifacts"]["summary"] == {
+        "trial_count": 0,
+        "stress_result_count": 0,
+        "event_count": 0,
+        "symbols": {},
+    }
 
 
 def test_portfolio_result_normalization_returns_flat_metrics_payload() -> None:
