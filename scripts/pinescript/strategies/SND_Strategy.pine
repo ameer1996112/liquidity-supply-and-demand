@@ -26,7 +26,7 @@
 
 // === LIBRARY IMPORTS ===
 // Import helper functions from external libraries to reduce script size
-import ameer_1996112/SND_Utils/22 as Utils
+import ameer_1996112/SND_Utils/23 as Utils
 import ameer_1996112/SND_Core/26 as Core
 
 strategy("Institutional Liquidity Protocol [Pro]",
@@ -110,15 +110,14 @@ get_cached_usdjpy_rate() =>
 
 if is_jpy_pair and (na(usdjpy_cache_bar) or bar_index != usdjpy_cache_bar)
     float rate = na
-    bool is_vantage_chart = str.contains(syminfo.ticker, "VANTAGE")
 
-    if is_vantage_chart
+    if str.contains(syminfo.ticker, "VANTAGE")
         rate := request.security("VANTAGE:USDJPY", timeframe.period, close, lookahead = barmerge.lookahead_off)
-    if not is_vantage_chart and na(rate)
+    if na(rate)
         rate := request.security("USDJPY", timeframe.period, close, lookahead = barmerge.lookahead_off)
-    if not is_vantage_chart and na(rate)
+    if na(rate)
         rate := request.security("FX_IDC:USDJPY", timeframe.period, close, lookahead = barmerge.lookahead_off)
-    if not is_vantage_chart and na(rate)
+    if na(rate)
         rate := request.security("OANDA:USDJPY", timeframe.period, close, lookahead = barmerge.lookahead_off)
 
     usdjpy_rate_cache := na(rate) or rate <= 0 ? USDJPY_FALLBACK : rate
