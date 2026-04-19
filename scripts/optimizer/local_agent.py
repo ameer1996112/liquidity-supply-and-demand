@@ -57,6 +57,7 @@ from scripts.optimizer.alert_runner import (  # noqa: E402
     TradingViewMcpAlertRunner,
     load_batch_from_api_payload,
 )
+from scripts.optimizer.optimizer_mcp import OptimizerMcpController  # noqa: E402
 
 # ── Env loading ──────────────────────────────────────────────────────────────
 
@@ -183,6 +184,42 @@ def _normalize_broker(value: str | None) -> str:
     return normalized
 
 
+def _report_optimizer_run_blocked(run_id: str, reason: str, *, workers: int, dry_run: bool) -> None:
+    """Record a non-terminal optimizer readiness blocker for diagnostics."""
+    log.warning("Optimizer run %s is not ready yet: %s", run_id, reason)
+    api_post(
+        f"/api/optimizer/runs/{run_id}/events",
+        {
+            "event_type": "log",
+            "payload": {
+                "level": "warning",
+                "message": reason,
+                "status": "queued",
+                "workers": workers,
+                "dry_run": dry_run,
+                "python": sys.executable,
+            },
+        },
+    )
+
+
+async def _ensure_optimizer_run_ready(workers: int) -> tuple[bool, str]:
+    """Check the local optimizer prereqs needed before claiming a run."""
+    if not _playwright_available():
+        return (
+            False,
+            "playwright not installed on local agent python. "
+            "Install in venv: python3 -m pip install playwright && python3 -m playwright install chromium",
+        )
+
+    controller = OptimizerMcpController()
+    try:
+        await controller.ensure_optimizer_ready(required_tabs=workers)
+        return True, ""
+    except Exception as exc:
+        return False, str(exc)
+
+
 # ── Chrome management ────────────────────────────────────────────────────────
 
 
@@ -270,45 +307,10 @@ def execute_run(run: dict) -> None:
     log.info("  pairs=%s", ",".join(pairs))
     log.info("=" * 60)
 
-    # Ensure Chrome is ready (unless dry run)
     if not dry_run:
-        # Preflight: runner requires playwright in the current interpreter.
-        try:
-            import playwright.async_api  # noqa: F401
-        except Exception:
-            log.error("Cannot start run — playwright not installed in agent python (%s)", sys.executable)
-            api_patch(
-                f"/api/optimizer/runs/{run_id}",
-                {
-                    "status": "failed",
-                    "summary": {
-                        "error_message": "playwright not installed on local agent. Install in venv: python3 -m pip install playwright && python3 -m playwright install chromium",
-                    },
-                },
-            )
-            api_post(
-                f"/api/optimizer/runs/{run_id}/events",
-                {
-                    "event_type": "run_finished",
-                    "payload": {
-                        "message": "playwright missing on local agent python",
-                        "status": "failed",
-                        "python": sys.executable,
-                    },
-                },
-            )
-            return
-
-        if not ensure_chrome():
-            log.error("Cannot start run — Chrome CDP not available")
-            api_patch(f"/api/optimizer/runs/{run_id}", {
-                "status": "failed",
-                "summary": {"error_message": "Chrome CDP not available on local machine"},
-            })
-            api_post(f"/api/optimizer/runs/{run_id}/events", {
-                "event_type": "run_finished",
-                "payload": {"message": "Chrome CDP not available", "status": "failed"},
-            })
+        ready, reason = asyncio.run(_ensure_optimizer_run_ready(workers))
+        if not ready:
+            _report_optimizer_run_blocked(run_id, reason, workers=workers, dry_run=dry_run)
             return
 
     # Mark run as running
