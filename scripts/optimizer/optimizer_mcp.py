@@ -9,8 +9,10 @@ from scripts.optimizer.tradingview_mcp import TradingViewMcpClient
 @dataclass(frozen=True)
 class OptimizerWorkspaceSlot:
     index: int
-    broker: str
-    symbol: str
+    tab_id: str
+    chart_id: str | None
+    broker: str | None = None
+    symbol: str | None = None
     timeframe: str | None = None
 
 
@@ -29,16 +31,54 @@ class OptimizerMcpController:
                 "and retry once the app is ready."
             )
 
-    async def _run_command(self, command: str, *args: str) -> dict[str, Any]:
-        result = await self._client.run(command, *args)
+    async def _run_command(self, action: str, *args: str) -> dict[str, Any]:
+        try:
+            result = await self._client.run(*args)
+        except Exception as exc:
+            joined = " ".join(args)
+            raise RuntimeError(f"TradingView MCP {action} failed during {joined}: {exc}") from exc
         if not result.get("success", True):
             error = str(result.get("error") or "unknown MCP error")
-            formatted_args = " ".join(args)
-            raise RuntimeError(
-                f"TradingView MCP {command} {formatted_args}".strip()
-                + f" failed: {error}"
-            )
+            joined = " ".join(args)
+            raise RuntimeError(f"TradingView MCP {action} failed during {joined}: {error}")
         return result
+
+    async def _list_workspace_tabs(self) -> list[dict[str, Any]]:
+        result = await self._run_command("tab list", "tab", "list")
+        return list(result.get("tabs") or [])
+
+    def _build_workspace_slots(
+        self,
+        tabs: list[dict[str, Any]],
+        *,
+        broker: str | None = None,
+        symbol: str | None = None,
+        timeframe: str | None = None,
+    ) -> list[OptimizerWorkspaceSlot]:
+        slots: list[OptimizerWorkspaceSlot] = []
+        for tab in tabs:
+            slots.append(
+                OptimizerWorkspaceSlot(
+                    index=int(tab.get("index") or len(slots)),
+                    tab_id=str(tab.get("id") or ""),
+                    chart_id=tab.get("chart_id"),
+                    broker=broker,
+                    symbol=symbol,
+                    timeframe=timeframe,
+                )
+            )
+        return slots
+
+    async def ensure_optimizer_ready(
+        self,
+        required_tabs: int,
+    ) -> list[OptimizerWorkspaceSlot]:
+        await self.ensure_ready()
+        tabs = await self._list_workspace_tabs()
+        while len(tabs) < required_tabs:
+            await self._run_command("tab new", "tab", "new")
+            tabs = await self._list_workspace_tabs()
+        return self._build_workspace_slots(tabs[:required_tabs])
 
     async def ensure_optimizer_workspace(
         self,
@@ -47,15 +87,18 @@ class OptimizerMcpController:
         broker: str,
         bootstrap_timeframe: str | None = None,
     ) -> list[OptimizerWorkspaceSlot]:
-        await self.ensure_ready()
+        ready_slots = await self.ensure_optimizer_ready(required_tabs)
         prepared_tabs: list[OptimizerWorkspaceSlot] = []
-        for index in range(required_tabs):
+        for slot in ready_slots:
+            await self._run_command("tab switch", "tab", "switch", str(slot.index))
             await self.set_symbol(bootstrap_symbol, broker)
             if bootstrap_timeframe is not None:
                 await self.set_timeframe(bootstrap_timeframe)
             prepared_tabs.append(
                 OptimizerWorkspaceSlot(
-                    index=index,
+                    index=slot.index,
+                    tab_id=slot.tab_id,
+                    chart_id=slot.chart_id,
                     broker=broker.upper(),
                     symbol=bootstrap_symbol.upper(),
                     timeframe=bootstrap_timeframe,
@@ -64,7 +107,7 @@ class OptimizerMcpController:
         return prepared_tabs
 
     async def set_symbol(self, pair: str, broker: str) -> None:
-        await self._run_command("symbol", f"{broker.upper()}:{pair.upper()}")
+        await self._run_command("symbol", "symbol", f"{broker.upper()}:{pair.upper()}")
 
     async def set_timeframe(self, value: str) -> None:
-        await self._run_command("timeframe", value)
+        await self._run_command("timeframe", "timeframe", value)
