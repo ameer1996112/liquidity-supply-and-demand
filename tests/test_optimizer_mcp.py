@@ -26,14 +26,25 @@ def test_optimizer_mcp_ensure_ready_raises_actionable_error() -> None:
         assert False, "expected RuntimeError"
     except RuntimeError as exc:
         assert "TradingView Desktop not detected" in str(exc)
+        assert "Open TradingView Desktop" in str(exc)
+        assert "verify the MCP bridge is running" in str(exc)
+        assert "retry once the app is ready" in str(exc)
 
 
 def test_optimizer_mcp_ensure_workspace_bootstraps_tabs() -> None:
     class FakeClient:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, ...]] = []
+
         async def healthcheck(self) -> tuple[bool, str]:
             return True, "ok"
 
-    controller = OptimizerMcpController(client=FakeClient())
+        async def run(self, *args: str) -> dict[str, bool]:
+            self.calls.append(args)
+            return {"success": True}
+
+    client = FakeClient()
+    controller = OptimizerMcpController(client=client)
     workspace = asyncio.run(
         controller.ensure_optimizer_workspace(
             required_tabs=3,
@@ -42,4 +53,12 @@ def test_optimizer_mcp_ensure_workspace_bootstraps_tabs() -> None:
         )
     )
 
-    assert workspace == ["vantage:BTCUSDT", "vantage:BTCUSDT", "vantage:BTCUSDT"]
+    assert workspace == ["VANTAGE:BTCUSDT", "VANTAGE:BTCUSDT", "VANTAGE:BTCUSDT"]
+    assert client.calls == [
+        ("symbol", "VANTAGE:BTCUSDT"),
+        ("timeframe", "5m"),
+        ("symbol", "VANTAGE:BTCUSDT"),
+        ("timeframe", "5m"),
+        ("symbol", "VANTAGE:BTCUSDT"),
+        ("timeframe", "5m"),
+    ]

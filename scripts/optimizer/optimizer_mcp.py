@@ -15,7 +15,10 @@ class OptimizerMcpController:
     async def ensure_ready(self) -> None:
         ready, reason = await self.healthcheck()
         if not ready:
-            raise RuntimeError(reason)
+            raise RuntimeError(
+                f"{reason}. Open TradingView Desktop, verify the MCP bridge is running, "
+                "and retry once the app is ready."
+            )
 
     async def ensure_optimizer_workspace(
         self,
@@ -24,7 +27,13 @@ class OptimizerMcpController:
         broker: str,
     ) -> list[str]:
         await self.ensure_ready()
-        return [f"{broker}:{bootstrap_symbol}"] * required_tabs
+        prepared_tabs: list[str] = []
+        symbol = f"{broker.upper()}:{bootstrap_symbol.upper()}"
+        for _ in range(required_tabs):
+            await self._client.run("symbol", symbol)
+            await self._client.run("timeframe", "5m")
+            prepared_tabs.append(symbol)
+        return prepared_tabs
 
     async def set_symbol(self, pair: str, broker: str) -> None:
         await self._client.run("symbol", f"{broker.upper()}:{pair.upper()}")
