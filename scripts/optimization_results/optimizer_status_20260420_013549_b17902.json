@@ -1,0 +1,43 @@
+{
+  "run_id": "20260420_013549_b17902",
+  "state": "completed",
+  "started_at": "2026-04-20T01:35:49.168511+03:00",
+  "last_progress_at": "2026-04-20T01:40:39.390925+03:00",
+  "stuck_threshold_seconds": 720,
+  "restart_count": 0,
+  "optimizer_pid": 36228,
+  "desktop_cdp_pid": 79721,
+  "log_file": "/Users/ameeramer/dev/projects/galilsoftware/sources/trading/scripts/optimization_results/parallel_run.log",
+  "mode": "bayesian",
+  "workers": 1,
+  "args": [
+    "--parallel",
+    "--workers",
+    "1",
+    "--mode",
+    "bayesian",
+    "--trials",
+    "3",
+    "--dd-limit",
+    "10.0",
+    "--pairs",
+    "NZDUSD",
+    "--broker",
+    "oanda"
+  ],
+  "active_pairs": {
+    "worker-0": {
+      "symbol": "NZDUSD",
+      "trial": 3,
+      "last_event_at": "2026-04-20T01:40:39.389574+03:00",
+      "status": "completed"
+    }
+  },
+  "worker_health": {
+    "worker-0": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "d8ae1227"
+    }
+  }
+}

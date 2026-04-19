@@ -1037,7 +1037,7 @@ class TabWorker:
         return False
 
     async def _set_input(self, index: int, value) -> bool:
-        """Set input by index using DOM value assignment and events."""
+        """Set input by index using native setters so TradingView observes the change."""
         try:
             return bool(
                 await self.page.evaluate(
@@ -1053,13 +1053,29 @@ class TabWorker:
                         if (index >= inputs.length) return false;
                         const input = inputs[index];
                         if (!input || input.type === 'checkbox') return true;
+                        const nextValue = String(value);
                         input.scrollIntoView({ block: 'center' });
                         input.focus();
-                        input.value = String(value);
-                        input.dispatchEvent(new Event('input', { bubbles: true }));
+                        input.select?.();
+
+                        const proto = Object.getPrototypeOf(input);
+                        const descriptor = Object.getOwnPropertyDescriptor(proto, 'value')
+                            || Object.getOwnPropertyDescriptor(window.HTMLInputElement?.prototype || {}, 'value')
+                            || Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement?.prototype || {}, 'value');
+                        if (descriptor?.set) {
+                            descriptor.set.call(input, nextValue);
+                        } else {
+                            input.value = nextValue;
+                        }
+
+                        input.dispatchEvent(new InputEvent('input', {
+                            bubbles: true,
+                            data: nextValue,
+                            inputType: 'insertReplacementText',
+                        }));
                         input.dispatchEvent(new Event('change', { bubbles: true }));
                         input.blur();
-                        return true;
+                        return String(input.value).trim() === nextValue.trim();
                     }
                     """,
                     {"index": index, "value": value},
@@ -1069,7 +1085,7 @@ class TabWorker:
             return False
 
     async def _toggle_checkbox(self, index: int, desired_state: bool) -> bool:
-        """Toggle a checkbox to the desired state (True=checked, False=unchecked)."""
+        """Toggle a checkbox to the desired state using native checked setters."""
         try:
             changed = await self.page.evaluate(
                 """
@@ -1084,10 +1100,20 @@ class TabWorker:
                     if (index >= inputs.length) return false;
                     const input = inputs[index];
                     if (!input || input.type !== 'checkbox') return false;
-                    if (Boolean(input.checked) !== Boolean(desiredState)) {
-                        input.click();
+                    const nextState = Boolean(desiredState);
+                    if (Boolean(input.checked) !== nextState) {
+                        const proto = Object.getPrototypeOf(input);
+                        const descriptor = Object.getOwnPropertyDescriptor(proto, 'checked')
+                            || Object.getOwnPropertyDescriptor(window.HTMLInputElement?.prototype || {}, 'checked');
+                        if (descriptor?.set) {
+                            descriptor.set.call(input, nextState);
+                        } else {
+                            input.checked = nextState;
+                        }
+                        input.dispatchEvent(new Event('input', { bubbles: true }));
+                        input.dispatchEvent(new Event('change', { bubbles: true }));
                     }
-                    return true;
+                    return Boolean(input.checked) === nextState;
                 }
                 """,
                 {"index": index, "desiredState": desired_state},
