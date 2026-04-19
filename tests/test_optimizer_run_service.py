@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from scripts.optimizer.parallel_runner import results_file_for_broker
-from src.services.optimizer_run_service import OptimizerRunService
+from src.services.optimizer_run_service import OptimizerRunService, _normalize_portfolio_result
 from src.services import optimizer_run_service as optimizer_service_module
 
 
@@ -22,6 +22,9 @@ class InMemoryOptimizerStore:
         self.runs: dict[str, dict] = {}
         self.results: dict[tuple[str, str], dict] = {}
         self.events: list[dict] = []
+        self.trials: list[dict] = []
+        self.stress_results: list[dict] = []
+        self.portfolio_results: dict[str, dict] = {}
 
     @classmethod
     def with_running_run(cls) -> "InMemoryOptimizerStore":
@@ -114,12 +117,45 @@ class InMemoryOptimizerStore:
     def list_results(self, run_id: str) -> list[dict]:
         return [value for (current_run_id, _), value in self.results.items() if current_run_id == run_id]
 
+    def create_trial(self, run_id: str, symbol: str, payload: dict) -> dict:
+        row = {"run_id": run_id, "symbol": symbol, **payload}
+        self.trials.append(row)
+        return row
+
+    def list_trials(self, run_id: str, symbol: str | None = None) -> list[dict]:
+        return [
+            row
+            for row in self.trials
+            if row["run_id"] == run_id and (symbol is None or row["symbol"] == symbol)
+        ]
+
+    def create_stress_result(self, run_id: str, symbol: str, payload: dict) -> dict:
+        row = {"run_id": run_id, "symbol": symbol, **payload}
+        self.stress_results.append(row)
+        return row
+
+    def list_stress_results(self, run_id: str, symbol: str | None = None) -> list[dict]:
+        return [
+            row
+            for row in self.stress_results
+            if row["run_id"] == run_id and (symbol is None or row["symbol"] == symbol)
+        ]
+
+    def upsert_portfolio_result(self, run_id: str, payload: dict) -> dict:
+        row = {"run_id": run_id, **payload}
+        self.portfolio_results[run_id] = row
+        return row
+
+    def get_portfolio_result(self, run_id: str) -> dict | None:
+        return self.portfolio_results.get(run_id)
+
     def append_event(self, payload: dict) -> dict:
         self.events.append(payload)
         return payload
 
     def list_events(self, run_id: str, *, limit: int = 200) -> list[dict]:
-        return [event for event in self.events if event["run_id"] == run_id][:limit]
+        events = [event for event in self.events if event["run_id"] == run_id]
+        return events[-limit:]
 
 
 def test_start_run_persists_run_and_symbol_rows(monkeypatch) -> None:
@@ -225,6 +261,183 @@ def test_start_run_rejects_unknown_broker(monkeypatch) -> None:
         assert "invalid broker" in str(exc)
 
 
+def test_service_exposes_survival_artifacts(monkeypatch) -> None:
+    store = InMemoryOptimizerStore.with_run_and_pending_symbol("run-1", "EURUSD")
+    service = OptimizerRunService(store, project_root=Path("/tmp"), results_dir=Path("/tmp/results"))
+
+    service.record_trial(
+        "run-1",
+        "EURUSD",
+        {"trial_number": 3, "window": "forward", "params": {}, "metrics": {"net_profit": 200.0}},
+    )
+    service.record_stress_result(
+        "run-1",
+        "EURUSD",
+        {"stress_type": "news_blackout_30m", "status": "passed", "metrics": {"profit_factor": 1.2}},
+    )
+    service.update_portfolio_result(
+        "run-1",
+        {"combined_max_drawdown_pct": 5.2, "weights": {"EURUSD": 1.0}},
+    )
+
+    assert service.list_trials("run-1", "EURUSD")[0]["window"] == "forward"
+    assert service.list_stress_results("run-1", "EURUSD")[0]["status"] == "passed"
+    assert service.get_portfolio_result("run-1")["weights"]["EURUSD"] == 1.0
+    assert service.get_run("run-1")["portfolio_result"]["weights"]["EURUSD"] == 1.0
+
+
+def test_survival_artifacts_get_run_returns_detached_payload() -> None:
+    store = InMemoryOptimizerStore.with_run_and_pending_symbol("run-1", "EURUSD")
+    store.update_run("run-1", {"status": "completed"})
+    store.update_result(
+        "run-1",
+        "EURUSD",
+        {
+            "status": "completed",
+            "metrics": {"score": 2.1},
+            "validation_metrics": {"score": 1.7},
+            "forward_metrics": {"score": 1.5},
+        },
+    )
+    store.create_trial(
+        "run-1",
+        "EURUSD",
+        {"trial_number": 3, "window": "forward", "metrics": {"score": 1.5}},
+    )
+    store.create_stress_result(
+        "run-1",
+        "EURUSD",
+        {"scenario": "spread_125", "status": "pass", "metrics": {"profit_factor": 1.2}},
+    )
+    store.append_event(
+        {"run_id": "run-1", "event_type": "pair_completed", "symbol": "EURUSD", "payload": {"message": "done"}}
+    )
+    store.upsert_portfolio_result(
+        "run-1",
+        {"combined_max_drawdown_pct": 5.2, "weights": {"EURUSD": 1.0}},
+    )
+    service = OptimizerRunService(store, project_root=Path("/tmp"), results_dir=Path("/tmp/results"))
+
+    run = service.get_run("run-1")
+    run["pairs"].append("GBPUSD")
+    run["summary"]["completed_pairs"] = 99
+    run["portfolio_result"]["weights"]["EURUSD"] = 0.5
+    run["results"][0]["metrics"]["score"] = 9.9
+    run["artifacts"]["trials"][0]["metrics"]["score"] = 7.7
+    run["artifacts"]["stress_results"][0]["metrics"]["profit_factor"] = 0.8
+    run["artifacts"]["events"][0]["payload"]["message"] = "mutated"
+
+    assert store.runs["run-1"]["pairs"] == ["EURUSD"]
+    assert store.runs["run-1"]["summary"]["completed_pairs"] == 0
+    assert store.portfolio_results["run-1"]["weights"]["EURUSD"] == 1.0
+    assert store.results[("run-1", "EURUSD")]["metrics"]["score"] == 2.1
+    assert store.trials[0]["metrics"]["score"] == 1.5
+    assert store.stress_results[0]["metrics"]["profit_factor"] == 1.2
+    assert store.events[0]["payload"]["message"] == "done"
+
+
+def test_get_run_includes_embedded_results_and_artifact_collections() -> None:
+    store = InMemoryOptimizerStore.with_run_and_pending_symbol("run-1", "EURUSD")
+    store.update_run("run-1", {"status": "completed"})
+    store.update_result(
+        "run-1",
+        "EURUSD",
+        {
+            "status": "completed",
+            "metrics": {"score": 2.1},
+            "decision": "reduce_risk",
+            "reason": "forward window survived but DD was close to cap",
+        },
+    )
+    store.create_trial(
+        "run-1",
+        "EURUSD",
+        {"trial_number": 1, "window": "validation", "metrics": {"score": 1.8}},
+    )
+    store.create_stress_result(
+        "run-1",
+        "EURUSD",
+        {"scenario": "spread_125", "status": "pass", "metrics": {"profit_factor": 1.15}},
+    )
+    store.append_event(
+        {"run_id": "run-1", "event_type": "pair_completed", "symbol": "EURUSD", "payload": {"message": "saved"}}
+    )
+    store.upsert_portfolio_result(
+        "run-1",
+        {"combined_max_drawdown_pct": 5.2, "weights": {"EURUSD": 0.5}},
+    )
+    service = OptimizerRunService(store, project_root=Path("/tmp"), results_dir=Path("/tmp/results"))
+
+    run = service.get_run("run-1")
+
+    assert run["results"][0]["decision"] == "reduce_risk"
+    assert run["results"][0]["reason"] == "forward window survived but DD was close to cap"
+    assert run["artifacts"]["trials"][0]["window"] == "validation"
+    assert run["artifacts"]["stress_results"][0]["scenario"] == "spread_125"
+    assert run["artifacts"]["events"][0]["event_type"] == "pair_completed"
+    assert run["artifacts"]["summary"] == {
+        "trial_count": 1,
+        "stress_result_count": 1,
+        "event_count": 1,
+        "symbols": {
+            "EURUSD": {
+                "trial_count": 1,
+                "stress_result_count": 1,
+                "latest_event_type": "pair_completed",
+            }
+        },
+    }
+
+
+def test_get_run_embeds_latest_event_window_for_busy_runs() -> None:
+    store = InMemoryOptimizerStore.with_run_and_pending_symbol("run-1", "EURUSD")
+    store.update_run("run-1", {"status": "completed"})
+    for index in range(205):
+        store.append_event(
+            {
+                "run_id": "run-1",
+                "event_type": f"event_{index}",
+                "symbol": "EURUSD",
+                "payload": {"index": index},
+            }
+        )
+    service = OptimizerRunService(store, project_root=Path("/tmp"), results_dir=Path("/tmp/results"))
+
+    run = service.get_run("run-1")
+
+    assert len(run["artifacts"]["events"]) == 200
+    assert run["artifacts"]["events"][0]["event_type"] == "event_5"
+    assert run["artifacts"]["events"][-1]["event_type"] == "event_204"
+    assert run["artifacts"]["summary"]["symbols"]["EURUSD"]["latest_event_type"] == "event_204"
+
+
+def test_get_run_keeps_active_runs_lightweight() -> None:
+    store = InMemoryOptimizerStore.with_run_and_pending_symbol("run-1", "EURUSD")
+    store.update_result("run-1", "EURUSD", {"status": "running", "metrics": {"score": 1.2}})
+    store.create_trial("run-1", "EURUSD", {"trial_number": 1, "window": "validation", "metrics": {"score": 1.1}})
+    store.create_stress_result("run-1", "EURUSD", {"scenario": "spread_125", "status": "pass"})
+    store.append_event({"run_id": "run-1", "event_type": "pair_started", "symbol": "EURUSD", "payload": {}})
+    service = OptimizerRunService(store, project_root=Path("/tmp"), results_dir=Path("/tmp/results"))
+
+    run = service.get_run("run-1")
+
+    assert "results" not in run
+    assert "artifacts" not in run
+
+
+def test_portfolio_result_normalization_returns_flat_metrics_payload() -> None:
+    row = {
+        "run_id": "run-1",
+        "metrics": {"combined_max_drawdown_pct": 5.2, "weights": {"EURUSD": 1.0}},
+        "created_at": "2026-04-18T00:00:00+00:00",
+        "updated_at": "2026-04-18T00:00:00+00:00",
+    }
+
+    normalized = _normalize_portfolio_result(row)
+
+    assert normalized == {"combined_max_drawdown_pct": 5.2, "weights": {"EURUSD": 1.0}}
+
+
 def test_list_runs_filters_by_strategy_identity() -> None:
     store = InMemoryOptimizerStore()
     store.create_run(
@@ -322,3 +535,39 @@ def test_rebuild_summary_keeps_broker_specific_output_path() -> None:
 
 def test_results_file_for_broker_uses_broker_specific_filename() -> None:
     assert results_file_for_broker("fxcm").name == "parallel_results_fxcm.json"
+
+
+def test_repository_persists_trials_stress_and_portfolio_results_richer_persistence() -> None:
+    store = InMemoryOptimizerStore()
+
+    store.create_trial(
+        "run-1",
+        "EURUSD",
+        {
+            "trial_number": 1,
+            "window": "train",
+            "params": {"ema_len": 200},
+            "metrics": {"net_profit": 1200.0},
+        },
+    )
+    store.create_stress_result(
+        "run-1",
+        "EURUSD",
+        {
+            "stress_type": "spread_125",
+            "status": "passed",
+            "metrics": {"max_drawdown_pct": 4.1},
+        },
+    )
+    store.upsert_portfolio_result(
+        "run-1",
+        {
+            "combined_max_drawdown_pct": 5.8,
+            "combined_daily_drawdown_pct": 2.7,
+            "weights": {"EURUSD": 1.0},
+        },
+    )
+
+    assert store.list_trials("run-1", "EURUSD")[0]["trial_number"] == 1
+    assert store.list_stress_results("run-1", "EURUSD")[0]["stress_type"] == "spread_125"
+    assert store.get_portfolio_result("run-1")["combined_max_drawdown_pct"] == 5.8

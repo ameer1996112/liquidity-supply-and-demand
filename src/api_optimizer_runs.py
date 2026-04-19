@@ -120,9 +120,36 @@ def create_optimizer_run(payload: OptimizerRunCreateRequest) -> dict[str, Any]:
 @router.get("/runs/{run_id}", response_model=dict[str, Any])
 def get_optimizer_run(run_id: str) -> dict[str, Any]:
     try:
-        return get_optimizer_run_service().get_run(run_id)
+        run = get_optimizer_run_service().get_run(run_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=f"Unknown optimizer run: {run_id}") from exc
+    return {"run": run}
+
+
+@router.get("/runs/{run_id}/trials", response_model=dict[str, Any])
+def get_optimizer_run_trials(
+    run_id: str,
+    symbol: str | None = Query(None),
+) -> dict[str, Any]:
+    service = get_optimizer_run_service()
+    try:
+        service.get_run(run_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown optimizer run: {run_id}") from exc
+    return {"trials": service.list_trials(run_id, symbol)}
+
+
+@router.get("/runs/{run_id}/stress-results", response_model=dict[str, Any])
+def get_optimizer_run_stress_results(
+    run_id: str,
+    symbol: str | None = Query(None),
+) -> dict[str, Any]:
+    service = get_optimizer_run_service()
+    try:
+        service.get_run(run_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown optimizer run: {run_id}") from exc
+    return {"results": service.list_stress_results(run_id, symbol)}
 
 
 @router.get("/runs/{run_id}/results", response_model=dict[str, Any])

@@ -221,6 +221,85 @@ export interface OptimizerRunSummaryApi {
   error_message?: string;
 }
 
+export interface OptimizerPortfolioResultApi {
+  combined_max_drawdown_pct?: number;
+  combined_daily_drawdown_pct?: number;
+  worst_day_pct?: number;
+  weights?: Record<string, number>;
+}
+
+export interface OptimizerRunResultApi {
+  symbol: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  decision?: string | null;
+  reason?: string | null;
+  params?: Record<string, unknown>;
+  metrics?: {
+    score?: number;
+    net_profit?: number;
+    win_rate?: number;
+    profit_factor?: number;
+    max_drawdown_pct?: number;
+    total_trades?: number;
+  };
+  validation_metrics?: Record<string, unknown> | null;
+  forward_metrics?: Record<string, unknown> | null;
+  error_message?: string | null;
+}
+
+export interface OptimizerRunEventApi {
+  event_type: string;
+  run_id: string;
+  worker_id?: number | null;
+  symbol?: string | null;
+  payload?: Record<string, any>;
+  created_at?: string;
+}
+
+export interface OptimizerRunTrialApi {
+  id?: string | number;
+  run_id?: string;
+  symbol: string;
+  trial_number?: number | null;
+  window?: string | null;
+  params?: Record<string, unknown> | null;
+  metrics?: Record<string, unknown> | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface OptimizerRunStressResultApi {
+  id?: string | number;
+  run_id?: string;
+  symbol?: string | null;
+  scenario?: string | null;
+  stress_type?: string | null;
+  status?: string | null;
+  metrics?: Record<string, unknown> | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
+export interface OptimizerRunArtifactSymbolSummaryApi {
+  trial_count?: number;
+  stress_result_count?: number;
+  latest_event_type?: string | null;
+}
+
+export interface OptimizerRunArtifactSummaryApi {
+  trial_count?: number;
+  stress_result_count?: number;
+  event_count?: number;
+  symbols?: Record<string, OptimizerRunArtifactSymbolSummaryApi>;
+}
+
+export interface OptimizerRunArtifactsApi {
+  trials?: OptimizerRunTrialApi[];
+  stress_results?: OptimizerRunStressResultApi[];
+  events?: OptimizerRunEventApi[];
+  summary?: OptimizerRunArtifactSummaryApi | null;
+}
+
 export interface OptimizerRunApi {
   id: string;
   strategy_id?: string | null;
@@ -236,34 +315,13 @@ export interface OptimizerRunApi {
   market?: string | null;
   created_by?: string | null;
   summary: OptimizerRunSummaryApi;
+  portfolio_result?: OptimizerPortfolioResultApi | null;
+  results?: OptimizerRunResultApi[];
+  artifacts?: OptimizerRunArtifactsApi | null;
   started_at?: string | null;
   finished_at?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
-}
-
-export interface OptimizerRunResultApi {
-  symbol: string;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
-  params?: Record<string, unknown>;
-  metrics?: {
-    score?: number;
-    net_profit?: number;
-    win_rate?: number;
-    profit_factor?: number;
-    max_drawdown_pct?: number;
-    total_trades?: number;
-  };
-  error_message?: string | null;
-}
-
-export interface OptimizerRunEventApi {
-  event_type: string;
-  run_id: string;
-  worker_id?: number | null;
-  symbol?: string | null;
-  payload?: Record<string, any>;
-  created_at?: string;
 }
 
 export interface OptimizerRunCreateApi {
@@ -284,7 +342,8 @@ export async function fetchOptimizerRuns() {
 }
 
 export async function fetchOptimizerRun(runId: string) {
-  return apiFetch<OptimizerRunApi>(`/api/optimizer/runs/${runId}`);
+  const response = await apiFetch<{ run: OptimizerRunApi }>(`/api/optimizer/runs/${runId}`);
+  return response.run;
 }
 
 export async function fetchOptimizerRunResults(runId: string) {
@@ -299,6 +358,22 @@ export async function fetchOptimizerRunEvents(runId: string) {
     `/api/optimizer/runs/${runId}/events`
   );
   return response.events || [];
+}
+
+export async function fetchOptimizerRunTrials(runId: string, symbol?: string) {
+  const query = symbol ? `?symbol=${encodeURIComponent(symbol)}` : '';
+  const response = await apiFetch<{ trials: OptimizerRunTrialApi[] }>(
+    `/api/optimizer/runs/${runId}/trials${query}`
+  );
+  return response.trials || [];
+}
+
+export async function fetchOptimizerRunStressResults(runId: string, symbol?: string) {
+  const query = symbol ? `?symbol=${encodeURIComponent(symbol)}` : '';
+  const response = await apiFetch<{ results: OptimizerRunStressResultApi[] }>(
+    `/api/optimizer/runs/${runId}/stress-results${query}`
+  );
+  return response.results || [];
 }
 
 export async function createOptimizerRun(payload: OptimizerRunCreateApi) {

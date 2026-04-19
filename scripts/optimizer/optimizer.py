@@ -35,6 +35,7 @@ from .config import (
 )
 from .models import BacktestResult
 from .tab_worker import TabWorker
+from src.services.optimizer_survival_scoring import classify_pair_result
 
 try:
     from playwright.async_api import async_playwright, Page, Browser
@@ -43,6 +44,7 @@ except ImportError:
     sys.exit(1)
 
 _PAIR_TIMEOUT_SECS = 600  # 10-minute hard limit per pair (increased for bayesian)
+_DEFAULT_DAILY_DD_LIMIT_PCT = 4.0
 
 
 class TradingViewOptimizer:
@@ -66,6 +68,7 @@ class TradingViewOptimizer:
         self.bayesian_mode = bayesian_mode
         self.n_trials = n_trials
         self.dd_limit = dd_limit
+        self.daily_dd_limit = _DEFAULT_DAILY_DD_LIMIT_PCT
         self.generate_report = generate_report
         self.fixed_overrides = fixed_overrides or {}
         self.results: list[BacktestResult] = []
@@ -178,20 +181,51 @@ class TradingViewOptimizer:
             checkpoint["completed"].append(symbol)
         checkpoint["results"][symbol] = {
             "params": result.params,
-            "metrics": {
-                "net_profit": result.net_profit,
-                "total_trades": result.total_trades,
-                "win_rate": result.win_rate,
-                "profit_factor": result.profit_factor,
-                "max_drawdown_pct": result.max_drawdown_pct,
-                "score": result.score,
-            },
+            "metrics": result.to_dict(),
         }
         try:
             with open(CHECKPOINT_FILE, "w") as f:
                 json.dump(checkpoint, f, indent=2)
         except Exception as e:
             print(f"[checkpoint] WARNING: could not write checkpoint: {e}")
+
+    def _apply_staged_survival_result(self, result: BacktestResult) -> BacktestResult:
+        """Attach staged survival payloads to the final per-pair result."""
+        forward_metrics = {
+            "net_profit": result.net_profit,
+            "profit_factor": result.profit_factor,
+            "total_trades": result.total_trades,
+            "max_drawdown_pct": result.max_drawdown_pct,
+            "max_daily_loss_pct": float(
+                result.params.get("max_daily_loss_pct", self.daily_dd_limit)
+            ),
+        }
+        stress_results = list(result.stress_results)
+        decision = classify_pair_result(
+            forward_metrics=forward_metrics,
+            stress_metrics=stress_results,
+            pair_dd_limit=self.dd_limit,
+            pair_daily_limit=self.daily_dd_limit,
+        )
+        risk_weight = (
+            1.0
+            if decision["status"] == "PASS"
+            else 0.5 if decision["status"] == "REDUCE_RISK" else 0.0
+        )
+
+        result.forward_metrics = forward_metrics
+        result.validation_metrics = {
+            "prop_firm_compliant": result.is_prop_firm_compliant(),
+            "drawdown_source": result.drawdown_source,
+            "verified_symbol": result.verified_symbol,
+        }
+        result.stress_results = stress_results
+        result.decision = {
+            "status": decision["status"],
+            "reason": decision["reason"],
+            "risk_weight": risk_weight,
+        }
+        return result
 
     # ─────────────────────────────────── browser ─────────────────────────────
 
@@ -595,6 +629,7 @@ class TradingViewOptimizer:
                 result = await asyncio.wait_for(coro, timeout=timeout)
 
                 if result:
+                    result = self._apply_staged_survival_result(result)
                     self.best_per_pair[symbol] = result
                     self.results.extend(worker.results)
                     self._save_checkpoint(checkpoint, symbol, result)
@@ -608,6 +643,7 @@ class TradingViewOptimizer:
                         f"\n  WARNING: {symbol} timed out after {n_done} trials — "
                         f"saving partial best (score={partial_best.score:.2f})"
                     )
+                    partial_best = self._apply_staged_survival_result(partial_best)
                     self.best_per_pair[symbol] = partial_best
                     self.results.extend(worker.results)
                     self._save_checkpoint(checkpoint, symbol, partial_best)
@@ -717,12 +753,7 @@ class TradingViewOptimizer:
             best_data[sym] = {
                 "params": res.params,
                 "metrics": {
-                    "net_profit": res.net_profit,
-                    "total_trades": res.total_trades,
-                    "win_rate": res.win_rate,
-                    "profit_factor": res.profit_factor,
-                    "max_drawdown_pct": res.max_drawdown_pct,
-                    "score": res.score,
+                    **res.to_dict(),
                     "prop_firm_compliant": res.is_prop_firm_compliant(),
                 },
             }
