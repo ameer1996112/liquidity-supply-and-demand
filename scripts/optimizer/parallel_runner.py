@@ -2,7 +2,7 @@
 parallel_runner.py — Parallel TradingView optimizer coordinator.
 
 Spawns N independent browser contexts, each handling a queue of pairs.
-Each worker runs in its own asyncio task against a dedicated Chrome page.
+Each worker runs in its own asyncio task against a dedicated TradingView page.
 
 Usage:
     python -m scripts.optimizer.parallel_runner --workers 3 --mode bayesian
@@ -43,6 +43,7 @@ from .config import (
     LIQ_DISTANCE_RANGES,
 )
 from .models import BacktestResult
+from .optimizer_mcp import OptimizerMcpController, OptimizerWorkspaceSlot
 from .runtime_state import OptimizerRuntimeState
 
 try:
@@ -56,7 +57,8 @@ log = logging.getLogger(__name__)
 LEGACY_PARALLEL_RESULTS_FILE = RESULTS_DIR / "parallel_results.json"
 PARALLEL_LOG_FILE = RESULTS_DIR / "parallel_run.log"
 MAX_PAIR_RETRIES = 2
-WORKER_STARTUP_DELAY = 15.0  # stagger worker starts to avoid Chrome overload on startup
+WORKER_STARTUP_DELAY = 15.0  # stagger worker starts to reduce startup contention
+TRADINGVIEW_DESKTOP_CDP_URL = os.environ.get("OPTIMIZER_DESKTOP_CDP_URL", "http://127.0.0.1:9222")
 SUPPORTED_BROKERS = {"vantage", "oanda", "fxcm"}
 
 
@@ -91,8 +93,8 @@ def setup_logging() -> None:
     )
 
 
-def detect_chrome_pid() -> int | None:
-    """Return the first PID listening on Chrome's CDP port, if any."""
+def detect_cdp_pid() -> int | None:
+    """Return the first PID listening on the local CDP port, if any."""
     try:
         output = (
             subprocess.check_output(["lsof", "-ti", ":9222"], text=True)
@@ -133,6 +135,64 @@ def _extract_chart_id(url: str) -> str | None:
     return chart_id or None
 
 
+def _collect_tradingview_pages(browser: Any) -> list[Any]:
+    """Collect chart pages from every attached browser context."""
+    tv_pages: list[Any] = []
+    for context in getattr(browser, "contexts", []):
+        for page in getattr(context, "pages", []):
+            try:
+                if "tradingview.com/chart" in page.url:
+                    tv_pages.append(page)
+            except Exception:
+                continue
+    return tv_pages
+
+
+def _match_pages_to_slots(tv_pages: list[Any], slots: list[OptimizerWorkspaceSlot]) -> list[Any]:
+    """Match chart pages to MCP workspace slots using chart ids when available."""
+    ordered_slots = sorted(slots, key=lambda slot: slot.index)
+    if len(tv_pages) < len(ordered_slots):
+        raise RuntimeError(
+            f"TradingView Desktop returned {len(tv_pages)} chart page(s) for {len(ordered_slots)} prepared MCP slot(s)"
+        )
+
+    remaining_pages = list(tv_pages)
+    used_page_ids: set[int] = set()
+    matched_pages: list[Any] = []
+
+    for slot in ordered_slots:
+        slot_page = None
+        if slot.chart_id:
+            for page in remaining_pages:
+                if id(page) in used_page_ids:
+                    continue
+                if _extract_chart_id(getattr(page, "url", "")) == slot.chart_id:
+                    slot_page = page
+                    break
+
+        if slot_page is None:
+            for page in remaining_pages:
+                if id(page) not in used_page_ids:
+                    slot_page = page
+                    break
+
+        if slot_page is None:
+            raise RuntimeError(
+                f"Could not resolve a TradingView page for MCP slot {slot.index} ({slot.tab_id})"
+            )
+
+        used_page_ids.add(id(slot_page))
+        matched_pages.append(slot_page)
+
+    return matched_pages
+
+
+def _prepare_mcp_backed_pages(browser: Any, slots: list[OptimizerWorkspaceSlot]) -> list[Any]:
+    """Resolve real Playwright page objects from prepared MCP slots."""
+    tv_pages = _collect_tradingview_pages(browser)
+    return _match_pages_to_slots(tv_pages, slots)
+
+
 async def _wait_for_chart_id(page: Any, timeout: float = 60.0) -> str | None:
     """Wait until TradingView assigns a real chart id to the page URL."""
     start = time.time()
@@ -148,7 +208,7 @@ async def _wait_for_chart_id(page: Any, timeout: float = 60.0) -> str | None:
 
 
 async def ensure_tradingview_tabs(browser, required_tabs: int, bootstrap_symbol: str) -> list[Any]:
-    """Return TradingView chart tabs, opening new ones if needed."""
+    """Legacy Chrome bootstrap helper kept for compatibility with older flows."""
     tv_pages: list[Any] = []
     for context in browser.contexts:
         for page in context.pages:
@@ -472,7 +532,7 @@ async def run_parallel(
     raw_args: list[str] | None = None,
 ) -> dict:
     """
-    Main coordinator: opens browser, distributes pairs to workers, collects results.
+    Main coordinator: prepares TradingView Desktop tabs, distributes pairs to workers, collects results.
     """
     setup_logging()
     results_file = results_file_for_broker(broker)
@@ -509,7 +569,7 @@ async def run_parallel(
         workers=n_workers,
         log_file=os.environ.get("OPTIMIZER_LAUNCH_LOG_FILE", str(PARALLEL_LOG_FILE)),
         optimizer_pid=os.getpid(),
-        chrome_pid=detect_chrome_pid(),
+        chrome_pid=detect_cdp_pid(),
     )
     run_id = run_status["run_id"]
     runtime_state.record_run_event(
@@ -538,37 +598,29 @@ async def run_parallel(
         if not dry_run and async_playwright is None:
             raise RuntimeError("playwright not installed. Install in venv: python3 -m pip install playwright && python3 -m playwright install chromium")
 
-        async with async_playwright() as pw:  # type: ignore[operator]
-            if dry_run:
-                # Dry-run mode never touches a real page; keep it browserless so it works
-                # even when Playwright browsers are not installed locally.
-                browser = None
-                pages = [None] * n_workers
-            else:
-                # Connect to existing Chrome with remote debugging
+        if dry_run:
+            # Dry-run mode never touches a real page; keep it browserless so it works
+            # even when Playwright browsers are not installed locally.
+            browser = None
+            pages = [None] * n_workers
+        else:
+            controller = OptimizerMcpController()
+            workspace_slots = await controller.ensure_optimizer_workspace(
+                required_tabs=n_workers,
+                bootstrap_symbol=remaining_pairs[0],
+                broker=broker,
+            )
+
+            async with async_playwright() as pw:  # type: ignore[operator]
                 try:
-                    browser = await pw.chromium.connect_over_cdp("http://127.0.0.1:9222")
-                    log.info("Connected to Chrome on port 9222")
-                except Exception as e:
-                    log.error(f"Could not connect to Chrome: {e}")
-                    log.error("Start Chrome with: open -a 'Google Chrome' --args --remote-debugging-port=9222")
-                    sys.exit(1)
+                    browser = await pw.chromium.connect_over_cdp(TRADINGVIEW_DESKTOP_CDP_URL)
+                except Exception as exc:
+                    raise RuntimeError(
+                        f"Could not connect to TradingView Desktop CDP target at {TRADINGVIEW_DESKTOP_CDP_URL}: {exc}"
+                    ) from exc
 
-                # Get existing TradingView pages
-                tv_pages = []
-                for context in browser.contexts:
-                    for page in context.pages:
-                        if "tradingview.com/chart" in page.url:
-                            tv_pages.append(page)
-
-                if len(tv_pages) < n_workers:
-                    tv_pages = await ensure_tradingview_tabs(
-                        browser,
-                        n_workers,
-                        bootstrap_symbol=remaining_pairs[0],
-                    )
-
-                pages = tv_pages[:n_workers]
+                log.info("Connected to TradingView Desktop CDP target at %s", TRADINGVIEW_DESKTOP_CDP_URL)
+                pages = _prepare_mcp_backed_pages(browser, workspace_slots)
 
             # Stagger worker starts to avoid race conditions
             tasks = []
