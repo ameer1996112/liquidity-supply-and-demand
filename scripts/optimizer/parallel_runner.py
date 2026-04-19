@@ -448,6 +448,10 @@ async def worker_task(
                     run_id=run_id,
                     worker_id=worker_id,
                 )
+                if result is None:
+                    raise RuntimeError(
+                        f"No valid optimization result produced for {symbol}"
+                    )
                 elapsed = time.time() - start
                 log.info(
                     f"[worker-{worker_id}] ✅ {symbol} done in {elapsed:.1f}s "

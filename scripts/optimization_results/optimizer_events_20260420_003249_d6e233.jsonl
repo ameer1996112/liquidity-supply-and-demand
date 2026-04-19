@@ -1,0 +1,34 @@
+{"ts": "2026-04-20T00:32:49.745018+03:00", "run_id": "20260420_003249_d6e233", "event_type": "run_started", "mode": "bayesian", "workers": 10, "pairs": ["EURUSD", "GBPUSD", "AUDUSD", "NZDUSD", "USDCAD", "USDCHF", "USDJPY", "GBPJPY", "EURJPY", "NZDJPY", "CADJPY", "AUDJPY", "CHFJPY", "EURGBP", "GBPAUD", "GBPCAD", "GBPCHF", "GBPNZD", "EURAUD", "EURCAD", "EURCHF", "EURNZD", "AUDNZD", "AUDCAD", "AUDCHF", "CADCHF", "NZDCAD", "NZDCHF", "XAUUSD", "XAGUSD", "NAS100"], "dry_run": false, "broker": "oanda"}
+{"ts": "2026-04-20T00:34:43.293925+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_started", "worker_id": 0, "symbol": "EURUSD", "attempt": 1}
+{"ts": "2026-04-20T00:34:58.299566+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_started", "worker_id": 1, "symbol": "GBPUSD", "attempt": 1}
+{"ts": "2026-04-20T00:34:59.182046+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_started", "worker_id": 0, "symbol": "EURUSD", "attempt": 2}
+{"ts": "2026-04-20T00:35:13.309588+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_started", "worker_id": 2, "symbol": "AUDUSD", "attempt": 1}
+{"ts": "2026-04-20T00:35:13.999735+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_started", "worker_id": 1, "symbol": "GBPUSD", "attempt": 2}
+{"ts": "2026-04-20T00:35:14.849574+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_started", "worker_id": 0, "symbol": "EURUSD", "attempt": 3}
+{"ts": "2026-04-20T00:35:25.663472+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_failed", "worker_id": 0, "symbol": "EURUSD", "error_message": "Could not confirm backtest range is Last 365 days"}
+{"ts": "2026-04-20T00:35:25.664357+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_started", "worker_id": 0, "symbol": "NZDUSD", "attempt": 1}
+{"ts": "2026-04-20T00:35:28.305079+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_started", "worker_id": 3, "symbol": "USDCAD", "attempt": 1}
+{"ts": "2026-04-20T00:35:29.000712+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_started", "worker_id": 2, "symbol": "AUDUSD", "attempt": 2}
+{"ts": "2026-04-20T00:35:29.735312+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_started", "worker_id": 1, "symbol": "GBPUSD", "attempt": 3}
+{"ts": "2026-04-20T00:35:40.464537+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_failed", "worker_id": 1, "symbol": "GBPUSD", "error_message": "Could not confirm backtest range is Last 365 days"}
+{"ts": "2026-04-20T00:35:40.465580+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_started", "worker_id": 1, "symbol": "USDCHF", "attempt": 1}
+{"ts": "2026-04-20T00:35:41.408471+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_started", "worker_id": 0, "symbol": "NZDUSD", "attempt": 2}
+{"ts": "2026-04-20T00:35:43.303987+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_started", "worker_id": 4, "symbol": "USDJPY", "attempt": 1}
+{"ts": "2026-04-20T00:35:44.006987+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_started", "worker_id": 3, "symbol": "USDCAD", "attempt": 2}
+{"ts": "2026-04-20T00:35:44.905233+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_started", "worker_id": 2, "symbol": "AUDUSD", "attempt": 3}
+{"ts": "2026-04-20T00:35:55.652734+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_failed", "worker_id": 2, "symbol": "AUDUSD", "error_message": "Could not confirm backtest range is Last 365 days"}
+{"ts": "2026-04-20T00:35:55.653426+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_started", "worker_id": 2, "symbol": "GBPJPY", "attempt": 1}
+{"ts": "2026-04-20T00:35:56.140114+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_started", "worker_id": 1, "symbol": "USDCHF", "attempt": 2}
+{"ts": "2026-04-20T00:35:57.103463+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_started", "worker_id": 0, "symbol": "NZDUSD", "attempt": 3}
+{"ts": "2026-04-20T00:35:58.313734+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_started", "worker_id": 5, "symbol": "EURJPY", "attempt": 1}
+{"ts": "2026-04-20T00:35:58.947037+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_started", "worker_id": 4, "symbol": "USDJPY", "attempt": 2}
+{"ts": "2026-04-20T00:35:59.662016+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_started", "worker_id": 3, "symbol": "USDCAD", "attempt": 3}
+{"ts": "2026-04-20T00:36:07.888931+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_failed", "worker_id": 0, "symbol": "NZDUSD", "error_message": "Could not confirm backtest range is Last 365 days"}
+{"ts": "2026-04-20T00:36:07.890817+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_started", "worker_id": 0, "symbol": "NZDJPY", "attempt": 1}
+{"ts": "2026-04-20T00:36:10.422701+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_failed", "worker_id": 3, "symbol": "USDCAD", "error_message": "Could not confirm backtest range is Last 365 days"}
+{"ts": "2026-04-20T00:36:10.423380+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_started", "worker_id": 3, "symbol": "CADJPY", "attempt": 1}
+{"ts": "2026-04-20T00:36:11.381738+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_started", "worker_id": 2, "symbol": "GBPJPY", "attempt": 2}
+{"ts": "2026-04-20T00:36:11.819903+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_started", "worker_id": 1, "symbol": "USDCHF", "attempt": 3}
+{"ts": "2026-04-20T00:36:13.307673+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_started", "worker_id": 6, "symbol": "AUDJPY", "attempt": 1}
+{"ts": "2026-04-20T00:36:14.073825+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_started", "worker_id": 5, "symbol": "EURJPY", "attempt": 2}
+{"ts": "2026-04-20T00:36:14.758473+03:00", "run_id": "20260420_003249_d6e233", "event_type": "pair_started", "worker_id": 4, "symbol": "USDJPY", "attempt": 3}

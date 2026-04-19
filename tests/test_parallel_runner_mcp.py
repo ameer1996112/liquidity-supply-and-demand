@@ -253,3 +253,49 @@ def test_run_parallel_surfaces_workspace_errors_without_chrome_language(monkeypa
             "broker": "vantage",
         }
     ]
+
+
+def test_worker_task_retries_when_optimizer_returns_no_result(monkeypatch, tmp_path) -> None:
+    results: dict[str, object] = {}
+    error_log: list[dict[str, object]] = []
+    pair_queue: asyncio.Queue[str] = asyncio.Queue()
+    asyncio.run(pair_queue.put("EURUSD"))
+
+    monkeypatch.setattr(parallel_runner, "MAX_PAIR_RETRIES", 0)
+
+    async def no_sleep(*_args, **_kwargs) -> None:
+        return None
+
+    async def fake_optimize_pair_on_page(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr(parallel_runner.asyncio, "sleep", no_sleep)
+    monkeypatch.setattr(parallel_runner, "optimize_pair_on_page", fake_optimize_pair_on_page)
+
+    asyncio.run(
+        parallel_runner.worker_task(
+            worker_id=0,
+            page=None,
+            pair_queue=pair_queue,
+            results=results,
+            results_file=tmp_path / "parallel_results.json",
+            results_lock=asyncio.Lock(),
+            error_log=error_log,
+            broker="vantage",
+            mode="bayesian",
+            n_trials=1,
+            dd_limit=10.0,
+            dry_run=True,
+            runtime_state=None,
+            run_id=None,
+        )
+    )
+
+    assert results == {}
+    assert error_log == [
+        {
+            "symbol": "EURUSD",
+            "worker": 0,
+            "error": "No valid optimization result produced for EURUSD",
+        }
+    ]

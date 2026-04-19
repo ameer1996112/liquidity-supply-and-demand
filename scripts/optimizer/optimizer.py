@@ -553,8 +553,11 @@ class TradingViewOptimizer:
                     f"Saving best compliant instead (DD={best_compliant.max_drawdown_pct:.1f}%)."
                 )
             _print_pair_summary_table(final)
+            return final
 
-        return final
+        raise RuntimeError(
+            f"No valid optimization result produced for {symbol}; all trials failed or were skipped"
+        )
 
     def _record_trial_event(
         self,

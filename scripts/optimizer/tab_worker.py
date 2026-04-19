@@ -605,6 +605,34 @@ class TabWorker:
         )
         return bool(chosen)
 
+    async def _select_chart_date_range_tab(self, range_label: str) -> bool:
+        """Fallback: click the chart-level bottom date-range shortcut."""
+        target_name = {
+            "Last 365 days": "date-range-tab-12M",
+            "Entire history": "date-range-tab-ALL",
+        }.get(range_label)
+        if not target_name:
+            return False
+
+        try:
+            return bool(
+                await self.page.evaluate(
+                    """
+                    (targetName) => {
+                        const button = document.querySelector(`[data-name="${targetName}"]`);
+                        if (!button || button.offsetParent === null) {
+                            return false;
+                        }
+                        button.click();
+                        return true;
+                    }
+                    """,
+                    target_name,
+                )
+            )
+        except Exception:
+            return False
+
     async def _set_backtest_range(self, range_label: str = "Entire history") -> bool:
         """
         Ensure the strategy tester date range covers approximately the desired period.
@@ -627,14 +655,18 @@ class TabWorker:
                     print(f"  [backtest range ✓ already entire history]", flush=True)
                 return True
 
+            selected_via_chart_tab = False
             if not await self._select_backtest_range_preset(range_label):
-                log.warning(
-                    "_set_backtest_range: could not open preset menu for '%s' "
-                    "(button text='%s')",
-                    range_label,
-                    btn_text[:60] if btn_text else "(not found)",
-                )
-                return False
+                if await self._select_chart_date_range_tab(range_label):
+                    selected_via_chart_tab = True
+                else:
+                    log.warning(
+                        "_set_backtest_range: could not open preset menu for '%s' "
+                        "(button text='%s')",
+                        range_label,
+                        btn_text[:60] if btn_text else "(not found)",
+                    )
+                    return False
 
             await asyncio.sleep(0.4)
             await self._wait_for_update_complete()
@@ -646,6 +678,13 @@ class TabWorker:
                     print(f"  [backtest range ✓ set to ~1 year: {updated_text[:40].strip()}]", flush=True)
                 else:
                     print(f"  [backtest range ✓ set to entire history]", flush=True)
+                return True
+
+            if selected_via_chart_tab and not updated_text:
+                if range_label == "Last 365 days":
+                    print("  [backtest range ✓ applied chart 1Y shortcut]", flush=True)
+                else:
+                    print("  [backtest range ✓ applied chart All shortcut]", flush=True)
                 return True
 
             log.warning(
@@ -827,13 +866,113 @@ class TabWorker:
         is_open = await self.page.evaluate(
             """
             (() => {
-                const d = document.querySelector('[class*="dialog-"][class*="rounded"]');
-                return d && d.offsetParent !== null;
+                const dialogs = Array.from(document.querySelectorAll('[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'));
+                const d = dialogs.find((el) => {
+                    const rect = el.getBoundingClientRect?.();
+                    return !!rect && rect.width > 0 && rect.height > 0;
+                }) || dialogs[0];
+                if (!d) return false;
+                const rect = d.getBoundingClientRect?.();
+                return !!rect && rect.width > 0 && rect.height > 0;
             })()
             """
         )
         if is_open:
             return True
+
+        # TradingView Desktop reliably exposes the bottom Strategy Report
+        # strategy menu as "S&D Algo [Pro] · Deep Backtesting" -> "Settings…".
+        # Prefer that deterministic flow before falling back to chart-legend
+        # coordinate clicks, which are less stable in the Desktop shell.
+        try:
+            opened_strategy_menu = await self.page.evaluate(
+                """
+                (() => {
+                    const visible = (el) => {
+                        const rect = el?.getBoundingClientRect?.();
+                        const style = el ? window.getComputedStyle(el) : null;
+                        return !!rect && rect.width > 0 && rect.height > 0 &&
+                            style?.visibility !== 'hidden' && style?.display !== 'none';
+                    };
+
+                    const strategyButton = Array.from(document.querySelectorAll('button'))
+                        .find((btn) =>
+                            visible(btn) &&
+                            (
+                                (btn.getAttribute('title') || '').includes('S&D Algo [Pro]') ||
+                                (btn.textContent || '').includes('S&D Algo [Pro]')
+                            )
+                        );
+                    if (!strategyButton) return false;
+                    strategyButton.click();
+                    return true;
+                })()
+                """
+            )
+            if opened_strategy_menu:
+                await asyncio.sleep(0.5)
+                opened_from_menu = await self.page.evaluate(
+                    """
+                    (() => {
+                        const visible = (el) => {
+                            const rect = el?.getBoundingClientRect?.();
+                            const style = el ? window.getComputedStyle(el) : null;
+                            return !!rect && rect.width > 0 && rect.height > 0 &&
+                                style?.visibility !== 'hidden' && style?.display !== 'none';
+                        };
+
+                        const selectors = [
+                            'button', '[role="menuitem"]', '[role="option"]',
+                            '[class*="item"]', '[class*="button"]'
+                        ];
+                        for (const sel of selectors) {
+                            for (const el of document.querySelectorAll(sel)) {
+                                if (!visible(el)) continue;
+                                const text = (el.textContent || '').replace(/\\s+/g, ' ').trim();
+                                if (
+                                    text === 'Settings…' ||
+                                    text === 'Settings...' ||
+                                    text.startsWith('Settings…') ||
+                                    text.startsWith('Settings...')
+                                ) {
+                                    el.click();
+                                    return true;
+                                }
+                            }
+                        }
+                        return false;
+                    })()
+                    """
+                )
+            else:
+                opened_from_menu = False
+
+            if opened_from_menu:
+                await asyncio.sleep(1.2)
+                is_open = await self.page.evaluate(
+                    """
+                    (() => {
+                        const dialogs = Array.from(document.querySelectorAll('[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'));
+                        const d = dialogs.find((el) => {
+                            const rect = el.getBoundingClientRect?.();
+                            return !!rect && rect.width > 0 && rect.height > 0;
+                        }) || dialogs[0];
+                        if (!d) return false;
+                        const rect = d.getBoundingClientRect?.();
+                        return !!rect && rect.width > 0 && rect.height > 0;
+                    })()
+                    """
+                )
+                if is_open:
+                    return True
+            else:
+                try:
+                    await self.page.keyboard.press("Escape")
+                    await asyncio.sleep(0.2)
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
         # Click strategy name to reveal action buttons, then click Settings gear.
         # Must use page.mouse.click() with real pixel coords — JS btn.click() is
@@ -862,8 +1001,14 @@ class TabWorker:
                 is_open = await self.page.evaluate(
                     """
                     (() => {
-                        const d = document.querySelector('[class*="dialog-"][class*="rounded"]');
-                        return d && d.offsetParent !== null;
+                        const dialogs = Array.from(document.querySelectorAll('[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'));
+                        const d = dialogs.find((el) => {
+                            const rect = el.getBoundingClientRect?.();
+                            return !!rect && rect.width > 0 && rect.height > 0;
+                        }) || dialogs[0];
+                        if (!d) return false;
+                        const rect = d.getBoundingClientRect?.();
+                        return !!rect && rect.width > 0 && rect.height > 0;
                     })()
                     """
                 )
@@ -875,8 +1020,14 @@ class TabWorker:
             is_open = await self.page.evaluate(
                 """
                 (() => {
-                    const d = document.querySelector('[class*="dialog-"][class*="rounded"]');
-                    return d && d.offsetParent !== null;
+                    const dialogs = Array.from(document.querySelectorAll('[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'));
+                    const d = dialogs.find((el) => {
+                        const rect = el.getBoundingClientRect?.();
+                        return !!rect && rect.width > 0 && rect.height > 0;
+                    }) || dialogs[0];
+                    if (!d) return false;
+                    const rect = d.getBoundingClientRect?.();
+                    return !!rect && rect.width > 0 && rect.height > 0;
                 })()
                 """
             )
@@ -892,7 +1043,11 @@ class TabWorker:
                 await self.page.evaluate(
                     """
                     ({ index, value }) => {
-                        const d = document.querySelector('[class*="dialog-"][class*="rounded"]');
+                        const dialogs = Array.from(document.querySelectorAll('[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'));
+                        const d = dialogs.find((el) => {
+                            const rect = el.getBoundingClientRect?.();
+                            return !!rect && rect.width > 0 && rect.height > 0;
+                        }) || dialogs[0];
                         if (!d) return false;
                         const inputs = d.querySelectorAll('input');
                         if (index >= inputs.length) return false;
@@ -919,7 +1074,11 @@ class TabWorker:
             changed = await self.page.evaluate(
                 """
                 ({ index, desiredState }) => {
-                    const d = document.querySelector('[class*="dialog-"][class*="rounded"]');
+                    const dialogs = Array.from(document.querySelectorAll('[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'));
+                    const d = dialogs.find((el) => {
+                        const rect = el.getBoundingClientRect?.();
+                        return !!rect && rect.width > 0 && rect.height > 0;
+                    }) || dialogs[0];
                     if (!d) return false;
                     const inputs = d.querySelectorAll('input');
                     if (index >= inputs.length) return false;
@@ -1040,7 +1199,7 @@ class TabWorker:
                     for (const btn of document.querySelectorAll('button')) {
                         const t = btn.textContent?.trim();
                         if (t === 'OK' || t === 'Dismiss' || t === 'Close') {
-                            const inSettings = btn.closest('[class*="dialog-"][class*="rounded"]');
+                            const inSettings = btn.closest('[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]');
                             if (!inSettings) { btn.click(); count++; }
                         }
                     }
@@ -1066,7 +1225,11 @@ class TabWorker:
             profile = await self.page.evaluate(
                 """
                 (() => {
-                    const d = document.querySelector('[class*="dialog-"][class*="rounded"]');
+                    const dialogs = Array.from(document.querySelectorAll('[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'));
+                    const d = dialogs.find((el) => {
+                        const rect = el.getBoundingClientRect?.();
+                        return !!rect && rect.width > 0 && rect.height > 0;
+                    }) || dialogs[0];
                     if (!d) return '';
                     const combo = d.querySelector('button[role="combobox"]');
                     return combo?.textContent?.trim() || '';
@@ -1090,7 +1253,11 @@ class TabWorker:
                 profile = await self.page.evaluate(
                     """
                     (() => {
-                        const d = document.querySelector('[class*="dialog-"][class*="rounded"]');
+                        const dialogs = Array.from(document.querySelectorAll('[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'));
+                        const d = dialogs.find((el) => {
+                            const rect = el.getBoundingClientRect?.();
+                            return !!rect && rect.width > 0 && rect.height > 0;
+                        }) || dialogs[0];
                         if (!d) return '';
                         const combo = d.querySelector('button[role="combobox"]');
                         return combo?.textContent?.trim() || '';
@@ -1111,7 +1278,11 @@ class TabWorker:
             await self.page.evaluate(
                 """
                 (() => {
-                    const d = document.querySelector('[class*="dialog-"][class*="rounded"]');
+                    const dialogs = Array.from(document.querySelectorAll('[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'));
+                    const d = dialogs.find((el) => {
+                        const rect = el.getBoundingClientRect?.();
+                        return !!rect && rect.width > 0 && rect.height > 0;
+                    }) || dialogs[0];
                     if (!d) return;
                     const combo = d.querySelector('button[role="combobox"]');
                     if (combo) combo.click();
@@ -1171,7 +1342,11 @@ class TabWorker:
             new_profile = await self.page.evaluate(
                 """
                 (() => {
-                    const d = document.querySelector('[class*="dialog-"][class*="rounded"]');
+                    const dialogs = Array.from(document.querySelectorAll('[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'));
+                    const d = dialogs.find((el) => {
+                        const rect = el.getBoundingClientRect?.();
+                        return !!rect && rect.width > 0 && rect.height > 0;
+                    }) || dialogs[0];
                     if (!d) return '';
                     const combo = d.querySelector('button[role="combobox"]');
                     return combo?.textContent?.trim() || '';
@@ -1244,9 +1419,18 @@ class TabWorker:
         for _ in range(20):
             gone = await self.page.evaluate(
                 """
-                !document.querySelector(
-                    '[class*="dialog-"][class*="rounded"]'
-                )?.offsetParent
+                (() => {
+                    const dialogs = Array.from(document.querySelectorAll(
+                        '[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'
+                    ));
+                    const d = dialogs.find((el) => {
+                        const rect = el.getBoundingClientRect?.();
+                        return !!rect && rect.width > 0 && rect.height > 0;
+                    }) || dialogs[0];
+                    if (!d) return true;
+                    const rect = d.getBoundingClientRect?.();
+                    return !rect || rect.width === 0 || rect.height === 0;
+                })()
                 """
             )
             if gone:
