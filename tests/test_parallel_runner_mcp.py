@@ -22,6 +22,9 @@ class FakeBrowser:
     def __init__(self, pages: list[FakePage]) -> None:
         self.contexts = [FakeContext(pages)]
 
+    async def close(self) -> None:
+        return None
+
 
 class FakeChromium:
     def __init__(self, browser: FakeBrowser, connect_urls: list[str]) -> None:
@@ -50,6 +53,8 @@ class FakeRuntimeState:
         self.start_run_calls: list[dict[str, object]] = []
         self.events: list[tuple[str, dict[str, object]]] = []
         self.states: list[tuple[str, str]] = []
+        self.pairs_started: list[tuple[int, str]] = []
+        self.pairs_completed: list[tuple[int, str]] = []
 
     def start_run(self, **kwargs):
         self.start_run_calls.append(kwargs)
@@ -61,11 +66,17 @@ class FakeRuntimeState:
     def set_run_state(self, run_id: str, state: str) -> None:
         self.states.append((run_id, state))
 
+    def mark_pair_started(self, *, run_id: str, worker_id: int, symbol: str) -> None:
+        self.pairs_started.append((worker_id, symbol))
+
+    def mark_pair_completed(self, *, run_id: str, worker_id: int, symbol: str) -> None:
+        self.pairs_completed.append((worker_id, symbol))
+
 
 def test_run_parallel_uses_mcp_workspace_slots_to_assign_pages(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(parallel_runner, "setup_logging", lambda: None)
     monkeypatch.setattr(parallel_runner, "results_file_for_broker", lambda broker: tmp_path / "parallel_results.json")
-    monkeypatch.setattr(parallel_runner, "detect_cdp_pid", lambda: 4321)
+    monkeypatch.setattr(parallel_runner, "detect_desktop_cdp_pid", lambda: 4321)
     monkeypatch.setattr(parallel_runner, "WORKER_STARTUP_DELAY", 0)
     monkeypatch.setattr(parallel_runner, "ensure_tradingview_tabs", lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("ensure_tradingview_tabs should not be used")))
 
@@ -125,10 +136,77 @@ def test_run_parallel_uses_mcp_workspace_slots_to_assign_pages(monkeypatch, tmp_
     ]
 
 
+def test_run_parallel_dry_run_launches_workers_without_browser(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(parallel_runner, "setup_logging", lambda: None)
+    monkeypatch.setattr(parallel_runner, "results_file_for_broker", lambda broker: tmp_path / "parallel_results.json")
+    monkeypatch.setattr(parallel_runner, "detect_desktop_cdp_pid", lambda: None)
+    monkeypatch.setattr(parallel_runner, "WORKER_STARTUP_DELAY", 0)
+
+    controller_used = False
+
+    class ForbiddenController:
+        def __init__(self) -> None:
+            nonlocal controller_used
+            controller_used = True
+
+        async def ensure_optimizer_workspace(self, **kwargs):
+            raise AssertionError("MCP workspace prep should not run in dry-run mode")
+
+    class ForbiddenPlaywright:
+        def __init__(self) -> None:
+            raise AssertionError("Playwright should not be started in dry-run mode")
+
+    monkeypatch.setattr(parallel_runner, "OptimizerMcpController", ForbiddenController)
+    monkeypatch.setattr(parallel_runner, "async_playwright", ForbiddenPlaywright)
+    monkeypatch.setattr(parallel_runner, "OptimizerRuntimeState", FakeRuntimeState)
+
+    async def fake_optimize_pair_on_page(
+        page,
+        symbol,
+        mode,
+        n_trials,
+        dd_limit,
+        dry_run,
+        runtime_state=None,
+        run_id=None,
+        worker_id=None,
+    ):
+        assert dry_run is True
+        assert page is None
+        return parallel_runner.BacktestResult(
+            symbol=symbol,
+            params={"dry_run": True},
+            net_profit=999.0,
+            total_trades=50,
+            win_rate=55.0,
+            profit_factor=1.5,
+            max_drawdown_pct=5.0,
+            score=1.5,
+        )
+
+    monkeypatch.setattr(parallel_runner, "optimize_pair_on_page", fake_optimize_pair_on_page)
+
+    result = asyncio.run(
+        parallel_runner.run_parallel(
+            pairs=["EURUSD"],
+            n_workers=1,
+            mode="bayesian",
+            n_trials=1,
+            dd_limit=10.0,
+            dry_run=True,
+            broker="vantage",
+        )
+    )
+
+    assert controller_used is False
+    assert result["EURUSD"]["params"] == {"dry_run": True}
+    assert result["EURUSD"]["score"] == 1.5
+
+
 def test_run_parallel_reports_desktop_cdp_errors_without_chrome_language(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(parallel_runner, "setup_logging", lambda: None)
     monkeypatch.setattr(parallel_runner, "results_file_for_broker", lambda broker: tmp_path / "parallel_results.json")
-    monkeypatch.setattr(parallel_runner, "detect_cdp_pid", lambda: None)
+    monkeypatch.setattr(parallel_runner, "detect_desktop_cdp_pid", lambda: None)
     monkeypatch.setattr(parallel_runner, "WORKER_STARTUP_DELAY", 0)
 
     controller_calls: list[dict[str, object]] = []

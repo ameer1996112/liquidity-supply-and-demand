@@ -93,8 +93,8 @@ def setup_logging() -> None:
     )
 
 
-def detect_cdp_pid() -> int | None:
-    """Return the first PID listening on the local CDP port, if any."""
+def detect_desktop_cdp_pid() -> int | None:
+    """Return the first PID listening on the TradingView Desktop CDP port, if any."""
     try:
         output = (
             subprocess.check_output(["lsof", "-ti", ":9222"], text=True)
@@ -110,6 +110,11 @@ def detect_cdp_pid() -> int | None:
         return int(output[0])
     except ValueError:
         return None
+
+
+def detect_cdp_pid() -> int | None:
+    """Backward-compatible alias for the desktop CDP PID detector."""
+    return detect_desktop_cdp_pid()
 
 
 def emit_event(event_type: str, **payload: object) -> None:
@@ -569,7 +574,7 @@ async def run_parallel(
         workers=n_workers,
         log_file=os.environ.get("OPTIMIZER_LAUNCH_LOG_FILE", str(PARALLEL_LOG_FILE)),
         optimizer_pid=os.getpid(),
-        chrome_pid=detect_cdp_pid(),
+        chrome_pid=detect_desktop_cdp_pid(),
     )
     run_id = run_status["run_id"]
     runtime_state.record_run_event(
@@ -622,38 +627,38 @@ async def run_parallel(
                 log.info("Connected to TradingView Desktop CDP target at %s", TRADINGVIEW_DESKTOP_CDP_URL)
                 pages = _prepare_mcp_backed_pages(browser, workspace_slots)
 
-            # Stagger worker starts to avoid race conditions
-            tasks = []
-            for i, page in enumerate(pages[:n_workers]):
-                if i > 0:
-                    await asyncio.sleep(WORKER_STARTUP_DELAY)
-                task = asyncio.create_task(
-                    worker_task(
-                        worker_id=i,
-                        page=page,
-                        pair_queue=pair_queue,
-                        results=results,
-                        results_file=results_file,
-                        results_lock=results_lock,
-                        error_log=error_log,
-                        mode=mode,
-                        n_trials=n_trials,
-                        dd_limit=dd_limit,
-                        dry_run=dry_run,
-                        runtime_state=runtime_state,
-                        run_id=run_id,
-                    ),
-                    name=f"worker-{i}",
-                )
-                tasks.append(task)
+        # Stagger worker starts to avoid race conditions
+        tasks = []
+        for i, page in enumerate(pages[:n_workers]):
+            if i > 0:
+                await asyncio.sleep(WORKER_STARTUP_DELAY)
+            task = asyncio.create_task(
+                worker_task(
+                    worker_id=i,
+                    page=page,
+                    pair_queue=pair_queue,
+                    results=results,
+                    results_file=results_file,
+                    results_lock=results_lock,
+                    error_log=error_log,
+                    mode=mode,
+                    n_trials=n_trials,
+                    dd_limit=dd_limit,
+                    dry_run=dry_run,
+                    runtime_state=runtime_state,
+                    run_id=run_id,
+                ),
+                name=f"worker-{i}",
+            )
+            tasks.append(task)
 
-            task_results = await asyncio.gather(*tasks, return_exceptions=True)
-            for task_result in task_results:
-                if isinstance(task_result, Exception):
-                    error_log.append({"symbol": "worker_task", "worker": -1, "error": str(task_result)})
+        task_results = await asyncio.gather(*tasks, return_exceptions=True)
+        for task_result in task_results:
+            if isinstance(task_result, Exception):
+                error_log.append({"symbol": "worker_task", "worker": -1, "error": str(task_result)})
 
-            if dry_run and browser is not None:
-                await browser.close()
+        if browser is not None:
+            await browser.close()
     except Exception:
         runtime_state.set_run_state(run_id=run_id, state="failed")
         raise
