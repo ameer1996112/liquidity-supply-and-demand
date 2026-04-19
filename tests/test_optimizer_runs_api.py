@@ -175,6 +175,22 @@ class MissingOptionalArtifactsStore:
         raise MissingArtifactTableError("public.optimizer_run_events")
 
 
+class NoPrecheckTrialsService:
+    def get_run(self, run_id: str) -> dict:
+        raise AssertionError(f"route should not prefetch run {run_id}")
+
+    def list_trials(self, run_id: str, symbol: str | None = None) -> list[dict]:
+        return [{"run_id": run_id, "symbol": symbol or "EURUSD", "trial_number": 1}]
+
+
+class NoPrecheckEventsService:
+    def get_run(self, run_id: str) -> dict:
+        raise AssertionError(f"route should not prefetch run {run_id}")
+
+    def list_events(self, run_id: str, *, limit: int = 200) -> list[dict]:
+        return [{"run_id": run_id, "event_type": "pair_completed"}][:limit]
+
+
 @pytest.fixture
 def optimizer_store() -> StubOptimizerService:
     return StubOptimizerService()
@@ -344,3 +360,23 @@ def test_get_optimizer_run_events_degrades_gracefully_when_artifact_tables_are_m
 
     assert response.status_code == 200
     assert response.json() == {"events": []}
+
+
+def test_get_optimizer_run_trials_does_not_prefetch_full_run() -> None:
+    _disable_admin_auth()
+    with patch("src.api_optimizer_runs.get_optimizer_run_service", return_value=NoPrecheckTrialsService()):
+        client = TestClient(app)
+        response = client.get("/api/optimizer/runs/run-1/trials?symbol=EURAUD")
+
+    assert response.status_code == 200
+    assert response.json() == {"trials": [{"run_id": "run-1", "symbol": "EURAUD", "trial_number": 1}]}
+
+
+def test_get_optimizer_run_events_does_not_prefetch_full_run() -> None:
+    _disable_admin_auth()
+    with patch("src.api_optimizer_runs.get_optimizer_run_service", return_value=NoPrecheckEventsService()):
+        client = TestClient(app)
+        response = client.get("/api/optimizer/runs/run-1/events")
+
+    assert response.status_code == 200
+    assert response.json() == {"events": [{"run_id": "run-1", "event_type": "pair_completed"}]}

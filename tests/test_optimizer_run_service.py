@@ -4,7 +4,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from scripts.optimizer.parallel_runner import results_file_for_broker
-from src.services.optimizer_run_service import OptimizerRunService, _normalize_portfolio_result
+from src.services.optimizer_run_service import (
+    OptimizerRunService,
+    SupabaseOptimizerRunRepository,
+    _normalize_portfolio_result,
+)
 from src.services import optimizer_run_service as optimizer_service_module
 
 
@@ -176,6 +180,41 @@ class MissingOptionalArtifactsStore(InMemoryOptimizerStore):
 
     def list_events(self, run_id: str, *, limit: int = 200) -> list[dict]:
         raise MissingArtifactTableError("public.optimizer_run_events")
+
+
+class FakeQuery:
+    def __init__(self, response: object = None, exc: Exception | None = None) -> None:
+        self._response = response
+        self._exc = exc
+
+    def select(self, *_args, **_kwargs) -> "FakeQuery":
+        return self
+
+    def order(self, *_args, **_kwargs) -> "FakeQuery":
+        return self
+
+    def limit(self, *_args, **_kwargs) -> "FakeQuery":
+        return self
+
+    def eq(self, *_args, **_kwargs) -> "FakeQuery":
+        return self
+
+    def execute(self):
+        if self._exc is not None:
+            raise self._exc
+        return self._response
+
+
+class FakeSupabaseClient:
+    def __init__(self, query: FakeQuery) -> None:
+        self._query = query
+
+    def table(self, _name: str) -> FakeQuery:
+        return self._query
+
+
+class RemoteProtocolLikeError(RuntimeError):
+    pass
 
 
 def test_start_run_persists_run_and_symbol_rows(monkeypatch) -> None:
@@ -510,6 +549,43 @@ def test_optional_artifact_warning_is_logged_once_per_artifact_type(caplog) -> N
     assert len(warnings) == 2
     assert "optional artifact 'trials'" in warnings[0]
     assert "optional artifact 'stress_results'" in warnings[1]
+
+
+def test_supabase_repository_retries_once_on_connection_error(monkeypatch) -> None:
+    class Response:
+        data = [
+            {
+                "id": "run-1",
+                "strategy_id": "liq_sd_v1",
+                "strategy_version": "1",
+                "status": "completed",
+                "mode": "bayesian",
+                "workers": 2,
+                "pairs": ["EURUSD"],
+                "n_trials": 25,
+                "dd_limit": "6.0",
+                "dry_run": True,
+                "summary": {},
+                "created_at": "2026-04-19T00:00:00+00:00",
+                "updated_at": "2026-04-19T00:00:00+00:00",
+            }
+        ]
+
+    first_client = FakeSupabaseClient(FakeQuery(exc=RemoteProtocolLikeError("ConnectionTerminated")))
+    second_client = FakeSupabaseClient(FakeQuery(response=Response()))
+    clients = iter([first_client, second_client])
+    reset_calls: list[str] = []
+
+    monkeypatch.setattr(optimizer_service_module, "get_api_supabase", lambda: next(clients))
+    monkeypatch.setattr(optimizer_service_module, "reset_api_supabase", lambda: reset_calls.append("reset"))
+    monkeypatch.setattr(optimizer_service_module, "is_supabase_connection_error", lambda exc: isinstance(exc, RemoteProtocolLikeError))
+
+    repository = SupabaseOptimizerRunRepository()
+
+    runs = repository.list_runs()
+
+    assert [run["id"] for run in runs] == ["run-1"]
+    assert reset_calls == ["reset"]
 
 
 def test_portfolio_result_normalization_returns_flat_metrics_payload() -> None:

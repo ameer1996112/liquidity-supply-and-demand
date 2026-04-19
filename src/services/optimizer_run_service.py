@@ -13,7 +13,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Protocol
 
-from src.adapters.supabase_api import get_api_supabase
+from src.adapters.supabase_api import (
+    get_api_supabase,
+    is_supabase_connection_error,
+    reset_api_supabase,
+)
 from src.services.optimizer_defaults import DEFAULT_PAIRS
 
 _logger = logging.getLogger(__name__)
@@ -166,17 +170,33 @@ class SupabaseOptimizerRunRepository:
     def __init__(self) -> None:
         self._sb = get_api_supabase()
 
+    def _refresh_client(self) -> None:
+        self._sb = get_api_supabase()
+
+    def _execute(self, query_factory: Callable[[], Any]) -> Any:
+        try:
+            return query_factory().execute()
+        except Exception as exc:
+            if not is_supabase_connection_error(exc):
+                raise
+            _logger.warning(
+                "Optimizer Supabase query failed with transient connection error, recreating client: %s",
+                type(exc).__name__,
+            )
+            reset_api_supabase()
+            self._refresh_client()
+            return query_factory().execute()
+
     def create_run(self, payload: dict[str, Any]) -> dict[str, Any]:
-        resp = self._sb.table("optimizer_runs").insert(payload).execute()
+        resp = self._execute(lambda: self._sb.table("optimizer_runs").insert(payload))
         return _normalize_run(resp.data[0]) if resp.data else payload
 
     def update_run(self, run_id: str, updates: dict[str, Any]) -> dict[str, Any]:
         payload = {**updates, "updated_at": _utc_now()}
-        resp = (
-            self._sb.table("optimizer_runs")
+        resp = self._execute(
+            lambda: self._sb.table("optimizer_runs")
             .update(payload)
             .eq("id", run_id)
-            .execute()
         )
         if resp.data:
             return _normalize_run(resp.data[0])
@@ -187,12 +207,11 @@ class SupabaseOptimizerRunRepository:
         return current
 
     def get_run(self, run_id: str) -> dict[str, Any] | None:
-        resp = (
-            self._sb.table("optimizer_runs")
+        resp = self._execute(
+            lambda: self._sb.table("optimizer_runs")
             .select("*")
             .eq("id", run_id)
             .limit(1)
-            .execute()
         )
         if not resp.data:
             return None
@@ -206,27 +225,29 @@ class SupabaseOptimizerRunRepository:
         strategy_id: str | None = None,
         strategy_version: str | None = None,
     ) -> list[dict[str, Any]]:
-        query = (
-            self._sb.table("optimizer_runs")
-            .select("*")
-            .order("created_at", desc=True)
-            .limit(limit)
-        )
-        if status:
-            query = query.eq("status", status)
-        if strategy_id:
-            query = query.eq("strategy_id", strategy_id)
-        if strategy_version:
-            query = query.eq("strategy_version", strategy_version)
-        resp = query.execute()
+        def build_query():
+            query = (
+                self._sb.table("optimizer_runs")
+                .select("*")
+                .order("created_at", desc=True)
+                .limit(limit)
+            )
+            if status:
+                query = query.eq("status", status)
+            if strategy_id:
+                query = query.eq("strategy_id", strategy_id)
+            if strategy_version:
+                query = query.eq("strategy_version", strategy_version)
+            return query
+
+        resp = self._execute(build_query)
         return [_normalize_run(row) for row in (resp.data or []) if row]
 
     def list_incomplete_runs(self) -> list[dict[str, Any]]:
-        resp = (
-            self._sb.table("optimizer_runs")
+        resp = self._execute(
+            lambda: self._sb.table("optimizer_runs")
             .select("*")
             .in_("status", ["queued", "running"])
-            .execute()
         )
         return [_normalize_run(row) for row in (resp.data or []) if row]
 
@@ -242,96 +263,97 @@ class SupabaseOptimizerRunRepository:
             for symbol in symbols
         ]
         if rows:
-            self._sb.table("optimizer_run_results").insert(rows).execute()
+            self._execute(lambda: self._sb.table("optimizer_run_results").insert(rows))
 
     def update_result(self, run_id: str, symbol: str, updates: dict[str, Any]) -> dict[str, Any]:
         payload = {**updates, "updated_at": _utc_now()}
-        resp = (
-            self._sb.table("optimizer_run_results")
+        resp = self._execute(
+            lambda: self._sb.table("optimizer_run_results")
             .update(payload)
             .eq("run_id", run_id)
             .eq("symbol", symbol)
-            .execute()
         )
         return resp.data[0] if resp.data else {"run_id": run_id, "symbol": symbol, **payload}
 
     def list_results(self, run_id: str) -> list[dict[str, Any]]:
-        resp = (
-            self._sb.table("optimizer_run_results")
+        resp = self._execute(
+            lambda: self._sb.table("optimizer_run_results")
             .select("*")
             .eq("run_id", run_id)
             .order("symbol")
-            .execute()
         )
         return resp.data or []
 
     def create_trial(self, run_id: str, symbol: str, payload: dict[str, Any]) -> dict[str, Any]:
         row = {"run_id": run_id, "symbol": symbol, **payload}
-        resp = self._sb.table("optimizer_run_trials").insert(row).execute()
+        resp = self._execute(lambda: self._sb.table("optimizer_run_trials").insert(row))
         return resp.data[0] if resp.data else row
 
     def list_trials(self, run_id: str, symbol: str | None = None) -> list[dict[str, Any]]:
-        query = (
-            self._sb.table("optimizer_run_trials")
-            .select("*")
-            .eq("run_id", run_id)
-            .order("trial_number")
-        )
-        if symbol is not None:
-            query = query.eq("symbol", symbol)
-        resp = query.execute()
+        def build_query():
+            query = (
+                self._sb.table("optimizer_run_trials")
+                .select("*")
+                .eq("run_id", run_id)
+                .order("trial_number")
+            )
+            if symbol is not None:
+                query = query.eq("symbol", symbol)
+            return query
+
+        resp = self._execute(build_query)
         return resp.data or []
 
     def create_stress_result(self, run_id: str, symbol: str, payload: dict[str, Any]) -> dict[str, Any]:
         row = {"run_id": run_id, "symbol": symbol, **payload}
-        resp = self._sb.table("optimizer_run_stress_tests").insert(row).execute()
+        resp = self._execute(lambda: self._sb.table("optimizer_run_stress_tests").insert(row))
         return resp.data[0] if resp.data else row
 
     def list_stress_results(self, run_id: str, symbol: str | None = None) -> list[dict[str, Any]]:
-        query = (
-            self._sb.table("optimizer_run_stress_tests")
-            .select("*")
-            .eq("run_id", run_id)
-            .order("created_at")
-        )
-        if symbol is not None:
-            query = query.eq("symbol", symbol)
-        resp = query.execute()
+        def build_query():
+            query = (
+                self._sb.table("optimizer_run_stress_tests")
+                .select("*")
+                .eq("run_id", run_id)
+                .order("created_at")
+            )
+            if symbol is not None:
+                query = query.eq("symbol", symbol)
+            return query
+
+        resp = self._execute(build_query)
         return resp.data or []
 
     def upsert_portfolio_result(self, run_id: str, payload: dict[str, Any]) -> dict[str, Any]:
         row = {"run_id": run_id, "metrics": payload}
-        resp = (
-            self._sb.table("optimizer_portfolio_results")
+        resp = self._execute(
+            lambda: self._sb.table("optimizer_portfolio_results")
             .upsert(row, on_conflict="run_id")
-            .execute()
         )
         return _normalize_portfolio_result(resp.data[0]) if resp.data else payload
 
     def get_portfolio_result(self, run_id: str) -> dict[str, Any] | None:
-        resp = (
-            self._sb.table("optimizer_portfolio_results")
+        resp = self._execute(
+            lambda: self._sb.table("optimizer_portfolio_results")
             .select("*")
             .eq("run_id", run_id)
             .limit(1)
-            .execute()
         )
         if not resp.data:
             return None
         return _normalize_portfolio_result(resp.data[0])
 
     def append_event(self, payload: dict[str, Any]) -> dict[str, Any]:
-        resp = self._sb.table("optimizer_run_events").insert(payload).execute()
+        resp = self._execute(lambda: self._sb.table("optimizer_run_events").insert(payload))
         return resp.data[0] if resp.data else payload
 
     def list_events(self, run_id: str, *, limit: int = 200) -> list[dict[str, Any]]:
-        resp = (
-            self._sb.table("optimizer_run_events")
+        resp = self._execute(
+            lambda: self._sb.table("optimizer_run_events")
             .select("*")
             .eq("run_id", run_id)
             .order("created_at", desc=True)
             .limit(limit)
-            .execute()
         )
         return list(reversed(resp.data or []))
 

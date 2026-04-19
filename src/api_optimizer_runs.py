@@ -133,10 +133,10 @@ def get_optimizer_run_trials(
 ) -> dict[str, Any]:
     service = get_optimizer_run_service()
     try:
-        service.get_run(run_id)
+        trials = service.list_trials(run_id, symbol)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=f"Unknown optimizer run: {run_id}") from exc
-    return {"trials": service.list_trials(run_id, symbol)}
+    return {"trials": trials}
 
 
 @router.get("/runs/{run_id}/stress-results", response_model=dict[str, Any])
@@ -146,20 +146,20 @@ def get_optimizer_run_stress_results(
 ) -> dict[str, Any]:
     service = get_optimizer_run_service()
     try:
-        service.get_run(run_id)
+        results = service.list_stress_results(run_id, symbol)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=f"Unknown optimizer run: {run_id}") from exc
-    return {"results": service.list_stress_results(run_id, symbol)}
+    return {"results": results}
 
 
 @router.get("/runs/{run_id}/results", response_model=dict[str, Any])
 def get_optimizer_run_results(run_id: str) -> dict[str, Any]:
     service = get_optimizer_run_service()
     try:
-        service.get_run(run_id)
+        results = service.list_results(run_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=f"Unknown optimizer run: {run_id}") from exc
-    return {"results": service.list_results(run_id)}
+    return {"results": results}
 
 
 @router.get("/runs/{run_id}/events", response_model=dict[str, Any])
@@ -169,10 +169,10 @@ def get_optimizer_run_events(
 ) -> dict[str, Any]:
     service = get_optimizer_run_service()
     try:
-        service.get_run(run_id)
+        events = service.list_events(run_id, limit=limit)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=f"Unknown optimizer run: {run_id}") from exc
-    return {"events": service.list_events(run_id, limit=limit)}
+    return {"events": events}
 
 
 @router.post("/runs/{run_id}/cancel", response_model=dict[str, Any])
