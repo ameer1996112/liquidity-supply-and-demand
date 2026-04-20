@@ -14,13 +14,13 @@ import { cn } from '@/lib/utils';
 import { useTradingMode } from '@/providers/TradingModeProvider';
 import { useRiskStatus, useKillSwitchMutation } from '@/hooks/useRiskStatus';
 import { useAccountsComparison, useLiveBrokerBalance } from '@/hooks/useAccounts';
+import { useDashboardSummary } from '@/hooks/useDashboardSummary';
 import { useSignalStats } from '@/hooks/useTradingSignals';
 import { useAccountStatus } from '@/hooks/usePositions';
 import {
   fetchReconcileStatus,
   getApiUrl,
   type ReconcileStatusResponse,
-  type AccountDetailApi,
 } from '@/lib/api';
 import {
   KillSwitchConfirmDialog,
@@ -29,6 +29,7 @@ import {
 import { AlertBell } from '@/components/alerts/AlertBell';
 import { useShellActions } from '@/providers/ShellActionsProvider';
 import { useTimezone, TZ_OPTIONS } from '@/providers/TimezoneProvider';
+import { resolveTopBarTodayPnl } from './topBarTodayPnl';
 
 function DualClock() {
   const [now, setNow] = useState<Date | null>(null);
@@ -261,6 +262,7 @@ export function TopBar() {
   const { toggleCopilot, toggleMarket, copilotOpen, marketOpen } =
     useShellActions();
   const { data: accounts = [] } = useAccountsComparison();
+  const { data: summary } = useDashboardSummary();
   const { data: liveBroker } = useLiveBrokerBalance();
   const { data: accountStatus } = useAccountStatus();
   const { isApiUp, healthStatus, hasDrift, brokerOk, lastReconcileAt } =
@@ -277,40 +279,18 @@ export function TopBar() {
 
   const hasMultipleTradingAccounts = activeTradingAccounts.length > 1;
 
-  const selectedAccount: AccountDetailApi | undefined = useMemo(
-    () =>
-      selectedAccountName
-        ? accounts.find((a) => a.account_name === selectedAccountName)
-        : undefined,
-    [accounts, selectedAccountName]
-  );
-
   const todayPnlFromStats =
     mode === 'PAPER'
       ? stats?.paper_daily_pnl ?? stats?.paper_pnl_24h
       : stats?.live_daily_pnl ?? stats?.live_pnl_24h;
 
-  // Sum daily_pnl across all active trading accounts for Global view.
-  // Accounts are populated from the backend which uses MetaAPI balance snapshots
-  // (account_status_snapshots: current_balance − start_of_day_balance).
-  const accountsTodayPnl = useMemo(() => {
-    if (activeTradingAccounts.length === 0) return null;
-    return activeTradingAccounts.reduce(
-      (sum, acc) => sum + (acc.daily_pnl ?? acc.realized_pnl_today ?? 0),
-      0
-    );
-  }, [activeTradingAccounts]);
-
-  const todayPnl =
-    selectedAccount != null
-      ? selectedAccount.daily_pnl ?? selectedAccount.realized_pnl_today ?? 0
-      : hasMultipleTradingAccounts
-      ? accountsTodayPnl
-      : todayPnlFromStats != null
-      ? todayPnlFromStats
-      : accountsTodayPnl !== null
-      ? accountsTodayPnl
-      : risk?.live_daily_pnl ?? risk?.daily_pnl ?? 0;
+  const todayPnl = resolveTopBarTodayPnl({
+    selectedAccountName,
+    summary,
+    activeTradingAccounts,
+    todayPnlFromStats,
+    riskDailyPnl: risk?.live_daily_pnl ?? risk?.daily_pnl ?? null,
+  });
 
   const todayPnlColor =
     todayPnl == null
