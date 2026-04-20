@@ -908,30 +908,4 @@ def process_trade(
         supabase_client=_sb,
     )
 
-    # DEV-91: Generate chart screenshot and send to channels (non-blocking, after text notification)
-    try:
-        from config import get_settings as _get_chart_settings
-        _chart_settings = _get_chart_settings()
-        if _chart_settings.chart_notifications_enabled:
-            from src.services.chart_generator import generate_chart_async
-            from src.adapters.discord import send_chart_to_channels_async
-
-            _chart_symbol = _signal_record.get("broker_symbol") or _signal_record.get("symbol", "")
-            _chart_png = generate_chart_async(
-                symbol=_chart_symbol,
-                side=_signal_record.get("side", "BUY"),
-                entry=float(_signal_record.get("fill_price") or _signal_record.get("entry") or 0),
-                sl=float(_signal_record.get("sl") or 0),
-                tp=float(_signal_record.get("tp") or 0),
-                signal_id=alert_id,
-                zone_type=_signal_record.get("zone_type"),
-            )
-            if _chart_png:
-                send_chart_to_channels_async(_chart_png, alert_id, supabase_client=_sb)
-            else:
-                logger.debug("Chart generation returned None for signal #%s — text notification already sent", alert_id)
-    except Exception as _chart_err:
-        logger.warning("Chart notification skipped for signal #%s: %s", alert_id, _chart_err)
-
-
 execute_trade = process_trade

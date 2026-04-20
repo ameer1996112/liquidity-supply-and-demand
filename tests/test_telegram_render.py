@@ -81,6 +81,41 @@ def test_dispatch_payload_telegram_send_message_when_no_image(mock_get_settings,
 
 @patch("src.adapters.discord.requests.post")
 @patch("src.adapters.discord.get_settings")
+def test_dispatch_payload_telegram_close_without_image_stays_text_only(mock_get_settings, mock_post):
+    mock_settings = MagicMock()
+    mock_settings.telegram_bot_token = "TELEGRAM_TOKEN"
+    mock_settings.telegram_chat_id = "12345"
+    mock_settings.discord_webhook_url = None
+    mock_settings.discord_alerts_webhook_url = None
+    mock_get_settings.return_value = mock_settings
+
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {"result": {"message_id": 999}}
+    mock_post.return_value = mock_resp
+
+    payload = NotificationPayload(
+        type="close",
+        title="XAUUSD SELL Closed",
+        fields={"Outcome": "LOSS", "PnL": "-$329.81"},
+        color="loss",
+        image_url=None,
+    )
+
+    mock_routing = MagicMock()
+    mock_routing.get_routing.return_value = {"telegram_enabled": True, "discord_enabled": False}
+
+    dispatch_payload(payload, notification_service=mock_routing)
+
+    mock_post.assert_called_once()
+    args, kwargs = mock_post.call_args
+    assert "sendMessage" in args[0]
+    assert "XAUUSD SELL CLOSED" in kwargs["json"]["text"]
+    assert "sendPhoto" not in args[0]
+
+
+@patch("src.adapters.discord.requests.post")
+@patch("src.adapters.discord.get_settings")
 def test_dispatch_payload_telegram_caption_uses_setup_evidence_summary(mock_get_settings, mock_post):
     mock_settings = MagicMock()
     mock_settings.telegram_bot_token = "TELEGRAM_TOKEN"
