@@ -350,7 +350,7 @@ def execute_run(run: dict) -> None:
     if dry_run:
         command.append("--dry-run")
 
-    env = {**os.environ, "PYTHONPATH": os.environ.get("PYTHONPATH", ".")}
+    env = {**os.environ, "PYTHONPATH": os.environ.get("PYTHONPATH", "."), "PYTHONUNBUFFERED": "1"}
 
     log.info("Spawning: %s", " ".join(command))
     process = subprocess.Popen(

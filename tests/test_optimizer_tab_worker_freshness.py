@@ -270,6 +270,43 @@ def test_apply_params_rejects_unchanged_final_results_hash(monkeypatch) -> None:
     )
 
 
+def test_apply_params_fails_when_settings_dialog_does_not_close(monkeypatch) -> None:
+    page = DummyPage()
+    worker = TabWorker(page, DummyOptimizer())
+    update_wait_calls: list[str] = []
+
+    async def always_true() -> bool:
+        return True
+
+    async def dialog_stays_open() -> bool:
+        return False
+
+    async def fake_wait_for_update_complete() -> bool:
+        update_wait_calls.append("waited")
+        return True
+
+    async def changing_hash() -> str:
+        return "abc123"
+
+    async def no_op(*args, **kwargs):  # pragma: no cover - test shim
+        return None
+
+    monkeypatch.setattr(page, "evaluate", no_op)
+    monkeypatch.setattr(worker, "_open_settings", always_true)
+    monkeypatch.setattr(worker, "_ensure_custom_profile", always_true)
+    monkeypatch.setattr(worker, "_click_ok", always_true)
+    monkeypatch.setattr(worker, "_wait_dialog_close", dialog_stays_open)
+    monkeypatch.setattr(worker, "_wait_for_update_complete", fake_wait_for_update_complete)
+    monkeypatch.setattr(worker, "_get_results_hash", changing_hash)
+
+    outcome = asyncio.run(worker._apply_params({}))
+
+    assert outcome.ok is False
+    assert outcome.reason == "settings_dialog_still_open"
+    assert outcome.attempt == 3
+    assert update_wait_calls == []
+
+
 def test_read_results_rejects_symbol_mismatch_before_collecting_metrics() -> None:
     page = DummyPage(title="GBPJPY 5 Vantage")
     worker = TabWorker(page, DummyOptimizer())

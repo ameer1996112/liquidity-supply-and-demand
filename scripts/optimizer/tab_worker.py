@@ -1847,7 +1847,7 @@ class TabWorker:
             """
         )
 
-    async def _wait_dialog_close(self) -> None:
+    async def _wait_dialog_close(self) -> bool:
         """Wait for the settings dialog to close."""
         for _ in range(20):
             gone = await self.page.evaluate(
@@ -1859,8 +1859,9 @@ class TabWorker:
                 """
             )
             if gone:
-                break
+                return True
             await asyncio.sleep(0.3)
+        return False
 
     # ─────────────────────────────────── apply params (with retry) ───────────
 
@@ -1915,7 +1916,26 @@ class TabWorker:
                             await self._set_input(idx, value)
 
                 await self._click_ok()
-                await self._wait_dialog_close()
+                if not await self._wait_dialog_close():
+                    if attempt < _MAX_RETRIES:
+                        log.debug(
+                            "_apply_params attempt %d: settings dialog remained open after Ok",
+                            attempt,
+                        )
+                        await asyncio.sleep(_RETRY_SLEEP)
+                        continue
+                    log.warning(
+                        "_apply_params attempt %d: settings dialog remained open after Ok",
+                        attempt,
+                    )
+                    return ApplyOutcome(
+                        ok=False,
+                        fresh=False,
+                        reason="settings_dialog_still_open",
+                        attempt=attempt,
+                        results_hash_before=hash_before,
+                        results_hash_after=hash_after,
+                    )
 
                 # ── Full update cycle detection ────────────────────────────
                 completed = await self._wait_for_update_complete()
@@ -2068,7 +2088,8 @@ class TabWorker:
                         await self._set_input(idx, value)
 
             await self._click_ok()
-            await self._wait_dialog_close()
+            if not await self._wait_dialog_close():
+                raise RuntimeError("Settings dialog remained open after Ok")
             await self._wait_for_update_complete()
 
             return ApplyOutcome(
@@ -2123,7 +2144,8 @@ class TabWorker:
                 await asyncio.sleep(0.1)
 
                 await self._click_ok()
-                await self._wait_dialog_close()
+                if not await self._wait_dialog_close():
+                    raise RuntimeError("Settings dialog remained open after Ok")
 
                 # Full update cycle
                 completed = await self._wait_for_update_complete()
