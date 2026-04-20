@@ -195,17 +195,25 @@ const __tvVisible = (el) => {
 };
 const __tvNormalize = (text) => (text || '').replace(/\\s+/g, ' ').trim();
 const __tvDialogText = (dialog) => __tvNormalize(dialog?.textContent || '');
+const __tvDialogTabTexts = (dialog) => Array.from(dialog?.querySelectorAll?.('[role="tab"], button') || [])
+    .map((el) => __tvNormalize(el.textContent).toLowerCase())
+    .filter(Boolean);
+const __tvLooksLikeChartSettings = (dialog) => {
+    const tabTexts = __tvDialogTabTexts(dialog);
+    const chartTabs = ['symbol', 'status line', 'scales and lines', 'canvas', 'trading', 'alerts', 'events'];
+    const matches = chartTabs.filter((tab) => tabTexts.includes(tab)).length;
+    return matches >= 3 && !tabTexts.includes('inputs');
+};
 const __tvDialogScore = (dialog) => {
     if (!dialog) return -1;
     const text = __tvDialogText(dialog).toLowerCase();
+    if (__tvLooksLikeChartSettings(dialog)) return -100;
     let score = 0;
     if (dialog.matches?.('[data-name="indicator-properties-dialog"][role="dialog"]')) score += 80;
     if (dialog.querySelector('[data-name="indicator-properties-dialog-tabs"]')) score += 35;
     if (dialog.querySelector('button[role="combobox"]')) score += 15;
     if (dialog.querySelector('input, textarea, [role="spinbutton"], [data-name="source-properties-editor"]')) score += 12;
-    const tabTexts = Array.from(dialog.querySelectorAll('[role="tab"], button'))
-        .map((el) => __tvNormalize(el.textContent).toLowerCase())
-        .filter(Boolean);
+    const tabTexts = __tvDialogTabTexts(dialog);
     if (tabTexts.includes('inputs')) score += 20;
     if (tabTexts.includes('style') || tabTexts.includes('properties')) score += 10;
     const buttonTexts = Array.from(dialog.querySelectorAll('button'))
@@ -221,6 +229,7 @@ const __tvDialogScore = (dialog) => {
 };
 const __tvDialogReady = (dialog) => {
     if (!dialog) return false;
+    if (__tvLooksLikeChartSettings(dialog)) return false;
     if (dialog.querySelector('button[role="combobox"]')) return true;
     if (dialog.querySelector('[data-name="indicator-properties-dialog-tabs"]')) return true;
     return !!dialog.querySelector('input, textarea, [role="spinbutton"], [data-name="source-properties-editor"]');
@@ -247,11 +256,9 @@ const __tvDescribeSettingsDialogs = () => {
         .map((dialog) => ({
             score: __tvDialogScore(dialog),
             ready: __tvDialogReady(dialog),
+            chartSettings: __tvLooksLikeChartSettings(dialog),
             combo: !!dialog.querySelector('button[role="combobox"]'),
-            tabs: Array.from(dialog.querySelectorAll('[role="tab"], button'))
-                .map((el) => __tvNormalize(el.textContent))
-                .filter(Boolean)
-                .slice(0, 6),
+            tabs: __tvDialogTabTexts(dialog).slice(0, 6),
             text: __tvDialogText(dialog).slice(0, 240),
         }))
         .sort((a, b) => b.score - a.score)
@@ -351,6 +358,54 @@ class TabWorker:
             log.warning("%s: no visible settings dialogs detected", context)
             return
         log.warning("%s: visible dialog candidates=%s", context, dialogs)
+
+    async def _dismiss_wrong_settings_dialog(self) -> bool:
+        """Close a visible chart-settings modal if TradingView opened the wrong window."""
+        try:
+            closed = await self.page.evaluate(
+                f"""
+                (() => {{
+                    {_JS_SETTINGS_DIALOG_HELPERS}
+                    const dialogs = Array.from(
+                        document.querySelectorAll(
+                            '[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'
+                        )
+                    ).filter(__tvVisible);
+                    const wrong = dialogs
+                        .map((dialog) => ({{
+                            dialog,
+                            score: __tvDialogScore(dialog),
+                            chartSettings: __tvLooksLikeChartSettings(dialog),
+                        }}))
+                        .filter((item) => item.chartSettings)
+                        .sort((a, b) => b.score - a.score)[0]?.dialog;
+                    if (!wrong) return false;
+                    const closeButton = Array.from(wrong.querySelectorAll('button'))
+                        .find((btn) => __tvVisible(btn) && (
+                            __tvNormalize(btn.getAttribute('aria-label')) === 'close' ||
+                            __tvNormalize(btn.getAttribute('title')) === 'close' ||
+                            __tvNormalize(btn.textContent) === '×'
+                        ));
+                    if (closeButton) {{
+                        closeButton.click();
+                        return true;
+                    }}
+                    return false;
+                }})()
+                """
+            )
+            if closed:
+                await asyncio.sleep(0.4)
+                return True
+        except Exception:
+            pass
+
+        try:
+            await self.page.keyboard.press("Escape")
+            await asyncio.sleep(0.3)
+            return True
+        except Exception:
+            return False
 
     async def _recover_blank_settings_dialog(self) -> str:
         """Dismiss broken dialog state, reopen settings, and wait briefly for the profile control."""
@@ -1117,6 +1172,8 @@ class TabWorker:
         if await self._has_ready_settings_dialog():
             return True
 
+        await self._dismiss_wrong_settings_dialog()
+
         # On TradingView Desktop, the indicator legend often already exposes a
         # visible settings gear near the "S&D Algo [Pro]" title. Prefer that
         # direct path before opening other menus, because it is the most
@@ -1189,6 +1246,7 @@ class TabWorker:
                 await asyncio.sleep(1.2)
                 if await self._has_ready_settings_dialog():
                     return True
+                await self._dismiss_wrong_settings_dialog()
             else:
                 try:
                     await self.page.keyboard.press("Escape")
@@ -1269,6 +1327,7 @@ class TabWorker:
                 await asyncio.sleep(1.2)
                 if await self._has_ready_settings_dialog():
                     return True
+                await self._dismiss_wrong_settings_dialog()
             else:
                 try:
                     await self.page.keyboard.press("Escape")

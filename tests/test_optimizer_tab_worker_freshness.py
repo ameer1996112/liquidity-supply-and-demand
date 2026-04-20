@@ -182,6 +182,51 @@ class ReloadThenCustomProfilePage(DummyPage):
         raise AssertionError(f"unexpected script in ReloadThenCustomProfilePage: {script[:120]}")
 
 
+class ChartSettingsPage(DummyPage):
+    def __init__(self) -> None:
+        super().__init__(title="EURUSD 5 OANDA")
+        self.chart_dialog_open = True
+
+        class _Keyboard:
+            def __init__(self, outer) -> None:
+                self.outer = outer
+
+            async def press(self, key_combo: str) -> None:
+                if key_combo == "Escape":
+                    self.outer.chart_dialog_open = False
+
+        self.keyboard = _Keyboard(self)
+
+    async def evaluate(self, script: str):
+        if "return __tvDescribeSettingsDialogs();" in script:
+            if not self.chart_dialog_open:
+                return []
+            return [
+                {
+                    "score": -100,
+                    "ready": False,
+                    "chartSettings": True,
+                    "combo": False,
+                    "tabs": [
+                        "symbol",
+                        "status line",
+                        "scales and lines",
+                        "canvas",
+                        "trading",
+                        "alerts",
+                    ],
+                    "text": "Settings Symbol Status line Scales and lines Canvas Trading Alerts Events",
+                }
+            ]
+        if "__tvPickSettingsDialog(true)" in script or "__tvPickSettingsDialog(false)" in script:
+            return False
+        if "chartSettings: __tvLooksLikeChartSettings(dialog)" in script:
+            was_open = self.chart_dialog_open
+            self.chart_dialog_open = False
+            return was_open
+        raise AssertionError(f"unexpected script in ChartSettingsPage: {script[:120]}")
+
+
 def test_apply_params_rejects_unchanged_final_results_hash(monkeypatch) -> None:
     page = DummyPage()
     worker = TabWorker(page, DummyOptimizer())
@@ -595,6 +640,16 @@ def test_ensure_custom_profile_reloads_strategy_after_blank_reopen(monkeypatch) 
 
     assert asyncio.run(worker._ensure_custom_profile()) is True
     assert reload_calls == ["reload"]
+
+
+def test_dismiss_wrong_settings_dialog_closes_chart_settings_modal() -> None:
+    page = ChartSettingsPage()
+    worker = TabWorker(page, DummyOptimizer())
+
+    result = asyncio.run(worker._dismiss_wrong_settings_dialog())
+
+    assert result is True
+    assert page.chart_dialog_open is False
 
 
 def test_ensure_strategy_tester_open_uses_strategy_report_control_when_metrics_delayed() -> None:
