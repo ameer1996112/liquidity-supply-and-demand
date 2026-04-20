@@ -880,6 +880,101 @@ class TabWorker:
         if is_open:
             return True
 
+        # On TradingView Desktop, the indicator legend often already exposes a
+        # visible settings gear near the "S&D Algo [Pro]" title. Prefer that
+        # direct path before opening other menus, because it is the most
+        # stable UI surface in the desktop shell.
+        try:
+            opened_direct_legend_settings = await self.page.evaluate(
+                """
+                (() => {
+                    const visible = (el) => {
+                        const rect = el?.getBoundingClientRect?.();
+                        const style = el ? window.getComputedStyle(el) : null;
+                        return !!rect && rect.width > 0 && rect.height > 0 &&
+                            style?.visibility !== 'hidden' && style?.display !== 'none';
+                    };
+
+                    const center = (rect) => ({
+                        x: rect.x + rect.width / 2,
+                        y: rect.y + rect.height / 2,
+                    });
+
+                    const distance = (a, b) => {
+                        const dx = a.x - b.x;
+                        const dy = a.y - b.y;
+                        return Math.sqrt(dx * dx + dy * dy);
+                    };
+
+                    const titles = Array.from(
+                        document.querySelectorAll('div, span, button, [data-name], [class*="title"]')
+                    ).filter((el) =>
+                        visible(el) &&
+                        (el.textContent || '').replace(/\\s+/g, ' ').trim() === 'S&D Algo [Pro]'
+                    );
+
+                    if (!titles.length) return false;
+
+                    const settingsButtons = Array.from(
+                        document.querySelectorAll('button, [role="button"], [title], [aria-label]')
+                    ).filter((el) => {
+                        if (!visible(el)) return false;
+                        const text = (el.textContent || '').replace(/\\s+/g, ' ').trim();
+                        const title = (el.getAttribute('title') || '').trim();
+                        const aria = (el.getAttribute('aria-label') || '').trim();
+                        return text === 'Settings' || title === 'Settings' || aria === 'Settings';
+                    });
+
+                    if (!settingsButtons.length) return false;
+
+                    let bestButton = null;
+                    let bestDistance = Number.POSITIVE_INFINITY;
+                    for (const titleEl of titles) {
+                        const titleRect = titleEl.getBoundingClientRect();
+                        const titleCenter = center(titleRect);
+                        for (const btn of settingsButtons) {
+                            const btnRect = btn.getBoundingClientRect();
+                            const d = distance(titleCenter, center(btnRect));
+                            if (d < bestDistance) {
+                                bestDistance = d;
+                                bestButton = btn;
+                            }
+                        }
+                    }
+
+                    if (!bestButton) return false;
+                    bestButton.click();
+                    return true;
+                })()
+                """
+            )
+            if opened_direct_legend_settings:
+                await asyncio.sleep(1.2)
+                is_open = await self.page.evaluate(
+                    """
+                    (() => {
+                        const dialogs = Array.from(document.querySelectorAll('[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'));
+                        const d = dialogs.find((el) => {
+                            const rect = el.getBoundingClientRect?.();
+                            return !!rect && rect.width > 0 && rect.height > 0;
+                        }) || dialogs[0];
+                        if (!d) return false;
+                        const rect = d.getBoundingClientRect?.();
+                        return !!rect && rect.width > 0 && rect.height > 0;
+                    })()
+                    """
+                )
+                if is_open:
+                    return True
+            else:
+                try:
+                    await self.page.keyboard.press("Escape")
+                    await asyncio.sleep(0.2)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
         # TradingView Desktop reliably exposes the bottom Strategy Report
         # strategy menu as "S&D Algo [Pro] · Deep Backtesting" -> "Settings…".
         # Prefer that deterministic flow before falling back to chart-legend

@@ -75,6 +75,20 @@ class MenuSettingsPage(DummyPage):
         raise AssertionError(f"unexpected script in MenuSettingsPage: {script[:120]}")
 
 
+class DirectLegendSettingsPage(DummyPage):
+    def __init__(self) -> None:
+        super().__init__(title="EURUSD 5 OANDA")
+        self.dialog_open = False
+
+    async def evaluate(self, script: str):
+        if "const rect = d.getBoundingClientRect?.();" in script:
+            return self.dialog_open
+        if "const titles = Array.from" in script and "bestButton.click()" in script:
+            self.dialog_open = True
+            return True
+        raise AssertionError(f"unexpected script in DirectLegendSettingsPage: {script[:120]}")
+
+
 def test_apply_params_rejects_unchanged_final_results_hash(monkeypatch) -> None:
     page = DummyPage()
     worker = TabWorker(page, DummyOptimizer())
@@ -392,6 +406,16 @@ def test_set_backtest_range_falls_back_to_chart_shortcut_when_menu_missing(monke
 
 def test_open_settings_uses_strategy_report_menu_when_available() -> None:
     page = MenuSettingsPage()
+    worker = TabWorker(page, DummyOptimizer())
+
+    result = asyncio.run(worker._open_settings())
+
+    assert result is True
+    assert page.dialog_open is True
+
+
+def test_open_settings_uses_direct_legend_settings_when_available() -> None:
+    page = DirectLegendSettingsPage()
     worker = TabWorker(page, DummyOptimizer())
 
     result = asyncio.run(worker._open_settings())
