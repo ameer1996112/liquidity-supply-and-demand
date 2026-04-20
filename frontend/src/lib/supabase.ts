@@ -168,7 +168,8 @@ export async function fetchSignalStats(
   const filtered = signals.filter(
     (s) =>
       normalizeStatus(s.status) === 'filtered' ||
-      normalizeStatus(s.status) === 'ai_rejected'
+      normalizeStatus(s.status) === 'ai_rejected' ||
+      normalizeStatus(s.status) === 'symbol_blacklisted'
   );
   const failed = signals.filter((s) => normalizeStatus(s.status) === 'failed');
   const activeSignals = signals.filter(

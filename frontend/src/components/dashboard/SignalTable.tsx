@@ -81,7 +81,6 @@ function isRejectedStatus(status: string): boolean {
   return (
     s === 'ai_rejected' ||
     s === 'failed' ||
-    s === 'symbol_blacklisted' ||
     s === 'risk_rejected' ||
     s === 'kill_switch_blocked' ||
     s === 'staleness_rejected' ||
@@ -92,7 +91,8 @@ function isRejectedStatus(status: string): boolean {
 }
 
 function isFilteredStatus(status: string): boolean {
-  return String(status).toLowerCase() === 'filtered';
+  const s = String(status).toLowerCase();
+  return s === 'filtered' || s === 'symbol_blacklisted';
 }
 
 /** Left-border color class based on signal side */
@@ -175,7 +175,7 @@ const STATUS_STYLES: Record<string, { label: string; bg: string; text: string }>
   ai_rejected:         { label: 'REJECTED',  bg: 'bg-[var(--to-short)]/12',         text: 'text-[var(--to-short)]' },
   failed:              { label: 'FAILED',    bg: 'bg-[var(--to-short)]/12',         text: 'text-[var(--to-short)]' },
   execution_failed:    { label: 'EXEC FAIL', bg: 'bg-orange-500/10',                text: 'text-orange-400' },
-  symbol_blacklisted:  { label: 'BLACKLIST', bg: 'bg-[var(--to-short)]/8',          text: 'text-[var(--to-short)]/70' },
+  symbol_blacklisted:  { label: 'FILTERED',  bg: 'bg-[var(--to-short)]/8',          text: 'text-[var(--to-short)]/70' },
   risk_rejected:       { label: 'RISK',      bg: 'bg-[var(--to-short)]/8',          text: 'text-[var(--to-short)]/70' },
   kill_switch_blocked: { label: 'KILL SW',   bg: 'bg-[var(--to-short)]/12',         text: 'text-[var(--to-short)]' },
   staleness_rejected:  { label: 'STALE',     bg: 'bg-[var(--to-warning)]/10',       text: 'text-[var(--to-warning)]/70' },

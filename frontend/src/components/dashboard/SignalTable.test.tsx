@@ -30,6 +30,17 @@ const signals: TradingSignal[] = [
     strategy_version: '2',
     strategy_name: 'Breakout',
   },
+  {
+    id: 'sig-3',
+    created_at: '2026-04-16T12:00:00.000Z',
+    symbol: 'GBPNZD',
+    side: 'sell',
+    status: 'symbol_blacklisted',
+    price: 2.29909,
+    strategy_id: 'liq_sd_v1',
+    strategy_version: '1',
+    strategy_name: 'Liquidity S&D',
+  },
 ];
 
 describe('SignalTable', () => {
@@ -83,6 +94,27 @@ describe('SignalTable', () => {
     });
 
     expect(container.textContent).toContain('EURUSD');
+    expect(container.textContent).not.toContain('GBPUSD');
+  });
+
+  it('shows symbol_blacklisted rows under the filtered tab', () => {
+    act(() => {
+      root.render(<SignalTable signals={signals} />);
+    });
+
+    const filteredButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.includes('Filtered')
+    );
+
+    expect(filteredButton?.textContent).toContain('2');
+
+    act(() => {
+      filteredButton?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(container.textContent).toContain('EURUSD');
+    expect(container.textContent).toContain('GBPNZD');
+    expect(container.textContent).toContain('FILTERED');
     expect(container.textContent).not.toContain('GBPUSD');
   });
 });

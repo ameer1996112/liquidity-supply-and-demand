@@ -14,6 +14,7 @@ export type SignalStatus =
   | 'active' // Live trade
   | 'closed' // Trade completed
   | 'filtered' // Pre-execution filter
+  | 'symbol_blacklisted' // Worker-side symbol whitelist block, shown as filtered in UI
   | 'ai_rejected' // AI veto
   | 'model_error' // ML model unavailable/invalid inference
   | 'executed' // Legacy: filled
