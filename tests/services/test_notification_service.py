@@ -132,5 +132,5 @@ def test_format_close_keeps_clean_summary_and_context_sections() -> None:
     section_names = [section["name"] for section in payload.sections]
     assert section_names == ["Summary", "Context"]
     assert payload.fields["Outcome"] == "LOSS"
-    assert payload.fields["PnL"] == "$-329.81"
+    assert payload.fields["PnL"] == "-$329.81"
     assert payload.fields["Signal"] == "#46"
