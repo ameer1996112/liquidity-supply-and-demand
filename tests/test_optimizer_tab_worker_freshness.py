@@ -471,6 +471,32 @@ def test_wait_for_update_complete_requires_results_to_settle(monkeypatch) -> Non
     assert update_clicks
 
 
+def test_wait_for_results_stable_allows_slow_report_repaint_before_fingerprint_appears(monkeypatch) -> None:
+    page = DummyPage()
+    worker = TabWorker(page, DummyOptimizer())
+    now = {"value": 0.0}
+
+    async def fake_check_loading() -> str | None:
+        return None
+
+    async def fake_read_results_fingerprint_raw() -> str:
+        if now["value"] < 11.0:
+            return ""
+        return "profit=1.2;dd=4.0"
+
+    async def fake_sleep(seconds: float) -> None:
+        now["value"] += seconds
+
+    monkeypatch.setattr(worker, "_check_loading_text", fake_check_loading)
+    monkeypatch.setattr(worker, "_read_results_fingerprint_raw", fake_read_results_fingerprint_raw)
+    monkeypatch.setattr(tab_worker_module.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(tab_worker_module.time, "time", lambda: now["value"])
+
+    result = asyncio.run(worker._wait_for_results_stable())
+
+    assert result is True
+
+
 def test_switch_symbol_does_not_force_backtest_range(monkeypatch) -> None:
     page = DummyPage(title="XAUUSD 5 Vantage", url="https://www.tradingview.com/chart/test123/?symbol=VANTAGE%3AXAUUSD")
     worker = TabWorker(page, DummyOptimizer())

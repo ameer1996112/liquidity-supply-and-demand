@@ -34,7 +34,7 @@ _MAX_RETRIES = 3
 _RETRY_SLEEP = 2.0          # seconds between retry attempts
 _UPDATE_APPEAR_TIMEOUT = 20  # seconds to wait for "Updating report" to appear (needs headroom for parallel workers)
 _UPDATE_FINISH_TIMEOUT = 150 # seconds max for chart to finish recalculating
-_UPDATE_SETTLE_TIMEOUT = 10   # seconds to require stable Strategy Report results after spinner disappears
+_UPDATE_SETTLE_TIMEOUT = 25   # seconds to require stable Strategy Report results after spinner disappears
 _UPDATE_SETTLE_SLEEP = 0.5
 _UPDATE_SETTLE_POLLS = 3
 
