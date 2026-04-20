@@ -58,12 +58,18 @@ def reset_api_supabase():
 def is_supabase_connection_error(exc: BaseException) -> bool:
     """True if the exception indicates a transient Supabase/HTTP connection error worth retrying."""
     err_str = str(exc).lower()
+    code = getattr(exc, "code", None)
     return (
         "connectionterminated" in err_str
         or "remoteprotocolerror" in err_str
         or "server disconnected" in err_str
         or "disconnect" in err_str
         or "connection" in err_str
+        or code in {502, 503, 504}
+        or "bad gateway" in err_str
+        or "gateway timeout" in err_str
+        or "cloudflare" in err_str
+        or "json could not be generated" in err_str
     )
 
 

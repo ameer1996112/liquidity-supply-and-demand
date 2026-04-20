@@ -140,6 +140,19 @@ def _log_missing_optional_artifact_warning_once(artifact_name: str, exc: Excepti
     )
 
 
+def _log_transient_optional_artifact_warning_once(artifact_name: str, exc: Exception) -> None:
+    warning_key = (artifact_name, str(exc))
+    with _LOGGED_OPTIONAL_ARTIFACT_WARNINGS_LOCK:
+        if warning_key in _LOGGED_OPTIONAL_ARTIFACT_WARNINGS:
+            return
+        _LOGGED_OPTIONAL_ARTIFACT_WARNINGS.add(warning_key)
+    _logger.warning(
+        "Optimizer run optional artifact '%s' unavailable because Supabase returned a transient upstream error: %s",
+        artifact_name,
+        exc,
+    )
+
+
 class OptimizerRunRepository(Protocol):
     def create_run(self, payload: dict[str, Any]) -> dict[str, Any]: ...
     def update_run(self, run_id: str, updates: dict[str, Any]) -> dict[str, Any]: ...
@@ -588,10 +601,13 @@ class OptimizerRunService:
         try:
             return reader()
         except Exception as exc:
-            if not _is_missing_optional_optimizer_artifact_error(exc):
-                raise
-            _log_missing_optional_artifact_warning_once(artifact_name, exc)
-            return fallback
+            if _is_missing_optional_optimizer_artifact_error(exc):
+                _log_missing_optional_artifact_warning_once(artifact_name, exc)
+                return fallback
+            if is_supabase_connection_error(exc):
+                _log_transient_optional_artifact_warning_once(artifact_name, exc)
+                return fallback
+            raise
 
     def list_results(self, run_id: str) -> list[dict[str, Any]]:
         return self._repository.list_results(run_id)

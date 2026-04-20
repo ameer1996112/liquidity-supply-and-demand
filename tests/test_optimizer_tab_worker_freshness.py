@@ -186,6 +186,7 @@ class ChartSettingsPage(DummyPage):
     def __init__(self) -> None:
         super().__init__(title="EURUSD 5 OANDA")
         self.chart_dialog_open = True
+        self.mouse_clicks: list[tuple[int, int]] = []
 
         class _Keyboard:
             def __init__(self, outer) -> None:
@@ -195,7 +196,16 @@ class ChartSettingsPage(DummyPage):
                 if key_combo == "Escape":
                     self.outer.chart_dialog_open = False
 
+        class _Mouse:
+            def __init__(self, outer) -> None:
+                self.outer = outer
+
+            async def click(self, x: float, y: float, double: bool = False) -> None:
+                self.outer.mouse_clicks.append((int(round(x)), int(round(y))))
+                self.outer.chart_dialog_open = False
+
         self.keyboard = _Keyboard(self)
+        self.mouse = _Mouse(self)
 
     async def evaluate(self, script: str):
         if "return __tvDescribeSettingsDialogs();" in script:
@@ -220,10 +230,10 @@ class ChartSettingsPage(DummyPage):
             ]
         if "__tvPickSettingsDialog(true)" in script or "__tvPickSettingsDialog(false)" in script:
             return False
-        if "chartSettings: __tvLooksLikeChartSettings(dialog)" in script:
-            was_open = self.chart_dialog_open
-            self.chart_dialog_open = False
-            return was_open
+        if "reason: 'top-right-fallback'" in script:
+            if not self.chart_dialog_open:
+                return None
+            return {"x": 1188, "y": 310, "reason": "top-right-fallback"}
         raise AssertionError(f"unexpected script in ChartSettingsPage: {script[:120]}")
 
 
@@ -422,6 +432,43 @@ def test_wait_for_load_recovers_strategy_report_timeout(monkeypatch) -> None:
     asyncio.run(worker._wait_for_load(timeout=5))
 
     assert recover_calls == ["recover"]
+
+
+def test_wait_for_update_complete_requires_results_to_settle(monkeypatch) -> None:
+    page = DummyPage()
+    worker = TabWorker(page, DummyOptimizer())
+    now = {"value": 0.0}
+    settle_calls: list[str] = []
+    update_clicks: list[str] = []
+    loading_values = iter(["Updating report", None])
+
+    async def fake_check_loading() -> str | None:
+        return next(loading_values, None)
+
+    async def fake_wait_for_results_stable() -> bool:
+        settle_calls.append("settle")
+        return True
+
+    async def fake_sleep(seconds: float) -> None:
+        now["value"] += seconds
+
+    async def fake_evaluate(script: str, *_args):
+        if script == tab_worker_module._JS_CLICK_UPDATE_REPORT:
+            update_clicks.append("click")
+            return False
+        raise AssertionError(f"unexpected evaluate in wait-for-update test: {script[:120]}")
+
+    monkeypatch.setattr(worker, "_check_loading_text", fake_check_loading)
+    monkeypatch.setattr(worker, "_wait_for_results_stable", fake_wait_for_results_stable, raising=False)
+    monkeypatch.setattr(worker.page, "evaluate", fake_evaluate)
+    monkeypatch.setattr(tab_worker_module.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(tab_worker_module.time, "time", lambda: now["value"])
+
+    result = asyncio.run(worker._wait_for_update_complete())
+
+    assert result is True
+    assert settle_calls == ["settle"]
+    assert update_clicks
 
 
 def test_switch_symbol_does_not_force_backtest_range(monkeypatch) -> None:
@@ -650,6 +697,7 @@ def test_dismiss_wrong_settings_dialog_closes_chart_settings_modal() -> None:
 
     assert result is True
     assert page.chart_dialog_open is False
+    assert page.mouse_clicks == [(1188, 310)]
 
 
 def test_ensure_strategy_tester_open_uses_strategy_report_control_when_metrics_delayed() -> None:

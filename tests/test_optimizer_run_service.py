@@ -182,6 +182,28 @@ class MissingOptionalArtifactsStore(InMemoryOptimizerStore):
         raise MissingArtifactTableError("public.optimizer_run_events")
 
 
+class BadGatewayLikeError(RuntimeError):
+    def __init__(self) -> None:
+        super().__init__(
+            "{'message': 'JSON could not be generated', 'code': 502, 'details': \"b'<html><title>502 Bad Gateway</title><center>cloudflare</center></html>'\"}"
+        )
+        self.code = 502
+
+
+class TransientOptionalArtifactsStore(InMemoryOptimizerStore):
+    def get_portfolio_result(self, run_id: str) -> dict | None:
+        raise BadGatewayLikeError()
+
+    def list_trials(self, run_id: str, symbol: str | None = None) -> list[dict]:
+        raise BadGatewayLikeError()
+
+    def list_stress_results(self, run_id: str, symbol: str | None = None) -> list[dict]:
+        raise BadGatewayLikeError()
+
+    def list_events(self, run_id: str, *, limit: int = 200) -> list[dict]:
+        raise BadGatewayLikeError()
+
+
 class FakeQuery:
     def __init__(self, response: object = None, exc: Exception | None = None) -> None:
         self._response = response
@@ -505,6 +527,27 @@ def test_get_run_degrades_gracefully_when_optional_artifact_tables_are_missing()
     }
 
 
+def test_get_run_degrades_gracefully_when_optional_artifacts_hit_transient_upstream_errors() -> None:
+    store = TransientOptionalArtifactsStore.with_run_and_pending_symbol("run-1", "EURUSD")
+    store.update_run("run-1", {"status": "completed"})
+    store.update_result("run-1", "EURUSD", {"status": "completed", "metrics": {"score": 1.2}})
+    service = OptimizerRunService(store, project_root=Path("/tmp"), results_dir=Path("/tmp/results"))
+
+    run = service.get_run("run-1")
+
+    assert run["portfolio_result"] is None
+    assert run["results"][0]["metrics"]["score"] == 1.2
+    assert run["artifacts"]["trials"] == []
+    assert run["artifacts"]["stress_results"] == []
+    assert run["artifacts"]["events"] == []
+    assert run["artifacts"]["summary"] == {
+        "trial_count": 0,
+        "stress_result_count": 0,
+        "event_count": 0,
+        "symbols": {},
+    }
+
+
 def test_list_trials_degrades_gracefully_when_optional_artifact_tables_are_missing() -> None:
     store = MissingOptionalArtifactsStore.with_run_and_pending_symbol("run-1", "EURUSD")
     service = OptimizerRunService(store, project_root=Path("/tmp"), results_dir=Path("/tmp/results"))
@@ -579,6 +622,42 @@ def test_supabase_repository_retries_once_on_connection_error(monkeypatch) -> No
     monkeypatch.setattr(optimizer_service_module, "get_api_supabase", lambda: next(clients))
     monkeypatch.setattr(optimizer_service_module, "reset_api_supabase", lambda: reset_calls.append("reset"))
     monkeypatch.setattr(optimizer_service_module, "is_supabase_connection_error", lambda exc: isinstance(exc, RemoteProtocolLikeError))
+
+    repository = SupabaseOptimizerRunRepository()
+
+    runs = repository.list_runs()
+
+    assert [run["id"] for run in runs] == ["run-1"]
+    assert reset_calls == ["reset"]
+
+
+def test_supabase_repository_retries_once_on_bad_gateway_error(monkeypatch) -> None:
+    class Response:
+        data = [
+            {
+                "id": "run-1",
+                "strategy_id": "liq_sd_v1",
+                "strategy_version": "1",
+                "status": "completed",
+                "mode": "bayesian",
+                "workers": 2,
+                "pairs": ["EURUSD"],
+                "n_trials": 25,
+                "dd_limit": "6.0",
+                "dry_run": True,
+                "summary": {},
+                "created_at": "2026-04-19T00:00:00+00:00",
+                "updated_at": "2026-04-19T00:00:00+00:00",
+            }
+        ]
+
+    first_client = FakeSupabaseClient(FakeQuery(exc=BadGatewayLikeError()))
+    second_client = FakeSupabaseClient(FakeQuery(response=Response()))
+    clients = iter([first_client, second_client])
+    reset_calls: list[str] = []
+
+    monkeypatch.setattr(optimizer_service_module, "get_api_supabase", lambda: next(clients))
+    monkeypatch.setattr(optimizer_service_module, "reset_api_supabase", lambda: reset_calls.append("reset"))
 
     repository = SupabaseOptimizerRunRepository()
 

@@ -34,6 +34,9 @@ _MAX_RETRIES = 3
 _RETRY_SLEEP = 2.0          # seconds between retry attempts
 _UPDATE_APPEAR_TIMEOUT = 20  # seconds to wait for "Updating report" to appear (needs headroom for parallel workers)
 _UPDATE_FINISH_TIMEOUT = 150 # seconds max for chart to finish recalculating
+_UPDATE_SETTLE_TIMEOUT = 10   # seconds to require stable Strategy Report results after spinner disappears
+_UPDATE_SETTLE_SLEEP = 0.5
+_UPDATE_SETTLE_POLLS = 3
 
 _LOADING_INDICATORS = [
     "Updating report", "Calculating...", "Loading...", "Compiling..."
@@ -359,10 +362,15 @@ class TabWorker:
             return
         log.warning("%s: visible dialog candidates=%s", context, dialogs)
 
+    async def _has_wrong_settings_dialog(self) -> bool:
+        """Return True when the visible modal is TradingView chart settings, not strategy settings."""
+        dialogs = await self._describe_settings_dialogs()
+        return any(bool(dialog.get("chartSettings")) for dialog in dialogs)
+
     async def _dismiss_wrong_settings_dialog(self) -> bool:
         """Close a visible chart-settings modal if TradingView opened the wrong window."""
         try:
-            closed = await self.page.evaluate(
+            close_target = await self.page.evaluate(
                 f"""
                 (() => {{
                     {_JS_SETTINGS_DIALOG_HELPERS}
@@ -379,31 +387,45 @@ class TabWorker:
                         }}))
                         .filter((item) => item.chartSettings)
                         .sort((a, b) => b.score - a.score)[0]?.dialog;
-                    if (!wrong) return false;
+                    if (!wrong) return null;
                     const closeButton = Array.from(wrong.querySelectorAll('button'))
                         .find((btn) => __tvVisible(btn) && (
                             __tvNormalize(btn.getAttribute('aria-label')) === 'close' ||
                             __tvNormalize(btn.getAttribute('title')) === 'close' ||
                             __tvNormalize(btn.textContent) === '×'
                         ));
+                    const rect = wrong.getBoundingClientRect?.();
                     if (closeButton) {{
-                        closeButton.click();
-                        return true;
+                        const box = closeButton.getBoundingClientRect?.();
+                        if (box && box.width > 0 && box.height > 0) {{
+                            return {{
+                                x: box.x + box.width / 2,
+                                y: box.y + box.height / 2,
+                                reason: 'close-button',
+                            }};
+                        }}
                     }}
-                    return false;
+                    if (!rect || rect.width <= 0 || rect.height <= 0) return null;
+                    return {{
+                        x: rect.right - Math.min(32, rect.width * 0.06),
+                        y: rect.top + Math.min(28, rect.height * 0.06),
+                        reason: 'top-right-fallback',
+                    }};
                 }})()
                 """
             )
-            if closed:
-                await asyncio.sleep(0.4)
-                return True
+            if isinstance(close_target, dict) and "x" in close_target and "y" in close_target:
+                await self.page.mouse.click(float(close_target["x"]), float(close_target["y"]))
+                await asyncio.sleep(0.5)
+                if not await self._has_wrong_settings_dialog():
+                    return True
         except Exception:
             pass
 
         try:
             await self.page.keyboard.press("Escape")
             await asyncio.sleep(0.3)
-            return True
+            return not await self._has_wrong_settings_dialog()
         except Exception:
             return False
 
@@ -1059,6 +1081,14 @@ class TabWorker:
         except Exception:
             return False
 
+    async def _read_results_fingerprint_raw(self) -> str:
+        """Read the raw Strategy Report fingerprint without triggering refresh logic."""
+        try:
+            fingerprint: str = await self.page.evaluate(_JS_RESULTS_FINGERPRINT)
+            return fingerprint or ""
+        except Exception:
+            return ""
+
     async def _recover_strategy_report_timeout(self) -> None:
         """Try to recover when Strategy Report times out."""
         log.warning("_wait_for_load: detected Strategy Report timeout banner — trying recovery")
@@ -1070,6 +1100,50 @@ class TabWorker:
             await self.page.evaluate(_JS_CLICK_UPDATE_REPORT)
         except Exception:
             pass
+
+    async def _wait_for_results_stable(self) -> bool:
+        """
+        Require a short stable-idle window after recalculation.
+
+        TradingView can briefly hide the loading spinner before the Strategy
+        Report has actually finished repainting. We only accept completion once
+        the report fingerprint is identical across several consecutive idle
+        polls.
+        """
+        deadline = time.time() + _UPDATE_SETTLE_TIMEOUT
+        last_fingerprint = ""
+        stable_polls = 0
+
+        while time.time() < deadline:
+            if await self._check_loading_text():
+                last_fingerprint = ""
+                stable_polls = 0
+                await asyncio.sleep(_UPDATE_SETTLE_SLEEP)
+                continue
+
+            fingerprint = await self._read_results_fingerprint_raw()
+            if not fingerprint:
+                last_fingerprint = ""
+                stable_polls = 0
+                await asyncio.sleep(_UPDATE_SETTLE_SLEEP)
+                continue
+
+            if fingerprint == last_fingerprint:
+                stable_polls += 1
+            else:
+                last_fingerprint = fingerprint
+                stable_polls = 1
+
+            if stable_polls >= _UPDATE_SETTLE_POLLS:
+                return True
+
+            await asyncio.sleep(_UPDATE_SETTLE_SLEEP)
+
+        log.warning(
+            "_wait_for_results_stable: timed out after %ds waiting for stable Strategy Report",
+            _UPDATE_SETTLE_TIMEOUT,
+        )
+        return False
 
     async def _wait_for_update_complete(self) -> bool:
         """
@@ -1109,17 +1183,15 @@ class TabWorker:
             if await self._check_loading_text():
                 appeared = True
             else:
-                # Still nothing: wait an extra second for any late recalc to settle
-                await asyncio.sleep(1.0)
-                return True
+                # Still nothing: require a stable report before continuing.
+                return await self._wait_for_results_stable()
 
         # Phase 2 — wait for loading to disappear
         deadline = time.time() + _UPDATE_FINISH_TIMEOUT
 
         while time.time() < deadline:
             if not await self._check_loading_text():
-                await asyncio.sleep(0.5)   # small buffer after disappears
-                return True
+                return await self._wait_for_results_stable()
             # Periodically try to click "Update report" in case TV is waiting
             if int(time.time()) % 10 == 0:
                 await self.page.evaluate(_JS_CLICK_UPDATE_REPORT)
@@ -1132,7 +1204,7 @@ class TabWorker:
             await asyncio.sleep(2.0)
             # One final check after recovery
             if not await self._check_loading_text():
-                return True
+                return await self._wait_for_results_stable()
         except Exception:
             pass
         return False
@@ -1160,7 +1232,7 @@ class TabWorker:
         """
         await self._ensure_fresh_results()
         try:
-            fingerprint: str = await self.page.evaluate(_JS_RESULTS_FINGERPRINT)
+            fingerprint = await self._read_results_fingerprint_raw()
             return hashlib.md5(fingerprint.encode()).hexdigest()[:8]
         except Exception:
             return ""
