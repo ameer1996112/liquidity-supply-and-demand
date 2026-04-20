@@ -267,6 +267,29 @@ class IdempotencyAndRestartTests(unittest.TestCase):
         self.assertEqual(mock_save_result.call_count, 0)
 
 
+class MultiAccountSignalRowTests(unittest.TestCase):
+    def test_multi_account_payloads_reuse_receipt_signal_id_only_once(self):
+        import src.worker as worker_mod
+
+        payload = {
+            "symbol": "XAUUSD",
+            "side": "buy",
+            "run_mode": "LIVE",
+            "_signal_id": 321,
+            "_webhook_receipt_id": "receipt-abc",
+        }
+
+        profile_payloads = worker_mod._build_multi_account_profile_payloads(payload, 3)
+
+        self.assertEqual(len(profile_payloads), 3)
+        self.assertEqual(profile_payloads[0]["_signal_id"], 321)
+        self.assertNotIn("_signal_id", profile_payloads[1])
+        self.assertNotIn("_signal_id", profile_payloads[2])
+        self.assertEqual(profile_payloads[1]["_webhook_receipt_id"], "receipt-abc")
+        self.assertEqual(profile_payloads[2]["_webhook_receipt_id"], "receipt-abc")
+        self.assertEqual(payload["_signal_id"], 321)
+
+
 class GuardAuditInvariantTests(unittest.TestCase):
     """Guard / rejection invariants: every block must have reason + audit hook."""
 
@@ -495,4 +518,3 @@ class GuardAuditInvariantTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

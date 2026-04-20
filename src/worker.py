@@ -1817,18 +1817,19 @@ def process_trade(payload: Dict[str, Any]):
     else:
         # Multiple accounts: execute in parallel
         logger.info("Multi-account execution: %d profiles matched", len(matching))
+        profile_payloads = _build_multi_account_profile_payloads(payload, len(matching))
         with ThreadPoolExecutor(max_workers=min(len(matching), 5)) as executor:
             futures = {
                 executor.submit(
                     _execute_for_profile,
-                    payload.copy(),
+                    profile_payload,
                     profile,
                     ai_result,
                     dry_run,
                     s,
                     current_equity_global,
                 ): (profile or {}).get("name", "default")
-                for profile in matching
+                for profile_payload, profile in zip(profile_payloads, matching)
             }
             for future in as_completed(futures):
                 name = futures[future]
@@ -1843,6 +1844,28 @@ def process_trade(payload: Dict[str, Any]):
     # Report latency breakdown (only if instrumentation enabled)
     if latency_enabled:
         tracker.report(symbol=symbol)
+
+
+def _build_multi_account_profile_payloads(
+    payload: Dict[str, Any],
+    profile_count: int,
+) -> list[Dict[str, Any]]:
+    """
+    Build isolated payload copies for multi-account execution.
+
+    The API pre-inserts one receipt row for frontend visibility and the worker
+    stamps its row id into ``_signal_id``. In a multi-account fanout, only one
+    account may reuse that receipt row; all additional accounts must insert
+    their own ``trading_signals`` rows so the dashboard can show one row per
+    executed account.
+    """
+    profile_payloads: list[Dict[str, Any]] = []
+    for index in range(profile_count):
+        profile_payload = payload.copy()
+        if index > 0:
+            profile_payload.pop("_signal_id", None)
+        profile_payloads.append(profile_payload)
+    return profile_payloads
 
 
 def run():
