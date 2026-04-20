@@ -186,6 +186,30 @@ _JS_HAS_STRATEGY_REPORT_METRICS = """
 })()
 """
 
+_JS_HAS_READY_SETTINGS_DIALOG = """
+(() => {
+    const dialogs = Array.from(
+        document.querySelectorAll(
+            '[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'
+        )
+    );
+    const visible = (el) => {
+        const rect = el?.getBoundingClientRect?.();
+        const style = el ? window.getComputedStyle(el) : null;
+        return !!rect && rect.width > 0 && rect.height > 0 &&
+            style?.visibility !== 'hidden' && style?.display !== 'none';
+    };
+    const isReady = (dialog) => {
+        if (!dialog) return false;
+        if (dialog.querySelector('button[role="combobox"]')) return true;
+        if (dialog.querySelector('input, textarea, [role="spinbutton"], [data-name="source-properties-editor"]')) return true;
+        if (dialog.querySelector('[data-name="indicator-properties-dialog-tabs"], [role="tablist"]')) return true;
+        return false;
+    };
+    return dialogs.some((dialog) => visible(dialog) && isReady(dialog));
+})()
+"""
+
 
 async def page_query_snd(page: "Page"):
     """Find the S&D Algo [Pro] legend coordinates."""
@@ -222,6 +246,74 @@ class TabWorker:
         self.page = page
         self.optimizer = optimizer
         self.results: list[BacktestResult] = []
+
+    async def _has_ready_settings_dialog(self) -> bool:
+        """Return True only when the visible settings dialog has loaded usable controls."""
+        try:
+            return bool(await self.page.evaluate(_JS_HAS_READY_SETTINGS_DIALOG))
+        except Exception:
+            return False
+
+    async def _read_profile_dropdown_text(self) -> str:
+        """Return the current strategy profile label from the visible settings dialog."""
+        try:
+            return await self.page.evaluate(
+                """
+                (() => {
+                    const dialogs = Array.from(document.querySelectorAll('[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'));
+                    const visible = (el) => {
+                        const rect = el?.getBoundingClientRect?.();
+                        const style = el ? window.getComputedStyle(el) : null;
+                        return !!rect && rect.width > 0 && rect.height > 0 &&
+                            style?.visibility !== 'hidden' && style?.display !== 'none';
+                    };
+                    const isReady = (dialog) => {
+                        if (!dialog) return false;
+                        if (dialog.querySelector('button[role="combobox"]')) return true;
+                        if (dialog.querySelector('input, textarea, [role="spinbutton"], [data-name="source-properties-editor"]')) return true;
+                        if (dialog.querySelector('[data-name="indicator-properties-dialog-tabs"], [role="tablist"]')) return true;
+                        return false;
+                    };
+                    const d = dialogs.find((el) => visible(el) && isReady(el));
+                    if (!d) return '';
+                    const combo = d.querySelector('button[role="combobox"]');
+                    return combo?.textContent?.trim() || '';
+                })()
+                """
+            )
+        except Exception:
+            return ""
+
+    async def _recover_blank_settings_dialog(self) -> str:
+        """Dismiss broken dialog state, reopen settings, and wait briefly for the profile control."""
+        await self._dismiss_tv_errors()
+        await asyncio.sleep(0.5)
+
+        for _ in range(2):
+            try:
+                await self.page.keyboard.press("Escape")
+            except Exception:
+                break
+            await asyncio.sleep(0.4)
+
+        for attempt in range(2):
+            await self._dismiss_tv_errors()
+            if not await self._open_settings():
+                await asyncio.sleep(0.6)
+                continue
+
+            for _ in range(8):
+                profile = await self._read_profile_dropdown_text()
+                if profile:
+                    return profile
+                await asyncio.sleep(0.4)
+
+            if attempt == 0:
+                log.warning("_recover_blank_settings_dialog: dialog stayed blank, reloading strategy script")
+                await self._reload_strategy_script()
+                await asyncio.sleep(1.0)
+
+        return ""
 
     # ─────────────────────────────────── asset class helpers ─────────────────
 
@@ -953,21 +1045,7 @@ class TabWorker:
 
     async def _open_settings(self) -> bool:
         """Open strategy settings dialog on this tab's page."""
-        is_open = await self.page.evaluate(
-            """
-            (() => {
-                const dialogs = Array.from(document.querySelectorAll('[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'));
-                const d = dialogs.find((el) => {
-                    const rect = el.getBoundingClientRect?.();
-                    return !!rect && rect.width > 0 && rect.height > 0;
-                }) || dialogs[0];
-                if (!d) return false;
-                const rect = d.getBoundingClientRect?.();
-                return !!rect && rect.width > 0 && rect.height > 0;
-            })()
-            """
-        )
-        if is_open:
+        if await self._has_ready_settings_dialog():
             return True
 
         # On TradingView Desktop, the indicator legend often already exposes a
@@ -1040,21 +1118,7 @@ class TabWorker:
             )
             if opened_direct_legend_settings:
                 await asyncio.sleep(1.2)
-                is_open = await self.page.evaluate(
-                    """
-                    (() => {
-                        const dialogs = Array.from(document.querySelectorAll('[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'));
-                        const d = dialogs.find((el) => {
-                            const rect = el.getBoundingClientRect?.();
-                            return !!rect && rect.width > 0 && rect.height > 0;
-                        }) || dialogs[0];
-                        if (!d) return false;
-                        const rect = d.getBoundingClientRect?.();
-                        return !!rect && rect.width > 0 && rect.height > 0;
-                    })()
-                    """
-                )
-                if is_open:
+                if await self._has_ready_settings_dialog():
                     return True
             else:
                 try:
@@ -1134,21 +1198,7 @@ class TabWorker:
 
             if opened_from_menu:
                 await asyncio.sleep(1.2)
-                is_open = await self.page.evaluate(
-                    """
-                    (() => {
-                        const dialogs = Array.from(document.querySelectorAll('[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'));
-                        const d = dialogs.find((el) => {
-                            const rect = el.getBoundingClientRect?.();
-                            return !!rect && rect.width > 0 && rect.height > 0;
-                        }) || dialogs[0];
-                        if (!d) return false;
-                        const rect = d.getBoundingClientRect?.();
-                        return !!rect && rect.width > 0 && rect.height > 0;
-                    })()
-                    """
-                )
-                if is_open:
+                if await self._has_ready_settings_dialog():
                     return True
             else:
                 try:
@@ -1433,48 +1483,11 @@ class TabWorker:
         Returns True if profile is Custom (or was switched), False on failure.
         """
         try:
-            profile = await self.page.evaluate(
-                """
-                (() => {
-                    const dialogs = Array.from(document.querySelectorAll('[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'));
-                    const d = dialogs.find((el) => {
-                        const rect = el.getBoundingClientRect?.();
-                        return !!rect && rect.width > 0 && rect.height > 0;
-                    }) || dialogs[0];
-                    if (!d) return '';
-                    const combo = d.querySelector('button[role="combobox"]');
-                    return combo?.textContent?.trim() || '';
-                })()
-                """
-            )
+            profile = await self._read_profile_dropdown_text()
 
             # profile='' means dialog isn't ready (TV error state / script timeout)
             if profile == '':
-                # Dismiss any error toasts first
-                await self._dismiss_tv_errors()
-                await asyncio.sleep(0.5)
-
-                # Close the current (broken) dialog with Escape and reopen it
-                await self.page.keyboard.press("Escape")
-                await asyncio.sleep(0.8)
-                await self._open_settings()
-                await asyncio.sleep(1.0)
-
-                # Re-read the profile
-                profile = await self.page.evaluate(
-                    """
-                    (() => {
-                        const dialogs = Array.from(document.querySelectorAll('[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'));
-                        const d = dialogs.find((el) => {
-                            const rect = el.getBoundingClientRect?.();
-                            return !!rect && rect.width > 0 && rect.height > 0;
-                        }) || dialogs[0];
-                        if (!d) return '';
-                        const combo = d.querySelector('button[role="combobox"]');
-                        return combo?.textContent?.trim() || '';
-                    })()
-                    """
-                )
+                profile = await self._recover_blank_settings_dialog()
 
                 if profile == "":
                     log.warning("_ensure_custom_profile: settings dialog still blank after reopen")
@@ -1550,20 +1563,7 @@ class TabWorker:
             await asyncio.sleep(0.5)
 
             # Verify the switch worked
-            new_profile = await self.page.evaluate(
-                """
-                (() => {
-                    const dialogs = Array.from(document.querySelectorAll('[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'));
-                    const d = dialogs.find((el) => {
-                        const rect = el.getBoundingClientRect?.();
-                        return !!rect && rect.width > 0 && rect.height > 0;
-                    }) || dialogs[0];
-                    if (!d) return '';
-                    const combo = d.querySelector('button[role="combobox"]');
-                    return combo?.textContent?.trim() || '';
-                })()
-                """
-            )
+            new_profile = await self._read_profile_dropdown_text()
             if new_profile == "Custom":
                 print(" [switched ✓]", end="", flush=True)
                 return True

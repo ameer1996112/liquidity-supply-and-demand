@@ -62,6 +62,8 @@ class MenuSettingsPage(DummyPage):
         self.menu_open = False
 
     async def evaluate(self, script: str):
+        if "const isReady = (dialog)" in script:
+            return self.dialog_open
         if "const rect = d.getBoundingClientRect?.();" in script:
             return self.dialog_open
         if "strategyButton.click()" in script:
@@ -81,6 +83,8 @@ class DirectLegendSettingsPage(DummyPage):
         self.dialog_open = False
 
     async def evaluate(self, script: str):
+        if "const isReady = (dialog)" in script:
+            return self.dialog_open
         if "const rect = d.getBoundingClientRect?.();" in script:
             return self.dialog_open
         if "const titles = Array.from" in script and "bestButton.click()" in script:
@@ -109,6 +113,61 @@ class StrategyReportPage(DummyPage):
             self.report_open = True
             return True
         raise AssertionError(f"unexpected script in StrategyReportPage: {script[:120]}")
+
+
+class BlankThenCustomProfilePage(DummyPage):
+    def __init__(self) -> None:
+        super().__init__(title="EURUSD 5 OANDA")
+        self.profile_reads = 0
+        self.escape_presses = 0
+
+        class _Keyboard:
+            def __init__(self, outer) -> None:
+                self.outer = outer
+
+            async def press(self, key_combo: str) -> None:
+                if key_combo == "Escape":
+                    self.outer.escape_presses += 1
+
+        self.keyboard = _Keyboard(self)
+
+    async def evaluate(self, script: str):
+        if "const dialogs = Array.from(document.querySelectorAll('[data-name=\"indicator-properties-dialog\"]" in script:
+            self.profile_reads += 1
+            if self.profile_reads < 3:
+                return ""
+            return "Custom"
+        if "const dialogs = Array.from(" in script and "const isReady = (dialog)" in script:
+            return self.profile_reads >= 3
+        raise AssertionError(f"unexpected script in BlankThenCustomProfilePage: {script[:120]}")
+
+
+class ReloadThenCustomProfilePage(DummyPage):
+    def __init__(self) -> None:
+        super().__init__(title="EURUSD 5 OANDA")
+        self.profile_reads = 0
+        self.escape_presses = 0
+        self.reloaded = False
+
+        class _Keyboard:
+            def __init__(self, outer) -> None:
+                self.outer = outer
+
+            async def press(self, key_combo: str) -> None:
+                if key_combo == "Escape":
+                    self.outer.escape_presses += 1
+
+        self.keyboard = _Keyboard(self)
+
+    async def evaluate(self, script: str):
+        if "const dialogs = Array.from(document.querySelectorAll('[data-name=\"indicator-properties-dialog\"]" in script:
+            self.profile_reads += 1
+            if not self.reloaded:
+                return ""
+            return "Custom"
+        if "const dialogs = Array.from(" in script and "const isReady = (dialog)" in script:
+            return self.reloaded
+        raise AssertionError(f"unexpected script in ReloadThenCustomProfilePage: {script[:120]}")
 
 
 def test_apply_params_rejects_unchanged_final_results_hash(monkeypatch) -> None:
@@ -476,6 +535,54 @@ def test_open_settings_uses_direct_legend_settings_when_available() -> None:
 
     assert result is True
     assert page.dialog_open is True
+
+
+def test_ensure_custom_profile_recovers_from_blank_dialog_after_reopen(monkeypatch) -> None:
+    page = BlankThenCustomProfilePage()
+    worker = TabWorker(page, DummyOptimizer())
+
+    async def no_sleep(*_args, **_kwargs) -> None:
+        return None
+
+    async def noop(*_args, **_kwargs) -> None:
+        return None
+
+    async def reopen() -> bool:
+        return True
+
+    monkeypatch.setattr(tab_worker_module.asyncio, "sleep", no_sleep)
+    monkeypatch.setattr(worker, "_dismiss_tv_errors", noop)
+    monkeypatch.setattr(worker, "_open_settings", reopen)
+
+    assert asyncio.run(worker._ensure_custom_profile()) is True
+    assert page.escape_presses >= 1
+
+
+def test_ensure_custom_profile_reloads_strategy_after_blank_reopen(monkeypatch) -> None:
+    page = ReloadThenCustomProfilePage()
+    worker = TabWorker(page, DummyOptimizer())
+    reload_calls: list[str] = []
+
+    async def no_sleep(*_args, **_kwargs) -> None:
+        return None
+
+    async def noop(*_args, **_kwargs) -> None:
+        return None
+
+    async def reopen() -> bool:
+        return True
+
+    async def reload_script() -> None:
+        reload_calls.append("reload")
+        page.reloaded = True
+
+    monkeypatch.setattr(tab_worker_module.asyncio, "sleep", no_sleep)
+    monkeypatch.setattr(worker, "_dismiss_tv_errors", noop)
+    monkeypatch.setattr(worker, "_open_settings", reopen)
+    monkeypatch.setattr(worker, "_reload_strategy_script", reload_script)
+
+    assert asyncio.run(worker._ensure_custom_profile()) is True
+    assert reload_calls == ["reload"]
 
 
 def test_ensure_strategy_tester_open_uses_strategy_report_control_when_metrics_delayed() -> None:

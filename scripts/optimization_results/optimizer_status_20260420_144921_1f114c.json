@@ -1,11 +1,11 @@
 {
-  "run_id": "20260420_150700_37aba9",
+  "run_id": "20260420_144921_1f114c",
   "state": "running",
-  "started_at": "2026-04-20T15:07:00.077583+03:00",
-  "last_progress_at": "2026-04-20T15:16:11.401450+03:00",
+  "started_at": "2026-04-20T14:49:21.246793+03:00",
+  "last_progress_at": "2026-04-20T14:55:55.753055+03:00",
   "stuck_threshold_seconds": 720,
   "restart_count": 0,
-  "optimizer_pid": 28092,
+  "optimizer_pid": 19743,
   "desktop_cdp_pid": 4164,
   "log_file": "/Users/ameeramer/dev/projects/galilsoftware/sources/trading/scripts/optimization_results/parallel_run.log",
   "mode": "bayesian",
@@ -25,19 +25,19 @@
     "--broker",
     "oanda",
     "--results-label",
-    "8204b678-90e0-443f-9395-eb2e1e822e71"
+    "f8ef2958-03d5-41f5-be1f-bfc1f3008222"
   ],
   "active_pairs": {
     "worker-0": {
       "symbol": "XAUUSD",
-      "trial": 9,
-      "last_event_at": "2026-04-20T15:16:11.401450+03:00",
+      "trial": 6,
+      "last_event_at": "2026-04-20T14:55:55.753055+03:00",
       "status": "running"
     },
     "worker-1": {
       "symbol": "EURAUD",
-      "trial": 5,
-      "last_event_at": "2026-04-20T15:15:37.512581+03:00",
+      "trial": 10,
+      "last_event_at": "2026-04-20T14:56:35.631806+03:00",
       "status": "running"
     }
   },
@@ -45,12 +45,12 @@
     "worker-0": {
       "status": "healthy",
       "stale_reads": 0,
-      "last_results_hash": "99c3fde4"
+      "last_results_hash": "0e54bcc4"
     },
     "worker-1": {
-      "status": "healthy",
-      "stale_reads": 0,
-      "last_results_hash": "22b7c7c7"
+      "status": "warning",
+      "stale_reads": 10,
+      "last_results_hash": ""
     }
   }
 }
