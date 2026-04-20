@@ -1,0 +1,3 @@
+{"ts": "2026-04-20T15:24:29.674591+03:00", "run_id": "20260420_152139_4d2967", "worker_id": 1, "symbol": "EURAUD", "trial": 1, "outcome": "apply_failed", "params_hash": "d624e896", "results_hash_before": "422938fa", "results_hash_after": "", "metrics": {}}
+{"ts": "2026-04-20T15:25:32.953870+03:00", "run_id": "20260420_152139_4d2967", "worker_id": 1, "symbol": "EURAUD", "trial": 2, "outcome": "apply_failed", "params_hash": "ef743470", "results_hash_before": "422938fa", "results_hash_after": "", "metrics": {}}
+{"ts": "2026-04-20T15:26:36.519229+03:00", "run_id": "20260420_152139_4d2967", "worker_id": 1, "symbol": "EURAUD", "trial": 3, "outcome": "apply_failed", "params_hash": "f35fb3b1", "results_hash_before": "422938fa", "results_hash_after": "", "metrics": {}}

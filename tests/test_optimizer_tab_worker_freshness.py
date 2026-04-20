@@ -62,7 +62,9 @@ class MenuSettingsPage(DummyPage):
         self.menu_open = False
 
     async def evaluate(self, script: str):
-        if "const isReady = (dialog)" in script:
+        if "return __tvDescribeSettingsDialogs();" in script:
+            return []
+        if "__tvPickSettingsDialog(true)" in script or "__tvPickSettingsDialog(false)" in script:
             return self.dialog_open
         if "const rect = d.getBoundingClientRect?.();" in script:
             return self.dialog_open
@@ -83,7 +85,9 @@ class DirectLegendSettingsPage(DummyPage):
         self.dialog_open = False
 
     async def evaluate(self, script: str):
-        if "const isReady = (dialog)" in script:
+        if "return __tvDescribeSettingsDialogs();" in script:
+            return []
+        if "__tvPickSettingsDialog(true)" in script or "__tvPickSettingsDialog(false)" in script:
             return self.dialog_open
         if "const rect = d.getBoundingClientRect?.();" in script:
             return self.dialog_open
@@ -132,12 +136,16 @@ class BlankThenCustomProfilePage(DummyPage):
         self.keyboard = _Keyboard(self)
 
     async def evaluate(self, script: str):
-        if "const dialogs = Array.from(document.querySelectorAll('[data-name=\"indicator-properties-dialog\"]" in script:
+        if "return __tvDescribeSettingsDialogs();" in script:
+            return []
+        if "const combo = dialog.querySelector('button[role=\"combobox\"]');" in script:
             self.profile_reads += 1
             if self.profile_reads < 3:
                 return ""
             return "Custom"
-        if "const dialogs = Array.from(" in script and "const isReady = (dialog)" in script:
+        if "el.textContent?.trim() === 'Custom'" in script:
+            return True
+        if "__tvPickSettingsDialog(true)" in script:
             return self.profile_reads >= 3
         raise AssertionError(f"unexpected script in BlankThenCustomProfilePage: {script[:120]}")
 
@@ -160,12 +168,16 @@ class ReloadThenCustomProfilePage(DummyPage):
         self.keyboard = _Keyboard(self)
 
     async def evaluate(self, script: str):
-        if "const dialogs = Array.from(document.querySelectorAll('[data-name=\"indicator-properties-dialog\"]" in script:
+        if "return __tvDescribeSettingsDialogs();" in script:
+            return []
+        if "const combo = dialog.querySelector('button[role=\"combobox\"]');" in script:
             self.profile_reads += 1
             if not self.reloaded:
                 return ""
             return "Custom"
-        if "const dialogs = Array.from(" in script and "const isReady = (dialog)" in script:
+        if "el.textContent?.trim() === 'Custom'" in script:
+            return True
+        if "__tvPickSettingsDialog(true)" in script:
             return self.reloaded
         raise AssertionError(f"unexpected script in ReloadThenCustomProfilePage: {script[:120]}")
 

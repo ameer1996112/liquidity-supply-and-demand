@@ -186,28 +186,84 @@ _JS_HAS_STRATEGY_REPORT_METRICS = """
 })()
 """
 
-_JS_HAS_READY_SETTINGS_DIALOG = """
-(() => {
+_JS_SETTINGS_DIALOG_HELPERS = """
+const __tvVisible = (el) => {
+    const rect = el?.getBoundingClientRect?.();
+    const style = el ? window.getComputedStyle(el) : null;
+    return !!rect && rect.width > 0 && rect.height > 0 &&
+        style?.visibility !== 'hidden' && style?.display !== 'none';
+};
+const __tvNormalize = (text) => (text || '').replace(/\\s+/g, ' ').trim();
+const __tvDialogText = (dialog) => __tvNormalize(dialog?.textContent || '');
+const __tvDialogScore = (dialog) => {
+    if (!dialog) return -1;
+    const text = __tvDialogText(dialog).toLowerCase();
+    let score = 0;
+    if (dialog.matches?.('[data-name="indicator-properties-dialog"][role="dialog"]')) score += 80;
+    if (dialog.querySelector('[data-name="indicator-properties-dialog-tabs"]')) score += 35;
+    if (dialog.querySelector('button[role="combobox"]')) score += 15;
+    if (dialog.querySelector('input, textarea, [role="spinbutton"], [data-name="source-properties-editor"]')) score += 12;
+    const tabTexts = Array.from(dialog.querySelectorAll('[role="tab"], button'))
+        .map((el) => __tvNormalize(el.textContent).toLowerCase())
+        .filter(Boolean);
+    if (tabTexts.includes('inputs')) score += 20;
+    if (tabTexts.includes('style') || tabTexts.includes('properties')) score += 10;
+    const buttonTexts = Array.from(dialog.querySelectorAll('button'))
+        .map((el) => __tvNormalize(el.textContent).toLowerCase())
+        .filter(Boolean);
+    if (buttonTexts.includes('ok')) score += 8;
+    if (buttonTexts.includes('cancel')) score += 6;
+    if (text.includes('s&d algo')) score += 35;
+    if (text.includes('custom')) score += 8;
+    const zIndex = Number.parseInt(window.getComputedStyle(dialog).zIndex || '0', 10);
+    if (Number.isFinite(zIndex)) score += Math.max(0, Math.min(zIndex, 9999)) / 1000;
+    return score;
+};
+const __tvDialogReady = (dialog) => {
+    if (!dialog) return false;
+    if (dialog.querySelector('button[role="combobox"]')) return true;
+    if (dialog.querySelector('[data-name="indicator-properties-dialog-tabs"]')) return true;
+    return !!dialog.querySelector('input, textarea, [role="spinbutton"], [data-name="source-properties-editor"]');
+};
+const __tvPickSettingsDialog = (requireReady = false) => {
     const dialogs = Array.from(
         document.querySelectorAll(
             '[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'
         )
-    );
-    const visible = (el) => {
-        const rect = el?.getBoundingClientRect?.();
-        const style = el ? window.getComputedStyle(el) : null;
-        return !!rect && rect.width > 0 && rect.height > 0 &&
-            style?.visibility !== 'hidden' && style?.display !== 'none';
-    };
-    const isReady = (dialog) => {
-        if (!dialog) return false;
-        if (dialog.querySelector('button[role="combobox"]')) return true;
-        if (dialog.querySelector('input, textarea, [role="spinbutton"], [data-name="source-properties-editor"]')) return true;
-        if (dialog.querySelector('[data-name="indicator-properties-dialog-tabs"], [role="tablist"]')) return true;
-        return false;
-    };
-    return dialogs.some((dialog) => visible(dialog) && isReady(dialog));
-})()
+    ).filter(__tvVisible);
+    const ranked = dialogs
+        .map((dialog) => ({ dialog, score: __tvDialogScore(dialog) }))
+        .filter(({ dialog, score }) => score >= 40 && (!requireReady || __tvDialogReady(dialog)))
+        .sort((a, b) => b.score - a.score);
+    return ranked[0]?.dialog || null;
+};
+const __tvDescribeSettingsDialogs = () => {
+    const dialogs = Array.from(
+        document.querySelectorAll(
+            '[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'
+        )
+    ).filter(__tvVisible);
+    return dialogs
+        .map((dialog) => ({
+            score: __tvDialogScore(dialog),
+            ready: __tvDialogReady(dialog),
+            combo: !!dialog.querySelector('button[role="combobox"]'),
+            tabs: Array.from(dialog.querySelectorAll('[role="tab"], button'))
+                .map((el) => __tvNormalize(el.textContent))
+                .filter(Boolean)
+                .slice(0, 6),
+            text: __tvDialogText(dialog).slice(0, 240),
+        }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 3);
+};
+"""
+
+_JS_HAS_READY_SETTINGS_DIALOG = f"""
+(() => {{
+    {_JS_SETTINGS_DIALOG_HELPERS}
+    return !!__tvPickSettingsDialog(true);
+}})()
 """
 
 
@@ -258,31 +314,43 @@ class TabWorker:
         """Return the current strategy profile label from the visible settings dialog."""
         try:
             return await self.page.evaluate(
-                """
-                (() => {
-                    const dialogs = Array.from(document.querySelectorAll('[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'));
-                    const visible = (el) => {
-                        const rect = el?.getBoundingClientRect?.();
-                        const style = el ? window.getComputedStyle(el) : null;
-                        return !!rect && rect.width > 0 && rect.height > 0 &&
-                            style?.visibility !== 'hidden' && style?.display !== 'none';
-                    };
-                    const isReady = (dialog) => {
-                        if (!dialog) return false;
-                        if (dialog.querySelector('button[role="combobox"]')) return true;
-                        if (dialog.querySelector('input, textarea, [role="spinbutton"], [data-name="source-properties-editor"]')) return true;
-                        if (dialog.querySelector('[data-name="indicator-properties-dialog-tabs"], [role="tablist"]')) return true;
-                        return false;
-                    };
-                    const d = dialogs.find((el) => visible(el) && isReady(el));
-                    if (!d) return '';
-                    const combo = d.querySelector('button[role="combobox"]');
-                    return combo?.textContent?.trim() || '';
-                })()
+                f"""
+                (() => {{
+                    {_JS_SETTINGS_DIALOG_HELPERS}
+                    const dialog = __tvPickSettingsDialog(true);
+                    if (!dialog) return '';
+                    const combo = dialog.querySelector('button[role="combobox"]');
+                    return __tvNormalize(combo?.textContent || '');
+                }})()
                 """
             )
         except Exception:
             return ""
+
+    async def _describe_settings_dialogs(self) -> list[dict]:
+        """Return a compact summary of the visible settings dialogs for debugging."""
+        try:
+            dialogs = await self.page.evaluate(
+                f"""
+                (() => {{
+                    {_JS_SETTINGS_DIALOG_HELPERS}
+                    return __tvDescribeSettingsDialogs();
+                }})()
+                """
+            )
+            if isinstance(dialogs, list):
+                return dialogs
+        except Exception:
+            pass
+        return []
+
+    async def _log_dialog_state(self, context: str) -> None:
+        """Log the top visible dialog candidates when the expected strategy dialog is missing."""
+        dialogs = await self._describe_settings_dialogs()
+        if not dialogs:
+            log.warning("%s: no visible settings dialogs detected", context)
+            return
+        log.warning("%s: visible dialog candidates=%s", context, dialogs)
 
     async def _recover_blank_settings_dialog(self) -> str:
         """Dismiss broken dialog state, reopen settings, and wait briefly for the profile control."""
@@ -309,6 +377,7 @@ class TabWorker:
                 await asyncio.sleep(0.4)
 
             if attempt == 0:
+                await self._log_dialog_state("_recover_blank_settings_dialog before strategy reload")
                 log.warning("_recover_blank_settings_dialog: dialog stayed blank, reloading strategy script")
                 await self._reload_strategy_script()
                 await asyncio.sleep(1.0)
@@ -1276,42 +1345,42 @@ class TabWorker:
         try:
             return bool(
                 await self.page.evaluate(
-                    """
-                    ({ index, value }) => {
-                        const dialogs = Array.from(document.querySelectorAll('[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'));
-                        const d = dialogs.find((el) => {
-                            const rect = el.getBoundingClientRect?.();
-                            return !!rect && rect.width > 0 && rect.height > 0;
-                        }) || dialogs[0];
-                        if (!d) return false;
-                        const inputs = d.querySelectorAll('input');
+                    f"""
+                    ({{
+                        index,
+                        value
+                    }}) => {{
+                        {_JS_SETTINGS_DIALOG_HELPERS}
+                        const dialog = __tvPickSettingsDialog(true) || __tvPickSettingsDialog(false);
+                        if (!dialog) return false;
+                        const inputs = dialog.querySelectorAll('input');
                         if (index >= inputs.length) return false;
                         const input = inputs[index];
                         if (!input || input.type === 'checkbox') return true;
                         const nextValue = String(value);
-                        input.scrollIntoView({ block: 'center' });
+                        input.scrollIntoView({{ block: 'center' }});
                         input.focus();
                         input.select?.();
 
                         const proto = Object.getPrototypeOf(input);
                         const descriptor = Object.getOwnPropertyDescriptor(proto, 'value')
-                            || Object.getOwnPropertyDescriptor(window.HTMLInputElement?.prototype || {}, 'value')
-                            || Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement?.prototype || {}, 'value');
-                        if (descriptor?.set) {
+                            || Object.getOwnPropertyDescriptor(window.HTMLInputElement?.prototype || {{}}, 'value')
+                            || Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement?.prototype || {{}}, 'value');
+                        if (descriptor?.set) {{
                             descriptor.set.call(input, nextValue);
-                        } else {
+                        }} else {{
                             input.value = nextValue;
-                        }
+                        }}
 
-                        input.dispatchEvent(new InputEvent('input', {
+                        input.dispatchEvent(new InputEvent('input', {{
                             bubbles: true,
                             data: nextValue,
                             inputType: 'insertReplacementText',
-                        }));
-                        input.dispatchEvent(new Event('change', { bubbles: true }));
+                        }}));
+                        input.dispatchEvent(new Event('change', {{ bubbles: true }}));
                         input.blur();
                         return String(input.value).trim() === nextValue.trim();
-                    }
+                    }}
                     """,
                     {"index": index, "value": value},
                 )
@@ -1323,33 +1392,33 @@ class TabWorker:
         """Toggle a checkbox to the desired state using native checked setters."""
         try:
             changed = await self.page.evaluate(
-                """
-                ({ index, desiredState }) => {
-                    const dialogs = Array.from(document.querySelectorAll('[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'));
-                    const d = dialogs.find((el) => {
-                        const rect = el.getBoundingClientRect?.();
-                        return !!rect && rect.width > 0 && rect.height > 0;
-                    }) || dialogs[0];
-                    if (!d) return false;
-                    const inputs = d.querySelectorAll('input');
+                f"""
+                ({{
+                    index,
+                    desiredState
+                }}) => {{
+                    {_JS_SETTINGS_DIALOG_HELPERS}
+                    const dialog = __tvPickSettingsDialog(true) || __tvPickSettingsDialog(false);
+                    if (!dialog) return false;
+                    const inputs = dialog.querySelectorAll('input');
                     if (index >= inputs.length) return false;
                     const input = inputs[index];
                     if (!input || input.type !== 'checkbox') return false;
                     const nextState = Boolean(desiredState);
-                    if (Boolean(input.checked) !== nextState) {
+                    if (Boolean(input.checked) !== nextState) {{
                         const proto = Object.getPrototypeOf(input);
                         const descriptor = Object.getOwnPropertyDescriptor(proto, 'checked')
-                            || Object.getOwnPropertyDescriptor(window.HTMLInputElement?.prototype || {}, 'checked');
-                        if (descriptor?.set) {
+                            || Object.getOwnPropertyDescriptor(window.HTMLInputElement?.prototype || {{}}, 'checked');
+                        if (descriptor?.set) {{
                             descriptor.set.call(input, nextState);
-                        } else {
+                        }} else {{
                             input.checked = nextState;
-                        }
-                        input.dispatchEvent(new Event('input', { bubbles: true }));
-                        input.dispatchEvent(new Event('change', { bubbles: true }));
-                    }
+                        }}
+                        input.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                        input.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                    }}
                     return Boolean(input.checked) === nextState;
-                }
+                }}
                 """,
                 {"index": index, "desiredState": desired_state},
             )
@@ -1490,6 +1559,7 @@ class TabWorker:
                 profile = await self._recover_blank_settings_dialog()
 
                 if profile == "":
+                    await self._log_dialog_state("_ensure_custom_profile blank after recover")
                     log.warning("_ensure_custom_profile: settings dialog still blank after reopen")
                     return False
 
@@ -1500,17 +1570,14 @@ class TabWorker:
 
             # Click the combobox to open the dropdown
             await self.page.evaluate(
-                """
-                (() => {
-                    const dialogs = Array.from(document.querySelectorAll('[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'));
-                    const d = dialogs.find((el) => {
-                        const rect = el.getBoundingClientRect?.();
-                        return !!rect && rect.width > 0 && rect.height > 0;
-                    }) || dialogs[0];
-                    if (!d) return;
-                    const combo = d.querySelector('button[role="combobox"]');
+                f"""
+                (() => {{
+                    {_JS_SETTINGS_DIALOG_HELPERS}
+                    const dialog = __tvPickSettingsDialog(true) || __tvPickSettingsDialog(false);
+                    if (!dialog) return;
+                    const combo = dialog.querySelector('button[role="combobox"]');
                     if (combo) combo.click();
-                })()
+                }})()
                 """
             )
             await asyncio.sleep(0.6)
@@ -1557,6 +1624,7 @@ class TabWorker:
                 # Couldn't find "Custom" option — press Escape to close dropdown
                 await self.page.keyboard.press("Escape")
                 await asyncio.sleep(0.3)
+                await self._log_dialog_state("_ensure_custom_profile missing Custom option")
                 log.warning("_ensure_custom_profile: could not find 'Custom' option in dropdown")
                 return False
 
@@ -1568,6 +1636,7 @@ class TabWorker:
                 print(" [switched ✓]", end="", flush=True)
                 return True
             else:
+                await self._log_dialog_state("_ensure_custom_profile verify switch")
                 log.warning(
                     "_ensure_custom_profile: still showing '%s' after click", new_profile
                 )
@@ -1608,16 +1677,19 @@ class TabWorker:
         """Click the OK button in the settings dialog."""
         try:
             clicked = await self.page.evaluate(
-                """
-                (() => {
-                    for (const btn of document.querySelectorAll('button')) {
-                        if ((btn.textContent || '').trim() === 'Ok' && btn.offsetParent !== null) {
+                f"""
+                (() => {{
+                    {_JS_SETTINGS_DIALOG_HELPERS}
+                    const dialog = __tvPickSettingsDialog(true) || __tvPickSettingsDialog(false);
+                    if (!dialog) return false;
+                    for (const btn of dialog.querySelectorAll('button')) {{
+                        if (__tvNormalize(btn.textContent) === 'Ok' && __tvVisible(btn)) {{
                             btn.click();
                             return true;
-                        }
-                    }
+                        }}
+                    }}
                     return false;
-                })()
+                }})()
                 """
             )
             if not clicked:
@@ -1625,23 +1697,34 @@ class TabWorker:
         except Exception:
             await self.page.keyboard.press("Enter")
 
+    async def _click_inputs_tab(self) -> None:
+        """Focus the Inputs tab inside the selected strategy settings dialog."""
+        await self.page.evaluate(
+            f"""
+            (() => {{
+                {_JS_SETTINGS_DIALOG_HELPERS}
+                const dialog = __tvPickSettingsDialog(true) || __tvPickSettingsDialog(false);
+                if (!dialog) return false;
+                for (const btn of dialog.querySelectorAll('[role="tab"], button')) {{
+                    if (__tvNormalize(btn.textContent) === 'Inputs' && __tvVisible(btn)) {{
+                        btn.click();
+                        return true;
+                    }}
+                }}
+                return false;
+            }})()
+            """
+        )
+
     async def _wait_dialog_close(self) -> None:
         """Wait for the settings dialog to close."""
         for _ in range(20):
             gone = await self.page.evaluate(
-                """
-                (() => {
-                    const dialogs = Array.from(document.querySelectorAll(
-                        '[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'
-                    ));
-                    const d = dialogs.find((el) => {
-                        const rect = el.getBoundingClientRect?.();
-                        return !!rect && rect.width > 0 && rect.height > 0;
-                    }) || dialogs[0];
-                    if (!d) return true;
-                    const rect = d.getBoundingClientRect?.();
-                    return !rect || rect.width === 0 || rect.height === 0;
-                })()
+                f"""
+                (() => {{
+                    {_JS_SETTINGS_DIALOG_HELPERS}
+                    return !__tvPickSettingsDialog(false);
+                }})()
                 """
             )
             if gone:
@@ -1673,17 +1756,7 @@ class TabWorker:
                 await asyncio.sleep(0.5)
 
                 # Click Inputs tab
-                await self.page.evaluate(
-                    """
-                    (() => {
-                        for (const b of document.querySelectorAll('button')) {
-                            if (b.textContent?.trim() === 'Inputs') {
-                                b.click(); return;
-                            }
-                        }
-                    })()
-                    """
-                )
+                await self._click_inputs_tab()
                 await asyncio.sleep(0.3)
 
                 # Ensure profile is Custom — preset profiles lock inputs and ignore changes
