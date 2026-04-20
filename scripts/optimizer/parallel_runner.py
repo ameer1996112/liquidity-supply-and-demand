@@ -63,16 +63,34 @@ TRADINGVIEW_DESKTOP_CDP_URL = os.environ.get("OPTIMIZER_DESKTOP_CDP_URL", "http:
 SUPPORTED_BROKERS = {"vantage", "oanda", "fxcm"}
 
 
-def results_file_for_broker(broker: str) -> Path:
+def _sanitize_results_label(label: str | None) -> str | None:
+    if not label:
+        return None
+    cleaned = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "_" for ch in label.strip())
+    cleaned = cleaned.strip("_")
+    return cleaned or None
+
+
+def results_file_for_broker(broker: str, results_label: str | None = None) -> Path:
     normalized = broker.strip().lower()
     if normalized not in SUPPORTED_BROKERS:
         raise ValueError(f"Unsupported broker: {broker}")
+    sanitized_label = _sanitize_results_label(results_label)
+    if sanitized_label:
+        return RESULTS_DIR / f"parallel_results_{normalized}_{sanitized_label}.json"
     return RESULTS_DIR / f"parallel_results_{normalized}.json"
 
 
-def write_results_snapshot(results: dict[str, Any], results_file: Path) -> None:
+def write_results_snapshot(
+    results: dict[str, Any],
+    results_file: Path,
+    latest_results_file: Path | None = None,
+) -> None:
     with open(results_file, "w") as handle:
         json.dump(results, handle, indent=2)
+    if latest_results_file and latest_results_file != results_file:
+        with open(latest_results_file, "w") as handle:
+            json.dump(results, handle, indent=2)
     with open(LEGACY_PARALLEL_RESULTS_FILE, "w") as handle:
         json.dump(results, handle, indent=2)
 
@@ -392,6 +410,7 @@ async def worker_task(
     pair_queue: asyncio.Queue,
     results: dict,
     results_file: Path,
+    latest_results_file: Path,
     results_lock: asyncio.Lock,
     error_log: list,
     broker: str,
@@ -527,7 +546,11 @@ async def worker_task(
                     "timestamp": datetime.now().isoformat(),
                 }
                 # Write results incrementally — never lose completed work
-                write_results_snapshot(results, results_file)
+                write_results_snapshot(
+                    results,
+                    results_file,
+                    latest_results_file=latest_results_file,
+                )
 
         pair_queue.task_done()
 
@@ -547,15 +570,19 @@ async def run_parallel(
     dry_run: bool,
     broker: str,
     raw_args: list[str] | None = None,
+    results_label: str | None = None,
 ) -> dict:
     """
     Main coordinator: prepares TradingView Desktop tabs, distributes pairs to workers, collects results.
     """
     setup_logging()
-    results_file = results_file_for_broker(broker)
+    results_file = results_file_for_broker(broker, results_label)
+    latest_results_file = results_file_for_broker(broker)
 
     log.info(f"Parallel optimizer starting")
     log.info(f"  Pairs: {len(pairs)} | Workers: {n_workers} | Mode: {mode} | Broker: {broker}")
+    if results_label:
+        log.info(f"  Results label: {results_label}")
     if dry_run:
         log.info("  DRY RUN MODE — no real TradingView interaction")
 
@@ -638,6 +665,7 @@ async def run_parallel(
                     pair_queue=pair_queue,
                     results=results,
                     results_file=results_file,
+                    latest_results_file=latest_results_file,
                     results_lock=results_lock,
                     error_log=error_log,
                     broker=broker,
@@ -667,6 +695,7 @@ async def run_parallel(
     )
     output_paths = {
         "results_file": str(results_file),
+        "latest_results_file": str(latest_results_file),
         "legacy_results_file": str(LEGACY_PARALLEL_RESULTS_FILE),
     }
     log.info(f"\n{'='*60}")
@@ -676,6 +705,8 @@ async def run_parallel(
     if error_log:
         log.warning(f"  Failed pairs: {[e['symbol'] for e in error_log]}")
     log.info(f"  Results: {results_file}")
+    if latest_results_file != results_file:
+        log.info(f"  Latest snapshot: {latest_results_file}")
 
     # Generate HTML report from parallel results
     if results:
@@ -741,14 +772,18 @@ def main() -> None:
     parser.add_argument("--dd-limit", type=float, default=PROP_FIRM_MAX_DD_PCT, help="Max drawdown %")
     parser.add_argument("--pairs", type=str, help="Comma-separated list of pairs (default: all)")
     parser.add_argument("--broker", choices=sorted(SUPPORTED_BROKERS), default="vantage", help="Broker dataset namespace")
+    parser.add_argument("--results-label", type=str, help="Optional run-specific suffix for the results filename")
     parser.add_argument("--dry-run", action="store_true", help="Test with fake results (2 pairs, 2 trials)")
     parser.add_argument("--reset", action="store_true", help="Clear existing results and start fresh")
     args = parser.parse_args()
 
-    results_file = results_file_for_broker(args.broker)
+    results_file = results_file_for_broker(args.broker, args.results_label)
+    latest_results_file = results_file_for_broker(args.broker)
 
     if args.reset and results_file.exists():
         results_file.unlink()
+        if latest_results_file != results_file and latest_results_file.exists():
+            latest_results_file.unlink()
         print("Cleared existing parallel results")
 
     if args.pairs:
@@ -771,6 +806,7 @@ def main() -> None:
         dry_run=args.dry_run,
         broker=args.broker,
         raw_args=sys.argv[1:],
+        results_label=args.results_label,
     ))
 
 

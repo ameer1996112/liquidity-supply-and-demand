@@ -164,6 +164,28 @@ _JS_COLLECT_METRICS = """
 })()
 """
 
+_JS_HAS_STRATEGY_REPORT_METRICS = """
+(() => {
+    const metricLabels = [
+        'Profit factor',
+        'Profitable trades',
+        'Total trades',
+        'Max equity drawdown',
+        'Net profit',
+    ];
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
+    let node;
+    while ((node = walker.nextNode())) {
+        const text = node.textContent?.trim();
+        if (!text || !metricLabels.includes(text)) continue;
+        const el = node.parentElement;
+        if (!el || el.offsetParent === null) continue;
+        return true;
+    }
+    return false;
+})()
+"""
+
 
 async def page_query_snd(page: "Page"):
     """Find the S&D Algo [Pro] legend coordinates."""
@@ -429,63 +451,131 @@ class TabWorker:
         observed = await self._current_symbol()
         if observed == clean_symbol:
             print(f"  Switched to {clean_symbol} (verified)")
+            await self._ensure_chart_timeframe_5m()
         else:
             raise RuntimeError(
                 f"Symbol switch failed: expected {clean_symbol}, observed {observed or 'UNKNOWN'}"
             )
 
+    async def _ensure_chart_timeframe_5m(self) -> None:
+        """Best-effort reset to the optimizer's expected 5-minute chart timeframe."""
+        try:
+            clicked = await self.page.evaluate(
+                """
+                (() => {
+                    const visible = (el) => {
+                        const rect = el?.getBoundingClientRect?.();
+                        const style = el ? window.getComputedStyle(el) : null;
+                        return !!rect && rect.width > 0 && rect.height > 0 &&
+                            style?.visibility !== 'hidden' && style?.display !== 'none';
+                    };
+
+                    const candidates = Array.from(document.querySelectorAll('button, [role="button"], [role="tab"]'))
+                        .map((el) => {
+                            const text = (el.textContent || '').trim();
+                            const title = (el.getAttribute('title') || '').trim();
+                            const aria = (el.getAttribute('aria-label') || '').trim();
+                            const rect = el.getBoundingClientRect();
+                            return { el, text, title, aria, rect };
+                        })
+                        .filter((item) => visible(item.el))
+                        .filter((item) => item.text === '5m' || item.text === '5')
+                        .sort((a, b) => {
+                            const aPreferred = (a.title === 'Change interval' || a.aria.includes('interval')) ? 0 : 1;
+                            const bPreferred = (b.title === 'Change interval' || b.aria.includes('interval')) ? 0 : 1;
+                            if (aPreferred !== bPreferred) return aPreferred - bPreferred;
+                            return a.rect.y - b.rect.y || a.rect.x - b.rect.x;
+                        });
+
+                    if (!candidates.length) return false;
+                    candidates[0].el.click();
+                    return true;
+                })()
+                """
+            )
+            if clicked:
+                await asyncio.sleep(1.0)
+        except Exception:
+            pass
 
     async def _ensure_strategy_tester_open(self) -> None:
         """Ensure the Strategy Tester panel is visible and expanded.
 
         Tries in order:
           1. Check if the panel is already visible (has date-range button or
-             the 'Strategy Tester' tab text in the bottom bar).
-          2. Click the 'Strategy Tester' tab in the bottom toolbar.
+             visible metric labels).
+          2. Click the bottom Strategy Report / Strategy Tester control.
           3. Fall back to the keyboard shortcut Alt+B.
         """
         try:
             already_open = await self.page.evaluate(
                 """
                 (() => {
-                    // Check for the date-range button or any strategy-tester cells
                     if (document.querySelector('[data-name="report-range-button"]'))
                         return true;
-                    if (document.querySelector('[class*="containerCell-"]'))
-                        return true;
-                    // Check for the "Updating report" / result cells being present
-                    const tabs = document.querySelectorAll('[class*="bottomBar"] button, [class*="tab-"]');
-                    for (const t of tabs) {
-                        if (t.textContent?.trim() === 'Strategy Tester' && t.getAttribute('aria-selected') === 'true')
-                            return true;
-                    }
-                    return false;
+                    return %s;
                 })()
-                """
+                """ % _JS_HAS_STRATEGY_REPORT_METRICS.strip()
             )
             if already_open:
                 return
 
-            # Try clicking the "Strategy Tester" tab
+            # Prefer the bottom-most Strategy Report / Strategy Tester opener.
             clicked = await self.page.evaluate(
                 """
                 (() => {
-                    for (const btn of document.querySelectorAll('button, [role="tab"]')) {
-                        if (btn.textContent?.trim() === 'Strategy Tester') {
-                            btn.click(); return true;
-                        }
+                    const visible = (el) => {
+                        const rect = el?.getBoundingClientRect?.();
+                        const style = el ? window.getComputedStyle(el) : null;
+                        return !!rect && rect.width > 0 && rect.height > 0 &&
+                            style?.visibility !== 'hidden' && style?.display !== 'none';
+                    };
+                    const buttons = Array.from(document.querySelectorAll('button, [role="button"], [role="tab"]'))
+                        .map((el) => {
+                            const text = (el.textContent || '').trim().replace(/\\s+/g, ' ');
+                            const aria = (el.getAttribute('aria-label') || '').trim();
+                            const rect = el.getBoundingClientRect();
+                            return { el, text, aria, rect };
+                        })
+                        .filter((item) => visible(item.el))
+                        .filter((item) =>
+                            item.text === 'Strategy Tester' ||
+                            item.text === 'Strategy Report' ||
+                            item.aria === 'Open Strategy Report'
+                        )
+                        .sort((a, b) => b.rect.y - a.rect.y || a.rect.x - b.rect.x);
+                    if (buttons.length) {
+                        buttons[0].el.click();
+                        return true;
                     }
                     return false;
                 })()
                 """
             )
             if clicked:
-                await asyncio.sleep(1.5)
-                return
+                for _ in range(10):
+                    if await self.page.evaluate(_JS_HAS_STRATEGY_REPORT_METRICS):
+                        return
+                    if await self.page.evaluate(
+                        """
+                        (() => !!document.querySelector('[data-name="report-range-button"]'))
+                        """
+                    ):
+                        return
+                    await asyncio.sleep(0.5)
 
             # Fallback: Alt+B keyboard shortcut (TradingView default for Strategy Tester)
             await self.page.keyboard.press("Alt+b")
-            await asyncio.sleep(1.5)
+            for _ in range(10):
+                if await self.page.evaluate(_JS_HAS_STRATEGY_REPORT_METRICS):
+                    return
+                if await self.page.evaluate(
+                    """
+                    (() => !!document.querySelector('[data-name="report-range-button"]'))
+                    """
+                ):
+                    return
+                await asyncio.sleep(0.5)
 
         except Exception as e:
             log.debug("_ensure_strategy_tester_open: %s", e)

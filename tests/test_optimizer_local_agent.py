@@ -134,6 +134,9 @@ def test_execute_run_claims_only_after_optimizer_readiness_succeeds(local_agent,
     assert popen.called
     controller.ensure_optimizer_ready.assert_awaited_once_with(required_tabs=2)
     assert get_calls == ["/api/optimizer/runs/run-2"]
+    command = popen.call_args.args[0]
+    assert "--results-label" in command
+    assert command[command.index("--results-label") + 1] == "run-2"
 
 
 def test_execute_run_dry_run_claims_without_mcp_or_playwright_ready(local_agent, monkeypatch):

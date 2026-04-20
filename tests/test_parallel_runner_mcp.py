@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 
 import pytest
@@ -80,7 +81,13 @@ class FakeRuntimeState:
 
 def test_run_parallel_uses_mcp_workspace_slots_to_assign_pages(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(parallel_runner, "setup_logging", lambda: None)
-    monkeypatch.setattr(parallel_runner, "results_file_for_broker", lambda broker: tmp_path / "parallel_results.json")
+    monkeypatch.setattr(
+        parallel_runner,
+        "results_file_for_broker",
+        lambda broker, results_label=None: tmp_path / (
+            "parallel_results.json" if results_label is None else f"parallel_results_{results_label}.json"
+        ),
+    )
     monkeypatch.setattr(parallel_runner, "detect_desktop_cdp_pid", lambda: 4321)
     monkeypatch.setattr(parallel_runner, "WORKER_STARTUP_DELAY", 0)
     monkeypatch.setattr(parallel_runner, "ensure_tradingview_tabs", lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("ensure_tradingview_tabs should not be used")))
@@ -117,6 +124,7 @@ def test_run_parallel_uses_mcp_workspace_slots_to_assign_pages(monkeypatch, tmp_
             dry_run=False,
             broker="vantage",
             raw_args=["--pairs", "EURUSD,GBPUSD"],
+            results_label="run-123",
         )
     )
 
@@ -147,7 +155,13 @@ def test_run_parallel_uses_mcp_workspace_slots_to_assign_pages(monkeypatch, tmp_
 
 def test_run_parallel_dry_run_launches_workers_without_browser(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(parallel_runner, "setup_logging", lambda: None)
-    monkeypatch.setattr(parallel_runner, "results_file_for_broker", lambda broker: tmp_path / "parallel_results.json")
+    monkeypatch.setattr(
+        parallel_runner,
+        "results_file_for_broker",
+        lambda broker, results_label=None: tmp_path / (
+            "parallel_results.json" if results_label is None else f"parallel_results_{results_label}.json"
+        ),
+    )
     monkeypatch.setattr(parallel_runner, "detect_desktop_cdp_pid", lambda: None)
     monkeypatch.setattr(parallel_runner, "WORKER_STARTUP_DELAY", 0)
 
@@ -215,7 +229,13 @@ def test_run_parallel_dry_run_launches_workers_without_browser(monkeypatch, tmp_
 
 def test_run_parallel_surfaces_workspace_errors_without_chrome_language(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(parallel_runner, "setup_logging", lambda: None)
-    monkeypatch.setattr(parallel_runner, "results_file_for_broker", lambda broker: tmp_path / "parallel_results.json")
+    monkeypatch.setattr(
+        parallel_runner,
+        "results_file_for_broker",
+        lambda broker, results_label=None: tmp_path / (
+            "parallel_results.json" if results_label is None else f"parallel_results_{results_label}.json"
+        ),
+    )
     monkeypatch.setattr(parallel_runner, "detect_desktop_cdp_pid", lambda: None)
     monkeypatch.setattr(parallel_runner, "WORKER_STARTUP_DELAY", 0)
 
@@ -279,6 +299,7 @@ def test_worker_task_retries_when_optimizer_returns_no_result(monkeypatch, tmp_p
             pair_queue=pair_queue,
             results=results,
             results_file=tmp_path / "parallel_results.json",
+            latest_results_file=tmp_path / "parallel_results_latest.json",
             results_lock=asyncio.Lock(),
             error_log=error_log,
             broker="vantage",
@@ -299,3 +320,53 @@ def test_worker_task_retries_when_optimizer_returns_no_result(monkeypatch, tmp_p
             "error": "No valid optimization result produced for EURUSD",
         }
     ]
+
+
+def test_run_parallel_uses_run_scoped_results_file_for_resume(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(parallel_runner, "setup_logging", lambda: None)
+    monkeypatch.setattr(parallel_runner, "detect_desktop_cdp_pid", lambda: None)
+    monkeypatch.setattr(parallel_runner, "WORKER_STARTUP_DELAY", 0)
+
+    base_results = tmp_path / "parallel_results_oanda.json"
+    base_results.write_text(json.dumps({"EURUSD": {"score": 1.0}}))
+    run_results = tmp_path / "parallel_results_oanda_run-42.json"
+
+    monkeypatch.setattr(
+        parallel_runner,
+        "results_file_for_broker",
+        lambda broker, results_label=None: run_results if results_label else base_results,
+    )
+
+    class FakeController:
+        async def ensure_optimizer_workspace(self, **kwargs):
+            return [OptimizerWorkspaceSlot(index=0, tab_id="tab-a", chart_id="AAA")]
+
+    monkeypatch.setattr(parallel_runner, "OptimizerMcpController", lambda: FakeController())
+    monkeypatch.setattr(parallel_runner, "OptimizerRuntimeState", FakeRuntimeState)
+
+    async def fake_worker_task(*args, **kwargs) -> None:
+        kwargs["results"]["EURUSD"] = {"score": 2.0, "params": {"stage": 2}}
+        parallel_runner.write_results_snapshot(
+            kwargs["results"],
+            kwargs["results_file"],
+            latest_results_file=kwargs["latest_results_file"],
+        )
+
+    monkeypatch.setattr(parallel_runner, "worker_task", fake_worker_task)
+
+    result = asyncio.run(
+        parallel_runner.run_parallel(
+            pairs=["EURUSD"],
+            n_workers=1,
+            mode="bayesian",
+            n_trials=1,
+            dd_limit=10.0,
+            dry_run=False,
+            broker="oanda",
+            results_label="run-42",
+        )
+    )
+
+    assert result["EURUSD"]["score"] == 2.0
+    assert json.loads(run_results.read_text())["EURUSD"]["score"] == 2.0
+    assert json.loads(base_results.read_text())["EURUSD"]["score"] == 2.0

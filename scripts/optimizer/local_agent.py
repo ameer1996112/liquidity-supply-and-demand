@@ -345,6 +345,7 @@ def execute_run(run: dict) -> None:
         "--dd-limit", str(dd_limit),
         "--pairs", ",".join(pairs),
         "--broker", broker,
+        "--results-label", run_id,
     ]
     if dry_run:
         command.append("--dry-run")

@@ -89,6 +89,28 @@ class DirectLegendSettingsPage(DummyPage):
         raise AssertionError(f"unexpected script in DirectLegendSettingsPage: {script[:120]}")
 
 
+class StrategyReportPage(DummyPage):
+    def __init__(self) -> None:
+        super().__init__(title="EURUSD 5 OANDA")
+        self.report_open = False
+
+        class _Keyboard:
+            async def press(self, key_combo: str) -> None:
+                return None
+
+        self.keyboard = _Keyboard()
+
+    async def evaluate(self, script: str):
+        if "document.querySelector('[data-name=\"report-range-button\"]')" in script:
+            return self.report_open
+        if "const metricLabels = [" in script:
+            return self.report_open
+        if "item.text === 'Strategy Tester'" in script and "item.text === 'Strategy Report'" in script:
+            self.report_open = True
+            return True
+        raise AssertionError(f"unexpected script in StrategyReportPage: {script[:120]}")
+
+
 def test_apply_params_rejects_unchanged_final_results_hash(monkeypatch) -> None:
     page = DummyPage()
     worker = TabWorker(page, DummyOptimizer())
@@ -322,6 +344,38 @@ def test_switch_symbol_does_not_force_backtest_range(monkeypatch) -> None:
     assert range_calls == []
 
 
+def test_switch_symbol_restores_5m_timeframe(monkeypatch) -> None:
+    page = DummyPage(title="XAUUSD 1D Vantage", url="https://www.tradingview.com/chart/test123/?symbol=VANTAGE%3AXAUUSD")
+    worker = TabWorker(page, DummyOptimizer())
+    events: list[str] = []
+
+    async def fake_goto(url: str, wait_until: str, timeout: int) -> None:
+        page.url = url
+        page._title = "USDJPY 1D Vantage"
+
+    async def fake_wait_for_load(timeout: int = 30) -> None:
+        return None
+
+    async def fake_current_symbol() -> str:
+        return "USDJPY"
+
+    async def fake_ensure_chart_timeframe_5m() -> None:
+        events.append("set-5m")
+
+    async def fake_sleep(seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr(page, "goto", fake_goto, raising=False)
+    monkeypatch.setattr(tab_worker_module.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(worker, "_wait_for_load", fake_wait_for_load)
+    monkeypatch.setattr(worker, "_current_symbol", fake_current_symbol)
+    monkeypatch.setattr(worker, "_ensure_chart_timeframe_5m", fake_ensure_chart_timeframe_5m)
+
+    asyncio.run(worker._switch_symbol("USDJPY"))
+
+    assert events == ["set-5m"]
+
+
 def test_set_backtest_range_clicks_menu_when_current_span_is_wrong(monkeypatch) -> None:
     worker = TabWorker(DummyPage(), DummyOptimizer())
     events: list[object] = []
@@ -422,6 +476,15 @@ def test_open_settings_uses_direct_legend_settings_when_available() -> None:
 
     assert result is True
     assert page.dialog_open is True
+
+
+def test_ensure_strategy_tester_open_uses_strategy_report_control_when_metrics_delayed() -> None:
+    page = StrategyReportPage()
+    worker = TabWorker(page, DummyOptimizer())
+
+    asyncio.run(worker._ensure_strategy_tester_open())
+
+    assert page.report_open is True
 
 
 def test_bayesian_optimizer_uses_only_fresh_results_for_study_and_best_tracking(

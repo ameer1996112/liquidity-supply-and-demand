@@ -698,6 +698,7 @@ def test_rebuild_summary_keeps_broker_specific_output_path() -> None:
 
 def test_results_file_for_broker_uses_broker_specific_filename() -> None:
     assert results_file_for_broker("fxcm").name == "parallel_results_fxcm.json"
+    assert results_file_for_broker("oanda", "phase2-top10").name == "parallel_results_oanda_phase2-top10.json"
 
 
 def test_repository_persists_trials_stress_and_portfolio_results_richer_persistence() -> None:
