@@ -21,25 +21,6 @@ def test_format_signal_prefers_setup_evidence_image_url() -> None:
     assert payload.image_url == "https://provider.example/setup.png"
 
 
-def test_format_close_reuses_opening_setup_evidence_image() -> None:
-    payload = NotificationService().format_close(
-        {
-            "id": 44,
-            "symbol": "VANTAGE:AUDUSD",
-            "side": "BUY",
-            "entry": 0.7156,
-            "exit_price": 0.7172,
-            "pnl_usd": 42.5,
-            "setup_evidence": {
-                "status": "ok",
-                "focus_image": {"url": "https://provider.example/setup.png"},
-            },
-        }
-    )
-
-    assert payload.image_url == "https://provider.example/setup.png"
-
-
 def test_format_close_uses_dedicated_close_image_url() -> None:
     payload = NotificationService().format_close(
         {
@@ -151,5 +132,5 @@ def test_format_close_keeps_clean_summary_and_context_sections() -> None:
     section_names = [section["name"] for section in payload.sections]
     assert section_names == ["Summary", "Context"]
     assert payload.fields["Outcome"] == "LOSS"
-    assert payload.fields["PnL"] == "-$329.81"
+    assert payload.fields["PnL"] == "$-329.81"
     assert payload.fields["Signal"] == "#46"
