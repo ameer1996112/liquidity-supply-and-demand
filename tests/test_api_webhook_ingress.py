@@ -76,3 +76,48 @@ def test_get_effective_ai_mode_falls_back_to_settings_when_override_lookup_fails
     from src.api import _get_effective_ai_mode
 
     assert _get_effective_ai_mode() == "shadow"
+
+
+@patch(
+    "src.api.get_settings",
+    return_value=SimpleNamespace(
+        account_balance=50000.0,
+        risk_percent=0.5,
+        min_rr_ratio=1.5,
+        pine_trading_start_hour_local=0,
+        pine_trading_end_hour_local=23,
+        pine_trading_timezone="UTC",
+    ),
+)
+@patch("src.api.validate_webhook_secret", return_value=None)
+def test_webhook_test_uses_current_risk_engine_api_and_reports_staleness_pass(
+    _mock_secret,
+    _mock_settings,
+) -> None:
+    client = TestClient(app)
+
+    response = client.post(
+        "/webhook/test",
+        json={
+            "strategy_id": "liq_sd_v1",
+            "strategy_version": "1",
+            "symbol": "GBPNZD",
+            "side": "buy",
+            "entry": 2.29952,
+            "sl": 2.29832,
+            "tp": 2.30252,
+            "size": 3,
+            "zone_id": 17742,
+            "rr_ratio": 2.5,
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["schema_valid"] is True
+    assert body["guards"]["staleness"] == {
+        "passed": True,
+        "reason": "",
+    }
+    assert "error" not in body["risk_engine"]
+    assert body["risk_engine"]["computed_lot_size"] > 0

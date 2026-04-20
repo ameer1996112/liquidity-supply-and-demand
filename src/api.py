@@ -944,10 +944,10 @@ async def webhook_test(
     try:
         from src.core.guard_rails.staleness_guard import StalenessGuard
         sg = StalenessGuard()
-        stale_result = sg.check(data)
+        stale_passed, stale_reason = sg.check(data)
         guards["staleness"] = {
-            "passed": stale_result is None,
-            "reason": stale_result,
+            "passed": stale_passed,
+            "reason": stale_reason,
         }
     except Exception as exc:
         guards["staleness"] = {"passed": None, "error": str(exc)}
@@ -1000,23 +1000,21 @@ async def webhook_test(
 
     # Risk engine simulation
     try:
-        from src.core.risk_engine import calculate_lot_size
+        from src.core.risk_engine import calculate_max_position_size
         entry = float(data.get("entry") or 0)
         sl = float(data.get("sl") or 0)
         symbol = str(data.get("symbol", "")).upper()
         if entry and sl and symbol:
-            lot_result = calculate_lot_size(
+            computed_lot_size = calculate_max_position_size(
+                payload=data,
                 account_balance=float(s.account_balance),
                 risk_percent=float(s.risk_percent),
-                entry=entry,
-                sl=sl,
-                symbol=symbol,
                 risk_multiplier=1.0,
             )
             result["risk_engine"] = {
                 "account_balance": s.account_balance,
                 "risk_percent": s.risk_percent,
-                "computed_lot_size": lot_result.get("final_lots") if isinstance(lot_result, dict) else str(lot_result),
+                "computed_lot_size": computed_lot_size,
                 "sl_distance": abs(entry - sl),
                 "note": "Size from Pine Script payload is used as-is when risk engine is not overriding",
             }
