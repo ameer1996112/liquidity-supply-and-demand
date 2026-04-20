@@ -77,6 +77,27 @@ class NotificationService:
         image_url = signal.get("image_url")
         return str(image_url) if image_url else None
 
+    def _resolve_close_image_url(
+        self,
+        signal: dict[str, Any],
+        explicit_image_url: Optional[str] = None,
+    ) -> Optional[str]:
+        if explicit_image_url:
+            return explicit_image_url
+
+        for key in ("close_image_url", "exit_image_url", "close_screenshot_url"):
+            image_url = signal.get(key)
+            if image_url:
+                return str(image_url)
+
+        close_evidence = signal.get("close_evidence")
+        if isinstance(close_evidence, dict):
+            focus_image = close_evidence.get("focus_image")
+            if isinstance(focus_image, dict) and focus_image.get("url"):
+                return str(focus_image["url"])
+
+        return None
+
     def _build_setup_evidence_summary(self, signal: dict[str, Any]) -> Optional[dict[str, Any]]:
         setup_evidence = signal.get("setup_evidence")
         if not isinstance(setup_evidence, dict) or not setup_evidence:
@@ -285,12 +306,12 @@ class NotificationService:
             color = "breakeven"
             emoji = "⚪"
 
-        pnl_sign = "+" if pnl >= 0 else ""
+        pnl_sign = "+" if pnl >= 0 else "-"
         resolved_account = _resolve_account_name(None, signal)
 
         summary_fields: dict[str, str] = {
             "Outcome":    outcome,
-            "PnL":        f"{pnl_sign}${pnl:.2f}",
+            "PnL":        f"{pnl_sign}${abs(pnl):.2f}",
             "Entry":      f"{entry:.5g}" if entry else "N/A",
             "Exit":       f"{exit_price:.5g}" if exit_price else "N/A",
         }
@@ -322,12 +343,12 @@ class NotificationService:
 
         return NotificationPayload(
             type="close",
-            title=f"[{strategy_badge}] Trade Closed - {symbol} {side}" if strategy_badge else f"Trade Closed - {symbol} {side}",
+            title=f"[{strategy_badge}] {symbol} {side} Closed" if strategy_badge else f"{symbol} {side} Closed",
             fields=_flatten_sections(sections),
             color=color,
             metadata=metadata,
             signal_id=signal_id,
-            image_url=self._resolve_setup_image_url(signal),
+            image_url=self._resolve_close_image_url(signal),
             account_name=resolved_account,
             account_badge=f"ACC: {resolved_account}",
             sections=sections,

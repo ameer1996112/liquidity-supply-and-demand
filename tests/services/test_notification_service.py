@@ -21,7 +21,24 @@ def test_format_signal_prefers_setup_evidence_image_url() -> None:
     assert payload.image_url == "https://provider.example/setup.png"
 
 
-<<<<<<< HEAD
+def test_close_image_resolver_prefers_close_sources_in_order() -> None:
+    service = NotificationService()
+    signal = {
+        "close_image_url": "https://provider.example/close.png",
+        "exit_image_url": "https://provider.example/exit.png",
+        "close_screenshot_url": "https://provider.example/screenshot.png",
+        "close_evidence": {
+            "focus_image": {"url": "https://provider.example/evidence.png"},
+        },
+    }
+
+    assert (
+        service._resolve_close_image_url(signal, "https://provider.example/explicit.png")
+        == "https://provider.example/explicit.png"
+    )
+    assert service._resolve_close_image_url(signal) == "https://provider.example/close.png"
+
+
 def test_format_close_uses_dedicated_close_image_url() -> None:
     payload = NotificationService().format_close(
         {
@@ -61,8 +78,7 @@ def test_format_close_does_not_reuse_opening_setup_evidence_image() -> None:
     assert payload.image_url is None
 
 
-||||||| parent of af73693 (DEV-161: remove legacy close screenshot test)
-def test_format_close_reuses_opening_setup_evidence_image() -> None:
+def test_format_close_uses_tightened_title() -> None:
     payload = NotificationService().format_close(
         {
             "id": 44,
@@ -71,55 +87,10 @@ def test_format_close_reuses_opening_setup_evidence_image() -> None:
             "entry": 0.7156,
             "exit_price": 0.7172,
             "pnl_usd": 42.5,
-            "setup_evidence": {
-                "status": "ok",
-                "focus_image": {"url": "https://provider.example/setup.png"},
-            },
         }
     )
 
-    assert payload.image_url == "https://provider.example/setup.png"
-
-
-=======
->>>>>>> af73693 (DEV-161: remove legacy close screenshot test)
-def test_format_close_uses_dedicated_close_image_url() -> None:
-    payload = NotificationService().format_close(
-        {
-            "id": 44,
-            "symbol": "VANTAGE:AUDUSD",
-            "side": "BUY",
-            "entry": 0.7156,
-            "exit_price": 0.7172,
-            "pnl_usd": 42.5,
-            "close_image_url": "https://provider.example/close.png",
-            "setup_evidence": {
-                "status": "ok",
-                "focus_image": {"url": "https://provider.example/setup.png"},
-            },
-        }
-    )
-
-    assert payload.image_url == "https://provider.example/close.png"
-
-
-def test_format_close_does_not_reuse_opening_setup_evidence_image() -> None:
-    payload = NotificationService().format_close(
-        {
-            "id": 44,
-            "symbol": "VANTAGE:AUDUSD",
-            "side": "BUY",
-            "entry": 0.7156,
-            "exit_price": 0.7172,
-            "pnl_usd": 42.5,
-            "setup_evidence": {
-                "status": "ok",
-                "focus_image": {"url": "https://provider.example/setup.png"},
-            },
-        }
-    )
-
-    assert payload.image_url is None
+    assert payload.title == "VANTAGE:AUDUSD BUY Closed"
 
 
 def test_format_signal_includes_setup_evidence_summary_metadata() -> None:
