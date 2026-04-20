@@ -1620,11 +1620,12 @@ class TabWorker:
             log.warning("_reload_strategy_script failed: %s", e)
 
     async def _dismiss_tv_errors(self) -> None:
-        """Dismiss TradingView error toasts. If 'Script calculation timed out' detected,
+        """Dismiss TradingView error toasts. If 'Script calculation timed out' or
+        'Runtime error' (e.g. modify_study_limit_exceeding) detected,
         also reloads the strategy via eye-click toggle."""
         try:
-            # Check if the timeout error is visible
-            timed_out = await self.page.evaluate(
+            # Check if the timeout error or runtime error is visible
+            error_type = await self.page.evaluate(
                 """
                 (() => {
                     const walker = document.createTreeWalker(
@@ -1632,17 +1633,25 @@ class TabWorker:
                     );
                     let node;
                     while ((node = walker.nextNode())) {
-                        if (node.textContent?.includes('timed out')) {
+                        const txt = node.textContent || '';
+                        if (txt.includes('timed out')) {
                             const el = node.parentElement;
-                            if (el && el.childElementCount === 0) return true;
+                            if (el && el.childElementCount === 0) return 'timed_out';
+                        }
+                        if (txt.includes('Runtime error') || txt.includes('modify_study_limit')) {
+                            const el = node.parentElement;
+                            if (el && el.childElementCount === 0) return 'runtime_error';
                         }
                     }
-                    return false;
+                    return '';
                 })()
                 """
             )
-            if timed_out:
+            if error_type == 'timed_out':
                 print(" [⚠ script timed out, reloading...]", end="", flush=True)
+                await self._reload_strategy_script()
+            elif error_type == 'runtime_error':
+                print(" [⚠ runtime error (study limit), reloading...]", end="", flush=True)
                 await self._reload_strategy_script()
 
             # Close any visible close/dismiss buttons on toasts
@@ -1880,6 +1889,9 @@ class TabWorker:
             hash_before = ""
             hash_after = ""
             try:
+                # Dismiss any runtime errors before attempting
+                await self._dismiss_tv_errors()
+
                 # Snapshot hash BEFORE
                 hash_before = await self._get_results_hash()
 
@@ -2050,6 +2062,9 @@ class TabWorker:
         mutate the Strategy Report range like optimization does.
         """
         try:
+            # Dismiss any runtime errors before attempting
+            await self._dismiss_tv_errors()
+
             if not await self._open_settings():
                 raise RuntimeError("Could not open settings dialog")
             await asyncio.sleep(0.5)
