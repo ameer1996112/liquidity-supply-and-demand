@@ -12,9 +12,11 @@ Guard execution order:
   2. MTM Guardian                   (fail-closed on LIVE)
   3. MetaAPI circuit breaker        (LIVE only, fail-closed)
   4. Adaptive daily trade limit     (fail-closed on LIVE)
-  5. PropGuard                      (drawdown / daily-loss / position risk)
-  6. Correlation guard              (bucket full / correlated pairs)
-  7. Consistency Analyzer           (evaluation mode only)
+  5. Weekly/monthly loss limits     (account-scoped closed PnL windows)
+  6. Signal guards                  (evaluation-specific trade checks)
+  7. PropGuard                      (drawdown / daily-loss / position risk)
+  8. Correlation guard              (bucket full / correlated pairs)
+  9. Consistency Analyzer           (evaluation mode only)
 """
 from __future__ import annotations
 
@@ -26,7 +28,9 @@ from src.core.guard_rails.prop_guard import check_safety, check_signal_guards
 from src.pipeline.account_state import (
     get_account_daily_pnl,
     get_account_daily_trade_count,
+    get_account_monthly_pnl,
     get_account_positions_from_db,
+    get_account_weekly_pnl,
 )
 from src.services.account_guard_settings import load_account_guard_overrides
 
@@ -196,11 +200,34 @@ def run_account_guards(
             "Adaptive trade limit failed for %s: %s (non-LIVE, continuing)", account_name, e
         )
 
+    # ── 5. Weekly / monthly loss limits (per-account) ───────────────────────
+    acct_balance = float(payload.get("account_balance", s.account_balance))
+
+    weekly_limit_pct = float(getattr(s, "weekly_max_loss_pct", 10.0) or 0.0)
+    if bool(getattr(s, "enable_weekly_loss_limit", True)) and weekly_limit_pct > 0:
+        weekly_pnl = get_account_weekly_pnl(profile)
+        weekly_limit = -(weekly_limit_pct / 100.0) * acct_balance
+        if weekly_pnl < weekly_limit:
+            return (
+                f"Weekly loss limit: ${weekly_pnl:.2f} loss this week "
+                f"(limit ${weekly_limit:.2f} = {weekly_limit_pct:.0f}% of ${acct_balance:.0f})"
+            )
+
+    monthly_limit_pct = float(getattr(s, "monthly_max_loss_pct", 8.0) or 0.0)
+    if bool(getattr(s, "enable_monthly_loss_limit", True)) and monthly_limit_pct > 0:
+        monthly_pnl = get_account_monthly_pnl(profile)
+        monthly_limit = -(monthly_limit_pct / 100.0) * acct_balance
+        if monthly_pnl < monthly_limit:
+            return (
+                f"Monthly loss limit: ${monthly_pnl:.2f} loss this month "
+                f"(limit ${monthly_limit:.2f} = {monthly_limit_pct:.0f}% of ${acct_balance:.0f})"
+            )
+
     _profile_eval_mode = (profile or {}).get("evaluation_mode")
     _global_eval_mode = getattr(s, "evaluation_mode", False)
     _eval_mode = _profile_eval_mode if _profile_eval_mode is not None else _global_eval_mode
 
-    # ── 5. Evaluation signal guards ──────────────────────────────────────────
+    # ── 6. Evaluation signal guards ──────────────────────────────────────────
     try:
         signal_allowed, signal_reason = check_signal_guards(
             payload,
@@ -219,8 +246,7 @@ def run_account_guards(
             return f"Signal guard dependency unavailable for account {account_name} — blocked for safety"
         logger.warning("Signal guard failed for %s: %s (non-LIVE, continuing)", account_name, e)
 
-    # ── 6. PropGuard ─────────────────────────────────────────────────────────
-    acct_balance = float(payload.get("account_balance", s.account_balance))
+    # ── 7. PropGuard ─────────────────────────────────────────────────────────
     daily_pnl = get_account_daily_pnl(profile)
     current_equity = acct_balance + daily_pnl
 
@@ -237,7 +263,7 @@ def run_account_guards(
     logger.info("PropGuard [%s]: %s (multiplier=%.2f)", account_name, risk_label, risk_multiplier)
     payload[f"_risk_multiplier_{account_name}"] = risk_multiplier
 
-    # ── 7. Correlation Guard ──────────────────────────────────────────────────
+    # ── 8. Correlation Guard ──────────────────────────────────────────────────
     active_positions = get_account_positions_from_db(profile)
     max_pos = int(
         _account_override(

@@ -10,6 +10,8 @@ _PIPELINE_PKG = types.ModuleType("src.pipeline")
 _ACCOUNT_STATE = types.ModuleType("src.pipeline.account_state")
 _ACCOUNT_STATE.get_account_daily_pnl = lambda profile: 0.0
 _ACCOUNT_STATE.get_account_daily_trade_count = lambda profile: 0
+_ACCOUNT_STATE.get_account_weekly_pnl = lambda profile: 0.0
+_ACCOUNT_STATE.get_account_monthly_pnl = lambda profile: 0.0
 _ACCOUNT_STATE.get_account_positions_from_db = lambda profile: []
 sys.modules.setdefault("src.pipeline", _PIPELINE_PKG)
 sys.modules["src.pipeline.account_state"] = _ACCOUNT_STATE
@@ -203,3 +205,89 @@ def test_live_eval_blocks_when_consistency_analyzer_crashes(monkeypatch):
     )
 
     assert result == "Consistency dependency unavailable for account ACG-DEMO-3 — blocked for safety"
+
+
+def test_monthly_loss_limit_uses_account_scoped_pnl(monkeypatch):
+    monkeypatch.setattr(
+        _ACCOUNT_GUARDS,
+        "load_account_guard_overrides",
+        lambda account_id: {"mtm_guardian_enabled": False, "pine_adaptive_enabled": False},
+    )
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "_get_sb", lambda: None)
+    monkeypatch.setattr("src.adapters.redis_queue.get_redis", lambda: SimpleNamespace(get=lambda key: None))
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "get_account_daily_pnl", lambda profile: 0.0)
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "get_account_weekly_pnl", lambda profile: 0.0)
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "get_account_positions_from_db", lambda profile: [])
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "check_safety", lambda *args, **kwargs: (True, 1.0, "ok"))
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "check_signal_guards", lambda *args, **kwargs: (True, None), raising=False)
+
+    captured = {}
+
+    def _fake_monthly_pnl(profile):
+        captured["profile"] = profile
+        return -100.0
+
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "get_account_monthly_pnl", _fake_monthly_pnl)
+
+    result = run_account_guards(
+        payload={"symbol": "EURUSD", "side": "buy", "run_mode": "LIVE", "account_balance": 50000},
+        profile={"id": "acct-1", "name": "ACG-DEMO-3", "risk_pct": 0.5, "max_positions": 3},
+        s=_settings(monthly_max_loss_pct=8.0),
+        current_equity_global=50000,
+        correlation_manager=None,
+    )
+
+    assert result is None
+    assert captured["profile"]["id"] == "acct-1"
+
+
+def test_monthly_loss_limit_blocks_when_account_exceeds_limit(monkeypatch):
+    monkeypatch.setattr(
+        _ACCOUNT_GUARDS,
+        "load_account_guard_overrides",
+        lambda account_id: {"mtm_guardian_enabled": False, "pine_adaptive_enabled": False},
+    )
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "_get_sb", lambda: None)
+    monkeypatch.setattr("src.adapters.redis_queue.get_redis", lambda: SimpleNamespace(get=lambda key: None))
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "get_account_daily_pnl", lambda profile: 0.0)
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "get_account_weekly_pnl", lambda profile: 0.0)
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "get_account_monthly_pnl", lambda profile: -4334.24)
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "get_account_positions_from_db", lambda profile: [])
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "check_safety", lambda *args, **kwargs: (True, 1.0, "ok"))
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "check_signal_guards", lambda *args, **kwargs: (True, None), raising=False)
+
+    result = run_account_guards(
+        payload={"symbol": "EURUSD", "side": "buy", "run_mode": "LIVE", "account_balance": 50000},
+        profile={"id": "acct-1", "name": "ACG-DEMO-3", "risk_pct": 0.5, "max_positions": 3},
+        s=_settings(monthly_max_loss_pct=8.0),
+        current_equity_global=50000,
+        correlation_manager=None,
+    )
+
+    assert result == "Monthly loss limit: $-4334.24 loss this month (limit $-4000.00 = 8% of $50000)"
+
+
+def test_weekly_loss_limit_blocks_when_account_exceeds_limit(monkeypatch):
+    monkeypatch.setattr(
+        _ACCOUNT_GUARDS,
+        "load_account_guard_overrides",
+        lambda account_id: {"mtm_guardian_enabled": False, "pine_adaptive_enabled": False},
+    )
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "_get_sb", lambda: None)
+    monkeypatch.setattr("src.adapters.redis_queue.get_redis", lambda: SimpleNamespace(get=lambda key: None))
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "get_account_daily_pnl", lambda profile: 0.0)
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "get_account_weekly_pnl", lambda profile: -6000.0)
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "get_account_monthly_pnl", lambda profile: 0.0)
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "get_account_positions_from_db", lambda profile: [])
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "check_safety", lambda *args, **kwargs: (True, 1.0, "ok"))
+    monkeypatch.setattr(_ACCOUNT_GUARDS, "check_signal_guards", lambda *args, **kwargs: (True, None), raising=False)
+
+    result = run_account_guards(
+        payload={"symbol": "EURUSD", "side": "buy", "run_mode": "LIVE", "account_balance": 50000},
+        profile={"id": "acct-1", "name": "ACG-DEMO-3", "risk_pct": 0.5, "max_positions": 3},
+        s=_settings(weekly_max_loss_pct=10.0),
+        current_equity_global=50000,
+        correlation_manager=None,
+    )
+
+    assert result == "Weekly loss limit: $-6000.00 loss this week (limit $-5000.00 = 10% of $50000)"

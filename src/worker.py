@@ -1040,51 +1040,6 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
         except Exception as e:
             logger.warning("Spread gate check failed: %s (fail-open)", e)
 
-    # --- Monthly loss limit ---
-    if getattr(s, "enable_monthly_loss_limit", True) and getattr(s, "monthly_max_loss_pct", 8.0) > 0 and supabase:
-        try:
-            month_start = _dt.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
-            monthly_resp = (
-                supabase.table("trading_signals")
-                .select("pnl_usd")
-                .in_("status", ["CLOSED", "closed"])
-                .gte("closed_at", month_start)
-                .execute()
-            )
-            monthly_pnl = sum(float(t.get("pnl_usd") or 0) for t in (monthly_resp.data or []))
-            acct_bal_m = float(payload.get("account_balance", s.account_balance))
-            monthly_limit = -(getattr(s, "monthly_max_loss_pct", 8.0) / 100.0) * acct_bal_m
-            if monthly_pnl < monthly_limit:
-                return (
-                    f"Monthly loss limit: ${monthly_pnl:.2f} loss this month "
-                    f"(limit ${monthly_limit:.2f} = {getattr(s, 'monthly_max_loss_pct', 8.0):.0f}% of ${acct_bal_m:.0f})"
-                )
-        except Exception as e:
-            logger.warning("Monthly loss check failed: %s (fail-open)", e)
-
-    # --- Weekly loss limit ---
-    if getattr(s, "enable_weekly_loss_limit", True) and getattr(s, "weekly_max_loss_pct", 10.0) > 0 and supabase:
-        try:
-            from datetime import timedelta
-            week_start = (_dt.now(timezone.utc) - timedelta(days=7)).isoformat()
-            weekly_resp = (
-                supabase.table("trading_signals")
-                .select("pnl_usd")
-                .in_("status", ["CLOSED", "closed"])
-                .gte("closed_at", week_start)
-                .execute()
-            )
-            weekly_pnl = sum(float(t.get("pnl_usd") or 0) for t in (weekly_resp.data or []))
-            acct_bal = float(payload.get("account_balance", s.account_balance))
-            weekly_limit = -(getattr(s, "weekly_max_loss_pct", 10.0) / 100.0) * acct_bal
-            if weekly_pnl < weekly_limit:
-                return (
-                    f"Weekly loss limit: ${weekly_pnl:.2f} loss this week "
-                    f"(limit ${weekly_limit:.2f} = {getattr(s, 'weekly_max_loss_pct', 10.0):.0f}% of ${acct_bal:.0f})"
-                )
-        except Exception as e:
-            logger.warning("Weekly loss check failed: %s (fail-open)", e)
-
     # --- Consecutive loss circuit breaker ---
     max_consec = getattr(s, "max_consecutive_losses", 3)
     if max_consec > 0 and supabase:
@@ -1278,7 +1233,15 @@ def _execute_for_profile(
     # Run per-account guards
     rejection = _run_account_guards(payload, profile, s, current_equity_global)
     if rejection:
-        save_result(payload, "risk_rejected", rejection, 0.0, broker_profile_id=profile_id, account_name=account_name)
+        rejection_lower = rejection.lower()
+        status = (
+            "filtered"
+            if rejection_lower.startswith(("weekly loss limit", "monthly loss limit"))
+            else "risk_rejected"
+        )
+        save_result(payload, status, rejection, 0.0, broker_profile_id=profile_id, account_name=account_name)
+        if status == "filtered":
+            _notify_guard_activation(rejection, symbol, payload)
         log_guard_decision("account_guard", "rejected", rejection, symbol)
         logger.warning("ACCOUNT GUARD BLOCKED [%s]: %s", account_name, rejection)
         return
@@ -1508,8 +1471,8 @@ def process_trade(payload: Dict[str, Any]):
     tracker.checkpoint("after_swap_guard")
 
     # ══════════════════════════════════════════════════════════════════
-    # PINE FILTERS + RISK GUARDS (zone quality, daily/weekly/monthly limits,
-    # spread gate, consecutive loss circuit breaker)
+    # PINE FILTERS + GLOBAL RISK GUARDS (zone quality, spread gate,
+    # consecutive loss circuit breaker)
     # ══════════════════════════════════════════════════════════════════
     pine_rejection = _validate_pine_filters(payload)
     if pine_rejection:
