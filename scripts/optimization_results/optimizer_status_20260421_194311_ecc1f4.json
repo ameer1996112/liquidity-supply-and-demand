@@ -1,11 +1,11 @@
 {
-  "run_id": "20260421_193622_f06d95",
-  "state": "failed",
-  "started_at": "2026-04-21T19:36:22.058881+03:00",
-  "last_progress_at": "2026-04-21T20:02:31.857811+03:00",
+  "run_id": "20260421_194311_ecc1f4",
+  "state": "running",
+  "started_at": "2026-04-21T19:43:11.689677+03:00",
+  "last_progress_at": "2026-04-21T19:43:11.989679+03:00",
   "stuck_threshold_seconds": 720,
   "restart_count": 0,
-  "optimizer_pid": 20551,
+  "optimizer_pid": 23142,
   "desktop_cdp_pid": 83450,
   "log_file": "/Users/ameeramer/dev/projects/galilsoftware/sources/trading/scripts/optimization_results/parallel_run.log",
   "mode": "bayesian",
@@ -25,22 +25,21 @@
     "--backtest-range",
     "90d",
     "--results-label",
-    "dev194smoke3"
+    "dev194smoke4"
   ],
   "active_pairs": {
     "worker-0": {
       "symbol": "EURJPY",
-      "trial": 1,
-      "last_event_at": "2026-04-21T20:02:31.855754+03:00",
+      "trial": 0,
+      "last_event_at": "2026-04-21T19:43:11.989679+03:00",
       "status": "running"
     }
   },
   "worker_health": {
     "worker-0": {
-      "status": "unhealthy",
-      "stale_reads": 3,
-      "reason": "stale_result_hash",
-      "last_results_hash": "d41d8cd9"
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": ""
     }
   }
 }

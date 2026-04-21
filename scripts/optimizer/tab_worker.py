@@ -14,6 +14,7 @@ Reliability guarantees:
 
 import asyncio
 import hashlib
+import json
 import time
 import logging
 import re
@@ -43,6 +44,17 @@ _LOADING_INDICATORS = [
 ]
 
 _REPORT_TIMEOUT_TEXT = "request took too long to process"
+
+_REPORT_METRIC_LABELS = [
+    "Net profit",
+    "Total P&L",
+    "Total trades",
+    "Total closed trades",
+    "Profitable trades",
+    "Percent profitable",
+    "Profit factor",
+    "Max equity drawdown",
+]
 
 _BACKTEST_RANGE_PRESETS: dict[str, dict[str, object]] = {
     "30d": {
@@ -150,6 +162,35 @@ _JS_FIND_LOADING = """
 
 _JS_RESULTS_FINGERPRINT = """
 (() => {
+    const metricLabels = __REPORT_METRIC_LABELS__;
+    const normalize = (text) => (text || '').replace(/\\s+/g, ' ').trim();
+    const visible = (el) => {
+        const rect = el?.getBoundingClientRect?.();
+        const style = el ? window.getComputedStyle(el) : null;
+        return !!rect && rect.width > 0 && rect.height > 0 &&
+            style?.visibility !== 'hidden' && style?.display !== 'none';
+    };
+    const buildFallbackParts = () => {
+        const parts = [];
+        const seen = new Set();
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
+        let node;
+        while ((node = walker.nextNode())) {
+            const label = normalize(node.textContent);
+            if (!metricLabels.includes(label)) continue;
+            const el = node.parentElement;
+            if (!el || !visible(el)) continue;
+            const row = el.closest('[role="row"], [class*="row"], [class*="cell"], [class*="container"]')
+                || el.parentElement
+                || el;
+            const rowText = normalize(row?.textContent || '');
+            if (!rowText || rowText === label || seen.has(label)) continue;
+            seen.add(label);
+            parts.push(label + '=' + rowText);
+        }
+        return parts;
+    };
+
     const cells = document.querySelectorAll('[class*="containerCell-"]');
     const parts = [];
     for (const cell of cells) {
@@ -161,9 +202,12 @@ _JS_RESULTS_FINGERPRINT = """
             if (vs.length) parts.push(t.textContent.trim() + '=' + vs.join('|'));
         }
     }
+    if (!parts.length) {
+        parts.push(...buildFallbackParts());
+    }
     return parts.join(';');
 })()
-"""
+""".replace("__REPORT_METRIC_LABELS__", json.dumps(_REPORT_METRIC_LABELS))
 
 _JS_CLICK_UPDATE_REPORT = """
 (() => {
@@ -193,6 +237,14 @@ _JS_HAS_REPORT_TIMEOUT = """
 
 _JS_COLLECT_METRICS = """
 (() => {
+    const metricLabels = __REPORT_METRIC_LABELS__;
+    const normalize = (text) => (text || '').replace(/\\s+/g, ' ').trim();
+    const visible = (el) => {
+        const rect = el?.getBoundingClientRect?.();
+        const style = el ? window.getComputedStyle(el) : null;
+        return !!rect && rect.width > 0 && rect.height > 0 &&
+            style?.visibility !== 'hidden' && style?.display !== 'none';
+    };
     const r = {};
     for (const cell of document.querySelectorAll('[class*="containerCell-"]')) {
         const t = cell.querySelector('[class*="title-"]');
@@ -231,9 +283,34 @@ _JS_COLLECT_METRICS = """
             r[title] = body || cellText;
         }
     }
+
+    if (Object.keys(r).length) return r;
+
+    const seen = new Set();
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
+    let node;
+    while ((node = walker.nextNode())) {
+        const label = normalize(node.textContent);
+        if (!metricLabels.includes(label) || seen.has(label)) continue;
+        const el = node.parentElement;
+        if (!el || !visible(el)) continue;
+        const row = el.closest('[role="row"], [class*="row"], [class*="cell"], [class*="container"]')
+            || el.parentElement
+            || el;
+        const rowText = normalize(row?.textContent || '');
+        if (!rowText) continue;
+        let body = rowText;
+        if (body.startsWith(label)) {
+            body = body.slice(label.length).trim();
+        }
+        if (!body) continue;
+        r[label] = body;
+        seen.add(label);
+    }
+
     return r;
 })()
-"""
+""".replace("__REPORT_METRIC_LABELS__", json.dumps(_REPORT_METRIC_LABELS))
 
 _JS_HAS_STRATEGY_REPORT_METRICS = """
 (() => {
@@ -308,7 +385,11 @@ const __tvDialogReady = (dialog) => {
 const __tvPickSettingsDialog = (requireReady = false) => {
     const dialogs = Array.from(
         document.querySelectorAll(
-            '[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'
+            '[data-name="indicator-properties-dialog"][role="dialog"], '
+            + '[data-name="indicator-properties-dialog"], '
+            + '[role="dialog"], [aria-modal="true"], '
+            + '[data-name*="dialog"], [data-name*="properties"], '
+            + '[class*="dialog-"][class*="rounded"], [class*="dialog"], [class*="modal"]'
         )
     ).filter(__tvVisible);
     const ranked = dialogs
@@ -320,7 +401,11 @@ const __tvPickSettingsDialog = (requireReady = false) => {
 const __tvDescribeSettingsDialogs = () => {
     const dialogs = Array.from(
         document.querySelectorAll(
-            '[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'
+            '[data-name="indicator-properties-dialog"][role="dialog"], '
+            + '[data-name="indicator-properties-dialog"], '
+            + '[role="dialog"], [aria-modal="true"], '
+            + '[data-name*="dialog"], [data-name*="properties"], '
+            + '[class*="dialog-"][class*="rounded"], [class*="dialog"], [class*="modal"]'
         )
     ).filter(__tvVisible);
     return dialogs
@@ -707,6 +792,38 @@ class TabWorker:
             )
         return observed
 
+    async def _has_strategy_surface(self) -> bool:
+        """Return True when the S&D strategy legend/menu is visible on the chart."""
+        try:
+            return bool(
+                await self.page.evaluate(
+                    """
+                    (() => {
+                        const visible = (el) => {
+                            const rect = el?.getBoundingClientRect?.();
+                            const style = el ? window.getComputedStyle(el) : null;
+                            return !!rect && rect.width > 0 && rect.height > 0 &&
+                                style?.visibility !== 'hidden' && style?.display !== 'none';
+                        };
+                        const normalize = (text) => (text || '').replace(/\\s+/g, ' ').trim();
+                        return Array.from(document.querySelectorAll('div, span, button, [data-name], [class*="title"]'))
+                            .some((el) => visible(el) && normalize(el.textContent) === 'S&D Algo [Pro]');
+                    })()
+                    """
+                )
+            )
+        except Exception:
+            return False
+
+    async def _wait_for_strategy_surface(self, timeout: float = 20.0) -> bool:
+        """Wait for the strategy legend to reappear after symbol changes."""
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if await self._has_strategy_surface():
+                return True
+            await asyncio.sleep(0.5)
+        return False
+
 
     # ─────────────────────────────────── navigation ──────────────────────────
 
@@ -749,6 +866,27 @@ class TabWorker:
         broker = getattr(self.optimizer, "broker", "vantage").upper()
         print(f"  Navigating to {broker}:{clean_symbol}...")
 
+        if hasattr(self.page, "_client"):
+            try:
+                result = await self.page._client.run("symbol", f"{broker}:{clean_symbol}")
+                if not result.get("success", True):
+                    raise RuntimeError(str(result.get("error") or "symbol command failed"))
+                await asyncio.sleep(2.0)
+                await self._wait_for_load()
+                await self._wait_for_strategy_surface()
+                observed = await self._current_symbol()
+                if observed == clean_symbol:
+                    print(f"  Switched to {clean_symbol} (verified)")
+                    await self._ensure_chart_timeframe_5m()
+                    return
+                log.warning(
+                    "_switch_symbol: MCP symbol command did not land on %s (observed=%s), falling back to URL navigation",
+                    clean_symbol,
+                    observed or "UNKNOWN",
+                )
+            except Exception as e:
+                log.warning("_switch_symbol: MCP symbol command failed, falling back to URL navigation: %s", e)
+
         try:
             await self.page.goto(
                 target_url, wait_until="domcontentloaded", timeout=30000
@@ -758,6 +896,7 @@ class TabWorker:
 
         await asyncio.sleep(3.0)
         await self._wait_for_load()
+        await self._wait_for_strategy_surface()
 
         # Verify and fail closed if TradingView kept the old symbol.
         observed = await self._current_symbol()
@@ -820,6 +959,17 @@ class TabWorker:
           3. Fall back to the keyboard shortcut Alt+B.
         """
         try:
+            async def panel_is_open() -> bool:
+                if await self.page.evaluate(_JS_HAS_STRATEGY_REPORT_METRICS):
+                    return True
+                return bool(
+                    await self.page.evaluate(
+                        """
+                        (() => !!(document.querySelector('[data-name="report-range-button"]') || document.querySelector('[data-name="report-settings"]')))
+                        """
+                    )
+                )
+
             already_open = await self.page.evaluate(
                 """
                 (() => {
@@ -834,7 +984,7 @@ class TabWorker:
                 return
 
             # Prefer the bottom-most Strategy Report / Strategy Tester opener.
-            clicked = await self.page.evaluate(
+            click_target = await self.page.evaluate(
                 """
                 (() => {
                     const visible = (el) => {
@@ -858,35 +1008,35 @@ class TabWorker:
                         )
                         .sort((a, b) => b.rect.y - a.rect.y || a.rect.x - b.rect.x);
                     if (buttons.length) {
-                        buttons[0].el.click();
-                        return true;
+                        const target = buttons[0];
+                        target.el.click();
+                        return {
+                            clicked: true,
+                            x: target.rect.x + target.rect.width / 2,
+                            y: target.rect.y + target.rect.height / 2,
+                        };
                     }
-                    return false;
+                    return null;
                 })()
                 """
             )
-            if clicked:
+            if click_target:
                 for _ in range(10):
-                    if await self.page.evaluate(_JS_HAS_STRATEGY_REPORT_METRICS):
-                        return
-                    if await self.page.evaluate(
-                        """
-                        (() => !!(document.querySelector('[data-name="report-range-button"]') || document.querySelector('[data-name="report-settings"]')))
-                        """
-                    ):
+                    if await panel_is_open():
                         return
                     await asyncio.sleep(0.5)
+
+                if isinstance(click_target, dict) and "x" in click_target and "y" in click_target:
+                    await self.page.mouse.click(float(click_target["x"]), float(click_target["y"]))
+                    for _ in range(10):
+                        if await panel_is_open():
+                            return
+                        await asyncio.sleep(0.5)
 
             # Fallback: Alt+B keyboard shortcut (TradingView default for Strategy Tester)
             await self.page.keyboard.press("Alt+b")
             for _ in range(10):
-                if await self.page.evaluate(_JS_HAS_STRATEGY_REPORT_METRICS):
-                    return
-                if await self.page.evaluate(
-                    """
-                    (() => !!(document.querySelector('[data-name="report-range-button"]') || document.querySelector('[data-name="report-settings"]')))
-                    """
-                ):
+                if await panel_is_open():
                     return
                 await asyncio.sleep(0.5)
 
@@ -1494,34 +1644,78 @@ class TabWorker:
         except Exception:
             pass
 
-        # Click strategy name to reveal action buttons, then click Settings gear.
-        # Must use page.mouse.click() with real pixel coords — JS btn.click() is
-        # ignored by TradingView's React event handlers for these buttons.
+        # Click strategy name to reveal action buttons when possible, then click
+        # the nearest visible strategy Settings button using real mouse coords.
+        # TradingView's React handlers can ignore synthetic JS clicks here.
         snd_coords = await page_query_snd(self.page)
         if snd_coords:
             await self.page.mouse.click(snd_coords["x"], snd_coords["y"])
             await asyncio.sleep(0.4)
 
-            # Find the Settings button pixel coordinates
-            settings_coords = await self.page.evaluate(
-                """
-                (() => {
-                    for (const btn of document.querySelectorAll('[title="Settings"]')) {
-                        const box = btn.getBoundingClientRect();
-                        if (btn.offsetParent !== null && box.width > 0)
-                            return {x: box.x + box.width / 2, y: box.y + box.height / 2};
-                    }
-                    return null;
-                })()
-                """
-            )
-            if settings_coords:
-                await self.page.mouse.click(settings_coords['x'], settings_coords['y'])
-                await asyncio.sleep(1.5)
-                if await self._has_ready_settings_dialog():
-                    return True
-                await self._dismiss_wrong_settings_dialog()
+        settings_coords = await self.page.evaluate(
+            """
+            (() => {
+                const visible = (el) => {
+                    const rect = el?.getBoundingClientRect?.();
+                    const style = el ? window.getComputedStyle(el) : null;
+                    return !!rect && rect.width > 0 && rect.height > 0 &&
+                        style?.visibility !== 'hidden' && style?.display !== 'none';
+                };
+                const normalize = (text) => (text || '').replace(/\\s+/g, ' ').trim();
+                const center = (rect) => ({
+                    x: rect.x + rect.width / 2,
+                    y: rect.y + rect.height / 2,
+                });
+                const distance = (a, b) => {
+                    const dx = a.x - b.x;
+                    const dy = a.y - b.y;
+                    return Math.sqrt(dx * dx + dy * dy);
+                };
+                const titles = Array.from(
+                    document.querySelectorAll('div, span, button, [data-name], [class*="title"]')
+                ).filter((el) =>
+                    visible(el) &&
+                    normalize(el.textContent) === 'S&D Algo [Pro]'
+                );
+                if (!titles.length) return null;
 
+                const buttons = Array.from(
+                    document.querySelectorAll('button, [role="button"], [title], [aria-label]')
+                ).filter((el) => {
+                    if (!visible(el)) return false;
+                    const text = normalize(el.textContent);
+                    const title = normalize(el.getAttribute('title'));
+                    const aria = normalize(el.getAttribute('aria-label'));
+                    return text === 'Settings' || title === 'Settings' || aria === 'Settings';
+                });
+                if (!buttons.length) return null;
+
+                let bestButton = null;
+                let bestDistance = Number.POSITIVE_INFINITY;
+                for (const titleEl of titles) {
+                    const titleCenter = center(titleEl.getBoundingClientRect());
+                    for (const btn of buttons) {
+                        const d = distance(titleCenter, center(btn.getBoundingClientRect()));
+                        if (d < bestDistance) {
+                            bestDistance = d;
+                            bestButton = btn;
+                        }
+                    }
+                }
+                if (!bestButton) return null;
+                const box = bestButton.getBoundingClientRect();
+                return {x: box.x + box.width / 2, y: box.y + box.height / 2};
+            })()
+            """
+        )
+        if settings_coords:
+            await self.page.mouse.click(settings_coords['x'], settings_coords['y'])
+            await asyncio.sleep(1.5)
+            if await self._has_ready_settings_dialog():
+                return True
+            await self._dismiss_wrong_settings_dialog()
+
+        if snd_coords:
             await self.page.mouse.click(snd_coords["x"], snd_coords["y"], double=True)
             await asyncio.sleep(1.5)
             if await self._has_ready_settings_dialog():
@@ -2328,7 +2522,12 @@ class TabWorker:
                 try:
                     num = float(c)
                 except (ValueError, TypeError):
-                    continue
+                    fallback_num = self._extract_first_number(
+                        primary_value.replace("\u2212", "-").replace("−", "-")
+                    )
+                    if fallback_num is None:
+                        continue
+                    num = fallback_num
                 if "total p&l" in kl or "net profit" in kl:
                     result.net_profit = num
                 elif "total trades" in kl:

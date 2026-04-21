@@ -55,6 +55,22 @@ class MetricsPage(DummyPage):
         return self._metrics
 
 
+class FallbackMetricsPage(DummyPage):
+    def __init__(self) -> None:
+        super().__init__(title="EURJPY 5 Vantage")
+
+    async def evaluate(self, script: str):
+        if script == tab_worker_module._JS_COLLECT_METRICS:
+            return {
+                "Net profit": "Net profit +123.45",
+                "Total trades": "Total trades 42",
+                "Profitable trades": "Profitable trades 55%",
+                "Profit factor": "Profit factor 1.8",
+                "Max equity drawdown": "1,250|Max equity drawdown 2.5%",
+            }
+        raise AssertionError(f"unexpected script in FallbackMetricsPage: {script[:120]}")
+
+
 class MenuSettingsPage(DummyPage):
     def __init__(self) -> None:
         super().__init__(title="EURUSD 5 OANDA")
@@ -97,6 +113,35 @@ class DirectLegendSettingsPage(DummyPage):
         raise AssertionError(f"unexpected script in DirectLegendSettingsPage: {script[:120]}")
 
 
+class AriaLegendSettingsMouseFallbackPage(DummyPage):
+    def __init__(self) -> None:
+        super().__init__(title="EURUSD 5 OANDA")
+        self.dialog_open = False
+        self.mouse_clicks: list[tuple[int, int, bool]] = []
+
+        class _Mouse:
+            def __init__(self, outer) -> None:
+                self.outer = outer
+
+            async def click(self, x: float, y: float, double: bool = False) -> None:
+                self.outer.mouse_clicks.append((int(round(x)), int(round(y)), double))
+                if not double:
+                    self.outer.dialog_open = True
+
+        self.mouse = _Mouse(self)
+
+    async def evaluate(self, script: str):
+        if "return __tvDescribeSettingsDialogs();" in script:
+            return []
+        if "__tvPickSettingsDialog(true)" in script or "__tvPickSettingsDialog(false)" in script:
+            return self.dialog_open
+        if "const titles = Array.from" in script and "bestButton.click()" in script:
+            return False
+        if "const buttons = Array.from" in script and "return {x: box.x + box.width / 2, y: box.y + box.height / 2};" in script:
+            return {"x": 410, "y": 260}
+        raise AssertionError(f"unexpected script in AriaLegendSettingsMouseFallbackPage: {script[:120]}")
+
+
 class StrategyReportPage(DummyPage):
     def __init__(self) -> None:
         super().__init__(title="EURUSD 5 OANDA")
@@ -117,6 +162,74 @@ class StrategyReportPage(DummyPage):
             self.report_open = True
             return True
         raise AssertionError(f"unexpected script in StrategyReportPage: {script[:120]}")
+
+
+class MouseStrategyReportPage(DummyPage):
+    def __init__(self) -> None:
+        super().__init__(title="EURUSD 5 OANDA")
+        self.report_open = False
+        self.mouse_clicks: list[tuple[int, int]] = []
+
+        class _Keyboard:
+            async def press(self, key_combo: str) -> None:
+                return None
+
+        class _Mouse:
+            def __init__(self, outer) -> None:
+                self.outer = outer
+
+            async def click(self, x: float, y: float, double: bool = False) -> None:
+                self.outer.mouse_clicks.append((int(round(x)), int(round(y))))
+                self.outer.report_open = True
+
+        self.keyboard = _Keyboard()
+        self.mouse = _Mouse(self)
+
+    async def evaluate(self, script: str):
+        if "document.querySelector('[data-name=\"report-range-button\"]')" in script:
+            return self.report_open
+        if "const metricLabels = [" in script:
+            return self.report_open
+        if "item.text === 'Strategy Tester'" in script and "item.text === 'Strategy Report'" in script:
+            return {"clicked": True, "x": 990, "y": 748}
+        raise AssertionError(f"unexpected script in MouseStrategyReportPage: {script[:120]}")
+
+
+class DesktopClientSwitchPage(DummyPage):
+    def __init__(self) -> None:
+        super().__init__(title="TradingView")
+        self.url = "https://www.tradingview.com/chart/test123/?symbol=OANDA%3AEURUSD"
+        self.goto_called = False
+        self.symbol = "EURUSD"
+        self.tab_id = "desktop-tab"
+
+        class _Client:
+            def __init__(self, outer) -> None:
+                self.outer = outer
+                self.calls: list[tuple[str, ...]] = []
+
+            async def run(self, *args: str):
+                self.calls.append(args)
+                if args and args[0] == "symbol":
+                    self.outer.symbol = args[1].split(":")[-1]
+                return {"success": True}
+
+        self._client = _Client(self)
+
+    async def evaluate(self, script: str, *_args):
+        if ".symbol?.() || ''" in script:
+            return self.symbol
+        if "normalize(el.textContent) === 'S&D Algo [Pro]'" in script:
+            return True
+        if script == tab_worker_module._JS_FIND_LOADING:
+            return None
+        if script == tab_worker_module._JS_HAS_REPORT_TIMEOUT:
+            return False
+        return None
+
+    async def goto(self, url: str, wait_until: str, timeout: int) -> None:
+        self.goto_called = True
+        self.url = url
 
 
 class BlankThenCustomProfilePage(DummyPage):
@@ -661,6 +774,31 @@ def test_switch_symbol_restores_5m_timeframe(monkeypatch) -> None:
     assert events == ["set-5m"]
 
 
+def test_switch_symbol_prefers_desktop_mcp_symbol_command(monkeypatch) -> None:
+    page = DesktopClientSwitchPage()
+    worker = TabWorker(page, DummyOptimizer())
+    events: list[str] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        events.append(f"sleep:{seconds}")
+
+    async def fake_wait_for_load(timeout: int = 30) -> None:
+        events.append(f"wait-load:{timeout}")
+
+    async def fake_ensure_chart_timeframe_5m() -> None:
+        events.append("set-5m")
+
+    monkeypatch.setattr(tab_worker_module.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(worker, "_wait_for_load", fake_wait_for_load)
+    monkeypatch.setattr(worker, "_ensure_chart_timeframe_5m", fake_ensure_chart_timeframe_5m)
+
+    asyncio.run(worker._switch_symbol("EURJPY"))
+
+    assert page._client.calls == [("symbol", "VANTAGE:EURJPY")]
+    assert page.goto_called is False
+    assert "set-5m" in events
+
+
 def test_set_backtest_range_clicks_menu_when_current_span_is_wrong(monkeypatch) -> None:
     worker = TabWorker(DummyPage(), DummyOptimizer())
     events: list[object] = []
@@ -763,6 +901,22 @@ def test_open_settings_uses_direct_legend_settings_when_available() -> None:
     assert page.dialog_open is True
 
 
+def test_open_settings_uses_mouse_fallback_for_aria_settings_button(monkeypatch) -> None:
+    page = AriaLegendSettingsMouseFallbackPage()
+    worker = TabWorker(page, DummyOptimizer())
+
+    async def fake_page_query_snd(_page):
+        return None
+
+    monkeypatch.setattr(tab_worker_module, "page_query_snd", fake_page_query_snd)
+
+    result = asyncio.run(worker._open_settings())
+
+    assert result is True
+    assert page.mouse_clicks == [(410, 260, False)]
+    assert page.dialog_open is True
+
+
 def test_ensure_custom_profile_recovers_from_blank_dialog_after_reopen(monkeypatch) -> None:
     page = BlankThenCustomProfilePage()
     worker = TabWorker(page, DummyOptimizer())
@@ -855,6 +1009,16 @@ def test_ensure_strategy_tester_open_uses_strategy_report_control_when_metrics_d
     asyncio.run(worker._ensure_strategy_tester_open())
 
     assert page.report_open is True
+
+
+def test_ensure_strategy_tester_open_uses_mouse_fallback_when_js_click_does_not_open_panel() -> None:
+    page = MouseStrategyReportPage()
+    worker = TabWorker(page, DummyOptimizer())
+
+    asyncio.run(worker._ensure_strategy_tester_open())
+
+    assert page.report_open is True
+    assert page.mouse_clicks == [(990, 748)]
 
 
 def test_bayesian_optimizer_uses_only_fresh_results_for_study_and_best_tracking(
@@ -1135,3 +1299,17 @@ def test_bayesian_optimizer_raises_when_all_trials_fail(monkeypatch) -> None:
 
     with pytest.raises(RuntimeError, match="No valid optimization result produced for EURJPY"):
         asyncio.run(optimizer.optimize_pair_bayesian(worker, "EURJPY", 2))
+
+
+def test_read_results_parses_fallback_metric_rows() -> None:
+    page = FallbackMetricsPage()
+    worker = TabWorker(page, DummyOptimizer())
+
+    result = asyncio.run(worker._read_results("EURJPY", {"rr_mode": "dynamic"}))
+
+    assert result.net_profit == 123.45
+    assert result.total_trades == 42
+    assert result.win_rate == 55.0
+    assert result.profit_factor == 1.8
+    assert result.max_drawdown == 1250.0
+    assert result.max_drawdown_pct == 2.5

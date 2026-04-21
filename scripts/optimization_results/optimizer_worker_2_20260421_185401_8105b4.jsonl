@@ -1,0 +1,2 @@
+{"ts": "2026-04-21T19:03:01.728575+03:00", "run_id": "20260421_185401_8105b4", "worker_id": 2, "symbol": "AUDCAD", "trial": 1, "outcome": "stale", "params_hash": "d624e896", "results_hash_before": "d41d8cd9", "results_hash_after": "d41d8cd9", "metrics": {}}
+{"ts": "2026-04-21T19:06:43.653823+03:00", "run_id": "20260421_185401_8105b4", "worker_id": 2, "symbol": "AUDCAD", "trial": 2, "outcome": "stale", "params_hash": "ef743470", "results_hash_before": "d41d8cd9", "results_hash_after": "d41d8cd9", "metrics": {}}
