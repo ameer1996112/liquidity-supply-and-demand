@@ -1,0 +1,12 @@
+{"ts": "2026-04-21T18:14:37.990628+03:00", "run_id": "20260421_181437_442549", "event_type": "run_started", "mode": "bayesian", "workers": 4, "pairs": ["EURUSD", "EURJPY", "AUDCAD", "XAUUSD"], "dry_run": false, "broker": "oanda", "backtest_range": "Last 90 days"}
+{"ts": "2026-04-21T18:14:38.369894+03:00", "run_id": "20260421_181437_442549", "event_type": "pair_started", "worker_id": 0, "symbol": "EURUSD", "attempt": 1}
+{"ts": "2026-04-21T18:14:53.376670+03:00", "run_id": "20260421_181437_442549", "event_type": "pair_started", "worker_id": 1, "symbol": "EURJPY", "attempt": 1}
+{"ts": "2026-04-21T18:15:08.373621+03:00", "run_id": "20260421_181437_442549", "event_type": "pair_started", "worker_id": 2, "symbol": "AUDCAD", "attempt": 1}
+{"ts": "2026-04-21T18:15:23.373149+03:00", "run_id": "20260421_181437_442549", "event_type": "pair_started", "worker_id": 3, "symbol": "XAUUSD", "attempt": 1}
+{"ts": "2026-04-21T18:15:30.081562+03:00", "run_id": "20260421_181437_442549", "event_type": "pair_started", "worker_id": 2, "symbol": "AUDCAD", "attempt": 2}
+{"ts": "2026-04-21T18:15:37.038648+03:00", "run_id": "20260421_181437_442549", "event_type": "pair_started", "worker_id": 3, "symbol": "XAUUSD", "attempt": 2}
+{"ts": "2026-04-21T18:15:44.022890+03:00", "run_id": "20260421_181437_442549", "event_type": "pair_started", "worker_id": 2, "symbol": "AUDCAD", "attempt": 3}
+{"ts": "2026-04-21T18:15:50.997957+03:00", "run_id": "20260421_181437_442549", "event_type": "pair_started", "worker_id": 3, "symbol": "XAUUSD", "attempt": 3}
+{"ts": "2026-04-21T18:15:52.952115+03:00", "run_id": "20260421_181437_442549", "event_type": "pair_failed", "worker_id": 2, "symbol": "AUDCAD", "error_message": "Symbol switch failed: expected AUDCAD, observed XAUUSD"}
+{"ts": "2026-04-21T18:16:06.275590+03:00", "run_id": "20260421_181437_442549", "event_type": "pair_started", "worker_id": 1, "symbol": "EURJPY", "attempt": 2}
+{"ts": "2026-04-21T18:16:07.971090+03:00", "run_id": "20260421_181437_442549", "event_type": "pair_failed", "worker_id": 3, "symbol": "XAUUSD", "error_message": "Could not confirm backtest range is Last 90 days"}

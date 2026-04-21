@@ -823,7 +823,8 @@ class TabWorker:
             already_open = await self.page.evaluate(
                 """
                 (() => {
-                    if (document.querySelector('[data-name="report-range-button"]'))
+                    if (document.querySelector('[data-name="report-range-button"]')
+                        || document.querySelector('[data-name="report-settings"]'))
                         return true;
                     return %s;
                 })()
@@ -870,7 +871,7 @@ class TabWorker:
                         return
                     if await self.page.evaluate(
                         """
-                        (() => !!document.querySelector('[data-name="report-range-button"]'))
+                        (() => !!(document.querySelector('[data-name="report-range-button"]') || document.querySelector('[data-name="report-settings"]')))
                         """
                     ):
                         return
@@ -883,7 +884,7 @@ class TabWorker:
                     return
                 if await self.page.evaluate(
                     """
-                    (() => !!document.querySelector('[data-name="report-range-button"]'))
+                    (() => !!(document.querySelector('[data-name="report-range-button"]') || document.querySelector('[data-name="report-settings"]')))
                     """
                 ):
                     return
