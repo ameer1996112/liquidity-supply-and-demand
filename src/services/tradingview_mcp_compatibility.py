@@ -10,6 +10,8 @@ import plistlib
 import subprocess
 from typing import Any, Callable
 
+import requests
+
 from config.settings import get_settings
 
 
@@ -17,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 MCP_REPO_PATH = Path(__file__).resolve().parents[2] / "mcp" / "tradingview-mcp"
 MCP_STATUS_COMMAND = ["node", "src/cli/index.js", "status"]
+BACKEND_APPROVALS_PATH = "/api/v1/config/tradingview-mcp"
 
 
 def _utc_now() -> datetime:
@@ -44,6 +47,39 @@ def _read_tradingview_version(app_path: Path) -> str | None:
         or ""
     ).strip()
     return version or None
+
+
+def _normalize_versions(versions: list[Any]) -> list[str]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+
+    for raw_version in versions:
+        version = str(raw_version).strip()
+        if not version or version in seen:
+            continue
+        seen.add(version)
+        normalized.append(version)
+
+    return normalized
+
+
+def _backend_base_url() -> str:
+    settings = get_settings()
+    base_url = settings.public_api_base_url or "http://127.0.0.1:8000"
+    return base_url.rstrip("/")
+
+
+def _fetch_approved_versions_from_backend() -> list[str]:
+    response = requests.get(
+        f"{_backend_base_url()}{BACKEND_APPROVALS_PATH}",
+        timeout=5,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    approved_versions = payload.get("approved_versions", [])
+    if not isinstance(approved_versions, list):
+        return []
+    return _normalize_versions(approved_versions)
 
 
 def _run_status_probe(mcp_repo_path: Path) -> dict[str, Any]:
@@ -93,18 +129,18 @@ class TradingViewMcpCompatibilityService:
     def __init__(
         self,
         *,
-        allowed_versions: set[str],
         ttl_seconds: int,
         tradingview_app_path: Path,
         mcp_repo_path: Path,
+        approved_versions_fetcher: Callable[[], list[str]] | None = None,
         version_getter: Callable[[], str | None] | None = None,
         probe_runner: Callable[[], dict[str, Any]] | None = None,
         now_fn: Callable[[], datetime] = _utc_now,
     ) -> None:
-        self._allowed_versions = set(allowed_versions)
         self._ttl = timedelta(seconds=ttl_seconds)
         self._tradingview_app_path = tradingview_app_path
         self._mcp_repo_path = mcp_repo_path
+        self._approved_versions_fetcher = approved_versions_fetcher or _fetch_approved_versions_from_backend
         self._version_getter = version_getter or (lambda: _read_tradingview_version(tradingview_app_path))
         self._probe_runner = probe_runner or (lambda: _run_status_probe(mcp_repo_path))
         self._now_fn = now_fn
@@ -140,23 +176,35 @@ class TradingViewMcpCompatibilityService:
                 probe={"command": "status", "ok": False},
             )
 
-        if not self._allowed_versions:
+        try:
+            allowed_versions = set(self._approved_versions_fetcher())
+        except Exception as exc:
             return self._build_status(
                 status="unsupported_version",
                 chart_context_enabled=False,
                 tradingview_version=version,
                 checked_at=checked_at,
-                reason="No approved TradingView Desktop versions are configured",
+                reason=f"Failed to load approved TradingView versions from backend config: {exc}",
                 probe={"command": "status", "ok": False},
             )
 
-        if version not in self._allowed_versions:
+        if not allowed_versions:
             return self._build_status(
                 status="unsupported_version",
                 chart_context_enabled=False,
                 tradingview_version=version,
                 checked_at=checked_at,
-                reason=f"TradingView Desktop {version} is not in the approved allowlist",
+                reason="No approved TradingView Desktop versions are configured in app settings",
+                probe={"command": "status", "ok": False},
+            )
+
+        if version not in allowed_versions:
+            return self._build_status(
+                status="unsupported_version",
+                chart_context_enabled=False,
+                tradingview_version=version,
+                checked_at=checked_at,
+                reason=f"TradingView Desktop {version} is not approved in app settings",
                 probe={"command": "status", "ok": False},
             )
 
@@ -243,7 +291,6 @@ class TradingViewMcpCompatibilityService:
 def get_tradingview_mcp_compatibility_service() -> TradingViewMcpCompatibilityService:
     settings = get_settings()
     return TradingViewMcpCompatibilityService(
-        allowed_versions=settings.tradingview_allowed_version_set,
         ttl_seconds=settings.tradingview_mcp_compatibility_ttl_seconds,
         tradingview_app_path=Path(settings.tradingview_app_path),
         mcp_repo_path=MCP_REPO_PATH,

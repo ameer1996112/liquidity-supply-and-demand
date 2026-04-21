@@ -531,11 +531,6 @@ class Settings(BaseSettings):
         description="Local TradingView Desktop app bundle path used for version detection.",
         validation_alias="TRADINGVIEW_APP_PATH",
     )
-    tradingview_allowed_versions: str = Field(
-        default="",
-        description="Comma-separated exact TradingView Desktop versions approved for chart-context MCP usage.",
-        validation_alias="TRADINGVIEW_ALLOWED_VERSIONS",
-    )
     tradingview_mcp_compatibility_ttl_seconds: int = Field(
         default=60,
         ge=1,
@@ -562,15 +557,6 @@ class Settings(BaseSettings):
             if self.meta_api_token and self.meta_api_account_id:
                 accounts.append({"token": self.meta_api_token, "account_id": self.meta_api_account_id})
         return accounts
-
-    @property
-    def tradingview_allowed_version_set(self) -> set[str]:
-        """Parsed exact-version allowlist for the local TradingView Desktop app."""
-        return {
-            item.strip()
-            for item in self.tradingview_allowed_versions.split(",")
-            if item.strip()
-        }
 
 
 @lru_cache
