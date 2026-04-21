@@ -285,8 +285,9 @@ class MultiAccountSignalRowTests(unittest.TestCase):
         self.assertEqual(profile_payloads[0]["_signal_id"], 321)
         self.assertNotIn("_signal_id", profile_payloads[1])
         self.assertNotIn("_signal_id", profile_payloads[2])
-        self.assertEqual(profile_payloads[1]["_webhook_receipt_id"], "receipt-abc")
-        self.assertEqual(profile_payloads[2]["_webhook_receipt_id"], "receipt-abc")
+        self.assertEqual(profile_payloads[0]["_webhook_receipt_id"], "receipt-abc")
+        self.assertNotIn("_webhook_receipt_id", profile_payloads[1])
+        self.assertNotIn("_webhook_receipt_id", profile_payloads[2])
         self.assertEqual(payload["_signal_id"], 321)
 
 

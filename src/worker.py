@@ -917,10 +917,11 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
         except (ValueError, TypeError):
             pass
 
-    # --- 1-candle liquidity filter (composite confidence scorer) ---
+    # --- 1-candle liquidity filter (DISABLED — execute all trades) ---
     # Uses LiquidityScorer: hard gates + weighted zone quality + market context.
     # Only applies when liq_candle_count == 1 and the feature is enabled.
     _ocl_enabled, _ocl_min_dep, _block_middle_zone = _get_one_candle_liq_settings(s)
+    _ocl_enabled = False  # DISABLED: user wants all trades executed
     if _ocl_enabled:
         liq_candle_count = payload.get("liq_candle_count")
         if liq_candle_count is not None:
@@ -959,30 +960,13 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
         except (ValueError, TypeError):
             pass
 
-    # --- HTF candle boundary protection ---
+    # --- HTF candle boundary protection (DISABLED — execute all trades) ---
     # Combines two time-based filters into one:
     #   1. Pre-candle block: blocks entries in the last N minutes before each HTF candle open
     #   2. Hourly close block: blocks entries at xx:50-xx:59 (last 10 min of each hour)
-    _htf_enabled, _htf_block_mins, _htf_period, _htf_hourly_close = _get_htf_filter_settings(s)
-    bar_time = payload.get("bar_time")
-    if bar_time and isinstance(bar_time, str):
-        try:
-            dt = _parse_dt(bar_time)
-            # Hourly close protection (merged from dead zone)
-            if _htf_hourly_close and dt.minute >= 50:
-                return f"HTF hourly close block: entry rejected in last 10 min of hour (minute={dt.minute})"
-            # HTF pre-candle open protection
-            if _htf_enabled:
-                candle_offset = dt.minute % _htf_period
-                if candle_offset >= (_htf_period - _htf_block_mins):
-                    next_candle_min = ((dt.minute // _htf_period) + 1) * _htf_period % 60
-                    return (
-                        f"HTF pre-candle block: entry rejected {_htf_period - candle_offset}m before "
-                        f"{_htf_period}m HTF candle open at :{next_candle_min:02d} "
-                        f"(bar_time minute={dt.minute}, block_mins={_htf_block_mins})"
-                    )
-        except Exception:
-            pass  # fail-open
+    # _htf_enabled, _htf_block_mins, _htf_period, _htf_hourly_close = _get_htf_filter_settings(s)
+    # DISABLED: user wants all trades executed regardless of bar_time
+    if False:
 
     # --- Trading hours (local timezone, auto-DST) — DB-backed with env fallback ---
     start_local, end_local = _get_trading_hours(s)
@@ -1820,13 +1804,16 @@ def _build_multi_account_profile_payloads(
     stamps its row id into ``_signal_id``. In a multi-account fanout, only one
     account may reuse that receipt row; all additional accounts must insert
     their own ``trading_signals`` rows so the dashboard can show one row per
-    executed account.
+    account outcome. That means only the first profile may retain the API
+    receipt row linkage; all others must insert a fresh row even if they end up
+    filtered before execution.
     """
     profile_payloads: list[Dict[str, Any]] = []
     for index in range(profile_count):
         profile_payload = payload.copy()
         if index > 0:
             profile_payload.pop("_signal_id", None)
+            profile_payload.pop("_webhook_receipt_id", None)
         profile_payloads.append(profile_payload)
     return profile_payloads
 
