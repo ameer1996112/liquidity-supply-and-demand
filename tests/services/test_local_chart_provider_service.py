@@ -4,6 +4,7 @@ from pathlib import Path
 from src.local_chart_provider_service import (
     _crop_focus_image,
     build_chart_context_payload,
+    fetch_live_chart_context,
     run_mcp_command,
 )
 
@@ -202,3 +203,103 @@ def test_run_mcp_command_returns_failure_payload_on_bad_exit(monkeypatch) -> Non
     payload = run_mcp_command(["node", "src/cli/index.js", "status"])
     assert payload["success"] is False
     assert "CDP connection failed" in payload["error"]
+
+
+def test_fetch_live_chart_context_short_circuits_when_compatibility_is_disabled(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "src.local_chart_provider_service.get_chart_provider_compatibility_status",
+        lambda: {
+            "status": "unsupported_version",
+            "chart_context_enabled": False,
+            "tradingview_version": "1.2.3",
+            "checked_at": "2026-04-21T08:00:00Z",
+            "reason": "TradingView Desktop 1.2.3 is not in the approved allowlist",
+            "probe": {"command": "status", "ok": False},
+        },
+    )
+
+    def _unexpected_run(command: list[str]) -> dict[str, object]:
+        raise AssertionError(f"MCP command should not run when compatibility is disabled: {command}")
+
+    monkeypatch.setattr("src.local_chart_provider_service.run_mcp_command", _unexpected_run)
+
+    payload = fetch_live_chart_context("XAUUSD", "5m")
+
+    assert payload["symbol"] == "XAUUSD"
+    assert payload["timeframe"] == "5m"
+    assert payload["reason"] == "TradingView Desktop 1.2.3 is not in the approved allowlist"
+    assert payload["setup_evidence"]["status"] == "degraded"
+    assert payload["metadata"]["compatibility"]["status"] == "unsupported_version"
+
+
+def test_fetch_live_chart_context_runs_mcp_sequence_when_compatibility_is_supported(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "src.local_chart_provider_service.get_chart_provider_compatibility_status",
+        lambda: {
+            "status": "supported",
+            "chart_context_enabled": True,
+            "tradingview_version": "1.2.3",
+            "checked_at": "2026-04-21T08:00:00Z",
+            "reason": "",
+            "probe": {"command": "status", "ok": True},
+        },
+    )
+    monkeypatch.setattr("src.local_chart_provider_service._now_iso", lambda: "2026-04-21T08:00:00Z")
+
+    seen_commands: list[list[str]] = []
+
+    def _fake_run(command: list[str]) -> dict[str, object]:
+        seen_commands.append(command)
+        command_key = tuple(command)
+        payload_map = {
+            ("node", "src/cli/index.js", "status"): {
+                "success": True,
+                "chart_symbol": "VANTAGE:XAUUSD",
+                "chart_resolution": "5",
+            },
+            ("node", "src/cli/index.js", "values"): {
+                "success": True,
+                "studies": [{"name": "EMA", "values": {"EMA": "3250.1"}}],
+            },
+            ("node", "src/cli/index.js", "data", "lines"): {"success": True, "studies": []},
+            ("node", "src/cli/index.js", "data", "labels"): {"success": True, "studies": []},
+            ("node", "src/cli/index.js", "data", "boxes", "--verbose"): {"success": True, "studies": []},
+            (
+                "node",
+                "src/cli/index.js",
+                "screenshot",
+                "--region",
+                "chart",
+                "--output",
+                "setup_XAUUSD_5m_2026-04-21T08-00-00Z",
+            ): {
+                "success": True,
+                "file_path": "/tmp/chart.png",
+                "region": "chart",
+            },
+        }
+        return payload_map[command_key]
+
+    monkeypatch.setattr("src.local_chart_provider_service.run_mcp_command", _fake_run)
+
+    payload = fetch_live_chart_context("XAUUSD", "5m")
+
+    assert seen_commands == [
+        ["node", "src/cli/index.js", "status"],
+        ["node", "src/cli/index.js", "values"],
+        ["node", "src/cli/index.js", "data", "lines"],
+        ["node", "src/cli/index.js", "data", "labels"],
+        ["node", "src/cli/index.js", "data", "boxes", "--verbose"],
+        [
+            "node",
+            "src/cli/index.js",
+            "screenshot",
+            "--region",
+            "chart",
+            "--output",
+            "setup_XAUUSD_5m_2026-04-21T08-00-00Z",
+        ],
+    ]
+    assert payload["symbol"] == "VANTAGE:XAUUSD"
+    assert payload["timeframe"] == "5m"
+    assert payload["indicator_values"]["EMA"]["EMA"] == "3250.1"

@@ -6,6 +6,8 @@ from pathlib import Path
 import subprocess
 from typing import Any, Dict, List, Optional, Sequence
 
+from src.services.tradingview_mcp_compatibility import get_tradingview_mcp_compatibility_service
+
 
 MCP_REPO_PATH = Path(__file__).resolve().parents[1] / "mcp" / "tradingview-mcp"
 
@@ -246,7 +248,29 @@ def run_mcp_command(command: Sequence[str]) -> Dict[str, Any]:
         return {"success": False, "error": f"invalid JSON from MCP CLI: {exc}"}
 
 
+def get_chart_provider_compatibility_status() -> Dict[str, Any]:
+    return get_tradingview_mcp_compatibility_service().get_status().to_payload()
+
+
 def fetch_live_chart_context(requested_symbol: str, requested_timeframe: str) -> Dict[str, Any]:
+    compatibility_status = get_chart_provider_compatibility_status()
+    if not compatibility_status.get("chart_context_enabled"):
+        payload = build_chart_context_payload(
+            requested_symbol=requested_symbol,
+            requested_timeframe=requested_timeframe,
+            status_payload={
+                "success": False,
+                "error": compatibility_status.get("reason") or "chart context disabled",
+            },
+            values_payload=None,
+            lines_payload=None,
+            labels_payload=None,
+            boxes_payload=None,
+            screenshot_payload=None,
+        )
+        payload["metadata"]["compatibility"] = compatibility_status
+        return payload
+
     status_payload = run_mcp_command(["node", "src/cli/index.js", "status"])
     if not status_payload.get("success"):
         return build_chart_context_payload(
