@@ -10,6 +10,7 @@ Endpoints:
 - PATCH /api/v1/config/ai-operating-layer - Update AI operating layer global config
 """
 
+import json
 import logging
 from typing import Dict, Literal
 
@@ -98,6 +99,14 @@ class PatchAiOperatingLayerConfigRequest(BaseModel):
     panic_mode: bool | None = None
     modules: Dict[str, Literal["inherit", "enabled", "disabled"]] | None = None
     provider: AiOperatingLayerProviderConfig | None = None
+
+
+class TradingViewMcpConfigResponse(BaseModel):
+    approved_versions: list[str]
+
+
+class PatchTradingViewMcpConfigRequest(BaseModel):
+    approved_versions: list[str] = Field(default_factory=list)
 
 
 # ── Endpoints ─────────────────────────────────────────────
@@ -274,6 +283,7 @@ _AI_LAYER_PROVIDER_ENABLED_KEY = "ai_operating_layer_provider_enabled"
 _AI_LAYER_PROVIDER_BASE_URL_KEY = "ai_operating_layer_provider_base_url"
 _AI_LAYER_PROVIDER_TIMEOUT_KEY = "ai_operating_layer_provider_timeout_seconds"
 _AI_LAYER_PROVIDER_RETRY_KEY = "ai_operating_layer_provider_retry_count"
+_TRADINGVIEW_ALLOWED_VERSIONS_KEY = "local_chart_tradingview_allowed_versions"
 
 
 def _read_system_config(keys: list[str]) -> dict[str, str]:
@@ -285,6 +295,66 @@ def _read_system_config(keys: list[str]) -> dict[str, str]:
         .execute()
     )
     return {row["key"]: row["value"] for row in (rows.data or [])}
+
+
+def _normalize_tradingview_versions(versions: list[str]) -> list[str]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+
+    for version in versions:
+        candidate = version.strip()
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        normalized.append(candidate)
+
+    return normalized
+
+
+def _read_tradingview_allowed_versions() -> list[str]:
+    raw_value = _read_system_config([_TRADINGVIEW_ALLOWED_VERSIONS_KEY]).get(
+        _TRADINGVIEW_ALLOWED_VERSIONS_KEY
+    )
+    if not raw_value:
+        return []
+
+    try:
+        decoded = json.loads(raw_value)
+    except (TypeError, ValueError):
+        logger.warning("Invalid TradingView MCP approved version config payload")
+        return []
+
+    if not isinstance(decoded, list):
+        logger.warning("TradingView MCP approved version config is not a JSON array")
+        return []
+
+    return _normalize_tradingview_versions([str(version) for version in decoded])
+
+
+@router.get("/tradingview-mcp", response_model=TradingViewMcpConfigResponse)
+def get_tradingview_mcp_config():
+    try:
+        return {"approved_versions": _read_tradingview_allowed_versions()}
+    except Exception as e:
+        logger.error(f"Failed to fetch TradingView MCP config: {e}")
+        raise HTTPException(status_code=500, detail="Could not fetch TradingView MCP config")
+
+
+@router.patch("/tradingview-mcp", response_model=TradingViewMcpConfigResponse)
+def patch_tradingview_mcp_config(body: PatchTradingViewMcpConfigRequest):
+    try:
+        approved_versions = _normalize_tradingview_versions(body.approved_versions)
+        _get_supabase().table("system_config").upsert(
+            {
+                "key": _TRADINGVIEW_ALLOWED_VERSIONS_KEY,
+                "value": json.dumps(approved_versions),
+            },
+            on_conflict="key",
+        ).execute()
+        return {"approved_versions": approved_versions}
+    except Exception as e:
+        logger.error(f"Failed to update TradingView MCP config: {e}")
+        raise HTTPException(status_code=500, detail="Could not update TradingView MCP config")
 
 
 @router.get("/ai-operating-layer", response_model=AiOperatingLayerConfigResponse)
