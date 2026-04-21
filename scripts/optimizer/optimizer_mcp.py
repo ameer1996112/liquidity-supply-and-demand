@@ -18,8 +18,8 @@ class OptimizerWorkspaceSlot:
 
 
 class OptimizerMcpController:
-    _TAB_BOOTSTRAP_SETTLE_ATTEMPTS = 5
-    _TAB_BOOTSTRAP_SETTLE_SLEEP_SECS = 0.5
+    _TAB_BOOTSTRAP_SETTLE_ATTEMPTS = 12
+    _TAB_BOOTSTRAP_SETTLE_SLEEP_SECS = 1.0
 
     def __init__(self, client: TradingViewMcpClient | Any | None = None) -> None:
         self._client = client or TradingViewMcpClient()
@@ -50,6 +50,12 @@ class OptimizerMcpController:
     async def _list_workspace_tabs(self) -> list[dict[str, Any]]:
         result = await self._run_command("tab list", "tab", "list")
         return list(result.get("tabs") or [])
+
+    async def _workspace_target_counts(self) -> tuple[int, int]:
+        result = await self._run_command("tab list", "tab", "list")
+        tabs = list(result.get("tabs") or [])
+        page_target_count = int(result.get("page_target_count") or len(tabs))
+        return len(tabs), page_target_count
 
     def _workspace_bootstrap_error(self, message: str) -> RuntimeError:
         return RuntimeError(
@@ -93,11 +99,16 @@ class OptimizerMcpController:
                     f"TradingView MCP workspace bootstrap stalled after {attempts - 1} tab creation attempts"
                 )
             before_count = len(tabs)
+            _, before_page_target_count = await self._workspace_target_counts()
             await self._run_command("tab new", "tab", "new")
-            tabs = await self._wait_for_tab_count(required_tabs=required_tabs, minimum_count=before_count + 1)
-            if len(tabs) <= before_count:
+            tabs, page_target_count = await self._wait_for_tab_count(
+                required_tabs=required_tabs,
+                minimum_count=before_count + 1,
+                minimum_page_targets=before_page_target_count + 1,
+            )
+            if len(tabs) <= before_count and page_target_count <= before_page_target_count:
                 raise self._workspace_bootstrap_error(
-                    "TradingView MCP tab creation did not increase the available tab count"
+                    "TradingView MCP tab creation did not increase the available chart or page target count"
                 )
         return self._build_workspace_slots(tabs[:required_tabs])
 
@@ -106,19 +117,32 @@ class OptimizerMcpController:
         *,
         required_tabs: int,
         minimum_count: int,
-    ) -> list[dict[str, Any]]:
-        """Poll tab list briefly because tab creation can be visible a moment later."""
-        tabs = await self._list_workspace_tabs()
-        if len(tabs) >= required_tabs or len(tabs) >= minimum_count:
-            return tabs
+        minimum_page_targets: int,
+    ) -> tuple[list[dict[str, Any]], int]:
+        """Poll tab list because updated TradingView can open an intermediate new-tab shell first."""
+        result = await self._run_command("tab list", "tab", "list")
+        tabs = list(result.get("tabs") or [])
+        page_target_count = int(result.get("page_target_count") or len(tabs))
+        if (
+            len(tabs) >= required_tabs
+            or len(tabs) >= minimum_count
+            or page_target_count >= minimum_page_targets
+        ):
+            return tabs, page_target_count
 
         for _ in range(self._TAB_BOOTSTRAP_SETTLE_ATTEMPTS - 1):
             await asyncio.sleep(self._TAB_BOOTSTRAP_SETTLE_SLEEP_SECS)
-            tabs = await self._list_workspace_tabs()
-            if len(tabs) >= required_tabs or len(tabs) >= minimum_count:
-                return tabs
+            result = await self._run_command("tab list", "tab", "list")
+            tabs = list(result.get("tabs") or [])
+            page_target_count = int(result.get("page_target_count") or len(tabs))
+            if (
+                len(tabs) >= required_tabs
+                or len(tabs) >= minimum_count
+                or page_target_count >= minimum_page_targets
+            ):
+                return tabs, page_target_count
 
-        return tabs
+        return tabs, page_target_count
 
     async def ensure_optimizer_workspace(
         self,

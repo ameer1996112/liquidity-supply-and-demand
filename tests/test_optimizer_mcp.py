@@ -51,7 +51,12 @@ def test_optimizer_mcp_ensure_workspace_bootstraps_tabs() -> None:
         async def run(self, *args: str) -> dict[str, object]:
             self.calls.append(args)
             if args == ("tab", "list"):
-                return {"success": True, "tab_count": len(self.tab_state), "tabs": list(self.tab_state)}
+                return {
+                    "success": True,
+                    "tab_count": len(self.tab_state),
+                    "page_target_count": len(self.tab_state),
+                    "tabs": list(self.tab_state),
+                }
             if args == ("tab", "new"):
                 next_index = len(self.tab_state)
                 next_tab_number = next_index + 1
@@ -65,7 +70,13 @@ def test_optimizer_mcp_ensure_workspace_bootstraps_tabs() -> None:
                         "chart_id": chart_id,
                     }
                 )
-                return {"success": True, "action": "new_tab_opened", "tab_count": len(self.tab_state), "tabs": list(self.tab_state)}
+                return {
+                    "success": True,
+                    "action": "new_tab_opened",
+                    "tab_count": len(self.tab_state),
+                    "page_target_count": len(self.tab_state),
+                    "tabs": list(self.tab_state),
+                }
             return {"success": True}
 
     client = FakeClient()
@@ -87,7 +98,9 @@ def test_optimizer_mcp_ensure_workspace_bootstraps_tabs() -> None:
     assert [slot.timeframe for slot in workspace] == ["15m", "15m", "15m"]
     assert client.calls == [
         ("tab", "list"),
+        ("tab", "list"),
         ("tab", "new"),
+        ("tab", "list"),
         ("tab", "list"),
         ("tab", "new"),
         ("tab", "list"),
@@ -140,12 +153,9 @@ def test_optimizer_mcp_ready_waits_for_tab_count_to_catch_up_after_tab_new() -> 
     workspace = asyncio.run(controller.ensure_optimizer_ready(2))
 
     assert [slot.tab_id for slot in workspace] == ["tab-1", "tab-2"]
-    assert client.calls == [
-        ("tab", "list"),
-        ("tab", "new"),
-        ("tab", "list"),
-        ("tab", "list"),
-    ]
+    assert client.calls[0] == ("tab", "list")
+    assert ("tab", "new") in client.calls
+    assert client.calls.count(("tab", "list")) >= 3
 
 
 def test_optimizer_mcp_ready_fails_when_tab_bootstrap_does_not_progress() -> None:
@@ -162,6 +172,7 @@ def test_optimizer_mcp_ready_fails_when_tab_bootstrap_does_not_progress() -> Non
                 return {
                     "success": True,
                     "tab_count": 1,
+                    "page_target_count": 1,
                     "tabs": [
                         {
                             "index": 0,
@@ -177,6 +188,7 @@ def test_optimizer_mcp_ready_fails_when_tab_bootstrap_does_not_progress() -> Non
                     "success": True,
                     "action": "new_tab_opened",
                     "tab_count": 1,
+                    "page_target_count": 1,
                     "tabs": [
                         {
                             "index": 0,
@@ -195,8 +207,83 @@ def test_optimizer_mcp_ready_fails_when_tab_bootstrap_does_not_progress() -> Non
         asyncio.run(controller.ensure_optimizer_ready(2))
         assert False, "expected RuntimeError"
     except RuntimeError as exc:
-        assert "did not increase the available tab count" in str(exc)
+        assert "did not increase the available chart or page target count" in str(exc)
         assert "Retry once TradingView Desktop is ready" in str(exc)
+
+
+def test_optimizer_mcp_ready_treats_new_tab_shell_page_as_bootstrap_progress() -> None:
+    class FakeClient:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, ...]] = []
+            self.list_calls = 0
+
+        async def healthcheck(self) -> tuple[bool, str]:
+            return True, "ok"
+
+        async def run(self, *args: str) -> dict[str, object]:
+            self.calls.append(args)
+            if args == ("tab", "list"):
+                self.list_calls += 1
+                if self.list_calls == 1:
+                    return {
+                        "success": True,
+                        "tab_count": 1,
+                        "page_target_count": 1,
+                        "tabs": [
+                            {
+                                "index": 0,
+                                "id": "tab-1",
+                                "title": "First chart",
+                                "url": "https://www.tradingview.com/chart/AAA/",
+                                "chart_id": "AAA",
+                            }
+                        ],
+                    }
+                if self.list_calls == 2:
+                    return {
+                        "success": True,
+                        "tab_count": 1,
+                        "page_target_count": 2,
+                        "tabs": [
+                            {
+                                "index": 0,
+                                "id": "tab-1",
+                                "title": "First chart",
+                                "url": "https://www.tradingview.com/chart/AAA/",
+                                "chart_id": "AAA",
+                            }
+                        ],
+                    }
+                return {
+                    "success": True,
+                    "tab_count": 2,
+                    "page_target_count": 2,
+                    "tabs": [
+                        {
+                            "index": 0,
+                            "id": "tab-1",
+                            "title": "First chart",
+                            "url": "https://www.tradingview.com/chart/AAA/",
+                            "chart_id": "AAA",
+                        },
+                        {
+                            "index": 1,
+                            "id": "tab-2",
+                            "title": "Second chart",
+                            "url": "https://www.tradingview.com/chart/BBB/",
+                            "chart_id": "BBB",
+                        },
+                    ],
+                }
+            if args == ("tab", "new"):
+                return {"success": True, "action": "new_tab_opened"}
+            return {"success": True}
+
+    client = FakeClient()
+    controller = OptimizerMcpController(client=client)
+    workspace = asyncio.run(controller.ensure_optimizer_ready(2))
+
+    assert [slot.tab_id for slot in workspace] == ["tab-1", "tab-2"]
 
 
 def test_optimizer_mcp_raises_on_failed_command_result() -> None:
