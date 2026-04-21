@@ -12,6 +12,31 @@ export const API_BASE_URL = rawApiUrl.endsWith('/')
   ? rawApiUrl.slice(0, -1)
   : rawApiUrl;
 
+export const LOCAL_CHART_PROVIDER_BASE_URL = 'http://127.0.0.1:8765';
+
+export interface TradingViewMcpConfigResponse {
+  approved_versions: string[];
+}
+
+export interface PatchTradingViewMcpConfigRequest {
+  approved_versions: string[];
+}
+
+export interface TradingViewMcpCompatibilityProbe {
+  command?: string;
+  ok?: boolean;
+  error?: string | null;
+}
+
+export interface LocalChartProviderCompatibilityResponse {
+  status: string;
+  chart_context_enabled: boolean;
+  tradingview_version: string | null;
+  checked_at?: string | null;
+  reason?: string;
+  probe?: TradingViewMcpCompatibilityProbe | null;
+}
+
 /**
  * Fetch wrapper with automatic Railway URL handling
  */
@@ -57,6 +82,38 @@ export async function apiFetch<T>(
 
   // Fallback for non-JSON responses (should be rare in this app).
   return text as unknown as T;
+}
+
+export async function fetchTradingViewMcpConfig(): Promise<TradingViewMcpConfigResponse> {
+  return apiFetch<TradingViewMcpConfigResponse>('/api/v1/config/tradingview-mcp');
+}
+
+export async function patchTradingViewMcpConfig(
+  body: PatchTradingViewMcpConfigRequest
+): Promise<TradingViewMcpConfigResponse> {
+  return apiFetch<TradingViewMcpConfigResponse>('/api/v1/config/tradingview-mcp', {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchLocalChartProviderCompatibility(): Promise<LocalChartProviderCompatibilityResponse> {
+  const response = await fetch(
+    `${LOCAL_CHART_PROVIDER_BASE_URL}/health/compatibility`,
+    {
+      cache: 'no-store',
+      mode: 'cors',
+    }
+  );
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(
+      `Local provider error (${response.status}): ${error || 'request failed'}`
+    );
+  }
+
+  return response.json() as Promise<LocalChartProviderCompatibilityResponse>;
 }
 
 /**

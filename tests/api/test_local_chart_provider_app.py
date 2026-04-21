@@ -88,3 +88,30 @@ def test_compatibility_health_endpoint_returns_cached_status(monkeypatch) -> Non
     assert response.json()["status"] == "supported"
     assert response.json()["chart_context_enabled"] is True
     assert response.json()["tradingview_version"] == "2.9.0"
+
+
+def test_compatibility_health_endpoint_supports_browser_cors(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "src.local_chart_provider_app.get_chart_provider_compatibility_status",
+        lambda: {
+            "status": "probe_failed",
+            "chart_context_enabled": False,
+            "tradingview_version": "2.9.1",
+            "checked_at": "2026-04-21T12:00:00Z",
+            "reason": "status command failed",
+            "probe": {"command": "status", "ok": False},
+        },
+    )
+
+    client = TestClient(app)
+    response = client.options(
+        "/health/compatibility",
+        headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
+    assert "GET" in response.headers["access-control-allow-methods"]

@@ -5,6 +5,7 @@ import { ConnectionStatus } from '@/components/settings/ConnectionStatus';
 import { ConfigDisplay } from '@/components/settings/ConfigDisplay';
 import { AiConfigPanel } from '@/components/settings/AiConfigPanel';
 import { SystemHealthPanel } from '@/components/settings/SystemHealthPanel';
+import { TradingViewMcpPanel } from '@/components/settings/TradingViewMcpPanel';
 import { AlertRulesPanel } from '@/components/settings/AlertRulesPanel';
 import { Info, Layers, Settings, Globe, Check } from 'lucide-react';
 import { useTimezone, TZ_OPTIONS } from '@/providers/TimezoneProvider';
@@ -189,6 +190,9 @@ export default function SettingsPage() {
 
       {/* System Health */}
       <SystemHealthPanel />
+
+      {/* TradingView MCP */}
+      <TradingViewMcpPanel />
 
       {/* Manual broker sync */}
       <ManualSyncPanel />

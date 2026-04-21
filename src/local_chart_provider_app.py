@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 
 from fastapi import FastAPI, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from src.local_chart_provider_service import (
@@ -19,6 +20,12 @@ ARTIFACTS_DIR = Path(__file__).resolve().parents[1] / "mcp" / "tradingview-mcp" 
 ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title="Local TradingView MCP Provider", version="0.1.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_methods=["GET", "OPTIONS"],
+    allow_headers=["*"],
+)
 app.mount("/provider-artifacts", StaticFiles(directory=ARTIFACTS_DIR), name="provider-artifacts")
 
 
