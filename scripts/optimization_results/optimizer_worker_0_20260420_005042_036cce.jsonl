@@ -1,3 +1,0 @@
-{"ts": "2026-04-20T00:51:39.189284+03:00", "run_id": "20260420_005042_036cce", "worker_id": 0, "symbol": "EURUSD", "trial": 1, "outcome": "apply_failed", "params_hash": "d624e896", "results_hash_before": "d41d8cd9", "results_hash_after": "", "metrics": {}}
-{"ts": "2026-04-20T00:52:39.384590+03:00", "run_id": "20260420_005042_036cce", "worker_id": 0, "symbol": "EURUSD", "trial": 1, "outcome": "apply_failed", "params_hash": "d624e896", "results_hash_before": "d41d8cd9", "results_hash_after": "", "metrics": {}}
-{"ts": "2026-04-20T00:54:01.600703+03:00", "run_id": "20260420_005042_036cce", "worker_id": 0, "symbol": "EURUSD", "trial": 1, "outcome": "apply_failed", "params_hash": "d624e896", "results_hash_before": "97246984", "results_hash_after": "", "metrics": {}}
