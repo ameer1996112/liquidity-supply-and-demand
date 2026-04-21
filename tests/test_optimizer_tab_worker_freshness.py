@@ -232,6 +232,33 @@ class DesktopClientSwitchPage(DummyPage):
         self.url = url
 
 
+class DesktopTimeframePage(DummyPage):
+    def __init__(self) -> None:
+        super().__init__(title="TradingView")
+        self.tab_id = "desktop-tab"
+        self.resolution = "60"
+
+        class _Client:
+            def __init__(self, outer) -> None:
+                self.outer = outer
+                self.calls: list[tuple[str, ...]] = []
+
+            async def run(self, *args: str):
+                self.calls.append(args)
+                if args == ("timeframe", "5"):
+                    self.outer.resolution = "5"
+                return {"success": True}
+
+        self._client = _Client(self)
+
+    async def evaluate(self, script: str, *_args):
+        if ".resolution?.() || ''" in script:
+            return self.resolution
+        if "const candidates = Array.from(document.querySelectorAll('button, [role=\"button\"], [role=\"tab\"]'))" in script:
+            return False
+        return None
+
+
 class BlankThenCustomProfilePage(DummyPage):
     def __init__(self) -> None:
         super().__init__(title="EURUSD 5 OANDA")
@@ -727,6 +754,9 @@ def test_switch_symbol_does_not_force_backtest_range(monkeypatch) -> None:
         range_calls.append(label)
         return True
 
+    async def fake_ensure_chart_timeframe_5m() -> bool:
+        return True
+
     async def fake_sleep(seconds: float) -> None:
         return None
 
@@ -735,6 +765,7 @@ def test_switch_symbol_does_not_force_backtest_range(monkeypatch) -> None:
     monkeypatch.setattr(worker, "_wait_for_load", fake_wait_for_load)
     monkeypatch.setattr(worker, "_current_symbol", fake_current_symbol)
     monkeypatch.setattr(worker, "_set_backtest_range", fake_set_backtest_range)
+    monkeypatch.setattr(worker, "_ensure_chart_timeframe_5m", fake_ensure_chart_timeframe_5m)
 
     asyncio.run(worker._switch_symbol("USDJPY"))
 
@@ -757,8 +788,9 @@ def test_switch_symbol_restores_5m_timeframe(monkeypatch) -> None:
     async def fake_current_symbol() -> str:
         return "USDJPY"
 
-    async def fake_ensure_chart_timeframe_5m() -> None:
+    async def fake_ensure_chart_timeframe_5m() -> bool:
         events.append("set-5m")
+        return True
 
     async def fake_sleep(seconds: float) -> None:
         return None
@@ -785,8 +817,9 @@ def test_switch_symbol_prefers_desktop_mcp_symbol_command(monkeypatch) -> None:
     async def fake_wait_for_load(timeout: int = 30) -> None:
         events.append(f"wait-load:{timeout}")
 
-    async def fake_ensure_chart_timeframe_5m() -> None:
+    async def fake_ensure_chart_timeframe_5m() -> bool:
         events.append("set-5m")
+        return True
 
     monkeypatch.setattr(tab_worker_module.asyncio, "sleep", fake_sleep)
     monkeypatch.setattr(worker, "_wait_for_load", fake_wait_for_load)
@@ -797,6 +830,21 @@ def test_switch_symbol_prefers_desktop_mcp_symbol_command(monkeypatch) -> None:
     assert page._client.calls == [("symbol", "VANTAGE:EURJPY")]
     assert page.goto_called is False
     assert "set-5m" in events
+
+
+def test_ensure_chart_timeframe_5m_verifies_desktop_mcp_result(monkeypatch) -> None:
+    page = DesktopTimeframePage()
+    worker = TabWorker(page, DummyOptimizer())
+
+    async def fake_sleep(seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr(tab_worker_module.asyncio, "sleep", fake_sleep)
+
+    result = asyncio.run(worker._ensure_chart_timeframe_5m())
+
+    assert result is True
+    assert page._client.calls == [("timeframe", "5")]
 
 
 def test_set_backtest_range_clicks_menu_when_current_span_is_wrong(monkeypatch) -> None:
@@ -840,7 +888,7 @@ def test_set_backtest_range_clicks_menu_when_current_span_is_wrong(monkeypatch) 
     assert "wait-update" in events
 
 
-def test_set_backtest_range_falls_back_to_chart_shortcut_when_menu_missing(monkeypatch) -> None:
+def test_set_backtest_range_requires_ui_confirmation_after_chart_shortcut(monkeypatch) -> None:
     worker = TabWorker(DummyPage(), DummyOptimizer())
     events: list[object] = []
     texts = iter(["", ""])
@@ -875,7 +923,7 @@ def test_set_backtest_range_falls_back_to_chart_shortcut_when_menu_missing(monke
 
     result = asyncio.run(worker._set_backtest_range("Last 365 days"))
 
-    assert result is True
+    assert result is False
     assert ("select", "Last 365 days") in events
     assert ("chart-select", "Last 365 days") in events
     assert "wait-update" in events

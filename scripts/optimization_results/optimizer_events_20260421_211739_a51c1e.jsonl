@@ -1,0 +1,5 @@
+{"ts": "2026-04-21T21:17:39.511596+03:00", "run_id": "20260421_211739_a51c1e", "event_type": "run_started", "mode": "bayesian", "workers": 4, "pairs": ["EURUSD", "EURJPY", "AUDCAD", "XAUUSD"], "dry_run": false, "broker": "oanda", "backtest_range": "Last 90 days"}
+{"ts": "2026-04-21T21:17:39.792055+03:00", "run_id": "20260421_211739_a51c1e", "event_type": "pair_started", "worker_id": 0, "symbol": "EURUSD", "attempt": 1}
+{"ts": "2026-04-21T21:17:54.794905+03:00", "run_id": "20260421_211739_a51c1e", "event_type": "pair_started", "worker_id": 1, "symbol": "EURJPY", "attempt": 1}
+{"ts": "2026-04-21T21:18:09.798450+03:00", "run_id": "20260421_211739_a51c1e", "event_type": "pair_started", "worker_id": 2, "symbol": "AUDCAD", "attempt": 1}
+{"ts": "2026-04-21T21:18:24.797094+03:00", "run_id": "20260421_211739_a51c1e", "event_type": "pair_started", "worker_id": 3, "symbol": "XAUUSD", "attempt": 1}

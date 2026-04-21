@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from dataclasses import dataclass
 from typing import Any
+from urllib.request import urlopen
 
+from scripts.optimizer.desktop_page import TradingViewDesktopPage
 from scripts.optimizer.tradingview_mcp import TradingViewMcpClient
 
 
@@ -18,6 +21,7 @@ class OptimizerWorkspaceSlot:
 
 
 class OptimizerMcpController:
+    _CDP_TARGETS_URL = "http://127.0.0.1:9222/json/list"
     _TAB_BOOTSTRAP_SETTLE_ATTEMPTS = 12
     _TAB_BOOTSTRAP_SETTLE_SLEEP_SECS = 1.0
 
@@ -57,10 +61,55 @@ class OptimizerMcpController:
         page_target_count = int(result.get("page_target_count") or len(tabs))
         return len(tabs), page_target_count
 
+    @staticmethod
+    def _tab_id(tab: dict[str, Any]) -> str:
+        return str(tab.get("id") or "")
+
     def _workspace_bootstrap_error(self, message: str) -> RuntimeError:
         return RuntimeError(
             f"{message}. Retry once TradingView Desktop is ready and tab creation is working."
         )
+
+    @staticmethod
+    def _is_chart_page(target: dict[str, Any]) -> bool:
+        url = str(target.get("url") or "")
+        return "tradingview.com/chart/" in url
+
+    @staticmethod
+    def _is_new_tab_shell(target: dict[str, Any]) -> bool:
+        url = str(target.get("url") or "")
+        return url.startswith("file://") and "/app/new-tab/index.html" in url
+
+    @staticmethod
+    def _normalize_page_target(target: dict[str, Any], index: int) -> dict[str, Any]:
+        url = str(target.get("url") or "")
+        title = str(target.get("title") or "")
+        if title.startswith("Live stock"):
+            title = title.replace("Live stock, index, futures, Forex and Bitcoin charts on ", "")
+        return {
+            "index": index,
+            "id": str(target.get("id") or ""),
+            "title": title,
+            "url": url,
+            "chart_id": url.split("/chart/")[1].split("/")[0].split("?")[0] if "/chart/" in url else None,
+            "kind": "chart" if OptimizerMcpController._is_chart_page(target) else "new_tab",
+        }
+
+    async def _list_workspace_pages(self) -> list[dict[str, Any]]:
+        def _load_targets() -> list[dict[str, Any]]:
+            with urlopen(self._CDP_TARGETS_URL, timeout=5) as response:
+                payload = json.load(response)
+            return list(payload or [])
+
+        raw_targets = await asyncio.to_thread(_load_targets)
+        pages: list[dict[str, Any]] = []
+        for index, target in enumerate(raw_targets):
+            if target.get("type") != "page":
+                continue
+            if not (self._is_chart_page(target) or self._is_new_tab_shell(target)):
+                continue
+            pages.append(self._normalize_page_target(target, index))
+        return pages
 
     def _build_workspace_slots(
         self,
@@ -144,6 +193,97 @@ class OptimizerMcpController:
 
         return tabs, page_target_count
 
+    async def _wait_for_new_workspace_tab(
+        self,
+        *,
+        known_tab_ids: set[str],
+        minimum_page_targets: int,
+    ) -> dict[str, Any]:
+        """Wait for a brand-new chart tab to appear after `tab new`."""
+        for _ in range(self._TAB_BOOTSTRAP_SETTLE_ATTEMPTS):
+            result = await self._run_command("tab list", "tab", "list")
+            tabs = list(result.get("tabs") or [])
+            page_target_count = int(result.get("page_target_count") or len(tabs))
+            fresh_tabs = [tab for tab in tabs if self._tab_id(tab) not in known_tab_ids]
+            if fresh_tabs:
+                fresh_tabs.sort(key=lambda tab: int(tab.get("index") or -1))
+                return fresh_tabs[-1]
+            if page_target_count >= minimum_page_targets:
+                await asyncio.sleep(self._TAB_BOOTSTRAP_SETTLE_SLEEP_SECS)
+                continue
+            await asyncio.sleep(self._TAB_BOOTSTRAP_SETTLE_SLEEP_SECS)
+
+        raise self._workspace_bootstrap_error(
+            "TradingView MCP created a new page target but never exposed a fresh chart tab"
+        )
+
+    async def _wait_for_new_workspace_page(
+        self,
+        *,
+        known_page_ids: set[str],
+    ) -> dict[str, Any]:
+        """Wait for a fresh TradingView page target, including new-tab shell pages."""
+        for _ in range(self._TAB_BOOTSTRAP_SETTLE_ATTEMPTS):
+            pages = await self._list_workspace_pages()
+            fresh_pages = [page for page in pages if self._tab_id(page) not in known_page_ids]
+            if fresh_pages:
+                shell_pages = [page for page in fresh_pages if page.get("kind") == "new_tab"]
+                if shell_pages:
+                    return shell_pages[0]
+                return fresh_pages[0]
+            await asyncio.sleep(self._TAB_BOOTSTRAP_SETTLE_SLEEP_SECS)
+
+        raise self._workspace_bootstrap_error(
+            "TradingView MCP created no fresh TradingView page after tab creation"
+        )
+
+    @staticmethod
+    def _bootstrap_chart_url(
+        *,
+        bootstrap_chart_id: str | None,
+        bootstrap_symbol: str,
+        broker: str,
+    ) -> str:
+        symbol_token = f"{broker.upper()}%3A{bootstrap_symbol.upper()}"
+        if bootstrap_chart_id:
+            return f"https://www.tradingview.com/chart/{bootstrap_chart_id}/?symbol={symbol_token}"
+        return f"https://www.tradingview.com/chart/?symbol={symbol_token}"
+
+    async def _promote_new_tab_to_chart(
+        self,
+        *,
+        shell_tab: dict[str, Any],
+        bootstrap_chart_id: str | None,
+        bootstrap_symbol: str,
+        broker: str,
+        known_chart_ids: set[str],
+        known_page_ids: set[str],
+    ) -> dict[str, Any]:
+        shell_tab_id = self._tab_id(shell_tab)
+        bootstrap_url = self._bootstrap_chart_url(
+            bootstrap_chart_id=bootstrap_chart_id,
+            bootstrap_symbol=bootstrap_symbol,
+            broker=broker,
+        )
+        page = TradingViewDesktopPage(tab_id=shell_tab_id, chart_id=bootstrap_chart_id)
+        await page.goto(bootstrap_url)
+
+        for _ in range(self._TAB_BOOTSTRAP_SETTLE_ATTEMPTS * 2):
+            pages = await self._list_workspace_pages()
+            for candidate in pages:
+                candidate_id = self._tab_id(candidate)
+                if candidate.get("kind") != "chart":
+                    continue
+                if candidate_id == shell_tab_id:
+                    return candidate
+                if candidate_id not in known_chart_ids and candidate_id not in known_page_ids:
+                    return candidate
+            await asyncio.sleep(self._TAB_BOOTSTRAP_SETTLE_SLEEP_SECS)
+
+        raise self._workspace_bootstrap_error(
+            "TradingView new-tab shell did not become a chart tab after bootstrap navigation"
+        )
+
     async def ensure_optimizer_workspace(
         self,
         required_tabs: int,
@@ -151,10 +291,38 @@ class OptimizerMcpController:
         broker: str,
         bootstrap_timeframe: str | None = None,
     ) -> list[OptimizerWorkspaceSlot]:
-        # Just verify tabs exist — workers set their own symbol when they pick up a pair.
-        # Per-tab bootstrap (switch + set_symbol for every slot) is wasteful and slow
-        # when workers=10, adding ~30s per tab before any work starts.
-        ready_slots = await self.ensure_optimizer_ready(required_tabs)
+        await self.ensure_ready()
+        existing_tabs = await self._list_workspace_tabs()
+        existing_pages = await self._list_workspace_pages()
+        bootstrap_chart_id = next(
+            (str(tab.get("chart_id") or "") for tab in existing_tabs if tab.get("chart_id")),
+            None,
+        ) or None
+        known_tab_ids = {self._tab_id(tab) for tab in existing_tabs}
+        known_page_ids = {self._tab_id(page) for page in existing_pages}
+        fresh_tabs: list[dict[str, Any]] = []
+
+        for _ in range(required_tabs):
+            await self._run_command("tab new", "tab", "new")
+            fresh_page = await self._wait_for_new_workspace_page(
+                known_page_ids=known_page_ids,
+            )
+            known_page_ids.add(self._tab_id(fresh_page))
+            fresh_tab = fresh_page
+            if fresh_page.get("kind") == "new_tab":
+                fresh_tab = await self._promote_new_tab_to_chart(
+                    shell_tab=fresh_page,
+                    bootstrap_chart_id=bootstrap_chart_id,
+                    bootstrap_symbol=bootstrap_symbol,
+                    broker=broker,
+                    known_chart_ids=known_tab_ids,
+                    known_page_ids=known_page_ids,
+                )
+                known_page_ids.add(self._tab_id(fresh_tab))
+            fresh_tabs.append(fresh_tab)
+            known_tab_ids.add(self._tab_id(fresh_tab))
+
+        ready_slots = self._build_workspace_slots(fresh_tabs)
         return [
             OptimizerWorkspaceSlot(
                 index=slot.index,

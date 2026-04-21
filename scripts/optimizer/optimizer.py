@@ -338,6 +338,8 @@ class TradingViewOptimizer:
 
         # ── Always set backtest range (even if symbol didn't change) ───────────
         await self._require_worker_backtest_range(worker)
+        if hasattr(worker, "_prepare_clean_chart"):
+            await worker._prepare_clean_chart()
 
         # ── Reset risk to 0.5% before every pair ───────────────────────────────
         # Ensures TradingView isn't left at a different risk from a previous run.

@@ -1,0 +1,1 @@
+{"ts": "2026-04-21T21:41:20.303737+03:00", "run_id": "20260421_214120_c9ea1b", "event_type": "run_started", "mode": "bayesian", "workers": 1, "pairs": ["EURJPY"], "dry_run": false, "broker": "oanda", "backtest_range": "Last 90 days"}

@@ -1,6 +1,7 @@
 import asyncio
 
 from scripts.optimizer.optimizer_mcp import OptimizerMcpController
+from scripts.optimizer import optimizer_mcp as optimizer_mcp_module
 
 
 def test_optimizer_mcp_healthcheck_returns_reason_from_client() -> None:
@@ -31,7 +32,7 @@ def test_optimizer_mcp_ensure_ready_raises_actionable_error() -> None:
         assert "retry once the app is ready" in str(exc)
 
 
-def test_optimizer_mcp_ensure_workspace_bootstraps_tabs() -> None:
+def test_optimizer_mcp_ensure_workspace_bootstraps_tabs(monkeypatch) -> None:
     class FakeClient:
         def __init__(self) -> None:
             self.calls: list[tuple[str, ...]] = []
@@ -81,6 +82,104 @@ def test_optimizer_mcp_ensure_workspace_bootstraps_tabs() -> None:
 
     client = FakeClient()
     controller = OptimizerMcpController(client=client)
+    page_states = iter(
+        [
+            [
+                {
+                    "index": 0,
+                    "id": "tab-1",
+                    "title": "TradingView",
+                    "url": "https://www.tradingview.com/chart/AAA/?symbol=VANTAGE%3ABTCUSDT",
+                    "chart_id": "AAA",
+                    "kind": "chart",
+                }
+            ],
+            [
+                {
+                    "index": 0,
+                    "id": "tab-1",
+                    "title": "TradingView",
+                    "url": "https://www.tradingview.com/chart/AAA/?symbol=VANTAGE%3ABTCUSDT",
+                    "chart_id": "AAA",
+                    "kind": "chart",
+                },
+                {
+                    "index": 1,
+                    "id": "tab-2",
+                    "title": "TradingView",
+                    "url": "https://www.tradingview.com/chart/BBB/?symbol=VANTAGE%3ABTCUSDT",
+                    "chart_id": "BBB",
+                    "kind": "chart",
+                },
+            ],
+            [
+                {
+                    "index": 0,
+                    "id": "tab-1",
+                    "title": "TradingView",
+                    "url": "https://www.tradingview.com/chart/AAA/?symbol=VANTAGE%3ABTCUSDT",
+                    "chart_id": "AAA",
+                    "kind": "chart",
+                },
+                {
+                    "index": 1,
+                    "id": "tab-2",
+                    "title": "TradingView",
+                    "url": "https://www.tradingview.com/chart/BBB/?symbol=VANTAGE%3ABTCUSDT",
+                    "chart_id": "BBB",
+                    "kind": "chart",
+                },
+                {
+                    "index": 2,
+                    "id": "tab-3",
+                    "title": "TradingView",
+                    "url": "https://www.tradingview.com/chart/CCC/?symbol=VANTAGE%3ABTCUSDT",
+                    "chart_id": "CCC",
+                    "kind": "chart",
+                },
+            ],
+            [
+                {
+                    "index": 0,
+                    "id": "tab-1",
+                    "title": "TradingView",
+                    "url": "https://www.tradingview.com/chart/AAA/?symbol=VANTAGE%3ABTCUSDT",
+                    "chart_id": "AAA",
+                    "kind": "chart",
+                },
+                {
+                    "index": 1,
+                    "id": "tab-2",
+                    "title": "TradingView",
+                    "url": "https://www.tradingview.com/chart/BBB/?symbol=VANTAGE%3ABTCUSDT",
+                    "chart_id": "BBB",
+                    "kind": "chart",
+                },
+                {
+                    "index": 2,
+                    "id": "tab-3",
+                    "title": "TradingView",
+                    "url": "https://www.tradingview.com/chart/CCC/?symbol=VANTAGE%3ABTCUSDT",
+                    "chart_id": "CCC",
+                    "kind": "chart",
+                },
+                {
+                    "index": 3,
+                    "id": "tab-4",
+                    "title": "TradingView",
+                    "url": "https://www.tradingview.com/chart/DDD/?symbol=VANTAGE%3ABTCUSDT",
+                    "chart_id": "DDD",
+                    "kind": "chart",
+                },
+            ],
+        ]
+    )
+
+    async def fake_list_workspace_pages() -> list[dict[str, object]]:
+        return next(page_states)
+
+    monkeypatch.setattr(controller, "_list_workspace_pages", fake_list_workspace_pages)
+
     workspace = asyncio.run(
         controller.ensure_optimizer_workspace(
             required_tabs=3,
@@ -90,20 +189,133 @@ def test_optimizer_mcp_ensure_workspace_bootstraps_tabs() -> None:
         )
     )
 
-    assert [slot.index for slot in workspace] == [0, 1, 2]
-    assert [slot.tab_id for slot in workspace] == ["tab-1", "tab-2", "tab-3"]
-    assert [slot.chart_id for slot in workspace] == ["AAA", "BBB", "CCC"]
+    assert [slot.index for slot in workspace] == [1, 2, 3]
+    assert [slot.tab_id for slot in workspace] == ["tab-2", "tab-3", "tab-4"]
+    assert [slot.chart_id for slot in workspace] == ["BBB", "CCC", "DDD"]
     assert [slot.broker for slot in workspace] == ["VANTAGE", "VANTAGE", "VANTAGE"]
     assert [slot.symbol for slot in workspace] == ["BTCUSDT", "BTCUSDT", "BTCUSDT"]
     assert [slot.timeframe for slot in workspace] == ["15m", "15m", "15m"]
     assert client.calls == [
         ("tab", "list"),
-        ("tab", "list"),
         ("tab", "new"),
-        ("tab", "list"),
-        ("tab", "list"),
         ("tab", "new"),
-        ("tab", "list"),
+        ("tab", "new"),
+    ]
+
+
+def test_optimizer_mcp_workspace_promotes_new_shell_tab(monkeypatch) -> None:
+    class FakeClient:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, ...]] = []
+
+        async def healthcheck(self) -> tuple[bool, str]:
+            return True, "ok"
+
+        async def run(self, *args: str) -> dict[str, object]:
+            self.calls.append(args)
+            if args == ("tab", "list"):
+                return {
+                    "success": True,
+                    "tab_count": 1,
+                    "page_target_count": 1,
+                    "tabs": [
+                        {
+                            "index": 0,
+                            "id": "chart-1",
+                            "title": "TradingView",
+                            "url": "https://www.tradingview.com/chart/AAA/?symbol=OANDA%3AEURUSD",
+                            "chart_id": "AAA",
+                        }
+                    ],
+                }
+            if args == ("tab", "new"):
+                return {"success": True, "action": "new_tab_opened"}
+            return {"success": True}
+
+    controller = OptimizerMcpController(client=FakeClient())
+    page_states = iter(
+        [
+            [
+                {
+                    "index": 0,
+                    "id": "chart-1",
+                    "title": "TradingView",
+                    "url": "https://www.tradingview.com/chart/AAA/?symbol=OANDA%3AEURUSD",
+                    "chart_id": "AAA",
+                    "kind": "chart",
+                }
+            ],
+            [
+                {
+                    "index": 0,
+                    "id": "chart-1",
+                    "title": "TradingView",
+                    "url": "https://www.tradingview.com/chart/AAA/?symbol=OANDA%3AEURUSD",
+                    "chart_id": "AAA",
+                    "kind": "chart",
+                },
+                {
+                    "index": 1,
+                    "id": "shell-1",
+                    "title": "New tab",
+                    "url": "file:///Applications/TradingView.app/Contents/Resources/app.asar/app/new-tab/index.html",
+                    "chart_id": None,
+                    "kind": "new_tab",
+                },
+            ],
+            [
+                {
+                    "index": 0,
+                    "id": "chart-1",
+                    "title": "TradingView",
+                    "url": "https://www.tradingview.com/chart/AAA/?symbol=OANDA%3AEURUSD",
+                    "chart_id": "AAA",
+                    "kind": "chart",
+                },
+                {
+                    "index": 1,
+                    "id": "chart-2",
+                    "title": "TradingView",
+                    "url": "https://www.tradingview.com/chart/AAA/?symbol=OANDA%3AEURJPY",
+                    "chart_id": "AAA",
+                    "kind": "chart",
+                },
+            ],
+        ]
+    )
+    goto_calls: list[tuple[str, str | None, str]] = []
+
+    async def fake_list_workspace_pages() -> list[dict[str, object]]:
+        return next(page_states)
+
+    class FakeDesktopPage:
+        def __init__(self, *, tab_id: str, chart_id: str | None, client=None) -> None:
+            self.tab_id = tab_id
+            self.chart_id = chart_id
+
+        async def goto(self, url: str, wait_until: str | None = None, timeout: int | None = None) -> None:
+            goto_calls.append((self.tab_id, self.chart_id, url))
+
+    monkeypatch.setattr(controller, "_list_workspace_pages", fake_list_workspace_pages)
+    monkeypatch.setattr(optimizer_mcp_module, "TradingViewDesktopPage", FakeDesktopPage)
+
+    workspace = asyncio.run(
+        controller.ensure_optimizer_workspace(
+            required_tabs=1,
+            bootstrap_symbol="EURJPY",
+            broker="oanda",
+            bootstrap_timeframe="5m",
+        )
+    )
+
+    assert len(workspace) == 1
+    assert workspace[0].tab_id == "chart-2"
+    assert workspace[0].chart_id == "AAA"
+    assert workspace[0].broker == "OANDA"
+    assert workspace[0].symbol == "EURJPY"
+    assert workspace[0].timeframe == "5m"
+    assert goto_calls == [
+        ("shell-1", "AAA", "https://www.tradingview.com/chart/AAA/?symbol=OANDA%3AEURJPY")
     ]
 
 

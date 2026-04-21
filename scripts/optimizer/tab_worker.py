@@ -824,6 +824,26 @@ class TabWorker:
             await asyncio.sleep(0.5)
         return False
 
+    async def _current_timeframe(self) -> str:
+        """Return the current chart timeframe token when available."""
+        if hasattr(self.page, "tab_id"):
+            try:
+                resolution = await self.page.evaluate(
+                    """
+                    (() => {
+                        try {
+                            return window.TradingViewApi?._activeChartWidgetWV?.value()?.resolution?.() || '';
+                        } catch (error) {
+                            return '';
+                        }
+                    })()
+                    """
+                )
+                return str(resolution or "").strip()
+            except Exception:
+                pass
+        return ""
+
 
     # ─────────────────────────────────── navigation ──────────────────────────
 
@@ -877,7 +897,8 @@ class TabWorker:
                 observed = await self._current_symbol()
                 if observed == clean_symbol:
                     print(f"  Switched to {clean_symbol} (verified)")
-                    await self._ensure_chart_timeframe_5m()
+                    if not await self._ensure_chart_timeframe_5m():
+                        raise RuntimeError("Could not confirm chart timeframe is 5m")
                     return
                 log.warning(
                     "_switch_symbol: MCP symbol command did not land on %s (observed=%s), falling back to URL navigation",
@@ -902,14 +923,26 @@ class TabWorker:
         observed = await self._current_symbol()
         if observed == clean_symbol:
             print(f"  Switched to {clean_symbol} (verified)")
-            await self._ensure_chart_timeframe_5m()
+            if not await self._ensure_chart_timeframe_5m():
+                raise RuntimeError("Could not confirm chart timeframe is 5m")
         else:
             raise RuntimeError(
                 f"Symbol switch failed: expected {clean_symbol}, observed {observed or 'UNKNOWN'}"
             )
 
-    async def _ensure_chart_timeframe_5m(self) -> None:
-        """Best-effort reset to the optimizer's expected 5-minute chart timeframe."""
+    async def _ensure_chart_timeframe_5m(self) -> bool:
+        """Set and verify the optimizer's expected 5-minute chart timeframe."""
+        if hasattr(self.page, "_client"):
+            try:
+                result = await self.page._client.run("timeframe", "5")
+                if not result.get("success", True):
+                    raise RuntimeError(str(result.get("error") or "timeframe command failed"))
+                await asyncio.sleep(1.0)
+                if await self._current_timeframe() == "5":
+                    return True
+            except Exception as e:
+                log.warning("_ensure_chart_timeframe_5m: MCP timeframe command failed, falling back to UI click: %s", e)
+
         try:
             clicked = await self.page.evaluate(
                 """
@@ -946,6 +979,66 @@ class TabWorker:
             )
             if clicked:
                 await asyncio.sleep(1.0)
+        except Exception:
+            pass
+        return await self._current_timeframe() == "5"
+
+    async def _prepare_clean_chart(self) -> None:
+        """Reduce worker tab noise before opening settings."""
+        await self._dismiss_tv_errors()
+        try:
+            await self.page.keyboard.press("Escape")
+            await asyncio.sleep(0.2)
+        except Exception:
+            pass
+
+        try:
+            await self.page.evaluate(
+                """
+                (() => {
+                    const visible = (el) => {
+                        const rect = el?.getBoundingClientRect?.();
+                        const style = el ? window.getComputedStyle(el) : null;
+                        return !!rect && rect.width > 0 && rect.height > 0 &&
+                            style?.visibility !== 'hidden' && style?.display !== 'none';
+                    };
+                    const normalize = (text) => (text || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+
+                    for (const btn of document.querySelectorAll('button, [role="button"]')) {
+                        if (!visible(btn)) continue;
+                        const text = normalize(btn.textContent);
+                        const aria = normalize(btn.getAttribute('aria-label'));
+                        if (text === 'show indicator legend' || aria === 'show indicator legend') {
+                            btn.click();
+                            break;
+                        }
+                    }
+
+                    for (const btn of document.querySelectorAll('button, [role="button"]')) {
+                        if (!visible(btn)) continue;
+                        const aria = normalize(btn.getAttribute('aria-label'));
+                        if (![
+                            'alerts',
+                            'watchlist, details, and news',
+                            'object tree and data window',
+                            'chats',
+                            'screeners',
+                            'pine',
+                            'calendars',
+                            'community',
+                            'notifications',
+                            'help center',
+                        ].includes(aria)) {
+                            continue;
+                        }
+                        if (btn.getAttribute('aria-pressed') === 'true') {
+                            btn.click();
+                        }
+                    }
+                    return true;
+                })()
+                """
+            )
         except Exception:
             pass
 
@@ -1239,10 +1332,6 @@ class TabWorker:
                     )
                 else:
                     print(f"  [backtest range ✓ set to {preset_summary}]", flush=True)
-                return True
-
-            if selected_via_chart_tab and not updated_text:
-                print(f"  [backtest range ✓ applied chart shortcut for {preset_summary}]", flush=True)
                 return True
 
             log.warning(
@@ -2144,6 +2233,7 @@ class TabWorker:
             try:
                 # Dismiss any runtime errors before attempting
                 await self._dismiss_tv_errors()
+                await self._prepare_clean_chart()
 
                 # Snapshot hash BEFORE
                 hash_before = await self._get_results_hash()
@@ -2317,6 +2407,7 @@ class TabWorker:
         try:
             # Dismiss any runtime errors before attempting
             await self._dismiss_tv_errors()
+            await self._prepare_clean_chart()
 
             if not await self._open_settings():
                 raise RuntimeError("Could not open settings dialog")
@@ -2558,6 +2649,7 @@ class TabWorker:
 
         await self._switch_symbol(symbol)
         await self._require_backtest_range(self.optimizer.backtest_range_label)
+        await self._prepare_clean_chart()
 
         param_grid = self.optimizer.get_param_grid(symbol)
         combos = self.optimizer.generate_combinations(param_grid)
@@ -2608,6 +2700,7 @@ class TabWorker:
 
         await self._switch_symbol(symbol)
         await self._require_backtest_range(self.optimizer.backtest_range_label)
+        await self._prepare_clean_chart()
 
         print(f"{tag} Reading baseline results...")
         baseline = await self._read_results(symbol, {"baseline": True})
