@@ -904,9 +904,9 @@ function ProfileRow({
             size="sm"
             variant="outline"
             className="h-7 text-[11px] gap-1.5 border-[var(--to-warning)]/30 text-[var(--to-warning)] hover:bg-[var(--to-warning)]/10"
-            disabled={activate.isPending || profile.venue === 'ctrader'}
+            disabled={activate.isPending || (profile.venue === 'ctrader' && !profile.token_masked)}
             onClick={() => activate.mutate()}
-            title={profile.venue === 'ctrader' ? 'cTrader activation is disabled until execution adapter is implemented' : 'Enable this account for trading'}
+            title={profile.venue === 'ctrader' && !profile.token_masked ? 'Connect cTrader via OAuth first' : 'Enable this account for trading'}
           >
             {activate.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />} Activate
           </Button>

@@ -576,11 +576,6 @@ def activate_broker_profile(profile_id: int):
         if not rows[0].get("is_active", True):
             raise HTTPException(status_code=409, detail="Cannot activate a disabled profile")
         venue = (rows[0].get("venue") or "metaapi_mt5").strip().lower()
-        if venue == "ctrader":
-            raise HTTPException(
-                status_code=409,
-                detail="cTrader activation is disabled until execution adapter is implemented.",
-            )
 
         # Enforce exclusive selection (DB may enforce this via unique constraint).
         # Clear existing selection first, then select the requested profile.
