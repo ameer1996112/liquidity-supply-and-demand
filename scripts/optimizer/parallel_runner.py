@@ -46,6 +46,7 @@ from .desktop_page import TradingViewDesktopPage
 from .models import BacktestResult
 from .optimizer_mcp import OptimizerMcpController, OptimizerWorkspaceSlot
 from .runtime_state import OptimizerRuntimeState
+from .tab_worker import normalize_backtest_range, backtest_range_to_label
 
 try:
     from playwright.async_api import async_playwright, Page
@@ -352,6 +353,7 @@ async def optimize_pair_on_page(
     dd_limit: float,
     dry_run: bool,
     broker: str = "vantage",
+    backtest_range: str = "365d",
     runtime_state: OptimizerRuntimeState | None = None,
     run_id: str | None = None,
     worker_id: int | None = None,
@@ -386,6 +388,7 @@ async def optimize_pair_on_page(
         fast_mode=(mode == "fast"),
         n_trials=n_trials,
         dd_limit=dd_limit,
+        backtest_range=backtest_range,
     )
     opt_shell.page = page
     opt_shell.runtime_state = runtime_state
@@ -420,6 +423,7 @@ async def worker_task(
     dry_run: bool,
     runtime_state: OptimizerRuntimeState | None,
     run_id: str | None,
+    backtest_range: str = "365d",
 ) -> None:
     """Worker coroutine: pulls pairs from queue, optimizes, saves results."""
     log.info(f"[worker-{worker_id}] Started")
@@ -463,6 +467,7 @@ async def worker_task(
                     dd_limit,
                     dry_run,
                     broker=broker,
+                    backtest_range=backtest_range,
                     runtime_state=runtime_state,
                     run_id=run_id,
                     worker_id=worker_id,
@@ -569,6 +574,7 @@ async def run_parallel(
     dd_limit: float,
     dry_run: bool,
     broker: str,
+    backtest_range: str = "365d",
     raw_args: list[str] | None = None,
     results_label: str | None = None,
 ) -> dict:
@@ -578,9 +584,14 @@ async def run_parallel(
     setup_logging()
     results_file = results_file_for_broker(broker, results_label)
     latest_results_file = results_file_for_broker(broker)
+    backtest_range = normalize_backtest_range(backtest_range)
+    backtest_range_label = backtest_range_to_label(backtest_range)
 
     log.info(f"Parallel optimizer starting")
-    log.info(f"  Pairs: {len(pairs)} | Workers: {n_workers} | Mode: {mode} | Broker: {broker}")
+    log.info(
+        f"  Pairs: {len(pairs)} | Workers: {n_workers} | Mode: {mode} | "
+        f"Broker: {broker} | Backtest range: {backtest_range_label}"
+    )
     if results_label:
         log.info(f"  Results label: {results_label}")
     if dry_run:
@@ -619,7 +630,14 @@ async def run_parallel(
     runtime_state.record_run_event(
         run_id=run_id,
         event_type="run_started",
-        payload={"mode": mode, "workers": n_workers, "pairs": remaining_pairs, "dry_run": dry_run, "broker": broker},
+        payload={
+            "mode": mode,
+            "workers": n_workers,
+            "pairs": remaining_pairs,
+            "dry_run": dry_run,
+            "broker": broker,
+            "backtest_range": backtest_range_label,
+        },
     )
     emit_event(
         "run_started",
@@ -629,6 +647,7 @@ async def run_parallel(
         pairs=remaining_pairs,
         dry_run=dry_run,
         broker=broker,
+        backtest_range=backtest_range_label,
     )
 
     # Build queue
@@ -669,6 +688,7 @@ async def run_parallel(
                     results_lock=results_lock,
                     error_log=error_log,
                     broker=broker,
+                    backtest_range=backtest_range,
                     mode=mode,
                     n_trials=n_trials,
                     dd_limit=dd_limit,
@@ -772,6 +792,12 @@ def main() -> None:
     parser.add_argument("--dd-limit", type=float, default=PROP_FIRM_MAX_DD_PCT, help="Max drawdown %")
     parser.add_argument("--pairs", type=str, help="Comma-separated list of pairs (default: all)")
     parser.add_argument("--broker", choices=sorted(SUPPORTED_BROKERS), default="vantage", help="Broker dataset namespace")
+    parser.add_argument(
+        "--backtest-range",
+        choices=["30d", "90d", "365d", "all"],
+        default="365d",
+        help="TradingView backtest window preset",
+    )
     parser.add_argument("--results-label", type=str, help="Optional run-specific suffix for the results filename")
     parser.add_argument("--dry-run", action="store_true", help="Test with fake results (2 pairs, 2 trials)")
     parser.add_argument("--reset", action="store_true", help="Clear existing results and start fresh")
@@ -805,6 +831,7 @@ def main() -> None:
         dd_limit=args.dd_limit,
         dry_run=args.dry_run,
         broker=args.broker,
+        backtest_range=args.backtest_range,
         raw_args=sys.argv[1:],
         results_label=args.results_label,
     ))

@@ -34,7 +34,7 @@ from .config import (
     PROP_FIRM_MAX_DD_PCT,
 )
 from .models import BacktestResult
-from .tab_worker import TabWorker
+from .tab_worker import TabWorker, backtest_range_to_label, normalize_backtest_range
 from src.services.optimizer_survival_scoring import classify_pair_result
 
 try:
@@ -62,6 +62,7 @@ class TradingViewOptimizer:
         dd_limit: float = PROP_FIRM_MAX_DD_PCT,
         generate_report: bool = True,
         fixed_overrides: dict = None,
+        backtest_range: str = "365d",
     ):
         self.pairs = pairs
         self.broker = broker
@@ -73,6 +74,8 @@ class TradingViewOptimizer:
         self.daily_dd_limit = _DEFAULT_DAILY_DD_LIMIT_PCT
         self.generate_report = generate_report
         self.fixed_overrides = fixed_overrides or {}
+        self.backtest_range = normalize_backtest_range(backtest_range)
+        self.backtest_range_label = backtest_range_to_label(self.backtest_range)
         self.results: list[BacktestResult] = []
         self.best_per_pair: dict[str, BacktestResult] = {}
         self.page: Optional[Page] = None
@@ -122,6 +125,13 @@ class TradingViewOptimizer:
             f"{prefix}  {pf}  {dd}  T={result.total_trades}  "
             f"S={result.score:.2f}  {compliant}"
         )
+
+    async def _require_worker_backtest_range(self, worker: TabWorker) -> None:
+        """Use the generic range API when available and fall back for legacy shims."""
+        if hasattr(worker, "_require_backtest_range"):
+            await worker._require_backtest_range(self.backtest_range_label)
+            return
+        await worker._require_last_365_days()
 
     # ─────────────────────────────────── param helpers ───────────────────────
 
@@ -246,6 +256,7 @@ class TradingViewOptimizer:
         if self.bayesian_mode:
             print(f"Trials per pair: {self.n_trials}")
             print(f"Prop-firm DD limit: {self.dd_limit}%")
+        print(f"Backtest range: {self.backtest_range_label}")
         print("\nConnecting to Chrome browser on port 9222...")
 
         self._pw = await async_playwright().start()
@@ -326,7 +337,7 @@ class TradingViewOptimizer:
         start = time.time()
 
         # ── Always set backtest range (even if symbol didn't change) ───────────
-        await worker._require_last_365_days()
+        await self._require_worker_backtest_range(worker)
 
         # ── Reset risk to 0.5% before every pair ───────────────────────────────
         # Ensures TradingView isn't left at a different risk from a previous run.
@@ -356,7 +367,7 @@ class TradingViewOptimizer:
                     await worker.page.reload(wait_until="domcontentloaded", timeout=30000)
                     await asyncio.sleep(5)
                     await worker._switch_symbol(symbol)
-                    await worker._require_last_365_days()
+                    await self._require_worker_backtest_range(worker)
                 except Exception as e:
                     print(f"[{symbol}] Tab reload failed: {e}")
                 consecutive_failures = 0

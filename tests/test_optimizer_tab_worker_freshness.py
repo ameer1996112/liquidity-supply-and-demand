@@ -434,9 +434,25 @@ def test_range_matches_label_uses_actual_day_span() -> None:
         "Apr 13, 2025 — Apr 13, 2026Apr 13, 2025 — Apr 13, 2026",
         "Last 365 days",
     )
+    assert TabWorker._range_matches_label(
+        "Jan 13, 2026 — Apr 13, 2026Jan 13, 2026 — Apr 13, 2026",
+        "Last 90 days",
+    )
+    assert TabWorker._range_matches_label(
+        "Mar 14, 2026 — Apr 13, 2026Mar 14, 2026 — Apr 13, 2026",
+        "Last 30 days",
+    )
+    assert TabWorker._range_matches_label(
+        "Apr 13, 2021 — Apr 13, 2026Apr 13, 2021 — Apr 13, 2026",
+        "Entire history",
+    )
     assert not TabWorker._range_matches_label(
         "Jan 5, 2026 — Apr 13, 2026Jan 5, 2026 — Apr 13, 2026",
         "Last 365 days",
+    )
+    assert not TabWorker._range_matches_label(
+        "Feb 20, 2026 — Apr 13, 2026Feb 20, 2026 — Apr 13, 2026",
+        "Last 30 days",
     )
 
 
@@ -853,6 +869,70 @@ def test_bayesian_optimizer_uses_only_fresh_results_for_study_and_best_tracking(
     assert study_calls[0][2] == "FAIL"
     assert study_calls[1][1] == pytest.approx(15.0)
     assert optimizer.best_per_pair == {}
+
+
+def test_bayesian_optimizer_uses_configured_backtest_range(monkeypatch) -> None:
+    class FakeTrial:
+        pass
+
+    class FakeStudy:
+        def ask(self) -> FakeTrial:
+            return FakeTrial()
+
+        def tell(self, trial, value=None, state=None):
+            return None
+
+    fake_optuna = SimpleNamespace(
+        logging=SimpleNamespace(WARNING=30, set_verbosity=lambda level: None),
+        create_study=lambda **kwargs: FakeStudy(),
+        samplers=SimpleNamespace(TPESampler=lambda **kwargs: object()),
+        trial=SimpleNamespace(TrialState=SimpleNamespace(FAIL="FAIL")),
+    )
+    monkeypatch.setitem(sys.modules, "optuna", fake_optuna)
+
+    class FakeWorker:
+        def __init__(self) -> None:
+            self.results: list[BacktestResult] = []
+            self.best_result = None
+            self.range_labels: list[str] = []
+
+        async def _switch_symbol(self, symbol: str) -> None:
+            self.symbol = symbol
+
+        async def _require_backtest_range(self, range_label: str) -> None:
+            self.range_labels.append(range_label)
+
+        async def _apply_params(self, params: dict) -> ApplyOutcome:
+            return ApplyOutcome(ok=True, fresh=True, reason="fresh")
+
+        def sample_params(self, trial, symbol: str, fixed_overrides: dict) -> dict:
+            return {"trial": 1}
+
+        async def _read_results(self, symbol: str, params: dict) -> BacktestResult:
+            return BacktestResult(
+                symbol=symbol,
+                verified_symbol=symbol,
+                params=params,
+                profit_factor=1.42,
+                total_trades=160,
+                max_drawdown_pct=5.2,
+                win_rate=58.0,
+                score=17.5,
+            )
+
+    optimizer = TradingViewOptimizer(
+        pairs=["EURUSD"],
+        bayesian_mode=True,
+        n_trials=1,
+        generate_report=False,
+        backtest_range="90d",
+    )
+    worker = FakeWorker()
+
+    result = asyncio.run(optimizer.optimize_pair_bayesian(worker, "EURUSD", 1))
+
+    assert result is not None
+    assert worker.range_labels == ["Last 90 days"]
 
 
 def test_bayesian_optimizer_reloads_after_repeated_read_timeouts(monkeypatch) -> None:

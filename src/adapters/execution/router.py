@@ -10,6 +10,7 @@ from src.adapters.execution.interfaces import ExecutionAdapter
 from src.adapters.execution.live_adapter import LiveAdapter
 from src.adapters.execution.binance_adapter import BinanceAdapter
 from src.adapters.execution.bybit_adapter import BybitAdapter
+from src.adapters.execution.ctrader_adapter import CTraderAdapter
 from src.adapters.execution.meta_api_adapter import MetaApiAdapter
 from src.adapters.execution.paper_adapter import PaperAdapter
 
@@ -49,6 +50,19 @@ def get_adapter(
                 api_secret=(profile.get("api_secret") or "").strip(),
                 account_name=(profile.get("name") or "").strip() or None,
             )
+
+        if venue == "ctrader":
+            refresh_token = (profile.get("token") or "").strip()
+            ctid = (profile.get("meta_api_account_id") or profile.get("account_id") or "").strip()
+            is_live = (profile.get("run_mode") or "").strip().upper() == "LIVE"
+            if refresh_token and ctid:
+                return CTraderAdapter(
+                    refresh_token=refresh_token,
+                    ctid_trader_account_id=ctid,
+                    account_name=(profile.get("name") or "").strip() or None,
+                    is_live=is_live,
+                )
+            # Fall through to single-account if missing credentials
 
         token = (profile.get("token") or "").strip()
         account_id = (profile.get("meta_api_account_id") or profile.get("account_id") or "").strip()

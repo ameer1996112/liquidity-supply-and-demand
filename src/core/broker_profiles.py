@@ -71,13 +71,6 @@ def get_active_profiles() -> List[Dict[str, Any]]:
                     api_key = ""
                     api_secret = ""
 
-                    if venue == "ctrader":
-                        _warn_unsupported_venue_once(
-                            str(row.get("name") or row.get("id") or "profile"),
-                            venue,
-                        )
-                        continue
-
                     if venue in {"binance", "bybit"}:
                         api_key = (row.get("api_key") or "").strip()
                         api_secret = (row.get("api_secret") or "").strip()
@@ -128,19 +121,17 @@ def get_active_profiles() -> List[Dict[str, Any]]:
                         continue
                     venue = (row.get("venue") or "").strip().lower() or "metaapi_mt5"
 
-                    if venue == "ctrader":
-                        _warn_unsupported_venue_once(
-                            str(row.get("name") or row.get("id") or "profile"),
-                            venue,
-                        )
-                        continue
-
                     token = ""
                     if venue in {"metaapi", "metaapi_mt5", "mt5"}:
                         env_key = (row.get("token_env_key") or "META_API_TOKEN").strip()
                         token = (os.environ.get(env_key) or getattr(s, "meta_api_token", "") or "").strip()
                         if not token:
                             logger.warning("Profile %s: no token in env %s", row.get("name"), env_key)
+                            continue
+                    elif venue == "ctrader":
+                        token = (row.get("token") or "").strip()
+                        if not token:
+                            logger.warning("Profile %s: no cTrader refresh token", row.get("name"))
                             continue
 
                     api_key = ""

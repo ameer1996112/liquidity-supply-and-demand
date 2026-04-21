@@ -44,6 +44,53 @@ _LOADING_INDICATORS = [
 
 _REPORT_TIMEOUT_TEXT = "request took too long to process"
 
+_BACKTEST_RANGE_PRESETS: dict[str, dict[str, object]] = {
+    "30d": {
+        "label": "Last 30 days",
+        "chart_tab": "date-range-tab-1M",
+        "min_days": 25,
+        "max_days": 35,
+        "summary": "~30 days",
+    },
+    "90d": {
+        "label": "Last 90 days",
+        "chart_tab": "date-range-tab-3M",
+        "min_days": 80,
+        "max_days": 100,
+        "summary": "~90 days",
+    },
+    "365d": {
+        "label": "Last 365 days",
+        "chart_tab": "date-range-tab-12M",
+        "min_days": 330,
+        "max_days": 370,
+        "summary": "~1 year",
+    },
+    "all": {
+        "label": "Entire history",
+        "chart_tab": "date-range-tab-ALL",
+        "min_days": 365 * 3,
+        "max_days": None,
+        "summary": "entire history",
+    },
+}
+
+_BACKTEST_RANGE_ALIASES = {
+    "30": "30d",
+    "30d": "30d",
+    "last 30 days": "30d",
+    "90": "90d",
+    "90d": "90d",
+    "last 90 days": "90d",
+    "365": "365d",
+    "365d": "365d",
+    "1y": "365d",
+    "1yr": "365d",
+    "last 365 days": "365d",
+    "all": "all",
+    "entire history": "all",
+}
+
 
 @dataclass(slots=True)
 class ApplyOutcome:
@@ -58,6 +105,27 @@ class ApplyOutcome:
 
     def __bool__(self) -> bool:
         return self.ok
+
+
+def normalize_backtest_range(value: str | None) -> str:
+    """Return the canonical optimizer backtest range key."""
+    normalized = (value or "365d").strip().lower()
+    try:
+        return _BACKTEST_RANGE_ALIASES[normalized]
+    except KeyError as exc:
+        choices = ", ".join(sorted(_BACKTEST_RANGE_PRESETS))
+        raise ValueError(f"Unsupported backtest range '{value}'. Expected one of: {choices}") from exc
+
+
+def backtest_range_to_label(value: str | None) -> str:
+    """Translate a canonical or human-readable range into the TradingView preset label."""
+    preset = _BACKTEST_RANGE_PRESETS[normalize_backtest_range(value)]
+    return str(preset["label"])
+
+
+def _backtest_range_preset(range_label: str) -> dict[str, object]:
+    """Resolve a TradingView label or shorthand range key to a preset spec."""
+    return _BACKTEST_RANGE_PRESETS[normalize_backtest_range(range_label)]
 
 
 # ─────────────────────────────────── JS snippets ─────────────────────────────
@@ -853,6 +921,8 @@ class TabWorker:
         if not btn_text:
             return False
 
+        preset = _backtest_range_preset(range_label)
+
         normalized = " ".join(btn_text.split())
         raw_dates = re.findall(
             r'(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2},\s+\d{4}',
@@ -873,11 +943,11 @@ class TabWorker:
             return False
 
         delta_days = (end - start).days
-        if range_label == "Last 365 days":
-            return 330 <= delta_days <= 370
-        if range_label == "Entire history":
-            return delta_days >= 365 * 3
-        return False
+        min_days = int(preset["min_days"])
+        max_days = preset["max_days"]
+        if max_days is None:
+            return delta_days >= min_days
+        return min_days <= delta_days <= int(max_days)
 
     async def _select_backtest_range_preset(self, range_label: str) -> bool:
         """Open the Strategy Report range menu and click a preset item."""
@@ -935,10 +1005,7 @@ class TabWorker:
 
     async def _select_chart_date_range_tab(self, range_label: str) -> bool:
         """Fallback: click the chart-level bottom date-range shortcut."""
-        target_name = {
-            "Last 365 days": "date-range-tab-12M",
-            "Entire history": "date-range-tab-ALL",
-        }.get(range_label)
+        target_name = str(_backtest_range_preset(range_label)["chart_tab"])
         if not target_name:
             return False
 
@@ -973,25 +1040,31 @@ class TabWorker:
         Returns True (success) in all cases where the range appears correct already.
         """
         try:
+            preset = _backtest_range_preset(range_label)
+            preset_label = str(preset["label"])
+            preset_summary = str(preset["summary"])
             await self._ensure_strategy_tester_open()
             btn_text = await self._read_backtest_range_button_text()
 
-            if self._range_matches_label(btn_text, range_label):
-                if range_label == "Last 365 days":
-                    print(f"  [backtest range ✓ already ~1 year: {btn_text[:40].strip()}]", flush=True)
+            if self._range_matches_label(btn_text, preset_label):
+                if btn_text:
+                    print(
+                        f"  [backtest range ✓ already {preset_summary}: {btn_text[:40].strip()}]",
+                        flush=True,
+                    )
                 else:
-                    print(f"  [backtest range ✓ already entire history]", flush=True)
+                    print(f"  [backtest range ✓ already {preset_summary}]", flush=True)
                 return True
 
             selected_via_chart_tab = False
-            if not await self._select_backtest_range_preset(range_label):
-                if await self._select_chart_date_range_tab(range_label):
+            if not await self._select_backtest_range_preset(preset_label):
+                if await self._select_chart_date_range_tab(preset_label):
                     selected_via_chart_tab = True
                 else:
                     log.warning(
                         "_set_backtest_range: could not open preset menu for '%s' "
                         "(button text='%s')",
-                        range_label,
+                        preset_label,
                         btn_text[:60] if btn_text else "(not found)",
                     )
                     return False
@@ -1001,23 +1074,23 @@ class TabWorker:
             await self._wait_for_load()
 
             updated_text = await self._read_backtest_range_button_text()
-            if self._range_matches_label(updated_text, range_label):
-                if range_label == "Last 365 days":
-                    print(f"  [backtest range ✓ set to ~1 year: {updated_text[:40].strip()}]", flush=True)
+            if self._range_matches_label(updated_text, preset_label):
+                if updated_text:
+                    print(
+                        f"  [backtest range ✓ set to {preset_summary}: {updated_text[:40].strip()}]",
+                        flush=True,
+                    )
                 else:
-                    print(f"  [backtest range ✓ set to entire history]", flush=True)
+                    print(f"  [backtest range ✓ set to {preset_summary}]", flush=True)
                 return True
 
             if selected_via_chart_tab and not updated_text:
-                if range_label == "Last 365 days":
-                    print("  [backtest range ✓ applied chart 1Y shortcut]", flush=True)
-                else:
-                    print("  [backtest range ✓ applied chart All shortcut]", flush=True)
+                print(f"  [backtest range ✓ applied chart shortcut for {preset_summary}]", flush=True)
                 return True
 
             log.warning(
                 "_set_backtest_range: attempted '%s' but final button text was '%s'",
-                range_label,
+                preset_label,
                 updated_text[:60] if updated_text else "(not found)",
             )
             return False
@@ -1030,10 +1103,15 @@ class TabWorker:
 
 
 
+    async def _require_backtest_range(self, range_label: str) -> None:
+        """Fail closed unless the strategy tester range is confirmed to match the requested preset."""
+        preset_label = backtest_range_to_label(range_label)
+        if not await self._set_backtest_range(preset_label):
+            raise RuntimeError(f"Could not confirm backtest range is {preset_label}")
+
     async def _require_last_365_days(self) -> None:
-        """Fail closed unless the strategy tester range is confirmed to be ~365 days."""
-        if not await self._set_backtest_range("Last 365 days"):
-            raise RuntimeError("Could not confirm backtest range is Last 365 days")
+        """Backward-compatible wrapper for the historical 1-year validation path."""
+        await self._require_backtest_range("Last 365 days")
 
     async def _wait_for_load(self, timeout: int = 30) -> None:
         """Wait for chart and strategy tester to finish loading."""
@@ -2299,7 +2377,7 @@ class TabWorker:
         print(f"{'=' * 60}")
 
         await self._switch_symbol(symbol)
-        await self._require_last_365_days()
+        await self._require_backtest_range(self.optimizer.backtest_range_label)
 
         param_grid = self.optimizer.get_param_grid(symbol)
         combos = self.optimizer.generate_combinations(param_grid)
@@ -2349,7 +2427,7 @@ class TabWorker:
         print(f"{'=' * 60}")
 
         await self._switch_symbol(symbol)
-        await self._require_last_365_days()
+        await self._require_backtest_range(self.optimizer.backtest_range_label)
 
         print(f"{tag} Reading baseline results...")
         baseline = await self._read_results(symbol, {"baseline": True})

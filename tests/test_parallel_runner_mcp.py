@@ -191,6 +191,7 @@ def test_run_parallel_dry_run_launches_workers_without_browser(monkeypatch, tmp_
         dd_limit,
         dry_run,
         broker="vantage",
+        backtest_range="365d",
         runtime_state=None,
         run_id=None,
         worker_id=None,
