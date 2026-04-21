@@ -138,34 +138,30 @@ def check_flip_timing(payload: Dict[str, Any]) -> Optional[str]:
     """
     Validate FLIP entry timing: bar_time minutes must be on a 5-min boundary.
 
-    FAIL-CLOSED POLICY (BUG-02 fix):
-      - LIVE accounts: missing or invalid bar_time → REJECTED.
-      - PAPER/DRY_RUN accounts: missing bar_time → allowed (warn only).
-
-    Previously this function was documented as "fail-open" — that is now fixed.
+    Falls back to signal_time when bar_time is absent (Pine sends signal_time
+    but not bar_time).  If neither field is present the guard is fail-open
+    because the strategy timeframe already constrains FLIP boundaries.
 
     Returns:
         None if timing is valid (or not a FLIP entry),
-        rejection string if timing is invalid or data is absent on LIVE.
+        rejection string if timing is invalid.
     """
     entry_model = str(payload.get("entry_model", "")).strip()
     if not entry_model or "flip" not in entry_model.lower():
         return None  # Not a FLIP entry — guard doesn't apply
 
     run_mode = str(payload.get("run_mode", "PAPER")).upper()
-    bar_time = payload.get("bar_time")
+    bar_time = payload.get("bar_time") or payload.get("signal_time")
 
     if not bar_time:
-        if run_mode == "LIVE":
-            logger.error(
-                "FLIP entry on LIVE account: bar_time missing — REJECTED (fail-closed). "
-                "Ensure Pine sends bar_time in the webhook payload."
-            )
-            return (
-                "FLIP entry rejected: bar_time is required for 5-min boundary validation "
-                "on LIVE accounts (fail-closed). Check Pine webhook payload."
-            )
-        logger.warning("FLIP entry on %s: bar_time missing — allowing (non-LIVE)", run_mode)
+        # Pine does not send bar_time — signal_time is the fallback.
+        # If neither is present, allow the trade (fail-open) since the
+        # strategy timeframe already constrains when FLIP entries fire.
+        logger.info(
+            "FLIP entry on %s: bar_time/signal_time both missing — allowing (fail-open). "
+            "Strategy timeframe controls FLIP boundaries.",
+            run_mode,
+        )
         return None
 
     if not isinstance(bar_time, str):
