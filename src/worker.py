@@ -967,6 +967,7 @@ def _validate_pine_filters(payload: Dict[str, Any]) -> Optional[str]:
     # _htf_enabled, _htf_block_mins, _htf_period, _htf_hourly_close = _get_htf_filter_settings(s)
     # DISABLED: user wants all trades executed regardless of bar_time
     if False:
+        pass
 
     # --- Trading hours (local timezone, auto-DST) — DB-backed with env fallback ---
     start_local, end_local = _get_trading_hours(s)
