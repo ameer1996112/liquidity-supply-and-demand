@@ -237,6 +237,49 @@ class ChartSettingsPage(DummyPage):
         raise AssertionError(f"unexpected script in ChartSettingsPage: {script[:120]}")
 
 
+class WrongDialogThenReopenPage(DummyPage):
+    def __init__(self) -> None:
+        super().__init__(title="EURUSD 5 OANDA")
+        self.profile_reads = 0
+        self.wrong_dialog_open = True
+        self.open_attempts = 0
+
+        class _Keyboard:
+            async def press(self, key_combo: str) -> None:
+                return None
+
+        self.keyboard = _Keyboard()
+
+    async def evaluate(self, script: str):
+        if "return __tvDescribeSettingsDialogs();" in script:
+            if self.wrong_dialog_open:
+                return [
+                    {
+                        "score": -100,
+                        "ready": False,
+                        "chartSettings": True,
+                        "combo": False,
+                        "tabs": ["symbol", "status line", "scales and lines", "canvas", "trading"],
+                        "text": "Settings Symbol Status line Scales and lines Canvas Trading",
+                    }
+                ]
+            return []
+        if "const combo = dialog.querySelector('button[role=\"combobox\"]');" in script:
+            self.profile_reads += 1
+            return "Custom" if not self.wrong_dialog_open else ""
+        if "el.textContent?.trim() === 'Custom'" in script:
+            return True
+        if "__tvPickSettingsDialog(true)" in script:
+            return not self.wrong_dialog_open
+        if "__tvPickSettingsDialog(false)" in script:
+            return not self.wrong_dialog_open
+        if "reason: 'top-right-fallback'" in script:
+            if self.wrong_dialog_open:
+                return {"x": 1188, "y": 310, "reason": "top-right-fallback"}
+            return None
+        raise AssertionError(f"unexpected script in WrongDialogThenReopenPage: {script[:120]}")
+
+
 def test_apply_params_rejects_unchanged_final_results_hash(monkeypatch) -> None:
     page = DummyPage()
     worker = TabWorker(page, DummyOptimizer())
@@ -777,6 +820,32 @@ def test_dismiss_wrong_settings_dialog_closes_chart_settings_modal() -> None:
     assert result is True
     assert page.chart_dialog_open is False
     assert page.mouse_clicks == [(1188, 310)]
+
+
+def test_ensure_custom_profile_recovers_when_chart_settings_opens_during_reopen(monkeypatch) -> None:
+    page = WrongDialogThenReopenPage()
+    worker = TabWorker(page, DummyOptimizer())
+    reopen_calls: list[str] = []
+
+    async def no_sleep(*_args, **_kwargs) -> None:
+        return None
+
+    async def noop(*_args, **_kwargs) -> None:
+        return None
+
+    async def reopen() -> bool:
+        reopen_calls.append("open")
+        page.open_attempts += 1
+        if page.open_attempts >= 2:
+            page.wrong_dialog_open = False
+        return True
+
+    monkeypatch.setattr(tab_worker_module.asyncio, "sleep", no_sleep)
+    monkeypatch.setattr(worker, "_dismiss_tv_errors", noop)
+    monkeypatch.setattr(worker, "_open_settings", reopen)
+
+    assert asyncio.run(worker._ensure_custom_profile()) is True
+    assert reopen_calls == ["open", "open"]
 
 
 def test_ensure_strategy_tester_open_uses_strategy_report_control_when_metrics_delayed() -> None:

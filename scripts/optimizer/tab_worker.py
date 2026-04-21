@@ -515,6 +515,12 @@ class TabWorker:
                 await asyncio.sleep(0.6)
                 continue
 
+            if await self._has_wrong_settings_dialog():
+                await self._log_dialog_state("_recover_blank_settings_dialog wrong dialog after reopen")
+                await self._dismiss_wrong_settings_dialog()
+                await asyncio.sleep(0.5)
+                continue
+
             for _ in range(8):
                 profile = await self._read_profile_dropdown_text()
                 if profile:
@@ -1511,41 +1517,15 @@ class TabWorker:
             if settings_coords:
                 await self.page.mouse.click(settings_coords['x'], settings_coords['y'])
                 await asyncio.sleep(1.5)
-                is_open = await self.page.evaluate(
-                    """
-                    (() => {
-                        const dialogs = Array.from(document.querySelectorAll('[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'));
-                        const d = dialogs.find((el) => {
-                            const rect = el.getBoundingClientRect?.();
-                            return !!rect && rect.width > 0 && rect.height > 0;
-                        }) || dialogs[0];
-                        if (!d) return false;
-                        const rect = d.getBoundingClientRect?.();
-                        return !!rect && rect.width > 0 && rect.height > 0;
-                    })()
-                    """
-                )
-                if is_open:
+                if await self._has_ready_settings_dialog():
                     return True
+                await self._dismiss_wrong_settings_dialog()
 
             await self.page.mouse.click(snd_coords["x"], snd_coords["y"], double=True)
             await asyncio.sleep(1.5)
-            is_open = await self.page.evaluate(
-                """
-                (() => {
-                    const dialogs = Array.from(document.querySelectorAll('[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'));
-                    const d = dialogs.find((el) => {
-                        const rect = el.getBoundingClientRect?.();
-                        return !!rect && rect.width > 0 && rect.height > 0;
-                    }) || dialogs[0];
-                    if (!d) return false;
-                    const rect = d.getBoundingClientRect?.();
-                    return !!rect && rect.width > 0 && rect.height > 0;
-                })()
-                """
-            )
-            if is_open:
+            if await self._has_ready_settings_dialog():
                 return True
+            await self._dismiss_wrong_settings_dialog()
 
         return False
 
