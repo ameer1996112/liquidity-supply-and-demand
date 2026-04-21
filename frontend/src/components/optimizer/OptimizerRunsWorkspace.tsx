@@ -727,6 +727,7 @@ export function OptimizerRunsWorkspace() {
   const [strategyVersion, setStrategyVersion] = useState('');
   const [mode, setMode] = useState<'bayesian' | 'smart' | 'fast' | 'full'>('bayesian');
   const [broker, setBroker] = useState<'vantage' | 'oanda' | 'fxcm'>('vantage');
+  const [backtestRange, setBacktestRange] = useState<'30d' | '90d' | '365d' | 'all'>('365d');
   const [workers, setWorkers] = useState('3');
   const [pairs, setPairs] = useState('EURUSD,GBPUSD,XAUUSD');
   const [allPairs, setAllPairs] = useState(true);
@@ -805,6 +806,7 @@ export function OptimizerRunsWorkspace() {
       dd_limit: Number(ddLimit),
       dry_run: dryRun,
       broker,
+      backtest_range: backtestRange,
     };
     createRun.mutate(payload, {
       onSuccess: (run) => setSelectedRunId(run.id),
@@ -886,6 +888,20 @@ export function OptimizerRunsWorkspace() {
                 <option value='vantage'>Vantage</option>
                 <option value='oanda'>OANDA</option>
                 <option value='fxcm'>FXCM</option>
+              </select>
+            </label>
+            <label className='space-y-1 text-xs text-[var(--to-text-secondary)]'>
+              <span>Backtest range</span>
+              <select
+                aria-label='Backtest range'
+                value={backtestRange}
+                onChange={(event) => setBacktestRange(event.target.value as typeof backtestRange)}
+                className='h-9 w-full rounded-md border border-[var(--to-border)] bg-[var(--to-surface)] px-3 text-sm text-[var(--to-text-primary)]'
+              >
+                <option value='30d'>Last 30 days</option>
+                <option value='90d'>Last 90 days</option>
+                <option value='365d'>Last 365 days</option>
+                <option value='all'>Entire history</option>
               </select>
             </label>
             <label className='space-y-1 text-xs text-[var(--to-text-secondary)]'>

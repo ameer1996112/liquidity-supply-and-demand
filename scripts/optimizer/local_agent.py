@@ -315,11 +315,12 @@ def execute_run(run: dict) -> None:
     dd_limit = run.get("dd_limit", 6.0)
     dry_run = run.get("dry_run", False)
     broker = _normalize_broker(run.get("broker"))
+    backtest_range = str(run.get("backtest_range") or "365d").strip().lower()
 
     log.info("=" * 60)
     log.info("Picked up run %s", run_id)
-    log.info("  mode=%s workers=%d trials=%d dd_limit=%.1f dry_run=%s",
-             mode, workers, n_trials, dd_limit, dry_run)
+    log.info("  mode=%s workers=%d trials=%d dd_limit=%.1f dry_run=%s backtest_range=%s",
+             mode, workers, n_trials, dd_limit, dry_run, backtest_range)
     log.info("  pairs=%s", ",".join(pairs))
     log.info("=" * 60)
 
@@ -333,7 +334,13 @@ def execute_run(run: dict) -> None:
     api_patch(f"/api/optimizer/runs/{run_id}", {"status": "running"})
     api_post(f"/api/optimizer/runs/{run_id}/events", {
         "event_type": "run_started",
-        "payload": {"mode": mode, "workers": workers, "broker": broker, "agent_version": AGENT_VERSION},
+        "payload": {
+            "mode": mode,
+            "workers": workers,
+            "broker": broker,
+            "backtest_range": backtest_range,
+            "agent_version": AGENT_VERSION,
+        },
     })
 
     # Build command
@@ -345,6 +352,7 @@ def execute_run(run: dict) -> None:
         "--dd-limit", str(dd_limit),
         "--pairs", ",".join(pairs),
         "--broker", broker,
+        "--backtest-range", backtest_range,
         "--results-label", run_id,
     ]
     if dry_run:

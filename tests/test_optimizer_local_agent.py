@@ -120,6 +120,7 @@ def test_execute_run_claims_only_after_optimizer_readiness_succeeds(local_agent,
             "dd_limit": 5.5,
             "dry_run": False,
             "broker": "oanda",
+            "backtest_range": "90d",
         }
     )
 
@@ -137,6 +138,8 @@ def test_execute_run_claims_only_after_optimizer_readiness_succeeds(local_agent,
     command = popen.call_args.args[0]
     assert "--results-label" in command
     assert command[command.index("--results-label") + 1] == "run-2"
+    assert "--backtest-range" in command
+    assert command[command.index("--backtest-range") + 1] == "90d"
 
 
 def test_execute_run_dry_run_claims_without_mcp_or_playwright_ready(local_agent, monkeypatch):

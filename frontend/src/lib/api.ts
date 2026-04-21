@@ -312,6 +312,7 @@ export interface OptimizerRunApi {
   dd_limit: number;
   dry_run: boolean;
   broker?: 'vantage' | 'oanda' | 'fxcm' | null;
+  backtest_range?: '30d' | '90d' | '365d' | 'all' | null;
   market?: string | null;
   created_by?: string | null;
   summary: OptimizerRunSummaryApi;
@@ -334,6 +335,7 @@ export interface OptimizerRunCreateApi {
   dd_limit: number;
   dry_run: boolean;
   broker: 'vantage' | 'oanda' | 'fxcm';
+  backtest_range: '30d' | '90d' | '365d' | 'all';
 }
 
 export async function fetchOptimizerRuns() {

@@ -33,6 +33,7 @@ class StubOptimizerService:
             "dd_limit": 6.0,
             "dry_run": True,
             "broker": "vantage",
+            "backtest_range": "365d",
             "market": "forex",
             "summary": {"total_pairs": 2, "running_pairs": 1, "completed_pairs": 0, "failed_pairs": 0},
             "results": [
@@ -219,6 +220,7 @@ def test_create_optimizer_run_returns_200(_) -> None:
             "dd_limit": 6.0,
             "dry_run": True,
             "broker": "vantage",
+            "backtest_range": "90d",
         },
     )
     assert response.status_code == 200
@@ -252,6 +254,7 @@ def test_create_optimizer_run_accepts_all_pairs_token(_) -> None:
             "dd_limit": 6.0,
             "dry_run": True,
             "broker": "vantage",
+            "backtest_range": "all",
         },
     )
     assert response.status_code == 200
@@ -272,6 +275,28 @@ def test_create_optimizer_run_rejects_unsupported_broker() -> None:
             "dd_limit": 6.0,
             "dry_run": True,
             "broker": "bad-broker",
+            "backtest_range": "365d",
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_create_optimizer_run_rejects_invalid_backtest_range() -> None:
+    _disable_admin_auth()
+    client = TestClient(app)
+    response = client.post(
+        "/api/optimizer/runs",
+        json={
+            "strategy_id": "liq_sd_v1",
+            "strategy_version": "1",
+            "mode": "bayesian",
+            "workers": 2,
+            "pairs": ["ALL"],
+            "n_trials": 25,
+            "dd_limit": 6.0,
+            "dry_run": True,
+            "broker": "vantage",
+            "backtest_range": "7d",
         },
     )
     assert response.status_code == 422

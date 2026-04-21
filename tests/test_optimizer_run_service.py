@@ -256,6 +256,7 @@ def test_start_run_persists_run_and_symbol_rows(monkeypatch) -> None:
         dd_limit=6.0,
         dry_run=True,
         broker="vantage",
+        backtest_range="90d",
         created_by="test-user",
     )
 
@@ -263,8 +264,10 @@ def test_start_run_persists_run_and_symbol_rows(monkeypatch) -> None:
     assert run["strategy_id"] == "liq_sd_v1"
     assert run["strategy_version"] == "1"
     assert run["broker"] == "vantage"
+    assert run["backtest_range"] == "90d"
     assert run["market"] == "forex"
     assert store.runs[run["id"]]["workers"] == 2
+    assert store.runs[run["id"]]["summary"]["backtest_range"] == "90d"
     assert store.results[(run["id"], "EURUSD")]["status"] == "pending"
 
 
@@ -286,6 +289,7 @@ def test_start_run_expands_all_pairs_without_scripts_import(monkeypatch) -> None
         dd_limit=6.0,
         dry_run=True,
         broker="vantage",
+        backtest_range="365d",
         created_by="test-user",
     )
 
@@ -340,6 +344,31 @@ def test_start_run_rejects_unknown_broker(monkeypatch) -> None:
         raise AssertionError("expected ValueError")
     except ValueError as exc:
         assert "invalid broker" in str(exc)
+
+
+def test_start_run_rejects_unknown_backtest_range(monkeypatch) -> None:
+    store = InMemoryOptimizerStore()
+    service = OptimizerRunService(store, project_root=Path("/tmp"), results_dir=Path("/tmp/results"))
+
+    monkeypatch.setattr(service, "_spawn_process", lambda **_: DummyProcess(pid=321))
+    monkeypatch.setattr(service, "_stream_process_output", lambda run_id, process: None)
+
+    try:
+        service.start_run(
+            strategy_id="liq_sd_v1",
+            strategy_version="1",
+            mode="bayesian",
+            workers=2,
+            pairs=["EURUSD"],
+            n_trials=25,
+            dd_limit=6.0,
+            dry_run=True,
+            broker="vantage",
+            backtest_range="7d",
+        )
+        raise AssertionError("expected ValueError")
+    except ValueError as exc:
+        assert "invalid backtest_range" in str(exc)
 
 
 def test_service_exposes_survival_artifacts(monkeypatch) -> None:

@@ -42,6 +42,7 @@ def _coerce_event_payload(payload: dict[str, Any]) -> dict[str, Any]:
 def _normalize_run(row: dict[str, Any] | None) -> dict[str, Any] | None:
     if row is None:
         return None
+    summary = row.get("summary") or {}
     return {
         "id": row["id"],
         "strategy_id": row.get("strategy_id"),
@@ -54,9 +55,10 @@ def _normalize_run(row: dict[str, Any] | None) -> dict[str, Any] | None:
         "dd_limit": float(row["dd_limit"]),
         "dry_run": bool(row.get("dry_run", False)),
         "broker": row.get("broker"),
+        "backtest_range": row.get("backtest_range") or summary.get("backtest_range") or "365d",
         "market": row.get("market"),
         "created_by": row.get("created_by"),
-        "summary": row.get("summary") or {},
+        "summary": summary,
         "started_at": row.get("started_at"),
         "finished_at": row.get("finished_at"),
         "created_at": row.get("created_at"),
@@ -403,6 +405,7 @@ class OptimizerRunService:
         dd_limit: float,
         dry_run: bool,
         broker: str,
+        backtest_range: str = "365d",
         created_by: str | None = None,
     ) -> dict[str, Any]:
         """Create a queued optimizer run for the local agent to pick up."""
@@ -414,6 +417,8 @@ class OptimizerRunService:
             raise ValueError("pairs must not be empty")
         if broker not in {"vantage", "oanda", "fxcm"}:
             raise ValueError(f"invalid broker: {broker}")
+        if backtest_range not in {"30d", "90d", "365d", "all"}:
+            raise ValueError(f"invalid backtest_range: {backtest_range}")
         if self._active_run_exists():
             raise ValueError("another optimizer run is already active")
 
@@ -442,13 +447,14 @@ class OptimizerRunService:
                     "running_pairs": 0,
                     "completed_pairs": 0,
                     "failed_pairs": 0,
+                    "backtest_range": backtest_range,
                 },
                 "created_at": created_at,
                 "updated_at": created_at,
             }
         )
         self._repository.create_results(run_id, pairs)
-        return run
+        return _normalize_run(run) or run
 
     # ── Agent-facing write methods ─────────────────────────────────────────────
 
@@ -737,6 +743,7 @@ class OptimizerRunService:
         dd_limit: float,
         dry_run: bool,
         broker: str,
+        backtest_range: str = "365d",
     ) -> subprocess.Popen[str]:
         command = [
             sys.executable,
@@ -754,6 +761,8 @@ class OptimizerRunService:
             ",".join(pairs),
             "--broker",
             broker,
+            "--backtest-range",
+            backtest_range,
         ]
         if dry_run:
             command.append("--dry-run")

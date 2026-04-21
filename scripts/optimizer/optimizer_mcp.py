@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from typing import Any
 
@@ -17,6 +18,9 @@ class OptimizerWorkspaceSlot:
 
 
 class OptimizerMcpController:
+    _TAB_BOOTSTRAP_SETTLE_ATTEMPTS = 5
+    _TAB_BOOTSTRAP_SETTLE_SLEEP_SECS = 0.5
+
     def __init__(self, client: TradingViewMcpClient | Any | None = None) -> None:
         self._client = client or TradingViewMcpClient()
 
@@ -90,12 +94,31 @@ class OptimizerMcpController:
                 )
             before_count = len(tabs)
             await self._run_command("tab new", "tab", "new")
-            tabs = await self._list_workspace_tabs()
+            tabs = await self._wait_for_tab_count(required_tabs=required_tabs, minimum_count=before_count + 1)
             if len(tabs) <= before_count:
                 raise self._workspace_bootstrap_error(
                     "TradingView MCP tab creation did not increase the available tab count"
                 )
         return self._build_workspace_slots(tabs[:required_tabs])
+
+    async def _wait_for_tab_count(
+        self,
+        *,
+        required_tabs: int,
+        minimum_count: int,
+    ) -> list[dict[str, Any]]:
+        """Poll tab list briefly because tab creation can be visible a moment later."""
+        tabs = await self._list_workspace_tabs()
+        if len(tabs) >= required_tabs or len(tabs) >= minimum_count:
+            return tabs
+
+        for _ in range(self._TAB_BOOTSTRAP_SETTLE_ATTEMPTS - 1):
+            await asyncio.sleep(self._TAB_BOOTSTRAP_SETTLE_SLEEP_SECS)
+            tabs = await self._list_workspace_tabs()
+            if len(tabs) >= required_tabs or len(tabs) >= minimum_count:
+                return tabs
+
+        return tabs
 
     async def ensure_optimizer_workspace(
         self,

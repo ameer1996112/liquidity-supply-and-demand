@@ -329,11 +329,17 @@ describe('OptimizerRunsWorkspace', () => {
 
     const brokerSelect = container.querySelector('select[aria-label="Broker"]') as HTMLSelectElement | null;
     expect(brokerSelect?.value).toBe('vantage');
+    const backtestRangeSelect = container.querySelector('select[aria-label="Backtest range"]') as HTMLSelectElement | null;
+    expect(backtestRangeSelect?.value).toBe('365d');
 
     act(() => {
       if (brokerSelect) {
         brokerSelect.value = 'oanda';
         brokerSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      if (backtestRangeSelect) {
+        backtestRangeSelect.value = '90d';
+        backtestRangeSelect.dispatchEvent(new Event('change', { bubbles: true }));
       }
     });
 
@@ -348,6 +354,7 @@ describe('OptimizerRunsWorkspace', () => {
     expect(createRunMutate).toHaveBeenCalledWith(
       expect.objectContaining({
         broker: 'oanda',
+        backtest_range: '90d',
       })
     );
   });

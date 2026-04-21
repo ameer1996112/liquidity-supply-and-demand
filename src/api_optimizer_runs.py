@@ -59,6 +59,7 @@ class OptimizerRunCreateRequest(BaseModel):
     dd_limit: float = Field(gt=0)
     dry_run: bool = False
     broker: str = Field(min_length=1)
+    backtest_range: str = Field(default="365d", min_length=1)
 
     @field_validator("pairs")
     @classmethod
@@ -84,6 +85,14 @@ class OptimizerRunCreateRequest(BaseModel):
         normalized = value.strip().lower()
         if normalized not in {"vantage", "oanda", "fxcm"}:
             raise ValueError("invalid broker")
+        return normalized
+
+    @field_validator("backtest_range")
+    @classmethod
+    def _validate_backtest_range(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"30d", "90d", "365d", "all"}:
+            raise ValueError("invalid backtest_range")
         return normalized
 
 
