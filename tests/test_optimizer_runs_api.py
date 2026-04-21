@@ -405,3 +405,25 @@ def test_get_optimizer_run_events_does_not_prefetch_full_run() -> None:
 
     assert response.status_code == 200
     assert response.json() == {"events": [{"run_id": "run-1", "event_type": "pair_completed"}]}
+
+
+def test_agent_status_reports_desktop_ready_and_legacy_chrome_alias() -> None:
+    _disable_admin_auth()
+    client = TestClient(app)
+
+    heartbeat = client.post(
+        "/api/optimizer/agent/heartbeat",
+        json={
+            "desktop_ready": True,
+            "agent_version": "test-agent",
+        },
+    )
+    assert heartbeat.status_code == 200
+
+    response = client.get("/api/optimizer/agent/status")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["agent_online"] is True
+    assert payload["desktop_ready"] is True
+    assert payload["chrome_ready"] is True
+    assert payload["agent_version"] == "test-agent"

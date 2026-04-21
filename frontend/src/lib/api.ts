@@ -393,6 +393,7 @@ export async function cancelOptimizerRun(runId: string) {
 
 export interface AgentStatusApi {
   agent_online: boolean;
+  desktop_ready: boolean;
   chrome_ready: boolean;
   agent_version: string | null;
   last_heartbeat: number | null;

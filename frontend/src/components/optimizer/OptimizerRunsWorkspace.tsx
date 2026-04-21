@@ -821,6 +821,7 @@ export function OptimizerRunsWorkspace() {
   const canStartRun = Boolean(strategyId.trim() && strategyVersion.trim()) && !createRun.isPending;
   const portfolioWeights = currentRun?.portfolio_result?.weights ?? {};
   const selectedResult = results.find((result) => result.symbol === selectedSymbol);
+  const desktopBridgeReady = agentStatus?.desktop_ready ?? agentStatus?.chrome_ready ?? false;
 
   return (
     <div className='space-y-4'>
@@ -833,7 +834,7 @@ export function OptimizerRunsWorkspace() {
             </CardTitle>
             <div className='flex items-center gap-2 text-xs'>
               {agentStatus?.agent_online ? (
-                agentStatus.chrome_ready ? (
+                desktopBridgeReady ? (
                   <Badge className='border border-emerald-500/30 bg-emerald-500/15 text-emerald-300'>
                     <span className='mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-emerald-400' />
                     Agent Ready
@@ -841,7 +842,7 @@ export function OptimizerRunsWorkspace() {
                 ) : (
                   <Badge className='border border-amber-500/30 bg-amber-500/15 text-amber-300'>
                     <span className='mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-amber-400' />
-                    Chrome Offline
+                    Desktop Bridge Offline
                   </Badge>
                 )
               ) : (

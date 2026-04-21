@@ -15,19 +15,23 @@ router = APIRouter(prefix="/api/optimizer", tags=["optimizer-runs"])
 
 _agent_state: dict[str, Any] = {
     "chrome_ready": False,
+    "desktop_ready": False,
     "agent_version": None,
     "last_heartbeat": 0.0,
 }
 
 
 class AgentHeartbeatRequest(BaseModel):
+    desktop_ready: bool | None = None
     chrome_ready: bool = False
     agent_version: str | None = None
 
 
 @router.post("/agent/heartbeat")
 def agent_heartbeat(payload: AgentHeartbeatRequest) -> dict[str, str]:
-    _agent_state["chrome_ready"] = payload.chrome_ready
+    readiness = payload.desktop_ready if payload.desktop_ready is not None else payload.chrome_ready
+    _agent_state["desktop_ready"] = readiness
+    _agent_state["chrome_ready"] = readiness  # Backward-compatible alias for older clients.
     _agent_state["agent_version"] = payload.agent_version
     _agent_state["last_heartbeat"] = time.time()
     return {"status": "ok"}
@@ -37,9 +41,11 @@ def agent_heartbeat(payload: AgentHeartbeatRequest) -> dict[str, str]:
 def agent_status() -> dict[str, Any]:
     last = _agent_state["last_heartbeat"]
     agent_online = (time.time() - last) < 60 if last else False
+    desktop_ready = _agent_state["desktop_ready"] if agent_online else False
     return {
         "agent_online": agent_online,
-        "chrome_ready": _agent_state["chrome_ready"] if agent_online else False,
+        "desktop_ready": desktop_ready,
+        "chrome_ready": desktop_ready,  # Backward-compatible alias for older clients.
         "agent_version": _agent_state["agent_version"],
         "last_heartbeat": last if last else None,
     }

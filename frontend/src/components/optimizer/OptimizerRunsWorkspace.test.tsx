@@ -5,6 +5,13 @@ import { createRoot, Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const createRunMutate = vi.fn();
+let agentStatusFixture = {
+  agent_online: true,
+  desktop_ready: true,
+  chrome_ready: true,
+  agent_version: 'test',
+  last_heartbeat: Date.now() / 1000,
+};
 
 const runFixture = {
   'run-2026-04-13': {
@@ -270,7 +277,7 @@ vi.mock('@/hooks/useOptimizerRuns', () => ({
     },
   }),
   useAgentStatus: () => ({
-    data: { agent_online: true, chrome_ready: true, agent_version: 'test', last_heartbeat: Date.now() / 1000 },
+    data: agentStatusFixture,
   }),
   useCancelOptimizerRun: () => ({
     isPending: false,
@@ -286,6 +293,13 @@ describe('OptimizerRunsWorkspace', () => {
 
   beforeEach(() => {
     createRunMutate.mockClear();
+    agentStatusFixture = {
+      agent_online: true,
+      desktop_ready: true,
+      chrome_ready: true,
+      agent_version: 'test',
+      last_heartbeat: Date.now() / 1000,
+    };
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -357,6 +371,23 @@ describe('OptimizerRunsWorkspace', () => {
         backtest_range: '90d',
       })
     );
+  });
+
+  it('renders desktop bridge offline when the desktop automation bridge is unavailable', () => {
+    agentStatusFixture = {
+      agent_online: true,
+      desktop_ready: false,
+      chrome_ready: false,
+      agent_version: 'test',
+      last_heartbeat: Date.now() / 1000,
+    };
+
+    act(() => {
+      root.render(<OptimizerRunsWorkspace />);
+    });
+
+    expect(document.body.textContent).toContain('Desktop Bridge Offline');
+    expect(document.body.textContent).not.toContain('Chrome Offline');
   });
 
   it('renders analyst drill-down content and run comparison selection', () => {

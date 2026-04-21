@@ -236,6 +236,17 @@ async def _ensure_optimizer_run_ready(workers: int) -> tuple[bool, str]:
         return False, str(exc)
 
 
+async def _available_optimizer_worker_count() -> int:
+    """Return how many TradingView workspace tabs MCP can currently see."""
+    controller = OptimizerMcpController()
+    try:
+        await controller.ensure_ready()
+        tabs = await controller._list_workspace_tabs()
+    except Exception:
+        return 0
+    return max(len(tabs), 0)
+
+
 # ── Chrome management ────────────────────────────────────────────────────────
 
 
@@ -293,8 +304,10 @@ def heartbeat_loop(stop_event: threading.Event) -> None:
     """Send periodic heartbeats to the backend."""
     while not stop_event.is_set():
         try:
+            desktop_ready = chrome_is_alive()
             api_post("/api/optimizer/agent/heartbeat", {
-                "chrome_ready": chrome_is_alive(),
+                "desktop_ready": desktop_ready,
+                "chrome_ready": desktop_ready,
                 "agent_version": AGENT_VERSION,
             })
         except Exception as e:
@@ -327,8 +340,37 @@ def execute_run(run: dict) -> None:
     if not dry_run:
         ready, reason = asyncio.run(_ensure_optimizer_run_ready(workers))
         if not ready:
-            _report_optimizer_run_blocked(run_id, reason, workers=workers, dry_run=dry_run)
-            return
+            available_workers = asyncio.run(_available_optimizer_worker_count()) if _playwright_available() else 0
+            fallback_workers = min(workers, available_workers, len(pairs) or available_workers)
+            if fallback_workers >= 1:
+                log.warning(
+                    "Optimizer run %s requested %d workers but MCP only sees %d tab(s); downgrading to %d worker(s)",
+                    run_id,
+                    workers,
+                    available_workers,
+                    fallback_workers,
+                )
+                api_post(
+                    f"/api/optimizer/runs/{run_id}/events",
+                    {
+                        "event_type": "log",
+                        "payload": {
+                            "level": "warning",
+                            "message": (
+                                f"Downgrading workers from {workers} to {fallback_workers} "
+                                f"because MCP currently exposes {available_workers} tab(s)"
+                            ),
+                            "status": "queued",
+                            "workers": fallback_workers,
+                            "dry_run": dry_run,
+                            "python": sys.executable,
+                        },
+                    },
+                )
+                workers = fallback_workers
+            else:
+                _report_optimizer_run_blocked(run_id, reason, workers=workers, dry_run=dry_run)
+                return
 
     # Mark run as running
     api_patch(f"/api/optimizer/runs/{run_id}", {"status": "running"})

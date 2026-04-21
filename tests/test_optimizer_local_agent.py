@@ -142,6 +142,62 @@ def test_execute_run_claims_only_after_optimizer_readiness_succeeds(local_agent,
     assert command[command.index("--backtest-range") + 1] == "90d"
 
 
+def test_execute_run_downgrades_workers_to_available_mcp_tabs(local_agent, monkeypatch):
+    patch_calls, post_calls, get_calls = _capture_http_calls(local_agent, monkeypatch)
+
+    monkeypatch.setattr(local_agent, "_playwright_available", lambda: True)
+
+    async def fake_not_ready(workers: int) -> tuple[bool, str]:
+        return False, "TradingView MCP tab creation did not increase the available tab count"
+
+    monkeypatch.setattr(local_agent, "_ensure_optimizer_run_ready", fake_not_ready)
+    monkeypatch.setattr(local_agent, "_available_optimizer_worker_count", mock.AsyncMock(return_value=2))
+    monkeypatch.setattr(
+        local_agent,
+        "OptimizerMcpController",
+        mock.Mock(side_effect=AssertionError("controller should not be recreated directly in this test")),
+    )
+
+    process = _FakeProcess(exit_code=0)
+    popen = mock.Mock(return_value=process)
+    monkeypatch.setattr(local_agent.subprocess, "Popen", popen)
+    monkeypatch.setattr(local_agent, "_stream_and_report", lambda run_id, proc: None)
+
+    local_agent.execute_run(
+        {
+            "id": "run-5",
+            "mode": "bayesian",
+            "workers": 4,
+            "pairs": ["EURUSD", "EURJPY", "AUDCAD", "XAUUSD"],
+            "n_trials": 80,
+            "dd_limit": 7.0,
+            "dry_run": False,
+            "broker": "oanda",
+            "backtest_range": "90d",
+        }
+    )
+
+    assert any(
+        path == "/api/optimizer/runs/run-5" and body == {"status": "running"}
+        for path, body in patch_calls
+    )
+    assert any(
+        path == "/api/optimizer/runs/run-5/events"
+        and body["payload"]["message"].startswith("Downgrading workers from 4 to 2")
+        for path, body in post_calls
+    )
+    assert any(
+        path == "/api/optimizer/runs/run-5/events"
+        and body["event_type"] == "run_started"
+        and body["payload"]["workers"] == 2
+        for path, body in post_calls
+    )
+    assert get_calls == ["/api/optimizer/runs/run-5"]
+    command = popen.call_args.args[0]
+    assert "--workers" in command
+    assert command[command.index("--workers") + 1] == "2"
+
+
 def test_execute_run_dry_run_claims_without_mcp_or_playwright_ready(local_agent, monkeypatch):
     patch_calls, post_calls, _ = _capture_http_calls(local_agent, monkeypatch)
 
