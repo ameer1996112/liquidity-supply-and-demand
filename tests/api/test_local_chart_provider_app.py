@@ -66,3 +66,25 @@ def test_chart_context_endpoint_requires_query_params() -> None:
     client = TestClient(app)
     response = client.get("/chart-context")
     assert response.status_code == 422
+
+
+def test_compatibility_health_endpoint_returns_cached_status(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "src.local_chart_provider_app.get_chart_provider_compatibility_status",
+        lambda: {
+            "status": "supported",
+            "chart_context_enabled": True,
+            "tradingview_version": "2.9.0",
+            "checked_at": "2026-04-21T12:00:00Z",
+            "reason": "",
+            "probe": {"command": "status", "ok": True},
+        },
+    )
+
+    client = TestClient(app)
+    response = client.get("/health/compatibility")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "supported"
+    assert response.json()["chart_context_enabled"] is True
+    assert response.json()["tradingview_version"] == "2.9.0"

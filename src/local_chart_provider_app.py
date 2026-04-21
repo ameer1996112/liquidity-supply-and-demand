@@ -6,7 +6,10 @@ from pathlib import Path
 from fastapi import FastAPI, Query, Request
 from fastapi.staticfiles import StaticFiles
 
-from src.local_chart_provider_service import fetch_live_chart_context
+from src.local_chart_provider_service import (
+    fetch_live_chart_context,
+    get_chart_provider_compatibility_status,
+)
 
 
 logging.basicConfig(level=logging.INFO)
@@ -52,3 +55,15 @@ async def get_chart_context(
         payload.get("reason", ""),
     )
     return _attach_focus_image_url(payload, request)
+
+
+@app.get("/health/compatibility")
+async def get_compatibility_health() -> dict:
+    payload = get_chart_provider_compatibility_status()
+    logger.info(
+        "compatibility-health status=%s version=%s enabled=%s",
+        payload.get("status"),
+        payload.get("tradingview_version"),
+        payload.get("chart_context_enabled"),
+    )
+    return payload
