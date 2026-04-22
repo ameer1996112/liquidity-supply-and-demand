@@ -107,6 +107,8 @@ trailing_stop_manager = None
 breakeven_manager = None
 execution_adapter = None
 settings = None  # Global settings instance
+swap_guard_instance = None
+_swap_guard_signature: tuple[Any, ...] | None = None
 
 # Supabase client rotation — recreate every 90s to prevent HTTP/2 connection staleness
 _supabase_created_at: float = 0.0
@@ -276,6 +278,85 @@ def _get_trading_hours(s) -> tuple[int, int]:
     _trading_hours_cache["end"] = end
     _trading_hours_cache["loaded_at"] = now
     return start, end
+
+
+def _swap_guard_settings_signature(s: Any) -> tuple[Any, ...]:
+    min_block_after_minutes = getattr(
+        s,
+        "swap_min_block_after_min",
+        getattr(s, "swap_block_after_min", 15),
+    )
+    max_block_after_minutes = getattr(
+        s,
+        "swap_max_block_after_min",
+        min_block_after_minutes,
+    )
+    return (
+        getattr(s, "swap_time", "00:00"),
+        getattr(s, "swap_timezone", "Asia/Jerusalem"),
+        getattr(s, "swap_close_before_min", 15),
+        min_block_after_minutes,
+        max_block_after_minutes,
+        getattr(s, "swap_recovery_consecutive_checks", 3),
+        getattr(s, "swap_recovery_window_seconds", 300),
+        getattr(s, "swap_fx_max_spread", 0.00030),
+        getattr(s, "swap_jpy_max_spread", 0.030),
+        getattr(s, "swap_gold_max_spread", 0.50),
+        getattr(s, "swap_default_max_spread", 0.00050),
+        getattr(s, "swap_symbol_spread_overrides_json", ""),
+    )
+
+
+def _build_swap_guard(s: Any):
+    from src.core.guard_rails.swap_guard import (
+        SwapGuard,
+        parse_symbol_threshold_overrides,
+    )
+
+    min_block_after_minutes = getattr(
+        s,
+        "swap_min_block_after_min",
+        getattr(s, "swap_block_after_min", 15),
+    )
+    max_block_after_minutes = getattr(
+        s,
+        "swap_max_block_after_min",
+        min_block_after_minutes,
+    )
+    spread_provider = (
+        execution_adapter.get_symbol_spread
+        if execution_adapter is not None and hasattr(execution_adapter, "get_symbol_spread")
+        else (lambda _symbol: None)
+    )
+    return SwapGuard(
+        swap_time=getattr(s, "swap_time", "00:00"),
+        timezone_name=getattr(s, "swap_timezone", "Asia/Jerusalem"),
+        close_before_minutes=getattr(s, "swap_close_before_min", 15),
+        min_block_after_minutes=min_block_after_minutes,
+        max_block_after_minutes=max_block_after_minutes,
+        recovery_consecutive_checks=getattr(s, "swap_recovery_consecutive_checks", 3),
+        recovery_window_seconds=getattr(s, "swap_recovery_window_seconds", 300),
+        spread_provider=spread_provider,
+        asset_class_thresholds={
+            "fx": getattr(s, "swap_fx_max_spread", 0.00030),
+            "jpy": getattr(s, "swap_jpy_max_spread", 0.030),
+            "gold": getattr(s, "swap_gold_max_spread", 0.50),
+            "default": getattr(s, "swap_default_max_spread", 0.00050),
+        },
+        symbol_threshold_overrides=parse_symbol_threshold_overrides(
+            getattr(s, "swap_symbol_spread_overrides_json", "")
+        ),
+    )
+
+
+def _get_swap_guard(s: Any):
+    global swap_guard_instance, _swap_guard_signature
+
+    signature = _swap_guard_settings_signature(s)
+    if swap_guard_instance is None or _swap_guard_signature != signature:
+        swap_guard_instance = _build_swap_guard(s)
+        _swap_guard_signature = signature
+    return swap_guard_instance
 
 
 # Singleton scorer — stateless, safe to share across threads
@@ -1432,13 +1513,7 @@ def process_trade(payload: Dict[str, Any]):
     # ── Swap / Rollover Guard (global — block all entries during rollover window) ──
     if getattr(s, "enable_swap_guard", True):
         try:
-            from src.core.guard_rails.swap_guard import SwapGuard
-            swap_guard = SwapGuard(
-                swap_time=getattr(s, "swap_time", "00:00"),
-                timezone_name=getattr(s, "swap_timezone", "Asia/Jerusalem"),
-                close_before_minutes=getattr(s, "swap_close_before_min", 15),
-                block_after_minutes=getattr(s, "swap_block_after_min", 15),
-            )
+            swap_guard = _get_swap_guard(s)
             passed, reason = swap_guard.check(payload)
             if not passed:
                 if len(matching_profiles) > 1:
@@ -1820,6 +1895,8 @@ def _build_multi_account_profile_payloads(
 
 
 def run():
+    global swap_guard_instance, _swap_guard_signature
+
     init_connections()
     load_brain()
     s = get_settings()
@@ -1954,16 +2031,10 @@ def run():
 
     # Initialize Swap Guard scheduler
     swap_scheduler = None
-    swap_guard_instance = None
     if getattr(s, "enable_swap_guard", True):
         try:
-            from src.core.guard_rails.swap_guard import SwapGuard, SwapScheduler
-            swap_guard_instance = SwapGuard(
-                swap_time=getattr(s, "swap_time", "00:00"),
-                timezone_name=getattr(s, "swap_timezone", "Asia/Jerusalem"),
-                close_before_minutes=getattr(s, "swap_close_before_min", 15),
-                block_after_minutes=getattr(s, "swap_block_after_min", 15),
-            )
+            from src.core.guard_rails.swap_guard import SwapScheduler
+            swap_guard_instance = _get_swap_guard(s)
             if execution_adapter is None:
                 raise RuntimeError("execution adapter unavailable")
 
@@ -1973,9 +2044,16 @@ def run():
                 retry_delay_seconds=5,
             )
             logger.info(
-                "SwapGuard scheduler initialized: rollover=%s %s, window=-%d/+%dmin",
-                s.swap_time, s.swap_timezone,
-                s.swap_close_before_min, s.swap_block_after_min,
+                "SwapGuard scheduler initialized: rollover=%s %s, close_before=%dmin min_after=%dmin max_after=%dmin",
+                s.swap_time,
+                s.swap_timezone,
+                s.swap_close_before_min,
+                getattr(s, "swap_min_block_after_min", getattr(s, "swap_block_after_min", 15)),
+                getattr(
+                    s,
+                    "swap_max_block_after_min",
+                    getattr(s, "swap_min_block_after_min", getattr(s, "swap_block_after_min", 15)),
+                ),
             )
         except Exception as exc:
             logger.warning("SwapGuard scheduler init failed: %s", exc)
@@ -2043,29 +2121,16 @@ def run():
                 if swap_scheduler and swap_guard_instance:
                     try:
                         from datetime import timedelta
+                        current_settings = get_settings()
+                        swap_guard_instance = _get_swap_guard(current_settings)
                         now_dt = swap_guard_instance._now()
-                        swap_dt = now_dt.replace(
-                            hour=swap_guard_instance._swap_hour,
-                            minute=swap_guard_instance._swap_minute,
-                            second=0, microsecond=0,
-                        )
-                        # Handle case where swap_dt already passed today (e.g. now=23:50, swap=00:00 tomorrow)
-                        for day_offset in (0, 1):
-                            candidate = (now_dt + timedelta(days=day_offset)).replace(
-                                hour=swap_guard_instance._swap_hour,
-                                minute=swap_guard_instance._swap_minute,
-                                second=0, microsecond=0,
-                            )
-                            if candidate > now_dt:
-                                swap_dt = candidate
-                                break
+                        swap_dt = swap_guard_instance._active_swap_dt(now_dt)
                         in_close_window = (
-                            swap_dt - timedelta(minutes=s.swap_close_before_min)
+                            swap_dt - timedelta(minutes=swap_guard_instance.close_before_minutes)
                             <= now_dt
                             < swap_dt
                         )
-                        in_full_window = swap_guard_instance.is_in_blackout_window(now_dt)
-                        swap_scheduler.reset_if_outside_window(in_window=in_full_window)
+                        swap_scheduler.reset_if_outside_window(in_window=in_close_window)
                         if in_close_window:
                             swap_scheduler.close_all_positions_if_needed()
                     except Exception as sg_exc:
