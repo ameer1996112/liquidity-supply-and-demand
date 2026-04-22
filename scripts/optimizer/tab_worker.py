@@ -24,7 +24,7 @@ from typing import Optional, TYPE_CHECKING
 
 from .config import INPUT_INDEX, CHECKBOX_INDICES, HILL_CLIMB_PARAMS, LIQ_DISTANCE_RANGES
 from .models import BacktestResult
-from .optimizer_mcp import broker_to_tv_exchange
+from .optimizer_mcp import broker_to_tv_exchange, broker_to_tv_symbol_prefix
 
 if TYPE_CHECKING:
     from playwright.async_api import Page
@@ -1452,19 +1452,23 @@ class TabWorker:
         clean_symbol = symbol.split(":")[-1].upper().strip()
         broker = getattr(self.optimizer, "broker", "vantage").upper()
         tv_exchange = broker_to_tv_exchange(broker)
+        tv_symbol_prefix = broker_to_tv_symbol_prefix(broker)
         use_search = broker in self._SEARCH_DIALOG_BROKERS
 
         # Already on this symbol?
         try:
             title_broker, title_symbol = await self._current_symbol_details()
-            if title_symbol == clean_symbol and title_broker == tv_exchange:
+            observed_broker = title_broker
+            if observed_broker in {"", "FX"} and await self._chart_header_shows_broker(tv_exchange):
+                observed_broker = tv_exchange
+            if title_symbol == clean_symbol and observed_broker == tv_exchange:
                 print(f"  Already on {clean_symbol}, skipping switch")
                 await self._wait_for_load()
                 return
         except Exception:
             pass
 
-        print(f"  Navigating to {tv_exchange}:{clean_symbol}...")
+        print(f"  Navigating to {tv_symbol_prefix}:{clean_symbol}...")
 
         current_url = self.page.url
         chart_id = ""
@@ -1483,7 +1487,7 @@ class TabWorker:
 
         if hasattr(self.page, "_client"):
             try:
-                result = await self.page._client.run("symbol", f"{tv_exchange}:{clean_symbol}")
+                result = await self.page._client.run("symbol", f"{tv_symbol_prefix}:{clean_symbol}")
                 if not result.get("success", True):
                     raise RuntimeError(str(result.get("error") or "symbol command failed"))
                 await asyncio.sleep(2.0)
@@ -1491,7 +1495,7 @@ class TabWorker:
                 await self._wait_for_strategy_surface()
                 try:
                     await self._verify_symbol_state(clean_symbol, tv_exchange)
-                    print(f"  Switched to {tv_exchange}:{clean_symbol} (verified)")
+                    print(f"  Switched to {tv_symbol_prefix}:{clean_symbol} (verified)")
                     if not await self._ensure_chart_timeframe_5m():
                         raise RuntimeError("Could not confirm chart timeframe is 5m")
                     return
@@ -1515,7 +1519,7 @@ class TabWorker:
             await self._wait_for_load()
             await self._wait_for_strategy_surface()
             await self._verify_symbol_state(clean_symbol, tv_exchange)
-            print(f"  Switched to {tv_exchange}:{clean_symbol} (verified)")
+            print(f"  Switched to {tv_symbol_prefix}:{clean_symbol} (verified)")
             if not await self._ensure_chart_timeframe_5m():
                 raise RuntimeError("Could not confirm chart timeframe is 5m")
             return
@@ -1523,7 +1527,7 @@ class TabWorker:
         # ── URL fallback path (Vantage, OANDA, etc.) ─────────────────────────
         target_url = (
             f"https://www.tradingview.com/chart/{chart_id}/"
-            f"?symbol={tv_exchange}%3A{clean_symbol}"
+            f"?symbol={tv_symbol_prefix}%3A{clean_symbol}"
         )
 
         try:
@@ -1540,7 +1544,7 @@ class TabWorker:
         # Verify and fail closed if TradingView kept the old symbol.
         try:
             await self._verify_symbol_state(clean_symbol, tv_exchange)
-            print(f"  Switched to {tv_exchange}:{clean_symbol} (verified)")
+            print(f"  Switched to {tv_symbol_prefix}:{clean_symbol} (verified)")
             if not await self._ensure_chart_timeframe_5m():
                 raise RuntimeError("Could not confirm chart timeframe is 5m")
         except Exception:

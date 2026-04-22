@@ -16,10 +16,23 @@ BROKER_TO_TV_EXCHANGE: dict[str, str] = {
     "FXCM":    "FXCM",
 }
 
+# Some brokers expose instruments under a generic feed token even though the
+# chart metadata and search filter still identify the real exchange/broker.
+BROKER_TO_TV_SYMBOL_PREFIX: dict[str, str] = {
+    "VANTAGE": "VANTAGE",
+    "OANDA":   "OANDA",
+    "FXCM":    "FX",
+}
+
 
 def broker_to_tv_exchange(broker: str) -> str:
     """Resolve a broker name to its TradingView exchange prefix."""
     return BROKER_TO_TV_EXCHANGE.get(broker.upper(), broker.upper())
+
+
+def broker_to_tv_symbol_prefix(broker: str) -> str:
+    """Resolve the symbol prefix TradingView accepts for navigation commands."""
+    return BROKER_TO_TV_SYMBOL_PREFIX.get(broker.upper(), broker.upper())
 
 
 @dataclass(frozen=True)
@@ -427,8 +440,8 @@ class OptimizerMcpController:
         ]
 
     async def set_symbol(self, pair: str, broker: str) -> None:
-        tv_exchange = broker_to_tv_exchange(broker)
-        await self._run_command("symbol", "symbol", f"{tv_exchange}:{pair.upper()}")
+        tv_symbol_prefix = broker_to_tv_symbol_prefix(broker)
+        await self._run_command("symbol", "symbol", f"{tv_symbol_prefix}:{pair.upper()}")
 
     async def set_timeframe(self, value: str) -> None:
         await self._run_command("timeframe", "timeframe", value)

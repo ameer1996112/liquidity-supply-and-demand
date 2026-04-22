@@ -948,6 +948,26 @@ def test_optimizer_mcp_set_timeframe_uses_client_transport() -> None:
     assert client.calls == [("timeframe", "1h")]
 
 
+def test_optimizer_mcp_set_symbol_uses_generic_fx_feed_for_fxcm() -> None:
+    class FakeClient:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, ...]] = []
+
+        async def healthcheck(self) -> tuple[bool, str]:
+            return True, "ok"
+
+        async def run(self, *args: str) -> dict[str, bool]:
+            self.calls.append(args)
+            return {"success": True}
+
+    client = FakeClient()
+    controller = OptimizerMcpController(client=client)
+
+    asyncio.run(controller.set_symbol("EURUSD", "fxcm"))
+
+    assert client.calls == [("symbol", "FX:EURUSD")]
+
+
 def test_optimizer_mcp_wraps_transport_exception_with_action_context() -> None:
     class FakeClient:
         async def healthcheck(self) -> tuple[bool, str]:

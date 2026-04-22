@@ -1026,7 +1026,9 @@ def test_switch_symbol_uses_search_selection_for_fxcm(monkeypatch) -> None:
 
 
 def test_switch_symbol_prefers_desktop_mcp_symbol_command_for_fxcm(monkeypatch) -> None:
-    page = DesktopClientSwitchPageWithBroker()
+    page = DesktopClientSwitchPageWithGenericFeed()
+    page.symbol = "USDJPY"
+    page.url = "https://www.tradingview.com/chart/test123/?symbol=FX%3AUSDJPY"
     optimizer = DummyOptimizer()
     optimizer.broker = "fxcm"
     worker = TabWorker(page, optimizer)
@@ -1048,9 +1050,9 @@ def test_switch_symbol_prefers_desktop_mcp_symbol_command_for_fxcm(monkeypatch) 
 
     asyncio.run(worker._switch_symbol("EURUSD"))
 
-    assert page._client.calls == [("symbol", "FXCM:EURUSD")]
+    assert page._client.calls == [("symbol", "FX:EURUSD")]
     assert page.goto_called is False
-    assert page.broker == "FXCM"
+    assert page.broker == "FX"
     assert page.symbol == "EURUSD"
     assert "set-5m" in events
 
@@ -1078,9 +1080,9 @@ def test_switch_symbol_accepts_generic_fx_feed_when_header_shows_fxcm(monkeypatc
 
     asyncio.run(worker._switch_symbol("EURUSD"))
 
-    assert page._client.calls == [("symbol", "FXCM:EURUSD")]
+    assert page._client.calls == []
     assert page.goto_called is False
-    assert "set-5m" in events
+    assert events == ["wait-load:30"]
 
 
 def test_switch_symbol_fails_fast_when_fxcm_search_has_no_result(monkeypatch) -> None:
