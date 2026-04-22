@@ -1,1 +1,0 @@
-{"ts": "2026-04-21T12:45:12.688871+03:00", "run_id": "20260421_124512_bced94", "event_type": "run_started", "mode": "bayesian", "workers": 4, "pairs": ["EURUSD", "EURJPY", "AUDCAD", "XAUUSD"], "dry_run": false, "broker": "oanda", "backtest_range": "Last 90 days"}

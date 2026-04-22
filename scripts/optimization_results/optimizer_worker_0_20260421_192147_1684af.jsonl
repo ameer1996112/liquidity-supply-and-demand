@@ -1,2 +1,0 @@
-{"ts": "2026-04-21T19:24:50.026521+03:00", "run_id": "20260421_192147_1684af", "worker_id": 0, "symbol": "EURJPY", "trial": 1, "outcome": "stale", "params_hash": "d624e896", "results_hash_before": "d41d8cd9", "results_hash_after": "d41d8cd9", "metrics": {}}
-{"ts": "2026-04-21T19:26:40.447378+03:00", "run_id": "20260421_192147_1684af", "worker_id": 0, "symbol": "EURJPY", "trial": 1, "outcome": "apply_failed", "params_hash": "d624e896", "results_hash_before": "d41d8cd9", "results_hash_after": "", "metrics": {}}
