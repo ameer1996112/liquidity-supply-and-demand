@@ -843,9 +843,38 @@ class TabWorker:
 
     async def _open_symbol_search_dialog(self, current_symbol: str) -> bool:
         """Open TradingView's symbol search dialog from the chart header."""
+        async def dialog_open() -> bool:
+            try:
+                return bool(
+                    await self.page.evaluate(
+                        """
+                        (() => {
+                            const visible = (el) => {
+                                const rect = el?.getBoundingClientRect?.();
+                                const style = el ? window.getComputedStyle(el) : null;
+                                return !!rect && rect.width > 0 && rect.height > 0 &&
+                                    style?.visibility !== 'hidden' && style?.display !== 'none';
+                            };
+                            const normalize = (text) => (text || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+                            const isSearchInput = (el) => {
+                                const placeholder = normalize(el?.getAttribute?.('placeholder'));
+                                const aria = normalize(el?.getAttribute?.('aria-label'));
+                                return placeholder.includes('symbol')
+                                    || placeholder.includes('isin')
+                                    || placeholder.includes('cusip')
+                                    || aria.includes('symbol');
+                            };
+                            return Array.from(document.querySelectorAll('input'))
+                                .some((el) => visible(el) && isSearchInput(el));
+                        })()
+                        """
+                    )
+                )
+            except Exception:
+                return False
+
         try:
-            return bool(
-                await self.page.evaluate(
+            click_target = await self.page.evaluate(
                     """
                     (currentSymbol) => {
                         const visible = (el) => {
@@ -855,11 +884,19 @@ class TabWorker:
                                 style?.visibility !== 'hidden' && style?.display !== 'none';
                         };
                         const normalize = (text) => (text || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+                        const isSearchInput = (el) => {
+                            const placeholder = normalize(el?.getAttribute?.('placeholder'));
+                            const aria = normalize(el?.getAttribute?.('aria-label'));
+                            return placeholder.includes('symbol')
+                                || placeholder.includes('isin')
+                                || placeholder.includes('cusip')
+                                || aria.includes('symbol');
+                        };
                         const hasSearch = () => {
                             return Array.from(document.querySelectorAll('input'))
-                                .some((el) => visible(el) && normalize(el.getAttribute('placeholder')).includes('symbol search'));
+                                .some((el) => visible(el) && isSearchInput(el));
                         };
-                        if (hasSearch()) return true;
+                        if (hasSearch()) return { opened: true };
 
                         const wanted = normalize(currentSymbol);
                         const candidates = Array.from(document.querySelectorAll('button, [role="button"], [data-name], span, div'))
@@ -879,17 +916,180 @@ class TabWorker:
                             .sort((a, b) => a.rect.y - b.rect.y || a.rect.x - b.rect.x);
 
                         const target = candidates.find((item) =>
-                            item.text === wanted
-                            || item.aria.includes('symbol search')
+                            item.aria.includes('change symbol')
+                            || item.title.includes('change symbol')
+                        ) || candidates.find((item) =>
+                            item.aria.includes('symbol search')
                             || item.title.includes('symbol search')
+                            || item.text === wanted
                             || item.dataName.includes('legend-series-item')
                         );
-                        if (!target) return false;
+                        if (!target) return null;
                         target.el.click();
-                        return true;
+                        return {
+                            clicked: true,
+                            x: target.rect.x + target.rect.width / 2,
+                            y: target.rect.y + target.rect.height / 2,
+                        };
                     }
                     """,
                     current_symbol,
+            )
+        except Exception:
+            click_target = None
+
+        if await dialog_open():
+            return True
+
+        if click_target:
+            for _ in range(6):
+                await asyncio.sleep(0.2)
+                if await dialog_open():
+                    return True
+
+            if isinstance(click_target, dict) and "x" in click_target and "y" in click_target:
+                try:
+                    await self.page.mouse.click(float(click_target["x"]), float(click_target["y"]))
+                except Exception:
+                    return False
+
+                for _ in range(8):
+                    await asyncio.sleep(0.25)
+                    if await dialog_open():
+                        return True
+            print(f"    Search dialog opener clicked for {current_symbol}, but no dialog became visible")
+        else:
+            print(f"    Search dialog opener not found for {current_symbol}")
+
+        try:
+            await self.page.keyboard.type(current_symbol)
+            for _ in range(10):
+                await asyncio.sleep(0.2)
+                if await dialog_open():
+                    print(f"    Search dialog opened via keyboard fallback for {current_symbol}")
+                    return True
+        except Exception:
+            pass
+
+        return False
+
+    async def _current_symbol_search_query(self) -> str:
+        """Return the visible TradingView symbol search query when the dialog is open."""
+        try:
+            return str(
+                await self.page.evaluate(
+                    """
+                    /* symbol-search-query-read */
+                    (() => {
+                        const visible = (el) => {
+                            const rect = el?.getBoundingClientRect?.();
+                            const style = el ? window.getComputedStyle(el) : null;
+                            return !!rect && rect.width > 0 && rect.height > 0 &&
+                                style?.visibility !== 'hidden' && style?.display !== 'none';
+                        };
+                        const normalize = (text) => (text || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+                        const isSearchInput = (el) => {
+                            const placeholder = normalize(el?.getAttribute?.('placeholder'));
+                            const aria = normalize(el?.getAttribute?.('aria-label'));
+                            return placeholder.includes('symbol')
+                                || placeholder.includes('isin')
+                                || placeholder.includes('cusip')
+                                || aria.includes('symbol');
+                        };
+                        const input = Array.from(document.querySelectorAll('input'))
+                            .find((el) => visible(el) && isSearchInput(el));
+                        return (input?.value || '').trim().toUpperCase();
+                    })()
+                    """
+                )
+                or ""
+            ).strip().upper()
+        except Exception:
+            return ""
+
+    async def _set_symbol_search_query(self, target_symbol: str) -> bool:
+        """Force the TradingView symbol search box to the bare target symbol."""
+        desired = str(target_symbol or "").upper().strip()
+        if not desired:
+            return False
+
+        if await self._current_symbol_search_query() == desired:
+            return True
+
+        try:
+            focused = bool(
+                await self.page.evaluate(
+                    """
+                    /* symbol-search-query-focus */
+                    (() => {
+                        const visible = (el) => {
+                            const rect = el?.getBoundingClientRect?.();
+                            const style = el ? window.getComputedStyle(el) : null;
+                            return !!rect && rect.width > 0 && rect.height > 0 &&
+                                style?.visibility !== 'hidden' && style?.display !== 'none';
+                        };
+                        const normalize = (text) => (text || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+                        const isSearchInput = (el) => {
+                            const placeholder = normalize(el?.getAttribute?.('placeholder'));
+                            const aria = normalize(el?.getAttribute?.('aria-label'));
+                            return placeholder.includes('symbol')
+                                || placeholder.includes('isin')
+                                || placeholder.includes('cusip')
+                                || aria.includes('symbol');
+                        };
+                        const input = Array.from(document.querySelectorAll('input'))
+                            .find((el) => visible(el) && isSearchInput(el));
+                        if (!input) return false;
+                        input.focus();
+                        input.select?.();
+                        return true;
+                    })()
+                    """
+                )
+            )
+            keyboard = getattr(self.page, "keyboard", None)
+            if focused and keyboard is not None:
+                await keyboard.press("Meta+A")
+                await keyboard.press("Backspace")
+                await keyboard.type(desired)
+                await asyncio.sleep(0.4)
+                if await self._current_symbol_search_query() == desired:
+                    return True
+        except Exception:
+            pass
+
+        try:
+            return bool(
+                await self.page.evaluate(
+                    """
+                    /* symbol-search-query-set-native */
+                    (targetSymbol) => {
+                        const visible = (el) => {
+                            const rect = el?.getBoundingClientRect?.();
+                            const style = el ? window.getComputedStyle(el) : null;
+                            return !!rect && rect.width > 0 && rect.height > 0 &&
+                                style?.visibility !== 'hidden' && style?.display !== 'none';
+                        };
+                        const normalize = (text) => (text || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+                        const isSearchInput = (el) => {
+                            const placeholder = normalize(el?.getAttribute?.('placeholder'));
+                            const aria = normalize(el?.getAttribute?.('aria-label'));
+                            return placeholder.includes('symbol')
+                                || placeholder.includes('isin')
+                                || placeholder.includes('cusip')
+                                || aria.includes('symbol');
+                        };
+                        const input = Array.from(document.querySelectorAll('input'))
+                            .find((el) => visible(el) && isSearchInput(el));
+                        if (!input) return false;
+                        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+                        setter?.call(input, targetSymbol);
+                        input.dispatchEvent(new InputEvent('input', { bubbles: true, data: targetSymbol, inputType: 'insertText' }));
+                        input.dispatchEvent(new Event('change', { bubbles: true }));
+                        return (input.value || '').trim().toUpperCase() === targetSymbol.toUpperCase();
+                    }
+                    """,
+                    desired,
                 )
             )
         except Exception:
@@ -900,13 +1100,14 @@ class TabWorker:
         if not await self._open_symbol_search_dialog(target_symbol):
             return False
 
+        last_state = "not-started"
         for attempt in range(20):
             try:
                 await asyncio.sleep(0.4)
                 selected = await self.page.evaluate(
                     """
                     (payload) => {
-                        const { targetSymbol, targetBroker } = payload;
+                        const { targetSymbol, targetBroker, targetCategory } = payload;
                         const visible = (el) => {
                             const rect = el?.getBoundingClientRect?.();
                             const style = el ? window.getComputedStyle(el) : null;
@@ -914,55 +1115,191 @@ class TabWorker:
                                 style?.visibility !== 'hidden' && style?.display !== 'none';
                         };
                         const normalize = (text) => (text || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+                        const isSearchInput = (el) => {
+                            const placeholder = normalize(el?.getAttribute?.('placeholder'));
+                            const aria = normalize(el?.getAttribute?.('aria-label'));
+                            return placeholder.includes('symbol')
+                                || placeholder.includes('isin')
+                                || placeholder.includes('cusip')
+                                || aria.includes('symbol');
+                        };
                         const symbolToken = normalize(targetSymbol);
                         const brokerToken = normalize(targetBroker);
+                        const categoryToken = normalize(targetCategory);
+                        const isSelected = (el) => {
+                            if (!el) return false;
+                            const ariaSelected = normalize(el.getAttribute('aria-selected'));
+                            const ariaPressed = normalize(el.getAttribute('aria-pressed'));
+                            const className = normalize(el.className);
+                            return ariaSelected === 'true'
+                                || ariaPressed === 'true'
+                                || className.includes('selected')
+                                || className.includes('active');
+                        };
+                        const clickTextControl = (token, allowedSelector, { maxY = 380 } = {}) => {
+                            const matches = Array.from(document.querySelectorAll(allowedSelector))
+                                .filter((el) => visible(el))
+                                .map((el) => ({
+                                    el,
+                                    text: normalize(el.textContent),
+                                    aria: normalize(el.getAttribute('aria-label')),
+                                    title: normalize(el.getAttribute('title')),
+                                    rect: el.getBoundingClientRect(),
+                                }))
+                                .filter((item) => item.rect.y < maxY)
+                                .filter((item) =>
+                                    item.text === token
+                                    || item.aria === token
+                                    || item.title === token
+                                )
+                                .sort((a, b) => a.rect.y - b.rect.y || a.rect.x - b.rect.x);
+                            if (!matches.length) return { found: false, selected: false };
+                            const best = matches[0];
+                            if (isSelected(best.el)) return { found: true, selected: true };
+                            best.el.click();
+                            return { found: true, selected: false };
+                        };
 
                         // Step 1: Ensure the search input exists and has the right text
                         const input = Array.from(document.querySelectorAll('input'))
-                            .find((el) => visible(el) && normalize(el.getAttribute('placeholder')).includes('symbol search'));
+                            .find((el) => visible(el) && isSearchInput(el));
                         if (!input) return { state: 'no-input' };
 
-                        if ((input.value || '').trim().toUpperCase() !== targetSymbol.toUpperCase()) {
-                            input.focus();
-                            input.value = targetSymbol;
-                            input.dispatchEvent(new Event('input', { bubbles: true }));
-                            input.dispatchEvent(new Event('change', { bubbles: true }));
-                            return { state: 'typed' };
+                        // Step 2: Keep the result category on Forex when that tab exists.
+                        const categoryResult = clickTextControl(
+                            categoryToken,
+                            'button, [role="button"], [role="tab"]',
+                            { maxY: 260 },
+                        );
+                        if (categoryResult.found && !categoryResult.selected) {
+                            return { state: 'category-selected' };
                         }
 
-                        // Step 2: Find the result row that matches both symbol and broker.
-                        // TradingView search results are rendered as rows with a data-symbol-full
-                        // attribute or nested spans containing the symbol name and exchange.
-                        // We look for the smallest (most specific) element whose text contains
-                        // both the symbol and the broker name to avoid clicking a parent container.
-                        const candidates = Array.from(document.querySelectorAll(
-                            '[data-symbol-full], [role="option"], [role="row"], [class*="itemRow"], [class*="listItem"], tr, li'
+                        // Step 3: Apply the explicit broker filter when TradingView exposes one.
+                        const brokerResult = clickTextControl(
+                            brokerToken,
+                            'button, [role="button"], [role="tab"], [aria-pressed], [aria-selected]',
+                            { maxY: 320 },
+                        );
+                        if (brokerResult.found && !brokerResult.selected) {
+                            return { state: 'broker-filtered' };
+                        }
+
+                        // Step 4: The caller updates the React-controlled query input with
+                        // real keyboard/native events. We only signal when it's needed.
+                        if ((input.value || '').trim().toUpperCase() !== targetSymbol.toUpperCase()) {
+                            return { state: 'needs-query', currentQuery: (input.value || '').trim().toUpperCase() };
+                        }
+
+                        // Step 5: Find the result row that matches both symbol and broker.
+                        // TradingView often splits the symbol and broker across sibling cells,
+                        // so we search within the dialog, walk up from exact broker hits, and
+                        // then click the smallest visible row/container that contains both.
+                        const dialogRoot = input.closest('[role="dialog"], [data-name*="dialog"], [class*="dialog"]')
+                            || document.body;
+                        const searchRect = input.getBoundingClientRect();
+                        const inSearchPopupBounds = (el) => {
+                            const rect = el.getBoundingClientRect();
+                            return rect.top >= searchRect.top - 80
+                                && rect.top <= searchRect.top + 1100
+                                && rect.left >= searchRect.left - 80
+                                && rect.right <= searchRect.right + 320;
+                        };
+                        const areaOf = (el) => {
+                            const rect = el.getBoundingClientRect();
+                            return rect.width * rect.height;
+                        };
+                        const clickableTarget = (el) => {
+                            let current = el;
+                            while (current && current !== dialogRoot.parentElement) {
+                                if (!visible(current)) {
+                                    current = current.parentElement;
+                                    continue;
+                                }
+                                const role = normalize(current.getAttribute('role'));
+                                const dataName = normalize(current.getAttribute('data-name'));
+                                const tag = normalize(current.tagName);
+                                if (
+                                    role === 'button'
+                                    || role === 'option'
+                                    || role === 'row'
+                                    || tag === 'button'
+                                    || tag === 'li'
+                                    || tag === 'tr'
+                                    || dataName.includes('list-item')
+                                    || dataName.includes('item-row')
+                                    || dataName.includes('result')
+                                ) {
+                                    return current;
+                                }
+                                current = current.parentElement;
+                            }
+                            return el;
+                        };
+                        const addCandidate = (list, el, method) => {
+                            if (!el || !visible(el)) return;
+                            const area = areaOf(el);
+                            if (area < 100 || area > 200000) return;
+                            list.push({ el, area, method });
+                        };
+
+                        const scopedElements = Array.from(document.querySelectorAll(
+                            '[data-symbol-full], [role="option"], [role="row"], [class*="itemRow"], [class*="listItem"], tr, li, button, div, span'
                         ))
-                            .filter((el) => visible(el))
-                            .map((el) => ({ el, text: normalize(el.textContent), area: el.getBoundingClientRect().width * el.getBoundingClientRect().height }))
-                            .filter((item) => item.text.includes(symbolToken) && item.text.includes(brokerToken));
+                            .filter((el) => visible(el) && inSearchPopupBounds(el));
+                        const candidates = [];
+
+                        const brokerHits = scopedElements.filter((el) => {
+                            const text = normalize(el.textContent);
+                            const aria = normalize(el.getAttribute('aria-label'));
+                            const title = normalize(el.getAttribute('title'));
+                            return text === brokerToken || aria === brokerToken || title === brokerToken;
+                        });
+
+                        for (const brokerHit of brokerHits) {
+                            let current = brokerHit;
+                            for (let depth = 0; current && depth < 8; depth += 1) {
+                                const text = normalize(current.textContent);
+                                if (text.includes(symbolToken) && text.includes(brokerToken)) {
+                                    addCandidate(candidates, current, 'broker-ancestor');
+                                }
+                                if (current === dialogRoot) break;
+                                current = current.parentElement;
+                            }
+
+                            const parent = brokerHit.parentElement;
+                            if (parent && visible(parent)) {
+                                const siblingText = normalize(
+                                    Array.from(parent.children)
+                                        .map((child) => child.textContent || '')
+                                        .join(' ')
+                                );
+                                if (siblingText.includes(symbolToken) && siblingText.includes(brokerToken)) {
+                                    addCandidate(candidates, parent, 'broker-siblings');
+                                }
+                            }
+                        }
 
                         if (!candidates.length) {
-                            // Fallback: try broader selectors but pick the smallest matching element
-                            const broad = Array.from(document.querySelectorAll('div, button, span'))
-                                .filter((el) => visible(el))
-                                .map((el) => ({ el, text: normalize(el.textContent), area: el.getBoundingClientRect().width * el.getBoundingClientRect().height }))
-                                .filter((item) => item.text.includes(symbolToken) && item.text.includes(brokerToken))
-                                .filter((item) => item.area > 100 && item.area < 50000);
-                            if (!broad.length) return { state: 'no-match' };
-                            // Pick the smallest matching element (most specific row)
-                            broad.sort((a, b) => a.area - b.area);
-                            broad[0].el.click();
-                            return { state: 'selected', method: 'broad-smallest' };
+                            const exactRows = scopedElements
+                                .map((el) => ({ el, text: normalize(el.textContent), area: areaOf(el) }))
+                                .filter((item) => item.text.includes(symbolToken) && item.text.includes(brokerToken));
+                            exactRows.forEach((item) => addCandidate(candidates, item.el, 'exact-row'));
                         }
 
-                        // Pick the smallest matching element to avoid clicking a parent container
+                        if (!candidates.length) return { state: 'no-match' };
+
                         candidates.sort((a, b) => a.area - b.area);
-                        candidates[0].el.click();
-                        return { state: 'selected', method: 'precise' };
+                        const best = candidates[0];
+                        clickableTarget(best.el).click();
+                        return { state: 'selected', method: best.method };
                     }
                     """,
-                    {"targetSymbol": target_symbol, "targetBroker": target_broker},
+                    {
+                        "targetSymbol": target_symbol,
+                        "targetBroker": target_broker,
+                        "targetCategory": "Forex",
+                    },
                 )
             except Exception:
                 selected = None
@@ -970,6 +1307,18 @@ class TabWorker:
             if isinstance(selected, dict) and selected.get("state") == "selected":
                 print(f"    Search dialog: selected {target_broker}:{target_symbol} ({selected.get('method', '?')})")
                 return True
+            if isinstance(selected, dict):
+                state = str(selected.get("state", "unknown"))
+                if state == "needs-query":
+                    if await self._set_symbol_search_query(target_symbol):
+                        last_state = "typed"
+                    else:
+                        last_state = "query-update-failed"
+                    continue
+                last_state = state
+            elif selected is not None:
+                last_state = str(selected)
+        print(f"    Search dialog: last state for {target_broker}:{target_symbol} was {last_state}")
         return False
 
     async def _verify_symbol_state(self, expected_symbol: str, expected_broker: str = "") -> None:
@@ -978,6 +1327,8 @@ class TabWorker:
         expected_broker = str(expected_broker or "").upper().strip()
         if expected_broker:
             observed_broker = await self._current_broker()
+            if observed_broker in {"", "FX"} and await self._chart_header_shows_broker(expected_broker):
+                observed_broker = expected_broker
             if observed_broker and observed_broker != expected_broker:
                 raise RuntimeError(
                     f"Broker mismatch: expected {expected_broker}, observed {observed_broker or 'UNKNOWN'}"
@@ -1017,6 +1368,44 @@ class TabWorker:
                             .some((el) => visible(el) && normalize(el.textContent) === 'S&D Algo [Pro]');
                     })()
                     """
+                )
+            )
+        except Exception:
+            return False
+
+    async def _chart_header_shows_broker(self, expected_broker: str) -> bool:
+        """Return True when the chart header visibly shows the requested broker token."""
+        broker = str(expected_broker or "").upper().strip()
+        if not broker:
+            return False
+        try:
+            return bool(
+                await self.page.evaluate(
+                    """
+                    (expectedBroker) => {
+                        const visible = (el) => {
+                            const rect = el?.getBoundingClientRect?.();
+                            const style = el ? window.getComputedStyle(el) : null;
+                            return !!rect && rect.width > 0 && rect.height > 0 &&
+                                style?.visibility !== 'hidden' && style?.display !== 'none';
+                        };
+                        const normalize = (text) => (text || '').replace(/\\s+/g, ' ').trim().toUpperCase();
+                        const token = normalize(expectedBroker);
+                        return Array.from(document.querySelectorAll('div, span, button, [aria-label], [title]'))
+                            .filter((el) => visible(el))
+                            .filter((el) => {
+                                const rect = el.getBoundingClientRect();
+                                return rect.y < 220 && rect.x < 900;
+                            })
+                            .some((el) => {
+                                const text = normalize(el.textContent);
+                                const aria = normalize(el.getAttribute('aria-label'));
+                                const title = normalize(el.getAttribute('title'));
+                                return text === token || aria === token || title === token;
+                            });
+                    }
+                    """,
+                    broker,
                 )
             )
         except Exception:
@@ -1077,20 +1466,6 @@ class TabWorker:
 
         print(f"  Navigating to {tv_exchange}:{clean_symbol}...")
 
-        # ── Search-dialog path (FXCM: URL navigation doesn't work) ───────────
-        if use_search:
-            if not await self._select_symbol_via_search(clean_symbol, tv_exchange):
-                raise RuntimeError(f"{tv_exchange} symbol search could not find {clean_symbol}")
-            await asyncio.sleep(2.0)
-            await self._wait_for_load()
-            await self._wait_for_strategy_surface()
-            await self._verify_symbol_state(clean_symbol, tv_exchange)
-            print(f"  Switched to {tv_exchange}:{clean_symbol} (verified)")
-            if not await self._ensure_chart_timeframe_5m():
-                raise RuntimeError("Could not confirm chart timeframe is 5m")
-            return
-
-        # ── URL / MCP path (Vantage, OANDA, etc.) ────────────────────────────
         current_url = self.page.url
         chart_id = ""
         if "/chart/" in current_url:
@@ -1106,11 +1481,6 @@ class TabWorker:
                 f"Cannot switch symbol: no chart ID in URL {current_url}"
             )
 
-        target_url = (
-            f"https://www.tradingview.com/chart/{chart_id}/"
-            f"?symbol={tv_exchange}%3A{clean_symbol}"
-        )
-
         if hasattr(self.page, "_client"):
             try:
                 result = await self.page._client.run("symbol", f"{tv_exchange}:{clean_symbol}")
@@ -1125,15 +1495,36 @@ class TabWorker:
                     if not await self._ensure_chart_timeframe_5m():
                         raise RuntimeError("Could not confirm chart timeframe is 5m")
                     return
-                except Exception:
+                except Exception as verify_error:
                     observed = await self._current_symbol()
-                log.warning(
-                    "_switch_symbol: MCP symbol command did not land on %s (observed=%s), falling back to URL navigation",
-                    clean_symbol,
-                    observed or "UNKNOWN",
-                )
+                    log.warning(
+                        "_switch_symbol: MCP symbol command did not land on %s (observed=%s, reason=%s), falling back to %s navigation",
+                        clean_symbol,
+                        observed or "UNKNOWN",
+                        verify_error,
+                        "search" if use_search else "URL",
+                    )
             except Exception as e:
-                log.warning("_switch_symbol: MCP symbol command failed, falling back to URL navigation: %s", e)
+                log.warning("_switch_symbol: MCP symbol command failed, falling back to %s navigation: %s", "search" if use_search else "URL", e)
+
+        # ── Search-dialog fallback path (FXCM) ───────────────────────────────
+        if use_search:
+            if not await self._select_symbol_via_search(clean_symbol, tv_exchange):
+                raise RuntimeError(f"{tv_exchange} symbol search could not find {clean_symbol}")
+            await asyncio.sleep(2.0)
+            await self._wait_for_load()
+            await self._wait_for_strategy_surface()
+            await self._verify_symbol_state(clean_symbol, tv_exchange)
+            print(f"  Switched to {tv_exchange}:{clean_symbol} (verified)")
+            if not await self._ensure_chart_timeframe_5m():
+                raise RuntimeError("Could not confirm chart timeframe is 5m")
+            return
+
+        # ── URL fallback path (Vantage, OANDA, etc.) ─────────────────────────
+        target_url = (
+            f"https://www.tradingview.com/chart/{chart_id}/"
+            f"?symbol={tv_exchange}%3A{clean_symbol}"
+        )
 
         try:
             await self.page.goto(

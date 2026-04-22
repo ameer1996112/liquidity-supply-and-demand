@@ -670,6 +670,14 @@ async def run_parallel(
                 broker=broker,
             )
             pages = _prepare_mcp_backed_pages(workspace_slots)
+            if len(pages) < n_workers:
+                log.warning(
+                    "Requested %d worker(s) but only %d TradingView Desktop MCP session(s) were prepared; continuing with %d worker(s)",
+                    n_workers,
+                    len(pages),
+                    len(pages),
+                )
+                n_workers = len(pages)
             log.info("Prepared %d TradingView Desktop MCP session(s)", len(pages))
 
         # Stagger worker starts to avoid race conditions

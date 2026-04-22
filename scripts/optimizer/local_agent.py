@@ -220,7 +220,11 @@ def _report_optimizer_run_blocked(run_id: str, reason: str, *, workers: int, dry
 
 
 async def _ensure_optimizer_run_ready(workers: int) -> tuple[bool, str]:
-    """Check the local optimizer prereqs needed before claiming a run."""
+    """Check the local optimizer prereqs needed before claiming a run.
+
+    This probe must stay read-only: it should never open new TradingView tabs
+    while deciding whether to claim a queued optimizer run.
+    """
     if not _playwright_available():
         return (
             False,
@@ -230,10 +234,18 @@ async def _ensure_optimizer_run_ready(workers: int) -> tuple[bool, str]:
 
     controller = OptimizerMcpController()
     try:
-        await controller.ensure_optimizer_ready(required_tabs=workers)
-        return True, ""
+        await controller.ensure_ready()
+        tabs = await controller._list_workspace_tabs()
     except Exception as exc:
         return False, str(exc)
+
+    available_tabs = max(len(tabs), 0)
+    if available_tabs < workers:
+        return (
+            False,
+            f"TradingView MCP currently exposes {available_tabs} tab(s); requested {workers}",
+        )
+    return True, ""
 
 
 async def _available_optimizer_worker_count() -> int:

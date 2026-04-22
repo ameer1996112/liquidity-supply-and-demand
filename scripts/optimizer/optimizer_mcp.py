@@ -316,6 +316,10 @@ class OptimizerMcpController:
         await self.ensure_ready()
         existing_tabs = await self._list_workspace_tabs()
         existing_pages = await self._list_workspace_pages()
+        reusable_tabs = sorted(
+            existing_tabs,
+            key=lambda tab: int(tab.get("index") or -1),
+        )[-required_tabs:]
         bootstrap_chart_id = next(
             (str(tab.get("chart_id") or "") for tab in existing_tabs if tab.get("chart_id")),
             None,
@@ -323,8 +327,11 @@ class OptimizerMcpController:
         known_tab_ids = {self._tab_id(tab) for tab in existing_tabs}
         known_page_ids = {self._tab_id(page) for page in existing_pages}
         fresh_tabs: list[dict[str, Any]] = []
+        expansion_blocked_reason: str | None = None
 
-        for _ in range(required_tabs):
+        missing_tabs = max(required_tabs - len(reusable_tabs), 0)
+
+        for _ in range(missing_tabs):
             await self._run_command("tab new", "tab", "new")
             fresh_page = await self._wait_for_new_workspace_page(
                 known_page_ids=known_page_ids,
@@ -332,19 +339,29 @@ class OptimizerMcpController:
             known_page_ids.add(self._tab_id(fresh_page))
             fresh_tab = fresh_page
             if fresh_page.get("kind") == "new_tab":
-                fresh_tab = await self._promote_new_tab_to_chart(
-                    shell_tab=fresh_page,
-                    bootstrap_chart_id=bootstrap_chart_id,
-                    bootstrap_symbol=bootstrap_symbol,
-                    broker=broker,
-                    known_chart_ids=known_tab_ids,
-                    known_page_ids=known_page_ids,
-                )
+                try:
+                    fresh_tab = await self._promote_new_tab_to_chart(
+                        shell_tab=fresh_page,
+                        bootstrap_chart_id=bootstrap_chart_id,
+                        bootstrap_symbol=bootstrap_symbol,
+                        broker=broker,
+                        known_chart_ids=known_tab_ids,
+                        known_page_ids=known_page_ids,
+                    )
+                except RuntimeError as exc:
+                    expansion_blocked_reason = str(exc)
+                    break
                 known_page_ids.add(self._tab_id(fresh_tab))
             fresh_tabs.append(fresh_tab)
             known_tab_ids.add(self._tab_id(fresh_tab))
 
-        ready_slots = self._build_workspace_slots(fresh_tabs)
+        ready_tabs = sorted(
+            [*reusable_tabs, *fresh_tabs],
+            key=lambda tab: int(tab.get("index") or -1),
+        )[:required_tabs]
+        if not ready_tabs and expansion_blocked_reason:
+            raise RuntimeError(expansion_blocked_reason)
+        ready_slots = self._build_workspace_slots(ready_tabs)
         return [
             OptimizerWorkspaceSlot(
                 index=slot.index,

@@ -153,6 +153,49 @@ def test_run_parallel_uses_mcp_workspace_slots_to_assign_pages(monkeypatch, tmp_
     ]
 
 
+def test_run_parallel_clamps_worker_tasks_to_prepared_mcp_sessions(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(parallel_runner, "setup_logging", lambda: None)
+    monkeypatch.setattr(
+        parallel_runner,
+        "results_file_for_broker",
+        lambda broker, results_label=None: tmp_path / (
+            "parallel_results.json" if results_label is None else f"parallel_results_{results_label}.json"
+        ),
+    )
+    monkeypatch.setattr(parallel_runner, "detect_desktop_cdp_pid", lambda: 4321)
+    monkeypatch.setattr(parallel_runner, "WORKER_STARTUP_DELAY", 0)
+    monkeypatch.setattr(parallel_runner, "OptimizerRuntimeState", FakeRuntimeState)
+
+    class FakeController:
+        async def ensure_optimizer_workspace(self, **kwargs):
+            return [OptimizerWorkspaceSlot(index=0, tab_id="tab-a", chart_id="AAA")]
+
+    monkeypatch.setattr(parallel_runner, "OptimizerMcpController", lambda: FakeController())
+
+    worker_ids: list[int] = []
+
+    async def fake_worker_task(*args, **kwargs) -> None:
+        worker_ids.append(kwargs["worker_id"])
+
+    monkeypatch.setattr(parallel_runner, "worker_task", fake_worker_task)
+
+    result = asyncio.run(
+        parallel_runner.run_parallel(
+            pairs=["EURUSD", "GBPUSD"],
+            n_workers=3,
+            mode="bayesian",
+            n_trials=1,
+            dd_limit=10.0,
+            dry_run=False,
+            broker="vantage",
+            results_label="run-clamped",
+        )
+    )
+
+    assert result == {}
+    assert worker_ids == [0]
+
+
 def test_run_parallel_dry_run_launches_workers_without_browser(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(parallel_runner, "setup_logging", lambda: None)
     monkeypatch.setattr(

@@ -1,11 +1,11 @@
 {
-  "run_id": "20260422_225536_426e59",
-  "state": "running",
-  "started_at": "2026-04-22T22:55:36.928370+03:00",
-  "last_progress_at": "2026-04-22T22:56:19.823731+03:00",
+  "run_id": "20260422_222745_d40057",
+  "state": "failed",
+  "started_at": "2026-04-22T22:27:45.925874+03:00",
+  "last_progress_at": "2026-04-22T22:28:40.526352+03:00",
   "stuck_threshold_seconds": 720,
   "restart_count": 0,
-  "optimizer_pid": 18104,
+  "optimizer_pid": 93173,
   "desktop_cdp_pid": 78149,
   "log_file": "/Users/ameeramer/dev/projects/galilsoftware/sources/trading/scripts/optimization_results/parallel_run.log",
   "mode": "bayesian",
@@ -17,23 +17,23 @@
     "--mode",
     "bayesian",
     "--trials",
-    "80",
+    "1",
     "--dd-limit",
     "8.0",
     "--pairs",
-    "EURUSD,GBPUSD,AUDUSD,NZDUSD,USDCAD,USDCHF,USDJPY,GBPJPY,EURJPY,NZDJPY,CADJPY,AUDJPY,CHFJPY,EURGBP,GBPAUD,GBPCAD,GBPCHF,GBPNZD,EURAUD,EURCAD,EURCHF,EURNZD,AUDNZD,AUDCAD,AUDCHF,CADCHF,NZDCAD,NZDCHF,XAUUSD,XAGUSD,NAS100",
+    "EURUSD",
     "--broker",
     "fxcm",
     "--backtest-range",
     "365d",
     "--results-label",
-    "039602bf-9d74-4458-9e08-c2354c4f6649"
+    "fxcm_smoke_openerdiag"
   ],
   "active_pairs": {
     "worker-0": {
       "symbol": "EURUSD",
       "trial": 0,
-      "last_event_at": "2026-04-22T22:56:19.823731+03:00",
+      "last_event_at": "2026-04-22T22:28:32.098976+03:00",
       "status": "running"
     }
   },

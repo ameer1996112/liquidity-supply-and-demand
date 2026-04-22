@@ -1,0 +1,13 @@
+{"ts": "2026-04-22T22:01:15.851301+03:00", "run_id": "20260422_220115_bf3f10", "event_type": "run_started", "mode": "bayesian", "workers": 10, "pairs": ["EURUSD", "GBPUSD", "AUDUSD", "NZDUSD", "USDCAD", "USDCHF", "USDJPY", "GBPJPY", "EURJPY", "NZDJPY", "CADJPY", "AUDJPY", "CHFJPY", "EURGBP", "GBPAUD", "GBPCAD", "GBPCHF", "GBPNZD", "EURAUD", "EURCAD", "EURCHF", "EURNZD", "AUDNZD", "AUDCAD", "AUDCHF", "CADCHF", "NZDCAD", "NZDCHF", "XAUUSD", "XAGUSD", "NAS100"], "dry_run": false, "broker": "fxcm", "backtest_range": "Last 365 days"}
+{"ts": "2026-04-22T22:02:42.486064+03:00", "run_id": "20260422_220115_bf3f10", "event_type": "pair_started", "worker_id": 0, "symbol": "EURUSD", "attempt": 1}
+{"ts": "2026-04-22T22:02:57.488347+03:00", "run_id": "20260422_220115_bf3f10", "event_type": "pair_started", "worker_id": 1, "symbol": "GBPUSD", "attempt": 1}
+{"ts": "2026-04-22T22:03:00.015248+03:00", "run_id": "20260422_220115_bf3f10", "event_type": "pair_started", "worker_id": 0, "symbol": "EURUSD", "attempt": 2}
+{"ts": "2026-04-22T22:03:12.489314+03:00", "run_id": "20260422_220115_bf3f10", "event_type": "pair_started", "worker_id": 2, "symbol": "AUDUSD", "attempt": 1}
+{"ts": "2026-04-22T22:03:14.681992+03:00", "run_id": "20260422_220115_bf3f10", "event_type": "pair_started", "worker_id": 1, "symbol": "GBPUSD", "attempt": 2}
+{"ts": "2026-04-22T22:03:17.176331+03:00", "run_id": "20260422_220115_bf3f10", "event_type": "pair_started", "worker_id": 0, "symbol": "EURUSD", "attempt": 3}
+{"ts": "2026-04-22T22:03:27.489673+03:00", "run_id": "20260422_220115_bf3f10", "event_type": "pair_started", "worker_id": 3, "symbol": "NZDUSD", "attempt": 1}
+{"ts": "2026-04-22T22:03:29.239446+03:00", "run_id": "20260422_220115_bf3f10", "event_type": "pair_failed", "worker_id": 0, "symbol": "EURUSD", "error_message": "FXCM symbol search could not find EURUSD"}
+{"ts": "2026-04-22T22:03:29.240284+03:00", "run_id": "20260422_220115_bf3f10", "event_type": "pair_started", "worker_id": 0, "symbol": "USDCAD", "attempt": 1}
+{"ts": "2026-04-22T22:03:29.433136+03:00", "run_id": "20260422_220115_bf3f10", "event_type": "pair_started", "worker_id": 2, "symbol": "AUDUSD", "attempt": 2}
+{"ts": "2026-04-22T22:03:31.840765+03:00", "run_id": "20260422_220115_bf3f10", "event_type": "pair_started", "worker_id": 1, "symbol": "GBPUSD", "attempt": 3}
+{"ts": "2026-04-22T22:03:42.490869+03:00", "run_id": "20260422_220115_bf3f10", "event_type": "pair_started", "worker_id": 4, "symbol": "USDCHF", "attempt": 1}

@@ -54,11 +54,8 @@ def test_execute_run_blocks_without_claim_when_optimizer_readiness_fails(local_a
     monkeypatch.setattr(local_agent, "_playwright_available", lambda: True)
 
     controller = mock.Mock()
-
-    async def _fail(*args, **kwargs):
-        raise RuntimeError("TradingView MCP desktop workspace is not ready")
-
-    controller.ensure_optimizer_ready = mock.AsyncMock(side_effect=_fail)
+    controller.ensure_ready = mock.AsyncMock(side_effect=RuntimeError("TradingView MCP desktop workspace is not ready"))
+    controller._list_workspace_tabs = mock.AsyncMock()
     monkeypatch.setattr(local_agent, "OptimizerMcpController", mock.Mock(return_value=controller))
     popen = mock.Mock()
     monkeypatch.setattr(local_agent.subprocess, "Popen", popen)
@@ -94,7 +91,8 @@ def test_execute_run_blocks_without_claim_when_optimizer_readiness_fails(local_a
         )
     ]
     assert not popen.called
-    controller.ensure_optimizer_ready.assert_awaited_once_with(required_tabs=3)
+    assert controller.ensure_ready.await_count == 2
+    controller._list_workspace_tabs.assert_not_called()
 
 
 def test_execute_run_claims_only_after_optimizer_readiness_succeeds(local_agent, monkeypatch):
@@ -103,7 +101,13 @@ def test_execute_run_claims_only_after_optimizer_readiness_succeeds(local_agent,
     monkeypatch.setattr(local_agent, "_playwright_available", lambda: True)
 
     controller = mock.Mock()
-    controller.ensure_optimizer_ready = mock.AsyncMock(return_value=[SimpleNamespace(index=0)])
+    controller.ensure_ready = mock.AsyncMock(return_value=None)
+    controller._list_workspace_tabs = mock.AsyncMock(
+        return_value=[
+            {"id": "tab-1"},
+            {"id": "tab-2"},
+        ]
+    )
     monkeypatch.setattr(local_agent, "OptimizerMcpController", mock.Mock(return_value=controller))
     process = _FakeProcess(exit_code=0)
     popen = mock.Mock(return_value=process)
@@ -133,7 +137,8 @@ def test_execute_run_claims_only_after_optimizer_readiness_succeeds(local_agent,
         for path, body in post_calls
     )
     assert popen.called
-    controller.ensure_optimizer_ready.assert_awaited_once_with(required_tabs=2)
+    controller.ensure_ready.assert_awaited_once_with()
+    controller._list_workspace_tabs.assert_awaited_once_with()
     assert get_calls == ["/api/optimizer/runs/run-2"]
     command = popen.call_args.args[0]
     assert "--results-label" in command
@@ -196,6 +201,26 @@ def test_execute_run_downgrades_workers_to_available_mcp_tabs(local_agent, monke
     command = popen.call_args.args[0]
     assert "--workers" in command
     assert command[command.index("--workers") + 1] == "2"
+
+
+def test_execute_run_preflight_does_not_expand_tabs(local_agent, monkeypatch):
+    monkeypatch.setattr(local_agent, "_playwright_available", lambda: True)
+
+    controller = mock.Mock()
+    controller.ensure_ready = mock.AsyncMock(return_value=None)
+    controller._list_workspace_tabs = mock.AsyncMock(return_value=[{"id": "tab-1"}])
+    controller.ensure_optimizer_ready = mock.AsyncMock(
+        side_effect=AssertionError("readiness preflight must not create tabs")
+    )
+    monkeypatch.setattr(local_agent, "OptimizerMcpController", mock.Mock(return_value=controller))
+
+    ready, reason = local_agent.asyncio.run(local_agent._ensure_optimizer_run_ready(3))
+
+    assert ready is False
+    assert "currently exposes 1 tab(s); requested 3" in reason
+    controller.ensure_ready.assert_awaited_once_with()
+    controller._list_workspace_tabs.assert_awaited_once_with()
+    controller.ensure_optimizer_ready.assert_not_called()
 
 
 def test_execute_run_dry_run_claims_without_mcp_or_playwright_ready(local_agent, monkeypatch):

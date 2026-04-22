@@ -259,6 +259,55 @@ class DesktopTimeframePage(DummyPage):
         return None
 
 
+class DesktopClientSwitchPageWithBroker(DummyPage):
+    def __init__(self) -> None:
+        super().__init__(title="TradingView")
+        self.url = "https://www.tradingview.com/chart/test123/?symbol=OANDA%3AEURUSD"
+        self.goto_called = False
+        self.symbol = "EURUSD"
+        self.broker = "OANDA"
+        self.tab_id = "desktop-tab"
+
+        class _Client:
+            def __init__(self, outer) -> None:
+                self.outer = outer
+                self.calls: list[tuple[str, ...]] = []
+
+            async def run(self, *args: str):
+                self.calls.append(args)
+                if args and args[0] == "symbol":
+                    broker, symbol = args[1].split(":", 1)
+                    self.outer.broker = broker
+                    self.outer.symbol = symbol
+                return {"success": True}
+
+        self._client = _Client(self)
+
+    async def evaluate(self, script: str, *_args):
+        if ".symbol?.() || ''" in script:
+            return f"{self.broker}:{self.symbol}"
+        if "normalize(el.textContent) === 'S&D Algo [Pro]'" in script:
+            return True
+        if script == tab_worker_module._JS_FIND_LOADING:
+            return None
+        if script == tab_worker_module._JS_HAS_REPORT_TIMEOUT:
+            return False
+        return None
+
+    async def goto(self, url: str, wait_until: str, timeout: int) -> None:
+        self.goto_called = True
+        self.url = url
+
+
+class DesktopClientSwitchPageWithGenericFeed(DesktopClientSwitchPageWithBroker):
+    async def evaluate(self, script: str, *_args):
+        if ".symbol?.() || ''" in script:
+            return f"FX:{self.symbol}"
+        if "rect.y < 220 && rect.x < 900" in script:
+            return True
+        return await super().evaluate(script, *_args)
+
+
 class FxcmSearchPage(DummyPage):
     def __init__(self, *, broker_after: str = "FXCM", error_badge: bool = False, search_success: bool = True) -> None:
         super().__init__(title="TradingView", url="https://www.tradingview.com/chart/test123/?symbol=OANDA%3AUSDJPY")
@@ -272,6 +321,22 @@ class FxcmSearchPage(DummyPage):
         self.broker_after = broker_after
         self.error_badge = error_badge
         self.goto_called = False
+        self.forex_selected = False
+        self.broker_filter_selected = False
+        self._focused_search_input = False
+
+        class _Keyboard:
+            def __init__(self, outer) -> None:
+                self.outer = outer
+
+            async def press(self, key_combo: str) -> None:
+                if key_combo == "Backspace":
+                    self.outer.query = ""
+
+            async def type(self, text: str) -> None:
+                self.outer.query = text
+
+        self.keyboard = _Keyboard(self)
 
     async def title(self) -> str:
         return f"{self.symbol} 5 {self.broker}"
@@ -289,14 +354,36 @@ class FxcmSearchPage(DummyPage):
             return False
         if "const hasSearch = () => {" in script:
             self.search_open = True
+            return {"clicked": True, "x": 100, "y": 100}
+        if "return Array.from(document.querySelectorAll('input'))" in script and "isSearchInput" in script:
+            return self.search_open
+        if "symbol-search-query-read" in script:
+            return self.query
+        if "symbol-search-query-focus" in script:
+            self._focused_search_input = True
+            return self.search_open
+        if "symbol-search-query-set-native" in script:
+            self.query = args[0]
             return True
-        if "const { targetSymbol, targetBroker } = payload;" in script:
+        if "const { targetSymbol, targetBroker, targetCategory } = payload;" in script:
             target_symbol = args[0]["targetSymbol"]
+            target_broker = args[0]["targetBroker"]
+            target_category = args[0]["targetCategory"]
+            if not self.forex_selected:
+                self.forex_selected = True
+                return {"state": "category-selected"}
+            if not self.broker_filter_selected:
+                assert target_category == "Forex"
+                self.broker_filter_selected = True
+                return {"state": "broker-filtered"}
+            if self.query != target_symbol:
+                return {"state": "needs-query", "currentQuery": self.query}
             if not self.search_success:
                 return {"state": "no-match"}
             self.query = target_symbol
             self.symbol = target_symbol
             self.broker = self.broker_after
+            assert target_broker == "FXCM"
             self.url = f"https://www.tradingview.com/chart/test123/?symbol={self.broker}%3A{self.symbol}"
             return {"state": "selected"}
         if "const normalize = (text) => (text || '').replace(/\\\\s+/g, ' ').trim().toLowerCase();" in script and "invalid symbol" in script:
@@ -306,6 +393,30 @@ class FxcmSearchPage(DummyPage):
     async def goto(self, url: str, wait_until: str, timeout: int) -> None:
         self.goto_called = True
         self.url = url
+
+
+class FxcmSearchPageNoExplicitBrokerFilter(FxcmSearchPage):
+    async def evaluate(self, script: str, *args):
+        if "symbol-search-query-read" in script or "symbol-search-query-focus" in script or "symbol-search-query-set-native" in script:
+            return await super().evaluate(script, *args)
+        if "const { targetSymbol, targetBroker, targetCategory } = payload;" in script:
+            target_symbol = args[0]["targetSymbol"]
+            target_broker = args[0]["targetBroker"]
+            target_category = args[0]["targetCategory"]
+            if not self.forex_selected:
+                self.forex_selected = True
+                return {"state": "category-selected"}
+            if self.query != target_symbol:
+                assert target_category == "Forex"
+                return {"state": "needs-query", "currentQuery": self.query}
+            if not self.search_success:
+                return {"state": "no-match"}
+            self.symbol = target_symbol
+            self.broker = self.broker_after
+            assert target_broker == "FXCM"
+            self.url = f"https://www.tradingview.com/chart/test123/?symbol={self.broker}%3A{self.symbol}"
+            return {"state": "selected", "method": "broker-ancestor"}
+        return await super().evaluate(script, *args)
 
 
 class BlankThenCustomProfilePage(DummyPage):
@@ -905,9 +1016,69 @@ def test_switch_symbol_uses_search_selection_for_fxcm(monkeypatch) -> None:
     asyncio.run(worker._switch_symbol("EURUSD"))
 
     assert page.search_open is True
+    assert page.forex_selected is True
+    assert page.broker_filter_selected is True
     assert page.query == "EURUSD"
     assert page.broker == "FXCM"
     assert page.symbol == "EURUSD"
+    assert page.goto_called is False
+    assert "set-5m" in events
+
+
+def test_switch_symbol_prefers_desktop_mcp_symbol_command_for_fxcm(monkeypatch) -> None:
+    page = DesktopClientSwitchPageWithBroker()
+    optimizer = DummyOptimizer()
+    optimizer.broker = "fxcm"
+    worker = TabWorker(page, optimizer)
+    events: list[str] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        events.append(f"sleep:{seconds}")
+
+    async def fake_wait_for_load(timeout: int = 30) -> None:
+        events.append(f"wait-load:{timeout}")
+
+    async def fake_ensure_chart_timeframe_5m() -> bool:
+        events.append("set-5m")
+        return True
+
+    monkeypatch.setattr(tab_worker_module.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(worker, "_wait_for_load", fake_wait_for_load)
+    monkeypatch.setattr(worker, "_ensure_chart_timeframe_5m", fake_ensure_chart_timeframe_5m)
+
+    asyncio.run(worker._switch_symbol("EURUSD"))
+
+    assert page._client.calls == [("symbol", "FXCM:EURUSD")]
+    assert page.goto_called is False
+    assert page.broker == "FXCM"
+    assert page.symbol == "EURUSD"
+    assert "set-5m" in events
+
+
+def test_switch_symbol_accepts_generic_fx_feed_when_header_shows_fxcm(monkeypatch) -> None:
+    page = DesktopClientSwitchPageWithGenericFeed()
+    optimizer = DummyOptimizer()
+    optimizer.broker = "fxcm"
+    worker = TabWorker(page, optimizer)
+    events: list[str] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        events.append(f"sleep:{seconds}")
+
+    async def fake_wait_for_load(timeout: int = 30) -> None:
+        events.append(f"wait-load:{timeout}")
+
+    async def fake_ensure_chart_timeframe_5m() -> bool:
+        events.append("set-5m")
+        return True
+
+    monkeypatch.setattr(tab_worker_module.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(worker, "_wait_for_load", fake_wait_for_load)
+    monkeypatch.setattr(worker, "_ensure_chart_timeframe_5m", fake_ensure_chart_timeframe_5m)
+
+    asyncio.run(worker._switch_symbol("EURUSD"))
+
+    assert page._client.calls == [("symbol", "FXCM:EURUSD")]
     assert page.goto_called is False
     assert "set-5m" in events
 
@@ -925,6 +1096,38 @@ def test_switch_symbol_fails_fast_when_fxcm_search_has_no_result(monkeypatch) ->
 
     with pytest.raises(RuntimeError, match="FXCM symbol search could not find EURUSD"):
         asyncio.run(worker._switch_symbol("EURUSD"))
+
+
+def test_switch_symbol_handles_fxcm_results_without_explicit_broker_filter(monkeypatch) -> None:
+    page = FxcmSearchPageNoExplicitBrokerFilter()
+    optimizer = DummyOptimizer()
+    optimizer.broker = "fxcm"
+    worker = TabWorker(page, optimizer)
+    events: list[str] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        return None
+
+    async def fake_wait_for_load(timeout: int = 30) -> None:
+        events.append(f"wait-load:{timeout}")
+
+    async def fake_ensure_chart_timeframe_5m() -> bool:
+        events.append("set-5m")
+        return True
+
+    monkeypatch.setattr(tab_worker_module.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(worker, "_wait_for_load", fake_wait_for_load)
+    monkeypatch.setattr(worker, "_ensure_chart_timeframe_5m", fake_ensure_chart_timeframe_5m)
+
+    asyncio.run(worker._switch_symbol("EURUSD"))
+
+    assert page.search_open is True
+    assert page.forex_selected is True
+    assert page.broker_filter_selected is False
+    assert page.query == "EURUSD"
+    assert page.broker == "FXCM"
+    assert page.symbol == "EURUSD"
+    assert "set-5m" in events
 
 
 def test_switch_symbol_fails_when_fxcm_lands_on_wrong_broker(monkeypatch) -> None:
