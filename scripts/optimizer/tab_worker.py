@@ -24,6 +24,7 @@ from typing import Optional, TYPE_CHECKING
 
 from .config import INPUT_INDEX, CHECKBOX_INDICES, HILL_CLIMB_PARAMS, LIQ_DISTANCE_RANGES
 from .models import BacktestResult
+from .optimizer_mcp import broker_to_tv_exchange
 
 if TYPE_CHECKING:
     from playwright.async_api import Page
@@ -702,6 +703,17 @@ class TabWorker:
         return symbol.split(":")[-1].upper().strip()
 
     @staticmethod
+    def _split_symbol_token(value: str) -> tuple[str, str]:
+        """Split a TradingView symbol token into broker/feed and symbol parts."""
+        token = str(value or "").upper().strip()
+        if not token:
+            return "", ""
+        if ":" not in token:
+            return "", token
+        broker, symbol = token.split(":", 1)
+        return broker.strip(), symbol.strip()
+
+    @staticmethod
     def _looks_like_symbol(value: str) -> bool:
         token = value.upper().strip()
         if not token or len(token) > 32:
@@ -738,6 +750,14 @@ class TabWorker:
 
     async def _current_symbol(self) -> str:
         """Return the symbol TradingView currently shows for this tab."""
+        return (await self._current_symbol_details())[1]
+
+    async def _current_broker(self) -> str:
+        """Return the active TradingView broker/feed token when available."""
+        return (await self._current_symbol_details())[0]
+
+    async def _current_symbol_details(self) -> tuple[str, str]:
+        """Return `(broker, symbol)` for the current TradingView chart."""
         if hasattr(self.page, "tab_id"):
             try:
                 api_symbol = await self.page.evaluate(
@@ -751,9 +771,11 @@ class TabWorker:
                     })()
                     """
                 )
-                api_symbol = self._normalize_symbol(str(api_symbol or ""))
-                if self._looks_like_symbol(api_symbol):
-                    return api_symbol
+                raw_api_symbol = str(api_symbol or "").upper().strip()
+                if self._looks_like_symbol(raw_api_symbol):
+                    broker, symbol = self._split_symbol_token(raw_api_symbol)
+                    if self._looks_like_symbol(symbol):
+                        return broker, symbol
             except Exception:
                 pass
 
@@ -765,7 +787,7 @@ class TabWorker:
         if title:
             token = title.split(" ")[0].split(":")[-1].upper().strip()
             if token and token not in {"LIVE", "TRADINGVIEW"} and self._looks_like_symbol(token):
-                return token
+                return "", token
 
         try:
             current_url = self.page.url
@@ -774,11 +796,179 @@ class TabWorker:
 
         if "symbol=" in current_url:
             token = current_url.split("symbol=")[-1].split("&")[0]
-            token = token.split("%3A")[-1].split(":")[-1].upper().strip()
-            if token:
-                return token
+            token = token.replace("%3A", ":").upper().strip()
+            broker, symbol = self._split_symbol_token(token)
+            if symbol:
+                return broker, symbol
 
-        return ""
+        return "", ""
+
+    async def _has_symbol_error_badge(self) -> bool:
+        """Return True when TradingView shows a visible symbol-level error badge."""
+        try:
+            return bool(
+                await self.page.evaluate(
+                    """
+                    (() => {
+                        const visible = (el) => {
+                            const rect = el?.getBoundingClientRect?.();
+                            const style = el ? window.getComputedStyle(el) : null;
+                            return !!rect && rect.width > 0 && rect.height > 0 &&
+                                style?.visibility !== 'hidden' && style?.display !== 'none';
+                        };
+                        const normalize = (text) => (text || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+                        return Array.from(document.querySelectorAll('button, span, div, [role="img"], [aria-label], [title]'))
+                            .filter((el) => visible(el))
+                            .filter((el) => {
+                                const rect = el.getBoundingClientRect();
+                                return rect.y < 180 && rect.x < 520;
+                            })
+                            .some((el) => {
+                                const text = normalize(el.textContent);
+                                const aria = normalize(el.getAttribute('aria-label'));
+                                const title = normalize(el.getAttribute('title'));
+                                if (text === '!') return true;
+                                return aria.includes('invalid symbol')
+                                    || aria.includes('symbol error')
+                                    || aria.includes('error')
+                                    || title.includes('invalid symbol')
+                                    || title.includes('symbol error');
+                            });
+                    })()
+                    """
+                )
+            )
+        except Exception:
+            return False
+
+    async def _open_symbol_search_dialog(self, current_symbol: str) -> bool:
+        """Open TradingView's symbol search dialog from the chart header."""
+        try:
+            return bool(
+                await self.page.evaluate(
+                    """
+                    (currentSymbol) => {
+                        const visible = (el) => {
+                            const rect = el?.getBoundingClientRect?.();
+                            const style = el ? window.getComputedStyle(el) : null;
+                            return !!rect && rect.width > 0 && rect.height > 0 &&
+                                style?.visibility !== 'hidden' && style?.display !== 'none';
+                        };
+                        const normalize = (text) => (text || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+                        const hasSearch = () => {
+                            return Array.from(document.querySelectorAll('input'))
+                                .some((el) => visible(el) && normalize(el.getAttribute('placeholder')).includes('symbol search'));
+                        };
+                        if (hasSearch()) return true;
+
+                        const wanted = normalize(currentSymbol);
+                        const candidates = Array.from(document.querySelectorAll('button, [role="button"], [data-name], span, div'))
+                            .filter((el) => visible(el))
+                            .map((el) => {
+                                const rect = el.getBoundingClientRect();
+                                return {
+                                    el,
+                                    rect,
+                                    text: normalize(el.textContent),
+                                    aria: normalize(el.getAttribute('aria-label')),
+                                    title: normalize(el.getAttribute('title')),
+                                    dataName: normalize(el.getAttribute('data-name')),
+                                };
+                            })
+                            .filter((item) => item.rect.y < 180 && item.rect.x < 520)
+                            .sort((a, b) => a.rect.y - b.rect.y || a.rect.x - b.rect.x);
+
+                        const target = candidates.find((item) =>
+                            item.text === wanted
+                            || item.aria.includes('symbol search')
+                            || item.title.includes('symbol search')
+                            || item.dataName.includes('legend-series-item')
+                        );
+                        if (!target) return false;
+                        target.el.click();
+                        return true;
+                    }
+                    """,
+                    current_symbol,
+                )
+            )
+        except Exception:
+            return False
+
+    async def _select_symbol_via_search(self, target_symbol: str, target_broker: str) -> bool:
+        """Use TradingView's symbol search dialog to select a broker-filtered instrument."""
+        if not await self._open_symbol_search_dialog(target_symbol):
+            return False
+
+        for _ in range(12):
+            try:
+                await asyncio.sleep(0.3)
+                selected = await self.page.evaluate(
+                    """
+                    (payload) => {
+                        const { targetSymbol, targetBroker } = payload;
+                        const visible = (el) => {
+                            const rect = el?.getBoundingClientRect?.();
+                            const style = el ? window.getComputedStyle(el) : null;
+                            return !!rect && rect.width > 0 && rect.height > 0 &&
+                                style?.visibility !== 'hidden' && style?.display !== 'none';
+                        };
+                        const normalize = (text) => (text || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+                        const symbolToken = normalize(targetSymbol);
+                        const brokerToken = normalize(targetBroker);
+
+                        const input = Array.from(document.querySelectorAll('input'))
+                            .find((el) => visible(el) && normalize(el.getAttribute('placeholder')).includes('symbol search'));
+                        if (!input) return { state: 'no-input' };
+
+                        if ((input.value || '').trim().toUpperCase() !== targetSymbol.toUpperCase()) {
+                            input.focus();
+                            input.value = targetSymbol;
+                            input.dispatchEvent(new Event('input', { bubbles: true }));
+                            input.dispatchEvent(new Event('change', { bubbles: true }));
+                            return { state: 'typed' };
+                        }
+
+                        const brokerChip = Array.from(document.querySelectorAll('button, [role="button"], span, div'))
+                            .filter((el) => visible(el))
+                            .find((el) => normalize(el.textContent) === brokerToken);
+                        if (brokerChip && brokerChip.getAttribute('aria-pressed') !== 'true') {
+                            brokerChip.click();
+                            return { state: 'filtered' };
+                        }
+
+                        const rows = Array.from(document.querySelectorAll('button, [role="button"], [role="option"], [role="row"], li, div'))
+                            .filter((el) => visible(el))
+                            .map((el) => ({ el, text: normalize(el.textContent) }))
+                            .filter((item) => item.text.includes(symbolToken) && item.text.includes(brokerToken));
+                        if (!rows.length) return { state: 'no-match' };
+                        rows[0].el.click();
+                        return { state: 'selected' };
+                    }
+                    """,
+                    {"targetSymbol": target_symbol, "targetBroker": target_broker},
+                )
+            except Exception:
+                selected = None
+
+            if isinstance(selected, dict) and selected.get("state") == "selected":
+                return True
+        return False
+
+    async def _verify_symbol_state(self, expected_symbol: str, expected_broker: str = "") -> None:
+        """Fail closed unless TradingView shows the requested symbol and broker cleanly."""
+        observed_symbol = await self._verify_symbol(expected_symbol)
+        expected_broker = str(expected_broker or "").upper().strip()
+        if expected_broker:
+            observed_broker = await self._current_broker()
+            if observed_broker and observed_broker != expected_broker:
+                raise RuntimeError(
+                    f"Broker mismatch: expected {expected_broker}, observed {observed_broker or 'UNKNOWN'}"
+                )
+        if await self._has_symbol_error_badge():
+            raise RuntimeError(
+                f"TradingView shows an invalid symbol state for {expected_broker + ':' if expected_broker else ''}{observed_symbol}"
+            )
 
     async def _verify_symbol(self, expected_symbol: str) -> str:
         """Fail closed if the tab is not on the requested symbol."""
@@ -850,14 +1040,13 @@ class TabWorker:
     async def _switch_symbol(self, symbol: str) -> None:
         """Switch chart to a different symbol using URL-based navigation."""
         clean_symbol = symbol.split(":")[-1].upper().strip()
+        broker = getattr(self.optimizer, "broker", "vantage").upper()
+        tv_exchange = broker_to_tv_exchange(broker)
 
         # Already on this symbol?
         try:
-            title = await self.page.title()
-            title_symbol = (
-                title.split(" ")[0].split(":")[-1].upper().strip() if title else ""
-            )
-            if title_symbol == clean_symbol:
+            title_broker, title_symbol = await self._current_symbol_details()
+            if title_symbol == clean_symbol and title_broker == tv_exchange:
                 print(f"  Already on {clean_symbol}, skipping switch")
                 await self._wait_for_load()
                 return
@@ -881,25 +1070,26 @@ class TabWorker:
 
         target_url = (
             f"https://www.tradingview.com/chart/{chart_id}/"
-            f"?symbol={getattr(self.optimizer, 'broker', 'vantage').upper()}%3A{clean_symbol}"
+            f"?symbol={tv_exchange}%3A{clean_symbol}"
         )
-        broker = getattr(self.optimizer, "broker", "vantage").upper()
-        print(f"  Navigating to {broker}:{clean_symbol}...")
+        print(f"  Navigating to {tv_exchange}:{clean_symbol}...")
 
         if hasattr(self.page, "_client"):
             try:
-                result = await self.page._client.run("symbol", f"{broker}:{clean_symbol}")
+                result = await self.page._client.run("symbol", f"{tv_exchange}:{clean_symbol}")
                 if not result.get("success", True):
                     raise RuntimeError(str(result.get("error") or "symbol command failed"))
                 await asyncio.sleep(2.0)
                 await self._wait_for_load()
                 await self._wait_for_strategy_surface()
-                observed = await self._current_symbol()
-                if observed == clean_symbol:
-                    print(f"  Switched to {clean_symbol} (verified)")
+                try:
+                    await self._verify_symbol_state(clean_symbol, tv_exchange)
+                    print(f"  Switched to {tv_exchange}:{clean_symbol} (verified)")
                     if not await self._ensure_chart_timeframe_5m():
                         raise RuntimeError("Could not confirm chart timeframe is 5m")
                     return
+                except Exception:
+                    observed = await self._current_symbol()
                 log.warning(
                     "_switch_symbol: MCP symbol command did not land on %s (observed=%s), falling back to URL navigation",
                     clean_symbol,
@@ -920,12 +1110,13 @@ class TabWorker:
         await self._wait_for_strategy_surface()
 
         # Verify and fail closed if TradingView kept the old symbol.
-        observed = await self._current_symbol()
-        if observed == clean_symbol:
-            print(f"  Switched to {clean_symbol} (verified)")
+        try:
+            await self._verify_symbol_state(clean_symbol, tv_exchange)
+            print(f"  Switched to {tv_exchange}:{clean_symbol} (verified)")
             if not await self._ensure_chart_timeframe_5m():
                 raise RuntimeError("Could not confirm chart timeframe is 5m")
-        else:
+        except Exception:
+            observed = await self._current_symbol()
             raise RuntimeError(
                 f"Symbol switch failed: expected {clean_symbol}, observed {observed or 'UNKNOWN'}"
             )

@@ -279,7 +279,7 @@ async def ensure_tradingview_tabs(browser, required_tabs: int, bootstrap_symbol:
 
         try:
             await page.goto(
-                f"https://www.tradingview.com/chart/{chart_id}/?symbol=VANTAGE%3A{quote(bootstrap_symbol.upper())}",
+                f"https://www.tradingview.com/chart/{chart_id}/?symbol={quote(bootstrap_symbol.upper())}",
                 wait_until="domcontentloaded",
                 timeout=30000,
             )

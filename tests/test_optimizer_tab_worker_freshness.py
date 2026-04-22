@@ -259,6 +259,55 @@ class DesktopTimeframePage(DummyPage):
         return None
 
 
+class FxcmSearchPage(DummyPage):
+    def __init__(self, *, broker_after: str = "FXCM", error_badge: bool = False, search_success: bool = True) -> None:
+        super().__init__(title="TradingView", url="https://www.tradingview.com/chart/test123/?symbol=OANDA%3AUSDJPY")
+        self.tab_id = "desktop-tab"
+        self.symbol = "USDJPY"
+        self.broker = "OANDA"
+        self.resolution = "5"
+        self.search_open = False
+        self.query = ""
+        self.search_success = search_success
+        self.broker_after = broker_after
+        self.error_badge = error_badge
+        self.goto_called = False
+
+    async def title(self) -> str:
+        return f"{self.symbol} 5 {self.broker}"
+
+    async def evaluate(self, script: str, *args):
+        if ".symbol?.() || ''" in script:
+            return f"{self.broker}:{self.symbol}"
+        if ".resolution?.() || ''" in script:
+            return self.resolution
+        if "normalize(el.textContent) === 'S&D Algo [Pro]'" in script:
+            return True
+        if script == tab_worker_module._JS_FIND_LOADING:
+            return None
+        if script == tab_worker_module._JS_HAS_REPORT_TIMEOUT:
+            return False
+        if "const hasSearch = () => {" in script:
+            self.search_open = True
+            return True
+        if "const { targetSymbol, targetBroker } = payload;" in script:
+            target_symbol = args[0]["targetSymbol"]
+            if not self.search_success:
+                return {"state": "no-match"}
+            self.query = target_symbol
+            self.symbol = target_symbol
+            self.broker = self.broker_after
+            self.url = f"https://www.tradingview.com/chart/test123/?symbol={self.broker}%3A{self.symbol}"
+            return {"state": "selected"}
+        if "const normalize = (text) => (text || '').replace(/\\\\s+/g, ' ').trim().toLowerCase();" in script and "invalid symbol" in script:
+            return self.error_badge
+        return None
+
+    async def goto(self, url: str, wait_until: str, timeout: int) -> None:
+        self.goto_called = True
+        self.url = url
+
+
 class BlankThenCustomProfilePage(DummyPage):
     def __init__(self) -> None:
         super().__init__(title="EURUSD 5 OANDA")
@@ -830,6 +879,71 @@ def test_switch_symbol_prefers_desktop_mcp_symbol_command(monkeypatch) -> None:
     assert page._client.calls == [("symbol", "VANTAGE:EURJPY")]
     assert page.goto_called is False
     assert "set-5m" in events
+
+
+def test_switch_symbol_uses_search_selection_for_fxcm(monkeypatch) -> None:
+    page = FxcmSearchPage()
+    optimizer = DummyOptimizer()
+    optimizer.broker = "fxcm"
+    worker = TabWorker(page, optimizer)
+    events: list[str] = []
+
+    async def fake_sleep(seconds: float) -> None:
+        return None
+
+    async def fake_wait_for_load(timeout: int = 30) -> None:
+        events.append(f"wait-load:{timeout}")
+
+    async def fake_ensure_chart_timeframe_5m() -> bool:
+        events.append("set-5m")
+        return True
+
+    monkeypatch.setattr(tab_worker_module.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(worker, "_wait_for_load", fake_wait_for_load)
+    monkeypatch.setattr(worker, "_ensure_chart_timeframe_5m", fake_ensure_chart_timeframe_5m)
+
+    asyncio.run(worker._switch_symbol("EURUSD"))
+
+    assert page.search_open is True
+    assert page.query == "EURUSD"
+    assert page.broker == "FXCM"
+    assert page.symbol == "EURUSD"
+    assert page.goto_called is False
+    assert "set-5m" in events
+
+
+def test_switch_symbol_fails_fast_when_fxcm_search_has_no_result(monkeypatch) -> None:
+    page = FxcmSearchPage(search_success=False)
+    optimizer = DummyOptimizer()
+    optimizer.broker = "fxcm"
+    worker = TabWorker(page, optimizer)
+
+    async def fake_sleep(seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr(tab_worker_module.asyncio, "sleep", fake_sleep)
+
+    with pytest.raises(RuntimeError, match="FXCM symbol search could not find EURUSD"):
+        asyncio.run(worker._switch_symbol("EURUSD"))
+
+
+def test_switch_symbol_fails_when_fxcm_lands_on_wrong_broker(monkeypatch) -> None:
+    page = FxcmSearchPage(broker_after="OANDA")
+    optimizer = DummyOptimizer()
+    optimizer.broker = "fxcm"
+    worker = TabWorker(page, optimizer)
+
+    async def fake_sleep(seconds: float) -> None:
+        return None
+
+    async def fake_wait_for_load(timeout: int = 30) -> None:
+        return None
+
+    monkeypatch.setattr(tab_worker_module.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(worker, "_wait_for_load", fake_wait_for_load)
+
+    with pytest.raises(RuntimeError, match="Broker mismatch: expected FXCM, observed OANDA"):
+        asyncio.run(worker._switch_symbol("EURUSD"))
 
 
 def test_ensure_chart_timeframe_5m_verifies_desktop_mcp_result(monkeypatch) -> None:

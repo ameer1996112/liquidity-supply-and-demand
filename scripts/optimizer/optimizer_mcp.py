@@ -9,6 +9,19 @@ from urllib.request import urlopen
 from scripts.optimizer.desktop_page import TradingViewDesktopPage
 from scripts.optimizer.tradingview_mcp import TradingViewMcpClient
 
+# Map broker names to valid TradingView exchange prefixes.
+# FXCM doesn't have its own data feed on TradingView, so we use OANDA.
+BROKER_TO_TV_EXCHANGE: dict[str, str] = {
+    "VANTAGE": "VANTAGE",
+    "OANDA":   "OANDA",
+    "FXCM":    "OANDA",
+}
+
+
+def broker_to_tv_exchange(broker: str) -> str:
+    """Resolve a broker name to its TradingView exchange prefix."""
+    return BROKER_TO_TV_EXCHANGE.get(broker.upper(), broker.upper())
+
 
 @dataclass(frozen=True)
 class OptimizerWorkspaceSlot:
@@ -244,7 +257,8 @@ class OptimizerMcpController:
         bootstrap_symbol: str,
         broker: str,
     ) -> str:
-        symbol_token = f"{broker.upper()}%3A{bootstrap_symbol.upper()}"
+        tv_exchange = broker_to_tv_exchange(broker)
+        symbol_token = f"{tv_exchange}%3A{bootstrap_symbol.upper()}"
         if bootstrap_chart_id:
             return f"https://www.tradingview.com/chart/{bootstrap_chart_id}/?symbol={symbol_token}"
         return f"https://www.tradingview.com/chart/?symbol={symbol_token}"
@@ -336,7 +350,8 @@ class OptimizerMcpController:
         ]
 
     async def set_symbol(self, pair: str, broker: str) -> None:
-        await self._run_command("symbol", "symbol", f"{broker.upper()}:{pair.upper()}")
+        tv_exchange = broker_to_tv_exchange(broker)
+        await self._run_command("symbol", "symbol", f"{tv_exchange}:{pair.upper()}")
 
     async def set_timeframe(self, value: str) -> None:
         await self._run_command("timeframe", "timeframe", value)
