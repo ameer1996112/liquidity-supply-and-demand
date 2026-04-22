@@ -67,10 +67,12 @@ class BacktestResult:
         dd_penalty = max(0.0, 1.0 - dd_pct / 100.0) ** 2
         self.score = self.profit_factor * math.sqrt(self.total_trades) * dd_penalty
 
-    def is_prop_firm_compliant(self) -> bool:
-        """Return True if this result passes the prop-firm DD limit."""
-        from .config import PROP_FIRM_MAX_DD_PCT
-        return self.max_drawdown_pct <= PROP_FIRM_MAX_DD_PCT and self.net_profit > 0
+    def is_prop_firm_compliant(self, dd_limit: float | None = None) -> bool:
+        """Return True if this result passes the configured DD limit."""
+        if dd_limit is None:
+            from .config import PROP_FIRM_MAX_DD_PCT
+            dd_limit = PROP_FIRM_MAX_DD_PCT
+        return self.max_drawdown_pct <= float(dd_limit) and self.net_profit > 0
 
     def to_dict(self) -> dict[str, Any]:
         """Serialise to a plain dict (for JSON checkpoint / CSV)."""

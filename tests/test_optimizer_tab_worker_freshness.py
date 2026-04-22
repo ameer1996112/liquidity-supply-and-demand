@@ -1652,6 +1652,92 @@ def test_bayesian_optimizer_uses_configured_backtest_range(monkeypatch) -> None:
     assert worker.range_labels == ["Last 90 days"]
 
 
+def test_bayesian_optimizer_compliance_uses_run_dd_limit(monkeypatch, capsys) -> None:
+    class FakeTrial:
+        pass
+
+    class FakeStudy:
+        def ask(self) -> FakeTrial:
+            return FakeTrial()
+
+        def tell(self, trial, value=None, state=None):
+            return None
+
+    fake_optuna = SimpleNamespace(
+        logging=SimpleNamespace(WARNING=30, set_verbosity=lambda level: None),
+        create_study=lambda **kwargs: FakeStudy(),
+        samplers=SimpleNamespace(TPESampler=lambda **kwargs: object()),
+        trial=SimpleNamespace(TrialState=SimpleNamespace(FAIL="FAIL")),
+    )
+    monkeypatch.setitem(sys.modules, "optuna", fake_optuna)
+
+    class FakeWorker:
+        def __init__(self) -> None:
+            self.results: list[BacktestResult] = []
+            self.best_result = None
+            self._reads = 0
+
+        async def _switch_symbol(self, symbol: str) -> None:
+            self.symbol = symbol
+
+        async def _require_last_365_days(self) -> None:
+            return None
+
+        async def _apply_baseline_risk_reset(self, target: float) -> ApplyOutcome:
+            return ApplyOutcome(ok=True, fresh=True, reason="baseline_already_set")
+
+        async def _apply_params(self, params: dict) -> ApplyOutcome:
+            return ApplyOutcome(ok=True, fresh=True, reason="fresh")
+
+        def sample_params(self, trial, symbol: str, fixed_overrides: dict) -> dict:
+            return {"trial": self._reads + 1}
+
+        async def _read_results(self, symbol: str, params: dict) -> BacktestResult:
+            self._reads += 1
+            if self._reads == 1:
+                return BacktestResult(
+                    symbol=symbol,
+                    verified_symbol=symbol,
+                    params=params,
+                    net_profit=1000.0,
+                    profit_factor=1.08,
+                    total_trades=192,
+                    max_drawdown=4450.0,
+                    max_drawdown_pct=8.9,
+                    win_rate=54.0,
+                    score=12.38,
+                )
+            return BacktestResult(
+                symbol=symbol,
+                verified_symbol=symbol,
+                params=params,
+                net_profit=950.0,
+                profit_factor=1.05,
+                total_trades=188,
+                max_drawdown=3950.0,
+                max_drawdown_pct=7.9,
+                win_rate=53.5,
+                score=11.75,
+            )
+
+    optimizer = TradingViewOptimizer(
+        pairs=["USDCHF"],
+        bayesian_mode=True,
+        n_trials=2,
+        dd_limit=8.0,
+        generate_report=False,
+    )
+    worker = FakeWorker()
+
+    result = asyncio.run(optimizer.optimize_pair_bayesian(worker, "USDCHF", 2))
+    output = capsys.readouterr().out
+
+    assert result is not None
+    assert result.max_drawdown_pct == pytest.approx(7.9)
+    assert "✅ NEW BEST COMPLIANT  Score=12.38" not in output
+    assert "✅ NEW BEST COMPLIANT  Score=11.75" in output
+
+
 def test_bayesian_optimizer_reloads_after_repeated_read_timeouts(monkeypatch) -> None:
     class FakeTrial:
         pass

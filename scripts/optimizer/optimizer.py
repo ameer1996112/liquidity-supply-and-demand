@@ -120,7 +120,7 @@ class TradingViewOptimizer:
 
         pf = f"PF={result.profit_factor:.2f}" if result.profit_factor else "PF=N/A"
         dd = f"DD={result.max_drawdown_pct:.1f}%"
-        compliant = "✅" if result.is_prop_firm_compliant() else "❌"
+        compliant = "✅" if result.is_prop_firm_compliant(self.dd_limit) else "❌"
         return (
             f"{prefix}  {pf}  {dd}  T={result.total_trades}  "
             f"S={result.score:.2f}  {compliant}"
@@ -227,7 +227,7 @@ class TradingViewOptimizer:
 
         result.forward_metrics = forward_metrics
         result.validation_metrics = {
-            "prop_firm_compliant": result.is_prop_firm_compliant(),
+            "prop_firm_compliant": result.is_prop_firm_compliant(self.dd_limit),
             "drawdown_source": result.drawdown_source,
             "verified_symbol": result.verified_symbol,
         }
@@ -535,7 +535,7 @@ class TradingViewOptimizer:
                 )
 
             # Track best compliant (highest score that passes DD limit)
-            if result.is_prop_firm_compliant() and (
+            if result.is_prop_firm_compliant(self.dd_limit) and (
                 best_compliant is None or result.score > best_compliant.score
             ):
                 best_compliant = result
@@ -719,7 +719,7 @@ class TradingViewOptimizer:
             print(header)
             print(sep)
             for rank, (sym, res) in enumerate(ranked, 1):
-                compliant = "✅" if res.is_prop_firm_compliant() else "❌"
+                compliant = "✅" if res.is_prop_firm_compliant(self.dd_limit) else "❌"
                 print(
                     f"  {rank:>3}  {sym:<10} | "
                     f"{res.profit_factor:>5.2f} | "
@@ -775,7 +775,7 @@ class TradingViewOptimizer:
                 "params": res.params,
                 "metrics": {
                     **res.to_dict(),
-                    "prop_firm_compliant": res.is_prop_firm_compliant(),
+                    "prop_firm_compliant": res.is_prop_firm_compliant(self.dd_limit),
                 },
             }
         with open(best_file, "w") as f:
