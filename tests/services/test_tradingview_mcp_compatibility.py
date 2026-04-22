@@ -130,10 +130,33 @@ def test_default_backend_approval_fetcher_is_used(tmp_path: Path, monkeypatch) -
 def test_backend_base_url_uses_railway_default_when_public_api_base_url_missing(monkeypatch) -> None:
     class DummySettings:
         public_api_base_url = ""
+        admin_api_key = ""
 
     monkeypatch.setattr(compatibility_module, "get_settings", lambda: DummySettings())
 
     assert compatibility_module._backend_base_url() == compatibility_module.DEFAULT_RAILWAY_API_BASE_URL
+
+
+def test_backend_request_headers_include_admin_api_key_when_configured(monkeypatch) -> None:
+    class DummySettings:
+        public_api_base_url = ""
+        admin_api_key = "secret-admin-key"
+
+    monkeypatch.setattr(compatibility_module, "get_settings", lambda: DummySettings())
+
+    assert compatibility_module._backend_request_headers() == {
+        "X-Admin-API-Key": "secret-admin-key"
+    }
+
+
+def test_backend_request_headers_are_empty_without_admin_api_key(monkeypatch) -> None:
+    class DummySettings:
+        public_api_base_url = ""
+        admin_api_key = "   "
+
+    monkeypatch.setattr(compatibility_module, "get_settings", lambda: DummySettings())
+
+    assert compatibility_module._backend_request_headers() == {}
 
 
 def test_unknown_version_returns_unsupported_without_running_probe(tmp_path: Path) -> None:

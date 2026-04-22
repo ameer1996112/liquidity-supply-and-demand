@@ -70,9 +70,18 @@ def _backend_base_url() -> str:
     return base_url.rstrip("/")
 
 
+def _backend_request_headers() -> dict[str, str]:
+    settings = get_settings()
+    admin_api_key = (settings.admin_api_key or "").strip()
+    if not admin_api_key:
+        return {}
+    return {"X-Admin-API-Key": admin_api_key}
+
+
 def _fetch_approved_versions_from_backend() -> list[str]:
     response = requests.get(
         f"{_backend_base_url()}{BACKEND_APPROVALS_PATH}",
+        headers=_backend_request_headers(),
         timeout=5,
     )
     response.raise_for_status()
