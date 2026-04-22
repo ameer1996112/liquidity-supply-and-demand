@@ -2,7 +2,7 @@
   "run_id": "20260423_004605_047af3",
   "state": "running",
   "started_at": "2026-04-23T00:46:05.831692+03:00",
-  "last_progress_at": "2026-04-23T00:46:06.150095+03:00",
+  "last_progress_at": "2026-04-23T00:53:28.918607+03:00",
   "stuck_threshold_seconds": 720,
   "restart_count": 0,
   "optimizer_pid": 52923,
@@ -32,8 +32,62 @@
   "active_pairs": {
     "worker-0": {
       "symbol": "EURUSD",
-      "trial": 0,
-      "last_event_at": "2026-04-23T00:46:06.150095+03:00",
+      "trial": 5,
+      "last_event_at": "2026-04-23T00:52:49.224141+03:00",
+      "status": "running"
+    },
+    "worker-1": {
+      "symbol": "GBPUSD",
+      "trial": 6,
+      "last_event_at": "2026-04-23T00:53:14.365699+03:00",
+      "status": "running"
+    },
+    "worker-2": {
+      "symbol": "AUDUSD",
+      "trial": 6,
+      "last_event_at": "2026-04-23T00:53:28.918607+03:00",
+      "status": "running"
+    },
+    "worker-3": {
+      "symbol": "NZDUSD",
+      "trial": 5,
+      "last_event_at": "2026-04-23T00:53:04.188716+03:00",
+      "status": "running"
+    },
+    "worker-4": {
+      "symbol": "USDCAD",
+      "trial": 6,
+      "last_event_at": "2026-04-23T00:53:23.038064+03:00",
+      "status": "running"
+    },
+    "worker-5": {
+      "symbol": "USDCHF",
+      "trial": 5,
+      "last_event_at": "2026-04-23T00:53:18.390776+03:00",
+      "status": "running"
+    },
+    "worker-6": {
+      "symbol": "USDJPY",
+      "trial": 4,
+      "last_event_at": "2026-04-23T00:53:18.889291+03:00",
+      "status": "running"
+    },
+    "worker-7": {
+      "symbol": "GBPJPY",
+      "trial": 4,
+      "last_event_at": "2026-04-23T00:52:22.078009+03:00",
+      "status": "running"
+    },
+    "worker-8": {
+      "symbol": "EURJPY",
+      "trial": 4,
+      "last_event_at": "2026-04-23T00:52:38.294797+03:00",
+      "status": "running"
+    },
+    "worker-9": {
+      "symbol": "NZDJPY",
+      "trial": 4,
+      "last_event_at": "2026-04-23T00:53:22.507553+03:00",
       "status": "running"
     }
   },
@@ -41,7 +95,52 @@
     "worker-0": {
       "status": "healthy",
       "stale_reads": 0,
-      "last_results_hash": ""
+      "last_results_hash": "2b3a07ea"
+    },
+    "worker-1": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "35a46436"
+    },
+    "worker-2": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "7141fb87"
+    },
+    "worker-3": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "0c57a07c"
+    },
+    "worker-4": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "ff61e6a9"
+    },
+    "worker-5": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "763bd066"
+    },
+    "worker-6": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "1708b5d0"
+    },
+    "worker-7": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "fd740d78"
+    },
+    "worker-8": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "23e6381b"
+    },
+    "worker-9": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "3ce4f483"
     }
   }
 }

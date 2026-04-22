@@ -150,6 +150,34 @@ def _normalize_public_base_url(raw_base: str) -> str:
     return f"https://{base}"
 
 
+def _request_oauth_token(params: Dict[str, Any], operation: str) -> Dict[str, Any]:
+    try:
+        response = requests.get(_OAUTH_TOKEN_URL, params=params, timeout=10)
+    except Exception as exc:
+        logger.error("cTrader %s failed: %s", operation, exc)
+        raise HTTPException(status_code=502, detail=f"cTrader {operation} failed") from exc
+
+    try:
+        data = response.json()
+    except ValueError:
+        data = {}
+
+    error_detail = str(data.get("description") or data.get("errorCode") or response.text or "").strip()
+    if response.status_code >= 400:
+        logger.error(
+            "cTrader %s failed: status=%s detail=%s",
+            operation,
+            response.status_code,
+            error_detail or "<empty>",
+        )
+        raise HTTPException(
+            status_code=response.status_code,
+            detail=error_detail or f"cTrader {operation} failed",
+        )
+
+    return data
+
+
 def _public_callback_url(request: Request | None = None) -> str:
     s = get_settings()
     base = _normalize_public_base_url(s.public_api_base_url or "")
@@ -179,13 +207,7 @@ def _exchange_code_for_tokens(code: str) -> Dict[str, Any]:
         "client_id": client_id,
         "client_secret": client_secret,
     }
-    try:
-        r = requests.get(_OAUTH_TOKEN_URL, params=params, timeout=10)
-        r.raise_for_status()
-        data = r.json()
-    except Exception as exc:
-        logger.error("cTrader token exchange failed: %s", exc)
-        raise HTTPException(status_code=502, detail="cTrader token exchange failed") from exc
+    data = _request_oauth_token(params, "token exchange")
 
     if data.get("errorCode") or not data.get("refreshToken"):
         raise HTTPException(status_code=400, detail=f"cTrader token exchange error: {data.get('description') or data.get('errorCode')}")
@@ -205,13 +227,7 @@ def _refresh_access_token(refresh_token: str) -> Dict[str, Any]:
         "client_id": client_id,
         "client_secret": client_secret,
     }
-    try:
-        r = requests.get(_OAUTH_TOKEN_URL, params=params, timeout=10)
-        r.raise_for_status()
-        data = r.json()
-    except Exception as exc:
-        logger.error("cTrader token refresh failed: %s", exc)
-        raise HTTPException(status_code=502, detail="cTrader token refresh failed") from exc
+    data = _request_oauth_token(params, "token refresh")
 
     if data.get("errorCode") or not data.get("accessToken"):
         raise HTTPException(status_code=400, detail=f"cTrader token refresh error: {data.get('description') or data.get('errorCode')}")
