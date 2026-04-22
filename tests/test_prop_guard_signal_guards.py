@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import config
+import src.core.dynamic_config as dynamic_config_mod
 
 from src.core.guard_rails.prop_guard import check_signal_guards
 
@@ -77,14 +78,28 @@ def _settings(**overrides):
         "evaluation_mode": True,
         "evaluation_phase": "phase1",
         "min_rr_ratio": 0.0,
-        "max_consecutive_losses": 2,
-        "consec_loss_pause_hours": 4.0,
+        "max_consecutive_losses": 5,
+        "consec_loss_pause_hours": 2.0,
+        "consec_loss_min_streak_pct": 1.0,
+        "account_balance": 10000.0,
     }
     base.update(overrides)
     return SimpleNamespace(**base)
 
 
+def _patch_settings(monkeypatch, **overrides):
+    """Patch both get_settings and get_dynamic_setting to use test values."""
+    s = _settings(**overrides)
+    monkeypatch.setattr(config, "get_settings", lambda: s)
+    monkeypatch.setattr(
+        dynamic_config_mod,
+        "get_dynamic_setting",
+        lambda key, default=None: getattr(s, key, default),
+    )
+
+
 def test_check_signal_guards_uses_latest_account_trades_for_loss_pause(monkeypatch):
+    """Win in the middle of the streak breaks the consecutive count — should allow."""
     now = datetime.now(timezone.utc)
     rows = [
         {
@@ -113,10 +128,10 @@ def test_check_signal_guards_uses_latest_account_trades_for_loss_pause(monkeypat
         },
     ]
     sb = _FakeSupabase(rows)
-    monkeypatch.setattr(config, "get_settings", lambda: _settings())
+    _patch_settings(monkeypatch, max_consecutive_losses=2)
 
     allowed, reason = check_signal_guards(
-        {"rr_ratio": 2.0},
+        {"rr_ratio": 2.0, "account_balance": 10000.0},
         sb,
         profile={"id": "acct-1", "name": "ACG-1"},
     )
@@ -125,3 +140,93 @@ def test_check_signal_guards_uses_latest_account_trades_for_loss_pause(monkeypat
     assert reason is None
     assert sb.last_query is not None
     assert ("eq", "broker_profile_id", "acct-1") in sb.last_query.filters
+
+
+def test_circuit_breaker_auto_resumes_after_cooldown(monkeypatch):
+    """After cooldown expires, trading should resume even if last N trades are still losses."""
+    now = datetime.now(timezone.utc)
+    # 5 consecutive losses, but the last one was 3 hours ago (cooldown is 2h)
+    rows = [
+        {"broker_profile_id": "acct-1", "outcome": "loss", "pnl_usd": -30.0,
+         "exit_time": (now - timedelta(hours=3)).isoformat(), "account_name": "ACG-1"},
+        {"broker_profile_id": "acct-1", "outcome": "loss", "pnl_usd": -25.0,
+         "exit_time": (now - timedelta(hours=4)).isoformat(), "account_name": "ACG-1"},
+        {"broker_profile_id": "acct-1", "outcome": "loss", "pnl_usd": -20.0,
+         "exit_time": (now - timedelta(hours=5)).isoformat(), "account_name": "ACG-1"},
+        {"broker_profile_id": "acct-1", "outcome": "loss", "pnl_usd": -15.0,
+         "exit_time": (now - timedelta(hours=6)).isoformat(), "account_name": "ACG-1"},
+        {"broker_profile_id": "acct-1", "outcome": "loss", "pnl_usd": -10.0,
+         "exit_time": (now - timedelta(hours=7)).isoformat(), "account_name": "ACG-1"},
+    ]
+    sb = _FakeSupabase(rows)
+    _patch_settings(monkeypatch)
+
+    allowed, reason = check_signal_guards(
+        {"rr_ratio": 2.0, "account_balance": 10000.0},
+        sb,
+        profile={"id": "acct-1", "name": "ACG-1"},
+    )
+
+    # Cooldown (2h) has passed since last loss (3h ago) → should auto-resume
+    assert allowed is True
+    assert reason is None
+
+
+def test_circuit_breaker_blocks_during_cooldown(monkeypatch):
+    """During cooldown period, trading should be blocked."""
+    now = datetime.now(timezone.utc)
+    # 5 consecutive losses, last one 30 min ago (within 2h cooldown)
+    rows = [
+        {"broker_profile_id": "acct-1", "outcome": "loss", "pnl_usd": -30.0,
+         "exit_time": (now - timedelta(minutes=30)).isoformat(), "account_name": "ACG-1"},
+        {"broker_profile_id": "acct-1", "outcome": "loss", "pnl_usd": -25.0,
+         "exit_time": (now - timedelta(hours=1)).isoformat(), "account_name": "ACG-1"},
+        {"broker_profile_id": "acct-1", "outcome": "loss", "pnl_usd": -20.0,
+         "exit_time": (now - timedelta(hours=2)).isoformat(), "account_name": "ACG-1"},
+        {"broker_profile_id": "acct-1", "outcome": "loss", "pnl_usd": -15.0,
+         "exit_time": (now - timedelta(hours=3)).isoformat(), "account_name": "ACG-1"},
+        {"broker_profile_id": "acct-1", "outcome": "loss", "pnl_usd": -10.0,
+         "exit_time": (now - timedelta(hours=4)).isoformat(), "account_name": "ACG-1"},
+    ]
+    sb = _FakeSupabase(rows)
+    _patch_settings(monkeypatch)
+
+    allowed, reason = check_signal_guards(
+        {"rr_ratio": 2.0, "account_balance": 10000.0},
+        sb,
+        profile={"id": "acct-1", "name": "ACG-1"},
+    )
+
+    assert allowed is False
+    assert "Circuit breaker" in reason
+    assert "consecutive losses" in reason
+
+
+def test_circuit_breaker_skips_small_losses(monkeypatch):
+    """If cumulative streak loss is below min_streak_pct, don't trigger."""
+    now = datetime.now(timezone.utc)
+    # 5 consecutive losses but tiny amounts (total $5 on $10k balance = 0.05%, below 1%)
+    rows = [
+        {"broker_profile_id": "acct-1", "outcome": "loss", "pnl_usd": -1.0,
+         "exit_time": (now - timedelta(minutes=10)).isoformat(), "account_name": "ACG-1"},
+        {"broker_profile_id": "acct-1", "outcome": "loss", "pnl_usd": -1.0,
+         "exit_time": (now - timedelta(minutes=20)).isoformat(), "account_name": "ACG-1"},
+        {"broker_profile_id": "acct-1", "outcome": "loss", "pnl_usd": -1.0,
+         "exit_time": (now - timedelta(minutes=30)).isoformat(), "account_name": "ACG-1"},
+        {"broker_profile_id": "acct-1", "outcome": "loss", "pnl_usd": -1.0,
+         "exit_time": (now - timedelta(minutes=40)).isoformat(), "account_name": "ACG-1"},
+        {"broker_profile_id": "acct-1", "outcome": "loss", "pnl_usd": -1.0,
+         "exit_time": (now - timedelta(minutes=50)).isoformat(), "account_name": "ACG-1"},
+    ]
+    sb = _FakeSupabase(rows)
+    _patch_settings(monkeypatch)
+
+    allowed, reason = check_signal_guards(
+        {"rr_ratio": 2.0, "account_balance": 10000.0},
+        sb,
+        profile={"id": "acct-1", "name": "ACG-1"},
+    )
+
+    # $5 total loss on $10k = 0.05% < 1% threshold → should allow
+    assert allowed is True
+    assert reason is None

@@ -361,8 +361,9 @@ class Settings(BaseSettings):
     monthly_max_loss_pct: float = Field(default=8.0, ge=1.0, le=50.0, description="Max monthly loss as % of account balance. 8%=FTMO max drawdown default.")
 
     # Consecutive loss circuit breaker
-    max_consecutive_losses: int = Field(default=3, ge=0, le=10, description="Pause trading after N consecutive losing trades. 0=OFF.")
-    consec_loss_pause_hours: float = Field(default=4.0, ge=0.5, le=48.0, description="Hours to pause after hitting consecutive loss limit.")
+    max_consecutive_losses: int = Field(default=5, ge=0, le=10, description="Pause trading after N consecutive losing trades. 0=OFF.")
+    consec_loss_pause_hours: float = Field(default=2.0, ge=0.5, le=48.0, description="Hours to pause after hitting consecutive loss limit.")
+    consec_loss_min_streak_pct: float = Field(default=1.0, ge=0.0, le=10.0, description="Only trigger circuit breaker if cumulative streak loss exceeds this % of balance. 0=count-only.")
 
     # Profit lock-in scaling (protect daily gains)
     enable_profit_lockdown: bool = Field(default=True, description="Reduce position size once daily profit reaches thresholds.")

@@ -255,9 +255,25 @@ _register(GuardDefinition(
     ],
 ))
 
-## circuit_breaker: REMOVED from registry — always runs in LIVE mode,
-## no setting key controls it. Cannot be toggled via UI.
-## Reset via API: POST /risk/circuit-breaker/reset
+_register(GuardDefinition(
+    guard_id="circuit_breaker",
+    setting_key="max_consecutive_losses",
+    name="Circuit Breaker",
+    description="Pauses trading after consecutive losing trades, with cooldown and cumulative loss threshold",
+    user_description="Temporarily pauses trading after a streak of consecutive losses. Configurable: how many losses trigger it, how long the pause lasts, and a minimum cumulative loss threshold (so tiny losses don't trigger it).",
+    tier="important",
+    group="capital_protection",
+    value_type="int",
+    default=5,
+    min_value=0,
+    max_value=10,
+    unit="losses",
+    scope="global",
+    thresholds=[
+        ThresholdDef("consec_loss_pause_hours", "Pause Duration", "float", 2.0, 0.5, 48.0, "hours"),
+        ThresholdDef("consec_loss_min_streak_pct", "Min Streak Loss %", "float", 1.0, 0.0, 10.0, "%"),
+    ],
+))
 
 _register(GuardDefinition(
     guard_id="htf_candle_filter",
