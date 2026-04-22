@@ -714,6 +714,19 @@ class TabWorker:
         return broker.strip(), symbol.strip()
 
     @staticmethod
+    def _broker_matches_expected(observed_broker: str, expected_broker: str) -> bool:
+        """Return True when TradingView's observed broker/feed should count as expected."""
+        observed = str(observed_broker or "").upper().strip()
+        expected = str(expected_broker or "").upper().strip()
+        if not observed or not expected:
+            return False
+        if observed == expected:
+            return True
+        if expected == "FXCM" and observed == "FX":
+            return True
+        return False
+
+    @staticmethod
     def _looks_like_symbol(value: str) -> bool:
         token = value.upper().strip()
         if not token or len(token) > 32:
@@ -1327,9 +1340,9 @@ class TabWorker:
         expected_broker = str(expected_broker or "").upper().strip()
         if expected_broker:
             observed_broker = await self._current_broker()
-            if observed_broker in {"", "FX"} and await self._chart_header_shows_broker(expected_broker):
+            if not observed_broker and await self._chart_header_shows_broker(expected_broker):
                 observed_broker = expected_broker
-            if observed_broker and observed_broker != expected_broker:
+            if observed_broker and not self._broker_matches_expected(observed_broker, expected_broker):
                 raise RuntimeError(
                     f"Broker mismatch: expected {expected_broker}, observed {observed_broker or 'UNKNOWN'}"
                 )
@@ -1459,9 +1472,9 @@ class TabWorker:
         try:
             title_broker, title_symbol = await self._current_symbol_details()
             observed_broker = title_broker
-            if observed_broker in {"", "FX"} and await self._chart_header_shows_broker(tv_exchange):
+            if not observed_broker and await self._chart_header_shows_broker(tv_exchange):
                 observed_broker = tv_exchange
-            if title_symbol == clean_symbol and observed_broker == tv_exchange:
+            if title_symbol == clean_symbol and self._broker_matches_expected(observed_broker, tv_exchange):
                 print(f"  Already on {clean_symbol}, skipping switch")
                 await self._wait_for_load()
                 return
@@ -2483,6 +2496,82 @@ class TabWorker:
             )
         except Exception:
             return False
+
+    async def _read_input_value(self, index: int) -> str:
+        """Read the current visible settings input value by index."""
+        try:
+            value = await self.page.evaluate(
+                f"""
+                ((index) => {{
+                    {_JS_SETTINGS_DIALOG_HELPERS}
+                    const dialog = __tvPickSettingsDialog(true) || __tvPickSettingsDialog(false);
+                    if (!dialog) return '';
+                    const inputs = dialog.querySelectorAll('input');
+                    if (index >= inputs.length) return '';
+                    const input = inputs[index];
+                    if (!input || input.type === 'checkbox') return '';
+                    return String(input.value || '').trim();
+                }})
+                """,
+                index,
+            )
+            return str(value or "").strip()
+        except Exception:
+            return ""
+
+    async def _close_settings_dialog(self) -> bool:
+        """Dismiss the visible settings dialog, if any."""
+        try:
+            await self.page.keyboard.press("Escape")
+        except Exception:
+            return False
+        return await self._wait_dialog_close()
+
+    async def _apply_baseline_risk_reset(self, target_risk_pct: float = 0.5) -> ApplyOutcome:
+        """
+        Ensure the baseline risk is set before optimization begins.
+
+        If TradingView already shows the target risk value, treat the reset as a
+        successful no-op instead of forcing it through stale-hash detection.
+        """
+        await self._dismiss_tv_errors()
+        await self._prepare_clean_chart()
+
+        if not await self._open_settings():
+            return await self._apply_params({"risk_per_trade_pct": target_risk_pct})
+        await asyncio.sleep(0.5)
+
+        await self._click_inputs_tab()
+        await asyncio.sleep(0.3)
+
+        if not await self._ensure_custom_profile():
+            try:
+                await self._close_settings_dialog()
+            except Exception:
+                pass
+            return await self._apply_params({"risk_per_trade_pct": target_risk_pct})
+
+        current_value = ""
+        try:
+            current_value = await self._read_input_value(INPUT_INDEX["risk_per_trade_pct"])
+        finally:
+            try:
+                await self._close_settings_dialog()
+            except Exception:
+                pass
+
+        try:
+            if current_value and abs(float(current_value) - float(target_risk_pct)) < 1e-9:
+                return ApplyOutcome(
+                    ok=True,
+                    fresh=True,
+                    reason="baseline_already_set",
+                    attempt=1,
+                )
+        except ValueError:
+            pass
+
+        return await self._apply_params({"risk_per_trade_pct": target_risk_pct})
 
     async def _toggle_checkbox(self, index: int, desired_state: bool) -> bool:
         """Toggle a checkbox to the desired state using native checked setters."""

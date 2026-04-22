@@ -650,6 +650,53 @@ def test_apply_params_fails_when_settings_dialog_does_not_close(monkeypatch) -> 
     assert update_wait_calls == []
 
 
+def test_apply_baseline_risk_reset_short_circuits_when_risk_already_matches(monkeypatch) -> None:
+    page = DummyPage()
+    worker = TabWorker(page, DummyOptimizer())
+    events: list[str] = []
+
+    async def always_true() -> bool:
+        return True
+
+    async def fake_click_inputs_tab() -> None:
+        events.append("inputs")
+
+    async def fake_prepare_clean_chart() -> None:
+        events.append("clean")
+
+    async def fake_close_settings_dialog() -> bool:
+        events.append("close")
+        return True
+
+    async def fake_read_input_value(index: int) -> str:
+        assert index == tab_worker_module.INPUT_INDEX["risk_per_trade_pct"]
+        return "0.5"
+
+    async def fail_apply_params(params: dict) -> ApplyOutcome:
+        raise AssertionError("_apply_params should not run when baseline is already set")
+
+    monkeypatch.setattr(worker, "_dismiss_tv_errors", always_true)
+    monkeypatch.setattr(worker, "_prepare_clean_chart", fake_prepare_clean_chart)
+    monkeypatch.setattr(worker, "_open_settings", always_true)
+    monkeypatch.setattr(worker, "_click_inputs_tab", fake_click_inputs_tab)
+    monkeypatch.setattr(worker, "_ensure_custom_profile", always_true)
+    monkeypatch.setattr(worker, "_read_input_value", fake_read_input_value)
+    monkeypatch.setattr(worker, "_close_settings_dialog", fake_close_settings_dialog)
+    monkeypatch.setattr(worker, "_apply_params", fail_apply_params)
+
+    outcome = asyncio.run(worker._apply_baseline_risk_reset(0.5))
+
+    assert outcome == ApplyOutcome(
+        ok=True,
+        fresh=True,
+        reason="baseline_already_set",
+        attempt=1,
+        results_hash_before="",
+        results_hash_after="",
+    )
+    assert events == ["clean", "inputs", "close"]
+
+
 def test_read_results_rejects_symbol_mismatch_before_collecting_metrics() -> None:
     page = DummyPage(title="GBPJPY 5 Vantage")
     worker = TabWorker(page, DummyOptimizer())
@@ -1057,7 +1104,7 @@ def test_switch_symbol_prefers_desktop_mcp_symbol_command_for_fxcm(monkeypatch) 
     assert "set-5m" in events
 
 
-def test_switch_symbol_accepts_generic_fx_feed_when_header_shows_fxcm(monkeypatch) -> None:
+def test_switch_symbol_accepts_generic_fx_feed_for_fxcm(monkeypatch) -> None:
     page = DesktopClientSwitchPageWithGenericFeed()
     optimizer = DummyOptimizer()
     optimizer.broker = "fxcm"
@@ -1469,6 +1516,76 @@ def test_bayesian_optimizer_uses_only_fresh_results_for_study_and_best_tracking(
     assert study_calls[0][2] == "FAIL"
     assert study_calls[1][1] == pytest.approx(15.0)
     assert optimizer.best_per_pair == {}
+
+
+def test_bayesian_optimizer_uses_baseline_reset_helper_when_available(monkeypatch) -> None:
+    class FakeTrial:
+        pass
+
+    class FakeStudy:
+        def ask(self) -> FakeTrial:
+            return FakeTrial()
+
+        def tell(self, trial, value=None, state=None):
+            return None
+
+    fake_optuna = SimpleNamespace(
+        logging=SimpleNamespace(WARNING=30, set_verbosity=lambda level: None),
+        create_study=lambda **kwargs: FakeStudy(),
+        samplers=SimpleNamespace(TPESampler=lambda **kwargs: object()),
+        trial=SimpleNamespace(TrialState=SimpleNamespace(FAIL="FAIL")),
+    )
+    monkeypatch.setitem(sys.modules, "optuna", fake_optuna)
+
+    class FakeWorker:
+        def __init__(self) -> None:
+            self.results: list[BacktestResult] = []
+            self.best_result = None
+            self.baseline_calls: list[float] = []
+            self.apply_calls: list[dict] = []
+
+        async def _switch_symbol(self, symbol: str) -> None:
+            self.symbol = symbol
+
+        async def _require_last_365_days(self) -> None:
+            return None
+
+        async def _apply_baseline_risk_reset(self, target: float) -> ApplyOutcome:
+            self.baseline_calls.append(target)
+            return ApplyOutcome(ok=True, fresh=True, reason="baseline_already_set")
+
+        async def _apply_params(self, params: dict) -> ApplyOutcome:
+            self.apply_calls.append(params)
+            return ApplyOutcome(ok=True, fresh=True, reason="fresh")
+
+        def sample_params(self, trial, symbol: str, fixed_overrides: dict) -> dict:
+            return {"trial": 1}
+
+        async def _read_results(self, symbol: str, params: dict) -> BacktestResult:
+            return BacktestResult(
+                symbol=symbol,
+                verified_symbol=symbol,
+                params=params,
+                profit_factor=1.42,
+                total_trades=160,
+                max_drawdown_pct=5.2,
+                win_rate=58.0,
+                score=17.5,
+            )
+
+    optimizer = TradingViewOptimizer(
+        pairs=["EURUSD"],
+        bayesian_mode=True,
+        n_trials=1,
+        generate_report=False,
+    )
+    worker = FakeWorker()
+
+    result = asyncio.run(optimizer.optimize_pair_bayesian(worker, "EURUSD", 1))
+
+    assert result is not None
+    assert worker.baseline_calls == [0.5]
+    assert worker.apply_calls == [{"trial": 1}]
 
 
 def test_bayesian_optimizer_uses_configured_backtest_range(monkeypatch) -> None:

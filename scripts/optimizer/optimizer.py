@@ -345,7 +345,10 @@ class TradingViewOptimizer:
         # Ensures TradingView isn't left at a different risk from a previous run.
         # 0.5% is the baseline for optimization (1% interacts badly with the
         # 4% daily loss limit, killing good trades and destroying backtest PF).
-        baseline_outcome = await worker._apply_params({"risk_per_trade_pct": 0.5})
+        if hasattr(worker, "_apply_baseline_risk_reset"):
+            baseline_outcome = await worker._apply_baseline_risk_reset(0.5)
+        else:
+            baseline_outcome = await worker._apply_params({"risk_per_trade_pct": 0.5})
         if not baseline_outcome.fresh:
             print(
                 f"[{symbol}] WARNING: baseline risk reset was not fresh "
