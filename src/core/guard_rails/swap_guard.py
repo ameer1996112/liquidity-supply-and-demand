@@ -208,7 +208,8 @@ class SwapGuard:
             self._recovery_state.pop(symbol, None)
             previous_swap_dt = swap_dt - timedelta(days=1)
             previous_cap_end = previous_swap_dt + timedelta(minutes=self.max_block_after_minutes)
-            if now >= previous_cap_end:
+            release_grace_end = previous_cap_end + timedelta(seconds=self.recovery_window_seconds)
+            if previous_cap_end <= now <= release_grace_end:
                 reason = self._reason("SWAP_MAX_CAP_RELEASE", symbol, "hard max cap reached")
                 logger.info(reason)
                 return True, reason
