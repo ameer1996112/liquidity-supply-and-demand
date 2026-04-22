@@ -12,9 +12,9 @@ import { apiFetch } from '@/lib/api';
 export interface ThresholdConfig {
   setting_key: string;
   name: string;
-  value_type: 'bool' | 'int' | 'float';
-  current_value: number | boolean;
-  default: number | boolean;
+  value_type: 'bool' | 'int' | 'float' | 'str';
+  current_value: number | boolean | string;
+  default: number | boolean | string;
   min_value: number | null;
   max_value: number | null;
   unit: string;
@@ -36,7 +36,7 @@ export interface GuardConfig {
   tier: 'critical' | 'important' | 'convenience';
   group: string;
   group_label: string;
-  value_type: 'bool' | 'int' | 'float';
+  value_type: 'bool' | 'int' | 'float' | 'str';
   enabled: boolean | number;
   default: boolean | number;
   min_value: number | null;
@@ -68,18 +68,18 @@ export interface GuardAccountsResponse {
 }
 
 export interface GuardUpdateRequest {
-  value: boolean | number;
-  thresholds?: Record<string, boolean | number>;
+  value: boolean | number | string;
+  thresholds?: Record<string, boolean | number | string>;
   change_reason: string;
 }
 
 export interface GuardUpdateResponse {
   guard_id: string;
   setting_key: string;
-  old_value: boolean | number;
-  new_value: boolean | number;
-  confirmed_value: boolean | number;
-  threshold_updates: Record<string, boolean | number>;
+  old_value: boolean | number | string;
+  new_value: boolean | number | string;
+  confirmed_value: boolean | number | string;
+  threshold_updates: Record<string, boolean | number | string>;
 }
 
 export interface RejectionEntry {

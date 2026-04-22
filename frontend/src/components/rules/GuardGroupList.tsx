@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ComponentType } from 'react';
+import { useEffect, useState, type ComponentType } from 'react';
 import { cn } from '@/lib/utils';
 import type { GuardConfig, GuardsConfigResponse } from '@/hooks/useGuards';
 import {
@@ -130,9 +130,15 @@ function ThresholdEditor({
   disabled,
 }: {
   threshold: GuardConfig['thresholds'][number];
-  onUpdate: (key: string, value: number | boolean) => void;
+  onUpdate: (key: string, value: number | boolean | string) => void;
   disabled?: boolean;
 }) {
+  const [draftText, setDraftText] = useState(String(threshold.current_value ?? ''));
+
+  useEffect(() => {
+    setDraftText(String(threshold.current_value ?? ''));
+  }, [threshold.current_value, threshold.setting_key]);
+
   if (threshold.value_type === 'bool') {
     return (
       <div className="flex items-center justify-between py-2">
@@ -141,6 +147,27 @@ function ThresholdEditor({
           checked={Boolean(threshold.current_value)}
           onChange={(v) => onUpdate(threshold.setting_key, v)}
           disabled={disabled}
+        />
+      </div>
+    );
+  }
+
+  if (threshold.value_type === 'str') {
+    return (
+      <div className="flex items-center justify-between gap-3 py-2">
+        <span className="text-[11px] text-[var(--to-text-secondary)] shrink-0">{threshold.name}</span>
+        <input
+          type="text"
+          value={draftText}
+          onChange={(e) => setDraftText(e.target.value)}
+          onBlur={() => onUpdate(threshold.setting_key, draftText)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.currentTarget.blur();
+            }
+          }}
+          disabled={disabled}
+          className="min-w-[180px] flex-1 rounded-md border border-[var(--to-border)] bg-[var(--to-bg)] px-2 py-1 text-xs text-white font-mono focus:outline-none focus:ring-1 focus:ring-indigo-500/50 disabled:opacity-40"
         />
       </div>
     );
@@ -179,7 +206,7 @@ function GuardCard({
   guard: GuardConfig;
   scopeLabel: string;
   onToggle: (guard: GuardConfig) => void;
-  onThresholdUpdate: (guardId: string, key: string, value: number | boolean) => void;
+  onThresholdUpdate: (guardId: string, key: string, value: number | boolean | string) => void;
   isUpdating: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -316,7 +343,7 @@ export function GuardGroupList({
   scopeLabel: string;
   savingGuards: Set<string>;
   onToggle: (guard: GuardConfig) => void;
-  onThresholdUpdate: (guardId: string, key: string, value: number | boolean) => void;
+  onThresholdUpdate: (guardId: string, key: string, value: number | boolean | string) => void;
 }) {
   const { groups, group_labels, total_rejections_7d, total_signals_7d } = data;
   const allGuards = Object.values(groups).flat();

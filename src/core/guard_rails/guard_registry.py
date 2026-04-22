@@ -5,7 +5,7 @@ Each guard is registered with:
 - setting_key: The key in risk_config_overrides / settings.py
 - tier: critical | important | convenience
 - group: capital_protection | trade_quality | scheduling
-- value_type: bool | int | float
+- value_type: bool | int | float | str
 - default: Default value when no override exists
 - min/max: Validation bounds for numeric thresholds
 - description: Developer-facing description
@@ -32,7 +32,7 @@ class GuardDefinition:
     user_description: str
     tier: str  # critical | important | convenience
     group: str  # capital_protection | trade_quality | scheduling
-    value_type: str  # bool | int | float
+    value_type: str  # bool | int | float | str
     default: Any = True
     min_value: Optional[float] = None
     max_value: Optional[float] = None
@@ -45,7 +45,7 @@ class GuardDefinition:
 class ThresholdDef:
     setting_key: str
     name: str
-    value_type: str  # int | float
+    value_type: str  # bool | int | float | str
     default: Any
     min_value: Optional[float] = None
     max_value: Optional[float] = None
@@ -345,8 +345,8 @@ _register(GuardDefinition(
     guard_id="swap_guard",
     setting_key="enable_swap_guard",
     name="Swap / Rollover Guard",
-    description="Closes positions and blocks entries during broker rollover spread spike",
-    user_description="Closes all open trades 15 minutes before broker rollover and blocks new entries for 15 minutes after. Protects against the extreme spread widening that occurs at daily swap time.",
+    description="Closes positions before rollover and reopens symbols only after spreads recover",
+    user_description="Closes open trades before broker rollover, keeps entries blocked through a minimum floor after swap, and only reopens symbols once live spreads look healthy again.",
     tier="important",
     group="scheduling",
     value_type="bool",
@@ -356,7 +356,15 @@ _register(GuardDefinition(
         ThresholdDef("swap_time", "Rollover Time (HH:MM)", "str", "00:00", None, None, ""),
         ThresholdDef("swap_timezone", "Rollover Timezone", "str", "Asia/Jerusalem", None, None, ""),
         ThresholdDef("swap_close_before_min", "Close Positions Before (min)", "int", 15, 1, 60, "min"),
-        ThresholdDef("swap_block_after_min", "Block Entries After (min)", "int", 15, 1, 60, "min"),
+        ThresholdDef("swap_min_block_after_min", "Minimum Block After (min)", "int", 45, 1, 360, "min"),
+        ThresholdDef("swap_max_block_after_min", "Maximum Block After (min)", "int", 240, 30, 480, "min"),
+        ThresholdDef("swap_recovery_consecutive_checks", "Healthy Checks Required", "int", 3, 1, 10, "checks"),
+        ThresholdDef("swap_recovery_window_seconds", "Recovery Window (sec)", "int", 300, 30, 1800, "sec"),
+        ThresholdDef("swap_fx_max_spread", "FX Max Healthy Spread", "float", 0.00030, 0.00001, None, ""),
+        ThresholdDef("swap_jpy_max_spread", "JPY Max Healthy Spread", "float", 0.030, 0.001, None, ""),
+        ThresholdDef("swap_gold_max_spread", "Gold Max Healthy Spread", "float", 0.50, 0.01, None, ""),
+        ThresholdDef("swap_default_max_spread", "Fallback Max Healthy Spread", "float", 0.00050, 0.00001, None, ""),
+        ThresholdDef("swap_symbol_spread_overrides_json", "Symbol Override JSON", "str", "", None, None, ""),
     ],
 ))
 

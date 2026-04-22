@@ -33,7 +33,7 @@ export function AccountGuardsView() {
     });
   };
 
-  const handleThresholdUpdate = (guardId: string, key: string, value: number | boolean) => {
+  const handleThresholdUpdate = (guardId: string, key: string, value: number | boolean | string) => {
     if (!effectiveAccountId) return;
     const guard = Object.values(data?.groups || {}).flat().find((g) => g.guard_id === guardId);
     if (!guard) return;

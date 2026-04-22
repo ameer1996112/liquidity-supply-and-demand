@@ -30,8 +30,51 @@ vi.mock('@/hooks/useGuards', () => ({
             scope: 'global',
           },
         ],
+        scheduling: [
+          {
+            guard_id: 'swap_guard',
+            name: 'Swap / Rollover Guard',
+            description: 'desc',
+            user_description: 'adaptive swap guard',
+            tier: 'important',
+            group: 'scheduling',
+            group_label: 'Scheduling',
+            value_type: 'bool',
+            enabled: true,
+            default: true,
+            min_value: null,
+            max_value: null,
+            unit: '',
+            thresholds: [
+              {
+                setting_key: 'swap_time',
+                name: 'Rollover Time (HH:MM)',
+                value_type: 'str',
+                current_value: '00:00',
+                default: '00:00',
+                min_value: null,
+                max_value: null,
+                unit: '',
+              },
+              {
+                setting_key: 'swap_min_block_after_min',
+                name: 'Minimum Block After (min)',
+                value_type: 'int',
+                current_value: 45,
+                default: 45,
+                min_value: 1,
+                max_value: 360,
+                unit: 'min',
+              },
+            ],
+            rejection_count_7d: 2,
+            last_rejection_reason: 'SWAP_POST_MIN_FLOOR',
+            dynamic_threshold: null,
+            scope: 'global',
+          },
+        ],
       },
-      group_labels: { capital_protection: 'Capital Protection' },
+      group_labels: { capital_protection: 'Capital Protection', scheduling: 'Scheduling' },
       tier_labels: {},
       total_rejections_7d: 0,
       total_signals_7d: 0,
@@ -90,6 +133,9 @@ describe('GuardsPanel', () => {
 
     expect(html).toContain('Global');
     expect(html).toContain('Per Account');
+    expect(html).toContain('Swap / Rollover Guard');
+    expect(html).toContain('Rollover Time (HH:MM)');
+    expect(html).toContain('Minimum Block After (min)');
   });
 
   it('renders account selector and scope label in account view', () => {

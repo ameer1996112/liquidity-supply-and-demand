@@ -270,6 +270,10 @@ def _validate_threshold(t: ThresholdDef, value: Any) -> Any:
         if not isinstance(value, bool):
             raise HTTPException(400, f"Threshold '{t.setting_key}' expects a boolean")
         return value
+    elif t.value_type == "str":
+        if value is None:
+            raise HTTPException(400, f"Threshold '{t.setting_key}' expects a string")
+        return str(value)
     elif t.value_type == "int":
         try:
             val = int(value)
