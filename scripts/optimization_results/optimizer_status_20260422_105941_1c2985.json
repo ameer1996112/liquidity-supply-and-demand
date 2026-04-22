@@ -32,8 +32,8 @@
   "active_pairs": {
     "worker-0": {
       "symbol": "EURUSD",
-      "trial": 0,
-      "last_event_at": "2026-04-22T10:59:58.457663+03:00",
+      "trial": 1,
+      "last_event_at": "2026-04-22T11:02:05.454253+03:00",
       "status": "running"
     },
     "worker-1": {
@@ -45,9 +45,9 @@
   },
   "worker_health": {
     "worker-0": {
-      "status": "healthy",
-      "stale_reads": 0,
-      "last_results_hash": ""
+      "status": "warning",
+      "stale_reads": 1,
+      "last_results_hash": "4fe9feb8"
     },
     "worker-1": {
       "status": "healthy",

@@ -10,11 +10,10 @@ from scripts.optimizer.desktop_page import TradingViewDesktopPage
 from scripts.optimizer.tradingview_mcp import TradingViewMcpClient
 
 # Map broker names to valid TradingView exchange prefixes.
-# FXCM doesn't have its own data feed on TradingView, so we use OANDA.
 BROKER_TO_TV_EXCHANGE: dict[str, str] = {
     "VANTAGE": "VANTAGE",
     "OANDA":   "OANDA",
-    "FXCM":    "OANDA",
+    "FXCM":    "FXCM",
 }
 
 
@@ -250,6 +249,9 @@ class OptimizerMcpController:
             "TradingView MCP created no fresh TradingView page after tab creation"
         )
 
+    # Brokers whose symbols can't be loaded via URL query string.
+    _SEARCH_DIALOG_BROKERS = {"FXCM"}
+
     @staticmethod
     def _bootstrap_chart_url(
         *,
@@ -258,6 +260,12 @@ class OptimizerMcpController:
         broker: str,
     ) -> str:
         tv_exchange = broker_to_tv_exchange(broker)
+        # Brokers that require the search dialog can't be bootstrapped via URL.
+        # Just open a blank chart; the worker's _switch_symbol will navigate.
+        if tv_exchange.upper() in OptimizerMcpController._SEARCH_DIALOG_BROKERS:
+            if bootstrap_chart_id:
+                return f"https://www.tradingview.com/chart/{bootstrap_chart_id}/"
+            return "https://www.tradingview.com/chart/"
         symbol_token = f"{tv_exchange}%3A{bootstrap_symbol.upper()}"
         if bootstrap_chart_id:
             return f"https://www.tradingview.com/chart/{bootstrap_chart_id}/?symbol={symbol_token}"

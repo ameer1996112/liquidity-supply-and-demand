@@ -900,9 +900,9 @@ class TabWorker:
         if not await self._open_symbol_search_dialog(target_symbol):
             return False
 
-        for _ in range(12):
+        for attempt in range(20):
             try:
-                await asyncio.sleep(0.3)
+                await asyncio.sleep(0.4)
                 selected = await self.page.evaluate(
                     """
                     (payload) => {
@@ -917,6 +917,7 @@ class TabWorker:
                         const symbolToken = normalize(targetSymbol);
                         const brokerToken = normalize(targetBroker);
 
+                        // Step 1: Ensure the search input exists and has the right text
                         const input = Array.from(document.querySelectorAll('input'))
                             .find((el) => visible(el) && normalize(el.getAttribute('placeholder')).includes('symbol search'));
                         if (!input) return { state: 'no-input' };
@@ -929,21 +930,36 @@ class TabWorker:
                             return { state: 'typed' };
                         }
 
-                        const brokerChip = Array.from(document.querySelectorAll('button, [role="button"], span, div'))
+                        // Step 2: Find the result row that matches both symbol and broker.
+                        // TradingView search results are rendered as rows with a data-symbol-full
+                        // attribute or nested spans containing the symbol name and exchange.
+                        // We look for the smallest (most specific) element whose text contains
+                        // both the symbol and the broker name to avoid clicking a parent container.
+                        const candidates = Array.from(document.querySelectorAll(
+                            '[data-symbol-full], [role="option"], [role="row"], [class*="itemRow"], [class*="listItem"], tr, li'
+                        ))
                             .filter((el) => visible(el))
-                            .find((el) => normalize(el.textContent) === brokerToken);
-                        if (brokerChip && brokerChip.getAttribute('aria-pressed') !== 'true') {
-                            brokerChip.click();
-                            return { state: 'filtered' };
+                            .map((el) => ({ el, text: normalize(el.textContent), area: el.getBoundingClientRect().width * el.getBoundingClientRect().height }))
+                            .filter((item) => item.text.includes(symbolToken) && item.text.includes(brokerToken));
+
+                        if (!candidates.length) {
+                            // Fallback: try broader selectors but pick the smallest matching element
+                            const broad = Array.from(document.querySelectorAll('div, button, span'))
+                                .filter((el) => visible(el))
+                                .map((el) => ({ el, text: normalize(el.textContent), area: el.getBoundingClientRect().width * el.getBoundingClientRect().height }))
+                                .filter((item) => item.text.includes(symbolToken) && item.text.includes(brokerToken))
+                                .filter((item) => item.area > 100 && item.area < 50000);
+                            if (!broad.length) return { state: 'no-match' };
+                            // Pick the smallest matching element (most specific row)
+                            broad.sort((a, b) => a.area - b.area);
+                            broad[0].el.click();
+                            return { state: 'selected', method: 'broad-smallest' };
                         }
 
-                        const rows = Array.from(document.querySelectorAll('button, [role="button"], [role="option"], [role="row"], li, div'))
-                            .filter((el) => visible(el))
-                            .map((el) => ({ el, text: normalize(el.textContent) }))
-                            .filter((item) => item.text.includes(symbolToken) && item.text.includes(brokerToken));
-                        if (!rows.length) return { state: 'no-match' };
-                        rows[0].el.click();
-                        return { state: 'selected' };
+                        // Pick the smallest matching element to avoid clicking a parent container
+                        candidates.sort((a, b) => a.area - b.area);
+                        candidates[0].el.click();
+                        return { state: 'selected', method: 'precise' };
                     }
                     """,
                     {"targetSymbol": target_symbol, "targetBroker": target_broker},
@@ -952,6 +968,7 @@ class TabWorker:
                 selected = None
 
             if isinstance(selected, dict) and selected.get("state") == "selected":
+                print(f"    Search dialog: selected {target_broker}:{target_symbol} ({selected.get('method', '?')})")
                 return True
         return False
 
@@ -1037,11 +1054,16 @@ class TabWorker:
 
     # ─────────────────────────────────── navigation ──────────────────────────
 
+    # Brokers whose symbols can't be loaded via URL (?symbol=BROKER:PAIR) and
+    # must be selected through the TradingView search dialog instead.
+    _SEARCH_DIALOG_BROKERS = {"FXCM"}
+
     async def _switch_symbol(self, symbol: str) -> None:
-        """Switch chart to a different symbol using URL-based navigation."""
+        """Switch chart to a different symbol using URL-based or search-dialog navigation."""
         clean_symbol = symbol.split(":")[-1].upper().strip()
         broker = getattr(self.optimizer, "broker", "vantage").upper()
         tv_exchange = broker_to_tv_exchange(broker)
+        use_search = broker in self._SEARCH_DIALOG_BROKERS
 
         # Already on this symbol?
         try:
@@ -1053,6 +1075,22 @@ class TabWorker:
         except Exception:
             pass
 
+        print(f"  Navigating to {tv_exchange}:{clean_symbol}...")
+
+        # ── Search-dialog path (FXCM: URL navigation doesn't work) ───────────
+        if use_search:
+            if not await self._select_symbol_via_search(clean_symbol, tv_exchange):
+                raise RuntimeError(f"{tv_exchange} symbol search could not find {clean_symbol}")
+            await asyncio.sleep(2.0)
+            await self._wait_for_load()
+            await self._wait_for_strategy_surface()
+            await self._verify_symbol_state(clean_symbol, tv_exchange)
+            print(f"  Switched to {tv_exchange}:{clean_symbol} (verified)")
+            if not await self._ensure_chart_timeframe_5m():
+                raise RuntimeError("Could not confirm chart timeframe is 5m")
+            return
+
+        # ── URL / MCP path (Vantage, OANDA, etc.) ────────────────────────────
         current_url = self.page.url
         chart_id = ""
         if "/chart/" in current_url:
@@ -1072,7 +1110,6 @@ class TabWorker:
             f"https://www.tradingview.com/chart/{chart_id}/"
             f"?symbol={tv_exchange}%3A{clean_symbol}"
         )
-        print(f"  Navigating to {tv_exchange}:{clean_symbol}...")
 
         if hasattr(self.page, "_client"):
             try:
