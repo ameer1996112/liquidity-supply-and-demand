@@ -146,6 +146,18 @@ class OptimizerMcpController:
             )
         return slots
 
+    @staticmethod
+    def _pick_bootstrap_shell_page(pages: list[dict[str, Any]]) -> dict[str, Any] | None:
+        shell_pages = [
+            page
+            for page in pages
+            if page.get("kind") == "new_tab" and OptimizerMcpController._tab_id(page)
+        ]
+        if not shell_pages:
+            return None
+        shell_pages.sort(key=lambda page: int(page.get("index") or -1))
+        return shell_pages[-1]
+
     async def ensure_optimizer_ready(
         self,
         required_tabs: int,
@@ -328,6 +340,28 @@ class OptimizerMcpController:
         known_tab_ids = {self._tab_id(tab) for tab in existing_tabs}
         known_page_ids = {self._tab_id(page) for page in existing_pages}
         fresh_tabs: list[dict[str, Any]] = []
+
+        if not reusable_tabs and required_tabs > 0:
+            bootstrap_shell = self._pick_bootstrap_shell_page(existing_pages)
+            if bootstrap_shell is not None:
+                try:
+                    bootstrap_tab = await self._promote_new_tab_to_chart(
+                        shell_tab=bootstrap_shell,
+                        bootstrap_chart_id=bootstrap_chart_id,
+                        bootstrap_symbol=bootstrap_symbol,
+                        broker=broker,
+                        known_chart_ids=known_tab_ids,
+                        known_page_ids=known_page_ids,
+                    )
+                except RuntimeError as exc:
+                    raise self._workspace_bootstrap_error(
+                        f"TradingView Supercharts bootstrap failed: {exc}"
+                    ) from exc
+
+                reusable_tabs = [bootstrap_tab]
+                bootstrap_chart_id = str(bootstrap_tab.get("chart_id") or "") or bootstrap_chart_id
+                known_tab_ids.add(self._tab_id(bootstrap_tab))
+                known_page_ids.add(self._tab_id(bootstrap_tab))
 
         missing_tabs = max(required_tabs - len(reusable_tabs), 0)
 

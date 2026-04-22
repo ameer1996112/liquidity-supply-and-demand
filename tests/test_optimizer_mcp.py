@@ -296,6 +296,145 @@ def test_optimizer_mcp_workspace_reuses_existing_tabs_without_creating_new_ones(
     assert [slot.symbol for slot in workspace] == ["EURUSD", "EURUSD"]
 
 
+def test_optimizer_mcp_workspace_bootstraps_existing_supercharts_shell_before_expansion(monkeypatch) -> None:
+    class FakeClient:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, ...]] = []
+
+        async def healthcheck(self) -> tuple[bool, str]:
+            return True, "ok"
+
+        async def run(self, *args: str) -> dict[str, object]:
+            self.calls.append(args)
+            if args == ("tab", "list"):
+                return {
+                    "success": True,
+                    "tab_count": 0,
+                    "page_target_count": 1,
+                    "tabs": [],
+                }
+            if args == ("tab", "new"):
+                return {"success": True, "action": "new_tab_opened"}
+            return {"success": True}
+
+    controller = OptimizerMcpController(client=FakeClient())
+    promote_calls: list[str] = []
+
+    async def fake_list_workspace_pages() -> list[dict[str, object]]:
+        return [
+            {
+                "index": 0,
+                "id": "shell-home",
+                "title": "New tab",
+                "url": "file:///Applications/TradingView.app/Contents/Resources/app.asar/app/new-tab/index.html",
+                "chart_id": None,
+                "kind": "new_tab",
+            }
+        ]
+
+    async def fake_promote_new_tab_to_chart(**kwargs) -> dict[str, object]:
+        promote_calls.append(kwargs["shell_tab"]["id"])
+        return {
+            "index": 0,
+            "id": "chart-1",
+            "title": "TradingView",
+            "url": "https://www.tradingview.com/chart/AAA/?symbol=FX%3AEURUSD",
+            "chart_id": "AAA",
+            "kind": "chart",
+        }
+
+    async def fake_wait_for_new_workspace_page(*, known_page_ids: set[str]) -> dict[str, object]:
+        return {
+            "index": 1,
+            "id": "chart-2",
+            "title": "TradingView",
+            "url": "https://www.tradingview.com/chart/BBB/?symbol=FX%3AEURUSD",
+            "chart_id": "BBB",
+            "kind": "chart",
+        }
+
+    monkeypatch.setattr(controller, "_list_workspace_pages", fake_list_workspace_pages)
+    monkeypatch.setattr(controller, "_promote_new_tab_to_chart", fake_promote_new_tab_to_chart)
+    monkeypatch.setattr(controller, "_wait_for_new_workspace_page", fake_wait_for_new_workspace_page)
+
+    workspace = asyncio.run(
+        controller.ensure_optimizer_workspace(
+            required_tabs=2,
+            bootstrap_symbol="EURUSD",
+            broker="fxcm",
+            bootstrap_timeframe="5m",
+        )
+    )
+
+    assert [slot.tab_id for slot in workspace] == ["chart-1", "chart-2"]
+    assert [slot.chart_id for slot in workspace] == ["AAA", "BBB"]
+    assert [slot.broker for slot in workspace] == ["FXCM", "FXCM"]
+    assert [slot.symbol for slot in workspace] == ["EURUSD", "EURUSD"]
+    assert promote_calls == ["shell-home"]
+    assert controller._client.calls == [
+        ("tab", "list"),
+        ("tab", "new"),
+    ]
+
+
+def test_optimizer_mcp_workspace_fails_when_supercharts_bootstrap_fails(monkeypatch) -> None:
+    class FakeClient:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, ...]] = []
+
+        async def healthcheck(self) -> tuple[bool, str]:
+            return True, "ok"
+
+        async def run(self, *args: str) -> dict[str, object]:
+            self.calls.append(args)
+            if args == ("tab", "list"):
+                return {
+                    "success": True,
+                    "tab_count": 0,
+                    "page_target_count": 1,
+                    "tabs": [],
+                }
+            if args == ("tab", "new"):
+                raise AssertionError("tab new should not run when bootstrap of the existing shell fails")
+            return {"success": True}
+
+    controller = OptimizerMcpController(client=FakeClient())
+
+    async def fake_list_workspace_pages() -> list[dict[str, object]]:
+        return [
+            {
+                "index": 0,
+                "id": "shell-home",
+                "title": "New tab",
+                "url": "file:///Applications/TradingView.app/Contents/Resources/app.asar/app/new-tab/index.html",
+                "chart_id": None,
+                "kind": "new_tab",
+            }
+        ]
+
+    async def fake_promote_new_tab_to_chart(**kwargs) -> dict[str, object]:
+        raise RuntimeError("TradingView new-tab shell did not become a chart tab after bootstrap navigation")
+
+    monkeypatch.setattr(controller, "_list_workspace_pages", fake_list_workspace_pages)
+    monkeypatch.setattr(controller, "_promote_new_tab_to_chart", fake_promote_new_tab_to_chart)
+
+    with pytest.raises(RuntimeError) as exc_info:
+        asyncio.run(
+            controller.ensure_optimizer_workspace(
+                required_tabs=2,
+                bootstrap_symbol="EURUSD",
+                broker="fxcm",
+                bootstrap_timeframe="5m",
+            )
+        )
+
+    assert "TradingView Supercharts bootstrap failed" in str(exc_info.value)
+    assert "did not become a chart tab" in str(exc_info.value)
+    assert controller._client.calls == [
+        ("tab", "list"),
+    ]
+
+
 def test_optimizer_mcp_workspace_promotes_new_shell_tab(monkeypatch) -> None:
     class FakeClient:
         def __init__(self) -> None:
