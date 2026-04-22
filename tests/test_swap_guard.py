@@ -1,9 +1,11 @@
-"""Tests for SwapGuard blackout window logic."""
-from datetime import datetime, timezone
+"""Tests for adaptive swap guard behavior and scheduler regressions."""
+from collections import defaultdict
+from datetime import datetime
 import importlib.util
 import sys
+from unittest.mock import MagicMock, patch
+
 import pytz
-import pytest
 
 # Load swap_guard directly to avoid triggering guard_rails/__init__.py
 # which pulls in yfinance and other heavy deps not installed in test env
@@ -21,56 +23,113 @@ SwapScheduler = _mod.SwapScheduler
 
 def _make_dt(hour: int, minute: int, tz_name: str = "Asia/Jerusalem") -> datetime:
     tz = pytz.timezone(tz_name)
-    return tz.localize(datetime.now().replace(hour=hour, minute=minute, second=0, microsecond=0))
+    return tz.localize(
+        datetime.now().replace(hour=hour, minute=minute, second=0, microsecond=0)
+    )
 
 
-class TestSwapGuardBlackout:
+class FakeSpreadProvider:
+    def __init__(self, default: float | None = None):
+        self.default = default
+        self.values: dict[str, list[float | None]] = defaultdict(list)
+
+    def queue(self, symbol: str, *spreads: float | None) -> None:
+        self.values[symbol].extend(spreads)
+
+    def __call__(self, symbol: str) -> float | None:
+        queued = self.values.get(symbol)
+        if queued:
+            return queued.pop(0)
+        return self.default
+
+
+class TestAdaptiveSwapGuard:
     def setup_method(self):
-        # swap at 00:00 Asia/Jerusalem, close 15 min before, block 15 min after
+        self.spreads = FakeSpreadProvider(default=0.00020)
         self.guard = SwapGuard(
             swap_time="00:00",
             timezone_name="Asia/Jerusalem",
             close_before_minutes=15,
-            block_after_minutes=15,
+            min_block_after_minutes=45,
+            max_block_after_minutes=240,
+            recovery_consecutive_checks=3,
+            recovery_window_seconds=300,
+            spread_provider=self.spreads,
+            asset_class_thresholds={
+                "fx": 0.00030,
+                "jpy": 0.030,
+                "gold": 0.50,
+                "default": 0.00050,
+            },
+            symbol_threshold_overrides={"GBPUSD": 0.00025},
         )
 
-    def test_outside_window_allowed(self):
-        dt = _make_dt(22, 0)  # 22:00 — well outside window
-        assert self.guard.is_in_blackout_window(dt) is False
-
-    def test_inside_pre_swap_window_blocked(self):
-        dt = _make_dt(23, 50)  # 23:50 — 10 min before swap
-        assert self.guard.is_in_blackout_window(dt) is True
-
-    def test_at_swap_time_blocked(self):
-        dt = _make_dt(0, 0)  # exactly 00:00
-        assert self.guard.is_in_blackout_window(dt) is True
-
-    def test_inside_post_swap_window_blocked(self):
-        dt = _make_dt(0, 10)  # 00:10 — 10 min after swap
-        assert self.guard.is_in_blackout_window(dt) is True
-
-    def test_after_window_allowed(self):
-        dt = _make_dt(0, 16)  # 00:16 — just past the window
-        assert self.guard.is_in_blackout_window(dt) is False
-
-    def test_check_returns_false_during_blackout(self):
-        guard = SwapGuard("00:00", "Asia/Jerusalem", 15, 15)
-        # Monkeypatch _now to return a time inside the window
-        guard._now = lambda: _make_dt(23, 55)
-        passed, reason = guard.check({"symbol": "EURUSD"})
+    def test_rejects_inside_pre_swap_window(self):
+        self.guard._now = lambda: _make_dt(23, 50)
+        passed, reason = self.guard.check({"symbol": "GBPUSD"})
         assert passed is False
-        assert "SWAP_BLACKOUT" in reason
+        assert reason.startswith("SWAP_PRE_BLACKOUT")
 
-    def test_check_returns_true_outside_blackout(self):
-        guard = SwapGuard("00:00", "Asia/Jerusalem", 15, 15)
-        guard._now = lambda: _make_dt(12, 0)
-        passed, reason = guard.check({"symbol": "EURUSD"})
+    def test_rejects_inside_post_swap_min_floor(self):
+        self.guard._now = lambda: _make_dt(0, 30)
+        passed, reason = self.guard.check({"symbol": "GBPUSD"})
+        assert passed is False
+        assert reason.startswith("SWAP_POST_MIN_FLOOR")
+
+    def test_quotes_unavailable_stays_blocked(self):
+        self.spreads.queue("GBPUSD", None)
+        self.guard._now = lambda: _make_dt(0, 50)
+        passed, reason = self.guard.check({"symbol": "GBPUSD"})
+        assert passed is False
+        assert reason.startswith("SWAP_QUOTES_UNAVAILABLE")
+
+    def test_releases_symbol_after_consecutive_healthy_spreads(self):
+        self.spreads.queue("GBPUSD", 0.00020, 0.00020, 0.00020)
+        self.guard._now = lambda: _make_dt(0, 50)
+        assert self.guard.check({"symbol": "GBPUSD"})[0] is False
+        self.guard._now = lambda: _make_dt(0, 52)
+        assert self.guard.check({"symbol": "GBPUSD"})[0] is False
+        self.guard._now = lambda: _make_dt(0, 54)
+        passed, reason = self.guard.check({"symbol": "GBPUSD"})
         assert passed is True
-        assert reason == ""
+        assert reason.startswith("SWAP_RECOVERED")
 
+    def test_bad_spread_resets_partial_recovery(self):
+        self.spreads.queue(
+            "GBPUSD",
+            0.00020,
+            0.00080,
+            0.00020,
+            0.00020,
+            0.00020,
+        )
+        self.guard._now = lambda: _make_dt(0, 50)
+        assert self.guard.check({"symbol": "GBPUSD"})[0] is False
+        self.guard._now = lambda: _make_dt(0, 51)
+        passed, reason = self.guard.check({"symbol": "GBPUSD"})
+        assert passed is False
+        assert reason.startswith("SWAP_SPREAD_STILL_WIDE")
 
-from unittest.mock import MagicMock, patch
+    def test_recovery_is_independent_per_symbol(self):
+        self.spreads.queue("GBPUSD", 0.00020, 0.00020, 0.00020)
+        self.spreads.queue("XAUUSD", 0.90)
+        self.guard._now = lambda: _make_dt(0, 50)
+        self.guard.check({"symbol": "GBPUSD"})
+        self.guard._now = lambda: _make_dt(0, 51)
+        self.guard.check({"symbol": "GBPUSD"})
+        self.guard._now = lambda: _make_dt(0, 52)
+        assert self.guard.check({"symbol": "GBPUSD"})[0] is True
+        self.guard._now = lambda: _make_dt(0, 52)
+        passed, reason = self.guard.check({"symbol": "XAUUSD"})
+        assert passed is False
+        assert reason.startswith("SWAP_SPREAD_STILL_WIDE")
+
+    def test_hard_cap_releases_when_quotes_never_return(self):
+        self.spreads.queue("GBPUSD", None)
+        self.guard._now = lambda: _make_dt(4, 5)
+        passed, reason = self.guard.check({"symbol": "GBPUSD"})
+        assert passed is True
+        assert reason.startswith("SWAP_MAX_CAP_RELEASE")
 
 
 class TestSwapScheduler:
@@ -103,7 +162,7 @@ class TestSwapScheduler:
         adapter.get_open_positions.return_value = [{"id": "pos1", "symbol": "EURUSD"}]
         adapter.close_order.return_value = MagicMock(status="failed")
         s = SwapScheduler(adapter=adapter, max_retries=3, retry_delay_seconds=0)
-        with patch("src.core.guard_rails.swap_guard.send_guard_notification_async") as mock_alert:
+        with patch("src.adapters.discord.send_guard_notification_async") as mock_alert:
             s.close_all_positions()
             mock_alert.assert_called_once()
             call_kwargs = mock_alert.call_args
@@ -111,13 +170,12 @@ class TestSwapScheduler:
 
     def test_idempotency_flag_prevents_double_close(self):
         s = self._make_scheduler()
-        s._close_triggered = True  # already ran this cycle
+        s._close_triggered = True
         s.close_all_positions_if_needed()
         assert s._adapter.close_order.call_count == 0
 
     def test_flag_resets_outside_window(self):
         s = self._make_scheduler()
         s._close_triggered = True
-        # Simulate tick when outside window
         s.reset_if_outside_window(in_window=False)
         assert s._close_triggered is False
