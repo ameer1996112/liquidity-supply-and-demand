@@ -115,3 +115,33 @@ def test_compatibility_health_endpoint_supports_browser_cors(monkeypatch) -> Non
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
     assert "GET" in response.headers["access-control-allow-methods"]
+
+
+def test_compatibility_health_endpoint_supports_railway_frontend_origin(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "src.local_chart_provider_app.get_chart_provider_compatibility_status",
+        lambda: {
+            "status": "probe_failed",
+            "chart_context_enabled": False,
+            "tradingview_version": "3.1.0",
+            "checked_at": "2026-04-22T18:00:00Z",
+            "reason": "status command failed",
+            "probe": {"command": "status", "ok": False},
+        },
+    )
+
+    client = TestClient(app)
+    response = client.options(
+        "/health/compatibility",
+        headers={
+            "Origin": "https://frontend-production-a7cf.up.railway.app",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+
+    assert response.status_code == 200
+    assert (
+        response.headers["access-control-allow-origin"]
+        == "https://frontend-production-a7cf.up.railway.app"
+    )
+    assert "GET" in response.headers["access-control-allow-methods"]

@@ -22,7 +22,12 @@ ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
 app = FastAPI(title="Local TradingView MCP Provider", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "https://frontend-production-a7cf.up.railway.app",
+    ],
+    allow_origin_regex=r"https://.*\.up\.railway\.app",
     allow_methods=["GET", "OPTIONS"],
     allow_headers=["*"],
 )
