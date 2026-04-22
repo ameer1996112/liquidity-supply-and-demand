@@ -6,6 +6,7 @@ only after spreads normalize or a hard cap is reached.
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+import json
 from typing import Callable, Tuple
 
 import logging
@@ -33,6 +34,22 @@ def _asset_class_for_symbol(symbol: str) -> str:
     if upper.startswith("XAU"):
         return "gold"
     return "fx"
+
+
+def parse_symbol_threshold_overrides(raw: str) -> dict[str, float]:
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except Exception:  # noqa: BLE001
+        return {}
+    if not isinstance(parsed, dict):
+        return {}
+    return {
+        str(symbol).upper(): float(value)
+        for symbol, value in parsed.items()
+        if value is not None
+    }
 
 
 class SwapGuard:
@@ -88,10 +105,15 @@ class SwapGuard:
             self._asset_class_thresholds.update(
                 {str(name).lower(): float(value) for name, value in asset_class_thresholds.items()}
             )
-        self._symbol_threshold_overrides = {
-            str(symbol).upper(): float(value)
-            for symbol, value in (symbol_threshold_overrides or {}).items()
-        }
+        if isinstance(symbol_threshold_overrides, str):
+            self._symbol_threshold_overrides = parse_symbol_threshold_overrides(
+                symbol_threshold_overrides
+            )
+        else:
+            self._symbol_threshold_overrides = {
+                str(symbol).upper(): float(value)
+                for symbol, value in (symbol_threshold_overrides or {}).items()
+            }
         self._recovery_state: dict[str, SwapRecoveryState] = {}
         self._tz = pytz.timezone(timezone_name)
 

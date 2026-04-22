@@ -19,6 +19,7 @@ _spec.loader.exec_module(_mod)
 
 SwapGuard = _mod.SwapGuard
 SwapScheduler = _mod.SwapScheduler
+parse_symbol_threshold_overrides = _mod.parse_symbol_threshold_overrides
 
 
 def _make_dt(hour: int, minute: int, tz_name: str = "Asia/Jerusalem") -> datetime:
@@ -179,3 +180,14 @@ class TestSwapScheduler:
         s._close_triggered = True
         s.reset_if_outside_window(in_window=False)
         assert s._close_triggered is False
+
+
+def test_parse_symbol_threshold_overrides_normalizes_keys():
+    parsed = parse_symbol_threshold_overrides(
+        '{"gbpusd": 0.00025, "XAUUSD": 0.50}'
+    )
+    assert parsed == {"GBPUSD": 0.00025, "XAUUSD": 0.50}
+
+
+def test_parse_symbol_threshold_overrides_invalid_json_returns_empty_dict():
+    assert parse_symbol_threshold_overrides("{bad-json") == {}

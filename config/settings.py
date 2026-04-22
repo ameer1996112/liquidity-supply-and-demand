@@ -489,7 +489,15 @@ class Settings(BaseSettings):
     swap_time: str = Field(default="00:00", description="Broker rollover time in HH:MM format (server time)")
     swap_timezone: str = Field(default="Asia/Jerusalem", description="Timezone for swap_time (e.g. Asia/Jerusalem, UTC, Europe/Athens)")
     swap_close_before_min: int = Field(default=15, ge=1, le=60, description="Minutes before swap to close all open positions")
-    swap_block_after_min: int = Field(default=15, ge=1, le=60, description="Minutes after swap to block new entries")
+    swap_min_block_after_min: int = Field(default=45, ge=1, le=360, description="Minimum minutes after swap to keep entries blocked")
+    swap_max_block_after_min: int = Field(default=240, ge=30, le=480, description="Hard cap on post-swap blocking when quote recovery data is unavailable")
+    swap_recovery_consecutive_checks: int = Field(default=3, ge=1, le=10, description="Consecutive healthy spread checks required before unblocking a symbol")
+    swap_recovery_window_seconds: int = Field(default=300, ge=30, le=1800, description="Maximum age of partial recovery progress before the healthy counter resets")
+    swap_fx_max_spread: float = Field(default=0.00030, gt=0.0, description="Maximum healthy spread in price terms for standard FX pairs")
+    swap_jpy_max_spread: float = Field(default=0.030, gt=0.0, description="Maximum healthy spread in price terms for JPY pairs")
+    swap_gold_max_spread: float = Field(default=0.50, gt=0.0, description="Maximum healthy spread in price terms for gold symbols")
+    swap_default_max_spread: float = Field(default=0.00050, gt=0.0, description="Fallback healthy spread threshold in price terms when no asset class matches")
+    swap_symbol_spread_overrides_json: str = Field(default="", description="Optional JSON object mapping symbols to max healthy spread values")
 
     # ── Breakeven & Trailing Stop Optimization (v1.1 Phase 9) ─────────────
     breakeven_buffer_pips: float = Field(

@@ -139,13 +139,24 @@ def _infer_public_base_url(request: Request) -> str:
     return f"{proto}://{host}".rstrip("/")
 
 
+def _normalize_public_base_url(raw_base: str) -> str:
+    base = (raw_base or "").strip().rstrip("/")
+    if not base:
+        return ""
+    if "://" in base:
+        return base
+    if base.startswith(("localhost", "127.0.0.1")):
+        return f"http://{base}"
+    return f"https://{base}"
+
+
 def _public_callback_url(request: Request | None = None) -> str:
     s = get_settings()
-    base = (s.public_api_base_url or "").strip().rstrip("/")
+    base = _normalize_public_base_url(s.public_api_base_url or "")
     if not base:
-        base = _get_system_config_value(_PUBLIC_API_BASE_URL_KEY).rstrip("/")
+        base = _normalize_public_base_url(_get_system_config_value(_PUBLIC_API_BASE_URL_KEY))
     if not base and request is not None:
-        base = _infer_public_base_url(request)
+        base = _normalize_public_base_url(_infer_public_base_url(request))
     if not base:
         raise HTTPException(
             status_code=500,
