@@ -38,7 +38,12 @@ class Settings(BaseSettings):
     public_api_base_url: str = Field(
         default="",
         description="Public base URL for the API (used for OAuth redirect URIs), e.g. https://your-api.up.railway.app",
-        validation_alias=AliasChoices("PUBLIC_API_BASE_URL", "API_PUBLIC_BASE_URL"),
+        validation_alias=AliasChoices(
+            "PUBLIC_API_BASE_URL",
+            "API_PUBLIC_BASE_URL",
+            "API_BASE_URL",
+            "NEXT_PUBLIC_API_URL",
+        ),
     )
     supabase_key: str = Field(default="", validation_alias=AliasChoices("SUPABASE_ANON_KEY", "SUPABASE_KEY"))
     supabase_service_role_key: str = Field(default="", validation_alias=AliasChoices("SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SERVICE_KEY"))

@@ -127,6 +127,15 @@ def test_default_backend_approval_fetcher_is_used(tmp_path: Path, monkeypatch) -
     assert status.chart_context_enabled is True
 
 
+def test_backend_base_url_uses_railway_default_when_public_api_base_url_missing(monkeypatch) -> None:
+    class DummySettings:
+        public_api_base_url = ""
+
+    monkeypatch.setattr(compatibility_module, "get_settings", lambda: DummySettings())
+
+    assert compatibility_module._backend_base_url() == compatibility_module.DEFAULT_RAILWAY_API_BASE_URL
+
+
 def test_unknown_version_returns_unsupported_without_running_probe(tmp_path: Path) -> None:
     app_path = _write_tradingview_app(tmp_path, version="2.9.1")
     mcp_repo = _write_mcp_repo(tmp_path)

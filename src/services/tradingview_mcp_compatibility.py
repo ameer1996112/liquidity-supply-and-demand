@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 MCP_REPO_PATH = Path(__file__).resolve().parents[2] / "mcp" / "tradingview-mcp"
 MCP_STATUS_COMMAND = ["node", "src/cli/index.js", "status"]
 BACKEND_APPROVALS_PATH = "/api/v1/config/tradingview-mcp"
+DEFAULT_RAILWAY_API_BASE_URL = "https://grand-learning-production-bc96.up.railway.app"
 
 
 def _utc_now() -> datetime:
@@ -65,7 +66,7 @@ def _normalize_versions(versions: list[Any]) -> list[str]:
 
 def _backend_base_url() -> str:
     settings = get_settings()
-    base_url = settings.public_api_base_url or "http://127.0.0.1:8000"
+    base_url = settings.public_api_base_url or DEFAULT_RAILWAY_API_BASE_URL
     return base_url.rstrip("/")
 
 
