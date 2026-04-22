@@ -36,6 +36,7 @@ class OptimizerMcpController:
     _CDP_TARGETS_URL = "http://127.0.0.1:9222/json/list"
     _TAB_BOOTSTRAP_SETTLE_ATTEMPTS = 12
     _TAB_BOOTSTRAP_SETTLE_SLEEP_SECS = 1.0
+    _WORKSPACE_EXPANSION_RETRIES_PER_MISSING_TAB = 3
 
     def __init__(self, client: TradingViewMcpClient | Any | None = None) -> None:
         self._client = client or TradingViewMcpClient()
@@ -327,20 +328,26 @@ class OptimizerMcpController:
         known_tab_ids = {self._tab_id(tab) for tab in existing_tabs}
         known_page_ids = {self._tab_id(page) for page in existing_pages}
         fresh_tabs: list[dict[str, Any]] = []
-        expansion_blocked_reason: str | None = None
 
         missing_tabs = max(required_tabs - len(reusable_tabs), 0)
 
         for _ in range(missing_tabs):
-            await self._run_command("tab new", "tab", "new")
-            fresh_page = await self._wait_for_new_workspace_page(
-                known_page_ids=known_page_ids,
-            )
-            known_page_ids.add(self._tab_id(fresh_page))
-            fresh_tab = fresh_page
-            if fresh_page.get("kind") == "new_tab":
+            promoted_tab: dict[str, Any] | None = None
+            last_error: RuntimeError | None = None
+
+            for _attempt in range(self._WORKSPACE_EXPANSION_RETRIES_PER_MISSING_TAB):
+                await self._run_command("tab new", "tab", "new")
+                fresh_page = await self._wait_for_new_workspace_page(
+                    known_page_ids=known_page_ids,
+                )
+                known_page_ids.add(self._tab_id(fresh_page))
+
+                if fresh_page.get("kind") == "chart":
+                    promoted_tab = fresh_page
+                    break
+
                 try:
-                    fresh_tab = await self._promote_new_tab_to_chart(
+                    promoted_tab = await self._promote_new_tab_to_chart(
                         shell_tab=fresh_page,
                         bootstrap_chart_id=bootstrap_chart_id,
                         bootstrap_symbol=bootstrap_symbol,
@@ -348,19 +355,30 @@ class OptimizerMcpController:
                         known_chart_ids=known_tab_ids,
                         known_page_ids=known_page_ids,
                     )
-                except RuntimeError as exc:
-                    expansion_blocked_reason = str(exc)
+                    known_page_ids.add(self._tab_id(promoted_tab))
                     break
-                known_page_ids.add(self._tab_id(fresh_tab))
-            fresh_tabs.append(fresh_tab)
-            known_tab_ids.add(self._tab_id(fresh_tab))
+                except RuntimeError as exc:
+                    last_error = exc
+
+            if promoted_tab is None:
+                failed_slot = len(reusable_tabs) + len(fresh_tabs) + 1
+                detail = str(last_error) if last_error else "unknown workspace expansion error"
+                raise RuntimeError(
+                    f"Failed to provision requested TradingView chart tab "
+                    f"{failed_slot}/{required_tabs}: {detail}"
+                )
+
+            fresh_tabs.append(promoted_tab)
+            known_tab_ids.add(self._tab_id(promoted_tab))
 
         ready_tabs = sorted(
             [*reusable_tabs, *fresh_tabs],
             key=lambda tab: int(tab.get("index") or -1),
-        )[:required_tabs]
-        if not ready_tabs and expansion_blocked_reason:
-            raise RuntimeError(expansion_blocked_reason)
+        )
+        if len(ready_tabs) != required_tabs:
+            raise RuntimeError(
+                f"Requested {required_tabs} TradingView chart tab(s) but only prepared {len(ready_tabs)}"
+            )
         ready_slots = self._build_workspace_slots(ready_tabs)
         return [
             OptimizerWorkspaceSlot(

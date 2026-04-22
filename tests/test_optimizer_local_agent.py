@@ -91,7 +91,7 @@ def test_execute_run_blocks_without_claim_when_optimizer_readiness_fails(local_a
         )
     ]
     assert not popen.called
-    assert controller.ensure_ready.await_count == 2
+    assert controller.ensure_ready.await_count == 1
     controller._list_workspace_tabs.assert_not_called()
 
 
@@ -147,26 +147,19 @@ def test_execute_run_claims_only_after_optimizer_readiness_succeeds(local_agent,
     assert command[command.index("--backtest-range") + 1] == "90d"
 
 
-def test_execute_run_downgrades_workers_to_available_mcp_tabs(local_agent, monkeypatch):
+def test_execute_run_blocks_without_downgrading_when_mcp_has_too_few_tabs(local_agent, monkeypatch):
     patch_calls, post_calls, get_calls = _capture_http_calls(local_agent, monkeypatch)
 
     monkeypatch.setattr(local_agent, "_playwright_available", lambda: True)
 
     async def fake_not_ready(workers: int) -> tuple[bool, str]:
-        return False, "TradingView MCP tab creation did not increase the available tab count"
+        return False, "TradingView MCP currently exposes 2 tab(s); requested 4"
 
     monkeypatch.setattr(local_agent, "_ensure_optimizer_run_ready", fake_not_ready)
-    monkeypatch.setattr(local_agent, "_available_optimizer_worker_count", mock.AsyncMock(return_value=2))
-    monkeypatch.setattr(
-        local_agent,
-        "OptimizerMcpController",
-        mock.Mock(side_effect=AssertionError("controller should not be recreated directly in this test")),
-    )
+    monkeypatch.setattr(local_agent, "log", mock.Mock())
 
-    process = _FakeProcess(exit_code=0)
-    popen = mock.Mock(return_value=process)
+    popen = mock.Mock()
     monkeypatch.setattr(local_agent.subprocess, "Popen", popen)
-    monkeypatch.setattr(local_agent, "_stream_and_report", lambda run_id, proc: None)
 
     local_agent.execute_run(
         {
@@ -182,25 +175,25 @@ def test_execute_run_downgrades_workers_to_available_mcp_tabs(local_agent, monke
         }
     )
 
-    assert any(
-        path == "/api/optimizer/runs/run-5" and body == {"status": "running"}
-        for path, body in patch_calls
-    )
-    assert any(
-        path == "/api/optimizer/runs/run-5/events"
-        and body["payload"]["message"].startswith("Downgrading workers from 4 to 2")
-        for path, body in post_calls
-    )
-    assert any(
-        path == "/api/optimizer/runs/run-5/events"
-        and body["event_type"] == "run_started"
-        and body["payload"]["workers"] == 2
-        for path, body in post_calls
-    )
-    assert get_calls == ["/api/optimizer/runs/run-5"]
-    command = popen.call_args.args[0]
-    assert "--workers" in command
-    assert command[command.index("--workers") + 1] == "2"
+    assert patch_calls == []
+    assert get_calls == []
+    assert post_calls == [
+        (
+            "/api/optimizer/runs/run-5/events",
+            {
+                "event_type": "log",
+                "payload": {
+                    "level": "warning",
+                    "message": "TradingView MCP currently exposes 2 tab(s); requested 4",
+                    "status": "queued",
+                    "workers": 4,
+                    "dry_run": False,
+                    "python": sys.executable,
+                },
+            },
+        )
+    ]
+    assert not popen.called
 
 
 def test_execute_run_preflight_does_not_expand_tabs(local_agent, monkeypatch):

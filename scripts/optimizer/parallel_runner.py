@@ -670,19 +670,17 @@ async def run_parallel(
                 broker=broker,
             )
             pages = _prepare_mcp_backed_pages(workspace_slots)
-            if len(pages) < n_workers:
-                log.warning(
-                    "Requested %d worker(s) but only %d TradingView Desktop MCP session(s) were prepared; continuing with %d worker(s)",
-                    n_workers,
-                    len(pages),
-                    len(pages),
+            if len(pages) != n_workers:
+                raise RuntimeError(
+                    "Requested "
+                    f"{n_workers} worker(s) but MCP prepared {len(pages)} "
+                    "TradingView Desktop session(s)"
                 )
-                n_workers = len(pages)
             log.info("Prepared %d TradingView Desktop MCP session(s)", len(pages))
 
         # Stagger worker starts to avoid race conditions
         tasks = []
-        for i, page in enumerate(pages[:n_workers]):
+        for i, page in enumerate(pages):
             if i > 0:
                 await asyncio.sleep(WORKER_STARTUP_DELAY)
             task = asyncio.create_task(

@@ -153,7 +153,7 @@ def test_run_parallel_uses_mcp_workspace_slots_to_assign_pages(monkeypatch, tmp_
     ]
 
 
-def test_run_parallel_clamps_worker_tasks_to_prepared_mcp_sessions(monkeypatch, tmp_path) -> None:
+def test_run_parallel_fails_when_prepared_mcp_sessions_do_not_match_requested_workers(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(parallel_runner, "setup_logging", lambda: None)
     monkeypatch.setattr(
         parallel_runner,
@@ -179,21 +179,26 @@ def test_run_parallel_clamps_worker_tasks_to_prepared_mcp_sessions(monkeypatch, 
 
     monkeypatch.setattr(parallel_runner, "worker_task", fake_worker_task)
 
-    result = asyncio.run(
-        parallel_runner.run_parallel(
-            pairs=["EURUSD", "GBPUSD"],
-            n_workers=3,
-            mode="bayesian",
-            n_trials=1,
-            dd_limit=10.0,
-            dry_run=False,
-            broker="vantage",
-            results_label="run-clamped",
+    with pytest.raises(RuntimeError) as exc_info:
+        asyncio.run(
+            parallel_runner.run_parallel(
+                pairs=["EURUSD", "GBPUSD"],
+                n_workers=3,
+                mode="bayesian",
+                n_trials=1,
+                dd_limit=10.0,
+                dry_run=False,
+                broker="vantage",
+                results_label="run-mismatch",
+            )
         )
-    )
 
-    assert result == {}
-    assert worker_ids == [0]
+    assert str(exc_info.value) == (
+        "Requested 3 worker(s) but MCP prepared 1 TradingView Desktop session(s)"
+    )
+    assert worker_ids == []
+    assert FakeRuntimeState.last_instance is not None
+    assert FakeRuntimeState.last_instance.states[-1] == ("run-1", "failed")
 
 
 def test_run_parallel_dry_run_launches_workers_without_browser(monkeypatch, tmp_path) -> None:
