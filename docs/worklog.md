@@ -1,5 +1,9 @@
 # Worklog
 
+- [src/api_positions.py, src/services/live_positions_aggregator.py, frontend/src/app/page.tsx] Live dashboard positions were tied to a single broker adapter and silently degraded to signal fallback in multi-account mode [added multi-account live aggregation across MetaAPI and cTrader for `/positions/active` and `/positions/account`, plus a pure fallback mapper that preserves `signal.size` when degraded fallback is used]
+
+- [scripts/pinescript/strategies/SND_Strategy.pine] Silver pairs were still eligible for accuracy zones even though gold already bypassed them [excluded `is_silver` from `should_use_accuracy_zones` so `XAGUSD` behaves like `XAUUSD` in plotted zones and webhook payloads]
+
 - [src/api.py] Silent health/AI-mode/websocket cleanup failures and unguarded queue enqueue reduced ingress observability and resilience [added explicit warning/error logging, deduped CORS origins, and return 503 when webhook queueing fails]
 - [tests/test_api_webhook_ingress.py] Ingress outage fallback and AI-mode fallback logging had no direct regression coverage [added focused FastAPI tests for queue enqueue failure and settings-based AI-mode fallback]
 
