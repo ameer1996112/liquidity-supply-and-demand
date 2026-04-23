@@ -50,7 +50,7 @@ export default function DashboardPage() {
   // Fetch signals for ALL accounts (no broker_profile_id filter) so every account's
   // signals appear in the table. The AccountStrip handles per-account filtering client-side.
   const { data: signals = [], isLoading: signalsLoading } = useTradingSignals(signalMode);
-  const { data: positionsData, isLoading: positionsLoading } = useActivePositions();
+  const { data: positionsData, isLoading: positionsLoading, isError: positionsError } = useActivePositions();
 
   const signalIds = useMemo(() => signals.map((s) => s.id), [signals]);
   const councilMap = useCouncilSummaries(signalIds);
@@ -62,6 +62,58 @@ export default function DashboardPage() {
     }
     return map;
   }, [positionsData]);
+
+  const fallbackOpenPositions = useMemo(() => {
+    const openStatuses = new Set(['open', 'active', 'executed', 'pending', 'spin']);
+
+    return signals
+      .filter((signal) => {
+        const status = String(signal.status || '').toLowerCase();
+        if (!openStatuses.has(status)) return false;
+        if (signal.closed_at || signal.exit_price != null) return false;
+        if (status === 'executed' && !signal.broker_order_id && !signal.broker_profile_id) return false;
+        return true;
+      })
+      .map((signal, index) => {
+        const parsedId = Number(signal.id);
+        const stableId = Number.isFinite(parsedId) ? parsedId : -(index + 1);
+        const createdAt = signal.opened_at || signal.created_at || new Date().toISOString();
+        const size = signal.position_size ?? 0;
+
+        return {
+          id: stableId,
+          account_name: signal.account_name?.trim() || 'Unassigned',
+          broker_profile_id: signal.broker_profile_id ?? null,
+          symbol: signal.symbol,
+          side: signal.side,
+          entry: signal.entry ?? signal.price ?? null,
+          sl: signal.sl ?? signal.stop_loss ?? null,
+          tp: signal.tp ?? signal.take_profit ?? null,
+          size,
+          broker_order_id: signal.broker_order_id ?? null,
+          current_price: null,
+          live_pnl: signal.pnl_usd ?? signal.pnl ?? null,
+          live_pnl_pct: signal.pnl_percentage ?? null,
+          hold_duration_seconds: Math.max(
+            0,
+            Math.floor((Date.now() - new Date(createdAt).getTime()) / 1000)
+          ),
+          created_at: createdAt,
+          zone_type: signal.zone_type ?? null,
+          entry_model: signal.entry_model ?? null,
+          rr_ratio: signal.rr_ratio ?? null,
+          is_stale: false,
+          broker_exists: true,
+        };
+      });
+  }, [signals]);
+
+  const dashboardPositions = useMemo(() => {
+    const livePositions = positionsData?.positions ?? [];
+    return livePositions.length > 0 ? livePositions : fallbackOpenPositions;
+  }, [fallbackOpenPositions, positionsData]);
+
+  const usingSignalFallback = dashboardPositions === fallbackOpenPositions && fallbackOpenPositions.length > 0;
 
   // Signal count per account — shown as badges in the AccountStrip
   const signalCounts = useMemo(() => {
@@ -222,8 +274,9 @@ export default function DashboardPage() {
 
         {/* ── Open positions ── */}
         <OpenPositionsTable
-          positions={positionsData?.positions ?? []}
-          isLoading={positionsLoading}
+          positions={dashboardPositions}
+          isLoading={positionsLoading && dashboardPositions.length === 0 && !positionsError}
+          isFallback={usingSignalFallback}
         />
 
         {/* ── Signal table + Live log ── */}

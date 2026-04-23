@@ -8,6 +8,7 @@ import type { ActivePosition } from '@/hooks/usePositions';
 interface OpenPositionsTableProps {
   positions: ActivePosition[];
   isLoading: boolean;
+  isFallback?: boolean;
   onRowClick?: () => void;
 }
 
@@ -16,6 +17,7 @@ type SortKey = 'pnl' | 'duration' | 'symbol';
 export function OpenPositionsTable({
   positions,
   isLoading,
+  isFallback = false,
   onRowClick,
 }: OpenPositionsTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>('pnl');
@@ -68,6 +70,11 @@ export function OpenPositionsTable({
           <span className='rounded-full bg-[var(--to-surface-raised)] border border-[var(--to-border)] px-2 py-0.5 font-mono text-[9px] tabular-nums text-[var(--to-text-dim)]'>
             {positions.length}
           </span>
+          {isFallback && positions.length > 0 ? (
+            <span className='rounded-full border border-[var(--to-border)] bg-[var(--to-surface-raised)] px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--to-text-dim)]'>
+              Signal fallback
+            </span>
+          ) : null}
         </div>
       </div>
 
