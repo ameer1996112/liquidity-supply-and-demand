@@ -15,6 +15,51 @@ from src.adapters.execution.meta_api_adapter import MetaApiAdapter
 from src.adapters.execution.paper_adapter import PaperAdapter
 
 
+def resolve_profile_adapter(profile: Dict[str, Any]) -> ExecutionAdapter | None:
+    """Return the concrete adapter for a broker profile when its credentials are complete."""
+    venue = (profile.get("venue") or "").strip().lower() or "metaapi_mt5"
+    if venue == "metaapi":
+        venue = "metaapi_mt5"
+
+    if venue == "binance":
+        return BinanceAdapter(
+            api_key=(profile.get("api_key") or "").strip(),
+            api_secret=(profile.get("api_secret") or "").strip(),
+            account_name=(profile.get("name") or "").strip() or None,
+        )
+    if venue == "bybit":
+        return BybitAdapter(
+            api_key=(profile.get("api_key") or "").strip(),
+            api_secret=(profile.get("api_secret") or "").strip(),
+            account_name=(profile.get("name") or "").strip() or None,
+        )
+    if venue == "ctrader":
+        refresh_token = (profile.get("token") or "").strip()
+        ctid = (profile.get("meta_api_account_id") or profile.get("account_id") or "").strip()
+        is_live = (profile.get("run_mode") or "").strip().upper() == "LIVE"
+        if refresh_token and ctid:
+            return CTraderAdapter(
+                refresh_token=refresh_token,
+                ctid_trader_account_id=ctid,
+                account_name=(profile.get("name") or "").strip() or None,
+                is_live=is_live,
+            )
+        return None
+
+    token = (profile.get("token") or "").strip()
+    account_id = (profile.get("meta_api_account_id") or profile.get("account_id") or "").strip()
+    account_name = (profile.get("name") or "").strip() or None
+    region = (profile.get("region") or "").strip() or None
+    if token and account_id:
+        return MetaApiAdapter(
+            token=token,
+            account_id=account_id,
+            account_name=account_name,
+            region=region,
+        )
+    return None
+
+
 def get_adapter(
     run_mode: str | None = None,
     settings: Settings | None = None,
@@ -34,43 +79,10 @@ def get_adapter(
 
     # Multi-account: profile carries token, account_id, and optional name
     if profile and isinstance(profile, dict):
-        venue = (profile.get("venue") or "").strip().lower() or "metaapi_mt5"
-        if venue == "metaapi":
-            venue = "metaapi_mt5"
-
-        if venue == "binance":
-            return BinanceAdapter(
-                api_key=(profile.get("api_key") or "").strip(),
-                api_secret=(profile.get("api_secret") or "").strip(),
-                account_name=(profile.get("name") or "").strip() or None,
-            )
-        if venue == "bybit":
-            return BybitAdapter(
-                api_key=(profile.get("api_key") or "").strip(),
-                api_secret=(profile.get("api_secret") or "").strip(),
-                account_name=(profile.get("name") or "").strip() or None,
-            )
-
-        if venue == "ctrader":
-            refresh_token = (profile.get("token") or "").strip()
-            ctid = (profile.get("meta_api_account_id") or profile.get("account_id") or "").strip()
-            is_live = (profile.get("run_mode") or "").strip().upper() == "LIVE"
-            if refresh_token and ctid:
-                return CTraderAdapter(
-                    refresh_token=refresh_token,
-                    ctid_trader_account_id=ctid,
-                    account_name=(profile.get("name") or "").strip() or None,
-                    is_live=is_live,
-                )
-            # Fall through to single-account if missing credentials
-
-        token = (profile.get("token") or "").strip()
-        account_id = (profile.get("meta_api_account_id") or profile.get("account_id") or "").strip()
-        account_name = (profile.get("name") or "").strip() or None
-        region = (profile.get("region") or "").strip() or None
-        if token and account_id:
-            return MetaApiAdapter(token=token, account_id=account_id, account_name=account_name, region=region)
-        # Fall through to single-account
+        adapter = resolve_profile_adapter(profile)
+        if adapter is not None:
+            return adapter
+        # Fall through to single-account when profile credentials are incomplete
 
     # Explicit override: external execution via MetaApi (single-account, DB-first)
     if env_exec_mode == "METAAPI":

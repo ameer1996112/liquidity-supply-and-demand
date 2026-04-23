@@ -989,26 +989,15 @@ def get_account_positions(account_name: str):
                 )
                 db_positions = fallback_resp.data or []
 
-        # ── Fetch live broker positions from MetaAPI ──────────────────────
+        # ── Fetch live broker positions via venue-aware adapter resolution ─
         broker_raw: list = []
         try:
-            from src.adapters.execution.meta_api_adapter import MetaApiAdapter
+            from src.adapters.execution.router import resolve_profile_adapter
             from src.core.broker_profiles import get_active_profiles
 
             profiles = get_active_profiles()
-            adapter: MetaApiAdapter | None = None
-
-            for profile in profiles:
-                if profile.get("name") == account_name:
-                    token = profile.get("token", "")
-                    meta_api_id = profile.get("meta_api_account_id", "")
-                    if token and meta_api_id:
-                        adapter = MetaApiAdapter(
-                            token=token,
-                            account_id=meta_api_id,
-                            account_name=account_name,
-                        )
-                    break
+            profile = next((item for item in profiles if item.get("name") == account_name), None)
+            adapter = resolve_profile_adapter(profile) if profile else None
 
             if adapter:
                 broker_raw = adapter.get_open_positions()

@@ -58,9 +58,11 @@ def get_active_profiles() -> List[Dict[str, Any]]:
                     "id, name, venue, meta_api_account_id, token, token_env_key, "
                     "api_key, api_secret, "
                     "risk_pct, max_positions, run_mode, "
-                    "evaluation_mode, evaluation_phase, consistency_enabled"
+                    "evaluation_mode, evaluation_phase, consistency_enabled, "
+                    "selected_for_trading"
                 )
                 .eq("is_active", True)
+                .eq("selected_for_trading", True)
                 .execute()
             )
             if r.data and len(r.data) > 0:

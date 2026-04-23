@@ -551,14 +551,13 @@ def delete_broker_profile(profile_id: int):
 @router.post("/{profile_id}/activate", response_model=BrokerProfileResponse)
 def activate_broker_profile(profile_id: int):
     """
-    Select this profile as the **primary** trading profile (exclusive).
+    Mark this profile as selected for trading.
 
     Notes:
     - Multi-account execution is controlled by `is_active` + `run_mode`.
       Multiple profiles can be active/enabled at the same time.
-    - `selected_for_trading` is a single-selection flag used to choose the
-      "primary" profile (e.g. streaming credentials), and is enforced by a DB
-      unique constraint in some deployments.
+    - `selected_for_trading` is allowed to be enabled on multiple profiles.
+      Activating one profile must not clear other selected profiles.
     """
     try:
         sb = _get_supabase()
@@ -577,9 +576,6 @@ def activate_broker_profile(profile_id: int):
             raise HTTPException(status_code=409, detail="Cannot activate a disabled profile")
         venue = (rows[0].get("venue") or "metaapi_mt5").strip().lower()
 
-        # Enforce exclusive selection (DB may enforce this via unique constraint).
-        # Clear existing selection first, then select the requested profile.
-        sb.table("broker_profiles").update({"selected_for_trading": False}).eq("selected_for_trading", True).execute()
         sb.table("broker_profiles").update({"selected_for_trading": True}).eq("id", profile_id).execute()
 
         resp = (

@@ -119,6 +119,7 @@ class AccountOrchestrator:
             "free_margin": None,
             "margin_used": 0.0,
             "margin_level_pct": None,
+            "open_positions": 0,
             "server_name": None,
             "platform_type": profile.get("venue"),
             "leverage": None,
@@ -127,8 +128,7 @@ class AccountOrchestrator:
         }
 
         try:
-            from config import get_settings
-            from src.adapters.execution.router import get_adapter
+            from src.adapters.execution.router import resolve_profile_adapter
 
             profile_id = profile.get("id")
             profile_for_adapter = dict(profile)
@@ -149,8 +149,8 @@ class AccountOrchestrator:
                 if full_profile_resp and full_profile_resp.data:
                     profile_for_adapter.update(full_profile_resp.data)
 
-            adapter = get_adapter(profile=profile_for_adapter, settings=get_settings())
-            if hasattr(adapter, "get_account_information"):
+            adapter = resolve_profile_adapter(profile_for_adapter)
+            if adapter and hasattr(adapter, "get_account_information"):
                 account_info = adapter.get_account_information()
                 if account_info:
                     live_balance = _coerce_amount(account_info.get("balance"))
@@ -181,6 +181,10 @@ class AccountOrchestrator:
                         result["balance"] or 0.0,
                         result["equity"] or 0.0,
                     )
+            if adapter and hasattr(adapter, "get_open_positions"):
+                open_positions = adapter.get_open_positions()
+                if isinstance(open_positions, list):
+                    result["open_positions"] = len(open_positions)
 
             snapshot_resp = (
                 self.client.table("account_status_snapshots")
@@ -822,8 +826,8 @@ class AccountOrchestrator:
                     "win_rate": 0.0,
                     "sharpe_ratio": None,
                     "max_drawdown_pct": None,
-                    "open_positions": 0,
-                    "active_positions": 0,
+                    "open_positions": live_data["open_positions"],
+                    "active_positions": live_data["open_positions"],
                     "total_trades": 0,
                     "profit_factor": 0.0,
                     "avg_win_usd": 0.0,
