@@ -169,6 +169,7 @@ export interface TradingSignal {
   sl?: number; // Alternative SL field
   take_profit?: number;
   tp?: number; // Alternative TP field
+  size?: number; // DB/native position size field
   position_size?: number;
   image_url?: string | null;
   setup_evidence?: SetupEvidence | null;
