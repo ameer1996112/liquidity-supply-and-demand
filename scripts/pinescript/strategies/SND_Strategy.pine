@@ -282,7 +282,7 @@ max_bars_held = input.int(36, "Time-Based Exit (Bars)", minval=1, group = "📊 
 enable_double_tp = input.bool(false, "Double TP Mode", group = "📊 Trade Execution")
 use_fvg_confirmation = input.bool(false, "Require FVG (Imbalance)", group = "📐 Zone Detection")
 enable_accuracy_zones = input.bool(true, "Accuracy Zones", group = "📐 Zone Detection")
-should_use_accuracy_zones = enable_accuracy_zones and not (is_gold or is_index or is_xpt)
+should_use_accuracy_zones = enable_accuracy_zones and not (is_gold or is_silver or is_index or is_xpt)
 
 enable_webhook_alerts = true  // Always enabled
 webhook_include_zone_id = true  // Always include zone ID
