@@ -1,13 +1,12 @@
 /**
  * API Client Configuration for Railway Deployment
  *
- * Automatically uses Railway backend URL in production,
- * localhost in development.
+ * Prefer a public backend URL when explicitly provided.
+ * Otherwise use the frontend-hosted /backend proxy so runtime API_URL works
+ * even when NEXT_PUBLIC_API_URL was not injected during the frontend build.
  */
 
-// Get API base URL from environment or default to localhost
-// Remove trailing slash to prevent double slashes in URLs
-const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || '/backend';
 export const API_BASE_URL = rawApiUrl.endsWith('/')
   ? rawApiUrl.slice(0, -1)
   : rawApiUrl;

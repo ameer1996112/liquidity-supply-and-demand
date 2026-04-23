@@ -2,11 +2,11 @@
  * API Configuration
  *
  * Centralized configuration for API endpoints with environment-aware URL selection.
- * Automatically uses Railway backend in production, localhost in development.
+ * Falls back to the frontend-hosted /backend proxy when no public backend URL
+ * was injected at build time.
  */
 
-// Get API base URL from environment or default to localhost
-const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || '/backend';
 
 // Remove trailing slash to prevent double slashes in URLs
 export const API_BASE_URL = rawApiUrl.endsWith('/')
@@ -24,7 +24,7 @@ export const getEnvironment = (): 'development' | 'production' => {
  * Check if we're running on Railway
  */
 export const isRailwayDeployment = (): boolean => {
-  return API_BASE_URL.includes('railway.app');
+  return API_BASE_URL.includes('railway.app') || API_BASE_URL.startsWith('/backend');
 };
 
 /**

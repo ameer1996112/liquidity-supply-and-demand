@@ -40,6 +40,23 @@ const nextConfig: NextConfig = {
     ];
   },
 
+  async rewrites() {
+    const backendBaseUrl =
+      process.env.API_URL ||
+      process.env.NEXT_PUBLIC_API_URL ||
+      'http://localhost:8000';
+    const normalizedBackendBaseUrl = backendBaseUrl.endsWith('/')
+      ? backendBaseUrl.slice(0, -1)
+      : backendBaseUrl;
+
+    return [
+      {
+        source: '/backend/:path*',
+        destination: `${normalizedBackendBaseUrl}/:path*`,
+      },
+    ];
+  },
+
   // Compress responses
   compress: true,
 
