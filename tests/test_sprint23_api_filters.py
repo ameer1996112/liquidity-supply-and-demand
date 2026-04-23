@@ -244,6 +244,82 @@ class ActivePositionsAccountFilterTests(unittest.TestCase):
         self.assertEqual(second_position["live_pnl_pct"], 1.15)
 
 
+class AccountStatusAggregationTests(unittest.TestCase):
+    """GET /positions/account aggregates status across eligible live profiles."""
+
+    def _app_client(self):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        import src.api_positions as mod
+
+        sb = MagicMock()
+        app = FastAPI()
+        app.include_router(mod.router)
+        client = TestClient(app)
+        return client, sb, mod
+
+    def test_account_status_aggregates_multiple_live_profiles(self):
+        client, sb, mod = self._app_client()
+        aggregator = MagicMock()
+        aggregator.load_eligible_profiles.return_value = [
+            SimpleNamespace(id=101, name="Meta Live"),
+            SimpleNamespace(id=202, name="cTrader Live"),
+        ]
+        aggregator.aggregate_account_status.return_value = SimpleNamespace(
+            accounts=[
+                SimpleNamespace(
+                    profile_id=101,
+                    account_name="Meta Live",
+                    balance=10000.0,
+                    equity=10250.0,
+                    margin=450.0,
+                    free_margin=9800.0,
+                    open_positions=1,
+                ),
+                SimpleNamespace(
+                    profile_id=202,
+                    account_name="cTrader Live",
+                    balance=25000.0,
+                    equity=25750.0,
+                    margin=850.0,
+                    free_margin=24900.0,
+                    open_positions=3,
+                ),
+            ],
+            totals={
+                "balance": 35000.0,
+                "equity": 36000.0,
+                "margin": 1300.0,
+                "free_margin": 34700.0,
+                "open_positions": 4.0,
+            },
+            errors=[],
+            healthy_profiles=2,
+            failed_profiles=0,
+        )
+
+        with patch.object(mod, "_get_supabase", return_value=sb):
+            with patch.object(mod, "LivePositionsAggregator", return_value=aggregator):
+                resp = client.get("/positions/account")
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(
+            resp.json(),
+            {
+                "balance": 35000.0,
+                "equity": 36000.0,
+                "free_margin": 34700.0,
+                "margin_used": 1300.0,
+                "margin_level_pct": 2769.23,
+                "active_positions_count": 4,
+            },
+        )
+        aggregator.load_eligible_profiles.assert_called_once_with()
+        aggregator.aggregate_account_status.assert_called_once_with(
+            aggregator.load_eligible_profiles.return_value
+        )
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Analytics: account_id filter
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -822,38 +822,48 @@ def backfill_missing_pnl(days: int = Query(default=90, ge=1, le=365)):
 def get_account_status():
     """Fetch live account information from broker."""
     sb = _get_supabase()
-    adapter = _get_adapter()
-
-    # Get account info from broker (cached to reduce MetaAPI calls)
-    account_info = {"balance": 0.0, "equity": 0.0}
-    if hasattr(adapter, "get_account_information"):
-        try:
-            account_info = _cached_get_account_information(adapter)
-        except Exception as exc:
-            logger.error("Failed to fetch account info: %s", exc)
-
-    balance = float(account_info.get("balance", 0))
-    equity = float(account_info.get("equity", 0))
-    margin = float(account_info.get("margin", 0))
-    free_margin = float(account_info.get("freeMargin", equity - margin))
-    margin_level = float(account_info.get("marginLevel", 0))
-
-    # Count active positions
     try:
-        @supabase_query
-        def _fetch_account_active():
-            return (
-                _get_supabase().table("trading_signals")
-                .select("status, execution_source, broker_position_id, broker_order_id, closed_at, exit_price, pnl")
-                .in_("status", ["OPEN", "open", "active", "executed", "PENDING", "pending"])
-                .execute()
-            )
-
-        resp = _fetch_account_active()
-        active_count = sum(1 for r in (resp.data or []) if _is_signal_open_strict(r))
+        aggregator = LivePositionsAggregator(sb)
+        eligible_profiles = aggregator.load_eligible_profiles()
     except Exception as exc:
-        logger.error("Failed to fetch count of active positions: %s", exc)
-        active_count = 0
+        logger.error("Failed to load live broker profiles for account status: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail="Failed to load live broker accounts.",
+        ) from exc
+
+    if not eligible_profiles:
+        raise HTTPException(
+            status_code=503,
+            detail="No active broker account configured. Please add and activate a broker profile.",
+        )
+
+    try:
+        account_status_result = aggregator.aggregate_account_status(eligible_profiles)
+    except Exception as exc:
+        logger.error("Failed to aggregate live account status: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail="Failed to fetch live broker account information.",
+        ) from exc
+
+    if account_status_result.healthy_profiles == 0:
+        logger.error(
+            "No healthy live broker profiles available for account status: %s",
+            [error.message for error in account_status_result.errors],
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Failed to fetch live broker account information.",
+        )
+
+    totals = account_status_result.totals or {}
+    balance = float(totals.get("balance") or 0.0)
+    equity = float(totals.get("equity") or 0.0)
+    margin = float(totals.get("margin") or 0.0)
+    free_margin = float(totals.get("free_margin") or 0.0)
+    active_count = int(round(float(totals.get("open_positions") or 0.0)))
+    margin_level = (equity / margin * 100.0) if margin > 0 else 0.0
 
     return AccountStatusResponse(
         balance=round(balance, 2),
