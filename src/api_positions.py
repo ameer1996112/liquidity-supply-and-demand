@@ -51,6 +51,7 @@ from src.adapters.supabase_api import (
     get_api_supabase as _get_supabase,
     supabase_query,
 )
+from src.services.live_positions_aggregator import LivePositionsAggregator
 
 
 def _get_adapter():
@@ -189,20 +190,45 @@ def get_active_positions(
     """List active positions enriched with live prices, PnL, and broker reconciliation."""
     sb = _get_supabase()
     now = datetime.now(timezone.utc)
-    adapter = _get_adapter()
 
-    # Fetch broker positions for reconciliation (cached to reduce MetaAPI calls)
-    broker_positions = {}
+    # Fetch live broker positions across all eligible LIVE broker profiles.
+    broker_positions_by_id: Dict[str, Any] = {}
+    broker_positions_by_profile: Dict[Tuple[int, str], Any] = {}
+    profile_names: Dict[int, str] = {}
+    account_balances: Dict[int, float] = {}
+    broker_position_count = 0
     try:
-        if hasattr(adapter, "get_open_positions"):
-            broker_pos_list = _cached_get_open_positions(adapter)
-            broker_positions = {pos.get("id"): pos for pos in broker_pos_list}
-        elif hasattr(adapter, "get_account_information"):
-            account_info = _cached_get_account_information(adapter)
-            broker_pos_list = account_info.get("positions", [])
-            broker_positions = {pos.get("id"): pos for pos in broker_pos_list}
+        aggregator = LivePositionsAggregator(sb)
+        eligible_profiles = aggregator.load_eligible_profiles()
+        profile_names = {
+            profile.id: str(profile.name or "").strip()
+            for profile in eligible_profiles
+        }
+
+        positions_result = aggregator.aggregate_open_positions(eligible_profiles)
+        broker_position_count = len(positions_result.positions)
+        for broker_position in positions_result.positions:
+            broker_position_id = str(broker_position.broker_position_id or "").strip()
+            if not broker_position_id:
+                continue
+            broker_positions_by_profile[(broker_position.profile_id, broker_position_id)] = broker_position
+            broker_positions_by_id.setdefault(broker_position_id, broker_position)
+            if broker_position.account_name:
+                profile_names.setdefault(
+                    broker_position.profile_id,
+                    str(broker_position.account_name).strip(),
+                )
+
+        account_status_result = aggregator.aggregate_account_status(eligible_profiles)
+        for account in account_status_result.accounts:
+            if account.balance is None:
+                continue
+            try:
+                account_balances[account.profile_id] = float(account.balance)
+            except (TypeError, ValueError):
+                continue
     except Exception as exc:
-        logger.warning("Failed to fetch broker positions for reconciliation: %s", exc)
+        logger.warning("Failed to aggregate live broker positions for reconciliation: %s", exc)
 
     # Fetch database positions
     try:
@@ -228,56 +254,6 @@ def get_active_positions(
         logger.error("Failed to fetch active positions: %s", exc)
         rows = []
 
-    profile_names: Dict[int, str] = {}
-    profile_ids: List[int] = []
-    for row in rows:
-        profile_id = row.get("broker_profile_id")
-        if profile_id is None:
-            continue
-        try:
-            normalized_profile_id = int(profile_id)
-        except (TypeError, ValueError):
-            continue
-        if normalized_profile_id not in profile_ids:
-            profile_ids.append(normalized_profile_id)
-    profile_ids.sort()
-    if profile_ids:
-        try:
-            profiles_resp = (
-                _get_supabase()
-                .table("broker_profiles")
-                .select("id, name")
-                .in_("id", profile_ids)
-                .execute()
-            )
-            profile_names = {
-                int(profile["id"]): str(profile.get("name") or "").strip()
-                for profile in (profiles_resp.data or [])
-                if profile.get("id") is not None
-            }
-        except Exception as exc:
-            logger.warning("Failed to fetch broker profile names for active positions: %s", exc)
-
-    # Batch-fetch live prices per unique symbol
-    price_cache: Dict[str, tuple] = {}
-    if hasattr(adapter, "_get_symbol_price"):
-        symbols = {r.get("symbol") for r in rows if r.get("symbol")}
-        for sym in symbols:
-            try:
-                bid, ask = adapter._get_symbol_price(sym)
-                price_cache[sym] = (bid, ask)
-            except Exception:
-                price_cache[sym] = (None, None)
-
-    # Get account balance for PnL % calculation (cached)
-    account_balance = 50000.0  # Default
-    try:
-        if hasattr(adapter, "get_account_information"):
-            account_info = _cached_get_account_information(adapter)
-            account_balance = float(account_info.get("balance", 50000.0))
-    except Exception:
-        pass
-
     # Build positions with reconciliation data
     positions = []
     matched_count = 0
@@ -289,6 +265,7 @@ def get_active_positions(
         entry = r.get("entry")
         size = float(r.get("size") or 0)
         broker_order_id = r.get("broker_order_id")
+        broker_position_id = r.get("broker_position_id")
         broker_profile_id = r.get("broker_profile_id")
         normalized_broker_profile_id: Optional[int] = None
         if broker_profile_id is not None:
@@ -297,34 +274,57 @@ def get_active_positions(
             except (TypeError, ValueError):
                 normalized_broker_profile_id = None
         account_name = (r.get("account_name") or "").strip()
+        live_broker_position = None
+        broker_reference_keys: List[str] = []
+        for raw_reference in (broker_position_id, broker_order_id):
+            normalized_reference = str(raw_reference or "").strip()
+            if normalized_reference and normalized_reference not in broker_reference_keys:
+                broker_reference_keys.append(normalized_reference)
+
+        if normalized_broker_profile_id is not None:
+            for reference_key in broker_reference_keys:
+                live_broker_position = broker_positions_by_profile.get(
+                    (normalized_broker_profile_id, reference_key)
+                )
+                if live_broker_position is not None:
+                    break
+        if live_broker_position is None:
+            for reference_key in broker_reference_keys:
+                live_broker_position = broker_positions_by_id.get(reference_key)
+                if live_broker_position is not None:
+                    break
+
+        if not account_name and live_broker_position is not None:
+            account_name = str(live_broker_position.account_name or "").strip()
         if not account_name and normalized_broker_profile_id is not None:
             account_name = profile_names.get(normalized_broker_profile_id, "").strip()
         if not account_name:
             account_name = "Unassigned"
 
         # Check if position exists on broker
-        broker_exists = broker_order_id in broker_positions if broker_order_id else False
-        is_stale = not broker_exists and broker_order_id is not None
+        broker_exists = live_broker_position is not None
+        is_stale = not broker_exists and bool(broker_reference_keys)
 
         if broker_exists:
             matched_count += 1
         elif is_stale:
             stale_count += 1
 
-        # Current price from cache
-        bid, ask = price_cache.get(symbol, (None, None))
-        current_price = bid if side == "buy" else ask if side == "sell" else None
+        current_price = None
+        if live_broker_position is not None and live_broker_position.current_price is not None:
+            try:
+                current_price = float(live_broker_position.current_price)
+            except (TypeError, ValueError):
+                current_price = None
 
         # Live PnL — SOURCE PRIORITY:
-        # 1. Use broker's reported profit directly (exact MetaTrader value, avoids need for contract size math)
-        # 2. Fall back to approximate formula for PENDING signals with no broker link yet
+        # 1. Use the live broker-reported unrealized profit when available.
+        # 2. Fall back to an estimate from current price for rows without direct PnL.
         live_pnl = None
         live_pnl_pct = None
 
-        if broker_exists and broker_order_id in broker_positions:
-            # ── BEST: use the broker's reported unrealized profit ────────────
-            broker_pos = broker_positions[broker_order_id]
-            raw_profit = broker_pos.get("profit")
+        if live_broker_position is not None:
+            raw_profit = live_broker_position.profit
             if raw_profit is not None:
                 try:
                     live_pnl = round(float(raw_profit), 2)
@@ -352,6 +352,7 @@ def get_active_positions(
                 # Standard FX (e.g. EURUSD, GBPUSD): P&L already in USD
                 live_pnl = round(price_diff * size * contract_size, 2)
 
+        account_balance = account_balances.get(normalized_broker_profile_id or -1, 50000.0)
         if live_pnl is not None and account_balance > 0:
             live_pnl_pct = round((live_pnl / account_balance) * 100, 2)
 
@@ -395,7 +396,7 @@ def get_active_positions(
 
     # Calculate reconciliation info
     db_count = len(positions)
-    broker_count = len(broker_positions)
+    broker_count = broker_position_count
     missing_in_db = max(0, broker_count - matched_count)
     has_mismatches = stale_count > 0 or missing_in_db > 0
 

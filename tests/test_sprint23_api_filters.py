@@ -15,6 +15,7 @@ All Supabase calls are mocked — no real DB or Redis required.
 from __future__ import annotations
 
 import unittest
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 
@@ -105,6 +106,24 @@ class ActivePositionsAccountFilterTests(unittest.TestCase):
         client = TestClient(app)
         return client, sb, chain, mod
 
+    def _mock_live_aggregator(self, profiles=None, positions=None, accounts=None):
+        aggregator = MagicMock()
+        aggregator.load_eligible_profiles.return_value = profiles or []
+        aggregator.aggregate_open_positions.return_value = SimpleNamespace(
+            positions=positions or [],
+            errors=[],
+            healthy_profiles=len(profiles or []),
+            failed_profiles=0,
+        )
+        aggregator.aggregate_account_status.return_value = SimpleNamespace(
+            accounts=accounts or [],
+            totals={},
+            errors=[],
+            healthy_profiles=len(profiles or []),
+            failed_profiles=0,
+        )
+        return aggregator
+
     def test_no_account_filter_returns_all(self):
         rows = [
             _signal_row(account_id="default"),
@@ -112,7 +131,11 @@ class ActivePositionsAccountFilterTests(unittest.TestCase):
         ]
         client, sb, chain, mod = self._app_client(rows)
         with patch.object(mod, "_get_supabase", return_value=sb):
-            with patch.object(mod, "_get_adapter", return_value=MagicMock(spec=[])):
+            with patch.object(
+                mod,
+                "LivePositionsAggregator",
+                return_value=self._mock_live_aggregator(),
+            ):
                 resp = client.get("/positions/active")
         self.assertEqual(resp.status_code, 200)
         # eq("account_id", ...) must NOT have been called
@@ -126,7 +149,11 @@ class ActivePositionsAccountFilterTests(unittest.TestCase):
         rows = [_signal_row(account_id="prop-1", broker_position_id="pos-002")]
         client, sb, chain, mod = self._app_client(rows)
         with patch.object(mod, "_get_supabase", return_value=sb):
-            with patch.object(mod, "_get_adapter", return_value=MagicMock(spec=[])):
+            with patch.object(
+                mod,
+                "LivePositionsAggregator",
+                return_value=self._mock_live_aggregator(),
+            ):
                 resp = client.get("/positions/active?account_id=prop-1")
         self.assertEqual(resp.status_code, 200)
         chain.eq.assert_any_call("account_id", "prop-1")
@@ -134,11 +161,87 @@ class ActivePositionsAccountFilterTests(unittest.TestCase):
     def test_unknown_account_returns_empty(self):
         client, sb, chain, mod = self._app_client([])
         with patch.object(mod, "_get_supabase", return_value=sb):
-            with patch.object(mod, "_get_adapter", return_value=MagicMock(spec=[])):
+            with patch.object(
+                mod,
+                "LivePositionsAggregator",
+                return_value=self._mock_live_aggregator(),
+            ):
                 resp = client.get("/positions/active?account_id=nonexistent")
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()["count"], 0)
         self.assertEqual(resp.json()["positions"], [])
+
+    def test_active_positions_merges_live_data_from_multiple_profiles(self):
+        rows = [
+            _signal_row(
+                id=1,
+                broker_profile_id=101,
+                broker_position_id="meta-pos-1",
+                broker_order_id="meta-pos-1",
+                account_name="",
+                symbol="GBPUSD",
+                entry=1.25,
+                size=0.5,
+            ),
+            _signal_row(
+                id=2,
+                broker_profile_id=202,
+                broker_position_id="ctr-pos-2",
+                broker_order_id="ctr-pos-2",
+                account_name="",
+                symbol="XAUUSD",
+                entry=2320.0,
+                size=0.2,
+            ),
+        ]
+        client, sb, _, mod = self._app_client(rows)
+        aggregator = self._mock_live_aggregator(
+            profiles=[
+                SimpleNamespace(id=101, name="Meta Live"),
+                SimpleNamespace(id=202, name="cTrader Live"),
+            ],
+            positions=[
+                SimpleNamespace(
+                    profile_id=101,
+                    account_name="Meta Live",
+                    broker_position_id="meta-pos-1",
+                    current_price=1.2515,
+                    profit=75.25,
+                ),
+                SimpleNamespace(
+                    profile_id=202,
+                    account_name="cTrader Live",
+                    broker_position_id="ctr-pos-2",
+                    current_price=2331.5,
+                    profit=230.0,
+                ),
+            ],
+            accounts=[
+                SimpleNamespace(profile_id=101, balance=10000.0),
+                SimpleNamespace(profile_id=202, balance=20000.0),
+            ],
+        )
+        with patch.object(mod, "_get_supabase", return_value=sb):
+            with patch.object(mod, "LivePositionsAggregator", return_value=aggregator):
+                resp = client.get("/positions/active")
+
+        self.assertEqual(resp.status_code, 200)
+        body = resp.json()
+        self.assertEqual(body["count"], 2)
+        self.assertEqual(body["reconciliation"]["broker_position_count"], 2)
+        self.assertEqual(body["reconciliation"]["matched_count"], 2)
+        self.assertFalse(body["reconciliation"]["has_mismatches"])
+
+        first_position, second_position = body["positions"]
+        self.assertEqual(first_position["account_name"], "Meta Live")
+        self.assertEqual(first_position["current_price"], 1.2515)
+        self.assertEqual(first_position["live_pnl"], 75.25)
+        self.assertEqual(first_position["live_pnl_pct"], 0.75)
+
+        self.assertEqual(second_position["account_name"], "cTrader Live")
+        self.assertEqual(second_position["current_price"], 2331.5)
+        self.assertEqual(second_position["live_pnl"], 230.0)
+        self.assertEqual(second_position["live_pnl_pct"], 1.15)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
