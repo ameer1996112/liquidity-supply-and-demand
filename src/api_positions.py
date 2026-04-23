@@ -113,6 +113,8 @@ def _is_signal_open_strict(r: Dict[str, Any]) -> bool:
 
 class ActivePosition(BaseModel):
     id: int
+    account_name: Optional[str] = None
+    broker_profile_id: Optional[int] = None
     symbol: str
     side: str
     entry: Optional[float] = None
@@ -209,7 +211,7 @@ def get_active_positions(
             q = (
                 _get_supabase().table("trading_signals")
                 .select(
-                    "id, symbol, side, entry, sl, tp, size, broker_order_id, zone_id, "
+                    "id, account_name, broker_profile_id, symbol, side, entry, sl, tp, size, broker_order_id, zone_id, "
                     "created_at, zone_type, entry_model, rr_ratio, "
                     "status, execution_source, broker_position_id, broker_order_id, closed_at, exit_price, pnl"
                 )
@@ -225,6 +227,36 @@ def get_active_positions(
     except Exception as exc:
         logger.error("Failed to fetch active positions: %s", exc)
         rows = []
+
+    profile_names: Dict[int, str] = {}
+    profile_ids: List[int] = []
+    for row in rows:
+        profile_id = row.get("broker_profile_id")
+        if profile_id is None:
+            continue
+        try:
+            normalized_profile_id = int(profile_id)
+        except (TypeError, ValueError):
+            continue
+        if normalized_profile_id not in profile_ids:
+            profile_ids.append(normalized_profile_id)
+    profile_ids.sort()
+    if profile_ids:
+        try:
+            profiles_resp = (
+                _get_supabase()
+                .table("broker_profiles")
+                .select("id, name")
+                .in_("id", profile_ids)
+                .execute()
+            )
+            profile_names = {
+                int(profile["id"]): str(profile.get("name") or "").strip()
+                for profile in (profiles_resp.data or [])
+                if profile.get("id") is not None
+            }
+        except Exception as exc:
+            logger.warning("Failed to fetch broker profile names for active positions: %s", exc)
 
     # Batch-fetch live prices per unique symbol
     price_cache: Dict[str, tuple] = {}
@@ -257,6 +289,18 @@ def get_active_positions(
         entry = r.get("entry")
         size = float(r.get("size") or 0)
         broker_order_id = r.get("broker_order_id")
+        broker_profile_id = r.get("broker_profile_id")
+        normalized_broker_profile_id: Optional[int] = None
+        if broker_profile_id is not None:
+            try:
+                normalized_broker_profile_id = int(broker_profile_id)
+            except (TypeError, ValueError):
+                normalized_broker_profile_id = None
+        account_name = (r.get("account_name") or "").strip()
+        if not account_name and normalized_broker_profile_id is not None:
+            account_name = profile_names.get(normalized_broker_profile_id, "").strip()
+        if not account_name:
+            account_name = "Unassigned"
 
         # Check if position exists on broker
         broker_exists = broker_order_id in broker_positions if broker_order_id else False
@@ -326,6 +370,8 @@ def get_active_positions(
         positions.append(
             ActivePosition(
                 id=r.get("id", 0),
+                account_name=account_name,
+                broker_profile_id=normalized_broker_profile_id,
                 symbol=symbol,
                 side=r.get("side", ""),
                 entry=entry,

@@ -6,6 +6,8 @@ import { useToast } from '@/components/ui/toast';
 
 export interface ActivePosition {
   id: number;
+  account_name?: string | null;
+  broker_profile_id?: number | null;
   symbol: string;
   side: string;
   entry: number | null;
@@ -250,4 +252,3 @@ export function useCleanupStale() {
     },
   });
 }
-
