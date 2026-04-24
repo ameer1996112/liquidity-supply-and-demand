@@ -42,6 +42,9 @@ _PUBLIC_API_BASE_URL_KEY = "public_api_base_url"
 _CTRADER_CLIENT_ID_KEY = "ctrader_client_id"
 _CTRADER_CLIENT_SECRET_KEY = "ctrader_client_secret"
 _CTRADER_STATE_SECRET_KEY = "ctrader_oauth_state_secret"
+_CTRADER_RECONNECT_MESSAGE = (
+    "cTrader authorization expired or was revoked. Click Connect cTrader again to authorize this profile."
+)
 
 
 def _get_system_config_value(key: str) -> str:
@@ -234,6 +237,11 @@ def _refresh_access_token(refresh_token: str) -> Dict[str, Any]:
     return data
 
 
+def _is_ctrader_access_denied_error(exc: HTTPException) -> bool:
+    detail = str(exc.detail or "").lower()
+    return "token refresh" in detail and "access denied" in detail
+
+
 @router.post("/oauth/start")
 def ctrader_oauth_start(body: Dict[str, Any], request: Request) -> JSONResponse:  # noqa: ARG001
     """Return the OAuth grant URL to open in a browser."""
@@ -379,7 +387,24 @@ async def ctrader_test_profile(request: Request, profile_id: int) -> Dict[str, A
     if not refresh_token:
         raise HTTPException(status_code=422, detail="No cTrader refresh token stored yet. Click Connect first.")
 
-    token_data = _refresh_access_token(refresh_token)
+    try:
+        token_data = _refresh_access_token(refresh_token)
+    except HTTPException as exc:
+        if not _is_ctrader_access_denied_error(exc):
+            raise
+        now = datetime.now(timezone.utc).isoformat()
+        try:
+            sb.table("broker_profiles").update(
+                {
+                    "connection_status": "error",
+                    "connection_error": _CTRADER_RECONNECT_MESSAGE,
+                    "last_tested_at": now,
+                }
+            ).eq("id", profile_id).execute()
+        except Exception as persist_exc:
+            logger.warning("Failed to persist cTrader refresh error: %s", persist_exc)
+        raise HTTPException(status_code=400, detail=_CTRADER_RECONNECT_MESSAGE) from exc
+
     access_token = (token_data.get("accessToken") or "").strip()
     new_refresh_token = (token_data.get("refreshToken") or "").strip()
 
