@@ -537,6 +537,19 @@ class ChartSettingsPage(DummyPage):
         raise AssertionError(f"unexpected script in ChartSettingsPage: {script[:120]}")
 
 
+class BroadChartSettingsPage(ChartSettingsPage):
+    async def evaluate(self, script: str):
+        if "return __tvDescribeSettingsDialogs();" in script:
+            return await super().evaluate(script)
+        if "__tvPickSettingsDialog(true)" in script or "__tvPickSettingsDialog(false)" in script:
+            return False
+        if "reason: 'close-button'" in script and "[aria-modal=\"true\"]" in script:
+            if not self.chart_dialog_open:
+                return None
+            return {"x": 686, "y": 126, "reason": "close-button"}
+        raise AssertionError(f"unexpected script in BroadChartSettingsPage: {script[:120]}")
+
+
 class WrongDialogThenReopenPage(DummyPage):
     def __init__(self) -> None:
         super().__init__(title="EURUSD 5 OANDA")
@@ -1388,6 +1401,17 @@ def test_dismiss_wrong_settings_dialog_closes_chart_settings_modal() -> None:
     assert result is True
     assert page.chart_dialog_open is False
     assert page.mouse_clicks == [(1188, 310)]
+
+
+def test_dismiss_wrong_settings_dialog_handles_role_dialog_chart_settings_modal() -> None:
+    page = BroadChartSettingsPage()
+    worker = TabWorker(page, DummyOptimizer())
+
+    result = asyncio.run(worker._dismiss_wrong_settings_dialog())
+
+    assert result is True
+    assert page.chart_dialog_open is False
+    assert page.mouse_clicks == [(686, 126)]
 
 
 def test_ensure_custom_profile_recovers_when_chart_settings_opens_during_reopen(monkeypatch) -> None:

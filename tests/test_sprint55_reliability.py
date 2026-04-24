@@ -290,6 +290,19 @@ class MultiAccountSignalRowTests(unittest.TestCase):
         self.assertNotIn("_webhook_receipt_id", profile_payloads[2])
         self.assertEqual(payload["_signal_id"], 321)
 
+    def test_received_signal_row_stamps_non_null_account_name(self):
+        from src.services.webhook_strategy_context import build_received_signal_row
+
+        row = build_received_signal_row(
+            {"symbol": "GBPNZD", "side": "buy", "size": 0.1},
+            run_mode="LIVE",
+            account_id="default",
+            receipt_id="receipt-123",
+            account_balance=50_000,
+        )
+
+        self.assertEqual(row["account_name"], "default")
+
 
 class GuardAuditInvariantTests(unittest.TestCase):
     """Guard / rejection invariants: every block must have reason + audit hook."""
@@ -333,6 +346,59 @@ class GuardAuditInvariantTests(unittest.TestCase):
         self.assertEqual(symbol, payload["symbol"])
         self.assertIsInstance(reason, str)
         self.assertTrue(reason.strip())
+
+    def test_gbpnzd_is_whitelisted_for_worker_processing(self):
+        """GBPNZD alerts should be eligible for normal worker processing."""
+        import src.worker as worker_mod
+
+        self.assertIn("GBPNZD", worker_mod.PROFITABLE_SYMBOLS)
+
+    @patch("src.worker.log_guard_decision")
+    @patch("src.worker.save_result")
+    @patch("src.worker.save_result_for_profiles")
+    @patch(
+        "src.core.broker_profiles.get_active_profiles",
+        return_value=[
+            {"id": 1, "name": "ACG-DEMO-2", "run_mode": "LIVE"},
+            {"id": 2, "name": "ACG-DEMO-3", "run_mode": "LIVE"},
+        ],
+    )
+    def test_symbol_whitelist_block_fans_out_to_matching_profiles(
+        self,
+        _mock_profiles: MagicMock,
+        mock_save_result_for_profiles: MagicMock,
+        mock_save_result: MagicMock,
+        _mock_log_guard: MagicMock,
+    ):
+        """Blocked symbols should be saved per active account, with account names."""
+        import src.worker as worker_mod
+
+        payload = {
+            "symbol": "UNSUPPORTED_XXX",
+            "side": "buy",
+            "entry": 1.0,
+            "sl": 0.9,
+            "tp": 1.1,
+            "size": 0.1,
+            "run_mode": "LIVE",
+            "account_balance": 50_000,
+        }
+
+        worker_mod.process_trade(payload)
+
+        mock_save_result.assert_not_called()
+        mock_save_result_for_profiles.assert_called_once()
+        _payload_arg, status_arg, note_arg, prob_arg, profiles_arg = (
+            mock_save_result_for_profiles.call_args[0][:5]
+        )
+        self.assertEqual(status_arg, "symbol_blacklisted")
+        self.assertEqual(prob_arg, 0.0)
+        self.assertIsInstance(note_arg, str)
+        self.assertTrue(note_arg.strip())
+        self.assertEqual(
+            [profile["name"] for profile in profiles_arg],
+            ["ACG-DEMO-2", "ACG-DEMO-3"],
+        )
 
     @patch("src.worker.log_guard_decision")
     @patch("src.worker.save_result")

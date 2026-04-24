@@ -84,6 +84,7 @@ PROFITABLE_SYMBOLS = {
     "NZDUSD",     # 28.3% WR, EV +0.132
     "EURUSD",     # 27.6% WR, EV +0.103
     "GBPUSD",     # Forex major
+    "GBPNZD",     # Enabled for active account routing
     "GBPJPY",     # 27.3% WR, EV +0.090
     "BTCUSD",     # 26.9% WR, EV +0.076
     "EURJPY",     # 26.8% WR, EV +0.073
@@ -795,8 +796,14 @@ def save_result(
         data["trade_key"] = tk
     if broker_profile_id is not None:
         data["broker_profile_id"] = broker_profile_id
-    if account_name is not None:
-        data["account_name"] = account_name
+    data["account_name"] = (
+        account_name
+        or payload.get("_account_name")
+        or payload.get("account_name")
+        or payload.get("_account_id")
+        or payload.get("account_id")
+        or "default"
+    )
 
     # Zone + metrics so filtered signals show Zone Analysis and score breakdown in UI
     extra_columns, zone_reason = _payload_zone_and_metrics(payload)
@@ -1400,16 +1407,6 @@ def process_trade(payload: Dict[str, Any]):
     tracker.set_metadata("side", side)
     tracker.checkpoint("start")
 
-    # ══════════════════════════════════════════════════════════════════
-    # SYMBOL WHITELIST CHECK (Block unprofitable symbols)
-    # ══════════════════════════════════════════════════════════════════
-    if SYMBOL_WHITELIST_ENABLED and symbol.upper() not in PROFITABLE_SYMBOLS:
-        rejection = f"Symbol {symbol} not in profitable whitelist (see PROFITABLE_SYMBOLS in worker.py)"
-        logger.warning("❌ SYMBOL WHITELIST BLOCKED: %s", rejection)
-        save_result(payload, "symbol_blacklisted", rejection, 0.0)
-        log_guard_decision("symbol_whitelist", "rejected", rejection, symbol)
-        return
-
     # ── Determine account_name early for tracking rejected signals ────
     from src.core.broker_profiles import get_active_profiles
 
@@ -1432,6 +1429,19 @@ def process_trade(payload: Dict[str, Any]):
             )
     except Exception as e:
         logger.warning("Failed to determine account_name: %s", e)
+
+    # ══════════════════════════════════════════════════════════════════
+    # SYMBOL WHITELIST CHECK (Block unprofitable symbols)
+    # ══════════════════════════════════════════════════════════════════
+    if SYMBOL_WHITELIST_ENABLED and symbol.upper() not in PROFITABLE_SYMBOLS:
+        rejection = f"Symbol {symbol} not in profitable whitelist (see PROFITABLE_SYMBOLS in worker.py)"
+        logger.warning("❌ SYMBOL WHITELIST BLOCKED: %s", rejection)
+        if len(matching_profiles) > 1:
+            save_result_for_profiles(payload, "symbol_blacklisted", rejection, 0.0, matching_profiles)
+        else:
+            save_result(payload, "symbol_blacklisted", rejection, 0.0, account_name=account_name)
+        log_guard_decision("symbol_whitelist", "rejected", rejection, symbol)
+        return
 
     # ── Dynamic Risk Controls: Check for time-based rules & DB overrides ────
     time_based_multiplier = apply_time_based_rules()

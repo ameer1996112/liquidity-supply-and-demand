@@ -70,6 +70,12 @@ def build_received_signal_row(
         "notes": "Received by API, awaiting worker",
         "run_mode": run_mode,
         "account_id": account_id,
+        "account_name": (
+            payload.get("_account_name")
+            or payload.get("account_name")
+            or account_id
+            or "default"
+        ),
         "webhook_receipt_id": receipt_id,
         "account_balance": account_balance,
         "strategy_id": payload.get("strategy_id"),

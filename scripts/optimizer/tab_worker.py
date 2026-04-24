@@ -530,7 +530,11 @@ class TabWorker:
                     {_JS_SETTINGS_DIALOG_HELPERS}
                     const dialogs = Array.from(
                         document.querySelectorAll(
-                            '[data-name="indicator-properties-dialog"][role="dialog"], [class*="dialog-"][class*="rounded"]'
+                            '[data-name="indicator-properties-dialog"][role="dialog"], '
+                            + '[data-name="indicator-properties-dialog"], '
+                            + '[role="dialog"], [aria-modal="true"], '
+                            + '[data-name*="dialog"], [data-name*="properties"], '
+                            + '[class*="dialog-"][class*="rounded"], [class*="dialog"], [class*="modal"]'
                         )
                     ).filter(__tvVisible);
                     const wrong = dialogs
@@ -544,8 +548,8 @@ class TabWorker:
                     if (!wrong) return null;
                     const closeButton = Array.from(wrong.querySelectorAll('button'))
                         .find((btn) => __tvVisible(btn) && (
-                            __tvNormalize(btn.getAttribute('aria-label')) === 'close' ||
-                            __tvNormalize(btn.getAttribute('title')) === 'close' ||
+                            __tvNormalize(btn.getAttribute('aria-label')).toLowerCase() === 'close' ||
+                            __tvNormalize(btn.getAttribute('title')).toLowerCase() === 'close' ||
                             __tvNormalize(btn.textContent) === '×'
                         ));
                     const rect = wrong.getBoundingClientRect?.();
