@@ -577,6 +577,12 @@ def _get_effective_ai_mode():
 def get_ai_config():
     """Return current AI/ML/RAG configuration (read-only)."""
     s = get_settings()
+    active_broker_profiles = 0
+    try:
+        from src.core.broker_profiles import get_active_profiles
+        active_broker_profiles = len(get_active_profiles())
+    except Exception as exc:
+        logger.warning("Failed to load broker profile execution status: %s", exc)
     return {
         "ai": {
             "ai_filter_enabled": s.ai_filter_enabled,
@@ -605,7 +611,9 @@ def get_ai_config():
             "live_trading_enabled": s.live_trading_enabled,
             "live_shadow": s.live_shadow,
             "trading_kill_switch": s.trading_kill_switch,
-            "meta_api_configured": False,  # credentials now in broker_profiles DB
+            "meta_api_configured": active_broker_profiles > 0,
+            "broker_profiles_configured": active_broker_profiles > 0,
+            "active_broker_profiles": active_broker_profiles,
             "meta_api_region": s.meta_api_region,
         },
         "risk": {

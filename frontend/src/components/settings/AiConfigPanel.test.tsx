@@ -157,4 +157,52 @@ describe('AiConfigPanel AI Operating Layer controls', () => {
       },
     });
   });
+
+  it('shows broker-profile MetaAPI execution status when UI-managed accounts are active', async () => {
+    const api = await import('@/lib/api');
+    vi.mocked(api.fetchAiConfig).mockResolvedValueOnce({
+      ai: {
+        ai_filter_enabled: true,
+        ai_provider: 'anthropic',
+        ai_model: 'model',
+        ai_base_url: '',
+        ai_min_confidence: 75,
+        ai_timeout_seconds: 5,
+        ai_api_key_set: true,
+      },
+      ml: { ml_guardian_enabled: true, ml_min_confidence: 0.6 },
+      ensemble: {
+        enable_llm_filter: true,
+        run_shadow_mode: true,
+        ai_mode: 'shadow',
+      },
+      execution: {
+        trading_kill_switch: false,
+        run_mode: 'LIVE',
+        execution_mode: 'METAAPI',
+        live_trading_enabled: true,
+        live_shadow: false,
+        meta_api_configured: false,
+        meta_api_region: 'london',
+        broker_profiles_configured: true,
+        active_broker_profiles: 2,
+      },
+      risk: {
+        trinity_enabled: true,
+        trinity_max_daily_loss_pct: 4,
+        trinity_max_drawdown_pct: 8,
+        trinity_max_risk_per_trade_pct: 1,
+        trinity_max_positions: 3,
+        risk_percent: 0.5,
+      },
+    });
+
+    await act(async () => {
+      root.render(<AiConfigPanel />);
+    });
+
+    expect(container.textContent).toContain('Broker Profiles');
+    expect(container.textContent).toContain('2 active');
+    expect(container.textContent).not.toContain('Not configured');
+  });
 });

@@ -229,6 +229,15 @@ export function AiConfigPanel() {
 
   const { ai, ml, ensemble, execution, risk } = config;
   const moduleEntries = Object.entries(draftAiOperatingLayerModules || {});
+  const activeBrokerProfiles = execution.active_broker_profiles ?? 0;
+  const brokerProfilesConfigured = Boolean(
+    execution.broker_profiles_configured || activeBrokerProfiles > 0
+  );
+  const metaApiLabel = brokerProfilesConfigured
+    ? `${activeBrokerProfiles} active`
+    : execution.meta_api_configured
+      ? `Connected (${execution.meta_api_region})`
+      : 'Not configured';
 
   return (
     <div className="space-y-4">
@@ -448,9 +457,9 @@ export function AiConfigPanel() {
         <ConfigRow label="Live Trading" value={<StatusBadge enabled={execution.live_trading_enabled} />} />
         <ConfigRow label="Shadow Mode" value={<StatusBadge enabled={execution.live_shadow} />} />
         <ConfigRow
-          label="MetaAPI"
-          value={execution.meta_api_configured ? `Connected (${execution.meta_api_region})` : 'Not configured'}
-          valueClass={execution.meta_api_configured ? 'text-[var(--to-long)]' : 'text-[var(--to-text-dim)]'}
+          label={brokerProfilesConfigured ? 'Broker Profiles' : 'MetaAPI'}
+          value={metaApiLabel}
+          valueClass={(brokerProfilesConfigured || execution.meta_api_configured) ? 'text-[var(--to-long)]' : 'text-[var(--to-text-dim)]'}
         />
       </SectionCard>
 

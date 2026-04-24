@@ -737,6 +737,8 @@ export interface AiConfigResponse {
     live_shadow: boolean;
     trading_kill_switch: boolean;
     meta_api_configured: boolean;
+    broker_profiles_configured?: boolean;
+    active_broker_profiles?: number;
     meta_api_region: string;
   };
   risk: {

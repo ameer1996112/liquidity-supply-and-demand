@@ -2,7 +2,7 @@
   "run_id": "20260424_154811_31c0b8",
   "state": "running",
   "started_at": "2026-04-24T15:48:11.435674+03:00",
-  "last_progress_at": "2026-04-24T16:44:17.584058+03:00",
+  "last_progress_at": "2026-04-24T16:44:21.932919+03:00",
   "stuck_threshold_seconds": 720,
   "restart_count": 0,
   "optimizer_pid": 87841,
@@ -38,8 +38,8 @@
     },
     "worker-1": {
       "symbol": "CHFJPY",
-      "trial": 28,
-      "last_event_at": "2026-04-24T16:42:38.268337+03:00",
+      "trial": 29,
+      "last_event_at": "2026-04-24T16:44:21.932919+03:00",
       "status": "running"
     },
     "worker-2": {
@@ -100,7 +100,7 @@
     "worker-1": {
       "status": "healthy",
       "stale_reads": 0,
-      "last_results_hash": "cdc4e344"
+      "last_results_hash": "93e3bba2"
     },
     "worker-2": {
       "status": "healthy",
