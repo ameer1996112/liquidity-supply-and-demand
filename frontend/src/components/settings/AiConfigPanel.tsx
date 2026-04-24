@@ -63,6 +63,15 @@ function ConfigRow({
   );
 }
 
+function formatBrokerVenue(venue: string) {
+  const normalized = venue.trim().toLowerCase();
+  if (normalized === 'metaapi' || normalized === 'metaapi_mt5') return 'MetaApi';
+  if (normalized === 'ctrader') return 'cTrader';
+  if (normalized === 'binance') return 'Binance';
+  if (normalized === 'bybit') return 'Bybit';
+  return venue;
+}
+
 function SectionCard({
   title,
   icon,
@@ -233,8 +242,15 @@ export function AiConfigPanel() {
   const brokerProfilesConfigured = Boolean(
     execution.broker_profiles_configured || activeBrokerProfiles > 0
   );
+  const activeBrokerVenues = execution.active_broker_venues || [];
+  const brokerVenueLabel = activeBrokerVenues.length > 0
+    ? activeBrokerVenues.map(formatBrokerVenue).join(' + ')
+    : `${activeBrokerProfiles} active`;
+  const executionModeLabel = brokerProfilesConfigured
+    ? 'Broker Profiles'
+    : execution.execution_mode;
   const metaApiLabel = brokerProfilesConfigured
-    ? `${activeBrokerProfiles} active`
+    ? `${brokerVenueLabel} (${activeBrokerProfiles} active)`
     : execution.meta_api_configured
       ? `Connected (${execution.meta_api_region})`
       : 'Not configured';
@@ -453,7 +469,7 @@ export function AiConfigPanel() {
           execution.run_mode === 'LIVE' ? 'text-[var(--to-long)]' :
           execution.run_mode === 'PAPER' ? 'text-amber-400' : 'text-[var(--to-text-dim)]'
         } />
-        <ConfigRow label="Execution Mode" value={execution.execution_mode} />
+        <ConfigRow label="Execution Mode" value={executionModeLabel} />
         <ConfigRow label="Live Trading" value={<StatusBadge enabled={execution.live_trading_enabled} />} />
         <ConfigRow label="Shadow Mode" value={<StatusBadge enabled={execution.live_shadow} />} />
         <ConfigRow

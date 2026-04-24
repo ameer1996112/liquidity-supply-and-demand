@@ -739,6 +739,7 @@ export interface AiConfigResponse {
     meta_api_configured: boolean;
     broker_profiles_configured?: boolean;
     active_broker_profiles?: number;
+    active_broker_venues?: string[];
     meta_api_region: string;
   };
   risk: {

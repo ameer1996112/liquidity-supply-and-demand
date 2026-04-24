@@ -186,6 +186,7 @@ describe('AiConfigPanel AI Operating Layer controls', () => {
         meta_api_region: 'london',
         broker_profiles_configured: true,
         active_broker_profiles: 2,
+        active_broker_venues: ['metaapi_mt5', 'ctrader'],
       },
       risk: {
         trinity_enabled: true,
@@ -202,6 +203,7 @@ describe('AiConfigPanel AI Operating Layer controls', () => {
     });
 
     expect(container.textContent).toContain('Broker Profiles');
+    expect(container.textContent).toContain('MetaApi + cTrader');
     expect(container.textContent).toContain('2 active');
     expect(container.textContent).not.toContain('Not configured');
   });

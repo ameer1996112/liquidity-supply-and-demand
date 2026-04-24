@@ -578,9 +578,15 @@ def get_ai_config():
     """Return current AI/ML/RAG configuration (read-only)."""
     s = get_settings()
     active_broker_profiles = 0
+    active_broker_venues = []
     try:
         from src.core.broker_profiles import get_active_profiles
-        active_broker_profiles = len(get_active_profiles())
+        profiles = get_active_profiles()
+        active_broker_profiles = len(profiles)
+        active_broker_venues = sorted({
+            str(profile.get("venue") or "metaapi_mt5").strip().lower()
+            for profile in profiles
+        })
     except Exception as exc:
         logger.warning("Failed to load broker profile execution status: %s", exc)
     return {
@@ -614,6 +620,7 @@ def get_ai_config():
             "meta_api_configured": active_broker_profiles > 0,
             "broker_profiles_configured": active_broker_profiles > 0,
             "active_broker_profiles": active_broker_profiles,
+            "active_broker_venues": active_broker_venues,
             "meta_api_region": s.meta_api_region,
         },
         "risk": {
