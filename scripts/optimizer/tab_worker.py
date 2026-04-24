@@ -2125,10 +2125,13 @@ class TabWorker:
 
         Returns True on clean completion, False if Phase 2 timed out.
         """
+        await self._raise_if_tradingview_crashed()
+
         # Phase 1 — wait for loading to appear
         appeared = False
         deadline = time.time() + _UPDATE_APPEAR_TIMEOUT
         while time.time() < deadline:
+            await self._raise_if_tradingview_crashed()
             # TradingView sometimes stops auto-refreshing and shows this button instead
             await self.page.evaluate(_JS_CLICK_UPDATE_REPORT)
 
@@ -2154,6 +2157,7 @@ class TabWorker:
         deadline = time.time() + _UPDATE_FINISH_TIMEOUT
 
         while time.time() < deadline:
+            await self._raise_if_tradingview_crashed()
             if not await self._check_loading_text():
                 return await self._wait_for_results_stable()
             # Periodically try to click "Update report" in case TV is waiting
@@ -2174,6 +2178,29 @@ class TabWorker:
         return False
 
     # ─────────────────────────────────── results fingerprint ─────────────────
+
+    async def _raise_if_tradingview_crashed(self) -> None:
+        """Fail fast when TradingView Desktop shows its Electron crash dialog."""
+        try:
+            crashed = await self.page.evaluate(
+                """
+                (() => {
+                    const text = document.body?.innerText || '';
+                    return (
+                        text.includes('App has crashed due to unexpected error') ||
+                        text.includes('needs to be restarted') && text.includes('write EIO')
+                    );
+                })()
+                """
+            )
+        except Exception as exc:
+            raise RuntimeError(f"TradingView page is not reachable: {exc}") from exc
+
+        if crashed:
+            raise RuntimeError(
+                "TradingView Desktop crashed (Electron write EIO). "
+                "Restart TradingView and resume the remaining pairs."
+            )
 
     async def _ensure_fresh_results(self) -> None:
         """
@@ -2682,6 +2709,8 @@ class TabWorker:
         'Runtime error' (e.g. modify_study_limit_exceeding) detected,
         also reloads the strategy via eye-click toggle."""
         try:
+            await self._raise_if_tradingview_crashed()
+
             # Check if the timeout error or runtime error is visible
             error_type = await self.page.evaluate(
                 """

@@ -4,6 +4,7 @@ import asyncio
 import sys
 from types import ModuleType
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -916,6 +917,7 @@ def test_wait_for_update_complete_requires_results_to_settle(monkeypatch) -> Non
 
     monkeypatch.setattr(worker, "_check_loading_text", fake_check_loading)
     monkeypatch.setattr(worker, "_wait_for_results_stable", fake_wait_for_results_stable, raising=False)
+    monkeypatch.setattr(worker, "_raise_if_tradingview_crashed", AsyncMock(), raising=False)
     monkeypatch.setattr(worker.page, "evaluate", fake_evaluate)
     monkeypatch.setattr(tab_worker_module.asyncio, "sleep", fake_sleep)
     monkeypatch.setattr(tab_worker_module.time, "time", lambda: now["value"])

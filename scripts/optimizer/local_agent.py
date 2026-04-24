@@ -387,6 +387,7 @@ def execute_run(run: dict) -> None:
 
     # Monitor subprocess output + check for cancellation
     cancelled = False
+    child_io_error: OSError | None = None
     try:
         _stream_and_report(run_id, process)
     except _RunCancelled:
@@ -398,6 +399,26 @@ def execute_run(run: dict) -> None:
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait()
+    except OSError as exc:
+        child_io_error = exc
+        log.error("Run %s child process I/O failed: %s", run_id, exc, exc_info=True)
+        try:
+            api_post(f"/api/optimizer/runs/{run_id}/events", {
+                "event_type": "run_failed",
+                "payload": {
+                    "reason": "child_process_io_error",
+                    "error_message": str(exc),
+                },
+            })
+        except Exception:
+            pass
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
 
     exit_code = process.wait()
 
@@ -407,12 +428,21 @@ def execute_run(run: dict) -> None:
 
     # Check if the backend already set a terminal status (e.g. via run_finished event)
     current = api_get(f"/api/optimizer/runs/{run_id}")
-    if current and current.get("status") in {"completed", "failed", "cancelled"}:
+    if current and current.get("status") in {"completed", "failed", "cancelled", "interrupted"}:
         log.info("Run %s already has terminal status: %s", run_id, current["status"])
         return
 
-    final_status = "completed" if exit_code == 0 else "failed"
-    api_patch(f"/api/optimizer/runs/{run_id}", {"status": final_status})
+    final_status = "completed" if exit_code == 0 and child_io_error is None else "failed"
+    summary = None
+    if child_io_error is not None:
+        summary = {
+            "error_message": f"optimizer child process I/O failed: {child_io_error}",
+            "error_type": "child_process_io_error",
+        }
+    body = {"status": final_status}
+    if summary is not None:
+        body["summary"] = summary
+    api_patch(f"/api/optimizer/runs/{run_id}", body)
     log.info("Run %s finished with status: %s (exit code %d)", run_id, final_status, exit_code)
 
 
