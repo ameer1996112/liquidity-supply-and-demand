@@ -67,19 +67,38 @@ export async function apiFetch<T>(
 
   const adminApiKey = process.env.NEXT_PUBLIC_ADMIN_API_KEY || '';
 
-  const response = await fetch(url, {
-    ...options,
-    cache: 'no-store', // Fix: Force Next.js App Router to never cache API responses
-    headers: {
-      'Content-Type': 'application/json',
-      ...(adminApiKey ? { 'X-Admin-API-Key': adminApiKey } : {}),
-      ...options?.headers,
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      cache: 'no-store', // Fix: Force Next.js App Router to never cache API responses
+      headers: {
+        'Content-Type': 'application/json',
+        ...(adminApiKey ? { 'X-Admin-API-Key': adminApiKey } : {}),
+        ...options?.headers,
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'request failed';
+    throw new Error(`Network error: ${message}`);
+  }
 
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`API Error (${response.status}): ${error}`);
+    const contentType = response.headers.get('content-type') || '';
+    const errorText = await response.text();
+    let message = errorText || response.statusText || 'request failed';
+    if (contentType.includes('application/json') && errorText) {
+      try {
+        const payload = JSON.parse(errorText) as { detail?: unknown; message?: unknown };
+        const detail = payload.detail ?? payload.message;
+        if (typeof detail === 'string') {
+          message = detail;
+        }
+      } catch {
+        message = errorText;
+      }
+    }
+    throw new Error(`API Error (${response.status}): ${message}`);
   }
 
   // Some endpoints legitimately return no body (e.g. DELETE 204).

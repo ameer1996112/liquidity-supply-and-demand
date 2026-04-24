@@ -573,8 +573,7 @@ def activate_broker_profile(profile_id: int):
         if not rows:
             raise HTTPException(status_code=404, detail=f"Profile {profile_id} not found")
         if not rows[0].get("is_active", True):
-            raise HTTPException(status_code=409, detail="Cannot activate a disabled profile")
-        venue = (rows[0].get("venue") or "metaapi_mt5").strip().lower()
+            raise HTTPException(status_code=409, detail="Reactivate this profile before enabling it for trading.")
 
         sb.table("broker_profiles").update({"selected_for_trading": True}).eq("id", profile_id).execute()
 

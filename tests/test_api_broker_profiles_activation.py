@@ -111,6 +111,17 @@ def test_activate_broker_profile_keeps_other_selected_profiles(monkeypatch) -> N
     assert rows[1]["selected_for_trading"] is True
 
 
+def test_activate_disabled_broker_profile_tells_user_to_reactivate(monkeypatch) -> None:
+    rows = [_make_profile(2, is_active=False, selected_for_trading=False)]
+    client = _make_client(monkeypatch, rows)
+
+    response = client.post("/api/broker-profiles/2/activate")
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Reactivate this profile before enabling it for trading."
+    assert rows[0]["selected_for_trading"] is False
+
+
 def test_deactivate_broker_profile_only_clears_target_selection(monkeypatch) -> None:
     rows = [
         _make_profile(1, selected_for_trading=True),

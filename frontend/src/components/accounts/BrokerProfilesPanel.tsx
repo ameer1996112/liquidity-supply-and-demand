@@ -899,7 +899,7 @@ function ProfileRow({
           {editing ? <X className="h-3 w-3" /> : <Pencil className="h-3 w-3" />}
           {editing ? 'Cancel' : 'Edit'}
         </Button>
-        {!profile.selected_for_trading && (
+        {profile.is_active && !profile.selected_for_trading && (
           <Button
             size="sm"
             variant="outline"
