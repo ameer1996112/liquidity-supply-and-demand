@@ -2,10 +2,19 @@
 
 import { createRoot, Root } from 'react-dom/client';
 import { act } from 'react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SignalInspector } from './SignalInspector';
 import type { TradingSignal } from '@/types/trading';
+import { fetchAiRunBySignal } from '@/lib/api';
+
+vi.mock('@/lib/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/api')>();
+  return {
+    ...actual,
+    fetchAiRunBySignal: vi.fn(),
+  };
+});
 
 describe('SignalInspector decision summary', () => {
   let container: HTMLDivElement;
@@ -15,12 +24,14 @@ describe('SignalInspector decision summary', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
+    vi.mocked(fetchAiRunBySignal).mockResolvedValue(null);
   });
 
   afterEach(() => {
     act(() => {
       root.unmount();
     });
+    vi.clearAllMocks();
     container.remove();
   });
 
@@ -192,5 +203,65 @@ describe('SignalInspector decision summary', () => {
     expect(document.body.textContent).toContain('Execution Plan');
     expect(document.body.textContent).toContain('CLOSE_ALL');
     expect(document.body.textContent).toContain('close all open positions');
+  });
+
+  it('shows pending AI memo placeholders as processing without fallback context', async () => {
+    vi.mocked(fetchAiRunBySignal).mockResolvedValue({
+      id: 10,
+      correlation_id: 'corr-1',
+      signal_id: 123,
+      run_type: 'debate',
+      analysis_mode: 'shadow_pretrade',
+      recommendation: 'pending',
+      confidence: 0,
+      reason_codes: [],
+      memo: '',
+      votes: {},
+      transcript: [],
+      chart_context: {},
+      pine_context: {},
+      module_status: {},
+      layered_output: {},
+    });
+
+    const signal: TradingSignal = {
+      id: '123',
+      created_at: '2026-02-20T10:00:00.000Z',
+      symbol: 'GBPUSD',
+      side: 'sell',
+      status: 'closed',
+      price: 1.35062,
+    };
+
+    const queryClient = new QueryClient();
+    act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <SignalInspector signal={signal} open={true} onOpenChange={() => {}} />
+        </QueryClientProvider>
+      );
+    });
+
+    const memoTab = Array.from(document.querySelectorAll('button')).find((el) =>
+      el.textContent?.includes('AI Memo')
+    );
+    expect(memoTab).toBeTruthy();
+
+    await act(async () => {
+      memoTab?.dispatchEvent(
+        new MouseEvent('mousedown', { bubbles: true, button: 0 })
+      );
+      memoTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    for (let i = 0; i < 10 && document.body.textContent?.includes('Loading AI Memo'); i++) {
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      });
+    }
+
+    expect(document.body.textContent).toContain('Council is processing this signal');
+    expect(document.body.textContent).not.toContain('unclear');
+    expect(document.body.textContent).not.toContain('Setup evidence unavailable');
   });
 });

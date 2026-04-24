@@ -39,6 +39,16 @@ export interface BrokerProfile {
   profit_target_usd?: number | null;
 }
 
+export function needsCTraderReconnect(
+  profile: Pick<BrokerProfile, 'venue' | 'token_masked' | 'connection_status' | 'connection_error'>
+): boolean {
+  if (profile.venue !== 'ctrader') return false;
+  if (!profile.token_masked) return true;
+  if (profile.connection_status !== 'error') return false;
+  const error = (profile.connection_error || '').toLowerCase();
+  return error.includes('authorization expired') || error.includes('click connect ctrader');
+}
+
 async function fetchProfiles(): Promise<BrokerProfile[]> {
   return apiFetch<BrokerProfile[]>('/api/broker-profiles');
 }
@@ -638,6 +648,7 @@ function ProfileRow({
   const [isTesting, setIsTesting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const isCTrader = profile.venue === 'ctrader';
+  const showCTraderConnect = needsCTraderReconnect(profile);
 
   // Edit form state
   const [editForm, setEditForm] = useState({
@@ -869,14 +880,14 @@ function ProfileRow({
       )}
 
       <div className="flex flex-wrap items-center gap-2">
-        {profile.venue === 'ctrader' && !profile.token_masked && (
+        {showCTraderConnect && (
           <Button
             size="sm"
             variant="outline"
             className="h-7 text-[11px] gap-1.5 border-[var(--to-warning)]/30 text-[var(--to-warning)] hover:bg-[var(--to-warning)]/10"
             onClick={handleConnectCTrader}
           >
-            <Zap className="h-3 w-3" /> Connect cTrader
+            <Zap className="h-3 w-3" /> {profile.token_masked ? 'Reconnect cTrader' : 'Connect cTrader'}
           </Button>
         )}
         <Button
@@ -889,7 +900,7 @@ function ProfileRow({
             profile.venue === 'bybit'
               ? 'Bybit connection test not implemented yet'
               : profile.venue === 'ctrader'
-                ? (!profile.token_masked ? 'Connect cTrader first' : undefined)
+                ? (!profile.token_masked ? 'Connect cTrader first' : showCTraderConnect ? 'Reconnect cTrader first' : undefined)
                 : undefined
           }
         >

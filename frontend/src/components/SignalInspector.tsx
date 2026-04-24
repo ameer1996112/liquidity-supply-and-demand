@@ -367,6 +367,22 @@ function getRuleDisplayId(rule: Record<string, unknown>): string {
   return rawRuleId;
 }
 
+function isPendingAiRun(aiRun: {
+  recommendation?: string;
+  confidence?: number;
+  memo?: string;
+  votes?: Record<string, string>;
+  transcript?: Array<unknown>;
+}): boolean {
+  return (
+    aiRun.recommendation === 'pending' ||
+    (aiRun.confidence === 0 &&
+      !aiRun.memo &&
+      Object.keys(aiRun.votes || {}).length === 0 &&
+      (aiRun.transcript || []).length === 0)
+  );
+}
+
 export function SignalInspector({
   signal,
   open,
@@ -1164,6 +1180,17 @@ export function SignalInspector({
                     Loading AI Memo…
                   </div>
                 ) : aiRun ? (
+                  isPendingAiRun(aiRun) ? (
+                    <div className='flex flex-col items-center justify-center py-12 text-center gap-3 rounded-lg bg-card border border-border'>
+                      <Brain className='w-10 h-10 text-muted-foreground/50' />
+                      <p className='text-sm text-muted-foreground'>
+                        Council is processing this signal.
+                      </p>
+                      <p className='text-xs text-muted-foreground/70'>
+                        The AI memo will appear once the background council run finishes.
+                      </p>
+                    </div>
+                  ) : (
                   <>
                     {(aiRun.analysis_mode ||
                       aiRun.module_status ||
@@ -1274,6 +1301,7 @@ export function SignalInspector({
                       </div>
                     </div>
                   </>
+                  )
                 ) : (
                   <div className='flex flex-col items-center justify-center py-12 text-center gap-3'>
                     <Brain className='w-10 h-10 text-muted-foreground/50' />
