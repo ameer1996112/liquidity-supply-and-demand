@@ -128,10 +128,12 @@ def get_ai_runs_bulk(signal_ids: str = Query(..., description="Comma-separated s
             for row in resp.data:
                 sid = str(row.get("signal_id"))
                 if sid not in runs:
+                    rec = row.get("recommendation", "allow")
                     runs[sid] = {
-                        "recommendation": row.get("recommendation", "allow"),
+                        "recommendation": rec,
                         "confidence": row.get("confidence", 0),
                         "votes": row.get("votes") or {},
+                        "status": "pending" if rec == "pending" else "complete",
                     }
 
         # Pass 2: fallback via pipeline_traces for any still-missing signals
@@ -173,6 +175,7 @@ def get_ai_runs_bulk(signal_ids: str = Query(..., description="Comma-separated s
                                             "recommendation": rec,
                                             "confidence": row.get("confidence", 0),
                                             "votes": row.get("votes") or {},
+                                            "status": "complete",
                                         }
             except Exception:
                 pass  # Fallback failure is silent — never break the main response

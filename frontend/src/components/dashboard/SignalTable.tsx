@@ -267,6 +267,25 @@ function CouncilBadge({ summary }: { summary: CouncilSummary | undefined }) {
   const conf = summary.confidence;
   const voteEntries = Object.entries(summary.votes || {});
   const hasVotes = voteEntries.length > 0;
+  const isPending =
+    summary.status === 'pending' || summary.recommendation === 'pending';
+
+  if (isPending) {
+    return (
+      <div
+        className='inline-flex items-center justify-end gap-1'
+        title='Council is still processing this signal'
+      >
+        <Brain className='h-3 w-3 shrink-0 text-[var(--to-warning)]/50' strokeWidth={1.5} />
+        <span
+          className='font-mono text-[9px] text-[var(--to-warning)]/80 uppercase tracking-wider'
+          style={{ fontFamily: 'var(--font-mono)' }}
+        >
+          processing
+        </span>
+      </div>
+    );
+  }
 
   // No votes = fallback / council skipped / Risk Judge parse failed
   // The backend emits confidence=50 + votes={} in all skip paths.

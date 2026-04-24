@@ -924,9 +924,10 @@ export async function patchAiOperatingLayerConfig(payload: {
 }
 /** Lightweight council summary for a single signal (from bulk endpoint) */
 export interface CouncilSummary {
-  recommendation: 'allow' | 'block';
+  recommendation: 'allow' | 'block' | 'pending';
   confidence: number;
   votes: Record<string, string>;
+  status?: 'complete' | 'pending';
 }
 
 /**

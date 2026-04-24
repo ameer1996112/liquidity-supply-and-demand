@@ -117,4 +117,25 @@ describe('SignalTable', () => {
     expect(container.textContent).toContain('FILTERED');
     expect(container.textContent).not.toContain('GBPUSD');
   });
+
+  it('shows pending council placeholders as processing, not skipped', () => {
+    act(() => {
+      root.render(
+        <SignalTable
+          signals={[signals[0]]}
+          councilMap={{
+            'sig-1': {
+              recommendation: 'pending',
+              confidence: 0,
+              votes: {},
+              status: 'pending',
+            },
+          }}
+        />
+      );
+    });
+
+    expect(container.textContent?.toLowerCase()).toContain('processing');
+    expect(container.textContent?.toLowerCase()).not.toContain('skip');
+  });
 });

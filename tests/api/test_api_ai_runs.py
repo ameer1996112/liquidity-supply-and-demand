@@ -68,3 +68,48 @@ def test_get_ai_run_by_signal_returns_expanded_fields(monkeypatch) -> None:
     assert body["analysis_mode"] == "posttrade_review"
     assert body["module_status"]["chart_context"]["status"] in {"ok", "degraded"}
     assert "layered_output" in body
+
+
+def test_get_ai_runs_bulk_marks_pending_placeholders(monkeypatch) -> None:
+    class _Resp:
+        def __init__(self, data):
+            self.data = data
+
+    class _Query:
+        def __init__(self, data):
+            self._data = data
+
+        def select(self, *_args, **_kwargs):
+            return self
+
+        def in_(self, *_args, **_kwargs):
+            return self
+
+        def execute(self):
+            return _Resp(self._data)
+
+    class _Supabase:
+        def table(self, name: str):
+            if name == "ai_runs":
+                return _Query(
+                    [
+                        {
+                            "signal_id": 12,
+                            "recommendation": "pending",
+                            "confidence": 0,
+                            "votes": {},
+                        }
+                    ]
+                )
+            return _Query([])
+
+    monkeypatch.setattr(api_ai_runs, "_get_supabase", lambda: _Supabase())
+
+    app = FastAPI()
+    app.include_router(api_ai_runs.router)
+    client = TestClient(app)
+
+    response = client.get("/api/ai-runs/bulk", params={"signal_ids": "12"})
+
+    assert response.status_code == 200
+    assert response.json()["runs"]["12"]["status"] == "pending"
