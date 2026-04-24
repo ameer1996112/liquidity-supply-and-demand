@@ -1,12 +1,19 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { apiFetch } from './api';
+import { apiFetch, resolveApiBaseUrl } from './api';
 
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
 describe('apiFetch', () => {
+  it('uses the same-origin backend proxy for Railway browser deployments', () => {
+    expect(resolveApiBaseUrl(
+      'https://grand-learning-production-bc96.up.railway.app',
+      'https://frontend-production-a7cf.up.railway.app',
+    )).toBe('/backend');
+  });
+
   it('uses JSON API detail as the error message', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(
       JSON.stringify({ detail: 'Reactivate this profile before enabling it for trading.' }),

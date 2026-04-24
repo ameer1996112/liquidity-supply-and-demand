@@ -6,10 +6,24 @@
  * even when NEXT_PUBLIC_API_URL was not injected during the frontend build.
  */
 
-const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || '/backend';
-export const API_BASE_URL = rawApiUrl.endsWith('/')
-  ? rawApiUrl.slice(0, -1)
-  : rawApiUrl;
+export function resolveApiBaseUrl(
+  rawApiUrl: string | undefined = process.env.NEXT_PUBLIC_API_URL,
+  browserOrigin: string | undefined = typeof window !== 'undefined' ? window.location.origin : undefined,
+): string {
+  const configured = (rawApiUrl || '').trim();
+  if (!configured) return '/backend';
+  const normalized = configured.endsWith('/') ? configured.slice(0, -1) : configured;
+  if (
+    browserOrigin?.endsWith('.up.railway.app') &&
+    normalized.startsWith('https://') &&
+    normalized.includes('.up.railway.app')
+  ) {
+    return '/backend';
+  }
+  return normalized;
+}
+
+export const API_BASE_URL = resolveApiBaseUrl();
 
 export const LOCAL_CHART_PROVIDER_BASE_URL = 'http://127.0.0.1:8765';
 
