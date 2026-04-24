@@ -303,6 +303,86 @@ class MultiAccountSignalRowTests(unittest.TestCase):
 
         self.assertEqual(row["account_name"], "default")
 
+    @patch("src.worker.logic.process_trade")
+    @patch("src.worker._get_fresh_supabase")
+    @patch(
+        "src.core.broker_profiles.get_active_profiles",
+        return_value=[
+            {"id": 4, "name": "ACG-DEMO-2", "run_mode": "LIVE"},
+            {"id": 7, "name": "FTMO - TRAIL - 50K ", "run_mode": "LIVE"},
+            {"id": 10, "name": "ACG-DEMO-3", "run_mode": "LIVE"},
+        ],
+    )
+    def test_exit_event_routes_to_profile_owning_open_signal(
+        self,
+        _mock_profiles: MagicMock,
+        mock_get_supabase: MagicMock,
+        mock_process_trade: MagicMock,
+    ):
+        """Exit webhooks must close through the profile that owns the broker ticket."""
+        import src.worker as worker_mod
+
+        class Query:
+            def __init__(self, rows):
+                self.rows = rows
+
+            def select(self, *_args, **_kwargs):
+                return self
+
+            def eq(self, *_args, **_kwargs):
+                return self
+
+            def execute(self):
+                return SimpleNamespace(
+                    data=[
+                        {
+                            "id": 468,
+                            "status": "filtered",
+                            "broker_profile_id": 4,
+                            "broker_order_id": None,
+                        },
+                        {
+                            "id": 469,
+                            "status": "execution_failed",
+                            "broker_profile_id": 7,
+                            "broker_order_id": None,
+                        },
+                        {
+                            "id": 467,
+                            "status": "OPEN",
+                            "broker_profile_id": 10,
+                            "broker_order_id": "88946896",
+                        },
+                    ]
+                )
+
+        sb = MagicMock()
+        sb.table.return_value = Query([])
+        mock_get_supabase.return_value = sb
+
+        payload = {
+            "event_type": "exit",
+            "symbol": "GBPUSD",
+            "side": "sell",
+            "run_mode": "LIVE",
+            "zone_id": 17858,
+            "trade_key": "GBPUSD|buy|17,858|1,777,012,500,000",
+            "outcome": "win",
+            "close_price": 1.34767,
+            "exit_type": "time_stop",
+            "mae_pips": 0,
+            "bars_held": 31,
+        }
+
+        worker_mod.process_trade(payload)
+
+        mock_process_trade.assert_called_once()
+        routed_payload = mock_process_trade.call_args.args[0]
+        routed_profile = mock_process_trade.call_args.kwargs["profile"]
+        self.assertEqual(routed_payload["_exit_signal_id"], 467)
+        self.assertEqual(routed_profile["id"], 10)
+        self.assertEqual(routed_profile["name"], "ACG-DEMO-3")
+
 
 class GuardAuditInvariantTests(unittest.TestCase):
     """Guard / rejection invariants: every block must have reason + audit hook."""

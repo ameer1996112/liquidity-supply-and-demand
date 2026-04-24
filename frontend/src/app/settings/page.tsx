@@ -7,6 +7,7 @@ import { AiConfigPanel } from '@/components/settings/AiConfigPanel';
 import { SystemHealthPanel } from '@/components/settings/SystemHealthPanel';
 import { TradingViewMcpPanel } from '@/components/settings/TradingViewMcpPanel';
 import { AlertRulesPanel } from '@/components/settings/AlertRulesPanel';
+import { SwapGuardPanel } from '@/components/settings/SwapGuardPanel';
 import { Info, Layers, Settings, Globe, Check } from 'lucide-react';
 import { useTimezone, TZ_OPTIONS } from '@/providers/TimezoneProvider';
 import { cn } from '@/lib/utils';
@@ -193,6 +194,9 @@ export default function SettingsPage() {
 
       {/* TradingView MCP */}
       <TradingViewMcpPanel />
+
+      {/* Rollover Guard */}
+      <SwapGuardPanel />
 
       {/* Manual broker sync */}
       <ManualSyncPanel />

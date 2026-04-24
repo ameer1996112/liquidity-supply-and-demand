@@ -21,6 +21,24 @@ export interface PatchTradingViewMcpConfigRequest {
   approved_versions: string[];
 }
 
+export interface SwapGuardConfigResponse {
+  enable_swap_guard: boolean;
+  swap_time: string;
+  swap_timezone: string;
+  swap_close_before_min: number;
+  swap_min_block_after_min: number;
+  swap_max_block_after_min: number;
+  swap_recovery_consecutive_checks: number;
+  swap_recovery_window_seconds: number;
+  swap_fx_max_spread: number;
+  swap_jpy_max_spread: number;
+  swap_gold_max_spread: number;
+  swap_default_max_spread: number;
+  swap_symbol_spread_overrides_json: string;
+}
+
+export type PatchSwapGuardConfigRequest = Partial<SwapGuardConfigResponse>;
+
 export interface TradingViewMcpCompatibilityProbe {
   command?: string;
   ok?: boolean;
@@ -91,6 +109,19 @@ export async function patchTradingViewMcpConfig(
   body: PatchTradingViewMcpConfigRequest
 ): Promise<TradingViewMcpConfigResponse> {
   return apiFetch<TradingViewMcpConfigResponse>('/api/v1/config/tradingview-mcp', {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  });
+}
+
+export async function fetchSwapGuardConfig(): Promise<SwapGuardConfigResponse> {
+  return apiFetch<SwapGuardConfigResponse>('/api/v1/config/swap-guard');
+}
+
+export async function patchSwapGuardConfig(
+  body: PatchSwapGuardConfigRequest
+): Promise<SwapGuardConfigResponse> {
+  return apiFetch<SwapGuardConfigResponse>('/api/v1/config/swap-guard', {
     method: 'PATCH',
     body: JSON.stringify(body),
   });

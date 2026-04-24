@@ -130,6 +130,25 @@ _one_candle_liq_cache: dict = {"enabled": None, "min_departure": None, "middle_z
 # Trading hours cache — DB overrides env defaults (30s TTL)
 _trading_hours_cache: dict = {"start": None, "end": None, "loaded_at": 0.0}
 
+# Swap guard cache — DB overrides Pydantic defaults (30s TTL)
+_swap_guard_config_cache: dict = {"values": None, "loaded_at": 0.0}
+
+_SWAP_GUARD_SYSTEM_CONFIG_KEYS = {
+    "enable_swap_guard": "swap_guard_enabled",
+    "swap_time": "swap_time",
+    "swap_timezone": "swap_timezone",
+    "swap_close_before_min": "swap_close_before_min",
+    "swap_min_block_after_min": "swap_min_block_after_min",
+    "swap_max_block_after_min": "swap_max_block_after_min",
+    "swap_recovery_consecutive_checks": "swap_recovery_consecutive_checks",
+    "swap_recovery_window_seconds": "swap_recovery_window_seconds",
+    "swap_fx_max_spread": "swap_fx_max_spread",
+    "swap_jpy_max_spread": "swap_jpy_max_spread",
+    "swap_gold_max_spread": "swap_gold_max_spread",
+    "swap_default_max_spread": "swap_default_max_spread",
+    "swap_symbol_spread_overrides_json": "swap_symbol_spread_overrides_json",
+}
+
 WORKER_HEARTBEAT_KEY = "trading:worker:heartbeat"
 WORKER_HEARTBEAT_TTL_SECONDS = 120
 
@@ -281,30 +300,105 @@ def _get_trading_hours(s) -> tuple[int, int]:
     return start, end
 
 
+def _config_bool(raw: Any, default: bool) -> bool:
+    if raw is None:
+        return default
+    return str(raw).lower() == "true"
+
+
+def _get_swap_guard_settings(s: Any) -> dict[str, Any]:
+    """Return swap guard config from system_config, falling back to Pydantic defaults."""
+    now = time.time()
+    cached = _swap_guard_config_cache.get("values")
+    if cached is not None and now - _swap_guard_config_cache.get("loaded_at", 0.0) < _SYSTEM_MODE_CACHE_TTL:
+        return cached
+
+    values = {
+        "enable_swap_guard": getattr(s, "enable_swap_guard", True),
+        "swap_time": getattr(s, "swap_time", "00:00"),
+        "swap_timezone": getattr(s, "swap_timezone", "Asia/Jerusalem"),
+        "swap_close_before_min": getattr(s, "swap_close_before_min", 15),
+        "swap_min_block_after_min": getattr(
+            s,
+            "swap_min_block_after_min",
+            getattr(s, "swap_block_after_min", 15),
+        ),
+        "swap_max_block_after_min": getattr(s, "swap_max_block_after_min", 240),
+        "swap_recovery_consecutive_checks": getattr(s, "swap_recovery_consecutive_checks", 3),
+        "swap_recovery_window_seconds": getattr(s, "swap_recovery_window_seconds", 300),
+        "swap_fx_max_spread": getattr(s, "swap_fx_max_spread", 0.00030),
+        "swap_jpy_max_spread": getattr(s, "swap_jpy_max_spread", 0.030),
+        "swap_gold_max_spread": getattr(s, "swap_gold_max_spread", 0.50),
+        "swap_default_max_spread": getattr(s, "swap_default_max_spread", 0.00050),
+        "swap_symbol_spread_overrides_json": getattr(s, "swap_symbol_spread_overrides_json", ""),
+    }
+
+    try:
+        sb = _get_fresh_supabase()
+        if sb:
+            rows = (
+                sb.table("system_config")
+                .select("key,value")
+                .in_("key", list(_SWAP_GUARD_SYSTEM_CONFIG_KEYS.values()))
+                .execute()
+            )
+            kv = {r["key"]: r["value"] for r in (rows.data or [])}
+            if "swap_guard_enabled" in kv:
+                values["enable_swap_guard"] = _config_bool(
+                    kv.get("swap_guard_enabled"),
+                    bool(values["enable_swap_guard"]),
+                )
+            for field in (
+                "swap_time",
+                "swap_timezone",
+                "swap_symbol_spread_overrides_json",
+            ):
+                key = _SWAP_GUARD_SYSTEM_CONFIG_KEYS[field]
+                if key in kv:
+                    values[field] = kv[key]
+            for field in (
+                "swap_close_before_min",
+                "swap_min_block_after_min",
+                "swap_max_block_after_min",
+                "swap_recovery_consecutive_checks",
+                "swap_recovery_window_seconds",
+            ):
+                key = _SWAP_GUARD_SYSTEM_CONFIG_KEYS[field]
+                if key in kv:
+                    values[field] = int(kv[key])
+            for field in (
+                "swap_fx_max_spread",
+                "swap_jpy_max_spread",
+                "swap_gold_max_spread",
+                "swap_default_max_spread",
+            ):
+                key = _SWAP_GUARD_SYSTEM_CONFIG_KEYS[field]
+                if key in kv:
+                    values[field] = float(kv[key])
+    except Exception as exc:
+        logger.warning("Failed to load swap guard DB settings; using defaults: %s", exc)
+
+    _swap_guard_config_cache["values"] = values
+    _swap_guard_config_cache["loaded_at"] = now
+    return values
+
+
 def _swap_guard_settings_signature(s: Any) -> tuple[Any, ...]:
-    min_block_after_minutes = getattr(
-        s,
-        "swap_min_block_after_min",
-        getattr(s, "swap_block_after_min", 15),
-    )
-    max_block_after_minutes = getattr(
-        s,
-        "swap_max_block_after_min",
-        min_block_after_minutes,
-    )
+    cfg = _get_swap_guard_settings(s)
     return (
-        getattr(s, "swap_time", "00:00"),
-        getattr(s, "swap_timezone", "Asia/Jerusalem"),
-        getattr(s, "swap_close_before_min", 15),
-        min_block_after_minutes,
-        max_block_after_minutes,
-        getattr(s, "swap_recovery_consecutive_checks", 3),
-        getattr(s, "swap_recovery_window_seconds", 300),
-        getattr(s, "swap_fx_max_spread", 0.00030),
-        getattr(s, "swap_jpy_max_spread", 0.030),
-        getattr(s, "swap_gold_max_spread", 0.50),
-        getattr(s, "swap_default_max_spread", 0.00050),
-        getattr(s, "swap_symbol_spread_overrides_json", ""),
+        cfg["enable_swap_guard"],
+        cfg["swap_time"],
+        cfg["swap_timezone"],
+        cfg["swap_close_before_min"],
+        cfg["swap_min_block_after_min"],
+        cfg["swap_max_block_after_min"],
+        cfg["swap_recovery_consecutive_checks"],
+        cfg["swap_recovery_window_seconds"],
+        cfg["swap_fx_max_spread"],
+        cfg["swap_jpy_max_spread"],
+        cfg["swap_gold_max_spread"],
+        cfg["swap_default_max_spread"],
+        cfg["swap_symbol_spread_overrides_json"],
     )
 
 
@@ -314,38 +408,29 @@ def _build_swap_guard(s: Any):
         parse_symbol_threshold_overrides,
     )
 
-    min_block_after_minutes = getattr(
-        s,
-        "swap_min_block_after_min",
-        getattr(s, "swap_block_after_min", 15),
-    )
-    max_block_after_minutes = getattr(
-        s,
-        "swap_max_block_after_min",
-        min_block_after_minutes,
-    )
+    cfg = _get_swap_guard_settings(s)
     spread_provider = (
         execution_adapter.get_symbol_spread
         if execution_adapter is not None and hasattr(execution_adapter, "get_symbol_spread")
         else (lambda _symbol: None)
     )
     return SwapGuard(
-        swap_time=getattr(s, "swap_time", "00:00"),
-        timezone_name=getattr(s, "swap_timezone", "Asia/Jerusalem"),
-        close_before_minutes=getattr(s, "swap_close_before_min", 15),
-        min_block_after_minutes=min_block_after_minutes,
-        max_block_after_minutes=max_block_after_minutes,
-        recovery_consecutive_checks=getattr(s, "swap_recovery_consecutive_checks", 3),
-        recovery_window_seconds=getattr(s, "swap_recovery_window_seconds", 300),
+        swap_time=cfg["swap_time"],
+        timezone_name=cfg["swap_timezone"],
+        close_before_minutes=cfg["swap_close_before_min"],
+        min_block_after_minutes=cfg["swap_min_block_after_min"],
+        max_block_after_minutes=cfg["swap_max_block_after_min"],
+        recovery_consecutive_checks=cfg["swap_recovery_consecutive_checks"],
+        recovery_window_seconds=cfg["swap_recovery_window_seconds"],
         spread_provider=spread_provider,
         asset_class_thresholds={
-            "fx": getattr(s, "swap_fx_max_spread", 0.00030),
-            "jpy": getattr(s, "swap_jpy_max_spread", 0.030),
-            "gold": getattr(s, "swap_gold_max_spread", 0.50),
-            "default": getattr(s, "swap_default_max_spread", 0.00050),
+            "fx": cfg["swap_fx_max_spread"],
+            "jpy": cfg["swap_jpy_max_spread"],
+            "gold": cfg["swap_gold_max_spread"],
+            "default": cfg["swap_default_max_spread"],
         },
         symbol_threshold_overrides=parse_symbol_threshold_overrides(
-            getattr(s, "swap_symbol_spread_overrides_json", "")
+            cfg["swap_symbol_spread_overrides_json"]
         ),
     )
 
@@ -1370,11 +1455,107 @@ def _execute_for_profile(
         )
 
 
+_EXIT_NON_EXECUTED_STATUSES = {
+    "filtered",
+    "staleness_rejected",
+    "holiday_rejected",
+    "swap_rejected",
+    "risk_rejected",
+    "symbol_blacklisted",
+    "ai_rejected",
+    "execution_failed",
+    "failed",
+    "rejected",
+    "guard_rejected",
+    "unexecuted",
+}
+
+
+def _resolve_exit_profile_targets(payload: Dict[str, Any]) -> list[tuple[Optional[Dict[str, Any]], Optional[int]]]:
+    """Find the broker profile(s) that own executable DB rows for an exit webhook."""
+    from src.core.broker_profiles import get_active_profiles
+
+    payload_run_mode = str(payload.get("run_mode") or _get_system_trading_mode()).upper()
+    profiles = [
+        p for p in get_active_profiles()
+        if str(p.get("run_mode") or "LIVE").upper() == payload_run_mode
+    ]
+    profiles_by_id = {
+        int(p["id"]): p
+        for p in profiles
+        if p.get("id") is not None
+    }
+    if not profiles_by_id:
+        return [(None, None)]
+
+    trade_key = str(payload.get("trade_key") or "").strip()
+    zone_id = payload.get("zone_id")
+    if not trade_key and zone_id is None:
+        return [(None, None)]
+
+    rows: list[Dict[str, Any]] = []
+    try:
+        sb = _get_fresh_supabase()
+        if sb:
+            query = sb.table("trading_signals").select(
+                "id,status,broker_profile_id,broker_order_id,symbol"
+            )
+            if trade_key:
+                query = query.eq("trade_key", trade_key)
+            else:
+                query = query.eq("zone_id", zone_id)
+            rows = query.execute().data or []
+    except Exception as exc:
+        logger.warning(
+            "Exit profile lookup failed for zone_id=%s trade_key=%s: %s",
+            zone_id,
+            trade_key,
+            exc,
+        )
+        return [(None, None)]
+
+    payload_symbol = str(payload.get("symbol") or "").upper()
+    targets: list[tuple[Optional[Dict[str, Any]], Optional[int]]] = []
+    seen_profile_ids: set[int] = set()
+    for row in rows:
+        status = str(row.get("status") or "").lower()
+        if status in _EXIT_NON_EXECUTED_STATUSES:
+            continue
+        if not row.get("broker_order_id"):
+            continue
+        row_symbol = str(row.get("symbol") or "").upper()
+        if payload_symbol and row_symbol and payload_symbol != row_symbol:
+            continue
+        profile_id = row.get("broker_profile_id")
+        if profile_id is None:
+            continue
+        try:
+            profile_id_int = int(profile_id)
+        except (TypeError, ValueError):
+            continue
+        profile = profiles_by_id.get(profile_id_int)
+        if not profile or profile_id_int in seen_profile_ids:
+            continue
+        targets.append((profile, int(row["id"])))
+        seen_profile_ids.add(profile_id_int)
+
+    return targets or [(None, None)]
+
+
 def process_trade(payload: Dict[str, Any]):
     # Exit events: route directly to logic (no entry guards)
     if payload.get("event_type") == "exit":
-        logger.info("Exit event for zone_id=%s — routing to logic.process_trade", payload.get("zone_id"))
-        logic.process_trade(payload)
+        targets = _resolve_exit_profile_targets(payload)
+        logger.info(
+            "Exit event for zone_id=%s — routing to %d profile target(s)",
+            payload.get("zone_id"),
+            len(targets),
+        )
+        for profile, signal_id in targets:
+            exit_payload = payload.copy()
+            if signal_id is not None:
+                exit_payload["_exit_signal_id"] = signal_id
+            logic.process_trade(exit_payload, profile=profile)
         return
 
     symbol = payload.get("symbol", "UNKNOWN")
@@ -1521,7 +1702,7 @@ def process_trade(payload: Dict[str, Any]):
     tracker.checkpoint("after_holiday_guard")
 
     # ── Swap / Rollover Guard (global — block all entries during rollover window) ──
-    if getattr(s, "enable_swap_guard", True):
+    if _get_swap_guard_settings(s)["enable_swap_guard"]:
         try:
             swap_guard = _get_swap_guard(s)
             passed, reason = swap_guard.check(payload)
@@ -2041,7 +2222,7 @@ def run():
 
     # Initialize Swap Guard scheduler
     swap_scheduler = None
-    if getattr(s, "enable_swap_guard", True):
+    if _get_swap_guard_settings(s)["enable_swap_guard"]:
         try:
             from src.core.guard_rails.swap_guard import SwapScheduler
             swap_guard_instance = _get_swap_guard(s)

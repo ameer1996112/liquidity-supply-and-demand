@@ -38,6 +38,52 @@ logger = get_logger("trinity.logic")
 
 _paper_trader = None
 
+
+def _get_alert_by_signal_id(signal_id: Any) -> Optional[Dict[str, Any]]:
+    """Fetch a specific trading_signals row for profile-targeted exit handling."""
+    if signal_id is None:
+        return None
+    try:
+        client = supabase_module.supabase
+        if not client:
+            return None
+        response = client.table("trading_signals").select("*").eq("id", int(signal_id)).execute()
+        rows = response.data or []
+        return rows[0] if rows else None
+    except Exception as exc:
+        logger.warning("Could not load exit target signal id=%s: %s", signal_id, exc)
+        return None
+
+
+def _update_alert_exit_for_signal_id(signal_id: int, exit_data: Dict[str, Any]) -> bool:
+    """Update exactly one signal row after its broker close is confirmed."""
+    client = supabase_module.supabase
+    if not client:
+        return False
+    exit_time = (
+        exit_data.get("exit_time")
+        or exit_data.get("close_time")
+        or datetime.now(timezone.utc).isoformat()
+    )
+    update_data = {
+        "status": "CLOSED",
+        "outcome": exit_data.get("outcome"),
+        "pnl_usd": exit_data.get("pnl_usd"),
+        "pnl": exit_data.get("pnl_usd"),
+        "pnl_r": exit_data.get("pnl_r"),
+        "exit_type": exit_data.get("exit_type"),
+        "mae_pips": exit_data.get("mae_pips"),
+        "bars_held": exit_data.get("bars_held"),
+        "closed_at": datetime.now(timezone.utc).isoformat(),
+        "close_price": exit_data.get("close_price"),
+        "exit_price": exit_data.get("close_price"),
+        "close_time": exit_data.get("close_time", exit_time),
+        "exit_time": exit_time,
+        "signal_action": "exit",
+    }
+    result = client.table("trading_signals").update(update_data).eq("id", signal_id).execute()
+    return bool(result.data)
+
 # OPT-2 (latency): Balance cache to avoid an HTTP round-trip on every live trade.
 # Balance/equity are re-fetched from broker only when the cached value is older than
 # BALANCE_CACHE_TTL seconds. This removes ~100-300ms per signal on the hot path.
@@ -138,6 +184,7 @@ def process_trade(
             "bars_held": data["bars_held"],
         }
         trade_key = (data.get("trade_key") or "").strip()
+        exit_signal_id = data.get("_exit_signal_id")
         logger.info("Exit received: zone_id=%s, outcome=%s", data["zone_id"], data["outcome"])
         log_event(None, "exit_processed", "logic", {"zone_id": data["zone_id"], "outcome": data["outcome"]})
 
@@ -187,7 +234,9 @@ def process_trade(
                 # Use profile-specific adapter when available (multi-account)
                 adapter = get_adapter(run_mode=s.run_mode, settings=s, profile=profile)
 
-                if trade_key:
+                if exit_signal_id is not None:
+                    alert = _get_alert_by_signal_id(exit_signal_id)
+                if not alert and trade_key:
                     alert = get_alert_by_trade_key(trade_key)
                 if not alert:
                     alert = get_alert_by_zone_id(data["zone_id"])
@@ -300,7 +349,10 @@ def process_trade(
 
                 # BUGFIX: Only update DB to CLOSED AFTER broker close is confirmed
                 if exec_result.status in ("filled", "submitted", "success"):
-                    update_alert_exit(data["zone_id"], exit_data, trade_key=trade_key)
+                    if exit_signal_id is not None:
+                        _update_alert_exit_for_signal_id(int(exit_signal_id), exit_data)
+                    else:
+                        update_alert_exit(data["zone_id"], exit_data, trade_key=trade_key)
                     logger.info(
                         "✅ DB updated to CLOSED after confirmed broker close for zone_id=%s alert #%s ticket=%s",
                         data["zone_id"], alert["id"], broker_order_id,

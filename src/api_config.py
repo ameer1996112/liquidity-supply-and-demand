@@ -68,6 +68,39 @@ class PatchHtfFilterRequest(BaseModel):
     trading_start_hour: int | None = Field(default=None, ge=0, le=23)
     trading_end_hour: int | None = Field(default=None, ge=0, le=23)
 
+
+class SwapGuardConfigResponse(BaseModel):
+    enable_swap_guard: bool
+    swap_time: str
+    swap_timezone: str
+    swap_close_before_min: int
+    swap_min_block_after_min: int
+    swap_max_block_after_min: int
+    swap_recovery_consecutive_checks: int
+    swap_recovery_window_seconds: int
+    swap_fx_max_spread: float
+    swap_jpy_max_spread: float
+    swap_gold_max_spread: float
+    swap_default_max_spread: float
+    swap_symbol_spread_overrides_json: str
+
+
+class PatchSwapGuardConfigRequest(BaseModel):
+    enable_swap_guard: bool | None = None
+    swap_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
+    swap_timezone: str | None = None
+    swap_close_before_min: int | None = Field(default=None, ge=1, le=60)
+    swap_min_block_after_min: int | None = Field(default=None, ge=1, le=360)
+    swap_max_block_after_min: int | None = Field(default=None, ge=30, le=480)
+    swap_recovery_consecutive_checks: int | None = Field(default=None, ge=1, le=10)
+    swap_recovery_window_seconds: int | None = Field(default=None, ge=30, le=1800)
+    swap_fx_max_spread: float | None = Field(default=None, gt=0.0)
+    swap_jpy_max_spread: float | None = Field(default=None, gt=0.0)
+    swap_gold_max_spread: float | None = Field(default=None, gt=0.0)
+    swap_default_max_spread: float | None = Field(default=None, gt=0.0)
+    swap_symbol_spread_overrides_json: str | None = None
+
+
 class CTraderIntegrationResponse(BaseModel):
     public_api_base_url: str
     ctrader_client_id: str
@@ -161,6 +194,22 @@ _TRADING_END_KEY = "pine_trading_end_hour_local"
 
 _VALID_HTF_PERIODS = (30, 60)
 
+_SWAP_GUARD_KEYS = {
+    "enable_swap_guard": "swap_guard_enabled",
+    "swap_time": "swap_time",
+    "swap_timezone": "swap_timezone",
+    "swap_close_before_min": "swap_close_before_min",
+    "swap_min_block_after_min": "swap_min_block_after_min",
+    "swap_max_block_after_min": "swap_max_block_after_min",
+    "swap_recovery_consecutive_checks": "swap_recovery_consecutive_checks",
+    "swap_recovery_window_seconds": "swap_recovery_window_seconds",
+    "swap_fx_max_spread": "swap_fx_max_spread",
+    "swap_jpy_max_spread": "swap_jpy_max_spread",
+    "swap_gold_max_spread": "swap_gold_max_spread",
+    "swap_default_max_spread": "swap_default_max_spread",
+    "swap_symbol_spread_overrides_json": "swap_symbol_spread_overrides_json",
+}
+
 
 def _invalidate_htf_cache() -> None:
     try:
@@ -170,6 +219,63 @@ def _invalidate_htf_cache() -> None:
         _worker._trading_hours_cache["loaded_at"] = 0.0
     except Exception:
         pass
+
+
+def _invalidate_swap_guard_cache() -> None:
+    try:
+        import src.worker as _worker
+        _worker._swap_guard_config_cache["loaded_at"] = 0.0
+        _worker._swap_guard_config_cache["values"] = None
+        _worker._swap_guard_signature = None
+    except Exception:
+        pass
+
+
+def _bool_from_config(raw: str | None, default: bool) -> bool:
+    if raw is None:
+        return default
+    return str(raw).lower() == "true"
+
+
+def _validate_swap_symbol_overrides(raw: str) -> str:
+    if not raw.strip():
+        return ""
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail="Invalid swap symbol spread override JSON") from exc
+    if not isinstance(parsed, dict):
+        raise HTTPException(status_code=422, detail="Swap symbol spread overrides must be a JSON object")
+    for symbol, value in parsed.items():
+        if not str(symbol).strip():
+            raise HTTPException(status_code=422, detail="Swap symbol override keys must be symbols")
+        try:
+            if float(value) <= 0:
+                raise ValueError
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail="Swap symbol override values must be positive numbers") from exc
+    return json.dumps({str(k).upper(): float(v) for k, v in parsed.items()}, separators=(",", ":"))
+
+
+def _swap_guard_payload_from_kv(kv: dict[str, str]) -> dict[str, object]:
+    from config import get_settings as _get_settings
+
+    s = _get_settings()
+    return {
+        "enable_swap_guard": _bool_from_config(kv.get("swap_guard_enabled"), getattr(s, "enable_swap_guard", True)),
+        "swap_time": kv.get("swap_time", getattr(s, "swap_time", "00:00")),
+        "swap_timezone": kv.get("swap_timezone", getattr(s, "swap_timezone", "Asia/Jerusalem")),
+        "swap_close_before_min": int(kv.get("swap_close_before_min", getattr(s, "swap_close_before_min", 15))),
+        "swap_min_block_after_min": int(kv.get("swap_min_block_after_min", getattr(s, "swap_min_block_after_min", 45))),
+        "swap_max_block_after_min": int(kv.get("swap_max_block_after_min", getattr(s, "swap_max_block_after_min", 240))),
+        "swap_recovery_consecutive_checks": int(kv.get("swap_recovery_consecutive_checks", getattr(s, "swap_recovery_consecutive_checks", 3))),
+        "swap_recovery_window_seconds": int(kv.get("swap_recovery_window_seconds", getattr(s, "swap_recovery_window_seconds", 300))),
+        "swap_fx_max_spread": float(kv.get("swap_fx_max_spread", getattr(s, "swap_fx_max_spread", 0.00030))),
+        "swap_jpy_max_spread": float(kv.get("swap_jpy_max_spread", getattr(s, "swap_jpy_max_spread", 0.030))),
+        "swap_gold_max_spread": float(kv.get("swap_gold_max_spread", getattr(s, "swap_gold_max_spread", 0.50))),
+        "swap_default_max_spread": float(kv.get("swap_default_max_spread", getattr(s, "swap_default_max_spread", 0.00050))),
+        "swap_symbol_spread_overrides_json": kv.get("swap_symbol_spread_overrides_json", getattr(s, "swap_symbol_spread_overrides_json", "")),
+    }
 
 
 @router.get("/pine-filters", response_model=HtfFilterResponse)
@@ -262,6 +368,48 @@ def patch_pine_filters(body: PatchHtfFilterRequest):
     except Exception as e:
         logger.error(f"Failed to update pine filter settings: {e}")
         raise HTTPException(status_code=500, detail="Could not update pine filter settings")
+
+
+@router.get("/swap-guard", response_model=SwapGuardConfigResponse)
+def get_swap_guard_config():
+    """Return current swap/rollover guard runtime settings."""
+    try:
+        kv = _read_system_config(list(_SWAP_GUARD_KEYS.values()))
+        return _swap_guard_payload_from_kv(kv)
+    except Exception as e:
+        logger.error(f"Failed to fetch swap guard settings: {e}")
+        raise HTTPException(status_code=500, detail="Could not fetch swap guard settings")
+
+
+@router.patch("/swap-guard", response_model=SwapGuardConfigResponse)
+def patch_swap_guard_config(body: PatchSwapGuardConfigRequest):
+    """Update swap/rollover guard settings. Only provided fields are updated."""
+    try:
+        payload = body.model_dump(exclude_unset=True)
+        upserts: list[dict[str, str]] = []
+        for field, value in payload.items():
+            key = _SWAP_GUARD_KEYS[field]
+            if field == "swap_symbol_spread_overrides_json":
+                value = _validate_swap_symbol_overrides(str(value or ""))
+            elif isinstance(value, bool):
+                value = str(value).lower()
+            else:
+                value = str(value)
+            upserts.append({"key": key, "value": value})
+
+        if upserts:
+            _get_supabase().table("system_config").upsert(
+                upserts,
+                on_conflict="key",
+            ).execute()
+            _invalidate_swap_guard_cache()
+
+        return get_swap_guard_config()
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to update swap guard settings: {e}")
+        raise HTTPException(status_code=500, detail="Could not update swap guard settings")
 
 
 # ── Integrations: cTrader Open API ─────────────────────────
