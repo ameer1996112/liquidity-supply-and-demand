@@ -130,5 +130,38 @@
     "total_trades": 41,
     "worker_id": 2,
     "timestamp": "2026-04-25T15:43:57.446286"
+  },
+  "GBPUSD": {
+    "params": {
+      "rr_mode": "dynamic",
+      "enable_ai_quality_filter": false,
+      "ai_quality_threshold": 58,
+      "min_tp_distance_pips": 19.7,
+      "liq_max_distance_pips_forex": 28.5,
+      "liq_entry_max_dist": 18.4,
+      "max_bars_held": 84,
+      "stop_loss_buffer_pips": 2.8,
+      "use_break_even": false,
+      "enable_double_tp": true,
+      "liq_pivot_len": 2,
+      "pvtMax": 3,
+      "max_sweep_to_touch_bars": 24,
+      "max_peak_to_touch_bars": 36,
+      "min_body_perc": 28,
+      "max_zones": 17,
+      "max_trades_per_day": 3,
+      "max_daily_loss_pct": 4.3,
+      "max_daily_profit_pct": 3.4,
+      "trading_start_hour": 8,
+      "trading_end_hour": 12
+    },
+    "score": 19.456008413265625,
+    "net_profit": 4009.6,
+    "win_rate": 72.73,
+    "profit_factor": 5.995,
+    "max_drawdown_pct": 1.08,
+    "total_trades": 11,
+    "worker_id": 3,
+    "timestamp": "2026-04-25T15:47:05.203368"
   }
 }

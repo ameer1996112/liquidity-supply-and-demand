@@ -114,40 +114,48 @@ PARAM_GRID_INDEX = {
 # Discovered by tv_debug3.py on 2026-04-06 — dialog has inputs[0..56].
 
 INPUT_INDEX = {
-    "account_size_usd": 0,           # 50000
-    "risk_per_trade_pct": 1,         # 0.5
-    "max_zones": 8,                  # 20
-    "min_body_perc": 9,              # 50
-    "liq_pivot_len": 12,             # 5 (Pivot Strength)
-    "pvtMax": 13,                    # 5 (Max Liquidity Lines)
-    "liq_max_distance_pips_forex": 15,   # 20
-    "liq_max_distance_pips_gold": 16,    # 150
-    "liq_max_distance_pips_index": 17,   # 500
-    "liq_entry_max_dist": 18,        # 10 (Max Zone-to-Liq Distance)
-    "stop_loss_buffer_pips": 31,     # 1 (SL Buffer Pips)
-    "use_custom_rr": 32,             # checkbox: Override Use Fixed RR
-    "risk_reward_ratio": 33,         # 3 (Custom R:R Ratio)
-    "min_tp_distance_pips": 34,      # 15
-    "take_profit_pips": 35,          # 0 (Fixed TP Override)
-    "use_break_even": 36,            # checkbox: Break-Even Mode
-    "max_bars_held": 37,             # 72 (Time-Based Exit)
-    "enable_double_tp": 38,          # checkbox: Double TP Mode
-    "max_position_size_lots": 39,    # 100
-    "max_lots_per_10k": 40,          # 10
-    "max_usd_risk_cap": 41,          # 0
-    "max_daily_loss_pct": 43,        # 4
-    "max_daily_profit_pct": 44,      # 5
-    "max_trades_per_day": 46,        # 2
-    "trading_start_hour": 48,        # 6
-    "trading_end_hour": 49,          # 22
-    "enable_ai_quality_filter": 51,  # checkbox: AI Quality Filter
-    "ai_quality_threshold": 52,      # 60
-    "max_peak_to_touch_bars": 55,    # 30
-    "max_sweep_to_touch_bars": 56,   # 15
+    # ── Prop Firm Risk Management (6 new inputs at top, indices 0-5) ──────────
+    "pf_risk_pct":              0,   # 0.4
+    "pf_daily_kill_pct":        1,   # 4.0
+    "pf_total_kill_pct":        2,   # 8.0
+    "pf_consec_loss_kill":      3,   # 2
+    "pf_min_hold_minutes":      4,   # 2
+    "pf_news_blackout_enabled": 5,   # checkbox: false
+    # ── All original inputs shifted +6 ───────────────────────────────────────
+    "account_size_usd": 6,           # 50000
+    "risk_per_trade_pct": 7,         # 0.5
+    "max_zones": 14,                 # 20
+    "min_body_perc": 15,             # 50
+    "liq_pivot_len": 18,             # 5 (Pivot Strength)
+    "pvtMax": 19,                    # 5 (Max Liquidity Lines)
+    "liq_max_distance_pips_forex": 21,   # 20
+    "liq_max_distance_pips_gold": 22,    # 150
+    "liq_max_distance_pips_index": 23,   # 500
+    "liq_entry_max_dist": 24,        # 10 (Max Zone-to-Liq Distance)
+    "stop_loss_buffer_pips": 37,     # 1 (SL Buffer Pips)
+    "use_custom_rr": 38,             # checkbox: Override Use Fixed RR
+    "risk_reward_ratio": 39,         # 3 (Custom R:R Ratio)
+    "min_tp_distance_pips": 40,      # 15
+    "take_profit_pips": 41,          # 0 (Fixed TP Override)
+    "use_break_even": 42,            # checkbox: Break-Even Mode
+    "max_bars_held": 43,             # 72 (Time-Based Exit)
+    "enable_double_tp": 44,          # checkbox: Double TP Mode
+    "max_position_size_lots": 45,    # 100
+    "max_lots_per_10k": 46,          # 10
+    "max_usd_risk_cap": 47,          # 0
+    "max_daily_loss_pct": 49,        # 4
+    "max_daily_profit_pct": 50,      # 5
+    "max_trades_per_day": 52,        # 2
+    "trading_start_hour": 54,        # 6
+    "trading_end_hour": 55,          # 22
+    "enable_ai_quality_filter": 57,  # checkbox: AI Quality Filter
+    "ai_quality_threshold": 58,      # 60
+    "max_peak_to_touch_bars": 61,    # 30
+    "max_sweep_to_touch_bars": 62,   # 15
 }
 
 # CHECKBOX indices — these need special handling (toggle, not fill)
-CHECKBOX_INDICES = {32, 36, 38, 51}
+CHECKBOX_INDICES = {5, 38, 42, 44, 57}
 
 # ─── Hill-climbing params (kept for --smart backward compat) ──────────────────
 
