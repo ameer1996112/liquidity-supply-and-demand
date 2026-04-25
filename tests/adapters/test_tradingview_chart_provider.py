@@ -2,6 +2,8 @@ from src.adapters.tradingview_chart_provider import fetch_chart_context
 
 
 def test_fetch_chart_context_returns_provider_payload(monkeypatch) -> None:
+    seen = {}
+
     class _Response:
         status_code = 200
 
@@ -20,7 +22,7 @@ def test_fetch_chart_context_returns_provider_payload(monkeypatch) -> None:
 
     monkeypatch.setattr(
         "src.adapters.tradingview_chart_provider.requests.get",
-        lambda *args, **kwargs: _Response(),
+        lambda *args, **kwargs: (seen.setdefault("kwargs", kwargs), _Response())[1],
     )
 
     payload = fetch_chart_context(
@@ -29,10 +31,16 @@ def test_fetch_chart_context_returns_provider_payload(monkeypatch) -> None:
         timeframe="5m",
         timeout_seconds=1.0,
         retry_count=0,
+        zone_id=17733,
     )
 
     assert payload["symbol"] == "XAUUSD"
     assert payload["indicator_values"]["rsi"] == 54.2
+    assert seen["kwargs"]["params"] == {
+        "symbol": "XAUUSD",
+        "timeframe": "5m",
+        "zone_id": 17733,
+    }
 
 
 def test_fetch_chart_context_returns_failure_reason_after_retries(monkeypatch) -> None:

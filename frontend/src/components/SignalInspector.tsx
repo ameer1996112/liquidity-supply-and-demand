@@ -448,6 +448,12 @@ export function SignalInspector({
   const entryPrice = signal.price ?? signal.entry;
   const stopLoss = signal.stop_loss ?? signal.sl;
   const takeProfit = signal.take_profit ?? signal.tp;
+  const setupEvidence = signal.setup_evidence;
+  const setupImageUrl = setupEvidence?.focus_image?.url;
+  const setupZoneId =
+    setupEvidence?.focus_zone?.id ??
+    setupEvidence?.focus_zone?.requested_zone_id ??
+    signal.zone_id;
 
   const decisionValue = String(
     ai?.decision || signal.status || 'unknown'
@@ -708,6 +714,31 @@ export function SignalInspector({
                     )}
                   </div>
                 </div>
+
+                {setupImageUrl && (
+                  <div className='rounded-lg bg-card border border-border overflow-hidden'>
+                    <div className='px-4 py-2.5 border-b border-border flex items-center justify-between gap-2'>
+                      <div className='flex items-center gap-2'>
+                        <Target className='w-4 h-4 text-muted-foreground' />
+                        <span className='text-[11px] text-muted-foreground uppercase tracking-wider'>
+                          Zone Setup Screenshot
+                        </span>
+                      </div>
+                      {setupZoneId != null && (
+                        <Badge className='text-[10px] px-2 py-0.5 border-0 bg-muted text-muted-foreground'>
+                          #{setupZoneId}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className='p-3'>
+                      <img
+                        src={setupImageUrl}
+                        alt='Zone setup screenshot'
+                        className='w-full rounded-md border border-border object-contain bg-background'
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {/* AI Confidence */}
                 {score !== null && (

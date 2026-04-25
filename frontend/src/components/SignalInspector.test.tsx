@@ -178,6 +178,38 @@ describe('SignalInspector decision summary', () => {
     expect(document.body.textContent).toContain('MetaApi MT5 bridge');
   });
 
+  it('renders setup zone screenshot when setup evidence has an image', () => {
+    const signal: TradingSignal = {
+      id: 'sig-setup',
+      created_at: '2026-02-20T10:00:00.000Z',
+      symbol: 'GBPJPY',
+      side: 'sell',
+      status: 'active',
+      price: 215.6,
+      zone_id: 17733,
+      setup_evidence: {
+        status: 'ok',
+        focus_zone: { id: 17733, high: 215.8, low: 215.2 },
+        focus_image: { url: 'http://provider.test/provider-artifacts/setup-17733.png' },
+        reason: '',
+      },
+    } as TradingSignal;
+
+    const queryClient = new QueryClient();
+    act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <SignalInspector signal={signal} open={true} onOpenChange={() => {}} />
+        </QueryClientProvider>
+      );
+    });
+
+    const image = document.querySelector('img[alt="Zone setup screenshot"]') as HTMLImageElement | null;
+    expect(document.body.textContent).toContain('Zone Setup Screenshot');
+    expect(document.body.textContent).toContain('#17733');
+    expect(image?.src).toBe('http://provider.test/provider-artifacts/setup-17733.png');
+  });
+
   it('shows execution plan for close_all action', () => {
     const signal: TradingSignal = {
       id: 'sig-close-all',

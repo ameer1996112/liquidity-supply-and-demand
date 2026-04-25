@@ -11,13 +11,17 @@ def fetch_chart_context(
     timeframe: str,
     timeout_seconds: float,
     retry_count: int,
+    zone_id: int | str | None = None,
 ) -> Dict[str, Any]:
     last_error = "unknown provider error"
     for _attempt in range(retry_count + 1):
         try:
+            params: Dict[str, Any] = {"symbol": symbol, "timeframe": timeframe}
+            if zone_id not in (None, ""):
+                params["zone_id"] = zone_id
             response = requests.get(
                 f"{base_url.rstrip('/')}/chart-context",
-                params={"symbol": symbol, "timeframe": timeframe},
+                params=params,
                 timeout=timeout_seconds,
             )
             response.raise_for_status()

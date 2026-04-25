@@ -62,6 +62,7 @@ def _normalize_box_zones(boxes_payload: Optional[Dict[str, Any]]) -> List[Dict[s
                 {
                     "type": "price_zone",
                     "source": "pine",
+                    "id": coords.get("id"),
                     "label": study.get("name", ""),
                     "high": high,
                     "low": low,
@@ -81,6 +82,7 @@ def _normalize_labels(labels_payload: Optional[Dict[str, Any]]) -> List[Dict[str
                 {
                     "type": "label",
                     "source": "pine",
+                    "id": item.get("id"),
                     "label": item.get("text", ""),
                     "price": item.get("price"),
                     "study": study.get("name", ""),
@@ -89,7 +91,25 @@ def _normalize_labels(labels_payload: Optional[Dict[str, Any]]) -> List[Dict[str
     return labels
 
 
-def _pick_primary_zone(zones: Sequence[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+def _zone_matches_requested_id(zone: Dict[str, Any], requested_zone_id: Optional[int]) -> bool:
+    if requested_zone_id is None:
+        return False
+    target = str(requested_zone_id)
+    for key in ("id", "zone_id"):
+        if zone.get(key) is not None and str(zone.get(key)).strip("#") == target:
+            return True
+    label = str(zone.get("label") or "")
+    return target in label or f"#{target}" in label
+
+
+def _pick_primary_zone(
+    zones: Sequence[Dict[str, Any]],
+    requested_zone_id: Optional[int] = None,
+) -> Optional[Dict[str, Any]]:
+    if requested_zone_id is not None:
+        for zone in zones:
+            if _zone_matches_requested_id(zone, requested_zone_id):
+                return zone
     for zone in zones:
         if zone.get("type") == "price_zone":
             return zone
@@ -127,22 +147,25 @@ def _crop_focus_image(source_path: str, focus_zone: Optional[Dict[str, Any]]) ->
 def _build_setup_evidence(
     focus_zone: Optional[Dict[str, Any]],
     screenshot_payload: Optional[Dict[str, Any]],
+    requested_zone_id: Optional[int] = None,
 ) -> Dict[str, Any]:
-    if screenshot_payload and screenshot_payload.get("success") and focus_zone:
+    if screenshot_payload and screenshot_payload.get("success"):
         return {
-            "status": "ok",
+            "status": "ok" if focus_zone else "degraded",
             "focus_zone": focus_zone,
             "focus_image": {
                 "path": screenshot_payload.get("file_path", ""),
                 "region": screenshot_payload.get("region", "chart"),
             },
-            "reason": "",
+            "requested_zone_id": requested_zone_id,
+            "reason": "" if focus_zone else "zone not detected; full chart screenshot captured",
         }
 
     return {
         "status": "degraded",
         "focus_zone": focus_zone,
         "focus_image": None,
+        "requested_zone_id": requested_zone_id,
         "reason": (screenshot_payload or {}).get("error", "setup image unavailable"),
     }
 
@@ -158,6 +181,7 @@ def build_chart_context_payload(
     values_payload: Optional[Dict[str, Any]],
     lines_payload: Optional[Dict[str, Any]],
     labels_payload: Optional[Dict[str, Any]],
+    requested_zone_id: Optional[int] = None,
     boxes_payload: Optional[Dict[str, Any]] = None,
     screenshot_payload: Optional[Dict[str, Any]] = None,
     now_iso: Optional[str] = None,
@@ -178,7 +202,7 @@ def build_chart_context_payload(
                 "reason": status_payload.get("error", "status failed"),
             },
             "reason": status_payload.get("error", "status failed"),
-            "metadata": {"partial_failures": []},
+            "metadata": {"requested_zone_id": requested_zone_id, "partial_failures": []},
         }
 
     partial_failures: List[str] = []
@@ -197,9 +221,11 @@ def build_chart_context_payload(
     normalized_line_zones = _normalize_zones(
         lines_payload if lines_payload and lines_payload.get("success") else None
     )
-    focus_zone = _pick_primary_zone(normalized_box_zones) or (
+    focus_zone = _pick_primary_zone(normalized_box_zones, requested_zone_id) or (
         normalized_line_zones[0] if normalized_line_zones else None
     )
+    if focus_zone and requested_zone_id is not None:
+        focus_zone = {**focus_zone, "requested_zone_id": requested_zone_id}
 
     if screenshot_payload and screenshot_payload.get("success"):
         screenshot_payload = {
@@ -217,11 +243,12 @@ def build_chart_context_payload(
         "pine_labels": _normalize_labels(labels_payload if labels_payload and labels_payload.get("success") else None),
         "zones": [*normalized_box_zones, *normalized_line_zones],
         "indicator_values": _normalize_indicator_values(values_payload if values_payload and values_payload.get("success") else None),
-        "setup_evidence": _build_setup_evidence(focus_zone, screenshot_payload),
+        "setup_evidence": _build_setup_evidence(focus_zone, screenshot_payload, requested_zone_id),
         "reason": "",
         "metadata": {
             "requested_symbol": requested_symbol,
             "requested_timeframe": requested_timeframe,
+            "requested_zone_id": requested_zone_id,
             "partial_failures": partial_failures,
         },
     }
@@ -252,12 +279,17 @@ def get_chart_provider_compatibility_status() -> Dict[str, Any]:
     return get_tradingview_mcp_compatibility_service().get_status().to_payload()
 
 
-def fetch_live_chart_context(requested_symbol: str, requested_timeframe: str) -> Dict[str, Any]:
+def fetch_live_chart_context(
+    requested_symbol: str,
+    requested_timeframe: str,
+    zone_id: Optional[int] = None,
+) -> Dict[str, Any]:
     compatibility_status = get_chart_provider_compatibility_status()
     if not compatibility_status.get("chart_context_enabled"):
         payload = build_chart_context_payload(
             requested_symbol=requested_symbol,
             requested_timeframe=requested_timeframe,
+            requested_zone_id=zone_id,
             status_payload={
                 "success": False,
                 "error": compatibility_status.get("reason") or "chart context disabled",
@@ -276,6 +308,7 @@ def fetch_live_chart_context(requested_symbol: str, requested_timeframe: str) ->
         return build_chart_context_payload(
             requested_symbol=requested_symbol,
             requested_timeframe=requested_timeframe,
+            requested_zone_id=zone_id,
             status_payload=status_payload,
             values_payload=None,
             lines_payload=None,
@@ -296,6 +329,7 @@ def fetch_live_chart_context(requested_symbol: str, requested_timeframe: str) ->
     return build_chart_context_payload(
         requested_symbol=requested_symbol,
         requested_timeframe=requested_timeframe,
+        requested_zone_id=zone_id,
         status_payload=status_payload,
         values_payload=values_payload,
         lines_payload=lines_payload,

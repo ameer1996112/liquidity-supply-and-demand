@@ -4,9 +4,11 @@ from src.local_chart_provider_app import app
 
 
 def test_chart_context_endpoint_returns_provider_payload(monkeypatch) -> None:
-    monkeypatch.setattr(
-        "src.local_chart_provider_app.fetch_live_chart_context",
-        lambda symbol, timeframe: {
+    seen = {}
+
+    def _fake_fetch(symbol, timeframe, zone_id=None):
+        seen["args"] = (symbol, timeframe, zone_id)
+        return {
             "symbol": symbol,
             "timeframe": timeframe,
             "provider_timestamp": "2026-04-17T00:20:00Z",
@@ -21,21 +23,26 @@ def test_chart_context_endpoint_returns_provider_payload(monkeypatch) -> None:
             },
             "reason": "",
             "metadata": {"partial_failures": []},
-        },
+        }
+
+    monkeypatch.setattr(
+        "src.local_chart_provider_app.fetch_live_chart_context",
+        _fake_fetch,
     )
 
     client = TestClient(app)
-    response = client.get("/chart-context", params={"symbol": "XAUUSD", "timeframe": "5m"})
+    response = client.get("/chart-context", params={"symbol": "XAUUSD", "timeframe": "5m", "zone_id": 17733})
 
     assert response.status_code == 200
     assert response.json()["symbol"] == "XAUUSD"
     assert response.json()["provider_timestamp"] == "2026-04-17T00:20:00Z"
+    assert seen["args"] == ("XAUUSD", "5m", 17733)
 
 
 def test_chart_context_endpoint_promotes_focus_image_to_absolute_url(monkeypatch) -> None:
     monkeypatch.setattr(
         "src.local_chart_provider_app.fetch_live_chart_context",
-        lambda symbol, timeframe: {
+        lambda symbol, timeframe, zone_id=None: {
             "symbol": symbol,
             "timeframe": timeframe,
             "provider_timestamp": "2026-04-17T00:20:00Z",

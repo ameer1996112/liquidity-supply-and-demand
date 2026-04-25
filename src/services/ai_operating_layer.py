@@ -23,8 +23,9 @@ def fetch_and_normalize_chart_context(
     timeframe: str,
     timeout_seconds: float,
     retry_count: int,
+    zone_id: int | str | None = None,
 ) -> Dict[str, Any]:
-    raw = fetch_chart_context(base_url, symbol, timeframe, timeout_seconds, retry_count)
+    raw = fetch_chart_context(base_url, symbol, timeframe, timeout_seconds, retry_count, zone_id=zone_id)
     setup_evidence = raw.get(
         "setup_evidence",
         {
@@ -70,6 +71,7 @@ def build_shadow_pretrade_run(
         timeframe=str(signal_payload.get("timeframe", "5m")),
         timeout_seconds=1.0,
         retry_count=2,
+        zone_id=signal_payload.get("zone_id"),
     )
     return {
         "analysis_mode": "shadow_pretrade",

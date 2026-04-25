@@ -144,6 +144,44 @@ def test_build_chart_context_payload_includes_setup_evidence_bundle(tmp_path: Pa
     assert payload["setup_evidence"]["focus_image"]["path"] == str(focus_path)
 
 
+def test_build_chart_context_payload_prefers_requested_zone_id(tmp_path: Path, monkeypatch) -> None:
+    screenshot_path = tmp_path / "setup-zone.png"
+    _write_png(screenshot_path)
+    monkeypatch.setattr(
+        "src.local_chart_provider_service._crop_focus_image",
+        lambda source_path, focus_zone: str(screenshot_path.with_name(f"{focus_zone['id']}.png")),
+    )
+
+    payload = build_chart_context_payload(
+        requested_symbol="GBPJPY",
+        requested_timeframe="5m",
+        requested_zone_id=17733,
+        status_payload={"success": True, "chart_symbol": "VANTAGE:GBPJPY", "chart_resolution": "5"},
+        values_payload={"success": True, "studies": []},
+        lines_payload={"success": True, "studies": []},
+        labels_payload={"success": True, "studies": []},
+        boxes_payload={
+            "success": True,
+            "studies": [
+                {
+                    "name": "Liquidity Zones",
+                    "boxes": [{"high": 215.8, "low": 215.2}, {"high": 214.8, "low": 214.1}],
+                    "all_boxes": [
+                        {"id": 100, "high": 215.8, "low": 215.2, "x1": 100, "x2": 200},
+                        {"id": 17733, "high": 214.8, "low": 214.1, "x1": 300, "x2": 460},
+                    ],
+                }
+            ],
+        },
+        screenshot_payload={"success": True, "file_path": str(screenshot_path), "region": "chart"},
+        now_iso="2026-04-17T00:20:00Z",
+    )
+
+    assert payload["metadata"]["requested_zone_id"] == 17733
+    assert payload["setup_evidence"]["focus_zone"]["id"] == 17733
+    assert payload["setup_evidence"]["focus_image"]["path"].endswith("17733.png")
+
+
 def test_build_chart_context_payload_keeps_structured_context_when_screenshot_fails() -> None:
     payload = build_chart_context_payload(
         requested_symbol="XAUUSD",

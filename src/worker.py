@@ -894,6 +894,13 @@ def save_result(
     extra_columns, zone_reason = _payload_zone_and_metrics(payload)
     data.update(extra_columns)
 
+    setup_evidence = payload.get("setup_evidence")
+    if isinstance(setup_evidence, dict):
+        data["setup_evidence"] = setup_evidence
+        focus_image = setup_evidence.get("focus_image")
+        if isinstance(focus_image, dict) and focus_image.get("url"):
+            data["image_url"] = focus_image["url"]
+
     signal_time_str = payload.get("signal_time")
     if signal_time_str:
         try:
@@ -922,6 +929,15 @@ def save_result(
         data["ai_reasoning"] = json.dumps(merged_reason)
 
     receipt_id = (payload.get("_webhook_receipt_id") or "").strip() if use_receipt_update else ""
+
+    def _schedule_setup_capture(signal_id: int) -> None:
+        try:
+            from src.services.setup_evidence_capture import schedule_setup_evidence_capture
+
+            schedule_setup_evidence_capture(_get_fresh_supabase(), signal_id, payload)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Setup evidence capture scheduling skipped: %s", exc)
+
     try:
         if receipt_id:
             # API pre-inserted; update existing row instead of inserting
@@ -938,6 +954,7 @@ def save_result(
                 data.pop("created_at", None)
                 supabase.table("trading_signals").update(data).eq("id", sig_id).execute()
                 payload["_signal_id"] = sig_id
+                _schedule_setup_capture(sig_id)
                 corr = payload.get("_correlation_id")
                 if corr:
                     from src.services.ai_run_service import link_ai_run_to_signal
@@ -949,6 +966,7 @@ def save_result(
                 if resp.data and len(resp.data) > 0:
                     sig_id = int(resp.data[0]["id"])
                     payload["_signal_id"] = sig_id
+                    _schedule_setup_capture(sig_id)
                     corr = payload.get("_correlation_id")
                     if corr:
                         from src.services.ai_run_service import link_ai_run_to_signal
@@ -959,6 +977,7 @@ def save_result(
             if resp.data and len(resp.data) > 0:
                 sig_id = int(resp.data[0]["id"])
                 payload["_signal_id"] = sig_id
+                _schedule_setup_capture(sig_id)
                 corr = payload.get("_correlation_id")
                 if corr:
                     from src.services.ai_run_service import link_ai_run_to_signal

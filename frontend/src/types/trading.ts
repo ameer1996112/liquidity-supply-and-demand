@@ -93,6 +93,8 @@ export interface AIReasoning {
 }
 
 export interface SetupEvidenceFocusZone {
+  id?: string | number;
+  requested_zone_id?: string | number;
   type?: string;
   label?: string;
   price?: number;
