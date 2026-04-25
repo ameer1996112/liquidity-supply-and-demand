@@ -172,6 +172,30 @@ def test_aggregate_open_positions_merges_metaapi_and_ctrader_profiles() -> None:
     assert ctrader_position.current_price == 3335.2
 
 
+def test_load_eligible_profiles_skips_live_profiles_without_adapter_credentials() -> None:
+    profiles = [
+        _make_profile(6, name="Meta Missing Token", token="", meta_api_account_id="account-6"),
+        _make_profile(7, name="Meta Missing Account", token="token-7", meta_api_account_id=""),
+        _make_profile(8, name="cTrader Missing Token", venue="ctrader", token="", account_id="ct-8"),
+        _make_profile(9, name="Ready Meta", token="token-9", meta_api_account_id="account-9"),
+    ]
+
+    def _resolve_adapter(profile: dict[str, Any]) -> Any:
+        if profile["name"] == "Ready Meta":
+            return _MetaApiAdapter()
+        raise AssertionError(f"Incomplete profile should not be resolved: {profile['name']}")
+
+    aggregator = LivePositionsAggregator(_FakeSupabase(profiles), adapter_resolver=_resolve_adapter)
+
+    loaded_profiles = aggregator.load_eligible_profiles()
+    result = aggregator.aggregate_open_positions(loaded_profiles)
+
+    assert [profile.name for profile in loaded_profiles] == ["Ready Meta"]
+    assert result.healthy_profiles == 1
+    assert result.failed_profiles == 0
+    assert result.errors == []
+
+
 def test_aggregate_open_positions_tolerates_partial_profile_failures() -> None:
     profiles = [
         _make_profile(10, name="Broken Meta", venue="metaapi_mt5"),

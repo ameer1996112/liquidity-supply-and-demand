@@ -34,6 +34,16 @@ def _normalize_venue(value: Any) -> str:
     return venue
 
 
+def _has_adapter_credentials(row: dict[str, Any], venue: str) -> bool:
+    token = str(row.get("token") or "").strip()
+    account_id = str(row.get("meta_api_account_id") or row.get("account_id") or "").strip()
+
+    if venue in {"metaapi_mt5", "mt5", "ctrader"}:
+        return bool(token and account_id)
+
+    return False
+
+
 def _normalize_side(value: Any) -> str:
     raw = str(value or "").strip().upper()
     if "BUY" in raw:
@@ -137,6 +147,13 @@ class LivePositionsAggregator:
                 continue
             venue = _normalize_venue(row.get("venue"))
             if venue not in _ELIGIBLE_VENUES:
+                continue
+            if not _has_adapter_credentials(row, venue):
+                logger.info(
+                    "Skipping live aggregation for profile %s (%s): adapter credentials incomplete",
+                    row.get("name") or row.get("id"),
+                    row.get("id"),
+                )
                 continue
             profile_id = row.get("id")
             if profile_id is None:
