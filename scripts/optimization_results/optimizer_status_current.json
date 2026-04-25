@@ -2,7 +2,7 @@
   "run_id": "20260425_155140_e9ca4e",
   "state": "running",
   "started_at": "2026-04-25T15:51:40.086364+03:00",
-  "last_progress_at": "2026-04-25T16:49:43.618055+03:00",
+  "last_progress_at": "2026-04-25T17:09:54.939317+03:00",
   "stuck_threshold_seconds": 720,
   "restart_count": 0,
   "optimizer_pid": 83279,
@@ -32,62 +32,62 @@
   "active_pairs": {
     "worker-0": {
       "symbol": "USDJPY",
-      "trial": 39,
-      "last_event_at": "2026-04-25T16:48:46.372590+03:00",
+      "trial": 51,
+      "last_event_at": "2026-04-25T17:08:54.479239+03:00",
       "status": "running"
     },
     "worker-1": {
       "symbol": "XAUUSD",
-      "trial": 49,
-      "last_event_at": "2026-04-25T16:49:17.776894+03:00",
+      "trial": 70,
+      "last_event_at": "2026-04-25T17:09:54.939317+03:00",
       "status": "running"
     },
     "worker-2": {
       "symbol": "XAGUSD",
-      "trial": 43,
-      "last_event_at": "2026-04-25T16:48:48.384664+03:00",
+      "trial": 59,
+      "last_event_at": "2026-04-25T17:09:32.610169+03:00",
       "status": "running"
     },
     "worker-3": {
       "symbol": "GBPUSD",
-      "trial": 39,
-      "last_event_at": "2026-04-25T16:49:10.837769+03:00",
+      "trial": 54,
+      "last_event_at": "2026-04-25T17:09:26.569172+03:00",
       "status": "running"
     },
     "worker-4": {
       "symbol": "EURJPY",
-      "trial": 38,
-      "last_event_at": "2026-04-25T16:49:43.618055+03:00",
+      "trial": 55,
+      "last_event_at": "2026-04-25T17:09:23.632949+03:00",
       "status": "running"
     },
     "worker-5": {
       "symbol": "EURUSD",
-      "trial": 40,
-      "last_event_at": "2026-04-25T16:48:53.352204+03:00",
+      "trial": 56,
+      "last_event_at": "2026-04-25T17:09:30.871999+03:00",
       "status": "running"
     },
     "worker-6": {
       "symbol": "USDCAD",
-      "trial": 39,
-      "last_event_at": "2026-04-25T16:49:37.285694+03:00",
+      "trial": 54,
+      "last_event_at": "2026-04-25T17:08:53.233544+03:00",
       "status": "running"
     },
     "worker-7": {
       "symbol": "EURNZD",
-      "trial": 38,
-      "last_event_at": "2026-04-25T16:48:40.477497+03:00",
+      "trial": 52,
+      "last_event_at": "2026-04-25T17:08:49.088452+03:00",
       "status": "running"
     },
     "worker-8": {
       "symbol": "NZDUSD",
-      "trial": 40,
-      "last_event_at": "2026-04-25T16:49:12.524819+03:00",
+      "trial": 55,
+      "last_event_at": "2026-04-25T17:09:20.437862+03:00",
       "status": "running"
     },
     "worker-9": {
       "symbol": "NAS100",
-      "trial": 44,
-      "last_event_at": "2026-04-25T16:49:40.420783+03:00",
+      "trial": 59,
+      "last_event_at": "2026-04-25T17:08:16.579004+03:00",
       "status": "running"
     }
   },
@@ -95,52 +95,52 @@
     "worker-0": {
       "status": "healthy",
       "stale_reads": 0,
-      "last_results_hash": "06fc142d"
+      "last_results_hash": "570190db"
     },
     "worker-1": {
       "status": "healthy",
       "stale_reads": 0,
-      "last_results_hash": "5cf17fdc"
+      "last_results_hash": "587f3763"
     },
     "worker-2": {
       "status": "healthy",
       "stale_reads": 0,
-      "last_results_hash": "27c1bf7b"
+      "last_results_hash": "ab5a0cfd"
     },
     "worker-3": {
       "status": "healthy",
       "stale_reads": 0,
-      "last_results_hash": "7ce6696e"
+      "last_results_hash": "069f21c8"
     },
     "worker-4": {
       "status": "healthy",
       "stale_reads": 0,
-      "last_results_hash": "abc24031"
+      "last_results_hash": "25de000f"
     },
     "worker-5": {
       "status": "healthy",
       "stale_reads": 0,
-      "last_results_hash": "fd771233"
+      "last_results_hash": "426b4ead"
     },
     "worker-6": {
       "status": "healthy",
       "stale_reads": 0,
-      "last_results_hash": "e3d25f2e"
+      "last_results_hash": "08c34cac"
     },
     "worker-7": {
       "status": "healthy",
       "stale_reads": 0,
-      "last_results_hash": "a70e99ec"
+      "last_results_hash": "dcd5508b"
     },
     "worker-8": {
       "status": "healthy",
       "stale_reads": 0,
-      "last_results_hash": "9c448b6e"
+      "last_results_hash": "5dace5e8"
     },
     "worker-9": {
       "status": "healthy",
       "stale_reads": 0,
-      "last_results_hash": "b4e1835a"
+      "last_results_hash": "1f684f12"
     }
   }
 }
