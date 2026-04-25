@@ -30,21 +30,35 @@ import ameer_1996112/SND_Utils/23 as Utils
 import ameer_1996112/SND_Core/26 as Core
 
 strategy("Institutional Liquidity Protocol [Pro]",
-     shorttitle = "S&D Algo [Pro]",
-     overlay = true,
-     max_bars_back = 5000,
-     initial_capital = 50000,      // Matches account_size_usd for accurate backtest P&L (was 10M which made % useless)
-     currency = currency.USD,
-     default_qty_type = strategy.fixed,
-     default_qty_value = 100,
-     pyramiding = 0,
-     process_orders_on_close = true,
-     calc_on_every_tick = false,
-     margin_long = 1,
-     margin_short = 1,
-     slippage = 3,
-     commission_type = strategy.commission.percent,
-     commission_value = 0)
+     shorttitle                      = "S&D Algo [Pro]",
+     overlay                         = true,
+     max_bars_back                   = 5000,
+     initial_capital                 = 50000,
+     currency                        = currency.USD,
+     default_qty_type                = strategy.percent_of_equity,
+     default_qty_value               = 100,
+     pyramiding                      = 0,
+     process_orders_on_close         = true,
+     calc_on_every_tick              = false,
+     margin_long                     = 1,
+     margin_short                    = 1,
+     slippage                        = 2,
+     commission_type                 = strategy.commission.cash_per_order,
+     commission_value                = 3.5,
+     backtest_fill_limits_assumption = 1,
+     close_entries_rule              = "ANY")
+
+// ============================================================================
+// PROP FIRM RISK MANAGEMENT
+// ============================================================================
+grpRisk = "Prop Firm Risk Management"
+
+pf_risk_pct          = input.float(0.4,  "Risk % per trade",     minval=0.1, maxval=2.0, step=0.1, group=grpRisk, tooltip="Percent of current equity risked per trade. 0.4% on a $50k account = $200 per trade.")
+pf_daily_kill_pct    = input.float(4.0,  "Daily DD kill %",      minval=1.0, maxval=5.0, step=0.5, group=grpRisk, tooltip="Stop trading for the day after this drawdown from day-start equity. Keep below the prop firm daily DD limit (5% on ACG/FTMO).")
+pf_total_kill_pct    = input.float(8.0,  "Total DD kill %",      minval=4.0, maxval=10.0, step=0.5, group=grpRisk, tooltip="Stop trading entirely after this drawdown from peak equity. Keep below the prop firm max DD limit (10% on ACG/FTMO).")
+pf_consec_loss_kill  = input.int(2,      "Stop after N losses",  minval=1, maxval=5, group=grpRisk, tooltip="Stop trading for the day after this many consecutive losing trades.")
+pf_min_hold_minutes  = input.int(2,      "Min trade hold (min)", minval=0, maxval=60, group=grpRisk, tooltip="Block exits before this many minutes after entry. ACG Pro requires 2 min minimum.")
+pf_news_blackout_enabled = input.bool(false, "News blackout filter", group=grpRisk, tooltip="Manual news event filter. Edit the news_times array in code to update.")
 
 const string WEBHOOK_STRATEGY_ID = "liq_sd_v1"
 const string WEBHOOK_STRATEGY_VERSION = "1"
@@ -425,6 +439,61 @@ get_symbol_type() =>
         "OTHER"
 
 current_symbol = get_symbol_type()
+
+// ============================================================================
+// PROP FIRM KILL SWITCHES
+// ============================================================================
+
+var float pf_day_start_equity  = strategy.equity
+var float pf_peak_equity       = strategy.initial_capital
+var int   pf_consecutive_losses = 0
+
+if ta.change(time("D")) != 0
+    pf_day_start_equity    := strategy.equity
+    pf_consecutive_losses  := 0
+
+pf_peak_equity := math.max(pf_peak_equity, strategy.equity)
+
+if strategy.closedtrades > 0 and strategy.closedtrades > nz(strategy.closedtrades[1], 0)
+    float _pf_last_pnl = strategy.closedtrades.profit(strategy.closedtrades - 1)
+    pf_consecutive_losses := _pf_last_pnl < 0 ? pf_consecutive_losses + 1 : 0
+
+float pf_current_day_dd_pct   = pf_day_start_equity > 0 ? (pf_day_start_equity - strategy.equity) / pf_day_start_equity * 100 : 0.0
+float pf_current_total_dd_pct = strategy.initial_capital > 0 ? (pf_peak_equity - strategy.equity) / strategy.initial_capital * 100 : 0.0
+
+bool pf_daily_kill   = pf_current_day_dd_pct   >= pf_daily_kill_pct
+bool pf_total_kill   = pf_current_total_dd_pct >= pf_total_kill_pct
+bool pf_session_kill = pf_consecutive_losses   >= pf_consec_loss_kill
+bool pf_trading_disabled = pf_daily_kill or pf_total_kill or pf_session_kill
+
+if (pf_daily_kill or pf_total_kill) and strategy.position_size != 0
+    strategy.close_all(comment = pf_daily_kill ? "DAILY_KILL" : "TOTAL_KILL")
+
+// ============================================================================
+// MIN HOLD ENFORCEMENT
+// ============================================================================
+
+var int pf_entry_time_ms = 0
+if strategy.position_size != 0 and nz(strategy.position_size[1], 0) == 0
+    pf_entry_time_ms := time
+
+bool pf_min_hold_satisfied = (time - pf_entry_time_ms) >= (pf_min_hold_minutes * 60 * 1000)
+
+// ============================================================================
+// NEWS BLACKOUT (manual list — edit weekly from forexfactory.com red-folder events)
+// ============================================================================
+pf_news_times = array.from(
+     timestamp("2026-04-28 12:30:00 GMT-4"),
+     timestamp("2026-05-02 08:30:00 GMT-4"),
+     timestamp("2026-05-07 14:00:00 GMT-4")
+   )
+
+bool pf_is_news_blackout = false
+if pf_news_blackout_enabled
+    for _pf_i = 0 to array.size(pf_news_times) - 1
+        _pf_ts = array.get(pf_news_times, _pf_i)
+        if time >= _pf_ts - 2 * 60 * 1000 and time <= _pf_ts + 2 * 60 * 1000
+            pf_is_news_blackout := true
 
 col_demand_bg     = color.new(#26a69a, 88)  // Very subtle (12% visible)
 col_demand_border = color.new(#26a69a, 40)  // Teal border, semi-transparent
@@ -3224,7 +3293,7 @@ process_long_entries() =>
                                   style = label.style_label_down, color = color.new(color.red, 0),
                                   textcolor = color.white, size = size.normal)
 
-                if pos_is_valid and pos_qty_units > 0 and not na(pos_qty_units)
+                if pos_is_valid and pos_qty_units > 0 and not na(pos_qty_units) and not pf_trading_disabled and not pf_is_news_blackout
                     [isEntryPermitted, entryPermitReason] = isValidDemandEntry(i)
 
                     if not isEntryPermitted
@@ -3671,7 +3740,7 @@ process_short_entries() =>
                                   style = label.style_label_up, color = color.new(color.red, 0),
                                   textcolor = color.white, size = size.normal)
 
-                if pos_is_valid and pos_qty_units > 0 and not na(pos_qty_units)
+                if pos_is_valid and pos_qty_units > 0 and not na(pos_qty_units) and not pf_trading_disabled and not pf_is_news_blackout
                     [isEntryPermitted, entryPermitReason] = isValidSupplyEntry(i)
 
                     if not isEntryPermitted
@@ -4098,7 +4167,7 @@ if strategy.position_size != 0 and use_stop_loss and not na(trade_entry_price) a
         current_profit_pips := (trade_entry_price - close) / pip_size
         current_profit_rr := trade_original_sl_pips != 0 ? current_profit_pips / trade_original_sl_pips : 0
 
-    if current_profit_rr >= 10.0
+    if current_profit_rr >= 10.0 and pf_min_hold_satisfied
         if active_entry_id == "Long"
             strategy.close("Long", comment = "Hard Close at 1:10")
         else if active_entry_id == "Long Flip"
@@ -4132,7 +4201,7 @@ if strategy.position_size != 0 and use_stop_loss and not na(trade_entry_price) a
 if strategy.opentrades > 0
     int last_entry_bar = strategy.opentrades.entry_bar_index(strategy.opentrades - 1)
 
-    if (bar_index - last_entry_bar) >= max_bars_held
+    if (bar_index - last_entry_bar) >= max_bars_held and pf_min_hold_satisfied
         strategy.close_all(comment = "Time Stop (Bars)")
 
         trade_entry_price      := na
@@ -4970,3 +5039,28 @@ plot(plot_base_quality, "W14: Base Quality", display = display.none)
 plot(plot_departure_strength, "W15: Departure Strength", display = display.none)
 plot(plot_liquidity_distance, "W16: Liquidity Dist", display = display.none)
 plot(plot_liquidity_spread, "W17: Liquidity Spread", display = display.none)
+
+// ============================================================================
+// PROP FIRM STATUS TABLE
+// ============================================================================
+if barstate.islast
+    var table pf_risk_table = table.new(position.bottom_right, 2, 5, bgcolor=color.new(color.black, 80), border_width=1)
+
+    table.cell(pf_risk_table, 0, 0, "Daily DD",      text_color=color.white, text_size=size.small)
+    table.cell(pf_risk_table, 1, 0, str.tostring(pf_current_day_dd_pct, "#.##") + "%",
+         text_color = pf_current_day_dd_pct >= pf_daily_kill_pct * 0.75 ? color.red : color.lime, text_size=size.small)
+
+    table.cell(pf_risk_table, 0, 1, "Total DD",      text_color=color.white, text_size=size.small)
+    table.cell(pf_risk_table, 1, 1, str.tostring(pf_current_total_dd_pct, "#.##") + "%",
+         text_color = pf_current_total_dd_pct >= pf_total_kill_pct * 0.75 ? color.red : color.lime, text_size=size.small)
+
+    table.cell(pf_risk_table, 0, 2, "Consec Losses", text_color=color.white, text_size=size.small)
+    table.cell(pf_risk_table, 1, 2, str.tostring(pf_consecutive_losses),
+         text_color = pf_consecutive_losses >= pf_consec_loss_kill - 1 ? color.red : color.lime, text_size=size.small)
+
+    table.cell(pf_risk_table, 0, 3, "Trading",       text_color=color.white, text_size=size.small)
+    table.cell(pf_risk_table, 1, 3, pf_trading_disabled ? "DISABLED" : "ENABLED",
+         text_color = pf_trading_disabled ? color.red : color.lime, text_size=size.small)
+
+    table.cell(pf_risk_table, 0, 4, "Risk/Trade",    text_color=color.white, text_size=size.small)
+    table.cell(pf_risk_table, 1, 4, str.tostring(pf_risk_pct, "#.#") + "%", text_color=color.white, text_size=size.small)
