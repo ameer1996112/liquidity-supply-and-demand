@@ -799,6 +799,10 @@ class AccountOrchestrator:
                     "leverage": perf.leverage,
                     "created_at": account.get("created_at"),
                     "updated_at": account.get("updated_at"),
+                    "is_active": bool(account.get("is_active", True)),
+                    "selected_for_trading": bool(
+                        account.get("selected_for_trading", account.get("is_active", True))
+                    ),
                     "is_archived": False,
                 }
 
@@ -845,6 +849,8 @@ class AccountOrchestrator:
                     "leverage": live_data["leverage"],
                     "created_at": None,
                     "updated_at": None,
+                    "is_active": bool(profile.get("is_active", True)),
+                    "selected_for_trading": bool(profile.get("selected_for_trading", True)),
                     "is_archived": False,
                 }
 
@@ -901,6 +907,9 @@ class AccountOrchestrator:
                     "broker_profile_id": (account_row or {}).get("broker_profile_id"),
                     "created_at": (account_row or {}).get("created_at"),
                     "updated_at": (account_row or {}).get("updated_at"),
+                    "pause_trading": True,
+                    "is_active": False,
+                    "selected_for_trading": False,
                     "is_archived": True,
                 }
 

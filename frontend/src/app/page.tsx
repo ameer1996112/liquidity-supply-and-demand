@@ -26,6 +26,11 @@ import type { TradingSignal } from '@/types/trading';
 import { TableSkeleton } from '@/components/shared/TableStates';
 import { cn } from '@/lib/utils';
 import { buildOpenPositionFallback } from '@/components/dashboard/openPositionFallback';
+import {
+  buildEnabledAccountNames,
+  countSignalsByAccount,
+  filterSignalsByEnabledAccounts,
+} from '@/components/dashboard/latestSignalsFilter';
 
 export default function DashboardPage() {
   const [selectedSignal, setSelectedSignal] = useState<TradingSignal | null>(null);
@@ -53,7 +58,16 @@ export default function DashboardPage() {
   const { data: signals = [], isLoading: signalsLoading } = useTradingSignals(signalMode);
   const { data: positionsData, isLoading: positionsLoading, isError: positionsError } = useActivePositions();
 
-  const signalIds = useMemo(() => signals.map((s) => s.id), [signals]);
+  const enabledAccountNames = useMemo(
+    () => buildEnabledAccountNames(accounts),
+    [accounts],
+  );
+  const visibleSignals = useMemo(
+    () => filterSignalsByEnabledAccounts(signals, enabledAccountNames),
+    [enabledAccountNames, signals],
+  );
+
+  const signalIds = useMemo(() => visibleSignals.map((s) => s.id), [visibleSignals]);
   const councilMap = useCouncilSummaries(signalIds);
 
   const brokerMap = useMemo(() => {
@@ -65,8 +79,8 @@ export default function DashboardPage() {
   }, [positionsData]);
 
   const fallbackOpenPositions = useMemo(() => {
-    return buildOpenPositionFallback(signals);
-  }, [signals]);
+    return buildOpenPositionFallback(visibleSignals);
+  }, [visibleSignals]);
 
   const dashboardPositions = useMemo(() => {
     const livePositions = positionsData?.positions ?? [];
@@ -77,20 +91,14 @@ export default function DashboardPage() {
 
   // Signal count per account — shown as badges in the AccountStrip
   const signalCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    for (const s of signals) {
-      const nameRaw = (s as any).account_name;
-      const name = typeof nameRaw === 'string' ? nameRaw.trim() : nameRaw;
-      if (name) counts[name] = (counts[name] ?? 0) + 1;
-    }
-    return counts;
-  }, [signals]);
+    return countSignalsByAccount(visibleSignals);
+  }, [visibleSignals]);
 
   const { strategyCounts, strategyOptions } = useMemo(() => {
     const counts: Record<string, number> = {};
     const labels = new Map<string, string>();
 
-    for (const signal of signals) {
+    for (const signal of visibleSignals) {
       const strategyId = signal.strategy_id?.trim();
       const strategyName = signal.strategy_name?.trim();
       const key = strategyId || strategyName;
@@ -106,94 +114,63 @@ export default function DashboardPage() {
         .sort((left, right) => left[1].localeCompare(right[1]))
         .map(([value, label]) => ({ value, label })),
     };
-  }, [signals]);
+  }, [visibleSignals]);
 
-  // All distinct account names seen in signals (includes deleted accounts like ACG-DEMO)
-  // Used as filter options in the signal table — ensures archived account signals are reachable.
-  const signalAccountNames = useMemo(() => Object.keys(signalCounts).sort(), [signalCounts]);
-
-  const liveAccountNames = useMemo(() => {
-    const names: string[] = [];
-    for (const account of accounts) {
-      if (account.is_archived || account.status === 'archived') continue;
-      const normalized = account.account_name?.trim();
-      if (normalized) names.push(normalized);
-    }
-    return names;
-  }, [accounts]);
-
-  // Merge live accounts with archived ones derived from signals.
-  // Archived accounts (deleted from account_strategies) appear with minimal info
-  // so the AccountStrip still shows them and their signal count badges.
   const allAccountsForStrip = useMemo(() => {
-    // Drop accounts that were explicitly archived in the DB (Paper, old ACG-DEMO, etc.)
-    const liveAccounts = accounts.filter((a) => !a.is_archived && a.status !== 'archived');
-    const liveNames = new Set(liveAccounts.map((a) => a.account_name));
-    const archivedEntries = signalAccountNames
-      .filter((name) => !liveNames.has(name))
-      .map((name) => ({
-        account_name: name,
-        connection_status: 'disconnected' as const,
-        balance: null,
-        equity: null,
-        account_type: undefined,
-        prop_firm_name: undefined,
-        daily_pnl: undefined,
-        daily_pnl_pct: undefined,
-      }));
-    return [...liveAccounts, ...(archivedEntries as any[])];
-  }, [accounts, signalAccountNames]);
+    return accounts.filter((account) =>
+      enabledAccountNames.some(
+        (name) => name.toLowerCase() === account.account_name?.trim().toLowerCase(),
+      ),
+    );
+  }, [accounts, enabledAccountNames]);
 
-  // SignalTable filter pills include live accounts (even with 0 signals), archived accounts
-  // derived from historical signals, and the currently-selected account as a final safeguard.
+  // SignalTable filter pills include only accounts currently enabled for trading.
   const filterAccountNames = useMemo(() => {
     const namesByKey = new Map<string, string>();
 
-    for (const name of liveAccountNames) {
+    for (const name of enabledAccountNames) {
       namesByKey.set(name.toLowerCase(), name);
     }
 
-    for (const name of signalAccountNames) {
-      const normalized = name.trim();
-      if (!normalized) continue;
-      const key = normalized.toLowerCase();
-      if (!namesByKey.has(key)) namesByKey.set(key, normalized);
-    }
-
     const selected = signalAccountFilter?.trim();
-    if (selected) namesByKey.set(selected.toLowerCase(), selected);
+    if (selected && enabledAccountNames.some((name) => name.toLowerCase() === selected.toLowerCase())) {
+      namesByKey.set(selected.toLowerCase(), selected);
+    }
 
     return Array.from(namesByKey.values()).sort((left, right) =>
       left.localeCompare(right)
     );
-  }, [liveAccountNames, signalAccountNames, signalAccountFilter]);
+  }, [enabledAccountNames, signalAccountFilter]);
 
   useEffect(() => {
     if (signalAccountFilter && filterAccountNames.includes(signalAccountFilter)) {
       return;
     }
 
+    const activeProfileName = activeProfile?.name?.trim();
     const preferredAccount =
-      activeProfile?.name?.trim() ||
-      liveAccountNames[0] ||
+      (activeProfileName && filterAccountNames.includes(activeProfileName)
+        ? activeProfileName
+        : undefined) ||
       filterAccountNames[0];
 
     if (preferredAccount && preferredAccount !== signalAccountFilter) {
       setSignalAccountFilter(preferredAccount);
+    } else if (!preferredAccount && signalAccountFilter) {
+      setSignalAccountFilter(undefined);
     }
   }, [
     activeProfile?.name,
     filterAccountNames,
-    liveAccountNames,
     signalAccountFilter,
   ]);
 
   // Keep for log
   void useSignalStats(broker_profile_id);
-  const strategyName = signals[0]?.entry_model ?? signals[0]?.zone_type ?? 'Liquidity S&D';
+  const strategyName = visibleSignals[0]?.entry_model ?? visibleSignals[0]?.zone_type ?? 'Liquidity S&D';
 
   const { entries: logEntries, clear: clearLog } = useDashboardLog({
-    signals,
+    signals: visibleSignals,
     activeMode,
     isConnected,
     strategyName,
@@ -246,17 +223,17 @@ export default function DashboardPage() {
               <div className='flex items-center gap-2'>
                 <span className='panel-label'>Latest Signals</span>
                 <span className='rounded-full bg-[var(--to-surface-raised)] border border-[var(--to-border)] px-2 py-0.5 font-mono text-[9px] tabular-nums text-[var(--to-text-dim)]'>
-                  {signals.length}
+                  {visibleSignals.length}
                 </span>
               </div>
               <ConnectionPill />
             </div>
             <div className='h-0 flex-1 overflow-hidden p-2'>
-              {signalsLoading && signals.length === 0 ? (
+              {signalsLoading && visibleSignals.length === 0 ? (
                 <TableSkeleton rowCount={8} columnCount={6} />
               ) : (
                 <SignalTable
-                  signals={signals}
+                  signals={visibleSignals}
                   councilMap={councilMap}
                   brokerMap={brokerMap}
                   onSelectSignal={handleSelectSignal}

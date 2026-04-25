@@ -1061,6 +1061,8 @@ export interface AccountDetailApi {
   max_positions?: number;
   pause_trading?: boolean;
   created_at?: string;
+  is_active?: boolean;
+  selected_for_trading?: boolean;
   is_archived?: boolean;
 }
 
