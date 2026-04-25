@@ -264,4 +264,73 @@ describe('SignalInspector decision summary', () => {
     expect(document.body.textContent).not.toContain('unclear');
     expect(document.body.textContent).not.toContain('Setup evidence unavailable');
   });
+
+  it('does not show empty operating-layer fallbacks for completed legacy memos', async () => {
+    vi.mocked(fetchAiRunBySignal).mockResolvedValue({
+      id: 11,
+      correlation_id: 'corr-legacy',
+      signal_id: 124,
+      run_type: 'debate',
+      analysis_mode: 'shadow_pretrade',
+      recommendation: 'allow',
+      confidence: 70,
+      reason_codes: ['conservative_block'],
+      memo: '[Council] Approved with caution.',
+      votes: {
+        bull: 'allow',
+        bear: 'block',
+        judge: 'allow',
+      },
+      transcript: [
+        { role: 'risk_judge', content: 'Approved with caution.' },
+      ],
+      chart_context: {},
+      pine_context: {},
+      module_status: {},
+      layered_output: {},
+    });
+
+    const signal: TradingSignal = {
+      id: '124',
+      created_at: '2026-02-20T10:00:00.000Z',
+      symbol: 'GBPUSD',
+      side: 'sell',
+      status: 'closed',
+      price: 1.35062,
+    };
+
+    const queryClient = new QueryClient();
+    act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <SignalInspector signal={signal} open={true} onOpenChange={() => {}} />
+        </QueryClientProvider>
+      );
+    });
+
+    const memoTab = Array.from(document.querySelectorAll('button')).find((el) =>
+      el.textContent?.includes('AI Memo')
+    );
+    expect(memoTab).toBeTruthy();
+
+    await act(async () => {
+      memoTab?.dispatchEvent(
+        new MouseEvent('mousedown', { bubbles: true, button: 0 })
+      );
+      memoTab?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    for (let i = 0; i < 10 && document.body.textContent?.includes('Loading AI Memo'); i++) {
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      });
+    }
+
+    expect(document.body.textContent).toContain('Final Vote');
+    expect(document.body.textContent).toContain('ALLOW');
+    expect(document.body.textContent).toContain('Approved with caution.');
+    expect(document.body.textContent).not.toContain('AI Operating Layer');
+    expect(document.body.textContent).not.toContain('unclear');
+    expect(document.body.textContent).not.toContain('Setup evidence unavailable');
+  });
 });

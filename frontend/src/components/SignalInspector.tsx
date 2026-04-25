@@ -383,6 +383,20 @@ function isPendingAiRun(aiRun: {
   );
 }
 
+function hasAiOperatingLayerData(aiRun: {
+  chart_context?: Record<string, unknown>;
+  pine_context?: Record<string, unknown>;
+  module_status?: Record<string, unknown>;
+  layered_output?: Record<string, unknown>;
+}): boolean {
+  return (
+    Object.keys(aiRun.chart_context || {}).length > 0 ||
+    Object.keys(aiRun.pine_context || {}).length > 0 ||
+    Object.keys(aiRun.module_status || {}).length > 0 ||
+    Object.keys(aiRun.layered_output || {}).length > 0
+  );
+}
+
 export function SignalInspector({
   signal,
   open,
@@ -1192,9 +1206,7 @@ export function SignalInspector({
                     </div>
                   ) : (
                   <>
-                    {(aiRun.analysis_mode ||
-                      aiRun.module_status ||
-                      aiRun.layered_output) && (
+                    {hasAiOperatingLayerData(aiRun) && (
                       <AiOperatingLayerPanel run={mapAiRun(aiRun)} />
                     )}
                     <div className='rounded-lg bg-card border border-border overflow-hidden'>
