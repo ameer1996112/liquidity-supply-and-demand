@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import json
 import sys
 from types import SimpleNamespace
 from unittest import mock
@@ -250,6 +251,103 @@ def test_execute_run_dry_run_claims_without_mcp_or_playwright_ready(local_agent,
         event_path == "/api/optimizer/runs/run-3/events" and body["event_type"] == "log"
         for event_path, body in post_calls
     )
+
+
+def test_execute_validate_run_writes_and_cleans_source_params_file(local_agent, monkeypatch, tmp_path):
+    patch_calls, post_calls, get_calls = _capture_http_calls(local_agent, monkeypatch)
+
+    def fake_get(path: str):
+        get_calls.append(path)
+        if path == "/api/optimizer/runs/source-run/results":
+            return {
+                "results": [
+                    {
+                        "symbol": "EURUSD",
+                        "status": "completed",
+                        "params": {"rr_mode": "fixed_4.0"},
+                        "metrics": {"profit_factor": 1.72},
+                    }
+                ]
+            }
+        return {"status": "running"}
+
+    monkeypatch.setattr(local_agent, "api_get", fake_get)
+    monkeypatch.setattr(local_agent, "VALIDATE_TMP_DIR", tmp_path)
+    monkeypatch.setattr(local_agent, "_playwright_available", lambda: False)
+    process = _FakeProcess(exit_code=0)
+    popen = mock.Mock(return_value=process)
+    monkeypatch.setattr(local_agent.subprocess, "Popen", popen)
+    monkeypatch.setattr(local_agent, "_stream_and_report", lambda run_id, proc: None)
+
+    local_agent.execute_run(
+        {
+            "id": "run-validate",
+            "mode": "validate",
+            "workers": 1,
+            "pairs": ["EURUSD"],
+            "n_trials": 25,
+            "dd_limit": 6.0,
+            "dry_run": True,
+            "broker": "vantage",
+            "source_run_id": "source-run",
+        }
+    )
+
+    command = popen.call_args.args[0]
+    source_path = command[command.index("--source-params-file") + 1]
+    assert "--source-run-id" in command
+    assert command[command.index("--source-run-id") + 1] == "source-run"
+    assert source_path.startswith(str(tmp_path))
+    assert "validate_source_run-validate_" in source_path
+    assert not tmp_path.joinpath(source_path.split("/")[-1]).exists()
+    assert "/api/optimizer/runs/source-run/results" in get_calls
+    assert any(path == "/api/optimizer/runs/run-validate" for path, _ in patch_calls)
+    assert any(path == "/api/optimizer/runs/run-validate/events" for path, _ in post_calls)
+
+
+def test_execute_validate_run_cleans_source_params_file_when_subprocess_fails(local_agent, monkeypatch, tmp_path):
+    _capture_http_calls(local_agent, monkeypatch)
+
+    monkeypatch.setattr(
+        local_agent,
+        "api_get",
+        lambda path: {
+            "results": [
+                {
+                    "symbol": "EURUSD",
+                    "status": "completed",
+                    "params": {"rr_mode": "fixed_4.0"},
+                }
+            ]
+        }
+        if path == "/api/optimizer/runs/source-run/results"
+        else {"status": "running"},
+    )
+    monkeypatch.setattr(local_agent, "VALIDATE_TMP_DIR", tmp_path)
+    monkeypatch.setattr(local_agent, "_playwright_available", lambda: False)
+    process = _FakeProcess(exit_code=1)
+    monkeypatch.setattr(local_agent.subprocess, "Popen", mock.Mock(return_value=process))
+
+    def explode(_run_id, _process):
+        raise OSError("subprocess pipe failed")
+
+    monkeypatch.setattr(local_agent, "_stream_and_report", explode)
+
+    local_agent.execute_run(
+        {
+            "id": "run-validate",
+            "mode": "validate",
+            "workers": 1,
+            "pairs": ["EURUSD"],
+            "n_trials": 25,
+            "dd_limit": 6.0,
+            "dry_run": True,
+            "broker": "vantage",
+            "source_run_id": "source-run",
+        }
+    )
+
+    assert list(tmp_path.glob("validate_source_run-validate_*.json")) == []
 
 
 def test_execute_run_does_not_fail_when_playwright_is_missing_before_claim(local_agent, monkeypatch):

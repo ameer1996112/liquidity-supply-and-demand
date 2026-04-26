@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import {
   ArrowDownRight,
   BarChart3,
+  Info,
   Loader2,
   Play,
   ShieldCheck,
@@ -209,8 +210,15 @@ function summarizeStressScenarios(stressResults: OptimizerRunStressResultApi[]) 
   return labels.size > 0 ? Array.from(labels).join(', ') : 'Stress artifacts not available yet';
 }
 
+function normalizeRunResultsPayload(
+  results: OptimizerRunResultApi[] | Record<string, OptimizerRunResultApi> | undefined | null,
+) {
+  if (!results) return [];
+  return Array.isArray(results) ? results : Object.values(results);
+}
+
 function getEmbeddedResults(run?: OptimizerRunApi | null) {
-  return run?.results ?? [];
+  return normalizeRunResultsPayload(run?.results);
 }
 
 function getEmbeddedEvents(run?: OptimizerRunApi | null) {
@@ -232,6 +240,34 @@ function preferPolledArtifacts<T>(polled: T[], embedded: T[], hasFreshPoll: bool
     return polled;
   }
   return polled.length > 0 ? polled : embedded;
+}
+
+type OptimizerMode = 'bayesian' | 'smart' | 'fast' | 'full' | 'validate' | 'multi_broker_validate';
+type BrokerId = 'vantage' | 'oanda' | 'fxcm';
+type BacktestRange = '30d' | '90d' | '365d' | 'all' | 'custom';
+
+const BROKER_OPTIONS: Array<{ value: BrokerId; label: string }> = [
+  { value: 'vantage', label: 'Vantage' },
+  { value: 'oanda', label: 'OANDA' },
+  { value: 'fxcm', label: 'FXCM' },
+];
+
+function shiftDateByMonths(months: number) {
+  const value = new Date();
+  value.setMonth(value.getMonth() + months);
+  return value.toISOString().slice(0, 10);
+}
+
+function daysBetween(startDate: string, endDate: string) {
+  const start = new Date(`${startDate}T00:00:00Z`).getTime();
+  const end = new Date(`${endDate}T00:00:00Z`).getTime();
+  if (Number.isNaN(start) || Number.isNaN(end)) return null;
+  return Math.round((end - start) / 86_400_000);
+}
+
+function rangesOverlap(startA?: string | null, endA?: string | null, startB?: string | null, endB?: string | null) {
+  if (!startA || !endA || !startB || !endB) return false;
+  return startA < endB && startB < endA;
 }
 
 function deriveDecisionReason(args: {
@@ -725,9 +761,13 @@ export function OptimizerRunsWorkspace() {
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
   const [strategyId, setStrategyId] = useState('');
   const [strategyVersion, setStrategyVersion] = useState('');
-  const [mode, setMode] = useState<'bayesian' | 'smart' | 'fast' | 'full'>('bayesian');
-  const [broker, setBroker] = useState<'vantage' | 'oanda' | 'fxcm'>('vantage');
-  const [backtestRange, setBacktestRange] = useState<'30d' | '90d' | '365d' | 'all'>('365d');
+  const [mode, setMode] = useState<OptimizerMode>('bayesian');
+  const [broker, setBroker] = useState<BrokerId>('vantage');
+  const [selectedBrokers, setSelectedBrokers] = useState<BrokerId[]>(['vantage', 'oanda', 'fxcm']);
+  const [backtestRange, setBacktestRange] = useState<BacktestRange>('365d');
+  const [customStartDate, setCustomStartDate] = useState(() => shiftDateByMonths(-24));
+  const [customEndDate, setCustomEndDate] = useState(() => shiftDateByMonths(-12));
+  const [sourceRunId, setSourceRunId] = useState('');
   const [workers, setWorkers] = useState('3');
   const [pairs, setPairs] = useState('EURUSD,GBPUSD,XAUUSD');
   const [allPairs, setAllPairs] = useState(true);
@@ -747,7 +787,7 @@ export function OptimizerRunsWorkspace() {
   const eventsQuery = useOptimizerRunEvents(currentRunId);
   const trialsQuery = useOptimizerRunTrials(currentRunId, selectedSymbol);
   const stressResultsQuery = useOptimizerRunStressResults(currentRunId, selectedSymbol);
-  const polledResults = resultsQuery.data ?? [];
+  const polledResults = normalizeRunResultsPayload(resultsQuery.data);
   const polledEvents = eventsQuery.data ?? [];
   const polledTrials = trialsQuery.data ?? [];
   const polledStressResults = stressResultsQuery.data ?? [];
@@ -796,18 +836,29 @@ export function OptimizerRunsWorkspace() {
   }, [currentRun?.portfolio_result?.weights, currentRun?.summary?.best_symbol, results, selectedSymbol]);
 
   const handleSubmit = () => {
+    const isValidateMode = mode === 'validate' || mode === 'multi_broker_validate';
     const payload: OptimizerRunCreateApi = {
       strategy_id: strategyId.trim(),
       strategy_version: strategyVersion.trim(),
       mode,
       workers: Number(workers),
       pairs: allPairs ? ['ALL'] : pairs.split(',').map((item) => item.trim()).filter(Boolean),
-      n_trials: Number(nTrials),
+      n_trials: isValidateMode ? 1 : Number(nTrials),
       dd_limit: Number(ddLimit),
       dry_run: dryRun,
       broker,
       backtest_range: backtestRange,
     };
+    if (isValidateMode) {
+      payload.source_run_id = sourceRunId.trim();
+    }
+    if (mode === 'multi_broker_validate') {
+      payload.brokers = selectedBrokers;
+    }
+    if (backtestRange === 'custom') {
+      payload.custom_start_date = customStartDate;
+      payload.custom_end_date = customEndDate;
+    }
     createRun.mutate(payload, {
       onSuccess: (run) => setSelectedRunId(run.id),
     });
@@ -818,10 +869,29 @@ export function OptimizerRunsWorkspace() {
   const totalPairs = currentRun?.summary?.total_pairs ?? 0;
   const runningPairs = currentRun?.summary?.running_pairs ?? 0;
   const currentStrategyBadge = getStrategyBadge(currentRun);
-  const canStartRun = Boolean(strategyId.trim() && strategyVersion.trim()) && !createRun.isPending;
   const portfolioWeights = currentRun?.portfolio_result?.weights ?? {};
   const selectedResult = results.find((result) => result.symbol === selectedSymbol);
   const desktopBridgeReady = agentStatus?.desktop_ready ?? agentStatus?.chrome_ready ?? false;
+  const isValidateMode = mode === 'validate' || mode === 'multi_broker_validate';
+  const selectedSourceRun = runs.find((run) => run.id === sourceRunId.trim());
+  const customRangeDays = daysBetween(customStartDate, customEndDate);
+  const customRangeInvalid =
+    backtestRange === 'custom' && (customRangeDays === null || customRangeDays < 30 || customEndDate <= customStartDate);
+  const sourceWindowOverlaps =
+    isValidateMode &&
+    backtestRange === 'custom' &&
+    rangesOverlap(
+      customStartDate,
+      customEndDate,
+      selectedSourceRun?.custom_start_date ?? selectedSourceRun?.summary?.custom_start_date,
+      selectedSourceRun?.custom_end_date ?? selectedSourceRun?.summary?.custom_end_date,
+    );
+  const canStartRun =
+    Boolean(strategyId.trim() && strategyVersion.trim()) &&
+    !createRun.isPending &&
+    (!isValidateMode || Boolean(sourceRunId.trim())) &&
+    (mode !== 'multi_broker_validate' || selectedBrokers.length > 0) &&
+    !customRangeInvalid;
 
   return (
     <div className='space-y-4'>
@@ -866,53 +936,114 @@ export function OptimizerRunsWorkspace() {
               <Input value={strategyVersion} onChange={(event) => setStrategyVersion(event.target.value)} placeholder='1' />
             </label>
             <label className='space-y-1 text-xs text-[var(--to-text-secondary)]'>
-              <span>Mode</span>
+              <span className='flex items-center gap-1.5'>
+                Mode
+                {isValidateMode ? (
+                  <span
+                    title='Re-runs winning params from a previous Bayesian/Smart run on a new time window or broker. Use for out-of-sample validation.'
+                    className='inline-flex text-[var(--to-text-dim)]'
+                  >
+                    <Info className='h-3.5 w-3.5' />
+                  </span>
+                ) : null}
+              </span>
               <select
                 value={mode}
-                onChange={(event) => setMode(event.target.value as typeof mode)}
+                onChange={(event) => setMode(event.target.value as OptimizerMode)}
                 className='h-9 w-full rounded-md border border-[var(--to-border)] bg-[var(--to-surface)] px-3 text-sm text-[var(--to-text-primary)]'
               >
                 <option value='bayesian'>Bayesian</option>
                 <option value='smart'>Smart</option>
                 <option value='fast'>Fast</option>
                 <option value='full'>Full</option>
+                <option value='validate'>Validate</option>
+                <option value='multi_broker_validate'>Multi-Broker Validate</option>
               </select>
             </label>
-            <label className='space-y-1 text-xs text-[var(--to-text-secondary)]'>
-              <span>Broker</span>
-              <select
-                aria-label='Broker'
-                value={broker}
-                onChange={(event) => setBroker(event.target.value as typeof broker)}
-                className='h-9 w-full rounded-md border border-[var(--to-border)] bg-[var(--to-surface)] px-3 text-sm text-[var(--to-text-primary)]'
-              >
-                <option value='vantage'>Vantage</option>
-                <option value='oanda'>OANDA</option>
-                <option value='fxcm'>FXCM</option>
-              </select>
-            </label>
+            {mode === 'multi_broker_validate' ? (
+              <fieldset className='space-y-1 text-xs text-[var(--to-text-secondary)]'>
+                <legend>Broker set</legend>
+                <div className='flex h-9 items-center gap-3 rounded-md border border-[var(--to-border)] bg-[var(--to-surface)] px-3'>
+                  {BROKER_OPTIONS.map((option) => (
+                    <label key={option.value} className='flex items-center gap-1.5'>
+                      <input
+                        type='checkbox'
+                        checked={selectedBrokers.includes(option.value)}
+                        onChange={(event) => {
+                          setSelectedBrokers((current) =>
+                            event.target.checked
+                              ? Array.from(new Set([...current, option.value]))
+                              : current.filter((item) => item !== option.value)
+                          );
+                        }}
+                      />
+                      {option.label}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            ) : (
+              <label className='space-y-1 text-xs text-[var(--to-text-secondary)]'>
+                <span>Broker</span>
+                <select
+                  aria-label='Broker'
+                  value={broker}
+                  onChange={(event) => setBroker(event.target.value as BrokerId)}
+                  className='h-9 w-full rounded-md border border-[var(--to-border)] bg-[var(--to-surface)] px-3 text-sm text-[var(--to-text-primary)]'
+                >
+                  {BROKER_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label className='space-y-1 text-xs text-[var(--to-text-secondary)]'>
               <span>Backtest range</span>
               <select
                 aria-label='Backtest range'
                 value={backtestRange}
-                onChange={(event) => setBacktestRange(event.target.value as typeof backtestRange)}
+                onChange={(event) => setBacktestRange(event.target.value as BacktestRange)}
                 className='h-9 w-full rounded-md border border-[var(--to-border)] bg-[var(--to-surface)] px-3 text-sm text-[var(--to-text-primary)]'
               >
                 <option value='30d'>Last 30 days</option>
                 <option value='90d'>Last 90 days</option>
                 <option value='365d'>Last 365 days</option>
                 <option value='all'>Entire history</option>
+                <option value='custom'>Custom range</option>
               </select>
             </label>
+            {isValidateMode ? (
+              <label className='space-y-1 text-xs text-[var(--to-text-secondary)]'>
+                <span>Source run ID</span>
+                <Input
+                  aria-label='Source run ID'
+                  value={sourceRunId}
+                  onChange={(event) => setSourceRunId(event.target.value)}
+                  onInput={(event) => setSourceRunId(event.currentTarget.value)}
+                  list='optimizer-source-runs'
+                  placeholder='Previous completed run'
+                />
+                <datalist id='optimizer-source-runs'>
+                  {runs
+                    .filter((run) => run.status === 'completed' && run.strategy_id === strategyId)
+                    .map((run) => (
+                      <option key={run.id} value={run.id}>
+                        {run.mode} · {run.broker?.toUpperCase() ?? 'broker'} · {run.created_at ?? ''}
+                      </option>
+                    ))}
+                </datalist>
+              </label>
+            ) : null}
             <label className='space-y-1 text-xs text-[var(--to-text-secondary)]'>
               <span>Workers</span>
               <Input value={workers} onChange={(event) => setWorkers(event.target.value)} />
             </label>
-            <label className='space-y-1 text-xs text-[var(--to-text-secondary)]'>
-              <span>Trials</span>
-              <Input value={nTrials} onChange={(event) => setNTrials(event.target.value)} />
-            </label>
+            {!isValidateMode ? (
+              <label className='space-y-1 text-xs text-[var(--to-text-secondary)]'>
+                <span>Trials</span>
+                <Input value={nTrials} onChange={(event) => setNTrials(event.target.value)} />
+              </label>
+            ) : null}
             <label className='space-y-1 text-xs text-[var(--to-text-secondary)] md:col-span-2 xl:col-span-1'>
               <span>Max DD %</span>
               <Input value={ddLimit} onChange={(event) => setDdLimit(event.target.value)} />
@@ -926,6 +1057,42 @@ export function OptimizerRunsWorkspace() {
               />
             </label>
           </div>
+          {backtestRange === 'custom' ? (
+            <div className='grid gap-3 rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)]/20 p-3 md:grid-cols-2'>
+              <label className='space-y-1 text-xs text-[var(--to-text-secondary)]'>
+                <span>Start date</span>
+                <Input
+                  aria-label='Custom start date'
+                  type='date'
+                  value={customStartDate}
+                  onChange={(event) => setCustomStartDate(event.target.value)}
+                  onInput={(event) => setCustomStartDate(event.currentTarget.value)}
+                />
+              </label>
+              <label className='space-y-1 text-xs text-[var(--to-text-secondary)]'>
+                <span>End date</span>
+                <Input
+                  aria-label='Custom end date'
+                  type='date'
+                  value={customEndDate}
+                  onChange={(event) => setCustomEndDate(event.target.value)}
+                  onInput={(event) => setCustomEndDate(event.currentTarget.value)}
+                />
+              </label>
+              <p className='text-xs text-[var(--to-text-dim)] md:col-span-2'>
+                For walk-forward validation: use a window that does NOT overlap with your source run&apos;s window.
+                Recommended: 12 months ending 1 month before source run&apos;s start date.
+              </p>
+              {customRangeInvalid ? (
+                <p className='text-xs text-red-300 md:col-span-2'>Custom range must end after the start date and span at least 30 days.</p>
+              ) : null}
+              {sourceWindowOverlaps ? (
+                <p className='text-xs text-amber-300 md:col-span-2'>
+                  ⚠️ This date range overlaps with the source run&apos;s window. Out-of-sample validation should use a non-overlapping period. Continue anyway?
+                </p>
+              ) : null}
+            </div>
+          ) : null}
           <label className='flex items-center gap-2 text-xs text-[var(--to-text-secondary)]'>
             <input type='checkbox' checked={allPairs} onChange={(event) => setAllPairs(event.target.checked)} />
             All pairs

@@ -19,11 +19,11 @@ import time
 import logging
 import re
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, TYPE_CHECKING
 
 from .config import INPUT_INDEX, CHECKBOX_INDICES, HILL_CLIMB_PARAMS, LIQ_DISTANCE_RANGES
-from .models import BacktestResult
+from .models import BacktestResult, NoDataForRangeError
 from .optimizer_mcp import broker_to_tv_exchange, broker_to_tv_symbol_prefix
 
 if TYPE_CHECKING:
@@ -86,6 +86,13 @@ _BACKTEST_RANGE_PRESETS: dict[str, dict[str, object]] = {
         "max_days": None,
         "summary": "entire history",
     },
+    "custom": {
+        "label": "Custom range",
+        "chart_tab": "",
+        "min_days": 30,
+        "max_days": None,
+        "summary": "custom range",
+    },
 }
 
 _BACKTEST_RANGE_ALIASES = {
@@ -102,6 +109,8 @@ _BACKTEST_RANGE_ALIASES = {
     "last 365 days": "365d",
     "all": "all",
     "entire history": "all",
+    "custom": "custom",
+    "custom range": "custom",
 }
 
 
@@ -139,6 +148,11 @@ def backtest_range_to_label(value: str | None) -> str:
 def _backtest_range_preset(range_label: str) -> dict[str, object]:
     """Resolve a TradingView label or shorthand range key to a preset spec."""
     return _BACKTEST_RANGE_PRESETS[normalize_backtest_range(range_label)]
+
+
+def _iso_date_to_unix_seconds(value: str) -> int:
+    parsed = datetime.fromisoformat(value).replace(tzinfo=timezone.utc)
+    return int(parsed.timestamp())
 
 
 # ─────────────────────────────────── JS snippets ─────────────────────────────
@@ -1989,9 +2003,48 @@ class TabWorker:
 
 
 
+    async def _set_custom_date_range(self, start_date: str, end_date: str) -> bool:
+        """Set and verify a custom TradingView visible date range via the MCP bridge."""
+        from_ts = _iso_date_to_unix_seconds(start_date)
+        to_ts = _iso_date_to_unix_seconds(end_date)
+        try:
+            await self._ensure_strategy_tester_open()
+            client = getattr(self.page, "_client", None)
+            if client is None:
+                raise RuntimeError("custom date ranges require TradingView MCP-backed page")
+            result = await client.run("range", "--from", str(from_ts), "--to", str(to_ts))
+            if not result.get("success", True):
+                raise RuntimeError(str(result.get("error") or "MCP range command failed"))
+            actual = result.get("actual") or {}
+            actual_from = int(actual.get("from") or 0)
+            actual_to = int(actual.get("to") or 0)
+            if actual_from <= 0 or actual_to <= 0:
+                raise RuntimeError(f"MCP range command did not return a visible range: {actual}")
+            # Allow a little slack for market sessions/weekends, but fail closed
+            # when the chart could not reach the requested historical data.
+            if actual_from > from_ts + 7 * 24 * 60 * 60:
+                raise NoDataForRangeError(f"no data available before {start_date}")
+            if actual_to < to_ts - 7 * 24 * 60 * 60:
+                raise NoDataForRangeError(f"no data available through {end_date}")
+            await self._wait_for_update_complete()
+            await self._wait_for_load()
+            print(f"  [backtest range ✓ custom {start_date} → {end_date}]", flush=True)
+            return True
+        except NoDataForRangeError:
+            raise
+        except Exception as e:
+            log.warning("_set_custom_date_range: %s", e)
+            return False
+
+    async def _require_custom_date_range(self, start_date: str, end_date: str) -> None:
+        if not await self._set_custom_date_range(start_date, end_date):
+            raise RuntimeError(f"Could not confirm custom backtest range {start_date} to {end_date}")
+
     async def _require_backtest_range(self, range_label: str) -> None:
         """Fail closed unless the strategy tester range is confirmed to match the requested preset."""
         preset_label = backtest_range_to_label(range_label)
+        if normalize_backtest_range(range_label) == "custom":
+            raise RuntimeError("custom backtest range requires explicit start/end dates")
         if not await self._set_backtest_range(preset_label):
             raise RuntimeError(f"Could not confirm backtest range is {preset_label}")
 
@@ -3385,6 +3438,37 @@ class TabWorker:
 
     # ─────────────────────────────────── high-level optimization ─────────────
 
+    async def validate_pair(
+        self,
+        symbol: str,
+        params: dict,
+        *,
+        custom_start_date: str | None = None,
+        custom_end_date: str | None = None,
+    ) -> BacktestResult:
+        """Run one frozen-parameter backtest for a symbol."""
+        tag = f"[{symbol}]"
+        print(f"\n{'=' * 60}")
+        print(f"{tag} VALIDATING: {symbol}")
+        print(f"{'=' * 60}")
+
+        await self._switch_symbol(symbol)
+        if self.optimizer.backtest_range == "custom":
+            if not custom_start_date or not custom_end_date:
+                raise RuntimeError("custom_start_date and custom_end_date are required")
+            await self._require_custom_date_range(custom_start_date, custom_end_date)
+        else:
+            await self._require_backtest_range(self.optimizer.backtest_range_label)
+        await self._prepare_clean_chart()
+
+        apply_outcome = await self._apply_params(params)
+        if not apply_outcome.fresh:
+            raise RuntimeError(apply_outcome.reason or "frozen params did not produce a fresh result")
+        result = await self._read_results(symbol, params)
+        self.results.append(result)
+        _print_pair_summary_table(result)
+        return result
+
     async def optimize_pair(self, symbol: str) -> Optional[BacktestResult]:
         """Run full grid-search optimization for one symbol on this tab."""
         tag = f"[{symbol}]"
@@ -3393,7 +3477,13 @@ class TabWorker:
         print(f"{'=' * 60}")
 
         await self._switch_symbol(symbol)
-        await self._require_backtest_range(self.optimizer.backtest_range_label)
+        if self.optimizer.backtest_range == "custom":
+            await self._require_custom_date_range(
+                self.optimizer.custom_start_date,
+                self.optimizer.custom_end_date,
+            )
+        else:
+            await self._require_backtest_range(self.optimizer.backtest_range_label)
         await self._prepare_clean_chart()
 
         param_grid = self.optimizer.get_param_grid(symbol)
@@ -3444,7 +3534,13 @@ class TabWorker:
         print(f"{'=' * 60}")
 
         await self._switch_symbol(symbol)
-        await self._require_backtest_range(self.optimizer.backtest_range_label)
+        if self.optimizer.backtest_range == "custom":
+            await self._require_custom_date_range(
+                self.optimizer.custom_start_date,
+                self.optimizer.custom_end_date,
+            )
+        else:
+            await self._require_backtest_range(self.optimizer.backtest_range_label)
         await self._prepare_clean_chart()
 
         print(f"{tag} Reading baseline results...")

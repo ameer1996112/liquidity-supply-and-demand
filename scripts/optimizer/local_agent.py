@@ -13,6 +13,7 @@ Requires ADMIN_API_KEY and API_URL in .env (or environment variables).
 """
 
 import asyncio
+import atexit
 import json
 import logging
 import os
@@ -20,6 +21,7 @@ import signal
 import ssl
 import subprocess
 import sys
+import tempfile
 import time
 import threading
 from pathlib import Path
@@ -48,6 +50,7 @@ LOCAL_AGENT_TARGET = os.environ.get("LOCAL_AGENT_TARGET", "both").strip().lower(
 ALERT_AGENT_TARGETS = {"alert", "alert-setup", "alerts"}
 OPTIMIZER_AGENT_TARGETS = {"optimizer", "optimize", "runs"}
 OPTIMIZER_RUN_BLOCKED_BACKOFF_SECONDS = 60.0
+VALIDATE_TMP_DIR = PROJECT_ROOT / "scripts" / "optimizer" / "tmp"
 
 log = logging.getLogger("optimizer-agent")
 
@@ -185,6 +188,69 @@ def _normalize_broker(value: str | None) -> str:
     if normalized not in {"vantage", "oanda", "fxcm"}:
         raise ValueError(f"Unsupported broker: {value}")
     return normalized
+
+
+def _normalize_brokers(values: list[str] | None, fallback: str) -> list[str]:
+    brokers = values or [fallback]
+    normalized = []
+    for broker in brokers:
+        normalized.append(_normalize_broker(broker))
+    return normalized
+
+
+def _source_results_to_params_payload(source_run_id: str, response: dict | None) -> dict[str, Any]:
+    if not response:
+        raise ValueError(f"Could not load source optimizer run results: {source_run_id}")
+    raw_results = response.get("results")
+    results: dict[str, Any] = {}
+    if isinstance(raw_results, dict):
+        for symbol, data in raw_results.items():
+            if isinstance(data, dict):
+                results[str(symbol).upper()] = data
+    elif isinstance(raw_results, list):
+        for row in raw_results:
+            if not isinstance(row, dict):
+                continue
+            symbol = str(row.get("symbol") or "").upper().strip()
+            params = row.get("params")
+            if symbol and isinstance(params, dict) and params:
+                results[symbol] = {
+                    "params": params,
+                    "metrics": row.get("metrics") or {},
+                    "status": row.get("status"),
+                }
+    if not results:
+        raise ValueError(f"Source optimizer run {source_run_id} has no reusable params")
+    return {"source_run_id": source_run_id, "results": results}
+
+
+def _write_validate_source_params(run_id: str, source_run_id: str) -> Path:
+    VALIDATE_TMP_DIR.mkdir(parents=True, exist_ok=True)
+    response = api_get(f"/api/optimizer/runs/{source_run_id}/results")
+    payload = _source_results_to_params_payload(source_run_id, response)
+    timestamp = time.strftime("%Y%m%d%H%M%S")
+    handle = tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        delete=False,
+        dir=VALIDATE_TMP_DIR,
+        prefix=f"validate_source_{run_id}_{timestamp}_",
+        suffix=".json",
+    )
+    path = Path(handle.name)
+    with handle:
+        json.dump(payload, handle, indent=2)
+    atexit.register(_cleanup_validate_source_params, path)
+    return path
+
+
+def _cleanup_validate_source_params(path: Path | None) -> None:
+    if path is None:
+        return
+    try:
+        path.unlink(missing_ok=True)
+    except Exception as exc:
+        log.debug("Failed to clean validate source params file %s: %s", path, exc)
 
 
 def _should_report_optimizer_run_blocked(run_id: str, reason: str) -> bool:
@@ -329,7 +395,12 @@ def execute_run(run: dict) -> None:
     dd_limit = run.get("dd_limit", 6.0)
     dry_run = run.get("dry_run", False)
     broker = _normalize_broker(run.get("broker"))
+    brokers = _normalize_brokers(run.get("brokers"), broker)
     backtest_range = str(run.get("backtest_range") or "365d").strip().lower()
+    source_run_id = run.get("source_run_id") or (run.get("summary") or {}).get("source_run_id")
+    custom_start_date = run.get("custom_start_date") or (run.get("summary") or {}).get("custom_start_date")
+    custom_end_date = run.get("custom_end_date") or (run.get("summary") or {}).get("custom_end_date")
+    source_params_file: Path | None = None
 
     log.info("=" * 60)
     log.info("Picked up run %s", run_id)
@@ -357,93 +428,120 @@ def execute_run(run: dict) -> None:
         },
     })
 
-    # Build command
-    command = [
-        sys.executable, "-m", "scripts.optimizer.parallel_runner",
-        "--workers", str(workers),
-        "--mode", mode,
-        "--trials", str(n_trials),
-        "--dd-limit", str(dd_limit),
-        "--pairs", ",".join(pairs),
-        "--broker", broker,
-        "--backtest-range", backtest_range,
-        "--results-label", run_id,
-    ]
-    if dry_run:
-        command.append("--dry-run")
-
-    env = {**os.environ, "PYTHONPATH": os.environ.get("PYTHONPATH", "."), "PYTHONUNBUFFERED": "1"}
-
-    log.info("Spawning: %s", " ".join(command))
-    process = subprocess.Popen(
-        command,
-        cwd=str(PROJECT_ROOT),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1,
-        env=env,
-    )
-
-    # Monitor subprocess output + check for cancellation
-    cancelled = False
-    child_io_error: OSError | None = None
     try:
-        _stream_and_report(run_id, process)
-    except _RunCancelled:
-        cancelled = True
-        log.info("Run %s cancelled by user", run_id)
-        process.terminate()
+        if mode in {"validate", "multi_broker_validate"}:
+            if not source_run_id:
+                raise ValueError("source_run_id is required for validate modes")
+            source_params_file = _write_validate_source_params(run_id, str(source_run_id))
+
+        # Build command
+        command = [
+            sys.executable, "-m", "scripts.optimizer.parallel_runner",
+            "--workers", str(workers),
+            "--mode", mode,
+            "--trials", str(n_trials),
+            "--dd-limit", str(dd_limit),
+            "--pairs", ",".join(pairs),
+            "--broker", broker,
+            "--backtest-range", backtest_range,
+            "--results-label", run_id,
+        ]
+        if mode == "multi_broker_validate":
+            command.extend(["--brokers", ",".join(brokers)])
+        if source_run_id:
+            command.extend(["--source-run-id", str(source_run_id)])
+        if source_params_file:
+            command.extend(["--source-params-file", str(source_params_file)])
+        if custom_start_date and custom_end_date:
+            command.extend(["--custom-start-date", str(custom_start_date)])
+            command.extend(["--custom-end-date", str(custom_end_date)])
+        if dry_run:
+            command.append("--dry-run")
+
+        env = {**os.environ, "PYTHONPATH": os.environ.get("PYTHONPATH", "."), "PYTHONUNBUFFERED": "1"}
+
+        log.info("Spawning: %s", " ".join(command))
+        process = subprocess.Popen(
+            command,
+            cwd=str(PROJECT_ROOT),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            env=env,
+        )
+
+        # Monitor subprocess output + check for cancellation
+        cancelled = False
+        child_io_error: OSError | None = None
         try:
-            process.wait(timeout=10)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait()
-    except OSError as exc:
-        child_io_error = exc
-        log.error("Run %s child process I/O failed: %s", run_id, exc, exc_info=True)
-        try:
-            api_post(f"/api/optimizer/runs/{run_id}/events", {
-                "event_type": "run_failed",
-                "payload": {
-                    "reason": "child_process_io_error",
-                    "error_message": str(exc),
-                },
-            })
-        except Exception:
-            pass
-        if process.poll() is None:
+            _stream_and_report(run_id, process)
+        except _RunCancelled:
+            cancelled = True
+            log.info("Run %s cancelled by user", run_id)
             process.terminate()
             try:
                 process.wait(timeout=10)
             except subprocess.TimeoutExpired:
                 process.kill()
                 process.wait()
+        except OSError as exc:
+            child_io_error = exc
+            log.error("Run %s child process I/O failed: %s", run_id, exc, exc_info=True)
+            try:
+                api_post(f"/api/optimizer/runs/{run_id}/events", {
+                    "event_type": "run_failed",
+                    "payload": {
+                        "reason": "child_process_io_error",
+                        "error_message": str(exc),
+                    },
+                })
+            except Exception:
+                pass
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
 
-    exit_code = process.wait()
+        exit_code = process.wait()
 
-    if cancelled:
-        # Status already set to cancelled by the backend
-        return
+        if cancelled:
+            # Status already set to cancelled by the backend
+            return
 
-    # Check if the backend already set a terminal status (e.g. via run_finished event)
-    current = api_get(f"/api/optimizer/runs/{run_id}")
-    if current and current.get("status") in {"completed", "failed", "cancelled", "interrupted"}:
-        log.info("Run %s already has terminal status: %s", run_id, current["status"])
-        return
+        # Check if the backend already set a terminal status (e.g. via run_finished event)
+        current = api_get(f"/api/optimizer/runs/{run_id}")
+        if current and current.get("status") in {"completed", "failed", "cancelled", "interrupted"}:
+            log.info("Run %s already has terminal status: %s", run_id, current["status"])
+            return
 
-    final_status = "completed" if exit_code == 0 and child_io_error is None else "failed"
-    summary = None
-    if child_io_error is not None:
-        summary = {
-            "error_message": f"optimizer child process I/O failed: {child_io_error}",
-            "error_type": "child_process_io_error",
-        }
-    body = {"status": final_status}
-    if summary is not None:
-        body["summary"] = summary
-    api_patch(f"/api/optimizer/runs/{run_id}", body)
-    log.info("Run %s finished with status: %s (exit code %d)", run_id, final_status, exit_code)
+        final_status = "completed" if exit_code == 0 and child_io_error is None else "failed"
+        summary = None
+        if child_io_error is not None:
+            summary = {
+                "error_message": f"optimizer child process I/O failed: {child_io_error}",
+                "error_type": "child_process_io_error",
+            }
+        body = {"status": final_status}
+        if summary is not None:
+            body["summary"] = summary
+        api_patch(f"/api/optimizer/runs/{run_id}", body)
+        log.info("Run %s finished with status: %s (exit code %d)", run_id, final_status, exit_code)
+    except Exception as exc:
+        log.error("Run %s failed before subprocess completion: %s", run_id, exc, exc_info=True)
+        api_post(f"/api/optimizer/runs/{run_id}/events", {
+            "event_type": "run_failed",
+            "payload": {"error_message": str(exc)},
+        })
+        api_patch(f"/api/optimizer/runs/{run_id}", {
+            "status": "failed",
+            "summary": {"error_message": str(exc)},
+        })
+    finally:
+        _cleanup_validate_source_params(source_params_file)
 
 
 def _report_alert_event(batch_id: str, event_type: str, pair: str | None = None, payload: dict[str, Any] | None = None) -> None:
@@ -756,17 +854,27 @@ def _process_line(run_id: str, line: str) -> None:
     if event_type == "pair_started" and symbol:
         api_patch(f"/api/optimizer/runs/{run_id}/results/{symbol}", {
             "status": "running",
+            "broker": event.get("broker"),
         })
     elif event_type == "pair_completed" and symbol:
         api_patch(f"/api/optimizer/runs/{run_id}/results/{symbol}", {
             "status": "completed",
             "params": event.get("params"),
             "metrics": event.get("metrics"),
+            "broker": event.get("broker"),
         })
     elif event_type == "pair_failed" and symbol:
         api_patch(f"/api/optimizer/runs/{run_id}/results/{symbol}", {
             "status": "failed",
             "error_message": event.get("error_message"),
+            "broker": event.get("broker"),
+        })
+    elif event_type == "pair_skipped" and symbol:
+        api_patch(f"/api/optimizer/runs/{run_id}/results/{symbol}", {
+            "status": "skipped",
+            "skip_reason": event.get("skip_reason"),
+            "error_message": event.get("skip_reason") or event.get("error_message"),
+            "broker": event.get("broker"),
         })
     elif event_type == "run_finished":
         status = event.get("status", "completed")

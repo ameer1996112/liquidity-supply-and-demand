@@ -9,7 +9,7 @@ import sys
 import threading
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Protocol
 
@@ -55,7 +55,19 @@ def _normalize_run(row: dict[str, Any] | None) -> dict[str, Any] | None:
         "dd_limit": float(row["dd_limit"]),
         "dry_run": bool(row.get("dry_run", False)),
         "broker": row.get("broker"),
+        "brokers": row.get("brokers") or summary.get("brokers") or [],
+        "source_run_id": row.get("source_run_id") or summary.get("source_run_id"),
         "backtest_range": row.get("backtest_range") or summary.get("backtest_range") or "365d",
+        "custom_start_date": (
+            row.get("custom_start_date")
+            or summary.get("custom_start_date")
+            or summary.get("start_date")
+        ),
+        "custom_end_date": (
+            row.get("custom_end_date")
+            or summary.get("custom_end_date")
+            or summary.get("end_date")
+        ),
         "market": row.get("market"),
         "created_by": row.get("created_by"),
         "summary": summary,
@@ -119,6 +131,90 @@ def _build_artifact_summary(
 
 
 _TERMINAL_RUN_STATUSES = {"completed", "failed", "cancelled", "interrupted"}
+_SUPPORTED_OPTIMIZER_MODES = {"bayesian", "smart", "fast", "full", "validate", "multi_broker_validate"}
+_SUPPORTED_BROKERS = {"vantage", "oanda", "fxcm"}
+_VALIDATE_MODES = {"validate", "multi_broker_validate"}
+
+
+def _parse_iso_date(value: str | date | None, field_name: str) -> date | None:
+    if value is None:
+        return None
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value
+    try:
+        return date.fromisoformat(str(value))
+    except ValueError as exc:
+        raise ValueError(f"{field_name} must be an ISO 8601 date") from exc
+
+
+def _validate_custom_date_range(start_value: str | date | None, end_value: str | date | None) -> tuple[str, str]:
+    start = _parse_iso_date(start_value, "custom_start_date")
+    end = _parse_iso_date(end_value, "custom_end_date")
+    if start is None or end is None:
+        raise ValueError("custom_start_date and custom_end_date are required for custom backtest_range")
+    if end <= start:
+        raise ValueError("custom_end_date must be after custom_start_date")
+    if (end - start).days < 30:
+        raise ValueError("custom date range must be at least 30 days")
+    if end > datetime.now(timezone.utc).date():
+        raise ValueError("custom_end_date cannot be in the future")
+    return start.isoformat(), end.isoformat()
+
+
+def _source_params_by_symbol(results: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    params_by_symbol: dict[str, dict[str, Any]] = {}
+    for row in results:
+        symbol = str(row.get("symbol") or "").upper().strip()
+        params = row.get("params")
+        if symbol and isinstance(params, dict) and params:
+            params_by_symbol[symbol] = dict(params)
+    return params_by_symbol
+
+
+def _aggregate_multi_broker_results(
+    run: dict[str, Any],
+    rows: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    aggregated: dict[str, dict[str, Any]] = {}
+    source_run_id = run.get("source_run_id") or (run.get("summary") or {}).get("source_run_id")
+    for row in rows:
+        symbol = str(row.get("symbol") or "").upper()
+        if not symbol:
+            continue
+        broker = str(row.get("broker") or "").lower() or "unknown"
+        entry = aggregated.setdefault(
+            symbol,
+            {
+                "symbol": symbol,
+                "status": "pending",
+                "params": row.get("params") or {},
+                "source_run_id": source_run_id,
+                "brokers": {},
+            },
+        )
+        if not entry.get("params") and row.get("params"):
+            entry["params"] = row.get("params") or {}
+        status = str(row.get("status") or "pending")
+        metrics = row.get("metrics") or {}
+        broker_payload = {
+            "status": status,
+            **metrics,
+        }
+        if row.get("error_message"):
+            broker_payload["error_message"] = row.get("error_message")
+        if row.get("skip_reason"):
+            broker_payload["skip_reason"] = row.get("skip_reason")
+        entry["brokers"][broker] = broker_payload
+        broker_statuses = [payload.get("status") for payload in entry["brokers"].values()]
+        if broker_statuses and all(item == "completed" for item in broker_statuses):
+            entry["status"] = "completed"
+        elif any(item == "failed" for item in broker_statuses):
+            entry["status"] = "failed"
+        elif any(item == "running" for item in broker_statuses):
+            entry["status"] = "running"
+        elif broker_statuses and all(item == "skipped" for item in broker_statuses):
+            entry["status"] = "skipped"
+    return aggregated
 
 
 def _is_missing_optional_optimizer_artifact_error(exc: Exception) -> bool:
@@ -168,8 +264,10 @@ class OptimizerRunRepository(Protocol):
         strategy_version: str | None = None,
     ) -> list[dict[str, Any]]: ...
     def list_incomplete_runs(self) -> list[dict[str, Any]]: ...
-    def create_results(self, run_id: str, symbols: list[str]) -> None: ...
-    def update_result(self, run_id: str, symbol: str, updates: dict[str, Any]) -> dict[str, Any]: ...
+    def create_results(self, run_id: str, symbols: list[str] | list[dict[str, Any]]) -> None: ...
+    def update_result(
+        self, run_id: str, symbol: str, updates: dict[str, Any], broker: str | None = None
+    ) -> dict[str, Any]: ...
     def list_results(self, run_id: str) -> list[dict[str, Any]]: ...
     def create_trial(self, run_id: str, symbol: str, payload: dict[str, Any]) -> dict[str, Any]: ...
     def list_trials(self, run_id: str, symbol: str | None = None) -> list[dict[str, Any]]: ...
@@ -266,28 +364,47 @@ class SupabaseOptimizerRunRepository:
         )
         return [_normalize_run(row) for row in (resp.data or []) if row]
 
-    def create_results(self, run_id: str, symbols: list[str]) -> None:
-        rows = [
-            {
-                "run_id": run_id,
-                "symbol": symbol,
-                "status": "pending",
-                "params": {},
-                "metrics": {},
-            }
-            for symbol in symbols
-        ]
+    def create_results(self, run_id: str, symbols: list[str] | list[dict[str, Any]]) -> None:
+        rows = []
+        for item in symbols:
+            if isinstance(item, dict):
+                symbol = str(item["symbol"]).upper()
+                row = {
+                    "run_id": run_id,
+                    "symbol": symbol,
+                    "broker": item.get("broker"),
+                    "status": item.get("status", "pending"),
+                    "params": item.get("params") or {},
+                    "metrics": item.get("metrics") or {},
+                }
+            else:
+                row = {
+                    "run_id": run_id,
+                    "symbol": item,
+                    "status": "pending",
+                    "params": {},
+                    "metrics": {},
+                }
+            rows.append(row)
         if rows:
             self._execute(lambda: self._sb.table("optimizer_run_results").insert(rows))
 
-    def update_result(self, run_id: str, symbol: str, updates: dict[str, Any]) -> dict[str, Any]:
+    def update_result(
+        self, run_id: str, symbol: str, updates: dict[str, Any], broker: str | None = None
+    ) -> dict[str, Any]:
         payload = {**updates, "updated_at": _utc_now()}
-        resp = self._execute(
-            lambda: self._sb.table("optimizer_run_results")
-            .update(payload)
-            .eq("run_id", run_id)
-            .eq("symbol", symbol)
-        )
+        def build_query():
+            query = (
+                self._sb.table("optimizer_run_results")
+                .update(payload)
+                .eq("run_id", run_id)
+                .eq("symbol", symbol)
+            )
+            if broker is not None:
+                query = query.eq("broker", broker)
+            return query
+
+        resp = self._execute(build_query)
         return resp.data[0] if resp.data else {"run_id": run_id, "symbol": symbol, **payload}
 
     def list_results(self, run_id: str) -> list[dict[str, Any]]:
@@ -406,27 +523,96 @@ class OptimizerRunService:
         dry_run: bool,
         broker: str,
         backtest_range: str = "365d",
+        custom_start_date: str | date | None = None,
+        custom_end_date: str | date | None = None,
+        source_run_id: str | None = None,
+        brokers: list[str] | None = None,
         created_by: str | None = None,
     ) -> dict[str, Any]:
         """Create a queued optimizer run for the local agent to pick up."""
+        mode = mode.strip().lower()
+        broker = broker.strip().lower()
         if not strategy_id:
             raise ValueError("strategy_id is required")
         if not strategy_version:
             raise ValueError("strategy_version is required")
         if not pairs:
             raise ValueError("pairs must not be empty")
-        if broker not in {"vantage", "oanda", "fxcm"}:
+        if mode not in _SUPPORTED_OPTIMIZER_MODES:
+            raise ValueError(f"invalid mode: {mode}")
+        if broker not in _SUPPORTED_BROKERS:
             raise ValueError(f"invalid broker: {broker}")
-        if backtest_range not in {"30d", "90d", "365d", "all"}:
+        if backtest_range not in {"30d", "90d", "365d", "all", "custom"}:
             raise ValueError(f"invalid backtest_range: {backtest_range}")
+        normalized_start: str | None = None
+        normalized_end: str | None = None
+        if backtest_range == "custom":
+            normalized_start, normalized_end = _validate_custom_date_range(custom_start_date, custom_end_date)
         if self._active_run_exists():
             raise ValueError("another optimizer run is already active")
 
         if pairs == ["ALL"]:
             pairs = list(DEFAULT_PAIRS)
+        pairs = [symbol.upper() for symbol in pairs]
+
+        selected_brokers = [broker]
+        if mode == "multi_broker_validate":
+            selected_brokers = [item.strip().lower() for item in (brokers or []) if item.strip()]
+            if not selected_brokers:
+                raise ValueError("brokers is required for multi_broker_validate")
+            invalid_brokers = sorted(set(selected_brokers) - _SUPPORTED_BROKERS)
+            if invalid_brokers:
+                raise ValueError(f"invalid brokers: {', '.join(invalid_brokers)}")
+            broker = selected_brokers[0]
+
+        result_specs: list[str] | list[dict[str, Any]]
+        skipped_pairs: list[str] = []
+        if mode in _VALIDATE_MODES:
+            if not source_run_id:
+                raise ValueError("source_run_id is required for validate modes")
+            source_run = self._repository.get_run(source_run_id)
+            if source_run is None:
+                raise KeyError(source_run_id)
+            if source_run.get("strategy_id") != strategy_id:
+                raise ValueError("source run is from a different strategy")
+            source_results = self._repository.list_results(source_run_id)
+            source_params = _source_params_by_symbol(source_results)
+            requested_pairs = pairs
+            pairs = [symbol for symbol in requested_pairs if symbol in source_params]
+            skipped_pairs = [symbol for symbol in requested_pairs if symbol not in source_params]
+            if not pairs:
+                raise ValueError("source run has no params for requested pairs")
+            result_specs = [
+                {
+                    "symbol": symbol,
+                    "broker": run_broker,
+                    "params": source_params[symbol],
+                }
+                for symbol in pairs
+                for run_broker in selected_brokers
+            ]
+            n_trials = 1
+        else:
+            result_specs = pairs
 
         run_id = str(uuid.uuid4())
         created_at = _utc_now()
+        summary: dict[str, Any] = {
+            "total_pairs": len(pairs),
+            "running_pairs": 0,
+            "completed_pairs": 0,
+            "failed_pairs": 0,
+            "backtest_range": backtest_range,
+        }
+        if normalized_start and normalized_end:
+            summary["custom_start_date"] = normalized_start
+            summary["custom_end_date"] = normalized_end
+        if source_run_id:
+            summary["source_run_id"] = source_run_id
+        if selected_brokers:
+            summary["brokers"] = selected_brokers
+        if skipped_pairs:
+            summary["skipped_pairs"] = skipped_pairs
         run = self._repository.create_run(
             {
                 "id": run_id,
@@ -440,20 +626,19 @@ class OptimizerRunService:
                 "dd_limit": dd_limit,
                 "dry_run": dry_run,
                 "broker": broker,
+                "brokers": selected_brokers,
+                "source_run_id": source_run_id,
+                "backtest_range": backtest_range,
+                "custom_start_date": normalized_start,
+                "custom_end_date": normalized_end,
                 "market": "forex",
                 "created_by": created_by,
-                "summary": {
-                    "total_pairs": len(pairs),
-                    "running_pairs": 0,
-                    "completed_pairs": 0,
-                    "failed_pairs": 0,
-                    "backtest_range": backtest_range,
-                },
+                "summary": summary,
                 "created_at": created_at,
                 "updated_at": created_at,
             }
         )
-        self._repository.create_results(run_id, pairs)
+        self._repository.create_results(run_id, result_specs)
         return _normalize_run(run) or run
 
     # ── Agent-facing write methods ─────────────────────────────────────────────
@@ -487,7 +672,8 @@ class OptimizerRunService:
         run = self._repository.get_run(run_id)
         if run is None:
             raise KeyError(run_id)
-        result = self._repository.update_result(run_id, symbol, updates)
+        broker = updates.pop("broker", None)
+        result = self._repository.update_result(run_id, symbol, updates, broker=broker)
         # Rebuild summary after result change
         self._repository.update_run(
             run_id, {"summary": self._rebuild_summary(run_id)}
@@ -566,7 +752,7 @@ class OptimizerRunService:
             )
         )
         if run.get("status") in _TERMINAL_RUN_STATUSES:
-            results = copy.deepcopy(self._repository.list_results(run_id))
+            results = copy.deepcopy(self.list_results(run_id))
             trials = copy.deepcopy(
                 self._safe_optional_artifact_read(
                     lambda: self._repository.list_trials(run_id),
@@ -616,7 +802,11 @@ class OptimizerRunService:
             raise
 
     def list_results(self, run_id: str) -> list[dict[str, Any]]:
-        return self._repository.list_results(run_id)
+        run = self._require_run_exists(run_id)
+        rows = self._repository.list_results(run_id)
+        if run.get("mode") == "multi_broker_validate":
+            return _aggregate_multi_broker_results(run, rows)  # type: ignore[return-value]
+        return rows
 
     def list_events(self, run_id: str, *, limit: int = 200) -> list[dict[str, Any]]:
         self._require_run_exists(run_id)
@@ -699,10 +889,12 @@ class OptimizerRunService:
                 symbol,
                 {
                     "status": "completed",
+                    "broker": event.get("broker"),
                     "params": event.get("params", {}),
                     "metrics": event.get("metrics", {}),
                     "finished_at": now,
                 },
+                broker=event.get("broker"),
             )
         elif event_type == "pair_failed" and symbol:
             self._repository.update_result(
@@ -713,6 +905,18 @@ class OptimizerRunService:
                     "error_message": event.get("error_message") or "optimizer pair failed",
                     "finished_at": now,
                 },
+                broker=event.get("broker"),
+            )
+        elif event_type == "pair_skipped" and symbol:
+            self._repository.update_result(
+                run_id,
+                symbol,
+                {
+                    "status": "skipped",
+                    "error_message": event.get("skip_reason") or event.get("error_message") or "optimizer pair skipped",
+                    "finished_at": now,
+                },
+                broker=event.get("broker"),
             )
         elif event_type == "run_finished":
             updates: dict[str, Any] = {
@@ -847,6 +1051,7 @@ class OptimizerRunService:
         running_pairs = sum(1 for result in results if result["status"] == "running")
         completed_pairs = sum(1 for result in results if result["status"] == "completed")
         failed_pairs = sum(1 for result in results if result["status"] == "failed")
+        skipped_pairs = sum(1 for result in results if result["status"] == "skipped")
         best_symbol = summary.get("best_symbol")
         best_score = summary.get("best_score")
         for result in results:
@@ -861,6 +1066,7 @@ class OptimizerRunService:
                 "running_pairs": running_pairs,
                 "completed_pairs": completed_pairs,
                 "failed_pairs": failed_pairs,
+                "skipped_pairs": skipped_pairs,
                 "best_symbol": best_symbol,
                 "best_score": best_score,
             }

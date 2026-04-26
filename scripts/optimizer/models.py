@@ -7,6 +7,10 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
+class NoDataForRangeError(RuntimeError):
+    """Raised when TradingView cannot provide data for the requested date window."""
+
+
 @dataclass
 class BacktestResult:
     """Single backtest result for a parameter combination."""

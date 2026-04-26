@@ -24,7 +24,7 @@ class DummyProcess:
 class InMemoryOptimizerStore:
     def __init__(self) -> None:
         self.runs: dict[str, dict] = {}
-        self.results: dict[tuple[str, str], dict] = {}
+        self.results: dict[tuple[str, str, str | None], dict] = {}
         self.events: list[dict] = []
         self.trials: list[dict] = []
         self.stress_results: list[dict] = []
@@ -104,22 +104,37 @@ class InMemoryOptimizerStore:
     def list_incomplete_runs(self) -> list[dict]:
         return [run for run in self.runs.values() if run["status"] in {"queued", "running"}]
 
-    def create_results(self, run_id: str, symbols: list[str]) -> None:
-        for symbol in symbols:
-            self.results[(run_id, symbol)] = {
+    def create_results(self, run_id: str, symbols: list[str] | list[dict]) -> None:
+        for item in symbols:
+            if isinstance(item, dict):
+                symbol = item["symbol"]
+                broker = item.get("broker")
+                params = item.get("params") or {}
+                status = item.get("status", "pending")
+            else:
+                symbol = item
+                broker = None
+                params = {}
+                status = "pending"
+            self.results[(run_id, symbol, broker)] = {
                 "run_id": run_id,
                 "symbol": symbol,
-                "status": "pending",
-                "params": {},
+                "broker": broker,
+                "status": status,
+                "params": params,
                 "metrics": {},
             }
 
-    def update_result(self, run_id: str, symbol: str, updates: dict) -> dict:
-        self.results[(run_id, symbol)].update(updates)
-        return self.results[(run_id, symbol)]
+    def update_result(self, run_id: str, symbol: str, updates: dict, broker: str | None = None) -> dict:
+        self.results[(run_id, symbol, broker)].update(updates)
+        return self.results[(run_id, symbol, broker)]
 
     def list_results(self, run_id: str) -> list[dict]:
-        return [value for (current_run_id, _), value in self.results.items() if current_run_id == run_id]
+        return [
+            value
+            for (current_run_id, _, _), value in self.results.items()
+            if current_run_id == run_id
+        ]
 
     def create_trial(self, run_id: str, symbol: str, payload: dict) -> dict:
         row = {"run_id": run_id, "symbol": symbol, **payload}
@@ -268,7 +283,7 @@ def test_start_run_persists_run_and_symbol_rows(monkeypatch) -> None:
     assert run["market"] == "forex"
     assert store.runs[run["id"]]["workers"] == 2
     assert store.runs[run["id"]]["summary"]["backtest_range"] == "90d"
-    assert store.results[(run["id"], "EURUSD")]["status"] == "pending"
+    assert store.results[(run["id"], "EURUSD", None)]["status"] == "pending"
 
 
 def test_start_run_expands_all_pairs_without_scripts_import(monkeypatch) -> None:
@@ -294,8 +309,8 @@ def test_start_run_expands_all_pairs_without_scripts_import(monkeypatch) -> None
     )
 
     assert run["pairs"] == ["EURUSD", "GBPUSD"]
-    assert store.results[(run["id"], "EURUSD")]["status"] == "pending"
-    assert store.results[(run["id"], "GBPUSD")]["status"] == "pending"
+    assert store.results[(run["id"], "EURUSD", None)]["status"] == "pending"
+    assert store.results[(run["id"], "GBPUSD", None)]["status"] == "pending"
 
 
 def test_start_run_requires_strategy_identity(monkeypatch) -> None:
@@ -440,7 +455,7 @@ def test_survival_artifacts_get_run_returns_detached_payload() -> None:
     assert store.runs["run-1"]["pairs"] == ["EURUSD"]
     assert store.runs["run-1"]["summary"]["completed_pairs"] == 0
     assert store.portfolio_results["run-1"]["weights"]["EURUSD"] == 1.0
-    assert store.results[("run-1", "EURUSD")]["metrics"]["score"] == 2.1
+    assert store.results[("run-1", "EURUSD", None)]["metrics"]["score"] == 2.1
     assert store.trials[0]["metrics"]["score"] == 1.5
     assert store.stress_results[0]["metrics"]["profit_factor"] == 1.2
     assert store.events[0]["payload"]["message"] == "done"
@@ -758,7 +773,7 @@ def test_cancel_run_terminates_process_and_marks_cancelled() -> None:
 
     assert process.terminated is True
     assert run["status"] == "cancelled"
-    assert store.results[("run-1", "EURUSD")]["status"] == "cancelled"
+    assert store.results[("run-1", "EURUSD", None)]["status"] == "cancelled"
 
 
 def test_ingest_pair_completed_event_updates_summary_and_result() -> None:
@@ -776,11 +791,170 @@ def test_ingest_pair_completed_event_updates_summary_and_result() -> None:
         }
     )
 
-    result = store.results[("run-1", "EURUSD")]
+    result = store.results[("run-1", "EURUSD", None)]
     assert result["status"] == "completed"
     assert result["metrics"]["score"] == 2.1
     assert store.runs["run-1"]["summary"]["completed_pairs"] == 1
     assert store.runs["run-1"]["summary"]["best_symbol"] == "EURUSD"
+
+
+def test_start_validate_run_uses_source_params_and_skips_missing_pairs() -> None:
+    store = InMemoryOptimizerStore()
+    store.create_run(
+        {
+            "id": "source-run",
+            "strategy_id": "liq_sd_v1",
+            "strategy_version": "1",
+            "status": "completed",
+            "mode": "bayesian",
+            "workers": 2,
+            "pairs": ["EURUSD"],
+            "n_trials": 25,
+            "dd_limit": 6.0,
+            "dry_run": False,
+            "broker": "vantage",
+            "backtest_range": "365d",
+            "summary": {
+                "total_pairs": 1,
+                "running_pairs": 0,
+                "completed_pairs": 1,
+                "failed_pairs": 0,
+                "backtest_range": "365d",
+                "custom_start_date": "2025-04-01",
+                "custom_end_date": "2026-04-01",
+            },
+        }
+    )
+    store.create_results("source-run", ["EURUSD"])
+    store.update_result(
+        "source-run",
+        "EURUSD",
+        {
+            "status": "completed",
+            "params": {"rr_mode": "fixed_4.0", "min_tp_distance_pips": 12},
+            "metrics": {"score": 2.4, "profit_factor": 1.72},
+        },
+    )
+    service = OptimizerRunService(store, project_root=Path("/tmp"), results_dir=Path("/tmp/results"))
+
+    run = service.start_run(
+        strategy_id="liq_sd_v1",
+        strategy_version="1",
+        mode="validate",
+        workers=1,
+        pairs=["EURUSD", "GBPUSD"],
+        n_trials=25,
+        dd_limit=6.0,
+        dry_run=False,
+        broker="oanda",
+        backtest_range="custom",
+        custom_start_date="2024-04-01",
+        custom_end_date="2025-04-01",
+        source_run_id="source-run",
+    )
+
+    assert run["mode"] == "validate"
+    assert run["pairs"] == ["EURUSD"]
+    assert run["source_run_id"] == "source-run"
+    assert run["summary"]["skipped_pairs"] == ["GBPUSD"]
+    assert store.list_results(run["id"]) == [
+        {
+            "run_id": run["id"],
+            "symbol": "EURUSD",
+            "broker": "oanda",
+            "status": "pending",
+            "params": {"rr_mode": "fixed_4.0", "min_tp_distance_pips": 12},
+            "metrics": {},
+        }
+    ]
+
+
+def test_start_validate_rejects_different_source_strategy() -> None:
+    store = InMemoryOptimizerStore()
+    store.create_run(
+        {
+            "id": "source-run",
+            "strategy_id": "momentum_v2",
+            "strategy_version": "1",
+            "status": "completed",
+            "mode": "bayesian",
+            "workers": 2,
+            "pairs": ["EURUSD"],
+            "n_trials": 25,
+            "dd_limit": 6.0,
+            "dry_run": False,
+            "broker": "vantage",
+            "summary": {},
+        }
+    )
+    service = OptimizerRunService(store, project_root=Path("/tmp"), results_dir=Path("/tmp/results"))
+
+    try:
+        service.start_run(
+            strategy_id="liq_sd_v1",
+            strategy_version="1",
+            mode="validate",
+            workers=1,
+            pairs=["EURUSD"],
+            n_trials=25,
+            dd_limit=6.0,
+            dry_run=False,
+            broker="vantage",
+            source_run_id="source-run",
+        )
+    except ValueError as exc:
+        assert "different strategy" in str(exc)
+    else:
+        raise AssertionError("expected different source strategy to be rejected")
+
+
+def test_multi_broker_validate_results_aggregate_by_pair() -> None:
+    store = InMemoryOptimizerStore.with_run_and_pending_symbol("run-1", "EURUSD")
+    store.update_run(
+        "run-1",
+        {
+            "status": "completed",
+            "mode": "multi_broker_validate",
+            "source_run_id": "source-run",
+            "summary": {"total_pairs": 1, "completed_pairs": 2, "failed_pairs": 0},
+        },
+    )
+    store.results.clear()
+    store.create_results(
+        "run-1",
+        [
+            {"symbol": "EURUSD", "broker": "vantage", "params": {"rr_mode": "fixed_4.0"}},
+            {"symbol": "EURUSD", "broker": "oanda", "params": {"rr_mode": "fixed_4.0"}},
+        ],
+    )
+    store.update_result(
+        "run-1",
+        "EURUSD",
+        {"status": "completed", "metrics": {"profit_factor": 1.72, "max_drawdown_pct": 4.8}},
+        broker="vantage",
+    )
+    store.update_result(
+        "run-1",
+        "EURUSD",
+        {"status": "completed", "metrics": {"profit_factor": 1.65, "max_drawdown_pct": 5.1}},
+        broker="oanda",
+    )
+    service = OptimizerRunService(store, project_root=Path("/tmp"), results_dir=Path("/tmp/results"))
+
+    results = service.list_results("run-1")
+
+    assert results == {
+        "EURUSD": {
+            "symbol": "EURUSD",
+            "status": "completed",
+            "params": {"rr_mode": "fixed_4.0"},
+            "source_run_id": "source-run",
+            "brokers": {
+                "vantage": {"status": "completed", "profit_factor": 1.72, "max_drawdown_pct": 4.8},
+                "oanda": {"status": "completed", "profit_factor": 1.65, "max_drawdown_pct": 5.1},
+            },
+        }
+    }
 
 
 def test_reconcile_incomplete_runs_marks_orphans_interrupted() -> None:

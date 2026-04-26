@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import time
 from typing import Any
+from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.services.optimizer_run_service import get_optimizer_run_service
 from src.services.optimizer_defaults import DEFAULT_PAIRS
@@ -66,6 +67,18 @@ class OptimizerRunCreateRequest(BaseModel):
     dry_run: bool = False
     broker: str = Field(min_length=1)
     backtest_range: str = Field(default="365d", min_length=1)
+    source_run_id: str | None = None
+    brokers: list[str] | None = None
+    custom_start_date: date | None = None
+    custom_end_date: date | None = None
+
+    @field_validator("mode")
+    @classmethod
+    def _validate_mode(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"bayesian", "smart", "fast", "full", "validate", "multi_broker_validate"}:
+            raise ValueError("invalid mode")
+        return normalized
 
     @field_validator("pairs")
     @classmethod
@@ -97,9 +110,39 @@ class OptimizerRunCreateRequest(BaseModel):
     @classmethod
     def _validate_backtest_range(cls, value: str) -> str:
         normalized = value.strip().lower()
-        if normalized not in {"30d", "90d", "365d", "all"}:
+        if normalized not in {"30d", "90d", "365d", "all", "custom"}:
             raise ValueError("invalid backtest_range")
         return normalized
+
+    @field_validator("brokers")
+    @classmethod
+    def _validate_brokers(cls, value: list[str] | None) -> list[str] | None:
+        if value is None:
+            return None
+        normalized = [item.strip().lower() for item in value if item.strip()]
+        if not normalized:
+            raise ValueError("brokers must not be empty")
+        invalid = sorted(set(normalized) - {"vantage", "oanda", "fxcm"})
+        if invalid:
+            raise ValueError("invalid brokers")
+        return normalized
+
+    @model_validator(mode="after")
+    def _validate_custom_range(self) -> "OptimizerRunCreateRequest":
+        if self.mode in {"validate", "multi_broker_validate"} and not self.source_run_id:
+            raise ValueError("source_run_id is required for validate modes")
+        if self.mode == "multi_broker_validate" and not self.brokers:
+            raise ValueError("brokers is required for multi_broker_validate")
+        if self.backtest_range == "custom":
+            if self.custom_start_date is None or self.custom_end_date is None:
+                raise ValueError("custom_start_date and custom_end_date are required")
+            if self.custom_end_date <= self.custom_start_date:
+                raise ValueError("custom_end_date must be after custom_start_date")
+            if (self.custom_end_date - self.custom_start_date).days < 30:
+                raise ValueError("custom date range must be at least 30 days")
+            if self.custom_end_date > datetime.now(timezone.utc).date():
+                raise ValueError("custom_end_date cannot be in the future")
+        return self
 
 
 # ── Run CRUD ─────────────────────────────────────────────────────────────────
@@ -125,6 +168,8 @@ def list_optimizer_runs(
 def create_optimizer_run(payload: OptimizerRunCreateRequest) -> dict[str, Any]:
     try:
         return get_optimizer_run_service().start_run(**payload.model_dump())
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"Unknown optimizer run: {exc.args[0]}") from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
@@ -219,6 +264,8 @@ class AgentResultUpdateRequest(BaseModel):
     status: str | None = None
     params: dict[str, Any] | None = None
     metrics: dict[str, Any] | None = None
+    broker: str | None = None
+    skip_reason: str | None = None
     error_message: str | None = None
 
 

@@ -43,7 +43,7 @@ from .config import (
     LIQ_DISTANCE_RANGES,
 )
 from .desktop_page import TradingViewDesktopPage
-from .models import BacktestResult
+from .models import BacktestResult, NoDataForRangeError
 from .optimizer_mcp import OptimizerMcpController, OptimizerWorkspaceSlot
 from .runtime_state import OptimizerRuntimeState
 from .tab_worker import normalize_backtest_range, backtest_range_to_label
@@ -62,6 +62,7 @@ MAX_PAIR_RETRIES = 2
 WORKER_STARTUP_DELAY = 15.0  # stagger worker starts to reduce startup contention
 TRADINGVIEW_DESKTOP_CDP_URL = os.environ.get("OPTIMIZER_DESKTOP_CDP_URL", "http://127.0.0.1:9222")
 SUPPORTED_BROKERS = {"vantage", "oanda", "fxcm"}
+VALIDATE_MODES = {"validate", "multi_broker_validate"}
 
 
 def _sanitize_results_label(label: str | None) -> str | None:
@@ -94,6 +95,95 @@ def write_results_snapshot(
             json.dump(results, handle, indent=2)
     with open(LEGACY_PARALLEL_RESULTS_FILE, "w") as handle:
         json.dump(results, handle, indent=2)
+
+
+def load_source_params_file(path: str | None) -> tuple[str | None, dict[str, dict[str, Any]]]:
+    if not path:
+        return None, {}
+    with open(path) as handle:
+        payload = json.load(handle)
+    source_run_id = payload.get("source_run_id")
+    raw_results = payload.get("results") or {}
+    params_by_symbol: dict[str, dict[str, Any]] = {}
+    if isinstance(raw_results, dict):
+        for symbol, data in raw_results.items():
+            if isinstance(data, dict) and isinstance(data.get("params"), dict):
+                params_by_symbol[str(symbol).upper()] = dict(data["params"])
+    elif isinstance(raw_results, list):
+        for row in raw_results:
+            if not isinstance(row, dict):
+                continue
+            symbol = str(row.get("symbol") or "").upper()
+            params = row.get("params")
+            if symbol and isinstance(params, dict):
+                params_by_symbol[symbol] = dict(params)
+    return source_run_id, params_by_symbol
+
+
+def _result_metrics(result: BacktestResult, *, worker_id: int) -> dict[str, Any]:
+    return {
+        "score": result.score,
+        "net_profit": result.net_profit,
+        "win_rate": result.win_rate,
+        "profit_factor": result.profit_factor,
+        "max_drawdown_pct": result.max_drawdown_pct,
+        "total_trades": result.total_trades,
+        "worker_id": worker_id,
+    }
+
+
+def _store_pair_result(
+    results: dict[str, Any],
+    *,
+    symbol: str,
+    broker: str,
+    mode: str,
+    source_run_id: str | None,
+    params: dict[str, Any],
+    status: str,
+    metrics: dict[str, Any] | None = None,
+    skip_reason: str | None = None,
+    error_message: str | None = None,
+) -> None:
+    metrics = metrics or {}
+    if mode == "multi_broker_validate":
+        entry = results.setdefault(
+            symbol,
+            {
+                "status": "pending",
+                "params": dict(params),
+                "source_run_id": source_run_id,
+                "brokers": {},
+            },
+        )
+        broker_payload = {"status": status, **metrics}
+        if skip_reason:
+            broker_payload["skip_reason"] = skip_reason
+        if error_message:
+            broker_payload["error_message"] = error_message
+        entry["brokers"][broker] = broker_payload
+        statuses = [payload.get("status") for payload in entry["brokers"].values()]
+        if statuses and all(item == "completed" for item in statuses):
+            entry["status"] = "completed"
+        elif any(item == "failed" for item in statuses):
+            entry["status"] = "failed"
+        elif any(item == "running" for item in statuses):
+            entry["status"] = "running"
+        elif statuses and all(item == "skipped" for item in statuses):
+            entry["status"] = "skipped"
+        return
+
+    results[symbol] = {
+        "status": status,
+        "params": dict(params),
+        "source_run_id": source_run_id,
+        **metrics,
+        "timestamp": datetime.now().isoformat(),
+    }
+    if skip_reason:
+        results[symbol]["skip_reason"] = skip_reason
+    if error_message:
+        results[symbol]["error_message"] = error_message
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -357,6 +447,9 @@ async def optimize_pair_on_page(
     runtime_state: OptimizerRuntimeState | None = None,
     run_id: str | None = None,
     worker_id: int | None = None,
+    source_params: dict[str, Any] | None = None,
+    custom_start_date: str | None = None,
+    custom_end_date: str | None = None,
 ) -> Optional[BacktestResult]:
     """
     Run optimization for one pair on a given page.
@@ -364,9 +457,11 @@ async def optimize_pair_on_page(
     """
     if dry_run:
         await asyncio.sleep(2)
+        if mode in VALIDATE_MODES and source_params is None:
+            raise RuntimeError(f"No source params supplied for {symbol}")
         return BacktestResult(
             symbol=symbol,
-            params={"dry_run": True},
+            params=dict(source_params or {"dry_run": True}),
             net_profit=999.0,
             total_trades=50,
             win_rate=55.0,
@@ -394,10 +489,21 @@ async def optimize_pair_on_page(
     opt_shell.runtime_state = runtime_state
     opt_shell.run_id = run_id
     opt_shell.worker_id = worker_id
+    opt_shell.custom_start_date = custom_start_date
+    opt_shell.custom_end_date = custom_end_date
 
     # TabWorker signature is (page, optimizer) — not (optimizer, page, symbol)
     worker = TabWorker(page, opt_shell)
 
+    if mode in VALIDATE_MODES:
+        if source_params is None:
+            raise RuntimeError(f"No source params supplied for {symbol}")
+        return await worker.validate_pair(
+            symbol,
+            source_params,
+            custom_start_date=custom_start_date,
+            custom_end_date=custom_end_date,
+        )
     if mode == "bayesian":
         # optimize_pair_bayesian lives on TradingViewOptimizer, takes (worker, symbol, n_trials)
         return await opt_shell.optimize_pair_bayesian(worker, symbol, n_trials)
@@ -424,22 +530,34 @@ async def worker_task(
     runtime_state: OptimizerRuntimeState | None,
     run_id: str | None,
     backtest_range: str = "365d",
+    source_params_by_symbol: dict[str, dict[str, Any]] | None = None,
+    source_run_id: str | None = None,
+    custom_start_date: str | None = None,
+    custom_end_date: str | None = None,
 ) -> None:
     """Worker coroutine: pulls pairs from queue, optimizes, saves results."""
     log.info(f"[worker-{worker_id}] Started")
 
     while True:
         try:
-            symbol = pair_queue.get_nowait()
+            queue_item = pair_queue.get_nowait()
         except asyncio.QueueEmpty:
             break
 
+        if isinstance(queue_item, dict):
+            symbol = str(queue_item["symbol"]).upper()
+            item_broker = str(queue_item.get("broker") or broker).lower()
+        else:
+            symbol = str(queue_item).upper()
+            item_broker = broker
+
         retries = 0
         result = None
+        source_params = (source_params_by_symbol or {}).get(symbol)
 
         while retries <= MAX_PAIR_RETRIES:
             try:
-                log.info(f"[worker-{worker_id}] Starting {symbol} (attempt {retries + 1})")
+                log.info(f"[worker-{worker_id}] Starting {symbol} on {item_broker} (attempt {retries + 1})")
                 if runtime_state is not None and run_id is not None:
                     runtime_state.mark_pair_started(
                         run_id=run_id,
@@ -449,16 +567,32 @@ async def worker_task(
                     runtime_state.record_run_event(
                         run_id=run_id,
                         event_type="pair_started",
-                        payload={"worker_id": worker_id, "symbol": symbol, "attempt": retries + 1},
+                        payload={"worker_id": worker_id, "symbol": symbol, "broker": item_broker, "attempt": retries + 1},
                     )
                     emit_event(
                         "pair_started",
                         run_id=run_id,
                         worker_id=worker_id,
                         symbol=symbol,
+                        broker=item_broker,
                         attempt=retries + 1,
                     )
                 start = time.time()
+                optimize_kwargs = {
+                    "broker": item_broker,
+                    "backtest_range": backtest_range,
+                    "runtime_state": runtime_state,
+                    "run_id": run_id,
+                    "worker_id": worker_id,
+                }
+                if mode in VALIDATE_MODES:
+                    optimize_kwargs.update(
+                        {
+                            "source_params": source_params,
+                            "custom_start_date": custom_start_date,
+                            "custom_end_date": custom_end_date,
+                        }
+                    )
                 result = await optimize_pair_on_page(
                     page,
                     symbol,
@@ -466,11 +600,7 @@ async def worker_task(
                     n_trials,
                     dd_limit,
                     dry_run,
-                    broker=broker,
-                    backtest_range=backtest_range,
-                    runtime_state=runtime_state,
-                    run_id=run_id,
-                    worker_id=worker_id,
+                    **optimize_kwargs,
                 )
                 if result is None:
                     raise RuntimeError(
@@ -491,6 +621,7 @@ async def worker_task(
                     payload = {
                         "worker_id": worker_id,
                         "symbol": symbol,
+                        "broker": item_broker,
                         "elapsed_seconds": elapsed,
                         "params": result.params,
                         "metrics": {
@@ -509,6 +640,40 @@ async def worker_task(
                     )
                     emit_event("pair_completed", run_id=run_id, **payload)
                 break
+            except NoDataForRangeError as e:
+                message = str(e)
+                log.warning(f"[worker-{worker_id}] SKIP {symbol} on {item_broker}: {message}")
+                async with results_lock:
+                    _store_pair_result(
+                        results,
+                        symbol=symbol,
+                        broker=item_broker,
+                        mode=mode,
+                        source_run_id=source_run_id,
+                        params=source_params or {},
+                        status="skipped",
+                        skip_reason=message,
+                    )
+                    write_results_snapshot(
+                        results,
+                        results_file,
+                        latest_results_file=latest_results_file,
+                    )
+                if runtime_state is not None and run_id is not None:
+                    payload = {
+                        "worker_id": worker_id,
+                        "symbol": symbol,
+                        "broker": item_broker,
+                        "skip_reason": message,
+                    }
+                    runtime_state.record_run_event(
+                        run_id=run_id,
+                        event_type="pair_skipped",
+                        payload=payload,
+                    )
+                    emit_event("pair_skipped", run_id=run_id, **payload)
+                result = None
+                break
             except Exception as e:
                 retries += 1
                 log.warning(f"[worker-{worker_id}] ⚠️  {symbol} attempt {retries} failed: {e}")
@@ -524,10 +689,27 @@ async def worker_task(
                 else:
                     log.error(f"[worker-{worker_id}] ❌ {symbol} failed after {MAX_PAIR_RETRIES} retries")
                     error_log.append({"symbol": symbol, "worker": worker_id, "error": str(e)})
+                    async with results_lock:
+                        _store_pair_result(
+                            results,
+                            symbol=symbol,
+                            broker=item_broker,
+                            mode=mode,
+                            source_run_id=source_run_id,
+                            params=source_params or {},
+                            status="failed",
+                            error_message=str(e),
+                        )
+                        write_results_snapshot(
+                            results,
+                            results_file,
+                            latest_results_file=latest_results_file,
+                        )
                     if runtime_state is not None and run_id is not None:
                         payload = {
                             "worker_id": worker_id,
                             "symbol": symbol,
+                            "broker": item_broker,
                             "error_message": str(e),
                         }
                         runtime_state.record_run_event(
@@ -539,17 +721,17 @@ async def worker_task(
 
         if result is not None:
             async with results_lock:
-                results[symbol] = {
-                    "params": result.params,
-                    "score": result.score,
-                    "net_profit": result.net_profit,
-                    "win_rate": result.win_rate,
-                    "profit_factor": result.profit_factor,
-                    "max_drawdown_pct": result.max_drawdown_pct,
-                    "total_trades": result.total_trades,
-                    "worker_id": worker_id,
-                    "timestamp": datetime.now().isoformat(),
-                }
+                metrics = _result_metrics(result, worker_id=worker_id)
+                _store_pair_result(
+                    results,
+                    symbol=symbol,
+                    broker=item_broker,
+                    mode=mode,
+                    source_run_id=source_run_id,
+                    params=result.params,
+                    status="completed",
+                    metrics=metrics,
+                )
                 # Write results incrementally — never lose completed work
                 write_results_snapshot(
                     results,
@@ -577,6 +759,11 @@ async def run_parallel(
     backtest_range: str = "365d",
     raw_args: list[str] | None = None,
     results_label: str | None = None,
+    source_params_file: str | None = None,
+    source_run_id: str | None = None,
+    brokers: list[str] | None = None,
+    custom_start_date: str | None = None,
+    custom_end_date: str | None = None,
 ) -> dict:
     """
     Main coordinator: prepares TradingView Desktop tabs, distributes pairs to workers, collects results.
@@ -586,6 +773,22 @@ async def run_parallel(
     latest_results_file = results_file_for_broker(broker)
     backtest_range = normalize_backtest_range(backtest_range)
     backtest_range_label = backtest_range_to_label(backtest_range)
+    loaded_source_run_id, source_params_by_symbol = load_source_params_file(source_params_file)
+    source_run_id = source_run_id or loaded_source_run_id
+    selected_brokers = [item.strip().lower() for item in (brokers or [broker]) if item.strip()]
+    if mode == "multi_broker_validate":
+        invalid = sorted(set(selected_brokers) - SUPPORTED_BROKERS)
+        if invalid:
+            raise ValueError(f"Unsupported brokers: {', '.join(invalid)}")
+    else:
+        selected_brokers = [broker]
+    if mode in VALIDATE_MODES:
+        missing_params = [symbol for symbol in pairs if symbol not in source_params_by_symbol]
+        if missing_params:
+            log.warning("Skipping pairs missing source params: %s", missing_params)
+        pairs = [symbol for symbol in pairs if symbol in source_params_by_symbol]
+        if not pairs:
+            raise ValueError("No requested pairs have source params")
 
     log.info(f"Parallel optimizer starting")
     log.info(
@@ -607,7 +810,15 @@ async def run_parallel(
         except Exception:
             pass
 
-    remaining_pairs = [p for p in pairs if p not in existing_results]
+    if mode == "multi_broker_validate":
+        remaining_pairs = []
+        for symbol in pairs:
+            existing_brokers = set((existing_results.get(symbol) or {}).get("brokers") or {})
+            for run_broker in selected_brokers:
+                if run_broker not in existing_brokers:
+                    remaining_pairs.append({"symbol": symbol, "broker": run_broker})
+    else:
+        remaining_pairs = [p for p in pairs if p not in existing_results]
     log.info(f"Pairs to process: {len(remaining_pairs)}")
 
     if not remaining_pairs:
@@ -666,7 +877,7 @@ async def run_parallel(
             controller = OptimizerMcpController()
             workspace_slots = await controller.ensure_optimizer_workspace(
                 required_tabs=n_workers,
-                bootstrap_symbol=remaining_pairs[0],
+                bootstrap_symbol=remaining_pairs[0]["symbol"] if isinstance(remaining_pairs[0], dict) else remaining_pairs[0],
                 broker=broker,
             )
             pages = _prepare_mcp_backed_pages(workspace_slots)
@@ -701,6 +912,10 @@ async def run_parallel(
                     dry_run=dry_run,
                     runtime_state=runtime_state,
                     run_id=run_id,
+                    source_params_by_symbol=source_params_by_symbol,
+                    source_run_id=source_run_id,
+                    custom_start_date=custom_start_date,
+                    custom_end_date=custom_end_date,
                 ),
                 name=f"worker-{i}",
             )
@@ -715,10 +930,17 @@ async def run_parallel(
         raise
 
     elapsed = time.time() - start_time
-    runtime_state.set_run_state(
-        run_id=run_id,
-        state="failed" if error_log else "completed",
+    completed_count = sum(
+        1
+        for value in results.values()
+        if (
+            value.get("status") == "completed"
+            if isinstance(value, dict)
+            else False
+        )
     )
+    final_state = "failed" if error_log and completed_count == 0 else "completed"
+    runtime_state.set_run_state(run_id=run_id, state=final_state)
     output_paths = {
         "results_file": str(results_file),
         "latest_results_file": str(latest_results_file),
@@ -735,7 +957,7 @@ async def run_parallel(
         log.info(f"  Latest snapshot: {latest_results_file}")
 
     # Generate HTML report from parallel results
-    if results:
+    if results and mode != "multi_broker_validate":
         try:
             from .report import generate_html_report
 
@@ -769,7 +991,7 @@ async def run_parallel(
         run_id=run_id,
         event_type="run_finished",
         payload={
-            "status": "failed" if error_log else "completed",
+            "status": final_state,
             "output_paths": output_paths,
             "error_count": len(error_log),
         },
@@ -777,7 +999,7 @@ async def run_parallel(
     emit_event(
         "run_finished",
         run_id=run_id,
-        status="failed" if error_log else "completed",
+        status=final_state,
         output_paths=output_paths,
         error_count=len(error_log),
     )
@@ -793,17 +1015,22 @@ def main() -> None:
     import argparse
     parser = argparse.ArgumentParser(description="Parallel TradingView Strategy Optimizer")
     parser.add_argument("--workers", type=int, default=3, help="Number of parallel workers (default: 3)")
-    parser.add_argument("--mode", choices=["bayesian", "smart", "fast", "full"], default="bayesian")
+    parser.add_argument("--mode", choices=["bayesian", "smart", "fast", "full", "validate", "multi_broker_validate"], default="bayesian")
     parser.add_argument("--trials", type=int, default=N_BAYESIAN_TRIALS, help="Optuna trials per pair")
-    parser.add_argument("--dd-limit", type=float, default=PROP_FIRM_MAX_DD_PCT, help="Max drawdown %")
+    parser.add_argument("--dd-limit", type=float, default=PROP_FIRM_MAX_DD_PCT, help="Max drawdown percent")
     parser.add_argument("--pairs", type=str, help="Comma-separated list of pairs (default: all)")
     parser.add_argument("--broker", choices=sorted(SUPPORTED_BROKERS), default="vantage", help="Broker dataset namespace")
     parser.add_argument(
         "--backtest-range",
-        choices=["30d", "90d", "365d", "all"],
+        choices=["30d", "90d", "365d", "all", "custom"],
         default="365d",
-        help="TradingView backtest window preset",
+        help="TradingView backtest window preset or custom",
     )
+    parser.add_argument("--custom-start-date", type=str, help="Custom backtest start date (YYYY-MM-DD)")
+    parser.add_argument("--custom-end-date", type=str, help="Custom backtest end date (YYYY-MM-DD)")
+    parser.add_argument("--source-run-id", type=str, help="Source optimizer run for validate modes")
+    parser.add_argument("--source-params-file", type=str, help="JSON file containing source params by pair")
+    parser.add_argument("--brokers", type=str, help="Comma-separated brokers for multi_broker_validate")
     parser.add_argument("--results-label", type=str, help="Optional run-specific suffix for the results filename")
     parser.add_argument("--dry-run", action="store_true", help="Test with fake results (2 pairs, 2 trials)")
     parser.add_argument("--reset", action="store_true", help="Clear existing results and start fresh")
@@ -840,6 +1067,11 @@ def main() -> None:
         backtest_range=args.backtest_range,
         raw_args=sys.argv[1:],
         results_label=args.results_label,
+        source_params_file=args.source_params_file,
+        source_run_id=args.source_run_id,
+        brokers=[item.strip() for item in args.brokers.split(",")] if args.brokers else None,
+        custom_start_date=args.custom_start_date,
+        custom_end_date=args.custom_end_date,
     ))
 
 

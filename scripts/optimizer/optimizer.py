@@ -128,6 +128,15 @@ class TradingViewOptimizer:
 
     async def _require_worker_backtest_range(self, worker: TabWorker) -> None:
         """Use the generic range API when available and fall back for legacy shims."""
+        if self.backtest_range == "custom":
+            start_date = getattr(self, "custom_start_date", None)
+            end_date = getattr(self, "custom_end_date", None)
+            if not start_date or not end_date:
+                raise RuntimeError("custom_start_date and custom_end_date are required")
+            if hasattr(worker, "_require_custom_date_range"):
+                await worker._require_custom_date_range(start_date, end_date)
+                return
+            raise RuntimeError("custom date range is not supported by this worker")
         if hasattr(worker, "_require_backtest_range"):
             await worker._require_backtest_range(self.backtest_range_label)
             return

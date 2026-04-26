@@ -361,7 +361,8 @@ def test_worker_task_retries_when_optimizer_returns_no_result(monkeypatch, tmp_p
         )
     )
 
-    assert results == {}
+    assert results["EURUSD"]["status"] == "failed"
+    assert results["EURUSD"]["error_message"] == "No valid optimization result produced for EURUSD"
     assert error_log == [
         {
             "symbol": "EURUSD",
@@ -419,3 +420,172 @@ def test_run_parallel_uses_run_scoped_results_file_for_resume(monkeypatch, tmp_p
     assert result["EURUSD"]["score"] == 2.0
     assert json.loads(run_results.read_text())["EURUSD"]["score"] == 2.0
     assert json.loads(base_results.read_text())["EURUSD"]["score"] == 2.0
+
+
+def test_multi_broker_validate_writes_nested_pair_results(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(parallel_runner, "setup_logging", lambda: None)
+    monkeypatch.setattr(parallel_runner, "detect_desktop_cdp_pid", lambda: None)
+    monkeypatch.setattr(parallel_runner, "WORKER_STARTUP_DELAY", 0)
+
+    results_file = tmp_path / "parallel_results_validate.json"
+    monkeypatch.setattr(
+        parallel_runner,
+        "results_file_for_broker",
+        lambda broker, results_label=None: results_file,
+    )
+    monkeypatch.setattr(parallel_runner, "OptimizerRuntimeState", FakeRuntimeState)
+
+    source_file = tmp_path / "source.json"
+    source_file.write_text(
+        json.dumps(
+            {
+                "source_run_id": "source-run",
+                "results": {
+                    "EURUSD": {"params": {"rr_mode": "fixed_4.0"}},
+                },
+            }
+        )
+    )
+
+    async def fake_optimize_pair_on_page(
+        page,
+        symbol,
+        mode,
+        n_trials,
+        dd_limit,
+        dry_run,
+        broker="vantage",
+        backtest_range="365d",
+        runtime_state=None,
+        run_id=None,
+        worker_id=None,
+        source_params=None,
+        custom_start_date=None,
+        custom_end_date=None,
+    ):
+        assert mode == "multi_broker_validate"
+        assert source_params == {"rr_mode": "fixed_4.0"}
+        values = {"vantage": 1.72, "oanda": 1.65}
+        return parallel_runner.BacktestResult(
+            symbol=symbol,
+            params=source_params,
+            net_profit=1000.0,
+            total_trades=42,
+            win_rate=58.0,
+            profit_factor=values[broker],
+            max_drawdown_pct=4.8 if broker == "vantage" else 5.1,
+            score=values[broker],
+        )
+
+    monkeypatch.setattr(parallel_runner, "optimize_pair_on_page", fake_optimize_pair_on_page)
+
+    result = asyncio.run(
+        parallel_runner.run_parallel(
+            pairs=["EURUSD"],
+            n_workers=1,
+            mode="multi_broker_validate",
+            n_trials=1,
+            dd_limit=10.0,
+            dry_run=True,
+            broker="vantage",
+            brokers=["vantage", "oanda"],
+            source_params_file=str(source_file),
+            source_run_id="source-run",
+        )
+    )
+
+    assert result == {
+        "EURUSD": {
+            "status": "completed",
+            "params": {"rr_mode": "fixed_4.0"},
+            "source_run_id": "source-run",
+            "brokers": {
+                "vantage": {
+                    "status": "completed",
+                    "score": 1.72,
+                    "net_profit": 1000.0,
+                    "win_rate": 58.0,
+                    "profit_factor": 1.72,
+                    "max_drawdown_pct": 4.8,
+                    "total_trades": 42,
+                    "worker_id": 0,
+                },
+                "oanda": {
+                    "status": "completed",
+                    "score": 1.65,
+                    "net_profit": 1000.0,
+                    "win_rate": 58.0,
+                    "profit_factor": 1.65,
+                    "max_drawdown_pct": 5.1,
+                    "total_trades": 42,
+                    "worker_id": 0,
+                },
+            },
+        }
+    }
+    assert json.loads(results_file.read_text()) == result
+
+
+def test_validate_pair_no_data_is_skipped_without_failing_other_pairs(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(parallel_runner, "setup_logging", lambda: None)
+    monkeypatch.setattr(parallel_runner, "detect_desktop_cdp_pid", lambda: None)
+    monkeypatch.setattr(parallel_runner, "WORKER_STARTUP_DELAY", 0)
+    monkeypatch.setattr(
+        parallel_runner,
+        "results_file_for_broker",
+        lambda broker, results_label=None: tmp_path / "parallel_results_validate.json",
+    )
+    monkeypatch.setattr(parallel_runner, "OptimizerRuntimeState", FakeRuntimeState)
+    monkeypatch.setattr(parallel_runner, "MAX_PAIR_RETRIES", 0)
+
+    source_file = tmp_path / "source.json"
+    source_file.write_text(
+        json.dumps(
+            {
+                "source_run_id": "source-run",
+                "results": {
+                    "EURUSD": {"params": {"rr_mode": "fixed_4.0"}},
+                    "NAS100": {"params": {"rr_mode": "fixed_4.0"}},
+                },
+            }
+        )
+    )
+
+    async def fake_optimize_pair_on_page(*args, **kwargs):
+        symbol = args[1]
+        if symbol == "NAS100":
+            raise parallel_runner.NoDataForRangeError("no data available before 2024-01-01")
+        return parallel_runner.BacktestResult(
+            symbol=symbol,
+            params=kwargs["source_params"],
+            net_profit=1000.0,
+            total_trades=42,
+            win_rate=58.0,
+            profit_factor=1.72,
+            max_drawdown_pct=4.8,
+            score=1.72,
+        )
+
+    monkeypatch.setattr(parallel_runner, "optimize_pair_on_page", fake_optimize_pair_on_page)
+
+    result = asyncio.run(
+        parallel_runner.run_parallel(
+            pairs=["EURUSD", "NAS100"],
+            n_workers=1,
+            mode="validate",
+            n_trials=1,
+            dd_limit=10.0,
+            dry_run=True,
+            broker="vantage",
+            source_params_file=str(source_file),
+            source_run_id="source-run",
+            custom_start_date="2024-01-01",
+            custom_end_date="2025-01-01",
+        )
+    )
+
+    assert result["EURUSD"]["status"] == "completed"
+    assert result["NAS100"]["status"] == "skipped"
+    assert result["NAS100"]["skip_reason"] == "no data available before 2024-01-01"
+    assert FakeRuntimeState.last_instance is not None
+    assert FakeRuntimeState.last_instance.states[-1] == ("run-1", "completed")

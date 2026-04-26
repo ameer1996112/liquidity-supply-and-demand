@@ -339,6 +339,12 @@ export interface OptimizerRunSummaryApi {
   best_score?: number;
   output_paths?: Record<string, string>;
   error_message?: string;
+  source_run_id?: string;
+  backtest_range?: string;
+  custom_start_date?: string;
+  custom_end_date?: string;
+  brokers?: string[];
+  skipped_pairs?: string[];
 }
 
 export interface OptimizerPortfolioResultApi {
@@ -350,10 +356,12 @@ export interface OptimizerPortfolioResultApi {
 
 export interface OptimizerRunResultApi {
   symbol: string;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'skipped';
+  broker?: 'vantage' | 'oanda' | 'fxcm' | null;
   decision?: string | null;
   reason?: string | null;
   params?: Record<string, unknown>;
+  brokers?: Record<string, Record<string, unknown>>;
   metrics?: {
     score?: number;
     net_profit?: number;
@@ -364,6 +372,8 @@ export interface OptimizerRunResultApi {
   };
   validation_metrics?: Record<string, unknown> | null;
   forward_metrics?: Record<string, unknown> | null;
+  source_run_id?: string | null;
+  skip_reason?: string | null;
   error_message?: string | null;
 }
 
@@ -432,12 +442,16 @@ export interface OptimizerRunApi {
   dd_limit: number;
   dry_run: boolean;
   broker?: 'vantage' | 'oanda' | 'fxcm' | null;
-  backtest_range?: '30d' | '90d' | '365d' | 'all' | null;
+  brokers?: Array<'vantage' | 'oanda' | 'fxcm'> | null;
+  source_run_id?: string | null;
+  backtest_range?: '30d' | '90d' | '365d' | 'all' | 'custom' | null;
+  custom_start_date?: string | null;
+  custom_end_date?: string | null;
   market?: string | null;
   created_by?: string | null;
   summary: OptimizerRunSummaryApi;
   portfolio_result?: OptimizerPortfolioResultApi | null;
-  results?: OptimizerRunResultApi[];
+  results?: OptimizerRunResultApi[] | Record<string, OptimizerRunResultApi>;
   artifacts?: OptimizerRunArtifactsApi | null;
   started_at?: string | null;
   finished_at?: string | null;
@@ -455,7 +469,11 @@ export interface OptimizerRunCreateApi {
   dd_limit: number;
   dry_run: boolean;
   broker: 'vantage' | 'oanda' | 'fxcm';
-  backtest_range: '30d' | '90d' | '365d' | 'all';
+  brokers?: Array<'vantage' | 'oanda' | 'fxcm'>;
+  source_run_id?: string;
+  backtest_range: '30d' | '90d' | '365d' | 'all' | 'custom';
+  custom_start_date?: string;
+  custom_end_date?: string;
 }
 
 export async function fetchOptimizerRuns() {
@@ -469,10 +487,13 @@ export async function fetchOptimizerRun(runId: string) {
 }
 
 export async function fetchOptimizerRunResults(runId: string) {
-  const response = await apiFetch<{ results: OptimizerRunResultApi[] }>(
+  const response = await apiFetch<{ results: OptimizerRunResultApi[] | Record<string, OptimizerRunResultApi> }>(
     `/api/optimizer/runs/${runId}/results`
   );
-  return response.results || [];
+  if (Array.isArray(response.results)) {
+    return response.results;
+  }
+  return Object.values(response.results || {});
 }
 
 export async function fetchOptimizerRunEvents(runId: string) {

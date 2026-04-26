@@ -27,7 +27,17 @@ const runFixture = {
     dry_run: true,
     broker: 'vantage',
     market: 'forex',
-    summary: { total_pairs: 2, running_pairs: 1, completed_pairs: 1, failed_pairs: 0, best_symbol: 'EURUSD', best_score: 2.1 },
+    summary: {
+      total_pairs: 2,
+      running_pairs: 1,
+      completed_pairs: 1,
+      failed_pairs: 0,
+      best_symbol: 'EURUSD',
+      best_score: 2.1,
+      backtest_range: 'custom',
+      custom_start_date: '2025-04-01',
+      custom_end_date: '2026-04-01',
+    },
     portfolio_result: {
       combined_max_drawdown_pct: 4.8,
       combined_daily_drawdown_pct: 2.1,
@@ -371,6 +381,51 @@ describe('OptimizerRunsWorkspace', () => {
         backtest_range: '90d',
       })
     );
+  });
+
+  it('shows custom range helper and source overlap warning for validate mode', () => {
+    act(() => {
+      root.render(<OptimizerRunsWorkspace />);
+    });
+
+    const modeSelect = Array.from(container.querySelectorAll('select')).find((select) =>
+      select.textContent?.includes('Validate')
+    ) as HTMLSelectElement | undefined;
+    const backtestRangeSelect = container.querySelector('select[aria-label="Backtest range"]') as HTMLSelectElement | null;
+
+    act(() => {
+      if (modeSelect) {
+        modeSelect.value = 'validate';
+        modeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      if (backtestRangeSelect) {
+        backtestRangeSelect.value = 'custom';
+        backtestRangeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+
+    const sourceInput = container.querySelector('input[aria-label="Source run ID"]') as HTMLInputElement | null;
+    const startInput = container.querySelector('input[aria-label="Custom start date"]') as HTMLInputElement | null;
+    const endInput = container.querySelector('input[aria-label="Custom end date"]') as HTMLInputElement | null;
+
+    act(() => {
+      if (sourceInput) {
+        sourceInput.value = 'run-2026-04-13';
+        sourceInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      if (startInput) {
+        startInput.value = '2025-03-01';
+        startInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      if (endInput) {
+        endInput.value = '2025-05-01';
+        endInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+    });
+
+    expect(document.body.textContent).toContain('For walk-forward validation');
+    expect(document.body.textContent).toContain("overlaps with the source run's window");
+    expect(document.body.textContent).not.toContain('Trials');
   });
 
   it('renders desktop bridge offline when the desktop automation bridge is unavailable', () => {
