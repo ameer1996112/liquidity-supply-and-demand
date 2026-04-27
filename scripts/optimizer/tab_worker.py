@@ -2012,20 +2012,58 @@ class TabWorker:
             client = getattr(self.page, "_client", None)
             if client is None:
                 raise RuntimeError("custom date ranges require TradingView MCP-backed page")
+            log.info(
+                "_set_custom_date_range: requesting custom range start=%s end=%s from_ts=%s to_ts=%s",
+                start_date,
+                end_date,
+                from_ts,
+                to_ts,
+            )
             result = await client.run("range", "--from", str(from_ts), "--to", str(to_ts))
             if not result.get("success", True):
-                raise RuntimeError(str(result.get("error") or "MCP range command failed"))
+                error_message = str(result.get("error") or "MCP range command failed")
+                if "no data" in error_message.lower():
+                    raise NoDataForRangeError(error_message)
+                raise RuntimeError(error_message)
+            if result.get("no_data") is True:
+                raise NoDataForRangeError(str(result.get("error") or f"no data available for {start_date} to {end_date}"))
             actual = result.get("actual") or {}
             actual_from = int(actual.get("from") or 0)
             actual_to = int(actual.get("to") or 0)
+            log.info(
+                "_set_custom_date_range: response method=%s requested_from=%s requested_to=%s "
+                "actual_from=%s actual_to=%s direct_error=%s fallback=%s",
+                result.get("method"),
+                from_ts,
+                to_ts,
+                actual_from,
+                actual_to,
+                result.get("direct_error"),
+                result.get("fallback"),
+            )
             if actual_from <= 0 or actual_to <= 0:
                 raise RuntimeError(f"MCP range command did not return a visible range: {actual}")
-            # Allow a little slack for market sessions/weekends, but fail closed
-            # when the chart could not reach the requested historical data.
+            # The visible chart viewport is not a data-availability oracle. TradingView
+            # may initially anchor to loaded bars while it fetches the requested window,
+            # so do not skip valid symbols just because the viewport differs.
             if actual_from > from_ts + 7 * 24 * 60 * 60:
-                raise NoDataForRangeError(f"no data available before {start_date}")
+                log.warning(
+                    "_set_custom_date_range: visible range starts after requested start; "
+                    "continuing and letting Strategy Tester compute available data "
+                    "(start=%s actual_from=%s requested_from=%s)",
+                    start_date,
+                    actual_from,
+                    from_ts,
+                )
             if actual_to < to_ts - 7 * 24 * 60 * 60:
-                raise NoDataForRangeError(f"no data available through {end_date}")
+                log.warning(
+                    "_set_custom_date_range: visible range ends before requested end; "
+                    "continuing and letting Strategy Tester compute available data "
+                    "(end=%s actual_to=%s requested_to=%s)",
+                    end_date,
+                    actual_to,
+                    to_ts,
+                )
             await self._wait_for_update_complete()
             await self._wait_for_load()
             print(f"  [backtest range ✓ custom {start_date} → {end_date}]", flush=True)

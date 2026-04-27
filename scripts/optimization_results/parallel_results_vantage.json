@@ -1,6 +1,6 @@
 {
   "USDJPY": {
-    "status": "skipped",
+    "status": "completed",
     "params": {
       "pvtMax": 5,
       "rr_mode": "fixed_2.5",
@@ -25,11 +25,17 @@
       "liq_max_distance_pips_forex": 26.7
     },
     "source_run_id": "176ef790-d1bb-4e74-8f80-6f583524e0d1",
-    "timestamp": "2026-04-27T11:34:15.380774",
-    "skip_reason": "no data available before 2025-01-26"
+    "score": 0.0,
+    "net_profit": -2989.52,
+    "win_rate": 30.26,
+    "profit_factor": 0.752,
+    "max_drawdown_pct": 7.06,
+    "total_trades": 76,
+    "worker_id": 0,
+    "timestamp": "2026-04-27T11:56:47.083089"
   },
   "XAUUSD": {
-    "status": "skipped",
+    "status": "completed",
     "params": {
       "pvtMax": 5,
       "rr_mode": "fixed_3.0",
@@ -54,11 +60,17 @@
       "liq_max_distance_pips_gold": 212.6
     },
     "source_run_id": "176ef790-d1bb-4e74-8f80-6f583524e0d1",
-    "timestamp": "2026-04-27T11:34:30.319911",
-    "skip_reason": "no data available before 2025-01-26"
+    "score": 0.0,
+    "net_profit": -2102.08,
+    "win_rate": 19.12,
+    "profit_factor": 0.854,
+    "max_drawdown_pct": 7.52,
+    "total_trades": 68,
+    "worker_id": 1,
+    "timestamp": "2026-04-27T11:56:58.294433"
   },
   "NAS100": {
-    "status": "skipped",
+    "status": "completed",
     "params": {
       "pvtMax": 5,
       "rr_mode": "fixed_2.5",
@@ -83,7 +95,13 @@
       "liq_max_distance_pips_index": 319.6
     },
     "source_run_id": "176ef790-d1bb-4e74-8f80-6f583524e0d1",
-    "timestamp": "2026-04-27T11:34:34.445977",
-    "skip_reason": "no data available before 2025-01-26"
+    "score": 10.45756247119449,
+    "net_profit": 4100.72,
+    "win_rate": 35.06,
+    "profit_factor": 1.318,
+    "max_drawdown_pct": 4.91,
+    "total_trades": 77,
+    "worker_id": 2,
+    "timestamp": "2026-04-27T11:59:54.505188"
   }
 }

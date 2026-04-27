@@ -1,11 +1,11 @@
 {
-  "run_id": "20260427_115531_3767ad",
-  "state": "completed",
-  "started_at": "2026-04-27T11:55:31.427000+03:00",
-  "last_progress_at": "2026-04-27T11:59:54.506787+03:00",
+  "run_id": "20260427_114846_6533bd",
+  "state": "failed",
+  "started_at": "2026-04-27T11:48:46.075760+03:00",
+  "last_progress_at": "2026-04-27T11:49:23.293486+03:00",
   "stuck_threshold_seconds": 720,
   "restart_count": 0,
-  "optimizer_pid": 43238,
+  "optimizer_pid": 41755,
   "desktop_cdp_pid": 2592,
   "log_file": "/Users/ameeramer/dev/projects/galilsoftware/sources/trading/scripts/optimization_results/parallel_run.log",
   "mode": "validate",
@@ -27,11 +27,11 @@
     "--backtest-range",
     "custom",
     "--results-label",
-    "smoke_validate_fix_20260427115531",
+    "825de86d-0581-430b-baa5-40adbcc8cff6",
     "--source-run-id",
     "176ef790-d1bb-4e74-8f80-6f583524e0d1",
     "--source-params-file",
-    "scripts/optimizer/tmp/validate_source_smoke_176ef790-d1bb-4e74-8f80-6f583524e0d1_1777280121.json",
+    "/Users/ameeramer/dev/projects/galilsoftware/sources/trading/scripts/optimizer/tmp/validate_source_825de86d-0581-430b-baa5-40adbcc8cff6_20260427114845_9yxh387_.json",
     "--custom-start-date",
     "2025-01-26",
     "--custom-end-date",
@@ -41,20 +41,14 @@
     "worker-0": {
       "symbol": "USDJPY",
       "trial": 0,
-      "last_event_at": "2026-04-27T11:56:47.082391+03:00",
-      "status": "completed"
+      "last_event_at": "2026-04-27T11:48:46.383750+03:00",
+      "status": "running"
     },
     "worker-1": {
-      "symbol": "XAUUSD",
-      "trial": 0,
-      "last_event_at": "2026-04-27T11:56:58.292366+03:00",
-      "status": "completed"
-    },
-    "worker-2": {
       "symbol": "NAS100",
       "trial": 0,
-      "last_event_at": "2026-04-27T11:59:54.504491+03:00",
-      "status": "completed"
+      "last_event_at": "2026-04-27T11:49:04.308582+03:00",
+      "status": "running"
     }
   },
   "worker_health": {
@@ -64,11 +58,6 @@
       "last_results_hash": ""
     },
     "worker-1": {
-      "status": "healthy",
-      "stale_reads": 0,
-      "last_results_hash": ""
-    },
-    "worker-2": {
       "status": "healthy",
       "stale_reads": 0,
       "last_results_hash": ""

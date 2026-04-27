@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from scripts.optimizer.models import BacktestResult
+from scripts.optimizer.models import BacktestResult, NoDataForRangeError
 from scripts.optimizer.tab_worker import ApplyOutcome, TabWorker
 from scripts.optimizer import tab_worker as tab_worker_module
 
@@ -33,6 +33,16 @@ class DummyOptimizer:
     pass
 
 
+class RangeClient:
+    def __init__(self, result: dict) -> None:
+        self.result = result
+        self.calls: list[tuple[str, ...]] = []
+
+    async def run(self, *args: str) -> dict:
+        self.calls.append(args)
+        return self.result
+
+
 class DummyPage:
     def __init__(self, title: str = "EURJPY 5 Vantage", url: str = "") -> None:
         self._title = title
@@ -45,6 +55,12 @@ class DummyPage:
     async def evaluate(self, script: str):  # pragma: no cover - guard rail
         self.evaluate_called = True
         raise AssertionError("metrics should not be read when the symbol mismatches")
+
+
+class RangePage(DummyPage):
+    def __init__(self, result: dict) -> None:
+        super().__init__()
+        self._client = RangeClient(result)
 
 
 class MetricsPage(DummyPage):
@@ -70,6 +86,39 @@ class FallbackMetricsPage(DummyPage):
                 "Max equity drawdown": "1,250|Max equity drawdown 2.5%",
             }
         raise AssertionError(f"unexpected script in FallbackMetricsPage: {script[:120]}")
+
+
+def test_custom_date_range_does_not_skip_when_visible_range_starts_late(monkeypatch) -> None:
+    page = RangePage(
+        {
+            "success": True,
+            "method": "chart.setVisibleRange",
+            "actual": {"from": 1742000000, "to": 1745500000},
+        }
+    )
+    worker = TabWorker(page, DummyOptimizer())
+    monkeypatch.setattr(worker, "_ensure_strategy_tester_open", AsyncMock())
+    monkeypatch.setattr(worker, "_wait_for_update_complete", AsyncMock())
+    monkeypatch.setattr(worker, "_wait_for_load", AsyncMock())
+
+    result = asyncio.run(worker._set_custom_date_range("2025-01-26", "2025-04-25"))
+
+    assert result is True
+    assert page._client.calls == [("range", "--from", "1737849600", "--to", "1745539200")]
+
+
+def test_custom_date_range_skips_when_mcp_explicitly_reports_no_data(monkeypatch) -> None:
+    page = RangePage(
+        {
+            "success": False,
+            "error": "No data available for FAKE:SYMBOL in requested range",
+        }
+    )
+    worker = TabWorker(page, DummyOptimizer())
+    monkeypatch.setattr(worker, "_ensure_strategy_tester_open", AsyncMock())
+
+    with pytest.raises(NoDataForRangeError, match="No data available"):
+        asyncio.run(worker._set_custom_date_range("1980-01-01", "1980-02-01"))
 
 
 class MenuSettingsPage(DummyPage):
