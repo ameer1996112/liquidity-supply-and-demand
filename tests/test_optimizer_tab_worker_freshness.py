@@ -676,6 +676,39 @@ def test_apply_params_rejects_unchanged_final_results_hash(monkeypatch) -> None:
     )
 
 
+def test_apply_params_can_accept_unchanged_hash_for_validate_noop(monkeypatch) -> None:
+    page = DummyPage()
+    worker = TabWorker(page, DummyOptimizer())
+
+    async def always_true() -> bool:
+        return True
+
+    async def same_hash() -> str:
+        return "deadbeef"
+
+    async def no_op(*args, **kwargs):  # pragma: no cover - test shim
+        return None
+
+    monkeypatch.setattr(page, "evaluate", no_op)
+    monkeypatch.setattr(worker, "_open_settings", always_true)
+    monkeypatch.setattr(worker, "_ensure_custom_profile", always_true)
+    monkeypatch.setattr(worker, "_click_ok", always_true)
+    monkeypatch.setattr(worker, "_wait_dialog_close", always_true)
+    monkeypatch.setattr(worker, "_wait_for_update_complete", always_true)
+    monkeypatch.setattr(worker, "_get_results_hash", same_hash)
+
+    outcome = asyncio.run(worker._apply_params({}, allow_unchanged_hash=True))
+
+    assert outcome == ApplyOutcome(
+        ok=True,
+        fresh=True,
+        reason="unchanged_result_hash_allowed",
+        attempt=1,
+        results_hash_before="deadbeef",
+        results_hash_after="deadbeef",
+    )
+
+
 def test_apply_params_fails_when_settings_dialog_does_not_close(monkeypatch) -> None:
     page = DummyPage()
     worker = TabWorker(page, DummyOptimizer())

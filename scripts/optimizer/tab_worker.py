@@ -3052,7 +3052,7 @@ class TabWorker:
 
     # ─────────────────────────────────── apply params (with retry) ───────────
 
-    async def _apply_params(self, params: dict) -> ApplyOutcome:
+    async def _apply_params(self, params: dict, *, allow_unchanged_hash: bool = False) -> ApplyOutcome:
         """
         Open dialog, set all params, click Ok, wait for full recalc cycle.
 
@@ -3173,6 +3173,21 @@ class TabWorker:
                         results_hash_after=hash_after,
                     )
                 if hash_before and hash_after and hash_before == hash_after:
+                    if allow_unchanged_hash and completed:
+                        log.info(
+                            "_apply_params attempt %d: results hash unchanged but accepted "
+                            "for frozen-parameter validation (hash=%s)",
+                            attempt,
+                            hash_after,
+                        )
+                        return ApplyOutcome(
+                            ok=True,
+                            fresh=True,
+                            reason="unchanged_result_hash_allowed",
+                            attempt=attempt,
+                            results_hash_before=hash_before,
+                            results_hash_after=hash_after,
+                        )
                     if attempt < _MAX_RETRIES:
                         log.debug(
                             "_apply_params attempt %d: results hash unchanged "
@@ -3499,7 +3514,7 @@ class TabWorker:
             await self._require_backtest_range(self.optimizer.backtest_range_label)
         await self._prepare_clean_chart()
 
-        apply_outcome = await self._apply_params(params)
+        apply_outcome = await self._apply_params(params, allow_unchanged_hash=True)
         if not apply_outcome.fresh:
             raise RuntimeError(apply_outcome.reason or "frozen params did not produce a fresh result")
         result = await self._read_results(symbol, params)
