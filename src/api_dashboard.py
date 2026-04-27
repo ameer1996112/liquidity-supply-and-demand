@@ -64,41 +64,55 @@ async def get_dashboard_summary():
     signals: list = []
     open_signals: list = []
 
-    # 1. Fetch all broker profiles
+    # 1. Fetch trading-enabled broker profiles only
     try:
         profiles_resp = sb.table("broker_profiles").select(
-            "id, name, evaluation_mode, evaluation_phase, run_mode, connection_status"
+            "id, name, evaluation_mode, evaluation_phase, run_mode, connection_status,"
+            "is_active, selected_for_trading"
         ).execute()
-        profiles = profiles_resp.data or []
+        profiles = [
+            profile for profile in (profiles_resp.data or [])
+            if profile.get("is_active", True) and profile.get("selected_for_trading") is True
+        ]
     except Exception as exc:
         if is_supabase_connection_error(exc):
             reset_api_supabase()
         logger.warning("dashboard/summary: failed to fetch broker profiles: %s", exc)
 
+    active_profile_ids = {profile["id"] for profile in profiles if profile.get("id") is not None}
+
     # 2. Fetch closed signals for PnL stats (last 90 days)
     since = (datetime.now(timezone.utc) - timedelta(days=90)).isoformat()
-    try:
-        signals_resp = sb.table("trading_signals").select(
-            "broker_profile_id, status, pnl, pnl_usd, created_at, closed_at"
-        ).gte("created_at", since).in_(
-            "status", ["closed", "CLOSED", "executed", "EXECUTED"]
-        ).execute()
-        signals = signals_resp.data or []
-    except Exception as exc:
-        if is_supabase_connection_error(exc):
-            reset_api_supabase()
-        logger.warning("dashboard/summary: failed to fetch signals: %s", exc)
+    if active_profile_ids:
+        try:
+            signals_resp = sb.table("trading_signals").select(
+                "broker_profile_id, status, pnl, pnl_usd, created_at, closed_at"
+            ).gte("created_at", since).in_(
+                "status", ["closed", "CLOSED", "executed", "EXECUTED"]
+            ).execute()
+            signals = [
+                signal for signal in (signals_resp.data or [])
+                if signal.get("broker_profile_id") in active_profile_ids
+            ]
+        except Exception as exc:
+            if is_supabase_connection_error(exc):
+                reset_api_supabase()
+            logger.warning("dashboard/summary: failed to fetch signals: %s", exc)
 
     # 3. Fetch open positions count
-    try:
-        open_resp = sb.table("trading_signals").select(
-            "broker_profile_id"
-        ).in_("status", ["active", "ACTIVE", "open", "OPEN"]).execute()
-        open_signals = open_resp.data or []
-    except Exception as exc:
-        if is_supabase_connection_error(exc):
-            reset_api_supabase()
-        logger.warning("dashboard/summary: failed to fetch open positions: %s", exc)
+    if active_profile_ids:
+        try:
+            open_resp = sb.table("trading_signals").select(
+                "broker_profile_id"
+            ).in_("status", ["active", "ACTIVE", "open", "OPEN"]).execute()
+            open_signals = [
+                signal for signal in (open_resp.data or [])
+                if signal.get("broker_profile_id") in active_profile_ids
+            ]
+        except Exception as exc:
+            if is_supabase_connection_error(exc):
+                reset_api_supabase()
+            logger.warning("dashboard/summary: failed to fetch open positions: %s", exc)
 
     today_str = date.today().isoformat()
 

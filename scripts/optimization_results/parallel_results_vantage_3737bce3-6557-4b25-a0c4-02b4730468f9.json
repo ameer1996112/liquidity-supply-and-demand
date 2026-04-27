@@ -25,8 +25,8 @@
       "liq_max_distance_pips_forex": 26.7
     },
     "source_run_id": "176ef790-d1bb-4e74-8f80-6f583524e0d1",
-    "timestamp": "2026-04-27T11:34:15.380774",
-    "skip_reason": "no data available before 2025-01-26"
+    "timestamp": "2026-04-27T11:21:46.423532",
+    "skip_reason": "no data available before 2024-01-27"
   },
   "XAUUSD": {
     "status": "skipped",
@@ -54,8 +54,8 @@
       "liq_max_distance_pips_gold": 212.6
     },
     "source_run_id": "176ef790-d1bb-4e74-8f80-6f583524e0d1",
-    "timestamp": "2026-04-27T11:34:30.319911",
-    "skip_reason": "no data available before 2025-01-26"
+    "timestamp": "2026-04-27T11:22:05.378850",
+    "skip_reason": "no data available before 2024-01-27"
   },
   "NAS100": {
     "status": "skipped",
@@ -83,7 +83,7 @@
       "liq_max_distance_pips_index": 319.6
     },
     "source_run_id": "176ef790-d1bb-4e74-8f80-6f583524e0d1",
-    "timestamp": "2026-04-27T11:34:34.445977",
-    "skip_reason": "no data available before 2025-01-26"
+    "timestamp": "2026-04-27T11:22:18.153866",
+    "skip_reason": "no data available before 2024-01-27"
   }
 }

@@ -707,20 +707,46 @@ class AccountOrchestrator:
         try:
             # Fetch all accounts (active and archived soft-deleted)
             all_accounts = self.client.table("account_strategies").select("*").execute()
-            active_accounts = [a for a in (all_accounts.data or []) if a.get("is_active", True)]
-            archived_accounts = [a for a in (all_accounts.data or []) if not a.get("is_active", True)]
-            known_names = {a["account_name"] for a in (all_accounts.data or [])}
+            account_rows = all_accounts.data or []
+            known_names = {a["account_name"] for a in account_rows}
 
             # Also surface active broker profiles that have not been promoted into
             # account_strategies yet. These are still live trading accounts and
             # should appear in the overview so multi-account activation is visible.
             try:
-                broker_profiles = self.client.table("broker_profiles").select(
+                all_broker_profiles = self.client.table("broker_profiles").select(
                     "id,name,venue,connection_status,run_mode,is_active,selected_for_trading,"
                     "evaluation_mode,evaluation_phase,prop_firm_name,starting_balance"
-                ).eq("is_active", True).eq("selected_for_trading", True).execute().data or []
+                ).execute().data or []
             except Exception:
-                broker_profiles = []
+                all_broker_profiles = []
+
+            broker_profile_ids = {
+                profile.get("id") for profile in all_broker_profiles if profile.get("id") is not None
+            }
+            active_selected_profile_ids = {
+                profile.get("id") for profile in all_broker_profiles
+                if profile.get("id") is not None
+                and profile.get("is_active", True)
+                and profile.get("selected_for_trading") is True
+            }
+            broker_profiles = [
+                profile for profile in all_broker_profiles
+                if profile.get("id") in active_selected_profile_ids
+            ]
+
+            def _account_is_enabled(account: dict) -> bool:
+                if not account.get("is_active", True):
+                    return False
+                broker_profile_id = account.get("broker_profile_id")
+                if broker_profile_id is None:
+                    return True
+                if broker_profile_id in broker_profile_ids:
+                    return broker_profile_id in active_selected_profile_ids
+                return True
+
+            active_accounts = [a for a in account_rows if _account_is_enabled(a)]
+            archived_accounts = [a for a in account_rows if not _account_is_enabled(a)]
 
             # Find orphaned accounts: have trades in trading_signals but no account_strategies row
             try:
@@ -801,7 +827,7 @@ class AccountOrchestrator:
                     "updated_at": account.get("updated_at"),
                     "is_active": bool(account.get("is_active", True)),
                     "selected_for_trading": bool(
-                        account.get("selected_for_trading", account.get("is_active", True))
+                        account.get("selected_for_trading", True)
                     ),
                     "is_archived": False,
                 }

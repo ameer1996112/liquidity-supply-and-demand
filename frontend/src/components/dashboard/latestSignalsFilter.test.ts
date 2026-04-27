@@ -33,6 +33,12 @@ describe('latest signals account filtering', () => {
         is_active: true,
         selected_for_trading: false,
       },
+      {
+        account_name: 'OLD-DEMO',
+        status: 'connected',
+        is_active: false,
+        selected_for_trading: true,
+      },
     ];
     const signals = [
       { id: '1', account_name: 'ACG-DEMO-2' },
@@ -40,6 +46,7 @@ describe('latest signals account filtering', () => {
       { id: '3', account_name: 'ACG-DEMO' },
       { id: '4', account_name: 'DEFAULT' },
       { id: '5', account_name: 'FTMO - TRAIL - 50K' },
+      { id: '6', account_name: 'OLD-DEMO' },
     ];
 
     const enabledAccountNames = buildEnabledAccountNames(accounts);

@@ -589,3 +589,56 @@ def test_validate_pair_no_data_is_skipped_without_failing_other_pairs(monkeypatc
     assert result["NAS100"]["skip_reason"] == "no data available before 2024-01-01"
     assert FakeRuntimeState.last_instance is not None
     assert FakeRuntimeState.last_instance.states[-1] == ("run-1", "completed")
+
+
+def test_validate_run_fails_when_every_pair_is_skipped(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(parallel_runner, "setup_logging", lambda: None)
+    monkeypatch.setattr(parallel_runner, "detect_desktop_cdp_pid", lambda: None)
+    monkeypatch.setattr(parallel_runner, "WORKER_STARTUP_DELAY", 0)
+    monkeypatch.setattr(
+        parallel_runner,
+        "results_file_for_broker",
+        lambda broker, results_label=None: tmp_path / "parallel_results_validate.json",
+    )
+    monkeypatch.setattr(parallel_runner, "OptimizerRuntimeState", FakeRuntimeState)
+    monkeypatch.setattr(parallel_runner, "MAX_PAIR_RETRIES", 0)
+
+    source_file = tmp_path / "source.json"
+    source_file.write_text(
+        json.dumps(
+            {
+                "source_run_id": "source-run",
+                "results": {
+                    "USDJPY": {"params": {"rr_mode": "fixed_4.0"}},
+                    "XAUUSD": {"params": {"rr_mode": "fixed_4.0"}},
+                },
+            }
+        )
+    )
+
+    async def fake_optimize_pair_on_page(*args, **kwargs):
+        symbol = args[1]
+        raise parallel_runner.NoDataForRangeError(f"no data available before 2025-01-26 for {symbol}")
+
+    monkeypatch.setattr(parallel_runner, "optimize_pair_on_page", fake_optimize_pair_on_page)
+
+    result = asyncio.run(
+        parallel_runner.run_parallel(
+            pairs=["USDJPY", "XAUUSD"],
+            n_workers=1,
+            mode="validate",
+            n_trials=1,
+            dd_limit=10.0,
+            dry_run=True,
+            broker="vantage",
+            source_params_file=str(source_file),
+            source_run_id="source-run",
+            custom_start_date="2025-01-26",
+            custom_end_date="2025-04-25",
+        )
+    )
+
+    assert result["USDJPY"]["status"] == "skipped"
+    assert result["XAUUSD"]["status"] == "skipped"
+    assert FakeRuntimeState.last_instance is not None
+    assert FakeRuntimeState.last_instance.states[-1] == ("run-1", "failed")

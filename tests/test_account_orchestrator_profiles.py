@@ -306,3 +306,34 @@ def test_get_account_comparison_uses_ctrader_snapshot_positions(monkeypatch) -> 
     assert comparison[0]["open_positions"] == 2
     assert comparison[0]["active_positions"] == 2
     assert comparison[0]["last_sync_time"] == "2026-04-23T10:15:00+00:00"
+
+
+def test_get_account_comparison_archives_account_linked_to_inactive_profile() -> None:
+    client = _OrchestratorSupabase(
+        {
+            "account_strategies": [
+                {
+                    "account_name": "ACG-DEMO-2",
+                    "broker_profile_id": 10,
+                    "is_active": True,
+                    "account_type": "Evaluation",
+                }
+            ],
+            "broker_profiles": [
+                _make_profile(
+                    10,
+                    name="ACG-DEMO-2",
+                    is_active=False,
+                    selected_for_trading=False,
+                )
+            ],
+            "trading_signals": [],
+        }
+    )
+
+    comparison = AccountOrchestrator(client).get_account_comparison()
+
+    assert [account["account_name"] for account in comparison] == ["ACG-DEMO-2"]
+    assert comparison[0]["is_active"] is False
+    assert comparison[0]["selected_for_trading"] is False
+    assert comparison[0]["is_archived"] is True

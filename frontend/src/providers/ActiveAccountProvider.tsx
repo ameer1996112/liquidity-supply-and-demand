@@ -8,6 +8,7 @@ import { apiFetch } from '@/lib/api';
 interface ActiveBrokerProfile {
   id: number;
   name: string;
+  is_active: boolean;
   selected_for_trading: boolean;
   run_mode: string;
   account_type: 'personal' | 'evaluation' | 'funded';
@@ -38,7 +39,8 @@ export function ActiveAccountProvider({ children }: { children: ReactNode }) {
     staleTime: 20_000,
   });
 
-  const activeProfile = profiles?.find((p) => p.selected_for_trading) ?? null;
+  const activeProfile =
+    profiles?.find((p) => p.is_active !== false && p.selected_for_trading) ?? null;
 
   return (
     <ActiveAccountContext.Provider

@@ -930,16 +930,19 @@ async def run_parallel(
         raise
 
     elapsed = time.time() - start_time
-    completed_count = sum(
-        1
-        for value in results.values()
-        if (
-            value.get("status") == "completed"
-            if isinstance(value, dict)
-            else False
-        )
+    status_counts: dict[str, int] = {}
+    for value in results.values():
+        if isinstance(value, dict):
+            status = str(value.get("status") or "unknown")
+            status_counts[status] = status_counts.get(status, 0) + 1
+    completed_count = status_counts.get("completed", 0)
+    skipped_count = status_counts.get("skipped", 0)
+    failed_result_count = status_counts.get("failed", 0)
+    final_state = (
+        "failed"
+        if completed_count == 0 and (error_log or skipped_count or failed_result_count)
+        else "completed"
     )
-    final_state = "failed" if error_log and completed_count == 0 else "completed"
     runtime_state.set_run_state(run_id=run_id, state=final_state)
     output_paths = {
         "results_file": str(results_file),
@@ -948,8 +951,10 @@ async def run_parallel(
     }
     log.info(f"\n{'='*60}")
     log.info(f"Parallel run complete in {elapsed:.1f}s")
-    log.info(f"  Completed: {len(results)} pairs")
-    log.info(f"  Failed: {len(error_log)} pairs")
+    log.info(f"  Completed: {completed_count} pairs")
+    if skipped_count:
+        log.info(f"  Skipped: {skipped_count} pairs")
+    log.info(f"  Failed: {len(error_log) + failed_result_count} pairs")
     if error_log:
         log.warning(f"  Failed pairs: {[e['symbol'] for e in error_log]}")
     log.info(f"  Results: {results_file}")
@@ -957,12 +962,17 @@ async def run_parallel(
         log.info(f"  Latest snapshot: {latest_results_file}")
 
     # Generate HTML report from parallel results
-    if results and mode != "multi_broker_validate":
+    completed_results = {
+        symbol: data
+        for symbol, data in results.items()
+        if isinstance(data, dict) and data.get("status") == "completed"
+    }
+    if completed_results and mode != "multi_broker_validate":
         try:
             from .report import generate_html_report
 
             best_per_pair: dict[str, BacktestResult] = {}
-            for symbol, data in results.items():
+            for symbol, data in completed_results.items():
                 best_per_pair[symbol] = BacktestResult(
                     symbol=symbol,
                     params=data.get("params", {}),
