@@ -32,6 +32,7 @@ alter table public.optimizer_run_events
         'pair_skipped',
         'log',
         'run_finished',
+        'run_failed',
         'run_cancelled'
     ));
 

@@ -108,6 +108,21 @@ def _load_env() -> None:
 _load_env()
 _maybe_reexec_into_venv()
 
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.environ.get(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+
+
 API_URL = (
     os.environ.get("API_URL")
     or os.environ.get("BACKEND_URL")
@@ -115,6 +130,12 @@ API_URL = (
     or ""
 ).rstrip("/")
 ADMIN_KEY = os.environ.get("ADMIN_API_KEY", "")
+API_REQUEST_TIMEOUT_SECONDS = _env_float("LOCAL_AGENT_API_TIMEOUT_SECONDS", 30.0)
+VALIDATE_SOURCE_RESULTS_MAX_ATTEMPTS = max(1, _env_int("VALIDATE_SOURCE_RESULTS_MAX_ATTEMPTS", 3))
+VALIDATE_SOURCE_RESULTS_RETRY_DELAY_SECONDS = max(
+    0.0,
+    _env_float("VALIDATE_SOURCE_RESULTS_RETRY_DELAY_SECONDS", 2.0),
+)
 
 if not API_URL:
     print("ERROR: API_URL not set. Add to .env:")
@@ -136,7 +157,7 @@ def _api(method: str, path: str, body: dict | None = None) -> dict | None:
     req.add_header("Content-Type", "application/json")
     req.add_header("X-Admin-API-Key", ADMIN_KEY)
     try:
-        with urlopen(req, timeout=15, context=_SSL_CTX) as resp:
+        with urlopen(req, timeout=API_REQUEST_TIMEOUT_SECONDS, context=_SSL_CTX) as resp:
             return json.loads(resp.read().decode())
     except HTTPError as e:
         # Log response body for fast diagnosis (admin-only endpoints).
@@ -224,9 +245,26 @@ def _source_results_to_params_payload(source_run_id: str, response: dict | None)
     return {"source_run_id": source_run_id, "results": results}
 
 
+def _fetch_validate_source_results(source_run_id: str) -> dict | None:
+    path = f"/api/optimizer/runs/{source_run_id}/results"
+    for attempt in range(1, VALIDATE_SOURCE_RESULTS_MAX_ATTEMPTS + 1):
+        response = api_get(path)
+        if response is not None:
+            return response
+        if attempt < VALIDATE_SOURCE_RESULTS_MAX_ATTEMPTS:
+            log.warning(
+                "Source optimizer run results fetch failed for %s; retrying (%d/%d)",
+                source_run_id,
+                attempt + 1,
+                VALIDATE_SOURCE_RESULTS_MAX_ATTEMPTS,
+            )
+            time.sleep(VALIDATE_SOURCE_RESULTS_RETRY_DELAY_SECONDS)
+    return None
+
+
 def _write_validate_source_params(run_id: str, source_run_id: str) -> Path:
     VALIDATE_TMP_DIR.mkdir(parents=True, exist_ok=True)
-    response = api_get(f"/api/optimizer/runs/{source_run_id}/results")
+    response = _fetch_validate_source_results(source_run_id)
     payload = _source_results_to_params_payload(source_run_id, response)
     timestamp = time.strftime("%Y%m%d%H%M%S")
     handle = tempfile.NamedTemporaryFile(

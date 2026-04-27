@@ -305,6 +305,38 @@ def test_execute_validate_run_writes_and_cleans_source_params_file(local_agent, 
     assert any(path == "/api/optimizer/runs/run-validate/events" for path, _ in post_calls)
 
 
+def test_write_validate_source_params_retries_transient_source_results_failure(local_agent, monkeypatch, tmp_path):
+    calls: list[str] = []
+
+    def fake_get(path: str):
+        calls.append(path)
+        if len(calls) == 1:
+            return None
+        return {
+            "results": [
+                {
+                    "symbol": "EURUSD",
+                    "status": "completed",
+                    "params": {"rr_mode": "fixed_4.0"},
+                }
+            ]
+        }
+
+    monkeypatch.setattr(local_agent, "api_get", fake_get)
+    monkeypatch.setattr(local_agent, "VALIDATE_TMP_DIR", tmp_path)
+    monkeypatch.setattr(local_agent, "VALIDATE_SOURCE_RESULTS_RETRY_DELAY_SECONDS", 0)
+
+    path = local_agent._write_validate_source_params("run-validate", "source-run")
+
+    assert calls == [
+        "/api/optimizer/runs/source-run/results",
+        "/api/optimizer/runs/source-run/results",
+    ]
+    payload = json.loads(path.read_text())
+    assert payload["results"]["EURUSD"]["params"] == {"rr_mode": "fixed_4.0"}
+    local_agent._cleanup_validate_source_params(path)
+
+
 def test_execute_validate_run_cleans_source_params_file_when_subprocess_fails(local_agent, monkeypatch, tmp_path):
     _capture_http_calls(local_agent, monkeypatch)
 

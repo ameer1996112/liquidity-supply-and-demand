@@ -202,6 +202,42 @@ def test_circuit_breaker_blocks_during_cooldown(monkeypatch):
     assert "consecutive losses" in reason
 
 
+def test_circuit_breaker_message_labels_cooldown_separately_from_remaining(monkeypatch):
+    """Stored rejection should include reset time, not only stale remaining time."""
+    now = datetime.now(timezone.utc)
+    rows = [
+        {"broker_profile_id": "acct-1", "outcome": "loss", "pnl_usd": -300.0,
+         "exit_time": (now - timedelta(minutes=24)).isoformat(), "account_name": "ACG-DEMO-3"},
+        {"broker_profile_id": "acct-1", "outcome": "loss", "pnl_usd": -250.0,
+         "exit_time": (now - timedelta(minutes=40)).isoformat(), "account_name": "ACG-DEMO-3"},
+        {"broker_profile_id": "acct-1", "outcome": "loss", "pnl_usd": -231.0,
+         "exit_time": (now - timedelta(minutes=55)).isoformat(), "account_name": "ACG-DEMO-3"},
+    ]
+    sb = _FakeSupabase(rows)
+    _patch_settings(
+        monkeypatch,
+        max_consecutive_losses=3,
+        consec_loss_pause_hours=4.0,
+    )
+
+    allowed, reason = check_signal_guards(
+        {"rr_ratio": 2.0, "account_balance": 10000.0},
+        sb,
+        profile={"id": "acct-1", "name": "ACG-DEMO-3"},
+    )
+
+    assert allowed is False
+    assert reason is not None
+    reset_at = datetime.fromisoformat(rows[0]["exit_time"]) + timedelta(hours=4)
+    assert "$781 total" in reason
+    assert "paused 3.6h remaining" in reason
+    assert f"until {reset_at.strftime('%Y-%m-%d %H:%M UTC')}" in reason
+    assert "remaining at rejection" in reason
+    assert "from last close" in reason
+    assert "4.0h cooldown" in reason
+    assert "resets after 4.0h" not in reason
+
+
 def test_circuit_breaker_skips_small_losses(monkeypatch):
     """If cumulative streak loss is below min_streak_pct, don't trigger."""
     now = datetime.now(timezone.utc)

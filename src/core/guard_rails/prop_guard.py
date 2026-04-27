@@ -222,10 +222,15 @@ def check_signal_guards(
                                 elapsed = (_dt.datetime.now(_dt.timezone.utc) - last_exit).total_seconds() / 3600
                                 if elapsed < pause_hours:
                                     remaining = pause_hours - elapsed
+                                    reset_at = (
+                                        last_exit + _dt.timedelta(hours=pause_hours)
+                                    ).astimezone(_dt.timezone.utc)
                                     return False, (
                                         f"Circuit breaker: {consecutive} consecutive losses "
                                         f"(${streak_loss_usd:.0f} total) — "
-                                        f"paused {remaining:.1f}h remaining (resets after {pause_hours}h)"
+                                        f"paused {remaining:.1f}h remaining at rejection "
+                                        f"(until {reset_at.strftime('%Y-%m-%d %H:%M UTC')}; "
+                                        f"{pause_hours:.1f}h cooldown from last close)"
                                     )
                                 # Cooldown expired — auto-resume, let trade through
                             except Exception:
@@ -243,9 +248,14 @@ def check_signal_guards(
                             elapsed = (_dt.datetime.now(_dt.timezone.utc) - last_exit).total_seconds() / 3600
                             if elapsed < pause_hours:
                                 remaining = pause_hours - elapsed
+                                reset_at = (
+                                    last_exit + _dt.timedelta(hours=pause_hours)
+                                ).astimezone(_dt.timezone.utc)
                                 return False, (
                                     f"Circuit breaker: {consecutive} consecutive losses — "
-                                    f"paused {remaining:.1f}h remaining (resets after {pause_hours}h)"
+                                    f"paused {remaining:.1f}h remaining at rejection "
+                                    f"(until {reset_at.strftime('%Y-%m-%d %H:%M UTC')}; "
+                                    f"{pause_hours:.1f}h cooldown from last close)"
                                 )
                             # Cooldown expired — auto-resume
                         except Exception:
