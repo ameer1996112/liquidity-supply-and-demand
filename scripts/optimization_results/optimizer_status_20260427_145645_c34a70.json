@@ -1,19 +1,19 @@
 {
-  "run_id": "20260427_150424_cae74d",
-  "state": "completed",
-  "started_at": "2026-04-27T15:04:24.409305+03:00",
-  "last_progress_at": "2026-04-27T15:07:52.710287+03:00",
+  "run_id": "20260427_145645_c34a70",
+  "state": "failed",
+  "started_at": "2026-04-27T14:56:45.863026+03:00",
+  "last_progress_at": "2026-04-27T14:57:22.832181+03:00",
   "stuck_threshold_seconds": 720,
   "restart_count": 0,
-  "optimizer_pid": 69934,
+  "optimizer_pid": 67499,
   "desktop_cdp_pid": 2592,
   "log_file": "/Users/ameeramer/dev/projects/galilsoftware/sources/trading/scripts/optimization_results/parallel_run.log",
   "mode": "validate",
-  "workers": 3,
+  "workers": 1,
   "args": [
     "--parallel",
     "--workers",
-    "3",
+    "1",
     "--mode",
     "validate",
     "--trials",
@@ -21,13 +21,13 @@
     "--dd-limit",
     "8.0",
     "--pairs",
-    "XAUUSD,NAS100,USDJPY",
+    "XAUUSD",
     "--broker",
     "vantage",
     "--backtest-range",
     "custom",
     "--results-label",
-    "smoke_validate_20260427150424",
+    "smoke_validate_single_20260427145645",
     "--source-run-id",
     "176ef790-d1bb-4e74-8f80-6f583524e0d1",
     "--source-params-file",
@@ -41,34 +41,12 @@
     "worker-0": {
       "symbol": "XAUUSD",
       "trial": 0,
-      "last_event_at": "2026-04-27T15:07:52.709058+03:00",
-      "status": "completed"
-    },
-    "worker-1": {
-      "symbol": "NAS100",
-      "trial": 0,
-      "last_event_at": "2026-04-27T15:07:49.246125+03:00",
-      "status": "completed"
-    },
-    "worker-2": {
-      "symbol": "USDJPY",
-      "trial": 0,
-      "last_event_at": "2026-04-27T15:07:28.869071+03:00",
-      "status": "completed"
+      "last_event_at": "2026-04-27T14:57:19.237109+03:00",
+      "status": "running"
     }
   },
   "worker_health": {
     "worker-0": {
-      "status": "healthy",
-      "stale_reads": 0,
-      "last_results_hash": ""
-    },
-    "worker-1": {
-      "status": "healthy",
-      "stale_reads": 0,
-      "last_results_hash": ""
-    },
-    "worker-2": {
       "status": "healthy",
       "stale_reads": 0,
       "last_results_hash": ""

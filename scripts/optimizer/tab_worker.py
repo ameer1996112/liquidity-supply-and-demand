@@ -1827,6 +1827,21 @@ class TabWorker:
 
         preset = _backtest_range_preset(range_label)
 
+        dates = TabWorker._extract_report_date_span(btn_text)
+        if len(dates) < 2:
+            return False
+
+        start = dates[0]
+        end = dates[1]
+        delta_days = (end - start).days
+        min_days = int(preset["min_days"])
+        max_days = preset["max_days"]
+        if max_days is None:
+            return delta_days >= min_days
+        return min_days <= delta_days <= int(max_days)
+
+    @staticmethod
+    def _extract_report_date_span(btn_text: str) -> list[datetime]:
         normalized = " ".join(btn_text.split())
         raw_dates = re.findall(
             r'(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2},\s+\d{4}',
@@ -1838,20 +1853,38 @@ class TabWorker:
                 dates.append(value)
 
         if len(dates) < 2:
+            return []
+
+        try:
+            return [
+                datetime.strptime(dates[0], "%b %d, %Y"),
+                datetime.strptime(dates[1], "%b %d, %Y"),
+            ]
+        except ValueError:
+            return []
+
+    @staticmethod
+    def _range_matches_custom_dates(
+        btn_text: str,
+        start_date: str,
+        end_date: str,
+        *,
+        tolerance_days: int = 1,
+    ) -> bool:
+        """Return True when the Strategy Report span matches a requested custom range."""
+        dates = TabWorker._extract_report_date_span(btn_text)
+        if len(dates) < 2:
             return False
 
         try:
-            start = datetime.strptime(dates[0], "%b %d, %Y")
-            end = datetime.strptime(dates[1], "%b %d, %Y")
+            expected_start = datetime.strptime(start_date, "%Y-%m-%d")
+            expected_end = datetime.strptime(end_date, "%Y-%m-%d")
         except ValueError:
             return False
 
-        delta_days = (end - start).days
-        min_days = int(preset["min_days"])
-        max_days = preset["max_days"]
-        if max_days is None:
-            return delta_days >= min_days
-        return min_days <= delta_days <= int(max_days)
+        start_delta = abs((dates[0] - expected_start).days)
+        end_delta = abs((dates[1] - expected_end).days)
+        return start_delta <= tolerance_days and end_delta <= tolerance_days
 
     async def _select_backtest_range_preset(self, range_label: str) -> bool:
         """Open the Strategy Report range menu and click a preset item."""
@@ -1906,6 +1939,207 @@ class TabWorker:
             range_label,
         )
         return bool(chosen)
+
+    async def _open_backtest_range_menu(self) -> bool:
+        """Open the Strategy Report range menu from its bottom date-span button."""
+        target = await self.page.evaluate(
+            """
+            (() => {
+                const buttons = [...document.querySelectorAll('button, [role="button"]')]
+                    .map((el) => {
+                        const text = (el.textContent || '').trim().replace(/\\s+/g, ' ');
+                        const rect = el.getBoundingClientRect();
+                        const visible = rect.width > 0 && rect.height > 0;
+                        return { text, rect, visible };
+                    })
+                    .filter((item) => item.visible && item.text.includes('\\u2014'));
+
+                if (!buttons.length) {
+                    return null;
+                }
+
+                buttons.sort((a, b) => b.rect.y - a.rect.y);
+                const target = buttons[0];
+                return {
+                    x: target.rect.x + target.rect.width / 2,
+                    y: target.rect.y + target.rect.height / 2,
+                    text: target.text,
+                };
+            })()
+            """
+        )
+        if not target:
+            return False
+        await self.page.mouse.click(float(target["x"]), float(target["y"]))
+        return True
+
+    async def _fill_custom_date_range_inputs(self, start_date: str, end_date: str) -> dict:
+        """Fill TradingView's custom date dialog using DOM events understood by React."""
+        return await self.page.evaluate(
+            """
+            ({ startDate, endDate }) => {
+                const setValue = (input, value) => {
+                    input.focus();
+                    const setter =
+                        Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), 'value')?.set ||
+                        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+                    if (setter) {
+                        setter.call(input, value);
+                    } else {
+                        input.value = value;
+                    }
+                    if (input._valueTracker) {
+                        input._valueTracker.setValue('');
+                    }
+                    input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }));
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                    input.blur();
+                };
+
+                const inputs = [...document.querySelectorAll('input')]
+                    .map((el) => {
+                        const rect = el.getBoundingClientRect();
+                        return {
+                            el,
+                            placeholder: el.getAttribute('placeholder') || '',
+                            visible: rect.width > 0 && rect.height > 0,
+                            y: rect.y,
+                        };
+                    })
+                    .filter((item) => item.visible && item.placeholder === 'YYYY-MM-DD')
+                    .sort((a, b) => a.y - b.y);
+
+                if (inputs.length < 2) {
+                    return { ok: false, reason: 'date inputs not found', count: inputs.length };
+                }
+
+                setValue(inputs[0].el, startDate);
+                setValue(inputs[1].el, endDate);
+                return {
+                    ok: true,
+                    values: [inputs[0].el.value, inputs[1].el.value],
+                };
+            }
+            """,
+            {"startDate": start_date, "endDate": end_date},
+        )
+
+    async def _click_backtest_custom_date_menu_item(self) -> dict:
+        """Click the Custom date range menu item using real mouse coordinates."""
+        target = await self.page.evaluate(
+            """
+            (() => {
+                const normalize = (value) => (value || '').trim().replace(/\\s+/g, ' ').toLowerCase();
+                const items = [...document.querySelectorAll('[role="menuitemcheckbox"], [role="menuitem"]')]
+                    .map((el) => {
+                        const text = normalize(el.textContent);
+                        const aria = normalize(el.getAttribute('aria-label'));
+                        const rect = el.getBoundingClientRect();
+                        const visible = rect.width > 0 && rect.height > 0;
+                        return { text, aria, visible, rect };
+                    })
+                    .filter((item) => item.visible);
+
+                const target = items.find((item) =>
+                    item.aria.includes('custom date range') ||
+                    (item.text.includes('custom') && item.text.includes('date') && item.text.includes('range'))
+                );
+                if (!target) {
+                    return {
+                        clicked: false,
+                        item_count: items.length,
+                        items: items.slice(0, 10).map((item) => ({
+                            text: item.text,
+                            aria: item.aria,
+                            x: item.rect.x,
+                            y: item.rect.y,
+                        })),
+                    };
+                }
+
+                return {
+                    clicked: true,
+                    item_count: items.length,
+                    x: target.rect.x + target.rect.width / 2,
+                    y: target.rect.y + target.rect.height / 2,
+                };
+            })()
+            """
+        )
+        if isinstance(target, dict) and target.get("clicked"):
+            await self.page.mouse.click(float(target["x"]), float(target["y"]))
+        return target or {}
+
+    async def _click_custom_date_select_button(self) -> bool:
+        """Click the custom date dialog Select button using real mouse coordinates."""
+        target = await self.page.evaluate(
+            """
+            (() => {
+                const buttons = [...document.querySelectorAll('button, [role="button"]')]
+                    .map((el) => {
+                        const text = (el.textContent || '').trim().replace(/\\s+/g, ' ');
+                        const rect = el.getBoundingClientRect();
+                        const visible = rect.width > 0 && rect.height > 0;
+                        return { text, rect, visible };
+                    })
+                    .filter((item) => item.visible);
+
+                buttons.sort((a, b) => b.rect.y - a.rect.y);
+                const target = buttons.find((item) => item.text === 'Select');
+                if (!target) {
+                    return null;
+                }
+                return {
+                    x: target.rect.x + target.rect.width / 2,
+                    y: target.rect.y + target.rect.height / 2,
+                };
+            })()
+            """
+        )
+        if not target:
+            return False
+        await self.page.mouse.click(float(target["x"]), float(target["y"]))
+        return True
+
+    async def _select_backtest_custom_date_range(self, start_date: str, end_date: str) -> bool:
+        """Set the Strategy Report custom date range using TradingView's range dialog."""
+        try:
+            if hasattr(self.page, "keyboard"):
+                await self.page.keyboard.press("Escape")
+                await asyncio.sleep(0.2)
+        except Exception:
+            pass
+
+        if not await self._open_backtest_range_menu():
+            log.warning("_select_backtest_custom_date_range: Strategy Report range button not found")
+            return False
+
+        await asyncio.sleep(0.4)
+
+        chosen = await self._click_backtest_custom_date_menu_item()
+        if not isinstance(chosen, dict) or not chosen.get("clicked"):
+            log.warning("_select_backtest_custom_date_range: custom menu item not found/opened: %s", chosen)
+            return False
+
+        await asyncio.sleep(0.6)
+
+        fill_result = await self._fill_custom_date_range_inputs(start_date, end_date)
+        if not isinstance(fill_result, dict) or not fill_result.get("ok"):
+            log.warning("_select_backtest_custom_date_range: could not fill date inputs: %s", fill_result)
+            return False
+
+        values = fill_result.get("values") or []
+        if values != [start_date, end_date]:
+            log.warning(
+                "_select_backtest_custom_date_range: date dialog values did not stick "
+                "(requested=%s..%s actual=%s)",
+                start_date,
+                end_date,
+                values,
+            )
+            return False
+
+        return await self._click_custom_date_select_button()
 
     async def _select_chart_date_range_tab(self, range_label: str) -> bool:
         """Fallback: click the chart-level bottom date-range shortcut."""
@@ -2004,68 +2238,45 @@ class TabWorker:
 
 
     async def _set_custom_date_range(self, start_date: str, end_date: str) -> bool:
-        """Set and verify a custom TradingView visible date range via the MCP bridge."""
-        from_ts = _iso_date_to_unix_seconds(start_date)
-        to_ts = _iso_date_to_unix_seconds(end_date)
+        """Set and verify the Strategy Report custom date range."""
         try:
             await self._ensure_strategy_tester_open()
-            client = getattr(self.page, "_client", None)
-            if client is None:
-                raise RuntimeError("custom date ranges require TradingView MCP-backed page")
+
+            btn_text = await self._read_backtest_range_button_text()
+            if self._range_matches_custom_dates(btn_text, start_date, end_date):
+                print(f"  [backtest range ✓ already custom {start_date} → {end_date}]", flush=True)
+                return True
+
             log.info(
-                "_set_custom_date_range: requesting custom range start=%s end=%s from_ts=%s to_ts=%s",
+                "_set_custom_date_range: requesting Strategy Report custom range start=%s end=%s "
+                "current_button_text=%s",
                 start_date,
                 end_date,
-                from_ts,
-                to_ts,
+                btn_text[:80] if btn_text else "(not found)",
             )
-            result = await client.run("range", "--from", str(from_ts), "--to", str(to_ts))
-            if not result.get("success", True):
-                error_message = str(result.get("error") or "MCP range command failed")
-                if "no data" in error_message.lower():
-                    raise NoDataForRangeError(error_message)
-                raise RuntimeError(error_message)
-            if result.get("no_data") is True:
-                raise NoDataForRangeError(str(result.get("error") or f"no data available for {start_date} to {end_date}"))
-            actual = result.get("actual") or {}
-            actual_from = int(actual.get("from") or 0)
-            actual_to = int(actual.get("to") or 0)
-            log.info(
-                "_set_custom_date_range: response method=%s requested_from=%s requested_to=%s "
-                "actual_from=%s actual_to=%s direct_error=%s fallback=%s",
-                result.get("method"),
-                from_ts,
-                to_ts,
-                actual_from,
-                actual_to,
-                result.get("direct_error"),
-                result.get("fallback"),
-            )
-            if actual_from <= 0 or actual_to <= 0:
-                raise RuntimeError(f"MCP range command did not return a visible range: {actual}")
-            # The visible chart viewport is not a data-availability oracle. TradingView
-            # may initially anchor to loaded bars while it fetches the requested window,
-            # so do not skip valid symbols just because the viewport differs.
-            if actual_from > from_ts + 7 * 24 * 60 * 60:
-                log.warning(
-                    "_set_custom_date_range: visible range starts after requested start; "
-                    "continuing and letting Strategy Tester compute available data "
-                    "(start=%s actual_from=%s requested_from=%s)",
-                    start_date,
-                    actual_from,
-                    from_ts,
-                )
-            if actual_to < to_ts - 7 * 24 * 60 * 60:
-                log.warning(
-                    "_set_custom_date_range: visible range ends before requested end; "
-                    "continuing and letting Strategy Tester compute available data "
-                    "(end=%s actual_to=%s requested_to=%s)",
-                    end_date,
-                    actual_to,
-                    to_ts,
-                )
+
+            if not await self._select_backtest_custom_date_range(start_date, end_date):
+                return False
+
+            await asyncio.sleep(0.5)
             await self._wait_for_update_complete()
             await self._wait_for_load()
+
+            updated_text = await self._read_backtest_range_button_text()
+            log.info(
+                "_set_custom_date_range: Strategy Report range after selection=%s",
+                updated_text[:120] if updated_text else "(not found)",
+            )
+
+            if not self._range_matches_custom_dates(updated_text, start_date, end_date):
+                log.warning(
+                    "_set_custom_date_range: requested custom range %s..%s but Strategy Report shows '%s'",
+                    start_date,
+                    end_date,
+                    updated_text[:120] if updated_text else "(not found)",
+                )
+                return False
+
             print(f"  [backtest range ✓ custom {start_date} → {end_date}]", flush=True)
             return True
         except NoDataForRangeError:

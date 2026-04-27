@@ -88,37 +88,64 @@ class FallbackMetricsPage(DummyPage):
         raise AssertionError(f"unexpected script in FallbackMetricsPage: {script[:120]}")
 
 
-def test_custom_date_range_does_not_skip_when_visible_range_starts_late(monkeypatch) -> None:
-    page = RangePage(
-        {
-            "success": True,
-            "method": "chart.setVisibleRange",
-            "actual": {"from": 1742000000, "to": 1745500000},
-        }
-    )
-    worker = TabWorker(page, DummyOptimizer())
-    monkeypatch.setattr(worker, "_ensure_strategy_tester_open", AsyncMock())
-    monkeypatch.setattr(worker, "_wait_for_update_complete", AsyncMock())
-    monkeypatch.setattr(worker, "_wait_for_load", AsyncMock())
+def test_custom_date_range_uses_strategy_report_dialog_and_verifies_button(monkeypatch) -> None:
+    worker = TabWorker(DummyPage(), DummyOptimizer())
+    events: list[object] = []
+    texts = iter([
+        "Jan 26, 2025 — Apr 25, 2025",
+        "Apr 26, 2024 — Apr 26, 2025",
+    ])
 
-    result = asyncio.run(worker._set_custom_date_range("2025-01-26", "2025-04-25"))
+    async def fake_ensure_strategy_tester_open() -> None:
+        events.append("ensure-open")
+
+    async def fake_read_text() -> str:
+        return next(texts)
+
+    async def fake_select_custom(start_date: str, end_date: str) -> bool:
+        events.append(("select-custom", start_date, end_date))
+        return True
+
+    async def fake_wait_for_update_complete() -> bool:
+        events.append("wait-update")
+        return True
+
+    async def fake_wait_for_load(timeout: int = 30) -> None:
+        events.append(("wait-load", timeout))
+
+    monkeypatch.setattr(worker, "_ensure_strategy_tester_open", fake_ensure_strategy_tester_open)
+    monkeypatch.setattr(worker, "_read_backtest_range_button_text", fake_read_text)
+    monkeypatch.setattr(worker, "_select_backtest_custom_date_range", fake_select_custom)
+    monkeypatch.setattr(worker, "_wait_for_update_complete", fake_wait_for_update_complete)
+    monkeypatch.setattr(worker, "_wait_for_load", fake_wait_for_load)
+
+    result = asyncio.run(worker._set_custom_date_range("2024-04-26", "2025-04-26"))
 
     assert result is True
-    assert page._client.calls == [("range", "--from", "1737849600", "--to", "1745539200")]
+    assert events == [
+        "ensure-open",
+        ("select-custom", "2024-04-26", "2025-04-26"),
+        "wait-update",
+        ("wait-load", 30),
+    ]
 
 
-def test_custom_date_range_skips_when_mcp_explicitly_reports_no_data(monkeypatch) -> None:
-    page = RangePage(
-        {
-            "success": False,
-            "error": "No data available for FAKE:SYMBOL in requested range",
-        }
-    )
-    worker = TabWorker(page, DummyOptimizer())
+def test_custom_date_range_fails_closed_when_strategy_report_keeps_wrong_range(monkeypatch) -> None:
+    worker = TabWorker(DummyPage(), DummyOptimizer())
+    texts = iter([
+        "Jan 26, 2025 — Apr 25, 2025",
+        "Jan 26, 2025 — Apr 25, 2025",
+    ])
+
     monkeypatch.setattr(worker, "_ensure_strategy_tester_open", AsyncMock())
+    monkeypatch.setattr(worker, "_read_backtest_range_button_text", AsyncMock(side_effect=lambda: next(texts)))
+    monkeypatch.setattr(worker, "_select_backtest_custom_date_range", AsyncMock(return_value=True))
+    monkeypatch.setattr(worker, "_wait_for_update_complete", AsyncMock(return_value=True))
+    monkeypatch.setattr(worker, "_wait_for_load", AsyncMock())
 
-    with pytest.raises(NoDataForRangeError, match="No data available"):
-        asyncio.run(worker._set_custom_date_range("1980-01-01", "1980-02-01"))
+    result = asyncio.run(worker._set_custom_date_range("2024-04-26", "2025-04-26"))
+
+    assert result is False
 
 
 class MenuSettingsPage(DummyPage):
@@ -939,6 +966,24 @@ def test_range_matches_label_uses_actual_day_span() -> None:
     assert not TabWorker._range_matches_label(
         "Feb 20, 2026 — Apr 13, 2026Feb 20, 2026 — Apr 13, 2026",
         "Last 30 days",
+    )
+
+
+def test_range_matches_custom_dates_allows_one_day_display_drift() -> None:
+    assert TabWorker._range_matches_custom_dates(
+        "Apr 26, 2024 — Apr 26, 2025Apr 26, 2024 — Apr 26, 2025",
+        "2024-04-26",
+        "2025-04-26",
+    )
+    assert TabWorker._range_matches_custom_dates(
+        "Apr 25, 2024 — Apr 27, 2025",
+        "2024-04-26",
+        "2025-04-26",
+    )
+    assert not TabWorker._range_matches_custom_dates(
+        "Jan 26, 2025 — Apr 25, 2025",
+        "2024-04-26",
+        "2025-04-26",
     )
 
 
