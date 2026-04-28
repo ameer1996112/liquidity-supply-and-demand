@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from scripts.optimizer.models import BacktestResult, NoDataForRangeError
-from scripts.optimizer.tab_worker import ApplyOutcome, TabWorker
+from scripts.optimizer.tab_worker import ApplyOutcome, ChartHistoryCoverage, TabWorker
 from scripts.optimizer import tab_worker as tab_worker_module
 
 
@@ -113,11 +113,25 @@ def test_custom_date_range_uses_strategy_report_dialog_and_verifies_button(monke
     async def fake_wait_for_load(timeout: int = 30) -> None:
         events.append(("wait-load", timeout))
 
+    async def fake_ensure_history(start_date: str, end_date: str) -> ChartHistoryCoverage:
+        events.append(("history", start_date, end_date))
+        return ChartHistoryCoverage(
+            requested_days=365,
+            covered_days=365,
+            coverage_ratio=1.0,
+            loaded_bar_count=100000,
+            loaded_first_ts=0,
+            loaded_last_ts=0,
+            loaded_first_date="2024-04-26",
+            loaded_last_date="2025-04-26",
+        )
+
     monkeypatch.setattr(worker, "_ensure_strategy_tester_open", fake_ensure_strategy_tester_open)
     monkeypatch.setattr(worker, "_read_backtest_range_button_text", fake_read_text)
     monkeypatch.setattr(worker, "_select_backtest_custom_date_range", fake_select_custom)
     monkeypatch.setattr(worker, "_wait_for_update_complete", fake_wait_for_update_complete)
     monkeypatch.setattr(worker, "_wait_for_load", fake_wait_for_load)
+    monkeypatch.setattr(worker, "_ensure_chart_history_for_custom_range", fake_ensure_history)
 
     result = asyncio.run(worker._set_custom_date_range("2024-04-26", "2025-04-26"))
 
@@ -127,6 +141,7 @@ def test_custom_date_range_uses_strategy_report_dialog_and_verifies_button(monke
         ("select-custom", "2024-04-26", "2025-04-26"),
         "wait-update",
         ("wait-load", 30),
+        ("history", "2024-04-26", "2025-04-26"),
     ]
 
 
@@ -142,10 +157,12 @@ def test_custom_date_range_fails_closed_when_strategy_report_keeps_wrong_range(m
     monkeypatch.setattr(worker, "_select_backtest_custom_date_range", AsyncMock(return_value=True))
     monkeypatch.setattr(worker, "_wait_for_update_complete", AsyncMock(return_value=True))
     monkeypatch.setattr(worker, "_wait_for_load", AsyncMock())
+    monkeypatch.setattr(worker, "_ensure_chart_history_for_custom_range", AsyncMock())
 
     result = asyncio.run(worker._set_custom_date_range("2024-04-26", "2025-04-26"))
 
     assert result is False
+    worker._ensure_chart_history_for_custom_range.assert_not_awaited()
 
 
 class MenuSettingsPage(DummyPage):
@@ -985,6 +1002,115 @@ def test_range_matches_custom_dates_allows_one_day_display_drift() -> None:
         "2024-04-26",
         "2025-04-26",
     )
+
+
+def test_ensure_chart_history_loads_until_custom_range_coverage_is_sufficient(monkeypatch) -> None:
+    worker = TabWorker(DummyPage(), DummyOptimizer())
+    events: list[object] = []
+    coverages = iter(
+        [
+            ChartHistoryCoverage(
+                requested_days=365,
+                covered_days=0,
+                coverage_ratio=0.0,
+                loaded_bar_count=300,
+                loaded_first_ts=1777030500,
+                loaded_last_ts=1777293000,
+                loaded_first_date="2026-04-24",
+                loaded_last_date="2026-04-27",
+            ),
+            ChartHistoryCoverage(
+                requested_days=365,
+                covered_days=99,
+                coverage_ratio=0.27,
+                loaded_bar_count=20344,
+                loaded_first_ts=1768773600,
+                loaded_last_ts=1777293000,
+                loaded_first_date="2026-01-18",
+                loaded_last_date="2026-04-27",
+            ),
+            ChartHistoryCoverage(
+                requested_days=365,
+                covered_days=330,
+                coverage_ratio=0.90,
+                loaded_bar_count=98000,
+                loaded_first_ts=1716508800,
+                loaded_last_ts=1777293000,
+                loaded_first_date="2024-05-24",
+                loaded_last_date="2026-04-27",
+            ),
+        ]
+    )
+
+    async def fake_read(start_date: str, end_date: str) -> ChartHistoryCoverage:
+        events.append(("read", start_date, end_date))
+        return next(coverages)
+
+    async def fake_request(start_date: str, end_date: str) -> dict:
+        events.append(("request", start_date, end_date))
+        return {"ok": True, "method": "gotoTimeRange"}
+
+    async def fake_sleep(seconds: float) -> None:
+        events.append(("sleep", seconds))
+
+    monkeypatch.setattr(worker, "_read_chart_history_coverage", fake_read)
+    monkeypatch.setattr(worker, "_request_chart_history_range", fake_request)
+    monkeypatch.setattr(worker, "_is_deep_backtesting_active", AsyncMock(return_value=False))
+    monkeypatch.setattr(tab_worker_module.asyncio, "sleep", fake_sleep)
+
+    coverage = asyncio.run(worker._ensure_chart_history_for_custom_range("2024-04-26", "2025-04-26"))
+
+    assert coverage.coverage_ratio == pytest.approx(0.90)
+    assert events.count(("request", "2024-04-26", "2025-04-26")) == 2
+
+
+def test_ensure_chart_history_fails_when_loaded_range_stays_too_short(monkeypatch) -> None:
+    worker = TabWorker(DummyPage(), DummyOptimizer())
+
+    async def fake_read(start_date: str, end_date: str) -> ChartHistoryCoverage:
+        return ChartHistoryCoverage(
+            requested_days=365,
+            covered_days=40,
+            coverage_ratio=0.11,
+            loaded_bar_count=12000,
+            loaded_first_ts=0,
+            loaded_last_ts=0,
+            loaded_first_date="2025-03-17",
+            loaded_last_date="2025-04-26",
+        )
+
+    async def fake_request(start_date: str, end_date: str) -> dict:
+        return {"ok": True, "method": "gotoTimeRange"}
+
+    async def fake_sleep(seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr(worker, "_read_chart_history_coverage", fake_read)
+    monkeypatch.setattr(worker, "_request_chart_history_range", fake_request)
+    monkeypatch.setattr(worker, "_is_deep_backtesting_active", AsyncMock(return_value=False))
+    monkeypatch.setattr(tab_worker_module, "_HISTORY_LOAD_MAX_ATTEMPTS", 2)
+    monkeypatch.setattr(tab_worker_module.asyncio, "sleep", fake_sleep)
+
+    with pytest.raises(RuntimeError, match="INSUFFICIENT_DATA: only loaded 40.0 days"):
+        asyncio.run(worker._ensure_chart_history_for_custom_range("2024-04-26", "2025-04-26"))
+
+
+def test_ensure_chart_history_accepts_deep_backtesting_report_without_chart_bars(monkeypatch) -> None:
+    worker = TabWorker(DummyPage(), DummyOptimizer())
+
+    monkeypatch.setattr(worker, "_is_deep_backtesting_active", AsyncMock(return_value=True))
+    read_mock = AsyncMock()
+    request_mock = AsyncMock()
+    monkeypatch.setattr(worker, "_read_chart_history_coverage", read_mock)
+    monkeypatch.setattr(worker, "_request_chart_history_range", request_mock)
+
+    coverage = asyncio.run(worker._ensure_chart_history_for_custom_range("2024-04-26", "2025-04-26"))
+
+    assert coverage.coverage_ratio == 1.0
+    assert coverage.loaded_first_date == "2024-04-26"
+    assert coverage.loaded_last_date == "2025-04-26"
+    read_mock.assert_not_awaited()
+    request_mock.assert_not_awaited()
 
 
 def test_wait_for_load_recovers_strategy_report_timeout(monkeypatch) -> None:

@@ -39,6 +39,9 @@ _UPDATE_FINISH_TIMEOUT = 150 # seconds max for chart to finish recalculating
 _UPDATE_SETTLE_TIMEOUT = 25   # seconds to require stable Strategy Report results after spinner disappears
 _UPDATE_SETTLE_SLEEP = 0.5
 _UPDATE_SETTLE_POLLS = 3
+_HISTORY_COVERAGE_MIN_RATIO = 0.80
+_HISTORY_LOAD_MAX_ATTEMPTS = 12
+_HISTORY_LOAD_SLEEP = 3.0
 
 _LOADING_INDICATORS = [
     "Updating report", "Calculating...", "Loading...", "Compiling..."
@@ -127,6 +130,20 @@ class ApplyOutcome:
 
     def __bool__(self) -> bool:
         return self.ok
+
+
+@dataclass(slots=True)
+class ChartHistoryCoverage:
+    """Loaded chart-history coverage for a requested backtest date window."""
+
+    requested_days: float
+    covered_days: float
+    coverage_ratio: float
+    loaded_bar_count: int
+    loaded_first_ts: int
+    loaded_last_ts: int
+    loaded_first_date: str
+    loaded_last_date: str
 
 
 def normalize_backtest_range(value: str | None) -> str:
@@ -2101,6 +2118,207 @@ class TabWorker:
         await self.page.mouse.click(float(target["x"]), float(target["y"]))
         return True
 
+    async def _is_deep_backtesting_active(self) -> bool:
+        """Return True when the Strategy Report is running in Deep Backtesting mode."""
+        try:
+            return bool(
+                await self.page.evaluate(
+                    """
+                    (() => {
+                        const normalize = (value) => (value || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+                        const bodyText = normalize(document.body?.innerText || '');
+                        if (bodyText.includes('deep backtesting trades only appear in the strategy report')) {
+                            return true;
+                        }
+                        for (const el of document.querySelectorAll('button, [role="button"], [role="tab"]')) {
+                            const rect = el.getBoundingClientRect?.();
+                            if (!rect || rect.width <= 0 || rect.height <= 0) continue;
+                            const title = normalize(el.getAttribute('title'));
+                            const aria = normalize(el.getAttribute('aria-label'));
+                            const text = normalize(el.textContent);
+                            if (`${title} ${aria} ${text}`.includes('deep backtesting')) {
+                                return true;
+                            }
+                        }
+                        return false;
+                    })()
+                    """
+                )
+            )
+        except Exception:
+            return False
+
+    async def _read_chart_history_coverage(self, start_date: str, end_date: str) -> ChartHistoryCoverage:
+        """Measure how much of the requested date window is present in loaded chart bars."""
+        start_ts = _iso_date_to_unix_seconds(start_date)
+        end_ts = _iso_date_to_unix_seconds(end_date)
+        requested_days = max((end_ts - start_ts) / 86400.0, 1.0)
+        raw = await self.page.evaluate(
+            """
+            (() => {
+                const fmt = (ts) => ts ? new Date(ts * 1000).toISOString().slice(0, 10) : '';
+                try {
+                    const chart = window.TradingViewApi?._activeChartWidgetWV?.value?.();
+                    const bars = chart?._chartWidget?.model?.().mainSeries?.().bars?.();
+                    if (!bars) {
+                        return { ok: false, error: 'chart bars unavailable' };
+                    }
+                    const firstIndex = bars.firstIndex();
+                    const lastIndex = bars.lastIndex();
+                    let firstTs = 0;
+                    let lastTs = 0;
+                    let count = 0;
+                    for (let index = firstIndex; index <= lastIndex; index += 1) {
+                        const value = bars.valueAt(index);
+                        if (!value) continue;
+                        const ts = Number(value[0] || 0);
+                        if (!ts) continue;
+                        count += 1;
+                        if (!firstTs) firstTs = ts;
+                        lastTs = ts;
+                    }
+                    return {
+                        ok: true,
+                        count,
+                        first_ts: firstTs,
+                        last_ts: lastTs,
+                        first_date: fmt(firstTs),
+                        last_date: fmt(lastTs),
+                    };
+                } catch (error) {
+                    return { ok: false, error: String(error?.message || error) };
+                }
+            })()
+            """
+        )
+        if not isinstance(raw, dict) or not raw.get("ok"):
+            error = raw.get("error") if isinstance(raw, dict) else raw
+            raise RuntimeError(f"INSUFFICIENT_DATA: could not inspect loaded chart history ({error})")
+
+        loaded_first_ts = int(raw.get("first_ts") or 0)
+        loaded_last_ts = int(raw.get("last_ts") or 0)
+        if loaded_first_ts <= 0 or loaded_last_ts <= 0:
+            return ChartHistoryCoverage(
+                requested_days=requested_days,
+                covered_days=0.0,
+                coverage_ratio=0.0,
+                loaded_bar_count=int(raw.get("count") or 0),
+                loaded_first_ts=loaded_first_ts,
+                loaded_last_ts=loaded_last_ts,
+                loaded_first_date=str(raw.get("first_date") or ""),
+                loaded_last_date=str(raw.get("last_date") or ""),
+            )
+
+        overlap_start = max(start_ts, loaded_first_ts)
+        overlap_end = min(end_ts, loaded_last_ts)
+        covered_days = max((overlap_end - overlap_start) / 86400.0, 0.0)
+        return ChartHistoryCoverage(
+            requested_days=requested_days,
+            covered_days=covered_days,
+            coverage_ratio=covered_days / requested_days,
+            loaded_bar_count=int(raw.get("count") or 0),
+            loaded_first_ts=loaded_first_ts,
+            loaded_last_ts=loaded_last_ts,
+            loaded_first_date=str(raw.get("first_date") or ""),
+            loaded_last_date=str(raw.get("last_date") or ""),
+        )
+
+    async def _request_chart_history_range(self, start_date: str, end_date: str) -> dict:
+        """Ask TradingView to load bars for a historical time range."""
+        start_ms = _iso_date_to_unix_seconds(start_date) * 1000
+        end_ms = _iso_date_to_unix_seconds(end_date) * 1000
+        return await self.page.evaluate(
+            """
+            ({ startMs, endMs }) => {
+                try {
+                    const chart = window.TradingViewApi?._activeChartWidgetWV?.value?.();
+                    const widget = chart?._chartWidget;
+                    const model = widget?.model?.();
+                    const inner = model?.model?.();
+                    if (inner && typeof inner.gotoTimeRange === 'function') {
+                        inner.gotoTimeRange(startMs, endMs);
+                        return { ok: true, method: 'gotoTimeRange' };
+                    }
+                    const series = model?.mainSeries?.();
+                    if (series && typeof series.loadDataTo === 'function') {
+                        series.loadDataTo({ type: 'time-range', from: startMs / 1000, to: endMs / 1000 });
+                        return { ok: true, method: 'mainSeries.loadDataTo' };
+                    }
+                    return { ok: false, error: 'no historical range loader available' };
+                } catch (error) {
+                    return { ok: false, error: String(error?.message || error) };
+                }
+            }
+            """,
+            {"startMs": start_ms, "endMs": end_ms},
+        )
+
+    async def _ensure_chart_history_for_custom_range(self, start_date: str, end_date: str) -> ChartHistoryCoverage:
+        """Fail closed unless loaded chart bars cover the requested custom range."""
+        if await self._is_deep_backtesting_active():
+            start_ts = _iso_date_to_unix_seconds(start_date)
+            end_ts = _iso_date_to_unix_seconds(end_date)
+            requested_days = max((end_ts - start_ts) / 86400.0, 1.0)
+            log.info(
+                "_ensure_chart_history_for_custom_range: Deep Backtesting active; "
+                "chart loaded bars are not used as coverage oracle for %s..%s",
+                start_date,
+                end_date,
+            )
+            print(
+                f"  [deep backtesting ✓ Strategy Report range {start_date} → {end_date}]",
+                flush=True,
+            )
+            return ChartHistoryCoverage(
+                requested_days=requested_days,
+                covered_days=requested_days,
+                coverage_ratio=1.0,
+                loaded_bar_count=0,
+                loaded_first_ts=start_ts,
+                loaded_last_ts=end_ts,
+                loaded_first_date=start_date,
+                loaded_last_date=end_date,
+            )
+
+        last_coverage: ChartHistoryCoverage | None = None
+        for attempt in range(1, _HISTORY_LOAD_MAX_ATTEMPTS + 1):
+            coverage = await self._read_chart_history_coverage(start_date, end_date)
+            last_coverage = coverage
+            log.info(
+                "_ensure_chart_history_for_custom_range: attempt=%s coverage=%.1f%% "
+                "covered=%.1fd/%.1fd bars=%s loaded=%s..%s",
+                attempt,
+                coverage.coverage_ratio * 100,
+                coverage.covered_days,
+                coverage.requested_days,
+                coverage.loaded_bar_count,
+                coverage.loaded_first_date or "?",
+                coverage.loaded_last_date or "?",
+            )
+            if coverage.coverage_ratio >= _HISTORY_COVERAGE_MIN_RATIO:
+                print(
+                    f"  [chart history ✓ {coverage.covered_days:.0f}/{coverage.requested_days:.0f}d "
+                    f"loaded ({coverage.loaded_first_date} → {coverage.loaded_last_date})]",
+                    flush=True,
+                )
+                return coverage
+
+            request_result = await self._request_chart_history_range(start_date, end_date)
+            if not isinstance(request_result, dict) or not request_result.get("ok"):
+                raise RuntimeError(
+                    "INSUFFICIENT_DATA: could not request historical chart bars "
+                    f"for {start_date} to {end_date}: {request_result}"
+                )
+            await asyncio.sleep(_HISTORY_LOAD_SLEEP)
+
+        coverage = last_coverage or await self._read_chart_history_coverage(start_date, end_date)
+        raise RuntimeError(
+            "INSUFFICIENT_DATA: only loaded "
+            f"{coverage.covered_days:.1f} days of {coverage.requested_days:.1f} requested "
+            f"({coverage.coverage_ratio:.0%}); loaded bars={coverage.loaded_bar_count} "
+            f"range={coverage.loaded_first_date or '?'}..{coverage.loaded_last_date or '?'}"
+        )
+
     async def _select_backtest_custom_date_range(self, start_date: str, end_date: str) -> bool:
         """Set the Strategy Report custom date range using TradingView's range dialog."""
         try:
@@ -2244,6 +2462,7 @@ class TabWorker:
 
             btn_text = await self._read_backtest_range_button_text()
             if self._range_matches_custom_dates(btn_text, start_date, end_date):
+                await self._ensure_chart_history_for_custom_range(start_date, end_date)
                 print(f"  [backtest range ✓ already custom {start_date} → {end_date}]", flush=True)
                 return True
 
@@ -2277,11 +2496,14 @@ class TabWorker:
                 )
                 return False
 
+            await self._ensure_chart_history_for_custom_range(start_date, end_date)
             print(f"  [backtest range ✓ custom {start_date} → {end_date}]", flush=True)
             return True
         except NoDataForRangeError:
             raise
         except Exception as e:
+            if str(e).startswith("INSUFFICIENT_DATA:"):
+                raise
             log.warning("_set_custom_date_range: %s", e)
             return False
 

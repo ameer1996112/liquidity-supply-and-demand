@@ -1,0 +1,3 @@
+{"ts": "2026-04-28T17:00:23.048791+03:00", "run_id": "20260428_170023_77c4c3", "event_type": "run_started", "mode": "validate", "workers": 1, "pairs": ["EURUSD"], "dry_run": false, "broker": "vantage", "backtest_range": "Custom range"}
+{"ts": "2026-04-28T17:00:23.554346+03:00", "run_id": "20260428_170023_77c4c3", "event_type": "pair_started", "worker_id": 0, "symbol": "EURUSD", "broker": "vantage", "attempt": 1}
+{"ts": "2026-04-28T17:01:11.645536+03:00", "run_id": "20260428_170023_77c4c3", "event_type": "pair_started", "worker_id": 0, "symbol": "EURUSD", "broker": "vantage", "attempt": 2}
