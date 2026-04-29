@@ -165,6 +165,68 @@ def test_custom_date_range_fails_closed_when_strategy_report_keeps_wrong_range(m
     worker._ensure_chart_history_for_custom_range.assert_not_awaited()
 
 
+class StrategyTradeCoveragePage(DummyPage):
+    def __init__(self, payload: dict) -> None:
+        super().__init__(title="EURUSD 5 Vantage")
+        self.payload = payload
+
+    async def evaluate(self, script: str):
+        if "strategy-trade-coverage" in script:
+            return self.payload
+        raise AssertionError(f"unexpected script in StrategyTradeCoveragePage: {script[:120]}")
+
+
+def test_custom_validate_fails_loudly_when_strategy_trades_cover_partial_range() -> None:
+    worker = TabWorker(
+        StrategyTradeCoveragePage(
+            {
+                "ok": True,
+                "inspected_orders": 58,
+                "date_count": 58,
+                "first_ts": 1714089600,
+                "last_ts": 1716854400,
+                "first_date": "2024-04-26",
+                "last_date": "2024-05-28",
+            }
+        ),
+        DummyOptimizer(),
+    )
+    result = BacktestResult(symbol="EURUSD", params={}, total_trades=29)
+
+    with pytest.raises(RuntimeError, match="PARTIAL_DATA: Strategy Tester trades span only"):
+        asyncio.run(worker._verify_custom_strategy_trade_coverage(result, "2024-04-26", "2025-04-26"))
+
+    assert result.validation_metrics["strategy_trade_coverage"]["coverage_ratio"] < 0.1
+    assert result.validation_metrics["strategy_trade_coverage"]["first_trade_date"] == "2024-04-26"
+    assert result.validation_metrics["strategy_trade_coverage"]["last_trade_date"] == "2024-05-28"
+
+
+def test_custom_validate_accepts_strategy_trades_spanning_requested_range() -> None:
+    worker = TabWorker(
+        StrategyTradeCoveragePage(
+            {
+                "ok": True,
+                "inspected_orders": 420,
+                "date_count": 420,
+                "first_ts": 1714089600,
+                "last_ts": 1745193600,
+                "first_date": "2024-04-26",
+                "last_date": "2025-04-21",
+            }
+        ),
+        DummyOptimizer(),
+    )
+    result = BacktestResult(symbol="EURUSD", params={}, total_trades=210)
+
+    coverage = asyncio.run(
+        worker._verify_custom_strategy_trade_coverage(result, "2024-04-26", "2025-04-26")
+    )
+
+    assert coverage.coverage_ratio >= 0.80
+    assert result.validation_metrics["strategy_trade_coverage"]["total_trades"] == 210
+    assert result.validation_metrics["strategy_trade_coverage"]["last_trade_date"] == "2025-04-21"
+
+
 class MenuSettingsPage(DummyPage):
     def __init__(self) -> None:
         super().__init__(title="EURUSD 5 OANDA")

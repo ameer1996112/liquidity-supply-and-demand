@@ -73,7 +73,7 @@ class _DealHandler:
         await asyncio.get_event_loop().run_in_executor(
             None,
             self._update_db_sync,
-            position_id, net_pnl, profit, swap, commission,
+            position_id, net_pnl, profit, swap, commission, deal.get("time"),
         )
 
     def _update_db_sync(
@@ -83,6 +83,7 @@ class _DealHandler:
         profit: float,
         swap: float,
         commission: float,
+        deal_time: object | None = None,
     ) -> None:
         """
         Synchronous Supabase write — called via run_in_executor.
@@ -91,42 +92,54 @@ class _DealHandler:
         The DB change triggers Supabase Realtime → frontend update.
         """
         now = datetime.now(timezone.utc).isoformat()
+        close_time = str(deal_time).strip() if deal_time else None
         try:
-            # Update any signal with this broker_order_id regardless of current status.
-            # This handles two cases:
-            # 1. SL/TP hit: signal is still "OPEN" when the deal arrives → set to CLOSED + PnL
-            # 2. TradingView exit webhook raced ahead: signal may already be "CLOSED" with null PnL
-            #    → the streaming deal is the authoritative broker PnL, always write it
-            result = (
+            rows_result = (
                 self._sb.table("trading_signals")
-                .update(
-                    {
-                        "status": "CLOSED",
-                        "pnl_usd": net_pnl,
-                        "pnl": net_pnl,
-                        "commission": commission,
-                        "swap": swap,
-                        "exit_time": now,
-                        "closed_at": now,
-                        "outcome": "win" if net_pnl > 0 else "loss" if net_pnl < 0 else "breakeven",
-                        "updated_at": now,
-                    }
-                )
+                .select("id,status,exit_time,closed_at")
                 .eq("broker_order_id", position_id)
                 .execute()
             )
-            rows = result.data or []
-            if rows:
-                logger.info(
-                    "[MetaApi Stream] DB updated position=%s net_pnl=%.2f (%d row) "
-                    "— Supabase Realtime will push to frontend",
-                    position_id, net_pnl, len(rows),
-                )
-            else:
+            matching_rows = rows_result.data or []
+            if not matching_rows:
                 logger.info(
                     "[MetaApi Stream] No signal found for broker_order_id=%s "
                     "— trade may have been opened outside this bot",
                     position_id,
+                )
+                return
+
+            updated_rows = []
+            for row in matching_rows:
+                already_closed = str(row.get("status") or "").upper() == "CLOSED"
+                has_close_timestamp = bool(row.get("exit_time") or row.get("closed_at"))
+                update_data = {
+                    "status": "CLOSED",
+                    "pnl_usd": net_pnl,
+                    "pnl": net_pnl,
+                    "commission": commission,
+                    "swap": swap,
+                    "outcome": "win" if net_pnl > 0 else "loss" if net_pnl < 0 else "breakeven",
+                    "updated_at": now,
+                }
+                if not (already_closed and has_close_timestamp):
+                    timestamp = close_time or now
+                    update_data["exit_time"] = timestamp
+                    update_data["closed_at"] = timestamp
+
+                result = (
+                    self._sb.table("trading_signals")
+                    .update(update_data)
+                    .eq("id", row["id"])
+                    .execute()
+                )
+                updated_rows.extend(result.data or [])
+
+            if updated_rows:
+                logger.info(
+                    "[MetaApi Stream] DB updated position=%s net_pnl=%.2f (%d row) "
+                    "— Supabase Realtime will push to frontend",
+                    position_id, net_pnl, len(updated_rows),
                 )
         except Exception as exc:
             logger.error(

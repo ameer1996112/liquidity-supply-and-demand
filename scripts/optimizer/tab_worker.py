@@ -42,6 +42,7 @@ _UPDATE_SETTLE_POLLS = 3
 _HISTORY_COVERAGE_MIN_RATIO = 0.80
 _HISTORY_LOAD_MAX_ATTEMPTS = 12
 _HISTORY_LOAD_SLEEP = 3.0
+_TRADE_COVERAGE_MIN_RATIO = 0.80
 
 _LOADING_INDICATORS = [
     "Updating report", "Calculating...", "Loading...", "Compiling..."
@@ -144,6 +145,22 @@ class ChartHistoryCoverage:
     loaded_last_ts: int
     loaded_first_date: str
     loaded_last_date: str
+
+
+@dataclass(slots=True)
+class StrategyTradeCoverage:
+    """Actual Strategy Tester trade-date coverage for a requested window."""
+
+    requested_days: float
+    trade_span_days: float
+    coverage_ratio: float
+    total_trades: int
+    inspected_orders: int
+    trade_date_count: int
+    first_trade_ts: int
+    last_trade_ts: int
+    first_trade_date: str
+    last_trade_date: str
 
 
 def normalize_backtest_range(value: str | None) -> str:
@@ -3922,6 +3939,190 @@ class TabWorker:
         result.calculate_score()
         return result
 
+    async def _read_strategy_trade_coverage(
+        self,
+        start_date: str,
+        end_date: str,
+        total_trades: int,
+    ) -> StrategyTradeCoverage:
+        """Read the actual trade-date span from TradingView's strategy data."""
+        start_ts = _iso_date_to_unix_seconds(start_date)
+        end_ts = _iso_date_to_unix_seconds(end_date)
+        requested_days = max((end_ts - start_ts) / 86400.0, 1.0)
+        raw = await self.page.evaluate(
+            """
+            /* strategy-trade-coverage */
+            () => {
+                const fmt = (ts) => ts ? new Date(ts * 1000).toISOString().slice(0, 10) : '';
+                const timestamps = [];
+                const seen = new Set();
+                const pushTimestamp = (value) => {
+                    let ts = 0;
+                    if (typeof value === 'number' && Number.isFinite(value)) {
+                        if (value > 946684800000 && value < 4102444800000) {
+                            ts = Math.floor(value / 1000);
+                        } else if (value > 946684800 && value < 4102444800) {
+                            ts = Math.floor(value);
+                        }
+                    } else if (typeof value === 'string') {
+                        const parsed = Date.parse(value);
+                        if (Number.isFinite(parsed)) {
+                            ts = Math.floor(parsed / 1000);
+                        }
+                    }
+                    if (!ts || seen.has(ts)) return;
+                    seen.add(ts);
+                    timestamps.push(ts);
+                };
+                const collect = (value, key = '', depth = 0) => {
+                    if (value == null || depth > 5) return;
+                    const keyLooksTemporal = /time|date|timestamp|entry|exit|open|close/i.test(key || '');
+                    if (typeof value === 'number' || typeof value === 'string') {
+                        if (keyLooksTemporal) pushTimestamp(value);
+                        return;
+                    }
+                    if (Array.isArray(value)) {
+                        for (const item of value) collect(item, key, depth + 1);
+                        return;
+                    }
+                    if (typeof value !== 'object') return;
+                    for (const childKey of Object.keys(value)) {
+                        const child = value[childKey];
+                        if (typeof child === 'function') continue;
+                        collect(child, childKey, depth + 1);
+                    }
+                };
+                try {
+                    const chart = window.TradingViewApi?._activeChartWidgetWV?.value?.()?._chartWidget;
+                    const sources = chart?.model?.()?.model?.()?.dataSources?.() || [];
+                    let strat = null;
+                    for (const source of sources) {
+                        const meta = source?.metaInfo?.();
+                        if (meta?.is_price_study === false && (source.ordersData || source.tradesData || source.reportData)) {
+                            strat = source;
+                            break;
+                        }
+                    }
+                    if (!strat) {
+                        return { ok: false, error: 'No strategy found on chart' };
+                    }
+                    let orders = null;
+                    if (strat.ordersData) {
+                        orders = typeof strat.ordersData === 'function' ? strat.ordersData() : strat.ordersData;
+                        if (orders && typeof orders.value === 'function') orders = orders.value();
+                    }
+                    if ((!orders || !Array.isArray(orders)) && strat.tradesData) {
+                        orders = typeof strat.tradesData === 'function' ? strat.tradesData() : strat.tradesData;
+                        if (orders && typeof orders.value === 'function') orders = orders.value();
+                    }
+                    if ((!orders || !Array.isArray(orders)) && Array.isArray(strat._orders)) {
+                        orders = strat._orders;
+                    }
+                    if (!orders || !Array.isArray(orders)) {
+                        return { ok: false, error: 'strategy ordersData/tradesData returned no array' };
+                    }
+                    for (const order of orders) collect(order);
+                    timestamps.sort((a, b) => a - b);
+                    const first = timestamps[0] || 0;
+                    const last = timestamps[timestamps.length - 1] || 0;
+                    return {
+                        ok: true,
+                        inspected_orders: orders.length,
+                        date_count: timestamps.length,
+                        first_ts: first,
+                        last_ts: last,
+                        first_date: fmt(first),
+                        last_date: fmt(last),
+                    };
+                } catch (error) {
+                    return { ok: false, error: String(error?.message || error) };
+                }
+            }
+            """
+        )
+        if not isinstance(raw, dict) or not raw.get("ok"):
+            error = raw.get("error") if isinstance(raw, dict) else raw
+            raise RuntimeError(f"PARTIAL_DATA: could not inspect Strategy Tester trade dates ({error})")
+
+        first_ts = int(raw.get("first_ts") or 0)
+        last_ts = int(raw.get("last_ts") or 0)
+        trade_span_days = max((last_ts - first_ts) / 86400.0, 0.0) if first_ts and last_ts else 0.0
+        return StrategyTradeCoverage(
+            requested_days=requested_days,
+            trade_span_days=trade_span_days,
+            coverage_ratio=trade_span_days / requested_days,
+            total_trades=total_trades,
+            inspected_orders=int(raw.get("inspected_orders") or 0),
+            trade_date_count=int(raw.get("date_count") or 0),
+            first_trade_ts=first_ts,
+            last_trade_ts=last_ts,
+            first_trade_date=str(raw.get("first_date") or ""),
+            last_trade_date=str(raw.get("last_date") or ""),
+        )
+
+    async def _verify_custom_strategy_trade_coverage(
+        self,
+        result: BacktestResult,
+        start_date: str,
+        end_date: str,
+    ) -> StrategyTradeCoverage:
+        """Fail loudly when Strategy Tester only produced trades for part of a custom range."""
+        if result.total_trades <= 0:
+            log.warning(
+                "_verify_custom_strategy_trade_coverage: %s has no trades; cannot prove trade span for %s..%s",
+                result.symbol,
+                start_date,
+                end_date,
+            )
+            return StrategyTradeCoverage(
+                requested_days=max((_iso_date_to_unix_seconds(end_date) - _iso_date_to_unix_seconds(start_date)) / 86400.0, 1.0),
+                trade_span_days=0.0,
+                coverage_ratio=0.0,
+                total_trades=0,
+                inspected_orders=0,
+                trade_date_count=0,
+                first_trade_ts=0,
+                last_trade_ts=0,
+                first_trade_date="",
+                last_trade_date="",
+            )
+
+        coverage = await self._read_strategy_trade_coverage(start_date, end_date, result.total_trades)
+        result.validation_metrics["strategy_trade_coverage"] = {
+            "requested_days": coverage.requested_days,
+            "trade_span_days": coverage.trade_span_days,
+            "coverage_ratio": coverage.coverage_ratio,
+            "total_trades": coverage.total_trades,
+            "inspected_orders": coverage.inspected_orders,
+            "trade_date_count": coverage.trade_date_count,
+            "first_trade_date": coverage.first_trade_date,
+            "last_trade_date": coverage.last_trade_date,
+        }
+
+        if coverage.trade_date_count < 2:
+            raise RuntimeError(
+                "PARTIAL_DATA: could not find enough Strategy Tester trade timestamps "
+                f"for {result.symbol} ({coverage.trade_date_count} dates from "
+                f"{coverage.inspected_orders} orders, total_trades={result.total_trades})"
+            )
+
+        if coverage.coverage_ratio < _TRADE_COVERAGE_MIN_RATIO:
+            raise RuntimeError(
+                "PARTIAL_DATA: Strategy Tester trades span only "
+                f"{coverage.trade_span_days:.1f} days of {coverage.requested_days:.1f} requested "
+                f"({coverage.coverage_ratio:.0%}); first_trade={coverage.first_trade_date or '?'} "
+                f"last_trade={coverage.last_trade_date or '?'} total_trades={result.total_trades}. "
+                "Chart likely has insufficient historical bars loaded. Try a higher timeframe "
+                "or a TradingView plan with more historical intraday bars."
+            )
+
+        print(
+            f"  [trade coverage ✓ {coverage.trade_span_days:.0f}/{coverage.requested_days:.0f}d "
+            f"({coverage.first_trade_date} → {coverage.last_trade_date})]",
+            flush=True,
+        )
+        return coverage
+
     # ─────────────────────────────────── high-level optimization ─────────────
 
     async def validate_pair(
@@ -3951,6 +4152,12 @@ class TabWorker:
         if not apply_outcome.fresh:
             raise RuntimeError(apply_outcome.reason or "frozen params did not produce a fresh result")
         result = await self._read_results(symbol, params)
+        if self.optimizer.backtest_range == "custom":
+            await self._verify_custom_strategy_trade_coverage(
+                result,
+                custom_start_date or self.optimizer.custom_start_date,
+                custom_end_date or self.optimizer.custom_end_date,
+            )
         self.results.append(result)
         _print_pair_summary_table(result)
         return result

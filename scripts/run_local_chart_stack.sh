@@ -80,6 +80,34 @@ cleanup_stale_pid() {
   fi
 }
 
+start_detached() {
+  local pid_file="$1"
+  local log_file="$2"
+  shift 2
+
+  "$VENV_PYTHON" - "$pid_file" "$log_file" "$@" <<'PY'
+import os
+import subprocess
+import sys
+
+pid_file, log_file, *cmd = sys.argv[1:]
+with open(log_file, "ab", buffering=0) as log:
+    proc = subprocess.Popen(
+        cmd,
+        cwd=os.getcwd(),
+        env=os.environ.copy(),
+        stdin=subprocess.DEVNULL,
+        stdout=log,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+        close_fds=True,
+    )
+
+with open(pid_file, "w", encoding="utf-8") as handle:
+    handle.write(str(proc.pid))
+PY
+}
+
 get_listener_pid() {
   local port="$1"
   lsof -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null | head -n 1
@@ -97,6 +125,25 @@ stop_tracked_pid() {
   pid="$(read_pid_file "$pid_file")"
   kill "$pid"
   echo "[chart-stack] stopped tracked $name (PID $pid)"
+
+  for _ in $(seq 1 10); do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      rm -f "$pid_file"
+      return 0
+    fi
+    sleep 0.5
+  done
+
+  echo "[chart-stack] tracked $name did not stop gracefully; forcing PID $pid"
+  kill -9 "$pid" 2>/dev/null || true
+  for _ in $(seq 1 10); do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      rm -f "$pid_file"
+      return 0
+    fi
+    sleep 0.2
+  done
+
   rm -f "$pid_file"
 }
 
@@ -191,9 +238,8 @@ ensure_provider() {
     down)
       echo "[chart-stack] provider down, starting tracked process"
       : > "$PROVIDER_LOG"
-      nohup env PYTHONPATH=. "$VENV_PYTHON" -m uvicorn src.local_chart_provider_app:app --host 127.0.0.1 --port 8765 \
-        >> "$PROVIDER_LOG" 2>&1 &
-      echo $! > "$PROVIDER_PID_FILE"
+      start_detached "$PROVIDER_PID_FILE" "$PROVIDER_LOG" \
+        "$VENV_PYTHON" -m uvicorn src.local_chart_provider_app:app --host 127.0.0.1 --port 8765
       ;;
     *)
       echo "[chart-stack] unknown provider state: $state"
@@ -261,8 +307,8 @@ ensure_tunnel() {
   rm -f "$CLOUDFLARED_PID_FILE"
   : > "$CLOUDFLARED_LOG"
   echo "[chart-stack] starting cloudflared tunnel"
-  nohup "$CLOUDFLARED_BIN" tunnel --url http://127.0.0.1:8765 >> "$CLOUDFLARED_LOG" 2>&1 &
-  echo $! > "$CLOUDFLARED_PID_FILE"
+  start_detached "$CLOUDFLARED_PID_FILE" "$CLOUDFLARED_LOG" \
+    "$CLOUDFLARED_BIN" tunnel --url http://127.0.0.1:8765
 
   for _ in $(seq 1 20); do
     if extract_tunnel_url >/dev/null 2>&1; then
