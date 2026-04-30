@@ -242,8 +242,9 @@ class TradingViewMcpAlertRunner:
                 const rect = el?.getBoundingClientRect?.();
                 return !!rect && rect.width > 0 && rect.height > 0;
               };
+              const strategyTitles = ['S&D Algo [Pro]', 'S&D Pro'];
               const label = Array.from(document.querySelectorAll('div, span'))
-                .find((el) => el.textContent?.trim() === 'S&D Algo [Pro]' && visible(el));
+                .find((el) => strategyTitles.includes(el.textContent?.trim()) && visible(el));
               if (!label) return null;
               const box = label.getBoundingClientRect();
               return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
@@ -251,7 +252,7 @@ class TradingViewMcpAlertRunner:
             """
         )
         if not coords:
-            raise RuntimeError("could not locate S&D Algo [Pro] legend label for MCP settings open")
+            raise RuntimeError("could not locate S&D strategy legend label for MCP settings open")
         await self._ui_mouse_click(coords["x"], coords["y"])
         await asyncio.sleep(0.4)
         settings = await self._ui_eval(

@@ -109,3 +109,35 @@ def test_streaming_replay_without_deal_time_does_not_refresh_closed_timestamp():
     assert "exit_time" not in update
     assert "closed_at" not in update
     assert update["pnl_usd"] == -127.64
+
+
+def test_streaming_stores_broker_profit_separately_from_commission():
+    sb = _FakeSupabase(
+        [
+            {
+                "id": 515,
+                "status": "OPEN",
+                "exit_time": None,
+                "closed_at": None,
+                "broker_order_id": "89822150",
+            }
+        ]
+    )
+
+    asyncio.run(
+        _DealHandler(sb).handle_deal(
+            {
+                "entryType": "DEAL_ENTRY_OUT",
+                "positionId": "89822150",
+                "profit": -77.76,
+                "swap": 0,
+                "commission": -0.40,
+                "time": "2026-04-30T05:31:45.436Z",
+            }
+        )
+    )
+
+    update = sb.table_obj.updates[-1]
+    assert update["pnl_usd"] == -77.76
+    assert update["pnl"] == -77.76
+    assert update["commission"] == -0.40

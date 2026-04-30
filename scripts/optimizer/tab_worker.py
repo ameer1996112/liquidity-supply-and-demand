@@ -538,14 +538,15 @@ _JS_HAS_READY_SETTINGS_DIALOG = f"""
 
 
 async def page_query_snd(page: "Page"):
-    """Find the S&D Algo [Pro] legend coordinates."""
+    """Find the S&D strategy legend coordinates."""
     try:
         return await page.evaluate(
             """
             (() => {
+                const strategyTitles = ['S&D Algo [Pro]', 'S&D Pro'];
                 for (const el of document.querySelectorAll('div')) {
                     const text = el.textContent?.trim();
-                    if (text !== 'S&D Algo [Pro]') continue;
+                    if (!strategyTitles.includes(text)) continue;
                     const box = el.getBoundingClientRect();
                     if (el.offsetParent !== null && box.width > 0 && box.width < 400) {
                         return {
@@ -1487,8 +1488,9 @@ class TabWorker:
                                 style?.visibility !== 'hidden' && style?.display !== 'none';
                         };
                         const normalize = (text) => (text || '').replace(/\\s+/g, ' ').trim();
+                        const strategyTitles = ['S&D Algo [Pro]', 'S&D Pro'];
                         return Array.from(document.querySelectorAll('div, span, button, [data-name], [class*="title"]'))
-                            .some((el) => visible(el) && normalize(el.textContent) === 'S&D Algo [Pro]');
+                            .some((el) => visible(el) && strategyTitles.includes(normalize(el.textContent)));
                     })()
                     """
                 )
@@ -2837,7 +2839,7 @@ class TabWorker:
         await self._dismiss_wrong_settings_dialog()
 
         # On TradingView Desktop, the indicator legend often already exposes a
-        # visible settings gear near the "S&D Algo [Pro]" title. Prefer that
+        # visible settings gear near the strategy title. Prefer that
         # direct path before opening other menus, because it is the most
         # stable UI surface in the desktop shell.
         try:
@@ -2862,11 +2864,12 @@ class TabWorker:
                         return Math.sqrt(dx * dx + dy * dy);
                     };
 
+                    const strategyTitles = ['S&D Algo [Pro]', 'S&D Pro'];
                     const titles = Array.from(
                         document.querySelectorAll('div, span, button, [data-name], [class*="title"]')
                     ).filter((el) =>
                         visible(el) &&
-                        (el.textContent || '').replace(/\\s+/g, ' ').trim() === 'S&D Algo [Pro]'
+                        strategyTitles.includes((el.textContent || '').replace(/\\s+/g, ' ').trim())
                     );
 
                     if (!titles.length) return false;
@@ -2919,7 +2922,7 @@ class TabWorker:
             pass
 
         # TradingView Desktop reliably exposes the bottom Strategy Report
-        # strategy menu as "S&D Algo [Pro] · Deep Backtesting" -> "Settings…".
+        # strategy menu as "<strategy title> · Deep Backtesting" -> "Settings…".
         # Prefer that deterministic flow before falling back to chart-legend
         # coordinate clicks, which are less stable in the Desktop shell.
         try:
@@ -2933,12 +2936,13 @@ class TabWorker:
                             style?.visibility !== 'hidden' && style?.display !== 'none';
                     };
 
+                    const strategyTitles = ['S&D Algo [Pro]', 'S&D Pro'];
                     const strategyButton = Array.from(document.querySelectorAll('button'))
                         .find((btn) =>
                             visible(btn) &&
-                            (
-                                (btn.getAttribute('title') || '').includes('S&D Algo [Pro]') ||
-                                (btn.textContent || '').includes('S&D Algo [Pro]')
+                            strategyTitles.some((title) =>
+                                (btn.getAttribute('title') || '').includes(title) ||
+                                (btn.textContent || '').includes(title)
                             )
                         );
                     if (!strategyButton) return false;
@@ -3026,11 +3030,12 @@ class TabWorker:
                     const dy = a.y - b.y;
                     return Math.sqrt(dx * dx + dy * dy);
                 };
+                const strategyTitles = ['S&D Algo [Pro]', 'S&D Pro'];
                 const titles = Array.from(
                     document.querySelectorAll('div, span, button, [data-name], [class*="title"]')
                 ).filter((el) =>
                     visible(el) &&
-                    normalize(el.textContent) === 'S&D Algo [Pro]'
+                    strategyTitles.includes(normalize(el.textContent))
                 );
                 if (!titles.length) return null;
 
@@ -3433,7 +3438,7 @@ class TabWorker:
                             '[class*="legendItem"], [class*="legend-"]'
                         );
                         for (const row of rows) {
-                            if (row.textContent?.includes('S&D Algo')) {
+                            if (row.textContent?.includes('S&D Algo') || row.textContent?.includes('S&D Pro')) {
                                 btn = row.querySelector('button');
                                 break;
                             }
@@ -3458,7 +3463,7 @@ class TabWorker:
                                 '[class*="legendItem"], [class*="legend-"]'
                             );
                             for (const row of rows) {
-                                if (row.textContent?.includes('S&D Algo')) {
+                                if (row.textContent?.includes('S&D Algo') || row.textContent?.includes('S&D Pro')) {
                                     btn = row.querySelector('button'); break;
                                 }
                             }

@@ -39,6 +39,11 @@ logger = get_logger("trinity.logic")
 _paper_trader = None
 
 
+def _should_fetch_broker_pnl_after_close(status: str) -> bool:
+    """True when broker accepted/filled a close and deal history may contain actual PnL."""
+    return str(status or "").lower() in {"filled", "submitted", "success"}
+
+
 def _get_alert_by_signal_id(signal_id: Any) -> Optional[Dict[str, Any]]:
     """Fetch a specific trading_signals row for profile-targeted exit handling."""
     if signal_id is None:
@@ -364,7 +369,7 @@ def process_trade(
                     )
 
 # 🚀 OPTIMIZED Broker PnL Fetch (Watermark + 15min Instant Window)
-                if exec_result.status in ("filled", "success") and hasattr(adapter, "get_historical_deals"):
+                if _should_fetch_broker_pnl_after_close(exec_result.status) and hasattr(adapter, "get_historical_deals"):
                     try:
                         from src.services.broker_reconciliation import get_last_closed_timestamp
                         from datetime import timedelta
@@ -410,11 +415,11 @@ def process_trade(
                                     exit_deals.append(deal)
 
                         if exit_deals:
-                            total_realized_pnl = total_pnl + total_commission + total_swap
+                            total_realized_pnl = total_pnl
 
                             logger.info(
                                 "🚀 INSTANT Broker PnL #%s ticket=%s | Raw: P=$%.2f C=$%.2f S=$%.2f | "
-                                "NET=$%.2f (vs TV $%.2f) | %d exit deals | Last Type: %s",
+                                "BROKER_PNL=$%.2f (vs TV $%.2f) | %d exit deals | Last Type: %s",
                                 alert["id"], broker_order_id,
                                 total_pnl, total_commission, total_swap, total_realized_pnl,
                                 exit_data.get("pnl_usd", 0), len(exit_deals),

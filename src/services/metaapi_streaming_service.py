@@ -59,27 +59,27 @@ class _DealHandler:
         profit = float(deal.get("profit") or 0)
         swap = float(deal.get("swap") or 0)
         commission = float(deal.get("commission") or 0)
-        net_pnl = profit + swap + commission
+        broker_pnl = profit
 
         symbol = deal.get("symbol", "?")
         deal_id = deal.get("id", "?")
 
         logger.info(
             "[MetaApi Stream] Trade closed — deal=%s position=%s symbol=%s "
-            "profit=%.2f swap=%.2f commission=%.2f → net_pnl=%.2f",
-            deal_id, position_id, symbol, profit, swap, commission, net_pnl,
+            "profit=%.2f swap=%.2f commission=%.2f",
+            deal_id, position_id, symbol, profit, swap, commission,
         )
 
         await asyncio.get_event_loop().run_in_executor(
             None,
             self._update_db_sync,
-            position_id, net_pnl, profit, swap, commission, deal.get("time"),
+            position_id, broker_pnl, profit, swap, commission, deal.get("time"),
         )
 
     def _update_db_sync(
         self,
         position_id: str,
-        net_pnl: float,
+        broker_pnl: float,
         profit: float,
         swap: float,
         commission: float,
@@ -115,11 +115,11 @@ class _DealHandler:
                 has_close_timestamp = bool(row.get("exit_time") or row.get("closed_at"))
                 update_data = {
                     "status": "CLOSED",
-                    "pnl_usd": net_pnl,
-                    "pnl": net_pnl,
+                    "pnl_usd": broker_pnl,
+                    "pnl": broker_pnl,
                     "commission": commission,
                     "swap": swap,
-                    "outcome": "win" if net_pnl > 0 else "loss" if net_pnl < 0 else "breakeven",
+                    "outcome": "win" if broker_pnl > 0 else "loss" if broker_pnl < 0 else "breakeven",
                     "updated_at": now,
                 }
                 if not (already_closed and has_close_timestamp):
@@ -137,9 +137,9 @@ class _DealHandler:
 
             if updated_rows:
                 logger.info(
-                    "[MetaApi Stream] DB updated position=%s net_pnl=%.2f (%d row) "
+                    "[MetaApi Stream] DB updated position=%s broker_pnl=%.2f (%d row) "
                     "— Supabase Realtime will push to frontend",
-                    position_id, net_pnl, len(updated_rows),
+                    position_id, broker_pnl, len(updated_rows),
                 )
         except Exception as exc:
             logger.error(
