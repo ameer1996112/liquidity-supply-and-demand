@@ -43,7 +43,7 @@ _MAX_RETRIES = 3
 _RETRY_SLEEP = 2.0          # seconds between retry attempts
 _UPDATE_APPEAR_TIMEOUT = 20  # seconds to wait for "Updating report" to appear (needs headroom for parallel workers)
 _UPDATE_FINISH_TIMEOUT = 150 # seconds max for chart to finish recalculating
-_UPDATE_SETTLE_TIMEOUT = 25   # seconds to require stable Strategy Report results after spinner disappears
+_UPDATE_SETTLE_TIMEOUT = 60   # seconds to require stable Strategy Report results after spinner disappears
 _UPDATE_SETTLE_SLEEP = 0.5
 _UPDATE_SETTLE_POLLS = 3
 _HISTORY_COVERAGE_MIN_RATIO = 0.80
@@ -1559,6 +1559,56 @@ class TabWorker:
             await asyncio.sleep(0.5)
         return False
 
+    async def _chart_bars_ready(self) -> bool:
+        """Return True once TradingView has loaded visible chart data."""
+        try:
+            return bool(
+                await self.page.evaluate(
+                    """
+                    (() => {
+                        try {
+                            const chart = window.TradingViewApi?._activeChartWidgetWV?.value?.();
+                            const bars = chart?._chartWidget?.model?.()?.mainSeries?.()?.bars?.();
+                            const size = bars?.size?.() ?? bars?._items?.length ?? 0;
+                            if (size > 0) return true;
+                        } catch (error) {}
+                        return document.querySelectorAll('[class*="chart-markup-table"] canvas, canvas').length > 0;
+                    })()
+                    """
+                )
+            )
+        except Exception:
+            return True
+
+    async def _wait_for_chart_ready(self, symbol: str = "", timeout: float = 60.0) -> None:
+        """Fail closed until chart data and the strategy legend are available after navigation."""
+        deadline = time.time() + timeout
+        last_reason = "chart readiness was not checked"
+        while time.time() < deadline:
+            remaining = max(1.0, deadline - time.time())
+            try:
+                await self._wait_for_load(timeout=int(min(30, remaining)))
+                if not await self._wait_for_strategy_surface(timeout=min(10.0, remaining)):
+                    last_reason = "strategy legend did not appear"
+                    await asyncio.sleep(1.0)
+                    continue
+
+                if not await self._chart_bars_ready():
+                    last_reason = "chart bars were not loaded"
+                    await asyncio.sleep(1.0)
+                    continue
+
+                fingerprint = await self._read_results_fingerprint_raw()
+                if fingerprint:
+                    await self._wait_for_results_stable()
+                return
+            except Exception as exc:
+                last_reason = str(exc)
+            await asyncio.sleep(1.0)
+
+        label = f" for {symbol}" if symbol else ""
+        raise RuntimeError(f"Chart was not ready{label} after {int(timeout)}s: {last_reason}")
+
     async def _current_timeframe(self) -> str:
         """Return the current chart timeframe token when available."""
         if hasattr(self.page, "tab_id"):
@@ -1595,17 +1645,20 @@ class TabWorker:
         use_search = broker in self._SEARCH_DIALOG_BROKERS
 
         # Already on this symbol?
+        title_broker = ""
+        title_symbol = ""
         try:
             title_broker, title_symbol = await self._current_symbol_details()
-            observed_broker = title_broker
-            if not observed_broker and await self._chart_header_shows_broker(tv_exchange):
-                observed_broker = tv_exchange
-            if title_symbol == clean_symbol and self._broker_matches_expected(observed_broker, tv_exchange):
-                print(f"  Already on {clean_symbol}, skipping switch")
-                await self._wait_for_load()
-                return
         except Exception:
             pass
+        observed_broker = title_broker
+        if not observed_broker and await self._chart_header_shows_broker(tv_exchange):
+            observed_broker = tv_exchange
+        if title_symbol == clean_symbol and self._broker_matches_expected(observed_broker, tv_exchange):
+            print(f"  Already on {clean_symbol}, skipping switch")
+            await self._wait_for_load()
+            await self._wait_for_chart_ready(clean_symbol)
+            return
 
         print(f"  Navigating to {tv_symbol_prefix}:{clean_symbol}...")
 
@@ -1634,10 +1687,6 @@ class TabWorker:
                 await self._wait_for_strategy_surface()
                 try:
                     await self._verify_symbol_state(clean_symbol, tv_exchange)
-                    print(f"  Switched to {tv_symbol_prefix}:{clean_symbol} (verified)")
-                    if not await self._ensure_chart_timeframe_5m():
-                        raise RuntimeError("Could not confirm chart timeframe is 5m")
-                    return
                 except Exception as verify_error:
                     observed = await self._current_symbol()
                     log.warning(
@@ -1647,6 +1696,12 @@ class TabWorker:
                         verify_error,
                         "search" if use_search else "URL",
                     )
+                else:
+                    print(f"  Switched to {tv_symbol_prefix}:{clean_symbol} (verified)")
+                    if not await self._ensure_chart_timeframe_5m():
+                        raise RuntimeError("Could not confirm chart timeframe is 5m")
+                    await self._wait_for_chart_ready(clean_symbol)
+                    return
             except Exception as e:
                 log.warning("_switch_symbol: MCP symbol command failed, falling back to %s navigation: %s", "search" if use_search else "URL", e)
 
@@ -1661,6 +1716,7 @@ class TabWorker:
             print(f"  Switched to {tv_symbol_prefix}:{clean_symbol} (verified)")
             if not await self._ensure_chart_timeframe_5m():
                 raise RuntimeError("Could not confirm chart timeframe is 5m")
+            await self._wait_for_chart_ready(clean_symbol)
             return
 
         # ── URL fallback path (Vantage, OANDA, etc.) ─────────────────────────
@@ -1683,14 +1739,15 @@ class TabWorker:
         # Verify and fail closed if TradingView kept the old symbol.
         try:
             await self._verify_symbol_state(clean_symbol, tv_exchange)
-            print(f"  Switched to {tv_symbol_prefix}:{clean_symbol} (verified)")
-            if not await self._ensure_chart_timeframe_5m():
-                raise RuntimeError("Could not confirm chart timeframe is 5m")
         except Exception:
             observed = await self._current_symbol()
             raise RuntimeError(
                 f"Symbol switch failed: expected {clean_symbol}, observed {observed or 'UNKNOWN'}"
             )
+        print(f"  Switched to {tv_symbol_prefix}:{clean_symbol} (verified)")
+        if not await self._ensure_chart_timeframe_5m():
+            raise RuntimeError("Could not confirm chart timeframe is 5m")
+        await self._wait_for_chart_ready(clean_symbol)
 
     async def _ensure_chart_timeframe_5m(self) -> bool:
         """Set and verify the optimizer's expected 5-minute chart timeframe."""
@@ -1897,6 +1954,43 @@ class TabWorker:
 
         except Exception as e:
             log.debug("_ensure_strategy_tester_open: %s", e)
+
+    async def _ensure_strategy_report_metrics_tab(self) -> bool:
+        """Ensure Strategy Report is on Metrics, not List of trades."""
+        await self._ensure_strategy_tester_open()
+        if await self.page.evaluate(_JS_HAS_STRATEGY_REPORT_METRICS):
+            return True
+
+        try:
+            clicked = await self.page.evaluate(
+                """
+                (() => {
+                    const visible = (el) => {
+                        const rect = el?.getBoundingClientRect?.();
+                        const style = el ? window.getComputedStyle(el) : null;
+                        return !!rect && rect.width > 0 && rect.height > 0 &&
+                            style?.visibility !== 'hidden' && style?.display !== 'none';
+                    };
+                    const normalize = (text) => (text || '').replace(/\\s+/g, ' ').trim();
+                    const candidates = Array.from(document.querySelectorAll('button, [role="button"], [role="tab"]'))
+                        .map((el) => ({ el, text: normalize(el.textContent), rect: el.getBoundingClientRect() }))
+                        .filter((item) => visible(item.el) && item.text === 'Metrics')
+                        .sort((a, b) => b.rect.y - a.rect.y || a.rect.x - b.rect.x);
+                    if (!candidates.length) return false;
+                    candidates[0].el.click();
+                    return true;
+                })()
+                """
+            )
+            if not clicked:
+                return False
+            for _ in range(20):
+                if await self.page.evaluate(_JS_HAS_STRATEGY_REPORT_METRICS):
+                    return True
+                await asyncio.sleep(0.25)
+        except Exception as exc:
+            log.debug("_ensure_strategy_report_metrics_tab: %s", exc)
+        return False
 
     async def _read_backtest_range_button_text(self) -> str:
         """Return the bottom Strategy Report date-span button text, if visible."""
@@ -2663,6 +2757,7 @@ class TabWorker:
     async def _read_results_fingerprint_raw(self) -> str:
         """Read the raw Strategy Report fingerprint without triggering refresh logic."""
         try:
+            await self._ensure_strategy_report_metrics_tab()
             fingerprint: str = await self.page.evaluate(_JS_RESULTS_FINGERPRINT)
             return fingerprint or ""
         except Exception:
@@ -4236,6 +4331,8 @@ class TabWorker:
             timestamp=datetime.now().isoformat(),
         )
         try:
+            if not await self._ensure_strategy_report_metrics_tab():
+                log.warning("_read_results: Strategy Report Metrics tab was not visible")
             metrics = await self.page.evaluate(_JS_COLLECT_METRICS)
             for key, value in (metrics or {}).items():
                 kl = key.lower()

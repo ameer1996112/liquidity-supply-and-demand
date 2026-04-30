@@ -39,12 +39,11 @@ from .config import (
     DEFAULT_PAIRS,
     N_BAYESIAN_TRIALS,
     PROP_FIRM_MAX_DD_PCT,
-    OPTUNA_SEARCH_SPACE,
-    LIQ_DISTANCE_RANGES,
 )
 from .desktop_page import TradingViewDesktopPage
 from .models import BacktestResult, NoDataForRangeError
 from .optimizer_mcp import OptimizerMcpController, OptimizerWorkspaceSlot
+from .param_contract import validate_optimizer_pine_contract
 from .runtime_state import OptimizerRuntimeState
 from .tab_worker import normalize_backtest_range, backtest_range_to_label
 
@@ -489,6 +488,7 @@ async def optimize_pair_on_page(
     opt_shell.runtime_state = runtime_state
     opt_shell.run_id = run_id
     opt_shell.worker_id = worker_id
+    opt_shell.worker_tab_id = getattr(page, "tab_id", None)
     opt_shell.custom_start_date = custom_start_date
     opt_shell.custom_end_date = custom_end_date
 
@@ -536,7 +536,10 @@ async def worker_task(
     custom_end_date: str | None = None,
 ) -> None:
     """Worker coroutine: pulls pairs from queue, optimizes, saves results."""
-    log.info(f"[worker-{worker_id}] Started")
+    tab_id = getattr(page, "tab_id", "none")
+    if hasattr(page, "bind_worker"):
+        page.bind_worker(worker_id)
+    log.info("[worker-%s tab=%s] Started", worker_id, tab_id)
 
     while True:
         try:
@@ -557,7 +560,14 @@ async def worker_task(
 
         while retries <= MAX_PAIR_RETRIES:
             try:
-                log.info(f"[worker-{worker_id}] Starting {symbol} on {item_broker} (attempt {retries + 1})")
+                log.info(
+                    "[worker-%s tab=%s] Starting %s on %s (attempt %d)",
+                    worker_id,
+                    tab_id,
+                    symbol,
+                    item_broker,
+                    retries + 1,
+                )
                 if runtime_state is not None and run_id is not None:
                     runtime_state.mark_pair_started(
                         run_id=run_id,
@@ -769,6 +779,8 @@ async def run_parallel(
     Main coordinator: prepares TradingView Desktop tabs, distributes pairs to workers, collects results.
     """
     setup_logging()
+    if mode not in VALIDATE_MODES:
+        validate_optimizer_pine_contract(logger=log)
     results_file = results_file_for_broker(broker, results_label)
     latest_results_file = results_file_for_broker(broker)
     backtest_range = normalize_backtest_range(backtest_range)

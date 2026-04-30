@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_TV_CLI_PATH = PROJECT_ROOT / "mcp" / "tradingview-mcp" / "src" / "cli" / "index.js"
+log = logging.getLogger(__name__)
 
 
 class TradingViewMcpClient:
@@ -20,9 +22,24 @@ class TradingViewMcpClient:
         env["TV_TARGET_ID"] = tab_id
         return TradingViewMcpClient(cli_path=self._cli_path, extra_env=env)
 
+    def with_worker(self, worker_id: int | str | None) -> "TradingViewMcpClient":
+        if worker_id is None:
+            return self
+        env = dict(self._extra_env)
+        env["OPTIMIZER_WORKER_ID"] = str(worker_id)
+        return TradingViewMcpClient(cli_path=self._cli_path, extra_env=env)
+
     async def run(self, *args: str) -> dict[str, Any]:
         if not self._cli_path.exists():
             raise RuntimeError(f"TradingView MCP CLI not found at {self._cli_path}")
+        worker_id = self._extra_env.get("OPTIMIZER_WORKER_ID", "?")
+        tab_id = self._extra_env.get("TV_TARGET_ID", "default")
+        command = " ".join(args[:2] if args[:1] == ("ui",) else args[:1])
+        message = "[worker-%s | tab=%s | command=%s]"
+        if command == "ui eval" and os.environ.get("OPTIMIZER_VERBOSE_MCP") != "1":
+            log.debug(message, worker_id, tab_id, command)
+        else:
+            log.info(message, worker_id, tab_id, command)
         env = os.environ.copy()
         env.update(self._extra_env)
         process = await asyncio.create_subprocess_exec(

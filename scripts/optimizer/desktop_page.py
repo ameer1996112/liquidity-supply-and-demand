@@ -82,3 +82,7 @@ class TradingViewDesktopPage:
         await self.evaluate("window.location.reload(); true")
         await asyncio.sleep(5.0)
 
+    def bind_worker(self, worker_id: int | str | None) -> None:
+        self._client = self._client.with_worker(worker_id)
+        self.keyboard = DesktopKeyboard(self._client)
+        self.mouse = DesktopMouse(self._client)

@@ -1,0 +1,42 @@
+{"ts": "2026-04-30T12:42:41.163479+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "run_started", "mode": "bayesian", "workers": 10, "pairs": ["XAUUSD", "XAGUSD", "NAS100", "USDJPY", "EURUSD", "GBPUSD", "AUDCHF", "USDCAD", "EURJPY", "EURNZD", "NZDUSD", "EURCAD"], "dry_run": false, "broker": "vantage", "backtest_range": "Last 365 days"}
+{"ts": "2026-04-30T12:42:41.457991+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_started", "worker_id": 0, "symbol": "XAUUSD", "broker": "vantage", "attempt": 1}
+{"ts": "2026-04-30T12:42:56.462498+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_started", "worker_id": 1, "symbol": "XAGUSD", "broker": "vantage", "attempt": 1}
+{"ts": "2026-04-30T12:43:11.462756+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_started", "worker_id": 2, "symbol": "NAS100", "broker": "vantage", "attempt": 1}
+{"ts": "2026-04-30T12:43:26.463076+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_started", "worker_id": 3, "symbol": "USDJPY", "broker": "vantage", "attempt": 1}
+{"ts": "2026-04-30T12:43:41.463517+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_started", "worker_id": 4, "symbol": "EURUSD", "broker": "vantage", "attempt": 1}
+{"ts": "2026-04-30T12:43:56.463952+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_started", "worker_id": 5, "symbol": "GBPUSD", "broker": "vantage", "attempt": 1}
+{"ts": "2026-04-30T12:44:09.720814+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_started", "worker_id": 2, "symbol": "NAS100", "broker": "vantage", "attempt": 2}
+{"ts": "2026-04-30T12:44:11.464083+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_started", "worker_id": 6, "symbol": "AUDCHF", "broker": "vantage", "attempt": 1}
+{"ts": "2026-04-30T12:44:12.325028+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_started", "worker_id": 4, "symbol": "EURUSD", "broker": "vantage", "attempt": 2}
+{"ts": "2026-04-30T12:44:19.411286+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_started", "worker_id": 3, "symbol": "USDJPY", "broker": "vantage", "attempt": 2}
+{"ts": "2026-04-30T12:44:26.465298+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_started", "worker_id": 7, "symbol": "USDCAD", "broker": "vantage", "attempt": 1}
+{"ts": "2026-04-30T12:44:26.714529+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_started", "worker_id": 5, "symbol": "GBPUSD", "broker": "vantage", "attempt": 2}
+{"ts": "2026-04-30T12:44:27.142759+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_started", "worker_id": 4, "symbol": "EURUSD", "broker": "vantage", "attempt": 3}
+{"ts": "2026-04-30T12:44:39.460691+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_started", "worker_id": 2, "symbol": "NAS100", "broker": "vantage", "attempt": 3}
+{"ts": "2026-04-30T12:44:41.466499+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_started", "worker_id": 8, "symbol": "EURJPY", "broker": "vantage", "attempt": 1}
+{"ts": "2026-04-30T12:44:42.618070+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_started", "worker_id": 6, "symbol": "AUDCHF", "broker": "vantage", "attempt": 2}
+{"ts": "2026-04-30T12:44:51.055194+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_started", "worker_id": 3, "symbol": "USDJPY", "broker": "vantage", "attempt": 3}
+{"ts": "2026-04-30T12:44:51.114950+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_failed", "worker_id": 4, "symbol": "EURUSD", "broker": "vantage", "error_message": "Symbol switch failed: expected EURUSD, observed USDCAD"}
+{"ts": "2026-04-30T12:44:51.115494+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_started", "worker_id": 4, "symbol": "EURNZD", "broker": "vantage", "attempt": 1}
+{"ts": "2026-04-30T12:44:56.474924+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_started", "worker_id": 9, "symbol": "NZDUSD", "broker": "vantage", "attempt": 1}
+{"ts": "2026-04-30T12:44:57.064538+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_started", "worker_id": 5, "symbol": "GBPUSD", "broker": "vantage", "attempt": 3}
+{"ts": "2026-04-30T12:44:57.330999+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_started", "worker_id": 7, "symbol": "USDCAD", "broker": "vantage", "attempt": 2}
+{"ts": "2026-04-30T12:45:02.927446+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_started", "worker_id": 6, "symbol": "AUDCHF", "broker": "vantage", "attempt": 3}
+{"ts": "2026-04-30T12:45:03.280804+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_failed", "worker_id": 2, "symbol": "NAS100", "broker": "vantage", "error_message": "Symbol switch failed: expected NAS100, observed AUDCHF"}
+{"ts": "2026-04-30T12:45:03.281446+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_started", "worker_id": 2, "symbol": "EURCAD", "broker": "vantage", "attempt": 1}
+{"ts": "2026-04-30T12:45:14.640049+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_started", "worker_id": 8, "symbol": "EURJPY", "broker": "vantage", "attempt": 2}
+{"ts": "2026-04-30T12:45:16.164370+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_failed", "worker_id": 3, "symbol": "USDJPY", "broker": "vantage", "error_message": "Symbol switch failed: expected USDJPY, observed NZDUSD"}
+{"ts": "2026-04-30T12:45:21.344761+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_started", "worker_id": 4, "symbol": "EURNZD", "broker": "vantage", "attempt": 2}
+{"ts": "2026-04-30T12:45:26.384440+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_started", "worker_id": 7, "symbol": "USDCAD", "broker": "vantage", "attempt": 3}
+{"ts": "2026-04-30T12:45:27.736894+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_failed", "worker_id": 6, "symbol": "AUDCHF", "broker": "vantage", "error_message": "Symbol switch failed: expected AUDCHF, observed USDCAD"}
+{"ts": "2026-04-30T12:45:28.045790+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_started", "worker_id": 9, "symbol": "NZDUSD", "broker": "vantage", "attempt": 2}
+{"ts": "2026-04-30T12:45:32.445001+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_started", "worker_id": 2, "symbol": "EURCAD", "broker": "vantage", "attempt": 2}
+{"ts": "2026-04-30T12:45:43.323187+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_started", "worker_id": 8, "symbol": "EURJPY", "broker": "vantage", "attempt": 3}
+{"ts": "2026-04-30T12:45:50.611066+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_failed", "worker_id": 7, "symbol": "USDCAD", "broker": "vantage", "error_message": "Symbol switch failed: expected USDCAD, observed EURCAD"}
+{"ts": "2026-04-30T12:45:50.978623+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_failed", "worker_id": 5, "symbol": "GBPUSD", "broker": "vantage", "error_message": "Could not confirm backtest range is Last 365 days"}
+{"ts": "2026-04-30T12:45:51.376607+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_started", "worker_id": 4, "symbol": "EURNZD", "broker": "vantage", "attempt": 3}
+{"ts": "2026-04-30T12:45:57.359328+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_started", "worker_id": 9, "symbol": "NZDUSD", "broker": "vantage", "attempt": 3}
+{"ts": "2026-04-30T12:46:01.422123+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_started", "worker_id": 2, "symbol": "EURCAD", "broker": "vantage", "attempt": 3}
+{"ts": "2026-04-30T12:46:09.271074+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_failed", "worker_id": 8, "symbol": "EURJPY", "broker": "vantage", "error_message": "Symbol switch failed: expected EURJPY, observed EURNZD"}
+{"ts": "2026-04-30T12:46:15.249437+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_failed", "worker_id": 4, "symbol": "EURNZD", "broker": "vantage", "error_message": "Symbol switch failed: expected EURNZD, observed NZDUSD"}
+{"ts": "2026-04-30T12:46:21.183900+03:00", "run_id": "20260430_124241_2e7a37", "event_type": "pair_failed", "worker_id": 9, "symbol": "NZDUSD", "broker": "vantage", "error_message": "Symbol switch failed: expected NZDUSD, observed EURCAD"}
