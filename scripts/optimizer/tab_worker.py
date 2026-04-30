@@ -500,8 +500,12 @@ const __tvFindInputByTitle = (dialog, title) => {
             if (node === dialog || node === dialog.parentElement) break;
             const scopedControls = Array.from(node.querySelectorAll('input, textarea'))
                 .filter(__tvVisible);
-            if (scopedControls.length === 1 && scopedControls[0] === control &&
-                __tvRowHasExactTitle(node, title)) return control;
+            if (scopedControls.length !== 1 || scopedControls[0] !== control) continue;
+            if (__tvRowHasExactTitle(node, title)) return control;
+            const previous = node.previousElementSibling;
+            if (previous && __tvVisible(previous) &&
+                !previous.querySelector('input, textarea') &&
+                __tvRowHasExactTitle(previous, title)) return control;
         }
     }
     return null;
@@ -521,6 +525,15 @@ const __tvAvailableInputTitles = (dialog) => {
                 .filter((text) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(text));
             if (candidates.length) {
                 titles.push(candidates[0]);
+                break;
+            }
+            const previous = node.previousElementSibling;
+            if (!previous || !__tvVisible(previous) ||
+                previous.querySelector('input, textarea')) continue;
+            const siblingCandidates = __tvTextNodeValues(previous)
+                .filter((text) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(text));
+            if (siblingCandidates.length) {
+                titles.push(siblingCandidates[0]);
                 break;
             }
         }
@@ -3269,12 +3282,18 @@ class TabWorker:
                 input.dispatchEvent(new Event('change', {{ bubbles: true }}));
                 input.blur();
                 const newValue = String(input.value || '').trim();
-                return {{ ok: newValue === nextValue.trim(), oldValue, newValue, reason: '' }};
+                const expected = nextValue.trim();
+                const actualNumber = Number(newValue);
+                const expectedNumber = Number(expected);
+                const numericMatch = newValue !== '' && expected !== '' &&
+                    Number.isFinite(actualNumber) && Number.isFinite(expectedNumber) &&
+                    Math.abs(actualNumber - expectedNumber) < 1e-9;
+                return {{ ok: newValue === expected || numericMatch, oldValue, newValue, reason: '' }};
             }})
             """,
             {"title": title, "value": value},
         )
-        log.info(
+        log.debug(
             "_apply_params: %s %s -> %s",
             title,
             (result or {}).get("oldValue"),
@@ -3313,7 +3332,7 @@ class TabWorker:
             """,
             {"title": title, "desiredState": desired_state},
         )
-        log.info(
+        log.debug(
             "_apply_params: %s %s -> %s",
             title,
             (result or {}).get("oldValue"),
@@ -3904,8 +3923,22 @@ class TabWorker:
                     results_hash_after=hash_after,
                 )
 
-            except KeyError:
-                raise
+            except KeyError as e:
+                log.warning(
+                    "_apply_params attempt %d/%d failed: %s", attempt, _MAX_RETRIES, e
+                )
+                if attempt < _MAX_RETRIES:
+                    await asyncio.sleep(_RETRY_SLEEP)
+                else:
+                    log.warning("_apply_params: all retries exhausted, skipping combo")
+                    return ApplyOutcome(
+                        ok=False,
+                        fresh=False,
+                        reason="apply_failed",
+                        attempt=attempt,
+                        results_hash_before=hash_before,
+                        results_hash_after=hash_after,
+                    )
             except Exception as e:
                 log.warning(
                     "_apply_params attempt %d/%d failed: %s", attempt, _MAX_RETRIES, e

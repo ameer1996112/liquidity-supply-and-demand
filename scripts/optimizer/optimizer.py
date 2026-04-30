@@ -424,6 +424,27 @@ class TradingViewOptimizer:
                 consecutive_failures += 1
                 study.tell(trial, state=optuna.trial.TrialState.FAIL)
                 continue
+            except Exception as e:
+                self._record_trial_event(
+                    symbol=symbol,
+                    trial_num=trial_num,
+                    params=params,
+                    outcome="apply_exception",
+                    hash_before="",
+                    hash_after="",
+                )
+                print(
+                    self._format_trial_log_line(
+                        symbol=symbol,
+                        trial_num=trial_num,
+                        n_trials=n_trials,
+                        eta=eta,
+                        reason=f"apply exception: {e}",
+                    )
+                )
+                consecutive_failures += 1
+                study.tell(trial, state=optuna.trial.TrialState.FAIL)
+                continue
 
             if not apply_outcome.fresh:
                 self._record_trial_event(
