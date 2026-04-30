@@ -87,24 +87,53 @@ OPTIMIZER_METADATA_PARAM_DEFAULTS = {
 
 OPTIMIZER_METADATA_PARAMS = tuple(OPTIMIZER_METADATA_PARAM_DEFAULTS)
 
+OPTIMIZER_CONTEXT_PARAM_DEFAULTS = {
+    **OPTIMIZER_METADATA_PARAM_DEFAULTS,
+    "config_profile": "Custom",
+    "trade_direction": "Both",
+    "account_size_usd": 50000,
+    "risk_per_trade_pct": 0.5,
+    "enable_date_filter": False,
+    "invalidate_on_wick": True,
+    "structure_mode": "Relaxed (Wicks)",
+    "require_major_liquidity": True,
+    "use_fvg_confirmation": False,
+    "enable_accuracy_zones": True,
+    "take_profit_pips": 0.0,
+    "use_custom_rr": True,
+    "risk_reward_ratio": 4.0,
+    "max_position_size_lots": 100.0,
+    "max_lots_per_10k": 10.0,
+    "max_usd_risk_cap": 0.0,
+    "use_half_risk_second_trade": True,
+    "enable_trade_limit": True,
+    "filter_trading_hours": True,
+    "require_htf_flip": True,
+    "enable_ai_lite_mode": False,
+    "enable_grade_filter": False,
+    "min_entry_grade": "C",
+}
+
+
+def materialize_result_params(params: dict) -> dict:
+    """Return a complete params snapshot for optimizer replay/manual entry."""
+    materialized = {**OPTIMIZER_CONTEXT_PARAM_DEFAULTS, **params}
+    rr_mode = materialized.get("rr_mode")
+    if rr_mode is not None:
+        if str(rr_mode) == "dynamic":
+            materialized["use_custom_rr"] = False
+        else:
+            materialized["use_custom_rr"] = True
+            materialized["risk_reward_ratio"] = float(str(rr_mode).replace("fixed_", ""))
+    return materialized
+
 OPTIMIZER_UI_ONLY_PARAMS = (
-    "config_profile",
-    "invalidate_on_wick",
-    "structure_mode",
-    "require_major_liquidity",
     "plotLiq",
     "show_fractals",
     "show_liquidity_connectors",
     "zone_label_style",
     "zone_label_show_metrics",
     "show_blocked_trade_labels",
-    "trade_direction",
-    "account_size_usd",
-    "risk_per_trade_pct",
-    "max_position_size_lots",
-    "max_lots_per_10k",
-    "max_usd_risk_cap",
-    "use_half_risk_second_trade",
     "debug_level",
     "showZoneInspector",
     "manual_zone_id_input",
@@ -112,28 +141,29 @@ OPTIMIZER_UI_ONLY_PARAMS = (
     "show_performance_table",
     "showResults",
     "table_text_size",
-    "take_profit_pips",
-    "enable_trade_limit",
-    "filter_trading_hours",
-    "require_htf_flip",
-    "enable_ai_lite_mode",
-    "enable_grade_filter",
-    "min_entry_grade",
-    "use_fvg_confirmation",
-    "enable_accuracy_zones",
     "show_grade_on_zone",
     "show_ai_score_on_label",
-    "enable_date_filter",
     "start_date",
     "end_date",
 )
 
 CHECKBOX_PARAM_NAMES = {
     "news_blackout_enabled",
+    "enable_date_filter",
+    "invalidate_on_wick",
+    "require_major_liquidity",
+    "use_fvg_confirmation",
+    "enable_accuracy_zones",
     "use_custom_rr",
     "use_break_even",
     "enable_double_tp",
+    "use_half_risk_second_trade",
+    "enable_trade_limit",
+    "filter_trading_hours",
+    "require_htf_flip",
     "enable_ai_quality_filter",
+    "enable_ai_lite_mode",
+    "enable_grade_filter",
 }
 
 # ─── Default pairs ────────────────────────────────────────────────────────────

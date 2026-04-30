@@ -1,3 +1,0 @@
-{"ts": "2026-04-27T10:54:08.070463+03:00", "run_id": "20260427_105408_076f37", "event_type": "run_started", "mode": "validate", "workers": 3, "pairs": ["USDJPY", "XAUUSD", "NAS100"], "dry_run": false, "broker": "vantage", "backtest_range": "Custom range"}
-{"ts": "2026-04-27T10:54:08.385341+03:00", "run_id": "20260427_105408_076f37", "event_type": "pair_started", "worker_id": 0, "symbol": "USDJPY", "broker": "vantage", "attempt": 1}
-{"ts": "2026-04-27T10:54:23.386218+03:00", "run_id": "20260427_105408_076f37", "event_type": "pair_started", "worker_id": 1, "symbol": "XAUUSD", "broker": "vantage", "attempt": 1}

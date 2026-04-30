@@ -31,7 +31,7 @@ from .config import (
     INPUT_INDEX,
     N_BAYESIAN_TRIALS,
     N_STARTUP_TRIALS,
-    OPTIMIZER_METADATA_PARAM_DEFAULTS,
+    OPTIMIZER_CONTEXT_PARAM_DEFAULTS,
     PROP_FIRM_MAX_DD_PCT,
 )
 from .models import BacktestResult
@@ -46,6 +46,7 @@ except ImportError:
 
 _PAIR_TIMEOUT_SECS = 600  # 10-minute hard limit per pair (increased for bayesian)
 _DEFAULT_DAILY_DD_LIMIT_PCT = 4.0
+_FINAL_REPLAY_TIMEOUT_SECS = 360
 
 
 class TradingViewOptimizer:
@@ -170,7 +171,7 @@ class TradingViewOptimizer:
 
         def _recurse(idx: int, current: dict) -> None:
             if idx == len(keys):
-                combos.append({**OPTIMIZER_METADATA_PARAM_DEFAULTS, **current})
+                combos.append({**OPTIMIZER_CONTEXT_PARAM_DEFAULTS, **current})
                 return
             for val in values[idx]:
                 current[keys[idx]] = val
@@ -599,12 +600,80 @@ class TradingViewOptimizer:
                     f"  [{symbol}] ℹ Best overall had DD={best.max_drawdown_pct:.1f}% (non-compliant). "
                     f"Saving best compliant instead (DD={best_compliant.max_drawdown_pct:.1f}%)."
                 )
+            final = await asyncio.wait_for(
+                self._verify_final_result_replay(worker, symbol, final),
+                timeout=_FINAL_REPLAY_TIMEOUT_SECS,
+            )
             _print_pair_summary_table(final)
             return final
 
         raise RuntimeError(
             f"No valid optimization result produced for {symbol}; all trials failed or were skipped"
         )
+
+    @staticmethod
+    def _result_metric_snapshot(result: BacktestResult) -> dict:
+        return {
+            "net_profit": round(float(result.net_profit), 2),
+            "win_rate": round(float(result.win_rate), 2),
+            "profit_factor": round(float(result.profit_factor), 3),
+            "max_drawdown_pct": round(float(result.max_drawdown_pct), 2),
+            "total_trades": int(result.total_trades),
+            "score": float(result.score),
+        }
+
+    @classmethod
+    def _result_metrics_match(cls, expected: BacktestResult, actual: BacktestResult) -> bool:
+        return (
+            abs(float(expected.net_profit) - float(actual.net_profit)) <= 1.0
+            and abs(float(expected.profit_factor) - float(actual.profit_factor)) <= 0.005
+            and abs(float(expected.max_drawdown_pct) - float(actual.max_drawdown_pct)) <= 0.05
+            and abs(float(expected.win_rate) - float(actual.win_rate)) <= 0.05
+            and int(expected.total_trades) == int(actual.total_trades)
+        )
+
+    async def _verify_final_result_replay(
+        self,
+        worker: TabWorker,
+        symbol: str,
+        candidate: BacktestResult,
+    ) -> BacktestResult:
+        """
+        Reapply the selected params once and save the replayed Strategy Report.
+
+        This prevents stale/intermediate trial reads from becoming the published
+        best result. The replay metrics are the final source of truth.
+        """
+        print(f"  [{symbol}] Final replay validation: reapplying selected params...")
+        apply_outcome = await worker._apply_params(
+            candidate.params,
+            allow_unchanged_hash=True,
+        )
+        if not apply_outcome.fresh:
+            raise RuntimeError(
+                f"Final replay validation failed for {symbol}: "
+                f"{apply_outcome.reason or 'apply_failed'}"
+            )
+
+        replay = await worker._read_results(symbol, candidate.params)
+        matched = self._result_metrics_match(candidate, replay)
+        replay.validation_metrics.update(candidate.validation_metrics)
+        replay.validation_metrics["final_replay"] = {
+            "matched_original": matched,
+            "original": self._result_metric_snapshot(candidate),
+            "replay": self._result_metric_snapshot(replay),
+            "apply_reason": apply_outcome.reason,
+            "results_hash_before": apply_outcome.results_hash_before,
+            "results_hash_after": apply_outcome.results_hash_after,
+        }
+        if not matched:
+            print(
+                f"  [{symbol}] ⚠ Final replay differed from trial read; "
+                "saving replayed metrics as source of truth."
+            )
+        else:
+            print(f"  [{symbol}] Final replay validation matched.")
+        return replay
 
     def _record_trial_event(
         self,

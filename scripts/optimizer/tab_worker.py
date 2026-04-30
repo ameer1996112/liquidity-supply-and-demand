@@ -27,7 +27,8 @@ from .config import (
     HILL_CLIMB_PARAMS,
     INPUT_INDEX,
     LIQ_DISTANCE_RANGES,
-    OPTIMIZER_METADATA_PARAM_DEFAULTS,
+    OPTIMIZER_CONTEXT_PARAM_DEFAULTS,
+    materialize_result_params,
 )
 from .models import BacktestResult, NoDataForRangeError
 from .optimizer_mcp import broker_to_tv_exchange, broker_to_tv_symbol_prefix
@@ -492,19 +493,19 @@ const __tvRowHasExactTitle = (root, title) => {
     return __tvTextNodeValues(root).some((text) => text === target);
 };
 const __tvFindInputByTitle = (dialog, title) => {
-    const controls = Array.from(dialog.querySelectorAll('input, textarea'))
+    const controls = Array.from(dialog.querySelectorAll('input, textarea, button[role="combobox"]'))
         .filter(__tvVisible);
     for (const control of controls) {
         let node = control.parentElement;
         for (let depth = 0; node && depth < 8; depth += 1, node = node.parentElement) {
             if (node === dialog || node === dialog.parentElement) break;
-            const scopedControls = Array.from(node.querySelectorAll('input, textarea'))
+            const scopedControls = Array.from(node.querySelectorAll('input, textarea, button[role="combobox"]'))
                 .filter(__tvVisible);
             if (scopedControls.length !== 1 || scopedControls[0] !== control) continue;
             if (__tvRowHasExactTitle(node, title)) return control;
             const previous = node.previousElementSibling;
             if (previous && __tvVisible(previous) &&
-                !previous.querySelector('input, textarea') &&
+                !previous.querySelector('input, textarea, button[role="combobox"]') &&
                 __tvRowHasExactTitle(previous, title)) return control;
         }
     }
@@ -512,13 +513,13 @@ const __tvFindInputByTitle = (dialog, title) => {
 };
 const __tvAvailableInputTitles = (dialog) => {
     const titles = [];
-    const controls = Array.from(dialog.querySelectorAll('input, textarea'))
+    const controls = Array.from(dialog.querySelectorAll('input, textarea, button[role="combobox"]'))
         .filter(__tvVisible);
     for (const control of controls) {
         let node = control.parentElement;
         for (let depth = 0; node && depth < 8; depth += 1, node = node.parentElement) {
             if (node === dialog || node === dialog.parentElement) break;
-            const scopedControls = Array.from(node.querySelectorAll('input, textarea'))
+            const scopedControls = Array.from(node.querySelectorAll('input, textarea, button[role="combobox"]'))
                 .filter(__tvVisible);
             if (scopedControls.length !== 1 || scopedControls[0] !== control) continue;
             const candidates = __tvTextNodeValues(node)
@@ -529,7 +530,7 @@ const __tvAvailableInputTitles = (dialog) => {
             }
             const previous = node.previousElementSibling;
             if (!previous || !__tvVisible(previous) ||
-                previous.querySelector('input, textarea')) continue;
+                previous.querySelector('input, textarea, button[role="combobox"]')) continue;
             const siblingCandidates = __tvTextNodeValues(previous)
                 .filter((text) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(text));
             if (siblingCandidates.length) {
@@ -773,7 +774,7 @@ class TabWorker:
         """
         from .config import OPTUNA_SEARCH_SPACE
 
-        params: dict = dict(OPTIMIZER_METADATA_PARAM_DEFAULTS)
+        params: dict = dict(OPTIMIZER_CONTEXT_PARAM_DEFAULTS)
         liq_range = self._liq_range(symbol)
         liq_param_name = liq_range["param"]
         overrides = fixed_overrides or {}
@@ -3240,6 +3241,7 @@ class TabWorker:
                     if (!dialog) return '';
                     const input = __tvFindInputByTitle(dialog, title);
                     if (!input || input.type === 'checkbox') return '';
+                    if (input.getAttribute?.('role') === 'combobox') return __tvNormalize(input.textContent || '');
                     return String(input.value || '').trim();
                 }})
                 """,
@@ -3300,6 +3302,80 @@ class TabWorker:
             (result or {}).get("newValue"),
         )
         return bool((result or {}).get("ok"))
+
+    async def _set_select_by_title(self, title: str, value: str) -> bool:
+        result = await self.page.evaluate(
+            f"""
+            (({{ title, value }}) => {{
+                {_JS_SETTINGS_DIALOG_HELPERS}
+                {_JS_INPUT_BY_TITLE_HELPERS}
+                const dialog = __tvPickSettingsDialog(true) || __tvPickSettingsDialog(false);
+                if (!dialog) return {{ ok: false, oldValue: '', newValue: '', reason: 'missing_dialog' }};
+                const control = __tvFindInputByTitle(dialog, title);
+                if (!control) return {{ ok: false, oldValue: '', newValue: '', reason: 'missing_input' }};
+                if (control.getAttribute?.('role') !== 'combobox') {{
+                    return {{ ok: false, oldValue: __tvNormalize(control.textContent || control.value), newValue: __tvNormalize(control.textContent || control.value), reason: 'expected_combobox' }};
+                }}
+                const expected = String(value).trim();
+                const oldValue = __tvNormalize(control.textContent || '');
+                if (oldValue === expected) {{
+                    return {{ ok: true, oldValue, newValue: oldValue, reason: '' }};
+                }}
+                control.scrollIntoView({{ block: 'center' }});
+                control.click();
+                return {{ ok: true, oldValue, newValue: oldValue, reason: 'opened' }};
+            }})
+            """,
+            {"title": title, "value": value},
+        )
+        if not result or not result.get("ok"):
+            log.debug(
+                "_apply_params: %s select failed (%s)",
+                title,
+                (result or {}).get("reason"),
+            )
+            return False
+
+        await asyncio.sleep(0.3)
+        clicked = await self.page.evaluate(
+            """
+            ((value) => {
+                const normalize = (text) => (text || '').replace(/\\s+/g, ' ').trim();
+                const visible = (el) => {
+                    const rect = el?.getBoundingClientRect?.();
+                    const style = el ? window.getComputedStyle(el) : null;
+                    return !!rect && rect.width > 0 && rect.height > 0 &&
+                        style?.visibility !== 'hidden' && style?.display !== 'none';
+                };
+                const expected = String(value).trim();
+                for (const el of document.querySelectorAll('[role="option"], [class*="option"], [class*="item-"], [class*="menuItem"], [class*="dropdownItem"], button, [role="button"]')) {
+                    if (normalize(el.textContent) === expected && visible(el)) {
+                        el.click();
+                        return true;
+                    }
+                }
+                return false;
+            })
+            """,
+            value,
+        )
+        if not clicked:
+            if (str((result or {}).get("oldValue", "")).strip() == str(value).strip()):
+                return True
+            try:
+                await self.page.keyboard.press("Escape")
+            except Exception:
+                pass
+            return False
+
+        await asyncio.sleep(0.2)
+        log.debug(
+            "_apply_params: %s %s -> %s",
+            title,
+            (result or {}).get("oldValue"),
+            value,
+        )
+        return True
 
     async def _toggle_checkbox_by_title(self, title: str, desired_state: bool) -> bool:
         result = await self.page.evaluate(
@@ -3687,6 +3763,9 @@ class TabWorker:
         elif param_type == "checkbox":
             if not await self._toggle_checkbox_by_title(param_name, bool(value)):
                 raise KeyError(f"Failed to apply Pine input title: {param_name}")
+        elif param_type == "select":
+            if not await self._set_select_by_title(param_name, str(value)):
+                raise KeyError(f"Failed to apply Pine input title: {param_name}")
         elif param_type == "liq_distance":
             pass  # Caller resolves to correct param name
         elif param_type == "numeric":
@@ -3802,6 +3881,8 @@ class TabWorker:
                         continue  # already handled
                     if name in CHECKBOX_PARAM_NAMES:
                         applied = await self._toggle_checkbox_by_title(name, bool(value))
+                    elif isinstance(value, str):
+                        applied = await self._set_select_by_title(name, value)
                     else:
                         applied = await self._set_input_by_title(name, value)
                     if not applied:
@@ -4009,6 +4090,8 @@ class TabWorker:
                     continue
                 if name in CHECKBOX_PARAM_NAMES:
                     applied = await self._toggle_checkbox_by_title(name, bool(value))
+                elif isinstance(value, str):
+                    applied = await self._set_select_by_title(name, value)
                 else:
                     applied = await self._set_input_by_title(name, value)
                 if not applied:
@@ -4148,7 +4231,7 @@ class TabWorker:
         observed_symbol = await self._verify_symbol(symbol)
         result = BacktestResult(
             symbol=symbol,
-            params=params.copy(),
+            params=materialize_result_params(params),
             verified_symbol=observed_symbol,
             timestamp=datetime.now().isoformat(),
         )
