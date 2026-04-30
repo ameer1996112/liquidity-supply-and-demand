@@ -172,6 +172,39 @@ def test_circuit_breaker_auto_resumes_after_cooldown(monkeypatch):
     assert reason is None
 
 
+def test_circuit_breaker_consumes_expired_streak_before_counting_new_losses(monkeypatch):
+    """After serving cooldown, old losses should not combine with one fresh loss."""
+    now = datetime.now(timezone.utc)
+    rows = [
+        {"broker_profile_id": "acct-1", "outcome": "loss", "pnl_usd": -129.34,
+         "exit_time": (now - timedelta(minutes=30)).isoformat(), "account_name": "ACG-DEMO-3"},
+        {"broker_profile_id": "acct-1", "outcome": "loss", "pnl_usd": -127.64,
+         "exit_time": (now - timedelta(days=3)).isoformat(), "account_name": "ACG-DEMO-3"},
+        {"broker_profile_id": "acct-1", "outcome": "loss", "pnl_usd": -127.46,
+         "exit_time": (now - timedelta(days=5)).isoformat(), "account_name": "ACG-DEMO-3"},
+        {"broker_profile_id": "acct-1", "outcome": "loss", "pnl_usd": -360.05,
+         "exit_time": (now - timedelta(days=6)).isoformat(), "account_name": "ACG-DEMO-3"},
+        {"broker_profile_id": "acct-1", "outcome": "win", "pnl_usd": 275.35,
+         "exit_time": (now - timedelta(days=7)).isoformat(), "account_name": "ACG-DEMO-3"},
+    ]
+    sb = _FakeSupabase(rows)
+    _patch_settings(
+        monkeypatch,
+        max_consecutive_losses=3,
+        consec_loss_pause_hours=4.0,
+        consec_loss_min_streak_pct=0.0,
+    )
+
+    allowed, reason = check_signal_guards(
+        {"rr_ratio": 2.0, "account_balance": 10000.0},
+        sb,
+        profile={"id": "acct-1", "name": "ACG-DEMO-3"},
+    )
+
+    assert allowed is True
+    assert reason is None
+
+
 def test_circuit_breaker_blocks_during_cooldown(monkeypatch):
     """During cooldown period, trading should be blocked."""
     now = datetime.now(timezone.utc)

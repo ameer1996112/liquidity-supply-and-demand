@@ -71,6 +71,71 @@ LIQ_DISTANCE_RANGES: dict = {
     "index": {"low": 250.0, "high": 800.0, "param": "liq_max_distance_pips_index"},
 }
 
+OPTIMIZER_SYNTHETIC_PARAMS = ("rr_mode",)
+OPTIMIZER_SYNTHETIC_PARAM_INPUTS = {
+    "rr_mode": ("use_custom_rr", "risk_reward_ratio"),
+}
+
+OPTIMIZER_METADATA_PARAM_DEFAULTS = {
+    "risk_pct": 0.4,
+    "daily_kill_pct": 4.0,
+    "total_kill_pct": 8.0,
+    "consec_loss_kill": 2,
+    "min_hold_minutes": 2,
+    "news_blackout_enabled": False,
+}
+
+OPTIMIZER_METADATA_PARAMS = tuple(OPTIMIZER_METADATA_PARAM_DEFAULTS)
+
+OPTIMIZER_UI_ONLY_PARAMS = (
+    "config_profile",
+    "invalidate_on_wick",
+    "structure_mode",
+    "require_major_liquidity",
+    "plotLiq",
+    "show_fractals",
+    "show_liquidity_connectors",
+    "zone_label_style",
+    "zone_label_show_metrics",
+    "show_blocked_trade_labels",
+    "trade_direction",
+    "account_size_usd",
+    "risk_per_trade_pct",
+    "max_position_size_lots",
+    "max_lots_per_10k",
+    "max_usd_risk_cap",
+    "use_half_risk_second_trade",
+    "debug_level",
+    "showZoneInspector",
+    "manual_zone_id_input",
+    "showActiveProfile",
+    "show_performance_table",
+    "showResults",
+    "table_text_size",
+    "take_profit_pips",
+    "enable_trade_limit",
+    "filter_trading_hours",
+    "require_htf_flip",
+    "enable_ai_lite_mode",
+    "enable_grade_filter",
+    "min_entry_grade",
+    "use_fvg_confirmation",
+    "enable_accuracy_zones",
+    "show_grade_on_zone",
+    "show_ai_score_on_label",
+    "enable_date_filter",
+    "start_date",
+    "end_date",
+)
+
+CHECKBOX_PARAM_NAMES = {
+    "news_blackout_enabled",
+    "use_custom_rr",
+    "use_break_even",
+    "enable_double_tp",
+    "enable_ai_quality_filter",
+}
+
 # ─── Default pairs ────────────────────────────────────────────────────────────
 
 # ─── Legacy parameter grids (kept for --fast / --smart backward compat) ───────
@@ -111,47 +176,47 @@ PARAM_GRID_INDEX = {
 
 # ─── Input index mapping ──────────────────────────────────────────────────────
 # Map parameter names to their INPUT INDEX in TradingView settings dialog.
-# Discovered by tv_debug3.py on 2026-04-06 — dialog has inputs[0..56].
+# Verified against the live TradingView settings dialog on 2026-04-29.
 
 INPUT_INDEX = {
     # ── Prop Firm Risk Management (6 new inputs at top, indices 0-5) ──────────
-    "pf_risk_pct":              0,   # 0.4
-    "pf_daily_kill_pct":        1,   # 4.0
-    "pf_total_kill_pct":        2,   # 8.0
-    "pf_consec_loss_kill":      3,   # 2
-    "pf_min_hold_minutes":      4,   # 2
-    "pf_news_blackout_enabled": 5,   # checkbox: false
-    # ── All original inputs shifted +6 ───────────────────────────────────────
+    "risk_pct":                 0,   # 0.4
+    "daily_kill_pct":           1,   # 4.0
+    "total_kill_pct":           2,   # 8.0
+    "consec_loss_kill":         3,   # 2
+    "min_hold_minutes":         4,   # 2
+    "news_blackout_enabled":    5,   # checkbox: false
+    # ── Visible strategy settings dialog inputs ─────────────────────────────
     "account_size_usd": 6,           # 50000
     "risk_per_trade_pct": 7,         # 0.5
-    "max_zones": 14,                 # 20
-    "min_body_perc": 15,             # 50
-    "liq_pivot_len": 18,             # 5 (Pivot Strength)
-    "pvtMax": 19,                    # 5 (Max Liquidity Lines)
-    "liq_max_distance_pips_forex": 21,   # 20
-    "liq_max_distance_pips_gold": 22,    # 150
-    "liq_max_distance_pips_index": 23,   # 500
-    "liq_entry_max_dist": 24,        # 10 (Max Zone-to-Liq Distance)
-    "stop_loss_buffer_pips": 37,     # 1 (SL Buffer Pips)
+    "max_zones": 14,                 # Max Zones Displayed
+    "min_body_perc": 15,             # Min Body %
+    "liq_pivot_len": 18,             # Pivot Strength
+    "pvtMax": 19,                    # Max Liquidity Lines
+    "liq_max_distance_pips_forex": 21,
+    "liq_max_distance_pips_gold": 22,
+    "liq_max_distance_pips_index": 23,
+    "liq_entry_max_dist": 24,        # Max Zone-to-Liq Distance
+    "stop_loss_buffer_pips": 37,     # SL Buffer Pips
     "use_custom_rr": 38,             # checkbox: Override Use Fixed RR
-    "risk_reward_ratio": 39,         # 3 (Custom R:R Ratio)
-    "min_tp_distance_pips": 40,      # 15
-    "take_profit_pips": 41,          # 0 (Fixed TP Override)
+    "risk_reward_ratio": 39,         # Custom R:R Ratio
+    "min_tp_distance_pips": 40,      # Min TP Distance
+    "take_profit_pips": 41,          # Fixed TP Override
     "use_break_even": 42,            # checkbox: Break-Even Mode
-    "max_bars_held": 43,             # 72 (Time-Based Exit)
+    "max_bars_held": 43,             # Time-Based Exit
     "enable_double_tp": 44,          # checkbox: Double TP Mode
     "max_position_size_lots": 45,    # 100
     "max_lots_per_10k": 46,          # 10
     "max_usd_risk_cap": 47,          # 0
-    "max_daily_loss_pct": 49,        # 4
-    "max_daily_profit_pct": 50,      # 5
-    "max_trades_per_day": 52,        # 2
-    "trading_start_hour": 54,        # 6
-    "trading_end_hour": 55,          # 22
+    "max_daily_loss_pct": 49,        # Daily Loss Limit
+    "max_daily_profit_pct": 50,      # Daily Profit Target
+    "max_trades_per_day": 52,        # Max Trades/Day
+    "trading_start_hour": 54,        # Start Hour
+    "trading_end_hour": 55,          # End Hour
     "enable_ai_quality_filter": 57,  # checkbox: AI Quality Filter
-    "ai_quality_threshold": 58,      # 60
-    "max_peak_to_touch_bars": 61,    # 30
-    "max_sweep_to_touch_bars": 62,   # 15
+    "ai_quality_threshold": 58,      # Min Score
+    "max_peak_to_touch_bars": 61,    # Max Peak to Touch Bars
+    "max_sweep_to_touch_bars": 62,   # Max Sweep to Touch Bars
 }
 
 # CHECKBOX indices — these need special handling (toggle, not fill)

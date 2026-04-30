@@ -31,6 +31,7 @@ from .config import (
     INPUT_INDEX,
     N_BAYESIAN_TRIALS,
     N_STARTUP_TRIALS,
+    OPTIMIZER_METADATA_PARAM_DEFAULTS,
     PROP_FIRM_MAX_DD_PCT,
 )
 from .models import BacktestResult
@@ -169,7 +170,7 @@ class TradingViewOptimizer:
 
         def _recurse(idx: int, current: dict) -> None:
             if idx == len(keys):
-                combos.append(dict(current))
+                combos.append({**OPTIMIZER_METADATA_PARAM_DEFAULTS, **current})
                 return
             for val in values[idx]:
                 current[keys[idx]] = val

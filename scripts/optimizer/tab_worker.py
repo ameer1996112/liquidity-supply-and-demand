@@ -22,7 +22,13 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional, TYPE_CHECKING
 
-from .config import INPUT_INDEX, CHECKBOX_INDICES, HILL_CLIMB_PARAMS, LIQ_DISTANCE_RANGES
+from .config import (
+    CHECKBOX_PARAM_NAMES,
+    HILL_CLIMB_PARAMS,
+    INPUT_INDEX,
+    LIQ_DISTANCE_RANGES,
+    OPTIMIZER_METADATA_PARAM_DEFAULTS,
+)
 from .models import BacktestResult, NoDataForRangeError
 from .optimizer_mcp import broker_to_tv_exchange, broker_to_tv_symbol_prefix
 
@@ -471,6 +477,58 @@ const __tvDescribeSettingsDialogs = () => {
 };
 """
 
+_JS_INPUT_BY_TITLE_HELPERS = """
+const __tvTextNodeValues = (root) => {
+    const values = [];
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+        const text = __tvNormalize(walker.currentNode.nodeValue);
+        if (text) values.push(text);
+    }
+    return values;
+};
+const __tvRowHasExactTitle = (root, title) => {
+    const target = __tvNormalize(title);
+    return __tvTextNodeValues(root).some((text) => text === target);
+};
+const __tvFindInputByTitle = (dialog, title) => {
+    const controls = Array.from(dialog.querySelectorAll('input, textarea'))
+        .filter(__tvVisible);
+    for (const control of controls) {
+        let node = control.parentElement;
+        for (let depth = 0; node && depth < 8; depth += 1, node = node.parentElement) {
+            if (node === dialog || node === dialog.parentElement) break;
+            const scopedControls = Array.from(node.querySelectorAll('input, textarea'))
+                .filter(__tvVisible);
+            if (scopedControls.length === 1 && scopedControls[0] === control &&
+                __tvRowHasExactTitle(node, title)) return control;
+        }
+    }
+    return null;
+};
+const __tvAvailableInputTitles = (dialog) => {
+    const titles = [];
+    const controls = Array.from(dialog.querySelectorAll('input, textarea'))
+        .filter(__tvVisible);
+    for (const control of controls) {
+        let node = control.parentElement;
+        for (let depth = 0; node && depth < 8; depth += 1, node = node.parentElement) {
+            if (node === dialog || node === dialog.parentElement) break;
+            const scopedControls = Array.from(node.querySelectorAll('input, textarea'))
+                .filter(__tvVisible);
+            if (scopedControls.length !== 1 || scopedControls[0] !== control) continue;
+            const candidates = __tvTextNodeValues(node)
+                .filter((text) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(text));
+            if (candidates.length) {
+                titles.push(candidates[0]);
+                break;
+            }
+        }
+    }
+    return Array.from(new Set(titles));
+};
+"""
+
 _JS_HAS_READY_SETTINGS_DIALOG = f"""
 (() => {{
     {_JS_SETTINGS_DIALOG_HELPERS}
@@ -701,7 +759,7 @@ class TabWorker:
         """
         from .config import OPTUNA_SEARCH_SPACE
 
-        params: dict = {}
+        params: dict = dict(OPTIMIZER_METADATA_PARAM_DEFAULTS)
         liq_range = self._liq_range(symbol)
         liq_param_name = liq_range["param"]
         overrides = fixed_overrides or {}
@@ -3091,6 +3149,175 @@ class TabWorker:
         except Exception:
             return ""
 
+    @staticmethod
+    def _setting_titles_for_param(name: str, value) -> tuple[str, ...]:
+        if name == "rr_mode":
+            titles = ["use_custom_rr"]
+            if str(value) != "dynamic":
+                titles.append("risk_reward_ratio")
+            return tuple(titles)
+        return (name,)
+
+    def _setting_titles_for_params(self, params: dict) -> list[str]:
+        titles: list[str] = []
+        for name, value in params.items():
+            titles.extend(self._setting_titles_for_param(name, value))
+        return titles
+
+    async def _missing_setting_titles(self, titles: list[str]) -> list[str]:
+        """Return canonical Pine input titles that are not visible in the dialog."""
+        return list(
+            await self.page.evaluate(
+                f"""
+                ((titles) => {{
+                    {_JS_SETTINGS_DIALOG_HELPERS}
+                    {_JS_INPUT_BY_TITLE_HELPERS}
+                    const dialog = __tvPickSettingsDialog(true) || __tvPickSettingsDialog(false);
+                    if (!dialog) return titles;
+                    return titles.filter((title) => !__tvFindInputByTitle(dialog, title));
+                }})
+                """,
+                titles,
+            )
+            or []
+        )
+
+    async def _available_setting_titles(self) -> list[str]:
+        """Best-effort list of visible canonical Pine input titles for diagnostics."""
+        try:
+            return list(
+                await self.page.evaluate(
+                    f"""
+                    (() => {{
+                        {_JS_SETTINGS_DIALOG_HELPERS}
+                        {_JS_INPUT_BY_TITLE_HELPERS}
+                        const dialog = __tvPickSettingsDialog(true) || __tvPickSettingsDialog(false);
+                        if (!dialog) return [];
+                        return __tvAvailableInputTitles(dialog);
+                    }})()
+                    """
+                )
+                or []
+            )
+        except Exception:
+            return []
+
+    async def _validate_setting_titles(self, params: dict) -> None:
+        missing = await self._missing_setting_titles(self._setting_titles_for_params(params))
+        if missing:
+            available = await self._available_setting_titles()
+            raise KeyError(
+                "TradingView settings dialog is missing Pine input title(s): "
+                f"{', '.join(missing)}. Available canonical titles: {available}"
+            )
+
+    async def _read_input_value_by_title(self, title: str) -> str:
+        try:
+            value = await self.page.evaluate(
+                f"""
+                ((title) => {{
+                    {_JS_SETTINGS_DIALOG_HELPERS}
+                    {_JS_INPUT_BY_TITLE_HELPERS}
+                    const dialog = __tvPickSettingsDialog(true) || __tvPickSettingsDialog(false);
+                    if (!dialog) return '';
+                    const input = __tvFindInputByTitle(dialog, title);
+                    if (!input || input.type === 'checkbox') return '';
+                    return String(input.value || '').trim();
+                }})
+                """,
+                title,
+            )
+            return str(value or "").strip()
+        except Exception:
+            return ""
+
+    async def _set_input_by_title(self, title: str, value) -> bool:
+        result = await self.page.evaluate(
+            f"""
+            (({{ title, value }}) => {{
+                {_JS_SETTINGS_DIALOG_HELPERS}
+                {_JS_INPUT_BY_TITLE_HELPERS}
+                const dialog = __tvPickSettingsDialog(true) || __tvPickSettingsDialog(false);
+                if (!dialog) return {{ ok: false, oldValue: '', newValue: '', reason: 'missing_dialog' }};
+                const input = __tvFindInputByTitle(dialog, title);
+                if (!input) return {{ ok: false, oldValue: '', newValue: '', reason: 'missing_input' }};
+                if (input.type === 'checkbox') return {{ ok: false, oldValue: String(input.checked), newValue: String(input.checked), reason: 'expected_text_input' }};
+                const oldValue = String(input.value || '').trim();
+                const nextValue = String(value);
+                input.scrollIntoView({{ block: 'center' }});
+                input.focus();
+                input.select?.();
+                const proto = Object.getPrototypeOf(input);
+                const descriptor = Object.getOwnPropertyDescriptor(proto, 'value')
+                    || Object.getOwnPropertyDescriptor(window.HTMLInputElement?.prototype || {{}}, 'value')
+                    || Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement?.prototype || {{}}, 'value');
+                if (descriptor?.set) {{
+                    descriptor.set.call(input, nextValue);
+                }} else {{
+                    input.value = nextValue;
+                }}
+                input.dispatchEvent(new InputEvent('input', {{
+                    bubbles: true,
+                    data: nextValue,
+                    inputType: 'insertReplacementText',
+                }}));
+                input.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                input.blur();
+                const newValue = String(input.value || '').trim();
+                return {{ ok: newValue === nextValue.trim(), oldValue, newValue, reason: '' }};
+            }})
+            """,
+            {"title": title, "value": value},
+        )
+        log.info(
+            "_apply_params: %s %s -> %s",
+            title,
+            (result or {}).get("oldValue"),
+            (result or {}).get("newValue"),
+        )
+        return bool((result or {}).get("ok"))
+
+    async def _toggle_checkbox_by_title(self, title: str, desired_state: bool) -> bool:
+        result = await self.page.evaluate(
+            f"""
+            (({{ title, desiredState }}) => {{
+                {_JS_SETTINGS_DIALOG_HELPERS}
+                {_JS_INPUT_BY_TITLE_HELPERS}
+                const dialog = __tvPickSettingsDialog(true) || __tvPickSettingsDialog(false);
+                if (!dialog) return {{ ok: false, oldValue: '', newValue: '', reason: 'missing_dialog' }};
+                const input = __tvFindInputByTitle(dialog, title);
+                if (!input) return {{ ok: false, oldValue: '', newValue: '', reason: 'missing_input' }};
+                if (input.type !== 'checkbox') return {{ ok: false, oldValue: String(input.value || ''), newValue: String(input.value || ''), reason: 'expected_checkbox' }};
+                const oldValue = Boolean(input.checked);
+                const nextState = Boolean(desiredState);
+                if (oldValue !== nextState) {{
+                    const proto = Object.getPrototypeOf(input);
+                    const descriptor = Object.getOwnPropertyDescriptor(proto, 'checked')
+                        || Object.getOwnPropertyDescriptor(window.HTMLInputElement?.prototype || {{}}, 'checked');
+                    if (descriptor?.set) {{
+                        descriptor.set.call(input, nextState);
+                    }} else {{
+                        input.checked = nextState;
+                    }}
+                    input.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                    input.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                }}
+                const newValue = Boolean(input.checked);
+                return {{ ok: newValue === nextState, oldValue: String(oldValue), newValue: String(newValue), reason: '' }};
+            }})
+            """,
+            {"title": title, "desiredState": desired_state},
+        )
+        log.info(
+            "_apply_params: %s %s -> %s",
+            title,
+            (result or {}).get("oldValue"),
+            (result or {}).get("newValue"),
+        )
+        if result and result.get("ok"):
+            await asyncio.sleep(0.1)
+        return bool((result or {}).get("ok"))
+
     async def _close_settings_dialog(self) -> bool:
         """Dismiss the visible settings dialog, if any."""
         try:
@@ -3417,12 +3644,15 @@ class TabWorker:
     async def _apply_rr_mode(self, mode: str) -> None:
         """Set RR mode: 'dynamic' = uncheck override, 'fixed_X' = check + value."""
         if mode == "dynamic":
-            await self._toggle_checkbox(INPUT_INDEX["use_custom_rr"], False)
+            if not await self._toggle_checkbox_by_title("use_custom_rr", False):
+                raise KeyError("Failed to apply Pine input title: use_custom_rr")
         else:
             rr_value = mode.replace("fixed_", "")
-            await self._toggle_checkbox(INPUT_INDEX["use_custom_rr"], True)
+            if not await self._toggle_checkbox_by_title("use_custom_rr", True):
+                raise KeyError("Failed to apply Pine input title: use_custom_rr")
             await asyncio.sleep(0.1)
-            await self._set_input(INPUT_INDEX["risk_reward_ratio"], rr_value)
+            if not await self._set_input_by_title("risk_reward_ratio", rr_value):
+                raise KeyError("Failed to apply Pine input title: risk_reward_ratio")
 
     async def _apply_single_param(
         self, param_name: str, value, param_type: str
@@ -3431,15 +3661,13 @@ class TabWorker:
         if param_type == "rr_mode":
             await self._apply_rr_mode(value)
         elif param_type == "checkbox":
-            idx = INPUT_INDEX.get(param_name)
-            if idx is not None:
-                await self._toggle_checkbox(idx, value)
+            if not await self._toggle_checkbox_by_title(param_name, bool(value)):
+                raise KeyError(f"Failed to apply Pine input title: {param_name}")
         elif param_type == "liq_distance":
             pass  # Caller resolves to correct param name
         elif param_type == "numeric":
-            idx = INPUT_INDEX.get(param_name)
-            if idx is not None:
-                await self._set_input(idx, value)
+            if not await self._set_input_by_title(param_name, value):
+                raise KeyError(f"Failed to apply Pine input title: {param_name}")
 
     async def _click_ok(self) -> None:
         """Click the OK button in the settings dialog."""
@@ -3536,6 +3764,8 @@ class TabWorker:
                 if not await self._ensure_custom_profile():
                     raise RuntimeError("Could not ensure Custom profile")
 
+                await self._validate_setting_titles(params)
+
                 # Apply rr_mode first (special handling)
                 rr_mode = params.get("rr_mode")
                 if rr_mode is not None:
@@ -3546,15 +3776,12 @@ class TabWorker:
                 for name, value in params.items():
                     if name == "rr_mode":
                         continue  # already handled
-                    if name in ("enable_ai_quality_filter", "use_break_even",
-                                "enable_double_tp"):
-                        idx = INPUT_INDEX.get(name)
-                        if idx is not None:
-                            await self._toggle_checkbox(idx, bool(value))
+                    if name in CHECKBOX_PARAM_NAMES:
+                        applied = await self._toggle_checkbox_by_title(name, bool(value))
                     else:
-                        idx = INPUT_INDEX.get(name)
-                        if idx is not None:
-                            await self._set_input(idx, value)
+                        applied = await self._set_input_by_title(name, value)
+                    if not applied:
+                        raise KeyError(f"Failed to apply Pine input title: {name}")
 
                 await self._click_ok()
                 if not await self._wait_dialog_close():
@@ -3672,6 +3899,8 @@ class TabWorker:
                     results_hash_after=hash_after,
                 )
 
+            except KeyError:
+                raise
             except Exception as e:
                 log.warning(
                     "_apply_params attempt %d/%d failed: %s", attempt, _MAX_RETRIES, e
@@ -3730,6 +3959,8 @@ class TabWorker:
             if not await self._ensure_custom_profile():
                 raise RuntimeError("Could not ensure Custom profile")
 
+            await self._validate_setting_titles(params)
+
             rr_mode = params.get("rr_mode")
             if rr_mode is not None:
                 await self._apply_rr_mode(rr_mode)
@@ -3738,14 +3969,12 @@ class TabWorker:
             for name, value in params.items():
                 if name == "rr_mode":
                     continue
-                if name in ("enable_ai_quality_filter", "use_break_even", "enable_double_tp"):
-                    idx = INPUT_INDEX.get(name)
-                    if idx is not None:
-                        await self._toggle_checkbox(idx, bool(value))
+                if name in CHECKBOX_PARAM_NAMES:
+                    applied = await self._toggle_checkbox_by_title(name, bool(value))
                 else:
-                    idx = INPUT_INDEX.get(name)
-                    if idx is not None:
-                        await self._set_input(idx, value)
+                    applied = await self._set_input_by_title(name, value)
+                if not applied:
+                    raise KeyError(f"Failed to apply Pine input title: {name}")
 
             await self._click_ok()
             if not await self._wait_dialog_close():
@@ -3856,6 +4085,8 @@ class TabWorker:
                         timestamp=datetime.now().isoformat(),
                     )
 
+            except KeyError:
+                raise
             except Exception as e:
                 log.warning(
                     "_apply_and_test attempt %d/%d failed for %s=%s: %s",
@@ -3951,8 +4182,8 @@ class TabWorker:
         requested_days = max((end_ts - start_ts) / 86400.0, 1.0)
         raw = await self.page.evaluate(
             """
-            /* strategy-trade-coverage */
-            () => {
+            (() => {
+                /* strategy-trade-coverage */
                 const fmt = (ts) => ts ? new Date(ts * 1000).toISOString().slice(0, 10) : '';
                 const timestamps = [];
                 const seen = new Set();
@@ -3998,7 +4229,9 @@ class TabWorker:
                     let strat = null;
                     for (const source of sources) {
                         const meta = source?.metaInfo?.();
-                        if (meta?.is_price_study === false && (source.ordersData || source.tradesData || source.reportData)) {
+                        const hasStrategyData = !!(source.ordersData || source.tradesData || source.reportData || source.performance);
+                        const looksLikeStrategy = meta?.is_price_study === false || hasStrategyData;
+                        if (looksLikeStrategy && hasStrategyData) {
                             strat = source;
                             break;
                         }
@@ -4037,7 +4270,7 @@ class TabWorker:
                 } catch (error) {
                     return { ok: false, error: String(error?.message || error) };
                 }
-            }
+            })()
             """
         )
         if not isinstance(raw, dict) or not raw.get("ok"):

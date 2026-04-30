@@ -1,8 +1,8 @@
 {
   "run_id": "20260429_230747_bcc737",
-  "state": "running",
+  "state": "completed",
   "started_at": "2026-04-29T23:07:47.042823+03:00",
-  "last_progress_at": "2026-04-29T23:07:47.357353+03:00",
+  "last_progress_at": "2026-04-29T23:12:59.887782+03:00",
   "stuck_threshold_seconds": 720,
   "restart_count": 0,
   "optimizer_pid": 89509,
@@ -41,8 +41,8 @@
     "worker-0": {
       "symbol": "EURUSD",
       "trial": 0,
-      "last_event_at": "2026-04-29T23:07:47.357353+03:00",
-      "status": "running"
+      "last_event_at": "2026-04-29T23:12:59.885423+03:00",
+      "status": "completed"
     }
   },
   "worker_health": {

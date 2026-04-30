@@ -30,7 +30,7 @@ import ameer_1996112/SND_Utils/23 as Utils
 import ameer_1996112/SND_Core/26 as Core
 
 strategy("Institutional Liquidity Protocol [Pro]",
-     shorttitle                      = "S&D Algo [Pro]",
+     shorttitle                      = "S&D Pro",
      overlay                         = true,
      max_bars_back                   = 5000,
      initial_capital                 = 50000,
@@ -53,12 +53,12 @@ strategy("Institutional Liquidity Protocol [Pro]",
 // ============================================================================
 grpRisk = "Prop Firm Risk Management"
 
-pf_risk_pct          = input.float(0.4,  "Risk % per trade",     minval=0.1, maxval=2.0, step=0.1, group=grpRisk, tooltip="Percent of current equity risked per trade. 0.4% on a $50k account = $200 per trade.")
-pf_daily_kill_pct    = input.float(4.0,  "Daily DD kill %",      minval=1.0, maxval=5.0, step=0.5, group=grpRisk, tooltip="Stop trading for the day after this drawdown from day-start equity. Keep below the prop firm daily DD limit (5% on ACG/FTMO).")
-pf_total_kill_pct    = input.float(8.0,  "Total DD kill %",      minval=4.0, maxval=10.0, step=0.5, group=grpRisk, tooltip="Stop trading entirely after this drawdown from peak equity. Keep below the prop firm max DD limit (10% on ACG/FTMO).")
-pf_consec_loss_kill  = input.int(2,      "Stop after N losses",  minval=1, maxval=5, group=grpRisk, tooltip="Stop trading for the day after this many consecutive losing trades.")
-pf_min_hold_minutes  = input.int(2,      "Min trade hold (min)", minval=0, maxval=60, group=grpRisk, tooltip="Block exits before this many minutes after entry. ACG Pro requires 2 min minimum.")
-pf_news_blackout_enabled = input.bool(false, "News blackout filter", group=grpRisk, tooltip="Manual news event filter. Edit the news_times array in code to update.")
+risk_pct          = input.float(0.4,  "risk_pct",     minval=0.1, maxval=2.0, step=0.1, group=grpRisk, tooltip="Percent of current equity risked per trade. 0.4% on a $50k account = $200 per trade.")
+daily_kill_pct    = input.float(4.0,  "daily_kill_pct",      minval=1.0, maxval=5.0, step=0.5, group=grpRisk, tooltip="Stop trading for the day after this drawdown from day-start equity. Keep below the prop firm daily DD limit (5% on ACG/FTMO).")
+total_kill_pct    = input.float(8.0,  "total_kill_pct",      minval=4.0, maxval=10.0, step=0.5, group=grpRisk, tooltip="Stop trading entirely after this drawdown from peak equity. Keep below the prop firm max DD limit (10% on ACG/FTMO).")
+consec_loss_kill  = input.int(2,      "consec_loss_kill",  minval=1, maxval=5, group=grpRisk, tooltip="Stop trading for the day after this many consecutive losing trades.")
+min_hold_minutes  = input.int(2,      "min_hold_minutes", minval=0, maxval=60, group=grpRisk, tooltip="Block exits before this many minutes after entry. ACG Pro requires 2 min minimum.")
+news_blackout_enabled = input.bool(false, "news_blackout_enabled", group=grpRisk, tooltip="Manual news event filter. Edit the news_times array in code to update.")
 
 const string WEBHOOK_STRATEGY_ID = "liq_sd_v1"
 const string WEBHOOK_STRATEGY_VERSION = "1"
@@ -66,7 +66,7 @@ const string WEBHOOK_STRATEGY_VERSION = "1"
 pip_size = Utils.get_auto_pip_size(syminfo.ticker, syminfo.mintick)
 
 
-config_profile = input.string("Balanced (Recommended)", "⚡ Configuration Profile",
+config_profile = input.string("Custom", "config_profile",
      options = ["Conservative (Live Trading)", "Balanced (Recommended)", "Aggressive (Paper Trading)", "Custom"],
      group = "🎯 Quick Setup")
 
@@ -172,27 +172,27 @@ float structure_high_20 = ta.highest(high, 20)
 float structure_low_20 = ta.lowest(low, 20)
 
 
-invalidate_on_wick   = input.bool(true, "Invalidate on Wick Touch", group = "📐 Zone Detection")
-max_zones            = input.int(20, "Max Zones Displayed", minval = 1, maxval = 50, group = "📐 Zone Detection")
-min_body_perc        = input.float(50.0, "Min Body %", minval = 0, maxval = 100, group = "📐 Zone Detection")
-structure_mode      = input.string("Relaxed (Wicks)", "Structure Detection", options = ["Relaxed (Wicks)", "Standard (Bodies)"], group = "📐 Zone Detection")
+invalidate_on_wick   = input.bool(true, "invalidate_on_wick", group = "📐 Zone Detection")
+max_zones            = input.int(12, "max_zones", minval = 1, maxval = 50, group = "📐 Zone Detection")
+min_body_perc        = input.float(52.0, "min_body_perc", minval = 0, maxval = 100, group = "📐 Zone Detection")
+structure_mode      = input.string("Relaxed (Wicks)", "structure_mode", options = ["Relaxed (Wicks)", "Standard (Bodies)"], group = "📐 Zone Detection")
 
-liq_pivot_len       = input.int(5, "Pivot Strength", minval = 1, group = "💧 Liquidity")
-pvtMax              = input.int(5, "Max Liquidity Lines", minval = 1, maxval = 500, group = "💧 Liquidity")
-require_major_liquidity = input.bool(true, "Require Strong Pivots", group = "💧 Liquidity")
+liq_pivot_len       = input.int(10, "liq_pivot_len", minval = 1, group = "💧 Liquidity")
+pvtMax              = input.int(12, "pvtMax", minval = 1, maxval = 500, group = "💧 Liquidity")
+require_major_liquidity = input.bool(true, "require_major_liquidity", group = "💧 Liquidity")
 useOneCandleLiquidity = true  // Always allow — 1-candle liq filtering is handled by the Python backend
 
-liq_max_distance_pips_forex = input.float(20.0, "Max Distance - Forex (pips)", minval = 5.0, group = "💧 Liquidity")
-liq_max_distance_pips_gold  = input.float(150.0, "Max Distance - Gold (pips)", minval = 5.0, group = "💧 Liquidity")
-liq_max_distance_pips_index = input.float(500.0, "Max Distance - Indices (pips)", minval = 100.0, group = "💧 Liquidity")
+liq_max_distance_pips_forex = input.float(33.9, "liq_max_distance_pips_forex", minval = 5.0, group = "💧 Liquidity")
+liq_max_distance_pips_gold  = input.float(150.0, "liq_max_distance_pips_gold", minval = 5.0, group = "💧 Liquidity")
+liq_max_distance_pips_index = input.float(500.0, "liq_max_distance_pips_index", minval = 100.0, group = "💧 Liquidity")
 
 fractalsPeriod = 2  // Williams Fractals period
-plotLiq    = input.bool(true, "Show Liquidity Pivot Lines", group = "🎨 Display")
-show_fractals = input.bool(true, "Show Fractal Triangles", group = "🎨 Display")
+plotLiq    = input.bool(true, "plotLiq", group = "🎨 Display")
+show_fractals = input.bool(true, "show_fractals", group = "🎨 Display")
 pvtTopColor = color.red  // Visual colors
 pvtBtmColor = color.green
 pvtStyle    = line.style_solid
-show_liquidity_connectors = input.bool(true, "Show Liquidity Connectors & Lines", group = "🎨 Display")
+show_liquidity_connectors = input.bool(true, "show_liquidity_connectors", group = "🎨 Display")
 liq_line_color = color.new(color.gray, 35)
 liq_fallback_lookback = 300
 liq_candle_count_max = 10
@@ -208,34 +208,34 @@ show_demand_zones    = true
 show_supply_zones    = true
 show_entry_labels    = true
 show_ai_debug_comment = false
-zone_label_style = input.string("Compact", "Zone Label Style", options = ["Compact", "Detailed"], group = "🎨 Display")
-zone_label_show_metrics = input.bool(true, "Zone Label: Show Grade/Score", group = "🎨 Display")
-show_blocked_trade_labels = input.bool(false, "Show Blocked Trade Labels", group = "🎨 Display")
+zone_label_style = input.string("Compact", "zone_label_style", options = ["Compact", "Detailed"], group = "🎨 Display")
+zone_label_show_metrics = input.bool(true, "zone_label_show_metrics", group = "🎨 Display")
+show_blocked_trade_labels = input.bool(false, "show_blocked_trade_labels", group = "🎨 Display")
 long_label_offset_atr = 0.60
 long_label_offset_ticks = 0
 extend_bars          = 50
 
 
-trade_direction       = input.string("Both", "Trade Direction", options = ["Both", "Long Only", "Short Only"], group = "🎯 Quick Setup")
+trade_direction       = input.string("Both", "trade_direction", options = ["Both", "Long Only", "Short Only"], group = "🎯 Quick Setup")
 allow_long_trades     = trade_direction == "Both" or trade_direction == "Long Only"
 allow_short_trades    = trade_direction == "Both" or trade_direction == "Short Only"
 
-account_size_usd      = input.float(50000, "💰 Account Size ($)", minval = 100, step = 1000, group = "🎯 Quick Setup")
-risk_per_trade_pct    = input.float(0.5, "Risk Per Trade (%)", minval = 0.1, maxval = 10, step = 0.1, group = "🎯 Quick Setup")
-stop_loss_buffer_pips = input.float(1.0, "SL Buffer (Pips)", minval = 0, step = 0.1, group = "📊 Trade Execution")
-use_custom_rr         = input.bool(false, "☐ Override: Use Fixed RR", group = "📊 Trade Execution")
-risk_reward_ratio     = input.float(2.0, "   └─ Custom R:R Ratio", minval = 0.5, step = 0.1, group = "📊 Trade Execution")
-liq_entry_max_dist = input.float(10.0, "Max Zone-to-Liq Distance (Pips)", minval = 0.0, step = 1.0, group = "💧 Liquidity")
-min_tp_distance_pips = input.float(5.0, "Min TP Distance (Pips)", minval = 1.0, step = 1.0, group = "📊 Trade Execution")
+account_size_usd      = input.float(50000, "account_size_usd", minval = 100, step = 1000, group = "🎯 Quick Setup")
+risk_per_trade_pct    = input.float(0.5, "risk_per_trade_pct", minval = 0.1, maxval = 10, step = 0.1, group = "🎯 Quick Setup")
+stop_loss_buffer_pips = input.float(1.4, "stop_loss_buffer_pips", minval = 0, step = 0.1, group = "📊 Trade Execution")
+use_custom_rr         = input.bool(true, "use_custom_rr", group = "📊 Trade Execution")
+risk_reward_ratio     = input.float(4.0, "risk_reward_ratio", minval = 0.5, step = 0.1, group = "📊 Trade Execution")
+liq_entry_max_dist = input.float(8.7, "liq_entry_max_dist", minval = 0.0, step = 0.1, group = "💧 Liquidity")
+min_tp_distance_pips = input.float(11.0, "min_tp_distance_pips", minval = 1.0, step = 0.1, group = "📊 Trade Execution")
 
 use_stop_loss         = true  // Always use SL
 use_take_profit       = true  // Always use TP
 require_liquidity_sweep = true  // Always require liquidity sweep
 min_position_size_units = 1000  // Min position size
-max_position_size_lots = input.float(100.0, "Absolute Max Position Size (Lots)", minval = 0.1, step = 1.0, group = "🛡️ Prop Firm / Risk Safety")
-max_lots_per_10k       = input.float(10.0, "Relative Max Lots (Per $10k)", minval = 0.1, step = 1.0, group = "🛡️ Prop Firm / Risk Safety")
-max_usd_risk_cap      = input.float(0.0, "Max USD Risk Cap ($)", minval = 0.0, step = 50.0, group = "🛡️ Prop Firm / Risk Safety")
-use_half_risk_second_trade = input.bool(true, "Half Risk on 2nd Daily Trade", group = "🛡️ Prop Firm / Risk Safety")
+max_position_size_lots = input.float(100.0, "max_position_size_lots", minval = 0.1, step = 1.0, group = "🛡️ Prop Firm / Risk Safety")
+max_lots_per_10k       = input.float(10.0, "max_lots_per_10k", minval = 0.1, step = 1.0, group = "🛡️ Prop Firm / Risk Safety")
+max_usd_risk_cap      = input.float(0.0, "max_usd_risk_cap", minval = 0.0, step = 50.0, group = "🛡️ Prop Firm / Risk Safety")
+use_half_risk_second_trade = input.bool(true, "use_half_risk_second_trade", group = "🛡️ Prop Firm / Risk Safety")
 dry_run_mode          = false  // Dry run disabled by default
 
 debug_mode            = false
@@ -243,25 +243,25 @@ debug_entry_labels    = false
 show_zone_debug_labels = false
 show_debug_labels      = false
 zone_label_size       = "Tiny"
-debug_level           = input.string("None", "Debug Level", options = ["None", "Basic", "Full"], group = "🎨 Display")
+debug_level           = input.string("None", "debug_level", options = ["None", "Basic", "Full"], group = "🎨 Display")
 debug_last_bars       = 200
-showZoneInspector     = input.bool(true, "Zone Inspector Panel", group = "🎨 Display")
+showZoneInspector     = input.bool(true, "showZoneInspector", group = "🎨 Display")
 manual_zone_id_input  = input.string(
      "",
-     "Zone Inspector: Zone ID (optional)",
+     "manual_zone_id_input",
      group   = "🎨 Display"
  )
-showActiveProfile       = input.bool(true, "Show Active Profile (Bottom Center)", group = "🎨 Display")
-show_performance_table  = input.bool(true, "Performance Table", group = "🎨 Display")
-showResults             = input.bool(true, "Show Results Table", group = "🎨 Display")
-table_text_size         = input.string("Small", "Table Text Size", options = ["Tiny", "Small", "Normal"], group = "🎨 Display")
+showActiveProfile       = input.bool(true, "showActiveProfile", group = "🎨 Display")
+show_performance_table  = input.bool(true, "show_performance_table", group = "🎨 Display")
+showResults             = input.bool(true, "showResults", group = "🎨 Display")
+table_text_size         = input.string("Small", "table_text_size", options = ["Tiny", "Small", "Normal"], group = "🎨 Display")
 string tbl_sz = table_text_size == "Tiny" ? size.tiny : (table_text_size == "Small" ? size.small : size.normal)
 var color TBL_BG  = color.new(color.rgb(30, 35, 40), 5)
 var color TBL_DBG = color.new(color.rgb(25, 30, 35), 5)
 var color TBL_LBL = color.rgb(200, 200, 200)
 var color TBL_DIM = color.rgb(150, 150, 150)
 var color TBL_DRK = color.rgb(25, 25, 25)
-take_profit_pips        = input.float(0.0, "Fixed TP Override (Pips)", minval = 0, group = "📊 Trade Execution")
+take_profit_pips        = input.float(0.0, "take_profit_pips", minval = 0, group = "📊 Trade Execution")
 debug_liq_extra         = false
 
 float pip_scale_factor = (is_gold or is_xpt) and pip_size <= 0.011 ? 10.0 : (is_index ? 10.0 : 1.0)
@@ -273,36 +273,36 @@ float effective_liq_max_dist = is_index ? liq_max_distance_pips_index : ((is_gol
 float effective_tp_pips = take_profit_pips * pip_scale_factor
 
 
-enable_trade_limit = input.bool(true, "Limit Daily Trades", group = "⏰ Session & Limits")
-max_trades_per_day = input.int(2, "   └─ Max Trades/Day", minval = 1, maxval = 10, group = "⏰ Session & Limits")
+enable_trade_limit = input.bool(true, "enable_trade_limit", group = "⏰ Session & Limits")
+max_trades_per_day = input.int(2, "max_trades_per_day", minval = 1, maxval = 10, group = "⏰ Session & Limits")
 
 filter_dead_zone = false  // Handled by backend risk page
-filter_trading_hours = input.bool(true, "Trading Hours Only", group = "⏰ Session & Limits")
-trading_start_hour = input.int(6, "   └─ Start Hour (UTC)", minval = 0, maxval = 23, group = "⏰ Session & Limits")
-trading_end_hour = input.int(22, "   └─ End Hour (UTC)", minval = 0, maxval = 23, group = "⏰ Session & Limits")
-require_htf_flip = input.bool(true, "HTF Flip Context", group = "🤖 AI & Grade Filters")
+filter_trading_hours = input.bool(true, "filter_trading_hours", group = "⏰ Session & Limits")
+trading_start_hour = input.int(0, "trading_start_hour", minval = 0, maxval = 23, group = "⏰ Session & Limits")
+trading_end_hour = input.int(24, "trading_end_hour", minval = 0, maxval = 24, group = "⏰ Session & Limits")
+require_htf_flip = input.bool(true, "require_htf_flip", group = "🤖 AI & Grade Filters")
 
-enable_ai_quality_filter = input.bool(true, "AI Quality Filter", group = "🤖 AI & Grade Filters")
-ai_quality_threshold = input.int(60, "   └─ Min Score (0-100)", minval = 0, maxval = 100, group = "🤖 AI & Grade Filters")
-enable_ai_lite_mode = input.bool(false, "   └─ Lite Mode (Block Only Score<30)", group = "🤖 AI & Grade Filters")
+enable_ai_quality_filter = input.bool(true, "enable_ai_quality_filter", group = "🤖 AI & Grade Filters")
+ai_quality_threshold = input.int(70, "ai_quality_threshold", minval = 0, maxval = 100, group = "🤖 AI & Grade Filters")
+enable_ai_lite_mode = input.bool(false, "enable_ai_lite_mode", group = "🤖 AI & Grade Filters")
 enable_ai_shadow_mode = false
-enable_grade_filter = input.bool(false, "Grade Filter", group = "🤖 AI & Grade Filters")
-min_entry_grade     = input.string("C", "   └─ Min Grade", options=["A+", "A", "B+", "B", "C+", "C"], group = "🤖 AI & Grade Filters")
-max_peak_to_touch_bars = input.int(30, "Max Peak to Touch Bars", minval = 1, maxval = 500, group = "🤖 AI & Grade Filters")
-max_sweep_to_touch_bars = input.int(15, "Max Sweep to Touch Bars", minval = 1, maxval = 500, group = "🤖 AI & Grade Filters")
+enable_grade_filter = input.bool(false, "enable_grade_filter", group = "🤖 AI & Grade Filters")
+min_entry_grade     = input.string("C", "min_entry_grade", options=["A+", "A", "B+", "B", "C+", "C"], group = "🤖 AI & Grade Filters")
+max_peak_to_touch_bars = input.int(20, "max_peak_to_touch_bars", minval = 1, maxval = 500, group = "🤖 AI & Grade Filters")
+max_sweep_to_touch_bars = input.int(25, "max_sweep_to_touch_bars", minval = 1, maxval = 500, group = "🤖 AI & Grade Filters")
 
-use_break_even     = input.bool(false, "Break-Even Mode", group = "📊 Trade Execution")
-max_bars_held = input.int(36, "Time-Based Exit (Bars)", minval=1, group = "📊 Trade Execution")
-enable_double_tp = input.bool(false, "Double TP Mode", group = "📊 Trade Execution")
-use_fvg_confirmation = input.bool(false, "Require FVG (Imbalance)", group = "📐 Zone Detection")
-enable_accuracy_zones = input.bool(true, "Accuracy Zones", group = "📐 Zone Detection")
+use_break_even     = input.bool(false, "use_break_even", group = "📊 Trade Execution")
+max_bars_held = input.int(88, "max_bars_held", minval=1, group = "📊 Trade Execution")
+enable_double_tp = input.bool(false, "enable_double_tp", group = "📊 Trade Execution")
+use_fvg_confirmation = input.bool(false, "use_fvg_confirmation", group = "📐 Zone Detection")
+enable_accuracy_zones = input.bool(true, "enable_accuracy_zones", group = "📐 Zone Detection")
 should_use_accuracy_zones = enable_accuracy_zones and not (is_gold or is_silver or is_index or is_xpt)
 
 enable_webhook_alerts = true  // Always enabled
 webhook_include_zone_id = true  // Always include zone ID
 
-show_grade_on_zone  = input.bool(true, "Show Grade on Zones", group = "🎨 Display")
-show_ai_score_on_label = input.bool(false, "Show AI Score on Labels", group = "🎨 Display")
+show_grade_on_zone  = input.bool(true, "show_grade_on_zone", group = "🎨 Display")
+show_ai_score_on_label = input.bool(false, "show_ai_score_on_label", group = "🎨 Display")
 enable_v6_v7_features = true
 ema_trend_length = 200  // Trend EMA (hardcoded)
 
@@ -345,13 +345,13 @@ plot_liquidity_distance = array.get(_plot_liquidity_distance, 0)
 plot_liquidity_spread = array.get(_plot_liquidity_spread, 0)
 
 
-max_daily_loss_pct    = input.float(4.0, "Daily Loss Limit (%) [Backtest Only]", minval = 0.1, group = "🛡️ Prop Firm / Risk Safety")
-max_daily_profit_pct  = input.float(5.0, "Daily Profit Target (%) [Backtest Only]", minval = 0.1, group = "🛡️ Prop Firm / Risk Safety")
+max_daily_loss_pct    = input.float(4.5, "max_daily_loss_pct", minval = 0.1, group = "🛡️ Prop Firm / Risk Safety")
+max_daily_profit_pct  = input.float(7.5, "max_daily_profit_pct", minval = 0.1, group = "🛡️ Prop Firm / Risk Safety")
 reset_daily_pnl       = true  // Always reset PnL daily
 
-enable_date_filter = input.bool(true, "Date Range Filter", group = "🎯 Quick Setup")
-start_date         = input.time(timestamp("01 Jan 2023 00:00 +0000"), "   └─ Start Date", group = "🎯 Quick Setup")
-end_date           = input.time(timestamp("31 Dec 2027 23:59 +0000"), "   └─ End Date", group = "🎯 Quick Setup")
+enable_date_filter = input.bool(true, "enable_date_filter", group = "🎯 Quick Setup")
+start_date         = input.time(timestamp("01 Jan 2023 00:00 +0000"), "start_date", group = "🎯 Quick Setup")
+end_date           = input.time(timestamp("31 Dec 2027 23:59 +0000"), "end_date", group = "🎯 Quick Setup")
 min_bar_index_for_entries = 100
 
 
@@ -461,9 +461,9 @@ if strategy.closedtrades > 0 and strategy.closedtrades > nz(strategy.closedtrade
 float pf_current_day_dd_pct   = pf_day_start_equity > 0 ? (pf_day_start_equity - strategy.equity) / pf_day_start_equity * 100 : 0.0
 float pf_current_total_dd_pct = strategy.initial_capital > 0 ? (pf_peak_equity - strategy.equity) / strategy.initial_capital * 100 : 0.0
 
-bool pf_daily_kill   = pf_current_day_dd_pct   >= pf_daily_kill_pct
-bool pf_total_kill   = pf_current_total_dd_pct >= pf_total_kill_pct
-bool pf_session_kill = pf_consecutive_losses   >= pf_consec_loss_kill
+bool pf_daily_kill   = pf_current_day_dd_pct   >= daily_kill_pct
+bool pf_total_kill   = pf_current_total_dd_pct >= total_kill_pct
+bool pf_session_kill = pf_consecutive_losses   >= consec_loss_kill
 bool pf_trading_disabled = pf_daily_kill or pf_total_kill or pf_session_kill
 
 if (pf_daily_kill or pf_total_kill) and strategy.position_size != 0
@@ -477,7 +477,7 @@ var int pf_entry_time_ms = 0
 if strategy.position_size != 0 and nz(strategy.position_size[1], 0) == 0
     pf_entry_time_ms := time
 
-bool pf_min_hold_satisfied = (time - pf_entry_time_ms) >= (pf_min_hold_minutes * 60 * 1000)
+bool pf_min_hold_satisfied = (time - pf_entry_time_ms) >= (min_hold_minutes * 60 * 1000)
 
 // ============================================================================
 // NEWS BLACKOUT (manual list — edit weekly from forexfactory.com red-folder events)
@@ -489,7 +489,7 @@ pf_news_times = array.from(
    )
 
 bool pf_is_news_blackout = false
-if pf_news_blackout_enabled
+if news_blackout_enabled
     for _pf_i = 0 to array.size(pf_news_times) - 1
         _pf_ts = array.get(pf_news_times, _pf_i)
         if time >= _pf_ts - 2 * 60 * 1000 and time <= _pf_ts + 2 * 60 * 1000
@@ -5048,19 +5048,19 @@ if barstate.islast
 
     table.cell(pf_risk_table, 0, 0, "Daily DD",      text_color=color.white, text_size=size.small)
     table.cell(pf_risk_table, 1, 0, str.tostring(pf_current_day_dd_pct, "#.##") + "%",
-         text_color = pf_current_day_dd_pct >= pf_daily_kill_pct * 0.75 ? color.red : color.lime, text_size=size.small)
+         text_color = pf_current_day_dd_pct >= daily_kill_pct * 0.75 ? color.red : color.lime, text_size=size.small)
 
     table.cell(pf_risk_table, 0, 1, "Total DD",      text_color=color.white, text_size=size.small)
     table.cell(pf_risk_table, 1, 1, str.tostring(pf_current_total_dd_pct, "#.##") + "%",
-         text_color = pf_current_total_dd_pct >= pf_total_kill_pct * 0.75 ? color.red : color.lime, text_size=size.small)
+         text_color = pf_current_total_dd_pct >= total_kill_pct * 0.75 ? color.red : color.lime, text_size=size.small)
 
     table.cell(pf_risk_table, 0, 2, "Consec Losses", text_color=color.white, text_size=size.small)
     table.cell(pf_risk_table, 1, 2, str.tostring(pf_consecutive_losses),
-         text_color = pf_consecutive_losses >= pf_consec_loss_kill - 1 ? color.red : color.lime, text_size=size.small)
+         text_color = pf_consecutive_losses >= consec_loss_kill - 1 ? color.red : color.lime, text_size=size.small)
 
     table.cell(pf_risk_table, 0, 3, "Trading",       text_color=color.white, text_size=size.small)
     table.cell(pf_risk_table, 1, 3, pf_trading_disabled ? "DISABLED" : "ENABLED",
          text_color = pf_trading_disabled ? color.red : color.lime, text_size=size.small)
 
     table.cell(pf_risk_table, 0, 4, "Risk/Trade",    text_color=color.white, text_size=size.small)
-    table.cell(pf_risk_table, 1, 4, str.tostring(pf_risk_pct, "#.#") + "%", text_color=color.white, text_size=size.small)
+    table.cell(pf_risk_table, 1, 4, str.tostring(risk_pct, "#.#") + "%", text_color=color.white, text_size=size.small)

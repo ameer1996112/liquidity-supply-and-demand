@@ -1,12 +1,12 @@
 {
-  "run_id": "20260430_000021_030c3a",
-  "state": "completed",
-  "started_at": "2026-04-30T00:00:21.610253+03:00",
-  "last_progress_at": "2026-04-30T00:01:01.462873+03:00",
+  "run_id": "20260429_231543_7f4f6a",
+  "state": "running",
+  "started_at": "2026-04-29T23:15:43.484447+03:00",
+  "last_progress_at": "2026-04-29T23:16:34.157620+03:00",
   "stuck_threshold_seconds": 720,
   "restart_count": 0,
-  "optimizer_pid": 10878,
-  "desktop_cdp_pid": 99958,
+  "optimizer_pid": 96044,
+  "desktop_cdp_pid": 2592,
   "log_file": "/Users/ameeramer/dev/projects/galilsoftware/sources/trading/scripts/optimization_results/parallel_run.log",
   "mode": "validate",
   "workers": 1,
@@ -19,26 +19,30 @@
     "--trials",
     "1",
     "--dd-limit",
-    "9.0",
+    "8.0",
     "--pairs",
     "EURUSD",
     "--broker",
     "vantage",
     "--backtest-range",
-    "90d",
+    "custom",
     "--results-label",
-    "c6baa2c7-a974-42d0-a4a1-bc4a3b300970",
+    "smoke_partial_guard_eurusd_20260429231543",
     "--source-run-id",
     "176ef790-d1bb-4e74-8f80-6f583524e0d1",
     "--source-params-file",
-    "/Users/ameeramer/dev/projects/galilsoftware/sources/trading/scripts/optimizer/tmp/validate_source_c6baa2c7-a974-42d0-a4a1-bc4a3b300970_20260430000021_pngk_wrk.json"
+    "scripts/optimizer/tmp/validate_source_smoke_176ef790-d1bb-4e74-8f80-6f583524e0d1_1777280712.json",
+    "--custom-start-date",
+    "2024-04-26",
+    "--custom-end-date",
+    "2025-04-26"
   ],
   "active_pairs": {
     "worker-0": {
       "symbol": "EURUSD",
       "trial": 0,
-      "last_event_at": "2026-04-30T00:01:01.460942+03:00",
-      "status": "completed"
+      "last_event_at": "2026-04-29T23:16:34.157620+03:00",
+      "status": "running"
     }
   },
   "worker_health": {

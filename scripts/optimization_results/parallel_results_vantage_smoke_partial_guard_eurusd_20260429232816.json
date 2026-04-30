@@ -1,6 +1,6 @@
 {
   "EURUSD": {
-    "status": "completed",
+    "status": "failed",
     "params": {
       "pvtMax": 12,
       "rr_mode": "fixed_4.0",
@@ -25,13 +25,7 @@
       "liq_max_distance_pips_forex": 33.9
     },
     "source_run_id": "176ef790-d1bb-4e74-8f80-6f583524e0d1",
-    "score": 0.0,
-    "net_profit": -830.41,
-    "win_rate": 9.68,
-    "profit_factor": 0.865,
-    "max_drawdown_pct": 7.44,
-    "total_trades": 31,
-    "worker_id": 0,
-    "timestamp": "2026-04-30T00:01:01.461510"
+    "timestamp": "2026-04-29T23:33:51.677940",
+    "error_message": "PARTIAL_DATA: could not find enough Strategy Tester trade timestamps for EURUSD (0 dates from 12 orders, total_trades=39)"
   }
 }

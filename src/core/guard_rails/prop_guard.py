@@ -182,7 +182,7 @@ def check_signal_guards(
 
             query = (
                 supabase.table("trading_signals")
-                .select("outcome, pnl_usd, exit_time, broker_profile_id, account_name")
+                .select("id, outcome, pnl_usd, exit_time, broker_profile_id, account_name")
                 .not_.is_("exit_time", "null")
             )
             if profile and profile.get("id") is not None:
@@ -190,77 +190,91 @@ def check_signal_guards(
             elif profile and profile.get("name"):
                 query = query.eq("account_name", profile["name"])
 
-            trades = query.order("exit_time", desc=True).limit(max_consec).execute().data or []
-            consecutive = 0
-            streak_loss_usd = 0.0
+            query_limit = max(max_consec * 5, 25)
+            trades = (
+                query.order("exit_time", desc=True)
+                .limit(query_limit)
+                .execute()
+                .data
+                or []
+            )
+            loss_run = []
             for trade in trades:
                 outcome = str(trade.get("outcome") or "").lower()
                 pnl_usd = float(trade.get("pnl_usd") or 0.0)
                 is_loss = outcome == "loss" or (not outcome and pnl_usd < 0)
                 if is_loss:
-                    consecutive += 1
-                    streak_loss_usd += abs(pnl_usd)
+                    loss_run.append(trade)
                 else:
                     break
 
-            if consecutive >= max_consec and trades:
-                # Check cumulative loss threshold — skip if streak loss is too small
+            if len(loss_run) >= max_consec:
                 min_streak_pct = float(get_dynamic_setting("consec_loss_min_streak_pct", 1.0))
-                if min_streak_pct > 0:
-                    acct_bal = float(payload.get("account_balance", getattr(s, "account_balance", 0)))
-                    if acct_bal > 0 and (streak_loss_usd / acct_bal * 100) < min_streak_pct:
-                        pass  # Streak loss too small — don't trigger
-                    else:
-                        # Check time-based cooldown
-                        pause_hours = float(get_dynamic_setting("consec_loss_pause_hours", 2.0))
-                        last_exit_str = trades[0].get("exit_time")
-                        if last_exit_str:
-                            try:
-                                last_exit = _dt.datetime.fromisoformat(
-                                    str(last_exit_str).replace("Z", "+00:00")
-                                )
-                                elapsed = (_dt.datetime.now(_dt.timezone.utc) - last_exit).total_seconds() / 3600
-                                if elapsed < pause_hours:
-                                    remaining = pause_hours - elapsed
-                                    reset_at = (
-                                        last_exit + _dt.timedelta(hours=pause_hours)
-                                    ).astimezone(_dt.timezone.utc)
-                                    return False, (
-                                        f"Circuit breaker: {consecutive} consecutive losses "
-                                        f"(${streak_loss_usd:.0f} total) — "
-                                        f"paused {remaining:.1f}h remaining at rejection "
-                                        f"(until {reset_at.strftime('%Y-%m-%d %H:%M UTC')}; "
-                                        f"{pause_hours:.1f}h cooldown from last close)"
-                                    )
-                                # Cooldown expired — auto-resume, let trade through
-                            except Exception:
-                                if fail_closed:
-                                    return False, "Consecutive loss guard could not parse exit_time"
-                else:
-                    # No cumulative threshold — pure count-based
-                    pause_hours = float(get_dynamic_setting("consec_loss_pause_hours", 2.0))
-                    last_exit_str = trades[0].get("exit_time")
-                    if last_exit_str:
-                        try:
-                            last_exit = _dt.datetime.fromisoformat(
-                                str(last_exit_str).replace("Z", "+00:00")
-                            )
-                            elapsed = (_dt.datetime.now(_dt.timezone.utc) - last_exit).total_seconds() / 3600
-                            if elapsed < pause_hours:
-                                remaining = pause_hours - elapsed
-                                reset_at = (
-                                    last_exit + _dt.timedelta(hours=pause_hours)
-                                ).astimezone(_dt.timezone.utc)
-                                return False, (
-                                    f"Circuit breaker: {consecutive} consecutive losses — "
-                                    f"paused {remaining:.1f}h remaining at rejection "
-                                    f"(until {reset_at.strftime('%Y-%m-%d %H:%M UTC')}; "
-                                    f"{pause_hours:.1f}h cooldown from last close)"
-                                )
-                            # Cooldown expired — auto-resume
-                        except Exception:
-                            if fail_closed:
-                                return False, "Consecutive loss guard could not parse exit_time"
+                pause_hours = float(get_dynamic_setting("consec_loss_pause_hours", 2.0))
+                acct_bal = float(payload.get("account_balance", getattr(s, "account_balance", 0)))
+                active_breaker = None
+                current_cycle = []
+
+                for trade in reversed(loss_run):
+                    exit_str = trade.get("exit_time")
+                    if not exit_str:
+                        continue
+                    try:
+                        exit_time = _dt.datetime.fromisoformat(
+                            str(exit_str).replace("Z", "+00:00")
+                        )
+                    except Exception:
+                        if fail_closed:
+                            return False, "Consecutive loss guard could not parse exit_time"
+                        continue
+
+                    if active_breaker:
+                        reset_at = active_breaker["last_exit"] + _dt.timedelta(hours=pause_hours)
+                        if exit_time >= reset_at:
+                            active_breaker = None
+                            current_cycle = []
+
+                    current_cycle.append((trade, exit_time))
+                    if not active_breaker and len(current_cycle) >= max_consec:
+                        streak = current_cycle[-max_consec:]
+                        streak_loss_usd = sum(
+                            abs(float(t.get("pnl_usd") or 0.0)) for t, _ in streak
+                        )
+                        if (
+                            min_streak_pct <= 0
+                            or acct_bal <= 0
+                            or (streak_loss_usd / acct_bal * 100) >= min_streak_pct
+                        ):
+                            active_breaker = {
+                                "last_exit": streak[-1][1],
+                                "streak_loss_usd": streak_loss_usd,
+                                "trade_ids": [
+                                    t.get("id") for t, _ in streak if t.get("id") is not None
+                                ],
+                            }
+
+                if active_breaker:
+                    now = _dt.datetime.now(_dt.timezone.utc)
+                    last_exit = active_breaker["last_exit"]
+                    elapsed = (now - last_exit).total_seconds() / 3600
+                    if elapsed < pause_hours:
+                        remaining = pause_hours - elapsed
+                        reset_at = (last_exit + _dt.timedelta(hours=pause_hours)).astimezone(
+                            _dt.timezone.utc
+                        )
+                        trade_ids = active_breaker.get("trade_ids") or []
+                        trade_suffix = (
+                            f"; trades #{', #'.join(str(t) for t in trade_ids)}"
+                            if trade_ids
+                            else ""
+                        )
+                        return False, (
+                            f"Circuit breaker: {max_consec} consecutive losses "
+                            f"(${active_breaker['streak_loss_usd']:.0f} total{trade_suffix}) — "
+                            f"paused {remaining:.1f}h remaining at rejection "
+                            f"(until {reset_at.strftime('%Y-%m-%d %H:%M UTC')}; "
+                            f"{pause_hours:.1f}h cooldown from last close)"
+                        )
         except Exception:
             if fail_closed:
                 return False, "Consecutive loss guard query failed"
