@@ -26,11 +26,21 @@ if "playwright.async_api" not in sys.modules:
     sys.modules["playwright"] = playwright_module
     sys.modules["playwright.async_api"] = async_api_module
 
+from scripts.optimizer import optimizer as optimizer_module
 from scripts.optimizer.optimizer import TradingViewOptimizer
 
 
 class DummyOptimizer:
     pass
+
+
+SAFE_OPTIMIZER_PARAMS = {
+    "risk_per_trade_pct": 0.5,
+    "max_daily_loss_pct": 3.0,
+    "daily_kill_pct": 3.5,
+    "total_kill_pct": 6.5,
+    "max_trades_per_day": 3,
+}
 
 
 async def _identity_final_replay(
@@ -1953,7 +1963,7 @@ def test_bayesian_optimizer_uses_only_fresh_results_for_study_and_best_tracking(
             return self.apply_outcomes.pop(0)
 
         def sample_params(self, trial, symbol: str, fixed_overrides: dict) -> dict:
-            return {"trial": len(self.read_calls) + 1}
+            return {**SAFE_OPTIMIZER_PARAMS, "trial": len(self.read_calls) + 1}
 
         async def _read_results(self, symbol: str, params: dict) -> BacktestResult:
             self.read_calls.append((symbol, params))
@@ -1980,7 +1990,7 @@ def test_bayesian_optimizer_uses_only_fresh_results_for_study_and_best_tracking(
 
     assert result is not None
     assert result.score == pytest.approx(15.0)
-    assert worker.read_calls == [("EURJPY", {"trial": 1})]
+    assert worker.read_calls == [("EURJPY", {**SAFE_OPTIMIZER_PARAMS, "trial": 1})]
     assert len(study_calls) == 2
     assert study_calls[0][2] == "FAIL"
     assert study_calls[1][1] == pytest.approx(15.0)
@@ -2026,7 +2036,7 @@ def test_bayesian_optimizer_rejects_when_no_deployment_candidate_passes(
             return ApplyOutcome(ok=True, fresh=True, reason="fresh")
 
         def sample_params(self, trial, symbol: str, fixed_overrides: dict) -> dict:
-            return {"trial": 1}
+            return {**SAFE_OPTIMIZER_PARAMS, "trial": 1}
 
         async def _read_results(self, symbol: str, params: dict) -> BacktestResult:
             return BacktestResult(
@@ -2054,6 +2064,143 @@ def test_bayesian_optimizer_rejects_when_no_deployment_candidate_passes(
 
     assert study_calls[0][1] == 0.0
     assert worker.best_result is None
+
+
+def test_bayesian_optimizer_rejects_final_replay_that_fails_deployment_gate(
+    monkeypatch,
+) -> None:
+    class FakeTrial:
+        pass
+
+    class FakeStudy:
+        def ask(self) -> FakeTrial:
+            return FakeTrial()
+
+        def tell(self, trial, value=None, state=None):
+            return None
+
+    fake_optuna = SimpleNamespace(
+        logging=SimpleNamespace(WARNING=30, set_verbosity=lambda level: None),
+        create_study=lambda **kwargs: FakeStudy(),
+        samplers=SimpleNamespace(TPESampler=lambda **kwargs: object()),
+        trial=SimpleNamespace(TrialState=SimpleNamespace(FAIL="FAIL")),
+    )
+    monkeypatch.setitem(sys.modules, "optuna", fake_optuna)
+
+    async def weak_replay(self, worker, symbol, candidate):
+        return BacktestResult(
+            symbol=symbol,
+            verified_symbol=symbol,
+            params=dict(SAFE_OPTIMIZER_PARAMS),
+            net_profit=1000.0,
+            profit_factor=1.01,
+            total_trades=120,
+            max_drawdown_pct=2.0,
+            score=3.0,
+        )
+
+    monkeypatch.setattr(TradingViewOptimizer, "_verify_final_result_replay", weak_replay)
+
+    class FakeWorker:
+        def __init__(self) -> None:
+            self.results: list[BacktestResult] = []
+            self.best_result = None
+
+        async def _switch_symbol(self, symbol: str) -> None:
+            return None
+
+        async def _require_last_365_days(self) -> None:
+            return None
+
+        async def _apply_params(self, params: dict) -> ApplyOutcome:
+            return ApplyOutcome(ok=True, fresh=True, reason="fresh")
+
+        def sample_params(self, trial, symbol: str, fixed_overrides: dict) -> dict:
+            return dict(SAFE_OPTIMIZER_PARAMS)
+
+        async def _read_results(self, symbol: str, params: dict) -> BacktestResult:
+            return BacktestResult(
+                symbol=symbol,
+                verified_symbol=symbol,
+                params=params,
+                net_profit=1500.0,
+                profit_factor=1.4,
+                total_trades=120,
+                max_drawdown_pct=2.0,
+                score=14.0,
+            )
+
+    optimizer = TradingViewOptimizer(
+        pairs=["EURUSD"],
+        bayesian_mode=True,
+        n_trials=1,
+        generate_report=False,
+    )
+
+    with pytest.raises(RuntimeError, match="Final replay failed deployment gate"):
+        asyncio.run(optimizer.optimize_pair_bayesian(FakeWorker(), "EURUSD", 1))
+
+
+def test_bayesian_optimizer_rejects_final_params_that_fail_prop_safety_gate(
+    monkeypatch,
+) -> None:
+    class FakeTrial:
+        pass
+
+    class FakeStudy:
+        def ask(self) -> FakeTrial:
+            return FakeTrial()
+
+        def tell(self, trial, value=None, state=None):
+            return None
+
+    fake_optuna = SimpleNamespace(
+        logging=SimpleNamespace(WARNING=30, set_verbosity=lambda level: None),
+        create_study=lambda **kwargs: FakeStudy(),
+        samplers=SimpleNamespace(TPESampler=lambda **kwargs: object()),
+        trial=SimpleNamespace(TrialState=SimpleNamespace(FAIL="FAIL")),
+    )
+    monkeypatch.setitem(sys.modules, "optuna", fake_optuna)
+    monkeypatch.setattr(TradingViewOptimizer, "_verify_final_result_replay", _identity_final_replay)
+
+    class FakeWorker:
+        def __init__(self) -> None:
+            self.results: list[BacktestResult] = []
+            self.best_result = None
+
+        async def _switch_symbol(self, symbol: str) -> None:
+            return None
+
+        async def _require_last_365_days(self) -> None:
+            return None
+
+        async def _apply_params(self, params: dict) -> ApplyOutcome:
+            return ApplyOutcome(ok=True, fresh=True, reason="fresh")
+
+        def sample_params(self, trial, symbol: str, fixed_overrides: dict) -> dict:
+            return {**SAFE_OPTIMIZER_PARAMS, "daily_kill_pct": 4.0}
+
+        async def _read_results(self, symbol: str, params: dict) -> BacktestResult:
+            return BacktestResult(
+                symbol=symbol,
+                verified_symbol=symbol,
+                params=params,
+                net_profit=1500.0,
+                profit_factor=1.4,
+                total_trades=120,
+                max_drawdown_pct=2.0,
+                score=14.0,
+            )
+
+    optimizer = TradingViewOptimizer(
+        pairs=["EURUSD"],
+        bayesian_mode=True,
+        n_trials=1,
+        generate_report=False,
+    )
+
+    with pytest.raises(RuntimeError, match="Final params failed prop safety gate"):
+        asyncio.run(optimizer.optimize_pair_bayesian(FakeWorker(), "EURUSD", 1))
 
 
 def test_bayesian_optimizer_uses_baseline_reset_helper_when_available(monkeypatch) -> None:
@@ -2098,7 +2245,7 @@ def test_bayesian_optimizer_uses_baseline_reset_helper_when_available(monkeypatc
             return ApplyOutcome(ok=True, fresh=True, reason="fresh")
 
         def sample_params(self, trial, symbol: str, fixed_overrides: dict) -> dict:
-            return {"trial": 1}
+            return {**SAFE_OPTIMIZER_PARAMS, "trial": 1}
 
         async def _read_results(self, symbol: str, params: dict) -> BacktestResult:
             return BacktestResult(
@@ -2125,7 +2272,7 @@ def test_bayesian_optimizer_uses_baseline_reset_helper_when_available(monkeypatc
 
     assert result is not None
     assert worker.baseline_calls == [0.5]
-    assert worker.apply_calls == [{"trial": 1}]
+    assert worker.apply_calls == [{**SAFE_OPTIMIZER_PARAMS, "trial": 1}]
 
 
 def test_bayesian_optimizer_uses_configured_backtest_range(monkeypatch) -> None:
@@ -2164,7 +2311,7 @@ def test_bayesian_optimizer_uses_configured_backtest_range(monkeypatch) -> None:
             return ApplyOutcome(ok=True, fresh=True, reason="fresh")
 
         def sample_params(self, trial, symbol: str, fixed_overrides: dict) -> dict:
-            return {"trial": 1}
+            return {**SAFE_OPTIMIZER_PARAMS, "trial": 1}
 
         async def _read_results(self, symbol: str, params: dict) -> BacktestResult:
             return BacktestResult(
@@ -2233,7 +2380,7 @@ def test_bayesian_optimizer_compliance_uses_run_dd_limit(monkeypatch, capsys) ->
             return ApplyOutcome(ok=True, fresh=True, reason="fresh")
 
         def sample_params(self, trial, symbol: str, fixed_overrides: dict) -> dict:
-            return {"trial": self._reads + 1}
+            return {**SAFE_OPTIMIZER_PARAMS, "trial": self._reads + 1}
 
         async def _read_results(self, symbol: str, params: dict) -> BacktestResult:
             self._reads += 1
@@ -2331,7 +2478,7 @@ def test_bayesian_optimizer_reloads_after_repeated_read_timeouts(monkeypatch) ->
             return ApplyOutcome(ok=True, fresh=True, reason="fresh")
 
         def sample_params(self, trial, symbol: str, fixed_overrides: dict) -> dict:
-            return {"trial": self._read_attempts + 1}
+            return {**SAFE_OPTIMIZER_PARAMS, "trial": self._read_attempts + 1}
 
         async def _read_results(self, symbol: str, params: dict) -> BacktestResult:
             self._read_attempts += 1
@@ -2399,7 +2546,7 @@ def test_bayesian_optimizer_raises_when_all_trials_fail(monkeypatch) -> None:
             return ApplyOutcome(ok=False, fresh=False, reason="apply_failed")
 
         def sample_params(self, trial, symbol: str, fixed_overrides: dict) -> dict:
-            return {"trial": 1}
+            return {**SAFE_OPTIMIZER_PARAMS, "trial": 1}
 
         async def _read_results(self, symbol: str, params: dict) -> BacktestResult:
             raise AssertionError("_read_results should not be called when apply fails")
@@ -2414,6 +2561,100 @@ def test_bayesian_optimizer_raises_when_all_trials_fail(monkeypatch) -> None:
 
     with pytest.raises(RuntimeError, match="No valid optimization result produced for EURJPY"):
         asyncio.run(optimizer.optimize_pair_bayesian(worker, "EURJPY", 2))
+
+
+def test_timeout_partial_best_is_not_saved_when_deployment_gate_fails(monkeypatch) -> None:
+    class FakeWorker:
+        def __init__(self, page, optimizer) -> None:
+            self.results: list[BacktestResult] = []
+            self.best_result = None
+
+    async def fake_connect(self: TradingViewOptimizer) -> None:
+        self.tv_pages = [object()]
+
+    async def timeout_with_weak_partial(self, worker, symbol, n_trials):
+        worker.best_result = BacktestResult(
+            symbol=symbol,
+            params=dict(SAFE_OPTIMIZER_PARAMS),
+            net_profit=100.0,
+            profit_factor=1.01,
+            total_trades=80,
+            max_drawdown_pct=2.0,
+            score=9.0,
+        )
+        raise asyncio.TimeoutError
+
+    saved: list[tuple[str, BacktestResult]] = []
+
+    monkeypatch.setattr(optimizer_module, "TabWorker", FakeWorker)
+    monkeypatch.setattr(TradingViewOptimizer, "connect_to_brave", fake_connect)
+    monkeypatch.setattr(TradingViewOptimizer, "optimize_pair_bayesian", timeout_with_weak_partial)
+    monkeypatch.setattr(TradingViewOptimizer, "_load_checkpoint", lambda self: {"completed": []})
+    monkeypatch.setattr(
+        TradingViewOptimizer,
+        "_save_checkpoint",
+        lambda self, checkpoint, symbol, result: saved.append((symbol, result)),
+    )
+    monkeypatch.setattr(TradingViewOptimizer, "save_results", lambda self: None)
+
+    optimizer = TradingViewOptimizer(
+        pairs=["NAS100"],
+        bayesian_mode=True,
+        n_trials=1,
+        generate_report=False,
+    )
+
+    asyncio.run(optimizer.run())
+
+    assert saved == []
+    assert optimizer.best_per_pair == {}
+
+
+def test_timeout_partial_best_saves_when_deployment_compliant(monkeypatch) -> None:
+    class FakeWorker:
+        def __init__(self, page, optimizer) -> None:
+            self.results: list[BacktestResult] = []
+            self.best_result = None
+
+    async def fake_connect(self: TradingViewOptimizer) -> None:
+        self.tv_pages = [object()]
+
+    async def timeout_with_compliant_partial(self, worker, symbol, n_trials):
+        worker.best_result = BacktestResult(
+            symbol=symbol,
+            params=dict(SAFE_OPTIMIZER_PARAMS),
+            net_profit=1500.0,
+            profit_factor=1.2,
+            total_trades=80,
+            max_drawdown_pct=2.0,
+            score=12.0,
+        )
+        raise asyncio.TimeoutError
+
+    saved: list[tuple[str, BacktestResult]] = []
+
+    monkeypatch.setattr(optimizer_module, "TabWorker", FakeWorker)
+    monkeypatch.setattr(TradingViewOptimizer, "connect_to_brave", fake_connect)
+    monkeypatch.setattr(TradingViewOptimizer, "optimize_pair_bayesian", timeout_with_compliant_partial)
+    monkeypatch.setattr(TradingViewOptimizer, "_load_checkpoint", lambda self: {"completed": []})
+    monkeypatch.setattr(
+        TradingViewOptimizer,
+        "_save_checkpoint",
+        lambda self, checkpoint, symbol, result: saved.append((symbol, result)),
+    )
+    monkeypatch.setattr(TradingViewOptimizer, "save_results", lambda self: None)
+
+    optimizer = TradingViewOptimizer(
+        pairs=["USDCAD"],
+        bayesian_mode=True,
+        n_trials=1,
+        generate_report=False,
+    )
+
+    asyncio.run(optimizer.run())
+
+    assert saved[0][0] == "USDCAD"
+    assert optimizer.best_per_pair["USDCAD"].profit_factor == pytest.approx(1.2)
 
 
 def test_read_results_parses_fallback_metric_rows() -> None:

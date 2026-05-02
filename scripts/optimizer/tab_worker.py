@@ -2040,15 +2040,6 @@ class TabWorker:
         max_days = preset["max_days"]
         if max_days is None:
             return delta_days >= min_days
-        if str(preset["label"]) != "Last 365 days":
-            return min_days <= delta_days <= int(max_days)
-
-        # "Last 365 days" is a rolling preset. A custom prior-year span also
-        # has ~365 days, so duration alone is not enough to prove the preset.
-        today = datetime.now().date()
-        end_date = end.date()
-        if abs((today - end_date).days) > 7:
-            return False
         return min_days <= delta_days <= int(max_days)
 
     @staticmethod
