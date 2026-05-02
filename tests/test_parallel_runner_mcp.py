@@ -526,6 +526,60 @@ def test_multi_broker_validate_writes_nested_pair_results(monkeypatch, tmp_path)
     assert json.loads(results_file.read_text()) == result
 
 
+def test_load_source_params_file_accepts_parallel_results_shape(tmp_path) -> None:
+    source_file = tmp_path / "parallel_results_vantage_run.json"
+    source_file.write_text(
+        json.dumps(
+            {
+                "EURUSD": {
+                    "status": "completed",
+                    "params": {"rr_mode": "fixed_3.0", "max_bars_held": 45},
+                    "score": 12.0,
+                },
+                "GBPUSD": {
+                    "status": "completed",
+                    "params": {"rr_mode": "dynamic", "max_bars_held": 60},
+                    "score": 10.0,
+                },
+            }
+        )
+    )
+
+    source_run_id, params_by_symbol = parallel_runner.load_source_params_file(str(source_file))
+
+    assert source_run_id is None
+    assert params_by_symbol == {
+        "EURUSD": {"rr_mode": "fixed_3.0", "max_bars_held": 45},
+        "GBPUSD": {"rr_mode": "dynamic", "max_bars_held": 60},
+    }
+
+
+def test_validate_resume_ignores_results_without_matching_context() -> None:
+    context = {
+        "mode": "validate",
+        "broker": "vantage",
+        "brokers": ["vantage"],
+        "backtest_range": "custom",
+        "custom_start_date": "2024-04-30",
+        "custom_end_date": "2025-04-29",
+        "source_run_id": "",
+        "source_params_digest": "abc123",
+    }
+    existing = {
+        "XAUUSD": {"status": "completed", "score": 25.0},
+        "USDCAD": {"status": "completed", "score": 12.0, "run_context": context},
+        "EURUSD": {
+            "status": "completed",
+            "score": 16.0,
+            "run_context": {**context, "custom_start_date": "2025-04-30"},
+        },
+    }
+
+    filtered = parallel_runner._filter_existing_results_for_context(existing, context)
+
+    assert filtered == {"USDCAD": existing["USDCAD"]}
+
+
 def test_validate_pair_no_data_is_skipped_without_failing_other_pairs(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(parallel_runner, "setup_logging", lambda: None)
     monkeypatch.setattr(parallel_runner, "detect_desktop_cdp_pid", lambda: None)

@@ -2040,6 +2040,15 @@ class TabWorker:
         max_days = preset["max_days"]
         if max_days is None:
             return delta_days >= min_days
+        if str(preset["label"]) != "Last 365 days":
+            return min_days <= delta_days <= int(max_days)
+
+        # "Last 365 days" is a rolling preset. A custom prior-year span also
+        # has ~365 days, so duration alone is not enough to prove the preset.
+        today = datetime.now().date()
+        end_date = end.date()
+        if abs((today - end_date).days) > 7:
+            return False
         return min_days <= delta_days <= int(max_days)
 
     @staticmethod
@@ -2071,7 +2080,7 @@ class TabWorker:
         start_date: str,
         end_date: str,
         *,
-        tolerance_days: int = 1,
+        tolerance_days: int = 0,
     ) -> bool:
         """Return True when the Strategy Report span matches a requested custom range."""
         dates = TabWorker._extract_report_date_span(btn_text)
@@ -3346,6 +3355,130 @@ class TabWorker:
         except Exception:
             return ""
 
+    async def _read_setting_values_by_title(self, titles: list[str]) -> dict[str, dict[str, str | bool]]:
+        """Read visible settings values by canonical Pine input title from an open dialog."""
+        try:
+            values = await self.page.evaluate(
+                f"""
+                ((titles) => {{
+                    {_JS_SETTINGS_DIALOG_HELPERS}
+                    {_JS_INPUT_BY_TITLE_HELPERS}
+                    const dialog = __tvPickSettingsDialog(true) || __tvPickSettingsDialog(false);
+                    const result = {{}};
+                    if (!dialog) {{
+                        for (const title of titles) {{
+                            result[title] = {{ found: false, kind: '', value: '' }};
+                        }}
+                        return result;
+                    }}
+                    for (const title of titles) {{
+                        const input = __tvFindInputByTitle(dialog, title);
+                        if (!input) {{
+                            result[title] = {{ found: false, kind: '', value: '' }};
+                            continue;
+                        }}
+                        if (input.type === 'checkbox') {{
+                            result[title] = {{
+                                found: true,
+                                kind: 'checkbox',
+                                value: String(Boolean(input.checked)),
+                            }};
+                        }} else if (input.getAttribute?.('role') === 'combobox') {{
+                            result[title] = {{
+                                found: true,
+                                kind: 'combobox',
+                                value: __tvNormalize(input.textContent || ''),
+                            }};
+                        }} else {{
+                            result[title] = {{
+                                found: true,
+                                kind: 'input',
+                                value: String(input.value || '').trim(),
+                            }};
+                        }}
+                    }}
+                    return result;
+                }})
+                """,
+                titles,
+            )
+            return dict(values or {})
+        except Exception as exc:
+            log.debug("_read_setting_values_by_title failed: %s", exc)
+            return {title: {"found": False, "kind": "", "value": ""} for title in titles}
+
+    @staticmethod
+    def _expected_setting_values_for_params(params: dict) -> dict[str, object]:
+        """Expand synthetic optimizer params into the actual Pine inputs to verify."""
+        expected: dict[str, object] = {}
+        rr_mode = params.get("rr_mode")
+        if rr_mode is not None:
+            rr_text = str(rr_mode)
+            expected["use_custom_rr"] = rr_text != "dynamic"
+            if rr_text != "dynamic":
+                expected["risk_reward_ratio"] = rr_text.replace("fixed_", "")
+
+        for name, value in params.items():
+            if name == "rr_mode":
+                continue
+            expected[name] = value
+        return expected
+
+    @staticmethod
+    def _setting_value_matches(expected: object, actual: object, kind: str) -> bool:
+        """Compare a Python param value to TradingView's rendered settings value."""
+        actual_text = str(actual or "").strip()
+        if isinstance(expected, bool):
+            return actual_text.lower() == str(expected).lower()
+
+        expected_text = str(expected).strip()
+        expected_num = None
+        actual_num = None
+        try:
+            expected_num = float(expected_text)
+            actual_num = float(actual_text)
+        except (TypeError, ValueError):
+            pass
+        if expected_num is not None and actual_num is not None:
+            return abs(expected_num - actual_num) < 1e-9
+
+        if actual_text == expected_text:
+            return True
+
+        if kind == "combobox":
+            collapsed_actual = actual_text.replace("…", "...").rstrip(".").strip()
+            if collapsed_actual and actual_text != collapsed_actual:
+                return expected_text.startswith(collapsed_actual)
+        return False
+
+    async def _verify_params_in_open_dialog(self, params: dict) -> bool:
+        """Verify the open settings dialog contains the params we just applied."""
+        expected = self._expected_setting_values_for_params(params)
+        if not expected:
+            log.info("_apply_params: frozen settings verified (0 params)")
+            return True
+
+        values = await self._read_setting_values_by_title(list(expected))
+        mismatches: list[str] = []
+        for title, expected_value in expected.items():
+            actual = values.get(title) or {}
+            if not actual.get("found"):
+                mismatches.append(f"{title}: missing (expected {expected_value!r})")
+                continue
+            actual_value = actual.get("value", "")
+            kind = str(actual.get("kind") or "")
+            if not self._setting_value_matches(expected_value, actual_value, kind):
+                mismatches.append(f"{title}: expected {expected_value!r}, saw {actual_value!r}")
+
+        if mismatches:
+            preview = "; ".join(mismatches[:8])
+            extra = "" if len(mismatches) <= 8 else f"; +{len(mismatches) - 8} more"
+            log.warning("_apply_params: frozen settings verification failed: %s%s", preview, extra)
+            return False
+
+        log.info("_apply_params: frozen settings verified (%d params)", len(expected))
+        return True
+
     async def _set_input_by_title(self, title: str, value) -> bool:
         result = await self.page.evaluate(
             f"""
@@ -3983,6 +4116,14 @@ class TabWorker:
                     if not applied:
                         raise KeyError(f"Failed to apply Pine input title: {name}")
 
+                settings_verified = True
+                if allow_unchanged_hash:
+                    settings_verified = await self._verify_params_in_open_dialog(params)
+                    if not settings_verified:
+                        raise RuntimeError(
+                            "Frozen validate params did not match the open TradingView settings dialog"
+                        )
+
                 await self._click_ok()
                 if not await self._wait_dialog_close():
                     if attempt < _MAX_RETRIES:
@@ -4053,14 +4194,14 @@ class TabWorker:
                     if allow_unchanged_hash and completed:
                         log.info(
                             "_apply_params attempt %d: results hash unchanged but accepted "
-                            "for frozen-parameter validation (hash=%s)",
+                            "for verified frozen-parameter validation (hash=%s)",
                             attempt,
                             hash_after,
                         )
                         return ApplyOutcome(
                             ok=True,
                             fresh=True,
-                            reason="unchanged_result_hash_allowed",
+                            reason="unchanged_result_hash_allowed_verified",
                             attempt=attempt,
                             results_hash_before=hash_before,
                             results_hash_after=hash_after,
@@ -4538,7 +4679,28 @@ class TabWorker:
                 last_trade_date="",
             )
 
-        coverage = await self._read_strategy_trade_coverage(start_date, end_date, result.total_trades)
+        deep_backtesting_active = await self._is_deep_backtesting_active()
+        try:
+            coverage = await self._read_strategy_trade_coverage(start_date, end_date, result.total_trades)
+        except RuntimeError:
+            if not deep_backtesting_active:
+                raise
+
+            start_ts = _iso_date_to_unix_seconds(start_date)
+            end_ts = _iso_date_to_unix_seconds(end_date)
+            requested_days = max((end_ts - start_ts) / 86400.0, 1.0)
+            coverage = StrategyTradeCoverage(
+                requested_days=requested_days,
+                trade_span_days=0.0,
+                coverage_ratio=0.0,
+                total_trades=result.total_trades,
+                inspected_orders=0,
+                trade_date_count=0,
+                first_trade_ts=0,
+                last_trade_ts=0,
+                first_trade_date="",
+                last_trade_date="",
+            )
         result.validation_metrics["strategy_trade_coverage"] = {
             "requested_days": coverage.requested_days,
             "trade_span_days": coverage.trade_span_days,
@@ -4548,9 +4710,29 @@ class TabWorker:
             "trade_date_count": coverage.trade_date_count,
             "first_trade_date": coverage.first_trade_date,
             "last_trade_date": coverage.last_trade_date,
+            "deep_backtesting": deep_backtesting_active,
         }
 
         if coverage.trade_date_count < 2:
+            if deep_backtesting_active:
+                result.validation_metrics["strategy_trade_coverage"]["status"] = "accepted_deep_backtesting_uninspectable"
+                log.warning(
+                    "_verify_custom_strategy_trade_coverage: accepting %s custom range %s..%s because "
+                    "Deep Backtesting is active and Strategy Report range was verified, but trade "
+                    "timestamps were not exposed (%d dates from %d orders, total_trades=%d)",
+                    result.symbol,
+                    start_date,
+                    end_date,
+                    coverage.trade_date_count,
+                    coverage.inspected_orders,
+                    result.total_trades,
+                )
+                print(
+                    "  [trade coverage ⚠ Deep Backtesting timestamps unavailable; "
+                    "using verified Strategy Report range]",
+                    flush=True,
+                )
+                return coverage
             raise RuntimeError(
                 "PARTIAL_DATA: could not find enough Strategy Tester trade timestamps "
                 f"for {result.symbol} ({coverage.trade_date_count} dates from "
@@ -4558,6 +4740,25 @@ class TabWorker:
             )
 
         if coverage.coverage_ratio < _TRADE_COVERAGE_MIN_RATIO:
+            if deep_backtesting_active:
+                result.validation_metrics["strategy_trade_coverage"]["status"] = "accepted_deep_backtesting_partial_timestamps"
+                log.warning(
+                    "_verify_custom_strategy_trade_coverage: accepting %s custom range %s..%s because "
+                    "Deep Backtesting is active and Strategy Report range was verified, but exposed "
+                    "trade timestamps cover only %.1f/%.1f days",
+                    result.symbol,
+                    start_date,
+                    end_date,
+                    coverage.trade_span_days,
+                    coverage.requested_days,
+                )
+                print(
+                    f"  [trade coverage ⚠ Deep Backtesting timestamps partial "
+                    f"{coverage.trade_span_days:.0f}/{coverage.requested_days:.0f}d; "
+                    "using verified Strategy Report range]",
+                    flush=True,
+                )
+                return coverage
             raise RuntimeError(
                 "PARTIAL_DATA: Strategy Tester trades span only "
                 f"{coverage.trade_span_days:.1f} days of {coverage.requested_days:.1f} requested "

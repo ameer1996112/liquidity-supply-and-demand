@@ -33,6 +33,15 @@ class DummyOptimizer:
     pass
 
 
+async def _identity_final_replay(
+    self: object,
+    worker: object,
+    symbol: str,
+    candidate: BacktestResult,
+) -> BacktestResult:
+    return candidate
+
+
 class RangeClient:
     def __init__(self, result: dict) -> None:
         self.result = result
@@ -166,13 +175,16 @@ def test_custom_date_range_fails_closed_when_strategy_report_keeps_wrong_range(m
 
 
 class StrategyTradeCoveragePage(DummyPage):
-    def __init__(self, payload: dict) -> None:
+    def __init__(self, payload: dict, *, deep_backtesting: bool = False) -> None:
         super().__init__(title="EURUSD 5 Vantage")
         self.payload = payload
+        self.deep_backtesting = deep_backtesting
 
     async def evaluate(self, script: str):
         if "strategy-trade-coverage" in script:
             return self.payload
+        if "deep backtesting" in script.lower():
+            return self.deep_backtesting
         raise AssertionError(f"unexpected script in StrategyTradeCoveragePage: {script[:120]}")
 
 
@@ -223,8 +235,38 @@ def test_custom_validate_accepts_strategy_trades_spanning_requested_range() -> N
     )
 
     assert coverage.coverage_ratio >= 0.80
-    assert result.validation_metrics["strategy_trade_coverage"]["total_trades"] == 210
-    assert result.validation_metrics["strategy_trade_coverage"]["last_trade_date"] == "2025-04-21"
+
+
+def test_custom_validate_accepts_uninspectable_trade_dates_when_deep_backtesting_range_is_verified() -> None:
+    worker = TabWorker(
+        StrategyTradeCoveragePage(
+            {
+                "ok": True,
+                "inspected_orders": 76,
+                "date_count": 0,
+                "first_ts": 0,
+                "last_ts": 0,
+                "first_date": "",
+                "last_date": "",
+            },
+            deep_backtesting=True,
+        ),
+        DummyOptimizer(),
+    )
+    result = BacktestResult(symbol="XAUUSD", params={}, total_trades=29)
+
+    coverage = asyncio.run(
+        worker._verify_custom_strategy_trade_coverage(result, "2024-04-30", "2025-04-29")
+    )
+
+    assert coverage.trade_date_count == 0
+    assert result.validation_metrics["strategy_trade_coverage"]["deep_backtesting"] is True
+    assert (
+        result.validation_metrics["strategy_trade_coverage"]["status"]
+        == "accepted_deep_backtesting_uninspectable"
+    )
+    assert result.validation_metrics["strategy_trade_coverage"]["total_trades"] == 29
+    assert result.validation_metrics["strategy_trade_coverage"]["last_trade_date"] == ""
 
 
 class MenuSettingsPage(DummyPage):
@@ -808,10 +850,48 @@ def test_apply_params_can_accept_unchanged_hash_for_validate_noop(monkeypatch) -
     assert outcome == ApplyOutcome(
         ok=True,
         fresh=True,
-        reason="unchanged_result_hash_allowed",
+        reason="unchanged_result_hash_allowed_verified",
         attempt=1,
         results_hash_before="deadbeef",
         results_hash_after="deadbeef",
+    )
+
+
+def test_apply_params_rejects_validate_noop_when_settings_verification_fails(monkeypatch) -> None:
+    page = DummyPage()
+    worker = TabWorker(page, DummyOptimizer())
+
+    async def always_true(*args, **kwargs) -> bool:
+        return True
+
+    async def always_false(*args, **kwargs) -> bool:
+        return False
+
+    async def same_hash() -> str:
+        return "deadbeef"
+
+    async def no_op(*args, **kwargs):  # pragma: no cover - test shim
+        return None
+
+    monkeypatch.setattr(page, "evaluate", no_op)
+    monkeypatch.setattr(worker, "_open_settings", always_true)
+    monkeypatch.setattr(worker, "_ensure_custom_profile", always_true)
+    monkeypatch.setattr(worker, "_set_input_by_title", always_true)
+    monkeypatch.setattr(worker, "_verify_params_in_open_dialog", always_false)
+    monkeypatch.setattr(worker, "_click_ok", always_true)
+    monkeypatch.setattr(worker, "_wait_dialog_close", always_true)
+    monkeypatch.setattr(worker, "_wait_for_update_complete", always_true)
+    monkeypatch.setattr(worker, "_get_results_hash", same_hash)
+
+    outcome = asyncio.run(worker._apply_params({"risk_pct": 0.4}, allow_unchanged_hash=True))
+
+    assert outcome == ApplyOutcome(
+        ok=False,
+        fresh=False,
+        reason="apply_failed",
+        attempt=3,
+        results_hash_before="deadbeef",
+        results_hash_after="",
     )
 
 
@@ -1048,9 +1128,14 @@ def test_range_matches_label_uses_actual_day_span() -> None:
     )
 
 
-def test_range_matches_custom_dates_allows_one_day_display_drift() -> None:
+def test_range_matches_custom_dates_requires_exact_dates_by_default() -> None:
     assert TabWorker._range_matches_custom_dates(
         "Apr 26, 2024 — Apr 26, 2025Apr 26, 2024 — Apr 26, 2025",
+        "2024-04-26",
+        "2025-04-26",
+    )
+    assert not TabWorker._range_matches_custom_dates(
+        "Apr 25, 2024 — Apr 27, 2025",
         "2024-04-26",
         "2025-04-26",
     )
@@ -1058,6 +1143,7 @@ def test_range_matches_custom_dates_allows_one_day_display_drift() -> None:
         "Apr 25, 2024 — Apr 27, 2025",
         "2024-04-26",
         "2025-04-26",
+        tolerance_days=1,
     )
     assert not TabWorker._range_matches_custom_dates(
         "Jan 26, 2025 — Apr 25, 2025",
@@ -1549,7 +1635,7 @@ def test_set_backtest_range_clicks_menu_when_current_span_is_wrong(monkeypatch) 
     texts = iter(
         [
             "Jan 5, 2026 — Apr 13, 2026Jan 5, 2026 — Apr 13, 2026",
-            "Apr 13, 2025 — Apr 13, 2026Apr 13, 2025 — Apr 13, 2026",
+            "Apr 30, 2025 — Apr 30, 2026Apr 30, 2025 — Apr 30, 2026",
         ]
     )
 
@@ -1580,6 +1666,46 @@ def test_set_backtest_range_clicks_menu_when_current_span_is_wrong(monkeypatch) 
 
     assert result is True
     assert events[0] == "ensure-open"
+    assert ("select", "Last 365 days") in events
+    assert "wait-update" in events
+
+
+def test_set_backtest_range_rejects_prior_year_custom_span_for_last_365d(monkeypatch) -> None:
+    worker = TabWorker(DummyPage(), DummyOptimizer())
+    events: list[object] = []
+    texts = iter(
+        [
+            "Apr 30, 2024 — Apr 29, 2025Apr 30, 2024",
+            "Apr 30, 2025 — Apr 30, 2026Apr 30, 2025",
+        ]
+    )
+
+    async def fake_ensure_strategy_tester_open() -> None:
+        events.append("ensure-open")
+
+    async def fake_read_text() -> str:
+        return next(texts)
+
+    async def fake_select(range_label: str) -> bool:
+        events.append(("select", range_label))
+        return True
+
+    async def fake_wait_for_update_complete() -> bool:
+        events.append("wait-update")
+        return True
+
+    async def fake_wait_for_load(timeout: int = 30) -> None:
+        events.append(("wait-load", timeout))
+
+    monkeypatch.setattr(worker, "_ensure_strategy_tester_open", fake_ensure_strategy_tester_open)
+    monkeypatch.setattr(worker, "_read_backtest_range_button_text", fake_read_text)
+    monkeypatch.setattr(worker, "_select_backtest_range_preset", fake_select)
+    monkeypatch.setattr(worker, "_wait_for_update_complete", fake_wait_for_update_complete)
+    monkeypatch.setattr(worker, "_wait_for_load", fake_wait_for_load)
+
+    result = asyncio.run(worker._set_backtest_range("Last 365 days"))
+
+    assert result is True
     assert ("select", "Last 365 days") in events
     assert "wait-update" in events
 
@@ -1804,6 +1930,7 @@ def test_bayesian_optimizer_uses_only_fresh_results_for_study_and_best_tracking(
     )
 
     monkeypatch.setitem(sys.modules, "optuna", fake_optuna)
+    monkeypatch.setattr(TradingViewOptimizer, "_verify_final_result_replay", _identity_final_replay)
 
     class FakeWorker:
         def __init__(self) -> None:
@@ -1833,6 +1960,7 @@ def test_bayesian_optimizer_uses_only_fresh_results_for_study_and_best_tracking(
             return BacktestResult(
                 symbol=symbol,
                 params=params,
+                net_profit=1500.0,
                 profit_factor=1.7,
                 total_trades=120,
                 max_drawdown_pct=6.0,
@@ -1859,6 +1987,75 @@ def test_bayesian_optimizer_uses_only_fresh_results_for_study_and_best_tracking(
     assert optimizer.best_per_pair == {}
 
 
+def test_bayesian_optimizer_rejects_when_no_deployment_candidate_passes(
+    monkeypatch,
+) -> None:
+    study_calls: list[tuple[object, object, object]] = []
+
+    class FakeTrial:
+        pass
+
+    class FakeStudy:
+        def ask(self) -> FakeTrial:
+            return FakeTrial()
+
+        def tell(self, trial, value=None, state=None):
+            study_calls.append((trial, value, state))
+
+    fake_optuna = SimpleNamespace(
+        logging=SimpleNamespace(WARNING=30, set_verbosity=lambda level: None),
+        create_study=lambda **kwargs: FakeStudy(),
+        samplers=SimpleNamespace(TPESampler=lambda **kwargs: object()),
+        trial=SimpleNamespace(TrialState=SimpleNamespace(FAIL="FAIL")),
+    )
+    monkeypatch.setitem(sys.modules, "optuna", fake_optuna)
+    monkeypatch.setattr(TradingViewOptimizer, "_verify_final_result_replay", _identity_final_replay)
+
+    class FakeWorker:
+        def __init__(self) -> None:
+            self.results: list[BacktestResult] = []
+            self.best_result = None
+
+        async def _switch_symbol(self, symbol: str) -> None:
+            self.symbol = symbol
+
+        async def _require_last_365_days(self) -> None:
+            return None
+
+        async def _apply_params(self, params: dict) -> ApplyOutcome:
+            return ApplyOutcome(ok=True, fresh=True, reason="fresh")
+
+        def sample_params(self, trial, symbol: str, fixed_overrides: dict) -> dict:
+            return {"trial": 1}
+
+        async def _read_results(self, symbol: str, params: dict) -> BacktestResult:
+            return BacktestResult(
+                symbol=symbol,
+                params=params,
+                net_profit=900.0,
+                profit_factor=1.06,
+                total_trades=80,
+                max_drawdown_pct=3.2,
+                win_rate=54.0,
+                score=14.0,
+            )
+
+    optimizer = TradingViewOptimizer(
+        pairs=["NAS100"],
+        bayesian_mode=True,
+        n_trials=1,
+        dd_limit=8.0,
+        generate_report=False,
+    )
+    worker = FakeWorker()
+
+    with pytest.raises(RuntimeError, match="No deployment-compliant result found"):
+        asyncio.run(optimizer.optimize_pair_bayesian(worker, "NAS100", 1))
+
+    assert study_calls[0][1] == 0.0
+    assert worker.best_result is None
+
+
 def test_bayesian_optimizer_uses_baseline_reset_helper_when_available(monkeypatch) -> None:
     class FakeTrial:
         pass
@@ -1877,6 +2074,7 @@ def test_bayesian_optimizer_uses_baseline_reset_helper_when_available(monkeypatc
         trial=SimpleNamespace(TrialState=SimpleNamespace(FAIL="FAIL")),
     )
     monkeypatch.setitem(sys.modules, "optuna", fake_optuna)
+    monkeypatch.setattr(TradingViewOptimizer, "_verify_final_result_replay", _identity_final_replay)
 
     class FakeWorker:
         def __init__(self) -> None:
@@ -1907,6 +2105,7 @@ def test_bayesian_optimizer_uses_baseline_reset_helper_when_available(monkeypatc
                 symbol=symbol,
                 verified_symbol=symbol,
                 params=params,
+                net_profit=1600.0,
                 profit_factor=1.42,
                 total_trades=160,
                 max_drawdown_pct=5.2,
@@ -1947,6 +2146,7 @@ def test_bayesian_optimizer_uses_configured_backtest_range(monkeypatch) -> None:
         trial=SimpleNamespace(TrialState=SimpleNamespace(FAIL="FAIL")),
     )
     monkeypatch.setitem(sys.modules, "optuna", fake_optuna)
+    monkeypatch.setattr(TradingViewOptimizer, "_verify_final_result_replay", _identity_final_replay)
 
     class FakeWorker:
         def __init__(self) -> None:
@@ -1971,6 +2171,7 @@ def test_bayesian_optimizer_uses_configured_backtest_range(monkeypatch) -> None:
                 symbol=symbol,
                 verified_symbol=symbol,
                 params=params,
+                net_profit=1600.0,
                 profit_factor=1.42,
                 total_trades=160,
                 max_drawdown_pct=5.2,
@@ -2011,6 +2212,7 @@ def test_bayesian_optimizer_compliance_uses_run_dd_limit(monkeypatch, capsys) ->
         trial=SimpleNamespace(TrialState=SimpleNamespace(FAIL="FAIL")),
     )
     monkeypatch.setitem(sys.modules, "optuna", fake_optuna)
+    monkeypatch.setattr(TradingViewOptimizer, "_verify_final_result_replay", _identity_final_replay)
 
     class FakeWorker:
         def __init__(self) -> None:
@@ -2053,10 +2255,10 @@ def test_bayesian_optimizer_compliance_uses_run_dd_limit(monkeypatch, capsys) ->
                 verified_symbol=symbol,
                 params=params,
                 net_profit=950.0,
-                profit_factor=1.05,
+                profit_factor=1.22,
                 total_trades=188,
-                max_drawdown=3950.0,
-                max_drawdown_pct=7.9,
+                max_drawdown=2950.0,
+                max_drawdown_pct=5.9,
                 win_rate=53.5,
                 score=11.75,
             )
@@ -2074,9 +2276,9 @@ def test_bayesian_optimizer_compliance_uses_run_dd_limit(monkeypatch, capsys) ->
     output = capsys.readouterr().out
 
     assert result is not None
-    assert result.max_drawdown_pct == pytest.approx(7.9)
-    assert "✅ NEW BEST COMPLIANT  Score=12.38" not in output
-    assert "✅ NEW BEST COMPLIANT  Score=11.75" in output
+    assert result.max_drawdown_pct == pytest.approx(5.9)
+    assert "✅ NEW BEST DEPLOYMENT CANDIDATE  Score=12.38" not in output
+    assert "✅ NEW BEST DEPLOYMENT CANDIDATE  Score=11.75" in output
 
 
 def test_bayesian_optimizer_reloads_after_repeated_read_timeouts(monkeypatch) -> None:
@@ -2097,6 +2299,7 @@ def test_bayesian_optimizer_reloads_after_repeated_read_timeouts(monkeypatch) ->
         trial=SimpleNamespace(TrialState=SimpleNamespace(FAIL="FAIL")),
     )
     monkeypatch.setitem(sys.modules, "optuna", fake_optuna)
+    monkeypatch.setattr(TradingViewOptimizer, "_verify_final_result_replay", _identity_final_replay)
 
     async def no_sleep(*_args, **_kwargs) -> None:
         return None
@@ -2138,9 +2341,10 @@ def test_bayesian_optimizer_reloads_after_repeated_read_timeouts(monkeypatch) ->
                 symbol=symbol,
                 verified_symbol=symbol,
                 params=params,
+                net_profit=1400.0,
                 profit_factor=1.18,
                 total_trades=250,
-                max_drawdown_pct=8.2,
+                max_drawdown_pct=5.2,
                 win_rate=58.0,
                 score=15.0,
             )

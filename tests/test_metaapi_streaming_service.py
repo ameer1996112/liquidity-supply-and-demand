@@ -79,7 +79,7 @@ def test_streaming_close_uses_broker_deal_time_for_close_timestamps():
     assert update["updated_at"] != deal_time
 
 
-def test_streaming_replay_without_deal_time_does_not_refresh_closed_timestamp():
+def test_streaming_replay_without_deal_time_does_not_update_closed_row():
     original_close = "2026-04-27T06:05:00+00:00"
     sb = _FakeSupabase(
         [
@@ -105,13 +105,10 @@ def test_streaming_replay_without_deal_time_does_not_refresh_closed_timestamp():
         )
     )
 
-    update = sb.table_obj.updates[-1]
-    assert "exit_time" not in update
-    assert "closed_at" not in update
-    assert update["pnl_usd"] == -127.64
+    assert sb.table_obj.updates == []
 
 
-def test_streaming_stores_broker_profit_separately_from_commission():
+def test_streaming_stores_net_broker_pnl_including_commission_and_swap():
     sb = _FakeSupabase(
         [
             {
@@ -130,7 +127,7 @@ def test_streaming_stores_broker_profit_separately_from_commission():
                 "entryType": "DEAL_ENTRY_OUT",
                 "positionId": "89822150",
                 "profit": -77.76,
-                "swap": 0,
+                "swap": -0.20,
                 "commission": -0.40,
                 "time": "2026-04-30T05:31:45.436Z",
             }
@@ -138,6 +135,7 @@ def test_streaming_stores_broker_profit_separately_from_commission():
     )
 
     update = sb.table_obj.updates[-1]
-    assert update["pnl_usd"] == -77.76
-    assert update["pnl"] == -77.76
+    assert update["pnl_usd"] == -78.36
+    assert update["pnl"] == -78.36
     assert update["commission"] == -0.40
+    assert update["swap"] == -0.20

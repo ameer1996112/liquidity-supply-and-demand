@@ -114,6 +114,30 @@ class _FailingAdapter:
         raise RuntimeError("broker timeout")
 
 
+class _CountingAdapter:
+    def __init__(self) -> None:
+        self.open_positions_calls = 0
+        self.account_status_calls = 0
+
+    def get_open_positions(self) -> list[dict[str, Any]]:
+        self.open_positions_calls += 1
+        return [
+            {
+                "id": "counted-1",
+                "symbol": "GBPUSD",
+                "type": "POSITION_TYPE_BUY",
+                "volume": 0.1,
+            }
+        ]
+
+    def get_account_status(self) -> dict[str, Any]:
+        self.account_status_calls += 1
+        return {
+            "balance": 10000.0,
+            "equity": 10010.0,
+        }
+
+
 def _make_profile(profile_id: int, **overrides: Any) -> dict[str, Any]:
     profile = {
         "id": profile_id,
@@ -253,3 +277,26 @@ def test_aggregate_account_status_sums_healthy_accounts() -> None:
     assert accounts_by_name["Meta Live"].open_positions == 1
     assert accounts_by_name["cTrader Live"].open_positions == 1
     assert accounts_by_name["cTrader Live"].venue == "ctrader"
+
+
+def test_reuses_adapter_and_open_positions_within_request_cycle() -> None:
+    profiles = [_make_profile(30, name="Counted Meta")]
+    adapter = _CountingAdapter()
+    resolver_calls = 0
+
+    def _resolve_adapter(profile: dict[str, Any]) -> Any:
+        nonlocal resolver_calls
+        resolver_calls += 1
+        assert profile["name"] == "Counted Meta"
+        return adapter
+
+    aggregator = LivePositionsAggregator(_FakeSupabase(profiles), adapter_resolver=_resolve_adapter)
+    loaded_profiles = aggregator.load_eligible_profiles()
+
+    positions_result = aggregator.aggregate_open_positions(loaded_profiles)
+    account_status_result = aggregator.aggregate_account_status(loaded_profiles)
+
+    assert len(positions_result.positions) == 1
+    assert account_status_result.accounts[0].open_positions == 1
+    assert resolver_calls == 1
+    assert adapter.open_positions_calls == 1

@@ -47,6 +47,22 @@ except ImportError:
 _PAIR_TIMEOUT_SECS = 600  # 10-minute hard limit per pair (increased for bayesian)
 _DEFAULT_DAILY_DD_LIMIT_PCT = 4.0
 _FINAL_REPLAY_TIMEOUT_SECS = 360
+_DEPLOYMENT_MIN_PROFIT_FACTOR = 1.15
+_DEPLOYMENT_MIN_TRADES = 40
+_DEPLOYMENT_SAFE_MAX_DD_PCT = 6.5
+
+
+def deployment_candidate_score(result: BacktestResult, dd_limit: float) -> float:
+    """Return the score only when a single-window result is deployable."""
+    if result.net_profit <= 0:
+        return 0.0
+    if result.profit_factor < _DEPLOYMENT_MIN_PROFIT_FACTOR:
+        return 0.0
+    if result.total_trades < _DEPLOYMENT_MIN_TRADES:
+        return 0.0
+    if result.max_drawdown_pct > min(float(dd_limit), _DEPLOYMENT_SAFE_MAX_DD_PCT):
+        return 0.0
+    return max(float(result.score), 0.0)
 
 
 class TradingViewOptimizer:
@@ -343,8 +359,9 @@ class TradingViewOptimizer:
         print(f"[{symbol}] DD penalty: higher DD = lower score (✅ = profitable + DD≤{self.dd_limit}%)\n")
 
 
-        best: Optional[BacktestResult] = None           # highest raw score (any DD)
-        best_compliant: Optional[BacktestResult] = None  # highest score that passes DD limit
+        best: Optional[BacktestResult] = None           # highest raw score (training only)
+        best_compliant: Optional[BacktestResult] = None  # highest deployment-gated score
+        best_compliant_score = 0.0
         start = time.time()
 
         # ── Always set backtest range (even if symbol didn't change) ───────────
@@ -532,7 +549,8 @@ class TradingViewOptimizer:
                 continue
             consecutive_failures = 0
             worker.results.append(result)
-            study.tell(trial, result.score)
+            gated_score = deployment_candidate_score(result, self.dd_limit)
+            study.tell(trial, gated_score)
             self._record_trial_event(
                 symbol=symbol,
                 trial_num=trial_num,
@@ -556,24 +574,21 @@ class TradingViewOptimizer:
             # Track best overall (highest raw score)
             if best is None or result.score > best.score:
                 best = result
-                # Only update worker.best_result (used for timeout recovery) with the
-                # compliant version if available, otherwise fall back to raw best
-                if not best_compliant:
-                    worker.best_result = result
                 print(
-                f"  [{symbol}] ★ NEW BEST  Score={result.score:.2f}  "
-                f"PF={result.profit_factor:.2f}  DD={result.max_drawdown_pct:.1f}%  "
-                f"T={result.total_trades}  via {self._worker_log_tag()}"
+                    f"  [{symbol}] ★ NEW BEST  Score={result.score:.2f}  "
+                    f"PF={result.profit_factor:.2f}  DD={result.max_drawdown_pct:.1f}%  "
+                    f"T={result.total_trades}  via {self._worker_log_tag()}"
                 )
 
-            # Track best compliant (highest score that passes DD limit)
-            if result.is_prop_firm_compliant(self.dd_limit) and (
-                best_compliant is None or result.score > best_compliant.score
+            # Track best deployment candidate (single-window gate before OOS validation).
+            if gated_score > 0.0 and (
+                best_compliant is None or gated_score > best_compliant_score
             ):
                 best_compliant = result
+                best_compliant_score = gated_score
                 worker.best_result = result  # prefer compliant for timeout recovery
                 print(
-                    f"  [{symbol}] ✅ NEW BEST COMPLIANT  Score={result.score:.2f}  "
+                    f"  [{symbol}] ✅ NEW BEST DEPLOYMENT CANDIDATE  Score={result.score:.2f}  "
                     f"PF={result.profit_factor:.2f}  DD={result.max_drawdown_pct:.1f}%  "
                     f"T={result.total_trades}  via {self._worker_log_tag()}"
                 )
@@ -584,21 +599,22 @@ class TradingViewOptimizer:
             f"{int(elapsed // 60)}m{int(elapsed % 60)}s"
         )
 
-        # Prefer the best compliant result for deployment; fall back to overall best
-        # only if no compliant result was found at all.
-        final = best_compliant if best_compliant is not None else best
+        if best_compliant is None:
+            if best is None:
+                raise RuntimeError(
+                    f"No valid optimization result produced for {symbol}; all trials failed or were skipped"
+                )
+            raise RuntimeError(
+                f"No deployment-compliant result found for {symbol}; rejecting pair."
+            )
 
+        final = best_compliant
         if final:
             from .tab_worker import _print_pair_summary_table
-            if best_compliant is None and best is not None:
-                print(
-                    f"  [{symbol}] ⚠ No prop-firm compliant result found. "
-                    f"Saving best overall (DD={best.max_drawdown_pct:.1f}%)."
-                )
-            elif best_compliant is not None and best is not None and best is not best_compliant:
+            if best is not None and best is not best_compliant:
                 print(
                     f"  [{symbol}] ℹ Best overall had DD={best.max_drawdown_pct:.1f}% (non-compliant). "
-                    f"Saving best compliant instead (DD={best_compliant.max_drawdown_pct:.1f}%)."
+                    f"Saving best deployment candidate instead (DD={best_compliant.max_drawdown_pct:.1f}%)."
                 )
             final = await asyncio.wait_for(
                 self._verify_final_result_replay(worker, symbol, final),
@@ -607,9 +623,7 @@ class TradingViewOptimizer:
             _print_pair_summary_table(final)
             return final
 
-        raise RuntimeError(
-            f"No valid optimization result produced for {symbol}; all trials failed or were skipped"
-        )
+        raise RuntimeError(f"No deployment-compliant result found for {symbol}; rejecting pair.")
 
     @staticmethod
     def _result_metric_snapshot(result: BacktestResult) -> dict:

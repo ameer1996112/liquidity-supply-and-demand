@@ -23,6 +23,7 @@ Each worker:
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -102,7 +103,13 @@ def load_source_params_file(path: str | None) -> tuple[str | None, dict[str, dic
     with open(path) as handle:
         payload = json.load(handle)
     source_run_id = payload.get("source_run_id")
-    raw_results = payload.get("results") or {}
+    raw_results = payload.get("results")
+    if raw_results is None:
+        raw_results = {
+            symbol: data
+            for symbol, data in payload.items()
+            if isinstance(data, dict) and isinstance(data.get("params"), dict)
+        }
     params_by_symbol: dict[str, dict[str, Any]] = {}
     if isinstance(raw_results, dict):
         for symbol, data in raw_results.items():
@@ -131,6 +138,57 @@ def _result_metrics(result: BacktestResult, *, worker_id: int) -> dict[str, Any]
     }
 
 
+def _source_params_digest(source_params_by_symbol: dict[str, dict[str, Any]]) -> str:
+    payload = json.dumps(source_params_by_symbol, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+
+def _resume_context(
+    *,
+    mode: str,
+    broker: str,
+    backtest_range: str,
+    custom_start_date: str | None,
+    custom_end_date: str | None,
+    source_run_id: str | None,
+    source_params_by_symbol: dict[str, dict[str, Any]],
+    brokers: list[str] | None = None,
+) -> dict[str, Any] | None:
+    if mode not in VALIDATE_MODES:
+        return None
+    return {
+        "mode": mode,
+        "broker": broker,
+        "brokers": sorted(brokers or []),
+        "backtest_range": normalize_backtest_range(backtest_range),
+        "custom_start_date": custom_start_date or "",
+        "custom_end_date": custom_end_date or "",
+        "source_run_id": source_run_id or "",
+        "source_params_digest": _source_params_digest(source_params_by_symbol),
+    }
+
+
+def _filter_existing_results_for_context(
+    existing_results: dict[str, Any],
+    run_context: dict[str, Any] | None,
+) -> dict[str, Any]:
+    if not run_context:
+        return existing_results
+    filtered: dict[str, Any] = {}
+    ignored: list[str] = []
+    for symbol, data in existing_results.items():
+        if isinstance(data, dict) and data.get("run_context") == run_context:
+            filtered[symbol] = data
+        else:
+            ignored.append(symbol)
+    if ignored:
+        log.warning(
+            "Ignoring existing validate result(s) with missing/different run context: %s",
+            ignored,
+        )
+    return filtered
+
+
 def _store_pair_result(
     results: dict[str, Any],
     *,
@@ -143,6 +201,7 @@ def _store_pair_result(
     metrics: dict[str, Any] | None = None,
     skip_reason: str | None = None,
     error_message: str | None = None,
+    run_context: dict[str, Any] | None = None,
 ) -> None:
     metrics = metrics or {}
     if mode == "multi_broker_validate":
@@ -152,6 +211,7 @@ def _store_pair_result(
                 "status": "pending",
                 "params": dict(params),
                 "source_run_id": source_run_id,
+                "run_context": run_context,
                 "brokers": {},
             },
         )
@@ -179,6 +239,8 @@ def _store_pair_result(
         **metrics,
         "timestamp": datetime.now().isoformat(),
     }
+    if run_context:
+        results[symbol]["run_context"] = run_context
     if skip_reason:
         results[symbol]["skip_reason"] = skip_reason
     if error_message:
@@ -534,6 +596,7 @@ async def worker_task(
     source_run_id: str | None = None,
     custom_start_date: str | None = None,
     custom_end_date: str | None = None,
+    run_context: dict[str, Any] | None = None,
 ) -> None:
     """Worker coroutine: pulls pairs from queue, optimizes, saves results."""
     tab_id = getattr(page, "tab_id", "none")
@@ -663,6 +726,7 @@ async def worker_task(
                         params=source_params or {},
                         status="skipped",
                         skip_reason=message,
+                        run_context=run_context,
                     )
                     write_results_snapshot(
                         results,
@@ -709,6 +773,7 @@ async def worker_task(
                             params=source_params or {},
                             status="failed",
                             error_message=str(e),
+                            run_context=run_context,
                         )
                         write_results_snapshot(
                             results,
@@ -741,6 +806,7 @@ async def worker_task(
                     params=result.params,
                     status="completed",
                     metrics=metrics,
+                    run_context=run_context,
                 )
                 # Write results incrementally — never lose completed work
                 write_results_snapshot(
@@ -801,6 +867,16 @@ async def run_parallel(
         pairs = [symbol for symbol in pairs if symbol in source_params_by_symbol]
         if not pairs:
             raise ValueError("No requested pairs have source params")
+    run_context = _resume_context(
+        mode=mode,
+        broker=broker,
+        brokers=selected_brokers,
+        backtest_range=backtest_range,
+        custom_start_date=custom_start_date,
+        custom_end_date=custom_end_date,
+        source_run_id=source_run_id,
+        source_params_by_symbol=source_params_by_symbol,
+    )
 
     log.info(f"Parallel optimizer starting")
     log.info(
@@ -818,6 +894,7 @@ async def run_parallel(
         try:
             with open(results_file) as f:
                 existing_results = json.load(f)
+            existing_results = _filter_existing_results_for_context(existing_results, run_context)
             log.info(f"Resuming — {len(existing_results)} pairs already completed")
         except Exception:
             pass
@@ -928,6 +1005,7 @@ async def run_parallel(
                     source_run_id=source_run_id,
                     custom_start_date=custom_start_date,
                     custom_end_date=custom_end_date,
+                    run_context=run_context,
                 ),
                 name=f"worker-{i}",
             )
