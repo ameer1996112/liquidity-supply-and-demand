@@ -129,6 +129,8 @@ class LivePositionsAggregator:
     ) -> None:
         self.client = supabase_client
         self.adapter_resolver = adapter_resolver
+        self._adapter_cache: dict[int, Any] = {}
+        self._open_positions_cache: dict[int, list[dict[str, Any]]] = {}
 
     def load_eligible_profiles(self) -> list[LiveBrokerProfile]:
         response = (
@@ -190,7 +192,7 @@ class LivePositionsAggregator:
                 if not hasattr(adapter, "get_open_positions"):
                     raise ValueError("Adapter does not support open positions")
 
-                raw_positions = adapter.get_open_positions() or []
+                raw_positions = self._load_open_positions(profile, adapter)
                 if not isinstance(raw_positions, list):
                     raise ValueError("Open positions payload must be a list")
 
@@ -260,10 +262,27 @@ class LivePositionsAggregator:
         )
 
     def _resolve_adapter(self, profile: LiveBrokerProfile) -> Any:
+        if profile.id in self._adapter_cache:
+            return self._adapter_cache[profile.id]
+
         adapter = self.adapter_resolver(dict(profile.raw))
         if adapter is None:
             raise ValueError("No adapter available for profile")
+        self._adapter_cache[profile.id] = adapter
         return adapter
+
+    def _load_open_positions(
+        self,
+        profile: LiveBrokerProfile,
+        adapter: Any,
+    ) -> list[dict[str, Any]]:
+        if profile.id in self._open_positions_cache:
+            return self._open_positions_cache[profile.id]
+
+        positions = adapter.get_open_positions() or []
+        if isinstance(positions, list):
+            self._open_positions_cache[profile.id] = positions
+        return positions
 
     def _load_account_status(self, adapter: Any) -> dict[str, Any]:
         if hasattr(adapter, "get_account_status"):
@@ -346,10 +365,15 @@ class LivePositionsAggregator:
             margin=_to_float(payload.get("margin")),
             free_margin=_to_float(_first_present(payload.get("freeMargin"), payload.get("free_margin"))),
             margin_level=_to_float(_first_present(payload.get("marginLevel"), payload.get("margin_level"))),
-            open_positions=self._extract_open_positions_count(adapter, payload),
+            open_positions=self._extract_open_positions_count(profile, adapter, payload),
         )
 
-    def _extract_open_positions_count(self, adapter: Any, payload: dict[str, Any]) -> int:
+    def _extract_open_positions_count(
+        self,
+        profile: LiveBrokerProfile,
+        adapter: Any,
+        payload: dict[str, Any],
+    ) -> int:
         embedded = payload.get("open_positions")
         if embedded is None:
             embedded = payload.get("positions")
@@ -363,7 +387,7 @@ class LivePositionsAggregator:
                 pass
 
         if hasattr(adapter, "get_open_positions"):
-            positions = adapter.get_open_positions() or []
+            positions = self._load_open_positions(profile, adapter)
             if isinstance(positions, list):
                 return len(positions)
 

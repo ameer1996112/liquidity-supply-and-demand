@@ -1,50 +1,61 @@
 {
-  "run_id": "20260501_101422_2c6c34",
+  "run_id": "20260501_080434_45baba",
   "state": "completed",
-  "started_at": "2026-05-01T10:14:22.538929+03:00",
-  "last_progress_at": "2026-05-01T10:20:03.274626+03:00",
+  "started_at": "2026-05-01T08:04:34.021622+03:00",
+  "last_progress_at": "2026-05-01T08:10:51.448380+03:00",
   "stuck_threshold_seconds": 720,
   "restart_count": 0,
-  "optimizer_pid": 98128,
+  "optimizer_pid": 20581,
   "desktop_cdp_pid": 83536,
   "log_file": "/Users/ameeramer/dev/projects/galilsoftware/sources/trading/scripts/optimization_results/parallel_run.log",
   "mode": "validate",
-  "workers": 2,
+  "workers": 4,
   "args": [
     "--parallel",
     "--workers",
-    "2",
+    "4",
     "--mode",
     "validate",
     "--dd-limit",
     "9.0",
     "--pairs",
-    "USDCAD,NAS100,XAUUSD,EURNZD",
+    "XAUUSD,XAGUSD,NAS100,USDJPY,EURUSD,GBPUSD,AUDCHF,USDCAD,EURJPY,EURNZD,NZDUSD,EURCAD",
     "--broker",
     "vantage",
     "--backtest-range",
     "custom",
     "--custom-start-date",
-    "2023-04-30",
+    "2024-04-30",
     "--custom-end-date",
-    "2024-04-29",
+    "2025-04-29",
     "--source-params-file",
     "scripts/optimization_results/parallel_results_vantage_e1666e55-362c-4f0b-aba2-018ceb818a1b.json",
     "--results-label",
-    "validate-e1666e55-prior2-365d-verified",
-    "--reset"
+    "validate-e1666e55-prior365d"
   ],
   "active_pairs": {
     "worker-0": {
-      "symbol": "XAUUSD",
+      "symbol": "EURCAD",
       "trial": 0,
-      "last_event_at": "2026-05-01T10:18:38.334484+03:00",
+      "last_event_at": "2026-05-01T08:10:51.445760+03:00",
       "status": "completed"
     },
     "worker-1": {
+      "symbol": "NZDUSD",
+      "trial": 0,
+      "last_event_at": "2026-05-01T08:10:31.869943+03:00",
+      "status": "completed"
+    },
+    "worker-2": {
+      "symbol": "EURJPY",
+      "trial": 0,
+      "last_event_at": "2026-05-01T08:08:23.156818+03:00",
+      "status": "completed"
+    },
+    "worker-3": {
       "symbol": "EURNZD",
       "trial": 0,
-      "last_event_at": "2026-05-01T10:20:03.271910+03:00",
+      "last_event_at": "2026-05-01T08:08:18.968048+03:00",
       "status": "completed"
     }
   },
@@ -55,6 +66,16 @@
       "last_results_hash": ""
     },
     "worker-1": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": ""
+    },
+    "worker-2": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": ""
+    },
+    "worker-3": {
       "status": "healthy",
       "stale_reads": 0,
       "last_results_hash": ""

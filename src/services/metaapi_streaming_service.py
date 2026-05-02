@@ -59,22 +59,22 @@ class _DealHandler:
         profit = float(deal.get("profit") or 0)
         swap = float(deal.get("swap") or 0)
         commission = float(deal.get("commission") or 0)
-        broker_pnl = profit
+        broker_pnl = round(profit + swap + commission, 2)
 
         symbol = deal.get("symbol", "?")
         deal_id = deal.get("id", "?")
 
-        logger.info(
-            "[MetaApi Stream] Trade closed — deal=%s position=%s symbol=%s "
-            "profit=%.2f swap=%.2f commission=%.2f",
-            deal_id, position_id, symbol, profit, swap, commission,
-        )
-
-        await asyncio.get_event_loop().run_in_executor(
+        updated_count = await asyncio.get_event_loop().run_in_executor(
             None,
             self._update_db_sync,
             position_id, broker_pnl, profit, swap, commission, deal.get("time"),
         )
+        if updated_count:
+            logger.info(
+                "[MetaApi Stream] Trade closed — deal=%s position=%s symbol=%s "
+                "profit=%.2f swap=%.2f commission=%.2f net=%.2f",
+                deal_id, position_id, symbol, profit, swap, commission, broker_pnl,
+            )
 
     def _update_db_sync(
         self,
@@ -84,7 +84,7 @@ class _DealHandler:
         swap: float,
         commission: float,
         deal_time: object | None = None,
-    ) -> None:
+    ) -> int:
         """
         Synchronous Supabase write — called via run_in_executor.
 
@@ -107,12 +107,19 @@ class _DealHandler:
                     "— trade may have been opened outside this bot",
                     position_id,
                 )
-                return
+                return 0
 
             updated_rows = []
             for row in matching_rows:
                 already_closed = str(row.get("status") or "").upper() == "CLOSED"
                 has_close_timestamp = bool(row.get("exit_time") or row.get("closed_at"))
+                if already_closed and has_close_timestamp:
+                    logger.debug(
+                        "[MetaApi Stream] Ignoring replayed close for already-closed position=%s row=%s",
+                        position_id, row.get("id"),
+                    )
+                    continue
+
                 update_data = {
                     "status": "CLOSED",
                     "pnl_usd": broker_pnl,
@@ -141,11 +148,13 @@ class _DealHandler:
                     "— Supabase Realtime will push to frontend",
                     position_id, broker_pnl, len(updated_rows),
                 )
+            return len(updated_rows)
         except Exception as exc:
             logger.error(
                 "[MetaApi Stream] DB update failed for position=%s: %s",
                 position_id, exc,
             )
+            return 0
 
 
 # ─────────────────────────────────────────────────────────────────────────────
