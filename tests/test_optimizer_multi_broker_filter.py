@@ -127,3 +127,16 @@ def test_multi_broker_cli_writes_outputs(tmp_path) -> None:
 
     assert (tmp_path / "passed.json").exists()
     assert (tmp_path / "rejected.json").exists()
+
+
+def test_multi_broker_cli_defaults_to_broker_check_90d_file(tmp_path, monkeypatch) -> None:
+    input_path = tmp_path / "parallel_results_vantage_broker_check_90d.json"
+    input_path.write_text(json.dumps({"USDCAD": result_row()}))
+    monkeypatch.setattr(robust_broker_filter, "RESULTS_DIR", tmp_path)
+    monkeypatch.setattr(robust_broker_filter, "OUTPUT_PASSED_FILE", tmp_path / "robust_broker_passed.json")
+    monkeypatch.setattr(robust_broker_filter, "OUTPUT_REJECTED_FILE", tmp_path / "robust_broker_rejected.json")
+
+    robust_broker_filter.cli([])
+
+    assert (tmp_path / "robust_broker_passed.json").exists()
+    assert (tmp_path / "robust_broker_rejected.json").exists()

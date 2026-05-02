@@ -6,8 +6,10 @@ from pathlib import Path
 from typing import Any
 
 try:
+    from .asset_classifier import classify_asset
     from .config import RESULTS_DIR
 except ImportError:  # Allows `python scripts/optimizer/robust_filter.py`.
+    from scripts.optimizer.asset_classifier import classify_asset
     from scripts.optimizer.config import RESULTS_DIR
 
 WINDOWS = ("365d", "90d", "30d")
@@ -178,9 +180,14 @@ def evaluate_candidates(
         passed.append(
             {
                 "symbol": symbol,
+                "asset_class": classify_asset(symbol),
                 "robust_score": robust_score(rows),
                 "params": rows["365d"].get("params", {}),
                 "windows": {window: rows[window] for window in WINDOWS},
+                "regime_performance": {},
+                "allowed_regimes": [],
+                "blocked_regimes": ["NEWS_RISK", "SPREAD_RISK"],
+                "regime_attribution_status": "not_available",
             }
         )
 
@@ -191,9 +198,14 @@ def evaluate_candidates(
 def _passed_payload(passed: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return {
         candidate["symbol"]: {
+            "asset_class": candidate["asset_class"],
             "robust_score": candidate["robust_score"],
             "params": candidate["params"],
             "windows": candidate["windows"],
+            "regime_performance": candidate["regime_performance"],
+            "allowed_regimes": candidate["allowed_regimes"],
+            "blocked_regimes": candidate["blocked_regimes"],
+            "regime_attribution_status": candidate["regime_attribution_status"],
         }
         for candidate in passed
     }

@@ -35,6 +35,7 @@ from .config import (
     PROP_FIRM_MAX_DD_PCT,
 )
 from .models import BacktestResult
+from .asset_classifier import classify_asset
 from .tab_worker import TabWorker, backtest_range_to_label, normalize_backtest_range
 from src.services.optimizer_survival_scoring import classify_pair_result
 
@@ -98,7 +99,7 @@ def futures_symbol_root(symbol: str) -> str | None:
 
 
 def is_futures_symbol(symbol: str) -> bool:
-    return futures_symbol_root(symbol) is not None
+    return classify_asset(symbol).startswith("futures_")
 
 
 def futures_result_pass_prop_gate(

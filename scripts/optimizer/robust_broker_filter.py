@@ -6,13 +6,16 @@ from pathlib import Path
 from typing import Any
 
 try:
+    from .asset_classifier import classify_asset
     from .config import RESULTS_DIR
 except ImportError:  # Allows `python scripts/optimizer/robust_broker_filter.py`.
+    from scripts.optimizer.asset_classifier import classify_asset
     from scripts.optimizer.config import RESULTS_DIR
 
 DEFAULT_REQUIRED_BROKERS = ("vantage", "oanda", "fxcm")
 OUTPUT_PASSED_FILE = RESULTS_DIR / "robust_broker_passed.json"
 OUTPUT_REJECTED_FILE = RESULTS_DIR / "robust_broker_rejected.json"
+DEFAULT_INPUT_FILE = RESULTS_DIR / "parallel_results_vantage_broker_check_90d.json"
 
 BROKER_RULES = {
     "min_net_profit": 0.0,
@@ -123,6 +126,7 @@ def evaluate_broker_candidates(
             continue
 
         passed[symbol] = {
+            "asset_class": classify_asset(symbol),
             "params": row.get("params", {}),
             "brokers": {broker: brokers[broker] for broker in required},
         }
@@ -172,7 +176,7 @@ def main(
 
 def cli(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Filter multi-broker optimizer validation results.")
-    parser.add_argument("--input", required=True)
+    parser.add_argument("--input", default=None)
     parser.add_argument("--brokers", default=",".join(DEFAULT_REQUIRED_BROKERS))
     parser.add_argument("--backtest-range", default="90d", choices=["30d", "90d", "365d", "custom"])
     parser.add_argument("--output-passed", default=str(OUTPUT_PASSED_FILE))
@@ -180,7 +184,7 @@ def cli(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
 
     main(
-        input_path=Path(args.input),
+        input_path=Path(args.input) if args.input else RESULTS_DIR / DEFAULT_INPUT_FILE.name,
         output_passed_path=Path(args.output_passed),
         output_rejected_path=Path(args.output_rejected),
         required_brokers=[broker.strip() for broker in args.brokers.split(",")],
