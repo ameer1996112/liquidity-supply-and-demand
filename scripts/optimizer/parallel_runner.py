@@ -658,12 +658,17 @@ async def worker_task(
                     "run_id": run_id,
                     "worker_id": worker_id,
                 }
+                if custom_start_date or custom_end_date:
+                    optimize_kwargs.update(
+                        {
+                            "custom_start_date": custom_start_date,
+                            "custom_end_date": custom_end_date,
+                        }
+                    )
                 if mode in VALIDATE_MODES:
                     optimize_kwargs.update(
                         {
                             "source_params": source_params,
-                            "custom_start_date": custom_start_date,
-                            "custom_end_date": custom_end_date,
                         }
                     )
                 result = await optimize_pair_on_page(

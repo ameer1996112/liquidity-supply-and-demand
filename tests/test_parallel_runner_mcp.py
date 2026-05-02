@@ -499,6 +499,18 @@ def test_multi_broker_validate_writes_nested_pair_results(monkeypatch, tmp_path)
             "status": "completed",
             "params": {"rr_mode": "fixed_4.0"},
             "source_run_id": "source-run",
+            "run_context": {
+                "mode": "multi_broker_validate",
+                "broker": "vantage",
+                "brokers": ["oanda", "vantage"],
+                "backtest_range": "365d",
+                "custom_start_date": "",
+                "custom_end_date": "",
+                "source_run_id": "source-run",
+                "source_params_digest": parallel_runner._source_params_digest(
+                    {"EURUSD": {"rr_mode": "fixed_4.0"}}
+                ),
+            },
             "brokers": {
                 "vantage": {
                     "status": "completed",
@@ -578,6 +590,52 @@ def test_validate_resume_ignores_results_without_matching_context() -> None:
     filtered = parallel_runner._filter_existing_results_for_context(existing, context)
 
     assert filtered == {"USDCAD": existing["USDCAD"]}
+
+
+def test_bayesian_custom_run_forwards_custom_dates(monkeypatch, tmp_path) -> None:
+    monkeypatch.setattr(parallel_runner, "setup_logging", lambda: None)
+    monkeypatch.setattr(parallel_runner, "detect_desktop_cdp_pid", lambda: None)
+    monkeypatch.setattr(parallel_runner, "WORKER_STARTUP_DELAY", 0)
+    monkeypatch.setattr(
+        parallel_runner,
+        "results_file_for_broker",
+        lambda broker, results_label=None: tmp_path / "parallel_results_train.json",
+    )
+    monkeypatch.setattr(parallel_runner, "OptimizerRuntimeState", FakeRuntimeState)
+    captured: dict[str, object] = {}
+
+    async def fake_optimize_pair_on_page(*args, **kwargs):
+        captured.update(kwargs)
+        return parallel_runner.BacktestResult(
+            symbol=args[1],
+            params={"risk_per_trade_pct": 0.5},
+            net_profit=1000.0,
+            total_trades=42,
+            win_rate=58.0,
+            profit_factor=1.72,
+            max_drawdown_pct=4.8,
+            score=1.72,
+        )
+
+    monkeypatch.setattr(parallel_runner, "optimize_pair_on_page", fake_optimize_pair_on_page)
+
+    asyncio.run(
+        parallel_runner.run_parallel(
+            pairs=["USDCAD"],
+            n_workers=1,
+            mode="bayesian",
+            n_trials=1,
+            dd_limit=10.0,
+            dry_run=False,
+            broker="vantage",
+            backtest_range="custom",
+            custom_start_date="2024-05-01",
+            custom_end_date="2025-04-30",
+        )
+    )
+
+    assert captured["custom_start_date"] == "2024-05-01"
+    assert captured["custom_end_date"] == "2025-04-30"
 
 
 def test_validate_pair_no_data_is_skipped_without_failing_other_pairs(monkeypatch, tmp_path) -> None:
