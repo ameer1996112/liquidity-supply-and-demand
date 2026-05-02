@@ -187,3 +187,93 @@ Why:
 - screen all pairs first with `80` trials
 - deep-run only winners later
 - prefer `4` workers over `6` until stability proven
+
+## Robust Validation Runbook
+
+This workflow produces candidates for demo/forward testing. It does not
+guarantee prop-firm passing, payouts, or live profitability.
+
+### Training Candidates
+
+```bash
+PAIRS="XAUUSD,XAGUSD,NAS100,EURUSD,GBPUSD,USDJPY,USDCAD,EURJPY,EURNZD,NZDUSD,EURCAD,AUDCHF"
+
+python -m scripts.optimizer.parallel_runner \
+  --workers 4 \
+  --mode bayesian \
+  --trials 80 \
+  --broker vantage \
+  --pairs "$PAIRS" \
+  --backtest-range custom \
+  --custom-start-date 2024-05-01 \
+  --custom-end-date 2025-04-30 \
+  --results-label train_2024_2025 \
+  --reset
+```
+
+### Frozen Validation Candidates
+
+```bash
+SOURCE="scripts/optimization_results/parallel_results_vantage_train_2024_2025.json"
+
+python -m scripts.optimizer.parallel_runner \
+  --workers 4 \
+  --mode validate \
+  --broker vantage \
+  --pairs "$PAIRS" \
+  --source-params-file "$SOURCE" \
+  --backtest-range 365d \
+  --results-label validate_365d \
+  --reset
+
+python -m scripts.optimizer.parallel_runner \
+  --workers 4 \
+  --mode validate \
+  --broker vantage \
+  --pairs "$PAIRS" \
+  --source-params-file "$SOURCE" \
+  --backtest-range 90d \
+  --results-label validate_90d \
+  --reset
+
+python -m scripts.optimizer.parallel_runner \
+  --workers 4 \
+  --mode validate \
+  --broker vantage \
+  --pairs "$PAIRS" \
+  --source-params-file "$SOURCE" \
+  --backtest-range 30d \
+  --results-label validate_30d \
+  --reset
+```
+
+### Robust Forward-Test Candidates
+
+```bash
+python scripts/optimizer/robust_filter.py \
+  --file-365d parallel_results_vantage_validate_365d.json \
+  --file-90d parallel_results_vantage_validate_90d.json \
+  --file-30d parallel_results_vantage_validate_30d.json
+```
+
+Only symbols in `scripts/optimization_results/robust_passed.json` should move
+to demo forward testing.
+
+### Multi-Broker-Passed Candidates
+
+```bash
+python -m scripts.optimizer.parallel_runner \
+  --workers 4 \
+  --mode multi_broker_validate \
+  --broker vantage \
+  --brokers vantage,oanda,fxcm \
+  --pairs "$PAIRS" \
+  --source-params-file "$SOURCE" \
+  --backtest-range 90d \
+  --results-label broker_check_90d \
+  --reset
+
+python scripts/optimizer/robust_broker_filter.py \
+  --input scripts/optimization_results/parallel_results_vantage_broker_check_90d.json \
+  --brokers vantage,oanda,fxcm
+```

@@ -53,8 +53,8 @@ OPTUNA_SEARCH_SPACE: dict = {
     "max_zones":                {"type": "int",         "low": 10,   "high": 30},
 
     # ── Daily trade limits ────────────────────────────────────────────────────
-    "max_trades_per_day":       {"type": "int",         "low": 1,    "high": 4},
-    "max_daily_loss_pct":       {"type": "float",       "low": 2.0,  "high": 5.0},   # prop firm safe range
+    "max_trades_per_day":       {"type": "int",         "low": 1,    "high": 3},
+    "max_daily_loss_pct":       {"type": "float",       "low": 2.0,  "high": 3.0},   # prop firm safe range
     "max_daily_profit_pct":     {"type": "float",       "low": 3.0,  "high": 8.0},   # lock profits early
 
     # ── Session hours (key insight: different pairs peak in different sessions)
@@ -78,8 +78,8 @@ OPTIMIZER_SYNTHETIC_PARAM_INPUTS = {
 
 OPTIMIZER_METADATA_PARAM_DEFAULTS = {
     "risk_pct": 0.4,
-    "daily_kill_pct": 4.0,
-    "total_kill_pct": 8.0,
+    "daily_kill_pct": 3.5,
+    "total_kill_pct": 6.5,
     "consec_loss_kill": 2,
     "min_hold_minutes": 2,
     "news_blackout_enabled": False,

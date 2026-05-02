@@ -19,7 +19,7 @@ import traceback
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from .config import (
     RESULTS_DIR,
@@ -50,6 +50,98 @@ _FINAL_REPLAY_TIMEOUT_SECS = 360
 _DEPLOYMENT_MIN_PROFIT_FACTOR = 1.15
 _DEPLOYMENT_MIN_TRADES = 40
 _DEPLOYMENT_SAFE_MAX_DD_PCT = 6.5
+_PROP_SAFE_RISK_PER_TRADE_PCT = 0.5
+_PROP_SAFE_MAX_DAILY_LOSS_PCT = 3.0
+_PROP_SAFE_DAILY_KILL_PCT = 3.5
+_PROP_SAFE_TOTAL_KILL_PCT = 6.5
+_PROP_SAFE_MAX_TRADES_PER_DAY = 3
+
+FUTURES_PROP_RULES = {
+    "topstep_50k": {
+        "max_loss_usd": 2000,
+        "safe_max_loss_usd": 1200,
+    },
+    "topstep_100k": {
+        "max_loss_usd": 3000,
+        "safe_max_loss_usd": 1800,
+    },
+}
+
+_FUTURES_SYMBOL_ROOTS = ("MNQ", "MES", "MGC", "MCL", "MYM", "NQ", "ES", "GC", "CL", "YM")
+
+
+def _numeric_param(params: dict[str, Any], keys: tuple[str, ...], default: float) -> float:
+    for key in keys:
+        if key not in params:
+            continue
+        try:
+            return float(params[key])
+        except (TypeError, ValueError):
+            return default
+    return default
+
+
+def _integer_param(params: dict[str, Any], key: str, default: int) -> int:
+    try:
+        return int(params.get(key, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def futures_symbol_root(symbol: str) -> str | None:
+    clean = symbol.upper().split(":")[-1]
+    clean = "".join(ch for ch in clean if ch.isalpha())
+    for root in _FUTURES_SYMBOL_ROOTS:
+        if clean.startswith(root):
+            return root
+    return None
+
+
+def is_futures_symbol(symbol: str) -> bool:
+    return futures_symbol_root(symbol) is not None
+
+
+def futures_result_pass_prop_gate(
+    result: BacktestResult,
+    *,
+    profile: str = "topstep_50k",
+) -> tuple[bool, list[str]]:
+    rules = FUTURES_PROP_RULES.get(profile)
+    if rules is None:
+        return False, [f"unknown_futures_profile={profile}"]
+
+    reasons: list[str] = []
+    max_drawdown_usd = float(result.max_drawdown or 0.0)
+    if max_drawdown_usd <= 0:
+        reasons.append("missing_max_drawdown_usd")
+    elif max_drawdown_usd > float(rules["safe_max_loss_usd"]):
+        reasons.append(
+            f"max_drawdown_usd={max_drawdown_usd:.1f} > "
+            f"safe_max_loss_usd={float(rules['safe_max_loss_usd']):.1f}"
+        )
+    return len(reasons) == 0, reasons
+
+
+def params_pass_prop_safety_gate(params: dict[str, Any]) -> tuple[bool, list[str]]:
+    reasons: list[str] = []
+    risk_per_trade = _numeric_param(params, ("risk_per_trade_pct", "risk_pct"), 999.0)
+    max_daily_loss = _numeric_param(params, ("max_daily_loss_pct",), 999.0)
+    daily_kill = _numeric_param(params, ("daily_kill_pct",), 999.0)
+    total_kill = _numeric_param(params, ("total_kill_pct",), 999.0)
+    max_trades_per_day = _integer_param(params, "max_trades_per_day", 999)
+
+    if risk_per_trade > _PROP_SAFE_RISK_PER_TRADE_PCT:
+        reasons.append(f"risk_per_trade_pct too high: {risk_per_trade}")
+    if max_daily_loss > _PROP_SAFE_MAX_DAILY_LOSS_PCT:
+        reasons.append(f"max_daily_loss_pct too high: {max_daily_loss}")
+    if daily_kill > _PROP_SAFE_DAILY_KILL_PCT:
+        reasons.append(f"daily_kill_pct too high: {daily_kill}")
+    if total_kill > _PROP_SAFE_TOTAL_KILL_PCT:
+        reasons.append(f"total_kill_pct too high: {total_kill}")
+    if max_trades_per_day > _PROP_SAFE_MAX_TRADES_PER_DAY:
+        reasons.append(f"max_trades_per_day too high: {max_trades_per_day}")
+
+    return len(reasons) == 0, reasons
 
 
 def deployment_candidate_score(result: BacktestResult, dd_limit: float) -> float:
@@ -60,6 +152,11 @@ def deployment_candidate_score(result: BacktestResult, dd_limit: float) -> float
         return 0.0
     if result.total_trades < _DEPLOYMENT_MIN_TRADES:
         return 0.0
+    if is_futures_symbol(result.symbol):
+        ok, _reasons = futures_result_pass_prop_gate(result)
+        if not ok:
+            return 0.0
+        return max(float(result.score), 0.0)
     if result.max_drawdown_pct > min(float(dd_limit), _DEPLOYMENT_SAFE_MAX_DD_PCT):
         return 0.0
     return max(float(result.score), 0.0)
@@ -620,6 +717,16 @@ class TradingViewOptimizer:
                 self._verify_final_result_replay(worker, symbol, final),
                 timeout=_FINAL_REPLAY_TIMEOUT_SECS,
             )
+            if deployment_candidate_score(final, self.dd_limit) <= 0:
+                raise RuntimeError(
+                    f"Final replay failed deployment gate for {symbol}; rejecting pair."
+                )
+            params_ok, param_reasons = params_pass_prop_safety_gate(final.params)
+            if not params_ok:
+                raise RuntimeError(
+                    f"Final params failed prop safety gate for {symbol}: "
+                    f"{', '.join(param_reasons)}"
+                )
             _print_pair_summary_table(final)
             return final
 
@@ -764,6 +871,16 @@ class TradingViewOptimizer:
                 result = await asyncio.wait_for(coro, timeout=timeout)
 
                 if result:
+                    if deployment_candidate_score(result, self.dd_limit) <= 0:
+                        print(f"\n  WARNING: {symbol} rejected — deployment gate failed")
+                        continue
+                    params_ok, param_reasons = params_pass_prop_safety_gate(result.params)
+                    if not params_ok:
+                        print(
+                            f"\n  WARNING: {symbol} rejected — prop safety gate failed: "
+                            f"{', '.join(param_reasons)}"
+                        )
+                        continue
                     result = self._apply_staged_survival_result(result)
                     self.best_per_pair[symbol] = result
                     self.results.extend(worker.results)
@@ -773,7 +890,16 @@ class TradingViewOptimizer:
                 # Save whatever partial results the worker accumulated before timeout
                 partial_best = getattr(worker, 'best_result', None)
                 n_done = len(getattr(worker, 'results', []))
-                if partial_best and partial_best.score > 0:
+                params_ok, param_reasons = (
+                    params_pass_prop_safety_gate(partial_best.params)
+                    if partial_best
+                    else (False, ["missing_partial_best"])
+                )
+                if (
+                    partial_best
+                    and deployment_candidate_score(partial_best, self.dd_limit) > 0
+                    and params_ok
+                ):
                     print(
                         f"\n  WARNING: {symbol} timed out after {n_done} trials — "
                         f"saving partial best (score={partial_best.score:.2f})"
@@ -783,7 +909,12 @@ class TradingViewOptimizer:
                     self.results.extend(worker.results)
                     self._save_checkpoint(checkpoint, symbol, partial_best)
                 else:
-                    print(f"\n  WARNING: {symbol} timed out — no valid result found yet")
+                    reason = (
+                        ", ".join(param_reasons)
+                        if partial_best and not params_ok
+                        else "no deployment-compliant partial result found"
+                    )
+                    print(f"\n  WARNING: {symbol} timed out — {reason}")
                 continue
             except Exception as e:
                 print(f"\n  ERROR optimizing {symbol}: {e}")
