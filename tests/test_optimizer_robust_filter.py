@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 
 import pytest
 
@@ -293,6 +296,49 @@ def test_robust_filter_main_writes_passed_and_rejected_candidates(tmp_path) -> N
     assert set(payload["USDCAD"]["windows"]) == {"365d", "90d", "30d"}
     rejected = json.loads(rejected_path.read_text())
     assert "NAS100" in rejected
+
+
+def test_robust_filter_direct_script_runs_without_pythonpath(tmp_path) -> None:
+    for window in ("365d", "90d", "30d"):
+        (tmp_path / f"{window}.json").write_text(
+            json.dumps(
+                {
+                    "USDCAD": {
+                        "status": "completed",
+                        "net_profit": 1000,
+                        "profit_factor": 1.25,
+                        "total_trades": 60,
+                        "max_drawdown_pct": 2.0,
+                        "params": dict(SAFE_PARAMS),
+                    }
+                }
+            )
+        )
+    env = dict(os.environ)
+    env.pop("PYTHONPATH", None)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/optimizer/robust_filter.py",
+            "--results-dir",
+            str(tmp_path),
+            "--file-365d",
+            "365d.json",
+            "--file-90d",
+            "90d.json",
+            "--file-30d",
+            "30d.json",
+        ],
+        cwd=robust_filter.RESULTS_DIR.parent.parent,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert (tmp_path / "robust_passed.json").exists()
 
 
 def test_robust_filter_cli_uses_named_input_files(tmp_path) -> None:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,7 @@ try:
     from .asset_classifier import classify_asset
     from .config import RESULTS_DIR
 except ImportError:  # Allows `python scripts/optimizer/robust_broker_filter.py`.
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from scripts.optimizer.asset_classifier import classify_asset
     from scripts.optimizer.config import RESULTS_DIR
 
