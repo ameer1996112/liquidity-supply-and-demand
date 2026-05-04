@@ -56,3 +56,31 @@ def test_result_params_are_a_reproducible_pine_input_snapshot() -> None:
     assert materialized["filter_trading_hours"] is True
     assert materialized["max_peak_to_touch_bars"] == 48
     assert materialized["max_sweep_to_touch_bars"] == 19
+
+
+def test_prop_safety_params_are_profile_locked_not_search_params() -> None:
+    locked = set(optimizer_config.PROP_PROFILE_LOCKED_PARAMS)
+
+    assert {
+        "risk_per_trade_pct",
+        "risk_pct",
+        "daily_kill_pct",
+        "total_kill_pct",
+        "max_daily_loss_pct",
+        "max_trades_per_day",
+        "news_blackout_enabled",
+        "max_position_size_lots",
+        "max_lots_per_10k",
+    } <= locked
+    assert locked.isdisjoint(optimizer_config.OPTUNA_SEARCH_SPACE)
+
+
+def test_optimizer_has_separate_asset_class_param_spaces() -> None:
+    spaces = optimizer_config.ASSET_CLASS_PARAM_SPACES
+
+    assert set(spaces) == {"forex", "jpy", "gold", "index", "futures"}
+    assert "liq_max_distance_pips_forex" in spaces["forex"]
+    assert "liq_max_distance_pips_forex" in spaces["jpy"]
+    assert "liq_max_distance_pips_gold" in spaces["gold"]
+    assert "liq_max_distance_pips_index" in spaces["index"]
+    assert "max_contracts" in spaces["futures"]

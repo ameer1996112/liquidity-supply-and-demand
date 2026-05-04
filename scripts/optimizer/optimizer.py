@@ -124,6 +124,7 @@ def futures_result_pass_prop_gate(
 
 
 def params_pass_prop_safety_gate(params: dict[str, Any]) -> tuple[bool, list[str]]:
+    params = {**OPTIMIZER_CONTEXT_PARAM_DEFAULTS, **params}
     reasons: list[str] = []
     risk_per_trade = _numeric_param(params, ("risk_per_trade_pct", "risk_pct"), 999.0)
     max_daily_loss = _numeric_param(params, ("max_daily_loss_pct",), 999.0)

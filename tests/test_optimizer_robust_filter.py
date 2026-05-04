@@ -22,6 +22,12 @@ SAFE_PARAMS = {
     "daily_kill_pct": 3.5,
     "total_kill_pct": 6.5,
     "max_trades_per_day": 3,
+    "news_blackout_enabled": True,
+}
+
+PROOF_FIELDS = {
+    "strategy_fidelity_status": "passed",
+    "prop_profile_status": "passed",
 }
 
 
@@ -164,6 +170,22 @@ def test_pass_window_rejects_untrusted_result_truth() -> None:
     assert "missing_evidence:result_hash_captured" in reasons
 
 
+def test_pass_window_accepts_result_truth_with_warnings() -> None:
+    row = result().to_dict()
+    row["status"] = "completed"
+    row["result_truth"] = {
+        "evidence_required": True,
+        "trust_status": "trusted_with_warnings",
+        "missing_evidence": [],
+        "rejection_reasons": [],
+    }
+
+    ok, reasons = robust_filter.pass_window(row, "365d")
+
+    assert ok is True
+    assert reasons == []
+
+
 def test_futures_profile_uses_dollar_drawdown_gate() -> None:
     future = result(symbol="NQ", max_drawdown=1199, max_drawdown_pct=20.0)
 
@@ -194,6 +216,7 @@ def test_robust_filter_requires_all_windows_to_pass() -> None:
                 "max_drawdown_pct": 6.0,
                 "params": dict(SAFE_PARAMS),
                 "result_truth": trusted_truth_payload("365d"),
+                **PROOF_FIELDS,
             },
             "NAS100": {
                 "status": "completed",
@@ -213,6 +236,7 @@ def test_robust_filter_requires_all_windows_to_pass() -> None:
                 "max_drawdown_pct": 3.2,
                 "params": dict(SAFE_PARAMS),
                 "result_truth": trusted_truth_payload("90d"),
+                **PROOF_FIELDS,
             },
             "NAS100": {
                 "status": "completed",
@@ -232,6 +256,7 @@ def test_robust_filter_requires_all_windows_to_pass() -> None:
                 "max_drawdown_pct": 1.4,
                 "params": dict(SAFE_PARAMS),
                 "result_truth": trusted_truth_payload("30d"),
+                **PROOF_FIELDS,
             },
             "NAS100": {
                 "status": "completed",
@@ -252,6 +277,31 @@ def test_robust_filter_requires_all_windows_to_pass() -> None:
     assert "NAS100" in rejected
     assert "30d" in rejected["NAS100"]
     assert any("net_profit" in reason for reason in rejected["NAS100"]["30d"])
+
+
+def test_robust_filter_rejects_missing_strategy_fidelity_or_prop_profile() -> None:
+    valid = {
+        "status": "completed",
+        "net_profit": 1000,
+        "profit_factor": 1.25,
+        "total_trades": 60,
+        "max_drawdown_pct": 2.0,
+        "params": dict(SAFE_PARAMS),
+        "result_truth": trusted_truth_payload("365d"),
+    }
+
+    _passed, rejected = robust_filter.evaluate_candidates(
+        {
+            "365d": {"USDCAD": dict(valid)},
+            "90d": {"USDCAD": {**valid, "result_truth": trusted_truth_payload("90d")}},
+            "30d": {"USDCAD": {**valid, "result_truth": trusted_truth_payload("30d")}},
+        }
+    )
+
+    assert rejected["USDCAD"]["proof"] == [
+        "strategy_fidelity_failed",
+        "prop_profile_failed",
+    ]
 
 
 def test_robust_filter_rejects_missing_symbol_and_missing_params() -> None:
@@ -306,6 +356,7 @@ def test_robust_filter_accepts_explained_trade_count_anomaly() -> None:
         "profit_factor": 1.25,
         "max_drawdown_pct": 2.0,
         "params": dict(SAFE_PARAMS),
+        **PROOF_FIELDS,
         "result_truth": {
             "evidence_required": False,
             "evidence": {
@@ -381,6 +432,7 @@ def test_robust_filter_main_writes_passed_and_rejected_candidates(tmp_path) -> N
                         "max_drawdown_pct": 2.0,
                         "params": dict(SAFE_PARAMS),
                         "result_truth": trusted_truth_payload(window),
+                        **PROOF_FIELDS,
                     },
                         "NAS100": {
                             "status": "completed",
@@ -419,6 +471,8 @@ def test_robust_filter_direct_script_runs_without_pythonpath(tmp_path) -> None:
                         "total_trades": 60,
                         "max_drawdown_pct": 2.0,
                         "params": dict(SAFE_PARAMS),
+                        "result_truth": trusted_truth_payload(window),
+                        **PROOF_FIELDS,
                     }
                 }
             )
@@ -462,6 +516,8 @@ def test_robust_filter_cli_uses_named_input_files(tmp_path) -> None:
                         "total_trades": 60,
                         "max_drawdown_pct": 2.0,
                         "params": dict(SAFE_PARAMS),
+                        "result_truth": trusted_truth_payload(window),
+                        **PROOF_FIELDS,
                     }
                 }
             )
@@ -490,3 +546,44 @@ def test_robust_filter_cli_uses_named_input_files(tmp_path) -> None:
 def test_load_results_rejects_missing_file(tmp_path) -> None:
     with pytest.raises(FileNotFoundError):
         robust_filter.load_results(tmp_path / "missing.json")
+
+
+def test_decision_engine_outputs_one_safe_action() -> None:
+    assert robust_filter.decide_trade_action([]) == "NO_TRADE"
+    assert (
+        robust_filter.decide_trade_action(
+            [
+                {
+                    "symbol": "USDCAD",
+                    "robust_score": 12.0,
+                    "current_regime_status": "mismatch",
+                }
+            ]
+        )
+        == "WATCH_ONLY"
+    )
+    assert (
+        robust_filter.decide_trade_action(
+            [
+                {
+                    "symbol": "USDCAD",
+                    "robust_score": 12.0,
+                    "current_regime_status": "matched",
+                    "risk_mode": "reduced",
+                }
+            ]
+        )
+        == "TRADE_REDUCED_RISK"
+    )
+    assert (
+        robust_filter.decide_trade_action(
+            [
+                {
+                    "symbol": "USDCAD",
+                    "robust_score": 12.0,
+                    "current_regime_status": "matched",
+                }
+            ]
+        )
+        == "TRADE_NORMAL_RISK"
+    )
