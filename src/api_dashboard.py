@@ -206,6 +206,7 @@ async def get_trade_permissions_dashboard() -> dict[str, Any]:
         "allowed_today": daily.get("permissions", {}),
         "blocked_today": daily.get("blocked", {}),
         "watch_only": daily.get("watch_only", {}),
+        "no_trade_reasons": daily.get("reasons", summary.get("no_trade_reasons", [])),
         "research_approved_candidates": candidates,
         "expiring_candidates": summary.get("expiring_candidates", []),
         "recent_rejects": summary.get("recent_rejects", []),
