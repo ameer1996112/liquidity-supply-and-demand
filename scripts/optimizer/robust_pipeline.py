@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,10 @@ try:
     from .portfolio_filter import filter_portfolio, write_outputs as write_portfolio_outputs
     from .prop_profiles import load_prop_profile
 except ImportError:
+    project_root = Path(__file__).resolve().parents[2]
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+
     from scripts.optimizer.config import RESULTS_DIR
     from scripts.optimizer.daily_candidate_selector import select_daily_candidates, write_outputs as write_daily_outputs
     from scripts.optimizer.portfolio_filter import filter_portfolio, write_outputs as write_portfolio_outputs
@@ -180,12 +185,13 @@ def cli(argv: list[str] | None = None) -> None:
     parser.add_argument("--run-selector", action="store_true")
     parser.add_argument("--results-dir", default=str(RESULTS_DIR))
     args = parser.parse_args(argv)
-    run_pipeline(
+    results_dir = Path(args.results_dir)
+    status = run_pipeline(
         pairs=[item for item in args.pairs.split(",") if item],
         broker=args.broker,
         brokers=[item for item in args.brokers.split(",") if item],
         prop_profile_name=args.prop_profile,
-        results_dir=Path(args.results_dir),
+        results_dir=results_dir,
         run_training=args.run_training,
         run_validation=args.run_validation,
         run_broker_check=args.run_broker_check,
@@ -195,6 +201,9 @@ def cli(argv: list[str] | None = None) -> None:
         run_prop_sim=args.run_prop_sim,
         run_selector=args.run_selector,
     )
+    print(f"Pipeline status: {status.get('status')}")
+    print(f"Decision: {status.get('decision')}")
+    print(f"Summary: {results_dir / 'pipeline_summary.json'}")
 
 
 if __name__ == "__main__":

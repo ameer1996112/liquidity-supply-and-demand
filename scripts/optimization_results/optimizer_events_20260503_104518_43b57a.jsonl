@@ -1,0 +1,4 @@
+{"ts": "2026-05-03T10:45:18.015785+03:00", "run_id": "20260503_104518_43b57a", "event_type": "run_started", "mode": "bayesian", "workers": 3, "pairs": ["GBPUSD", "AUDUSD", "NZDUSD", "USDCHF", "EURJPY", "GBPJPY", "AUDJPY", "EURNZD"], "dry_run": false, "broker": "vantage", "backtest_range": "Custom range"}
+{"ts": "2026-05-03T10:45:18.403280+03:00", "run_id": "20260503_104518_43b57a", "event_type": "pair_started", "worker_id": 0, "symbol": "GBPUSD", "broker": "vantage", "attempt": 1}
+{"ts": "2026-05-03T10:45:33.409078+03:00", "run_id": "20260503_104518_43b57a", "event_type": "pair_started", "worker_id": 1, "symbol": "AUDUSD", "broker": "vantage", "attempt": 1}
+{"ts": "2026-05-03T10:45:48.408495+03:00", "run_id": "20260503_104518_43b57a", "event_type": "pair_started", "worker_id": 2, "symbol": "NZDUSD", "broker": "vantage", "attempt": 1}

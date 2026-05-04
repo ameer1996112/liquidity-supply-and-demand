@@ -1,0 +1,74 @@
+{
+  "run_id": "20260503_104518_43b57a",
+  "state": "running",
+  "started_at": "2026-05-03T10:45:18.014924+03:00",
+  "last_progress_at": "2026-05-03T10:51:07.561256+03:00",
+  "stuck_threshold_seconds": 720,
+  "restart_count": 0,
+  "optimizer_pid": 35203,
+  "desktop_cdp_pid": 83536,
+  "log_file": "/Users/ameeramer/dev/projects/galilsoftware/sources/trading/scripts/optimization_results/parallel_run.log",
+  "mode": "bayesian",
+  "workers": 3,
+  "args": [
+    "--parallel",
+    "--workers",
+    "3",
+    "--mode",
+    "bayesian",
+    "--trials",
+    "80",
+    "--broker",
+    "vantage",
+    "--pairs",
+    "GBPUSD,AUDUSD,NZDUSD,USDCHF,EURJPY,GBPJPY,AUDJPY,EURNZD",
+    "--backtest-range",
+    "custom",
+    "--custom-start-date",
+    "2024-05-01",
+    "--custom-end-date",
+    "2025-04-30",
+    "--dd-limit",
+    "6",
+    "--results-label",
+    "train_batch2_2024_2025",
+    "--reset"
+  ],
+  "active_pairs": {
+    "worker-0": {
+      "symbol": "GBPUSD",
+      "trial": 3,
+      "last_event_at": "2026-05-03T10:51:07.561256+03:00",
+      "status": "running"
+    },
+    "worker-1": {
+      "symbol": "AUDUSD",
+      "trial": 3,
+      "last_event_at": "2026-05-03T10:51:04.921257+03:00",
+      "status": "running"
+    },
+    "worker-2": {
+      "symbol": "NZDUSD",
+      "trial": 2,
+      "last_event_at": "2026-05-03T10:50:17.247400+03:00",
+      "status": "running"
+    }
+  },
+  "worker_health": {
+    "worker-0": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "af4cc4b2"
+    },
+    "worker-1": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "55b454f9"
+    },
+    "worker-2": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": "76535b3e"
+    }
+  }
+}

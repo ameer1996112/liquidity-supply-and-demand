@@ -1,6 +1,6 @@
 import json
 
-from scripts.optimizer.robust_pipeline import run_pipeline
+from scripts.optimizer.robust_pipeline import cli, run_pipeline
 
 
 def test_pipeline_writes_status_and_summary_files(tmp_path) -> None:
@@ -19,3 +19,27 @@ def test_pipeline_writes_status_and_summary_files(tmp_path) -> None:
     assert (tmp_path / "pipeline_errors.json").exists()
     summary = json.loads((tmp_path / "pipeline_summary.json").read_text())
     assert summary["schema_version"] == 1
+
+
+def test_cli_prints_pipeline_summary(tmp_path, capsys) -> None:
+    cli(
+        [
+            "--pairs",
+            "USDCAD",
+            "--broker",
+            "vantage",
+            "--brokers",
+            "vantage,oanda,fxcm",
+            "--prop-profile",
+            "generic_cfd_safe",
+            "--run-selector",
+            "--results-dir",
+            str(tmp_path),
+        ]
+    )
+
+    output = capsys.readouterr().out
+
+    assert "Pipeline status:" in output
+    assert "Decision:" in output
+    assert f"Summary: {tmp_path / 'pipeline_summary.json'}" in output

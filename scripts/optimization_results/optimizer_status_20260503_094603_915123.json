@@ -1,0 +1,46 @@
+{
+  "run_id": "20260503_094603_915123",
+  "state": "completed",
+  "started_at": "2026-05-03T09:46:03.476886+03:00",
+  "last_progress_at": "2026-05-03T09:52:30.117397+03:00",
+  "stuck_threshold_seconds": 720,
+  "restart_count": 0,
+  "optimizer_pid": 18476,
+  "desktop_cdp_pid": 83536,
+  "log_file": "/Users/ameeramer/dev/projects/galilsoftware/sources/trading/scripts/optimization_results/parallel_run.log",
+  "mode": "validate",
+  "workers": 1,
+  "args": [
+    "--parallel",
+    "--workers",
+    "1",
+    "--mode",
+    "validate",
+    "--broker",
+    "vantage",
+    "--pairs",
+    "USDJPY,USDCAD,XAUUSD,NAS100",
+    "--source-params-file",
+    "scripts/optimization_results/parallel_results_vantage_train_2024_2025.json",
+    "--backtest-range",
+    "90d",
+    "--results-label",
+    "validate_90d",
+    "--reset"
+  ],
+  "active_pairs": {
+    "worker-0": {
+      "symbol": "NAS100",
+      "trial": 0,
+      "last_event_at": "2026-05-03T09:52:30.114980+03:00",
+      "status": "completed"
+    }
+  },
+  "worker_health": {
+    "worker-0": {
+      "status": "healthy",
+      "stale_reads": 0,
+      "last_results_hash": ""
+    }
+  }
+}
