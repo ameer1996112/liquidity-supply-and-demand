@@ -40,6 +40,28 @@ def result(**overrides) -> BacktestResult:
     return BacktestResult(**values)
 
 
+def trusted_truth_payload(window: str = "365d") -> dict:
+    truth = ResultTruth.production(
+        stage="trial",
+        params=dict(SAFE_PARAMS),
+        requested_symbol="USDCAD",
+        requested_broker="VANTAGE",
+        requested_range=window,
+    )
+    for check in (
+        "symbol_loaded",
+        "broker_loaded",
+        "strategy_tester_range_selected",
+        "params_applied",
+        "dialog_params_matched",
+        "tv_recalculated",
+        "result_hash_captured",
+        "metrics_tab_selected",
+    ):
+        truth.record(check, "ok")
+    return truth.to_dict()
+
+
 def test_deployment_candidate_score_accepts_strong_single_window_result() -> None:
     assert deployment_candidate_score(result(), dd_limit=8.0) == 12.5
 
@@ -171,6 +193,7 @@ def test_robust_filter_requires_all_windows_to_pass() -> None:
                 "total_trades": 125,
                 "max_drawdown_pct": 6.0,
                 "params": dict(SAFE_PARAMS),
+                "result_truth": trusted_truth_payload("365d"),
             },
             "NAS100": {
                 "status": "completed",
@@ -189,6 +212,7 @@ def test_robust_filter_requires_all_windows_to_pass() -> None:
                 "total_trades": 28,
                 "max_drawdown_pct": 3.2,
                 "params": dict(SAFE_PARAMS),
+                "result_truth": trusted_truth_payload("90d"),
             },
             "NAS100": {
                 "status": "completed",
@@ -207,6 +231,7 @@ def test_robust_filter_requires_all_windows_to_pass() -> None:
                 "total_trades": 8,
                 "max_drawdown_pct": 1.4,
                 "params": dict(SAFE_PARAMS),
+                "result_truth": trusted_truth_payload("30d"),
             },
             "NAS100": {
                 "status": "completed",
@@ -352,10 +377,11 @@ def test_robust_filter_main_writes_passed_and_rejected_candidates(tmp_path) -> N
                             "status": "completed",
                             "net_profit": 1000,
                             "profit_factor": 1.25,
-                            "total_trades": 60,
-                            "max_drawdown_pct": 2.0,
-                            "params": dict(SAFE_PARAMS),
-                        },
+                        "total_trades": 60,
+                        "max_drawdown_pct": 2.0,
+                        "params": dict(SAFE_PARAMS),
+                        "result_truth": trusted_truth_payload(window),
+                    },
                         "NAS100": {
                             "status": "completed",
                             "net_profit": -1,

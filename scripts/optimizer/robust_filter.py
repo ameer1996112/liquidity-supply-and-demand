@@ -8,16 +8,17 @@ from typing import Any
 
 try:
     from .asset_classifier import classify_asset
+    from .audit_result import audit_result
     from .config import RESULTS_DIR
+    from .trade_count_anomaly import detect_trade_count_anomaly
 except ImportError:  # Allows `python scripts/optimizer/robust_filter.py`.
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
     from scripts.optimizer.asset_classifier import classify_asset
+    from scripts.optimizer.audit_result import audit_result
     from scripts.optimizer.config import RESULTS_DIR
+    from scripts.optimizer.trade_count_anomaly import detect_trade_count_anomaly
 
 WINDOWS = ("365d", "90d", "30d")
-WINDOW_DAYS = {"365d": 365.0, "90d": 90.0, "30d": 30.0}
-TRADE_COUNT_ANOMALY_RATE_RATIO = 5.0
-
 FILES = {
     "365d": RESULTS_DIR / "parallel_results_vantage_validate_365d.json",
     "90d": RESULTS_DIR / "parallel_results_vantage_validate_90d.json",
@@ -100,18 +101,10 @@ def pass_window(row: dict[str, Any], window: str) -> tuple[bool, list[str]]:
     dd = metric(row, "max_drawdown_pct")
     trades = metric(row, "total_trades")
     params = row.get("params")
-    result_truth = row.get("result_truth")
 
     if status != "completed":
         reasons.append(f"status={status or 'missing'}")
-    if isinstance(result_truth, dict) and result_truth.get("evidence_required"):
-        trust_status = str(result_truth.get("trust_status") or "untrusted")
-        if trust_status != "trusted":
-            reasons.append(f"result_truth={trust_status}")
-            for reason in result_truth.get("rejection_reasons") or []:
-                reasons.append(f"result_truth_rejected:{reason}")
-            for check in result_truth.get("missing_evidence") or []:
-                reasons.append(f"missing_evidence:{check}")
+    reasons.extend(audit_result(row)["issues"])
     if net is None:
         reasons.append("missing_net_profit")
     elif net <= float(rules["min_net_profit"]):
@@ -133,52 +126,6 @@ def pass_window(row: dict[str, Any], window: str) -> tuple[bool, list[str]]:
     if not isinstance(params, dict) or not params:
         reasons.append("missing_params")
     return len(reasons) == 0, reasons
-
-
-def _trade_count_anomaly_reason(rows: dict[str, dict[str, Any]]) -> str | None:
-    rates: list[tuple[str, int, float, float]] = []
-    for window, row in rows.items():
-        trades = metric(row, "total_trades")
-        if trades is None or trades <= 0:
-            continue
-        days = WINDOW_DAYS.get(window, 1.0)
-        truth = row.get("result_truth")
-        if isinstance(truth, dict):
-            evidence = truth.get("evidence") or {}
-            range_details = (evidence.get("strategy_tester_range_selected") or {}).get("details") or {}
-            requested_days = range_details.get("requested_days")
-            try:
-                days = float(requested_days or days)
-            except (TypeError, ValueError):
-                pass
-        rates.append((window, int(trades), days, float(trades) / max(days, 1.0)))
-    if len(rates) < 2:
-        return None
-
-    low = min(rates, key=lambda item: item[3])
-    high = max(rates, key=lambda item: item[3])
-    raw_counts = [item[1] for item in rates]
-    raw_ratio = max(raw_counts) / max(min(raw_counts), 1)
-    if (
-        low[3] <= 0
-        or high[3] / low[3] < TRADE_COUNT_ANOMALY_RATE_RATIO
-        or raw_ratio < 2.0
-    ):
-        return None
-
-    for _window, row in rows.items():
-        truth = row.get("result_truth")
-        evidence = truth.get("evidence") if isinstance(truth, dict) else {}
-        anomaly = (evidence or {}).get("trade_count_anomaly_explained") or {}
-        if anomaly.get("status") == "ok":
-            return None
-
-    return (
-        "trade_count_anomaly_unexplained:"
-        f"{high[0]}={high[1]} trades/{high[2]:.0f}d vs "
-        f"{low[0]}={low[1]} trades/{low[2]:.0f}d "
-        f"(rate_ratio={high[3] / low[3]:.1f}x)"
-    )
 
 
 def robust_score(rows_by_window: dict[str, dict[str, Any]]) -> float:
@@ -231,9 +178,9 @@ def evaluate_candidates(
 
         if len(param_digests) > 1:
             failures.setdefault("params", []).append("params_mismatch")
-        anomaly_reason = _trade_count_anomaly_reason(rows)
-        if anomaly_reason:
-            failures.setdefault("trade_count_anomaly", []).append(anomaly_reason)
+        anomaly = detect_trade_count_anomaly(rows)
+        if anomaly:
+            failures.setdefault("trade_count_anomaly", []).append(str(anomaly["reason"]))
 
         if failures:
             rejected[symbol] = failures
