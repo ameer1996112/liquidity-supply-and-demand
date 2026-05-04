@@ -147,6 +147,9 @@ def params_pass_prop_safety_gate(params: dict[str, Any]) -> tuple[bool, list[str
 
 def deployment_candidate_score(result: BacktestResult, dd_limit: float) -> float:
     """Return the score only when a single-window result is deployable."""
+    result.result_truth.finalize()
+    if result.result_truth.evidence_required and result.result_truth.trust_status != "trusted":
+        return 0.0
     if result.net_profit <= 0:
         return 0.0
     if result.profit_factor < _DEPLOYMENT_MIN_PROFIT_FACTOR:
@@ -603,6 +606,8 @@ class TradingViewOptimizer:
                 result = await asyncio.wait_for(
                     worker._read_results(symbol, params), timeout=_TRIAL_HARD_TIMEOUT
                 )
+                if hasattr(worker, "_attach_apply_truth"):
+                    worker._attach_apply_truth(result, apply_outcome, frozen_params=False)
             except RuntimeError as e:
                 self._record_trial_event(
                     symbol=symbol,
@@ -779,6 +784,16 @@ class TradingViewOptimizer:
 
         replay = await worker._read_results(symbol, candidate.params)
         matched = self._result_metrics_match(candidate, replay)
+        if hasattr(worker, "_attach_apply_truth"):
+            worker._attach_apply_truth(replay, apply_outcome, frozen_params=True)
+        replay.result_truth.stage = "final_replay"
+        if candidate.result_truth.source_params_digest and not replay.result_truth.source_params_digest:
+            replay.result_truth.source_params_digest = candidate.result_truth.source_params_digest
+            replay.result_truth.record(
+                "source_params_digest_preserved",
+                "ok",
+                details={"source_params_digest": candidate.result_truth.source_params_digest},
+            )
         replay.validation_metrics.update(candidate.validation_metrics)
         replay.validation_metrics["final_replay"] = {
             "matched_original": matched,
@@ -788,6 +803,16 @@ class TradingViewOptimizer:
             "results_hash_before": apply_outcome.results_hash_before,
             "results_hash_after": apply_outcome.results_hash_after,
         }
+        replay.result_truth.record(
+            "final_replay_matched_or_replaced",
+            "ok",
+            details={
+                "matched_original": matched,
+                "original": self._result_metric_snapshot(candidate),
+                "replay": self._result_metric_snapshot(replay),
+            },
+        )
+        replay.result_truth.finalize()
         if not matched:
             print(
                 f"  [{symbol}] ⚠ Final replay differed from trial read; "

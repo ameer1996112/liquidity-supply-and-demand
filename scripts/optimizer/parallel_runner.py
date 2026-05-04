@@ -24,6 +24,7 @@ Each worker:
 
 import asyncio
 import hashlib
+import inspect
 import json
 import logging
 import os
@@ -127,7 +128,7 @@ def load_source_params_file(path: str | None) -> tuple[str | None, dict[str, dic
 
 
 def _result_metrics(result: BacktestResult, *, worker_id: int) -> dict[str, Any]:
-    return {
+    payload = {
         "score": result.score,
         "net_profit": result.net_profit,
         "win_rate": result.win_rate,
@@ -136,6 +137,15 @@ def _result_metrics(result: BacktestResult, *, worker_id: int) -> dict[str, Any]
         "total_trades": result.total_trades,
         "worker_id": worker_id,
     }
+    if result.verified_symbol:
+        payload["verified_symbol"] = result.verified_symbol
+    if result.validation_metrics:
+        payload["validation_metrics"] = result.validation_metrics
+    if result.result_truth.evidence_required:
+        truth = result.result_truth.to_dict()
+        payload["result_truth"] = truth
+        payload["trust_status"] = truth["trust_status"]
+    return payload
 
 
 def _source_params_digest(source_params_by_symbol: dict[str, dict[str, Any]]) -> str:
@@ -509,6 +519,7 @@ async def optimize_pair_on_page(
     run_id: str | None = None,
     worker_id: int | None = None,
     source_params: dict[str, Any] | None = None,
+    source_params_digest: str | None = None,
     custom_start_date: str | None = None,
     custom_end_date: str | None = None,
 ) -> Optional[BacktestResult]:
@@ -553,6 +564,7 @@ async def optimize_pair_on_page(
     opt_shell.worker_tab_id = getattr(page, "tab_id", None)
     opt_shell.custom_start_date = custom_start_date
     opt_shell.custom_end_date = custom_end_date
+    opt_shell.source_params_digest = source_params_digest or ""
 
     # TabWorker signature is (page, optimizer) — not (optimizer, page, symbol)
     worker = TabWorker(page, opt_shell)
@@ -671,6 +683,8 @@ async def worker_task(
                             "source_params": source_params,
                         }
                     )
+                    if "source_params_digest" in inspect.signature(optimize_pair_on_page).parameters:
+                        optimize_kwargs["source_params_digest"] = (run_context or {}).get("source_params_digest", "")
                 result = await optimize_pair_on_page(
                     page,
                     symbol,

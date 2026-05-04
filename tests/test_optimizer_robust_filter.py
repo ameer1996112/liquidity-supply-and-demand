@@ -7,7 +7,7 @@ import sys
 
 import pytest
 
-from scripts.optimizer.models import BacktestResult
+from scripts.optimizer.models import BacktestResult, ResultTruth
 from scripts.optimizer.optimizer import (
     deployment_candidate_score,
     futures_result_pass_prop_gate,
@@ -42,6 +42,20 @@ def result(**overrides) -> BacktestResult:
 
 def test_deployment_candidate_score_accepts_strong_single_window_result() -> None:
     assert deployment_candidate_score(result(), dd_limit=8.0) == 12.5
+
+
+def test_deployment_candidate_score_rejects_untrusted_production_result() -> None:
+    candidate = result()
+    candidate.result_truth = ResultTruth.production(
+        stage="trial",
+        params=candidate.params,
+        requested_symbol=candidate.symbol,
+        requested_broker="VANTAGE",
+        requested_range="365d",
+    )
+    candidate.result_truth.record("symbol_loaded", "ok")
+
+    assert deployment_candidate_score(candidate, dd_limit=8.0) == 0.0
 
 
 def test_deployment_candidate_score_rejects_weak_single_window_results() -> None:
@@ -109,6 +123,23 @@ def test_params_pass_prop_safety_gate_rejects_aggressive_values(
 
     assert ok is False
     assert any(reason.startswith(expected) for reason in reasons)
+
+
+def test_pass_window_rejects_untrusted_result_truth() -> None:
+    row = result().to_dict()
+    row["status"] = "completed"
+    row["result_truth"] = {
+        "evidence_required": True,
+        "trust_status": "untrusted",
+        "missing_evidence": ["result_hash_captured"],
+        "rejection_reasons": [],
+    }
+
+    ok, reasons = robust_filter.pass_window(row, "365d")
+
+    assert ok is False
+    assert "result_truth=untrusted" in reasons
+    assert "missing_evidence:result_hash_captured" in reasons
 
 
 def test_futures_profile_uses_dollar_drawdown_gate() -> None:
@@ -218,6 +249,58 @@ def test_robust_filter_rejects_missing_symbol_and_missing_params() -> None:
     assert passed == []
     assert rejected["USDCAD"]["30d"] == ["missing_window"]
     assert "missing_params" in rejected["EURUSD"]["365d"]
+
+
+def test_robust_filter_rejects_unexplained_trade_count_anomaly() -> None:
+    valid = {
+        "status": "completed",
+        "net_profit": 1000,
+        "profit_factor": 1.25,
+        "max_drawdown_pct": 2.0,
+        "params": dict(SAFE_PARAMS),
+    }
+    all_results = {
+        "365d": {"USDCAD": {**valid, "total_trades": 400}},
+        "90d": {"USDCAD": {**valid, "total_trades": 15}},
+        "30d": {"USDCAD": {**valid, "total_trades": 50}},
+    }
+
+    passed, rejected = robust_filter.evaluate_candidates(all_results)
+
+    assert passed == []
+    assert "trade_count_anomaly" in rejected["USDCAD"]
+    assert rejected["USDCAD"]["trade_count_anomaly"][0].startswith(
+        "trade_count_anomaly_unexplained:"
+    )
+
+
+def test_robust_filter_accepts_explained_trade_count_anomaly() -> None:
+    valid = {
+        "status": "completed",
+        "net_profit": 1000,
+        "profit_factor": 1.25,
+        "max_drawdown_pct": 2.0,
+        "params": dict(SAFE_PARAMS),
+        "result_truth": {
+            "evidence_required": False,
+            "evidence": {
+                "trade_count_anomaly_explained": {
+                    "status": "ok",
+                    "details": {"explanation": "verified trade coverage and density"},
+                }
+            },
+        },
+    }
+    all_results = {
+        "365d": {"USDCAD": {**valid, "total_trades": 400}},
+        "90d": {"USDCAD": {**valid, "total_trades": 15}},
+        "30d": {"USDCAD": {**valid, "total_trades": 50}},
+    }
+
+    passed, rejected = robust_filter.evaluate_candidates(all_results)
+
+    assert rejected == {}
+    assert [candidate["symbol"] for candidate in passed] == ["USDCAD"]
 
 
 @pytest.mark.parametrize(

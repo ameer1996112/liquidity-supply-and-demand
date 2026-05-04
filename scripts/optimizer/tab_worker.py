@@ -18,7 +18,7 @@ import json
 import time
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import Optional, TYPE_CHECKING
 
@@ -30,7 +30,7 @@ from .config import (
     OPTIMIZER_CONTEXT_PARAM_DEFAULTS,
     materialize_result_params,
 )
-from .models import BacktestResult, NoDataForRangeError
+from .models import BacktestResult, NoDataForRangeError, ResultTruth
 from .optimizer_mcp import broker_to_tv_exchange, broker_to_tv_symbol_prefix
 
 if TYPE_CHECKING:
@@ -135,6 +135,8 @@ class ApplyOutcome:
     attempt: int = 0
     results_hash_before: str = ""
     results_hash_after: str = ""
+    settings_verified: bool | None = field(default=None, compare=False)
+    update_completed: bool = field(default=False, compare=False)
 
     def __bool__(self) -> bool:
         return self.ok
@@ -587,6 +589,85 @@ class TabWorker:
         self.page = page
         self.optimizer = optimizer
         self.results: list[BacktestResult] = []
+        self._last_chart_history_coverage: ChartHistoryCoverage | None = None
+
+    def _result_truth(
+        self,
+        *,
+        symbol: str,
+        params: dict,
+        stage: str,
+    ):
+        broker = str(getattr(self.optimizer, "broker", "vantage") or "vantage")
+        backtest_range = str(getattr(self.optimizer, "backtest_range", "365d") or "365d")
+        return ResultTruth.production(
+            stage=stage,
+            params=materialize_result_params(params),
+            requested_symbol=symbol,
+            requested_broker=broker_to_tv_exchange(broker),
+            requested_range=backtest_range,
+            custom_start_date=str(getattr(self.optimizer, "custom_start_date", "") or ""),
+            custom_end_date=str(getattr(self.optimizer, "custom_end_date", "") or ""),
+            source_params_digest=str(getattr(self.optimizer, "source_params_digest", "") or ""),
+        )
+
+    @staticmethod
+    def _coverage_payload(coverage: ChartHistoryCoverage | StrategyTradeCoverage | None) -> dict:
+        if coverage is None:
+            return {}
+        return {
+            key: value
+            for key, value in asdict(coverage).items()
+            if not key.endswith("_ts")
+        }
+
+    def _attach_apply_truth(
+        self,
+        result: BacktestResult,
+        apply_outcome: ApplyOutcome,
+        *,
+        frozen_params: bool,
+    ) -> None:
+        truth = result.result_truth
+        applied = apply_outcome.ok and apply_outcome.fresh
+        truth.record(
+            "params_applied",
+            "ok" if applied else "fail",
+            reason=apply_outcome.reason,
+            details={"attempt": apply_outcome.attempt},
+        )
+        truth.record(
+            "frozen_params_applied",
+            "ok" if frozen_params and applied else "not_applicable",
+            required=frozen_params,
+            reason="" if frozen_params else "not a frozen validation/final replay result",
+        )
+        truth.record(
+            "dialog_params_matched",
+            "ok" if apply_outcome.settings_verified else "fail",
+            reason="" if apply_outcome.settings_verified else "open TradingView settings did not match expected params",
+        )
+        truth.record(
+            "tv_recalculated",
+            "ok" if apply_outcome.update_completed else "fail",
+            reason="" if apply_outcome.update_completed else "TradingView update cycle was not confirmed",
+        )
+        hash_ok = bool(apply_outcome.results_hash_before and apply_outcome.results_hash_after)
+        truth.record(
+            "result_hash_captured",
+            "ok" if hash_ok else "missing",
+            reason="" if hash_ok else "missing before/after Strategy Tester result hash",
+            details={
+                "before": apply_outcome.results_hash_before,
+                "after": apply_outcome.results_hash_after,
+                "changed": (
+                    bool(apply_outcome.results_hash_before and apply_outcome.results_hash_after)
+                    and apply_outcome.results_hash_before != apply_outcome.results_hash_after
+                ),
+                "allow_unchanged": apply_outcome.reason == "unchanged_result_hash_allowed_verified",
+            },
+        )
+        truth.finalize()
 
     async def _has_ready_settings_dialog(self) -> bool:
         """Return True only when the visible settings dialog has loaded usable controls."""
@@ -2647,7 +2728,7 @@ class TabWorker:
 
             btn_text = await self._read_backtest_range_button_text()
             if self._range_matches_custom_dates(btn_text, start_date, end_date):
-                await self._ensure_chart_history_for_custom_range(start_date, end_date)
+                self._last_chart_history_coverage = await self._ensure_chart_history_for_custom_range(start_date, end_date)
                 print(f"  [backtest range ✓ already custom {start_date} → {end_date}]", flush=True)
                 return True
 
@@ -2681,7 +2762,7 @@ class TabWorker:
                 )
                 return False
 
-            await self._ensure_chart_history_for_custom_range(start_date, end_date)
+            self._last_chart_history_coverage = await self._ensure_chart_history_for_custom_range(start_date, end_date)
             print(f"  [backtest range ✓ custom {start_date} → {end_date}]", flush=True)
             return True
         except NoDataForRangeError:
@@ -4073,6 +4154,21 @@ class TabWorker:
 
                 # Snapshot hash BEFORE
                 hash_before = await self._get_results_hash()
+                if not hash_before:
+                    if attempt < _MAX_RETRIES:
+                        log.debug("_apply_params attempt %d: could not read pre-apply results hash", attempt)
+                        await asyncio.sleep(_RETRY_SLEEP)
+                        continue
+                    return ApplyOutcome(
+                        ok=False,
+                        fresh=False,
+                        reason="missing_results_hash",
+                        attempt=attempt,
+                        results_hash_before=hash_before,
+                        results_hash_after=hash_after,
+                        settings_verified=None,
+                        update_completed=False,
+                    )
 
                 if not await self._open_settings():
                     raise RuntimeError("Could not open settings dialog")
@@ -4107,13 +4203,11 @@ class TabWorker:
                     if not applied:
                         raise KeyError(f"Failed to apply Pine input title: {name}")
 
-                settings_verified = True
-                if allow_unchanged_hash:
-                    settings_verified = await self._verify_params_in_open_dialog(params)
-                    if not settings_verified:
-                        raise RuntimeError(
-                            "Frozen validate params did not match the open TradingView settings dialog"
-                        )
+                settings_verified = await self._verify_params_in_open_dialog(params)
+                if not settings_verified:
+                    raise RuntimeError(
+                        "Expected params did not match the open TradingView settings dialog"
+                    )
 
                 await self._click_ok()
                 if not await self._wait_dialog_close():
@@ -4156,9 +4250,23 @@ class TabWorker:
                         await asyncio.sleep(1.0)
                     except Exception:
                         pass
+                    if attempt < _MAX_RETRIES:
+                        await asyncio.sleep(_RETRY_SLEEP)
+                        continue
 
                 # ── Stale result detection ─────────────────────────────────
                 hash_after = await self._get_results_hash()
+                if not completed:
+                    return ApplyOutcome(
+                        ok=False,
+                        fresh=False,
+                        reason="recalc_not_confirmed",
+                        attempt=attempt,
+                        results_hash_before=hash_before,
+                        results_hash_after=hash_after,
+                        settings_verified=settings_verified,
+                        update_completed=False,
+                    )
                 if not hash_after:
                     if attempt < _MAX_RETRIES:
                         log.debug(
@@ -4180,6 +4288,8 @@ class TabWorker:
                         attempt=attempt,
                         results_hash_before=hash_before,
                         results_hash_after=hash_after,
+                        settings_verified=settings_verified,
+                        update_completed=completed,
                     )
                 if hash_before and hash_after and hash_before == hash_after:
                     if allow_unchanged_hash and completed:
@@ -4196,6 +4306,8 @@ class TabWorker:
                             attempt=attempt,
                             results_hash_before=hash_before,
                             results_hash_after=hash_after,
+                            settings_verified=settings_verified,
+                            update_completed=completed,
                         )
                     if attempt < _MAX_RETRIES:
                         log.debug(
@@ -4220,6 +4332,8 @@ class TabWorker:
                         attempt=attempt,
                         results_hash_before=hash_before,
                         results_hash_after=hash_after,
+                        settings_verified=settings_verified,
+                        update_completed=completed,
                     )
 
                 return ApplyOutcome(
@@ -4229,6 +4343,8 @@ class TabWorker:
                     attempt=attempt,
                     results_hash_before=hash_before,
                     results_hash_after=hash_after,
+                    settings_verified=settings_verified,
+                    update_completed=completed,
                 )
 
             except KeyError as e:
@@ -4246,6 +4362,8 @@ class TabWorker:
                         attempt=attempt,
                         results_hash_before=hash_before,
                         results_hash_after=hash_after,
+                        settings_verified=None,
+                        update_completed=False,
                     )
             except Exception as e:
                 log.warning(
@@ -4262,6 +4380,8 @@ class TabWorker:
                         attempt=attempt,
                         results_hash_before=hash_before,
                         results_hash_after=hash_after,
+                        settings_verified=None,
+                        update_completed=False,
                     )
         return ApplyOutcome(
             ok=False,
@@ -4270,6 +4390,8 @@ class TabWorker:
             attempt=_MAX_RETRIES,
             results_hash_before="",
             results_hash_after="",
+            settings_verified=None,
+            update_completed=False,
         )
 
     async def _apply_params_for_alert(self, params: dict) -> ApplyOutcome:
@@ -4456,15 +4578,121 @@ class TabWorker:
     async def _read_results(self, symbol: str, params: dict) -> BacktestResult:
         """Read strategy tester metrics from this tab."""
         observed_symbol = await self._verify_symbol(symbol)
+        expected_broker = broker_to_tv_exchange(str(getattr(self.optimizer, "broker", "vantage") or "vantage"))
+        observed_broker = await self._current_broker()
+        if not observed_broker and await self._chart_header_shows_broker(expected_broker):
+            observed_broker = expected_broker
+        if expected_broker and observed_broker and not self._broker_matches_expected(observed_broker, expected_broker):
+            raise RuntimeError(f"Broker mismatch: expected {expected_broker}, observed {observed_broker}")
+
+        backtest_range = str(getattr(self.optimizer, "backtest_range", "365d") or "365d")
+        custom_start_date = str(getattr(self.optimizer, "custom_start_date", "") or "")
+        custom_end_date = str(getattr(self.optimizer, "custom_end_date", "") or "")
+        truth = self._result_truth(symbol=symbol, params=params, stage="trial")
         result = BacktestResult(
             symbol=symbol,
             params=materialize_result_params(params),
             verified_symbol=observed_symbol,
             timestamp=datetime.now().isoformat(),
+            result_truth=truth,
+        )
+        truth.record(
+            "symbol_loaded",
+            "ok",
+            details={"expected": self._normalize_symbol(symbol), "observed": observed_symbol},
+        )
+        broker_ok = bool(expected_broker and observed_broker)
+        truth.record(
+            "broker_loaded",
+            "ok" if broker_ok else "missing",
+            reason="" if broker_ok else "could not read broker/feed from TradingView",
+            details={"expected": expected_broker, "observed": observed_broker},
         )
         try:
-            if not await self._ensure_strategy_report_metrics_tab():
+            metrics_tab_ok = await self._ensure_strategy_report_metrics_tab()
+            truth.record(
+                "metrics_tab_selected",
+                "ok" if metrics_tab_ok else "fail",
+                reason="" if metrics_tab_ok else "Strategy Report Metrics tab was not visible",
+            )
+            if not metrics_tab_ok:
                 log.warning("_read_results: Strategy Report Metrics tab was not visible")
+            raw_range_text = await self._read_backtest_range_button_text()
+            range_text = raw_range_text if isinstance(raw_range_text, str) else ""
+            if normalize_backtest_range(backtest_range) == "custom":
+                range_ok = self._range_matches_custom_dates(range_text, custom_start_date, custom_end_date)
+                truth.record(
+                    "strategy_tester_range_selected",
+                    "ok" if range_ok else "fail",
+                    reason="" if range_ok else "Strategy Tester range did not match requested custom dates",
+                    details={"button_text": range_text, "start_date": custom_start_date, "end_date": custom_end_date},
+                )
+                truth.record(
+                    "custom_dates_selected",
+                    "ok" if range_ok else "fail",
+                    reason="" if range_ok else "custom date inputs were not confirmed in Strategy Tester",
+                    details={"start_date": custom_start_date, "end_date": custom_end_date},
+                )
+                coverage = self._last_chart_history_coverage
+                coverage_ok = bool(coverage and coverage.coverage_ratio >= _HISTORY_COVERAGE_MIN_RATIO)
+                truth.record(
+                    "chart_history_covered",
+                    "ok" if coverage_ok else "missing",
+                    reason="" if coverage_ok else "chart-history coverage was not captured for custom range",
+                    details=self._coverage_payload(coverage),
+                )
+            else:
+                preset_label = backtest_range_to_label(backtest_range)
+                range_ok = self._range_matches_label(range_text, preset_label)
+                truth.record(
+                    "strategy_tester_range_selected",
+                    "ok" if range_ok else "fail",
+                    reason="" if range_ok else f"Strategy Tester range did not match {preset_label}",
+                    details={"button_text": range_text, "preset_label": preset_label},
+                )
+                truth.record(
+                    "custom_dates_selected",
+                    "not_applicable",
+                    required=False,
+                    reason="preset range",
+                )
+                truth.record(
+                    "chart_history_covered",
+                    "not_applicable",
+                    required=False,
+                    reason="preset Strategy Tester range",
+                )
+            truth.record(
+                "trade_coverage_verified",
+                "not_applicable",
+                required=False,
+                reason="trade coverage is only inspectable for custom validation ranges",
+            )
+            if truth.source_params_digest:
+                truth.record(
+                    "source_params_digest_preserved",
+                    "ok",
+                    details={"source_params_digest": truth.source_params_digest},
+                )
+            else:
+                truth.record(
+                    "source_params_digest_preserved",
+                    "not_applicable",
+                    required=False,
+                    reason="not a source-param validation result",
+                )
+            truth.record(
+                "final_replay_matched_or_replaced",
+                "not_applicable",
+                required=False,
+                reason="not a final replay result",
+            )
+            truth.record(
+                "trade_count_anomaly_explained",
+                "not_applicable",
+                required=False,
+                reason="single-window result",
+            )
             metrics = await self.page.evaluate(_JS_COLLECT_METRICS)
             for key, value in (metrics or {}).items():
                 kl = key.lower()
@@ -4518,6 +4746,7 @@ class TabWorker:
             print(f" [read error: {e}]", end="")
 
         result.calculate_score()
+        result.result_truth.finalize()
         return result
 
     async def _read_strategy_trade_coverage(
@@ -4795,12 +5024,39 @@ class TabWorker:
         if not apply_outcome.fresh:
             raise RuntimeError(apply_outcome.reason or "frozen params did not produce a fresh result")
         result = await self._read_results(symbol, params)
+        result.result_truth.stage = "validation"
+        self._attach_apply_truth(result, apply_outcome, frozen_params=True)
         if self.optimizer.backtest_range == "custom":
-            await self._verify_custom_strategy_trade_coverage(
+            coverage = await self._verify_custom_strategy_trade_coverage(
                 result,
                 custom_start_date or self.optimizer.custom_start_date,
                 custom_end_date or self.optimizer.custom_end_date,
             )
+            status = result.validation_metrics.get("strategy_trade_coverage", {}).get("status")
+            if status:
+                evidence_status = "warn"
+                reason = status
+            elif coverage.coverage_ratio >= _TRADE_COVERAGE_MIN_RATIO:
+                evidence_status = "ok"
+                reason = ""
+            else:
+                evidence_status = "fail"
+                reason = "trade timestamps did not cover enough of the requested custom range"
+            result.result_truth.record(
+                "trade_coverage_verified",
+                evidence_status,
+                reason=reason,
+                details=result.validation_metrics.get("strategy_trade_coverage", {}),
+            )
+        source_digest = str(getattr(self.optimizer, "source_params_digest", "") or "")
+        if source_digest:
+            result.result_truth.source_params_digest = source_digest
+            result.result_truth.record(
+                "source_params_digest_preserved",
+                "ok",
+                details={"source_params_digest": source_digest},
+            )
+        result.result_truth.finalize()
         self.results.append(result)
         _print_pair_summary_table(result)
         return result
