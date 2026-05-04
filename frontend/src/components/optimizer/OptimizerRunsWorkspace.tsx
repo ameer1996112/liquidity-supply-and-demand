@@ -3,7 +3,11 @@
 import { useEffect, useState } from 'react';
 import {
   ArrowDownRight,
+  AlertTriangle,
   BarChart3,
+  Ban,
+  CheckCircle2,
+  Clock3,
   Info,
   Loader2,
   Play,
@@ -24,6 +28,8 @@ import {
   useOptimizerRunTrials,
   useOptimizerRuns,
 } from '@/hooks/useOptimizerRuns';
+import { useTradePermissionsDashboard } from '@/hooks/useTradePermissionsDashboard';
+import type { TradeDecision, TradePermissionsDashboard } from '@/hooks/useTradePermissionsDashboard';
 import type {
   OptimizerPortfolioResultApi,
   OptimizerRunApi,
@@ -159,6 +165,29 @@ function decisionTone(decision: string) {
   return 'border-slate-500/30 bg-slate-500/12 text-slate-200';
 }
 
+const PRODUCTION_DECISION_COPY: Record<TradeDecision, { label: string; tone: string; Icon: typeof ShieldCheck }> = {
+  TRADE_NORMAL_RISK: {
+    label: 'Trade normal risk',
+    tone: 'border-emerald-500/30 bg-emerald-500/12 text-emerald-200',
+    Icon: ShieldCheck,
+  },
+  TRADE_REDUCED_RISK: {
+    label: 'Trade reduced risk',
+    tone: 'border-amber-500/30 bg-amber-500/12 text-amber-200',
+    Icon: AlertTriangle,
+  },
+  WATCH_ONLY: {
+    label: 'Watch only',
+    tone: 'border-sky-500/30 bg-sky-500/12 text-sky-200',
+    Icon: Clock3,
+  },
+  NO_TRADE: {
+    label: 'No trade',
+    tone: 'border-red-500/30 bg-red-500/12 text-red-200',
+    Icon: Ban,
+  },
+};
+
 function derivePortfolioCounts(
   results: OptimizerRunResultApi[],
   portfolioResult?: OptimizerPortfolioResultApi | null
@@ -188,6 +217,123 @@ function derivePortfolioCounts(
   }
 
   return { approved, reduced, rejected, unresolved };
+}
+
+function OptimizerPermissionTile({ label, value }: { label: string; value: number }) {
+  return (
+    <div className='rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)]/35 p-3'>
+      <p className='text-[10px] uppercase tracking-[0.15em] text-[var(--to-text-dim)]'>{label}</p>
+      <p className='mt-2 font-mono text-2xl font-semibold leading-none text-[var(--to-text-primary)]'>{value}</p>
+    </div>
+  );
+}
+
+function OptimizerPermissionReasons({ title, rows }: { title: string; rows: Record<string, string[]> }) {
+  const entries = Object.entries(rows).slice(0, 3);
+  if (entries.length === 0) return null;
+
+  return (
+    <div className='min-w-0 rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)]/20 p-3'>
+      <p className='text-[10px] uppercase tracking-[0.15em] text-[var(--to-text-dim)]'>{title}</p>
+      <div className='mt-2 space-y-1.5'>
+        {entries.map(([symbol, reasons]) => (
+          <div key={symbol} className='flex min-w-0 items-start gap-2 text-xs'>
+            <span className='font-mono font-semibold text-[var(--to-text-primary)]'>{symbol}</span>
+            <span className='min-w-0 truncate text-[var(--to-text-secondary)]'>{reasons.join(', ')}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ProductionPermissionPanel({
+  data,
+  isLoading,
+}: {
+  data?: TradePermissionsDashboard;
+  isLoading: boolean;
+}) {
+  const decision = data?.global_decision ?? 'NO_TRADE';
+  const decisionCopy = PRODUCTION_DECISION_COPY[decision];
+  const DecisionIcon = decisionCopy.Icon;
+  const allowed = data?.allowed_today ?? {};
+  const blocked = data?.blocked_today ?? {};
+  const watchOnly = data?.watch_only ?? {};
+  const researchCount = Object.keys(data?.research_approved_candidates ?? {}).length;
+  const allowedEntries = Object.entries(allowed).slice(0, 4);
+
+  return (
+    <Card className='border-[var(--to-border)]/90 bg-[linear-gradient(135deg,rgba(12,16,22,0.94),rgba(20,25,35,0.82))]'>
+      <CardHeader>
+        <div className='flex flex-wrap items-start justify-between gap-3'>
+          <div>
+            <CardTitle className='flex items-center gap-2'>
+              <ShieldCheck className='h-4 w-4 text-[var(--to-accent-amber)]' />
+              Production permission gate
+            </CardTitle>
+            <CardDescription>Daily bot permission is separate from optimizer research approval.</CardDescription>
+          </div>
+          <Badge className={cn('border px-2 py-1 capitalize', decisionCopy.tone)}>
+            <DecisionIcon className='mr-1.5 h-3.5 w-3.5' />
+            {decisionCopy.label}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className='space-y-4'>
+        <div className='grid gap-3 md:grid-cols-4'>
+          <OptimizerPermissionTile label='Allowed today' value={Object.keys(allowed).length} />
+          <OptimizerPermissionTile label='Blocked today' value={Object.keys(blocked).length} />
+          <OptimizerPermissionTile label='Watch only' value={Object.keys(watchOnly).length} />
+          <OptimizerPermissionTile label='Research approved' value={researchCount} />
+        </div>
+
+        <div className='grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]'>
+          <div className='rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)]/20 p-3'>
+            <div className='flex items-center gap-2'>
+              {allowedEntries.length > 0 ? (
+                <CheckCircle2 className='h-4 w-4 text-emerald-300' />
+              ) : (
+                <Ban className='h-4 w-4 text-red-300' />
+              )}
+              <p className='text-[10px] uppercase tracking-[0.15em] text-[var(--to-text-dim)]'>Allowed symbols</p>
+            </div>
+            {isLoading ? (
+              <p className='mt-2 text-xs text-[var(--to-text-dim)]'>Loading permission state...</p>
+            ) : allowedEntries.length > 0 ? (
+              <div className='mt-3 grid gap-2 md:grid-cols-2'>
+                {allowedEntries.map(([symbol, permission]) => (
+                  <div key={symbol} className='rounded-md border border-[var(--to-border)] bg-[var(--to-surface)] px-3 py-2'>
+                    <div className='flex items-center justify-between gap-2'>
+                      <span className='font-mono text-sm font-semibold text-[var(--to-text-primary)]'>{symbol}</span>
+                      <span className='text-xs text-[var(--to-text-secondary)]'>{permission.risk_per_trade_pct}%</span>
+                    </div>
+                    <p className='mt-1 truncate text-xs text-[var(--to-text-dim)]'>
+                      {permission.status.replace('TRADE_', '').replace(/_/g, ' ').toLowerCase()} · max {permission.max_trades_today}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className='mt-2 text-xs text-[var(--to-text-secondary)]'>
+                No pair is explicitly allowed today. The execution guard will block live orders until daily permission exists.
+              </p>
+            )}
+          </div>
+
+          <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-1'>
+            <OptimizerPermissionReasons title='Blocked reasons' rows={blocked} />
+            <OptimizerPermissionReasons title='Watch-only reasons' rows={watchOnly} />
+            {!isLoading && Object.keys(blocked).length === 0 && Object.keys(watchOnly).length === 0 ? (
+              <div className='rounded-lg border border-[var(--to-border)] bg-[var(--to-surface-raised)]/20 p-3'>
+                <p className='text-xs text-[var(--to-text-dim)]'>No block or watch-only reasons are currently reported.</p>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
 function summarizeTrialWindows(trials: OptimizerRunTrialApi[]) {
@@ -776,6 +922,7 @@ export function OptimizerRunsWorkspace() {
   const [dryRun, setDryRun] = useState(true);
 
   const { data: runs = [], isLoading: runsLoading } = useOptimizerRuns();
+  const { data: tradePermissions, isLoading: tradePermissionsLoading } = useTradePermissionsDashboard();
   const { data: agentStatus } = useAgentStatus();
   const createRun = useCreateOptimizerRun();
   const cancelRun = useCancelOptimizerRun();
@@ -1118,6 +1265,11 @@ export function OptimizerRunsWorkspace() {
           </div>
         </CardContent>
       </Card>
+
+      <ProductionPermissionPanel
+        data={tradePermissions}
+        isLoading={tradePermissionsLoading}
+      />
 
       <Card>
         <CardHeader>
