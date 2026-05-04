@@ -16,6 +16,13 @@ TRADE_REDUCED_RISK = "TRADE_REDUCED_RISK"
 WATCH_ONLY = "WATCH_ONLY"
 NO_TRADE = "NO_TRADE"
 TRADEABLE = {TRADE_NORMAL_RISK, TRADE_REDUCED_RISK}
+NO_RESEARCH_APPROVED_CANDIDATE_REASONS = [
+    "no_research_approved_candidates",
+    "strategy_fidelity_not_proven",
+    "result_truth_not_available",
+    "trade_level_stress_not_available",
+    "prop_survival_not_available",
+]
 
 
 def _parse_time(value: str) -> datetime:
@@ -91,8 +98,9 @@ def build_daily_permissions(
     permissions: dict[str, Any] = {}
     blocked: dict[str, list[str]] = {}
     watch_only: dict[str, list[str]] = {}
+    candidates = approved_candidates.get("candidates") or {}
 
-    for symbol, candidate in sorted((approved_candidates.get("candidates") or {}).items()):
+    for symbol, candidate in sorted(candidates.items()):
         status, reasons = _decision_for_symbol(
             symbol,
             candidate,
@@ -133,7 +141,7 @@ def build_daily_permissions(
         global_decision = TRADE_REDUCED_RISK
     elif watch_only:
         global_decision = WATCH_ONLY
-    return {
+    payload = {
         "schema_version": 1,
         "generated_at": generated_at,
         "account_profile": account_profile,
@@ -142,6 +150,12 @@ def build_daily_permissions(
         "blocked": blocked,
         "watch_only": watch_only,
     }
+    if global_decision == NO_TRADE:
+        if not candidates:
+            payload["reasons"] = list(NO_RESEARCH_APPROVED_CANDIDATE_REASONS)
+        else:
+            payload["reasons"] = sorted({reason for reasons in blocked.values() for reason in reasons})
+    return payload
 
 
 def write_daily_permissions(

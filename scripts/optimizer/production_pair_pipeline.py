@@ -8,9 +8,11 @@ from typing import Any
 
 try:
     from .daily_trade_permission_writer import build_daily_permissions
+    from .research_approval_writer import build_approved_candidates
     from .config import RESULTS_DIR
 except ImportError:
     from scripts.optimizer.daily_trade_permission_writer import build_daily_permissions
+    from scripts.optimizer.research_approval_writer import build_approved_candidates
     from scripts.optimizer.config import RESULTS_DIR
 
 
@@ -53,8 +55,8 @@ def run_pipeline(
         "stability": run_stability,
         "stress": run_stress,
         "prop_sim": run_prop_sim,
-        "approved_candidates": write_approved_candidates_flag,
-        "daily_permissions": run_daily_permissions,
+        "approved_candidates": True,
+        "daily_permissions": True,
     }
     executed = [name for name, enabled in steps.items() if enabled]
     status = {
@@ -78,6 +80,7 @@ def run_pipeline(
         "research_approved_candidates": [],
         "expiring_candidates": [],
         "recent_rejects": [],
+        "no_trade_reasons": [],
         "issue_detector": {"status": "not_run" if dry_run else "pending"},
         "execution_health": {"status": "not_checked" if dry_run else "pending"},
         "account_risk_buffer": {"status": "not_checked" if dry_run else "pending"},
@@ -86,25 +89,25 @@ def run_pipeline(
     _write(results_dir / "pipeline_status.json", status)
     _write(results_dir / "pipeline_summary.json", summary)
     _write(results_dir / "pipeline_errors.json", errors)
-    if run_daily_permissions:
-        approved_path = results_dir / "approved_candidates.json"
-        approved = json.loads(approved_path.read_text()) if approved_path.exists() else {"schema_version": 1, "candidates": {}}
-        daily = build_daily_permissions(
-            approved,
-            account_profile=prop_profile,
-            generated_at=started,
-            spread_state={},
-            news_state={},
-            account_state={"buffer_status": "safe"},
-            regime_state={},
-            decay_state={},
-            execution_health={"status": "healthy"},
-        )
-        _write(results_dir / "daily_trade_permissions.json", daily)
-        summary["global_decision"] = daily["global_decision"]
-        summary["allowed_today"] = sorted(daily["permissions"])
-        summary["blocked_today"] = sorted(daily["blocked"])
-        _write(results_dir / "pipeline_summary.json", summary)
+    approved, _rejected = build_approved_candidates([], generated_at=started)
+    _write(results_dir / "approved_candidates.json", approved)
+    daily = build_daily_permissions(
+        approved,
+        account_profile=prop_profile,
+        generated_at=started,
+        spread_state={},
+        news_state={},
+        account_state={"buffer_status": "safe"},
+        regime_state={},
+        decay_state={},
+        execution_health={"status": "healthy"},
+    )
+    _write(results_dir / "daily_trade_permissions.json", daily)
+    summary["global_decision"] = daily["global_decision"]
+    summary["allowed_today"] = sorted(daily["permissions"])
+    summary["blocked_today"] = sorted(daily["blocked"])
+    summary["no_trade_reasons"] = daily.get("reasons", [])
+    _write(results_dir / "pipeline_summary.json", summary)
     return status
 
 

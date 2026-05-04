@@ -23,6 +23,9 @@ RESEARCH_GATES = {
     "human_review_status": {"reviewed", "approved"},
     "anomaly_status": {"passed", "none"},
 }
+EMPTY_APPROVED_CANDIDATES_WARNING = (
+    "No candidates approved because this was a dry run or required proof artifacts were missing."
+)
 
 
 def _now() -> str:
@@ -58,7 +61,10 @@ def build_approved_candidates(
         "schema_version": 1,
         "generated_at": generated_at,
         "human_review_required": True,
+        "global_status": "NO_RESEARCH_APPROVED_CANDIDATES",
         "candidates": {},
+        "rejected": {},
+        "warnings": [],
     }
     rejected: dict[str, list[str]] = {}
     for row in candidate_rows:
@@ -90,6 +96,11 @@ def build_approved_candidates(
             },
             "params": params,
         }
+    payload["rejected"] = rejected
+    if payload["candidates"]:
+        payload["global_status"] = "RESEARCH_APPROVED_CANDIDATES"
+    else:
+        payload["warnings"] = [EMPTY_APPROVED_CANDIDATES_WARNING]
     return payload, rejected
 
 

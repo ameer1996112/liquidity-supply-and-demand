@@ -1,6 +1,15 @@
 from scripts.optimizer.daily_trade_permission_writer import build_daily_permissions
 
 
+NO_TRADE_REASONS = [
+    "no_research_approved_candidates",
+    "strategy_fidelity_not_proven",
+    "result_truth_not_available",
+    "trade_level_stress_not_available",
+    "prop_survival_not_available",
+]
+
+
 def _approved_candidates() -> dict:
     return {
         "schema_version": 1,
@@ -53,3 +62,22 @@ def test_recent_decay_reduces_risk_but_still_allows_trade() -> None:
     assert permissions["global_decision"] == "TRADE_REDUCED_RISK"
     assert permissions["permissions"]["USDJPY"]["status"] == "TRADE_REDUCED_RISK"
     assert permissions["permissions"]["USDJPY"]["risk_per_trade_pct"] == 0.125
+
+
+def test_empty_approved_candidates_writes_no_trade_reasons() -> None:
+    permissions = build_daily_permissions(
+        {"schema_version": 1, "candidates": {}},
+        account_profile="alpha_50k_safe",
+        generated_at="2026-05-05T06:00:00Z",
+    )
+
+    assert permissions == {
+        "schema_version": 1,
+        "generated_at": "2026-05-05T06:00:00Z",
+        "account_profile": "alpha_50k_safe",
+        "global_decision": "NO_TRADE",
+        "permissions": {},
+        "blocked": {},
+        "watch_only": {},
+        "reasons": NO_TRADE_REASONS,
+    }

@@ -85,3 +85,64 @@ def test_guard_blocks_excessive_risk_and_outside_session(tmp_path) -> None:
 
     assert passed is False
     assert "outside_permission_session" in reason
+
+
+def test_guard_blocks_when_approved_candidates_missing(tmp_path) -> None:
+    approved, daily, emergency = _write_permissions(tmp_path)
+    approved.unlink()
+    guard = TradingPermissionGuard(
+        approved_candidates_path=approved,
+        daily_permissions_path=daily,
+        emergency_stop_path=emergency,
+        now_provider=lambda: datetime(2026, 5, 5, 8, 0, tzinfo=timezone.utc),
+    )
+
+    passed, reason = guard.check({"symbol": "USDJPY", "params_hash": "abc123", "risk_per_trade_pct": 0.2})
+
+    assert passed is False
+    assert reason == "permission_file_missing:approved_candidates.json"
+
+
+def test_guard_blocks_when_daily_permissions_missing(tmp_path) -> None:
+    approved, daily, emergency = _write_permissions(tmp_path)
+    daily.unlink()
+    guard = TradingPermissionGuard(
+        approved_candidates_path=approved,
+        daily_permissions_path=daily,
+        emergency_stop_path=emergency,
+        now_provider=lambda: datetime(2026, 5, 5, 8, 0, tzinfo=timezone.utc),
+    )
+
+    passed, reason = guard.check({"symbol": "USDJPY", "params_hash": "abc123", "risk_per_trade_pct": 0.2})
+
+    assert passed is False
+    assert reason == "permission_file_missing:daily_trade_permissions.json"
+
+
+def test_guard_blocks_when_permissions_empty(tmp_path) -> None:
+    approved, daily, emergency = _write_permissions(tmp_path)
+    daily.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "generated_at": "2026-05-05T06:00:00Z",
+                "account_profile": "alpha_50k_safe",
+                "global_decision": "NO_TRADE",
+                "permissions": {},
+                "blocked": {},
+                "watch_only": {},
+                "reasons": ["no_research_approved_candidates"],
+            }
+        )
+    )
+    guard = TradingPermissionGuard(
+        approved_candidates_path=approved,
+        daily_permissions_path=daily,
+        emergency_stop_path=emergency,
+        now_provider=lambda: datetime(2026, 5, 5, 8, 0, tzinfo=timezone.utc),
+    )
+
+    passed, reason = guard.check({"symbol": "USDJPY", "params_hash": "abc123", "risk_per_trade_pct": 0.2})
+
+    assert passed is False
+    assert reason == "missing_daily_permission"
