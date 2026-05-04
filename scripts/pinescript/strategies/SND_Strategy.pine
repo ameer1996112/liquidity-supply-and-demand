@@ -3227,9 +3227,6 @@ process_long_entries() =>
                     [tp_r, be_trig, be_sl, move_be] = get_tp_ratio(syminfo.ticker, sl_pips)
 
 
-                    if enable_double_tp
-                        tp_r := tp_r * 2.0
-
                     if not na(tp_r)
                         take_profit_price := entry_price + (pip_distance * tp_r)
 
@@ -3673,9 +3670,6 @@ process_short_entries() =>
                 if use_take_profit and sl_pips > 0
                     [tp_r, be_trig, be_sl, move_be] = get_tp_ratio(syminfo.ticker, sl_pips)
 
-
-                    if enable_double_tp
-                        tp_r := tp_r * 2.0
 
                     if not na(tp_r)
                         take_profit_price := entry_price - (pip_distance * tp_r)

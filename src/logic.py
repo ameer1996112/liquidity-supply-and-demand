@@ -234,6 +234,32 @@ def process_trade(
             except Exception as _te:
                 logger.debug("Paper close thread/reply update skipped: %s", _te)
         elif getattr(s, "live_trading_enabled", False):
+            price_triggered_exit_types = {"tp_hit", "sl_hit", "break_even"}
+            exit_type = str(exit_data.get("exit_type") or "").lower()
+            if exit_type in price_triggered_exit_types:
+                logger.info(
+                    "LIVE %s exit from TradingView is advisory only for zone_id=%s trade_key=%s; "
+                    "broker-attached SL/TP remains source of truth",
+                    exit_type,
+                    data["zone_id"],
+                    trade_key or "<none>",
+                )
+                try:
+                    client = supabase_module.supabase
+                    if client:
+                        note = (
+                            f"TradingView {exit_type} alert received at {exit_data.get('close_price')}, "
+                            "but LIVE broker SL/TP is authoritative; no market close sent."
+                        )
+                        query = client.table("trading_signals").update({"notes": note})
+                        if trade_key:
+                            query.eq("trade_key", trade_key).execute()
+                        else:
+                            query.eq("zone_id", data["zone_id"]).execute()
+                except Exception as note_err:  # noqa: BLE001
+                    logger.debug("Could not annotate advisory TradingView exit: %s", note_err)
+                return
+
             alert = None
             try:
                 # Use profile-specific adapter when available (multi-account)
