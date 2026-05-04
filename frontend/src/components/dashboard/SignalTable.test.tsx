@@ -202,4 +202,48 @@ describe('SignalTable', () => {
     expect(container.textContent).toContain('420.64');
     expect(container.textContent).not.toContain('1126.76');
   });
+
+  it('uses realized DB PnL when a broker-synced signal has close data but stale open status', () => {
+    const closedSignal: TradingSignal = {
+      ...signals[0],
+      id: '516',
+      symbol: 'XAUUSD',
+      pnl: 420.64,
+      pnl_usd: 420.64,
+      commission: 0,
+      swap: 0,
+      status: 'executed',
+      closed_at: '2026-04-16T13:00:00.000Z',
+      exit_price: 4468.53,
+    };
+    const brokerMap: Record<string, ActivePosition> = {
+      '516': {
+        id: 516,
+        symbol: 'XAUUSD',
+        side: 'sell',
+        entry: 4604.85,
+        sl: 4613.37,
+        tp: 4468.53,
+        size: 0.08,
+        broker_order_id: '89146771',
+        current_price: 4464.25,
+        live_pnl: 1126.76,
+        live_pnl_pct: 2.25,
+        hold_duration_seconds: 3600,
+        created_at: closedSignal.created_at,
+        zone_type: null,
+        entry_model: null,
+        rr_ratio: null,
+        is_stale: false,
+        broker_exists: false,
+      },
+    };
+
+    act(() => {
+      root.render(<SignalTable signals={[closedSignal]} brokerMap={brokerMap} />);
+    });
+
+    expect(container.textContent).toContain('420.64');
+    expect(container.textContent).not.toContain('1126.76');
+  });
 });

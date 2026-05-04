@@ -99,6 +99,10 @@ function isTerminalStatus(status: string): boolean {
   return isClosedStatus(status) || isRejectedStatus(status) || isFilteredStatus(status);
 }
 
+function hasRealizedClose(signal: TradingSignal): boolean {
+  return Boolean(signal.closed_at || signal.exit_price != null || isTerminalStatus(signal.status));
+}
+
 /** Left-border color class based on signal side */
 function sideBorderColor(side: string): string {
   const s = (side ?? '').toLowerCase();
@@ -597,7 +601,7 @@ export function SignalTable({
         const broker = brokerMap[String(signal.id)];
         const livePnl = broker?.live_pnl;
         const dbPnl = getPnl(signal);
-        const shouldShowLivePnl = isOpenStatus(signal.status) && livePnl != null;
+        const shouldShowLivePnl = isOpenStatus(signal.status) && !hasRealizedClose(signal) && livePnl != null;
 
         if (shouldShowLivePnl) {
           const isPos = livePnl >= 0;
