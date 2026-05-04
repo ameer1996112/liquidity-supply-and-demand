@@ -10,6 +10,7 @@ import { PageStatusBanner } from '@/components/shared/PageStatusBanner';
 import { AggregateBar } from '@/components/dashboard/AggregateBar';
 import { AccountStrip } from '@/components/dashboard/AccountStrip';
 import { OpenPositionsTable } from '@/components/dashboard/OpenPositionsTable';
+import { TradePermissionsPanel } from '@/components/dashboard/TradePermissionsPanel';
 import { useTradingMode } from '@/providers/TradingModeProvider';
 import { useActiveAccount } from '@/providers/ActiveAccountProvider';
 import {
@@ -21,6 +22,7 @@ import { useConnectionHealth } from '@/hooks/useConnectionHealth';
 import { useActivePositions } from '@/hooks/usePositions';
 import { useDashboardLog } from '@/hooks/useDashboardLog';
 import { useDashboardSummary } from '@/hooks/useDashboardSummary';
+import { useTradePermissionsDashboard } from '@/hooks/useTradePermissionsDashboard';
 import { useAccountsComparison } from '@/hooks/useAccounts';
 import type { TradingSignal } from '@/types/trading';
 import { TableSkeleton } from '@/components/shared/TableStates';
@@ -52,6 +54,7 @@ export default function DashboardPage() {
   const signalMode = (activeProfile?.run_mode as typeof activeMode | undefined) ?? activeMode;
 
   const { data: dashboardSummary, isLoading: summaryLoading } = useDashboardSummary();
+  const { data: tradePermissions, isLoading: tradePermissionsLoading } = useTradePermissionsDashboard();
   const { data: accounts = [], isLoading: accountsLoading } = useAccountsComparison();
   // Fetch signals for ALL accounts (no broker_profile_id filter) so every account's
   // signals appear in the table. The AccountStrip handles per-account filtering client-side.
@@ -208,6 +211,11 @@ export default function DashboardPage() {
             signalCounts={signalCounts}
           />
         </section>
+
+        <TradePermissionsPanel
+          data={tradePermissions}
+          isLoading={tradePermissionsLoading}
+        />
 
         {/* ── Open positions ── */}
         <OpenPositionsTable
